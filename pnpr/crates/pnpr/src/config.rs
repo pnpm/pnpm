@@ -1,6 +1,6 @@
 use crate::{
     error::RegistryError,
-    policy::{AccessGroups, AccessList, Identity, PackagePolicies, PackagePolicy},
+    policy::{AccessGroups, AccessList, Identity, PackageRule, PackageRules},
     registry::{PackagePattern, Registries, Registry, RegistryConfigError},
     s3::{S3Settings, build_s3_store},
 };
@@ -75,12 +75,6 @@ pub struct Config {
     /// `upstream` entries and consumed by the `/~<name>/` serving and route
     /// classification.
     pub upstreams: IndexMap<String, UpstreamConfig>,
-    /// The raw per-package `access` / `publish` / `unpublish` rules from the
-    /// YAML `packages:` block, in declared order. [`Self::policies`] is the
-    /// compiled form the server enforces; this keeps the declared shape for
-    /// introspection. Access control only — routing a package to its origin
-    /// is the registry graph's job ([`Self::registries`]).
-    pub packages: IndexMap<String, PackageAccess>,
     /// Optional static group memberships used by named access tokens in
     /// package policies and upstream aliases.
     pub groups: AccessGroups,
@@ -88,14 +82,6 @@ pub struct Config {
     /// re-fetched from the resolved upstream. Ignored when no upstream
     /// matches.
     pub packument_ttl: Duration,
-    /// Per-package access, publish, and unpublish rules. [`Config::from_yaml`]
-    /// compiles these from the YAML `packages:` block (each entry's
-    /// `access` / `publish` / `unpublish` tokens); the programmatic
-    /// [`Config::proxy`] / [`Config::static_serve`] constructors use
-    /// [`PackagePolicies::registry_mock_defaults`] instead, enforcing
-    /// the `@private/*` and `@pnpm.e2e/needs-auth` rules
-    /// `@pnpm/registry-mock` applied under verdaccio.
-    pub policies: PackagePolicies,
     /// Where to read/write the htpasswd-format user file and the
     /// token database. Both stores are in-memory when their paths
     /// are `None`, matching the original `@pnpm/registry-mock` mode
@@ -155,19 +141,20 @@ pub struct Config {
     pub hosted: IndexMap<String, HostedConfig>,
 }
 
-/// A resolved hosted registry: the `org` namespace it serves and the access policy
-/// applied to every package under it. Per-package ACLs in [`Config::policies`]
-/// compose on top (logical AND) for finer control.
+/// A resolved hosted registry: the `org` namespace it serves and its
+/// `packages:` rules — the namespace it claims plus the per-package
+/// `access` / `publish` / `unpublish` policies, with the registry-level
+/// `access:` as the default an entry's omitted fields fall back to.
 #[derive(Debug, Clone)]
 pub struct HostedConfig {
     /// The storage/serving namespace, so two hosted registries holding the same
     /// `name@version` never collide. Empty (`""`) ⇒ the flat `storage` root.
     pub org: String,
-    /// Who may reach this registry at all — gates reads *and* the write routing
-    /// (publish, dist-tag, unpublish), with a denied caller masked as
-    /// not-found either way. Defaults to `$all` (a public hosted registry) when
-    /// the registry omits `access:`.
-    pub access: AccessList,
+    /// The registry's `packages:` map: namespace and per-package rules in one
+    /// declaration, selected by specificity. The effective `access` gates
+    /// reads *and* the write routing (publish, dist-tag, unpublish), with a
+    /// denied caller masked as not-found either way.
+    pub rules: PackageRules,
 }
 
 /// Which fetch routes the resolution cache treats as public. The official
@@ -524,6 +511,12 @@ pub struct UpstreamConfig {
     /// a resolver private-route credential — only upstreams that declare
     /// `access:` participate in route classification.
     pub access: Option<AccessList>,
+    /// The registry's `packages:` map: the namespace it claims plus
+    /// per-package `access` refinements (a `publish`/`unpublish` value is a
+    /// config error — no write can land on an upstream). The registry-level
+    /// gate ([`Self::access`], or `$all` for a public upstream) is the default
+    /// an entry's omitted `access` falls back to.
+    pub rules: PackageRules,
 }
 
 impl UpstreamConfig {
@@ -547,6 +540,7 @@ impl UpstreamConfig {
             fail_timeout: Self::DEFAULT_FAIL_TIMEOUT,
             cache: true,
             access: None,
+            rules: PackageRules::default(),
         }
     }
 }
@@ -562,6 +556,7 @@ impl fmt::Debug for UpstreamConfig {
             .field("fail_timeout", &self.fail_timeout)
             .field("cache", &self.cache)
             .field("access", &self.access)
+            .field("rules", &self.rules)
             .finish()
     }
 }
@@ -768,6 +763,10 @@ fn resolve_upstream_config<Sys: EnvVar>(
         fail_timeout,
         cache: file.cache.unwrap_or(true),
         access: file.access.as_ref().map(AccessSpec::to_access_list),
+        // The `packages:` rules are attached by the caller
+        // (`build_registries`) — this resolver only handles the serving
+        // knobs shared with programmatic construction.
+        rules: PackageRules::default(),
     })
 }
 
@@ -841,13 +840,14 @@ fn non_empty_token(token: &str) -> Option<String> {
     (!token.trim().is_empty()).then(|| token.to_string())
 }
 
-/// Per-package access rules: `access` / `publish` / `unpublish` are verdaccio
+/// One `packages:` map value: `access` / `publish` / `unpublish` are verdaccio
 /// permission lists (built-in groups like `$all` / `$authenticated` /
-/// `$anonymous`, plus usernames / group names), compiled into the
-/// [`PackagePolicies`] that gate reads and writes. These are an access-control
-/// layer only — routing a package to its origin is the job of the registry graph
-/// (the `registry` module), not of `packages:`.
+/// `$anonymous`, plus usernames / group names), compiled into the owning
+/// registry's [`PackageRules`]. An omitted field falls back to the
+/// registry-level default. The map key set doubles as the registry's declared
+/// namespace, so one declaration routes, filters, and authorizes.
 #[derive(Debug, Default, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PackageAccess {
     pub access: Option<AccessSpec>,
     pub publish: Option<AccessSpec>,
@@ -930,13 +930,17 @@ struct HostedFile {
     /// `storage` root (`""`).
     #[serde(default)]
     org: String,
-    /// Who may read this registry's packages. Omitted ⇒ `$all`.
+    /// The registry-level default: who may read this registry's packages when
+    /// no `packages:` entry refines it. Omitted ⇒ `$all`.
     #[serde(default)]
     access: Option<AccessSpec>,
-    /// The names this registry serves and accepts publishes for. Omitted ⇒ every
-    /// name.
+    /// The names this registry serves and accepts publishes for — its
+    /// namespace — with optional per-package `access`/`publish`/`unpublish`
+    /// rules as values (`{}` or null ⇒ the registry defaults). The most
+    /// specific matching key wins; key order carries no meaning. Omitted ⇒
+    /// every name, default rules.
     #[serde(default)]
-    patterns: Vec<String>,
+    packages: IndexMap<String, Option<PackageAccess>>,
 }
 
 /// Disk shape of an `upstream:` registry — one external origin. Mirrors an
@@ -968,11 +972,14 @@ struct UpstreamFile {
     /// non-`public` upstream (otherwise no one could be authorized to use it).
     #[serde(default)]
     access: Option<AccessSpec>,
-    /// The names that may be requested through this registry. Omitted ⇒ every
-    /// name. Bounding a private upstream stops an authorized caller from
-    /// pulling arbitrary public names through its server-owned credential.
+    /// The names that may be requested through this registry — its namespace —
+    /// with optional per-package `access` refinements as values (`{}` or null
+    /// ⇒ the registry default; a `publish`/`unpublish` value is a config
+    /// error, since no write can land on an upstream). Omitted ⇒ every name.
+    /// Bounding a private upstream stops an authorized caller from pulling
+    /// arbitrary public names through its server-owned credential.
     #[serde(default)]
-    patterns: Vec<String>,
+    packages: IndexMap<String, Option<PackageAccess>>,
 }
 
 /// Disk shape of a `router:` registry: an ordered list of concrete registry names.
@@ -1027,8 +1034,16 @@ struct ConfigFile {
     /// registry and clients must address a `/~<name>/`.
     #[serde(default, rename = "defaultRegistry")]
     default_registry: Option<String>,
-    #[serde(default)]
-    packages: IndexMap<String, PackageAccess>,
+    /// The removed top-level ACL block, kept only to *reject* it loudly.
+    /// Per-package rules live on each registry's `packages:` map now; a
+    /// config still carrying the global block previously enforced access
+    /// with it, so silently dropping the key (the fate of unknown verdaccio
+    /// fields) would be a security regression — private packages would
+    /// quietly open up on upgrade. Presence-detected through a custom
+    /// deserializer because a plain `Option` maps a *bare* `packages:`
+    /// (YAML null) to `None`, which would slip past the rejection.
+    #[serde(default, deserialize_with = "detect_removed_packages_block")]
+    packages: Option<RemovedPackagesBlock>,
     /// pnpr-only static groups: each key is a group/team name and each
     /// value is the list of pnpr usernames in that group.
     #[serde(default)]
@@ -1050,6 +1065,24 @@ struct ConfigFile {
     /// intentionally not accepted.
     #[serde(default)]
     log: Option<LogEntryFile>,
+}
+
+/// Marker for a present top-level `packages:` key, whatever its value.
+#[derive(Debug)]
+struct RemovedPackagesBlock;
+
+/// `Some` whenever the `packages:` key is present — including `packages:`
+/// with no value (YAML null), which `Option<IgnoredAny>` would map to
+/// `None` and let slip past the loud rejection. The value itself is
+/// consumed and discarded; only presence matters.
+fn detect_removed_packages_block<'de, De>(
+    deserializer: De,
+) -> Result<Option<RemovedPackagesBlock>, De::Error>
+where
+    De: serde::Deserializer<'de>,
+{
+    serde::de::IgnoredAny::deserialize(deserializer)?;
+    Ok(Some(RemovedPackagesBlock))
 }
 
 /// The YAML `log:` object. Mirrors verdaccio 6's logger config.
@@ -1181,6 +1214,36 @@ const REGISTRY_MOCK_LOCAL_PATTERNS: &[&str] = &[
     "create-touch-file-one-bin",
 ];
 
+/// The `local` hosted registry's `packages:` rules in the registry-mock
+/// shape: the fixture namespace ([`REGISTRY_MOCK_LOCAL_PATTERNS`]) with
+/// default rules, `@private/*` and `@pnpm.e2e/needs-auth` restricted to
+/// authenticated callers (the rules `@pnpm/registry-mock` applied under
+/// verdaccio), and unpublish open to any authenticated user so the
+/// fixture-rewriting test flows keep working. The exact
+/// `@pnpm.e2e/needs-auth` key wins over the `@pnpm.e2e/*` scope key by
+/// specificity.
+fn registry_mock_rules() -> PackageRules {
+    let authenticated = || Some(AccessList::parse("$authenticated"));
+    let mut rules: Vec<PackageRule> = REGISTRY_MOCK_LOCAL_PATTERNS
+        .iter()
+        .map(|pattern| PackageRule {
+            pattern: PackagePattern::parse(pattern)
+                .expect("valid built-in fixture registry pattern"),
+            access: (*pattern == "@private/*").then(authenticated).flatten(),
+            publish: (*pattern == "@private/*").then(authenticated).flatten(),
+            unpublish: (*pattern == "@private/*").then(authenticated).flatten(),
+        })
+        .collect();
+    rules.push(PackageRule {
+        pattern: PackagePattern::parse("@pnpm.e2e/needs-auth")
+            .expect("valid built-in fixture registry pattern"),
+        access: authenticated(),
+        publish: authenticated(),
+        unpublish: authenticated(),
+    });
+    PackageRules::new(rules, None).with_default_unpublish(AccessList::parse("$authenticated"))
+}
+
 impl Config {
     /// Default `listen` when one isn't supplied by the caller.
     pub const DEFAULT_LISTEN: &'static str = "127.0.0.1:7677";
@@ -1209,17 +1272,10 @@ impl Config {
                 HeaderMap::new(),
             ),
         );
+        let rules = registry_mock_rules();
+        let local_patterns = rules.patterns();
         let mut hosted = IndexMap::new();
-        hosted.insert(
-            "local".to_string(),
-            HostedConfig { org: String::new(), access: AccessList::parse("$all") },
-        );
-        let local_patterns = REGISTRY_MOCK_LOCAL_PATTERNS
-            .iter()
-            .map(|pattern| {
-                PackagePattern::parse(pattern).expect("valid built-in fixture registry pattern")
-            })
-            .collect();
+        hosted.insert("local".to_string(), HostedConfig { org: String::new(), rules });
         let graph = [
             ("local".to_string(), Registry::Hosted { patterns: local_patterns }),
             ("npmjs".to_string(), Registry::Upstream { patterns: Vec::new() }),
@@ -1235,10 +1291,8 @@ impl Config {
             cache_storage: default_cache_dir(&storage),
             storage,
             upstreams,
-            packages: IndexMap::new(),
             groups: AccessGroups::default(),
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
-            policies: PackagePolicies::registry_mock_defaults(),
             auth: AuthConfig::default(),
             logs: LogConfig::default(),
             hosted_store: HostedStoreConfig::Fs,
@@ -1261,9 +1315,15 @@ impl Config {
     #[must_use]
     pub fn static_serve(listen: SocketAddr, storage: PathBuf) -> Self {
         let mut hosted = IndexMap::new();
+        // The graph entry below is pattern-less — static mode claims and
+        // serves every name in `storage` — while the rules still carry the
+        // registry-mock protections (`@private/*`, `@pnpm.e2e/needs-auth`,
+        // authenticated unpublish). Programmatic configs may split the
+        // namespace (graph) from the rules like this; YAML derives both from
+        // one `packages:` map.
         hosted.insert(
             "local".to_string(),
-            HostedConfig { org: String::new(), access: AccessList::parse("$all") },
+            HostedConfig { org: String::new(), rules: registry_mock_rules() },
         );
         let graph = [
             ("local".to_string(), Registry::Hosted { patterns: Vec::new() }),
@@ -1276,10 +1336,8 @@ impl Config {
             cache_storage: default_cache_dir(&storage),
             storage,
             upstreams: IndexMap::new(),
-            packages: IndexMap::new(),
             groups: AccessGroups::default(),
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
-            policies: PackagePolicies::registry_mock_defaults(),
             auth: AuthConfig::default(),
             logs: LogConfig::default(),
             hosted_store: HostedStoreConfig::Fs,
@@ -1497,7 +1555,18 @@ impl Config {
         let auth = build_auth_config(&file.auth, base_dir);
         let logs = build_log_config(file.log.as_ref());
         let groups = build_groups(&file.groups);
-        let policies = build_policies(&file.packages)?;
+        // The global ACL block is gone, not ignorable: it used to *enforce*
+        // access, so dropping it like an unknown verdaccio key would silently
+        // open previously-gated packages on upgrade. Fail loudly instead,
+        // naming the replacement.
+        if file.packages.is_some() {
+            return Err(RegistryError::InvalidConfig {
+                reason: "the top-level `packages:` block was removed: declare per-package rules \
+                         on the registry that serves them, as `registries.<name>.packages` \
+                         (pattern keys, `access`/`publish`/`unpublish` values)"
+                    .to_string(),
+            });
+        }
         let osv = build_osv_config(&file.osv, base_dir);
         // The npm-registry surface is derived, not configured: served iff
         // at least one registry is declared (no registries ⇒ nothing to serve),
@@ -1532,10 +1601,8 @@ impl Config {
             storage,
             cache_storage,
             upstreams,
-            packages: file.packages,
             groups,
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
-            policies,
             auth,
             logs,
             hosted_store,
@@ -1764,18 +1831,33 @@ fn build_registries(
                 {
                     return Err(org_collision_error(&name, &registry.org, other));
                 }
-                let access = registry
-                    .access
-                    .as_ref()
-                    .map_or_else(|| AccessList::parse("$all"), AccessSpec::to_access_list);
-                let patterns = build_patterns(&name, &registry.patterns)?;
-                hosted.insert(name.clone(), HostedConfig { org: registry.org, access });
+                let access = registry.access.as_ref().map(AccessSpec::to_access_list);
+                let rules = build_rules(&name, &registry.packages, access)?;
+                let patterns = rules.patterns();
+                hosted.insert(name.clone(), HostedConfig { org: registry.org, rules });
                 graph.insert(name, Registry::Hosted { patterns });
             }
             RegistryFile::Upstream(upstream) => {
-                let patterns = build_patterns(&name, &upstream.patterns)?;
+                // The registry-level default the rules fall back to: the
+                // upstream's `access:` gate, or `$all` for a public origin.
+                // Built before the `resolve_upstreams` fork so the graph
+                // carries the namespace on every tier, and so a
+                // `publish`/`unpublish` value — a write rule on a registry no
+                // write can land on — fails startup on every tier too.
+                let access = upstream.access.as_ref().map(AccessSpec::to_access_list);
+                let rules = build_rules(&name, &upstream.packages, access)?;
+                if rules.refines_writes() {
+                    return Err(RegistryError::InvalidConfig {
+                        reason: format!(
+                            "upstream registry {name:?} declares `publish`/`unpublish` rules in \
+                             its `packages:` map; writes can never land on an upstream",
+                        ),
+                    });
+                }
+                let patterns = rules.patterns();
                 if resolve_upstreams {
-                    let resolved = resolve_upstream_registry::<SystemEnv>(&name, *upstream)?;
+                    let mut resolved = resolve_upstream_registry::<SystemEnv>(&name, *upstream)?;
+                    resolved.rules = rules;
                     upstreams.insert(name.clone(), resolved);
                 }
                 graph.insert(name, Registry::Upstream { patterns });
@@ -1847,22 +1929,41 @@ fn validate_org_namespace(name: &str, org: &str) -> Result<(), RegistryError> {
     })
 }
 
-/// Compile a concrete registry's `patterns:` list into the decidable
-/// [`PackagePattern`] language. Duplicate patterns and the routing-graph
-/// checks are handled later by [`Registries::validate`] once the whole graph
-/// exists.
-fn build_patterns(
+/// Compile a concrete registry's `packages:` map into its [`PackageRules`]:
+/// keys parsed into the decidable [`PackagePattern`] language, values into
+/// per-package permission rules (`{}`/null ⇒ all fields default). Selection
+/// is by specificity, so key order carries no meaning; a duplicate key is the
+/// only within-registry error, and the YAML parser already rejects literal
+/// duplicates in one mapping — the check here guards the graph invariant for
+/// any other construction path. Routing-graph checks are handled later by
+/// [`Registries::validate`] once the whole graph exists.
+fn build_rules(
     registry: &str,
-    patterns: &[String],
-) -> Result<Vec<PackagePattern>, RegistryError> {
-    patterns
+    packages: &IndexMap<String, Option<PackageAccess>>,
+    default_access: Option<AccessList>,
+) -> Result<PackageRules, RegistryError> {
+    let rules = packages
         .iter()
-        .map(|pattern| {
-            PackagePattern::parse(pattern).map_err(|err| RegistryError::InvalidConfig {
-                reason: format!("registry {registry:?}: {err}"),
+        .map(|(pattern, rule)| {
+            let pattern = PackagePattern::parse(pattern).map_err(|err| {
+                RegistryError::InvalidConfig { reason: format!("registry {registry:?}: {err}") }
+            })?;
+            let fields = rule.as_ref();
+            Ok(PackageRule {
+                pattern,
+                access: fields
+                    .and_then(|fields| fields.access.as_ref())
+                    .map(AccessSpec::to_access_list),
+                publish: fields
+                    .and_then(|fields| fields.publish.as_ref())
+                    .map(AccessSpec::to_access_list),
+                unpublish: fields
+                    .and_then(|fields| fields.unpublish.as_ref())
+                    .map(AccessSpec::to_access_list),
             })
         })
-        .collect()
+        .collect::<Result<Vec<_>, RegistryError>>()?;
+    Ok(PackageRules::new(rules, default_access))
 }
 
 /// Resolve an `upstream:` registry into the shared [`UpstreamConfig`] runtime shape.
@@ -2082,38 +2183,6 @@ fn build_log_config(entry: Option<&LogEntryFile>) -> LogConfig {
         level: entry.level.unwrap_or_default(),
         sink: entry.r#type.clone(),
     }
-}
-
-/// Compile the YAML `packages:` rules into the runtime
-/// [`PackagePolicies`], in declared order (first match wins). A
-/// missing `access` defaults to `$all`, a missing `publish` to
-/// `$authenticated`, and a missing, empty, or null `unpublish` denies
-/// destructive writes. The same safe fallback [`PackagePolicies`]
-/// applies to packages no rule matches. Errors only on an invalid glob
-/// pattern — any token string is a valid group/username, as in
-/// verdaccio.
-fn build_policies(
-    packages: &IndexMap<String, PackageAccess>,
-) -> Result<PackagePolicies, RegistryError> {
-    let rules = packages
-        .iter()
-        .map(|(pattern, access)| {
-            let access_list = access
-                .access
-                .as_ref()
-                .map_or_else(|| AccessList::parse("$all"), AccessSpec::to_access_list);
-            let publish_list = access
-                .publish
-                .as_ref()
-                .map_or_else(|| AccessList::parse("$authenticated"), AccessSpec::to_access_list);
-            let unpublish_list = access
-                .unpublish
-                .as_ref()
-                .map_or_else(AccessList::default, AccessSpec::to_access_list);
-            PackagePolicy::new(pattern, access_list, publish_list, unpublish_list)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(PackagePolicies::new(rules))
 }
 
 /// Join `config.yaml` onto a resolved config directory and keep the

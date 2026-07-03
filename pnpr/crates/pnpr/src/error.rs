@@ -53,14 +53,6 @@ pub enum RegistryError {
         filename: String,
     },
 
-    #[display("Package policy pattern {pattern:?} is invalid: {reason}")]
-    #[from(skip)]
-    InvalidPolicyPattern {
-        #[error(not(source))]
-        pattern: String,
-        reason: String,
-    },
-
     /// The YAML config could not be parsed. Startup-only — this never
     /// surfaces over HTTP, but `Config` parsing shares this error type.
     #[display("Invalid config: {reason}")]
@@ -242,7 +234,6 @@ impl RegistryError {
             RegistryError::TarballIntegrity { .. } => "tarball_integrity",
             RegistryError::InvalidPackageName { .. } => "invalid_package_name",
             RegistryError::InvalidTarballName { .. } => "invalid_tarball_name",
-            RegistryError::InvalidPolicyPattern { .. } => "invalid_policy_pattern",
             RegistryError::InvalidConfig { .. } => "invalid_config",
             RegistryError::Unauthenticated { .. } => "unauthenticated",
             RegistryError::Forbidden { .. } => "forbidden",
@@ -319,7 +310,6 @@ impl RegistryError {
             RegistryError::UpstreamUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
             RegistryError::InvalidPackageName { .. }
             | RegistryError::InvalidTarballName { .. }
-            | RegistryError::InvalidPolicyPattern { .. }
             | RegistryError::InvalidConfig { .. }
             | RegistryError::InvalidAttachment { .. }
             | RegistryError::BadRequest { .. } => StatusCode::BAD_REQUEST,

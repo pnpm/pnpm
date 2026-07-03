@@ -359,9 +359,6 @@ registries:
 fn from_yaml_str_tolerates_unresolved_env_var_references() {
     let yaml = r"
 storage: ${PNPR_UNSET_VAR_FOR_TEST}./store
-packages:
-  '**':
-    proxy: npmjs
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
         .expect("an unresolved ${VAR} is replaced with empty, not an error");
@@ -464,28 +461,28 @@ fn default_yaml_const_matches_what_from_default_parses() {
 
 #[test]
 fn from_yaml_str_storage_is_resolved_relative_to_base_dir() {
-    let yaml = "storage: ./store\npackages: {}\n";
+    let yaml = "storage: ./store\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert_eq!(config.storage, PathBuf::from("/etc/pnpr/./store"));
 }
 
 #[test]
 fn from_yaml_str_absolute_storage_is_left_alone() {
-    let yaml = "storage: /var/lib/pnpr\npackages: {}\n";
+    let yaml = "storage: /var/lib/pnpr\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert_eq!(config.storage, PathBuf::from("/var/lib/pnpr"));
 }
 
 #[test]
 fn cache_storage_defaults_to_subdir_of_storage() {
-    let yaml = "storage: /var/lib/pnpr\npackages: {}\n";
+    let yaml = "storage: /var/lib/pnpr\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert_eq!(config.cache_storage, PathBuf::from("/var/lib/pnpr/.pnpr-cache"));
 }
 
 #[test]
 fn explicit_cache_key_overrides_the_default() {
-    let yaml = "storage: /var/lib/pnpr\ncache: /scratch/pnpr\npackages: {}\n";
+    let yaml = "storage: /var/lib/pnpr\ncache: /scratch/pnpr\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert_eq!(config.storage, PathBuf::from("/var/lib/pnpr"));
     assert_eq!(config.cache_storage, PathBuf::from("/scratch/pnpr"));
@@ -493,24 +490,19 @@ fn explicit_cache_key_overrides_the_default() {
 
 #[test]
 fn relative_cache_key_is_resolved_against_base_dir() {
-    let yaml = "storage: ./store\ncache: ./cache\npackages: {}\n";
+    let yaml = "storage: ./store\ncache: ./cache\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert_eq!(config.cache_storage, PathBuf::from("/etc/pnpr/./cache"));
 }
 
 #[test]
 fn osv_config_defaults_off_and_resolves_relative_path() {
-    let defaulted = Config::from_yaml_str(
-        "upstreams: {}\npackages: {}\n",
-        Path::new("/etc/pnpr"),
-        listen(),
-        None,
-    )
-    .unwrap();
+    let defaulted =
+        Config::from_yaml_str("upstreams: {}\n", Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert!(!defaulted.osv.enabled);
     assert_eq!(defaulted.osv.path, None);
 
-    let yaml = "osv:\n  enabled: true\n  path: ./osv/npm/all.zip\npackages: {}\n";
+    let yaml = "osv:\n  enabled: true\n  path: ./osv/npm/all.zip\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert!(config.osv.enabled);
     assert_eq!(config.osv.path, Some(PathBuf::from("/etc/pnpr/./osv/npm/all.zip")));
@@ -518,7 +510,7 @@ fn osv_config_defaults_off_and_resolves_relative_path() {
 
 #[test]
 fn hosted_store_defaults_to_fs_without_an_s3_block() {
-    let yaml = "storage: /var/lib/pnpr\npackages: {}\n";
+    let yaml = "storage: /var/lib/pnpr\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert!(matches!(config.hosted_store, HostedStoreConfig::Fs));
 }
@@ -535,7 +527,6 @@ s3:
   accessKeyId: AKIA-test
   secretAccessKey: secret-test
 upstreams: {}
-packages: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.hosted_store {
@@ -546,20 +537,20 @@ packages: {}
 
 #[test]
 fn s3_block_without_a_bucket_is_a_config_error() {
-    let yaml = "storage: /x\ns3:\n  region: auto\npackages: {}\n";
+    let yaml = "storage: /x\ns3:\n  region: auto\n";
     assert!(Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).is_err());
 }
 
 #[test]
 fn backend_defaults_to_local_without_a_block() {
-    let yaml = "storage: /var/lib/pnpr\npackages: {}\n";
+    let yaml = "storage: /var/lib/pnpr\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert!(matches!(config.backend, BackendConfig::Local));
 }
 
 #[test]
 fn backend_block_rejects_empty_selection() {
-    let yaml = "storage: /var/lib/pnpr\nbackend: {}\npackages: {}\n";
+    let yaml = "storage: /var/lib/pnpr\nbackend: {}\n";
     let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
         .expect_err("an empty backend block must not fall back to local");
     assert!(
@@ -576,7 +567,6 @@ backend:
   sqlite:
     url: sqlite:///var/lib/pnpr/auth.db
 upstreams: {}
-packages: {}
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
         .expect_err("an unknown backend key must not fall back to local");
@@ -595,7 +585,6 @@ backend:
     url: libsql://db.turso.io
     authToken: tok-secret
 upstreams: {}
-packages: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.backend {
@@ -615,7 +604,6 @@ backend:
   libsql:
     url: http://127.0.0.1:8080
 upstreams: {}
-packages: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.backend {
@@ -637,7 +625,6 @@ backend:
     replicaPath: auth-replica.db
     syncIntervalSecs: 15
 upstreams: {}
-packages: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.backend {
@@ -662,7 +649,6 @@ backend:
     url: libsql://db.turso.io
     replicaPath: /var/lib/pnpr/auth-replica.db
 upstreams: {}
-packages: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.backend {
@@ -685,7 +671,6 @@ backend:
     timeout: 5s
     startupTimeout: 2m
 upstreams: {}
-packages: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.backend {
@@ -707,7 +692,6 @@ backend:
   postgresql:
     url: postgresql://pnpr:secret@db.example/pnpr
 upstreams: {}
-packages: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.backend {
@@ -732,7 +716,6 @@ backend:
   mysql:
     url: mysql://pnpr:secret@db.example/pnpr
 upstreams: {}
-packages: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.backend {
@@ -758,7 +741,6 @@ backend:
     url: mysql://pnpr:secret@db.example/pnpr
     startupTimeout: 0
 upstreams: {}
-packages: {}
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
         .expect_err("zero startup timeout must not be accepted");
@@ -777,7 +759,6 @@ backend:
     url: postgres://pnpr:secret@db.example/pnpr
     timeout: 0
 upstreams: {}
-packages: {}
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
         .expect_err("zero timeout must not be accepted");
@@ -797,7 +778,6 @@ backend:
   postgres:
     url: postgres://pnpr:secret@db.example/pnpr
 upstreams: {}
-packages: {}
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
         .expect_err("a backend block must not select two databases");
@@ -820,10 +800,6 @@ secret: a-sufficiently-long-secret-value
 upstreams:
   npmjs:
     url: https://registry.npmjs.org/
-packages:
-  '**':
-    access: $all
-    proxy: npmjs
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     // The unimplemented sections parse silently and the config is usable.
@@ -846,7 +822,7 @@ registries:
     type: upstream
     url: https://npm.corp.example/
     access: $authenticated
-    patterns: ['@corp/*']
+    packages: { '@corp/*': {} }
   main:
     type: router
     sources: [corp, npmjs]
@@ -880,7 +856,7 @@ fn from_yaml_str_rejects_misordered_router() {
 storage: ./s
 registries:
   npmjs: { type: upstream, url: https://registry.npmjs.org/, public: true }
-  acme: { type: hosted, org: acme, patterns: ['@acme/*'] }
+  acme: { type: hosted, org: acme, packages: { '@acme/*': {} } }
   main:
     type: router
     sources: [npmjs, acme]
@@ -890,14 +866,14 @@ registries:
     assert!(err.to_string().contains("unreachable"), "unexpected error: {err}");
 }
 
-/// An unsupported wildcard in a registry's `patterns:` fails config load, named
+/// An unsupported wildcard key in a registry's `packages:` fails config load, named
 /// for the offending registry, rather than becoming a claim that never matches.
 #[test]
 fn from_yaml_str_rejects_invalid_registry_pattern() {
     let yaml = "\
 storage: ./s
 registries:
-  acme: { type: hosted, org: acme, patterns: ['@acme/ba*r'] }
+  acme: { type: hosted, org: acme, packages: { '@acme/ba*r': {} } }
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
         .expect_err("an unsupported registry pattern must be rejected");
@@ -906,17 +882,18 @@ registries:
     assert!(message.contains("@acme/ba*r"), "expected the pattern named, got: {message}");
 }
 
-/// A duplicate pattern within one registry's namespace fails config load.
+/// A duplicate key within one registry's `packages:` map fails config load —
+/// the one within-registry error (selection is by specificity, so nothing
+/// else about the map can be a defect).
 #[test]
 fn from_yaml_str_rejects_duplicate_registry_pattern() {
     let yaml = "\
 storage: ./s
 registries:
-  acme: { type: hosted, org: acme, patterns: ['@acme/*', '@acme/*'] }
+  acme: { type: hosted, org: acme, packages: { '@acme/*': {}, '@acme/*': {} } }
 ";
-    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
-        .expect_err("a duplicate registry pattern must be rejected");
-    assert!(err.to_string().contains("more than once"), "unexpected error: {err}");
+    Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+        .expect_err("a duplicate packages key must be rejected");
 }
 
 /// `defaultRegistry` naming an undefined registry fails closed.
@@ -1123,14 +1100,14 @@ registries:
 
 #[test]
 fn from_yaml_str_public_url_defaults_to_listen_when_none_passed() {
-    let yaml = "storage: ./s\npackages: {}\n";
+    let yaml = "storage: ./s\n";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.public_url, format!("http://{}", listen()));
 }
 
 #[test]
 fn from_yaml_str_public_url_override_wins() {
-    let yaml = "storage: ./s\npackages: {}\n";
+    let yaml = "storage: ./s\n";
     let config = Config::from_yaml_str(
         yaml,
         Path::new("/x"),
@@ -1148,7 +1125,7 @@ fn from_yaml_path_round_trips_through_tempfile() {
     // resolved against the *config file's* parent dir.
     let dir = tempfile::tempdir().unwrap();
     let config_path = dir.path().join("registry.yml");
-    std::fs::write(&config_path, "storage: ./store\npackages: {}\n").unwrap();
+    std::fs::write(&config_path, "storage: ./store\n").unwrap();
     let config = Config::from_yaml(&config_path, listen(), None).unwrap();
     assert_eq!(config.storage, dir.path().join("./store"));
 }
@@ -1176,7 +1153,6 @@ auth:
   htpasswd:
     file: ./htpasswd
 upstreams: {}
-packages: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert_eq!(config.auth.htpasswd.file.as_deref(), Some(Path::new("/etc/pnpr/./htpasswd")));
@@ -1186,7 +1162,7 @@ packages: {}
 
 #[test]
 fn auth_block_absent_disables_registration_by_default() {
-    let yaml = "storage: ./s\npackages: {}\n";
+    let yaml = "storage: ./s\n";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert!(config.auth.htpasswd.file.is_none());
     assert!(config.auth.tokens.file.is_none());
@@ -1202,7 +1178,6 @@ auth:
   htpasswd:
     file: ./htpasswd
 upstreams: {}
-packages: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.auth.htpasswd.max_users, super::MaxUsers::Disabled);
@@ -1218,7 +1193,6 @@ auth:
   tokens:
     file: /var/lib/pnpr/tokens.sqlite
 upstreams: {}
-packages: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert_eq!(config.auth.tokens.file.as_deref(), Some(Path::new("/var/lib/pnpr/tokens.sqlite")));
@@ -1233,7 +1207,6 @@ auth:
     file: ./htpasswd
     max_users: -1
 upstreams: {}
-packages: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.auth.htpasswd.max_users, super::MaxUsers::Disabled);
@@ -1248,7 +1221,6 @@ auth:
     file: ./htpasswd
     max_users: 5
 upstreams: {}
-packages: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.auth.htpasswd.max_users, super::MaxUsers::Limited(5));
@@ -1256,7 +1228,7 @@ packages: {}
 
 #[test]
 fn logs_default_when_yaml_omits_block() {
-    let yaml = "storage: ./s\npackages: {}\n";
+    let yaml = "storage: ./s\n";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.logs.format, LogFormat::Pretty);
     assert_eq!(config.logs.level, LogLevel::Info);
@@ -1272,7 +1244,6 @@ fn log_unsupported_sink_type_is_recorded_but_flagged_unsupported() {
     let yaml = "\
 storage: ./s
 upstreams: {}
-packages: {}
 log:
   type: file
   format: json
@@ -1288,7 +1259,6 @@ fn log_pretty_and_level_picked_from_singular_block() {
     let yaml = "\
 storage: ./s
 upstreams: {}
-packages: {}
 log:
   type: stdout
   format: pretty
@@ -1304,7 +1274,6 @@ fn log_json_format_parses() {
     let yaml = "\
 storage: ./s
 upstreams: {}
-packages: {}
 log:
   type: stdout
   format: json
@@ -1323,7 +1292,6 @@ fn log_legacy_plural_list_is_ignored() {
     let yaml = "\
 storage: ./s
 upstreams: {}
-packages: {}
 logs:
   - type: stdout
     format: json
@@ -1340,7 +1308,6 @@ fn log_missing_fields_fall_back_to_defaults() {
     let yaml = "\
 storage: ./s
 upstreams: {}
-packages: {}
 log:
   type: stdout
 ";
@@ -1385,7 +1352,7 @@ fn config_file_in_returns_none_when_file_is_missing() {
 fn config_file_in_returns_path_when_file_exists() {
     let dir = tempfile::tempdir().unwrap();
     let expected = dir.path().join("config.yaml");
-    std::fs::write(&expected, "storage: ./s\npackages: {}\n").unwrap();
+    std::fs::write(&expected, "storage: ./s\n").unwrap();
     let resolved = config_file_in(Some(dir.path().to_path_buf())).expect("file is present");
     assert_eq!(resolved, expected);
 }
@@ -1418,9 +1385,6 @@ fn config_file_in_resolved_file_round_trips_through_from_yaml() {
 storage: {storage}
 upstreams:
   npmjs: {{ url: https://registry.npmjs.org/ }}
-packages:
-  '**':
-    proxy: npmjs
 log:
   type: stdout
   format: json
@@ -1504,7 +1468,7 @@ fn write_yaml(dir: &Path, name: &str, contents: &str) -> PathBuf {
     path
 }
 
-const MINIMAL_YAML: &str = "storage: ./s\npackages: {}\n";
+const MINIMAL_YAML: &str = "storage: ./s\n";
 
 #[test]
 fn resolve_bundled_when_no_path_supplied() {
@@ -1542,16 +1506,10 @@ fn resolve_cli_wins_over_default_path() {
     let tmp = tempfile::tempdir().unwrap();
     let cli_storage = tmp.path().join("from-cli");
     let default_storage = tmp.path().join("from-default");
-    let cli = write_yaml(
-        tmp.path(),
-        "explicit.yml",
-        &format!("storage: {}\npackages: {{}}\n", cli_storage.display()),
-    );
-    let default = write_yaml(
-        tmp.path(),
-        "default.yml",
-        &format!("storage: {}\npackages: {{}}\n", default_storage.display()),
-    );
+    let cli =
+        write_yaml(tmp.path(), "explicit.yml", &format!("storage: {}\n", cli_storage.display()));
+    let default =
+        write_yaml(tmp.path(), "default.yml", &format!("storage: {}\n", default_storage.display()));
     let (config, source) = Config::resolve(Some(&cli), Some(&default), listen(), None).unwrap();
     assert_eq!(source, ConfigSource::Cli(cli));
     // Confirms the *content* came from the CLI file, not the default.
@@ -1609,7 +1567,7 @@ fn yaml_with_no_storage_uses_default_storage_string() {
     // `storage:` is absent entirely — `default_storage_string`
     // supplies `"./storage"`, which `resolve_relative` then joins
     // to the config-file's parent dir.
-    let yaml = "upstreams: {}\npackages: {}\n";
+    let yaml = "upstreams: {}\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert_eq!(config.storage, PathBuf::from("/etc/pnpr/./storage"));
 }
@@ -1624,7 +1582,6 @@ fn yaml_log_block_with_no_type_field_uses_default_log_type() {
     let yaml = "\
 storage: ./s
 upstreams: {}
-packages: {}
 log:
   format: json
   level: warn
@@ -1637,29 +1594,29 @@ log:
     assert!(config.logs.sink_is_supported());
 }
 
-// ----- policy wiring from YAML ------------------------------------------
+// ----- per-registry `packages:` rules from YAML -------------------------
+
+/// A one-hosted-registry config whose `packages:` map is the given YAML
+/// fragment (indented under `packages:`).
+fn hosted_rules_config(packages: &str) -> Config {
+    let yaml = format!(
+        "storage: ./s\nregistries:\n  local:\n    type: hosted\n    packages:\n{packages}",
+    );
+    Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None).unwrap()
+}
 
 #[test]
-fn policies_are_derived_from_packages_block() {
-    // The `access` / `publish` tokens in each entry drive the
-    // runtime policy — not a hard-coded default set.
-    let yaml = "\
-storage: ./s
-upstreams: {}
-packages:
-  '@secret/*':
-    access: $authenticated
-    publish: $authenticated
-    unpublish: admin
-  '**':
-    access: $all
-    publish: $authenticated
-";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    let secret = config.policies.for_package("@secret/thing");
+fn rules_are_derived_from_the_registry_packages_map() {
+    // The `access` / `publish` tokens in each entry drive the runtime
+    // rules — not a hard-coded default set.
+    let config = hosted_rules_config(
+        "      '@secret/*':\n        access: $authenticated\n        publish: $authenticated\n        unpublish: admin\n      '**':\n        access: $all\n        publish: $authenticated\n",
+    );
+    let rules = &config.hosted["local"].rules;
+    let secret = rules.for_package("@secret/thing");
     assert!(!secret.access.allows(&Identity::Anonymous));
     assert!(secret.access.allows(&user("alice")));
-    let public = config.policies.for_package("lodash");
+    let public = rules.for_package("lodash");
     assert!(public.access.allows(&Identity::Anonymous));
     assert!(!public.publish.allows(&Identity::Anonymous));
     assert!(!secret.unpublish.allows(&user("alice")));
@@ -1667,51 +1624,61 @@ packages:
 }
 
 #[test]
-fn policy_first_matching_rule_wins() {
-    // `@secret/*` is declared before the `**` catch-all, so it
-    // wins for a scoped package even though both match.
-    let yaml = "\
-storage: ./s
-upstreams: {}
-packages:
-  '@secret/*':
-    access: $authenticated
-  '**':
-    access: $all
-";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    assert!(!config.policies.for_package("@secret/x").access.allows(&Identity::Anonymous));
-    assert!(config.policies.for_package("anything").access.allows(&Identity::Anonymous));
+fn most_specific_key_wins_regardless_of_declaration_order() {
+    // Selection is by specificity, not key order: a formatter or `yq`
+    // round-trip that reorders the YAML mapping must not change which
+    // access rule applies. The same two keys, both orders, same answers.
+    let scope_then_catch_all =
+        "      '@secret/*':\n        access: $authenticated\n      '**':\n        access: $all\n";
+    let catch_all_then_scope =
+        "      '**':\n        access: $all\n      '@secret/*':\n        access: $authenticated\n";
+    for packages in [scope_then_catch_all, catch_all_then_scope] {
+        let config = hosted_rules_config(packages);
+        let rules = &config.hosted["local"].rules;
+        assert!(!rules.for_package("@secret/x").access.allows(&Identity::Anonymous), "{packages}");
+        assert!(rules.for_package("anything").access.allows(&Identity::Anonymous), "{packages}");
+    }
 }
 
 #[test]
-fn policy_missing_access_and_publish_default_to_all_and_authenticated() {
-    let yaml = "\
-storage: ./s
-upstreams: {}
-packages:
-  'lodash': {}
-";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    let effective = config.policies.for_package("lodash");
-    assert!(effective.access.allows(&Identity::Anonymous));
-    assert!(!effective.publish.allows(&Identity::Anonymous));
-    assert!(effective.publish.allows(&user("alice")));
-    assert!(!effective.unpublish.allows(&Identity::Anonymous));
-    assert!(!effective.unpublish.allows(&user("alice")));
+fn empty_and_null_map_values_mean_default_rules() {
+    for value in ["{}", "", "~"] {
+        let config = hosted_rules_config(&format!("      'lodash': {value}\n"));
+        let rules = &config.hosted["local"].rules;
+        let effective = rules.for_package("lodash");
+        assert!(effective.access.allows(&Identity::Anonymous), "value {value:?}");
+        assert!(!effective.publish.allows(&Identity::Anonymous), "value {value:?}");
+        assert!(effective.publish.allows(&user("alice")), "value {value:?}");
+        assert!(!effective.unpublish.allows(&user("alice")), "value {value:?}");
+    }
 }
 
 #[test]
-fn policy_missing_unpublish_denies_destructive_writes() {
+fn registry_level_access_is_the_default_for_omitted_fields() {
     let yaml = "\
 storage: ./s
-upstreams: {}
-packages:
-  '@team/*':
-    publish: alice
+registries:
+  local:
+    type: hosted
+    access: team
+    packages:
+      '@team/*': {}
+      '@team/open':
+        access: $all
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    let team = config.policies.for_package("@team/x");
+    let rules = &config.hosted["local"].rules;
+    // Omitted `access` falls back to the registry-level default...
+    assert!(rules.for_package("@team/x").access.allows(&user("team")));
+    assert!(!rules.for_package("@team/x").access.allows(&user("carol")));
+    // ...while the more specific key overrides it.
+    assert!(rules.for_package("@team/open").access.allows(&Identity::Anonymous));
+}
+
+#[test]
+fn rule_missing_unpublish_denies_destructive_writes() {
+    let config = hosted_rules_config("      '@team/*':\n        publish: alice\n");
+    let team = config.hosted["local"].rules.for_package("@team/x");
     assert!(team.publish.allows(&user("alice")));
     assert!(!team.publish.allows(&user("bob")));
     assert!(!team.unpublish.allows(&user("alice")));
@@ -1719,69 +1686,37 @@ packages:
 }
 
 #[test]
-fn policy_empty_unpublish_denies_destructive_writes() {
-    let as_null = "\
-storage: ./s
-upstreams: {}
-packages:
-  '@team/*':
-    publish: $authenticated
-    unpublish:
-";
-    let as_empty_string = "\
-storage: ./s
-upstreams: {}
-packages:
-  '@team/*':
-    publish: $authenticated
-    unpublish: ''
-";
-    let as_empty_sequence = "\
-storage: ./s
-upstreams: {}
-packages:
-  '@team/*':
-    publish: $authenticated
-    unpublish: []
-";
-    for yaml in [as_null, as_empty_string, as_empty_sequence] {
-        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-        let team = config.policies.for_package("@team/x");
-        assert!(team.publish.allows(&user("alice")), "{yaml}");
-        assert!(!team.unpublish.allows(&Identity::Anonymous), "{yaml}");
-        assert!(!team.unpublish.allows(&user("alice")), "{yaml}");
+fn rule_empty_unpublish_denies_destructive_writes() {
+    let as_null = "      '@team/*':\n        publish: $authenticated\n        unpublish:\n";
+    let as_empty_string =
+        "      '@team/*':\n        publish: $authenticated\n        unpublish: ''\n";
+    let as_empty_sequence =
+        "      '@team/*':\n        publish: $authenticated\n        unpublish: []\n";
+    for packages in [as_null, as_empty_string, as_empty_sequence] {
+        let config = hosted_rules_config(packages);
+        let team = config.hosted["local"].rules.for_package("@team/x");
+        assert!(team.publish.allows(&user("alice")), "{packages}");
+        assert!(!team.unpublish.allows(&Identity::Anonymous), "{packages}");
+        assert!(!team.unpublish.allows(&user("alice")), "{packages}");
     }
 }
 
 #[test]
-fn policy_anonymous_token_is_wired() {
-    let yaml = "\
-storage: ./s
-upstreams: {}
-packages:
-  '@anon/*':
-    access: $anonymous
-";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    let anon = config.policies.for_package("@anon/x");
+fn rule_anonymous_token_is_wired() {
+    let config = hosted_rules_config("      '@anon/*':\n        access: $anonymous\n");
+    let anon = config.hosted["local"].rules.for_package("@anon/x");
     assert!(anon.access.allows(&Identity::Anonymous));
     assert!(!anon.access.allows(&user("alice")));
 }
 
 #[test]
-fn policy_usernames_grant_per_user_access() {
+fn rule_usernames_grant_per_user_access() {
     // Bare names are usernames/groups (verdaccio-style), no longer
     // a config error.
-    let yaml = "\
-storage: ./s
-upstreams: {}
-packages:
-  '@team/*':
-    access: alice bob
-    publish: alice
-";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    let team = config.policies.for_package("@team/x");
+    let config = hosted_rules_config(
+        "      '@team/*':\n        access: alice bob\n        publish: alice\n",
+    );
+    let team = config.hosted["local"].rules.for_package("@team/x");
     assert!(team.access.allows(&user("alice")));
     assert!(team.access.allows(&user("bob")));
     assert!(!team.access.allows(&user("carol")));
@@ -1797,10 +1732,12 @@ groups:
   platform: alice bob
   release:
     - carol
-packages:
-  '@team/*':
-    access: platform
 registries:
+  local:
+    type: hosted
+    packages:
+      '@team/*':
+        access: platform
   corp:
     type: upstream
     url: https://npm.corp.example/
@@ -1814,7 +1751,8 @@ registries:
     let bob = config.identity_for_user("bob");
     let carol = config.identity_for_user("carol");
 
-    let team = config.policies.for_package("@team/widget");
+    let rules = &config.hosted["local"].rules;
+    let team = rules.for_package("@team/widget");
     assert!(team.access.allows(&alice));
     assert!(team.access.allows(&bob));
     assert!(!team.access.allows(&carol));
@@ -1827,30 +1765,132 @@ registries:
 }
 
 #[test]
-fn policy_access_list_accepts_string_and_sequence_forms() {
+fn rule_access_list_accepts_string_and_sequence_forms() {
     // verdaccio accepts both a space-separated string and a YAML
     // sequence; they must compile to the same token list.
-    let as_string = "\
-storage: ./s
-upstreams: {}
-packages:
-  '@team/*':
-    access: alice bob
-";
-    let as_sequence = "\
-storage: ./s
-upstreams: {}
-packages:
-  '@team/*':
-    access: [alice, bob]
-";
-    for yaml in [as_string, as_sequence] {
-        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-        let access = config.policies.for_package("@team/x").access;
-        assert!(access.allows(&user("alice")), "{yaml}");
-        assert!(access.allows(&user("bob")), "{yaml}");
-        assert!(!access.allows(&user("carol")), "{yaml}");
+    let as_string = "      '@team/*':\n        access: alice bob\n";
+    let as_sequence = "      '@team/*':\n        access: [alice, bob]\n";
+    for packages in [as_string, as_sequence] {
+        let config = hosted_rules_config(packages);
+        let access = config.hosted["local"].rules.for_package("@team/x").access;
+        assert!(access.allows(&user("alice")), "{packages}");
+        assert!(access.allows(&user("bob")), "{packages}");
+        assert!(!access.allows(&user("carol")), "{packages}");
     }
+}
+
+#[test]
+fn top_level_packages_block_is_a_startup_error() {
+    // The removed global ACL must not be silently dropped like an unknown
+    // verdaccio key: it used to *enforce* access, so ignoring it would
+    // quietly open previously-gated packages on upgrade.
+    let yaml = "\
+storage: ./s
+registries:
+  local:
+    type: hosted
+packages:
+  '@secret/*':
+    access: $authenticated
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(
+        matches!(
+            &err,
+            RegistryError::InvalidConfig { reason }
+                if reason.contains("top-level `packages:`")
+                    && reason.contains("registries.<name>.packages"),
+        ),
+        "unexpected error: {err}",
+    );
+
+    // A *bare* `packages:` (YAML null) and an empty block are the same
+    // removed key and must be rejected identically — a plain `Option`
+    // would map null to "absent" and let it slip through.
+    for stub in ["packages:\n", "packages: {}\n", "packages: ~\n"] {
+        let yaml = format!("storage: ./s\nregistries:\n  local:\n    type: hosted\n{stub}");
+        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
+            .expect_err("a present top-level packages: key must be rejected");
+        assert!(
+            matches!(
+                &err,
+                RegistryError::InvalidConfig { reason } if reason.contains("top-level `packages:`"),
+            ),
+            "unexpected error for {stub:?}: {err}",
+        );
+    }
+}
+
+#[test]
+fn upstream_write_rules_are_rejected() {
+    // No write can land on an upstream, so a `publish`/`unpublish` value in
+    // its `packages:` map is a config mistake — and it fails on every tier,
+    // whether or not the registry surface resolves upstream credentials.
+    let yaml = "\
+storage: ./s
+registries:
+  corp:
+    type: upstream
+    url: https://npm.corp.example/
+    public: true
+    packages:
+      '@corp/*':
+        publish: $authenticated
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(
+        matches!(
+            &err,
+            RegistryError::InvalidConfig { reason }
+                if reason.contains("publish") && reason.contains("upstream"),
+        ),
+        "unexpected error: {err}",
+    );
+}
+
+#[test]
+fn public_upstream_allows_per_package_access_rules() {
+    // `public: true` describes the upstream *fetch* (anonymous, no
+    // credential, no registry-level access default). A per-package `access`
+    // rule still gates who may read the name through pnpr.
+    let yaml = "\
+storage: ./s
+registries:
+  npmjs:
+    type: upstream
+    url: https://registry.npmjs.org/
+    public: true
+    packages:
+      '@internal/*':
+        access: $authenticated
+      '**': {}
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let rules = &config.upstreams["npmjs"].rules;
+    assert!(!rules.for_package("@internal/x").access.allows(&Identity::Anonymous));
+    assert!(rules.for_package("@internal/x").access.allows(&user("alice")));
+    assert!(rules.for_package("lodash").access.allows(&Identity::Anonymous));
+}
+
+#[test]
+fn upstream_packages_map_bounds_the_namespace() {
+    let yaml = "\
+storage: ./s
+registries:
+  corp:
+    type: upstream
+    url: https://npm.corp.example/
+    access: $authenticated
+    packages:
+      '@corp/*': {}
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    use crate::registry::{ConcreteKind, Resolved};
+    assert_eq!(
+        config.registries.resolve("corp", "@corp/tool"),
+        Resolved::Concrete { registry: "corp", kind: ConcreteKind::Upstream },
+    );
+    assert_eq!(config.registries.resolve("corp", "lodash"), Resolved::Unclaimed);
 }
 
 #[test]
@@ -1928,13 +1968,26 @@ fn bundled_default_config_enforces_its_protections() {
     // The bundled YAML is the only place the registry-mock protections are
     // declared, so building from it must yield every one of them.
     let config = Config::from_default_yaml(Path::new("/tmp"), listen(), None);
-    let needs_auth = config.policies.for_package("@pnpm.e2e/needs-auth");
+    let rules = &config.hosted["local"].rules;
+    // The exact needs-auth key wins over the '@pnpm.e2e/*' scope key by
+    // specificity (both are declared, in either order).
+    let needs_auth = rules.for_package("@pnpm.e2e/needs-auth");
     assert!(!needs_auth.access.allows(&Identity::Anonymous));
     assert!(needs_auth.access.allows(&user("alice")));
-    assert!(!config.policies.for_package("@private/foo").access.allows(&Identity::Anonymous));
-    let public = config.policies.for_package("lodash");
+    assert!(!rules.for_package("@private/foo").access.allows(&Identity::Anonymous));
+    let public = rules.for_package("@pnpm.e2e/no-deps");
     assert!(public.access.allows(&Identity::Anonymous));
     assert!(!public.publish.allows(&Identity::Anonymous));
+    // The registry-mock contract: any authenticated user may unpublish.
+    assert!(public.unpublish.allows(&user("alice")));
+    assert!(!public.unpublish.allows(&Identity::Anonymous));
+    // `lodash` is not local: it is unclaimed by the hosted registry and
+    // resolves to the npmjs catch-all through the router.
+    use crate::registry::{ConcreteKind, Resolved};
+    assert_eq!(
+        config.registries.resolve_default("lodash"),
+        Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
+    );
 }
 
 #[test]

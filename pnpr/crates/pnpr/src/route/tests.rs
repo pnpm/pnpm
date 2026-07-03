@@ -10,7 +10,7 @@ use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use super::{Footprint, PrivateAccessDescriptor, RouteClass, RouteContext, RouteHook};
 use crate::{
     config::{Config, PublicRoute, UpstreamConfig},
-    policy::{AccessList, Identity, PackagePolicies},
+    policy::{AccessList, Identity},
 };
 
 fn base_config() -> Config {
@@ -262,6 +262,45 @@ fn upstream_with_access(registry: &str, access: &str) -> UpstreamConfig {
 }
 
 #[test]
+fn upstream_per_package_rules_gate_alias_selection() {
+    use crate::policy::{PackageRule, PackageRules};
+    use crate::registry::PackagePattern;
+
+    let mut config = base_config();
+    let mut upstream = upstream_with_access("https://npm.corp.example/", "$authenticated");
+    // The registry admits every authenticated caller, but `@corp/secret`
+    // is refined down to alice.
+    upstream.rules = PackageRules::new(
+        vec![PackageRule {
+            pattern: PackagePattern::parse("@corp/secret").expect("test pattern parses"),
+            access: Some(AccessList::parse("alice")),
+            publish: None,
+            unpublish: None,
+        }],
+        Some(AccessList::parse("$authenticated")),
+    );
+    config.upstreams.insert("corp".to_string(), upstream);
+    let context = RouteContext::from_config(&config);
+
+    let url = "https://npm.corp.example/@corp%2fsecret";
+    // Alice is admitted by the per-package rule: proxied with the credential.
+    assert!(matches!(
+        context.classify(&user("alice"), url, Some("@corp/secret")),
+        RouteClass::Proxied { .. },
+    ));
+    // Bob holds registry-level access but the per-package rule denies him:
+    // no credential is handed out, matching the serving endpoint's denial —
+    // his anonymous fetch fails closed instead of warming a private cache.
+    assert_eq!(context.classify(&user("bob"), url, Some("@corp/secret")), RouteClass::Public);
+    // Other names on the registry stay proxied for bob.
+    assert!(matches!(
+        context
+            .classify(&user("bob"), "https://npm.corp.example/@corp%2ftool", Some("@corp/tool"),),
+        RouteClass::Proxied { .. },
+    ));
+}
+
+#[test]
 fn upstream_with_access_is_a_proxied_route_matched_by_origin() {
     let mut config = base_config();
     config.upstreams.insert(
@@ -409,7 +448,9 @@ fn proxied_alias_accepts_configured_group_identity() {
 fn hosted_route_follows_package_access_policy() {
     let mut config = base_config();
     config.public_url = "https://pnpr.example/".to_string();
-    config.policies = PackagePolicies::registry_mock_defaults();
+    // `Config::proxy` carries the registry-mock rules on the `local` hosted
+    // registry: `@private/*` requires auth, the rest of the fixture
+    // namespace is open.
     let context = RouteContext::from_config(&config);
 
     // `@private/*` requires auth: private+gated for an authorized caller. An
@@ -422,7 +463,7 @@ fn hosted_route_follows_package_access_policy() {
             "https://pnpr.example/@private%2fpkg",
             Some("@private/pkg")
         ),
-        RouteClass::Hosted { policy_id: "@private/pkg".to_string() },
+        RouteClass::Hosted { policy_id: "local\0@private/pkg".to_string() },
     );
     assert_eq!(
         context.classify(&anon(), "https://pnpr.example/@private%2fpkg", Some("@private/pkg")),
@@ -454,6 +495,7 @@ fn overlapping_upstream_access_reuses_only_the_selected_alias() {
     via_primary.add(PrivateAccessDescriptor::Alias {
         alias: "primary".to_string(),
         credential_digest: corp_credential(),
+        package: None,
     });
     assert!(via_primary.allows(&context, &user("alice")));
 
@@ -463,6 +505,7 @@ fn overlapping_upstream_access_reuses_only_the_selected_alias() {
     via_secondary.add(PrivateAccessDescriptor::Alias {
         alias: "secondary".to_string(),
         credential_digest: corp_credential(),
+        package: None,
     });
     assert!(!via_secondary.allows(&context, &user("alice")));
 }
@@ -476,6 +519,7 @@ fn footprint_digest_is_stable_and_namespaced() {
     footprint.add(PrivateAccessDescriptor::Alias {
         alias: "corp".to_string(),
         credential_digest: corp_credential(),
+        package: None,
     });
     assert!(!footprint.is_public());
     let digest = footprint.digest(b"secret").expect("private footprint has a digest");
@@ -485,6 +529,7 @@ fn footprint_digest_is_stable_and_namespaced() {
     rotated.add(PrivateAccessDescriptor::Alias {
         alias: "corp".to_string(),
         credential_digest: rotated_credential(),
+        package: None,
     });
     assert_ne!(digest, rotated.digest(b"secret").unwrap());
 
@@ -496,6 +541,7 @@ fn footprint_digest_is_stable_and_namespaced() {
     one_order.add(PrivateAccessDescriptor::Alias {
         alias: "x".to_string(),
         credential_digest: corp_credential(),
+        package: None,
     });
     one_order.add(PrivateAccessDescriptor::Hosted { policy_id: "@p/*".to_string() });
     let mut other_order = Footprint::default();
@@ -503,6 +549,7 @@ fn footprint_digest_is_stable_and_namespaced() {
     other_order.add(PrivateAccessDescriptor::Alias {
         alias: "x".to_string(),
         credential_digest: corp_credential(),
+        package: None,
     });
     assert_eq!(one_order.digest(b"k"), other_order.digest(b"k"));
 }
@@ -567,7 +614,8 @@ fn metadata_scope_maps_route_classes() {
         descriptor_id,
         PrivateAccessDescriptor::Alias {
             alias: "corp".to_string(),
-            credential_digest: corp_credential()
+            credential_digest: corp_credential(),
+            package: None,
         }
         .digest_id(b"server-secret"),
     );
@@ -609,7 +657,8 @@ fn authorized_alias_users_share_metadata_scope() {
         descriptor_id,
         PrivateAccessDescriptor::Alias {
             alias: "corp".to_string(),
-            credential_digest: corp_credential()
+            credential_digest: corp_credential(),
+            package: None,
         }
         .digest_id(b"server-secret"),
     );
@@ -620,12 +669,22 @@ fn descriptor_digest_id_depends_on_secret() {
     let descriptor = PrivateAccessDescriptor::Alias {
         alias: "corp".to_string(),
         credential_digest: corp_credential(),
+        package: None,
     };
     assert_ne!(descriptor.digest_id(b"secret-a"), descriptor.digest_id(b"secret-b"));
     // Generation rotation moves the namespace.
     let rotated = PrivateAccessDescriptor::Alias {
         alias: "corp".to_string(),
         credential_digest: rotated_credential(),
+        package: None,
     };
     assert_ne!(descriptor.digest_id(b"secret-a"), rotated.digest_id(b"secret-a"));
+    // A package-qualified descriptor (an explicitly refined name) keys its
+    // own namespace, distinct from the registry-scoped one.
+    let qualified = PrivateAccessDescriptor::Alias {
+        alias: "corp".to_string(),
+        credential_digest: corp_credential(),
+        package: Some("@corp/secret".to_string()),
+    };
+    assert_ne!(descriptor.digest_id(b"secret-a"), qualified.digest_id(b"secret-a"));
 }

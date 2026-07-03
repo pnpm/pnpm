@@ -96,6 +96,30 @@ impl PackagePattern {
         Ok(PackagePattern::Exact(pattern.to_string()))
     }
 
+    /// How specific this pattern is: an exact name beats `@scope/*` beats
+    /// `@*/*` beats `**`. For any one package name, the patterns that can
+    /// match it form a strict chain — at most one per tier can exist in a
+    /// duplicate-free set — so most-specific-match selection is total and
+    /// order-free. That is what lets a registry's `packages:` map be a YAML
+    /// mapping whose key order carries no meaning.
+    #[must_use]
+    pub fn specificity(&self) -> u8 {
+        match self {
+            PackagePattern::All => 0,
+            PackagePattern::AnyScoped => 1,
+            PackagePattern::Scope(_) => 2,
+            PackagePattern::Exact(_) => 3,
+        }
+    }
+
+    /// The scope of a well-formed scoped package name (`@acme/foo` →
+    /// `acme`), without its leading `@`; `None` for an unscoped or
+    /// malformed name. The scope-tier key a specificity lookup consults.
+    #[must_use]
+    pub fn scope_of(package: &str) -> Option<&str> {
+        scoped_name(package).map(|(scope, _)| scope)
+    }
+
     /// Whether this pattern matches `package`.
     #[must_use]
     pub fn matches(&self, package: &str) -> bool {

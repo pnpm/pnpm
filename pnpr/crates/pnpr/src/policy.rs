@@ -1,6 +1,11 @@
-//! Per-package access rules. Mirrors verdaccio's `packages:` config:
-//! a list of glob patterns, each with `access` / `publish` permission
-//! lists. The first matching pattern wins.
+//! Per-package access rules: each concrete registry's `packages:` map,
+//! keyed by [`PackagePattern`] with `access` / `publish` / `unpublish`
+//! permission lists as values. Selection is by **specificity**, not
+//! declaration order — an exact name beats `@scope/*` beats `@*/*` beats
+//! `**` — because a YAML mapping is formally unordered and key order must
+//! not decide which access rule applies. The restricted pattern language
+//! makes that selection total: for any one name, at most one key per
+//! specificity tier can match, so every name has exactly one winning entry.
 //!
 //! Each permission is a list of tokens (verdaccio's space-separated
 //! groups); a request is allowed when the caller's identity satisfies
@@ -13,9 +18,8 @@
 //! usernames from group names.
 
 use std::collections::{BTreeMap, BTreeSet};
-use wax::{Glob, Program};
 
-use crate::error::RegistryError;
+use crate::registry::PackagePattern;
 
 /// A single token in an access list.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -144,125 +148,206 @@ impl Identity {
     }
 }
 
-/// One entry in the access policy list. `pattern` is a wax glob
-/// compiled from the verdaccio-style key (e.g. `@private/*`,
-/// `@pnpm.e2e/needs-auth`, `**`). `access` controls who can read the
-/// packument and tarballs; `publish` controls who can publish or
-/// change dist-tags; `unpublish` controls destructive writes.
+/// One entry of a registry's `packages:` map: a namespace claim
+/// ([`PackagePattern`] key) plus optional per-package rules. `access`
+/// controls who can read the packument and tarballs; `publish` controls
+/// who can publish or change dist-tags; `unpublish` controls destructive
+/// writes. An omitted field falls back to the registry-level default
+/// carried by the owning [`PackageRules`].
 #[derive(Debug, Clone)]
-pub struct PackagePolicy {
-    pattern: Glob<'static>,
-    pub access: AccessList,
-    pub publish: AccessList,
-    pub unpublish: AccessList,
+pub struct PackageRule {
+    pub pattern: PackagePattern,
+    pub access: Option<AccessList>,
+    pub publish: Option<AccessList>,
+    pub unpublish: Option<AccessList>,
 }
 
-impl PackagePolicy {
-    pub fn new(
-        pattern: &str,
-        access: AccessList,
-        publish: AccessList,
-        unpublish: AccessList,
-    ) -> Result<Self, RegistryError> {
-        let glob = Glob::new(pattern)
-            .map_err(|err| RegistryError::InvalidPolicyPattern {
-                pattern: pattern.to_string(),
-                reason: err.to_string(),
-            })?
-            .into_owned();
-        Ok(Self { pattern: glob, access, publish, unpublish })
-    }
-
-    fn matches(&self, package: &str) -> bool {
-        self.pattern.is_match(package)
-    }
-}
-
-/// Ordered list of [`PackagePolicy`] rules. First match wins,
-/// matching verdaccio's evaluation order — order in the config is
-/// significant, since the catch-all `**` is almost always last.
+/// One concrete registry's `packages:` map: its namespace (the key set)
+/// and its per-package rules (the values), with the registry-level
+/// defaults an entry's omitted fields fall back to.
+///
+/// Selection is by **specificity** — the most specific matching key wins,
+/// and key order carries no meaning (see the module docs). No entry can be
+/// dead: an exact key carves its name out of a scope key, which still
+/// serves the rest, so there is no shadowed-entry validation inside a
+/// registry; a duplicate key is the only error (rejected at config load).
 #[derive(Debug, Clone)]
-pub struct PackagePolicies {
-    rules: Vec<PackagePolicy>,
-    /// Applied to packages no rule matches: reads open, writes require
-    /// auth. Owned here so [`Self::for_package`] can hand back a
-    /// borrow.
+pub struct PackageRules {
+    rules: Vec<PackageRule>,
+    /// Winner lookup by specificity tier, rebuilt whenever the rule set
+    /// changes: at most one key per tier can match a given name, so the
+    /// most specific match resolves with map lookups instead of a scan of
+    /// every rule — `for_package` runs on every read, write, search hit,
+    /// and route classification.
+    index: RuleIndex,
+    /// Fallbacks for fields the winning entry omits (and for every name
+    /// when the map itself is empty = the registry claims every name).
     default_access: AccessList,
     default_publish: AccessList,
     default_unpublish: AccessList,
 }
 
-impl Default for PackagePolicies {
-    fn default() -> Self {
-        Self::new(Vec::new())
+/// Positions of the rules by pattern shape, mirroring the specificity
+/// chain: an exact key beats the name's scope key beats `@*/*` beats `**`.
+/// Duplicate keys never coexist here — YAML loading and the routing-graph
+/// validation both reject them — so each slot holds the one possible rule.
+#[derive(Debug, Default, Clone)]
+struct RuleIndex {
+    exact: BTreeMap<String, usize>,
+    scopes: BTreeMap<String, usize>,
+    any_scoped: Option<usize>,
+    all: Option<usize>,
+}
+
+impl RuleIndex {
+    fn build(rules: &[PackageRule]) -> Self {
+        let mut index = Self::default();
+        for (position, rule) in rules.iter().enumerate() {
+            match &rule.pattern {
+                PackagePattern::Exact(name) => {
+                    index.exact.insert(name.clone(), position);
+                }
+                PackagePattern::Scope(scope) => {
+                    index.scopes.insert(scope.clone(), position);
+                }
+                PackagePattern::AnyScoped => index.any_scoped = Some(position),
+                PackagePattern::All => index.all = Some(position),
+            }
+        }
+        index
+    }
+
+    /// The winning rule's position for `package`: the most specific tier
+    /// with a matching key.
+    fn winner(&self, package: &str) -> Option<usize> {
+        if let Some(&position) = self.exact.get(package) {
+            return Some(position);
+        }
+        if let Some(scope) = PackagePattern::scope_of(package) {
+            if let Some(&position) = self.scopes.get(scope) {
+                return Some(position);
+            }
+            if let Some(position) = self.any_scoped {
+                return Some(position);
+            }
+        }
+        self.all
     }
 }
 
-/// Effective permissions for one package, borrowed from the matched
-/// rule (or the defaults when none matched).
+impl Default for PackageRules {
+    /// The safe defaults with no rules: every name claimed, reads open,
+    /// publishes require auth, destructive writes denied.
+    fn default() -> Self {
+        Self::new(Vec::new(), None)
+    }
+}
+
+/// Effective permissions for one package, borrowed from the winning
+/// entry (each field falling back to the registry-level default).
 #[derive(Debug, Clone, Copy)]
 pub struct Effective<'a> {
     pub access: &'a AccessList,
     pub publish: &'a AccessList,
     pub unpublish: &'a AccessList,
+    /// Whether `access` came from an explicit `packages:` entry rather than
+    /// the registry-level default. Drives how a hosted denial answers: an
+    /// explicitly gated name is declared, discoverable config and rejects
+    /// loudly (401/403, so a client can prompt for auth), while a
+    /// default-gated name is masked as not-found — a blanket-private
+    /// registry never reveals which names exist.
+    pub access_is_explicit: bool,
 }
 
-impl PackagePolicies {
+impl PackageRules {
+    /// Build a registry's rules. `default_access` is the registry-level
+    /// `access:` (its omission = `$all`); publish defaults to
+    /// `$authenticated` and unpublish to nobody, the safe defaults.
     #[must_use]
-    pub fn new(rules: Vec<PackagePolicy>) -> Self {
+    pub fn new(rules: Vec<PackageRule>, default_access: Option<AccessList>) -> Self {
         Self {
+            index: RuleIndex::build(&rules),
             rules,
-            default_access: AccessList::parse("$all"),
+            default_access: default_access.unwrap_or_else(|| AccessList::parse("$all")),
             default_publish: AccessList::parse("$authenticated"),
             default_unpublish: AccessList::default(),
         }
     }
 
-    /// `@pnpm/registry-mock`'s defaults, hard-coded so an out-of-the
-    /// box `Config` already enforces the same access rules verdaccio
-    /// did. The relevant patterns from `registry-mock`'s `config.yaml`:
-    ///
-    /// * `@private/*` — authenticated access + publish + unpublish
-    /// * `@pnpm.e2e/needs-auth` — authenticated access + publish + unpublish
-    /// * everything else — $all access, $authenticated publish + unpublish
+    /// Override the registry-level unpublish default (nobody). Used by the
+    /// programmatic registry-mock constructors, whose fixtures exercise
+    /// unpublish flows with any authenticated user.
     #[must_use]
-    pub fn registry_mock_defaults() -> Self {
-        let rules = [
-            ("@private/*", "$authenticated", "$authenticated", "$authenticated"),
-            ("@pnpm.e2e/needs-auth", "$authenticated", "$authenticated", "$authenticated"),
-            ("**", "$all", "$authenticated", "$authenticated"),
-        ];
-        let rules = rules
-            .into_iter()
-            .map(|(pattern, access, publish, unpublish)| {
-                PackagePolicy::new(
-                    pattern,
-                    AccessList::parse(access),
-                    AccessList::parse(publish),
-                    AccessList::parse(unpublish),
-                )
-                .expect("registry-mock defaults compile")
-            })
-            .collect();
-        Self::new(rules)
+    pub fn with_default_unpublish(mut self, unpublish: AccessList) -> Self {
+        self.default_unpublish = unpublish;
+        self
     }
 
+    /// Add one entry to the map. Selection stays order-free (specificity);
+    /// duplicate keys are the caller's to avoid — YAML loading rejects them.
+    /// For tests and embedders that build rules programmatically.
+    pub fn push_rule(&mut self, rule: PackageRule) {
+        self.rules.push(rule);
+        self.index = RuleIndex::build(&self.rules);
+    }
+
+    /// The namespace this registry declares: the map's key set. Empty =
+    /// every name. Feeds the routing graph, which enforces the claim on
+    /// every path to the registry.
+    #[must_use]
+    pub fn patterns(&self) -> Vec<PackagePattern> {
+        self.rules.iter().map(|rule| rule.pattern.clone()).collect()
+    }
+
+    /// Whether any rule carries the given field, i.e. the map refines that
+    /// permission somewhere. Lets config validation reject `publish:` /
+    /// `unpublish:` values on an upstream registry, where no write can land.
+    #[must_use]
+    pub fn refines_writes(&self) -> bool {
+        self.rules.iter().any(|rule| rule.publish.is_some() || rule.unpublish.is_some())
+    }
+
+    /// The effective permissions for `package`: the **most specific**
+    /// matching entry's fields, each falling back to the registry-level
+    /// default. Selection is order-free — the restricted pattern language
+    /// guarantees at most one matching key per specificity tier, so the
+    /// winner is unique regardless of where it appears in the map — and
+    /// indexed, so it costs tier lookups rather than a scan of every rule.
     #[must_use]
     pub fn for_package(&self, package: &str) -> Effective<'_> {
-        for rule in &self.rules {
-            if rule.matches(package) {
-                return Effective {
-                    access: &rule.access,
-                    publish: &rule.publish,
-                    unpublish: &rule.unpublish,
-                };
-            }
-        }
+        let winner = self.index.winner(package).map(|position| &self.rules[position]);
+        let explicit_access = winner.and_then(|rule| rule.access.as_ref());
         Effective {
-            access: &self.default_access,
-            publish: &self.default_publish,
-            unpublish: &self.default_unpublish,
+            access: explicit_access.unwrap_or(&self.default_access),
+            publish: winner.and_then(|rule| rule.publish.as_ref()).unwrap_or(&self.default_publish),
+            unpublish: winner
+                .and_then(|rule| rule.unpublish.as_ref())
+                .unwrap_or(&self.default_unpublish),
+            access_is_explicit: explicit_access.is_some(),
         }
+    }
+
+    /// The registry-level default `access:` — who may reach the registry
+    /// when no per-package entry refines it. Write-path masking uses this
+    /// for names the registry does not claim (there is no entry to consult).
+    #[must_use]
+    pub fn default_access(&self) -> &AccessList {
+        &self.default_access
+    }
+
+    /// Whether *any* name this registry serves could admit `identity`: the
+    /// registry-level default does, or some explicit entry's `access` does.
+    /// The search scan's fast path — a caller no rule could ever admit gets
+    /// the empty result without enumerating the registry's storage, so a
+    /// blanket-masked registry leaks neither package names nor its size
+    /// through scan timing.
+    #[must_use]
+    pub fn any_access_admits(&self, identity: &Identity) -> bool {
+        self.default_access.allows(identity)
+            || self
+                .rules
+                .iter()
+                .any(|rule| rule.access.as_ref().is_some_and(|access| access.allows(identity)))
     }
 }
 
