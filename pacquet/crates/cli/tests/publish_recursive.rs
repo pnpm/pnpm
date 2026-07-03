@@ -1,11 +1,15 @@
-//! Recursive-publish integration tests that don't touch a registry: they
-//! exercise the `publish --recursive` dispatch, `--filter` selection, the
-//! private-package skip, the empty-selection no-op, the `--report-summary`
-//! output, and the unsupported `--batch` gap. Actually pushing a tarball to a
-//! registry is covered separately once the publish-against-pnpr harness lands.
+//! Recursive-publish integration tests. The no-registry tests exercise the
+//! `publish --recursive` dispatch, `--filter` selection, the private-package
+//! skip, the empty-selection no-op, the `--report-summary` output, and the
+//! unsupported `--batch` gap. The registry tests drive the real binary against
+//! a `mockito` registry (pnpr's `TestRegistry` is proxy-mode and rejects
+//! path-less publishes) to cover the actual publish loop: the not-yet-published
+//! probe, the per-package `PUT`, `--force`, and the summary / `--json` shapes —
+//! porting the plain token-auth scenarios from pnpm's `recursivePublish.ts`.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use mockito::Matcher;
 use pacquet_testing_utils::bin::CommandTempCwd;
 use pipe_trait::Pipe;
 use serde_json::{Value, json};
@@ -27,6 +31,26 @@ fn write_workspace(workspace: &Path, manifests: &[(&str, Value)]) {
 
 fn private_pkg(name: &str) -> Value {
     json!({ "name": name, "version": "1.0.0", "private": true })
+}
+
+fn public_pkg(name: &str) -> Value {
+    json!({ "name": name, "version": "1.0.0" })
+}
+
+/// Point the workspace at `registry` for publishing.
+fn write_registry_npmrc(workspace: &Path, registry: &str) {
+    fs::write(workspace.join(".npmrc"), format!("registry={registry}\n")).expect("write .npmrc");
+}
+
+/// Clear the CI / OIDC environment so the spawned publish never attempts an
+/// id-token exchange and stays offline against the mocked registry.
+fn clear_ci<Command: CommandExtra>(command: Command) -> Command {
+    command
+        .without_env("GITHUB_ACTIONS")
+        .without_env("GITLAB_CI")
+        .without_env("NPM_ID_TOKEN")
+        .without_env("ACTIONS_ID_TOKEN_REQUEST_TOKEN")
+        .without_env("ACTIONS_ID_TOKEN_REQUEST_URL")
 }
 
 /// A `--filter` that matches no project narrows the workspace to nothing, so
@@ -246,6 +270,135 @@ fn recursive_publish_empty_workspace_writes_no_summary() {
     assert!(
         !workspace.join("pnpm-publish-summary.json").exists(),
         "an empty workspace must not write a publish summary",
+    );
+
+    drop(root);
+}
+
+/// Each eligible workspace package is probed (a 404 means "not yet published")
+/// and then pushed with its own `PUT`.
+#[test]
+fn recursive_publish_pushes_each_eligible_package() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    write_workspace(
+        &workspace,
+        &[("project-1", public_pkg("project-1")), ("project-2", public_pkg("project-2"))],
+    );
+    write_registry_npmrc(&workspace, &format!("{}/", server.url()));
+
+    let probe_1 = server.mock("GET", "/project-1").with_status(404).create();
+    let probe_2 = server.mock("GET", "/project-2").with_status(404).create();
+    let put_1 =
+        server.mock("PUT", "/project-1").with_status(200).with_body("{}").expect(1).create();
+    let put_2 =
+        server.mock("PUT", "/project-2").with_status(200).with_body("{}").expect(1).create();
+
+    clear_ci(pacquet)
+        .with_arg("-r")
+        .with_arg("publish")
+        .with_arg("--no-git-checks")
+        .assert()
+        .success();
+
+    probe_1.assert();
+    probe_2.assert();
+    put_1.assert();
+    put_2.assert();
+    drop(root);
+}
+
+/// `--force` skips the already-published probe entirely and republishes, so no
+/// `GET` is issued.
+#[test]
+fn recursive_publish_force_republishes_without_probing() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    write_workspace(&workspace, &[("project-1", public_pkg("project-1"))]);
+    write_registry_npmrc(&workspace, &format!("{}/", server.url()));
+
+    let probe = server.mock("GET", Matcher::Any).expect(0).create();
+    let put = server.mock("PUT", "/project-1").with_status(200).with_body("{}").expect(1).create();
+
+    clear_ci(pacquet)
+        .with_arg("-r")
+        .with_arg("publish")
+        .with_arg("--force")
+        .with_arg("--no-git-checks")
+        .assert()
+        .success();
+
+    probe.assert();
+    put.assert();
+    drop(root);
+}
+
+/// `--report-summary` records every published package under `publishedPackages`
+/// with the per-package summary shape (`name` / `version`).
+#[test]
+fn recursive_publish_report_summary_lists_the_published_packages() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    write_workspace(
+        &workspace,
+        &[("project-1", public_pkg("project-1")), ("project-2", public_pkg("project-2"))],
+    );
+    write_registry_npmrc(&workspace, &format!("{}/", server.url()));
+
+    server.mock("GET", Matcher::Any).with_status(404).create();
+    server.mock("PUT", Matcher::Any).with_status(200).with_body("{}").create();
+
+    clear_ci(pacquet)
+        .with_arg("-r")
+        .with_arg("publish")
+        .with_arg("--report-summary")
+        .with_arg("--no-git-checks")
+        .assert()
+        .success();
+
+    let summary = workspace
+        .join("pnpm-publish-summary.json")
+        .pipe(fs::read_to_string)
+        .expect("read pnpm-publish-summary.json");
+    let value: Value = serde_json::from_str(&summary).expect("parse publish summary");
+    let published = value["publishedPackages"].as_array().expect("publishedPackages is an array");
+    assert_eq!(published.len(), 2, "both packages should be recorded");
+    let mut names: Vec<&str> =
+        published.iter().map(|entry| entry["name"].as_str().expect("name")).collect();
+    names.sort_unstable();
+    assert_eq!(names, ["project-1", "project-2"]);
+    assert_eq!(published[0]["version"], "1.0.0");
+
+    drop(root);
+}
+
+/// `--json` prints the array of per-package summaries on stdout.
+#[test]
+fn recursive_publish_json_prints_the_published_array() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    write_workspace(
+        &workspace,
+        &[("project-1", public_pkg("project-1")), ("project-2", public_pkg("project-2"))],
+    );
+    write_registry_npmrc(&workspace, &format!("{}/", server.url()));
+
+    server.mock("GET", Matcher::Any).with_status(404).create();
+    server.mock("PUT", Matcher::Any).with_status(200).with_body("{}").create();
+
+    let assert = clear_ci(pacquet)
+        .with_arg("-r")
+        .with_arg("publish")
+        .with_arg("--json")
+        .with_arg("--no-git-checks")
+        .assert()
+        .success();
+
+    let stdout = assert.get_output().stdout.pipe_as_ref(String::from_utf8_lossy);
+    assert!(
+        stdout.contains(r#""id": "project-1@1.0.0""#)
+            && stdout.contains(r#""id": "project-2@1.0.0""#),
+        "--json must print both per-package summaries, got: {stdout}",
     );
 
     drop(root);
