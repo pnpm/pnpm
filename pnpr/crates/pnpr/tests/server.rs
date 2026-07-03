@@ -3218,6 +3218,52 @@ async fn building_the_server_rejects_an_invalid_programmatic_registry_graph() {
     assert!(err.to_string().contains("ghost"), "unexpected error: {err}");
 }
 
+/// The programmatic path enforces the same name/org safety as YAML loading:
+/// a hosted `org` that could escape the storage root fails server startup.
+#[tokio::test]
+async fn building_the_server_rejects_an_unsafe_programmatic_hosted_org() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.hosted.insert(
+        "evil".to_string(),
+        HostedConfig { org: "../escape".to_string(), access: AccessList::parse("$all") },
+    );
+    let err = pnpr::try_router(config).expect_err("a path-escaping org must fail startup");
+    assert!(err.to_string().contains("org"), "unexpected error: {err}");
+}
+
+/// The write endpoints gate on a private upstream's `access:` exactly as
+/// reads do: a denied caller gets the read path's 403, not a 400 rejection
+/// that narrates where the name routes.
+#[tokio::test]
+async fn publish_to_a_private_upstream_is_denied_before_the_upstream_rejection() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    let mut corp = config.uplinks.get("npmjs").expect("default `npmjs` uplink").clone();
+    corp.access = Some(AccessList::parse("alice"));
+    config.uplinks.insert("corp".to_string(), corp);
+    let auth = AuthState::in_memory();
+    let member = auth.tokens.issue("alice").await.unwrap();
+    let outsider = auth.tokens.issue("mallory").await.unwrap();
+    let app = router_with_auth(config, auth);
+
+    let publish_as = |token: &str| {
+        Request::put("/~corp/lodash")
+            .header("content-type", "application/json")
+            .header(header::AUTHORIZATION, format!("Bearer {token}"))
+            .body(Body::from(json!({ "name": "lodash", "versions": {} }).to_string()))
+            .unwrap()
+    };
+
+    let denied = app.clone().oneshot(publish_as(&outsider)).await.unwrap();
+    assert_eq!(denied.status(), StatusCode::FORBIDDEN);
+
+    // The admitted caller still can't write to an upstream, but the answer is
+    // the clear rejection rather than an access denial.
+    let rejected = app.oneshot(publish_as(&member)).await.unwrap();
+    assert_eq!(rejected.status(), StatusCode::BAD_REQUEST);
+}
+
 /// The registry's access list gates writes exactly as it gates reads (RFC
 /// "registries", implementation point 9). An authenticated non-member
 /// passes the default per-package publish policy (`$authenticated`), so

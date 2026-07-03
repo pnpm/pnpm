@@ -1562,17 +1562,30 @@ impl Config {
     }
 
     /// Ready the registry graph for serving: fold every uplink into the graph
-    /// as a pattern-less upstream registry, then validate the whole graph.
-    /// YAML loading already declares each uplink in the graph and validates
-    /// it; this covers embedders that insert [`Self::uplinks`] entries (or
-    /// build [`Self::registries`]) programmatically, so [`Registries::resolve`]
-    /// is the only dispatch table for `/~<name>/` traffic and a
-    /// programmatically-built graph fails closed like a YAML load. An
-    /// embedder that wants a namespace bound on an uplink declares its
-    /// registry entry (with patterns) before serving.
+    /// as a pattern-less upstream registry, then apply every invariant YAML
+    /// loading enforces — URL-safe registry names, path-safe and collision-free
+    /// hosted `org` namespaces, and the graph validation itself. This covers
+    /// embedders that build [`Self::uplinks`], [`Self::hosted`], or
+    /// [`Self::registries`] programmatically, so [`Registries::resolve`] is the
+    /// only dispatch table for `/~<name>/` traffic and a programmatically-built
+    /// config fails closed like a YAML load. An embedder that wants a
+    /// namespace bound on an uplink declares its registry entry (with
+    /// patterns) before serving.
     pub fn ensure_valid_registry_graph(&mut self) -> Result<(), RegistryError> {
         for name in self.uplinks.keys() {
             self.registries.ensure_upstream(name);
+        }
+        for name in self.registries.names() {
+            validate_registry_name(name)?;
+        }
+        for (index, (name, hosted)) in self.hosted.iter().enumerate() {
+            validate_registry_name(name)?;
+            validate_org_namespace(name, &hosted.org)?;
+            if let Some((other, _)) =
+                self.hosted.iter().take(index).find(|(_, existing)| existing.org == hosted.org)
+            {
+                return Err(org_collision_error(name, &hosted.org, other));
+            }
         }
         self.registries.validate().map_err(|err| registry_err(&err))
     }
@@ -1645,7 +1658,7 @@ fn build_registries(
     default_registry: Option<String>,
     resolve_upstreams: bool,
 ) -> Result<(IndexMap<String, HostedConfig>, Registries), RegistryError> {
-    let mut hosted = IndexMap::new();
+    let mut hosted: IndexMap<String, HostedConfig> = IndexMap::new();
     let mut graph: IndexMap<String, Registry> = IndexMap::new();
     // Every configured uplink is, by definition, an upstream registry addressable
     // at `/~<uplink>/`. No declared patterns ⇒ it serves every name.
@@ -1665,21 +1678,11 @@ fn build_registries(
         match file {
             RegistryFile::Hosted(registry) => {
                 validate_org_namespace(&name, &registry.org)?;
-                // Two hosted registries sharing an `org` would read and write the
-                // same storage namespace, so a package published to one would
-                // surface through the other — breaking the declared-provenance
-                // isolation. Reject the collision at load.
                 if let Some((other, _)) = hosted
                     .iter()
                     .find(|(_, existing): &(_, &HostedConfig)| existing.org == registry.org)
                 {
-                    return Err(RegistryError::InvalidConfig {
-                        reason: format!(
-                            "hosted registry {name:?} reuses the `org` namespace {:?} already claimed \
-                             by registry {other:?}; two hosted registries cannot share a namespace",
-                            registry.org,
-                        ),
-                    });
+                    return Err(org_collision_error(&name, &registry.org, other));
                 }
                 let access = registry
                     .access
@@ -1705,6 +1708,19 @@ fn build_registries(
     let registries = Registries::new(graph, default_registry);
     registries.validate().map_err(|err| registry_err(&err))?;
     Ok((hosted, registries))
+}
+
+/// Two hosted registries sharing an `org` would read and write the same
+/// storage namespace, so a package published to one would surface through the
+/// other — breaking the declared-provenance isolation. Rejected at load,
+/// whether the config came from YAML or an embedder.
+fn org_collision_error(name: &str, org: &str, other: &str) -> RegistryError {
+    RegistryError::InvalidConfig {
+        reason: format!(
+            "hosted registry {name:?} reuses the `org` namespace {org:?} already claimed by \
+             registry {other:?}; two hosted registries cannot share a namespace",
+        ),
+    }
 }
 
 /// A registry's name is addressed as the single URL path segment `/~<name>/` and

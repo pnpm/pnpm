@@ -255,6 +255,11 @@ impl Registries {
         self.default_registry.as_deref()
     }
 
+    /// The declared registry names, in declaration order.
+    pub fn names(&self) -> impl Iterator<Item = &str> {
+        self.registries.keys().map(String::as_str)
+    }
+
     /// Whether `registry` is a defined router.
     #[must_use]
     pub fn is_router(&self, registry: &str) -> bool {

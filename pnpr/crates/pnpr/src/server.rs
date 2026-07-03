@@ -2376,6 +2376,10 @@ enum PublishTarget {
     Org(String),
     /// The resolved target is not a hosted org; reject with this reason.
     Reject(String),
+    /// The resolved upstream registry denies this caller; answer with the
+    /// same response its reads give (a 403), before any rejection that would
+    /// narrate routing config.
+    Denied(Box<Response>),
     /// The addressed registry or route does not exist (or the path-less base has
     /// no default target).
     NotFound,
@@ -2414,10 +2418,17 @@ fn resolve_publish_target(
                 None => PublishTarget::NotFound,
             }
         }
-        RegistrySource::Upstream(_) => PublishTarget::Reject(format!(
-            "cannot publish {package:?} {context}: it routes to an upstream registry; name a \
-             hosted registry",
-        )),
+        // A write can never land on an upstream — but the upstream's `access:`
+        // gates the write endpoints exactly as it gates reads, so a caller the
+        // upstream denies gets the read path's 403 (`authorized_uplink`), not
+        // a rejection that narrates where the name routes.
+        RegistrySource::Upstream(source) => match authorized_uplink(state, identity, &source) {
+            Err(response) => PublishTarget::Denied(response),
+            Ok(_) => PublishTarget::Reject(format!(
+                "cannot publish {package:?} {context}: it routes to an upstream registry; name \
+                 a hosted registry",
+            )),
+        },
         // The loud rejection explains a config fact about the addressed
         // registry, so only a caller the registry is visible to gets it;
         // anyone else keeps the same not-found mask a read gives, so an
@@ -2501,6 +2512,7 @@ async fn publish_package(
         PublishTarget::Reject(reason) => {
             return error_response(&RegistryError::BadRequest { reason });
         }
+        PublishTarget::Denied(response) => return *response,
         PublishTarget::NotFound => return not_found(),
     };
 
@@ -2609,6 +2621,12 @@ async fn serve_batch_publish(
                     cleanup_tmp_slots(stage.slots).await;
                 }
                 return error_response(&RegistryError::BadRequest { reason });
+            }
+            PublishTarget::Denied(response) => {
+                for stage in staged {
+                    cleanup_tmp_slots(stage.slots).await;
+                }
+                return *response;
             }
             PublishTarget::NotFound => {
                 for stage in staged {
@@ -3490,6 +3508,7 @@ fn resolve_write_org(
         PublishTarget::Reject(reason) => {
             Err(Box::new(error_response(&RegistryError::BadRequest { reason })))
         }
+        PublishTarget::Denied(response) => Err(response),
         PublishTarget::NotFound => Err(Box::new(not_found())),
     }
 }
