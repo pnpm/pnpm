@@ -38,18 +38,15 @@ use pacquet_resolving_resolver_base::{
 };
 
 use crate::{
-    errors::{
-        AllVersionsBlockedError, GuardRepickLimitError, WorkspaceVersionMismatchError,
-        build_workspace_version_hint,
-    },
+    errors::{AllVersionsBlockedError, GuardRepickLimitError},
     named_registry::pick_registry_for_package,
     parse_bare_specifier::{parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec},
     pick_package::{PackageMetaCache, PickPackageContext, PickPackageOptions, pick_package},
     pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType},
     resolve_from_workspace::{
-        ResolveFromWorkspaceOptions, pick_matching_local_version_or_null,
-        resolve_from_local_package, try_resolve_from_workspace,
-        try_resolve_from_workspace_packages,
+        ResolveFromWorkspaceError, ResolveFromWorkspaceOptions,
+        pick_matching_local_version_or_null, resolve_from_local_package,
+        try_resolve_from_workspace, try_resolve_from_workspace_packages,
     },
     trust_checks::{TrustCheckOptions, fail_if_trust_downgraded},
     violation_codes::MINIMUM_RELEASE_AGE_VIOLATION_CODE,
@@ -218,41 +215,38 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         let picked = match pick_result {
             Ok(Some(picked)) => picked,
             Ok(None) => {
-                if let Some(workspace_packages) = workspace_packages_active
-                    && let Some(result) =
-                        try_workspace_fallback(workspace_packages, &spec, wanted_dependency, opts)
-                {
-                    return Ok(Some(result));
-                }
-                // The registry had no matching version and the workspace
-                // fallback also failed. If a workspace package with the
-                // same name exists, surface the available versions so the
-                // user knows which versions they can pick (pnpm/pnpm#1379).
-                if let Some(hint) = workspace_packages_active
-                    .and_then(|wp| build_workspace_version_hint(&spec.name, wp))
-                {
-                    return Err(Box::new(WorkspaceVersionMismatchError { message: hint }));
-                }
-                return Ok(None);
+                return match workspace_packages_active.map(|workspace_packages| {
+                    try_workspace_fallback(workspace_packages, &spec, wanted_dependency, opts)
+                }) {
+                    Some(Ok(result)) => Ok(Some(result)),
+                    // Neither the registry nor the workspace has a
+                    // matching version; the workspace mismatch error
+                    // carries the available local versions, which is the
+                    // actionable detail here (pnpm/pnpm#1379).
+                    Some(Err(
+                        ws_err @ ResolveFromWorkspaceError::NoMatchingVersionInsideWorkspace {
+                            ..
+                        },
+                    )) => Err(Box::new(ws_err)),
+                    _ => Ok(None),
+                };
             }
             Err(err) => {
-                if let Some(workspace_packages) = workspace_packages_active
-                    && let Some(result) =
-                        try_workspace_fallback(workspace_packages, &spec, wanted_dependency, opts)
-                {
-                    return Ok(Some(result));
-                }
-                // The registry fetch failed and the workspace fallback
-                // also failed. Only surface workspace version hints for
-                // 404 (not-found) errors — auth, network, or server
-                // errors should propagate as-is (pnpm/pnpm#1379).
-                if is_not_found_error(err.as_ref())
-                    && let Some(hint) = workspace_packages_active
-                        .and_then(|wp| build_workspace_version_hint(&spec.name, wp))
-                {
-                    return Err(Box::new(WorkspaceVersionMismatchError { message: hint }));
-                }
-                return Err(err);
+                return match workspace_packages_active.map(|workspace_packages| {
+                    try_workspace_fallback(workspace_packages, &spec, wanted_dependency, opts)
+                }) {
+                    Some(Ok(result)) => Ok(Some(result)),
+                    // Surface the workspace mismatch (with its available
+                    // versions) only when the registry said "not found";
+                    // auth, network, and server errors propagate as-is
+                    // (pnpm/pnpm#1379).
+                    Some(Err(
+                        ws_err @ ResolveFromWorkspaceError::NoMatchingVersionInsideWorkspace {
+                            ..
+                        },
+                    )) if is_not_found_error(err.as_ref()) => Err(Box::new(ws_err)),
+                    _ => Err(err),
+                };
             }
         };
 
@@ -419,17 +413,17 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
 
 /// Registry pick was unavailable (no matching version or fetch
 /// error); try the workspace as a fallback via
-/// [`try_resolve_from_workspace_packages`]. Workspace errors (missing
-/// name, no matching version) are swallowed — the caller re-raises the
-/// original registry error.
+/// [`try_resolve_from_workspace_packages`]. The caller decides which
+/// workspace errors to surface and which to swallow in favour of the
+/// original registry outcome.
 fn try_workspace_fallback(
     workspace_packages: &WorkspacePackages,
     spec: &RegistryPackageSpec,
     wanted_dependency: &WantedDependency,
     opts: &ResolveOptions,
-) -> Option<ResolveResult> {
+) -> Result<ResolveResult, ResolveFromWorkspaceError> {
     let ws_opts = workspace_fallback_options(opts);
-    try_resolve_from_workspace_packages(workspace_packages, spec, wanted_dependency, &ws_opts).ok()
+    try_resolve_from_workspace_packages(workspace_packages, spec, wanted_dependency, &ws_opts)
 }
 
 /// Registry pick succeeded; check whether a workspace package
@@ -794,17 +788,16 @@ fn detect_min_release_age_violation(
     })
 }
 
-/// Walk the error chain looking for a reqwest 404 status code.
+/// Whether any error in the source chain is a reqwest `404 Not Found`.
 fn is_not_found_error(err: &(dyn std::error::Error + 'static)) -> bool {
-    // Check the current error
-    if let Some(reqwest_err) = err.downcast_ref::<reqwest::Error>()
-        && reqwest_err.status() == Some(reqwest::StatusCode::NOT_FOUND)
-    {
-        return true;
-    }
-    // Walk the source chain
-    if let Some(source) = err.source() {
-        return is_not_found_error(source);
+    let mut current = Some(err);
+    while let Some(err) = current {
+        if let Some(reqwest_err) = err.downcast_ref::<reqwest::Error>()
+            && reqwest_err.status() == Some(reqwest::StatusCode::NOT_FOUND)
+        {
+            return true;
+        }
+        current = err.source();
     }
     false
 }

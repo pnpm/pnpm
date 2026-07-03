@@ -2114,7 +2114,7 @@ test('pick lowest version by * when there are only prerelease versions', async (
   expect(resolveResult!.manifest!.version).toBe('1.0.0-alpha.1')
 })
 
-test('throws when workspace package version does not match and package is not found in the registry', async () => {
+test('throws an error with the available workspace versions when workspace package version does not match and package is not found in the registry', async () => {
   getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(404, {})
@@ -2126,9 +2126,11 @@ test('throws when workspace package version does not match and package is not fo
     registries,
   })
 
-  await expect(
-    resolveFromNpm({ alias: 'is-positive', bareSpecifier: '2.0.0' }, {
-      projectDir: '/home/istvan/src',
+  const projectDir = '/home/istvan/src'
+  let err!: Error & { code: string }
+  try {
+    await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '2.0.0' }, {
+      projectDir,
       update: 'compatible',
       workspacePackages: new Map([
         ['is-positive', new Map([
@@ -2142,10 +2144,16 @@ test('throws when workspace package version does not match and package is not fo
         ])],
       ]),
     })
-  ).rejects.toThrow()
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+
+  expect(err).toBeTruthy()
+  expect(err.code).toBe('ERR_PNPM_NO_MATCHING_VERSION_INSIDE_WORKSPACE')
+  expect(err.message).toBe(`In ${path.relative(process.cwd(), projectDir)}: No matching version found for is-positive@2.0.0 inside the workspace. Available versions: 1.0.0`)
 })
 
-test('throws NoMatchingVersionError when workspace package version does not match and registry has no matching version', async () => {
+test('throws an error with the available workspace versions when workspace package version does not match and registry has no matching version', async () => {
   getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
@@ -2157,8 +2165,49 @@ test('throws NoMatchingVersionError when workspace package version does not matc
     registries,
   })
 
-  await expect(
-    resolveFromNpm({ alias: 'is-positive', bareSpecifier: '99.0.0' }, {
+  const projectDir = '/home/istvan/src'
+  let err!: Error & { code: string }
+  try {
+    await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '99.0.0' }, {
+      projectDir,
+      update: 'compatible',
+      workspacePackages: new Map([
+        ['is-positive', new Map([
+          ['1.0.0', {
+            rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+            manifest: {
+              name: 'is-positive',
+              version: '1.0.0',
+            },
+          }],
+        ])],
+      ]),
+    })
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+
+  expect(err).toBeTruthy()
+  expect(err.code).toBe('ERR_PNPM_NO_MATCHING_VERSION_INSIDE_WORKSPACE')
+  expect(err.message).toBe(`In ${path.relative(process.cwd(), projectDir)}: No matching version found for is-positive@99.0.0 inside the workspace. Available versions: 1.0.0`)
+})
+
+test('non-404 registry errors are not masked when the workspace package version does not match', async () => {
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(500, {})
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registries,
+    retry: { retries: 0 },
+  })
+
+  let err!: Error & { code: string }
+  try {
+    await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '2.0.0' }, {
       projectDir: '/home/istvan/src',
       update: 'compatible',
       workspacePackages: new Map([
@@ -2173,7 +2222,12 @@ test('throws NoMatchingVersionError when workspace package version does not matc
         ])],
       ]),
     })
-  ).rejects.toThrow(NoMatchingVersionError)
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+
+  expect(err).toBeTruthy()
+  expect(err.code).toBe('ERR_PNPM_FETCH_500')
 })
 
 test('resolve from registry when workspace package version does not match the requested version', async () => {
