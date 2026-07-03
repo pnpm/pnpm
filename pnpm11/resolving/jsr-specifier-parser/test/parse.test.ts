@@ -66,7 +66,7 @@ describe('parseJsrSpecifier', () => {
     expect(() => parseJsrSpecifier('jsr:@foo/bar\\baz')).toThrow(expect.objectContaining({
       code: 'ERR_PNPM_INVALID_JSR_PACKAGE_NAME',
     }))
-    expect(() => parseJsrSpecifier('jsr:@fo\\o/bar')).toThrow(expect.objectContaining({
+    expect(() => parseJsrSpecifier('jsr:@sco\\pe/bar')).toThrow(expect.objectContaining({
       code: 'ERR_PNPM_INVALID_JSR_PACKAGE_NAME',
     }))
   })

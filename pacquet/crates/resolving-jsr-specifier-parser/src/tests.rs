@@ -105,7 +105,7 @@ fn empty_scope_is_an_error() {
 
 #[test]
 fn path_separators_in_name_are_an_error() {
-    for input in ["jsr:@foo/../bar", "jsr:@foo/bar/baz", r"jsr:@foo/bar\baz", r"jsr:@fo\o/bar"] {
+    for input in ["jsr:@foo/../bar", "jsr:@foo/bar/baz", r"jsr:@foo/bar\baz", r"jsr:@sco\pe/bar"] {
         let pkg_name = input.strip_prefix("jsr:").unwrap().to_string();
         assert_eq!(
             parse_jsr_specifier(input, None),
