@@ -205,6 +205,41 @@ fn update_transitive_glob_mixed_with_direct_selector() {
     drop((root, anchor));
 }
 
+/// `pacquet update <pkg>@<version>` on a package that is only present
+/// as a transitive dependency must land on the requested version, not
+/// on the highest version in range. With no manifest entry to rewrite,
+/// the requested version rides the preferred-versions seed as a
+/// maximum-weight range selector.
+#[test]
+fn update_transitive_to_explicitly_requested_version() {
+    let (root, workspace, anchor) = setup();
+
+    // Pin the transitive dep-of-pkg-with-1-dep at 100.0.0 (via a direct
+    // exact entry), then drop it to a pure transitive of pkg-with-1-dep.
+    write_manifest(&workspace, &format!(r#"{{ "{PARENT}": "100.0.0", "{DEP}": "100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"));
+
+    write_manifest(&workspace, &format!(r#"{{ "{PARENT}": "100.0.0" }}"#));
+
+    // 100.1.0 is the highest version in pkg-with-1-dep's ^100.0.0 range,
+    // but the update requests 100.0.0, which must win.
+    pacquet(&workspace, ["update", &format!("{DEP}@100.0.0")]).assert().success();
+
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(
+        virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"),
+        "the explicitly requested version should win over highest-in-range",
+    );
+    assert!(
+        !virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"),
+        "the target must not be re-resolved to highest-in-range",
+    );
+
+    drop((root, anchor));
+}
+
 /// `pacquet update --latest` ignores the manifest range, bumps to the
 /// `latest` dist-tag, and rewrites `package.json`.
 #[test]

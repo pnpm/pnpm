@@ -18,7 +18,10 @@ use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMe
 use pacquet_resolving_npm_resolver::{pick_registry_for_package, which_version_is_pinned};
 use pacquet_tarball::MemCache;
 use pacquet_workspace_manifest_writer::{UpdateWorkspaceManifestError, update_workspace_manifest};
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 /// The three dependency groups `pacquet update` considers as "direct"
 /// targets, in the order pnpm's `updateProjectManifest` walks them.
@@ -313,12 +316,12 @@ impl Update<'_> {
                         }
                     }
                 }
-                UpdateSeedPolicy::DropOnly(drop_names)
+                UpdateSeedPolicy::DropOnly { names: drop_names, requested_versions: HashMap::new() }
             } else {
                 // Group-narrowed: only the included direct deps (minus
                 // ignored) and their same-named transitive occurrences
                 // re-resolve.
-                UpdateSeedPolicy::DropOnly(drop_names)
+                UpdateSeedPolicy::DropOnly { names: drop_names, requested_versions: HashMap::new() }
             }
         } else if use_name_matcher {
             let patterns: Vec<String> = selectors.iter().map(|sel| sel.pattern.clone()).collect();
@@ -338,7 +341,7 @@ impl Update<'_> {
                     }
                 }
             }
-            UpdateSeedPolicy::DropOnly(drop_names)
+            UpdateSeedPolicy::DropOnly { names: drop_names, requested_versions: HashMap::new() }
         } else {
             // Versioned selectors and/or `--latest`: match direct
             // dependencies only and write the new range into the
@@ -372,7 +375,21 @@ impl Update<'_> {
                         }
                     }
                 }
-                UpdateSeedPolicy::DropOnly(drop_names)
+                // With no manifest entry to rewrite, the selector's version
+                // would otherwise be discarded and the target re-resolved to
+                // highest-in-range. Carry it into the preferred-versions
+                // seed instead — only an exact version of a single named
+                // package can be preferred.
+                let requested_versions: HashMap<String, String> = selectors
+                    .iter()
+                    .filter(|sel| !sel.pattern.contains('*') && !sel.pattern.starts_with('!'))
+                    .filter_map(|sel| {
+                        let version = sel.version.as_deref()?;
+                        let exact: node_semver::Version = version.parse().ok()?;
+                        Some((sel.pattern.clone(), exact.to_string()))
+                    })
+                    .collect();
+                UpdateSeedPolicy::DropOnly { names: drop_names, requested_versions }
             } else {
                 for (name, group, prev) in &matched_direct {
                     drop_names.insert(name.clone());
@@ -395,7 +412,7 @@ impl Update<'_> {
                         rewrites.push((name.clone(), *group, spec));
                     }
                 }
-                UpdateSeedPolicy::DropOnly(drop_names)
+                UpdateSeedPolicy::DropOnly { names: drop_names, requested_versions: HashMap::new() }
             }
         };
 

@@ -204,7 +204,20 @@ pub enum UpdateSeedPolicy {
     /// Withhold only the named packages' pins. `pacquet update <pattern>`
     /// — matched names (at any depth) re-resolve while everything else
     /// keeps its pin. Keyed by package name (scope included).
-    DropOnly(std::collections::HashSet<String>),
+    DropOnly {
+        names: std::collections::HashSet<String>,
+        /// The exact version the user asked for per package name
+        /// (`pacquet update <pkg>@<version>` targeting a package that is
+        /// only present as a transitive dependency, so there is no
+        /// manifest entry to rewrite). Each entry joins the
+        /// preferred-versions seed as a `range` selector at
+        /// [`REQUESTED_VERSION_SELECTOR_WEIGHT`], steering the target's
+        /// re-resolution to the requested version instead of
+        /// highest-in-range. It must ride a `range` selector because
+        /// `version`-pin selectors are dropped for update targets
+        /// (`update_requested` in the npm picker).
+        requested_versions: std::collections::HashMap<String, String>,
+    },
 }
 
 /// Error type of [`InstallWithFreshLockfile`].
@@ -923,7 +936,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let seed_snapshots = match &update_seed_policy {
             UpdateSeedPolicy::KeepAll => lockfile_snapshots,
             UpdateSeedPolicy::DropAll => None,
-            UpdateSeedPolicy::DropOnly(names) => match lockfile_snapshots {
+            UpdateSeedPolicy::DropOnly { names, .. } => match lockfile_snapshots {
                 None => None,
                 Some(snapshots) => {
                     // The update-target set is small (CLI selectors / direct
@@ -944,11 +957,29 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 }
             },
         };
-        let all_preferred_versions =
+        let mut all_preferred_versions =
             pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests(
                 seed_snapshots,
                 manifests_for_preferred.as_slice(),
             );
+        // The explicitly requested version of `pacquet update
+        // <pkg>@<version>` joins the seed as a maximum-weight `range`
+        // selector — see [`UpdateSeedPolicy::DropOnly`].
+        if let UpdateSeedPolicy::DropOnly { requested_versions, .. } = &update_seed_policy {
+            for (name, version) in requested_versions {
+                all_preferred_versions.entry(name.clone()).or_default().insert(
+                    version.clone(),
+                    pacquet_resolving_resolver_base::VersionSelectorEntry::Weighted(
+                        pacquet_resolving_resolver_base::VersionSelectorWithWeight {
+                            selector_type:
+                                pacquet_resolving_resolver_base::VersionSelectorType::Range,
+                            weight:
+                                pacquet_resolving_resolver_base::REQUESTED_VERSION_SELECTOR_WEIGHT,
+                        },
+                    ),
+                );
+            }
+        }
         // The picker biases toward this seed so pins that still satisfy
         // their range survive the re-resolve. Move the map into the `Arc`
         // (no extra clone) so each per-importer `ResolveOptions` shares it
@@ -1051,7 +1082,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let mut update_reuse_scope = match &update_seed_policy {
             UpdateSeedPolicy::KeepAll => pacquet_resolving_deps_resolver::UpdateReuseScope::All,
             UpdateSeedPolicy::DropAll => pacquet_resolving_deps_resolver::UpdateReuseScope::None,
-            UpdateSeedPolicy::DropOnly(names) => {
+            UpdateSeedPolicy::DropOnly { names, .. } => {
                 pacquet_resolving_deps_resolver::UpdateReuseScope::Except(names.clone())
             }
         };

@@ -197,6 +197,14 @@ pub const DIRECT_DEP_SELECTOR_WEIGHT: u32 = 1_000;
 /// existing pins stick across an add of a fresh range.
 pub const EXISTING_VERSION_SELECTOR_WEIGHT: u32 = 1_000_000;
 
+/// Selector weight applied to the exact version the user explicitly
+/// requested on the command line (`pnpm update <pkg>@<version>` for a
+/// package that is only present as a transitive dependency). Must
+/// outrank every other preference — including
+/// [`EXISTING_VERSION_SELECTOR_WEIGHT`] — so the requested version
+/// wins during re-resolution.
+pub const REQUESTED_VERSION_SELECTOR_WEIGHT: u32 = 10_000_000;
+
 /// One project in the current workspace that resolution can satisfy
 /// `workspace:`-protocol entries from.
 ///

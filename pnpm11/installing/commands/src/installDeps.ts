@@ -24,7 +24,7 @@ import { writeWantedLockfile } from '@pnpm/lockfile.fs'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalInfo, logger } from '@pnpm/logger'
 import { applyRuntimeOnFailOverride, filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
-import type { PreferredVersions, VersionSelectors } from '@pnpm/resolving.resolver-base'
+import { type PreferredVersions, REQUESTED_VERSION_SELECTOR_WEIGHT, type VersionSelectors } from '@pnpm/resolving.resolver-base'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type {
   IncludedDependencies,
@@ -40,6 +40,7 @@ import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import { sequenceGraph } from '@pnpm/workspace.projects-sorter'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
+import getVersionSelectorType from 'version-selector-type'
 
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
@@ -50,6 +51,7 @@ import {
   createMatcher,
   makeIgnorePatterns,
   matchDependencies,
+  parseUpdateParam,
   recursive,
   type RecursiveOptions,
   type UpdateDepsMatcher,
@@ -374,6 +376,7 @@ export async function installDeps (
     updateMatching = (pkgName: string, version?: string) => version != null && packageVulnerabilityAudit.isVulnerable(pkgName, version)
   }
   if (updateMatch != null) {
+    const updateSpecs = params
     params = matchDependencies(updateMatch, manifest, includeDirect)
     if (params.length === 0) {
       if (opts.latest) return
@@ -385,6 +388,16 @@ export async function installDeps (
       // Don't update package.json in this case, and limit updates to only matching dependencies
       updatePackageManifest = false
       updateMatching = (pkgName: string) => updateMatch!(pkgName) != null
+      // updateMatching only flags a dependency for re-resolution; it cannot
+      // carry the version from `<dep>@<version>`. Steer the resolver to the
+      // requested version through preferredVersions instead.
+      const preferredVersions = getPreferredVersionsForUpdateSpecs(updateSpecs)
+      if (Object.keys(preferredVersions).length > 0) {
+        installOpts.preferredVersions = {
+          ...installOpts.preferredVersions,
+          ...preferredVersions,
+        }
+      }
     }
   }
 
@@ -584,6 +597,29 @@ function getVulnerabilityPenalty (severity: VulnerabilitySeverity): number {
       // Treat unrecognized severity as the lowest severity
     default: return -1100
   }
+}
+
+function getPreferredVersionsForUpdateSpecs (updateSpecs: string[]): PreferredVersions {
+  // Null-prototype map so a crafted package name (e.g. `__proto__`) is a plain
+  // key rather than a prototype-pollution vector.
+  const preferredVersions = Object.create(null) as PreferredVersions
+  for (const spec of updateSpecs) {
+    const { pattern, versionSpec } = parseUpdateParam(spec)
+    if (versionSpec == null || pattern.includes('*') || pattern.startsWith('!')) continue
+    // Only an exact version of a single named package can be preferred.
+    const selector = getVersionSelectorType(versionSpec)
+    if (selector?.type !== 'version') continue
+    // Encoded as a `range` selector (an exact version is a valid range
+    // matching only itself): the resolver drops `version`-type selectors for
+    // update targets — they are how sibling pins propagate — while `range`
+    // selectors survive, so the user's explicit request keeps steering.
+    preferredVersions[pattern] = preferredVersions[pattern] ?? {}
+    preferredVersions[pattern][selector.normalized] = {
+      selectorType: 'range',
+      weight: REQUESTED_VERSION_SELECTOR_WEIGHT,
+    }
+  }
+  return preferredVersions
 }
 
 function preferNonvulnerablePackageVersions (packageVulnerabilityAudit: PackageVulnerabilityAudit): PreferredVersions {

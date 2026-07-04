@@ -1500,9 +1500,19 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   // with open ranges lost their pins and re-resolved to newest-in-range
   // (pnpm/pnpm#10662). The targeted package still bumps: `updateRequested`
   // at the npm picker strips only the version-pin selectors for it.
-  const preferredVersions = opts.preferredVersions ?? (
+  // Caller-supplied preferred versions (audit-fix vulnerability penalties,
+  // the explicitly requested version of `pnpm update <pkg>@<version>`) layer
+  // on top of the seed per package name — replacing the seed with them would
+  // unpin every unrelated package.
+  // Null-prototype merge target so a crafted package name (e.g. `__proto__`)
+  // lands as a plain own key instead of invoking the prototype setter.
+  const preferredVersions: PreferredVersions = Object.assign(
+    Object.create(null),
     getPreferredVersionsFromLockfileAndManifests(ctx.wantedLockfile.packages, Object.values(ctx.projects).map(({ manifest }) => manifest))
   )
+  for (const [pkgName, selectors] of Object.entries(opts.preferredVersions ?? {})) {
+    preferredVersions[pkgName] = { ...preferredVersions[pkgName], ...selectors }
+  }
   const forceFullResolution = ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION ||
     !opts.currentLockfileIsUpToDate ||
     opts.force ||
