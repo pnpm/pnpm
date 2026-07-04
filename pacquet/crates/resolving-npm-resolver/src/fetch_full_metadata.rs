@@ -23,7 +23,7 @@ use pacquet_network::{
 use pacquet_registry::Package;
 use reqwest::{StatusCode, header};
 
-use crate::{FetchMetadataError, registry_url::to_registry_url};
+use crate::{FetchMetadataError, mirror::clear_meta, registry_url::to_registry_url};
 
 /// Accept header for the full packument.
 pub(crate) const ACCEPT_FULL_DOC: &str = "application/json; q=1.0, */*";
@@ -31,6 +31,23 @@ pub(crate) const ACCEPT_FULL_DOC: &str = "application/json; q=1.0, */*";
 /// Accept header for the abbreviated `install-v1` packument.
 pub(crate) const ACCEPT_ABBREVIATED_DOC: &str =
     "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*";
+
+/// Content type of an abbreviated (install-oriented) packument. A
+/// spec-compliant registry echoes this in the response `Content-Type` when it
+/// honors the abbreviated `Accept` header. Its absence signals that the
+/// registry ignored the header and served the full document instead.
+/// <https://github.com/npm/registry/blob/main/docs/responses/package-metadata.md>
+const ABBREVIATED_META_CONTENT_TYPE: &str = "application/vnd.npm.install-v1+json";
+
+/// Whether the response `Content-Type` declares the abbreviated packument
+/// media type. Parameters (`; charset=utf-8`) are dropped and the comparison
+/// is case-insensitive (RFC 9110 §8.3.1).
+pub(crate) fn is_abbreviated_content_type(headers: &header::HeaderMap) -> bool {
+    headers.get(header::CONTENT_TYPE).and_then(|value| value.to_str().ok()).is_some_and(|value| {
+        let media_type = value.split_once(';').map_or(value, |(media_type, _)| media_type);
+        media_type.trim().eq_ignore_ascii_case(ABBREVIATED_META_CONTENT_TYPE)
+    })
+}
 
 /// Options bundle for [`fetch_full_metadata`]. The cached variant
 /// ([`crate::FetchFullMetadataCachedOptions`]) layers a
@@ -107,6 +124,8 @@ pub async fn fetch_full_metadata(
         let response = response.error_for_status().map_err(|error| {
             FetchMetadataError::Network { url: redact_url_credentials(&url), error }
         })?;
+        let normalize_to_abbreviated =
+            !opts.full_metadata && !is_abbreviated_content_type(response.headers());
         let raw_body = response.text().await.map_err(|error| FetchMetadataError::BodyRead {
             url: redact_url_credentials(&url),
             error,
@@ -118,11 +137,11 @@ pub async fn fetch_full_metadata(
         // `fetch_full_metadata_cached` for the cold-install numbers).
         drop(client);
         let task_url = url.clone();
-        let meta = tokio::task::spawn_blocking(move || {
-            serde_json::from_str::<Package>(&raw_body).map_err(|error| FetchMetadataError::Decode {
-                url: redact_url_credentials(&task_url),
-                error,
-            })
+        let meta = tokio::task::spawn_blocking(move || -> Result<Package, FetchMetadataError> {
+            let meta = serde_json::from_str::<Package>(&raw_body).map_err(|error| {
+                FetchMetadataError::Decode { url: redact_url_credentials(&task_url), error }
+            })?;
+            Ok(if normalize_to_abbreviated { normalize_abbreviated_meta(meta) } else { meta })
         })
         .await
         .map_err(|error| FetchMetadataError::ParseTask {
@@ -132,6 +151,32 @@ pub async fn fetch_full_metadata(
         Ok(FetchFullMetadataOutcome::Modified(Box::new(meta)))
     })
     .await
+}
+
+/// Strip a packument served for an **abbreviated** request down to the
+/// abbreviated field set, for a registry that ignored the `Accept` header
+/// (detected via [`is_abbreviated_content_type`]) and returned the full
+/// document. Neither the in-memory pick nor the on-disk mirror then carries
+/// the install-irrelevant data (scripts, exports, readme, custom fields) a
+/// full document contains. Registries that honor the header (e.g. the npm
+/// registry) echo the abbreviated `Content-Type` and skip this entirely.
+///
+/// Normalization is a cache optimization, not a correctness requirement, so
+/// the practically-unreachable [`clear_meta`] failure (a fragment that was
+/// parsed from the response body failing to re-parse) keeps the full
+/// document rather than failing the fetch.
+pub(crate) fn normalize_abbreviated_meta(meta: Package) -> Package {
+    match clear_meta(&meta) {
+        Ok(normalized) => normalized,
+        Err(error) => {
+            tracing::warn!(
+                target: "pacquet_resolving_npm_resolver",
+                %error,
+                "could not normalize a non-abbreviated metadata response; keeping the full document",
+            );
+            meta
+        }
+    }
 }
 
 #[cfg(test)]
