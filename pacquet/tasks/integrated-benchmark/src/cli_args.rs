@@ -371,11 +371,15 @@ impl BenchmarkScenario {
             BenchmarkScenario::GvsFreshRestoreHotCacheHotStore => {
                 Cleanup { remove: &["node_modules"], restore: &[SAVED_LOCKFILE] }
             }
-            // Only the lockfile: `--lockfile-only` never touches
-            // `node_modules`, and the warm `cache-dir` / `store-dir` the
-            // pre-warm pass populated are the scenario's contract.
+            // `node_modules` is wiped alongside the lockfile even though
+            // `--lockfile-only` never writes it: a populated `node_modules`
+            // left by the pre-warm pass lets the install's up-to-date
+            // short-circuit skip resolution entirely ("Already up to
+            // date"), and the timed runs would measure a no-op. The warm
+            // `cache-dir` / `store-dir` the pre-warm populated are the
+            // scenario's contract and survive.
             BenchmarkScenario::IsolatedFreshResolveHotCacheOffline => {
-                Cleanup { remove: &["pnpm-lock.yaml"], restore: &[] }
+                Cleanup { remove: &["node_modules", "pnpm-lock.yaml"], restore: &[] }
             }
         }
     }

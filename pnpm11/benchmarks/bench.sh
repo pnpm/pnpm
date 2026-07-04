@@ -12,10 +12,13 @@ set -euo pipefail
 #
 # Env vars: WARMUP (default 1), RUNS (default 10).
 #
-# Usage: ./benchmarks/bench.sh
+# Usage: ./pnpm11/benchmarks/bench.sh (from the repo root)
 
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-FIXTURE_DIR="$REPO_ROOT/benchmarks/fixture"
+# This script lives at `pnpm11/benchmarks/`; the git root — where the
+# Rust workspace and the orchestrator's `Cargo.toml` live — is two
+# levels up.
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+FIXTURE_DIR="$REPO_ROOT/pnpm11/benchmarks/fixture"
 WARMUP="${WARMUP:-1}"
 RUNS="${RUNS:-10}"
 BENCH_DIR="$(mktemp -d "${TMPDIR:-/tmp}/pnpm-bench.XXXXXX")"
@@ -44,12 +47,12 @@ fi
 
 # Scenario list: `slug:Display label`. The slug matches the
 # orchestrator's `--scenario` value (the clap-derived kebab-case name
-# from `BenchmarkScenario`). The restore/install/add scenarios start
-# with `node_modules` wiped — "Fresh" names that target state; the
-# fresh-resolve scenario measures `--lockfile-only` resolution and
-# never touches `node_modules`. "Isolated linker" names the
-# `nodeLinker` mode; alternatives (`hoisted`, `pnp`) and populated-
-# node_modules counterparts are reserved for future scenarios.
+# from `BenchmarkScenario`). Every scenario starts with `node_modules`
+# wiped — "Fresh" names that target state (for fresh-resolve it also
+# keeps the up-to-date short-circuit from skipping the measured
+# resolution). "Isolated linker" names the `nodeLinker` mode;
+# alternatives (`hoisted`, `pnp`) and populated-node_modules
+# counterparts are reserved for future scenarios.
 SCENARIOS=(
   "isolated-linker.fresh-restore.hot-cache.hot-store:Isolated linker: fresh restore, hot cache + hot store"
   "isolated-linker.fresh-add-dep.hot-cache.hot-store:Isolated linker: fresh add new dep, hot cache + hot store"

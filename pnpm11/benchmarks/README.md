@@ -17,7 +17,7 @@ stay consistent with the pacquet benchmark.
 ## Usage
 
 ```sh
-./benchmarks/bench.sh
+./pnpm11/benchmarks/bench.sh
 ```
 
 The script:
@@ -25,7 +25,7 @@ The script:
 1. Builds the `integrated-benchmark` binary in release mode.
 2. Clones the current repo into the temp work-env once per revision
    (`HEAD` and `main`) and runs `pnpm install && pnpm run compile-only`
-   in each to produce `pnpm/dist/pnpm.mjs`. `compile-only` skips the
+   in each to produce `pnpm11/pnpm/dist/pnpm.mjs`. `compile-only` skips the
    `update-manifests` pass that the root `compile` script does — it
    would rewrite tracked files and trigger a second install per
    revision, neither of which the bench needs.
@@ -46,11 +46,11 @@ leading segment groups runs by linker mode. Today there are two
 groups (`isolated-linker.*` and `gvs-linker.*`); future scenarios
 will add `hoisted-linker.*` and `pnp-linker.*`.
 
-The restore/install/add scenarios start with `node_modules` wiped —
-"fresh" names that target state; future variants that begin with a
-populated `node_modules` will use a different action prefix. The
-fresh-resolve scenario measures `--lockfile-only` resolution and never
-touches `node_modules`.
+Every current scenario starts with `node_modules` wiped — "fresh"
+names that target state; future variants that begin with a populated
+`node_modules` will use a different action prefix. (For fresh-resolve
+the wipe also keeps the install's up-to-date short-circuit from
+skipping the measured resolution.)
 
 | # | Slug | Lockfile | Cache | Store | Description |
 |---|---|---|---|---|---|

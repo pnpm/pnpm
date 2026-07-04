@@ -219,14 +219,24 @@ impl WorkEnv {
                 "./pacquet/target/release/pacquet".to_string()
             }
             BenchId::PnpmRevision(_) => {
-                // Prefer `pnpm.mjs`, fall back to `pnpm.cjs`. Resolved
-                // at script runtime so the existence check sees the
-                // bundle produced by `pnpm run compile-only`, not the empty
-                // tree visible during `init()`. Mirrors
-                // `resolve_pnpm_bin` in `benchmarks/bench.sh`.
-                let mjs = "./pnpm-source/pnpm/dist/pnpm.mjs";
-                let cjs = "./pnpm-source/pnpm/dist/pnpm.cjs";
-                format!(r#"node "$([ -f {mjs} ] && echo {mjs} || echo {cjs})""#)
+                // Take the first bundle that exists: `pnpm.mjs` over
+                // `pnpm.cjs`, and the `pnpm11/` layout (where the
+                // TypeScript CLI lives) over the pre-move root layout
+                // (still produced by revisions that predate the move,
+                // e.g. a `pnpm@v10` target). Resolved at script runtime
+                // so the existence check sees the bundle produced by
+                // `pnpm run compile-only`, not the empty tree visible
+                // during `init()`.
+                let candidates = [
+                    "./pnpm-source/pnpm11/pnpm/dist/pnpm.mjs",
+                    "./pnpm-source/pnpm11/pnpm/dist/pnpm.cjs",
+                    "./pnpm-source/pnpm/dist/pnpm.mjs",
+                    "./pnpm-source/pnpm/dist/pnpm.cjs",
+                ]
+                .join(" ");
+                format!(
+                    r#"node "$(for f in {candidates}; do if [ -f "$f" ]; then echo "$f"; break; fi; done)""#
+                )
             }
             BenchId::Static(_) => "pnpm".to_string(),
         }
@@ -500,20 +510,6 @@ impl WorkEnv {
             }
         }
 
-        // Offline scenarios can't let hyperfine's warmup prime the caches —
-        // the measured `--offline` command fails against the mirror the
-        // pre-benchmark wipe above just emptied — so run the online priming
-        // script once per target first. The per-iteration cleanup below
-        // preserves what it primes.
-        if scenario.prewarm_install_args().is_some() {
-            for id in self.benchmarked_ids() {
-                eprintln!("Pre-warming caches for {id}...");
-                Command::new("bash")
-                    .arg(self.prewarm_script_path(id))
-                    .pipe_mut(executor(PREWARM_SCRIPT));
-            }
-        }
-
         // hyperfine runs `--prepare` before *each* timed invocation, so
         // cleanup must cover every bench dir we're about to measure.
         //
@@ -527,6 +523,30 @@ impl WorkEnv {
         let cleanup = scenario.cleanup();
         let cleanup_command =
             build_cleanup_command(&cleanup, self.benchmarked_ids(), |id| self.bench_dir(id));
+
+        // Offline scenarios can't let hyperfine's warmup prime the caches —
+        // the measured `--offline` command fails against the mirror the
+        // pre-benchmark wipe above just emptied — so run the online priming
+        // script once per target first. The per-iteration cleanup runs
+        // before the priming too: a reused work-env can carry a lockfile or
+        // `node_modules` from a previous scenario, and either would let the
+        // priming install skip the full resolution that populates the
+        // metadata mirror (a locked install fetches tarballs, not
+        // packuments; an up-to-date `node_modules` short-circuits the
+        // install outright).
+        if scenario.prewarm_install_args().is_some() {
+            Command::new("bash")
+                .current_dir(self.root())
+                .arg("-c")
+                .arg(&cleanup_command)
+                .pipe_mut(executor("prewarm cleanup"));
+            for id in self.benchmarked_ids() {
+                eprintln!("Pre-warming caches for {id}...");
+                Command::new("bash")
+                    .arg(self.prewarm_script_path(id))
+                    .pipe_mut(executor(PREWARM_SCRIPT));
+            }
+        }
 
         let mut command = Command::new("hyperfine");
         command.current_dir(self.root()).arg("--prepare").arg(&cleanup_command);
