@@ -153,3 +153,44 @@ test('prefer-offline resolution promotes the disk-loaded packument into the in-m
   const second = await pickPackage(ctx, spec, opts)
   expect(second.pickedPackage?.version).toBe('1.0.0')
 })
+
+test('a disk-promoted cache entry that cannot satisfy the spec falls back to the registry under prefer-offline', async () => {
+  const staleMeta = fooMeta()
+  const freshMeta = fooMeta()
+  freshMeta.versions['2.0.0'] = {
+    ...staleMeta.versions['1.0.0'],
+    version: '2.0.0',
+    dist: {
+      ...staleMeta.versions['1.0.0'].dist,
+      tarball: 'https://registry.npmjs.org/foo/-/foo-2.0.0.tgz',
+    },
+  }
+  freshMeta['dist-tags'].latest = '2.0.0'
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(staleMeta, undefined))
+
+  const fetchedNames: string[] = []
+  const ctx = {
+    fetch: async (pkgName: string) => {
+      fetchedNames.push(pkgName)
+      return { meta: freshMeta, jsonText: JSON.stringify(freshMeta), etag: undefined }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+    preferOffline: true,
+  }
+  const opts = { registry: REGISTRY, dryRun: false, preferredVersionSelectors: undefined }
+
+  // The first resolve is satisfied by the stale on-disk mirror and promotes it
+  // into the in-memory cache.
+  const first = await pickPackage(ctx, { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }, opts)
+  expect(first.pickedPackage?.version).toBe('1.0.0')
+  expect(fetchedNames).toHaveLength(0)
+
+  // A range the promoted (registry-unverified) entry can't satisfy must fall
+  // back to the registry instead of failing the pick.
+  const second = await pickPackage(ctx, { type: 'range', name: 'foo', fetchSpec: '^2.0.0' }, opts)
+  expect(second.pickedPackage?.version).toBe('2.0.0')
+  expect(fetchedNames).toEqual(['foo'])
+})
