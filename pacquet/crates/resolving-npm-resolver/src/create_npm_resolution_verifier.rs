@@ -813,7 +813,7 @@ impl NpmResolutionVerifier {
         cell.get_or_init(|| async {
             // Fast path: if the resolver already pulled the full packument
             // during the same install (`{registry}\x00{name}:full` or
-            // `…:full:filtered` key in the shared metaCache, populated
+            // `...:full:filtered` key in the shared metaCache, populated
             // when `pick_package` upgrades for `minimumReleaseAge`),
             // reuse it. The filtered form is accepted: `clear_meta`
             // keeps `time`, per-version `_npmUser`, and `dist`, which is
