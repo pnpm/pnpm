@@ -6,6 +6,7 @@ import util from 'node:util'
 import { docsUrl } from '@pnpm/cli.utils'
 import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
+import { realpathMissing } from 'realpath-missing'
 import { renameOverwriteSync } from 'rename-overwrite'
 import { renderHelp } from 'render-help'
 import { safeExeca as execa } from 'safe-execa'
@@ -151,12 +152,7 @@ export async function handler (opts: EditCommandOptions, params: string[]): Prom
     }
   }
 
-  let expectedRoot = opts.modulesDir ? opts.modulesDir : path.join(lockfileDir, 'node_modules')
-  try {
-    expectedRoot = await fsPromises.realpath(expectedRoot)
-  } catch {
-    expectedRoot = path.resolve(expectedRoot)
-  }
+  const expectedRoot = await realpathMissing(path.join(lockfileDir, opts.modulesDir ?? 'node_modules'))
 
   let currentDir = expectedRoot
   for (let i = 0; i < parts.length; i++) {
