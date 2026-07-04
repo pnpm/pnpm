@@ -159,7 +159,7 @@ fn test_delete_key() {
         "name": "test-pkg",
         "version": "1.0.0"
     });
-    assert!(delete_object_value_by_property_path(&mut value, "version"));
+    assert!(delete_object_value_by_property_path(&mut value, "version").unwrap());
     assert!(value.get("version").is_none());
     assert_eq!(value["name"], "test-pkg");
 }
@@ -172,7 +172,7 @@ fn test_delete_nested_key() {
             "build": "tsc"
         }
     });
-    assert!(delete_object_value_by_property_path(&mut value, "scripts.build"));
+    assert!(delete_object_value_by_property_path(&mut value, "scripts.build").unwrap());
     assert!(value["scripts"].get("build").is_none());
     assert_eq!(value["scripts"]["test"], "echo test");
 }
@@ -182,7 +182,7 @@ fn test_delete_missing_key() {
     let mut value = json!({
         "name": "test-pkg"
     });
-    assert!(!delete_object_value_by_property_path(&mut value, "nonexistent"));
+    assert!(!delete_object_value_by_property_path(&mut value, "nonexistent").unwrap());
 }
 
 #[test]
@@ -190,7 +190,7 @@ fn test_delete_array_index() {
     let mut value = json!({
         "files": ["a", "b", "c"]
     });
-    assert!(delete_object_value_by_property_path(&mut value, "files[1]"));
+    assert!(delete_object_value_by_property_path(&mut value, "files[1]").unwrap());
     assert_eq!(value["files"], json!(["a", "c"]));
 }
 
@@ -248,4 +248,96 @@ fn test_set_array_new_index() {
     });
     set_object_value_by_property_path(&mut value, "files[2]", json!("c")).unwrap();
     assert_eq!(value["files"], json!(["a", null, "c"]));
+}
+
+#[test]
+fn test_set_rejects_unsafe_key() {
+    let mut value = json!({ "name": "test-pkg" });
+    let result = set_object_value_by_property_path(&mut value, "__proto__.polluted", json!(true));
+    assert!(result.is_err());
+    assert!(value.get("__proto__").is_none());
+}
+
+#[test]
+fn test_set_rejects_constructor_key() {
+    let mut value = json!({ "name": "test-pkg" });
+    let result = set_object_value_by_property_path(
+        &mut value,
+        "constructor.prototype.polluted",
+        json!(true),
+    );
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_set_creates_array_from_scratch() {
+    let mut value = json!({});
+    set_object_value_by_property_path(&mut value, "keywords[0]", json!("cli")).unwrap();
+    assert_eq!(value["keywords"], json!(["cli"]));
+}
+
+#[test]
+fn test_set_creates_array_intermediate() {
+    let mut value = json!({});
+    set_object_value_by_property_path(&mut value, "keywords[0].name", json!("cli")).unwrap();
+    assert_eq!(value["keywords"][0]["name"], "cli");
+}
+
+#[test]
+fn test_set_replaces_scalar_with_object() {
+    let mut value = json!({ "foo": "bar" });
+    set_object_value_by_property_path(&mut value, "foo.baz", json!("qux")).unwrap();
+    assert_eq!(value["foo"]["baz"], "qux");
+}
+
+#[test]
+fn test_set_replaces_scalar_with_array() {
+    let mut value = json!({ "foo": "bar" });
+    set_object_value_by_property_path(&mut value, "foo[0]", json!("qux")).unwrap();
+    assert_eq!(value["foo"][0], "qux");
+}
+
+#[test]
+fn test_set_rejects_empty_path() {
+    let mut value = json!({ "name": "test-pkg" });
+    let result = set_object_value_by_property_path(&mut value, "", json!("value"));
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert!(err.to_string().contains("empty property path"));
+}
+
+#[test]
+fn test_set_rejects_too_large_index() {
+    let mut value = json!({});
+    let big_idx = format!("x[{}]", super::MAX_ARRAY_INDEX + 1);
+    let result = set_object_value_by_property_path(&mut value, &big_idx, json!("value"));
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_delete_rejects_unsafe_key() {
+    let mut value = json!({ "name": "test-pkg" });
+    let result = delete_object_value_by_property_path(&mut value, "__proto__.polluted");
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_set_numeric_key_on_object() {
+    let mut value = json!({ "0": "existing" });
+    set_object_value_by_property_path(&mut value, "[0]", json!("replaced")).unwrap();
+    assert_eq!(value["0"], "replaced");
+}
+
+#[test]
+fn test_get_output_rejects_empty_key() {
+    let manifest = json!({ "name": "test-pkg" });
+    let result = get_output(&manifest, &[String::new()], false);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_delete_with_numeric_key_on_object() {
+    let mut value = json!({ "123": "number-key" });
+    assert!(delete_object_value_by_property_path(&mut value, "[123]").unwrap(),);
+    assert!(value.get("123").is_none());
 }

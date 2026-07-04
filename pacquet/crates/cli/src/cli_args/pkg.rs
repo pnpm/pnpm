@@ -40,6 +40,10 @@ pub enum PkgError {
     #[display("Cannot set property on a non-object or non-array value at path")]
     #[diagnostic(code(ERR_PNPM_PKG_SET_PATH_ERROR))]
     SetPathError { path: String },
+
+    #[display("Cannot use an empty property path")]
+    #[diagnostic(code(ERR_PNPM_PKG_EMPTY_PROPERTY_PATH))]
+    EmptyPath,
 }
 
 #[derive(Debug, Args)]
@@ -119,7 +123,13 @@ fn pkg_get(manifest_path: &Path, keys: &[String], json: bool) -> miette::Result<
 fn get_output(manifest: &Value, keys: &[String], json: bool) -> miette::Result<String> {
     if keys.len() == 1 {
         let key = &keys[0];
+        if key.is_empty() {
+            return Err(PkgError::EmptyPath.into());
+        }
         let segments = parse_property_path(key).map_err(PkgError::InvalidPropertyPath)?;
+        if segments.is_empty() {
+            return Err(PkgError::EmptyPath.into());
+        }
         match get_object_value_by_property_path(manifest, &segments) {
             None => Ok(String::new()),
             Some(found) => {
@@ -136,24 +146,23 @@ fn get_output(manifest: &Value, keys: &[String], json: bool) -> miette::Result<S
             }
         }
     } else {
-        let selected = select_from_manifest(manifest, keys);
+        let selected = select_from_manifest(manifest, keys)?;
         serde_json::to_string_pretty(&selected).map_err(|e| miette::miette!("{e}"))
     }
 }
 
-fn select_from_manifest(manifest: &Value, keys: &[String]) -> Value {
+fn select_from_manifest(manifest: &Value, keys: &[String]) -> miette::Result<Value> {
     if keys.is_empty() {
-        return manifest.clone();
+        return Ok(manifest.clone());
     }
     let mut result = Map::new();
     for key in keys {
-        let value = parse_property_path(key)
-            .ok()
-            .and_then(|segments| get_object_value_by_property_path(manifest, &segments))
-            .map_or(Value::Null, std::borrow::ToOwned::to_owned);
-        result.insert(key.clone(), value);
+        let segments = parse_property_path(key).map_err(PkgError::InvalidPropertyPath)?;
+        if let Some(found) = get_object_value_by_property_path(manifest, &segments) {
+            result.insert(key.clone(), found.clone());
+        }
     }
-    Value::Object(result)
+    Ok(Value::Object(result))
 }
 
 fn pkg_set(manifest_path: &Path, pairs: &[String], json: bool) -> miette::Result<()> {
@@ -184,11 +193,14 @@ fn pkg_delete(manifest_path: &Path, keys: &[String]) -> miette::Result<()> {
     if keys.is_empty() {
         return Err(PkgError::DeleteMissingArgs.into());
     }
+    for key in keys {
+        check_unsafe_key_in_path(key)?;
+    }
     let mut manifest =
         PackageManifest::from_path(manifest_path.to_path_buf()).wrap_err("reading package.json")?;
     let value = manifest.value_mut();
     for key in keys {
-        delete_object_value_by_property_path(value, key);
+        delete_object_value_by_property_path(value, key)?;
     }
     manifest.save().wrap_err("saving package.json")?;
     Ok(())
@@ -244,8 +256,21 @@ fn check_unsafe_key_in_path(key: &str) -> Result<(), PkgError> {
     Ok(())
 }
 
-fn set_path_err(path: &str) -> miette::Report {
-    miette::Report::new(PkgError::SetPathError { path: path.to_string() })
+pub(crate) const MAX_ARRAY_INDEX: usize = 1 << 20;
+
+fn validate_index(idx: f64) -> Result<usize, PkgError> {
+    if idx.fract() != 0.0 || idx.is_sign_negative() || !idx.is_finite() {
+        return Err(PkgError::SetPathError { path: idx.to_string() });
+    }
+    let index = idx as usize;
+    if index > MAX_ARRAY_INDEX {
+        return Err(PkgError::SetPathError { path: idx.to_string() });
+    }
+    Ok(index)
+}
+
+fn idx_to_string(idx: f64) -> String {
+    if idx.fract() == 0.0 && idx.is_finite() { format!("{}", idx as i64) } else { idx.to_string() }
 }
 
 fn set_object_value_by_property_path(
@@ -253,82 +278,168 @@ fn set_object_value_by_property_path(
     path: &str,
     value: Value,
 ) -> miette::Result<()> {
+    if path.is_empty() {
+        return Err(PkgError::EmptyPath.into());
+    }
     check_unsafe_key_in_path(path)?;
     let segments = parse_property_path(path)
         .map_err(|err| miette::Report::new(PkgError::InvalidPropertyPath(err)))?;
     if segments.is_empty() {
-        return Ok(());
+        return Err(PkgError::EmptyPath.into());
     }
     let last_idx = segments.len() - 1;
     let mut current = root;
-    for segment in &segments[..last_idx] {
-        match segment {
+    for i in 0..last_idx {
+        let needs_array = matches!(&segments[i + 1], Segment::Index(_));
+        match &segments[i] {
             Segment::Key(k) => {
-                let obj = current.as_object_mut().ok_or_else(|| set_path_err(path))?;
-                current = obj.entry(k.clone()).or_insert_with(|| Value::Object(Map::new()));
+                if !current.is_object() {
+                    *current = Value::Object(Map::new());
+                }
+                let obj = current.as_object_mut().unwrap();
+                let entry = obj.get_mut(k);
+                let is_good = entry
+                    .is_some_and(|val| if needs_array { val.is_array() } else { val.is_object() });
+                if !is_good {
+                    let replacement = if needs_array {
+                        Value::Array(Vec::new())
+                    } else {
+                        Value::Object(Map::new())
+                    };
+                    obj.insert(k.clone(), replacement);
+                }
+                current = obj.get_mut(k).unwrap();
             }
             Segment::Index(idx) => {
-                let index = *idx as usize;
-                let arr = current.as_array_mut().ok_or_else(|| set_path_err(path))?;
-                if index >= arr.len() {
-                    arr.resize(index + 1, Value::Null);
+                let index = validate_index(*idx)?;
+                if current.is_object() {
+                    let key = idx_to_string(*idx);
+                    let obj = current.as_object_mut().unwrap();
+                    let entry = obj.get_mut(&key);
+                    let is_good = entry.is_some_and(|val| {
+                        if needs_array { val.is_array() } else { val.is_object() }
+                    });
+                    if !is_good {
+                        let replacement = if needs_array {
+                            Value::Array(Vec::new())
+                        } else {
+                            Value::Object(Map::new())
+                        };
+                        obj.insert(key.clone(), replacement);
+                    }
+                    current = obj.get_mut(&key).unwrap();
+                } else if current.is_array() {
+                    let arr = current.as_array_mut().unwrap();
+                    if index >= arr.len() {
+                        arr.resize(index.saturating_add(1), Value::Null);
+                    }
+                    let entry = &mut arr[index];
+                    let is_good = if needs_array { entry.is_array() } else { entry.is_object() };
+                    if !is_good {
+                        *entry = if needs_array {
+                            Value::Array(Vec::new())
+                        } else {
+                            Value::Object(Map::new())
+                        };
+                    }
+                    current = &mut arr[index];
+                } else {
+                    let replacement = if needs_array {
+                        let mut arr = Vec::with_capacity(index.saturating_add(1));
+                        arr.resize(index.saturating_add(1), Value::Null);
+                        Value::Array(arr)
+                    } else {
+                        let mut map = Map::new();
+                        map.insert(idx_to_string(*idx), Value::Null);
+                        Value::Object(map)
+                    };
+                    *current = replacement;
                 }
-                current = &mut arr[index];
             }
         }
     }
     match &segments[last_idx] {
         Segment::Key(k) => {
-            let obj = current.as_object_mut().ok_or_else(|| set_path_err(path))?;
-            obj.insert(k.clone(), value);
+            if !current.is_object() {
+                *current = Value::Object(Map::new());
+            }
+            current.as_object_mut().unwrap().insert(k.clone(), value);
         }
         Segment::Index(idx) => {
-            let index = *idx as usize;
-            let arr = current.as_array_mut().ok_or_else(|| set_path_err(path))?;
-            if index >= arr.len() {
-                arr.resize(index + 1, Value::Null);
+            let index = validate_index(*idx)?;
+            if current.is_object() {
+                current.as_object_mut().unwrap().insert(idx_to_string(*idx), value);
+            } else if current.is_array() {
+                let arr = current.as_array_mut().unwrap();
+                if index >= arr.len() {
+                    arr.resize(index.saturating_add(1), Value::Null);
+                }
+                arr[index] = value;
+            } else {
+                let mut arr = Vec::with_capacity(index.saturating_add(1));
+                arr.resize(index.saturating_add(1), Value::Null);
+                arr[index] = value;
+                *current = Value::Array(arr);
             }
-            arr[index] = value;
         }
     }
     Ok(())
 }
 
-fn delete_object_value_by_property_path(root: &mut Value, path: &str) -> bool {
-    let Ok(segments) = parse_property_path(path) else { return false };
+fn delete_object_value_by_property_path(root: &mut Value, path: &str) -> miette::Result<bool> {
+    let segments = parse_property_path(path)
+        .map_err(|err| miette::Report::new(PkgError::InvalidPropertyPath(err)))?;
     if segments.is_empty() {
-        return false;
+        return Ok(false);
     }
+    check_unsafe_key_in_path(path)?;
     let last_idx = segments.len() - 1;
     let mut current = root;
     for segment in &segments[..last_idx] {
         match segment {
             Segment::Key(k) => {
-                let Some(obj) = current.as_object_mut() else { return false };
-                let Some(next) = obj.get_mut(k) else { return false };
+                let Some(obj) = current.as_object_mut() else { return Ok(false) };
+                let Some(next) = obj.get_mut(k) else { return Ok(false) };
                 current = next;
             }
             Segment::Index(idx) => {
-                let index = *idx as usize;
-                let Some(arr) = current.as_array_mut() else { return false };
-                let Some(next) = arr.get_mut(index) else { return false };
-                current = next;
+                let index = validate_index(*idx)?;
+                if current.is_object() {
+                    let key = idx_to_string(*idx);
+                    let Some(obj) = current.as_object_mut() else { return Ok(false) };
+                    let Some(next) = obj.get_mut(&key) else { return Ok(false) };
+                    current = next;
+                } else if current.is_array() {
+                    let Some(arr) = current.as_array_mut() else { return Ok(false) };
+                    let Some(next) = arr.get_mut(index) else { return Ok(false) };
+                    current = next;
+                } else {
+                    return Ok(false);
+                }
             }
         }
     }
     match &segments[last_idx] {
         Segment::Key(k) => {
-            let Some(obj) = current.as_object_mut() else { return false };
-            obj.remove(k).is_some()
+            let Some(obj) = current.as_object_mut() else { return Ok(false) };
+            Ok(obj.remove(k).is_some())
         }
         Segment::Index(idx) => {
-            let index = *idx as usize;
-            let Some(arr) = current.as_array_mut() else { return false };
-            if index < arr.len() {
-                arr.remove(index);
-                true
+            let index = validate_index(*idx)?;
+            if current.is_object() {
+                let key = idx_to_string(*idx);
+                let Some(obj) = current.as_object_mut() else { return Ok(false) };
+                Ok(obj.remove(&key).is_some())
+            } else if current.is_array() {
+                let Some(arr) = current.as_array_mut() else { return Ok(false) };
+                if index < arr.len() {
+                    arr.remove(index);
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
             } else {
-                false
+                Ok(false)
             }
         }
     }
