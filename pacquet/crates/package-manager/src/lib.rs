@@ -34,6 +34,7 @@ mod package_map;
 mod patch;
 mod patch_commit;
 mod prefetching_resolver;
+mod prune_direct_deps;
 mod prune_virtual_store;
 mod remove;
 mod remove_quarantine;
@@ -86,6 +87,7 @@ pub use package_map::{
 pub use patch::*;
 pub use patch_commit::*;
 pub use prefetching_resolver::*;
+pub use prune_direct_deps::*;
 pub use remove::*;
 pub use resolution_observer::*;
 pub use symlink_direct_dependencies::*;

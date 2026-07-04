@@ -47,6 +47,20 @@ fn is_modules_yaml_consistent(
     )
 }
 
+/// Reading wrapper over [`super::modules_layout_consistent_with`] — the
+/// purge-gate consistency check, which (unlike [`is_modules_yaml_consistent`])
+/// ignores `included`.
+fn is_modules_yaml_layout_consistent(
+    modules_dir: &std::path::Path,
+    config: &Config,
+    node_linker: pacquet_config::NodeLinker,
+) -> bool {
+    pacquet_modules_yaml::read_modules_layout::<Host>(modules_dir)
+        .ok()
+        .flatten()
+        .is_some_and(|modules| super::modules_layout_consistent_with(&modules, config, node_linker))
+}
+
 const SCOPED_TEST_INTEGRITY: &str = "sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa==";
 
 fn scoped_package_body(registry_url: &str) -> String {
@@ -5839,6 +5853,244 @@ fn is_modules_yaml_consistent_returns_false_when_included_drifts() {
         pacquet_config::NodeLinker::Isolated,
         with_optional,
     ));
+}
+
+/// A `--prod`<->full switch changes `.modules.yaml.included`, which the
+/// up-to-date fast path must still notice (so it relinks). But it must NOT
+/// make the *layout* look inconsistent: pnpm never purges the root
+/// project's `node_modules` for an included mismatch (validateModules's
+/// `lockfileDir !== rootDir` guard), and the purge wipes the user's
+/// non-pnpm entries (a vendored dir, custom files). So an included-only
+/// drift keeps the layout consistent — the purge does not run and the
+/// directory is left untouched; relinking adds/removes the right deps.
+#[test]
+fn included_drift_alone_does_not_make_the_layout_inconsistent() {
+    let dir = tempdir().unwrap();
+    let modules_dir = dir.path().join("node_modules");
+
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = modules_dir.join(".pacquet");
+    let config = config.leak();
+
+    let prod_only = pacquet_modules_yaml::IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: false,
+        optional_dependencies: false,
+    };
+    let with_optional = pacquet_modules_yaml::IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: false,
+        optional_dependencies: true,
+    };
+
+    let seed = Modules {
+        layout_version: Some(LayoutVersion),
+        node_linker: Some(NodeLinker::Isolated),
+        included: prod_only,
+        hoist_pattern: config.hoist_pattern.clone(),
+        public_hoist_pattern: config.public_hoist_pattern.clone(),
+        store_dir: config.store_dir.display().to_string(),
+        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir_max_length: config.virtual_store_dir_max_length,
+        ..Default::default()
+    };
+    write_modules_manifest::<Host>(&modules_dir, seed).expect("seed .modules.yaml");
+
+    // The fast path still sees the included change and forces a reinstall...
+    assert!(!is_modules_yaml_consistent(
+        &modules_dir,
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        with_optional,
+    ));
+    // ...but the layout is still consistent, so the destructive purge does
+    // not run and the user's node_modules contents survive.
+    assert!(is_modules_yaml_layout_consistent(
+        &modules_dir,
+        config,
+        pacquet_config::NodeLinker::Isolated,
+    ));
+}
+
+/// A real layout setting (here `nodeLinker`) drifting still makes the
+/// layout inconsistent, so the purge that recreates `node_modules` runs —
+/// the included guard above must not suppress genuine layout rebuilds.
+#[test]
+fn layout_drift_still_makes_the_layout_inconsistent() {
+    let dir = tempdir().unwrap();
+    let modules_dir = dir.path().join("node_modules");
+
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = modules_dir.join(".pacquet");
+    let config = config.leak();
+
+    let seed = Modules {
+        layout_version: Some(LayoutVersion),
+        node_linker: Some(NodeLinker::Hoisted),
+        hoist_pattern: config.hoist_pattern.clone(),
+        public_hoist_pattern: config.public_hoist_pattern.clone(),
+        store_dir: config.store_dir.display().to_string(),
+        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir_max_length: config.virtual_store_dir_max_length,
+        ..Default::default()
+    };
+    write_modules_manifest::<Host>(&modules_dir, seed).expect("seed .modules.yaml");
+
+    assert!(!is_modules_yaml_layout_consistent(
+        &modules_dir,
+        config,
+        pacquet_config::NodeLinker::Isolated,
+    ));
+}
+
+/// Run one install against `modules_dir` for the purge regression below: a
+/// fresh leaked config per call (the install path needs `&'static Config`),
+/// `included` driven by `dependency_groups`, and `virtual_store_dir_max_length`
+/// surfaced so the test can force a layout drift. `disable_optimistic_repeat_install`
+/// keeps every call on the full path so the purge branch is actually evaluated.
+async fn run_purge_regression_install(
+    store_dir: &std::path::Path,
+    modules_dir: &std::path::Path,
+    virtual_store_dir: &std::path::Path,
+    registry: String,
+    manifest: &PackageManifest,
+    dependency_groups: Vec<DependencyGroup>,
+    virtual_store_dir_max_length: u64,
+) {
+    let mut config = Config::new();
+    config.store_dir = store_dir.to_path_buf().into();
+    config.modules_dir = modules_dir.to_path_buf();
+    config.virtual_store_dir = virtual_store_dir.to_path_buf();
+    config.registry = registry;
+    config.virtual_store_dir_max_length = virtual_store_dir_max_length;
+    let config = config.leak();
+    let is_full_install = dependency_groups.contains(&DependencyGroup::Dev);
+    // One client behind both fields, matching the CLI's single-source
+    // wiring documented on [`Install::http_client_arc`].
+    let http_client_arc: std::sync::Arc<pacquet_network::ThrottledClient> =
+        std::sync::Arc::default();
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &http_client_arc,
+        http_client_arc: std::sync::Arc::clone(&http_client_arc),
+        config,
+        manifest,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        lockfile_path: None,
+        dependency_groups,
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: true,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("install should succeed");
+}
+
+/// Install-level regression for the purge guard: switching `--prod` <-> full
+/// (an `included` drift) must keep a user's own non-pnpm entry in
+/// `node_modules`, while a real layout drift still recreates the directory
+/// from scratch. Without the `modules_layout_consistent_with` split, the
+/// included drift would purge the directory and delete the user's file.
+///
+/// The skipped purge must not leave the excluded dev dep behind either:
+/// the targeted prune ([`crate::prune_direct_deps_excluded_by_groups`])
+/// removes its `node_modules` link and its `.bin` shim while everything
+/// else stays.
+#[tokio::test]
+async fn included_drift_keeps_user_node_modules_entry_while_layout_drift_wipes_it() {
+    let mock_instance = TestRegistry::start();
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    fs::create_dir_all(&project_root).unwrap();
+    let manifest_path = project_root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    manifest.add_dependency("@pnpm.e2e/console-log", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest.add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Dev).unwrap();
+    manifest.save().unwrap();
+
+    let full = || vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+    let prod_only = || vec![DependencyGroup::Prod];
+
+    // 1. A full install creates node_modules + .modules.yaml (included = full).
+    run_purge_regression_install(
+        &store_dir,
+        &modules_dir,
+        &virtual_store_dir,
+        mock_instance.url(),
+        &manifest,
+        full(),
+        DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH,
+    )
+    .await;
+
+    let prod_link = modules_dir.join("@pnpm.e2e/console-log");
+    let dev_link = modules_dir.join("@pnpm.e2e/hello-world-js-bin");
+    let dev_shim = modules_dir.join(".bin/hello-world-js-bin");
+    assert!(dev_link.symlink_metadata().is_ok(), "full install links the dev dep");
+    assert!(dev_shim.exists(), "full install shims the dev dep's bin");
+
+    // The user drops their own non-pnpm file directly into node_modules.
+    let vendored = modules_dir.join("vendored-by-user.txt");
+    fs::write(&vendored, b"keep me").unwrap();
+
+    // 2. Switching to --prod is an included drift only, so the file survives —
+    // but the now-excluded dev dep's link and bin shim must be pruned.
+    run_purge_regression_install(
+        &store_dir,
+        &modules_dir,
+        &virtual_store_dir,
+        mock_instance.url(),
+        &manifest,
+        prod_only(),
+        DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH,
+    )
+    .await;
+    assert!(vendored.exists(), "included drift must not purge the user's node_modules entry");
+    assert!(
+        dev_link.symlink_metadata().is_err(),
+        "the excluded dev dep's link must be pruned on an included drift",
+    );
+    assert!(
+        !dev_shim.exists(),
+        "the excluded dev dep's bin shim must be pruned on an included drift",
+    );
+    assert!(prod_link.symlink_metadata().is_ok(), "the prod dep stays linked");
+
+    // 3. A real layout drift (virtual-store-dir-max-length) still wipes it.
+    run_purge_regression_install(
+        &store_dir,
+        &modules_dir,
+        &virtual_store_dir,
+        mock_instance.url(),
+        &manifest,
+        prod_only(),
+        DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH - 1,
+    )
+    .await;
+    assert!(!vendored.exists(), "layout drift must still recreate node_modules from scratch");
 }
 
 /// End-to-end: when `.modules.yaml`, `<virtual_store_dir>/lock.yaml`,
