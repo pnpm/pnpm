@@ -24,6 +24,8 @@ use pacquet_reporter::{
     LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
     SkippedOptionalReason,
 };
+use pacquet_resolving_resolver_base::ResolveResult;
+use serde_json::Value;
 
 /// The set of snapshot keys skipped on this host.
 ///
@@ -252,6 +254,93 @@ impl InstallabilityHost {
     }
 }
 
+pub(crate) fn check_installability(
+    package_id: &str,
+    manifest: &PackageInstallabilityManifest,
+    options: &InstallabilityOptions<'_>,
+) -> Result<Option<InstallabilityError>, Box<InstallabilityError>> {
+    let effective: PackageInstallabilityManifest;
+    let manifest = if options.optional
+        && let Some(platform) = inferred_platform(
+            &manifest.name,
+            WantedPlatformRef {
+                os: manifest.os.as_deref(),
+                cpu: manifest.cpu.as_deref(),
+                libc: manifest.libc.as_deref(),
+            },
+        ) {
+        effective = PackageInstallabilityManifest {
+            name: manifest.name.clone(),
+            engines: manifest.engines.clone(),
+            os: platform.os,
+            cpu: platform.cpu,
+            libc: platform.libc,
+        };
+        &effective
+    } else {
+        manifest
+    };
+    check_package(package_id, manifest, options)
+        .map_err(|invalid| Box::new(InstallabilityError::InvalidNodeVersion(invalid)))
+}
+
+pub(crate) fn manifest_from_resolve_result(
+    result: &ResolveResult,
+) -> PackageInstallabilityManifest {
+    let manifest = result.manifest.as_deref();
+    PackageInstallabilityManifest {
+        name: result
+            .name_ver
+            .as_ref()
+            .map(|name_ver| name_ver.name.to_string())
+            .or_else(|| {
+                manifest
+                    .and_then(|manifest| manifest.get("name"))
+                    .and_then(Value::as_str)
+                    .map(ToString::to_string)
+            })
+            .unwrap_or_default(),
+        engines: read_wanted_engine(manifest),
+        cpu: read_string_list(manifest, "cpu"),
+        os: read_string_list(manifest, "os"),
+        libc: read_string_list(manifest, "libc"),
+    }
+}
+
+fn read_wanted_engine(manifest: Option<&Value>) -> Option<WantedEngine> {
+    let engines = manifest?.get("engines")?;
+    let entries: Vec<(String, &str)> = match engines {
+        Value::Object(map) => {
+            map.iter().filter_map(|(name, value)| Some((name.clone(), value.as_str()?))).collect()
+        }
+        Value::Array(items) => items
+            .iter()
+            .enumerate()
+            .filter_map(|(index, value)| Some((index.to_string(), value.as_str()?)))
+            .collect(),
+        _ => Vec::new(),
+    };
+    let map: HashMap<String, String> = entries
+        .into_iter()
+        .filter(|(_, range)| *range != "*")
+        .map(|(name, range)| (name, range.to_string()))
+        .collect();
+    let wanted = WantedEngine { node: map.get("node").cloned(), pnpm: map.get("pnpm").cloned() };
+    (wanted.node.is_some() || wanted.pnpm.is_some()).then_some(wanted)
+}
+
+fn read_string_list(manifest: Option<&Value>, key: &str) -> Option<Vec<String>> {
+    let value = manifest?.get(key)?;
+    let out: Vec<String> = match value {
+        Value::String(value) => vec![value.clone()],
+        Value::Array(items) => {
+            items.iter().filter_map(Value::as_str).map(ToString::to_string).collect()
+        }
+        _ => Vec::new(),
+    };
+    (!out.is_empty()).then_some(out)
+}
+
 /// Compute the [`SkippedSnapshots`] set for a frozen-lockfile install.
 ///
 /// For each `(snapshot_key, snapshot)`:
@@ -364,24 +453,10 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
         let warn = if let Some(cached) = check_cache.get(&cache_key) {
             cached.clone()
         } else {
-            let mut manifest = manifest_from_metadata(&metadata_key, metadata);
-            if snapshot.optional
-                && let Some(platform) = inferred_platform(
-                    &manifest.name,
-                    WantedPlatformRef {
-                        os: manifest.os.as_deref(),
-                        cpu: manifest.cpu.as_deref(),
-                        libc: manifest.libc.as_deref(),
-                    },
-                )
-            {
-                manifest.os = platform.os;
-                manifest.cpu = platform.cpu;
-                manifest.libc = platform.libc;
-            }
+            let manifest = manifest_from_metadata(&metadata_key, metadata);
             let pkg_id = metadata_key.to_string();
-            let result = check_package(&pkg_id, &manifest, &base_options)
-                .map_err(|invalid| Box::new(InstallabilityError::InvalidNodeVersion(invalid)))?;
+            let options = InstallabilityOptions { optional: snapshot.optional, ..base_options };
+            let result = check_installability(&pkg_id, &manifest, &options)?;
             check_cache.insert(cache_key, result.clone());
             result
         };
