@@ -227,14 +227,14 @@ test('prints a first-use notice to stderr, then stays silent while the command i
   writeYamlFileSync('pnpm-workspace.yaml', { pnpmExecCommand: [process.execPath, resolver] })
 
   const firstRun = execPnpmSyncIsolated(['root'], { expectSuccess: true })
-  expect(firstRun.stderr.toString()).toContain('first use in this workspace')
+  expect(firstRun.stderr.toString()).toContain('Resolving the pnpm binary with pnpmExecCommand')
   expect(firstRun.stderr.toString()).toContain(resolver)
   expect(firstRun.stderr.toString()).toContain(`Resolved to ${pnpmBinLocation}`)
   // The notice goes to stderr only: stdout stays machine-clean.
-  expect(firstRun.stdout.toString()).not.toContain('first use in this workspace')
+  expect(firstRun.stdout.toString()).not.toContain('Resolving the pnpm binary with pnpmExecCommand')
 
   const secondRun = execPnpmSyncIsolated(['root'], { expectSuccess: true })
-  expect(secondRun.stderr.toString()).not.toContain('first use in this workspace')
+  expect(secondRun.stderr.toString()).not.toContain('Resolving the pnpm binary with pnpmExecCommand')
   expect(secondRun.stderr.toString()).not.toContain('Resolved to')
 })
 
@@ -264,11 +264,11 @@ test('repeats the notice when the command failed, so a failing first run never r
 
   const firstRun = execPnpmSyncIsolated(['root'])
   expect(firstRun.status).not.toBe(0)
-  expect(firstRun.stderr.toString()).toContain('first use in this workspace')
+  expect(firstRun.stderr.toString()).toContain('Resolving the pnpm binary with pnpmExecCommand')
 
   // Fix the command; because the failed run was not recorded, the notice
   // appears again on the first successful run.
   fs.writeFileSync(resolver, `console.log(${JSON.stringify(pnpmBinLocation)})\n`)
   const secondRun = execPnpmSyncIsolated(['root'], { expectSuccess: true })
-  expect(secondRun.stderr.toString()).toContain('first use in this workspace')
+  expect(secondRun.stderr.toString()).toContain('Resolving the pnpm binary with pnpmExecCommand')
 })

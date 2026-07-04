@@ -129,7 +129,7 @@ async function noticeOnFirstUseOrChange (command: string[], opts: ApplyPnpmExecC
 
   if (seen == null) {
     process.stderr.write(
-      'Resolving the pnpm binary with pnpmExecCommand (first use in this workspace):\n' +
+      'Resolving the pnpm binary with pnpmExecCommand:\n' +
       `> ${command.join(' ')}\n`
     )
   } else {
