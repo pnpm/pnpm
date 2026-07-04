@@ -235,7 +235,7 @@ impl WorkEnv {
                 ]
                 .join(" ");
                 format!(
-                    r#"node "$(for f in {candidates}; do if [ -f "$f" ]; then echo "$f"; break; fi; done)""#
+                    r#"node "$(for f in {candidates}; do if [ -f "$f" ]; then echo "$f"; break; fi; done)""#,
                 )
             }
             BenchId::Static(_) => "pnpm".to_string(),
