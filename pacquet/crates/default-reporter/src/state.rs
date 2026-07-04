@@ -7,7 +7,7 @@
 use std::{collections::HashMap, fmt::Write as _};
 
 use pacquet_reporter::{
-    AddedRoot, ContextLog, DependencyType, ExecutionTimeLog, FetchingProgressMessage,
+    AddedRoot, ContextLog, DependencyType, ExecutionTimeLog, FetchingProgressMessage, HookLog,
     IgnoredScriptsLog, InstallingConfigDepsLog, InstallingConfigDepsStatus, LifecycleMessage,
     LifecycleStdio, LockfileVerificationMessage, LogEvent, LogLevel, PackageImportMethod,
     PackageManifestMessage, ProgressMessage, RemovedRoot, RequestRetryLog, SkippedOptionalPackage,
@@ -318,8 +318,9 @@ impl ReporterState {
             // empty-prefix path in `on_pnpm`).
             LogEvent::Global(log) => self.on_pnpm(log.level, &log.message, ""),
             LogEvent::ExecutionTime(log) => self.on_execution_time(log),
+            LogEvent::Hook(log) => self.on_hook(log),
             // Debug-only / non-rendered channels in pnpm's default reporter.
-            LogEvent::Hook(_) | LogEvent::BrokenModules(_) => {}
+            LogEvent::BrokenModules(_) => {}
         }
         self.finish()
     }
@@ -964,6 +965,19 @@ impl ReporterState {
         let mut slot = std::mem::take(&mut self.exec_slot);
         self.frame.emit(&mut slot, msg, true);
         self.exec_slot = slot;
+    }
+
+    /// Renders a `pnpm:hook` event as `hook: message`, matching pnpm's
+    /// `reportHooks.ts` format. When the hook's `prefix` differs from
+    /// `self.cwd` the message is zoomed out with the prefix.
+    fn on_hook(&mut self, log: &HookLog) {
+        let msg = format!("{}: {}", self.colors.magenta_bright(&log.hook), log.message);
+        if log.prefix.is_empty() || log.prefix == self.cwd {
+            self.push_block(msg);
+        } else {
+            let zoomed = zoom_out(&self.cwd, &log.prefix, &msg);
+            self.push_block(zoomed);
+        }
     }
 
     /// A warning, honoring pnpm's "only show the first

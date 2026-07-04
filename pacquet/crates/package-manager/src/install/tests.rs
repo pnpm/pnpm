@@ -16,8 +16,8 @@ use pacquet_modules_yaml::{
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{
     BrokenModulesLog, ContextLog, HookLog, IgnoredScriptsLog, LockfileVerificationMessage,
-    LogEvent, PackageManifestLog, PackageManifestMessage, ProgressLog, ProgressMessage, Reporter,
-    SilentReporter, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
+    LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, ProgressLog, ProgressMessage,
+    Reporter, SilentReporter, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
 };
 use pacquet_store_dir::STORE_VERSION;
 use pacquet_testing_utils::{
@@ -8058,6 +8058,72 @@ async fn async_after_all_resolved_hook_log_is_forwarded_to_pnpm_hook_channel() {
     let hook_log = first_hook_log(&captured);
     assert_eq!(hook_log.hook, "afterAllResolved");
     assert_eq!(hook_log.message, "All resolved");
+
+    drop((dir, registry));
+}
+
+// Ports pnpm's `pnpmfile: preResolution hook logger`: a `preResolution`
+// hook's `logger.info(...)` and `logger.warn(...)` surface on the
+// `pnpm:hook` channel with `from: "pnpmfile"`, `hook: "preResolution"`,
+// and the matching log level. Mirrors the TypeScript
+// `createPreResolutionHookLogger` which emits at `info`/`warn`. A raw
+// `console.log(...)` line from the hook (not wrapped in the JSON logger
+// protocol) is forwarded at `info` rather than silently dropped.
+#[tokio::test]
+async fn pre_resolution_hook_log_is_forwarded_to_pnpm_hook_channel() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    install_with_pnpmfile_reporter::<RecordingReporter>(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+        r"module.exports = { hooks: { preResolution (ctx, logger) {
+  logger.info('Starting resolution');
+  logger.warn('Some packages may need updates');
+  console.log('raw hook output');
+} } }",
+    )
+    .await
+    .expect("install should succeed");
+
+    let captured = EVENTS.lock().unwrap();
+    let find_hook_event = |level: LogLevel, message: &str| {
+        captured
+            .iter()
+            .find_map(|event| match event {
+                LogEvent::Hook(log)
+                    if log.hook == "preResolution"
+                        && log.level == level
+                        && log.message == message =>
+                {
+                    Some(log)
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| {
+                panic!("a pnpm:hook {level:?} event with message {message:?} must be emitted")
+            })
+    };
+
+    for log in [
+        find_hook_event(LogLevel::Info, "Starting resolution"),
+        find_hook_event(LogLevel::Warn, "Some packages may need updates"),
+        find_hook_event(LogLevel::Info, "raw hook output"),
+    ] {
+        assert_eq!(log.from, "pnpmfile", "preResolution from is hardcoded to 'pnpmfile'");
+        assert_eq!(log.prefix, *dir.path().to_string_lossy(), "prefix must be the lockfile dir");
+    }
 
     drop((dir, registry));
 }

@@ -1038,8 +1038,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             hook.pre_resolution(
                 ctx,
                 pacquet_hooks::PreResolutionHookLogger {
-                    info: Arc::new(|_| {}),
-                    warn: Arc::new(|_| {}),
+                    info: pre_resolution_log_fn::<Reporter>(lockfile_dir, LogLevel::Info),
+                    warn: pre_resolution_log_fn::<Reporter>(lockfile_dir, LogLevel::Warn),
                 },
             )
             .await;
@@ -1981,6 +1981,27 @@ fn hook_log_fn<Reporter: self::Reporter>(
             level: LogLevel::Debug,
             from: from.clone(),
             hook: hook.to_string(),
+            message,
+            prefix: prefix.clone(),
+        }));
+    })
+}
+
+/// Build one side of the `preResolution` hook's `logger`: each
+/// `logger.info(...)` / `logger.warn(...)` call emits a `pnpm:hook` event at
+/// the given level. `from` is the literal `"pnpmfile"` — pnpm's
+/// `createPreResolutionHookLogger` hardcodes it rather than passing the
+/// pnpmfile path.
+fn pre_resolution_log_fn<Reporter: self::Reporter>(
+    prefix: &Path,
+    level: LogLevel,
+) -> pacquet_hooks::LogFn {
+    let prefix = prefix.to_string_lossy().into_owned();
+    Arc::new(move |message: String| {
+        Reporter::emit(&LogEvent::Hook(HookLog {
+            level,
+            from: "pnpmfile".to_string(),
+            hook: "preResolution".to_string(),
             message,
             prefix: prefix.clone(),
         }));

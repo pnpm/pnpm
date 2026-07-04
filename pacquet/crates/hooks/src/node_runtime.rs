@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use serde_json::Value;
 use std::{path::PathBuf, sync::Arc};
 use tokio::{
-    io::AsyncWriteExt,
+    io::{AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWriteExt, BufReader},
     process::Command,
     sync::OnceCell,
     time::{Duration, timeout},
@@ -58,8 +58,8 @@ impl NodeJsHooks {
 const hooks = await import({file_path_escaped});
 const ctx = JSON.parse(readFileSync(0, 'utf8'));
 const logger = {{
-  info: (m) => {{ console.log(JSON.stringify({{"level":"info","message":m}})); }},
-  warn: (m) => {{ console.log(JSON.stringify({{"level":"warn","message":m}})); }}
+  info: (m) => {{ console.log(JSON.stringify({{"level":"info","message":String(m)}})); }},
+  warn: (m) => {{ console.log(JSON.stringify({{"level":"warn","message":String(m)}})); }}
 }};
 await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
 "#,
@@ -73,8 +73,8 @@ await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
   const hooks = require({file_path_escaped});
   const ctx = JSON.parse(require('fs').readFileSync(0, 'utf8'));
   const logger = {{
-    info: (m) => {{ console.log(JSON.stringify({{"level":"info","message":m}})); }},
-    warn: (m) => {{ console.log(JSON.stringify({{"level":"warn","message":m}})); }}
+    info: (m) => {{ console.log(JSON.stringify({{"level":"info","message":String(m)}})); }},
+    warn: (m) => {{ console.log(JSON.stringify({{"level":"warn","message":String(m)}})); }}
   }};
   await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
 }})();
@@ -90,29 +90,171 @@ await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
             .arg(&wrapper)
             .kill_on_drop(true)
             .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
             .spawn()
         else {
             (logger.warn)("pnpmfile hook failed to start".to_string());
             return;
         };
 
-        if let Some(mut stdin) = child.stdin.take()
-            && stdin.write_all(ctx_payload.as_bytes()).await.is_err()
-        {
-            let _ = child.kill().await;
-            return;
-        }
+        let stdin = child.stdin.take();
+        let stdout = child.stdout.take().expect("stdout is piped");
+        let stderr = child.stderr.take().expect("stderr is piped");
 
-        let Ok(Ok(output)) = timeout(HOOK_TIMEOUT, child.wait_with_output()).await else {
+        // Stream all three pipes concurrently instead of buffering:
+        // stdout/stderr are hook-controlled, so buffering would let a noisy
+        // pnpmfile grow memory without bound, and log messages should surface
+        // while the hook is still running (pnpm runs the hook in-process, so
+        // its logger calls render immediately). The context write runs in the
+        // same join because a pnpmfile that logs heavily at import time could
+        // otherwise fill the stdout pipe and deadlock against the stdin
+        // write. A write error is left for `child.wait()` to surface as a
+        // non-zero exit.
+        let write_context = async {
+            if let Some(mut stdin) = stdin {
+                let _ = stdin.write_all(ctx_payload.as_bytes()).await;
+            }
+            // Dropping stdin closes the pipe so `readFileSync(0)` sees EOF.
+        };
+        let forward_stdout = forward_hook_stdout(stdout, logger);
+        let collect_stderr = read_tail(stderr, STDERR_TAIL_LIMIT);
+        let wait_child = child.wait();
+        let hook_result = timeout(HOOK_TIMEOUT, async {
+            let ((), (), stderr_tail, status) =
+                tokio::join!(write_context, forward_stdout, collect_stderr, wait_child);
+            (stderr_tail, status)
+        })
+        .await;
+
+        let Ok((stderr_tail, Ok(status))) = hook_result else {
             (logger.warn)("pnpmfile hook timed out or failed to execute".to_string());
             return;
         };
 
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
+        if !status.success() {
+            let stderr = String::from_utf8_lossy(&stderr_tail);
             (logger.warn)(format!("pnpmfile hook failed: {stderr}"));
         }
     }
+}
+
+/// How much trailing stderr to keep for the failure message when the hook
+/// exits non-zero.
+const STDERR_TAIL_LIMIT: usize = 64 * 1024;
+
+/// Longest hook stdout line kept; the remainder of an over-long line is
+/// discarded so hook-controlled output cannot grow memory without bound.
+const STDOUT_LINE_LIMIT: usize = 64 * 1024;
+
+/// Forwards each of the one-shot hook's stdout lines to the Rust-side logger
+/// closures as it arrives, which emit them as `pnpm:hook` events. Lines the
+/// JS wrapper's logger writes carry their level; everything else the hook
+/// prints (e.g. its own `console.log`) is forwarded as info so it is not
+/// silently lost.
+async fn forward_hook_stdout(
+    stdout: tokio::process::ChildStdout,
+    logger: &crate::PreResolutionHookLogger,
+) {
+    let mut reader = BufReader::new(stdout);
+    while let Ok(Some(line)) = next_line_bounded(&mut reader, STDOUT_LINE_LIMIT).await {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        match parse_logger_line(line) {
+            Some((LoggerLevel::Info, message)) => (logger.info)(message),
+            Some((LoggerLevel::Warn, message)) => (logger.warn)(message),
+            None => (logger.info)(line.to_string()),
+        }
+    }
+}
+
+enum LoggerLevel {
+    Info,
+    Warn,
+}
+
+/// Parses one line of the JS wrapper's logger protocol,
+/// `{"level":"info"|"warn","message":...}`. Anything else — non-JSON, or
+/// JSON the hook printed itself — returns `None` so the caller forwards it
+/// verbatim.
+fn parse_logger_line(line: &str) -> Option<(LoggerLevel, String)> {
+    if !line.starts_with('{') {
+        return None;
+    }
+    let parsed = serde_json::from_str::<serde_json::Value>(line).ok()?;
+    let level = match parsed.get("level").and_then(|v| v.as_str()) {
+        Some("info") => LoggerLevel::Info,
+        Some("warn") => LoggerLevel::Warn,
+        _ => return None,
+    };
+    let message = match parsed.get("message")? {
+        v if v.is_string() => v.as_str().unwrap().to_string(),
+        v => v.to_string(),
+    };
+    Some((level, message))
+}
+
+/// Reads one `\n`-terminated line, keeping at most `cap` bytes of it and
+/// discarding the rest, and decodes it lossily. Unlike
+/// [`AsyncBufReadExt::read_line`] this neither buffers an unbounded line nor
+/// stops on invalid UTF-8 — the pipe must keep draining either way, or the
+/// child blocks on a full pipe until the hook timeout. Returns `None` at EOF.
+async fn next_line_bounded(
+    reader: &mut (impl AsyncBufRead + Unpin),
+    cap: usize,
+) -> std::io::Result<Option<String>> {
+    let mut line = Vec::new();
+    loop {
+        let (consumed, line_complete) = {
+            let available = reader.fill_buf().await?;
+            if available.is_empty() {
+                return Ok(if line.is_empty() { None } else { Some(lossy_string(&line)) });
+            }
+            let newline = available.iter().position(|&byte| byte == b'\n');
+            let visible = newline.unwrap_or(available.len());
+            let keep = visible.min(cap.saturating_sub(line.len()));
+            line.extend_from_slice(&available[..keep]);
+            match newline {
+                Some(pos) => (pos + 1, true),
+                None => (available.len(), false),
+            }
+        };
+        reader.consume(consumed);
+        if line_complete {
+            return Ok(Some(lossy_string(&line)));
+        }
+    }
+}
+
+fn lossy_string(bytes: &[u8]) -> String {
+    String::from_utf8_lossy(bytes).into_owned()
+}
+
+/// Reads `stream` to EOF keeping only the final `cap` bytes, so a
+/// hook-controlled pipe cannot grow the buffer without bound.
+async fn read_tail(stream: impl AsyncRead + Unpin, cap: usize) -> Vec<u8> {
+    let mut stream = stream;
+    let mut tail = Vec::new();
+    // Heap-allocated so the read buffer doesn't bloat the future
+    // (`clippy::large_futures`).
+    let mut buf = vec![0u8; 8192];
+    loop {
+        match stream.read(&mut buf).await {
+            Ok(0) | Err(_) => break,
+            Ok(n) => {
+                tail.extend_from_slice(&buf[..n]);
+                // Trim only past twice the cap so noisy output memmoves the
+                // tail once per `cap` bytes, not once per read.
+                if tail.len() > cap * 2 {
+                    tail.drain(..tail.len() - cap);
+                }
+            }
+        }
+    }
+    tail.drain(..tail.len().saturating_sub(cap));
+    tail
 }
 
 #[async_trait]
@@ -262,3 +404,6 @@ impl crate::CustomResolver for NodeJsCustomResolver {
         Ok(res.as_bool().unwrap_or(false))
     }
 }
+
+#[cfg(test)]
+mod tests;
