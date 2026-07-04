@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use serde_json::Value;
 use std::{path::PathBuf, sync::Arc};
 use tokio::{
-    io::AsyncWriteExt,
+    io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWriteExt, BufReader},
     process::Command,
     sync::OnceCell,
     time::{Duration, timeout},
@@ -98,51 +98,104 @@ await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
             return;
         };
 
-        if let Some(mut stdin) = child.stdin.take()
-            && stdin.write_all(ctx_payload.as_bytes()).await.is_err()
-        {
-            let _ = child.kill().await;
-            return;
-        }
+        let stdin = child.stdin.take();
+        let stdout = child.stdout.take().expect("stdout is piped");
+        let stderr = child.stderr.take().expect("stderr is piped");
 
-        let Ok(Ok(output)) = timeout(HOOK_TIMEOUT, child.wait_with_output()).await else {
+        // Stream all three pipes concurrently instead of buffering:
+        // stdout/stderr are hook-controlled, so buffering would let a noisy
+        // pnpmfile grow memory without bound, and log messages should surface
+        // while the hook is still running (pnpm runs the hook in-process, so
+        // its logger calls render immediately). The context write runs in the
+        // same join because a pnpmfile that logs heavily at import time could
+        // otherwise fill the stdout pipe and deadlock against the stdin
+        // write. A write error is left for `child.wait()` to surface as a
+        // non-zero exit.
+        let write_context = async {
+            if let Some(mut stdin) = stdin {
+                let _ = stdin.write_all(ctx_payload.as_bytes()).await;
+            }
+            // Dropping stdin closes the pipe so `readFileSync(0)` sees EOF.
+        };
+        let hook_result = timeout(HOOK_TIMEOUT, async {
+            let ((), (), stderr_tail, status) = tokio::join!(
+                write_context,
+                forward_hook_stdout(stdout, logger),
+                read_tail(stderr, STDERR_TAIL_LIMIT),
+                child.wait(),
+            );
+            (stderr_tail, status)
+        })
+        .await;
+
+        let Ok((stderr_tail, Ok(status))) = hook_result else {
             (logger.warn)("pnpmfile hook timed out or failed to execute".to_string());
             return;
         };
 
-        // Forward each JSON line from the JS info/warn logger calls to the Rust-
-        // side closures, which emit them as `pnpm:hook` events. The JS wrapper
-        // writes `{"level":"info","message":String(...)}` or
-        // `{"level":"warn","message":String(...)}` to stdout. Non-JSON lines
-        // (e.g. Node.js debug output) are forwarded as info so they are not
-        // silently lost.
-        for line in String::from_utf8_lossy(&output.stdout).lines() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(line) {
-                let level = parsed.get("level").and_then(|v| v.as_str());
-                let message = match parsed.get("message") {
-                    Some(v) if v.is_string() => v.as_str().unwrap().to_string(),
-                    Some(v) => v.to_string(),
-                    None => continue,
-                };
-                match level {
-                    Some("info") => (logger.info)(message),
-                    Some("warn") => (logger.warn)(message),
-                    _ => {}
-                }
-            } else {
-                (logger.info)(line.to_string());
-            }
-        }
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
+        if !status.success() {
+            let stderr = String::from_utf8_lossy(&stderr_tail);
             (logger.warn)(format!("pnpmfile hook failed: {stderr}"));
         }
     }
+}
+
+/// How much trailing stderr to keep for the failure message when the hook
+/// exits non-zero.
+const STDERR_TAIL_LIMIT: usize = 64 * 1024;
+
+/// Forwards each of the one-shot hook's stdout lines to the Rust-side logger
+/// closures as it arrives, which emit them as `pnpm:hook` events. The JS
+/// wrapper writes `{"level":"info","message":String(...)}` or
+/// `{"level":"warn","message":String(...)}` lines. Non-JSON lines (e.g. a
+/// hook's own `console.log`) are forwarded as info so they are not silently
+/// lost.
+async fn forward_hook_stdout(
+    stdout: tokio::process::ChildStdout,
+    logger: &crate::PreResolutionHookLogger,
+) {
+    let mut lines = BufReader::new(stdout).lines();
+    while let Ok(Some(line)) = lines.next_line().await {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(line) {
+            let level = parsed.get("level").and_then(|v| v.as_str());
+            let message = match parsed.get("message") {
+                Some(v) if v.is_string() => v.as_str().unwrap().to_string(),
+                Some(v) => v.to_string(),
+                None => continue,
+            };
+            match level {
+                Some("info") => (logger.info)(message),
+                Some("warn") => (logger.warn)(message),
+                _ => {}
+            }
+        } else {
+            (logger.info)(line.to_string());
+        }
+    }
+}
+
+/// Reads `stream` to EOF keeping only the final `cap` bytes, so a
+/// hook-controlled pipe cannot grow the buffer without bound.
+async fn read_tail(stream: impl AsyncRead + Unpin, cap: usize) -> Vec<u8> {
+    let mut stream = stream;
+    let mut tail = Vec::new();
+    let mut buf = [0u8; 8192];
+    loop {
+        match stream.read(&mut buf).await {
+            Ok(0) | Err(_) => break,
+            Ok(n) => {
+                tail.extend_from_slice(&buf[..n]);
+                if tail.len() > cap {
+                    tail.drain(..tail.len() - cap);
+                }
+            }
+        }
+    }
+    tail
 }
 
 #[async_trait]
