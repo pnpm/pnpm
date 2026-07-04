@@ -1,8 +1,12 @@
+use crate::cli_args::recursive::{
+    AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
+};
 use clap::{Args, Subcommand};
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
-use pacquet_config::property_path::{
-    self, Segment, get_object_value_by_property_path, parse_property_path,
+use pacquet_config::{
+    Config,
+    property_path::{self, Segment, get_object_value_by_property_path, parse_property_path},
 };
 use pacquet_package_manifest::PackageManifest;
 use serde_json::{Map, Value};
@@ -44,6 +48,14 @@ pub enum PkgError {
     #[display("Cannot use an empty property path")]
     #[diagnostic(code(ERR_PNPM_PKG_EMPTY_PROPERTY_PATH))]
     EmptyPath,
+
+    #[display("Cannot run recursively outside of a workspace")]
+    #[diagnostic(code(ERR_PNPM_PKG_RECURSIVE_NO_ROOT))]
+    RecursiveNoRoot,
+
+    #[display("No workspace packages were selected")]
+    #[diagnostic(code(ERR_PNPM_PKG_RECURSIVE_NO_PACKAGES))]
+    RecursiveNoPackages,
 }
 
 #[derive(Debug, Args)]
@@ -106,6 +118,97 @@ impl PkgArgs {
             }
             PkgSubcommand::Fix => {
                 pkg_fix(manifest_path)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Run the pkg command across `--filter`-selected workspace projects.
+    pub fn run_recursive(self, config: &Config, dir: &Path) -> miette::Result<()> {
+        let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
+        if config.workspace_dir.is_none() {
+            return Err(PkgError::RecursiveNoRoot.into());
+        }
+        let (projects, _patterns) =
+            discover_workspace_projects(workspace_root).wrap_err("discover workspace projects")?;
+        let selection =
+            select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
+        if selection.selected.is_empty() {
+            return Err(PkgError::RecursiveNoPackages.into());
+        }
+        match self.command {
+            PkgSubcommand::Get(args) => {
+                let mut entries = Map::new();
+                for node in selection.selected.values() {
+                    let manifest = &node.package.project.manifest;
+                    let pkg_name =
+                        manifest.value().get("name").and_then(Value::as_str).map_or_else(
+                            || {
+                                node.package
+                                    .project
+                                    .root_dir
+                                    .strip_prefix(workspace_root)
+                                    .unwrap_or(&node.package.project.root_dir)
+                                    .display()
+                                    .to_string()
+                            },
+                            String::from,
+                        );
+                    let value = select_from_manifest(manifest.value(), &args.keys)?;
+                    entries.insert(pkg_name, value);
+                }
+                let output = serde_json::to_string_pretty(&Value::Object(entries))
+                    .map_err(|e| miette::miette!("{e}"))?;
+                println!("{output}");
+            }
+            PkgSubcommand::Set(args) => {
+                for node in selection.selected.values() {
+                    let mut manifest = PackageManifest::from_path(
+                        node.package.project.root_dir.join("package.json"),
+                    )
+                    .wrap_err("reading package.json")?;
+                    let value = manifest.value_mut();
+                    for pair in &args.pairs {
+                        let eq_index = pair
+                            .find('=')
+                            .ok_or_else(|| PkgError::SetInvalidArg { arg: pair.clone() })?;
+                        let key = &pair[..eq_index];
+                        let raw_value = &pair[eq_index + 1..];
+                        let parsed_value: Value = if self.json {
+                            serde_json::from_str(raw_value).map_err(|_| PkgError::SetJsonParse {
+                                value: raw_value.to_string(),
+                            })?
+                        } else {
+                            Value::String(raw_value.to_string())
+                        };
+                        set_object_value_by_property_path(value, key, parsed_value)?;
+                    }
+                    manifest.save().wrap_err("saving package.json")?;
+                }
+            }
+            PkgSubcommand::Delete(args) => {
+                for node in selection.selected.values() {
+                    let mut manifest = PackageManifest::from_path(
+                        node.package.project.root_dir.join("package.json"),
+                    )
+                    .wrap_err("reading package.json")?;
+                    let value = manifest.value_mut();
+                    for key in &args.keys {
+                        delete_object_value_by_property_path(value, key)?;
+                    }
+                    manifest.save().wrap_err("saving package.json")?;
+                }
+            }
+            PkgSubcommand::Fix => {
+                for node in selection.selected.values() {
+                    let mut manifest = PackageManifest::from_path(
+                        node.package.project.root_dir.join("package.json"),
+                    )
+                    .wrap_err("reading package.json")?;
+                    let value = manifest.value_mut();
+                    fix_manifest(value);
+                    manifest.save().wrap_err("saving package.json")?;
+                }
             }
         }
         Ok(())

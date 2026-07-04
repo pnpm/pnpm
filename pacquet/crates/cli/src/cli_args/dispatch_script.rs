@@ -29,7 +29,11 @@ pub(super) fn set_script<'a>(
 }
 
 pub(super) fn pkg<'a>(ctx: &RunCtx<'a>, args: PkgArgs) -> miette::Result<CommandFuture<'a>> {
-    let result = args.run(ctx.manifest_path);
+    let result = if ctx.recursive {
+        args.run_recursive((ctx.config)()?, ctx.dir)
+    } else {
+        args.run(ctx.manifest_path)
+    };
     Ok(Box::pin(std::future::ready(result)))
 }
 
