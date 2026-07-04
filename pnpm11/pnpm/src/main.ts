@@ -120,7 +120,10 @@ export async function main (inputArgv: string[]): Promise<void> {
       // selected and validates it against devEngines/packageManager. Skipped
       // for --global, which opts out of project-level pinning.
       if (config.pnpmExecCommand != null && !cliOptions.global) {
-        await applyPnpmExecCommand(config.pnpmExecCommand)
+        await applyPnpmExecCommand(config.pnpmExecCommand, {
+          workspaceDir: workspaceDir ?? config.dir,
+          stateDir: config.stateDir,
+        })
       }
       if (context.wantedPackageManager != null) {
         const pm = context.wantedPackageManager

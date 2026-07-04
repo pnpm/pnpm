@@ -6,9 +6,25 @@ import { prepare } from '@pnpm/prepare'
 import { writeJsonFileSync } from 'write-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
+import type { ExecPnpmSyncOpts } from './utils/execPnpm.js'
 import { execPnpmSync, pnpmBinLocation } from './utils/index.js'
 
 const MARKER = '=== PNPM RESOLVED BY EXEC COMMAND ==='
+
+/**
+ * Like execPnpmSync, but with the per-user state dir isolated inside the test
+ * project, so the trust-on-first-use records written by pnpmExecCommand stay
+ * per-test instead of leaking into the developer's real pnpm-state.json.
+ */
+function execPnpmSyncIsolated (args: string[], opts?: ExecPnpmSyncOpts): ReturnType<typeof execPnpmSync> {
+  return execPnpmSync(args, {
+    ...opts,
+    env: {
+      pnpm_config_state_dir: path.resolve('state'),
+      ...opts?.env,
+    },
+  })
+}
 
 /**
  * Create a fake "vended" pnpm executable (a Node script; cross-spawn honors
@@ -40,7 +56,7 @@ test('re-execs into the binary printed by pnpmExecCommand, forwarding args', asy
   const { fakeBin, resolverCommand } = setupVendedPnpm()
   writeYamlFileSync('pnpm-workspace.yaml', { pnpmExecCommand: resolverCommand })
 
-  const { status, stdout } = execPnpmSync(['root'], { expectSuccess: true })
+  const { status, stdout } = execPnpmSyncIsolated(['root'], { expectSuccess: true })
 
   expect(status).toBe(0)
   expect(stdout.toString()).toContain(MARKER)
@@ -55,7 +71,7 @@ test('does not re-exec when the command resolves to the running binary', async (
   fs.writeFileSync(resolver, `console.log(${JSON.stringify(pnpmBinLocation)})\n`)
   writeYamlFileSync('pnpm-workspace.yaml', { pnpmExecCommand: [process.execPath, resolver] })
 
-  const { status, stdout } = execPnpmSync(['root'], { expectSuccess: true, omitEnvDefaults: ['pnpm_config_silent'] })
+  const { status, stdout } = execPnpmSyncIsolated(['root'], { expectSuccess: true, omitEnvDefaults: ['pnpm_config_silent'] })
 
   expect(status).toBe(0)
   expect(stdout.toString()).toContain(path.join(project.dir(), 'node_modules'))
@@ -66,7 +82,7 @@ test('skips resolution when PNPM_EXEC_PATH is already set (nested invocation)', 
   const { resolverCommand } = setupVendedPnpm()
   writeYamlFileSync('pnpm-workspace.yaml', { pnpmExecCommand: resolverCommand })
 
-  const { status, stdout } = execPnpmSync(['root'], {
+  const { status, stdout } = execPnpmSyncIsolated(['root'], {
     env: { PNPM_EXEC_PATH: pnpmBinLocation },
     expectSuccess: true,
     omitEnvDefaults: ['pnpm_config_silent'],
@@ -84,7 +100,7 @@ test('fails when the command exits non-zero', async () => {
   fs.writeFileSync(resolver, 'process.exit(3)\n')
   writeYamlFileSync('pnpm-workspace.yaml', { pnpmExecCommand: [process.execPath, resolver] })
 
-  const { status, stderr } = execPnpmSync(['root'])
+  const { status, stderr } = execPnpmSyncIsolated(['root'])
 
   expect(status).not.toBe(0)
   expect(stderr.toString()).toContain('failed with exit code 3')
@@ -96,7 +112,7 @@ test('fails when the command prints nothing', async () => {
   fs.writeFileSync(resolver, '\n')
   writeYamlFileSync('pnpm-workspace.yaml', { pnpmExecCommand: [process.execPath, resolver] })
 
-  const { status, stderr } = execPnpmSync(['root'])
+  const { status, stderr } = execPnpmSyncIsolated(['root'])
 
   expect(status).not.toBe(0)
   expect(stderr.toString()).toContain('printed no path to stdout')
@@ -108,7 +124,7 @@ test('fails when the command prints a non-absolute path', async () => {
   fs.writeFileSync(resolver, 'console.log("bin/pnpm")\n')
   writeYamlFileSync('pnpm-workspace.yaml', { pnpmExecCommand: [process.execPath, resolver] })
 
-  const { status, stderr } = execPnpmSync(['root'])
+  const { status, stderr } = execPnpmSyncIsolated(['root'])
 
   expect(status).not.toBe(0)
   expect(stderr.toString()).toContain('printed a non-absolute path')
@@ -120,7 +136,7 @@ test('fails when the command prints a path that does not exist', async () => {
   fs.writeFileSync(resolver, `console.log(${JSON.stringify(path.resolve('no-such-pnpm'))})\n`)
   writeYamlFileSync('pnpm-workspace.yaml', { pnpmExecCommand: [process.execPath, resolver] })
 
-  const { status, stderr } = execPnpmSync(['root'])
+  const { status, stderr } = execPnpmSyncIsolated(['root'])
 
   expect(status).not.toBe(0)
   expect(stderr.toString()).toContain('printed a path that does not exist')
@@ -130,7 +146,7 @@ test('fails when the setting is not an array of strings', async () => {
   prepare()
   writeYamlFileSync('pnpm-workspace.yaml', { pnpmExecCommand: 'my-tool which-pnpm' })
 
-  const { status, stderr } = execPnpmSync(['root'])
+  const { status, stderr } = execPnpmSyncIsolated(['root'])
 
   expect(status).not.toBe(0)
   expect(stderr.toString()).toContain('must be an array of non-empty strings')
@@ -148,7 +164,7 @@ test('pnpmExecCommand suppresses download-based version switching; the mismatch 
     packageManager: 'pnpm@9.3.0',
   })
 
-  const { status, stdout, stderr } = execPnpmSync(['help'], { env: { PNPM_HOME: pnpmHome } })
+  const { status, stdout, stderr } = execPnpmSyncIsolated(['help'], { env: { PNPM_HOME: pnpmHome } })
 
   // Without pnpmExecCommand this would download and switch to 9.3.0. With it,
   // binary selection belongs to the command, so the mismatch is reported
@@ -174,10 +190,63 @@ test('devEngines.packageManager range is validated against the binary pnpmExecCo
     },
   })
 
-  const { status, stdout } = execPnpmSync(['root'], { expectSuccess: true, omitEnvDefaults: ['pnpm_config_silent'] })
+  const { status, stdout } = execPnpmSyncIsolated(['root'], { expectSuccess: true, omitEnvDefaults: ['pnpm_config_silent'] })
 
   // The running (dev) pnpm satisfies >=10, so the check passes and the
   // command runs normally.
   expect(status).toBe(0)
   expect(stdout.toString()).toContain(path.join(project.dir(), 'node_modules'))
+})
+
+test('prints a first-use notice to stderr, then stays silent while the command is unchanged', async () => {
+  prepare()
+  const resolver = path.resolve('resolve-pnpm.js')
+  fs.writeFileSync(resolver, `console.log(${JSON.stringify(pnpmBinLocation)})\n`)
+  writeYamlFileSync('pnpm-workspace.yaml', { pnpmExecCommand: [process.execPath, resolver] })
+
+  const firstRun = execPnpmSyncIsolated(['root'], { expectSuccess: true })
+  expect(firstRun.stderr.toString()).toContain('first use in this workspace')
+  expect(firstRun.stderr.toString()).toContain(resolver)
+  expect(firstRun.stderr.toString()).toContain(`Resolved to ${pnpmBinLocation}`)
+  // The notice goes to stderr only: stdout stays machine-clean.
+  expect(firstRun.stdout.toString()).not.toContain('first use in this workspace')
+
+  const secondRun = execPnpmSyncIsolated(['root'], { expectSuccess: true })
+  expect(secondRun.stderr.toString()).not.toContain('first use in this workspace')
+  expect(secondRun.stderr.toString()).not.toContain('Resolved to')
+})
+
+test('prints a changed-command notice when pnpm-workspace.yaml is edited', async () => {
+  prepare()
+  const resolver = path.resolve('resolve-pnpm.js')
+  const resolver2 = path.resolve('resolve-pnpm-2.js')
+  fs.writeFileSync(resolver, `console.log(${JSON.stringify(pnpmBinLocation)})\n`)
+  fs.writeFileSync(resolver2, `console.log(${JSON.stringify(pnpmBinLocation)})\n`)
+
+  writeYamlFileSync('pnpm-workspace.yaml', { pnpmExecCommand: [process.execPath, resolver] })
+  execPnpmSyncIsolated(['root'], { expectSuccess: true })
+
+  writeYamlFileSync('pnpm-workspace.yaml', { pnpmExecCommand: [process.execPath, resolver2] })
+  const { stderr } = execPnpmSyncIsolated(['root'], { expectSuccess: true })
+
+  expect(stderr.toString()).toContain('The pnpmExecCommand for this workspace has changed')
+  expect(stderr.toString()).toContain(`was: ${process.execPath} ${resolver}`)
+  expect(stderr.toString()).toContain(`now: ${process.execPath} ${resolver2}`)
+})
+
+test('repeats the notice when the command failed, so a failing first run never records trust', async () => {
+  prepare()
+  const resolver = path.resolve('resolve-pnpm.js')
+  fs.writeFileSync(resolver, 'process.exit(3)\n')
+  writeYamlFileSync('pnpm-workspace.yaml', { pnpmExecCommand: [process.execPath, resolver] })
+
+  const firstRun = execPnpmSyncIsolated(['root'])
+  expect(firstRun.status).not.toBe(0)
+  expect(firstRun.stderr.toString()).toContain('first use in this workspace')
+
+  // Fix the command; because the failed run was not recorded, the notice
+  // appears again on the first successful run.
+  fs.writeFileSync(resolver, `console.log(${JSON.stringify(pnpmBinLocation)})\n`)
+  const secondRun = execPnpmSyncIsolated(['root'], { expectSuccess: true })
+  expect(secondRun.stderr.toString()).toContain('first use in this workspace')
 })

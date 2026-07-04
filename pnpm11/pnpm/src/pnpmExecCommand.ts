@@ -2,8 +2,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { PnpmError } from '@pnpm/error'
-import { logger } from '@pnpm/logger'
 import spawn from 'cross-spawn'
+import { loadJsonFile } from 'load-json-file'
+import { writeJsonFile } from 'write-json-file'
 
 import { reExecPnpm } from './reExecPnpm.js'
 
@@ -16,6 +17,13 @@ import { reExecPnpm } from './reExecPnpm.js'
 export const PNPM_EXEC_PATH_ENV = 'PNPM_EXEC_PATH'
 
 const COMMAND_TIMEOUT = 60_000 // ms
+
+export interface ApplyPnpmExecCommandOptions {
+  /** Directory of the pnpm-workspace.yaml that declared the setting. */
+  workspaceDir: string
+  /** Per-user state directory holding pnpm-state.json. */
+  stateDir: string
+}
 
 /**
  * When the `pnpmExecCommand` setting is present, run the configured command,
@@ -34,7 +42,7 @@ const COMMAND_TIMEOUT = 60_000 // ms
  * `main()` still runs in the child, now validating the binary the command
  * actually produced.
  */
-export async function applyPnpmExecCommand (command: unknown): Promise<void> {
+export async function applyPnpmExecCommand (command: unknown, opts: ApplyPnpmExecCommandOptions): Promise<void> {
   if (!Array.isArray(command) || command.length === 0 || !command.every((arg) => typeof arg === 'string' && arg !== '')) {
     throw new PnpmError(
       'EXEC_COMMAND_INVALID',
@@ -52,7 +60,15 @@ export async function applyPnpmExecCommand (command: unknown): Promise<void> {
     return
   }
 
+  const persistSeenCommand = await noticeOnFirstUseOrChange(command, opts)
+
   const binPath = runPnpmExecCommand(command)
+  if (persistSeenCommand != null) {
+    process.stderr.write(`Resolved to ${binPath}\n`)
+    // Record the command only after it resolved successfully, so a failing
+    // first run doesn't silence the notice on the next (successful) one.
+    await persistSeenCommand()
+  }
 
   if (isCurrentBinary(binPath)) {
     // Mark resolution as done for nested pnpm invocations.
@@ -60,7 +76,6 @@ export async function applyPnpmExecCommand (command: unknown): Promise<void> {
     return
   }
 
-  logger.debug({ msg: `pnpmExecCommand resolved the pnpm binary to ${binPath}; re-executing` })
   await reExecPnpm(binPath, {
     target: `the binary resolved by pnpmExecCommand ("${command.join(' ')}")`,
     extraEnv: { [PNPM_EXEC_PATH_ENV]: binPath },
@@ -69,6 +84,84 @@ export async function applyPnpmExecCommand (command: unknown): Promise<void> {
     // manager owns PATH but the user invoked a different pnpm directly).
     allowBinDirAlreadyOnPath: true,
   })
+}
+
+interface PnpmState {
+  /**
+   * Trust-on-first-use record of pnpmExecCommand values, keyed by the real
+   * path of the workspace directory. The value is the JSON-encoded argv. A
+   * workspace whose command matches its record runs silently; an unseen
+   * workspace or a changed command prints a notice to stderr first. Stored in
+   * the per-user state dir, outside the repository, so a project cannot
+   * pre-seed it to suppress its own notice.
+   */
+  pnpmExecCommands?: Record<string, string>
+  [key: string]: unknown
+}
+
+/**
+ * Print a notice to stderr the first time a workspace's pnpmExecCommand runs
+ * under this user, and a louder one whenever the command changes — the same
+ * trust-on-first-use pattern as SSH known hosts, turning a quietly edited
+ * pnpm-workspace.yaml into a visible signal.
+ *
+ * stderr keeps stdout machine-clean (`$(pnpm --version)` etc.); a direct
+ * write is used because the reporter is not initialized this early in
+ * startup. State-file read/write failures fall back to printing the notice —
+ * failing open on noise, never on silence.
+ *
+ * Returns `null` when the command matches its record (no notice printed).
+ * Otherwise the notice is printed and a callback that records the command is
+ * returned, for the caller to invoke once resolution succeeds.
+ */
+async function noticeOnFirstUseOrChange (command: string[], opts: ApplyPnpmExecCommandOptions): Promise<(() => Promise<void>) | null> {
+  const workspaceKey = realpathOrSelf(opts.workspaceDir)
+  const commandRecord = JSON.stringify(command)
+  const stateFile = path.join(opts.stateDir, 'pnpm-state.json')
+
+  let state: PnpmState | undefined
+  try {
+    state = await loadJsonFile(stateFile)
+  } catch {}
+
+  const seen = state?.pnpmExecCommands?.[workspaceKey]
+  if (seen === commandRecord) return null
+
+  if (seen == null) {
+    process.stderr.write(
+      'Resolving the pnpm binary with pnpmExecCommand (first use in this workspace):\n' +
+      `> ${command.join(' ')}\n`
+    )
+  } else {
+    process.stderr.write(
+      'The pnpmExecCommand for this workspace has changed:\n' +
+      `  was: ${(JSON.parse(seen) as string[]).join(' ')}\n` +
+      `  now: ${command.join(' ')}\n`
+    )
+  }
+
+  return async () => {
+    try {
+      await writeJsonFile(stateFile, {
+        ...state,
+        pnpmExecCommands: {
+          ...state?.pnpmExecCommands,
+          [workspaceKey]: commandRecord,
+        },
+      })
+    } catch {
+      // If the state can't be persisted the notice repeats next run. Noise is
+      // an acceptable failure mode; a suppressed notice is not.
+    }
+  }
+}
+
+function realpathOrSelf (dir: string): string {
+  try {
+    return fs.realpathSync(dir)
+  } catch {
+    return dir
+  }
 }
 
 function runPnpmExecCommand (command: string[]): string {
