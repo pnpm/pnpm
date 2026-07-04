@@ -127,6 +127,126 @@ fn removes_only_excluded_direct_dep_links_and_their_bins() {
     assert!(modules_dir.join("user-owned-dir").is_dir());
 }
 
+/// A `node_modules` that is itself a symlink resolving outside the
+/// workspace root fails the containment check, so nothing behind it is
+/// touched — the same refusal the purge applies.
+#[test]
+fn refuses_to_prune_through_a_modules_dir_escaping_the_workspace() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path().join("workspace");
+    let outside = dir.path().join("outside-modules");
+    fs::create_dir_all(&workspace_root).unwrap();
+
+    // Seed the external dir with a linked dep + shim, then point the
+    // workspace's node_modules at it.
+    link_dep(&outside, "dev-dep", Some("devtool"));
+    let outside_bins = outside.join(".bin");
+    fs::create_dir_all(&outside_bins).unwrap();
+    fs::write(outside_bins.join("devtool"), b"#!/bin/sh\n").unwrap();
+    let modules_dir = workspace_root.join("node_modules");
+    pacquet_fs::symlink_dir(&outside, &modules_dir).unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = modules_dir.join(".pacquet");
+    let config = config.leak();
+
+    let current_lockfile = lockfile_with_root_importer(ProjectSnapshot {
+        dev_dependencies: Some(dep_map(&[("dev-dep", "1.0.0")])),
+        ..ProjectSnapshot::default()
+    });
+
+    prune_direct_deps_excluded_by_groups(
+        &current_lockfile,
+        FULL,
+        PROD_ONLY,
+        &workspace_root,
+        config,
+    )
+    .expect("prune should succeed");
+
+    assert!(is_symlink_or_junction(&outside.join("dev-dep")).unwrap());
+    assert!(outside_bins.join("devtool").exists());
+}
+
+/// A `.bin` that is itself a symlink must not have shims deleted
+/// through it, while the dep's own link is still pruned.
+#[test]
+fn skips_shim_removal_through_a_symlinked_bin_dir() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let modules_dir = workspace_root.join("node_modules");
+    let outside_bins = workspace_root.join("outside-bins");
+
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = modules_dir.join(".pacquet");
+    let config = config.leak();
+
+    link_dep(&modules_dir, "dev-dep", Some("devtool"));
+    fs::create_dir_all(&outside_bins).unwrap();
+    fs::write(outside_bins.join("devtool"), b"#!/bin/sh\n").unwrap();
+    pacquet_fs::symlink_dir(&outside_bins, &modules_dir.join(".bin")).unwrap();
+
+    let current_lockfile = lockfile_with_root_importer(ProjectSnapshot {
+        dev_dependencies: Some(dep_map(&[("dev-dep", "1.0.0")])),
+        ..ProjectSnapshot::default()
+    });
+
+    prune_direct_deps_excluded_by_groups(
+        &current_lockfile,
+        FULL,
+        PROD_ONLY,
+        workspace_root,
+        config,
+    )
+    .expect("prune should succeed");
+
+    assert!(outside_bins.join("devtool").exists());
+    assert!(modules_dir.join("dev-dep").symlink_metadata().is_err());
+}
+
+/// A scoped alias whose `@scope/` component is a symlink must not be
+/// unlinked through it.
+#[test]
+fn refuses_to_unlink_through_a_symlinked_scope_dir() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let modules_dir = workspace_root.join("node_modules");
+    let outside_scope = workspace_root.join("outside-scope");
+
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = modules_dir.join(".pacquet");
+    let config = config.leak();
+
+    fs::create_dir_all(&modules_dir).unwrap();
+    fs::create_dir_all(&outside_scope).unwrap();
+    let target = workspace_root.join("some-target");
+    fs::create_dir_all(&target).unwrap();
+    pacquet_fs::symlink_dir(&target, &outside_scope.join("dev-dep")).unwrap();
+    pacquet_fs::symlink_dir(&outside_scope, &modules_dir.join("@scope")).unwrap();
+
+    let current_lockfile = lockfile_with_root_importer(ProjectSnapshot {
+        dev_dependencies: Some(dep_map(&[("@scope/dev-dep", "1.0.0")])),
+        ..ProjectSnapshot::default()
+    });
+
+    prune_direct_deps_excluded_by_groups(
+        &current_lockfile,
+        FULL,
+        PROD_ONLY,
+        workspace_root,
+        config,
+    )
+    .expect("prune should succeed");
+
+    assert!(is_symlink_or_junction(&outside_scope.join("dev-dep")).unwrap());
+}
+
 /// The reverse switch (`--prod` → full) only widens the selection, so
 /// nothing is removed.
 #[test]

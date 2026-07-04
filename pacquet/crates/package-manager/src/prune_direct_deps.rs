@@ -76,8 +76,14 @@ pub enum PruneDirectDepsError {
 /// drift skips the destructive purge, so the links the previous install
 /// created for now-excluded groups have to be removed individually —
 /// pnpm does the same through its prune's `removeDirectDependency`.
-/// Removal is conservative on two axes:
+/// Removal is conservative on three axes:
 ///
+/// - Each importer's modules dir must canonicalize to a path inside the
+///   workspace root (`confined_modules_dir`, the purge's containment
+///   check), and removals never reach through an intermediate
+///   `@scope/` or `.bin/` component that isn't a real directory — a
+///   symlinked or junctioned one could redirect the deletions outside
+///   the confined dir.
 /// - Only symlinks (junctions on Windows) are removed. The isolated
 ///   linker only ever writes links for direct deps, so a real file or
 ///   directory under the same name belongs to the user — or to the
@@ -116,11 +122,18 @@ pub fn prune_direct_deps_excluded_by_groups(
         if validate_importer_id(importer_id).is_err() {
             continue;
         }
+        // Same canonical containment check as the purge: delete only
+        // through a modules dir that resolves inside the workspace
+        // root, and operate on the canonicalized path so a symlink
+        // swap can't redirect the removals after the check.
+        let modules_dir = importer_root_dir(workspace_root, importer_id).join(modules_dir_name);
+        let Some(modules_dir) = confined_modules_dir(&modules_dir, workspace_root) else {
+            continue;
+        };
         let new_names: HashSet<String> =
             direct_dep_names_for_importer(snapshot, new_groups.iter().copied(), &skipped, false)
                 .into_iter()
                 .collect();
-        let modules_dir = importer_root_dir(workspace_root, importer_id).join(modules_dir_name);
         for name in
             direct_dep_names_for_importer(snapshot, old_groups.iter().copied(), &skipped, false)
         {
@@ -131,6 +144,36 @@ pub fn prune_direct_deps_excluded_by_groups(
         }
     }
     Ok(())
+}
+
+/// Canonicalize `modules_dir` and require it to stay within
+/// `workspace_root` — the same containment check the purge applies
+/// before its destructive sweep. Returns the canonical path the
+/// removals should operate on, or `None` when there is nothing to
+/// prune (the directory doesn't exist) or when the resolution escapes
+/// the workspace — never delete through an escape.
+fn confined_modules_dir(modules_dir: &Path, workspace_root: &Path) -> Option<PathBuf> {
+    let modules_canon = std::fs::canonicalize(modules_dir).ok()?;
+    let root_canon = std::fs::canonicalize(workspace_root).ok()?;
+    if modules_canon.starts_with(&root_canon) {
+        Some(modules_canon)
+    } else {
+        tracing::warn!(
+            ?modules_dir,
+            "refusing to prune direct dependencies outside the workspace root",
+        );
+        None
+    }
+}
+
+/// `true` when `path` is a real directory — not a symlink (nor a
+/// junction on Windows, which `FileType::is_dir` reports as a
+/// directory). Removals must not reach *through* a redirected
+/// intermediate component (`@scope/`, `.bin/`); the containment check
+/// above only vouches for the modules dir itself.
+fn is_real_dir(path: &Path) -> bool {
+    fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_dir())
+        && read_symlink_dir(path).is_err()
 }
 
 fn selected_groups(included: IncludedDependencies) -> Vec<DependencyGroup> {
@@ -150,6 +193,14 @@ fn selected_groups(included: IncludedDependencies) -> Vec<DependencyGroup> {
 fn remove_direct_dep_link(modules_dir: &Path, name: &str) -> Result<(), PruneDirectDepsError> {
     let link =
         safe_join_modules_dir(modules_dir, name).map_err(PruneDirectDepsError::InvalidAlias)?;
+    // For a scoped alias the join passes through `@scope/`; refuse to
+    // unlink through one that is not a real directory.
+    if let Some(parent) = link.parent()
+        && parent != modules_dir
+        && !is_real_dir(parent)
+    {
+        return Ok(());
+    }
     // Only a symlink (junction on Windows) can be a direct-dep entry the
     // isolated linker wrote; anything else stays untouched. The probe
     // also covers "not there at all" — nothing to remove.
@@ -180,7 +231,14 @@ fn remove_dep_bins(modules_dir: &Path, link: &Path) -> Result<(), PruneDirectDep
     let Ok(manifest) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
         return Ok(());
     };
+    // Shims are deleted with plain `remove_file`, so a `.bin` that is
+    // itself a symlink or junction would redirect the deletions
+    // outside the confined modules dir — skip shim removal unless
+    // `.bin` is a real directory. (Absent `.bin` means no shims.)
     let bins_dir = modules_dir.join(".bin");
+    if !is_real_dir(&bins_dir) {
+        return Ok(());
+    }
     for command in get_bins_from_package_manifest::<Host>(&manifest, link) {
         let shim_path = bins_dir.join(&command.name);
         remove_bin(&shim_path)
