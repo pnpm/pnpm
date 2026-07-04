@@ -51,7 +51,9 @@ impl InstallPipeline {
         let cfg: &'static Config = cfg;
         let state =
             State::init(manifest_path, cfg, require_lockfile).wrap_err("initialize the state")?;
-        args.run::<Reporter>(state).await
+        // Boxed: the install future exceeds clippy's `large_futures` size
+        // threshold.
+        Box::pin(args.run::<Reporter>(state)).await
     }
 }
 
