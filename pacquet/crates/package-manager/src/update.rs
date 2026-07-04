@@ -376,14 +376,18 @@ impl Update<'_> {
                 // update results always matching what a fresh install
                 // would resolve, the selector's version part cannot take
                 // effect — say so and point at the mechanism that does
-                // pin transitive dependencies.
+                // pin transitive dependencies. The recommended override
+                // is scoped to the dependents' declared range so it
+                // cannot violate any consumer's range; the range itself
+                // is not known at this layer (it lives in the
+                // dependents' manifests), hence the placeholder.
                 for sel in &selectors {
                     let Some(version) = sel.version.as_deref() else { continue };
                     tracing::warn!(
                         target: "pacquet_package_manager::update",
                         pattern = sel.pattern,
                         version,
-                        r#""{}" is not a direct dependency, so the requested version "{version}" is ignored — "{}" is updated to what a fresh install would resolve. To force a version of a transitive dependency, add an override: {{ "pnpm": {{ "overrides": {{ "{}": "{version}" }} }} }}"#,
+                        r#""{}" is not a direct dependency, so the requested version "{version}" is ignored — "{}" is updated to what a fresh install would resolve. To force a version of a transitive dependency, add an override scoped to the range its dependents declare, e.g.: {{ "pnpm": {{ "overrides": {{ "{}@<declared range>": "{version}" }} }} }}"#,
                         sel.pattern,
                         sel.pattern,
                         sel.pattern,

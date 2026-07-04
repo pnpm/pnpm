@@ -595,13 +595,16 @@ function getVulnerabilityPenalty (severity: VulnerabilitySeverity): number {
  * update resolves the target the same way a fresh install would — which a
  * command-line version cannot influence. Tell the user the version part is
  * ignored, and that an override is the mechanism that does pin a
- * transitive dependency.
+ * transitive dependency. The recommended override is scoped to the
+ * dependents' declared range so it cannot violate any consumer's range;
+ * the range itself is not known at this layer (it lives in the dependents'
+ * manifests), hence the placeholder.
  */
 function warnAboutIgnoredVersionsOfIndirectUpdateSpecs (updateSpecs: string[]): void {
   for (const spec of updateSpecs) {
     const { pattern, versionSpec } = parseUpdateParam(spec)
     if (versionSpec == null) continue
-    globalWarn(`"${pattern}" is not a direct dependency, so the requested version "${versionSpec}" is ignored — "${pattern}" is updated to what a fresh install would resolve. To force a version of a transitive dependency, add an override: { "pnpm": { "overrides": { "${pattern}": "${versionSpec}" } } }`)
+    globalWarn(`"${pattern}" is not a direct dependency, so the requested version "${versionSpec}" is ignored — "${pattern}" is updated to what a fresh install would resolve. To force a version of a transitive dependency, add an override scoped to the range its dependents declare, e.g.: { "pnpm": { "overrides": { "${pattern}@<declared range>": "${versionSpec}" } } }`)
   }
 }
 

@@ -42,13 +42,18 @@ static WARNED_HELD_BACK: std::sync::LazyLock<Mutex<indexmap::IndexSet<String>>> 
 /// versions a fresh install would apply (manifest pins and versions
 /// propagated down the dependency chain), so the target can
 /// legitimately settle below the highest version its range admits.
-/// Surface that once per `(name, picked, preferred)`: reaching the
-/// newer version everywhere is an override's job, not an update's.
+/// Surface that once per `(name, range, picked, preferred)`: reaching
+/// the newer version everywhere is an override's job, not an update's.
 ///
 /// The baseline for "held back" is the pick with only the non-pin
 /// selectors applied — `range`/`tag` selectors such as the
 /// `pnpm audit --fix` vulnerability penalties steer the baseline too,
 /// so the warning never recommends a version those selectors avoid.
+///
+/// The recommended override is scoped to the declared range being
+/// resolved (`name@<range>`), so applying it can never violate any
+/// consumer's range: only declarations of exactly this range match the
+/// selector, and the recommended version satisfies it by construction.
 pub(crate) fn warn_once_on_held_back_update(
     opts: &ResolveOptions,
     spec: &RegistryPackageSpec,
@@ -76,7 +81,7 @@ pub(crate) fn warn_once_on_held_back_update(
     if preferred == picked_version {
         return;
     }
-    let key = format!("{}@{picked_version}<{preferred}", spec.name);
+    let key = format!("{}@{}:{picked_version}<{preferred}", spec.name, spec.fetch_spec);
     let mut warned = WARNED_HELD_BACK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     if warned.contains(&key) {
         return;
@@ -90,8 +95,10 @@ pub(crate) fn warn_once_on_held_back_update(
         pkg_name = spec.name,
         picked_version,
         preferred,
-        r#""{}" was updated to {picked_version}, not {preferred}, to match the version preferred by your manifests and already installed dependencies. To use {preferred} everywhere, add an override: {{ "pnpm": {{ "overrides": {{ "{}": "{preferred}" }} }} }}"#,
+        r#""{}@{}" was updated to {picked_version}, not {preferred}, to match the version preferred by your manifests and already installed dependencies. To use {preferred}, add an override: {{ "pnpm": {{ "overrides": {{ "{}@{}": "{preferred}" }} }} }}"#,
         spec.name,
+        spec.fetch_spec,
         spec.name,
+        spec.fetch_spec,
     );
 }

@@ -358,6 +358,11 @@ function stripLockfileVersionPins (selectors?: VersionSelectors): VersionSelecto
  * applied — `range`/`tag` selectors such as the `pnpm audit --fix`
  * vulnerability penalties steer the baseline too, so the warning never
  * recommends a version those selectors avoid.
+ *
+ * The recommended override is scoped to the declared range being resolved
+ * (`name@<range>`), so applying it can never violate any consumer's range:
+ * only declarations of exactly this range match the selector, and the
+ * recommended version satisfies it by construction.
  */
 function warnOnceOnHeldBackUpdate (
   ctx: Pick<ResolveFromNpmContext, 'warnedHeldBackUpdates'>,
@@ -381,10 +386,10 @@ function warnOnceOnHeldBackUpdate (
     preferredVersionSelectors: nonPinSelectors,
   })
   if (preferred == null || preferred === pickedVersion) return
-  const key = `${spec.name}@${pickedVersion}<${preferred}`
+  const key = `${spec.name}@${spec.fetchSpec}:${pickedVersion}<${preferred}`
   if (ctx.warnedHeldBackUpdates.has(key)) return
   ctx.warnedHeldBackUpdates.add(key)
-  globalWarn(`"${spec.name}" was updated to ${pickedVersion}, not ${preferred}, to match the version preferred by your manifests and already installed dependencies. To use ${preferred} everywhere, add an override: { "pnpm": { "overrides": { "${spec.name}": "${preferred}" } } }`)
+  globalWarn(`"${spec.name}@${spec.fetchSpec}" was updated to ${pickedVersion}, not ${preferred}, to match the version preferred by your manifests and already installed dependencies. To use ${preferred}, add an override: { "pnpm": { "overrides": { "${spec.name}@${spec.fetchSpec}": "${preferred}" } } }`)
 }
 
 function isNpmSpec (query: LatestQuery, defaultRegistry: string): boolean {
