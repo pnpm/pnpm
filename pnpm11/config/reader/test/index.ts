@@ -3845,17 +3845,29 @@ test('ci disables enableGlobalVirtualStore by default', async () => {
     ci: true,
   })
 
-  const { config } = await getConfig({
-    cliOptions: {},
-    env,
-    packageManager: {
-      name: 'pnpm',
-      version: '1.0.0',
-    },
-    workspaceDir: process.cwd(),
-  })
+  // Point the global config dir at an empty location so the developer's
+  // real config.yaml (which may set enableGlobalVirtualStore) can't leak in.
+  const originalXdg = process.env.XDG_CONFIG_HOME
+  process.env.XDG_CONFIG_HOME = path.resolve('xdg-config')
+  try {
+    const { config } = await getConfig({
+      cliOptions: {},
+      env,
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
 
-  expect(config.enableGlobalVirtualStore).toBe(false)
+    expect(config.enableGlobalVirtualStore).toBe(false)
+  } finally {
+    if (originalXdg != null) {
+      process.env.XDG_CONFIG_HOME = originalXdg
+    } else {
+      delete process.env.XDG_CONFIG_HOME
+    }
+  }
 })
 
 test('ci respects explicit enableGlobalVirtualStore from config', async () => {
@@ -3994,6 +4006,99 @@ test('GVS: global config.yaml dangerouslyAllowAllBuilds is preserved when no wor
       delete process.env.XDG_CONFIG_HOME
     } else {
       process.env.XDG_CONFIG_HOME = prevXdgConfigHome
+    }
+  }
+})
+
+test('no warning when PNPM_CONFIG_NPMRC_AUTH_FILE points at the project .npmrc', async () => {
+  prepare()
+
+  // Write an auth token using an env var into the project .npmrc.
+  fs.writeFileSync('.npmrc', '//registry.npmjs.org/:_authToken=${MY_TOKEN}\n', 'utf8')
+
+  // Resolve the absolute path that pnpm will derive for the workspace .npmrc.
+  const projectNpmrc = path.resolve('.npmrc')
+
+  const { warnings } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      MY_TOKEN: 'secret',
+      // Trust this file explicitly — same path as the project .npmrc.
+      PNPM_CONFIG_NPMRC_AUTH_FILE: projectNpmrc,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  // No "Ignored project-level auth setting" warning should appear because
+  // the user explicitly opted in by setting PNPM_CONFIG_NPMRC_AUTH_FILE.
+  const authWarnings = warnings.filter((w) => w.includes('Ignored project-level auth setting'))
+  expect(authWarnings).toHaveLength(0)
+})
+
+test('no warning when PNPM_CONFIG_NPMRC_AUTH_FILE is the literal relative ".npmrc"', async () => {
+  prepare()
+
+  fs.writeFileSync('.npmrc', '//registry.npmjs.org/:_authToken=${MY_TOKEN}\n', 'utf8')
+
+  const { config, warnings } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      MY_TOKEN: 'secret',
+      // The exact shape reported in pnpm/pnpm#12480 — a relative path,
+      // resolved against the cwd, that lands on the project .npmrc.
+      PNPM_CONFIG_NPMRC_AUTH_FILE: '.npmrc',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  const authWarnings = warnings.filter((w) => w.includes('Ignored project-level auth setting'))
+  expect(authWarnings).toHaveLength(0)
+  // The trusted project .npmrc must expand the auth env placeholder.
+  expect(config.authConfig['//registry.npmjs.org/:_authToken']).toBe('secret')
+})
+
+test('warning stays when PNPM_CONFIG_NPMRC_AUTH_FILE is a relative path that does not resolve to the project .npmrc', async () => {
+  prepare()
+
+  fs.writeFileSync('.npmrc', '//registry.npmjs.org/:_authToken=${MY_TOKEN}\n', 'utf8')
+
+  // Point the global config dir at an empty location so the developer's
+  // real auth.ini can't leak a token into authConfig.
+  const originalXdg = process.env.XDG_CONFIG_HOME
+  process.env.XDG_CONFIG_HOME = path.resolve('xdg-config')
+  try {
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      env: {
+        ...env,
+        MY_TOKEN: 'secret',
+        // Resolves to <cwd>/other/.npmrc — not the project .npmrc, so the
+        // project file stays untrusted.
+        PNPM_CONFIG_NPMRC_AUTH_FILE: 'other/.npmrc',
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(warnings).toEqual(expect.arrayContaining([
+      expect.stringContaining('Ignored project-level auth setting "//registry.npmjs.org/:_authToken"'),
+    ]))
+    expect(config.authConfig['//registry.npmjs.org/:_authToken']).toBeUndefined()
+  } finally {
+    if (originalXdg != null) {
+      process.env.XDG_CONFIG_HOME = originalXdg
+    } else {
+      delete process.env.XDG_CONFIG_HOME
     }
   }
 })

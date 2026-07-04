@@ -1719,7 +1719,7 @@ impl Config {
         start_dir: &std::path::Path,
     ) -> Result<Self, LoadWorkspaceYamlError>
     where
-        Sys: EnvVar + EnvVarOs + GetHomeDir + LinkProbe,
+        Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
         // Re-anchor the path-valued defaults (`modules_dir`,
         // `virtual_store_dir`) onto the caller-supplied starting directory.
@@ -1819,8 +1819,25 @@ impl Config {
         };
         let project_npmrc_dir =
             workspace_yaml.as_ref().map_or(start_dir, |(base_dir, _)| base_dir.as_path());
+        let project_npmrc_path = project_npmrc_dir.join(".npmrc");
+        // When npmrcAuthFile explicitly points at the project .npmrc, the user has
+        // opted in to trusting it — allow auth env expansion and suppress the warning.
+        // A relative value (e.g. `PNPM_CONFIG_NPMRC_AUTH_FILE=.npmrc`) is anchored
+        // at the cwd — where the user-level read below actually reads it from, and
+        // how pnpm's `path.resolve` anchors it.
+        let project_is_trusted_auth_file = user_npmrc_path.as_deref().is_some_and(|user| {
+            if user.is_absolute() {
+                user == project_npmrc_path
+            } else {
+                Sys::current_dir().is_ok_and(|cwd| cwd.join(user) == project_npmrc_path)
+            }
+        });
         let project_source = read_npmrc(project_npmrc_dir).map(|text| {
-            let mut auth = NpmrcAuth::from_project_ini::<Sys>(&text, project_npmrc_dir);
+            let mut auth = if project_is_trusted_auth_file {
+                NpmrcAuth::from_ini::<Sys>(&text, project_npmrc_dir)
+            } else {
+                NpmrcAuth::from_project_ini::<Sys>(&text, project_npmrc_dir)
+            };
             auth.rescope_unscoped("<project>/.npmrc");
             auth
         });
