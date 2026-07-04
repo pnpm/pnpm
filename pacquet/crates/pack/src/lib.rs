@@ -291,14 +291,19 @@ where
         .into_bytes();
 
     let dest_dir = resolve_dest_dir(&dir, pack_destination.as_deref());
-    let unpacked_size = unpacked_size::<Sys>(&files_map, manifest_json.len() as u64)?;
-    let contents = packed_contents(&files_map);
-
     if !opts.dry_run {
         Sys::create_dir_all(&dest_dir).map_err(|source| PackError::CreateDir {
             path: dest_dir.display().to_string(),
             source,
         })?;
+    }
+
+    // The size pass must run before `postpack`, which may delete
+    // prepack-generated files that were packed. See pnpm/pnpm#12775.
+    let unpacked_size = unpacked_size::<Sys>(&files_map, manifest_json.len() as u64)?;
+    let contents = packed_contents(&files_map);
+
+    if !opts.dry_run {
         let bins = executable_sources(&publish_manifest, &manifest, &dir);
         let dest_file = dest_dir.join(&tarball_name);
         Sys::atomic_write(&dest_file, &mut |writer| {

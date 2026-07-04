@@ -478,6 +478,11 @@ fn runs_prepack_prepare_and_postpack() {
     assert!(dir.path().join("postpack.ran").exists(), "postpack should have run");
 }
 
+/// Regression test for <https://github.com/pnpm/pnpm/issues/12775>: the
+/// packed summary (`contents` / `unpacked_size`) is computed while
+/// prepack-generated files still exist on disk, so a `postpack` that
+/// cleans them up cannot fail the pack. Unix-gated like the other
+/// script-running tests, since it shells out through the platform shell.
 #[cfg(unix)]
 #[test]
 fn includes_prepack_generated_files_removed_by_postpack() {
@@ -499,6 +504,7 @@ fn includes_prepack_generated_files_removed_by_postpack() {
     assert!(!dir.path().join("generated.txt").exists(), "postpack should clean the generated file");
 
     let names = tarball_entry_names(&dir.path().join("foo-1.0.0.tgz"));
+    dbg!(&names);
     assert!(names.contains(&"package/generated.txt".to_string()));
 }
 

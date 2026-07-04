@@ -280,13 +280,21 @@ export async function api (opts: PackOptions): Promise<PackResult> {
       filesMap[`package/${license}`] = path.join(opts.workspaceDir, license)
     }
   }
+  const destDir = packDestination
+    ? (path.isAbsolute(packDestination) ? packDestination : path.join(dir, packDestination ?? '.'))
+    : dir
+  if (!opts.dryRun) {
+    await fs.promises.mkdir(destDir, { recursive: true })
+  }
   // Derive `contents` and `unpackedSize` from `filesMap` (the full set of tar entries) rather than
   // from `files` (the packlist subset) so that:
   //   - workspace LICENSE files appended to `filesMap` after the packlist call are included; and
   //   - `package.yaml` / `package.json5` entries are reported under the name they actually have in
   //     the tar (`package.json`), since `packPkg()` rewrites them.
+  // The `stat()` pass must run before `postpack`, which may delete prepack-generated files that
+  // were packed. See https://github.com/pnpm/pnpm/issues/12775.
   const sizes = await Promise.all(Object.entries(filesMap).map(async ([name, source]) => {
-    if (/^package\/package\.(?:json|json5|yaml)$/.test(name)) {
+    if (isManifestEntry(name)) {
       return Buffer.byteLength(JSON.stringify(publishManifest, null, 2))
     }
     const stat = await fs.promises.stat(source)
@@ -295,16 +303,12 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   const unpackedSize = sizes.reduce((acc, size) => acc + size, 0)
   const packedContents = Array.from(new Set(
     Object.keys(filesMap).map((name) =>
-      /^package\/package\.(?:json|json5|yaml)$/.test(name)
+      isManifestEntry(name)
         ? 'package.json'
         : name.replace(/^package\//, '')
     )
   )).sort((a, b) => a.localeCompare(b, 'en'))
-  const destDir = packDestination
-    ? (path.isAbsolute(packDestination) ? packDestination : path.join(dir, packDestination ?? '.'))
-    : dir
   if (!opts.dryRun) {
-    await fs.promises.mkdir(destDir, { recursive: true })
     await packPkg({
       destFile: path.join(destDir, tarballName),
       filesMap,
@@ -343,6 +347,13 @@ export interface PackResult {
   unpackedSize: number
 }
 
+// True when a `package/<path>` tar key names the package manifest, which is
+// packed as a single serialized `package/package.json` entry and reported as
+// `package.json` in the contents listing regardless of the source file name.
+function isManifestEntry (name: string): boolean {
+  return name === 'package/package.json' || name === 'package/package.json5' || name === 'package/package.yaml'
+}
+
 function stripBuildMetadata (version: string): string {
   const plusIndex = version.indexOf('+')
   return plusIndex === -1 ? version : version.slice(0, plusIndex)
@@ -379,7 +390,7 @@ async function packPkg (opts: {
   await Promise.all(Object.entries(filesMap).map(async ([name, source]) => {
     const isExecutable = bins.some((bin) => path.relative(bin, source) === '')
     const mode = isExecutable ? 0o755 : 0o644
-    if (/^package\/package\.(?:json|json5|yaml)$/.test(name)) {
+    if (isManifestEntry(name)) {
       pack.entry({ mode, mtime, name: 'package/package.json' }, JSON.stringify(manifest, null, 2))
       return
     }
