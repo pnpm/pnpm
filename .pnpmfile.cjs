@@ -13,18 +13,17 @@ module.exports = {
     },
 
     beforePacking: (manifest) => {
-      // The main pnpm package bundles its dependencies before publishing.
-      // Delete dependency fields from the manifest so these dependencies are
-      // downloaded twice.
-      if (manifest.name === 'pnpm') {
+      // The TypeScript pnpm CLI (v11 and older) bundles its dependencies into
+      // dist/ before publishing, so the dependency fields are dropped from the
+      // published manifest to avoid installing them a second time. From v12 the
+      // `pnpm` name is the Rust wrapper, whose manifest is generated exactly by
+      // pacquet/npm/pnpm/scripts/generate-packages.mjs (including intentional
+      // optionalDependencies on the natives) and must pass through untouched.
+      // Which dependency fields the TS package may declare is enforced by
+      // .meta-updater/src/index.ts, not here.
+      if (manifest.name === 'pnpm' && parseInt(manifest.version, 10) < 12) {
         delete manifest.dependencies
         delete manifest.devDependencies
-
-        for (const depKind of ['peerDependencies', 'optionalDependencies']) {
-          if (Object.keys(manifest[depKind] ?? {}).length > 0) {
-            throw new Error(`The main 'pnpm' package should not declare '${depKind}'. Consider moving to 'devDependencies' if the dependency can be included in the esbuild bundle, or to 'dependencies' if the dependency needs to be externalized and resolved at runtime.`)
-          }
-        }
       }
 
       return manifest
