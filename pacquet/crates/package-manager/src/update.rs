@@ -387,7 +387,7 @@ impl Update<'_> {
                         target: "pacquet_package_manager::update",
                         pattern = sel.pattern,
                         version,
-                        r#""{}" is not a direct dependency, so the requested version "{version}" is ignored — "{}" is updated to what a fresh install would resolve. To force a version of a transitive dependency, add an override scoped to the range its dependents declare, e.g.: {{ "pnpm": {{ "overrides": {{ "{}@<declared range>": "{version}" }} }} }}"#,
+                        r#""{}" is not a direct dependency, so the requested version "{version}" is ignored — "{}" is updated to what a fresh install would resolve. To force a version of a transitive dependency, add an override scoped to the range its dependents declare to pnpm-workspace.yaml, e.g.: overrides: {{ "{}@<declared range>": "{version}" }}"#,
                         sel.pattern,
                         sel.pattern,
                         sel.pattern,

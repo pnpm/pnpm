@@ -389,7 +389,7 @@ function warnOnceOnHeldBackUpdate (
   const key = `${spec.name}@${spec.fetchSpec}:${pickedVersion}<${preferred}`
   if (ctx.warnedHeldBackUpdates.has(key)) return
   ctx.warnedHeldBackUpdates.add(key)
-  globalWarn(`"${spec.name}@${spec.fetchSpec}" was updated to ${pickedVersion}, not ${preferred}, to match the version preferred by your manifests and already installed dependencies. To use ${preferred}, add an override: { "pnpm": { "overrides": { "${spec.name}@${spec.fetchSpec}": "${preferred}" } } }`)
+  globalWarn(`"${spec.name}@${spec.fetchSpec}" was updated to ${pickedVersion}, not ${preferred}, to match the version preferred by your manifests and already installed dependencies. To use ${preferred}, add an override to pnpm-workspace.yaml: overrides: { "${spec.name}@${spec.fetchSpec}": "${preferred}" }`)
 }
 
 function isNpmSpec (query: LatestQuery, defaultRegistry: string): boolean {

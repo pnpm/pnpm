@@ -604,7 +604,7 @@ function warnAboutIgnoredVersionsOfIndirectUpdateSpecs (updateSpecs: string[]): 
   for (const spec of updateSpecs) {
     const { pattern, versionSpec } = parseUpdateParam(spec)
     if (versionSpec == null) continue
-    globalWarn(`"${pattern}" is not a direct dependency, so the requested version "${versionSpec}" is ignored — "${pattern}" is updated to what a fresh install would resolve. To force a version of a transitive dependency, add an override scoped to the range its dependents declare, e.g.: { "pnpm": { "overrides": { "${pattern}@<declared range>": "${versionSpec}" } } }`)
+    globalWarn(`"${pattern}" is not a direct dependency, so the requested version "${versionSpec}" is ignored — "${pattern}" is updated to what a fresh install would resolve. To force a version of a transitive dependency, add an override scoped to the range its dependents declare to pnpm-workspace.yaml, e.g.: overrides: { "${pattern}@<declared range>": "${versionSpec}" }`)
   }
 }
 
