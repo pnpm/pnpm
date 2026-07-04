@@ -252,7 +252,9 @@ where
 /// drive prefix, a `..` segment — is either malformed or hostile, so
 /// surface it as a typed error rather than silently letting
 /// `Path::join` produce an off-workspace path.
-fn validate_importer_id(importer_id: &str) -> Result<(), SymlinkDirectDependenciesError> {
+pub(crate) fn validate_importer_id(
+    importer_id: &str,
+) -> Result<(), SymlinkDirectDependenciesError> {
     let unsafe_path = || SymlinkDirectDependenciesError::UnsafeImporterPath {
         importer_id: importer_id.to_string(),
     };

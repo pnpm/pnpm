@@ -5969,10 +5969,14 @@ async fn run_purge_regression_install(
     config.virtual_store_dir_max_length = virtual_store_dir_max_length;
     let config = config.leak();
     let is_full_install = dependency_groups.contains(&DependencyGroup::Dev);
+    // One client behind both fields, matching the CLI's single-source
+    // wiring documented on [`Install::http_client_arc`].
+    let http_client_arc: std::sync::Arc<pacquet_network::ThrottledClient> =
+        std::sync::Arc::default();
     Install {
         tarball_mem_cache: Default::default(),
-        http_client: &Default::default(),
-        http_client_arc: std::sync::Arc::new(Default::default()),
+        http_client: &http_client_arc,
+        http_client_arc: std::sync::Arc::clone(&http_client_arc),
         config,
         manifest,
         lockfile: MaybeLazyLockfile::Loaded(None),
@@ -6006,6 +6010,11 @@ async fn run_purge_regression_install(
 /// `node_modules`, while a real layout drift still recreates the directory
 /// from scratch. Without the `modules_layout_consistent_with` split, the
 /// included drift would purge the directory and delete the user's file.
+///
+/// The skipped purge must not leave the excluded dev dep behind either:
+/// the targeted prune ([`crate::prune_direct_deps_excluded_by_groups`])
+/// removes its `node_modules` link and its `.bin` shim while everything
+/// else stays.
 #[tokio::test]
 async fn included_drift_keeps_user_node_modules_entry_while_layout_drift_wipes_it() {
     let mock_instance = TestRegistry::start();
@@ -6015,12 +6024,11 @@ async fn included_drift_keeps_user_node_modules_entry_while_layout_drift_wipes_i
     let modules_dir = project_root.join("node_modules");
     let virtual_store_dir = modules_dir.join(".pacquet");
 
-    let manifest_path = dir.path().join("package.json");
+    fs::create_dir_all(&project_root).unwrap();
+    let manifest_path = project_root.join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
-    manifest
-        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
-        .unwrap();
-    manifest.add_dependency("@pnpm/xyz", "1.0.0", DependencyGroup::Dev).unwrap();
+    manifest.add_dependency("@pnpm.e2e/console-log", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest.add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Dev).unwrap();
     manifest.save().unwrap();
 
     let full = || vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
@@ -6038,11 +6046,18 @@ async fn included_drift_keeps_user_node_modules_entry_while_layout_drift_wipes_i
     )
     .await;
 
+    let prod_link = modules_dir.join("@pnpm.e2e/console-log");
+    let dev_link = modules_dir.join("@pnpm.e2e/hello-world-js-bin");
+    let dev_shim = modules_dir.join(".bin/hello-world-js-bin");
+    assert!(dev_link.symlink_metadata().is_ok(), "full install links the dev dep");
+    assert!(dev_shim.exists(), "full install shims the dev dep's bin");
+
     // The user drops their own non-pnpm file directly into node_modules.
     let vendored = modules_dir.join("vendored-by-user.txt");
     fs::write(&vendored, b"keep me").unwrap();
 
-    // 2. Switching to --prod is an included drift only, so the file survives.
+    // 2. Switching to --prod is an included drift only, so the file survives —
+    // but the now-excluded dev dep's link and bin shim must be pruned.
     run_purge_regression_install(
         &store_dir,
         &modules_dir,
@@ -6054,6 +6069,15 @@ async fn included_drift_keeps_user_node_modules_entry_while_layout_drift_wipes_i
     )
     .await;
     assert!(vendored.exists(), "included drift must not purge the user's node_modules entry");
+    assert!(
+        dev_link.symlink_metadata().is_err(),
+        "the excluded dev dep's link must be pruned on an included drift",
+    );
+    assert!(
+        !dev_shim.exists(),
+        "the excluded dev dep's bin shim must be pruned on an included drift",
+    );
+    assert!(prod_link.symlink_metadata().is_ok(), "the prod dep stays linked");
 
     // 3. A real layout drift (virtual-store-dir-max-length) still wipes it.
     run_purge_regression_install(

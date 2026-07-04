@@ -338,6 +338,12 @@ pub enum InstallError {
     #[display("Failed to remove modules directory contents: {_0}")]
     RemoveModulesDir(#[error(source)] std::io::Error),
 
+    /// Surfaces a failure while removing the direct-dep links an
+    /// `included` drift excluded — the non-destructive counterpart of
+    /// the purge. See [`crate::prune_direct_deps_excluded_by_groups`].
+    #[diagnostic(transparent)]
+    PruneDirectDeps(#[error(source)] crate::PruneDirectDepsError),
+
     /// `pnpm-lock.yaml` doesn't match the on-disk `package.json` for
     /// the project being installed. `ERR_PNPM_OUTDATED_LOCKFILE`:
     /// the user (or CI) edited the manifest without regenerating the
@@ -1117,6 +1123,27 @@ where
             }
         }
 
+        // An included-only drift (`--prod`<->full, `--no-optional`)
+        // skips the purge above, so the direct-dep links the previous
+        // install created for now-excluded groups would linger — and
+        // stay resolvable — after the relink. Remove exactly those
+        // (plus their bin shims), leaving everything else in place.
+        if !resolve_only
+            && !is_inconsistent
+            && let Some(modules) = modules_manifest
+            && modules.included != included
+            && let Some(current) = current_lockfile.as_ref()
+        {
+            crate::prune_direct_deps_excluded_by_groups(
+                current,
+                modules.included,
+                included,
+                &workspace_root,
+                config,
+            )
+            .map_err(InstallError::PruneDirectDeps)?;
+        }
+
         if take_frozen_path
             && let Some(wanted_lockfile) = lockfile
             && let Some(current) = current_lockfile.as_ref()
@@ -1881,11 +1908,12 @@ fn modules_consistent_with(
 
 /// The subset of [`modules_consistent_with`] that, when it drifts, requires
 /// **wiping and recreating** `node_modules`. It deliberately excludes
-/// `included`: a `--prod`<->full switch is satisfied by relinking
-/// (`filter_lockfile_for_current` + the removed-alias pruning in
-/// `create_virtual_store`), not by deleting the directory. pnpm never
-/// purges the root project's `node_modules` for an included mismatch — its
-/// `validateModules` only does so for non-root importers
+/// `included`: a `--prod`<->full switch is satisfied by relinking the
+/// newly-selected groups plus the targeted removal of the now-excluded
+/// ones ([`crate::prune_direct_deps_excluded_by_groups`]), not by
+/// deleting the directory. pnpm never purges the root project's
+/// `node_modules` for an included mismatch — its `validateModules` only
+/// does so for non-root importers
 /// ([`lockfileDir !== rootDir`](https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/validateModules.ts#L105))
 /// — so purging here would destroy the user's own non-pnpm entries (a
 /// vendored directory, stray files) on a routine flag change. The
