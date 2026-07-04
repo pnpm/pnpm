@@ -49,7 +49,12 @@ impl EditArgs {
         let real_pkg_path = current_dir;
 
         // Verify the resolved path stays under the expected modules directory tree
-        if !real_pkg_path.starts_with(&modules_dir) {
+        // or the effective virtual store directory (for global virtual store setups).
+        let inside_modules_dir = real_pkg_path.starts_with(&modules_dir);
+        let inside_virtual_store = dunce::canonicalize(state.config.effective_virtual_store_dir())
+            .ok()
+            .is_some_and(|vs| real_pkg_path.starts_with(&vs));
+        if !inside_modules_dir && !inside_virtual_store {
             let dir = real_pkg_path.display();
             return Err(miette!(
                 "Resolved package path '{}' is outside the expected node_modules tree",
@@ -62,9 +67,10 @@ impl EditArgs {
             format!("Failed to break store hard links for editing in '{}'", real_pkg_path.display())
         })?;
 
-        // Determine which editor to use: CLI flag, env var, or default
+        // Determine which editor to use: CLI flag, config (from .npmrc / PNPM_CONFIG_EDITOR), env var, or default
         let editor = self
             .editor
+            .or_else(|| state.config.editor.clone())
             .or_else(|| env::var("EDITOR").ok())
             .or_else(|| env::var("VISUAL").ok())
             .unwrap_or_else(|| if cfg!(windows) { "notepad".to_owned() } else { "vi".to_owned() });
