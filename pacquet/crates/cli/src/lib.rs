@@ -30,7 +30,15 @@ pub fn main() -> miette::Result<()> {
     // The default reporter's `Done in ... using pacquet v<version>` footer needs
     // the version before the first event (including the fast path's).
     pacquet_default_reporter::set_package_version(pacquet_config::PACQUET_VERSION);
-    let mut args = CliArgs::parse_from(argv);
+    let mut args = match CliArgs::try_parse_from(argv) {
+        Ok(args) => args,
+        // pnpm prints the bare version, not clap's "pnpm <version>" rendering.
+        Err(err) if err.kind() == clap::error::ErrorKind::DisplayVersion => {
+            println!("{}", pacquet_config::PACQUET_VERSION);
+            return Ok(());
+        }
+        Err(err) => err.exit(),
+    };
     args.promote_recursive_for_filter();
     // An up-to-date `pacquet install` finishes here, without paying for
     // the runtime, the HTTP client, or any worker threads.
