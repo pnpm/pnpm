@@ -74,7 +74,8 @@ impl AccessList {
     /// Build from individual built-in or username tokens (e.g. the
     /// elements of a YAML sequence). Each string is one token, taken
     /// verbatim; `team:` references cannot be built this way — they need
-    /// the owning registry's team declarations (see [`Self::new`]).
+    /// the owning registry's team declarations (the config loader
+    /// resolves them and builds the list with `Self::new`).
     pub fn from_tokens<Tokens, Token>(tokens: Tokens) -> Self
     where
         Tokens: IntoIterator<Item = Token>,
