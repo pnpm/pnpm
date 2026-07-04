@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     fmt,
 };
 
@@ -44,13 +44,13 @@ struct BadPeerIssue {
 
 #[derive(Debug, Clone, Serialize)]
 struct PeerIssues {
-    bad: HashMap<String, Vec<BadPeerIssue>>,
-    missing: HashMap<String, Vec<MissingPeerIssue>>,
+    bad: BTreeMap<String, Vec<BadPeerIssue>>,
+    missing: BTreeMap<String, Vec<MissingPeerIssue>>,
     conflicts: Vec<String>,
-    intersections: HashMap<String, String>,
+    intersections: BTreeMap<String, String>,
 }
 
-type IssuesByProjects = HashMap<String, PeerIssues>;
+type IssuesByProjects = BTreeMap<String, PeerIssues>;
 
 #[derive(Debug, Args)]
 pub struct PeersArgs {
@@ -61,13 +61,23 @@ pub struct PeersArgs {
     pub lockfile_only: bool,
 }
 
+/// Whether `peers` found any peer dependency issue. The CLI harness maps
+/// [`PeersOutcome::IssuesFound`] to a process exit code of `1`, matching
+/// pnpm; returning the outcome (rather than terminating here) keeps
+/// [`PeersArgs::run`] composable and process termination in one place.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PeersOutcome {
+    NoIssues,
+    IssuesFound,
+}
+
 impl PeersArgs {
     pub fn run(
         self,
         config: &Config,
         dir: &std::path::Path,
         recursive: bool,
-    ) -> miette::Result<()> {
+    ) -> miette::Result<PeersOutcome> {
         let lockfile_dir = config.workspace_dir.as_deref().unwrap_or(dir);
 
         let lockfile = if self.lockfile_only {
@@ -82,17 +92,15 @@ impl PeersArgs {
         .into_diagnostic()
         .wrap_err("load lockfile")?;
 
-        let Some(lockfile) = lockfile else {
-            if self.json {
-                println!("{{}}");
-            } else {
-                let dir_str = lockfile_dir.display().to_string();
-                println!("No lockfile found in {}", sanitize(&dir_str));
+        // A missing lockfile yields empty issues, mirroring pnpm's
+        // `checkPeerDependencies`, so both output modes stay on the common
+        // path (`{}` for `--json`, "No peer dependency issues found" otherwise).
+        let issues = match &lockfile {
+            Some(lockfile) => {
+                check_peer_dependencies_from_lockfile(lockfile, lockfile_dir, dir, recursive)
             }
-            return Ok(());
+            None => IssuesByProjects::new(),
         };
-
-        let issues = check_peer_dependencies_from_lockfile(&lockfile, lockfile_dir, dir, recursive);
         let issues = filter_peer_issues(issues, &config.peer_dependency_rules);
 
         let no_issues = issues.values().all(|pi| pi.bad.is_empty() && pi.missing.is_empty());
@@ -106,15 +114,10 @@ impl PeersArgs {
             println!("No peer dependency issues found");
         } else {
             println!("Issues with peer dependencies found\n");
-            print!("{}", render_peer_issues(&issues));
+            println!("{}", render_peer_issues(&issues));
         }
 
-        if !no_issues {
-            #[allow(clippy::exit, reason = "peers exits non-zero on issues, mirroring pnpm")]
-            std::process::exit(1);
-        }
-
-        Ok(())
+        Ok(if no_issues { PeersOutcome::NoIssues } else { PeersOutcome::IssuesFound })
     }
 }
 
@@ -124,10 +127,10 @@ fn check_peer_dependencies_from_lockfile(
     dir: &std::path::Path,
     recursive: bool,
 ) -> IssuesByProjects {
-    let packages = lockfile.packages.as_ref();
-    let snapshots = lockfile.snapshots.as_ref();
-    let Some(snapshots) = snapshots else { return HashMap::new() };
-    let Some(packages) = packages else { return HashMap::new() };
+    let empty_packages = HashMap::new();
+    let empty_snapshots = HashMap::new();
+    let packages = lockfile.packages.as_ref().unwrap_or(&empty_packages);
+    let snapshots = lockfile.snapshots.as_ref().unwrap_or(&empty_snapshots);
 
     let mut importer_ids: Vec<String> = if recursive {
         lockfile.importers.keys().cloned().collect()
@@ -136,16 +139,18 @@ fn check_peer_dependencies_from_lockfile(
     };
     importer_ids.sort();
 
-    let mut result: IssuesByProjects = HashMap::new();
+    let mut result: IssuesByProjects = BTreeMap::new();
+    // Shared across importers so each package is evaluated once, matching
+    // pnpm's lockfile walker, which threads one `walked` set through every
+    // importer's step.
+    let mut visited_packages = HashSet::new();
 
     for importer_id in &importer_ids {
-        let Some(_importer) = lockfile.importers.get(importer_id.as_str()) else { continue };
-
         let mut issues = PeerIssues {
-            bad: HashMap::new(),
-            missing: HashMap::new(),
+            bad: BTreeMap::new(),
+            missing: BTreeMap::new(),
             conflicts: Vec::new(),
-            intersections: HashMap::new(),
+            intersections: BTreeMap::new(),
         };
 
         let mut initial_keys = Vec::new();
@@ -160,7 +165,14 @@ fn check_peer_dependencies_from_lockfile(
             &mut issues,
         );
 
-        walk_snapshot(initial_keys, snapshots, packages, lockfile_dir, &mut issues);
+        walk_snapshot(
+            initial_keys,
+            snapshots,
+            packages,
+            lockfile_dir,
+            &mut visited_packages,
+            &mut issues,
+        );
 
         let merged = merge_missing_peers(&issues.missing);
         issues.conflicts = merged.conflicts;
@@ -193,8 +205,15 @@ fn path_is_within(path: &std::path::Path, base: &std::path::Path) -> bool {
     canonical_path.starts_with(&canonical_base)
 }
 
-fn resolve_link_version(lockfile_dir: &std::path::Path, link_target: &str) -> Option<String> {
-    let target_dir = lockfile_dir.join(link_target);
+/// `base_dir` is the directory the `link:` target is relative to — the
+/// importer's directory for importer dependencies, the lockfile directory for
+/// snapshot dependencies. Targets escaping `lockfile_dir` are rejected.
+fn resolve_link_version(
+    base_dir: &std::path::Path,
+    lockfile_dir: &std::path::Path,
+    link_target: &str,
+) -> Option<String> {
+    let target_dir = base_dir.join(link_target);
     if !path_is_within(&target_dir, lockfile_dir) {
         return None;
     }
@@ -217,7 +236,8 @@ fn check_linked_package_peers(
     lockfile_dir: &std::path::Path,
     issues: &mut PeerIssues,
 ) {
-    let linked_pkg_dir = lockfile_dir.join(importer_id).join(link_target);
+    let importer_dir = lockfile_dir.join(importer_id);
+    let linked_pkg_dir = importer_dir.join(link_target);
     if !path_is_within(&linked_pkg_dir, lockfile_dir) {
         return;
     }
@@ -268,8 +288,9 @@ fn check_linked_package_peers(
                         });
                     }
                 } else if let Some(link_target) = spec.version.as_link_target() {
-                    let found_version = resolve_link_version(lockfile_dir, link_target)
-                        .unwrap_or_else(|| format!("link:{link_target}"));
+                    let found_version =
+                        resolve_link_version(&importer_dir, lockfile_dir, link_target)
+                            .unwrap_or_else(|| format!("link:{link_target}"));
                     if !satisfies(&found_version, peer_range) {
                         issues.bad.entry(peer_name.clone()).or_default().push(BadPeerIssue {
                             parents: current_parents.clone(),
@@ -307,20 +328,18 @@ fn collect_initial_keys(
         return;
     }
     let Some(importer) = lockfile.importers.get(importer_id) else { return };
+    let importer_dir = lockfile_dir.join(importer_id);
 
-    let groups = [
-        (&importer.dependencies, false),
-        (&importer.dev_dependencies, false),
-        (&importer.optional_dependencies, true),
-    ];
+    let groups =
+        [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies];
 
-    for (dep_map, _is_optional) in &groups {
+    for dep_map in groups {
         let Some(dep_map) = dep_map else { continue };
         for (alias, spec) in dep_map {
             if let Some(key) = spec.version.resolved_key(alias) {
                 initial_keys.push((key, parents.to_owned()));
             } else if let Some(link_target) = spec.version.as_link_target() {
-                let linked_version = resolve_link_version(lockfile_dir, link_target)
+                let linked_version = resolve_link_version(&importer_dir, lockfile_dir, link_target)
                     .unwrap_or_else(|| "0.0.0".to_string());
                 let mut next_parents = parents.to_owned();
                 next_parents
@@ -336,7 +355,7 @@ fn collect_initial_keys(
                     issues,
                 );
 
-                let linked_importer_path = lockfile_dir.join(importer_id).join(link_target);
+                let linked_importer_path = importer_dir.join(link_target);
                 if !path_is_within(&linked_importer_path, lockfile_dir) {
                     continue;
                 }
@@ -360,19 +379,21 @@ fn walk_snapshot(
     snapshots: &HashMap<PkgNameVerPeer, SnapshotEntry>,
     packages: &HashMap<PkgNameVerPeer, PackageMetadata>,
     lockfile_dir: &std::path::Path,
+    visited: &mut HashSet<PkgNameVerPeer>,
     issues: &mut PeerIssues,
 ) {
-    let mut visited = HashSet::new();
     let mut stack = initial_keys;
 
     while let Some((key, parents)) = stack.pop() {
+        if !visited.insert(key.clone()) {
+            continue;
+        }
         let pkg_name = key.name.to_string();
         let pkg_version = get_pkg_version(&key, packages);
 
         let mut current_parents = parents.clone();
         current_parents.push(ParentPkg { name: pkg_name, version: pkg_version });
 
-        // 1. Evaluate peer dependencies of the current package
         let base_key = key.without_peer();
         if let Some(meta) = packages.get(&base_key)
             && let Some(peers) = &meta.peer_dependencies
@@ -415,8 +436,9 @@ fn walk_snapshot(
                                 );
                             }
                         } else if let Some(link_target) = dep_ref.as_link_target() {
-                            let found_version = resolve_link_version(lockfile_dir, link_target)
-                                .unwrap_or_else(|| format!("link:{link_target}"));
+                            let found_version =
+                                resolve_link_version(lockfile_dir, lockfile_dir, link_target)
+                                    .unwrap_or_else(|| format!("link:{link_target}"));
                             if !satisfies(&found_version, peer_range) {
                                 issues.bad.entry(peer_name.clone()).or_default().push(
                                     BadPeerIssue {
@@ -445,12 +467,6 @@ fn walk_snapshot(
             }
         }
 
-        // 2. Only recurse if we haven't visited this node yet
-        if !visited.insert(key.clone()) {
-            continue;
-        }
-
-        // 3. Push children to stack
         if let Some(snapshot) = snapshots.get(&key) {
             let all_deps = snapshot
                 .dependencies
@@ -842,9 +858,9 @@ fn intersect_multiple_ranges(version_ranges: &[String]) -> Option<String> {
     )
 }
 
-fn merge_missing_peers(missing: &HashMap<String, Vec<MissingPeerIssue>>) -> MergeResult {
+fn merge_missing_peers(missing: &BTreeMap<String, Vec<MissingPeerIssue>>) -> MergeResult {
     let mut conflicts = Vec::new();
-    let mut intersections = HashMap::new();
+    let mut intersections = BTreeMap::new();
 
     for (peer_name, issues) in missing {
         if issues.iter().all(|issue| issue.optional) {
@@ -874,7 +890,7 @@ fn merge_missing_peers(missing: &HashMap<String, Vec<MissingPeerIssue>>) -> Merg
 
 struct MergeResult {
     conflicts: Vec<String>,
-    intersections: HashMap<String, String>,
+    intersections: BTreeMap<String, String>,
 }
 
 fn filter_peer_issues(
@@ -890,16 +906,15 @@ fn filter_peer_issues(
 
     let ignore_missing_pats = rules.ignore_missing.clone().unwrap_or_default();
     let allow_any_pats = rules.allow_any.clone().unwrap_or_default();
-    let allowed_versions_map: HashMap<String, String> =
-        rules.allowed_versions.clone().unwrap_or_default().into_iter().collect();
+    let allowed_versions_map = rules.allowed_versions.clone().unwrap_or_default();
 
     let (allow_all_matcher, allow_by_parent) = parse_allowed_versions(&allowed_versions_map);
     let ignore_missing_matcher = pacquet_config::matcher::create_matcher(&ignore_missing_pats);
     let allow_any_matcher_rule = pacquet_config::matcher::create_matcher(&allow_any_pats);
 
     for project_issues in issues.values_mut() {
-        let mut filtered_missing: HashMap<String, Vec<MissingPeerIssue>> = HashMap::new();
-        let mut filtered_bad: HashMap<String, Vec<BadPeerIssue>> = HashMap::new();
+        let mut filtered_missing: BTreeMap<String, Vec<MissingPeerIssue>> = BTreeMap::new();
+        let mut filtered_bad: BTreeMap<String, Vec<BadPeerIssue>> = BTreeMap::new();
 
         for (peer_name, peer_issues) in &project_issues.missing {
             if ignore_missing_matcher.matches(peer_name)
@@ -966,7 +981,7 @@ struct ParentRule {
 }
 
 fn parse_allowed_versions(
-    allowed: &HashMap<String, String>,
+    allowed: &BTreeMap<String, String>,
 ) -> (AllowAllMatcher, AllowByParentMatcher) {
     let mut match_all: HashMap<String, Vec<String>> = HashMap::new();
     let mut by_parent: AllowByParentMatcher = HashMap::new();
@@ -1039,8 +1054,7 @@ fn render_peer_issues(issues_by_projects: &IssuesByProjects) -> String {
 }
 
 fn format_required_by(issues: &[impl RequiredByIssue]) -> String {
-    let mut by_range: std::collections::BTreeMap<String, Vec<String>> =
-        std::collections::BTreeMap::new();
+    let mut by_range: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for issue in issues {
         let declaring = issue.parents().last().cloned().unwrap_or_default();
         let pkg = if declaring.name.is_empty() {
@@ -1048,7 +1062,10 @@ fn format_required_by(issues: &[impl RequiredByIssue]) -> String {
         } else {
             format!("{}@{}", declaring.name, declaring.version)
         };
-        by_range.entry(issue.wanted_range().to_string()).or_default().push(pkg);
+        let pkgs = by_range.entry(issue.wanted_range().to_string()).or_default();
+        if !pkgs.contains(&pkg) {
+            pkgs.push(pkg);
+        }
     }
 
     let mut lines: Vec<String> = vec![format!("  {}", cyan("Wanted:"))];
@@ -1084,8 +1101,8 @@ impl RequiredByIssue for BadPeerIssue {
     }
 }
 
-fn group_by_found_version(issues: &[BadPeerIssue]) -> HashMap<String, Vec<BadPeerIssue>> {
-    let mut groups: HashMap<String, Vec<BadPeerIssue>> = HashMap::new();
+fn group_by_found_version(issues: &[BadPeerIssue]) -> BTreeMap<String, Vec<BadPeerIssue>> {
+    let mut groups: BTreeMap<String, Vec<BadPeerIssue>> = BTreeMap::new();
     for issue in issues {
         groups.entry(issue.found_version.clone()).or_default().push(issue.clone());
     }
@@ -1093,7 +1110,7 @@ fn group_by_found_version(issues: &[BadPeerIssue]) -> HashMap<String, Vec<BadPee
 }
 
 fn format_range(range: &str) -> String {
-    if range.contains(' ') || range == "*" { format!("\"{range}\"") } else { range.to_string() }
+    if range.contains(' ') || range == "*" { format!(r#""{range}""#) } else { range.to_string() }
 }
 
 fn bold(text: &str) -> String {
@@ -1108,7 +1125,7 @@ fn dim(text: &str) -> String {
 
 fn yellow_bright(text: &str) -> String {
     let cleaned = sanitize(text);
-    cleaned.as_ref().if_supports_color(Stream::Stdout, |t| t.yellow()).to_string()
+    cleaned.as_ref().if_supports_color(Stream::Stdout, |t| t.bright_yellow()).to_string()
 }
 
 fn red(text: &str) -> String {
@@ -1123,7 +1140,7 @@ fn cyan(text: &str) -> String {
 
 fn cyan_bright(text: &str) -> String {
     let cleaned = sanitize(text);
-    cleaned.as_ref().if_supports_color(Stream::Stdout, |t| t.cyan()).to_string()
+    cleaned.as_ref().if_supports_color(Stream::Stdout, |t| t.bright_cyan()).to_string()
 }
 
 #[cfg(test)]

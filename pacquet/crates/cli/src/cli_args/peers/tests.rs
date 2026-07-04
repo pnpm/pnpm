@@ -1,6 +1,12 @@
 use std::collections::BTreeMap;
 
-use super::*;
+use pacquet_config::PeerDependencyRules;
+
+use super::{
+    BadPeerIssue, IssuesByProjects, MissingPeerIssue, ParentPkg, PeerIssues, filter_peer_issues,
+    format_range, intersect_multiple_ranges, merge_missing_peers, normalize_version_str,
+    parse_allowed_versions, path_is_within, satisfies,
+};
 
 fn have_common_version(version_ranges: &[String]) -> bool {
     intersect_multiple_ranges(version_ranges).is_some()
@@ -91,14 +97,14 @@ fn test_have_common_version_non_matching() {
 
 #[test]
 fn test_merge_missing_peers_empty() {
-    let result = merge_missing_peers(&HashMap::new());
+    let result = merge_missing_peers(&BTreeMap::new());
     assert!(result.conflicts.is_empty());
     assert!(result.intersections.is_empty());
 }
 
 #[test]
 fn test_merge_missing_peers_single() {
-    let mut missing: HashMap<String, Vec<MissingPeerIssue>> = HashMap::new();
+    let mut missing: BTreeMap<String, Vec<MissingPeerIssue>> = BTreeMap::new();
     missing.insert(
         "react".to_string(),
         vec![MissingPeerIssue {
@@ -115,7 +121,7 @@ fn test_merge_missing_peers_single() {
 
 #[test]
 fn test_merge_missing_peers_same_range() {
-    let mut missing: HashMap<String, Vec<MissingPeerIssue>> = HashMap::new();
+    let mut missing: BTreeMap<String, Vec<MissingPeerIssue>> = BTreeMap::new();
     missing.insert(
         "react".to_string(),
         vec![
@@ -138,7 +144,7 @@ fn test_merge_missing_peers_same_range() {
 
 #[test]
 fn test_merge_missing_peers_conflicting() {
-    let mut missing: HashMap<String, Vec<MissingPeerIssue>> = HashMap::new();
+    let mut missing: BTreeMap<String, Vec<MissingPeerIssue>> = BTreeMap::new();
     missing.insert(
         "react".to_string(),
         vec![
@@ -162,7 +168,7 @@ fn test_merge_missing_peers_conflicting() {
 
 #[test]
 fn test_merge_missing_peers_all_optional_skipped() {
-    let mut missing: HashMap<String, Vec<MissingPeerIssue>> = HashMap::new();
+    let mut missing: BTreeMap<String, Vec<MissingPeerIssue>> = BTreeMap::new();
     missing.insert(
         "react".to_string(),
         vec![
@@ -185,14 +191,14 @@ fn test_merge_missing_peers_all_optional_skipped() {
 
 #[test]
 fn test_parse_allowed_versions_empty() {
-    let (match_all, by_parent) = parse_allowed_versions(&HashMap::new());
+    let (match_all, by_parent) = parse_allowed_versions(&BTreeMap::new());
     assert!(match_all.is_empty());
     assert!(by_parent.is_empty());
 }
 
 #[test]
 fn test_parse_allowed_versions_global() {
-    let mut allowed = HashMap::new();
+    let mut allowed = BTreeMap::new();
     allowed.insert("react".to_string(), "^18.0.0".to_string());
     let (match_all, by_parent) = parse_allowed_versions(&allowed);
     assert_eq!(match_all.len(), 1);
@@ -202,7 +208,7 @@ fn test_parse_allowed_versions_global() {
 
 #[test]
 fn test_parse_allowed_versions_by_parent() {
-    let mut allowed = HashMap::new();
+    let mut allowed = BTreeMap::new();
     allowed.insert("@foo/bar>react".to_string(), "^18.0.0".to_string());
     let (match_all, by_parent) = parse_allowed_versions(&allowed);
     assert!(match_all.is_empty());
@@ -212,7 +218,7 @@ fn test_parse_allowed_versions_by_parent() {
 
 #[test]
 fn test_parse_allowed_versions_mixed() {
-    let mut allowed = HashMap::new();
+    let mut allowed = BTreeMap::new();
     allowed.insert("react".to_string(), "^18.0.0".to_string());
     allowed.insert("@foo/bar>react".to_string(), "^17.0.0".to_string());
     let (match_all, by_parent) = parse_allowed_versions(&allowed);
@@ -222,12 +228,12 @@ fn test_parse_allowed_versions_mixed() {
 
 #[test]
 fn test_filter_peer_issues_no_rules() {
-    let mut issues: IssuesByProjects = HashMap::new();
+    let mut issues: IssuesByProjects = BTreeMap::new();
     let mut peer = PeerIssues {
-        bad: HashMap::new(),
-        missing: HashMap::new(),
+        bad: BTreeMap::new(),
+        missing: BTreeMap::new(),
         conflicts: Vec::new(),
-        intersections: HashMap::new(),
+        intersections: BTreeMap::new(),
     };
     peer.bad.insert(
         "react".to_string(),
@@ -250,12 +256,12 @@ fn test_filter_peer_issues_no_rules() {
 
 #[test]
 fn test_filter_peer_issues_allow_any() {
-    let mut issues: IssuesByProjects = HashMap::new();
+    let mut issues: IssuesByProjects = BTreeMap::new();
     let mut peer = PeerIssues {
-        bad: HashMap::new(),
-        missing: HashMap::new(),
+        bad: BTreeMap::new(),
+        missing: BTreeMap::new(),
         conflicts: Vec::new(),
-        intersections: HashMap::new(),
+        intersections: BTreeMap::new(),
     };
     peer.bad.insert(
         "react".to_string(),
@@ -281,12 +287,12 @@ fn test_filter_peer_issues_allow_any() {
 
 #[test]
 fn test_filter_peer_issues_allowed_versions() {
-    let mut issues: IssuesByProjects = HashMap::new();
+    let mut issues: IssuesByProjects = BTreeMap::new();
     let mut peer = PeerIssues {
-        bad: HashMap::new(),
-        missing: HashMap::new(),
+        bad: BTreeMap::new(),
+        missing: BTreeMap::new(),
         conflicts: Vec::new(),
-        intersections: HashMap::new(),
+        intersections: BTreeMap::new(),
     };
     peer.bad.insert(
         "react".to_string(),
@@ -314,12 +320,12 @@ fn test_filter_peer_issues_allowed_versions() {
 
 #[test]
 fn test_filter_peer_issues_allowed_versions_not_matching() {
-    let mut issues: IssuesByProjects = HashMap::new();
+    let mut issues: IssuesByProjects = BTreeMap::new();
     let mut peer = PeerIssues {
-        bad: HashMap::new(),
-        missing: HashMap::new(),
+        bad: BTreeMap::new(),
+        missing: BTreeMap::new(),
         conflicts: Vec::new(),
-        intersections: HashMap::new(),
+        intersections: BTreeMap::new(),
     };
     peer.bad.insert(
         "react".to_string(),
@@ -347,12 +353,12 @@ fn test_filter_peer_issues_allowed_versions_not_matching() {
 
 #[test]
 fn test_filter_peer_issues_ignore_missing() {
-    let mut issues: IssuesByProjects = HashMap::new();
+    let mut issues: IssuesByProjects = BTreeMap::new();
     let mut peer = PeerIssues {
-        bad: HashMap::new(),
-        missing: HashMap::new(),
+        bad: BTreeMap::new(),
+        missing: BTreeMap::new(),
         conflicts: Vec::new(),
-        intersections: HashMap::new(),
+        intersections: BTreeMap::new(),
     };
     peer.missing.insert(
         "react".to_string(),
@@ -376,12 +382,12 @@ fn test_filter_peer_issues_ignore_missing() {
 
 #[test]
 fn test_filter_peer_issues_ignore_missing_pattern() {
-    let mut issues: IssuesByProjects = HashMap::new();
+    let mut issues: IssuesByProjects = BTreeMap::new();
     let mut peer = PeerIssues {
-        bad: HashMap::new(),
-        missing: HashMap::new(),
+        bad: BTreeMap::new(),
+        missing: BTreeMap::new(),
         conflicts: Vec::new(),
-        intersections: HashMap::new(),
+        intersections: BTreeMap::new(),
     };
     peer.missing.insert(
         "@scope/pkg".to_string(),
@@ -405,12 +411,12 @@ fn test_filter_peer_issues_ignore_missing_pattern() {
 
 #[test]
 fn test_filter_peer_issues_allowed_versions_parent_scoped() {
-    let mut issues: IssuesByProjects = HashMap::new();
+    let mut issues: IssuesByProjects = BTreeMap::new();
     let mut peer = PeerIssues {
-        bad: HashMap::new(),
-        missing: HashMap::new(),
+        bad: BTreeMap::new(),
+        missing: BTreeMap::new(),
         conflicts: Vec::new(),
-        intersections: HashMap::new(),
+        intersections: BTreeMap::new(),
     };
     peer.bad.insert(
         "react".to_string(),

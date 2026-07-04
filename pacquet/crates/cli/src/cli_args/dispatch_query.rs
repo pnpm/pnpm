@@ -16,7 +16,7 @@ use super::{
     outdated::{OutdatedArgs, OutdatedOutcome},
     pack::PackArgs,
     pack_app::PackAppArgs,
-    peers::PeersArgs,
+    peers::{PeersArgs, PeersOutcome},
     ping::PingArgs,
     prefix::PrefixArgs,
     repo::RepoArgs,
@@ -114,7 +114,13 @@ pub(super) fn peers<'a>(ctx: &RunCtx<'a>, args: PeersArgs) -> miette::Result<Com
     let recursive = ctx.recursive;
     let dir = ctx.dir;
     Ok(Box::pin(async move {
-        args.run(cfg, dir, recursive)?;
+        if args.run(cfg, dir, recursive)? == PeersOutcome::IssuesFound {
+            #[expect(
+                clippy::exit,
+                reason = "`peers` exits non-zero when peer issues are found, mirroring pnpm"
+            )]
+            std::process::exit(1);
+        }
         Ok(())
     }))
 }
