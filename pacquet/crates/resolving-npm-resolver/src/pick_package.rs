@@ -51,7 +51,7 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
-use dashmap::DashMap;
+use dashmap::{DashMap, DashSet};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::version_policy::{PackageVersionPolicy, PolicyMatch};
@@ -102,7 +102,36 @@ pub trait PackageMetaCache: Send + Sync {
     /// accepted; the next install starts a fresh cache. Takes
     /// [`Arc<Package>`] so callers can share the same handle they
     /// hand back to [`PickPackageResult`] without an extra clone.
+    ///
+    /// Clears any registry-unverified marker a previous
+    /// [`PackageMetaCache::set_unverified`] left on `key`: the caller
+    /// vouches that `meta` came from (or was revalidated by) the
+    /// registry.
     fn set(&self, key: String, meta: Arc<Package>);
+
+    /// Like [`PackageMetaCache::set`], but remembers the entry as
+    /// registry-unverified: it was parsed straight from the on-disk
+    /// mirror without a validating registry round-trip, so it may
+    /// predate versions the registry has. [`pick_package`] uses the
+    /// marker to fall through to a conditional registry request —
+    /// instead of failing the pick — when a cache hit on such an entry
+    /// can't satisfy the requested spec and the resolver isn't offline.
+    /// The verified [`PackageMetaCache::set`] the fetch then performs
+    /// clears the marker, so each package revalidates at most once.
+    ///
+    /// The default implementation drops the marker (every entry reads
+    /// as verified), which keeps custom caches on the terminal
+    /// cache-hit behavior: a failed pick on a hit is a failed pick.
+    fn set_unverified(&self, key: String, meta: Arc<Package>) {
+        self.set(key, meta);
+    }
+
+    /// Whether the entry under `key` was stored via
+    /// [`PackageMetaCache::set_unverified`] and hasn't since been
+    /// replaced through a verified [`PackageMetaCache::set`].
+    fn is_unverified(&self, _key: &str) -> bool {
+        false
+    }
 }
 
 /// Per-`(registry, package_name)` fetch serializer: a map of
@@ -173,6 +202,12 @@ pub fn shared_picked_manifest_cache() -> PickedManifestCache {
 #[derive(Debug, Default)]
 pub struct InMemoryPackageMetaCache {
     inner: DashMap<String, Arc<Package>>,
+    /// Keys whose current entry came through
+    /// [`PackageMetaCache::set_unverified`]. Marker and entry are not
+    /// updated atomically; a concurrent reader can at worst observe a
+    /// stale marker, costing one redundant revalidation or one
+    /// terminal (pre-marker behavior) pick — never a wrong pick.
+    unverified: DashSet<String>,
 }
 
 impl PackageMetaCache for InMemoryPackageMetaCache {
@@ -181,7 +216,17 @@ impl PackageMetaCache for InMemoryPackageMetaCache {
     }
 
     fn set(&self, key: String, meta: Arc<Package>) {
+        self.unverified.remove(&key);
         self.inner.insert(key, meta);
+    }
+
+    fn set_unverified(&self, key: String, meta: Arc<Package>) {
+        self.unverified.insert(key.clone());
+        self.inner.insert(key, meta);
+    }
+
+    fn is_unverified(&self, key: &str) -> bool {
+        self.unverified.contains(key)
     }
 }
 
@@ -428,8 +473,9 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     let use_mem_cache = !opts.update_checksums;
 
     // 1. In-memory cache.
-    if use_mem_cache && let Some(cached) = ctx.meta_cache.get(&cache_key) {
-        return handle_cache_hit(
+    if use_mem_cache
+        && let Some(cached) = ctx.meta_cache.get(&cache_key)
+        && let Some(result) = handle_cache_hit(
             ctx,
             spec,
             opts,
@@ -440,7 +486,9 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             pkg_mirror.as_deref(),
             cached,
         )
-        .await;
+        .await?
+    {
+        return Ok(result);
     }
 
     let limit = {
@@ -457,8 +505,9 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     // this re-check, every duplicate caller would still fall
     // through to the disk + network path even though they were
     // waiting precisely for the winner's fetch to complete.
-    if use_mem_cache && let Some(cached) = ctx.meta_cache.get(&cache_key) {
-        return handle_cache_hit(
+    if use_mem_cache
+        && let Some(cached) = ctx.meta_cache.get(&cache_key)
+        && let Some(result) = handle_cache_hit(
             ctx,
             spec,
             opts,
@@ -469,7 +518,9 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             pkg_mirror.as_deref(),
             cached,
         )
-        .await;
+        .await?
+    {
+        return Ok(result);
     }
 
     let mut meta_cached_in_store: Option<Arc<Package>> = None;
@@ -480,6 +531,12 @@ pub async fn pick_package<Cache: PackageMetaCache>(
 
         if ctx.offline {
             if let Some(meta) = meta_cached_in_store {
+                // maybe_upgrade_abbreviated_meta_for_release_age
+                // short-circuits when offline, so a later cache hit
+                // returns this same meta without any network access.
+                if !opts.dry_run {
+                    ctx.meta_cache.set_unverified(cache_key.clone(), Arc::clone(&meta));
+                }
                 let (meta, picked) =
                     pick_from_meta(&picker_opts, spec, meta, opts.blocked_versions)?;
                 return Ok(PickPackageResult { meta, picked_package: picked });
@@ -510,6 +567,13 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             let (picked_meta, picked) =
                 pick_from_meta(&picker_opts, spec, Arc::clone(&meta), opts.blocked_versions)?;
             if picked.is_some() {
+                // A later cache hit re-runs the same release-age upgrade
+                // check, so behavior is unchanged. The upgrade branch
+                // above already cached the registry-validated document;
+                // don't downgrade it to an unverified marking.
+                if !upgrade.upgraded && !opts.dry_run {
+                    ctx.meta_cache.set_unverified(cache_key.clone(), Arc::clone(&meta));
+                }
                 return Ok(PickPackageResult { meta: picked_meta, picked_package: picked });
             }
             // Fall through to fetch when disk had the meta but no
@@ -552,7 +616,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
                 // the next install starts a fresh cache and
                 // re-evaluates the disk shortcut.
                 if !opts.dry_run {
-                    ctx.meta_cache.set(cache_key.clone(), Arc::clone(meta));
+                    ctx.meta_cache.set_unverified(cache_key.clone(), Arc::clone(meta));
                 }
                 return Ok(PickPackageResult { meta: picked_meta, picked_package: Some(picked) });
             }
@@ -677,6 +741,12 @@ pub async fn pick_package<Cache: PackageMetaCache>(
 /// re-fetching). Extracting it keeps the two call sites identical so
 /// the upgrade-and-persist side-effects can't drift.
 ///
+/// Returns `Ok(None)` when the hit must not be terminal: the entry is
+/// a registry-unverified disk promotion (see
+/// [`PackageMetaCache::set_unverified`]) whose pick failed, and the
+/// resolver isn't offline. The caller then falls through to the disk +
+/// network flow, whose fetch replaces the entry with a verified one.
+///
 /// The argument list is wide because the helper consumes everything
 /// the per-call frame already computed (cache key, derived
 /// `full_metadata`, pre-resolved mirror path, picker options).
@@ -697,7 +767,7 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
     cache_key: &str,
     pkg_mirror: Option<&Path>,
     cached: Arc<Package>,
-) -> Result<PickPackageResult, PickPackageError> {
+) -> Result<Option<PickPackageResult>, PickPackageError> {
     let upgrade =
         maybe_upgrade_abbreviated_meta_for_release_age(ctx, spec, opts, full_metadata, cached)
             .await?;
@@ -709,7 +779,10 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
         ctx.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
     }
     let (meta, picked) = pick_from_meta(picker_opts, spec, meta, opts.blocked_versions)?;
-    Ok(PickPackageResult { meta, picked_package: picked })
+    if picked.is_none() && !ctx.offline && ctx.meta_cache.is_unverified(cache_key) {
+        return Ok(None);
+    }
+    Ok(Some(PickPackageResult { meta, picked_package: picked }))
 }
 
 /// Same fields as [`PickPackageOptions`] minus the dispatcher-only

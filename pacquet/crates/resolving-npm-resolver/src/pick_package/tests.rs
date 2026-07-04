@@ -52,6 +52,28 @@ const PACKAGE_BODY: &str = r#"{
     }
 }"#;
 
+/// [`PACKAGE_BODY`] as it looked before 1.1.0 was published — for
+/// seeding a mirror that predates a version the registry has.
+const STALE_PACKAGE_BODY: &str = r#"{
+    "name": "acme",
+    "dist-tags": { "latest": "1.0.0" },
+    "modified": "2024-01-15T12:00:00.000Z",
+    "time": {
+        "1.0.0": "2024-01-10T08:30:00.000Z"
+    },
+    "versions": {
+        "1.0.0": {
+            "name": "acme",
+            "version": "1.0.0",
+            "dist": {
+                "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                "shasum": "0000000000000000000000000000000000000000",
+                "tarball": "https://registry/acme-1.0.0.tgz"
+            }
+        }
+    }
+}"#;
+
 fn range_spec(name: &str, range: &str) -> RegistryPackageSpec {
     RegistryPackageSpec {
         name: name.to_string(),
@@ -265,6 +287,159 @@ async fn offline_without_mirror_errors() {
         .await
         .expect_err("offline + no mirror = error");
     assert!(matches!(err, PickPackageError::NoOfflineMeta { .. }), "got {err:?}");
+}
+
+/// A second offline resolve succeeds after the mirror file is deleted,
+/// proving the first resolve promoted the disk-loaded packument into
+/// the in-memory cache instead of re-reading disk per dependent.
+#[tokio::test]
+async fn offline_promotes_disk_loaded_packument_into_memory_cache() {
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = "https://registry.example.com/".to_string();
+    let preloaded: pacquet_registry::Package =
+        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+    persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
+        .expect("warm mirror");
+
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
+        cache_dir: Some(cache_dir.path()),
+        offline: true,
+        prefer_offline: false,
+        ignore_missing_time_field: false,
+        full_metadata: false,
+        filter_metadata: false,
+        retry_opts: RetryOpts::default(),
+    };
+    let spec = range_spec("acme", "^1.0.0");
+
+    let first = pick_package(&ctx, &spec, &default_opts(&registry)).await.expect("ok");
+    assert_eq!(first.picked_package.expect("picked").version.to_string(), "1.1.0");
+    let cache_key =
+        metadata_cache_key(&MetadataCacheScope::Public, &registry, "acme", false, false);
+    assert!(meta_cache.get(&cache_key).is_some());
+
+    let mirror = get_pkg_mirror_path(cache_dir.path(), ABBREVIATED_META_DIR, &registry, "acme")
+        .expect("mirror path");
+    std::fs::remove_file(mirror).expect("remove mirror");
+    let second = pick_package(&ctx, &spec, &default_opts(&registry)).await.expect("ok");
+    assert_eq!(second.picked_package.expect("picked").version.to_string(), "1.1.0");
+}
+
+/// Prefer-offline sibling of
+/// [`offline_promotes_disk_loaded_packument_into_memory_cache`]; the
+/// `expect(0)` mock additionally proves neither resolve touched the
+/// registry.
+#[tokio::test]
+async fn prefer_offline_promotes_disk_loaded_packument_into_memory_cache() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server.mock("GET", "/acme").with_status(500).expect(0).create_async().await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let preloaded: pacquet_registry::Package =
+        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+    persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
+        .expect("warm mirror");
+
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: true,
+        ignore_missing_time_field: false,
+        full_metadata: false,
+        filter_metadata: false,
+        retry_opts: RetryOpts::default(),
+    };
+    let spec = range_spec("acme", "^1.0.0");
+
+    let first = pick_package(&ctx, &spec, &default_opts(&registry)).await.expect("ok");
+    assert_eq!(first.picked_package.expect("picked").version.to_string(), "1.1.0");
+    let cache_key =
+        metadata_cache_key(&MetadataCacheScope::Public, &registry, "acme", false, false);
+    assert!(meta_cache.get(&cache_key).is_some());
+
+    let mirror = get_pkg_mirror_path(cache_dir.path(), ABBREVIATED_META_DIR, &registry, "acme")
+        .expect("mirror path");
+    std::fs::remove_file(mirror).expect("remove mirror");
+    let second = pick_package(&ctx, &spec, &default_opts(&registry)).await.expect("ok");
+    assert_eq!(second.picked_package.expect("picked").version.to_string(), "1.1.0");
+    mock.assert_async().await;
+}
+
+/// The first resolve picking 1.0.0 proves it was served from the stale
+/// mirror (the registry would offer 1.1.0). The promoted entry can't
+/// satisfy `^1.1.0`, so the second resolve must fall back to the
+/// registry instead of failing the pick. The fetch replaces the entry
+/// with a verified one, so the third resolve short-circuits on the
+/// cache — `expect(1)` fails if it fetched again.
+#[tokio::test]
+async fn stale_disk_promoted_entry_falls_back_to_registry_under_prefer_offline() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_header("etag", r#"W/"fresh""#)
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let stale: pacquet_registry::Package =
+        serde_json::from_str(STALE_PACKAGE_BODY).expect("parse packument");
+    persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &stale)
+        .expect("warm mirror");
+
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: true,
+        ignore_missing_time_field: false,
+        full_metadata: false,
+        filter_metadata: false,
+        retry_opts: RetryOpts::default(),
+    };
+
+    let first = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+        .await
+        .expect("ok");
+    assert_eq!(first.picked_package.expect("picked").version.to_string(), "1.0.0");
+
+    let second = pick_package(&ctx, &range_spec("acme", "^1.1.0"), &default_opts(&registry))
+        .await
+        .expect("ok");
+    assert_eq!(second.picked_package.expect("picked").version.to_string(), "1.1.0");
+
+    let third = pick_package(&ctx, &range_spec("acme", "^1.1.0"), &default_opts(&registry))
+        .await
+        .expect("ok");
+    assert_eq!(third.picked_package.expect("picked").version.to_string(), "1.1.0");
+    mock.assert_async().await;
 }
 
 #[tokio::test]
