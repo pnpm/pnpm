@@ -168,6 +168,19 @@ impl SkippedSnapshots {
     }
 
     #[must_use]
+    pub(crate) fn contains_optional_excluded(&self, key: &PackageKey) -> bool {
+        self.optional_excluded.contains(key)
+    }
+
+    pub(crate) fn retain_installability_for_optional_snapshots(
+        &mut self,
+        snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    ) {
+        self.installability
+            .retain(|key| snapshots.get(key).is_some_and(|snapshot| snapshot.optional));
+    }
+
+    #[must_use]
     pub fn len(&self) -> usize {
         self.installability.len() + self.fetch_failed.len() + self.optional_excluded.len()
     }
@@ -293,8 +306,9 @@ pub(crate) fn manifest_with_inferred_platform(
     })
 }
 
-pub(crate) fn manifest_from_resolve_result(
+pub(crate) fn platform_manifest_from_resolve_result(
     result: &ResolveResult,
+    fallback_alias: Option<&str>,
 ) -> PackageInstallabilityManifest {
     let manifest = result.manifest.as_deref();
     PackageInstallabilityManifest {
@@ -308,34 +322,14 @@ pub(crate) fn manifest_from_resolve_result(
                     .and_then(Value::as_str)
                     .map(ToString::to_string)
             })
+            .or_else(|| result.alias.clone())
+            .or_else(|| fallback_alias.map(ToString::to_string))
             .unwrap_or_default(),
-        engines: read_wanted_engine(manifest),
+        engines: None,
         cpu: read_string_list(manifest, "cpu"),
         os: read_string_list(manifest, "os"),
         libc: read_string_list(manifest, "libc"),
     }
-}
-
-fn read_wanted_engine(manifest: Option<&Value>) -> Option<WantedEngine> {
-    let engines = manifest?.get("engines")?;
-    let entries: Vec<(String, &str)> = match engines {
-        Value::Object(map) => {
-            map.iter().filter_map(|(name, value)| Some((name.clone(), value.as_str()?))).collect()
-        }
-        Value::Array(items) => items
-            .iter()
-            .enumerate()
-            .filter_map(|(index, value)| Some((index.to_string(), value.as_str()?)))
-            .collect(),
-        _ => Vec::new(),
-    };
-    let map: HashMap<String, String> = entries
-        .into_iter()
-        .filter(|(_, range)| *range != "*")
-        .map(|(name, range)| (name, range.to_string()))
-        .collect();
-    let wanted = WantedEngine { node: map.get("node").cloned(), pnpm: map.get("pnpm").cloned() };
-    (wanted.node.is_some() || wanted.pnpm.is_some()).then_some(wanted)
 }
 
 fn read_string_list(manifest: Option<&Value>, key: &str) -> Option<Vec<String>> {
@@ -377,8 +371,10 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
     packages: &HashMap<PackageKey, PackageMetadata>,
     host: &InstallabilityHost,
     prefix: &str,
-    seed: SkippedSnapshots,
+    mut seed: SkippedSnapshots,
 ) -> Result<SkippedSnapshots, Box<InstallabilityError>> {
+    seed.retain_installability_for_optional_snapshots(snapshots);
+
     // Fast path: if no package in the lockfile declares any
     // installability constraint, every snapshot is trivially
     // installable. Skip the per-snapshot
@@ -389,9 +385,9 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
     // decomposing each metadata row only to find no constraints to
     // evaluate.
     //
-    // The `seed` is returned as-is on the fast path so previously
-    // skipped snapshots survive across reinstalls even when the
-    // lockfile's per-snapshot constraints have since been removed.
+    // The filtered `seed` is returned on the fast path so previously
+    // skipped optional snapshots survive across reinstalls even when
+    // the lockfile's per-snapshot constraints have since been removed.
     //
     // Concretely on the integrated benchmark (1352 packages with no
     // platform / engine constraints): drops ~1352 `String` and
@@ -538,6 +534,31 @@ pub fn any_installability_constraint(
                 })
             }
         })
+}
+
+#[must_use]
+pub fn any_optional_installability_constraint(
+    snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    packages: &HashMap<PackageKey, PackageMetadata>,
+) -> bool {
+    snapshots.iter().any(|(snapshot_key, snapshot)| {
+        if !snapshot.optional {
+            return false;
+        }
+        let metadata_key = snapshot_key.without_peer();
+        packages.get(&metadata_key).is_some_and(|metadata| {
+            metadata_has_meaningful_constraint(metadata)
+                || inferred_platform(
+                    &metadata_key.name.to_string(),
+                    WantedPlatformRef {
+                        os: metadata.os.as_deref(),
+                        cpu: metadata.cpu.as_deref(),
+                        libc: metadata.libc.as_deref(),
+                    },
+                )
+                .is_some()
+        })
+    })
 }
 
 /// True if a single metadata row carries a constraint pacquet would

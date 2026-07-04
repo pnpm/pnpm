@@ -3,8 +3,9 @@
 use std::collections::HashMap;
 
 use pacquet_lockfile::{
-    ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PackageKey, PkgName, PkgVerPeer,
-    ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+    ComVer, ImporterDepVersion, Lockfile, LockfileResolution, LockfileVersion, PackageKey,
+    PackageMetadata, PkgName, PkgVerPeer, ProjectSnapshot, ResolvedDependencyMap,
+    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry, TarballResolution,
 };
 use pacquet_modules_yaml::IncludedDependencies;
 use pretty_assertions::assert_eq;
@@ -38,6 +39,28 @@ fn snapshot_with_deps(deps: &[(&str, &str)]) -> SnapshotEntry {
     let map: HashMap<PkgName, SnapshotDepRef> =
         deps.iter().map(|(n, v)| (pkg(n), SnapshotDepRef::Plain(ver(v)))).collect();
     SnapshotEntry { dependencies: Some(map), ..Default::default() }
+}
+
+fn package_metadata(name: &str) -> PackageMetadata {
+    PackageMetadata {
+        resolution: LockfileResolution::Tarball(TarballResolution {
+            integrity: None,
+            tarball: format!("https://example.test/{name}.tgz"),
+            git_hosted: None,
+            path: None,
+        }),
+        version: None,
+        engines: None,
+        cpu: None,
+        os: None,
+        libc: None,
+        deprecated: None,
+        has_bin: None,
+        prepare: None,
+        bundled_dependencies: None,
+        peer_dependencies: None,
+        peer_dependencies_meta: None,
+    }
 }
 
 fn empty_lockfile() -> Lockfile {
@@ -196,9 +219,7 @@ fn snapshot_reachable_via_kept_path_survives() {
 }
 
 #[test]
-fn packages_filtered_to_surviving_metadata_keys() {
-    use pacquet_lockfile::{LockfileResolution, PackageMetadata, TarballResolution};
-
+fn user_excluded_packages_filtered_to_surviving_metadata_keys() {
     let mut importers = HashMap::new();
     importers.insert(
         ".".to_string(),
@@ -213,29 +234,9 @@ fn packages_filtered_to_surviving_metadata_keys() {
     snapshots.insert(key("keep", "1.0.0"), SnapshotEntry::default());
     snapshots.insert(key("drop", "1.0.0"), SnapshotEntry::default());
 
-    let make_metadata = |name: &str| PackageMetadata {
-        resolution: LockfileResolution::Tarball(TarballResolution {
-            integrity: None,
-            tarball: format!("https://example.test/{name}.tgz"),
-            git_hosted: None,
-            path: None,
-        }),
-        version: None,
-        engines: None,
-        cpu: None,
-        os: None,
-        libc: None,
-        deprecated: None,
-        has_bin: None,
-        prepare: None,
-        bundled_dependencies: None,
-        peer_dependencies: None,
-        peer_dependencies_meta: None,
-    };
-
     let mut packages = HashMap::new();
-    packages.insert(key("keep", "1.0.0"), make_metadata("keep"));
-    packages.insert(key("drop", "1.0.0"), make_metadata("drop"));
+    packages.insert(key("keep", "1.0.0"), package_metadata("keep"));
+    packages.insert(key("drop", "1.0.0"), package_metadata("drop"));
 
     let lockfile = Lockfile {
         importers,
@@ -253,8 +254,53 @@ fn packages_filtered_to_surviving_metadata_keys() {
     assert!(pkgs.contains_key(&key("keep", "1.0.0")));
     assert!(
         !pkgs.contains_key(&key("drop", "1.0.0")),
-        "metadata for a pruned snapshot must also be pruned",
+        "metadata for a user-excluded snapshot must also be pruned",
     );
+}
+
+#[test]
+fn installability_skipped_metadata_is_preserved() {
+    let mut importers = HashMap::new();
+    importers.insert(
+        ".".to_string(),
+        ProjectSnapshot {
+            dependencies: Some(importer_map(&[("keep", "1.0.0")])),
+            optional_dependencies: Some(importer_map(&[("drop", "1.0.0")])),
+            ..Default::default()
+        },
+    );
+
+    let mut snapshots = HashMap::new();
+    snapshots.insert(key("keep", "1.0.0"), SnapshotEntry::default());
+    snapshots.insert(key("drop", "1.0.0"), snapshot_with_deps(&[("child", "1.0.0")]));
+    snapshots.insert(key("child", "1.0.0"), SnapshotEntry::default());
+
+    let mut packages = HashMap::new();
+    packages.insert(key("keep", "1.0.0"), package_metadata("keep"));
+    packages.insert(key("drop", "1.0.0"), package_metadata("drop"));
+    packages.insert(key("child", "1.0.0"), package_metadata("child"));
+
+    let lockfile = Lockfile {
+        importers,
+        snapshots: Some(snapshots),
+        packages: Some(packages),
+        ..empty_lockfile()
+    };
+
+    let mut skipped = SkippedSnapshots::new();
+    skipped.insert_installability(key("drop", "1.0.0"));
+
+    let filtered = super::filter_lockfile_for_current(&lockfile, include_all(), &skipped);
+
+    let snaps = filtered.snapshots.as_ref().unwrap();
+    assert!(snaps.contains_key(&key("keep", "1.0.0")));
+    assert!(!snaps.contains_key(&key("drop", "1.0.0")));
+    assert!(!snaps.contains_key(&key("child", "1.0.0")));
+
+    let pkgs = filtered.packages.as_ref().unwrap();
+    assert!(pkgs.contains_key(&key("keep", "1.0.0")));
+    assert!(pkgs.contains_key(&key("drop", "1.0.0")));
+    assert!(pkgs.contains_key(&key("child", "1.0.0")));
 }
 
 #[test]

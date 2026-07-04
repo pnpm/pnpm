@@ -31,7 +31,7 @@ use pacquet_config::Config;
 use pacquet_lockfile::{LockfileResolution, is_git_hosted_tarball_url};
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_is_installable::{
-    PackageInstallabilityManifest, SupportedArchitectures, WantedPlatformRef, check_platform,
+    SupportedArchitectures, WantedPlatformRef, platform_is_supported,
 };
 use pacquet_reporter::{Reporter, SilentReporter};
 use pacquet_resolving_resolver_base::{
@@ -343,16 +343,18 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         wanted_dependency: &WantedDependency,
         result: &ResolveResult,
     ) -> bool {
-        if wanted_dependency.optional != Some(true) || result.manifest.is_none() {
+        if wanted_dependency.optional != Some(true) || !is_remote_tarball(&result.resolution) {
             return false;
         }
-        let manifest = crate::manifest_from_resolve_result(result);
+        let manifest = crate::platform_manifest_from_resolve_result(
+            result,
+            wanted_dependency.alias.as_deref(),
+        );
         if manifest.name.is_empty() {
             return false;
         }
         let manifest = crate::manifest_with_inferred_platform(&manifest);
-        check_platform(
-            &package_id(result, manifest.as_ref()),
+        !platform_is_supported(
             WantedPlatformRef {
                 os: manifest.os.as_deref(),
                 cpu: manifest.cpu.as_deref(),
@@ -363,7 +365,6 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             self.ctx.current_cpu,
             self.ctx.current_libc,
         )
-        .is_some()
     }
 }
 
@@ -394,13 +395,9 @@ impl<Reporter: self::Reporter + 'static> Resolver for PrefetchingResolver<Report
     }
 }
 
-fn package_id(result: &ResolveResult, manifest: &PackageInstallabilityManifest) -> String {
-    result.name_ver.as_ref().map_or_else(
-        || {
-            if manifest.name.is_empty() { result.id.to_string() } else { manifest.name.clone() }
-        },
-        |name_ver| format!("{}@{}", name_ver.name, name_ver.suffix),
-    )
+fn is_remote_tarball(resolution: &LockfileResolution) -> bool {
+    let LockfileResolution::Tarball(tarball) = resolution else { return false };
+    !tarball.tarball.starts_with("file:") && !is_git_hosted_tarball_url(&tarball.tarball)
 }
 
 #[cfg(test)]

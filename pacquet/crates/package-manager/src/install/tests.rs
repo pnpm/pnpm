@@ -5422,6 +5422,13 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
     let current_lockfile: Lockfile =
         serde_saphyr::from_str(&current_content).expect("parse current lockfile");
     assert!(
+        current_lockfile
+            .packages
+            .as_ref()
+            .is_some_and(|packages| packages.contains_key(&skipped_key.without_peer())),
+        "platform-incompatible optional dependency metadata must stay in current lockfile",
+    );
+    assert!(
         !current_lockfile
             .snapshots
             .as_ref()

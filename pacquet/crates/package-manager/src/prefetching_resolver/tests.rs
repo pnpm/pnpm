@@ -1,7 +1,7 @@
-use super::{PrefetchingResolver, package_id};
+use super::PrefetchingResolver;
 use crate::PrefetchContext;
 use pacquet_config::Config;
-use pacquet_lockfile::{LockfileResolution, TarballResolution};
+use pacquet_lockfile::{DirectoryResolution, LockfileResolution, TarballResolution};
 use pacquet_network::ThrottledClient;
 use pacquet_reporter::SilentReporter;
 use pacquet_resolving_default_resolver::DefaultResolver;
@@ -29,6 +29,32 @@ fn result_with_manifest(name: &str, manifest: serde_json::Value) -> ResolveResul
         resolved_via: "npm-registry".to_string(),
         normalized_bare_specifier: None,
         alias: None,
+        policy_violation: None,
+    }
+}
+
+fn result_without_manifest(name: &str) -> ResolveResult {
+    let mut result = result_with_manifest(name, json!({}));
+    result.manifest = None;
+    result
+}
+
+fn alias_tarball_result(alias: &str, manifest: serde_json::Value) -> ResolveResult {
+    ResolveResult {
+        id: "https://registry.example/not-compatible.tgz".into(),
+        name_ver: None,
+        latest: None,
+        published_at: None,
+        manifest: Some(Arc::new(manifest)),
+        resolution: LockfileResolution::Tarball(TarballResolution {
+            integrity: None,
+            tarball: "https://registry.example/not-compatible.tgz".to_string(),
+            git_hosted: None,
+            path: None,
+        }),
+        resolved_via: "tarball".to_string(),
+        normalized_bare_specifier: None,
+        alias: Some(alias.to_string()),
         policy_violation: None,
     }
 }
@@ -90,6 +116,47 @@ async fn skips_prefetch_for_platform_inferred_from_optional_name() {
 }
 
 #[tokio::test]
+async fn skips_prefetch_for_manifestless_platform_inferred_name() {
+    let resolver = resolver();
+    let wanted = WantedDependency { optional: Some(true), ..WantedDependency::default() };
+    let result = result_without_manifest("@esbuild/openharmony-arm64");
+
+    assert!(resolver.should_skip_prefetch(&wanted, &result));
+}
+
+#[tokio::test]
+async fn skips_prefetch_using_alias_when_manifest_name_missing() {
+    let resolver = resolver();
+    let wanted = WantedDependency {
+        alias: Some("@esbuild/openharmony-arm64".to_string()),
+        optional: Some(true),
+        ..WantedDependency::default()
+    };
+    let result = alias_tarball_result("@esbuild/openharmony-arm64", json!({ "version": "1.0.0" }));
+
+    assert!(resolver.should_skip_prefetch(&wanted, &result));
+}
+
+#[tokio::test]
+async fn keeps_prefetch_check_off_non_tarball_resolutions() {
+    let resolver = resolver();
+    let wanted = WantedDependency { optional: Some(true), ..WantedDependency::default() };
+    let mut result = result_with_manifest(
+        "@pnpm.e2e/not-compatible-with-any-os",
+        json!({
+            "name": "@pnpm.e2e/not-compatible-with-any-os",
+            "version": "1.0.0",
+            "os": ["this-os-does-not-exist"]
+        }),
+    );
+    result.resolution = LockfileResolution::Directory(DirectoryResolution {
+        directory: "../not-compatible".to_string(),
+    });
+
+    assert!(!resolver.should_skip_prefetch(&wanted, &result));
+}
+
+#[tokio::test]
 async fn keeps_prefetch_for_required_manifest() {
     let resolver = resolver();
     let wanted = WantedDependency { optional: Some(false), ..WantedDependency::default() };
@@ -101,8 +168,6 @@ async fn keeps_prefetch_for_required_manifest() {
             "os": ["this-os-does-not-exist"]
         }),
     );
-    let manifest = crate::manifest_from_resolve_result(&result);
 
     assert!(!resolver.should_skip_prefetch(&wanted, &result));
-    assert_eq!(package_id(&result, &manifest), "@pnpm.e2e/not-compatible-with-any-os@1.0.0");
 }

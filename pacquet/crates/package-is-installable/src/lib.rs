@@ -1,11 +1,13 @@
 //! Evaluates whether a package can be installed on the current host.
 //!
-//! Three exported functions:
+//! Exported functions:
 //! - [`check_engine()`] — evaluates `engines.node` / `engines.pnpm` against
 //!   the current runtime.
 //! - [`check_platform()`] — evaluates a package's `os` / `cpu` / `libc`
 //!   triple against the host (or a caller-supplied
 //!   [`SupportedArchitectures`] override).
+//! - [`platform_is_supported()`] — the allocation-light boolean form of
+//!   the same platform check.
 //! - [`package_is_installable()`] — composes the two and produces a
 //!   tri-state verdict: compatible, skip-as-optional, or
 //!   proceed-with-warning. Caller handles emitting `pnpm:install-check`
@@ -24,7 +26,7 @@ pub use check_engine::{
 };
 pub use check_platform::{
     Platform, SupportedArchitectures, UnsupportedPlatformError, WantedPlatform, WantedPlatformRef,
-    check_platform,
+    check_platform, platform_is_supported,
 };
 pub use infer_platform_from_package_name::{infer_platform_from_package_name, inferred_platform};
 pub use package_is_installable::{
