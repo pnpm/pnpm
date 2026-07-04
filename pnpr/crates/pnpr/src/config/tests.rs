@@ -1786,7 +1786,7 @@ registries:
         matches!(
             &err,
             RegistryError::InvalidConfig { reason }
-                if reason.contains("registry \"corp\"")
+                if reason.contains(r#"registry "corp""#)
                     && reason.contains("does not declare")
                     && reason.contains("no `teams:`"),
         ),
@@ -1833,7 +1833,7 @@ registries:
             &err,
             RegistryError::InvalidConfig { reason }
                 if reason.contains("team:platfrom")
-                    && reason.contains("\"platform\", \"release\""),
+                    && reason.contains(r#""platform", "release""#),
         ),
         "unexpected error: {err}",
     );
@@ -1861,7 +1861,7 @@ fn rule_space_separated_access_list_is_a_config_error() {
             matches!(
                 &err,
                 RegistryError::InvalidConfig { reason }
-                    if reason.contains("\"alice bob\"") && reason.contains("[alice, bob]"),
+                    if reason.contains(r#""alice bob""#) && reason.contains("[alice, bob]"),
             ),
             "unexpected error for {packages:?}: {err}",
         );
@@ -1903,7 +1903,7 @@ fn rule_unknown_builtin_token_is_a_config_error() {
         matches!(
             &err,
             RegistryError::InvalidConfig { reason }
-                if reason.contains("unknown built-in access token \"$team\""),
+                if reason.contains(r#"unknown built-in access token "$team""#),
         ),
         "unexpected error: {err}",
     );
@@ -1923,7 +1923,7 @@ registries:
         matches!(
             &err,
             RegistryError::InvalidConfig { reason }
-                if reason.contains("registry \"local\"") && reason.contains("$all"),
+                if reason.contains(r#"registry "local""#) && reason.contains("$all"),
         ),
         "unexpected error: {err}",
     );
@@ -1939,7 +1939,7 @@ fn team_declarations_are_validated() {
     let sigil_name = "    teams:\n      $all: [alice]\n";
     let colon_name = "    teams:\n      'a:b': [alice]\n";
     for (teams, needle) in [
-        (split_members, "\"alice bob\""),
+        (split_members, r#""alice bob""#),
         (sigil_name, "cannot contain `:` or start with `$`"),
         (colon_name, "cannot contain `:` or start with `$`"),
     ] {
@@ -1960,7 +1960,7 @@ fn typed_token_grammar_is_validated() {
     // Only `team:` exists as a token type; `group:` gets a pointer at it,
     // and an empty team reference is named as such.
     for (token, needle) in [
-        ("group:platform", "did you mean \"team:platform\""),
+        ("group:platform", r#"did you mean "team:platform""#),
         ("org:corp", "the only typed token is `team:<name>`"),
         ("'team:'", "names no team"),
     ] {

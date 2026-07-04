@@ -44,7 +44,7 @@ pub enum AccessToken {
 /// Only the `$`-sigiled spellings are built-ins; any other token is a
 /// username, which can only *narrow* access, so this stays infallible.
 /// Near-miss spellings (verdaccio's `@all`/bare aliases, an unknown
-/// `$…`) and `team:` references are handled at YAML load (`AccessSpec`
+/// `$...`) and `team:` references are handled at YAML load (`AccessSpec`
 /// in the config module): the former are rejected, the latter resolved
 /// against the registry's declared teams. A programmatic caller passing
 /// one of those spellings just gets a username that matches nobody.

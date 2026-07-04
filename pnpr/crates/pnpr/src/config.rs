@@ -972,10 +972,10 @@ fn validate_team_name(team: &str) -> Result<(), String> {
 }
 
 /// Reject an access-list entry that is not exactly one recognized token: an
-/// unknown `$…` built-in, an unknown `<type>:` prefix (only `team:` exists;
+/// unknown `$...` built-in, an unknown `<type>:` prefix (only `team:` exists;
 /// htpasswd forbids `:` in usernames, so the character is free to reserve),
 /// or one of verdaccio's alias spellings of the built-ins (`@all`, bare
-/// `all`, …), which must not silently become a username that admits nobody.
+/// `all`, ...), which must not silently become a username that admits nobody.
 /// This loud rejection at the YAML boundary is what lets `AccessToken`
 /// parsing stay infallible.
 fn validate_access_token(token: &str) -> Result<(), String> {
@@ -1005,7 +1005,7 @@ fn validate_access_token(token: &str) -> Result<(), String> {
     }
     let bare = token.strip_prefix('@').unwrap_or(token);
     if matches!(bare, "all" | "authenticated" | "anonymous") {
-        return Err(format!("unknown access token {token:?}; did you mean \"${bare}\"?"));
+        return Err(format!(r#"unknown access token {token:?}; did you mean "${bare}"?"#));
     }
     Ok(())
 }
