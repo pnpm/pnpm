@@ -4064,3 +4064,41 @@ test('no warning when PNPM_CONFIG_NPMRC_AUTH_FILE is the literal relative ".npmr
   // The trusted project .npmrc must expand the auth env placeholder.
   expect(config.authConfig['//registry.npmjs.org/:_authToken']).toBe('secret')
 })
+
+test('warning stays when PNPM_CONFIG_NPMRC_AUTH_FILE is a relative path that does not resolve to the project .npmrc', async () => {
+  prepare()
+
+  fs.writeFileSync('.npmrc', '//registry.npmjs.org/:_authToken=${MY_TOKEN}\n', 'utf8')
+
+  // Point the global config dir at an empty location so the developer's
+  // real auth.ini can't leak a token into authConfig.
+  const originalXdg = process.env.XDG_CONFIG_HOME
+  process.env.XDG_CONFIG_HOME = path.resolve('xdg-config')
+  try {
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      env: {
+        ...env,
+        MY_TOKEN: 'secret',
+        // Resolves to <cwd>/other/.npmrc — not the project .npmrc, so the
+        // project file stays untrusted.
+        PNPM_CONFIG_NPMRC_AUTH_FILE: 'other/.npmrc',
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(warnings).toEqual(expect.arrayContaining([
+      expect.stringContaining('Ignored project-level auth setting "//registry.npmjs.org/:_authToken"'),
+    ]))
+    expect(config.authConfig['//registry.npmjs.org/:_authToken']).toBeUndefined()
+  } finally {
+    if (originalXdg != null) {
+      process.env.XDG_CONFIG_HOME = originalXdg
+    } else {
+      delete process.env.XDG_CONFIG_HOME
+    }
+  }
+})

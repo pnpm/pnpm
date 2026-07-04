@@ -226,6 +226,10 @@ thread_local! {
         std::cell::RefCell::new(std::collections::HashMap::new());
 }
 
+/// Reset both [`FakeEnv`] thread-locals to the given env and no fake
+/// cwd, so a test's setup never leaks into a later test sharing the
+/// worker thread. Every `FakeEnv` test starts here; the ones that
+/// need a fake cwd call [`set_fake_cwd`] afterwards.
 fn set_fake_env(pairs: &[(&str, &str)]) {
     FAKE_ENV.with(|map| {
         let mut map = map.borrow_mut();
@@ -234,11 +238,13 @@ fn set_fake_env(pairs: &[(&str, &str)]) {
             map.insert((*key).to_string(), (*value).to_string());
         }
     });
+    FAKE_CWD.with(|cwd| *cwd.borrow_mut() = None);
 }
 
 thread_local! {
-    /// Per-thread fake cwd for [`FakeEnv`], set via [`set_fake_cwd`].
-    /// `None` (the default) falls through to the real process cwd.
+    /// Per-thread fake cwd for [`FakeEnv`], set via [`set_fake_cwd`]
+    /// and reset by [`set_fake_env`]. `None` (the default) falls
+    /// through to the real process cwd.
     static FAKE_CWD: std::cell::RefCell<Option<PathBuf>> =
         const { std::cell::RefCell::new(None) };
 }
