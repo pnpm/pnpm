@@ -48,7 +48,11 @@ export type EditCommandOptions = Pick<Config, 'dir' | 'modulesDir'> & {
   editor?: string
 }
 
-function resolveSafePnpmPath (): string {
+/**
+ * Resolve a safe pnpm executable from PATH, excluding entries inside
+ * the project root to prevent project-controlled directory hijacking.
+ */
+export function resolveSafePnpmPath (projectRoot: string): string {
   const envPath = process.env.PATH || ''
   const pathDirs = envPath.split(path.delimiter)
   const exts = process.platform === 'win32' ? ['.exe', '.cmd', '.bat', '.ps1', ''] : ['']
@@ -57,22 +61,25 @@ function resolveSafePnpmPath (): string {
     if (!dir || !path.isAbsolute(dir)) {
       continue
     }
-    for (const ext of exts) {
-      const candidate = path.join(dir, `pnpm${ext}`)
-      try {
-        const stat = fs.statSync(candidate)
-        if (stat.isFile()) {
-          if (process.platform !== 'win32') {
-            fs.accessSync(candidate, fs.constants.X_OK)
+    const relative = path.relative(projectRoot, dir)
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+      for (const ext of exts) {
+        const candidate = path.join(dir, `pnpm${ext}`)
+        try {
+          const stat = fs.statSync(candidate)
+          if (stat.isFile()) {
+            if (process.platform !== 'win32') {
+              fs.accessSync(candidate, fs.constants.X_OK)
+            }
+            return candidate
           }
-          return candidate
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
       }
     }
   }
-  throw new PnpmError('EDIT_PNPM_NOT_FOUND', 'Could not find a pnpm executable on the PATH')
+  throw new PnpmError('EDIT_PNPM_NOT_FOUND', 'Could not find a safe pnpm executable on the PATH')
 }
 
 /**
@@ -225,7 +232,7 @@ export async function handler (opts: EditCommandOptions, params: string[]): Prom
       pnpmPath = execPath
       rebuildArgs = [pnpmScript, 'rebuild', pkgToRebuild]
     } else {
-      pnpmPath = resolveSafePnpmPath()
+      pnpmPath = resolveSafePnpmPath(lockfileDir)
       rebuildArgs = ['rebuild', pkgToRebuild]
     }
   }
