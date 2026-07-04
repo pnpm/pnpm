@@ -291,6 +291,7 @@ where
         .into_bytes();
 
     let dest_dir = resolve_dest_dir(&dir, pack_destination.as_deref());
+
     if !opts.dry_run {
         Sys::create_dir_all(&dest_dir).map_err(|source| PackError::CreateDir {
             path: dest_dir.display().to_string(),
