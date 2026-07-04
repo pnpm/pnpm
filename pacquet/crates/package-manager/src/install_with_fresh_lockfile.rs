@@ -211,8 +211,8 @@ pub enum UpdateSeedPolicy {
         /// only present as a transitive dependency, so there is no
         /// manifest entry to rewrite). Each entry joins the
         /// preferred-versions seed as a `range` selector at
-        /// [`REQUESTED_VERSION_SELECTOR_WEIGHT`], steering the target's
-        /// re-resolution to the requested version instead of
+        /// [`pacquet_resolving_resolver_base::REQUESTED_VERSION_SELECTOR_WEIGHT`],
+        /// steering the target's re-resolution to the requested version instead of
         /// highest-in-range. It must ride a `range` selector because
         /// `version`-pin selectors are dropped for update targets
         /// (`update_requested` in the npm picker).
