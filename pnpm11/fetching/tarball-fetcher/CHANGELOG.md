@@ -1,5 +1,13 @@
 # @pnpm/tarball-fetcher
 
+## 1102.0.3
+
+### Patch Changes
+
+- @pnpm/fetching.fetcher-base@1100.2.1
+- @pnpm/exec.prepare-package@1100.0.21
+- @pnpm/worker@1100.2.3
+
 ## 1102.0.2
 
 ### Patch Changes

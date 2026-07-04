@@ -1,5 +1,11 @@
 # @pnpm/resolving.jsr-specifier-parser
 
+## 1100.0.2
+
+### Patch Changes
+
+- 25c7388: pnpm now rejects `jsr:` specifiers whose package name is not a valid npm package name — an empty scope or name (e.g. `jsr:@scope/`), path separators inside the name, or any other shape `validate-npm-package-name` rejects — with `ERR_PNPM_INVALID_JSR_PACKAGE_NAME` instead of silently converting them into a malformed `@jsr/...` npm package name.
+
 ## 1100.0.1
 
 ### Patch Changes

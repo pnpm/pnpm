@@ -1,5 +1,16 @@
 # @pnpm/deps.graph-builder
 
+## 1100.0.19
+
+### Patch Changes
+
+- Updated dependencies [dcabb78]
+  - @pnpm/store.controller-types@1100.1.7
+  - @pnpm/deps.graph-hasher@1100.2.7
+  - @pnpm/hooks.types@1100.1.1
+  - @pnpm/lockfile.utils@1100.1.1
+  - @pnpm/lockfile.fs@1100.1.8
+
 ## 1100.0.18
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 1100.0.18
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1100.1.1
+- @pnpm/store.cafs@1100.1.12
+- @pnpm/lockfile.detect-dep-types@1100.0.13
+- @pnpm/lockfile.fs@1100.1.8
+
 ## 1100.0.17
 
 ### Patch Changes

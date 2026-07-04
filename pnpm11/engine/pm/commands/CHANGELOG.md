@@ -1,5 +1,35 @@
 # @pnpm/engine.pm.commands
 
+## 1101.2.0
+
+### Minor Changes
+
+- a33eeec: `pnpm self-update` and `packageManager` version-switching can now install and link pnpm v12 (the Rust port), published with equal content under both the `pnpm` and `@pnpm/exe` names on the `next-12` dist-tag. Its native binaries ship as `@pnpm/exe.<platform>-<arch>` packages, which pnpm's built-in installer links directly — no Node.js launcher, so the command pays no Node startup cost. v12 is initialized exactly like `@pnpm/exe`, including per-platform global-virtual-store hashing. From v12 onward the install converges on the unscoped `pnpm` package (the Rust exe) — even when updating from the SEA `@pnpm/exe` build.
+
+### Patch Changes
+
+- Updated dependencies [be6505a]
+- Updated dependencies [3425e80]
+- Updated dependencies [25c7388]
+- Updated dependencies [99982b9]
+- Updated dependencies [11a7fdd]
+- Updated dependencies [806c3ec]
+- Updated dependencies [c121235]
+- Updated dependencies [dcabb78]
+- Updated dependencies [a6c4d5f]
+  - @pnpm/global.packages@1100.0.10
+  - @pnpm/global.commands@1100.0.31
+  - @pnpm/config.reader@1101.11.0
+  - @pnpm/resolving.npm-resolver@1102.1.1
+  - @pnpm/store.connection-manager@1100.3.3
+  - @pnpm/installing.client@1100.2.11
+  - @pnpm/installing.env-installer@1102.0.3
+  - @pnpm/deps.graph-hasher@1100.2.7
+  - @pnpm/lockfile.types@1100.0.13
+  - @pnpm/store.controller@1102.0.3
+  - @pnpm/installing.deps-restorer@1102.1.2
+  - @pnpm/lockfile.fs@1100.1.8
+
 ## 1101.1.25
 
 ### Patch Changes

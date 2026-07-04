@@ -1,5 +1,18 @@
 # @pnpm/node.resolver
 
+## 1101.1.10
+
+### Patch Changes
+
+- Updated dependencies [2f389d6]
+- Updated dependencies [3425e80]
+- Updated dependencies [806c3ec]
+- Updated dependencies [c121235]
+- Updated dependencies [dcabb78]
+  - @pnpm/crypto.shasums-file@1100.1.3
+  - @pnpm/config.reader@1101.11.0
+  - @pnpm/resolving.resolver-base@1100.5.1
+
 ## 1101.1.9
 
 ### Patch Changes

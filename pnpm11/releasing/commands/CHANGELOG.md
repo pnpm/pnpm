@@ -1,5 +1,39 @@
 # @pnpm/releasing.commands
 
+## 1100.5.3
+
+### Patch Changes
+
+- d539172: Fixed pnpm pack and pnpm publish failing when prepack generates files that are included in the package and postpack cleans them up.
+- 2c7369d: `pnpm pack-app` now rejects `--entry` / `pnpm.app.entry` and `--output-dir` / `pnpm.app.outputDir` values that are absolute paths or escape the project directory via `..` (or a symlink that resolves outside it), and refuses to write the produced executable when its target path already exists as a symlink (or other non-regular file). This prevents a repository-controlled `package.json` from embedding host files (such as an SSH key) into the produced executable, writing build artifacts outside the project, or overwriting an arbitrary file through a committed symlink. The new error codes are `ERR_PNPM_PACK_APP_ENTRY_OUTSIDE_PROJECT`, `ERR_PNPM_PACK_APP_OUTPUT_DIR_OUTSIDE_PROJECT`, and `ERR_PNPM_PACK_APP_OUTPUT_FILE_NOT_REGULAR`.
+
+  When ad-hoc signing macOS targets, `pnpm pack-app` now runs the system `codesign` by absolute path and resolves `ldid` to a location outside the project, so a repository-controlled `node_modules/.bin` on `PATH` cannot hijack the signer.
+
+- f38e696: Hardened `pnpm deploy --force` so it refuses unsafe deploy targets such as workspace roots, parent directories, out-of-workspace paths, and symlinked target parents.
+- c121235: Fixed the topological order of `--filter`ed commands (`pnpm run`, `pnpm exec`, `pnpm publish`, `pnpm pack`, `pnpm rebuild`) when the selected projects depend on each other only transitively through projects that were not selected. Previously such selected projects could run concurrently or in the wrong order; now a project always runs after the selected projects it transitively depends on, while projects without a real dependency relationship still run concurrently. This now also holds for prod-only filters (`--filter-prod`), which resolve order through the production dependency graph so transitive production dependencies are respected without pulling back the dev dependencies the filter drops, and for selections that mix `--filter` with `--filter-prod` [#8335](https://github.com/pnpm/pnpm/issues/8335).
+- d539172: `pnpm pack` and `pnpm publish` no longer follow a symlinked workspace `LICENSE` file when injecting it into a package that has no license of its own. Following the symlink could pack bytes from outside the workspace into the published tarball.
+- Updated dependencies [be6505a]
+- Updated dependencies [3425e80]
+- Updated dependencies [806c3ec]
+- Updated dependencies [c121235]
+- Updated dependencies [dcabb78]
+- Updated dependencies [dcabb78]
+- Updated dependencies [1e81761]
+  - @pnpm/installing.commands@1100.10.2
+  - @pnpm/config.reader@1101.11.0
+  - @pnpm/workspace.projects-sorter@1100.0.8
+  - @pnpm/resolving.resolver-base@1100.5.1
+  - @pnpm/network.web-auth@1101.2.0
+  - @pnpm/engine.runtime.node-resolver@1101.1.10
+  - @pnpm/engine.runtime.commands@1100.1.8
+  - @pnpm/releasing.exportable-manifest@1100.1.9
+  - @pnpm/installing.client@1100.2.11
+  - @pnpm/fetching.directory-fetcher@1100.0.19
+  - @pnpm/lockfile.types@1100.0.13
+  - @pnpm/exec.lifecycle@1100.1.2
+  - @pnpm/fs.indexed-pkg-importer@1100.0.17
+  - @pnpm/lockfile.fs@1100.1.8
+
 ## 1100.5.2
 
 ### Patch Changes

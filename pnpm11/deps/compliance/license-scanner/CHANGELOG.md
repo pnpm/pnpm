@@ -1,5 +1,16 @@
 # @pnpm/license-scanner
 
+## 1100.0.22
+
+### Patch Changes
+
+- @pnpm/lockfile.types@1100.0.13
+- @pnpm/lockfile.utils@1100.1.1
+- @pnpm/store.pkg-finder@1100.0.19
+- @pnpm/lockfile.detect-dep-types@1100.0.13
+- @pnpm/lockfile.fs@1100.1.8
+- @pnpm/lockfile.walker@1100.0.13
+
 ## 1100.0.21
 
 ### Patch Changes

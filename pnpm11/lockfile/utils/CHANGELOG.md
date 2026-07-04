@@ -1,5 +1,14 @@
 # @pnpm/lockfile-utils
 
+## 1100.1.1
+
+### Patch Changes
+
+- Updated dependencies [dcabb78]
+  - @pnpm/resolving.resolver-base@1100.5.1
+  - @pnpm/hooks.types@1100.1.1
+  - @pnpm/lockfile.types@1100.0.13
+
 ## 1100.1.0
 
 ### Minor Changes

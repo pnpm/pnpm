@@ -1,5 +1,13 @@
 # @pnpm/deps.inspection.peers-checker
 
+## 1100.0.17
+
+### Patch Changes
+
+- ebb4096: `pnpm peers` no longer reports a conflict for a missing peer dependency that is ignored via `pnpm.peerDependencyRules.ignoreMissing`.
+  - @pnpm/lockfile.fs@1100.1.8
+  - @pnpm/lockfile.walker@1100.0.13
+
 ## 1100.0.16
 
 ### Patch Changes

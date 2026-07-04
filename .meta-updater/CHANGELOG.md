@@ -1,5 +1,11 @@
 # @pnpm-private/updater
 
+## 1100.0.22
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1100.1.8
+
 ## 1100.0.21
 
 ### Patch Changes

@@ -1,5 +1,33 @@
 # @pnpm/deps.inspection.commands
 
+## 1100.5.0
+
+### Minor Changes
+
+- e2e3c81: Added the `issues` command as an alias of `bugs`, so `pnpm issues` opens the package's bug tracker URL in the browser.
+
+### Patch Changes
+
+- Updated dependencies [be6505a]
+- Updated dependencies [3425e80]
+- Updated dependencies [25c7388]
+- Updated dependencies [99982b9]
+- Updated dependencies [11a7fdd]
+- Updated dependencies [ebb4096]
+- Updated dependencies [806c3ec]
+- Updated dependencies [c121235]
+- Updated dependencies [dcabb78]
+- Updated dependencies [a6c4d5f]
+  - @pnpm/global.packages@1100.0.10
+  - @pnpm/global.commands@1100.0.31
+  - @pnpm/config.reader@1101.11.0
+  - @pnpm/resolving.npm-resolver@1102.1.1
+  - @pnpm/deps.inspection.peers-checker@1100.0.17
+  - @pnpm/deps.inspection.outdated@1100.1.11
+  - @pnpm/resolving.default-resolver@1100.3.11
+  - @pnpm/lockfile.fs@1100.1.8
+  - @pnpm/deps.inspection.list@1100.0.21
+
 ## 1100.4.1
 
 ### Patch Changes

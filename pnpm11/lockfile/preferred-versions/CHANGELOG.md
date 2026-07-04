@@ -1,5 +1,14 @@
 # @pnpm/lockfile.preferred-versions
 
+## 1100.0.18
+
+### Patch Changes
+
+- dcabb78: Fixed a prototype-pollution hazard when seeding preferred versions: a dependency named `__proto__` in a manifest or in `pnpm-lock.yaml` could write through `Object.prototype` (or crash the install) while the preferred-versions map was being built. The maps are now null-prototype objects, so crafted package names land as plain keys.
+- Updated dependencies [dcabb78]
+  - @pnpm/resolving.resolver-base@1100.5.1
+  - @pnpm/lockfile.utils@1100.1.1
+
 ## 1100.0.17
 
 ### Patch Changes

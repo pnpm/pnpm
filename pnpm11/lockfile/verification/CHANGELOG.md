@@ -1,5 +1,16 @@
 # @pnpm/lockfile.verification
 
+## 1100.0.21
+
+### Patch Changes
+
+- Updated dependencies [dcabb78]
+  - @pnpm/resolving.resolver-base@1100.5.1
+  - @pnpm/installing.context@1100.0.21
+  - @pnpm/lockfile.types@1100.0.13
+  - @pnpm/lockfile.utils@1100.1.1
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1100.0.20
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/pnpmfile
 
+## 1100.0.17
+
+### Patch Changes
+
+- Updated dependencies [dcabb78]
+  - @pnpm/store.controller-types@1100.1.7
+  - @pnpm/hooks.types@1100.1.1
+  - @pnpm/lockfile.types@1100.0.13
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1100.0.16
 
 ### Patch Changes

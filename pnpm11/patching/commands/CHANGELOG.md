@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-patching
 
+## 1100.1.8
+
+### Patch Changes
+
+- Updated dependencies [be6505a]
+- Updated dependencies [3425e80]
+- Updated dependencies [806c3ec]
+- Updated dependencies [c121235]
+- Updated dependencies [dcabb78]
+  - @pnpm/installing.commands@1100.10.2
+  - @pnpm/config.reader@1101.11.0
+  - @pnpm/store.connection-manager@1100.3.3
+  - @pnpm/lockfile.utils@1100.1.1
+  - @pnpm/lockfile.fs@1100.1.8
+  - @pnpm/config.writer@1100.0.15
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/patching.apply-patch@1100.0.3
+
 ## 1100.1.7
 
 ### Patch Changes
