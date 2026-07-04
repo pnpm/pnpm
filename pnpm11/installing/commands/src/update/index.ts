@@ -20,7 +20,7 @@ import { pick, unnest } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import type { InstallCommandOptions } from '../install.js'
-import { installDeps } from '../installDeps.js'
+import { createVulnerabilityUpdateMatching, installDeps } from '../installDeps.js'
 import { parseUpdateParam } from '../recursive.js'
 import { createGlobalPolicyCallbacks } from '../resolutionPolicyManifest.js'
 import { getUpdateChoices } from './getUpdateChoices.js'
@@ -315,8 +315,7 @@ async function update (
   const depth = opts.depth ?? Infinity
   let updateMatching: UpdateMatchingFunction | undefined
   if (opts.packageVulnerabilityAudit != null) {
-    const { packageVulnerabilityAudit } = opts
-    updateMatching = (pkgName: string, version?: string) => version != null && packageVulnerabilityAudit.isVulnerable(pkgName, version)
+    updateMatching = createVulnerabilityUpdateMatching(opts.packageVulnerabilityAudit)
   } else if (
     (dependencies.length > 0) && dependencies.every(dep => !dep.substring(1).includes('@')) && depth > 0 && !opts.latest
   ) {

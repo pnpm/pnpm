@@ -899,10 +899,15 @@ async function resolveDependenciesOfDependency (
     updateShouldContinue &&
     (
       (options.updateMatching == null) ||
-      (
-        extendedWantedDep.infoFromLockfile?.name != null &&
-        options.updateMatching(extendedWantedDep.infoFromLockfile.name, extendedWantedDep.infoFromLockfile.version)
-      )
+      (extendedWantedDep.infoFromLockfile?.name != null
+        ? options.updateMatching(extendedWantedDep.infoFromLockfile.name, extendedWantedDep.infoFromLockfile.version)
+        // A changed specifier forgets the edge's lockfile reference before
+        // resolution (e.g. `pnpm audit --fix` widening a vulnerable pin), so
+        // the target would otherwise lose its updateRequested status — and
+        // keep its seeded lockfile pins — at the very moment it is being
+        // updated. Fall back to matching by the wanted alias.
+        : Boolean(extendedWantedDep.wantedDependency.alias) &&
+          options.updateMatching(extendedWantedDep.wantedDependency.alias!, undefined))
     )
   const update = updateRequested ||
   (

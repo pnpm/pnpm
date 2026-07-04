@@ -145,14 +145,17 @@ The fixed vulnerabilities are:
     expect(packagesArray).not.toContain(originalPkgId)
     expect(packagesArray).toContain(expectedPkgId)
 
-    // The vulnerable dependency's dependencies should also be updated
-    expect(packagesArray).not.toContain(originalDepPkgId)
-    expect(packagesArray).toContain(expectedDepPkgId)
+    // The vulnerable dependency's own dependencies keep their locked
+    // versions: the updated parent's range (^100.0.0) still admits the
+    // locked 100.0.0, and an update resolves exactly like a fresh install
+    // with the target's lockfile entries deleted — everything else stays
+    // pinned.
+    expect(packagesArray).toContain(originalDepPkgId)
+    expect(packagesArray).not.toContain(expectedDepPkgId)
 
     // All other packages should remain the same
     for (const pkgId of Object.keys(originalLockfile!.packages!)) {
       if (pkgId === originalPkgId) continue
-      if (pkgId === originalDepPkgId) continue
       expect(packagesArray).toContain(pkgId)
     }
   })
@@ -613,14 +616,17 @@ The fixed vulnerabilities are:
     expect(packagesArray).not.toContain(originalPkgId)
     expect(packagesArray).toContain(expectedPkgId)
 
-    // The vulnerable dependency's dependencies should also be updated
-    expect(packagesArray).not.toContain(originalDepPkgId)
-    expect(packagesArray).toContain(expectedDepPkgId)
+    // The vulnerable dependency's own dependencies keep their locked
+    // versions: the updated parent's range (^100.0.0) still admits the
+    // locked 100.0.0, and an update resolves exactly like a fresh install
+    // with the target's lockfile entries deleted — everything else stays
+    // pinned.
+    expect(packagesArray).toContain(originalDepPkgId)
+    expect(packagesArray).not.toContain(expectedDepPkgId)
 
     // All other packages should remain the same
     for (const pkgId of Object.keys(originalLockfile!.packages!)) {
       if (pkgId === originalPkgId) continue
-      if (pkgId === originalDepPkgId) continue
       expect(packagesArray).toContain(pkgId)
     }
   })
