@@ -1,5 +1,15 @@
 # @pnpm/default-reporter
 
+## 1100.3.4
+
+### Patch Changes
+
+- 991405e: Restore differential rendering (`ansi-diff`) to fix duplicated output lines introduced by pnpm/pnpm#12351.
+- Updated dependencies [3425e80]
+- Updated dependencies [806c3ec]
+- Updated dependencies [c121235]
+  - @pnpm/config.reader@1101.11.0
+
 ## 1100.3.3
 
 ### Patch Changes

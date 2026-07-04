@@ -1,5 +1,31 @@
 # @pnpm/global.commands
 
+## 1100.0.31
+
+### Patch Changes
+
+- be6505a: Hardened global package management:
+
+  - On Windows, removing or updating a global package now also cleans up the `node.exe` flavor of a bin, so a stale `node.exe` no longer survives on `PATH` after uninstall, and a new global install no longer silently overwrites an existing `node.exe`.
+  - `pnpm add -g pnpm@<version>` (and `@pnpm/exe@<version>`) is now rejected like the bare `pnpm` form, pointing to `pnpm self-update`.
+  - Dependency aliases read from a global package's manifest are validated before being joined onto `node_modules` paths, preventing a tampered manifest from escaping the install directory.
+  - Each global install group is created in its own freshly-made directory (no longer reusing a colliding or pre-existing path).
+  - Removing or updating a global package no longer unlinks a bin that belongs to a different globally installed package.
+
+- Updated dependencies [dcabb78]
+- Updated dependencies [be6505a]
+- Updated dependencies [3425e80]
+- Updated dependencies [ce5d5a5]
+- Updated dependencies [1dd12bd]
+- Updated dependencies [806c3ec]
+- Updated dependencies [c121235]
+  - @pnpm/installing.deps-installer@1102.2.0
+  - @pnpm/bins.remover@1100.0.12
+  - @pnpm/global.packages@1100.0.10
+  - @pnpm/config.reader@1101.11.0
+  - @pnpm/store.connection-manager@1100.3.3
+  - @pnpm/deps.inspection.list@1100.0.21
+
 ## 1100.0.30
 
 ### Patch Changes

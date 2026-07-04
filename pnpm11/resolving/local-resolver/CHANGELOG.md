@@ -1,5 +1,13 @@
 # @pnpm/local-resolver
 
+## 1101.1.8
+
+### Patch Changes
+
+- Updated dependencies [dcabb78]
+  - @pnpm/resolving.resolver-base@1100.5.1
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1101.1.7
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/fetcher-base
 
+## 1100.2.1
+
+### Patch Changes
+
+- Updated dependencies [dcabb78]
+  - @pnpm/resolving.resolver-base@1100.5.1
+
 ## 1100.2.0
 
 ### Minor Changes

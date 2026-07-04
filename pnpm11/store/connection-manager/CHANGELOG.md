@@ -1,5 +1,18 @@
 # @pnpm/store-connection-manager
 
+## 1100.3.3
+
+### Patch Changes
+
+- Updated dependencies [3425e80]
+- Updated dependencies [806c3ec]
+- Updated dependencies [c121235]
+- Updated dependencies [dcabb78]
+  - @pnpm/config.reader@1101.11.0
+  - @pnpm/resolving.resolver-base@1100.5.1
+  - @pnpm/installing.client@1100.2.11
+  - @pnpm/store.controller@1102.0.3
+
 ## 1100.3.2
 
 ### Patch Changes

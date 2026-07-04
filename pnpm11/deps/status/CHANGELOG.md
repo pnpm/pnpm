@@ -1,5 +1,23 @@
 # @pnpm/deps.status
 
+## 1100.1.4
+
+### Patch Changes
+
+- ce5d5a5: Relative paths in `patchedDependencies` are now resolved against the lockfile directory when computing patch file hashes, so running `pnpm install` from a subdirectory no longer fails with `ENOENT` looking for the patch file in the wrong location [#12762](https://github.com/pnpm/pnpm/pull/12762).
+- Updated dependencies [3425e80]
+- Updated dependencies [ce5d5a5]
+- Updated dependencies [806c3ec]
+- Updated dependencies [c121235]
+- Updated dependencies [dcabb78]
+  - @pnpm/config.reader@1101.11.0
+  - @pnpm/lockfile.settings-checker@1100.1.0
+  - @pnpm/resolving.resolver-base@1100.5.1
+  - @pnpm/workspace.state@1100.0.25
+  - @pnpm/installing.context@1100.0.21
+  - @pnpm/lockfile.verification@1100.0.21
+  - @pnpm/lockfile.fs@1100.1.8
+
 ## 1100.1.3
 
 ### Patch Changes

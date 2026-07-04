@@ -1,5 +1,25 @@
 # @pnpm/deps.compliance.commands
 
+## 1101.5.1
+
+### Patch Changes
+
+- Updated dependencies [be6505a]
+- Updated dependencies [3425e80]
+- Updated dependencies [806c3ec]
+- Updated dependencies [c121235]
+- Updated dependencies [dcabb78]
+  - @pnpm/installing.commands@1100.10.2
+  - @pnpm/config.reader@1101.11.0
+  - @pnpm/deps.compliance.sbom@1100.3.1
+  - @pnpm/lockfile.types@1100.0.13
+  - @pnpm/lockfile.utils@1100.1.1
+  - @pnpm/deps.compliance.audit@1101.0.19
+  - @pnpm/deps.compliance.license-scanner@1100.0.22
+  - @pnpm/lockfile.fs@1100.1.8
+  - @pnpm/lockfile.walker@1100.0.13
+  - @pnpm/config.writer@1100.0.15
+
 ## 1101.5.0
 
 ### Minor Changes

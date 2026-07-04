@@ -1,5 +1,11 @@
 # @pnpm/testing.registry-mock
 
+## 1100.0.8
+
+### Patch Changes
+
+- @pnpm/registry-access.client@1100.1.6
+
 ## 1100.0.7
 
 ### Patch Changes

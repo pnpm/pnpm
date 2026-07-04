@@ -1,5 +1,21 @@
 # @pnpm/cache.api
 
+## 1100.0.25
+
+### Patch Changes
+
+- Updated dependencies [3425e80]
+- Updated dependencies [25c7388]
+- Updated dependencies [99982b9]
+- Updated dependencies [11a7fdd]
+- Updated dependencies [806c3ec]
+- Updated dependencies [c121235]
+- Updated dependencies [dcabb78]
+- Updated dependencies [a6c4d5f]
+  - @pnpm/config.reader@1101.11.0
+  - @pnpm/resolving.npm-resolver@1102.1.1
+  - @pnpm/store.cafs@1100.1.12
+
 ## 1100.0.24
 
 ### Patch Changes

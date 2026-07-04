@@ -1,5 +1,12 @@
 # @pnpm/registry-access.client
 
+## 1100.1.6
+
+### Patch Changes
+
+- Updated dependencies [1e81761]
+  - @pnpm/network.web-auth@1101.2.0
+
 ## 1100.1.5
 
 ### Patch Changes

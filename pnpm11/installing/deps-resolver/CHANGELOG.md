@@ -1,5 +1,28 @@
 # @pnpm/resolve-dependencies
 
+## 1100.2.6
+
+### Patch Changes
+
+- dcabb78: Fixed a prototype-pollution hazard when seeding preferred versions: a dependency named `__proto__` in a manifest or in `pnpm-lock.yaml` could write through `Object.prototype` (or crash the install) while the preferred-versions map was being built. The maps are now null-prototype objects, so crafted package names land as plain keys.
+- dcabb78: Fixed `pnpm up <pkg>` producing a different result than a fresh install of the same manifests would. The resolver now distinguishes `updateRequested` (true only for packages that match the user's update target) from the broader `update` flag, and for the targeted package ignores only its own lockfile-derived preferred-version pins — so the target re-resolves exactly as if its lockfile entries were deleted and `pnpm install` ran. Preferred versions a fresh install applies (manifest pins, versions propagated down the dependency chain, and the vulnerability-avoidance penalties of `pnpm audit --fix`) stay in effect, so an update never installs duplicate versions that a reinstall from scratch would not reproduce. When a preferred version holds the update target below the newest version its range admits, pnpm now prints a warning explaining that reaching the newer version everywhere requires an override.
+- Updated dependencies [25c7388]
+- Updated dependencies [99982b9]
+- Updated dependencies [11a7fdd]
+- Updated dependencies [dcabb78]
+- Updated dependencies [dcabb78]
+- Updated dependencies [a6c4d5f]
+  - @pnpm/resolving.npm-resolver@1102.1.1
+  - @pnpm/lockfile.preferred-versions@1100.0.18
+  - @pnpm/resolving.resolver-base@1100.5.1
+  - @pnpm/store.controller-types@1100.1.7
+  - @pnpm/deps.graph-hasher@1100.2.7
+  - @pnpm/fetching.pick-fetcher@1100.0.14
+  - @pnpm/hooks.types@1100.1.1
+  - @pnpm/lockfile.types@1100.0.13
+  - @pnpm/lockfile.utils@1100.1.1
+  - @pnpm/lockfile.pruner@1100.0.13
+
 ## 1100.2.5
 
 ### Patch Changes

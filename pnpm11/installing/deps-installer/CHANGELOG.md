@@ -1,5 +1,50 @@
 # @pnpm/core
 
+## 1102.2.0
+
+### Minor Changes
+
+- 1dd12bd: When resolving through a pnpr install-accelerator server, pnpm no longer forwards its own upstream registry credentials in the resolve request. Only the `Authorization` header identifying the caller to pnpr is sent. The pnpr server now selects upstream credentials from its own route policy (operator-configured upstream credential aliases), so private dependencies resolve through a pnpr-managed alias the caller is authorized to use, rather than by sending the client's registry tokens to the server.
+
+### Patch Changes
+
+- dcabb78: Fixed `pnpm up -r <pkg>` bumping unrelated packages that have open semver ranges. Previously, any update mutation nullified the lockfile-derived `preferredVersions` globally, so packages with `^x.y.z` ranges could re-resolve to newer compatible versions even though the user only asked to update a specific package. The install layer now always seeds `preferredVersions` from the lockfile, and caller-supplied preferred versions (such as the vulnerability penalties of `pnpm audit --fix`) layer on top of the seed instead of replacing it. The targeted package still bumps: the per-resolve `updateRequested` flag makes the resolver ignore the target's own lockfile pins.
+
+  Closes pnpm/pnpm#10662.
+
+- ce5d5a5: Relative paths in `patchedDependencies` are now resolved against the lockfile directory when computing patch file hashes, so running `pnpm install` from a subdirectory no longer fails with `ENOENT` looking for the patch file in the wrong location [#12762](https://github.com/pnpm/pnpm/pull/12762).
+- Updated dependencies [be6505a]
+- Updated dependencies [ce5d5a5]
+- Updated dependencies [1dd12bd]
+- Updated dependencies [dcabb78]
+- Updated dependencies [dcabb78]
+  - @pnpm/bins.remover@1100.0.12
+  - @pnpm/lockfile.settings-checker@1100.1.0
+  - @pnpm/pnpr.client@1.3.0
+  - @pnpm/lockfile.preferred-versions@1100.0.18
+  - @pnpm/installing.deps-resolver@1100.2.6
+  - @pnpm/resolving.resolver-base@1100.5.1
+  - @pnpm/store.controller-types@1100.1.7
+  - @pnpm/installing.linking.modules-cleaner@1100.1.10
+  - @pnpm/building.after-install@1102.0.3
+  - @pnpm/building.during-install@1102.0.3
+  - @pnpm/deps.graph-hasher@1100.2.7
+  - @pnpm/hooks.types@1100.1.1
+  - @pnpm/installing.context@1100.0.21
+  - @pnpm/installing.package-requester@1102.1.1
+  - @pnpm/lockfile.utils@1100.1.1
+  - @pnpm/lockfile.verification@1100.0.21
+  - @pnpm/exec.lifecycle@1100.1.2
+  - @pnpm/installing.deps-restorer@1102.1.2
+  - @pnpm/lockfile.filtering@1100.1.9
+  - @pnpm/lockfile.fs@1100.1.8
+  - @pnpm/lockfile.pruner@1100.0.13
+  - @pnpm/lockfile.walker@1100.0.13
+  - @pnpm/lockfile.to-pnp@1100.1.2
+  - @pnpm/worker@1100.2.3
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/fs.symlink-dependency@1100.0.10
+
 ## 1102.1.1
 
 ### Patch Changes

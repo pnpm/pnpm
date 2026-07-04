@@ -1,5 +1,22 @@
 # @pnpm/resolving.deno-resolver
 
+## 1102.0.3
+
+### Patch Changes
+
+- Updated dependencies [2f389d6]
+- Updated dependencies [25c7388]
+- Updated dependencies [99982b9]
+- Updated dependencies [11a7fdd]
+- Updated dependencies [dcabb78]
+- Updated dependencies [a6c4d5f]
+  - @pnpm/crypto.shasums-file@1100.1.3
+  - @pnpm/resolving.npm-resolver@1102.1.1
+  - @pnpm/resolving.resolver-base@1100.5.1
+  - @pnpm/fetching.fetcher-base@1100.2.1
+  - @pnpm/fetching.binary-fetcher@1102.0.2
+  - @pnpm/worker@1100.2.3
+
 ## 1102.0.2
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/network.web-auth
 
+## 1101.2.0
+
+### Minor Changes
+
+- 1e81761: Expose web authentication `authUrl` and `doneUrl` in JSON error output when OTP is required in a non-interactive terminal [#12724](https://github.com/pnpm/pnpm/issues/12724).
+
 ## 1101.1.2
 
 ### Patch Changes

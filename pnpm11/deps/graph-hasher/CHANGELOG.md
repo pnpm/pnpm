@@ -1,5 +1,14 @@
 # @pnpm/calc-dep-state
 
+## 1100.2.7
+
+### Patch Changes
+
+- Updated dependencies [dcabb78]
+  - @pnpm/resolving.resolver-base@1100.5.1
+  - @pnpm/lockfile.types@1100.0.13
+  - @pnpm/lockfile.utils@1100.1.1
+
 ## 1100.2.6
 
 ### Patch Changes
