@@ -91,6 +91,38 @@ describe('edit command', () => {
     }
   })
 
+  test('resolveSafePnpmPath rejects symlinked PATH entry pointing into project', async () => {
+    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-edit-test-'))
+    const safeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'safe-bin-'))
+    const symlinkBase = fs.mkdtempSync(path.join(os.tmpdir(), 'symlink-base-'))
+    try {
+      const trapDir = path.join(projectDir, 'node_modules', '.bin')
+      fs.mkdirSync(trapDir, { recursive: true })
+      const trapPnpm = path.join(trapDir, 'pnpm')
+      fs.writeFileSync(trapPnpm, '', { mode: 0o755 })
+
+      const symlinkDir = path.join(symlinkBase, 'hijacked-bin')
+      fs.symlinkSync(trapDir, symlinkDir, 'dir')
+
+      const safePnpm = path.join(safeDir, 'pnpm')
+      fs.writeFileSync(safePnpm, '', { mode: 0o755 })
+
+      const origPath = process.env.PATH
+      try {
+        process.env.PATH = `${symlinkDir}${path.delimiter}${safeDir}`
+        const editModule = await import('@pnpm/patching.commands')
+        const result = editModule.edit.resolveSafePnpmPath(projectDir)
+        expect(result).toBe(safePnpm)
+      } finally {
+        process.env.PATH = origPath
+      }
+    } finally {
+      fs.rmSync(projectDir, { recursive: true, force: true })
+      fs.rmSync(safeDir, { recursive: true, force: true })
+      fs.rmSync(symlinkBase, { recursive: true, force: true })
+    }
+  })
+
   test('edit fails for missing package', async () => {
     prepare()
     const options = {
