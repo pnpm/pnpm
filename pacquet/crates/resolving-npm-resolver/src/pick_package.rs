@@ -51,7 +51,7 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
-use dashmap::{DashMap, DashSet};
+use dashmap::DashMap;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::version_policy::{PackageVersionPolicy, PolicyMatch};
@@ -76,6 +76,18 @@ use crate::{
     registry_url::to_registry_url,
 };
 
+/// A cached packument together with its registry-verification state.
+/// The two travel as one value so a reader can never pair a packument
+/// with the verification state of a concurrent overwrite.
+#[derive(Clone, Debug)]
+pub struct CachedPackument {
+    pub meta: Arc<Package>,
+    /// `false` when the packument was parsed straight from the
+    /// on-disk mirror without a validating registry round-trip (see
+    /// [`PackageMetaCache::set_unverified`]).
+    pub registry_verified: bool,
+}
+
 /// In-memory packument cache the orchestrator consults before any
 /// disk read. A thin map abstraction so a long-lived install can
 /// share one cache across many [`pick_package`] calls.
@@ -86,12 +98,12 @@ use crate::{
 /// contention shows up in benchmarks.
 pub trait PackageMetaCache: Send + Sync {
     /// Shared handle to the cached packument for `key`, or `None`
-    /// when the cache hasn't seen it. Returned as
+    /// when the cache hasn't seen it. The packument is carried as
     /// [`Arc<Package>`] so cross-resolve sharing of a popular
     /// packument (`react`, `lodash`, ...) doesn't deep-clone the
     /// full versions map on every consumer's hit. Returns shared
     /// references, not copies.
-    fn get(&self, key: &str) -> Option<Arc<Package>>;
+    fn get(&self, key: &str) -> Option<CachedPackument>;
     /// Insert/overwrite `meta` under `key`. The orchestrator inserts
     /// after a fresh fetch and after any disk-fast-path that returns
     /// successfully — populating the cache from the disk read avoids
@@ -103,34 +115,27 @@ pub trait PackageMetaCache: Send + Sync {
     /// [`Arc<Package>`] so callers can share the same handle they
     /// hand back to [`PickPackageResult`] without an extra clone.
     ///
-    /// Clears any registry-unverified marker a previous
-    /// [`PackageMetaCache::set_unverified`] left on `key`: the caller
-    /// vouches that `meta` came from (or was revalidated by) the
-    /// registry.
+    /// The caller vouches that `meta` came from (or was revalidated
+    /// by) the registry: the entry replaces any registry-unverified
+    /// one a previous [`PackageMetaCache::set_unverified`] stored
+    /// under `key`.
     fn set(&self, key: String, meta: Arc<Package>);
 
-    /// Like [`PackageMetaCache::set`], but remembers the entry as
+    /// Like [`PackageMetaCache::set`], but stores the entry as
     /// registry-unverified: it was parsed straight from the on-disk
     /// mirror without a validating registry round-trip, so it may
     /// predate versions the registry has. [`pick_package`] uses the
-    /// marker to fall through to a conditional registry request —
+    /// state to fall through to a conditional registry request —
     /// instead of failing the pick — when a cache hit on such an entry
     /// can't satisfy the requested spec and the resolver isn't offline.
     /// The verified [`PackageMetaCache::set`] the fetch then performs
-    /// clears the marker, so each package revalidates at most once.
+    /// replaces the entry, so each package revalidates at most once.
     ///
-    /// The default implementation drops the marker (every entry reads
-    /// as verified), which keeps custom caches on the terminal
-    /// cache-hit behavior: a failed pick on a hit is a failed pick.
+    /// The default implementation stores the entry as verified, which
+    /// keeps custom caches on the terminal cache-hit behavior: a
+    /// failed pick on a hit is a failed pick.
     fn set_unverified(&self, key: String, meta: Arc<Package>) {
         self.set(key, meta);
-    }
-
-    /// Whether the entry under `key` was stored via
-    /// [`PackageMetaCache::set_unverified`] and hasn't since been
-    /// replaced through a verified [`PackageMetaCache::set`].
-    fn is_unverified(&self, _key: &str) -> bool {
-        false
     }
 }
 
@@ -201,32 +206,20 @@ pub fn shared_picked_manifest_cache() -> PickedManifestCache {
 /// top contention point of a warm-resolve time profile.
 #[derive(Debug, Default)]
 pub struct InMemoryPackageMetaCache {
-    inner: DashMap<String, Arc<Package>>,
-    /// Keys whose current entry came through
-    /// [`PackageMetaCache::set_unverified`]. Marker and entry are not
-    /// updated atomically; a concurrent reader can at worst observe a
-    /// stale marker, costing one redundant revalidation or one
-    /// terminal (pre-marker behavior) pick — never a wrong pick.
-    unverified: DashSet<String>,
+    inner: DashMap<String, CachedPackument>,
 }
 
 impl PackageMetaCache for InMemoryPackageMetaCache {
-    fn get(&self, key: &str) -> Option<Arc<Package>> {
-        self.inner.get(key).map(|entry| Arc::clone(entry.value()))
+    fn get(&self, key: &str) -> Option<CachedPackument> {
+        self.inner.get(key).map(|entry| entry.value().clone())
     }
 
     fn set(&self, key: String, meta: Arc<Package>) {
-        self.unverified.remove(&key);
-        self.inner.insert(key, meta);
+        self.inner.insert(key, CachedPackument { meta, registry_verified: true });
     }
 
     fn set_unverified(&self, key: String, meta: Arc<Package>) {
-        self.unverified.insert(key.clone());
-        self.inner.insert(key, meta);
-    }
-
-    fn is_unverified(&self, key: &str) -> bool {
-        self.unverified.contains(key)
+        self.inner.insert(key, CachedPackument { meta, registry_verified: false });
     }
 }
 
@@ -766,12 +759,14 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
     use_filtered_full_metadata: bool,
     cache_key: &str,
     pkg_mirror: Option<&Path>,
-    cached: Arc<Package>,
+    cached: CachedPackument,
 ) -> Result<Option<PickPackageResult>, PickPackageError> {
     let upgrade =
-        maybe_upgrade_abbreviated_meta_for_release_age(ctx, spec, opts, full_metadata, cached)
+        maybe_upgrade_abbreviated_meta_for_release_age(ctx, spec, opts, full_metadata, cached.meta)
             .await?;
     let meta = upgrade.meta;
+    // The upgrade fetch (re)validated the packument against the registry.
+    let registry_verified = cached.registry_verified || upgrade.upgraded;
     if upgrade.upgraded && !opts.dry_run {
         if let Some(path) = pkg_mirror {
             persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata);
@@ -779,7 +774,7 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
         ctx.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
     }
     let (meta, picked) = pick_from_meta(picker_opts, spec, meta, opts.blocked_versions)?;
-    if picked.is_none() && !ctx.offline && ctx.meta_cache.is_unverified(cache_key) {
+    if picked.is_none() && !ctx.offline && !registry_verified {
         return Ok(None);
     }
     Ok(Some(PickPackageResult { meta, picked_package: picked }))

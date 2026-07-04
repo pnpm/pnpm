@@ -289,6 +289,20 @@ async fn offline_without_mirror_errors() {
     assert!(matches!(err, PickPackageError::NoOfflineMeta { .. }), "got {err:?}");
 }
 
+/// The verification state lives inside the cache entry, so an
+/// overwrite can never be observed with the previous entry's state.
+#[test]
+fn meta_cache_tracks_registry_verification_per_entry() {
+    let cache = InMemoryPackageMetaCache::default();
+    let meta: pacquet_registry::Package =
+        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+    let meta = Arc::new(meta);
+    cache.set_unverified("k".to_string(), Arc::clone(&meta));
+    assert!(!cache.get("k").expect("entry").registry_verified);
+    cache.set("k".to_string(), meta);
+    assert!(cache.get("k").expect("entry").registry_verified);
+}
+
 /// A second offline resolve succeeds after the mirror file is deleted,
 /// proving the first resolve promoted the disk-loaded packument into
 /// the in-memory cache instead of re-reading disk per dependent.

@@ -703,6 +703,7 @@ impl NpmResolutionVerifier {
         cache
             .get(&format!("{name_str}:full"))
             .or_else(|| cache.get(&name_str))
+            .map(|cached| cached.meta)
             .filter(|meta| meta.name == name_str)
     }
 
@@ -812,8 +813,8 @@ impl NpmResolutionVerifier {
             // the full form carries.
             let shared =
                 self.meta_cache.as_ref().and_then(|cache| cache.get(&format!("{key}:full")));
-            if let Some(meta) = shared {
-                return Ok(Arc::new(project_trust_meta(meta.as_ref())));
+            if let Some(cached) = shared {
+                return Ok(Arc::new(project_trust_meta(cached.meta.as_ref())));
             }
             // Project the packument to just the fields `fail_if_trust_downgraded`
             // reads before stashing in the cache. The full document — dependency
