@@ -6,9 +6,9 @@ use pacquet_resolving_resolver_base::{
 /// keeping `range` and `tag` selectors. Used for the user's update
 /// target: the exact pins a sibling propagated must not hold the target
 /// down, but `range`/`tag` selectors — e.g. the vulnerability-avoidance
-/// penalties pnpm injects — must keep steering it. Mirrors pnpm's
-/// `stripVersionPins`. Returns `None` when nothing remains, so the
-/// caller treats it the same as "no preferred versions".
+/// penalties `pnpm audit --fix` injects — must keep steering it.
+/// Returns `None` when nothing remains, so the caller treats it the
+/// same as "no preferred versions".
 pub(crate) fn strip_version_pins(selectors: &VersionSelectors) -> Option<VersionSelectors> {
     let kept: VersionSelectors = selectors
         .iter()

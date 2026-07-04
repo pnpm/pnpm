@@ -48,7 +48,7 @@ use pacquet_lockfile::{
 /// Which dependencies `pacquet update` excludes from lockfile-resolution
 /// reuse. An excluded package re-resolves to highest-in-range, and its
 /// whole subtree re-resolves with it (so the bump's new transitive deps
-/// are picked up). Mirrors pnpm's `update` re-resolution scope.
+/// are picked up).
 #[derive(Default, Clone)]
 pub enum UpdateReuseScope {
     /// Reuse every still-satisfied dependency. `install` / `add`.
@@ -65,10 +65,10 @@ pub enum UpdateReuseScope {
 /// How the current [`fn@resolve_node`] call may reuse the prior
 /// lockfile's resolution instead of re-resolving from the registry.
 ///
-/// Threaded down the recursion to faithfully port pnpm's
-/// `resolvedDependencies` / `parentPkg.updated` mechanism
-/// (`resolveChildren` / `getDepsToResolve` in
-/// [`resolveDependencies.ts`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1000-L1248)).
+/// Threaded down the recursion to drive the `resolvedDependencies` /
+/// `parentPkg.updated` reuse mechanism: an updated parent discards its
+/// child-refs so the subtree re-resolves, while a non-updated parent
+/// keeps them alive.
 #[derive(Clone)]
 enum ReuseSource {
     /// A direct dependency of importer `importer_id`. Reuse matches the
@@ -79,14 +79,14 @@ enum ReuseSource {
     /// snapshot already pins. `Some` reuses that key directly (no semver
     /// check — the parent version pins it); `None` means an updated
     /// ancestor discarded its child-refs, forcing this subtree to
-    /// re-resolve (pnpm's `parentPkg.updated ? undefined : refs`).
+    /// re-resolve.
     Transitive { key: Option<PkgNameVerPeer> },
     /// A child of a freshly-resolved parent: subtree reuse stays
     /// disabled, but when the parent re-resolved to its previously
     /// recorded version the child's prior snapshot ref is still
     /// meaningful — it feeds the `currentPkg` payload of the child's
-    /// own re-resolution. Mirrors pnpm, where a non-`updated` parent
-    /// keeps `resolvedDependencies` references alive.
+    /// own re-resolution. This is the non-`updated`-parent case, where
+    /// the prior `resolvedDependencies` references stay alive.
     PriorOnly { key: Option<PkgNameVerPeer> },
     /// Reuse disabled for this node (no prior lockfile).
     Off,
@@ -96,8 +96,8 @@ impl ReuseSource {
     /// The prior lockfile snapshot key recorded for this edge, if any —
     /// the basis of both subtree reuse and the `currentPkg` payload.
     /// The `Importer` arm applies the semver-satisfies gate
-    /// ([`reusable_importer_dep`]), mirroring pnpm's
-    /// `referenceSatisfiesWantedSpec` guard on lockfile references.
+    /// ([`reusable_importer_dep`]): a lockfile reference is only reused
+    /// when the recorded version still satisfies the wanted spec.
     fn prior_key(&self, ctx: &TreeCtx, wanted: &WantedDependency) -> Option<PkgNameVerPeer> {
         let lockfile = ctx.workspace.wanted_lockfile.as_ref()?;
         match self {
@@ -121,10 +121,9 @@ impl ReuseSource {
 
 /// Options threaded into [`fn@resolve_dependency_tree`].
 ///
-/// Mirrors upstream's per-importer options; pacquet's slice is single-
-/// importer so the bag is smaller. `base_opts` is the [`ResolveOptions`]
-/// every per-package `resolve()` call sees; the tree walker doesn't
-/// mutate it.
+/// This entry point is single-importer, so the option bag is small.
+/// `base_opts` is the [`ResolveOptions`] every per-package `resolve()`
+/// call sees; the tree walker doesn't mutate it.
 ///
 /// Peer auto-installation lives one layer up in
 /// [`fn@crate::resolve_importer`] — this entry point is a pure tree walker
@@ -164,11 +163,9 @@ impl std::fmt::Debug for ResolveDependencyTreeOptions {
 /// resolver returned and yields either the same `Arc` (no-op) or a
 /// fresh `Arc` carrying a deep-cloned + extended manifest.
 ///
-/// Mirrors upstream's
-/// [`ReadPackageHook`](https://github.com/pnpm/pnpm/blob/39101f5e37/hooks/types/src/index.ts)
-/// signature collapsed to the only field pacquet currently touches
-/// (the manifest). Threaded into [`TreeCtx`] so a single
-/// `Arc::clone` reaches every recursive call.
+/// A `readPackage`-hook signature collapsed to the only field pacquet
+/// currently touches (the manifest). Threaded into [`TreeCtx`] so a
+/// single `Arc::clone` reaches every recursive call.
 pub type ManifestHook = Arc<dyn Fn(Arc<Value>) -> Arc<Value> + Send + Sync>;
 
 /// Error envelope returned by the tree walker.
@@ -179,8 +176,8 @@ pub enum ResolveDependencyTreeError {
     #[display("Failed to resolve dependency: {_0}")]
     Resolve(#[error(not(source))] String),
 
-    /// No resolver in the chain claimed the spec. Mirrors pnpm's
-    /// [`SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`](https://github.com/pnpm/pnpm/blob/097983fbca/resolving/default-resolver/src/index.ts#L148-L156).
+    /// No resolver in the chain claimed the spec, raised with the
+    /// `SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` code.
     #[display("\"{specifier}\" isn't supported by any available resolver.")]
     #[diagnostic(code(SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER))]
     SpecNotSupported {
@@ -190,7 +187,7 @@ pub enum ResolveDependencyTreeError {
 
     /// A `catalog:` specifier on a direct dependency referenced a
     /// missing entry, used a forbidden protocol, or was otherwise
-    /// misconfigured. The inner error carries the upstream
+    /// misconfigured. The inner error carries the
     /// `ERR_PNPM_CATALOG_ENTRY_*` code and message.
     #[diagnostic(transparent)]
     CatalogMisconfiguration(#[error(source)] CatalogResolutionError),
@@ -205,8 +202,7 @@ pub enum ResolveDependencyTreeError {
 
     /// A transitive dependency was resolved through an exotic
     /// protocol (git, tarball, file, ...) while `block_exotic_subdeps`
-    /// is on. Mirrors pnpm's
-    /// [`EXOTIC_SUBDEP`](https://github.com/pnpm/pnpm/blob/df990fdb51/installing/deps-resolver/src/resolveDependencies.ts#L1420-L1434).
+    /// is on, raised with the `EXOTIC_SUBDEP` code.
     #[display(
         "Exotic dependency \"{specifier}\" (resolved via {resolved_via}) is not allowed in subdependencies when blockExoticSubdeps is enabled"
     )]
@@ -219,8 +215,7 @@ pub enum ResolveDependencyTreeError {
 
     /// A dependency alias contained a path-separator segment that would
     /// escape the intended `node_modules` directory when joined onto a
-    /// modules path. Mirrors pnpm's
-    /// [`INVALID_DEPENDENCY_NAME`](https://github.com/pnpm/pnpm/blob/main/installing/deps-resolver/src/validateDependencyAlias.ts).
+    /// modules path, raised with the `INVALID_DEPENDENCY_NAME` code.
     #[display(
         "{parent} contains a dependency with an invalid name: {alias:?}. Dependency names must be a single package name or \"@scope/name\" — they cannot contain path-separator segments such as \"..\"."
     )]
@@ -232,8 +227,8 @@ pub enum ResolveDependencyTreeError {
     },
 
     /// A pnpmfile hook (`readPackage`) threw, timed out, or returned an
-    /// invalid package manifest. Mirrors pnpm's `PNPMFILE_FAIL` /
-    /// `BAD_READ_PACKAGE_HOOK_RESULT`: a bad hook aborts the install.
+    /// invalid package manifest. Carries the `PNPMFILE_FAIL` /
+    /// `BAD_READ_PACKAGE_HOOK_RESULT` code: a bad hook aborts the install.
     #[display("{_0}")]
     #[diagnostic(code(PNPMFILE_FAIL))]
     PnpmfileHook(#[error(not(source))] pacquet_hooks::HookError),
@@ -251,9 +246,7 @@ impl From<PatchKeyConflictError> for ResolveDependencyTreeError {
 /// carries both the flat dedup map (`packages`) and the per-occurrence
 /// tree (`dependencies_tree`).
 ///
-/// Mirrors upstream's
-/// [`resolveDependencyTree`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencyTree.ts#L172-L357)
-/// for the npm-shaped slice pacquet currently exposes.
+/// Covers the npm-shaped slice pacquet currently exposes.
 ///
 /// Resolves siblings in parallel via `try_join_all` at every level.
 /// The per-package dedupe gate is a shared `HashMap` behind a
@@ -303,10 +296,8 @@ where
 
 /// Collect the names of the importer manifest's `optionalDependencies`
 /// entries so the walker can tag each direct dep with the right
-/// `wanted.optional` flag. Mirrors upstream's per-alias classification
-/// in [`getWantedDependenciesFromGivenSet`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/getWantedDependencies.ts#L57-L72):
-/// `optionalDependencies` wins over the other groups when an alias
-/// appears in more than one. Pacquet builds the same set so the
+/// `wanted.optional` flag. `optionalDependencies` wins over the other
+/// groups when an alias appears in more than one, so the
 /// `ResolvedPackage.optional` propagation starts from the right
 /// per-direct-dep value.
 pub(crate) fn importer_optional_dependency_names(manifest: &PackageManifest) -> HashSet<String> {
@@ -314,14 +305,12 @@ pub(crate) fn importer_optional_dependency_names(manifest: &PackageManifest) -> 
 }
 
 /// Collect the names of the importer manifest's `dependenciesMeta` entries
-/// whose `injected` flag is `true`. Mirrors upstream's per-alias
-/// [`injected: opts.dependenciesMeta[alias]?.injected`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/getWantedDependencies.ts#L73)
-/// thread — the per-dep opt-in that flips a workspace dep onto the
-/// hard-linked `file:` path even when the global
-/// `injectWorkspacePackages` is off. Only importer-level deps are
+/// whose `injected` flag is `true`. This per-alias `injected` opt-in
+/// flips a workspace dep onto the hard-linked `file:` path even when the
+/// global `injectWorkspacePackages` is off. Only importer-level deps are
 /// consulted; the recursive walker does not inherit this from any
-/// resolved package's own `dependenciesMeta`, matching
-/// upstream's importer-only scope.
+/// resolved package's own `dependenciesMeta` — the opt-in is
+/// importer-scoped.
 pub(crate) fn importer_injected_dependency_names(manifest: &PackageManifest) -> HashSet<String> {
     let Some(meta) =
         manifest.value().get("dependenciesMeta").and_then(serde_json::Value::as_object)
@@ -341,21 +330,18 @@ pub(crate) fn importer_injected_dependency_names(manifest: &PackageManifest) -> 
 /// `peerDependencies`) tagged with the right `optional` / `injected`
 /// flags and with `catalog:` specifiers resolved.
 ///
-/// An alias declared in several groups yields one spec, merged the way
-/// pnpm spreads the groups in
-/// [`getWantedDependencies`](https://github.com/pnpm/pnpm/blob/01b3d45ddb/installing/deps-resolver/src/getWantedDependencies.ts#L32-L43):
-/// `peerDependencies` first (when `auto_install_peers`), then
-/// `dependencies` < `devDependencies` < `optionalDependencies`, a later
-/// group's range replacing an earlier one — so an importer's own regular
-/// dep (e.g. a `workspace:*` devDependency) wins over its peer range.
+/// An alias declared in several groups yields one spec, merged by
+/// spreading the groups in order: `peerDependencies` first (when
+/// `auto_install_peers`), then `dependencies` < `devDependencies` <
+/// `optionalDependencies`, a later group's range replacing an earlier
+/// one — so an importer's own regular dep (e.g. a `workspace:*`
+/// devDependency) wins over its peer range.
 ///
 /// Shared by [`fn@crate::resolve_importer`] (which walks them) and the
 /// `time-based` cutoff pre-pass in [`fn@crate::resolve_workspace`]
 /// (which only needs the resolved direct-dep publish dates), so both
-/// see the identical direct-dep set. Mirrors the importer-dep
-/// computation pnpm runs once in
-/// [`getAllDependenciesFromManifest`](https://github.com/pnpm/pnpm/blob/097983fbca/pkg-manifest/utils/src/getAllDependenciesFromManifest.ts)
-/// before resolving an importer's deps.
+/// see the identical direct-dep set — the importer-dep computation runs
+/// once before resolving an importer's deps.
 pub(crate) fn importer_direct_wanted_specs<DependencyGroupList>(
     manifest: &PackageManifest,
     dependency_groups: DependencyGroupList,
@@ -416,19 +402,17 @@ where
 ///
 /// `optional` is part of the key because the npm resolver's
 /// `pick_package` toggles between the abbreviated and full packument
-/// based on `wanted.optional` ([`pickPackage.ts:391`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L201)) —
-/// caching by `(alias, bare_specifier)` alone would let an optional
-/// caller satisfy itself with a non-optional caller's abbreviated
-/// result, losing the `libc`/`cpu`/`os` filter inputs that mode
-/// supplies.
+/// based on `wanted.optional` — caching by `(alias, bare_specifier)`
+/// alone would let an optional caller satisfy itself with a
+/// non-optional caller's abbreviated result, losing the
+/// `libc`/`cpu`/`os` filter inputs that mode supplies.
 ///
 /// `injected` is part of the key because the workspace branch of the
 /// npm resolver returns a `file:<path>` resolution when the dep is
 /// injected and a `link:<path>` resolution otherwise (see
-/// [`resolve_from_local_package`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L908-L951)).
-/// Two importers asking for the same workspace dep with different
-/// `dependenciesMeta[*].injected` flags must take different cache
-/// slots.
+/// `resolve_from_local_package`). Two importers asking for the same
+/// workspace dep with different `dependenciesMeta[*].injected` flags
+/// must take different cache slots.
 ///
 /// `pick_lowest_version` and `published_by` are part of the key because
 /// `resolutionMode` makes the version pick depend on them: under
@@ -446,9 +430,8 @@ where
 /// specifiers (`link:` / `file:` / `workspace:`) and normal semver
 /// specifiers in workspace mode, because `linkWorkspacePackages` can
 /// replace the registry pick with a workspace package. A non-injected
-/// workspace dep resolves through
-/// [`resolve_from_local_package`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L908-L951)
-/// to a `link:<path>` whose `<path>` is computed *relative to the
+/// workspace dep resolves through `resolve_from_local_package` to a
+/// `link:<path>` whose `<path>` is computed *relative to the
 /// consuming importer's directory*. Without `project_dir` in the key,
 /// the first importer to resolve `(@scope/lib, ^1.0.0)` would
 /// seed the workspace-wide cache with its own relative path and every
@@ -471,10 +454,9 @@ type WantedKey = (
 /// Whether a wanted dep's resolution is computed relative to the
 /// consuming importer's directory rather than being
 /// importer-independent. True for the `link:` / `file:` / `workspace:`
-/// protocols, whose resolved path
-/// [`resolve_from_local_package`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L908-L951)
-/// derives from `project_dir`. Such resolutions must not be shared
-/// across importers in [`WantedKey`].
+/// protocols, whose resolved path `resolve_from_local_package` derives
+/// from `project_dir`. Such resolutions must not be shared across
+/// importers in [`WantedKey`].
 fn project_relative_cache_scope(
     wanted: &WantedDependency,
     opts: &ResolveOptions,
@@ -527,10 +509,8 @@ impl ChildrenOwner {
 /// resolver's per-`pkgIdWithPatchHash` dedup (`packages`,
 /// `children_specs_by_id`, `children_by_id`, `resolved_by_wanted`) and
 /// the peer-walker's seed sets (`all_peer_dep_names`,
-/// `applied_patches`, `policy_violations`) carry across importers.
-/// Mirrors the single shared `ctx` pnpm's
-/// [`resolveDependencyTree`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/resolveDependencyTree.ts#L180-L233)
-/// hands to every importer's hoist loop.
+/// `applied_patches`, `policy_violations`) carry across importers. One
+/// shared context is handed to every importer's hoist loop.
 ///
 /// `dependencies_tree` (`NodeId → DependenciesTreeNode`) is keyed by
 /// per-occurrence `NodeIds`, which are unique even across importers, so
@@ -557,9 +537,7 @@ pub struct WorkspaceTreeCtx {
     wanted_lockfile: Option<Arc<pacquet_lockfile::Lockfile>>,
     /// Lockfile-reuse suppression for `pacquet update`. `update`
     /// re-resolves its target deps to highest-in-range, so a reused
-    /// resolution would defeat the bump. Mirrors pnpm's `updateToLatest`
-    /// / `updateMatching` propagation into `parentPkg.updated`. See
-    /// [`UpdateReuseScope`].
+    /// resolution would defeat the bump. See [`UpdateReuseScope`].
     update_reuse_scope: UpdateReuseScope,
     /// Memoises [`fn@subtree_fully_reusable`] per snapshot key so the
     /// recursive reusability check runs once per package across the
@@ -586,19 +564,17 @@ pub struct WorkspaceTreeCtx {
     registries: HashMap<String, String>,
     /// `pkg id → importer id` of the importer whose occurrence owns
     /// that package's shared children context. Ownership is chosen by
-    /// `(depth, importer order, parent path)`, mirroring upstream's
-    /// per-`pkgId` shared subtree records
-    /// ([`missingPeersOfChildrenByPkgId`](https://github.com/pnpm/pnpm/blob/a751c7f27d/installing/deps-resolver/src/resolveDependencies.ts#L193)):
-    /// a non-owner occurrence reuses the owner occurrence's children
-    /// and missing-peer report. Consumed via [`crate::HoistMissingScope`].
+    /// `(depth, importer order, parent path)`: a package's subtree is
+    /// recorded once per id, and a non-owner occurrence reuses the owner
+    /// occurrence's children and missing-peer report. Consumed via
+    /// [`crate::HoistMissingScope`].
     first_importer_by_pkg: Mutex<HashMap<String, String>>,
     /// Per package: the missing-peer names reported by the *initial*
     /// peer walk of the current children-owner generation, plus the
     /// owner that recorded them (`None` while only a non-owner's
-    /// provisional walk has been seen). Mirrors upstream's
-    /// once-per-generation `missingPeersOfChildren` promise: later
-    /// hoist waves of the same owner never refresh the record, so a
-    /// peer the owner only satisfied by hoisting stays visible to
+    /// provisional walk has been seen). The record is written once per
+    /// generation: later hoist waves of the same owner never refresh it,
+    /// so a peer the owner only satisfied by hoisting stays visible to
     /// every other importer's hoist. Consumed via
     /// [`crate::HoistMissingScope`].
     first_walk_missing_by_pkg: Mutex<HashMap<String, OwnerMissingRecord>>,
@@ -614,7 +590,7 @@ pub struct WorkspaceTreeCtx {
     changed_direct_deps: Mutex<HashMap<String, HashSet<PkgName>>>,
     /// Per importer: the parsed resolved versions of its direct
     /// dependencies, recorded once the direct-dep level finishes resolving.
-    /// The `DIRECT_DEP_SELECTOR_WEIGHT` versions pnpm folds into
+    /// The direct-dep versions folded into the children's
     /// `preferredVersions`; consulted by [`fn@higher_direct_dep_version`].
     /// `Arc` so the hot child walk snapshots the importer's map with one
     /// lock + refcount bump instead of locking per edge.
@@ -909,10 +885,8 @@ impl TreeCtx {
     ///   `base_opts.published_by` (the `minimumReleaseAge` cutoff),
     ///   leaving subdep resolution unchanged.
     ///
-    /// Mirrors pnpm's split between the importer-dep pick
-    /// ([`resolveDependenciesOfImporters`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-resolver/src/resolveDependencies.ts#L470))
-    /// and the subdep pick (always highest, constrained by the computed
-    /// `publishedBy`).
+    /// Splits the importer-dep pick from the subdep pick (always
+    /// highest, constrained by the computed `publishedBy`).
     #[must_use]
     pub fn with_resolution_mode(
         mut self,
@@ -1049,8 +1023,8 @@ impl TreeCtx {
 
     /// Iterate over every `(name, version)` pair the walk has resolved
     /// so far. Used by the orchestrator to keep `allPreferredVersions`
-    /// in sync — mirrors upstream's resolveDependency-time push at
-    /// [`resolveDependencies.ts:1440`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1440).
+    /// in sync, pushing each resolved version as the dependency is
+    /// resolved.
     #[must_use]
     pub fn resolved_versions(&self) -> Vec<(String, String)> {
         lock_recoverable(&self.workspace.packages)
@@ -1094,9 +1068,9 @@ where
     record_changed_direct_deps(ctx, importer_id, &wanted);
     // Phase 1: resolve every direct dep before any subtree walk, so
     // the level's resolved versions seed the children's
-    // preferred-versions overlay (upstream's per-level fold; the
-    // direct deps themselves resolve against the importer's static
-    // preferred map only).
+    // preferred-versions overlay (a per-level fold; the direct deps
+    // themselves resolve against the importer's static preferred map
+    // only).
     let seeds = wanted
         .into_iter()
         .map(|(name, range, optional, injected)| {
@@ -1104,15 +1078,13 @@ where
             async move {
                 // `injected: Some(true)` only when the importer manifest's
                 // `dependenciesMeta[name].injected = true` opted this dep
-                // in. Otherwise leave it `None` — matches upstream's
-                // `injected: opts.dependenciesMeta[alias]?.injected` shape
-                // where an absent meta entry yields `undefined`, not
-                // `false`. The resolver OR's this with the global
-                // `inject_workspace_packages` flag, so `None` and
-                // `Some(false)` would produce identical behavior — but
-                // mirroring the upstream wire shape keeps the
-                // [`WantedKey`] cache buckets aligned across the two
-                // pacquet branches that surface `injected`.
+                // in. Otherwise leave it `None`: an absent meta entry
+                // yields no flag rather than `false`. The resolver OR's
+                // this with the global `inject_workspace_packages` flag,
+                // so `None` and `Some(false)` would produce identical
+                // behavior — but keeping `None` aligns the [`WantedKey`]
+                // cache buckets across the two pacquet branches that
+                // surface `injected`.
                 let wanted = WantedDependency {
                     alias: Some(name),
                     bare_specifier: Some(range),
@@ -1237,19 +1209,16 @@ struct PendingNode {
 /// (the parent level's resolved versions) consulted by the npm
 /// resolver's version pick; it participates in the per-wanted dedup
 /// cache key so the same range can legitimately pick different
-/// versions under different levels, mirroring upstream's per-level
-/// `Object.create(preferredVersions)` fold.
+/// versions under different levels, layering each level's resolved
+/// versions onto the preferred-versions fold.
 ///
 /// `ancestor_ids` is the chain of `pkgIdWithPatchHash` values from the
-/// root importer down to the current node's parent. Mirrors upstream's
-/// `parentIds` / `parentDepPathsChain`. When the resolved id appears
-/// in the chain, this call is a cycle re-entry: pacquet drops the
-/// edge entirely (returns `Done(None)`) so the parent's `children` map
-/// omits the cycled child — same shape as upstream's
-/// [`parentIdsContainSequence`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencyTree.ts#L378)
-/// gate in `buildTree`. Without this, two nodes for the same id race
-/// each other into `graph.insert`, and an empty-children entry for the
-/// cycled occurrence can overwrite the real one.
+/// root importer down to the current node's parent. When the resolved
+/// id appears in the chain, this call is a cycle re-entry: the edge is
+/// dropped entirely (returns `Done(None)`) so the parent's `children`
+/// map omits the cycled child. Without this, two nodes for the same id
+/// race each other into `graph.insert`, and an empty-children entry for
+/// the cycled occurrence can overwrite the real one.
 #[expect(
     clippy::too_many_arguments,
     reason = "internal walker helper threading per-node context through the recursion"
@@ -1279,8 +1248,7 @@ where
     // resolved this edge (and the recorded version still satisfies the
     // manifest range, for a direct dep), synthesize the resolution from
     // the lockfile and walk its transitive subtree from the snapshot
-    // graph instead of re-resolving from the registry. Mirrors pnpm's
-    // [`getInfoFromLockfile` reuse](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1199-L1248).
+    // graph instead of re-resolving from the registry.
     // `synthesize_reused_result` is conservative: any shape it can't
     // faithfully reproduce (non-registry resolutions, missing metadata)
     // yields `None` here and the node falls through to a fresh resolve.
@@ -1323,10 +1291,9 @@ where
     // a direct (`depth == 0`) or transitive dep, so the cache key and
     // the resolver call both key off the depth-specific options.
     let opts = ctx.opts_for_depth(depth);
-    // The prior lockfile entry rides along as `currentPkg`, mirroring
-    // pnpm's `currentPkg: extendedWantedDep.infoFromLockfile` hand-off
-    // to the resolver. Only custom resolvers read it today; the clone
-    // of the shared per-depth options is paid only when a prior entry
+    // The prior lockfile entry rides along as `currentPkg`, handed to
+    // the resolver. Only custom resolvers read it today; the clone of
+    // the shared per-depth options is paid only when a prior entry
     // exists for a freshly resolving edge.
     let current_pkg = prior_key.as_ref().and_then(|key| {
         let lockfile = ctx.workspace.wanted_lockfile.as_ref()?;
@@ -1412,8 +1379,7 @@ where
 
     // Cycle break — see the doc comment above. A direct self-edge and
     // the second lap of a longer cycle are dropped; the first re-entry
-    // is kept so the cycle-closing edge reaches the lockfile snapshot,
-    // mirroring upstream's `buildTree` gate.
+    // is kept so the cycle-closing edge reaches the lockfile snapshot.
     if ancestor_ids.last().is_some_and(|parent| {
         *parent == id || parent_ids_contain_sequence(ancestor_ids, parent, &id)
     }) {
@@ -1430,33 +1396,24 @@ where
     // Build (or look up) the ResolvedPackage envelope. The first
     // visitor populates it; later visitors AND-fold the `optional`
     // flag so a single non-optional path flips it back to `false`.
-    // Mirrors upstream's
-    // [`resolvedPkgsById[...].optional = ... && currentIsOptional`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1630)
-    // arm. Child traversal is claimed separately below, so a later
+    // Child traversal is claimed separately below, so a later
     // deterministically-better occurrence can replace the shared
     // `children_by_id` entry without rewriting the package envelope.
     // Leaves (no deps / optional deps / peers / peerDependenciesMeta)
     // reuse the package id as their `NodeId`, collapsing every parent
     // edge onto one tree node. Non-leaves still get a fresh per-
     // occurrence id so the peer resolver can attach different peer
-    // suffixes per call site. Mirrors upstream's
-    // [`resolveDependencies.ts:1580`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1580).
-    // Computed before the dedup insert so it can be persisted on
-    // [`ResolvedPackage::is_leaf`] for the lazy realisation path to
-    // reuse — matches upstream's
-    // [`getResolvedPackage`](https://github.com/pnpm/pnpm/blob/b9de85dcb6/installing/deps-resolver/src/resolveDependencies.ts#L1771)
-    // which sets `isLeaf` once on `resolvedPkgsById[id]` and lets
-    // [`buildTree`](https://github.com/pnpm/pnpm/blob/b9de85dcb6/installing/deps-resolver/src/resolveDependencyTree.ts#L381)
-    // read it back.
-    // Workspace-link nodes follow upstream's
-    // [`isLinkedDependency` arm](https://github.com/pnpm/pnpm/blob/cc4ff817aa/installing/deps-resolver/src/resolveDependencies.ts#L926-L937):
-    // children are empty (the linked project resolves its own deps as
-    // a separate importer), `depth = -1` flags the node for the
-    // peer-resolution short-circuit, and the [`ResolvedPackage`] carries
-    // no peer dependencies (peer matching is the linked importer's
-    // responsibility, not the parent's). The node id is collapsed to a
-    // leaf so every reference to the same workspace path shares one
-    // [`NodeId`], matching upstream's `createNodeIdForLinkedLocalPkg`.
+    // suffixes per call site.
+    // The leaf flag is computed before the dedup insert so it can be
+    // persisted on [`ResolvedPackage::is_leaf`] for the lazy realisation
+    // path to read back.
+    // Workspace-link nodes get empty children (the linked project
+    // resolves its own deps as a separate importer), `depth = -1` flags
+    // the node for the peer-resolution short-circuit, and the
+    // [`ResolvedPackage`] carries no peer dependencies (peer matching is
+    // the linked importer's responsibility, not the parent's). The node
+    // id is collapsed to a leaf so every reference to the same workspace
+    // path shares one [`NodeId`].
     let is_link = id.starts_with("link:");
     let is_leaf = is_link || pkg_is_leaf(&result);
     let node_id = if is_leaf { NodeId::leaf(&id) } else { NodeId::next() };
@@ -1511,9 +1468,7 @@ where
 /// Walk a seeded node's children. `children_overlay` is the preferred-versions
 /// overlay covering this node's own level (built by the caller from
 /// every sibling seed); the grandchildren's overlay layers this
-/// node's resolved children on top, mirroring upstream's per-level
-/// fold at
-/// [`resolveDependencies.ts#L717-L746`](https://github.com/pnpm/pnpm/blob/ce9c096e8e/installing/deps-resolver/src/resolveDependencies.ts#L717-L746).
+/// node's resolved children on top, extending the per-level fold.
 ///
 /// Only the deterministic children owner walks this package's
 /// manifest children. Other occurrences stay lazy and expand from
@@ -1542,9 +1497,8 @@ where
     } = pending;
     let children = if is_link {
         // Linked nodes don't walk their manifest's deps — see the
-        // `is_link` comment block above. Empty `Realized` map matches
-        // upstream's `children: {}` for the `isLinkedDependency`
-        // branch.
+        // `is_link` comment block above. They get an empty `Realized`
+        // map: a linked node has no children of its own here.
         crate::resolved_tree::TreeChildren::Realized(BTreeMap::new())
     } else if !children_owner.owns_children {
         crate::resolved_tree::TreeChildren::Lazy { parent_ids: Arc::clone(&next_ancestors) }
@@ -1566,10 +1520,10 @@ where
             specs
         };
         // A freshly-resolved node forces its whole subtree to
-        // re-resolve — pnpm's `resolvedDependencies = parentPkg.updated
-        // ? undefined`. But when the parent landed back on its
-        // previously recorded version, pnpm keeps the prior child refs
-        // (the non-`updated` arm), so each child's re-resolution still
+        // re-resolve: an updated parent discards its `resolvedDependencies`
+        // child refs. But when the parent landed back on its previously
+        // recorded version, the prior child refs are kept (the
+        // non-`updated` arm), so each child's re-resolution still
         // receives its `currentPkg`. `PriorOnly` is that arm: the key
         // rides along for `currentPkg` while reuse stays disabled.
         let prior_children_snapshot = prior_key
@@ -1578,7 +1532,7 @@ where
             .and_then(|key| ctx.workspace.wanted_lockfile.as_ref()?.snapshots.as_ref()?.get(key));
         // Phase 1: resolve every child package before any grandchild
         // walk starts, so the level's resolved versions can feed the
-        // grandchildren's preferred-versions overlay — upstream's
+        // grandchildren's preferred-versions overlay — the
         // postponed-resolution barrier.
         // Snapshot this importer's direct-dep versions once for the whole
         // child fanout instead of locking per edge.
@@ -1598,8 +1552,7 @@ where
                     .and_then(|snapshot| prior_child_key(snapshot, child_name, child_range));
                 // Stale-pin refresh: force the edge onto a higher in-range
                 // direct-dep version instead of reusing the pin, so the
-                // pinned version is never resolved or fetched. Mirrors
-                // pnpm's `getDepsToResolve` `preferredVersion` override.
+                // pinned version is never resolved or fetched.
                 let forced_version = child_prior
                     .as_ref()
                     .and_then(|key| key.suffix.version_semver().cloned())
@@ -1686,13 +1639,11 @@ where
     // Repeat-visit leaves collapse onto one tree node; keep the
     // shallowest depth seen so downstream consumers that read
     // `tree_node.depth` (the peer pass folds it onto the graph node's
-    // `depth`) match upstream's
-    // [`Math.min(...)` arm](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1636-L1637).
+    // `depth`) take the minimum across visits.
     // Per-occurrence counter ids are unique by construction, so the
     // `and_modify` arm is dead for non-leaves.
     // Linked nodes carry `depth = -1` so the peer-resolution pass
-    // short-circuits them in `resolve_node`. Mirrors upstream's
-    // `depth: -1` on the `isLinkedDependency` arm.
+    // short-circuits them in `resolve_node`.
     let node_depth = if is_link { -1 } else { depth };
     remember_node_parent_ids(ctx, &node_id, Arc::clone(&next_ancestors));
     lock_recoverable(&ctx.workspace.dependencies_tree)
@@ -1716,13 +1667,12 @@ where
 }
 
 /// Whether the `parent → child` edge closes a dependency cycle's
-/// *second* lap. Mirrors upstream's
-/// [`parentIdsContainSequence`](https://github.com/pnpm/pnpm/blob/d2b42c2dfc/installing/deps-resolver/src/parentIdsContainSequence.ts):
-/// the first re-entry of a cycle is kept (so the cycle-closing
-/// dependency edge appears in the tree and the lockfile snapshot,
-/// with [`fn@crate::resolve_peers`]'s previously-resolved-children
-/// merge restoring the pruned edge on the repeated node); only the
-/// repeat of the full `parent … child` sequence is dropped.
+/// *second* lap. The first re-entry of a cycle is kept (so the
+/// cycle-closing dependency edge appears in the tree and the lockfile
+/// snapshot, with [`fn@crate::resolve_peers`]'s
+/// previously-resolved-children merge restoring the pruned edge on the
+/// repeated node); only the repeat of the full `parent … child`
+/// sequence is dropped.
 pub(crate) fn parent_ids_contain_sequence(
     pkg_ids: &[String],
     pkg_id1: &str,
@@ -1741,16 +1691,17 @@ pub(crate) fn parent_ids_contain_sequence(
 }
 
 /// Whether a freshly resolved node landed back on its previously
-/// recorded lockfile entry — pnpm's `parentPkg.updated == false` arm,
-/// which keeps the prior child refs alive.
+/// recorded lockfile entry — the non-`updated` arm, which keeps the
+/// prior child refs alive.
 fn landed_on_prior_entry(prior_key: &PkgNameVerPeer, resolved_pkg_id: &str) -> bool {
     prior_key.without_peer().to_string() == pacquet_deps_path::remove_suffix(resolved_pkg_id)
 }
 
 /// The package names the npm picker may consult the preferred-versions
-/// overlay under for one wanted edge: the alias itself, plus the inner
-/// target of an `npm:` alias and the folded `@jsr/...` name of a
-/// `jsr:` specifier — mirroring the name derivation in the npm
+/// overlay under for one wanted edge: the alias itself, plus the real
+/// package name from [`real_package_name_of`] when it differs (the
+/// inner target of an `npm:` alias or the folded `@jsr/...` name of a
+/// `jsr:` specifier) — mirroring the name derivation in the npm
 /// resolver's `parse_bare_specifier`, which keys its overlay merge by
 /// the resolved `spec.name` rather than the outer alias.
 fn overlay_lookup_names(wanted: &WantedDependency) -> Vec<String> {
@@ -1760,31 +1711,10 @@ fn overlay_lookup_names(wanted: &WantedDependency) -> Vec<String> {
     {
         names.push(alias.to_string());
     }
-    let Some(bare) = wanted.bare_specifier.as_deref() else { return names };
-    if let Some(rest) = bare.strip_prefix("npm:") {
-        let alias_keeps_name = wanted
-            .alias
-            .as_deref()
-            .is_some_and(|alias| !alias.is_empty() && rest.parse::<node_semver::Range>().is_ok());
-        if !alias_keeps_name {
-            let last_at =
-                rest.bytes().enumerate().rev().find_map(|(i, b)| (b == b'@').then_some(i));
-            let inner = match last_at {
-                Some(idx) if idx >= 1 => &rest[..idx],
-                _ => rest,
-            };
-            if !inner.is_empty() && !names.iter().any(|name| name == inner) {
-                names.push(inner.to_string());
-            }
-        }
-    } else if bare.starts_with("jsr:")
-        && let Ok(Some(spec)) = pacquet_resolving_jsr_specifier_parser::parse_jsr_specifier(
-            bare,
-            wanted.alias.as_deref(),
-        )
-        && !names.contains(&spec.npm_pkg_name)
+    if let Some(real_name) = real_package_name_of(wanted)
+        && !names.iter().any(|name| name == real_name.as_ref())
     {
-        names.push(spec.npm_pkg_name);
+        names.push(real_name.into_owned());
     }
     names
 }
@@ -1844,11 +1774,9 @@ where
     };
     // Apply the configured `readPackageHook` (today:
     // `packageExtensions`) to the manifest fragment before
-    // anything downstream sees it. Mirrors upstream's
-    // [`ctx.readPackageHook(pkg)`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/resolveDependencies.ts#L1481-L1483)
-    // call at the resolveDependency seam. The hook clones the
-    // inner `Value` only when it modifies it, so unrelated
-    // manifests keep sharing the resolver's cached `Arc`.
+    // anything downstream sees it. The hook clones the inner `Value`
+    // only when it modifies it, so unrelated manifests keep sharing the
+    // resolver's cached `Arc`.
     if let Some(hook) = ctx.workspace.manifest_hook.as_ref()
         && let Some(manifest) = result_inner.manifest.take()
     {
@@ -1953,8 +1881,7 @@ where
 
 /// The `(name → versions)` additions one resolved level contributes
 /// to its children's preferred-versions overlay. Linked nodes carry no
-/// `name_ver` and contribute nothing, mirroring upstream's
-/// linked-dependency skip in the fold.
+/// `name_ver` and contribute nothing — they're skipped in the fold.
 fn level_versions(ctx: &TreeCtx, seeds: &[NodeSeed]) -> BTreeMap<String, Vec<String>> {
     let packages = lock_recoverable(&ctx.workspace.packages);
     let mut level: BTreeMap<String, Vec<String>> = BTreeMap::new();
@@ -2056,9 +1983,9 @@ fn node_depends_on_changed_direct_dep(ctx: &TreeCtx, prior_key: Option<&PkgNameV
 
 /// The highest resolved direct-dependency version of `name` strictly
 /// above `pinned` that still satisfies `range`, or `None`. Anchored to
-/// direct deps (the deterministic, resolved-before-the-walk signal),
-/// mirroring pnpm's `findHigherDirectDepVersion`. `direct_versions` is the
-/// importer's snapshot, taken once per walk by [`fn@walk_node_children`].
+/// direct deps (the deterministic, resolved-before-the-walk signal).
+/// `direct_versions` is the importer's snapshot, taken once per walk by
+/// [`fn@walk_node_children`].
 fn higher_direct_dep_version(
     direct_versions: Option<&DirectDepVersions>,
     name: &str,
@@ -2068,9 +1995,9 @@ fn higher_direct_dep_version(
     direct_versions?
         .get(name)?
         .iter()
-        // Plain semver satisfaction (not prerelease-inclusive), matching
-        // pnpm's `semver.satisfies(candidate, range, true)`: a prerelease
-        // direct dep only refreshes an edge whose range admits prereleases.
+        // Plain semver satisfaction (not prerelease-inclusive): a
+        // prerelease direct dep only refreshes an edge whose range admits
+        // prereleases.
         .filter(|&version| version > pinned && range.satisfies(version))
         .max()
         .cloned()
@@ -2182,25 +2109,24 @@ fn update_excludes(scope: &UpdateReuseScope, name: &str) -> bool {
 }
 
 /// Resolve the *real* package name a [`WantedDependency`] targets —
-/// i.e. the name `updateMatching` would see, not the local install
-/// alias. For a plain dep (`foo@^1`) or a workspace dep, this is just
+/// i.e. the name update targeting matches against, not the local
+/// install alias. For a plain dep (`foo@^1`) or a workspace dep, this is just
 /// `wanted.alias`. For an npm-alias dep (`foo@npm:bar@^4`), this is
 /// `bar` — parsed out of `bare_specifier` because `wanted.alias` keeps
 /// the local install name `foo`. For a jsr dep (`foo@jsr:@bar/baz@^1`
 /// or just `jsr:@bar/baz`), this is the folded npm registry name
-/// (`@jsr/bar__baz`) that the picker and lockfile snapshots key on —
-/// matching the name derivation in [`overlay_lookup_names`].
+/// (`@jsr/bar__baz`) that the picker and lockfile snapshots key on.
+/// [`overlay_lookup_names`] builds its candidate set from this name.
 ///
 /// Returns `None` when no name can be recovered (no alias, malformed
 /// npm-alias target, unparsable jsr specifier). The caller treats
-/// `None` as "not a targeted update" since `updateMatching` is keyed
+/// `None` as "not a targeted update" since update targets are keyed
 /// by package name.
 fn real_package_name_of(wanted: &WantedDependency) -> Option<Cow<'_, str>> {
     let bare = wanted.bare_specifier.as_deref()?;
     if let Some(rest) = bare.strip_prefix("npm:") {
         // `npm:<range>` form: the body is a semver range, not a name,
-        // so the install alias IS the real package name. Mirrors
-        // `overlay_lookup_names`'s `alias_keeps_name` branch.
+        // so the install alias IS the real package name.
         let alias_keeps_name = wanted
             .alias
             .as_deref()
@@ -2223,8 +2149,8 @@ fn real_package_name_of(wanted: &WantedDependency) -> Option<Cow<'_, str>> {
     if bare.starts_with("jsr:") {
         // An unparsable `jsr:` specifier carries no recoverable real
         // name — return `None` rather than falling back to the install
-        // alias, which could accidentally match an `updateMatching`
-        // target and mark the broken dep as a targeted update.
+        // alias, which could accidentally match an update target and
+        // mark the broken dep as a targeted update.
         let spec = pacquet_resolving_jsr_specifier_parser::parse_jsr_specifier(
             bare,
             wanted.alias.as_deref(),
@@ -2239,8 +2165,8 @@ fn real_package_name_of(wanted: &WantedDependency) -> Option<Cow<'_, str>> {
 }
 
 /// Whether `wanted` should bypass preferred-version propagation, given
-/// the install's [`UpdateReuseScope`]. Mirrors pnpm's per-package
-/// `updateRequested` signal.
+/// the install's [`UpdateReuseScope`]. Feeds the per-resolve
+/// `ResolveOptions::update_requested` flag.
 ///
 /// Returns `false` for `All`/`None` scopes (the install/add default —
 /// no package is targeted for update) and for `Except` scopes where
@@ -2285,7 +2211,7 @@ fn subtree_fully_reusable(
     lock_recoverable(&ctx.workspace.subtree_reusable).insert(key.clone(), false);
     // A `pacquet update` target anywhere in the subtree forces the whole
     // subtree to re-resolve so the bump's new transitive deps are picked
-    // up — mirrors pnpm matching update names at any depth.
+    // up — update names match at any depth.
     let name = key.name.to_string();
     let reusable = !update_excludes(&ctx.workspace.update_reuse_scope, &name)
         && synthesize_reused_result(lockfile, key, &name).is_some()
@@ -2520,14 +2446,12 @@ where
 /// pinned to the version it matched in the recorded context. Those are
 /// not real children: a fresh resolve walks only the package's manifest
 /// `dependencies` and re-derives peers separately against the parent
-/// context. Mirroring that, reuse must walk the manifest's deps too — so
-/// peer-named entries are dropped here, matching pnpm's reuse path, which
-/// builds children from
-/// [`getNonDevWantedDependencies(parentPkg.pkg)`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1058)
-/// and uses the snapshot's `dependencies` only as the locked-ref lookup,
-/// not as the child set. Treating a resolved peer as a regular child
-/// makes the peer pass satisfy the peer from the node's own subtree
-/// instead of propagating it up, collapsing the peer-context suffix.
+/// context. Reuse must walk the manifest's deps too — so peer-named
+/// entries are dropped here, and the snapshot's `dependencies` is used
+/// only as the locked-ref lookup, not as the child set. Treating a
+/// resolved peer as a regular child makes the peer pass satisfy the peer
+/// from the node's own subtree instead of propagating it up, collapsing
+/// the peer-context suffix.
 fn snapshot_child_refs(
     snapshot: Option<&SnapshotEntry>,
     peer_dependencies: &BTreeMap<String, PeerDep>,
@@ -2572,11 +2496,9 @@ fn is_optional_child(snapshot: Option<&SnapshotEntry>, alias: &str) -> bool {
 /// version recorded in the catalogs map. Non-`catalog:` specifiers
 /// pass through unchanged.
 ///
-/// Catalog resolution runs only on importer-level deps, matching
-/// upstream's
-/// [importer-only scope](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/installing/deps-resolver/src/resolveDependencies.ts#L592-L600).
-/// A misconfigured entry surfaces immediately rather than masquerading
-/// as a `SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`.
+/// Catalog resolution runs only on importer-level deps. A misconfigured
+/// entry surfaces immediately rather than masquerading as a
+/// `SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`.
 pub(crate) fn resolve_catalog_specifiers(
     specs: Vec<WantedSpec>,
     catalogs: &Catalogs,
@@ -2599,11 +2521,7 @@ pub(crate) fn resolve_catalog_specifiers(
         .collect()
 }
 
-/// Compute the `pkgIdWithPatchHash` for a freshly-resolved package.
-///
-/// Mirrors upstream's
-/// [`pkgIdWithPatchHash` block](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1502-L1507)
-/// in `resolveDependencies`:
+/// Compute the `pkgIdWithPatchHash` for a freshly-resolved package:
 ///
 /// 1. Prefix the resolver's `id` with `<name>@` when it doesn't already
 ///    start that way. The npm-registry resolver always returns
@@ -2631,23 +2549,21 @@ async fn build_pkg_id_with_patch_hash(
     // by `id.starts_with("link:")` checks (see [`is_link`] in the
     // tree walker and `importer_dep_version`'s
     // `dep_path_str.strip_prefix("link:")` arm). Leaving the id
-    // unprefixed preserves those short-circuits — pnpm prefixes them
-    // too but routes them through a separate `isLinkedDependency`
-    // branch that pacquet hasn't ported yet.
+    // unprefixed preserves those short-circuits; pacquet does not yet
+    // model the separate linked-dependency branch that would prefix
+    // them.
     //
     // [`is_link`]: fn@resolve_node
     if raw_id.starts_with("link:") {
         return Ok(raw_id.to_string());
     }
     // Resolvers that learn the name from the fetched manifest (git,
-    // tarball, directory) leave `name_ver` unset. Upstream reads
-    // `pkg.name` from the manifest itself
-    // ([`resolveDependencies.ts:1502-1507`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1502-L1507))
-    // and prefixes the id regardless — so a `file:project-1` id
-    // becomes `project-1@file:project-1`. Skipping the prefix would
-    // leave `(` as the first paren-bearing character in the downstream
-    // depPath, which `PkgNameVerPeer`'s `@`-split parser can't recover
-    // from (it finds the `@` inside the peer suffix first).
+    // tarball, directory) leave `name_ver` unset. The `name` is read
+    // from the manifest itself and the id is prefixed regardless — so a
+    // `file:project-1` id becomes `project-1@file:project-1`. Skipping
+    // the prefix would leave `(` as the first paren-bearing character in
+    // the downstream depPath, which `PkgNameVerPeer`'s `@`-split parser
+    // can't recover from (it finds the `@` inside the peer suffix first).
     let manifest_name = result
         .manifest
         .as_ref()
@@ -2683,8 +2599,7 @@ async fn build_pkg_id_with_patch_hash(
 }
 
 /// Render `{alias}@{bare}` (either half dropped when absent) for the
-/// error message. Mirrors upstream's [`render_specifier`] shape in
-/// `default-resolver`.
+/// no-resolver error message.
 fn render_specifier(wanted: &WantedDependency) -> String {
     let alias = wanted.alias.as_deref().unwrap_or("");
     let bare = wanted.bare_specifier.as_deref().unwrap_or("");
@@ -2754,18 +2669,16 @@ fn render_parent(result: &pacquet_resolving_resolver_base::ResolveResult) -> Str
 }
 
 /// Extract `peerDependencies` from a resolved package's manifest, with
-/// `peerDependenciesMeta[name].optional` folded onto each entry.
-/// Mirrors upstream's
-/// [`peerDependenciesWithoutOwn`](https://github.com/pnpm/pnpm/blob/01b3d45ddb/installing/deps-resolver/src/resolveDependencies.ts#L1840-L1864):
-/// the package's own name plus names also present in `dependencies` or
+/// `peerDependenciesMeta[name].optional` folded onto each entry. The
+/// package's own name plus names also present in `dependencies` or
 /// `optionalDependencies` are skipped because those edges already
 /// supply the same package directly. Under `autoInstallPeers`,
 /// [`omit_peer_shadowed_dependencies`] has already dropped
 /// peer-shadowed names from `dependencies`, so those peers survive
 /// here. A `peerDependenciesMeta` entry without a matching
-/// `peerDependencies` entry only counts when `optional: true` —
-/// upstream treats it as an optional `"*"` peer and ignores
-/// non-optional meta-only entries.
+/// `peerDependencies` entry only counts when `optional: true` — it is
+/// treated as an optional `"*"` peer, and non-optional meta-only
+/// entries are ignored.
 fn extract_peer_dependencies(
     result: &pacquet_resolving_resolver_base::ResolveResult,
 ) -> BTreeMap<String, PeerDep> {
@@ -2819,14 +2732,11 @@ fn extract_peer_dependencies(
 /// Drop a resolved package's `dependencies` entries that are shadowed
 /// by its own `peerDependencies`, so the peer edge (satisfied from an
 /// ancestor or auto-installed at the importer) supplies the package
-/// instead of a nested copy. Only applies under `autoInstallPeers` —
-/// mirrors upstream's dependencies-omit in
-/// [`resolveDependencies.ts`](https://github.com/pnpm/pnpm/blob/01b3d45ddb/installing/deps-resolver/src/resolveDependencies.ts#L1527-L1542).
-/// (The non-`autoInstallPeers` arm there omits only peers resolvable
-/// from the parent scope; pacquet's per-package children cache has no
-/// parent context, so that arm is not ported and the own dependency
-/// keeps winning, which matches upstream whenever the peer is not in
-/// scope.)
+/// instead of a nested copy. Only applies under `autoInstallPeers`.
+/// (Without `autoInstallPeers`, only peers resolvable from the parent
+/// scope would be omitted; pacquet's per-package children cache has no
+/// parent context, so that arm is not modeled and the own dependency
+/// keeps winning, which is correct whenever the peer is not in scope.)
 fn omit_peer_shadowed_dependencies(manifest: Arc<Value>) -> Arc<Value> {
     let shadowed: Vec<String> = {
         let Some(peers) = manifest.get("peerDependencies").and_then(Value::as_object) else {
@@ -2850,8 +2760,7 @@ fn omit_peer_shadowed_dependencies(manifest: Arc<Value>) -> Arc<Value> {
 }
 
 /// `true` when the package has no `dependencies`, `optionalDependencies`,
-/// `peerDependencies`, or `peerDependenciesMeta`. Mirrors upstream's
-/// [`pkgIsLeaf`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1735-L1742).
+/// `peerDependencies`, or `peerDependenciesMeta`.
 ///
 /// Conservatively returns `false` when the manifest is missing — a
 /// future visit may reveal children, and collapsing onto a leaf
@@ -2869,8 +2778,6 @@ fn is_empty_or_absent(value: Option<&Value>) -> bool {
 }
 
 /// Provenance tags that count as non-exotic for `blockExoticSubdeps`.
-/// Mirrors upstream's
-/// [`NON_EXOTIC_RESOLVED_VIA`](https://github.com/pnpm/pnpm/blob/df990fdb51/installing/deps-resolver/src/resolveDependencies.ts#L1831-L1841).
 const NON_EXOTIC_RESOLVED_VIA: &[&str] = &[
     "custom-resolver",
     "github.com/denoland/deno",

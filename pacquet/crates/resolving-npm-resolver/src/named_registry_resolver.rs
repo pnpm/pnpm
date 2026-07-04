@@ -198,7 +198,7 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             overlay_selectors.as_ref().or_else(|| opts.preferred_versions.get(&spec.name));
         // For the user's update target, drop the propagated exact-version
         // pins so it can reach `latest`, keeping `range`/`tag` selectors
-        // (e.g. vulnerability-avoidance penalties). Mirrors pnpm.
+        // (e.g. vulnerability-avoidance penalties).
         let stripped_selectors = opts
             .update_requested
             .then(|| base_selectors.and_then(crate::preferred_overlay::strip_version_pins))

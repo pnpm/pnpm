@@ -325,12 +325,12 @@ async fn update_requested_bypasses_preferred_versions() {
 
 #[tokio::test]
 async fn update_requested_keeps_non_version_selectors() {
-    // Parity with pnpm's `stripVersionPins`: `update_requested` drops only
-    // the propagated exact-version pins, not `range`/`tag` selectors. pnpm
-    // uses these to steer resolution (e.g. vulnerability-avoidance penalties
-    // from `pnpm audit --fix`), and they must keep applying to the targeted
-    // package. Here a `range` preference on the older 2.0.0 stands in for any
-    // such non-pin selector: it must survive so the targeted update honors it
+    // `update_requested` drops only the propagated exact-version pins,
+    // not `range`/`tag` selectors. Those steer resolution (e.g. the
+    // vulnerability-avoidance penalties from `pnpm audit --fix`) and
+    // must keep applying to the targeted package. Here a `range`
+    // preference on the older 2.0.0 stands in for any such non-pin
+    // selector: it must survive so the targeted update honors it
     // instead of jumping to latest 2.1.0.
     let mut server = mockito::Server::new_async().await;
     let _mock = server
