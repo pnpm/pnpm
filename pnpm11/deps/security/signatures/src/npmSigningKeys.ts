@@ -3,8 +3,8 @@
 // https://registry.npmjs.org/-/npm/v1/keys
 //
 // Refresh with: node deps/security/signatures/scripts/update-npm-signing-keys.mjs --update
-// The release workflow runs `--check` and fails if these drift from npm, so a
-// rotated key cannot silently break (or weaken) signature verification.
+// The create-release-pr workflow refreshes these automatically, so a rotated
+// key cannot silently break (or weaken) signature verification.
 export const NPM_SIGNING_KEYS = [
   {
     "expires": "2025-01-29T00:00:00.000Z",
