@@ -1,6 +1,6 @@
 use super::{
-    normalize_registry_url, org_team_url, parse_scope_team, render_members, render_teams,
-    team_members_url, team_user_url, TeamError, TeamInfo, UserInfo,
+    TeamError, TeamInfo, UserInfo, normalize_registry_url, org_team_url, parse_scope_team,
+    render_members, render_teams, team_members_url, team_user_url,
 };
 
 #[test]
@@ -77,10 +77,8 @@ fn render_members_empty_returns_no_members_message() {
 
 #[test]
 fn render_members_returns_formatted_list() {
-    let members =
-        [UserInfo { name: "alice".to_string() }, UserInfo { name: "bob".to_string() }];
-    let result =
-        render_members("myorg", "team1", &members, false, false).expect("should render");
+    let members = [UserInfo { name: "alice".to_string() }, UserInfo { name: "bob".to_string() }];
+    let result = render_members("myorg", "team1", &members, false, false).expect("should render");
     assert!(result.contains("@myorg:team1 has the following members:"));
     assert!(result.contains("  alice"));
     assert!(result.contains("  bob"));
@@ -88,19 +86,15 @@ fn render_members_returns_formatted_list() {
 
 #[test]
 fn render_members_parseable_format() {
-    let members =
-        [UserInfo { name: "alice".to_string() }, UserInfo { name: "bob".to_string() }];
-    let result =
-        render_members("myorg", "team1", &members, true, false).expect("should render");
+    let members = [UserInfo { name: "alice".to_string() }, UserInfo { name: "bob".to_string() }];
+    let result = render_members("myorg", "team1", &members, true, false).expect("should render");
     assert_eq!(result, "alice\nbob");
 }
 
 #[test]
 fn render_members_json_format() {
-    let members =
-        [UserInfo { name: "alice".to_string() }, UserInfo { name: "bob".to_string() }];
-    let result =
-        render_members("myorg", "team1", &members, false, true).expect("should render");
+    let members = [UserInfo { name: "alice".to_string() }, UserInfo { name: "bob".to_string() }];
+    let result = render_members("myorg", "team1", &members, false, true).expect("should render");
     assert!(result.contains(r#""alice""#));
     assert!(result.contains(r#""bob""#));
 }

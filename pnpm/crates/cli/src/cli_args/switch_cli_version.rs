@@ -516,6 +516,7 @@ fn command_name(command: &CliCommand) -> &'static str {
         CliCommand::With(_) => "with",
         CliCommand::Completion(_) => "completion",
         CliCommand::CompletionServer(_) => "completion-server",
+        CliCommand::Team(_) => "team",
     }
 }
 
