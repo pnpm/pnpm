@@ -176,24 +176,46 @@ test('pnpmExecCommand suppresses download-based version switching; the mismatch 
 })
 
 test('devEngines.packageManager range is validated against the binary pnpmExecCommand resolved', async () => {
-  const project = prepare()
+  prepare()
   const resolver = path.resolve('resolve-pnpm.js')
   fs.writeFileSync(resolver, `console.log(${JSON.stringify(pnpmBinLocation)})\n`)
   writeYamlFileSync('pnpm-workspace.yaml', { pnpmExecCommand: [process.execPath, resolver] })
+  // A range the resolved (current) binary cannot satisfy. The mismatch errors
+  // in checkPackageManager, before syncEnvLockfile would resolve the current
+  // version from the registry — which keeps this test independent of whether
+  // the current version is published yet.
   writeJsonFileSync('package.json', {
     devEngines: {
       packageManager: {
         name: 'pnpm',
-        version: '>=10',
+        version: '<10',
         onFail: 'error',
       },
     },
   })
 
+  const { status, stderr } = execPnpmSyncIsolated(['root'])
+
+  expect(status).not.toBe(0)
+  expect(stderr.toString()).toContain('This project is configured to use <10 of pnpm')
+  expect(stderr.toString()).toContain('The pnpm binary was selected by the "pnpmExecCommand" setting')
+})
+
+test('a packageManager pin satisfied by the resolved binary passes the check', async () => {
+  const project = prepare()
+  // Query the current version before opting in to pnpmExecCommand. An exact
+  // legacy pin is never persisted to the lockfile, so no registry resolution
+  // happens and the test stays independent of the release cycle.
+  const pnpmVersion = execPnpmSyncIsolated(['--version'], { expectSuccess: true }).stdout.toString().trim()
+  const resolver = path.resolve('resolve-pnpm.js')
+  fs.writeFileSync(resolver, `console.log(${JSON.stringify(pnpmBinLocation)})\n`)
+  writeYamlFileSync('pnpm-workspace.yaml', { pnpmExecCommand: [process.execPath, resolver] })
+  writeJsonFileSync('package.json', {
+    packageManager: `pnpm@${pnpmVersion}`,
+  })
+
   const { status, stdout } = execPnpmSyncIsolated(['root'], { expectSuccess: true, omitEnvDefaults: ['pnpm_config_silent'] })
 
-  // The running (dev) pnpm satisfies >=10, so the check passes and the
-  // command runs normally.
   expect(status).toBe(0)
   expect(stdout.toString()).toContain(path.join(project.dir(), 'node_modules'))
 })
