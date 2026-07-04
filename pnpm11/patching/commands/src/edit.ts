@@ -50,6 +50,38 @@ export type EditCommandOptions = Pick<Config, 'dir' | 'modulesDir'> & {
 }
 
 /**
+ * Canonicalize a PATH directory and check it is outside the project root.
+ * Returns the canonical directory path if safe, or null if the directory
+ * cannot be resolved or is inside the project tree.
+ */
+function isSafePathDir (dir: string, projectRoot: string): string | null {
+  let realDir: string
+  try {
+    realDir = fs.realpathSync(dir)
+  } catch {
+    return null
+  }
+  const relative = path.relative(projectRoot, realDir)
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    return realDir
+  }
+  return null
+}
+
+/**
+ * Check that a candidate binary is not a symlink into the project root.
+ */
+function isSafeCandidate (candidate: string, projectRoot: string): boolean {
+  try {
+    const realCandidate = fs.realpathSync(candidate)
+    const relative = path.relative(projectRoot, realCandidate)
+    return relative.startsWith('..') || path.isAbsolute(relative)
+  } catch {
+    return false
+  }
+}
+
+/**
  * Resolve a safe pnpm executable from PATH, excluding entries inside
  * the project root to prevent project-controlled directory hijacking.
  */
@@ -62,21 +94,25 @@ export function resolveSafePnpmPath (projectRoot: string): string {
     if (!dir || !path.isAbsolute(dir)) {
       continue
     }
-    const relative = path.relative(projectRoot, dir)
-    if (relative.startsWith('..') || path.isAbsolute(relative)) {
-      for (const ext of exts) {
-        const candidate = path.join(dir, `pnpm${ext}`)
-        try {
-          const stat = fs.statSync(candidate)
-          if (stat.isFile()) {
-            if (process.platform !== 'win32') {
-              fs.accessSync(candidate, fs.constants.X_OK)
-            }
-            return candidate
+    const safeDir = isSafePathDir(dir, projectRoot)
+    if (safeDir == null) {
+      continue
+    }
+    for (const ext of exts) {
+      const candidate = path.join(dir, `pnpm${ext}`)
+      try {
+        const stat = fs.statSync(candidate)
+        if (stat.isFile()) {
+          if (!isSafeCandidate(candidate, projectRoot)) {
+            continue
           }
-        } catch {
-          // ignore
+          if (process.platform !== 'win32') {
+            fs.accessSync(candidate, fs.constants.X_OK)
+          }
+          return candidate
         }
+      } catch {
+        // ignore
       }
     }
   }
@@ -101,21 +137,25 @@ function resolveSafeEditorPath (cmd: string, projectRoot: string): string | null
     if (!dir || !path.isAbsolute(dir)) {
       continue
     }
-    const relative = path.relative(projectRoot, dir)
-    if (relative.startsWith('..') || path.isAbsolute(relative)) {
-      for (const ext of exts) {
-        const candidate = path.join(dir, `${cmd}${ext}`)
-        try {
-          const stat = fs.statSync(candidate)
-          if (stat.isFile()) {
-            if (process.platform !== 'win32') {
-              fs.accessSync(candidate, fs.constants.X_OK)
-            }
-            return candidate
+    const safeDir = isSafePathDir(dir, projectRoot)
+    if (safeDir == null) {
+      continue
+    }
+    for (const ext of exts) {
+      const candidate = path.join(dir, `${cmd}${ext}`)
+      try {
+        const stat = fs.statSync(candidate)
+        if (stat.isFile()) {
+          if (!isSafeCandidate(candidate, projectRoot)) {
+            continue
           }
-        } catch {
-          // ignore
+          if (process.platform !== 'win32') {
+            fs.accessSync(candidate, fs.constants.X_OK)
+          }
+          return candidate
         }
+      } catch {
+        // ignore
       }
     }
   }
