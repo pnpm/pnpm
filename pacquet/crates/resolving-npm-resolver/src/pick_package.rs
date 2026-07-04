@@ -79,7 +79,7 @@ use crate::{
 /// A cached packument together with its registry-verification state.
 /// The two travel as one value so a reader can never pair a packument
 /// with the verification state of a concurrent overwrite.
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 pub struct CachedPackument {
     pub meta: Arc<Package>,
     /// `false` when the packument was parsed straight from the
