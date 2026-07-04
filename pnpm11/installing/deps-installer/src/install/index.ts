@@ -62,6 +62,7 @@ import {
   calcPatchHashes,
   createOverridesMapFromParsed,
   getOutdatedLockfileSetting,
+  resolvePatchedDependencies,
 } from '@pnpm/lockfile.settings-checker'
 import { PACKAGE_MAP_FILENAME, writePackageMap, writePnpFile } from '@pnpm/lockfile.to-pnp'
 import { allProjectsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
@@ -638,21 +639,18 @@ export async function mutateModules (
     }
     const packageExtensionsChecksum = hashObjectNullableWithPrefix(opts.packageExtensions)
     const pnpmfileChecksum = await opts.hooks.calculatePnpmfileChecksum?.()
+    const resolvedPatchedDeps = resolvePatchedDependencies(opts.patchedDependencies, opts.lockfileDir)
     const patchedDependencies = opts.ignorePackageManifest
       ? ctx.wantedLockfile.patchedDependencies
-      : (opts.patchedDependencies ? await calcPatchHashes(opts.patchedDependencies) : {})
-    const patchGroupInput = opts.patchedDependencies
+      : (resolvedPatchedDeps ? await calcPatchHashes(resolvedPatchedDeps) : {})
+    const patchGroupInput = resolvedPatchedDeps
       ? Object.fromEntries(
         Object.entries(patchedDependencies ?? {}).map(([key, hash]) => {
-          let patchFilePath = opts.patchedDependencies![key]
-            ? path.resolve(opts.lockfileDir, opts.patchedDependencies![key])
-            : undefined
+          let patchFilePath: string | undefined = resolvedPatchedDeps[key]
           if (!patchFilePath) {
             const lastAt = key.lastIndexOf('@')
             const pkgName = lastAt > 0 ? key.slice(0, lastAt) : key
-            if (opts.patchedDependencies![pkgName]) {
-              patchFilePath = path.resolve(opts.lockfileDir, opts.patchedDependencies![pkgName])
-            }
+            patchFilePath = resolvedPatchedDeps[pkgName]
           }
           return [key, { hash, patchFilePath }]
         })

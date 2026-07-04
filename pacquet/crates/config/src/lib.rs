@@ -1665,8 +1665,6 @@ impl Config {
     /// `patchedDependencies` map the lockfile records: each configured
     /// key mapped to its patch file's SHA-256 hex digest.
     ///
-    /// The configured patch paths are resolved against the manifest
-    /// dir before hashing.
     /// Distinct from [`Self::resolved_patched_dependencies`], which
     /// groups the same entries by package name for the resolver — this
     /// keeps the user's verbatim keys so the lockfile is byte-faithful
