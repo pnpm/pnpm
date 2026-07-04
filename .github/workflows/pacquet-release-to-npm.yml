@@ -3,8 +3,10 @@ name: Release pnpm (Rust)
 # Manual-trigger only: patches the version into pacquet/npm/pnpm/package.json,
 # generates the per-platform packages, and publishes (no git tag / release asset
 # — npm is the artifact store). Ships the Rust port under two names, `pnpm` and
-# `@pnpm/exe`, both depending on the `@pnpm/exe.<target>` natives. The `tag`
-# defaults to `next-12` so a release never touches the production `latest`.
+# `@pnpm/exe`, both depending on the `@pnpm/exe.<target>` natives. The natives
+# go live directly; the two wrappers are only staged and must be approved with
+# `pnpm stage approve` to go live. The `tag` defaults to `next-12` so a release
+# never touches the production `latest`.
 on:
   workflow_dispatch:
     inputs:
@@ -207,15 +209,40 @@ jobs:
           cat pacquet/npm/pnpm/package.json
           for package in pacquet/npm/pacquet-* pacquet/npm/pnpm*; do cat $package/package.json ; echo ; done
 
-      - name: Publish npm packages
-        # Auth via npm trusted publishing (the `id-token: write` OIDC token), so
-        # no NPM_TOKEN; `--provenance` attests each tarball. The trailing slash
-        # publishes the directory. The glob covers the native sub-packages (build
-        # dirs `pacquet-*`, published as `@pnpm/exe.<target>`) plus the `pnpm` and
-        # `@pnpm/exe` (`pnpm-exe`) wrappers.
+      # The publish is split into two steps because npm allows a single trusted
+      # publisher per package, and `pnpm` / `@pnpm/exe` have theirs bound to
+      # release.yml (the v11 TS releases). The `@pnpm/exe.<target>` natives are
+      # published only from this workflow, so they use trusted publishing and go
+      # live immediately; the two wrappers are only *staged* with the static
+      # token and go live when a maintainer runs `pnpm stage approve <stage-id>`
+      # (that's where the OTP is consumed, so no proof-of-presence is needed
+      # here). Publishing the natives first keeps the wrappers' exact-version
+      # optionalDependencies installable at approval time. `--provenance` works
+      # in both steps — it needs only the `id-token: write` OIDC token, not
+      # trusted publishing. The steps must stay separate: `pnpm publish` skips
+      # OIDC as soon as a static `_authToken` is configured (see
+      # https://github.com/pnpm/pnpm/pull/11495), so the token must not be
+      # visible while the natives publish.
+      - name: Publish native packages (trusted publishing)
+        # The trailing slash publishes the directory. The build dirs `pacquet-*`
+        # are published as `@pnpm/exe.<target>`.
         env:
           TAG: ${{ inputs.tag }}
         run: |
-          for package in pacquet/npm/pacquet-* pacquet/npm/pnpm*; do
+          for package in pacquet/npm/pacquet-*; do
             pnpm publish "$package/" --tag "$TAG" --access public --provenance --no-git-checks
+          done
+
+      - name: Stage pnpm and @pnpm/exe wrappers (static token)
+        env:
+          TAG: ${{ inputs.tag }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -o pipefail
+          trap 'pnpm config delete "//registry.npmjs.org/:_authToken" || true' EXIT
+          pnpm config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
+          for package in pacquet/npm/pnpm*; do
+            # tee the output (which includes the stage id) into the job summary
+            # so the approver doesn't have to dig through the raw log.
+            pnpm stage publish "$package/" --tag "$TAG" --access public --provenance --no-git-checks | tee -a "$GITHUB_STEP_SUMMARY"
           done
