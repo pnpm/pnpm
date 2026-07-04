@@ -228,7 +228,7 @@ thread_local! {
 
 /// Reset both [`FakeEnv`] thread-locals to the given env and no fake
 /// cwd, so a test's setup never leaks into a later test sharing the
-/// worker thread. Every `FakeEnv` test starts here; the ones that
+/// worker thread. Every [`FakeEnv`] test starts here; the ones that
 /// need a fake cwd call [`set_fake_cwd`] afterwards.
 fn set_fake_env(pairs: &[(&str, &str)]) {
     FAKE_ENV.with(|map| {
