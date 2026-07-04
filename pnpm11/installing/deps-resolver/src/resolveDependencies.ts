@@ -22,6 +22,7 @@ import { logger } from '@pnpm/logger'
 import { getPatchInfo, type PatchGroupRecord } from '@pnpm/patching.config'
 import type { PatchInfo } from '@pnpm/patching.types'
 import { convertEnginesRuntimeToDependencies } from '@pnpm/pkg-manifest.utils'
+import { parseBareSpecifier } from '@pnpm/resolving.npm-resolver'
 import {
   DIRECT_DEP_SELECTOR_WEIGHT,
   type DirectoryResolution,
@@ -905,9 +906,8 @@ async function resolveDependenciesOfDependency (
         // resolution (e.g. `pnpm audit --fix` widening a vulnerable pin), so
         // the target would otherwise lose its updateRequested status — and
         // keep its seeded lockfile pins — at the very moment it is being
-        // updated. Fall back to matching by the wanted alias.
-        : Boolean(extendedWantedDep.wantedDependency.alias) &&
-          options.updateMatching(extendedWantedDep.wantedDependency.alias!, undefined))
+        // updated. Fall back to matching by the wanted dependency itself.
+        : wantedDependencyMatchesUpdateTarget(ctx, options.updateMatching, extendedWantedDep.wantedDependency))
     )
   const update = updateRequested ||
   (
@@ -1042,6 +1042,26 @@ async function resolveDependenciesOfDependency (
       return filterMissingPeers({ missingPeers, resolvedPeers }, postponedResolutionOpts.parentPkgAliases)
     },
   }
+}
+
+/**
+ * Whether a wanted dependency without a lockfile reference matches the
+ * update target by package name. The name is parsed from the bare
+ * specifier, so an `npm:` alias matches by the real package name it
+ * installs — `foo@npm:bar@^4` matches an update target of `bar`, not
+ * `foo`. Exotic specifiers the npm parser rejects fall back to the alias.
+ */
+function wantedDependencyMatchesUpdateTarget (
+  ctx: ResolutionContext,
+  updateMatching: UpdateMatchingFunction,
+  wantedDependency: WantedDependency
+): boolean {
+  const { alias, bareSpecifier } = wantedDependency
+  const spec = alias && bareSpecifier
+    ? parseBareSpecifier(bareSpecifier, alias, ctx.defaultTag ?? 'latest', ctx.registries.default)
+    : null
+  const name = spec?.name ?? alias
+  return name != null && updateMatching(name, undefined)
 }
 
 export function createNodeIdForLinkedLocalPkg (lockfileDir: string, pkgDir: string): NodeId {

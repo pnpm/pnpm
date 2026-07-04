@@ -242,6 +242,89 @@ test('a targeted update keeps down-chain preferred-version propagation, so it de
   }
 })
 
+test('updateRequested matches an npm-alias dependency without a lockfile reference by its real package name', async () => {
+  // An edge with no lockfile reference (fresh dep, or a specifier changed
+  // right before resolution — e.g. `pnpm audit --fix` widening a vulnerable
+  // pin) falls back to matching the update target against the wanted
+  // dependency itself. For `aliased@npm:t@^1.0.0` the real package name is
+  // `t`, not the local alias, so a target of `t` must match — and an alias
+  // of a non-targeted package must not.
+  const requestLog: Array<{
+    alias: string | undefined
+    updateRequested: boolean | undefined
+  }> = []
+  const storeController = createStoreController(async (wantedDependency, options) => {
+    const alias = wantedDependency.alias!
+    const bareSpecifier = wantedDependency.bareSpecifier!
+    const version = bareSpecifier.startsWith('npm:') ? '1.0.1' : pickVersion(alias, bareSpecifier, options.preferredVersions)
+    requestLog.push({ alias, updateRequested: options.updateRequested })
+    return createPackageResponse(`${alias}@${version}`)
+  })
+  const lockfile = createLockfile()
+
+  await resolveDependencyTree([
+    {
+      id: '.' as ProjectId,
+      manifest: {
+        name: 'root',
+        version: '0.0.0',
+        dependencies: {
+          aliased: 'npm:t@^1.0.0',
+          other: 'npm:u@^1.0.0',
+        },
+      },
+      modulesDir: '/project/node_modules',
+      rootDir: '/project' as ProjectRootDir,
+      updatePackageManifest: false,
+      updateMatching: (name: string) => name === 't',
+      wantedDependencies: [
+        {
+          alias: 'aliased',
+          bareSpecifier: 'npm:t@^1.0.0',
+          dev: false,
+          optional: false,
+          updateDepth: Number.POSITIVE_INFINITY,
+        },
+        {
+          alias: 'other',
+          bareSpecifier: 'npm:u@^1.0.0',
+          dev: false,
+          optional: false,
+          updateDepth: Number.POSITIVE_INFINITY,
+        },
+      ],
+    } satisfies ImporterToResolveGeneric<object>,
+  ], {
+    allowedDeprecatedVersions: {},
+    allowUnusedPatches: false,
+    currentLockfile: lockfile,
+    dryRun: false,
+    engineStrict: false,
+    force: false,
+    forceFullResolution: false,
+    hooks: {},
+    lockfileDir: '/project',
+    pnpmVersion: '0.0.0',
+    registries: {
+      default: 'https://registry.npmjs.org/',
+    },
+    storeController,
+    tag: 'latest',
+    virtualStoreDir: '/project/node_modules/.pnpm',
+    globalVirtualStoreDir: '/project/node_modules/.pnpm/global',
+    virtualStoreDirMaxLength: 120,
+    wantedLockfile: lockfile,
+    workspacePackages: new Map(),
+    peersSuffixMaxLength: 1000,
+    dedupePeerDependents: true,
+  } satisfies ResolveDependenciesOptions)
+
+  const aliasedResolution = requestLog.find(({ alias }) => alias === 'aliased')
+  expect(aliasedResolution?.updateRequested).toBe(true)
+  const otherResolution = requestLog.find(({ alias }) => alias === 'other')
+  expect(otherResolution?.updateRequested).toBe(false)
+})
+
 function hasPreferredVersion (preferredVersions: PreferredVersions, alias: string, version: string): boolean {
   return Boolean(preferredVersions[alias]?.[version])
 }
@@ -432,5 +515,15 @@ const manifests: Record<string, PackageManifest> = {
       // dist-tag bump that `pnpm up -r t` reacts to).
       t: '^1.0.0',
     },
+  },
+  // npm-alias targets: the alias is the local install name; the manifest
+  // carries the real package name.
+  'aliased@1.0.1': {
+    name: 't',
+    version: '1.0.1',
+  },
+  'other@1.0.1': {
+    name: 'u',
+    version: '1.0.1',
   },
 }
