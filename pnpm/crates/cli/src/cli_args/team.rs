@@ -180,10 +180,7 @@ fn parse_scope_team(spec: &str) -> Result<ScopeTeam, TeamError> {
         if team.is_empty() {
             return Err(TeamError::InvalidScope { spec: spec.to_string() });
         }
-        Ok(ScopeTeam {
-            scope: inner[..colon].to_string(),
-            team: Some(team),
-        })
+        Ok(ScopeTeam { scope: inner[..colon].to_string(), team: Some(team) })
     } else {
         Ok(ScopeTeam { scope: inner.to_string(), team: None })
     }
@@ -208,11 +205,7 @@ fn team_user_url(registry_url: &str, scope: &str, team: &str) -> String {
 }
 
 fn org_team_url(registry_url: &str, scope: &str) -> String {
-    format!(
-        "{}-/org/{}/team",
-        normalize_registry_url(registry_url),
-        encode_uri_component(scope),
-    )
+    format!("{}-/org/{}/team", normalize_registry_url(registry_url), encode_uri_component(scope))
 }
 
 #[derive(Deserialize)]
@@ -254,8 +247,7 @@ impl TeamArgs {
         let registry_url = self
             .registry
             .as_deref()
-            .map(normalize_registry_url)
-            .unwrap_or_else(|| config.registry.clone());
+            .map_or_else(|| config.registry.clone(), normalize_registry_url);
         Ok(TeamContext {
             config,
             http_client: build_http_client(config)?,
@@ -284,7 +276,8 @@ async fn team_create(context: &TeamContext<'_>, params: &[String]) -> miette::Re
 
     let (_guard, response) =
         send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let mut builder = client.put(&url).header("content-type", "application/json").body(body.clone());
+            let mut builder =
+                client.put(&url).header("content-type", "application/json").body(body.clone());
             if let Some(ref auth) = auth_header {
                 builder = builder.header("authorization", auth);
             }
@@ -344,7 +337,8 @@ async fn team_add(context: &TeamContext<'_>, params: &[String]) -> miette::Resul
 
     let (_guard, response) =
         send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let mut builder = client.put(&url).header("content-type", "application/json").body(body.clone());
+            let mut builder =
+                client.put(&url).header("content-type", "application/json").body(body.clone());
             if let Some(ref auth) = auth_header {
                 builder = builder.header("authorization", auth);
             }
@@ -380,7 +374,8 @@ async fn team_rm(context: &TeamContext<'_>, params: &[String]) -> miette::Result
 
     let (_guard, response) =
         send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let mut builder = client.delete(&url).header("content-type", "application/json").body(body.clone());
+            let mut builder =
+                client.delete(&url).header("content-type", "application/json").body(body.clone());
             if let Some(ref auth) = auth_header {
                 builder = builder.header("authorization", auth);
             }
@@ -408,15 +403,12 @@ async fn team_ls(context: &TeamContext<'_>, params: &[String]) -> miette::Result
 
     let auth_header = auth_header_for_registry(context, &context.registry_url);
 
-    match st.team {
-        Some(team) => {
-            let members = fetch_team_members(context, &st.scope, &team, auth_header.as_deref()).await?;
-            render_members(&st.scope, &team, members, context.parseable, context.json)
-        }
-        None => {
-            let teams = fetch_teams(context, &st.scope, auth_header.as_deref()).await?;
-            render_teams(&st.scope, teams, context.parseable, context.json)
-        }
+    if let Some(team) = &st.team {
+        let members = fetch_team_members(context, &st.scope, team, auth_header.as_deref()).await?;
+        render_members(&st.scope, team, &members, context.parseable, context.json)
+    } else {
+        let teams = fetch_teams(context, &st.scope, auth_header.as_deref()).await?;
+        render_teams(&st.scope, &teams, context.parseable, context.json)
     }
 }
 
@@ -475,11 +467,9 @@ async fn fetch_team_members(
         .map_err(|source| registry_operation_error("fetching team members", source))?;
 
     if response.status() == reqwest::StatusCode::NOT_FOUND {
-        return Err(TeamError::TeamNotFound {
-            scope: scope.to_string(),
-            team: team.to_string(),
-        }
-        .into());
+        return Err(
+            TeamError::TeamNotFound { scope: scope.to_string(), team: team.to_string() }.into()
+        );
     }
     if !response.status().is_success() {
         let status = response.status();
@@ -499,7 +489,7 @@ async fn fetch_team_members(
 
 fn render_teams(
     scope: &str,
-    teams: Vec<TeamInfo>,
+    teams: &[TeamInfo],
     parseable: bool,
     json: bool,
 ) -> miette::Result<String> {
@@ -520,7 +510,7 @@ fn render_teams(
     }
 
     let mut lines = vec![format!("@{scope} has the following teams:")];
-    for t in &teams {
+    for t in teams {
         lines.push(format!("  @{scope}:{}", t.name));
     }
     Ok(lines.join("\n"))
@@ -529,7 +519,7 @@ fn render_teams(
 fn render_members(
     scope: &str,
     team: &str,
-    members: Vec<UserInfo>,
+    members: &[UserInfo],
     parseable: bool,
     json: bool,
 ) -> miette::Result<String> {
@@ -550,7 +540,7 @@ fn render_members(
     }
 
     let mut lines = vec![format!("@{scope}:{team} has the following members:")];
-    for m in &members {
+    for m in members {
         lines.push(format!("  {}", m.name));
     }
     Ok(lines.join("\n"))
@@ -576,11 +566,7 @@ fn build_http_client(config: &Config) -> miette::Result<ThrottledClient> {
 }
 
 fn normalize_registry_url(registry_url: &str) -> String {
-    if registry_url.ends_with('/') {
-        registry_url.to_string()
-    } else {
-        format!("{registry_url}/")
-    }
+    if registry_url.ends_with('/') { registry_url.to_string() } else { format!("{registry_url}/") }
 }
 
 fn registry_operation_error<ErrorType>(operation: &'static str, error: ErrorType) -> miette::Report
@@ -594,16 +580,10 @@ where
     .into()
 }
 
-async fn write_error_from_response(
-    response: Response,
-    action: String,
-) -> miette::Result<String> {
+async fn write_error_from_response(response: Response, action: String) -> miette::Result<String> {
     let status = response.status();
     let status_text = status.canonical_reason().unwrap_or_default().to_string();
-    let body = response
-        .text()
-        .await
-        .unwrap_or_else(|_| String::new());
+    let body = response.text().await.unwrap_or_else(|_| String::new());
     let body = sanitize::sanitize(&body).into_owned();
 
     if status == reqwest::StatusCode::UNAUTHORIZED {
@@ -615,7 +595,8 @@ async fn write_error_from_response(
     if status == reqwest::StatusCode::CONFLICT {
         return Err(TeamError::Conflict { body }.into());
     }
-    Err(TeamError::RegistryWriteFailed { action, status: status.as_u16(), status_text, body }.into())
+    Err(TeamError::RegistryWriteFailed { action, status: status.as_u16(), status_text, body }
+        .into())
 }
 
 #[cfg(test)]
@@ -657,17 +638,15 @@ mod tests {
 
     #[test]
     fn render_teams_empty_returns_no_teams_message() {
-        let result = render_teams("myorg", vec![], false, false).expect("should render");
+        let result = render_teams("myorg", &[], false, false).expect("should render");
         assert_eq!(result, "@myorg has no teams");
     }
 
     #[test]
     fn render_teams_returns_formatted_list() {
-        let teams = vec![
-            TeamInfo { name: "developers".to_string() },
-            TeamInfo { name: "admins".to_string() },
-        ];
-        let result = render_teams("myorg", teams, false, false).expect("should render");
+        let teams =
+            [TeamInfo { name: "developers".to_string() }, TeamInfo { name: "admins".to_string() }];
+        let result = render_teams("myorg", &teams, false, false).expect("should render");
         assert!(result.contains("@myorg has the following teams:"));
         assert!(result.contains("  @myorg:developers"));
         assert!(result.contains("  @myorg:admins"));
@@ -675,39 +654,33 @@ mod tests {
 
     #[test]
     fn render_teams_parseable_format() {
-        let teams = vec![
-            TeamInfo { name: "developers".to_string() },
-            TeamInfo { name: "admins".to_string() },
-        ];
-        let result = render_teams("myorg", teams, true, false).expect("should render");
+        let teams =
+            [TeamInfo { name: "developers".to_string() }, TeamInfo { name: "admins".to_string() }];
+        let result = render_teams("myorg", &teams, true, false).expect("should render");
         assert_eq!(result, "developers\nadmins");
     }
 
     #[test]
     fn render_teams_json_format() {
-        let teams = vec![
-            TeamInfo { name: "developers".to_string() },
-            TeamInfo { name: "admins".to_string() },
-        ];
-        let result = render_teams("myorg", teams, false, true).expect("should render");
+        let teams =
+            [TeamInfo { name: "developers".to_string() }, TeamInfo { name: "admins".to_string() }];
+        let result = render_teams("myorg", &teams, false, true).expect("should render");
         assert!(result.contains("\"developers\""));
         assert!(result.contains("\"admins\""));
     }
 
     #[test]
     fn render_members_empty_returns_no_members_message() {
-        let result = render_members("myorg", "team1", vec![], false, false).expect("should render");
+        let result = render_members("myorg", "team1", &[], false, false).expect("should render");
         assert_eq!(result, "@myorg:team1 has no members");
     }
 
     #[test]
     fn render_members_returns_formatted_list() {
-        let members = vec![
-            UserInfo { name: "alice".to_string() },
-            UserInfo { name: "bob".to_string() },
-        ];
+        let members =
+            [UserInfo { name: "alice".to_string() }, UserInfo { name: "bob".to_string() }];
         let result =
-            render_members("myorg", "team1", members, false, false).expect("should render");
+            render_members("myorg", "team1", &members, false, false).expect("should render");
         assert!(result.contains("@myorg:team1 has the following members:"));
         assert!(result.contains("  alice"));
         assert!(result.contains("  bob"));
@@ -715,21 +688,19 @@ mod tests {
 
     #[test]
     fn render_members_parseable_format() {
-        let members = vec![
-            UserInfo { name: "alice".to_string() },
-            UserInfo { name: "bob".to_string() },
-        ];
-        let result = render_members("myorg", "team1", members, true, false).expect("should render");
+        let members =
+            [UserInfo { name: "alice".to_string() }, UserInfo { name: "bob".to_string() }];
+        let result =
+            render_members("myorg", "team1", &members, true, false).expect("should render");
         assert_eq!(result, "alice\nbob");
     }
 
     #[test]
     fn render_members_json_format() {
-        let members = vec![
-            UserInfo { name: "alice".to_string() },
-            UserInfo { name: "bob".to_string() },
-        ];
-        let result = render_members("myorg", "team1", members, false, true).expect("should render");
+        let members =
+            [UserInfo { name: "alice".to_string() }, UserInfo { name: "bob".to_string() }];
+        let result =
+            render_members("myorg", "team1", &members, false, true).expect("should render");
         assert!(result.contains("\"alice\""));
         assert!(result.contains("\"bob\""));
     }
@@ -755,19 +726,13 @@ mod tests {
     #[test]
     fn team_user_url_constructs_correctly() {
         let url = team_user_url("https://registry.example.com/", "myorg", "developers");
-        assert_eq!(
-            url,
-            "https://registry.example.com/-/team/myorg/developers/user"
-        );
+        assert_eq!(url, "https://registry.example.com/-/team/myorg/developers/user");
     }
 
     #[test]
     fn team_members_url_constructs_correctly() {
         let url = team_members_url("https://registry.example.com/", "myorg", "developers");
-        assert_eq!(
-            url,
-            "https://registry.example.com/-/team/myorg/developers"
-        );
+        assert_eq!(url, "https://registry.example.com/-/team/myorg/developers");
     }
 
     #[test]

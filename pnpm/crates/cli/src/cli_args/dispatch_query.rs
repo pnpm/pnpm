@@ -3,7 +3,6 @@ use super::{
     audit::{AuditArgs, AuditOutcome},
     bin::BinArgs,
     bugs::BugsArgs,
-    team::TeamArgs,
     cache::CacheCommand,
     cat_file::CatFileArgs,
     cat_index::CatIndexArgs,
@@ -32,6 +31,7 @@ use super::{
     setup::SetupArgs,
     stage::StageArgs,
     store::StoreCommand,
+    team::TeamArgs,
     why::WhyArgs,
     with::WithArgs,
 };
@@ -175,10 +175,7 @@ pub(super) fn dist_tag<'a>(
     }))
 }
 
-pub(super) fn team<'a>(
-    ctx: &RunCtx<'a>,
-    args: TeamArgs,
-) -> miette::Result<CommandFuture<'a>> {
+pub(super) fn team<'a>(ctx: &RunCtx<'a>, args: TeamArgs) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.config)()?;
     Ok(Box::pin(async move {
         if let Some(output) = args.run(cfg).await? {
