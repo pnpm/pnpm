@@ -1745,10 +1745,11 @@ where
     // `update_requested` flag is scoped per wanted-dependency — true only
     // when the package's real name (parsed from `bare_specifier` for
     // npm-aliases, folded from the jsr specifier for jsr deps) is in the
-    // update target list — so siblings keep their preferred-version dedup.
+    // update target list — so the picker's held-back-update warning fires
+    // only for the packages the user actually asked to update.
     let needs_overlay = !cache_key.8.is_empty();
-    let bypass = should_bypass_preferred(&ctx.workspace.update_reuse_scope, wanted);
-    let needs_update = bypass != opts.update_requested;
+    let update_target = is_update_target(&ctx.workspace.update_reuse_scope, wanted);
+    let needs_update = update_target != opts.update_requested;
     let owned_opts;
     let opts = if needs_overlay || needs_update {
         let mut owned = opts.clone();
@@ -1756,7 +1757,7 @@ where
             owned.preferred_versions_overlay = pick_overlay.map(Arc::clone);
         }
         if needs_update {
-            owned.update_requested = bypass;
+            owned.update_requested = update_target;
         }
         owned_opts = owned;
         &owned_opts
@@ -2164,16 +2165,17 @@ fn real_package_name_of(wanted: &WantedDependency) -> Option<Cow<'_, str>> {
     wanted.alias.as_deref().map(Cow::Borrowed)
 }
 
-/// Whether `wanted` should bypass preferred-version propagation, given
-/// the install's [`UpdateReuseScope`]. Feeds the per-resolve
-/// `ResolveOptions::update_requested` flag.
+/// Whether `wanted` is one of the packages the user asked to update,
+/// given the install's [`UpdateReuseScope`]. Feeds the per-resolve
+/// `ResolveOptions::update_requested` flag, which gates the npm
+/// picker's held-back-update warning.
 ///
-/// Returns `false` for `All`/`None` scopes (the install/add default —
-/// no package is targeted for update) and for `Except` scopes where
-/// the wanted package's real name is not in the target list. Returns
-/// `true` only when the real name is in the `Except` set.
+/// Returns `false` for `All`/`None` scopes (no individually targeted
+/// packages) and for `Except` scopes where the wanted package's real
+/// name is not in the target list. Returns `true` only when the real
+/// name is in the `Except` set.
 #[inline]
-fn should_bypass_preferred(scope: &UpdateReuseScope, wanted: &WantedDependency) -> bool {
+fn is_update_target(scope: &UpdateReuseScope, wanted: &WantedDependency) -> bool {
     match scope {
         UpdateReuseScope::All | UpdateReuseScope::None => false,
         UpdateReuseScope::Except(_) => {

@@ -316,8 +316,8 @@ test('the same package name served by two registries does not collide in the in-
 
 test('resolveFromNamedRegistry() preserves vulnerability-avoidance range selectors even when updateRequested is true', async () => {
   // Security regression: the simple-registry picker (jsr + named registries)
-  // must use the same `stripVersionPins` helper as the npm picker, so a
-  // targeted update drops only propagated exact-version pins and keeps
+  // must use the same `stripLockfileVersionPins` helper as the npm picker,
+  // so a targeted update drops only the target's lockfile pins and keeps
   // range penalties (e.g. `pnpm audit --fix` vulnerability avoidance).
   // Without the helper, dropping all selectors lets the "fix" re-pick the
   // vulnerable highest-in-range version.
@@ -334,8 +334,9 @@ test('resolveFromNamedRegistry() preserves vulnerability-avoidance range selecto
     {
       preferredVersions: {
         '@acme/private': {
-          // Propagated exact pin — dropped so it can't hold the target down.
-          '2.0.0': 'version',
+          // The target's own lockfile pin — dropped so it can't hold the
+          // target at its old version.
+          '2.0.0': { selectorType: 'version', weight: 1_000_000 },
           // Vulnerability penalty on 2.1.0 — must survive so the targeted
           // update lands on 2.0.0 instead of the vulnerable latest.
           '>=2.1.0': { selectorType: 'range', weight: -1000 },

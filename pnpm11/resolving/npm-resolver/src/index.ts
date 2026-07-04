@@ -7,6 +7,7 @@ import type {
   GetAuthHeader,
   RetryTimeoutOptions,
 } from '@pnpm/fetching.types'
+import { globalWarn } from '@pnpm/logger'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type {
   DirectoryResolution,
@@ -24,6 +25,9 @@ import type {
   WorkspacePackage,
   WorkspacePackages,
   WorkspacePackagesByVersion,
+} from '@pnpm/resolving.resolver-base'
+import {
+  EXISTING_VERSION_SELECTOR_WEIGHT,
 } from '@pnpm/resolving.resolver-base'
 import { storeIndexKey } from '@pnpm/store.index'
 import type {
@@ -273,6 +277,7 @@ export function createNpmResolver (
     namedRegistryNames,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
     peekManifestFromStore,
+    warnedHeldBackUpdates: new Set(),
   }
   const boundResolveFromNpm = resolveNpm.bind(null, ctx)
   const boundResolveFromJsr = resolveJsr.bind(null, ctx)
@@ -300,12 +305,12 @@ export function createNpmResolver (
  * The preferred-version selectors to hand the package picker for `pkgName`.
  *
  * When this package is the user's update target (`updateRequested`), the
- * exact-version pins propagated from already-resolved siblings are dropped
- * so the target can reach `latest` instead of being held back to a sibling's
- * older resolved version. Non-pin selectors are preserved — in particular the
+ * lockfile's contribution to its selectors is removed so the target
+ * re-resolves exactly the way a fresh install would after its lockfile
+ * entries were deleted. Everything a fresh install applies is preserved:
+ * manifest pins, the versions propagated down the dependency chain, and the
  * negative-weight `range` penalties that `pnpm audit --fix` injects to steer
- * resolution away from vulnerable versions, which must keep applying even to
- * the targeted package.
+ * resolution away from vulnerable versions.
  */
 function preferredVersionSelectorsFor (
   opts: Pick<ResolveFromNpmOptions, 'updateRequested' | 'preferredVersions'>,
@@ -313,21 +318,73 @@ function preferredVersionSelectorsFor (
 ): VersionSelectors | undefined {
   const selectors = opts.preferredVersions?.[pkgName]
   if (!opts.updateRequested) return selectors
-  return stripVersionPins(selectors)
+  return stripLockfileVersionPins(selectors)
 }
 
-/** Drop selectors whose type is `version` (propagated exact pins), keeping
- * `range` and `tag` selectors. Returns `undefined` when nothing remains. */
-function stripVersionPins (selectors?: VersionSelectors): VersionSelectors | undefined {
+/**
+ * Remove the lockfile-derived part of the selectors: the concrete pins
+ * `getPreferredVersionsFromLockfileAndManifests` seeds at
+ * `EXISTING_VERSION_SELECTOR_WEIGHT` — added onto the manifest weight when a
+ * manifest entry pins the same version, so the lockfile weight is subtracted
+ * rather than the selector dropped, leaving the manifest contribution in
+ * effect. Selectors a fresh install would also apply (manifest pins,
+ * chain-propagated versions, `range`/`tag` selectors) pass through unchanged.
+ * Returns `undefined` when nothing remains.
+ */
+function stripLockfileVersionPins (selectors?: VersionSelectors): VersionSelectors | undefined {
   if (selectors == null) return undefined
   let kept: VersionSelectors | undefined
   for (const [selector, value] of Object.entries(selectors)) {
-    const selectorType = typeof value === 'string' ? value : value.selectorType
-    if (selectorType === 'version') continue
+    let keptValue = value
+    if (typeof value !== 'string' && value.selectorType === 'version' && value.weight >= EXISTING_VERSION_SELECTOR_WEIGHT) {
+      const manifestWeight = value.weight - EXISTING_VERSION_SELECTOR_WEIGHT
+      if (manifestWeight <= 0) continue
+      keptValue = { selectorType: 'version', weight: manifestWeight }
+    }
     kept ??= {}
-    kept[selector] = value
+    kept[selector] = keptValue
   }
   return kept
+}
+
+/**
+ * During a targeted update the picker still honors the preferred versions a
+ * fresh install would apply (manifest pins and versions propagated down the
+ * dependency chain), so the target can legitimately settle below the highest
+ * version its range admits. Surface that once per package: reaching the
+ * newer version everywhere is an override's job, not an update's.
+ *
+ * The baseline for "held back" is the pick with only the non-pin selectors
+ * applied — `range`/`tag` selectors such as the `pnpm audit --fix`
+ * vulnerability penalties steer the baseline too, so the warning never
+ * recommends a version those selectors avoid.
+ */
+function warnOnceOnHeldBackUpdate (
+  ctx: Pick<ResolveFromNpmContext, 'warnedHeldBackUpdates'>,
+  opts: Pick<ResolveFromNpmOptions, 'updateRequested' | 'preferredVersions'>,
+  spec: RegistryPackageSpec,
+  meta: PackageMeta,
+  pickedVersion: string
+): void {
+  if (!opts.updateRequested || spec.type !== 'range') return
+  const selectors = preferredVersionSelectorsFor(opts, spec.name)
+  if (selectors == null) return
+  let nonPinSelectors: VersionSelectors | undefined
+  for (const [selector, value] of Object.entries(selectors)) {
+    if ((typeof value === 'string' ? value : value.selectorType) === 'version') continue
+    nonPinSelectors ??= {}
+    nonPinSelectors[selector] = value
+  }
+  const preferred = pickVersionByVersionRange({
+    meta,
+    versionRange: spec.fetchSpec,
+    preferredVersionSelectors: nonPinSelectors,
+  })
+  if (preferred == null || preferred === pickedVersion) return
+  const key = `${spec.name}@${pickedVersion}<${preferred}`
+  if (ctx.warnedHeldBackUpdates.has(key)) return
+  ctx.warnedHeldBackUpdates.add(key)
+  globalWarn(`"${spec.name}" was updated to ${pickedVersion}, not ${preferred}, to match the version preferred by your manifests and already installed dependencies. To use ${preferred} everywhere, add an override: { "pnpm": { "overrides": { "${spec.name}": "${preferred}" } } }`)
 }
 
 function isNpmSpec (query: LatestQuery, defaultRegistry: string): boolean {
@@ -407,6 +464,8 @@ export interface ResolveFromNpmContext {
     name?: string
     version?: string
   }) => Promise<DependencyManifest | undefined>
+  /** Deduplicates the held-back-update warning per `(name, picked, preferred)`. */
+  warnedHeldBackUpdates: Set<string>
 }
 
 export type ResolveFromNpmOptions = {
@@ -631,6 +690,7 @@ async function resolveNpm (
     }
   }
 
+  warnOnceOnHeldBackUpdate(ctx, opts, spec, meta, pickedPackage.version)
   const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId
   const resolution = {
     integrity: getIntegrity(pickedPackage.dist),
@@ -792,6 +852,7 @@ async function pickFromSimpleRegistry (
   if (pickedPackage == null) {
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
   }
+  warnOnceOnHeldBackUpdate(ctx, opts, spec, meta, pickedPackage.version)
   const resolution = {
     integrity: getIntegrity(pickedPackage.dist),
     tarball: normalizeRegistryUrl(pickedPackage.dist.tarball),

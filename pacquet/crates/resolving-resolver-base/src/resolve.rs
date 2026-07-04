@@ -197,14 +197,6 @@ pub const DIRECT_DEP_SELECTOR_WEIGHT: u32 = 1_000;
 /// existing pins stick across an add of a fresh range.
 pub const EXISTING_VERSION_SELECTOR_WEIGHT: u32 = 1_000_000;
 
-/// Selector weight applied to the exact version the user explicitly
-/// requested on the command line (`pnpm update <pkg>@<version>` for a
-/// package that is only present as a transitive dependency). Must
-/// outrank every other preference — including
-/// [`EXISTING_VERSION_SELECTOR_WEIGHT`] — so the requested version
-/// wins during re-resolution.
-pub const REQUESTED_VERSION_SELECTOR_WEIGHT: u32 = 10_000_000;
-
 /// One project in the current workspace that resolution can satisfy
 /// `workspace:`-protocol entries from.
 ///
@@ -314,10 +306,11 @@ pub struct ResolveOptions {
     /// True only when this specific package matches the user's update
     /// target (e.g. `pnpm up <name>`). Unlike `update`, this is false for
     /// unrelated packages that get re-resolved as a side effect of an
-    /// update, so the npm picker can bypass
-    /// [`preferred_versions`](Self::preferred_versions) for the targeted
-    /// package without forcing unrelated transitives to jump to their
-    /// latest versions.
+    /// update. The npm picker uses it to warn when a
+    /// [`preferred_versions`](Self::preferred_versions) selector holds
+    /// the update target below the newest version its range admits —
+    /// the seed already withholds the target's own lockfile pins, so
+    /// any remaining preference is one a fresh install would apply too.
     pub update_requested: bool,
     /// When `true`, bypass cached metadata fast paths so the registry
     /// is the authority on integrity values. The `--update-checksums`

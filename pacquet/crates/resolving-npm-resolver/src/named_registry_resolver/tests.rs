@@ -269,11 +269,13 @@ async fn errors_on_invalid_scoped_package_name() {
 }
 
 #[tokio::test]
-async fn update_requested_bypasses_preferred_versions() {
-    // Regression test for the form-data downgrade on named-registry /
-    // JSR resolution paths. With `update_requested=true`, the picker
-    // must skip `preferred_versions` so a sibling's older resolved
-    // version doesn't pull the targeted update off the latest dist-tag.
+async fn update_requested_keeps_preferred_versions() {
+    // An update target must resolve exactly the way a fresh install
+    // would: preferred versions (manifest pins, versions propagated
+    // down the dependency chain) keep steering the pick even with
+    // `update_requested=true`. The target's own lockfile pins never
+    // reach the resolver — the install layer withholds them from the
+    // seed — so nothing needs bypassing here.
     let mut server = mockito::Server::new_async().await;
     let _mock = server
         .mock("GET", "/@acme%2Fprivate")
@@ -288,8 +290,9 @@ async fn update_requested_bypasses_preferred_versions() {
     let (resolver, _tempdir) = build_resolver(user);
 
     // Preferred = 2.0.0 (older). Range = ^2.0.0 admits both 2.0.0 and
-    // latest 2.1.0. Without the bypass, the picker honors the preferred
-    // version and returns 2.0.0.
+    // latest 2.1.0. The picker honors the preferred version — an update
+    // that jumped to 2.1.0 would install a duplicate a reinstall from
+    // scratch would not reproduce.
     let mut preferred = pacquet_resolving_resolver_base::PreferredVersions::new();
     preferred.insert("@acme/private".to_string(), {
         let mut selectors = pacquet_resolving_resolver_base::VersionSelectors::new();
@@ -318,20 +321,17 @@ async fn update_requested_bypasses_preferred_versions() {
         .await
         .unwrap()
         .unwrap();
-    // Latest 2.1.0 wins because update_requested bypassed the preferred
-    // 2.0.0.
-    assert_eq!(result.id.as_str(), "@acme/private@2.1.0");
+    assert_eq!(result.id.as_str(), "@acme/private@2.0.0");
 }
 
 #[tokio::test]
 async fn update_requested_keeps_non_version_selectors() {
-    // `update_requested` drops only the propagated exact-version pins,
-    // not `range`/`tag` selectors. Those steer resolution (e.g. the
+    // `range`/`tag` selectors steer resolution (e.g. the
     // vulnerability-avoidance penalties from `pnpm audit --fix`) and
     // must keep applying to the targeted package. Here a `range`
     // preference on the older 2.0.0 stands in for any such non-pin
-    // selector: it must survive so the targeted update honors it
-    // instead of jumping to latest 2.1.0.
+    // selector: the targeted update honors it instead of jumping to
+    // latest 2.1.0.
     let mut server = mockito::Server::new_async().await;
     let _mock = server
         .mock("GET", "/@acme%2Fprivate")

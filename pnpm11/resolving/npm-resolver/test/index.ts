@@ -510,12 +510,11 @@ test("ignore the preferred version if it's not inside the wanted range", async (
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
 })
 
-test('ignore the preferred version when updateRequested is true (targeted update must not be pulled down by sibling propagation)', async () => {
-  // Regression test for the form-data downgrade: when the user runs
-  // `pnpm up -r <pkg>`, the targeted package's resolution must not be
-  // pinned to an older sibling-resolved version via preferredVersionSelectors.
-  // The resolver receives updateRequested=true only for packages matching
-  // the user's update target, so unrelated re-resolutions keep deduping.
+test('ignore the lockfile-derived preferred version when updateRequested is true (the target re-resolves as if its lockfile entries were deleted)', async () => {
+  // When the user runs `pnpm up <pkg>`, the target's own lockfile pins
+  // (seeded at EXISTING_VERSION_SELECTOR_WEIGHT) must not hold it at the
+  // old version — ignoring them is what makes it an update. Every selector
+  // a fresh install would apply stays in effect (see the tests below).
   getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, {
@@ -533,11 +532,81 @@ test('ignore the preferred version when updateRequested is true (targeted update
     bareSpecifier: '^3.0.0',
   }, {
     preferredVersions: {
-      'is-positive': { '3.0.0': 'version' },
+      'is-positive': { '3.0.0': { selectorType: 'version', weight: 1_000_000 } },
     },
     updateRequested: true,
   })
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
+})
+
+test('keep honoring manifest and chain-propagated preferred versions when updateRequested is true (update must match a fresh install)', async () => {
+  // A fresh install dedupes a caret consumer onto a manifest exact pin
+  // (weight 1000) and onto versions propagated down the dependency chain
+  // (plain selectors). An update of the same package must produce the same
+  // result instead of installing a duplicate version.
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '3.1.0' },
+    })
+    .persist()
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+  const manifestPinResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '^3.0.0',
+  }, {
+    preferredVersions: {
+      'is-positive': { '3.0.0': { selectorType: 'version', weight: 1000 } },
+    },
+    updateRequested: true,
+  })
+  expect(manifestPinResult!.id).toBe('is-positive@3.0.0')
+
+  const propagatedPinResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '^3.0.0',
+  }, {
+    preferredVersions: {
+      'is-positive': { '3.0.0': 'version' },
+    },
+    updateRequested: true,
+  })
+  expect(propagatedPinResult!.id).toBe('is-positive@3.0.0')
+})
+
+test('a manifest pin that is also locked keeps only its manifest weight when updateRequested is true', async () => {
+  // getPreferredVersionsFromLockfileAndManifests adds the lockfile weight
+  // onto a manifest entry that pins the same version (1000 + 1_000_000).
+  // The strip must subtract the lockfile contribution rather than drop the
+  // selector — a fresh install would still honor the manifest pin.
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '3.1.0' },
+    })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '^3.0.0',
+  }, {
+    preferredVersions: {
+      'is-positive': { '3.0.0': { selectorType: 'version', weight: 1_001_000 } },
+    },
+    updateRequested: true,
+  })
+  expect(resolveResult!.id).toBe('is-positive@3.0.0')
 })
 
 test('still honor the preferred version when updateRequested is false (dedup during plain install)', async () => {
@@ -573,10 +642,9 @@ test('preserve vulnerability-avoidance range selectors even when updateRequested
   // Security regression: `pnpm audit --fix` targets vulnerable packages via
   // updateMatching (so updateRequested becomes true for them) and steers
   // resolution away from vulnerable versions with negative-weight `range`
-  // selectors in preferredVersions. Only the propagated exact-version pins
-  // may be dropped for the targeted package — the range penalties must
-  // survive, or the "fix" would re-pick the vulnerable highest-in-range
-  // version.
+  // selectors in preferredVersions. Only the lockfile-derived pins may be
+  // dropped for the targeted package — the range penalties must survive, or
+  // the "fix" would re-pick the vulnerable highest-in-range version.
   getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta) // latest is 3.1.0
@@ -592,8 +660,9 @@ test('preserve vulnerability-avoidance range selectors even when updateRequested
   }, {
     preferredVersions: {
       'is-positive': {
-        // A propagated exact pin — dropped so it can't hold the target down.
-        '3.0.0': 'version',
+        // The target's own lockfile pin — dropped so it can't hold the
+        // target at its old version.
+        '3.0.0': { selectorType: 'version', weight: 1_000_000 },
         // A vulnerability penalty on 3.1.0 — must survive so the targeted
         // update lands on 3.0.0 instead of the vulnerable latest.
         '>=3.1.0': { selectorType: 'range', weight: -1000 },

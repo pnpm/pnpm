@@ -101,13 +101,15 @@ test('shared package children are resolved from the deterministic shallowest con
   ])
 })
 
-test('updateRequested bypasses preferred-version propagation along the dep chain so a deeper caret consumer reaches latest (form-data regression)', async () => {
-  // The bypass must be scoped per wanted-dependency: true only for the
-  // user's update target, false for every other package on the chain.
-  // The fixture nests an exact-pin carrier above a caret consumer in a
-  // single dep chain — cross-branch propagation does not happen in
-  // pnpm's preferredVersions model, so the targeted package must
-  // appear at two depths in the SAME chain for the bug to surface.
+test('a targeted update keeps down-chain preferred-version propagation, so it dedupes exactly like a fresh install, while updateRequested is threaded per wanted-dependency', async () => {
+  // The `updateRequested` flag must be scoped per wanted-dependency: true
+  // only for the user's update target (where the resolver drops the
+  // target's lockfile-derived pins), false for every other package on the
+  // chain. Down-chain propagation — a level's resolved versions joining
+  // the next level's preferred map — applies during a fresh install, so
+  // it must keep applying during an update too: the update's result has
+  // to match what a fresh install would produce. The fixture nests an
+  // exact-pin carrier above a caret consumer in a single dep chain.
   const requestLog: Array<{
     alias: string | undefined
     bareSpecifier: string | undefined
@@ -118,7 +120,7 @@ test('updateRequested bypasses preferred-version propagation along the dep chain
   const storeController = createStoreController(async (wantedDependency, options) => {
     const alias = wantedDependency.alias!
     const bareSpecifier = wantedDependency.bareSpecifier!
-    const version = pickVersion(alias, bareSpecifier, options.preferredVersions, options.updateRequested)
+    const version = pickVersion(alias, bareSpecifier, options.preferredVersions)
     const resolvedId = `${alias}@${version}`
     requestLog.push({
       alias,
@@ -199,17 +201,16 @@ test('updateRequested bypasses preferred-version propagation along the dep chain
   const exactResolution = tResolutions.find(({ bareSpecifier }) => bareSpecifier === '1.0.0')
 
   // Primary contract: the caret consumer (inner's transitive t@^1.0.0)
-  // reaches `latest` (1.0.1), not the older version propagated down the
-  // chain from multi's exact-pin (1.0.0). A `t@1.0.0` here is the
-  // form-data downgrade — the targeted update quietly pinned the
-  // caret consumer to the propagated preferred instead of letting it
-  // bump.
-  expect(caretResolution?.resolvedId).toBe('t@1.0.1')
+  // dedupes onto the version propagated down the chain from multi's
+  // exact-pin (1.0.0) — exactly what a fresh install of the same
+  // manifests produces. A `t@1.0.1` here would mean the update
+  // installed a duplicate version of t that a reinstall from scratch
+  // would not reproduce.
+  expect(caretResolution?.resolvedId).toBe('t@1.0.0')
 
-  // Sanity check that the bug scenario was actually set up: the
-  // caret consumer's preferredVersions must contain t/1.0.0
-  // (propagated from multi's exact-pin). If this fails, the topology
-  // no longer reproduces the bug and the primary assertion above is
+  // Sanity check that the topology exercises propagation: the caret
+  // consumer's preferredVersions must contain t/1.0.0 (propagated from
+  // multi's exact-pin). If this fails, the primary assertion above is
   // meaningless.
   expect(caretResolution?.hadPreferredT100).toBe(true)
 
@@ -218,11 +219,11 @@ test('updateRequested bypasses preferred-version propagation along the dep chain
   expect(exactResolution?.resolvedId).toBe('t@1.0.0')
 
   // Plumbing diagnostics: the targeted package's resolutions must
-  // carry `updateRequested: true` so the npm picker bypasses
-  // preferredVersionSelectors. The carriers (re-resolved because of
-  // the broad `update` flag, but NOT the user's target) must carry
+  // carry `updateRequested: true` so the npm picker drops the target's
+  // lockfile-derived pins. The carriers (re-resolved because of the
+  // broad `update` flag, but NOT the user's target) must carry
   // `updateRequested: false` — this per-package discrimination is the
-  // core distinction the fix introduces over the broad `update` flag.
+  // core distinction over the broad `update` flag.
   for (const resolution of tResolutions) {
     expect(resolution.updateRequested).toBe(true)
   }
@@ -245,22 +246,19 @@ function hasPreferredVersion (preferredVersions: PreferredVersions, alias: strin
   return Boolean(preferredVersions[alias]?.[version])
 }
 
-function pickVersion (alias: string, bareSpecifier: string, preferredVersions: PreferredVersions, updateRequested?: boolean): string {
+function pickVersion (alias: string, bareSpecifier: string, preferredVersions: PreferredVersions): string {
   if (alias === 'provider' && bareSpecifier === '*') {
     return hasPreferredVersion(preferredVersions, alias, '1.0.0') ? '1.0.0' : '2.0.0'
   }
   if (alias === 't') {
-    // An exact specifier admits only itself; the updateRequested bypass
-    // cannot widen an exact pin.
+    // An exact specifier admits only itself.
     if (bareSpecifier === '1.0.0') return '1.0.0'
     // Caret admits 1.0.0 and 1.0.1 (latest). Model the npm-picker
-    // contract from `resolving/npm-resolver/src/index.ts`: when
-    // `updateRequested` is true, `preferredVersionSelectors` is
-    // undefined and the picker ignores propagated preferred versions.
-    // Otherwise the picker honors a propagated 1.0.0 — the form-data
-    // bug behavior the fix eliminates.
+    // contract from `resolving/npm-resolver/src/index.ts`: propagated
+    // (plain) preferred versions are honored regardless of
+    // `updateRequested` — only the target's lockfile-derived pins are
+    // stripped, and this fixture threads none of those.
     if (bareSpecifier === '^1.0.0') {
-      if (updateRequested === true) return '1.0.1'
       return hasPreferredVersion(preferredVersions, 't', '1.0.0') ? '1.0.0' : '1.0.1'
     }
   }

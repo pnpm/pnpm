@@ -245,8 +245,8 @@ mod real_package_name_of {
         // `foo@jsr:@foo/bar@^1`: install alias is `foo`, but the picker
         // and lockfile snapshots key on the folded npm registry name
         // (`@jsr/foo__bar`). Update targeting must match against this
-        // folded name, not the original jsr name, or the bypass won't
-        // fire for jsr deps.
+        // folded name, not the original jsr name, or jsr deps would
+        // never count as update targets.
         assert_eq!(
             real_package_name_of(&wanted(Some("foo"), Some("jsr:@foo/bar@^1"))).as_deref(),
             Some("@jsr/foo__bar"),
@@ -266,8 +266,8 @@ mod real_package_name_of {
     fn returns_none_for_unparsable_jsr_specifier() {
         // A `jsr:` specifier that the parser rejects (here: missing scope)
         // must not fall back to the install alias — otherwise a broken
-        // jsr dep could match an `updateMatching` target by alias and
-        // wrongly bypass preferred versions.
+        // jsr dep could match an update target by alias and wrongly be
+        // treated as one.
         assert_eq!(
             real_package_name_of(&wanted(Some("foo"), Some("jsr:foo@^1.0.0"))).as_deref(),
             None,
@@ -275,12 +275,12 @@ mod real_package_name_of {
     }
 }
 
-mod should_bypass_preferred {
+mod is_update_target {
     use std::collections::HashSet;
 
     use pacquet_resolving_resolver_base::WantedDependency;
 
-    use super::super::{UpdateReuseScope, should_bypass_preferred};
+    use super::super::{UpdateReuseScope, is_update_target};
 
     fn wanted_with(alias: Option<&str>, bare_specifier: Option<&str>) -> WantedDependency {
         WantedDependency {
@@ -297,7 +297,7 @@ mod should_bypass_preferred {
     #[test]
     fn returns_false_for_all_scope() {
         // `All` = install/add default: no package is targeted for update.
-        assert!(!should_bypass_preferred(
+        assert!(!is_update_target(
             &UpdateReuseScope::All,
             &wanted_with(Some("foo"), Some("^1.0.0")),
         ));
@@ -306,7 +306,7 @@ mod should_bypass_preferred {
     #[test]
     fn returns_false_for_none_scope() {
         // `None` is the "no reuse" sentinel; same outcome as `All` here.
-        assert!(!should_bypass_preferred(
+        assert!(!is_update_target(
             &UpdateReuseScope::None,
             &wanted_with(Some("foo"), Some("^1.0.0")),
         ));
@@ -314,38 +314,31 @@ mod should_bypass_preferred {
 
     #[test]
     fn returns_true_for_except_scope_when_targeted() {
-        // `foo` is in the user's update target list → bypass preferred
-        // versions for this resolution.
-        assert!(should_bypass_preferred(
-            &except(&["foo"]),
-            &wanted_with(Some("foo"), Some("^1.0.0")),
-        ));
+        // `foo` is in the user's update target list → this resolution
+        // carries `update_requested`.
+        assert!(is_update_target(&except(&["foo"]), &wanted_with(Some("foo"), Some("^1.0.0")),));
     }
 
     #[test]
     fn returns_false_for_except_scope_when_not_targeted() {
-        // `foo` is not in the user's update target list → dedup as usual.
-        assert!(!should_bypass_preferred(
-            &except(&["bar"]),
-            &wanted_with(Some("foo"), Some("^1.0.0")),
-        ));
+        // `foo` is not in the user's update target list.
+        assert!(!is_update_target(&except(&["bar"]), &wanted_with(Some("foo"), Some("^1.0.0")),));
     }
 
     #[test]
     fn matches_real_name_for_npm_alias_target() {
         // The user updates `bar`, but the importer installed it under
         // alias `foo` via `foo@npm:bar@^4`. The real name `bar` is in
-        // the target list, so the bypass fires for the aliased dep.
-        assert!(should_bypass_preferred(
-            &except(&["bar"]),
-            &wanted_with(Some("foo"), Some("npm:bar@^4")),
-        ));
+        // the target list, so the aliased dep counts as a target.
+        assert!(
+            is_update_target(&except(&["bar"]), &wanted_with(Some("foo"), Some("npm:bar@^4")),)
+        );
     }
 
     #[test]
     fn returns_false_when_real_name_is_unrecoverable() {
         // Alias missing AND no bare_specifier pattern that yields a name.
         // Defensive: "not a targeted update" since we can't match.
-        assert!(!should_bypass_preferred(&except(&["foo"]), &wanted_with(None, None),));
+        assert!(!is_update_target(&except(&["foo"]), &wanted_with(None, None),));
     }
 }

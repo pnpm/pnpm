@@ -206,12 +206,13 @@ fn update_transitive_glob_mixed_with_direct_selector() {
 }
 
 /// `pacquet update <pkg>@<version>` on a package that is only present
-/// as a transitive dependency must land on the requested version, not
-/// on the highest version in range. With no manifest entry to rewrite,
-/// the requested version rides the preferred-versions seed as a
-/// maximum-weight range selector.
+/// as a transitive dependency ignores the version part: there is no
+/// manifest entry to write it into, and an update resolves the target
+/// the way a fresh install would. The version part triggers a warning
+/// recommending a `pnpm.overrides` entry — the mechanism that does pin
+/// transitive dependencies.
 #[test]
-fn update_transitive_to_explicitly_requested_version() {
+fn update_transitive_ignores_requested_version() {
     let (root, workspace, anchor) = setup();
 
     // Pin the transitive dep-of-pkg-with-1-dep at 100.0.0 (via a direct
@@ -223,18 +224,24 @@ fn update_transitive_to_explicitly_requested_version() {
 
     write_manifest(&workspace, &format!(r#"{{ "{PARENT}": "100.0.0" }}"#));
 
-    // 100.1.0 is the highest version in pkg-with-1-dep's ^100.0.0 range,
-    // but the update requests 100.0.0, which must win.
+    // The update requests 100.0.0, but the version part of a
+    // transitive-only selector is ignored: the target re-resolves to the
+    // highest version in pkg-with-1-dep's ^100.0.0 range (100.1.0),
+    // exactly as a fresh install with the target's lockfile entries
+    // deleted would.
     pacquet(&workspace, ["update", &format!("{DEP}@100.0.0")]).assert().success();
 
     eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    // Only presence is asserted: the update does not prune the previous
+    // version's now-orphaned virtual-store directory.
     assert!(
-        virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"),
-        "the explicitly requested version should win over highest-in-range",
+        virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"),
+        "the target should re-resolve to highest-in-range, like a fresh install",
     );
+    let lock = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
     assert!(
-        !virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"),
-        "the target must not be re-resolved to highest-in-range",
+        !lock.contains("dep-of-pkg-with-1-dep@100.0.0"),
+        "the ignored requested version must not pin the target in the lockfile",
     );
 
     drop((root, anchor));

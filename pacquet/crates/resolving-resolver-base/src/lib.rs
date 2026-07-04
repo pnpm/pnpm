@@ -26,11 +26,10 @@ pub use resolve::{
     CurrentPkg, DIRECT_DEP_SELECTOR_WEIGHT, DependencyManifest, EXISTING_VERSION_SELECTOR_WEIGHT,
     LatestInfo, LatestQuery, PackageVersionGuard, PackageVersionGuardDecision,
     PackageVersionGuardError, PackageVersionGuardFuture, PkgResolutionId, PreferredVersions,
-    PreferredVersionsOverlay, REQUESTED_VERSION_SELECTOR_WEIGHT, ResolveError, ResolveFuture,
-    ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, SharedDependencyManifest,
-    UpdateBehavior, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
-    VersionSelectors, WantedDependency, WorkspacePackage, WorkspacePackages,
-    WorkspacePackagesByVersion,
+    PreferredVersionsOverlay, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
+    ResolveResult, Resolver, SharedDependencyManifest, UpdateBehavior, VersionSelectorEntry,
+    VersionSelectorType, VersionSelectorWithWeight, VersionSelectors, WantedDependency,
+    WorkspacePackage, WorkspacePackages, WorkspacePackagesByVersion,
 };
 pub use verifier::{
     ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,

@@ -365,13 +365,6 @@ export const DIRECT_DEP_SELECTOR_WEIGHT = 1000
 // introduce a new version in the lockfile when an existing version works.
 export const EXISTING_VERSION_SELECTOR_WEIGHT = 1_000_000
 
-// This weight is set for the exact version the user explicitly requested on
-// the command line (e.g. `pnpm update <pkg>@<version>` for a package that is
-// only present as a transitive dependency). It must outweigh every other
-// preference — including versions preexisting in the wanted lockfile — so
-// the requested version wins during re-resolution.
-export const REQUESTED_VERSION_SELECTOR_WEIGHT = 10_000_000
-
 export type VersionSelectorType = 'version' | 'range' | 'tag'
 
 export interface VersionSelectors {

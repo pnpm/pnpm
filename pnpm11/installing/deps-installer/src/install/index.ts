@@ -1499,11 +1499,12 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   // the seed globally during `pnpm up -r <pkg>`, so unrelated packages
   // with open ranges lost their pins and re-resolved to newest-in-range
   // (pnpm/pnpm#10662). The targeted package still bumps: `updateRequested`
-  // at the npm picker strips only the version-pin selectors for it.
-  // Caller-supplied preferred versions (audit-fix vulnerability penalties,
-  // the explicitly requested version of `pnpm update <pkg>@<version>`) layer
-  // on top of the seed per package name — replacing the seed with them would
-  // unpin every unrelated package.
+  // at the npm picker subtracts the lockfile-derived weight from its pins,
+  // so the target re-resolves exactly as a fresh install would after its
+  // lockfile entries were deleted.
+  // Caller-supplied preferred versions (audit-fix vulnerability penalties)
+  // layer on top of the seed per package name — replacing the seed with
+  // them would unpin every unrelated package.
   // Null-prototype merge target so a crafted package name (e.g. `__proto__`)
   // lands as a plain own key instead of invoking the prototype setter.
   const preferredVersions: PreferredVersions = Object.assign(

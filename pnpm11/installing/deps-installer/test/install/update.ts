@@ -297,13 +297,12 @@ test('peer dependencies are updated with pnpm upgrade --latest when autoInstallP
   expect(lockfile.importers?.['.']?.dependencies?.['@pnpm.e2e/foo'].version).toBe('1.3.0')
 })
 
-// Regression test for the form-data downgrade: a targeted `pnpm up <pkg>` must
-// not be pulled down by a sibling's older resolved version propagating as a
-// preferred version. Sets up the same shape as the production bug — one
-// consumer with an exact pin on an older version (mimics `nx`'s
-// `form-data@4.0.5`), another consumer with a range that allows latest (mimics
-// `axios`'s `^4.0.5`).
-test('updateMatching bypasses preferred-version propagation for the targeted package', async () => {
+// A targeted `pnpm up <pkg>` must produce the same result a fresh install of
+// the same manifests would: with the importer exact-pinning foo@100.0.0, a
+// fresh install dedupes foobarqar's caret consumer onto the manifest pin, so
+// the update must too — one copy of foo, not a 100.0.0 + 100.1.0 duplicate
+// (the picker warns that the newer version needs an override).
+test('updateMatching keeps manifest-pin dedup for the targeted package, matching a fresh install', async () => {
   const project = prepareEmpty()
 
   await Promise.all([
@@ -319,8 +318,9 @@ test('updateMatching bypasses preferred-version propagation for the targeted pac
   ], testDefaults())
 
   // Bump foo's latest. The exact-pinned direct edge stays at 100.0.0 (the
-  // user's range forbids 100.1.0), but the transitive consumer inside
-  // foobarqar should resolve to the new latest.
+  // user's range forbids 100.1.0), and the transitive consumer inside
+  // foobarqar dedupes onto the manifest pin exactly as a fresh install
+  // with `latest = 100.1.0` does.
   await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
 
   await install(manifest, testDefaults({
@@ -330,7 +330,7 @@ test('updateMatching bypasses preferred-version propagation for the targeted pac
     // Force a fresh metadata fetch so the new `latest` dist-tag is visible
     // to the transitive resolution. Without this, the in-memory metadata
     // cache from the first install short-circuits the picker with the
-    // pre-bump `latest=100.0.0` and the test can't observe the fix.
+    // pre-bump `latest=100.0.0` and the test can't observe the behavior.
     updateChecksums: true,
   }))
 
@@ -338,8 +338,8 @@ test('updateMatching bypasses preferred-version propagation for the targeted pac
 
   // Direct exact pin survives the update (range forbids the bump).
   expect(lockfile.snapshots).toHaveProperty(['@pnpm.e2e/foo@100.0.0'])
-  // The transitive consumer reaches the new latest instead of being pulled
-  // down by the sibling exact pin's preferred-version propagation.
-  expect(lockfile.snapshots).toHaveProperty(['@pnpm.e2e/foo@100.1.0'])
-  expect(lockfile.snapshots['@pnpm.e2e/foobarqar@1.0.0'].dependencies?.['@pnpm.e2e/foo']).toBe('100.1.0')
+  // The transitive consumer dedupes onto the manifest pin — installing
+  // 100.1.0 alongside would be a duplicate no fresh install reproduces.
+  expect(lockfile.snapshots).not.toHaveProperty(['@pnpm.e2e/foo@100.1.0'])
+  expect(lockfile.snapshots['@pnpm.e2e/foobarqar@1.0.0'].dependencies?.['@pnpm.e2e/foo']).toBe('100.0.0')
 })

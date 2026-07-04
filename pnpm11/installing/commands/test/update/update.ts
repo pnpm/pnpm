@@ -139,7 +139,7 @@ test('update transitive dependency when mixed with a direct dependency selector'
   expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0']).toBeTruthy()
 })
 
-test('update a transitive dependency to an explicitly requested version', async () => {
+test('update of a transitive dependency ignores the requested version and resolves like a fresh install', async () => {
   // @pnpm.e2e/pkg-with-good-optional depends on @pnpm.e2e/dep-of-pkg-with-1-dep via "*".
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
@@ -156,7 +156,10 @@ test('update a transitive dependency to an explicitly requested version', async 
 
   expect(project.readLockfile().packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']).toBeTruthy()
 
-  // 101.0.0 is now the latest, but the update requests 100.1.0, which must win.
+  // The update requests 100.1.0, but a transitive dependency has no manifest
+  // entry to carry a version, and updates resolve the target the way a fresh
+  // install would — so the requested version is ignored (with a warning
+  // recommending an override) and the "*" range resolves to the new latest.
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '101.0.0', distTag: 'latest' })
 
   await update.handler({
@@ -166,12 +169,12 @@ test('update a transitive dependency to an explicitly requested version', async 
 
   const lockfile = project.readLockfile()
 
-  expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0']).toBeTruthy()
+  expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0']).toBeTruthy()
   expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']).toBeFalsy()
-  expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0']).toBeFalsy()
+  expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0']).toBeFalsy()
 })
 
-test('update with a version does not pollute Object.prototype via a crafted package name', async () => {
+test('update with a version on a crafted package name does not pollute Object.prototype', async () => {
   const project = prepare({
     dependencies: {
       '@pnpm.e2e/foo': '1.0.0',
