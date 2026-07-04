@@ -1,7 +1,7 @@
 # pnpm Benchmarks
 
 Compares `pnpm install` performance between the current branch (`HEAD`) and
-`main`, across the six scenarios listed below.
+`main`, across the scenarios listed below.
 
 This wrapper builds both pnpm revisions and runs hyperfine through the
 shared Rust orchestrator at
@@ -46,9 +46,11 @@ leading segment groups runs by linker mode. Today there are two
 groups (`isolated-linker.*` and `gvs-linker.*`); future scenarios
 will add `hoisted-linker.*` and `pnp-linker.*`.
 
-Every current scenario starts with `node_modules` wiped — "fresh"
-names that target state; future variants that begin with a populated
-`node_modules` will use a different action prefix.
+The restore/install/add scenarios start with `node_modules` wiped —
+"fresh" names that target state; future variants that begin with a
+populated `node_modules` will use a different action prefix. The
+fresh-resolve scenario measures `--lockfile-only` resolution and never
+touches `node_modules`.
 
 | # | Slug | Lockfile | Cache | Store | Description |
 |---|---|---|---|---|---|
@@ -57,7 +59,8 @@ names that target state; future variants that begin with a populated
 | 3 | `isolated-linker.fresh-install.hot-cache.hot-store` | ✗ | hot | hot | Resolve from scratch with both directories hot |
 | 4 | `isolated-linker.fresh-restore.cold-cache.cold-store` | ✔ frozen | cold | cold | Restore from lockfile with cold disks (typical CI shape) |
 | 5 | `isolated-linker.fresh-install.cold-cache.cold-store` | ✗ | cold | cold | True cold start — no lockfile, nothing cached |
-| 6 | `gvs-linker.fresh-restore.hot-cache.hot-store` | ✔ frozen | hot | hot + GVS | Frozen-lockfile restore with `enableGlobalVirtualStore: true`, pre-warmed GVS |
+| 6 | `isolated-linker.fresh-resolve.hot-cache.offline` | ✗ (removed per run) | hot | n/a | `install --offline --lockfile-only`: full re-resolution from the warm on-disk packument mirror — no network, no linking; guards offline/prefer-offline resolution (an online pre-warm pass primes the mirror first) |
+| 7 | `gvs-linker.fresh-restore.hot-cache.hot-store` | ✔ frozen | hot | hot + GVS | Frozen-lockfile restore with `enableGlobalVirtualStore: true`, pre-warmed GVS |
 
 All scenarios use `--ignore-scripts` and isolated store/cache directories per revision.
 

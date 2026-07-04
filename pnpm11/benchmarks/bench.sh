@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Thin wrapper around `pacquet/tasks/integrated-benchmark`. Builds two
 # pnpm revisions (the current branch and `main`) and runs hyperfine for
-# each of the six scenarios that used to live in this script.
+# each scenario in the list below.
 #
 # Scenarios, registry choice, and runner behaviour are preserved exactly
 # as before; the orchestration logic is shared with the pacquet bench.
@@ -44,8 +44,10 @@ fi
 
 # Scenario list: `slug:Display label`. The slug matches the
 # orchestrator's `--scenario` value (the clap-derived kebab-case name
-# from `BenchmarkScenario`). All six start with `node_modules` wiped
-# — "Fresh" names that target state. "Isolated linker" names the
+# from `BenchmarkScenario`). The restore/install/add scenarios start
+# with `node_modules` wiped — "Fresh" names that target state; the
+# fresh-resolve scenario measures `--lockfile-only` resolution and
+# never touches `node_modules`. "Isolated linker" names the
 # `nodeLinker` mode; alternatives (`hoisted`, `pnp`) and populated-
 # node_modules counterparts are reserved for future scenarios.
 SCENARIOS=(
@@ -54,6 +56,7 @@ SCENARIOS=(
   "isolated-linker.fresh-install.hot-cache.hot-store:Isolated linker: fresh install, hot cache + hot store"
   "isolated-linker.fresh-restore.cold-cache.cold-store:Isolated linker: fresh restore, cold cache + cold store"
   "isolated-linker.fresh-install.cold-cache.cold-store:Isolated linker: fresh install, cold cache + cold store"
+  "isolated-linker.fresh-resolve.hot-cache.offline:Isolated linker: fresh resolve, hot cache, offline"
   "gvs-linker.fresh-restore.hot-cache.hot-store:GVS linker: fresh restore, hot cache + hot store"
 )
 

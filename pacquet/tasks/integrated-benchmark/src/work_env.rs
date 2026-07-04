@@ -28,6 +28,7 @@ use std::{
 };
 
 const BENCHMARK_OUTPUT_LOG: &str = "BENCHMARK_OUTPUT.ndjson";
+const PREWARM_SCRIPT: &str = "prewarm.bash";
 const BENCHMARK_DIAGNOSTICS_JSON: &str = "BENCHMARK_DIAGNOSTICS.json";
 const BENCHMARK_DIAGNOSTICS_MD: &str = "BENCHMARK_DIAGNOSTICS.md";
 const PNPR_DIRECT_RATIO_MAX: f64 = 1.05;
@@ -142,6 +143,12 @@ impl WorkEnv {
 
     fn script_path(&self, id: BenchId) -> PathBuf {
         self.bench_dir(id).join("install.bash")
+    }
+
+    /// Path of the untimed online priming script, written only for
+    /// scenarios with [`BenchmarkScenario::prewarm_install_args`].
+    fn prewarm_script_path(&self, id: BenchId) -> PathBuf {
+        self.bench_dir(id).join(PREWARM_SCRIPT)
     }
 
     fn bash_command(&self, id: BenchId) -> String {
@@ -490,6 +497,20 @@ impl WorkEnv {
             for id in self.benchmarked_ids() {
                 eprintln!("Pre-warming GVS for {id}...");
                 Command::new("bash").arg(self.script_path(id)).pipe_mut(executor("install.bash"));
+            }
+        }
+
+        // Offline scenarios can't let hyperfine's warmup prime the caches —
+        // the measured `--offline` command fails against the mirror the
+        // pre-benchmark wipe above just emptied — so run the online priming
+        // script once per target first. The per-iteration cleanup below
+        // preserves what it primes.
+        if scenario.prewarm_install_args().is_some() {
+            for id in self.benchmarked_ids() {
+                eprintln!("Pre-warming caches for {id}...");
+                Command::new("bash")
+                    .arg(self.prewarm_script_path(id))
+                    .pipe_mut(executor(PREWARM_SCRIPT));
             }
         }
 
@@ -1868,11 +1889,36 @@ fn may_create_lockfile(dst_dir: &Path, scenario: BenchmarkScenario, src_dir: Opt
 /// through it. The `source` fails loudly under `errexit` if the file is
 /// missing, rather than silently falling back to a direct install.
 fn create_install_script(dir: &Path, scenario: BenchmarkScenario, command: &str, id: BenchId) {
-    let path = dir.join("install.bash");
-    let capture_pacquet_metrics = id.is_pacquet_like();
+    // The proxy-cache populator must reach the registry, so a scenario
+    // whose measured args are offline hands it the online pre-warm args.
+    let args = if id.is_proxy_cache_populator() {
+        scenario.prewarm_install_args().unwrap_or_else(|| scenario.install_args())
+    } else {
+        scenario.install_args()
+    };
+    write_bench_script(dir, "install.bash", command, id, args, id.is_pacquet_like());
+    if let Some(prewarm_args) = scenario.prewarm_install_args() {
+        // Untimed online priming run (see
+        // `BenchmarkScenario::prewarm_install_args`). Metrics capture is
+        // off so the priming run can't pollute the diagnostics log the
+        // timed runs append to.
+        write_bench_script(dir, PREWARM_SCRIPT, command, id, prewarm_args, false);
+    }
+}
+
+fn write_bench_script(
+    dir: &Path,
+    file_name: &str,
+    command: &str,
+    id: BenchId,
+    args: &[&str],
+    capture_pacquet_metrics: bool,
+) {
+    let path = dir.join(file_name);
 
     eprintln!("Creating script {path:?}...");
-    let mut file = File::create(&path).expect("create install.bash");
+    let mut file =
+        File::create(&path).unwrap_or_else(|error| panic!("create {file_name}: {error}"));
 
     writeln!(file, "#!/bin/bash").unwrap();
     writeln!(file, "set -o errexit -o nounset -o pipefail").unwrap();
@@ -1898,7 +1944,7 @@ fn create_install_script(dir: &Path, scenario: BenchmarkScenario, command: &str,
     if capture_pacquet_metrics {
         write!(file, " --reporter ndjson").unwrap();
     }
-    for arg in scenario.install_args() {
+    for arg in args {
         write!(file, " {arg}").unwrap();
     }
     if capture_pacquet_metrics {
