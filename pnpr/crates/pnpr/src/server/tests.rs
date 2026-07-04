@@ -218,29 +218,32 @@ async fn authenticated_identity_reaches_handlers() {
 }
 
 #[tokio::test]
-async fn configured_groups_reach_package_authorization() {
+async fn team_tokens_reach_package_authorization() {
     let tmp = TempDir::new().unwrap();
     let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
     let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
-    config.groups.add_user_to_group("alice", "platform");
+    use crate::policy::{AccessToken, Identity};
     use crate::registry::PackagePattern;
     config.hosted.get_mut("local").unwrap().rules = PackageRules::new(
         vec![PackageRule {
             pattern: PackagePattern::parse("@team/*").unwrap(),
-            access: Some(AccessList::from_tokens(["platform"])),
+            access: Some(AccessList::new(vec![AccessToken::Team {
+                name: "platform".to_string(),
+                members: ["alice".to_string()].into(),
+            }])),
             publish: None,
             unpublish: None,
         }],
         None,
     );
-    // Group membership reaches the per-package rule evaluation.
-    let alice = config.identity_for_user("alice");
-    let carol = config.identity_for_user("carol");
+    // Team membership reaches the per-package rule evaluation.
+    let alice = Identity::user("alice");
+    let carol = Identity::user("carol");
     let rules = &config.hosted["local"].rules;
     assert!(rules.for_package("@team/x").access.allows(&alice));
     assert!(!rules.for_package("@team/x").access.allows(&carol));
 
-    // Over HTTP: the group member reaches storage (404, the package is
+    // Over HTTP: the team member reaches storage (404, the package is
     // absent); a caller denied by the *explicit* `@team/*` entry is
     // rejected loudly — 401 for anonymous, so clients can prompt for
     // credentials — rather than masked (masking is the registry-level

@@ -33,18 +33,18 @@ fn user(name: &str) -> Identity {
 }
 
 #[test]
-fn token_parsing_maps_builtins_and_names() {
+fn token_parsing_maps_builtins_and_usernames() {
     assert_eq!(AccessToken::from("$all"), AccessToken::All);
     assert_eq!(AccessToken::from("$authenticated"), AccessToken::Authenticated);
     assert_eq!(AccessToken::from("$anonymous"), AccessToken::Anonymous);
-    assert_eq!(AccessToken::from("admin"), AccessToken::Named("admin".to_string()));
+    assert_eq!(AccessToken::from("admin"), AccessToken::User("admin".to_string()));
     // Only the `$`-sigiled spellings are built-ins. The alias spellings
-    // verdaccio accepted are plain names here — YAML loading rejects them
-    // before they reach this constructor, and a programmatic caller just
-    // gets a name that matches nobody (deny-safe).
-    assert_eq!(AccessToken::from("@all"), AccessToken::Named("@all".to_string()));
-    assert_eq!(AccessToken::from("all"), AccessToken::Named("all".to_string()));
-    assert_eq!(AccessToken::from("authenticated"), AccessToken::Named("authenticated".to_string()),);
+    // verdaccio accepted are plain usernames here — YAML loading rejects
+    // them before they reach this constructor, and a programmatic caller
+    // just gets a username that matches nobody (deny-safe).
+    assert_eq!(AccessToken::from("@all"), AccessToken::User("@all".to_string()));
+    assert_eq!(AccessToken::from("all"), AccessToken::User("all".to_string()));
+    assert_eq!(AccessToken::from("authenticated"), AccessToken::User("authenticated".to_string()));
 }
 
 #[test]
@@ -78,11 +78,26 @@ fn usernames_grant_per_user_access() {
 }
 
 #[test]
-fn groups_grant_named_access() {
+fn team_tokens_admit_members_only() {
+    let list = AccessList::new(vec![AccessToken::Team {
+        name: "platform".to_string(),
+        members: ["alice".to_string()].into(),
+    }]);
+    assert!(list.allows(&user("alice")));
+    assert!(!list.allows(&user("bob")));
+    // The team's *name* is not a username: a user who happens to be called
+    // like the team gains nothing.
+    assert!(!list.allows(&user("platform")));
+    assert!(!list.allows(&Identity::Anonymous));
+}
+
+#[test]
+fn bare_tokens_are_usernames_not_team_names() {
+    // `platform` as a bare token admits only the user of that name — team
+    // membership is reachable exclusively through a `team:` token.
     let list = list("platform");
-    assert!(list.allows(&Identity::user_with_groups("alice", ["platform"])));
     assert!(list.allows(&user("platform")));
-    assert!(!list.allows(&Identity::user_with_groups("bob", ["release"])));
+    assert!(!list.allows(&user("alice")));
     assert!(!list.allows(&Identity::Anonymous));
 }
 

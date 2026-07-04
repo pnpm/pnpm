@@ -57,11 +57,13 @@ auth:
     # (registration disabled); set a non-negative cap to allow registration.
     max_users: -1
 
-# Optional static group/team memberships. Every access list accepts these
-# group names anywhere it accepts usernames — the per-package `packages:`
-# policies and the registry-level `access:` lists alike.
-#groups:
-#  platform: [alice, bob]
+# Teams — named user sets — are declared per registry (a `teams:` map on a
+# hosted or upstream registry under `registries:` below) and referenced from
+# that registry's access lists as `team:<name>`; a bare token is always a
+# username. e.g.
+#    teams:
+#      platform: [alice, bob]
+#    access: team:platform
 
 plugins: ../node_modules
 

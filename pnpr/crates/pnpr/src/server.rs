@@ -3734,7 +3734,7 @@ async fn resolve_caller(
             return Ok(Identity::Anonymous);
         };
         check_token_restrictions(&record, method, peer)?;
-        return Ok(state.inner.config.identity_for_user(record.username));
+        return Ok(Identity::user(record.username));
     }
     // Anything that is not a bearer token — Basic, another scheme, or no
     // credentials — carries no request identity. Going through `identify`

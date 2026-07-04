@@ -424,24 +424,25 @@ fn upstream_without_access_is_an_anonymous_route() {
 }
 
 #[test]
-fn proxied_alias_accepts_configured_group_identity() {
+fn proxied_alias_accepts_team_member_identity() {
+    use crate::policy::{AccessList, AccessToken};
+
     let mut config = base_config();
-    config.groups.add_user_to_group("alice", "platform");
-    config
-        .upstreams
-        .insert("corp".to_string(), upstream_with_access("https://npm.corp.example/", "platform"));
+    let mut upstream = upstream_with_access("https://npm.corp.example/", "$authenticated");
+    upstream.access = Some(AccessList::new(vec![AccessToken::Team {
+        name: "platform".to_string(),
+        members: ["alice".to_string()].into(),
+    }]));
+    config.upstreams.insert("corp".to_string(), upstream);
     let context = RouteContext::from_config(&config);
     let url = "https://npm.corp.example/@acme%2fwidget";
 
     assert_eq!(
-        context.classify(&config.identity_for_user("alice"), url, Some("@acme/widget")),
+        context.classify(&user("alice"), url, Some("@acme/widget")),
         RouteClass::Proxied { alias: "corp".to_string(), credential_digest: corp_credential() },
     );
-    // A caller outside the alias's group gets no managed credential.
-    assert_eq!(
-        context.classify(&config.identity_for_user("bob"), url, Some("@acme/widget")),
-        RouteClass::Public,
-    );
+    // A caller outside the alias's team gets no managed credential.
+    assert_eq!(context.classify(&user("bob"), url, Some("@acme/widget")), RouteClass::Public);
 }
 
 #[test]
