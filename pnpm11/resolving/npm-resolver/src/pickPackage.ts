@@ -25,6 +25,14 @@ import {
 import { toRaw } from './toRaw.js'
 
 export interface PackageMetaCache {
+  /**
+   * Must return the same object reference that `set` stored for the key: the
+   * resolver tracks whether a cached packument was validated against the
+   * registry by object identity (see `unverifiedDiskPackuments`). In a cache
+   * that clones or deserializes on read, that provenance is lost and recovery
+   * degrades — a stale disk-promoted entry that can't satisfy a spec fails
+   * the pick instead of falling through to the registry.
+   */
   get: (key: string) => PackageMeta | undefined
   set: (key: string, meta: PackageMeta) => void
   has: (key: string) => boolean
