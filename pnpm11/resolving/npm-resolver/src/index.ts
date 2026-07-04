@@ -341,7 +341,9 @@ function stripLockfileVersionPins (selectors?: VersionSelectors): VersionSelecto
       if (manifestWeight <= 0) continue
       keptValue = { selectorType: 'version', weight: manifestWeight }
     }
-    kept ??= {}
+    // Null-prototype: selector keys come from manifests and the lockfile,
+    // and a dist-tag named `__proto__` is a valid selector key.
+    kept ??= Object.create(null) as VersionSelectors
     kept[selector] = keptValue
   }
   return kept
@@ -377,7 +379,8 @@ function warnOnceOnHeldBackUpdate (
   let nonPinSelectors: VersionSelectors | undefined
   for (const [selector, value] of Object.entries(selectors)) {
     if ((typeof value === 'string' ? value : value.selectorType) === 'version') continue
-    nonPinSelectors ??= {}
+    // Null-prototype for the same reason as in `stripLockfileVersionPins`.
+    nonPinSelectors ??= Object.create(null) as VersionSelectors
     nonPinSelectors[selector] = value
   }
   const preferred = pickVersionByVersionRange({
