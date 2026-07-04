@@ -1494,12 +1494,26 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     stage: 'resolution_started',
   })
 
-  const update = projects.some((project) => (project as InstallMutationOptions).update)
-  const preferredVersions = opts.preferredVersions ?? (
-    !update
-      ? getPreferredVersionsFromLockfileAndManifests(ctx.wantedLockfile.packages, Object.values(ctx.projects).map(({ manifest }) => manifest))
-      : undefined
+  // Always seed preferred versions from the lockfile, even for update
+  // mutations. Gating this on `update` (the previous behavior) nullified
+  // the seed globally during `pnpm up -r <pkg>`, so unrelated packages
+  // with open ranges lost their pins and re-resolved to newest-in-range
+  // (pnpm/pnpm#10662). The targeted package still bumps: `updateRequested`
+  // at the npm picker subtracts the lockfile-derived weight from its pins,
+  // so the target re-resolves exactly as a fresh install would after its
+  // lockfile entries were deleted.
+  // Caller-supplied preferred versions (audit-fix vulnerability penalties)
+  // layer on top of the seed per package name — replacing the seed with
+  // them would unpin every unrelated package.
+  // Null-prototype merge target so a crafted package name (e.g. `__proto__`)
+  // lands as a plain own key instead of invoking the prototype setter.
+  const preferredVersions: PreferredVersions = Object.assign(
+    Object.create(null),
+    getPreferredVersionsFromLockfileAndManifests(ctx.wantedLockfile.packages, Object.values(ctx.projects).map(({ manifest }) => manifest))
   )
+  for (const [pkgName, selectors] of Object.entries(opts.preferredVersions ?? {})) {
+    preferredVersions[pkgName] = { ...preferredVersions[pkgName], ...selectors }
+  }
   const forceFullResolution = ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION ||
     !opts.currentLockfileIsUpToDate ||
     opts.force ||

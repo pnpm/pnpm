@@ -140,3 +140,203 @@ mod higher_direct_dep_version {
         );
     }
 }
+
+mod real_package_name_of {
+    use pacquet_resolving_resolver_base::WantedDependency;
+
+    use super::super::real_package_name_of;
+
+    fn wanted(alias: Option<&str>, bare_specifier: Option<&str>) -> WantedDependency {
+        WantedDependency {
+            alias: alias.map(str::to_string),
+            bare_specifier: bare_specifier.map(str::to_string),
+            ..WantedDependency::default()
+        }
+    }
+
+    #[test]
+    fn returns_none_when_bare_specifier_is_missing() {
+        assert_eq!(real_package_name_of(&wanted(Some("foo"), None)).as_deref(), None);
+    }
+
+    #[test]
+    fn falls_back_to_alias_for_plain_dep() {
+        assert_eq!(
+            real_package_name_of(&wanted(Some("foo"), Some("^1.0.0"))).as_deref(),
+            Some("foo"),
+        );
+    }
+
+    #[test]
+    fn falls_back_to_none_when_alias_is_missing_for_plain_dep() {
+        assert_eq!(real_package_name_of(&wanted(None, Some("^1.0.0"))).as_deref(), None);
+    }
+
+    #[test]
+    fn parses_real_name_from_npm_alias_with_version_range() {
+        // Update targeting is keyed by the real name (matches the depPath
+        // recorded in the lockfile, not the install alias).
+        assert_eq!(
+            real_package_name_of(&wanted(Some("foo"), Some("npm:bar@^4"))).as_deref(),
+            Some("bar"),
+        );
+    }
+
+    #[test]
+    fn parses_real_name_from_npm_alias_without_version() {
+        assert_eq!(
+            real_package_name_of(&wanted(Some("foo"), Some("npm:bar"))).as_deref(),
+            Some("bar"),
+        );
+    }
+
+    #[test]
+    fn parses_scoped_real_name_from_npm_alias() {
+        // The `@` of the scope prefix sits at index 0, so the `idx >= 1`
+        // guard skips it and the search finds the `@` separating name
+        // from version.
+        assert_eq!(
+            real_package_name_of(&wanted(Some("foo"), Some("npm:@scope/pkg@^4"))).as_deref(),
+            Some("@scope/pkg"),
+        );
+    }
+
+    #[test]
+    fn parses_scoped_real_name_from_npm_alias_without_version() {
+        // Only one `@` (the scope marker) at index 0, which the
+        // `idx >= 1` guard skips — the whole `rest` is the name.
+        assert_eq!(
+            real_package_name_of(&wanted(Some("foo"), Some("npm:@scope/pkg"))).as_deref(),
+            Some("@scope/pkg"),
+        );
+    }
+
+    #[test]
+    fn returns_none_for_empty_npm_alias_target() {
+        // Defensive: filtered out so the caller treats this as "not a
+        // targeted update."
+        assert_eq!(real_package_name_of(&wanted(Some("foo"), Some("npm:"))).as_deref(), None);
+    }
+
+    #[test]
+    fn returns_alias_for_npm_range_form() {
+        // `foo@npm:^1.0.0`: the body after `npm:` is a semver range,
+        // not a name. The install alias `foo` is the real package
+        // name — without this branch, the range string itself would
+        // be returned as the name and update targeting would miss.
+        assert_eq!(
+            real_package_name_of(&wanted(Some("foo"), Some("npm:^1.0.0"))).as_deref(),
+            Some("foo"),
+        );
+    }
+
+    #[test]
+    fn returns_alias_for_npm_range_form_with_complex_range() {
+        // The `npm:<range>` form supports any valid semver range in
+        // the body — `>=1.0.0 <2.0.0`, `~1.2.3`, `1.x`, etc.
+        assert_eq!(
+            real_package_name_of(&wanted(Some("foo"), Some("npm:>=1.0.0 <2.0.0"))).as_deref(),
+            Some("foo"),
+        );
+    }
+
+    #[test]
+    fn folds_jsr_specifier_to_npm_registry_name_with_version_range() {
+        // `foo@jsr:@foo/bar@^1`: install alias is `foo`, but the picker
+        // and lockfile snapshots key on the folded npm registry name
+        // (`@jsr/foo__bar`). Update targeting must match against this
+        // folded name, not the original jsr name, or jsr deps would
+        // never count as update targets.
+        assert_eq!(
+            real_package_name_of(&wanted(Some("foo"), Some("jsr:@foo/bar@^1"))).as_deref(),
+            Some("@jsr/foo__bar"),
+        );
+    }
+
+    #[test]
+    fn folds_jsr_specifier_to_npm_registry_name_without_version() {
+        // Default-tag form `jsr:@foo/bar`: still folds to `@jsr/foo__bar`.
+        assert_eq!(
+            real_package_name_of(&wanted(Some("foo"), Some("jsr:@foo/bar"))).as_deref(),
+            Some("@jsr/foo__bar"),
+        );
+    }
+
+    #[test]
+    fn returns_none_for_unparsable_jsr_specifier() {
+        // A `jsr:` specifier that the parser rejects (here: missing scope)
+        // must not fall back to the install alias — otherwise a broken
+        // jsr dep could match an update target by alias and wrongly be
+        // treated as one.
+        assert_eq!(
+            real_package_name_of(&wanted(Some("foo"), Some("jsr:foo@^1.0.0"))).as_deref(),
+            None,
+        );
+    }
+}
+
+mod is_update_target {
+    use std::collections::HashSet;
+
+    use pacquet_resolving_resolver_base::WantedDependency;
+
+    use super::super::{UpdateReuseScope, is_update_target};
+
+    fn wanted_with(alias: Option<&str>, bare_specifier: Option<&str>) -> WantedDependency {
+        WantedDependency {
+            alias: alias.map(str::to_string),
+            bare_specifier: bare_specifier.map(str::to_string),
+            ..WantedDependency::default()
+        }
+    }
+
+    fn except(names: &[&str]) -> UpdateReuseScope {
+        UpdateReuseScope::Except(names.iter().map(|s| (*s).to_string()).collect::<HashSet<_>>())
+    }
+
+    #[test]
+    fn returns_false_for_all_scope() {
+        // `All` = install/add default: no package is targeted for update.
+        assert!(!is_update_target(
+            &UpdateReuseScope::All,
+            &wanted_with(Some("foo"), Some("^1.0.0")),
+        ));
+    }
+
+    #[test]
+    fn returns_false_for_none_scope() {
+        // `None` is the "no reuse" sentinel; same outcome as `All` here.
+        assert!(!is_update_target(
+            &UpdateReuseScope::None,
+            &wanted_with(Some("foo"), Some("^1.0.0")),
+        ));
+    }
+
+    #[test]
+    fn returns_true_for_except_scope_when_targeted() {
+        // `foo` is in the user's update target list → this resolution
+        // carries `update_requested`.
+        assert!(is_update_target(&except(&["foo"]), &wanted_with(Some("foo"), Some("^1.0.0")),));
+    }
+
+    #[test]
+    fn returns_false_for_except_scope_when_not_targeted() {
+        // `foo` is not in the user's update target list.
+        assert!(!is_update_target(&except(&["bar"]), &wanted_with(Some("foo"), Some("^1.0.0")),));
+    }
+
+    #[test]
+    fn matches_real_name_for_npm_alias_target() {
+        // The user updates `bar`, but the importer installed it under
+        // alias `foo` via `foo@npm:bar@^4`. The real name `bar` is in
+        // the target list, so the aliased dep counts as a target.
+        assert!(is_update_target(&except(&["bar"]), &wanted_with(Some("foo"), Some("npm:bar@^4"))));
+    }
+
+    #[test]
+    fn returns_false_when_real_name_is_unrecoverable() {
+        // Alias missing AND no bare_specifier pattern that yields a name.
+        // Defensive: "not a targeted update" since we can't match.
+        assert!(!is_update_target(&except(&["foo"]), &wanted_with(None, None),));
+    }
+}

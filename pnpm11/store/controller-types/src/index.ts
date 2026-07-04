@@ -140,6 +140,14 @@ export interface RequestPackageOptions {
   sideEffectsCache?: boolean
   skipFetch?: boolean
   update?: false | 'compatible' | 'latest'
+  /**
+   * True only when this specific package matches the user's update target
+   * (e.g. `pnpm up <name>`). Unlike `update`, this is false for unrelated
+   * packages that get re-resolved as a side effect of an update, so the
+   * resolver can bypass preferred-version propagation for the targeted
+   * package without forcing unrelated transitives to jump to their latest.
+   */
+  updateRequested?: boolean
   updateChecksums?: boolean
   workspacePackages?: WorkspacePackages
   forceResolve?: boolean

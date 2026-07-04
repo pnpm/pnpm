@@ -22,6 +22,7 @@ import { logger } from '@pnpm/logger'
 import { getPatchInfo, type PatchGroupRecord } from '@pnpm/patching.config'
 import type { PatchInfo } from '@pnpm/patching.types'
 import { convertEnginesRuntimeToDependencies } from '@pnpm/pkg-manifest.utils'
+import { parseBareSpecifier } from '@pnpm/resolving.npm-resolver'
 import {
   DIRECT_DEP_SELECTOR_WEIGHT,
   type DirectoryResolution,
@@ -29,6 +30,7 @@ import {
   type PreferredVersions,
   type Resolution,
   type ResolutionPolicyViolation,
+  type VersionSelectors,
   type WorkspacePackages,
 } from '@pnpm/resolving.resolver-base'
 import type {
@@ -381,7 +383,8 @@ export async function resolveRootDependencies (
   if (ctx.autoInstallPeers) {
     ctx.allPreferredVersions = getPreferredVersionsFromLockfileAndManifests(ctx.wantedLockfile.packages, [])
   } else if (ctx.hoistPeers) {
-    ctx.allPreferredVersions = {}
+    // Null-prototype: keyed by package names from resolved manifests.
+    ctx.allPreferredVersions = Object.create(null) as PreferredVersions
   }
   const { pkgAddressesByImportersWithoutPeers, publishedBy, time } = await resolveDependenciesOfImporters(ctx, importers)
   if (!ctx.hoistPeers) {
@@ -899,10 +902,14 @@ async function resolveDependenciesOfDependency (
     updateShouldContinue &&
     (
       (options.updateMatching == null) ||
-      (
-        extendedWantedDep.infoFromLockfile?.name != null &&
-        options.updateMatching(extendedWantedDep.infoFromLockfile.name, extendedWantedDep.infoFromLockfile.version)
-      )
+      (extendedWantedDep.infoFromLockfile?.name != null
+        ? options.updateMatching(extendedWantedDep.infoFromLockfile.name, extendedWantedDep.infoFromLockfile.version)
+        // A changed specifier forgets the edge's lockfile reference before
+        // resolution (e.g. `pnpm audit --fix` widening a vulnerable pin), so
+        // the target would otherwise lose its updateRequested status — and
+        // keep its seeded lockfile pins — at the very moment it is being
+        // updated. Fall back to matching by the wanted dependency itself.
+        : wantedDependencyMatchesUpdateTarget(ctx, options.updateMatching, extendedWantedDep.wantedDependency))
     )
   const update = updateRequested ||
   (
@@ -1037,6 +1044,26 @@ async function resolveDependenciesOfDependency (
       return filterMissingPeers({ missingPeers, resolvedPeers }, postponedResolutionOpts.parentPkgAliases)
     },
   }
+}
+
+/**
+ * Whether a wanted dependency without a lockfile reference matches the
+ * update target by package name. The name is parsed from the bare
+ * specifier, so an `npm:` alias matches by the real package name it
+ * installs — `foo@npm:bar@^4` matches an update target of `bar`, not
+ * `foo`. Exotic specifiers the npm parser rejects fall back to the alias.
+ */
+function wantedDependencyMatchesUpdateTarget (
+  ctx: ResolutionContext,
+  updateMatching: UpdateMatchingFunction,
+  wantedDependency: WantedDependency
+): boolean {
+  const { alias, bareSpecifier } = wantedDependency
+  const spec = alias && bareSpecifier
+    ? parseBareSpecifier(bareSpecifier, alias, ctx.defaultTag ?? 'latest', ctx.registries.default)
+    : null
+  const name = spec?.name ?? alias
+  return name != null && updateMatching(name, undefined)
 }
 
 export function createNodeIdForLinkedLocalPkg (lockfileDir: string, pkgDir: string): NodeId {
@@ -1801,6 +1828,7 @@ async function resolveDependency (
         trustPolicyExclude: ctx.trustPolicyExclude,
         trustPolicyIgnoreAfter: ctx.trustPolicyIgnoreAfter,
         update: options.update,
+        updateRequested: options.updateRequested,
         updateChecksums: options.updateChecksums,
         workspacePackages: ctx.workspacePackages,
         supportedArchitectures: options.supportedArchitectures,
@@ -1870,7 +1898,8 @@ async function resolveDependency (
 
     if (ctx.allPreferredVersions && pkgResponse.body.manifest?.version) {
       if (!ctx.allPreferredVersions[pkgResponse.body.manifest.name]) {
-        ctx.allPreferredVersions[pkgResponse.body.manifest.name] = {}
+        // Null-prototype: keyed by versions from the resolved manifest.
+        ctx.allPreferredVersions[pkgResponse.body.manifest.name] = Object.create(null) as VersionSelectors
       }
       ctx.allPreferredVersions[pkgResponse.body.manifest.name][pkgResponse.body.manifest.version] = 'version'
     }

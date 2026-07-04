@@ -1698,9 +1698,10 @@ fn landed_on_prior_entry(prior_key: &PkgNameVerPeer, resolved_pkg_id: &str) -> b
 }
 
 /// The package names the npm picker may consult the preferred-versions
-/// overlay under for one wanted edge: the alias itself, plus the inner
-/// target of an `npm:` alias and the folded `@jsr/...` name of a
-/// `jsr:` specifier — mirroring the name derivation in the npm
+/// overlay under for one wanted edge: the alias itself, plus the real
+/// package name from [`real_package_name_of`] when it differs (the
+/// inner target of an `npm:` alias or the folded `@jsr/...` name of a
+/// `jsr:` specifier) — mirroring the name derivation in the npm
 /// resolver's `parse_bare_specifier`, which keys its overlay merge by
 /// the resolved `spec.name` rather than the outer alias.
 fn overlay_lookup_names(wanted: &WantedDependency) -> Vec<String> {
@@ -1710,31 +1711,10 @@ fn overlay_lookup_names(wanted: &WantedDependency) -> Vec<String> {
     {
         names.push(alias.to_string());
     }
-    let Some(bare) = wanted.bare_specifier.as_deref() else { return names };
-    if let Some(rest) = bare.strip_prefix("npm:") {
-        let alias_keeps_name = wanted
-            .alias
-            .as_deref()
-            .is_some_and(|alias| !alias.is_empty() && rest.parse::<node_semver::Range>().is_ok());
-        if !alias_keeps_name {
-            let last_at =
-                rest.bytes().enumerate().rev().find_map(|(i, b)| (b == b'@').then_some(i));
-            let inner = match last_at {
-                Some(idx) if idx >= 1 => &rest[..idx],
-                _ => rest,
-            };
-            if !inner.is_empty() && !names.iter().any(|name| name == inner) {
-                names.push(inner.to_string());
-            }
-        }
-    } else if bare.starts_with("jsr:")
-        && let Ok(Some(spec)) = pacquet_resolving_jsr_specifier_parser::parse_jsr_specifier(
-            bare,
-            wanted.alias.as_deref(),
-        )
-        && !names.contains(&spec.npm_pkg_name)
+    if let Some(real_name) = real_package_name_of(wanted)
+        && !names.iter().any(|name| name == real_name.as_ref())
     {
-        names.push(spec.npm_pkg_name);
+        names.push(real_name.into_owned());
     }
     names
 }
@@ -1761,14 +1741,28 @@ where
     if let Some(result) = cached {
         return Ok(result);
     }
-    let overlay_opts;
-    let opts = if cache_key.8.is_empty() {
-        opts
-    } else {
+    // Combine two per-package opts adjustments into one clone. The
+    // `update_requested` flag is scoped per wanted-dependency — true only
+    // when the package's real name (parsed from `bare_specifier` for
+    // npm-aliases, folded from the jsr specifier for jsr deps) is in the
+    // update target list — so the picker's held-back-update warning fires
+    // only for the packages the user actually asked to update.
+    let needs_overlay = !cache_key.8.is_empty();
+    let update_target = is_update_target(&ctx.workspace.update_reuse_scope, wanted);
+    let needs_update = update_target != opts.update_requested;
+    let owned_opts;
+    let opts = if needs_overlay || needs_update {
         let mut owned = opts.clone();
-        owned.preferred_versions_overlay = pick_overlay.map(Arc::clone);
-        overlay_opts = owned;
-        &overlay_opts
+        if needs_overlay {
+            owned.preferred_versions_overlay = pick_overlay.map(Arc::clone);
+        }
+        if needs_update {
+            owned.update_requested = update_target;
+        }
+        owned_opts = owned;
+        &owned_opts
+    } else {
+        opts
     };
     let mut result = resolver
         .resolve(wanted, opts)
@@ -2105,13 +2099,88 @@ fn try_reuse_node(
 }
 
 /// `true` when `name` is a `pacquet update` target excluded from reuse.
-fn update_excludes(scope: &UpdateReuseScope, name: &pacquet_lockfile::PkgName) -> bool {
+fn update_excludes(scope: &UpdateReuseScope, name: &str) -> bool {
     match scope {
         UpdateReuseScope::All => false,
         // `None` is handled earlier in `try_reuse_node`; treat it the
         // same here for completeness.
         UpdateReuseScope::None => true,
-        UpdateReuseScope::Except(names) => names.contains(&name.to_string()),
+        UpdateReuseScope::Except(names) => names.contains(name),
+    }
+}
+
+/// Resolve the *real* package name a [`WantedDependency`] targets —
+/// i.e. the name update targeting matches against, not the local
+/// install alias. For a plain dep (`foo@^1`) or a workspace dep, this is just
+/// `wanted.alias`. For an npm-alias dep (`foo@npm:bar@^4`), this is
+/// `bar` — parsed out of `bare_specifier` because `wanted.alias` keeps
+/// the local install name `foo`. For a jsr dep (`foo@jsr:@bar/baz@^1`
+/// or just `jsr:@bar/baz`), this is the folded npm registry name
+/// (`@jsr/bar__baz`) that the picker and lockfile snapshots key on.
+/// [`overlay_lookup_names`] builds its candidate set from this name.
+///
+/// Returns `None` when no name can be recovered (no alias, malformed
+/// npm-alias target, unparsable jsr specifier). The caller treats
+/// `None` as "not a targeted update" since update targets are keyed
+/// by package name.
+fn real_package_name_of(wanted: &WantedDependency) -> Option<Cow<'_, str>> {
+    let bare = wanted.bare_specifier.as_deref()?;
+    if let Some(rest) = bare.strip_prefix("npm:") {
+        // `npm:<range>` form: the body is a semver range, not a name,
+        // so the install alias IS the real package name.
+        let alias_keeps_name = wanted
+            .alias
+            .as_deref()
+            .is_some_and(|alias| !alias.is_empty() && rest.parse::<node_semver::Range>().is_ok());
+        if !alias_keeps_name {
+            // `npm:<name>@<range>` or `npm:<name>`: parse the real name
+            // out of `bare_specifier` because `wanted.alias` keeps the
+            // local install name. Split at the last `@` to separate the
+            // real name from the version range. When there is no `@`,
+            // the whole `rest` is the name (default-tag form `npm:bar`).
+            let last_at =
+                rest.bytes().enumerate().rev().find_map(|(i, b)| (b == b'@').then_some(i));
+            let name = match last_at {
+                Some(idx) if idx >= 1 => &rest[..idx],
+                _ => rest,
+            };
+            return (!name.is_empty()).then_some(Cow::Borrowed(name));
+        }
+    }
+    if bare.starts_with("jsr:") {
+        // An unparsable `jsr:` specifier carries no recoverable real
+        // name — return `None` rather than falling back to the install
+        // alias, which could accidentally match an update target and
+        // mark the broken dep as a targeted update.
+        let spec = pacquet_resolving_jsr_specifier_parser::parse_jsr_specifier(
+            bare,
+            wanted.alias.as_deref(),
+        )
+        .ok()
+        .flatten()?;
+        return Some(Cow::Owned(spec.npm_pkg_name));
+    }
+    // Plain dep, workspace dep, or `npm:<range>` form: the install
+    // alias is the real name.
+    wanted.alias.as_deref().map(Cow::Borrowed)
+}
+
+/// Whether `wanted` is one of the packages the user asked to update,
+/// given the install's [`UpdateReuseScope`]. Feeds the per-resolve
+/// `ResolveOptions::update_requested` flag, which gates the npm
+/// picker's held-back-update warning.
+///
+/// Returns `false` for `All`/`None` scopes (no individually targeted
+/// packages) and for `Except` scopes where the wanted package's real
+/// name is not in the target list. Returns `true` only when the real
+/// name is in the `Except` set.
+#[inline]
+fn is_update_target(scope: &UpdateReuseScope, wanted: &WantedDependency) -> bool {
+    match scope {
+        UpdateReuseScope::All | UpdateReuseScope::None => false,
+        UpdateReuseScope::Except(_) => {
+            real_package_name_of(wanted).is_some_and(|n| update_excludes(scope, n.as_ref()))
+        }
     }
 }
 
@@ -2145,8 +2214,9 @@ fn subtree_fully_reusable(
     // A `pacquet update` target anywhere in the subtree forces the whole
     // subtree to re-resolve so the bump's new transitive deps are picked
     // up — update names match at any depth.
-    let reusable = !update_excludes(&ctx.workspace.update_reuse_scope, &key.name)
-        && synthesize_reused_result(lockfile, key, &key.name.to_string()).is_some()
+    let name = key.name.to_string();
+    let reusable = !update_excludes(&ctx.workspace.update_reuse_scope, &name)
+        && synthesize_reused_result(lockfile, key, &name).is_some()
         && subtree_children_reusable(ctx, lockfile, key);
     lock_recoverable(&ctx.workspace.subtree_reusable).insert(key.clone(), reusable);
     reusable
