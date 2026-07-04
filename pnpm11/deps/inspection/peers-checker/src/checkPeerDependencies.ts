@@ -183,7 +183,7 @@ function filterPeerDependencyIssues (
     result[projectId] = {
       bad: filteredBad,
       missing: filteredMissing,
-      conflicts,
+      conflicts: conflicts.filter((peerName) => filteredMissing[peerName] != null),
       intersections: filteredIntersections,
     }
   }
