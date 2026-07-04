@@ -646,15 +646,11 @@ export async function mutateModules (
     const patchGroupInput = resolvedPatchedDeps
       ? Object.fromEntries(
         Object.entries(patchedDependencies ?? {}).map(([key, hash]) => {
-          let patchFilePath = resolvedPatchedDeps![key]
-            ? path.resolve(opts.lockfileDir, resolvedPatchedDeps![key])
-            : undefined
+          let patchFilePath: string | undefined = resolvedPatchedDeps[key]
           if (!patchFilePath) {
             const lastAt = key.lastIndexOf('@')
             const pkgName = lastAt > 0 ? key.slice(0, lastAt) : key
-            if (resolvedPatchedDeps![pkgName]) {
-              patchFilePath = path.resolve(opts.lockfileDir, resolvedPatchedDeps![pkgName])
-            }
+            patchFilePath = resolvedPatchedDeps[pkgName]
           }
           return [key, { hash, patchFilePath }]
         })
