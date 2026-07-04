@@ -395,6 +395,38 @@ test('pack: includes prepack-generated files removed by postpack', async () => {
   expect(fs.existsSync('package/generated.txt')).toBeTruthy()
 })
 
+// A symlinked workspace-root LICENSE must not be injected: following it would
+// leak the target's bytes — potentially a file outside the workspace — into
+// the published tarball.
+;(process.platform === 'win32' ? test.skip : test)('pack: does not inject a symlinked workspace LICENSE', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+    },
+  ])
+
+  const workspaceDir = process.cwd()
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  fs.writeFileSync('secret.txt', 'host secret', 'utf8')
+  fs.symlinkSync(path.join(workspaceDir, 'secret.txt'), path.join(workspaceDir, 'LICENSE'))
+
+  process.chdir('project')
+  const output = await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    workspaceDir,
+  })
+
+  expect(output).not.toContain('LICENSE')
+
+  await tar.x({ file: 'project-1.0.0.tgz' })
+
+  expect(fs.existsSync('package/LICENSE')).toBeFalsy()
+})
+
 const modeIsExecutable = (mode: number) => (mode & 0o111) === 0o111
 
 ;(process.platform === 'win32' ? test.skip : test)('the mode of executable is changed', async () => {

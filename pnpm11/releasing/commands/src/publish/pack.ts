@@ -275,10 +275,18 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   const filesMap = Object.fromEntries(files.map((file) => [`package/${file}`, path.join(dir, file)]))
   // cspell:disable-next-line
   if (opts.workspaceDir != null && dir !== opts.workspaceDir && !files.some((file) => /LICEN[CS]E(?:\..+)?/i.test(file))) {
-    const licenses = await glob([LICENSE_GLOB], { cwd: opts.workspaceDir, expandDirectories: false })
-    for (const license of licenses) {
-      filesMap[`package/${license}`] = path.join(opts.workspaceDir, license)
-    }
+    const { workspaceDir } = opts
+    const licenses = await glob([LICENSE_GLOB], { cwd: workspaceDir, expandDirectories: false })
+    await Promise.all(licenses.map(async (license) => {
+      const licensePath = path.join(workspaceDir, license)
+      // Only inject a regular file. A symlink could point outside the workspace and leak its
+      // target's bytes into the published tarball, so `lstat()` (which does not follow symlinks)
+      // rejects it — matching pacquet's inject_workspace_license.
+      const stats = await fs.promises.lstat(licensePath)
+      if (stats.isFile()) {
+        filesMap[`package/${license}`] = licensePath
+      }
+    }))
   }
   const destDir = packDestination
     ? (path.isAbsolute(packDestination) ? packDestination : path.join(dir, packDestination ?? '.'))
