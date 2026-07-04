@@ -1,7 +1,19 @@
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use std::time::Duration;
 
-use super::{FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata};
+use super::{
+    ABBREVIATED_META_CONTENT_TYPE, ACCEPT_ABBREVIATED_DOC, FetchFullMetadataOptions,
+    FetchFullMetadataOutcome, fetch_full_metadata,
+};
+
+/// The two constants repeat the media type as separate literals (Rust
+/// cannot build one string const from another without a macro), so
+/// guard against them drifting apart: the `Accept` header must offer
+/// the same media type the response detection recognizes.
+#[test]
+fn accept_header_offers_the_detected_abbreviated_media_type() {
+    assert!(ACCEPT_ABBREVIATED_DOC.starts_with(ABBREVIATED_META_CONTENT_TYPE));
+}
 
 /// Unwrap a [`FetchFullMetadataOutcome::Modified`], panicking on
 /// `NotModified`. Used by the success-path tests below where the
