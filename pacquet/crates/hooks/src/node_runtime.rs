@@ -182,7 +182,9 @@ async fn forward_hook_stdout(
 async fn read_tail(stream: impl AsyncRead + Unpin, cap: usize) -> Vec<u8> {
     let mut stream = stream;
     let mut tail = Vec::new();
-    let mut buf = [0u8; 8192];
+    // Heap-allocated so the read buffer doesn't bloat the future
+    // (`clippy::large_futures`).
+    let mut buf = vec![0u8; 8192];
     loop {
         match stream.read(&mut buf).await {
             Ok(0) | Err(_) => break,
