@@ -1,7 +1,7 @@
 use super::sanitize;
 use clap::Args;
 use derive_more::{Display, Error};
-use miette::{Diagnostic, IntoDiagnostic};
+use miette::{Diagnostic, IntoDiagnostic, WrapErr};
 use pacquet_config::Config;
 use pacquet_network::{
     NetworkSettings, RetryOpts, ThrottledClient, encode_uri_component, redact_url_credentials,
@@ -164,6 +164,7 @@ struct TeamContext<'a> {
     json: bool,
 }
 
+#[derive(Debug)]
 struct ScopeTeam {
     scope: String,
     team: Option<String>,
@@ -226,10 +227,10 @@ struct UserInfo {
 
 impl TeamArgs {
     pub async fn run(self, config: &Config) -> miette::Result<Option<String>> {
-        let context = self.context(config)?;
         let Some(subcommand) = self.params.first().map(String::as_str) else {
             return Err(TeamError::SubcommandRequired.into());
         };
+        let context = self.context(config)?;
         match subcommand {
             "create" => team_create(&context, &self.params[1..]).await.map(Some),
             "destroy" => team_destroy(&context, &self.params[1..]).await.map(Some),
@@ -248,10 +249,11 @@ impl TeamArgs {
         }
     }
 
-    fn context(self, config: &Config) -> miette::Result<TeamContext> {
+    #[allow(clippy::needless_lifetimes)]
+    fn context<'a>(&self, config: &'a Config) -> miette::Result<TeamContext<'a>> {
         let registry_url = self
             .registry
-            .clone()
+            .as_deref()
             .map(normalize_registry_url)
             .unwrap_or_else(|| config.registry.clone());
         Ok(TeamContext {
@@ -264,7 +266,7 @@ impl TeamArgs {
                 max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
             },
             registry_url,
-            otp: self.otp,
+            otp: self.otp.clone(),
             parseable: self.parseable,
             json: self.json,
         })
