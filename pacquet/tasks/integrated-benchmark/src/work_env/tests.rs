@@ -1,9 +1,49 @@
 use super::{
-    BenchmarkScenario, HyperfineCommand, PhaseEvent, collect_pnpr_direct_ratios,
-    non_trivial_cold_batch, pnpr_auth_config_key, pnpr_benchmark_config_yaml, read_phase_events,
-    render_diagnostics_markdown, requires_fresh_pnpr_cold_batch_metrics, summarize_phase_events,
+    BenchId, BenchmarkScenario, HyperfineCommand, PhaseEvent, collect_pnpr_direct_ratios,
+    create_install_script, non_trivial_cold_batch, pnpr_auth_config_key,
+    pnpr_benchmark_config_yaml, read_phase_events, render_diagnostics_markdown,
+    requires_fresh_pnpr_cold_batch_metrics, summarize_phase_events,
 };
 use std::{collections::HashMap, fs};
+
+#[test]
+fn offline_scenario_writes_online_prewarm_script() {
+    let dir = std::env::temp_dir()
+        .join(format!("pacquet-integrated-benchmark-offline-prewarm-{}", std::process::id()));
+    fs::create_dir_all(&dir).expect("create script test dir");
+
+    create_install_script(
+        &dir,
+        BenchmarkScenario::IsolatedFreshResolveHotCacheOffline,
+        "pnpm",
+        BenchId::PnpmRevision("HEAD"),
+    );
+    let install = fs::read_to_string(dir.join("install.bash")).expect("read install.bash");
+    let prewarm = fs::read_to_string(dir.join("prewarm.bash")).expect("read prewarm.bash");
+    let _ = fs::remove_dir_all(&dir);
+
+    assert!(install.contains("install --offline --lockfile-only"), "install = {install}");
+    // The priming run must reach the registry: a plain online install.
+    assert!(prewarm.ends_with("exec pnpm install\n"), "prewarm = {prewarm}");
+}
+
+#[test]
+fn online_scenario_writes_no_prewarm_script() {
+    let dir = std::env::temp_dir()
+        .join(format!("pacquet-integrated-benchmark-online-prewarm-{}", std::process::id()));
+    fs::create_dir_all(&dir).expect("create script test dir");
+
+    create_install_script(
+        &dir,
+        BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore,
+        "pnpm",
+        BenchId::PnpmRevision("HEAD"),
+    );
+    let has_prewarm = dir.join("prewarm.bash").exists();
+    let _ = fs::remove_dir_all(&dir);
+
+    assert!(!has_prewarm);
+}
 
 #[test]
 fn phase_event_parser_reads_flat_and_nested_json_trace_fields() {

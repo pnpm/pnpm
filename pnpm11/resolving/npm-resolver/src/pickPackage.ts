@@ -25,6 +25,14 @@ import {
 import { toRaw } from './toRaw.js'
 
 export interface PackageMetaCache {
+  /**
+   * Must return the same object reference that `set` stored for the key: the
+   * resolver tracks whether a cached packument was validated against the
+   * registry by object identity (see `unverifiedDiskPackuments`). In a cache
+   * that clones or deserializes on read, that provenance is lost and recovery
+   * degrades — a stale disk-promoted entry that can't satisfy a spec fails
+   * the pick instead of falling through to the registry.
+   */
   get: (key: string) => PackageMeta | undefined
   set: (key: string, meta: PackageMeta) => void
   has: (key: string) => boolean
@@ -180,6 +188,31 @@ function pickMatchingVersionFinal (
   }
 }
 
+/**
+ * Packuments promoted into the in-memory cache straight from the on-disk
+ * mirror, without registry validation. The mirror may predate versions the
+ * registry has, so when a cache hit on such an entry can't satisfy the
+ * requested spec (and the resolver isn't offline), `pickPackage` falls
+ * through to the regular flow — a conditional registry request — instead of
+ * failing the pick, exactly as it would have before the entry was promoted.
+ * Network-fetched and 304-revalidated packuments are never in this set, so
+ * hits on them keep returning directly even when the pick fails (the caller
+ * then falls back to workspace packages or reports no matching version).
+ */
+const unverifiedDiskPackuments = new WeakSet<PackageMeta>()
+
+/**
+ * Promote a packument parsed from the on-disk mirror into the in-memory
+ * cache, so repeat resolutions of the same package (common across a large
+ * dependency graph) don't re-read and re-parse the mirror. The entry is
+ * remembered as disk-sourced (see {@link unverifiedDiskPackuments}) because it
+ * never went through registry validation.
+ */
+function cacheDiskLoadedMeta (metaCache: PackageMetaCache, cacheKey: string, meta: PackageMeta): void {
+  unverifiedDiskPackuments.add(meta)
+  metaCache.set(cacheKey, meta)
+}
+
 export async function pickPackage (
   ctx: {
     fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
@@ -239,10 +272,15 @@ export async function pickPackage (
         : persistUpgradedMeta(ctx, pkgMirror, upgrade.upgradedFrom)
       ctx.metaCache.set(cacheKey, metaForCache)
     }
-    return {
-      meta: metaForCache,
-      pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, metaForCache),
+    const pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, metaForCache)
+    if (pickedPackage != null || ctx.offline === true || !unverifiedDiskPackuments.has(metaForCache)) {
+      return {
+        meta: metaForCache,
+        pickedPackage,
+      }
     }
+    // Disk-promoted meta that can't satisfy the spec: fall through and
+    // revalidate against the registry (see unverifiedDiskPackuments).
   }
 
   return runLimited(pkgMirror, async (limit) => {
@@ -251,9 +289,15 @@ export async function pickPackage (
       metaCachedInStore = await limit(async () => loadMeta(pkgMirror))
 
       if (ctx.offline) {
-        if (metaCachedInStore != null) return {
-          meta: metaCachedInStore,
-          pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, metaCachedInStore),
+        if (metaCachedInStore != null) {
+          // maybeUpgradeAbbreviatedMetaForReleaseAge short-circuits when
+          // offline, so a later in-memory cache hit returns this same meta
+          // without any network access.
+          cacheDiskLoadedMeta(ctx.metaCache, cacheKey, metaCachedInStore)
+          return {
+            meta: metaCachedInStore,
+            pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, metaCachedInStore),
+          }
         }
 
         throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
@@ -273,6 +317,14 @@ export async function pickPackage (
         }
         const pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, metaCachedInStore)
         if (pickedPackage) {
+          // A cache hit re-runs maybeUpgradeAbbreviatedMetaForReleaseAge, so
+          // serving this meta from memory can't bypass the release-age
+          // upgrade. When the upgrade branch above already cached the
+          // registry-validated upgraded meta, don't overwrite it with a
+          // disk-sourced marking.
+          if (upgrade.upgradedFrom == null) {
+            cacheDiskLoadedMeta(ctx.metaCache, cacheKey, metaCachedInStore)
+          }
           return {
             meta: metaCachedInStore,
             pickedPackage,
@@ -289,7 +341,7 @@ export async function pickPackage (
         try {
           const pickedPackage = pickMatchingVersionFast(pickerOpts, spec, metaCachedInStore)
           if (pickedPackage) {
-            ctx.metaCache.set(cacheKey, metaCachedInStore)
+            cacheDiskLoadedMeta(ctx.metaCache, cacheKey, metaCachedInStore)
             return {
               meta: metaCachedInStore,
               pickedPackage,

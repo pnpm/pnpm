@@ -667,7 +667,7 @@ impl NpmResolutionVerifier {
         };
         let value = cell
             .get_or_init(|| async {
-                if let Some(shared) = self.read_shared_meta(name) {
+                if let Some(shared) = self.read_shared_meta(registry, name) {
                     return Ok(project_abbreviated_meta(&shared));
                 }
                 let opts = FetchFullMetadataCachedOptions {
@@ -694,15 +694,23 @@ impl NpmResolutionVerifier {
     }
 
     /// Try the resolver's shared [`PackageMetaCache`] for a packument
-    /// the abbreviated projection can derive from. Prefer the
-    /// `name:full` entry: it's a strict superset of the abbreviated
-    /// shape, so a hit there subsumes the bare `name` entry.
-    fn read_shared_meta(&self, name: &PkgName) -> Option<Arc<Package>> {
+    /// the abbreviated projection can derive from. The resolver keys
+    /// entries by registry plus name (see `metadata_cache_key`), with a
+    /// `:full` / `:full:filtered` suffix depending on its own metadata
+    /// mode, so try full, filtered full, then abbreviated — a full form
+    /// is a strict superset of the abbreviated shape, and `clear_meta`
+    /// keeps every field the projection reads. Private-scoped entries
+    /// carry a descriptor prefix the verifier can't reproduce; those
+    /// simply miss and fall through to the verifier's own fetch chain.
+    fn read_shared_meta(&self, registry: &str, name: &PkgName) -> Option<Arc<Package>> {
         let cache = self.meta_cache.as_ref()?;
         let name_str = name.to_string();
+        let key = package_key(registry, &name_str);
         cache
-            .get(&format!("{name_str}:full"))
-            .or_else(|| cache.get(&name_str))
+            .get(&format!("{key}:full"))
+            .or_else(|| cache.get(&format!("{key}:full:filtered")))
+            .or_else(|| cache.get(&key))
+            .map(|cached| cached.meta)
             .filter(|meta| meta.name == name_str)
     }
 
@@ -804,16 +812,21 @@ impl NpmResolutionVerifier {
         };
         cell.get_or_init(|| async {
             // Fast path: if the resolver already pulled the full packument
-            // during the same install (`{registry}\x00{name}:full` key in
-            // the shared metaCache, populated when `pick_package` upgrades
-            // for `minimumReleaseAge`), reuse it. Abbreviated entries are
-            // rejected here — `fail_if_trust_downgraded` needs per-version
-            // `time` and per-version trust evidence, both of which only
-            // the full form carries.
-            let shared =
-                self.meta_cache.as_ref().and_then(|cache| cache.get(&format!("{key}:full")));
-            if let Some(meta) = shared {
-                return Ok(Arc::new(project_trust_meta(meta.as_ref())));
+            // during the same install (`{registry}\x00{name}:full` or
+            // `...:full:filtered` key in the shared metaCache, populated
+            // when `pick_package` upgrades for `minimumReleaseAge`),
+            // reuse it. The filtered form is accepted: `clear_meta`
+            // keeps `time`, per-version `_npmUser`, and `dist`, which is
+            // everything `fail_if_trust_downgraded` reads. Abbreviated
+            // entries are rejected — they lack per-version `time` and
+            // trust evidence.
+            let shared = self.meta_cache.as_ref().and_then(|cache| {
+                cache
+                    .get(&format!("{key}:full"))
+                    .or_else(|| cache.get(&format!("{key}:full:filtered")))
+            });
+            if let Some(cached) = shared {
+                return Ok(Arc::new(project_trust_meta(cached.meta.as_ref())));
             }
             // Project the packument to just the fields `fail_if_trust_downgraded`
             // reads before stashing in the cache. The full document — dependency

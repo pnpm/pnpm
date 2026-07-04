@@ -76,6 +76,18 @@ use crate::{
     registry_url::to_registry_url,
 };
 
+/// A cached packument together with its registry-verification state.
+/// The two travel as one value so a reader can never pair a packument
+/// with the verification state of a concurrent overwrite.
+#[derive(Debug, Clone)]
+pub struct CachedPackument {
+    pub meta: Arc<Package>,
+    /// `false` when the packument was parsed straight from the
+    /// on-disk mirror without a validating registry round-trip (see
+    /// [`PackageMetaCache::set_unverified`]).
+    pub registry_verified: bool,
+}
+
 /// In-memory packument cache the orchestrator consults before any
 /// disk read. A thin map abstraction so a long-lived install can
 /// share one cache across many [`pick_package`] calls.
@@ -86,12 +98,12 @@ use crate::{
 /// contention shows up in benchmarks.
 pub trait PackageMetaCache: Send + Sync {
     /// Shared handle to the cached packument for `key`, or `None`
-    /// when the cache hasn't seen it. Returned as
+    /// when the cache hasn't seen it. The packument is carried as
     /// [`Arc<Package>`] so cross-resolve sharing of a popular
     /// packument (`react`, `lodash`, ...) doesn't deep-clone the
     /// full versions map on every consumer's hit. Returns shared
     /// references, not copies.
-    fn get(&self, key: &str) -> Option<Arc<Package>>;
+    fn get(&self, key: &str) -> Option<CachedPackument>;
     /// Insert/overwrite `meta` under `key`. The orchestrator inserts
     /// after a fresh fetch and after any disk-fast-path that returns
     /// successfully — populating the cache from the disk read avoids
@@ -102,7 +114,27 @@ pub trait PackageMetaCache: Send + Sync {
     /// accepted; the next install starts a fresh cache. Takes
     /// [`Arc<Package>`] so callers can share the same handle they
     /// hand back to [`PickPackageResult`] without an extra clone.
+    ///
+    /// The caller vouches that `meta` came from (or was revalidated
+    /// by) the registry: the entry replaces any registry-unverified
+    /// one a previous [`PackageMetaCache::set_unverified`] stored
+    /// under `key`.
     fn set(&self, key: String, meta: Arc<Package>);
+
+    /// Like [`PackageMetaCache::set`], but stores the entry as
+    /// registry-unverified: it was parsed straight from the on-disk
+    /// mirror without a validating registry round-trip, so it may
+    /// predate versions the registry has. [`pick_package`] uses the
+    /// state to fall through to a conditional registry request —
+    /// instead of failing the pick — when a cache hit on such an entry
+    /// can't satisfy the requested spec and the resolver isn't offline.
+    /// The verified [`PackageMetaCache::set`] the fetch then performs
+    /// replaces the entry, so each package revalidates at most once.
+    ///
+    /// Required (no default) on purpose: an implementation that stored
+    /// these entries as verified would silently turn a recoverable
+    /// stale-mirror miss into a terminal "no matching version".
+    fn set_unverified(&self, key: String, meta: Arc<Package>);
 }
 
 /// Per-`(registry, package_name)` fetch serializer: a map of
@@ -172,16 +204,20 @@ pub fn shared_picked_manifest_cache() -> PickedManifestCache {
 /// top contention point of a warm-resolve time profile.
 #[derive(Debug, Default)]
 pub struct InMemoryPackageMetaCache {
-    inner: DashMap<String, Arc<Package>>,
+    inner: DashMap<String, CachedPackument>,
 }
 
 impl PackageMetaCache for InMemoryPackageMetaCache {
-    fn get(&self, key: &str) -> Option<Arc<Package>> {
-        self.inner.get(key).map(|entry| Arc::clone(entry.value()))
+    fn get(&self, key: &str) -> Option<CachedPackument> {
+        self.inner.get(key).map(|entry| entry.value().clone())
     }
 
     fn set(&self, key: String, meta: Arc<Package>) {
-        self.inner.insert(key, meta);
+        self.inner.insert(key, CachedPackument { meta, registry_verified: true });
+    }
+
+    fn set_unverified(&self, key: String, meta: Arc<Package>) {
+        self.inner.insert(key, CachedPackument { meta, registry_verified: false });
     }
 }
 
@@ -428,8 +464,9 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     let use_mem_cache = !opts.update_checksums;
 
     // 1. In-memory cache.
-    if use_mem_cache && let Some(cached) = ctx.meta_cache.get(&cache_key) {
-        return handle_cache_hit(
+    if use_mem_cache
+        && let Some(cached) = ctx.meta_cache.get(&cache_key)
+        && let Some(result) = handle_cache_hit(
             ctx,
             spec,
             opts,
@@ -440,7 +477,9 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             pkg_mirror.as_deref(),
             cached,
         )
-        .await;
+        .await?
+    {
+        return Ok(result);
     }
 
     let limit = {
@@ -457,8 +496,9 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     // this re-check, every duplicate caller would still fall
     // through to the disk + network path even though they were
     // waiting precisely for the winner's fetch to complete.
-    if use_mem_cache && let Some(cached) = ctx.meta_cache.get(&cache_key) {
-        return handle_cache_hit(
+    if use_mem_cache
+        && let Some(cached) = ctx.meta_cache.get(&cache_key)
+        && let Some(result) = handle_cache_hit(
             ctx,
             spec,
             opts,
@@ -469,7 +509,9 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             pkg_mirror.as_deref(),
             cached,
         )
-        .await;
+        .await?
+    {
+        return Ok(result);
     }
 
     let mut meta_cached_in_store: Option<Arc<Package>> = None;
@@ -480,6 +522,12 @@ pub async fn pick_package<Cache: PackageMetaCache>(
 
         if ctx.offline {
             if let Some(meta) = meta_cached_in_store {
+                // maybe_upgrade_abbreviated_meta_for_release_age
+                // short-circuits when offline, so a later cache hit
+                // returns this same meta without any network access.
+                if !opts.dry_run {
+                    ctx.meta_cache.set_unverified(cache_key.clone(), Arc::clone(&meta));
+                }
                 let (meta, picked) =
                     pick_from_meta(&picker_opts, spec, meta, opts.blocked_versions)?;
                 return Ok(PickPackageResult { meta, picked_package: picked });
@@ -510,6 +558,14 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             let (picked_meta, picked) =
                 pick_from_meta(&picker_opts, spec, Arc::clone(&meta), opts.blocked_versions)?;
             if picked.is_some() {
+                // A cache hit re-runs the release-age upgrade check, so
+                // serving this meta from memory can't bypass the upgrade.
+                // The upgrade branch above already cached the registry-
+                // validated document; don't downgrade it to an unverified
+                // marking.
+                if !upgrade.upgraded && !opts.dry_run {
+                    ctx.meta_cache.set_unverified(cache_key.clone(), Arc::clone(&meta));
+                }
                 return Ok(PickPackageResult { meta: picked_meta, picked_package: picked });
             }
             // Fall through to fetch when disk had the meta but no
@@ -552,7 +608,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
                 // the next install starts a fresh cache and
                 // re-evaluates the disk shortcut.
                 if !opts.dry_run {
-                    ctx.meta_cache.set(cache_key.clone(), Arc::clone(meta));
+                    ctx.meta_cache.set_unverified(cache_key.clone(), Arc::clone(meta));
                 }
                 return Ok(PickPackageResult { meta: picked_meta, picked_package: Some(picked) });
             }
@@ -677,6 +733,12 @@ pub async fn pick_package<Cache: PackageMetaCache>(
 /// re-fetching). Extracting it keeps the two call sites identical so
 /// the upgrade-and-persist side-effects can't drift.
 ///
+/// Returns `Ok(None)` when the hit must not be terminal: the entry is
+/// a registry-unverified disk promotion (see
+/// [`PackageMetaCache::set_unverified`]) whose pick failed, and the
+/// resolver isn't offline. The caller then falls through to the disk +
+/// network flow, whose fetch replaces the entry with a verified one.
+///
 /// The argument list is wide because the helper consumes everything
 /// the per-call frame already computed (cache key, derived
 /// `full_metadata`, pre-resolved mirror path, picker options).
@@ -696,12 +758,14 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
     use_filtered_full_metadata: bool,
     cache_key: &str,
     pkg_mirror: Option<&Path>,
-    cached: Arc<Package>,
-) -> Result<PickPackageResult, PickPackageError> {
+    cached: CachedPackument,
+) -> Result<Option<PickPackageResult>, PickPackageError> {
     let upgrade =
-        maybe_upgrade_abbreviated_meta_for_release_age(ctx, spec, opts, full_metadata, cached)
+        maybe_upgrade_abbreviated_meta_for_release_age(ctx, spec, opts, full_metadata, cached.meta)
             .await?;
     let meta = upgrade.meta;
+    // The upgrade fetch (re)validated the packument against the registry.
+    let registry_verified = cached.registry_verified || upgrade.upgraded;
     if upgrade.upgraded && !opts.dry_run {
         if let Some(path) = pkg_mirror {
             persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata);
@@ -709,7 +773,10 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
         ctx.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
     }
     let (meta, picked) = pick_from_meta(picker_opts, spec, meta, opts.blocked_versions)?;
-    Ok(PickPackageResult { meta, picked_package: picked })
+    if picked.is_none() && !ctx.offline && !registry_verified {
+        return Ok(None);
+    }
+    Ok(Some(PickPackageResult { meta, picked_package: picked }))
 }
 
 /// Same fields as [`PickPackageOptions`] minus the dispatcher-only

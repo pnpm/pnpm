@@ -83,7 +83,6 @@ jobs:
 
     - name: Run benchmarks
       id: bench
-      continue-on-error: true
       run: |
         set -o pipefail
         ./pnpm11/benchmarks/bench.sh 2>&1 | tee bench-output.txt
