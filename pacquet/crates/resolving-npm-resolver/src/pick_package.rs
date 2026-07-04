@@ -131,12 +131,10 @@ pub trait PackageMetaCache: Send + Sync {
     /// The verified [`PackageMetaCache::set`] the fetch then performs
     /// replaces the entry, so each package revalidates at most once.
     ///
-    /// The default implementation stores the entry as verified, which
-    /// keeps custom caches on the terminal cache-hit behavior: a
-    /// failed pick on a hit is a failed pick.
-    fn set_unverified(&self, key: String, meta: Arc<Package>) {
-        self.set(key, meta);
-    }
+    /// Required (no default) on purpose: an implementation that stored
+    /// these entries as verified would silently turn a recoverable
+    /// stale-mirror miss into a terminal "no matching version".
+    fn set_unverified(&self, key: String, meta: Arc<Package>);
 }
 
 /// Per-`(registry, package_name)` fetch serializer: a map of
