@@ -187,6 +187,22 @@
   "engines": {
     "node": ">=22.13"
   },
+  "pnpm": {
+    "app": {
+      "entry": "pnpm.cjs",
+      "outputDir": "artifacts",
+      "outputName": "pnpm",
+      "targets": [
+        "win32-x64",
+        "linux-x64",
+        "darwin-arm64",
+        "linux-arm64",
+        "win32-arm64",
+        "linux-x64-musl",
+        "linux-arm64-musl"
+      ]
+    }
+  },
   "jest": {
     "collectCoverage": false,
     "preset": "@pnpm/jest-config/with-registry"
