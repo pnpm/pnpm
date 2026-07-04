@@ -80,6 +80,19 @@ macro_rules! inert_link_probe {
     )+};
 }
 
+/// `Config::current` consults [`GetCurrentDir`] only to anchor a
+/// relative `npmrcAuthFile` value. `host_current_dir!(Name)` wires
+/// the real-cwd impl onto fakes whose tests never set one.
+macro_rules! host_current_dir {
+    ($($t:ty),+ $(,)?) => {$(
+        impl GetCurrentDir for $t {
+            fn current_dir() -> io::Result<PathBuf> {
+                std::env::current_dir()
+            }
+        }
+    )+};
+}
+
 fn display_store_dir(store_dir: &StoreDir) -> String {
     store_dir.display().to_string().replace('\\', "/")
 }
@@ -136,6 +149,7 @@ impl GetHomeDir for HostNoHome {
     }
 }
 inert_link_probe!(HostNoHome);
+host_current_dir!(HostNoHome);
 
 #[test]
 pub fn have_default_values() {
@@ -222,6 +236,17 @@ fn set_fake_env(pairs: &[(&str, &str)]) {
     });
 }
 
+thread_local! {
+    /// Per-thread fake cwd for [`FakeEnv`], set via [`set_fake_cwd`].
+    /// `None` (the default) falls through to the real process cwd.
+    static FAKE_CWD: std::cell::RefCell<Option<PathBuf>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+fn set_fake_cwd(dir: &Path) {
+    FAKE_CWD.with(|cwd| *cwd.borrow_mut() = Some(dir.to_path_buf()));
+}
+
 /// `Sys` fake whose env reads come from the thread-local
 /// [`FAKE_ENV`] (and nothing else), with no home dir. Isolates the
 /// `npmrcAuthFile` env-resolution from the developer's real shell.
@@ -242,6 +267,11 @@ impl EnvVarOs for FakeEnv {
 impl GetHomeDir for FakeEnv {
     fn home_dir() -> Option<PathBuf> {
         None
+    }
+}
+impl GetCurrentDir for FakeEnv {
+    fn current_dir() -> io::Result<PathBuf> {
+        FAKE_CWD.with(|cwd| cwd.borrow().clone()).map_or_else(std::env::current_dir, Ok)
     }
 }
 inert_link_probe!(FakeEnv);
@@ -1153,6 +1183,7 @@ pub fn npmrc_in_home_folder_applies_registry() {
         }
     }
     inert_link_probe!(HostWithHome);
+    host_current_dir!(HostWithHome);
     let config = Config::new()
         .current::<HostWithHome>(current_dir.path())
         .expect("workspace yaml absent => no error");
@@ -1225,6 +1256,7 @@ pub fn test_current_folder_fallback_to_default() {
         }
     }
     inert_link_probe!(HostWithHome);
+    host_current_dir!(HostWithHome);
     let config = Config { symlink: false, ..Config::new() }
         .current::<HostWithHome>(current_dir.path())
         .expect("workspace yaml absent => no error");
@@ -1439,6 +1471,7 @@ pub fn npm_config_workspace_dir_re_anchors_modules() {
         }
     }
     inert_link_probe!(HostWithEnvWorkspaceDir);
+    host_current_dir!(HostWithEnvWorkspaceDir);
 
     let config =
         Config::new().current::<HostWithEnvWorkspaceDir>(cwd_dir.path()).expect("config loads");
@@ -1483,6 +1516,7 @@ pub fn empty_npm_config_workspace_dir_falls_through() {
         }
     }
     inert_link_probe!(HostWithEmptyEnvWorkspaceDir);
+    host_current_dir!(HostWithEmptyEnvWorkspaceDir);
     let tmp = tempdir().unwrap();
     let config =
         Config::new().current::<HostWithEmptyEnvWorkspaceDir>(tmp.path()).expect("config loads");
@@ -1533,6 +1567,7 @@ pub fn global_config_yaml_enables_gvs() {
         }
     }
     inert_link_probe!(HostWithXdgConfigHome);
+    host_current_dir!(HostWithXdgConfigHome);
 
     let tmp = tempdir().unwrap();
     let config = Config::new().current::<HostWithXdgConfigHome>(tmp.path()).expect("config loads");
@@ -1577,6 +1612,7 @@ pub fn pnpm_workspace_yaml_overrides_global_config_yaml() {
         }
     }
     inert_link_probe!(HostWithXdgConfigHome);
+    host_current_dir!(HostWithXdgConfigHome);
 
     let config =
         Config::new().current::<HostWithXdgConfigHome>(project.path()).expect("config loads");
@@ -1634,6 +1670,7 @@ pub fn global_virtual_store_dir_survives_workspace_yaml_anchor() {
         }
     }
     inert_link_probe!(HostWithXdgConfigHome);
+    host_current_dir!(HostWithXdgConfigHome);
 
     let config =
         Config::new().current::<HostWithXdgConfigHome>(project.path()).expect("config loads");
@@ -1684,6 +1721,7 @@ pub fn global_config_yaml_workspace_only_keys_are_ignored() {
         }
     }
     inert_link_probe!(HostWithXdgConfigHome);
+    host_current_dir!(HostWithXdgConfigHome);
 
     let tmp = tempdir().unwrap();
     let defaults = Config::new();
@@ -1716,6 +1754,7 @@ pub fn pnpm_config_env_var_enables_gvs() {
         }
     }
     inert_link_probe!(HostWithPnpmConfigEnv);
+    host_current_dir!(HostWithPnpmConfigEnv);
 
     let tmp = tempdir().unwrap();
     let config = Config::new().current::<HostWithPnpmConfigEnv>(tmp.path()).expect("loads");
@@ -1744,6 +1783,7 @@ pub fn pnpm_config_env_var_lowercase_works() {
         }
     }
     inert_link_probe!(HostWithLowercaseEnv);
+    host_current_dir!(HostWithLowercaseEnv);
 
     let tmp = tempdir().unwrap();
     let config = Config::new().current::<HostWithLowercaseEnv>(tmp.path()).expect("loads");
@@ -1781,6 +1821,7 @@ pub fn pnpm_config_env_var_overrides_workspace_yaml() {
         }
     }
     inert_link_probe!(HostWithPnpmConfigEnv);
+    host_current_dir!(HostWithPnpmConfigEnv);
 
     let config = Config::new().current::<HostWithPnpmConfigEnv>(tmp.path()).expect("loads");
     assert!(
@@ -1811,6 +1852,7 @@ pub fn patches_dir_reads_from_env_overlay() {
         }
     }
     inert_link_probe!(HostWithPatchesDirEnv);
+    host_current_dir!(HostWithPatchesDirEnv);
 
     let tmp = tempdir().unwrap();
     let config = Config::new().current::<HostWithPatchesDirEnv>(tmp.path()).expect("loads");
@@ -1846,6 +1888,7 @@ pub fn pnpm_config_hoist_false_clears_hoist_pattern() {
         }
     }
     inert_link_probe!(HostWithHoistEnv);
+    host_current_dir!(HostWithHoistEnv);
 
     let tmp = tempdir().unwrap();
     let config = Config::new().current::<HostWithHoistEnv>(tmp.path()).expect("loads");
@@ -1899,6 +1942,7 @@ pub fn virtual_store_dir_max_length_env_var_overrides_yaml() {
         }
     }
     inert_link_probe!(HostWithEnvOverride);
+    host_current_dir!(HostWithEnvOverride);
 
     let config = Config::new().current::<HostWithEnvOverride>(tmp.path()).expect("loads");
     assert_eq!(
@@ -1943,6 +1987,7 @@ pub fn package_map_settings_load_from_env() {
         }
     }
     inert_link_probe!(HostWithPackageMapEnv);
+    host_current_dir!(HostWithPackageMapEnv);
 
     let tmp = tempdir().unwrap();
     let config = Config::new().current::<HostWithPackageMapEnv>(tmp.path()).expect("loads");
@@ -1992,6 +2037,7 @@ pub fn peers_suffix_max_length_env_var_overrides_yaml() {
         }
     }
     inert_link_probe!(HostWithEnvOverride);
+    host_current_dir!(HostWithEnvOverride);
 
     let config = Config::new().current::<HostWithEnvOverride>(tmp.path()).expect("loads");
     assert_eq!(config.peers_suffix_max_length, 25, "env var must win over pnpm-workspace.yaml");
@@ -2182,5 +2228,56 @@ pub fn npmrc_auth_file_pointing_at_project_npmrc_suppresses_warning() {
     assert!(
         auth_warnings.is_empty(),
         "expected no auth warning when PNPM_CONFIG_NPMRC_AUTH_FILE points at project .npmrc, got: {auth_warnings:?}",
+    );
+}
+
+// The exact shape reported in pnpm/pnpm#12480: a relative
+// `PNPM_CONFIG_NPMRC_AUTH_FILE=.npmrc`, anchored at the cwd.
+#[test]
+pub fn npmrc_auth_file_relative_to_cwd_pointing_at_project_npmrc_suppresses_warning() {
+    let project = tempdir().expect("project tempdir");
+    fs::write(project.path().join(".npmrc"), "//registry.npmjs.org/:_authToken=${MY_TOKEN}\n")
+        .expect("write project .npmrc");
+
+    set_fake_env(&[("MY_TOKEN", "secret-token"), ("PNPM_CONFIG_NPMRC_AUTH_FILE", ".npmrc")]);
+    set_fake_cwd(project.path());
+
+    let mut config = None;
+    let warnings = capture_warnings(|| {
+        config = Some(load_with_fake_env(project.path()));
+    });
+
+    let auth_warnings: Vec<_> =
+        warnings.iter().filter(|w| w.contains("Ignored project-level auth setting")).collect();
+    assert!(
+        auth_warnings.is_empty(),
+        "expected no auth warning for a relative npmrcAuthFile that resolves to the project .npmrc, got: {auth_warnings:?}",
+    );
+    assert_eq!(
+        config.unwrap().auth_headers.for_url("https://registry.npmjs.org/pkg").as_deref(),
+        Some("Bearer secret-token"),
+        "the trusted project .npmrc must expand the auth env placeholder",
+    );
+}
+
+// A relative npmrcAuthFile that resolves somewhere other than the project
+// .npmrc must not trust it — the warning stays.
+#[test]
+pub fn npmrc_auth_file_relative_resolving_elsewhere_keeps_warning() {
+    let project = tempdir().expect("project tempdir");
+    let elsewhere = tempdir().expect("elsewhere tempdir");
+    fs::write(project.path().join(".npmrc"), "//registry.npmjs.org/:_authToken=${MY_TOKEN}\n")
+        .expect("write project .npmrc");
+
+    set_fake_env(&[("MY_TOKEN", "secret-token"), ("PNPM_CONFIG_NPMRC_AUTH_FILE", ".npmrc")]);
+    set_fake_cwd(elsewhere.path());
+
+    let warnings = capture_warnings(|| {
+        load_with_fake_env(project.path());
+    });
+
+    assert!(
+        warnings.iter().any(|w| w.contains("Ignored project-level auth setting")),
+        "expected the auth warning when the relative npmrcAuthFile does not resolve to the project .npmrc, got: {warnings:?}",
     );
 }
