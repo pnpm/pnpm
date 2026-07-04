@@ -945,7 +945,11 @@ where
         } = {
             let mut verify_fut = std::pin::pin!(verify_fut);
             let mut create_virtual_store_fut = std::pin::pin!(create_virtual_store_fut);
+            // `select!` randomizes branch polling by default. Poll the
+            // verifier first so cold frozen restores do not leave the
+            // verification fan-out as a nondeterministic tail after fetches.
             tokio::select! {
+                biased;
                 verify = &mut verify_fut => {
                     verify?;
                     create_virtual_store_fut.await?
