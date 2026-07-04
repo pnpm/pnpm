@@ -279,10 +279,8 @@ export async function pickPackage (
         pickedPackage,
       }
     }
-    // The cached packument came from the disk mirror without registry
-    // validation and can't satisfy this spec — it may simply predate the
-    // wanted version. Fall through to the regular flow, which revalidates
-    // against the registry (see unverifiedDiskPackuments).
+    // Disk-promoted meta that can't satisfy the spec: fall through and
+    // revalidate against the registry (see unverifiedDiskPackuments).
   }
 
   return runLimited(pkgMirror, async (limit) => {
@@ -319,9 +317,9 @@ export async function pickPackage (
         }
         const pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, metaCachedInStore)
         if (pickedPackage) {
-          // On a later cache hit the top-level path re-runs the same
-          // maybeUpgradeAbbreviatedMetaForReleaseAge check, so behavior is
-          // unchanged. When the upgrade branch above already cached the
+          // A cache hit re-runs maybeUpgradeAbbreviatedMetaForReleaseAge, so
+          // serving this meta from memory can't bypass the release-age
+          // upgrade. When the upgrade branch above already cached the
           // registry-validated upgraded meta, don't overwrite it with a
           // disk-sourced marking.
           if (upgrade.upgradedFrom == null) {

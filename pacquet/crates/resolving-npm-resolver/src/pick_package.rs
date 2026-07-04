@@ -558,10 +558,11 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             let (picked_meta, picked) =
                 pick_from_meta(&picker_opts, spec, Arc::clone(&meta), opts.blocked_versions)?;
             if picked.is_some() {
-                // A later cache hit re-runs the same release-age upgrade
-                // check, so behavior is unchanged. The upgrade branch
-                // above already cached the registry-validated document;
-                // don't downgrade it to an unverified marking.
+                // A cache hit re-runs the release-age upgrade check, so
+                // serving this meta from memory can't bypass the upgrade.
+                // The upgrade branch above already cached the registry-
+                // validated document; don't downgrade it to an unverified
+                // marking.
                 if !upgrade.upgraded && !opts.dry_run {
                     ctx.meta_cache.set_unverified(cache_key.clone(), Arc::clone(&meta));
                 }
