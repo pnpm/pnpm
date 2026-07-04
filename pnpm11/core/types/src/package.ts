@@ -179,6 +179,15 @@ export interface AuditConfig {
 
 export interface PnpmSettings {
   npmrcAuthFile?: string
+  /**
+   * Command (argv array, executed without a shell) that prints the absolute
+   * path of the pnpm binary this project must run under. When set, pnpm runs
+   * it once per user invocation and re-executes into the returned binary if it
+   * differs from the running one. Lets an external version manager that
+   * already has pnpm on disk pin the exact binary without the `packageManager`
+   * field of `package.json`.
+   */
+  pnpmExecCommand?: string[]
   registries?: Registries
   namedRegistries?: Record<string, string>
   configDependencies?: ConfigDependencies

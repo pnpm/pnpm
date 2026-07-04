@@ -1,0 +1,123 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { PnpmError } from '@pnpm/error'
+import { logger } from '@pnpm/logger'
+import spawn from 'cross-spawn'
+
+import { reExecPnpm } from './reExecPnpm.js'
+
+/**
+ * Sentinel set on the child of a `pnpmExecCommand` re-exec. It carries the
+ * resolved binary path so that the child (and any nested pnpm invocation that
+ * inherits the environment, e.g. from a lifecycle script) skips re-running
+ * the command: the resolution is done once per user invocation.
+ */
+export const PNPM_EXEC_PATH_ENV = 'PNPM_EXEC_PATH'
+
+const COMMAND_TIMEOUT = 60_000 // ms
+
+/**
+ * When the `pnpmExecCommand` setting is present, run the configured command,
+ * treat its trimmed stdout as the absolute path of the pnpm binary this
+ * project must run under, and re-exec into that binary if it isn't the one
+ * already running (in which case this function never returns).
+ *
+ * Any failure — the command exiting non-zero, printing nothing, or printing a
+ * non-absolute or non-existent path — is a hard error: the project delegated
+ * binary selection to the command, so running the current (potentially
+ * mismatched) pnpm instead would defeat the point of the setting.
+ *
+ * The re-exec'd child inherits {@link PNPM_EXEC_PATH_ENV} and returns early
+ * here without spawning anything, so the command runs once per user
+ * invocation. The `packageManager` / `devEngines.packageManager` check in
+ * `main()` still runs in the child, now validating the binary the command
+ * actually produced.
+ */
+export async function applyPnpmExecCommand (command: unknown): Promise<void> {
+  if (!Array.isArray(command) || command.length === 0 || !command.every((arg) => typeof arg === 'string' && arg !== '')) {
+    throw new PnpmError(
+      'EXEC_COMMAND_INVALID',
+      'The pnpmExecCommand setting must be an array of non-empty strings, e.g. ["my-tool", "which-pnpm"]'
+    )
+  }
+
+  const resolvedByParent = process.env[PNPM_EXEC_PATH_ENV]
+  if (resolvedByParent != null) {
+    // A parent pnpm already ran the command and re-exec'd into its result. If
+    // that result is the running binary (the normal case), there is nothing to
+    // do. If it isn't — e.g. a stale sentinel inherited from an unrelated
+    // parent process — re-running the command could loop, so proceed and let
+    // the packageManager check surface any version mismatch.
+    return
+  }
+
+  const binPath = runPnpmExecCommand(command)
+
+  if (isCurrentBinary(binPath)) {
+    // Mark resolution as done for nested pnpm invocations.
+    process.env[PNPM_EXEC_PATH_ENV] = binPath
+    return
+  }
+
+  logger.debug({ msg: `pnpmExecCommand resolved the pnpm binary to ${binPath}; re-executing` })
+  await reExecPnpm(binPath, {
+    target: `the binary resolved by pnpmExecCommand ("${command.join(' ')}")`,
+    extraEnv: { [PNPM_EXEC_PATH_ENV]: binPath },
+    // The sentinel guarantees the child won't re-exec, so it is fine for the
+    // resolved bin dir to already lead PATH (typical when an external version
+    // manager owns PATH but the user invoked a different pnpm directly).
+    allowBinDirAlreadyOnPath: true,
+  })
+}
+
+function runPnpmExecCommand (command: string[]): string {
+  const [cmd, ...args] = command
+  // stderr is inherited so the tool's own diagnostics reach the user directly.
+  const { status, error, stdout } = spawn.sync(cmd, args, {
+    stdio: ['ignore', 'pipe', 'inherit'],
+    timeout: COMMAND_TIMEOUT,
+  })
+
+  if (error != null || status !== 0) {
+    throw new PnpmError(
+      'EXEC_COMMAND_FAIL',
+      `The pnpmExecCommand ("${command.join(' ')}") failed${status != null ? ` with exit code ${status}` : ''}`,
+      {
+        hint: error instanceof Error ? error.message : undefined,
+      }
+    )
+  }
+
+  const binPath = stdout.toString().trim()
+  if (binPath === '') {
+    throw new PnpmError(
+      'EXEC_COMMAND_NO_OUTPUT',
+      `The pnpmExecCommand ("${command.join(' ')}") printed no path to stdout`
+    )
+  }
+  if (!path.isAbsolute(binPath)) {
+    throw new PnpmError(
+      'EXEC_COMMAND_RELATIVE_PATH',
+      `The pnpmExecCommand ("${command.join(' ')}") printed a non-absolute path: "${binPath}"`
+    )
+  }
+  if (!fs.existsSync(binPath)) {
+    throw new PnpmError(
+      'EXEC_COMMAND_BAD_PATH',
+      `The pnpmExecCommand ("${command.join(' ')}") printed a path that does not exist: "${binPath}"`
+    )
+  }
+  return binPath
+}
+
+function isCurrentBinary (binPath: string): boolean {
+  // process.argv[1] is the running pnpm entry script (or the SEA exec path).
+  const current = process.argv[1]
+  if (current == null) return false
+  try {
+    return fs.realpathSync(binPath) === fs.realpathSync(current)
+  } catch {
+    return false
+  }
+}

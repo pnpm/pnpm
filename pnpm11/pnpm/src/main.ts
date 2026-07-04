@@ -30,6 +30,7 @@ import { formatUnknownOptionsError } from './formatError.js'
 import { getConfig, installConfigDepsAndLoadHooks } from './getConfig.js'
 import type { ParsedCliArgsWithBuiltIn } from './parseCliArgs.js'
 import { parseCliArgs } from './parseCliArgs.js'
+import { applyPnpmExecCommand } from './pnpmExecCommand.js'
 import { initReporter, type ReporterType } from './reporter/index.js'
 import { switchCliVersion } from './switchCliVersion.js'
 import { syncEnvLockfile } from './syncEnvLockfile.js'
@@ -113,12 +114,23 @@ export async function main (inputArgv: string[]): Promise<void> {
       onlyInheritDlxSettingsFromLocal: isDlxOrCreateCommand,
     }) as { config: typeof config, context: ConfigContext })
     if (cmd !== 'setup' && !shouldSkipPmHandling(cmd, cliParams)) {
+      // When the project delegates pnpm-binary selection to an external
+      // command, resolve and re-exec before the packageManager handling below,
+      // so the checkPackageManager call runs inside the binary the command
+      // selected and validates it against devEngines/packageManager. Skipped
+      // for --global, which opts out of project-level pinning.
+      if (config.pnpmExecCommand != null && !cliOptions.global) {
+        await applyPnpmExecCommand(config.pnpmExecCommand)
+      }
       if (context.wantedPackageManager != null) {
         const pm = context.wantedPackageManager
         if (pm.onFail !== 'ignore') {
-          if (pm.name === 'pnpm' && pm.onFail === 'download' && !isExecutedByCorepack()) {
+          if (pm.name === 'pnpm' && pm.onFail === 'download' && !isExecutedByCorepack() && config.pnpmExecCommand == null) {
             // Corepack owns version switching; pnpm only switches versions when
-            // the user is running pnpm directly.
+            // the user is running pnpm directly. Likewise, a project with
+            // pnpmExecCommand delegates binary selection to that command, so
+            // no download-based switching happens — a version mismatch falls
+            // through to checkPackageManager below and errors instead.
             await switchCliVersion(config, context)
           } else if (cliOptions.global) {
             globalWarn('Using --global skips the package manager check for this project')
@@ -130,7 +142,10 @@ export async function main (inputArgv: string[]): Promise<void> {
             // workflows. syncEnvLockfile self-gates via shouldPersistLockfile so
             // it only writes to the lockfile when the project opted in (via
             // `devEngines.packageManager`, or a v12+ `packageManager` pin).
-            checkPackageManager(pm, { underCorepack: isExecutedByCorepack() })
+            checkPackageManager(pm, {
+              underCorepack: isExecutedByCorepack(),
+              viaExecCommand: config.pnpmExecCommand != null,
+            })
             await syncEnvLockfile(config, context)
           }
         }
@@ -427,7 +442,7 @@ function shouldSkipPmHandling (cmd: string | null, cliParams: string[]): boolean
   return false
 }
 
-function checkPackageManager (pm: EngineDependency, opts: { underCorepack: boolean }): void {
+function checkPackageManager (pm: EngineDependency, opts: { underCorepack: boolean, viaExecCommand?: boolean }): void {
   if (!pm.name) return
   const shouldError = pm.onFail === 'error' || pm.onFail === 'download'
   if (pm.name !== 'pnpm') {
@@ -442,18 +457,23 @@ function checkPackageManager (pm: EngineDependency, opts: { underCorepack: boole
       : undefined
     if (currentPnpmVersion && !semver.satisfies(currentPnpmVersion, pm.version, { includePrerelease: true })) {
       let msg = `This project is configured to use ${pm.version} of pnpm. Your current pnpm is v${currentPnpmVersion}`
-      // When pnpm runs under corepack, corepack — not pnpm — selects the
-      // running version, so users see this mismatch even with onFail='download'
-      // (which would normally auto-switch). Spell out that pnpm cannot switch
-      // here and point at the two ways out.
+      // When something other than pnpm selects the running version — corepack,
+      // or the project's pnpmExecCommand — users see this mismatch even with
+      // onFail='download' (which would normally auto-switch). Spell out what
+      // selected the version and point at the ways out.
       if (opts.underCorepack) {
         msg += '\nCorepack invoked pnpm with this version, and pnpm does not switch versions when running under corepack.'
+      } else if (opts.viaExecCommand) {
+        msg += '\nThe pnpm binary was selected by the "pnpmExecCommand" setting, which overrides download-based version switching.'
       }
       if (shouldError) {
         const baseHint = 'If you want to bypass this version check, you can set the "pmOnFail" configuration to "warn" or "ignore" (e.g. via --pm-on-fail=ignore). If using "devEngines.packageManager", you can set its "onFail" to "warn" or "ignore"'
-        const hint = opts.underCorepack
-          ? `Align the "packageManager" field in package.json with "devEngines.packageManager", or invoke pnpm directly (without corepack) so it can switch versions automatically.\n${baseHint}`
-          : baseHint
+        let hint = baseHint
+        if (opts.underCorepack) {
+          hint = `Align the "packageManager" field in package.json with "devEngines.packageManager", or invoke pnpm directly (without corepack) so it can switch versions automatically.\n${baseHint}`
+        } else if (opts.viaExecCommand) {
+          hint = `Align the version required by "packageManager"/"devEngines.packageManager" with the pnpm binary provided by your "pnpmExecCommand" tooling, or declare a version range that the provided binary satisfies.\n${baseHint}`
+        }
         throw new PnpmError('BAD_PM_VERSION', msg, { hint })
       } else {
         globalWarn(msg)
