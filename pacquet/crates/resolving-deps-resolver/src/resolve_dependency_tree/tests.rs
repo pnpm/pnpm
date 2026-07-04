@@ -330,7 +330,7 @@ mod is_update_target {
         // The user updates `bar`, but the importer installed it under
         // alias `foo` via `foo@npm:bar@^4`. The real name `bar` is in
         // the target list, so the aliased dep counts as a target.
-        assert!(is_update_target(&except(&["bar"]), &wanted_with(Some("foo"), Some("npm:bar@^4"))),);
+        assert!(is_update_target(&except(&["bar"]), &wanted_with(Some("foo"), Some("npm:bar@^4"))));
     }
 
     #[test]
