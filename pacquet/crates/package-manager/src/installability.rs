@@ -13,7 +13,10 @@
 //! host, since the host arch may have changed since the previous
 //! install wrote `.modules.yaml`.
 
-use std::collections::{HashMap, HashSet};
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+};
 
 use pacquet_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
 use pacquet_package_is_installable::{
@@ -259,29 +262,35 @@ pub(crate) fn check_installability(
     manifest: &PackageInstallabilityManifest,
     options: &InstallabilityOptions<'_>,
 ) -> Result<Option<InstallabilityError>, Box<InstallabilityError>> {
-    let effective: PackageInstallabilityManifest;
-    let manifest = if options.optional
-        && let Some(platform) = inferred_platform(
-            &manifest.name,
-            WantedPlatformRef {
-                os: manifest.os.as_deref(),
-                cpu: manifest.cpu.as_deref(),
-                libc: manifest.libc.as_deref(),
-            },
-        ) {
-        effective = PackageInstallabilityManifest {
-            name: manifest.name.clone(),
-            engines: manifest.engines.clone(),
-            os: platform.os,
-            cpu: platform.cpu,
-            libc: platform.libc,
-        };
-        &effective
+    let manifest = if options.optional {
+        manifest_with_inferred_platform(manifest)
     } else {
-        manifest
+        Cow::Borrowed(manifest)
     };
-    check_package(package_id, manifest, options)
+    check_package(package_id, manifest.as_ref(), options)
         .map_err(|invalid| Box::new(InstallabilityError::InvalidNodeVersion(invalid)))
+}
+
+pub(crate) fn manifest_with_inferred_platform(
+    manifest: &PackageInstallabilityManifest,
+) -> Cow<'_, PackageInstallabilityManifest> {
+    let Some(platform) = inferred_platform(
+        &manifest.name,
+        WantedPlatformRef {
+            os: manifest.os.as_deref(),
+            cpu: manifest.cpu.as_deref(),
+            libc: manifest.libc.as_deref(),
+        },
+    ) else {
+        return Cow::Borrowed(manifest);
+    };
+    Cow::Owned(PackageInstallabilityManifest {
+        name: manifest.name.clone(),
+        engines: manifest.engines.clone(),
+        os: platform.os,
+        cpu: platform.cpu,
+        libc: platform.libc,
+    })
 }
 
 pub(crate) fn manifest_from_resolve_result(

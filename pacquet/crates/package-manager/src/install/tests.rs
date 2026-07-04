@@ -5406,7 +5406,7 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
         })
         .map(|(key, snapshot)| {
             assert!(snapshot.optional, "lockfile snapshot should stay marked optional");
-            key.to_string()
+            key.clone()
         })
         .expect("optional dependency should stay in the lockfile");
 
@@ -5414,7 +5414,20 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
         .pipe_as_ref(read_modules_manifest::<Host>)
         .expect("read .modules.yaml")
         .expect("modules manifest exists");
-    assert_eq!(written.skipped, [skipped_key]);
+    assert_eq!(written.skipped, [skipped_key.to_string()]);
+
+    let current_lockfile_path = virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
+    let current_content =
+        std::fs::read_to_string(&current_lockfile_path).expect("read current lockfile");
+    let current_lockfile: Lockfile =
+        serde_saphyr::from_str(&current_content).expect("parse current lockfile");
+    assert!(
+        !current_lockfile
+            .snapshots
+            .as_ref()
+            .is_some_and(|snapshots| snapshots.contains_key(&skipped_key)),
+        "platform-incompatible optional dependency must not be saved in current lockfile",
+    );
 
     drop((dir, mock_instance));
 }

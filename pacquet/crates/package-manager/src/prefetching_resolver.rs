@@ -32,7 +32,6 @@ use pacquet_lockfile::{LockfileResolution, is_git_hosted_tarball_url};
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_is_installable::{
     PackageInstallabilityManifest, SupportedArchitectures, WantedPlatformRef, check_platform,
-    inferred_platform,
 };
 use pacquet_reporter::{Reporter, SilentReporter};
 use pacquet_resolving_resolver_base::{
@@ -351,28 +350,9 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         if manifest.name.is_empty() {
             return false;
         }
-        let effective: PackageInstallabilityManifest;
-        let manifest = if let Some(platform) = inferred_platform(
-            &manifest.name,
-            WantedPlatformRef {
-                os: manifest.os.as_deref(),
-                cpu: manifest.cpu.as_deref(),
-                libc: manifest.libc.as_deref(),
-            },
-        ) {
-            effective = PackageInstallabilityManifest {
-                name: manifest.name.clone(),
-                engines: manifest.engines.clone(),
-                os: platform.os,
-                cpu: platform.cpu,
-                libc: platform.libc,
-            };
-            &effective
-        } else {
-            &manifest
-        };
+        let manifest = crate::manifest_with_inferred_platform(&manifest);
         check_platform(
-            &package_id(result, manifest),
+            &package_id(result, manifest.as_ref()),
             WantedPlatformRef {
                 os: manifest.os.as_deref(),
                 cpu: manifest.cpu.as_deref(),
