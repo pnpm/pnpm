@@ -61,10 +61,18 @@ use std::path::PathBuf;
 #[clap(name = "pnpm")]
 #[clap(bin_name = "pnpm")]
 #[clap(version = pacquet_config::PACQUET_VERSION)]
+#[clap(disable_version_flag = true)]
 #[clap(about = "Experimental package manager for node.js")]
 pub struct CliArgs {
     #[clap(subcommand)]
     pub command: CliCommand,
+
+    /// Print the pnpm version.
+    // Replaces clap's built-in flag, whose short form is `-V` and whose
+    // output is prefixed; pnpm uses `-v` and prints the bare version in
+    // `main` when the `Version` action raises `DisplayVersion`.
+    #[clap(short = 'v', long = "version", action = clap::ArgAction::Version)]
+    pub version: Option<bool>,
 
     /// Set working directory.
     #[clap(short = 'C', long, default_value = ".")]

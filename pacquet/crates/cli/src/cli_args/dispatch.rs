@@ -101,8 +101,17 @@ impl CliArgs {
             return Ok(());
         }
 
-        let CliArgs { command, dir, npmrc_auth_file, recursive, reporter, filter, filter_prod } =
-            self;
+        // `version` short-circuits in `main`, never reaching dispatch.
+        let CliArgs {
+            command,
+            dir,
+            npmrc_auth_file,
+            recursive,
+            reporter,
+            filter,
+            filter_prod,
+            version: _,
+        } = self;
 
         // Canonicalize `--dir` so the bunyan-envelope `prefix` emitted by
         // the reporter is the same absolute, symlink-resolved path that
