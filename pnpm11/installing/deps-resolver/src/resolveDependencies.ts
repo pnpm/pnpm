@@ -30,6 +30,7 @@ import {
   type PreferredVersions,
   type Resolution,
   type ResolutionPolicyViolation,
+  type VersionSelectors,
   type WorkspacePackages,
 } from '@pnpm/resolving.resolver-base'
 import type {
@@ -382,7 +383,8 @@ export async function resolveRootDependencies (
   if (ctx.autoInstallPeers) {
     ctx.allPreferredVersions = getPreferredVersionsFromLockfileAndManifests(ctx.wantedLockfile.packages, [])
   } else if (ctx.hoistPeers) {
-    ctx.allPreferredVersions = {}
+    // Null-prototype: keyed by package names from resolved manifests.
+    ctx.allPreferredVersions = Object.create(null) as PreferredVersions
   }
   const { pkgAddressesByImportersWithoutPeers, publishedBy, time } = await resolveDependenciesOfImporters(ctx, importers)
   if (!ctx.hoistPeers) {
@@ -1896,7 +1898,8 @@ async function resolveDependency (
 
     if (ctx.allPreferredVersions && pkgResponse.body.manifest?.version) {
       if (!ctx.allPreferredVersions[pkgResponse.body.manifest.name]) {
-        ctx.allPreferredVersions[pkgResponse.body.manifest.name] = {}
+        // Null-prototype: keyed by versions from the resolved manifest.
+        ctx.allPreferredVersions[pkgResponse.body.manifest.name] = Object.create(null) as VersionSelectors
       }
       ctx.allPreferredVersions[pkgResponse.body.manifest.name][pkgResponse.body.manifest.version] = 'version'
     }

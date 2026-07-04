@@ -27,7 +27,8 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
-    "test": "pn compile",
+    "test": "pn compile && pn .test",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest",
     "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix"
   },
@@ -39,7 +40,9 @@
     "version-selector-type": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/lockfile.preferred-versions": "workspace:*"
+    "@jest/globals": "catalog:",
+    "@pnpm/lockfile.preferred-versions": "workspace:*",
+    "cross-env": "catalog:"
   },
   "engines": {
     "node": ">=22.13"
