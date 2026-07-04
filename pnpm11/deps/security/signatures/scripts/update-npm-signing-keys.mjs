@@ -38,11 +38,13 @@ async function main () {
   }
 
   // Union: every npm key, plus embedded keys npm no longer lists (kept for
-  // verifying packages published before a rotation).
+  // verifying packages published before a rotation). Sorted so a reordering of
+  // npm's response cannot churn the generated file.
   const merged = [...npmKeys]
   for (const e of embedded) {
     if (!merged.some((m) => m.keyid === e.keyid)) merged.push(e)
   }
+  merged.sort((a, b) => a.keyid.localeCompare(b.keyid))
   fs.writeFileSync(KEYS_FILE, render(merged))
   console.log(missing.length === 0
     ? '✓ Embedded npm signing keys already current; rewrote file.'

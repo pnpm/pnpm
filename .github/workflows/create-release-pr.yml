@@ -68,10 +68,14 @@ jobs:
 
     # A refreshed trust root must show up in the changelogs, so synthesize a
     # changeset for whichever key sets drifted before `pnpm bump` consumes the
-    # pending changesets.
+    # pending changesets. The `drifted` output drives an explicit review signal
+    # on the PR, so a trust-root change cannot hide in a large version-bump diff.
     - name: Add changesets for refreshed keys
+      id: keys
       run: |
+        drifted=""
         if ! git diff --quiet -- pnpm11/deps/security/signatures/src/npmSigningKeys.ts; then
+          drifted="npm registry signing keys"
           cat > .changeset/release-refresh-npm-signing-keys.md <<'EOF'
         ---
         "@pnpm/deps.security.signatures": patch
@@ -82,6 +86,7 @@ jobs:
         EOF
         fi
         if ! git diff --quiet -- pnpm11/crypto/shasums-file/src/nodeReleaseKeys.ts; then
+          drifted="${drifted:+$drifted and }Node.js release keys"
           cat > .changeset/release-refresh-node-release-keys.md <<'EOF'
         ---
         "@pnpm/crypto.shasums-file": patch
@@ -91,6 +96,7 @@ jobs:
         Updated the embedded Node.js release keys to the current canonical `nodejs/release-keys` list.
         EOF
         fi
+        echo "drifted=$drifted" >> "$GITHUB_OUTPUT"
 
     # Consumes the pending changesets: bumps versions, writes changelogs, updates
     # the ledger, and syncs manifests. A no-op (no pending changesets) leaves the
@@ -145,3 +151,16 @@ jobs:
             --base "$TARGET" \
             --head "$BRANCH"
         fi
+
+    # Embedded trust roots changed in this release, so leave a hard-to-miss
+    # comment: the refreshed keys need deliberate review, not a scroll-past
+    # among the version bumps and changelogs.
+    - name: Flag refreshed trust roots on the PR
+      if: steps.changes.outputs.changed == 'true' && steps.keys.outputs.drifted != ''
+      env:
+        GH_TOKEN: ${{ secrets.UPDATE_LOCKFILE_TOKEN }}
+        TARGET: ${{ github.event.inputs.target }}
+        DRIFTED: ${{ steps.keys.outputs.drifted }}
+      run: |
+        PR=$(gh pr list --head "release-pr/$TARGET" --state open --json number --jq '.[0].number')
+        gh pr comment "$PR" --body "⚠️ This release refreshes embedded trust roots: **${DRIFTED}**. Review those key diffs deliberately before merging — they gate signature verification of Node.js runtimes and package-manager binaries."
