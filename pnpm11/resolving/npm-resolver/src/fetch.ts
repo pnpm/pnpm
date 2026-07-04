@@ -245,10 +245,21 @@ function normalizeAbbreviatedResponse (
   }
 ): { meta: PackageMeta, jsonText: string } {
   if (fullMetadata) return { meta, jsonText }
-  const contentType = response.headers.get('content-type')
-  if (contentType?.includes(ABBREVIATED_META_CONTENT_TYPE)) return { meta, jsonText }
+  if (parseMediaType(response.headers.get('content-type')) === ABBREVIATED_META_CONTENT_TYPE) return { meta, jsonText }
   const normalized = clearMeta(meta)
   return { meta: normalized, jsonText: JSON.stringify(normalized) }
+}
+
+/**
+ * Extracts the media type from a `Content-Type` header value, dropping
+ * parameters such as `; charset=utf-8`. Media types are case-insensitive
+ * (RFC 9110 §8.3.1), so the result is lowercased for comparison.
+ */
+function parseMediaType (contentType: string | null): string | undefined {
+  if (contentType == null) return undefined
+  const semicolonIndex = contentType.indexOf(';')
+  const mediaType = semicolonIndex === -1 ? contentType : contentType.slice(0, semicolonIndex)
+  return mediaType.trim().toLowerCase()
 }
 
 function toUri (pkgName: string, registry: string): string {

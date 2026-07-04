@@ -1,6 +1,30 @@
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
 import { pick } from 'ramda'
 
+// The list taken from https://github.com/npm/registry/blob/master/docs/responses/package-metadata.md#abbreviated-version-object
+// with the addition of 'libc'
+const ABBREVIATED_VERSION_FIELDS = [
+  'name',
+  'version',
+  'bin',
+  'directories',
+  'devDependencies',
+  'optionalDependencies',
+  'dependencies',
+  'peerDependencies',
+  'dist',
+  'engines',
+  'peerDependenciesMeta',
+  'cpu',
+  'os',
+  'libc',
+  'deprecated',
+  'bundleDependencies',
+  'bundledDependencies',
+  'hasInstallScript',
+  '_npmUser',
+] as const
+
 /**
  * Reduces a package metadata document to the abbreviated field set that the
  * resolver actually reads, dropping install-irrelevant fields (scripts,
@@ -16,31 +40,12 @@ import { pick } from 'ramda'
  * versions), which the abbreviated path can reach.
  */
 export function clearMeta (pkg: PackageMeta): PackageMeta {
-  const versions: PackageMeta['versions'] = {}
+  // A null prototype so that a registry-controlled version key named
+  // `__proto__` becomes a regular own property instead of mutating the
+  // prototype of the map (js/prototype-polluting-assignment).
+  const versions: PackageMeta['versions'] = Object.create(null)
   for (const [version, info] of Object.entries(pkg.versions ?? {})) {
-    // The list taken from https://github.com/npm/registry/blob/master/docs/responses/package-metadata.md#abbreviated-version-object
-    // with the addition of 'libc'
-    versions[version] = pick([
-      'name',
-      'version',
-      'bin',
-      'directories',
-      'devDependencies',
-      'optionalDependencies',
-      'dependencies',
-      'peerDependencies',
-      'dist',
-      'engines',
-      'peerDependenciesMeta',
-      'cpu',
-      'os',
-      'libc',
-      'deprecated',
-      'bundleDependencies',
-      'bundledDependencies',
-      'hasInstallScript',
-      '_npmUser',
-    ], info)
+    versions[version] = pick(ABBREVIATED_VERSION_FIELDS, info)
   }
 
   return {

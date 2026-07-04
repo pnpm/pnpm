@@ -113,7 +113,9 @@ test('a document served with the abbreviated content type is cached verbatim (re
 
   getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/foo', method: 'GET' })
-    .reply(200, abbreviatedDoc, { headers: { 'content-type': `${ABBREVIATED_CONTENT_TYPE}; charset=utf-8` } })
+    // Media types are case-insensitive and may carry parameters; both must
+    // still be recognized as the abbreviated content type.
+    .reply(200, abbreviatedDoc, { headers: { 'content-type': `${ABBREVIATED_CONTENT_TYPE.toUpperCase()}; charset=utf-8` } })
 
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
