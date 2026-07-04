@@ -523,7 +523,7 @@ pub fn any_installability_constraint(
                 let metadata_key = snapshot_key.without_peer();
                 packages.get(&metadata_key).is_some_and(|metadata| {
                     inferred_platform(
-                        &metadata_key.name.to_string(),
+                        metadata_key.name.bare.as_str(),
                         WantedPlatformRef {
                             os: metadata.os.as_deref(),
                             cpu: metadata.cpu.as_deref(),
@@ -549,7 +549,7 @@ pub fn any_optional_installability_constraint(
         packages.get(&metadata_key).is_some_and(|metadata| {
             metadata_has_meaningful_constraint(metadata)
                 || inferred_platform(
-                    &metadata_key.name.to_string(),
+                    metadata_key.name.bare.as_str(),
                     WantedPlatformRef {
                         os: metadata.os.as_deref(),
                         cpu: metadata.cpu.as_deref(),

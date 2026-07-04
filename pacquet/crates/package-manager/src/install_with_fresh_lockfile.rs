@@ -1395,12 +1395,21 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             elapsed_ms = phase_start.elapsed().as_millis() as u64,
             "phase complete",
         );
-        let needs_installability_check = built_lockfile.packages.as_ref().is_some_and(|packages| {
-            built_lockfile.snapshots.as_ref().is_some_and(|snapshots| {
-                crate::any_optional_installability_constraint(snapshots, packages)
-            })
-        });
-        let installability_host = if needs_installability_check {
+        let needs_optional_installability_check =
+            built_lockfile.packages.as_ref().is_some_and(|packages| {
+                built_lockfile.snapshots.as_ref().is_some_and(|snapshots| {
+                    crate::any_optional_installability_constraint(snapshots, packages)
+                })
+            });
+        let needs_hoisted_installability_host = is_hoisted
+            && built_lockfile.packages.as_ref().is_some_and(|packages| {
+                built_lockfile.snapshots.as_ref().is_some_and(|snapshots| {
+                    crate::any_installability_constraint(snapshots, packages)
+                })
+            });
+        let needs_installability_host =
+            needs_optional_installability_check || needs_hoisted_installability_host;
+        let installability_host = if needs_installability_host {
             let mut host = tokio::task::spawn_blocking(crate::InstallabilityHost::detect)
                 .await
                 .ok()
@@ -1486,22 +1495,26 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             );
         }
 
-        let mut skipped = match (
-            built_lockfile.snapshots.as_ref(),
-            built_lockfile.packages.as_ref(),
-            installability_host.as_ref(),
-        ) {
-            (Some(snapshots), Some(packages), Some(host)) => {
-                crate::compute_skipped_snapshots::<Reporter>(
-                    snapshots,
-                    packages,
-                    host,
-                    requester,
-                    SkippedSnapshots::new(),
-                )
-                .map_err(InstallWithFreshLockfileError::Installability)?
+        let mut skipped = if needs_optional_installability_check {
+            match (
+                built_lockfile.snapshots.as_ref(),
+                built_lockfile.packages.as_ref(),
+                installability_host.as_ref(),
+            ) {
+                (Some(snapshots), Some(packages), Some(host)) => {
+                    crate::compute_skipped_snapshots::<Reporter>(
+                        snapshots,
+                        packages,
+                        host,
+                        requester,
+                        SkippedSnapshots::new(),
+                    )
+                    .map_err(InstallWithFreshLockfileError::Installability)?
+                }
+                _ => SkippedSnapshots::new(),
             }
-            _ => SkippedSnapshots::new(),
+        } else {
+            SkippedSnapshots::new()
         };
 
         // Materialise the virtual store via the same phased

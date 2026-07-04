@@ -350,9 +350,6 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             result,
             wanted_dependency.alias.as_deref(),
         );
-        if manifest.name.is_empty() {
-            return false;
-        }
         let manifest = crate::manifest_with_inferred_platform(&manifest);
         !platform_is_supported(
             WantedPlatformRef {
@@ -376,11 +373,11 @@ impl<Reporter: self::Reporter + 'static> Resolver for PrefetchingResolver<Report
     ) -> ResolveFuture<'a> {
         Box::pin(async move {
             let mut result = self.inner.resolve(wanted_dependency, opts).await?;
-            if let Some(result_mut) = result.as_mut()
-                && !self.should_skip_prefetch(wanted_dependency, result_mut)
-            {
+            if let Some(result_mut) = result.as_mut() {
                 self.populate_missing_integrity(result_mut).await?;
-                self.maybe_kickoff_download(result_mut);
+                if !self.should_skip_prefetch(wanted_dependency, result_mut) {
+                    self.maybe_kickoff_download(result_mut);
+                }
             }
             Ok(result)
         })
