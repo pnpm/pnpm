@@ -338,6 +338,6 @@ fn test_get_output_rejects_empty_key() {
 #[test]
 fn test_delete_with_numeric_key_on_object() {
     let mut value = json!({ "123": "number-key" });
-    assert!(delete_object_value_by_property_path(&mut value, "[123]").unwrap(),);
+    assert!(delete_object_value_by_property_path(&mut value, "[123]").unwrap());
     assert!(value.get("123").is_none());
 }
