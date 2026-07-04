@@ -117,13 +117,12 @@ await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
             }
             // Dropping stdin closes the pipe so `readFileSync(0)` sees EOF.
         };
+        let forward_stdout = forward_hook_stdout(stdout, logger);
+        let collect_stderr = read_tail(stderr, STDERR_TAIL_LIMIT);
+        let wait_child = child.wait();
         let hook_result = timeout(HOOK_TIMEOUT, async {
-            let ((), (), stderr_tail, status) = tokio::join!(
-                write_context,
-                forward_hook_stdout(stdout, logger),
-                read_tail(stderr, STDERR_TAIL_LIMIT),
-                child.wait(),
-            );
+            let ((), (), stderr_tail, status) =
+                tokio::join!(write_context, forward_stdout, collect_stderr, wait_child);
             (stderr_tail, status)
         })
         .await;
