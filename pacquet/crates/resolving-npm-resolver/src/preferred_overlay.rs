@@ -90,7 +90,7 @@ pub(crate) fn warn_once_on_held_back_update(
         pkg_name = spec.name,
         picked_version,
         preferred,
-        "\"{}\" was updated to {picked_version}, not {preferred}, to match the version preferred by your manifests and already installed dependencies. To use {preferred} everywhere, add an override: {{ \"pnpm\": {{ \"overrides\": {{ \"{}\": \"{preferred}\" }} }} }}",
+        r#""{}" was updated to {picked_version}, not {preferred}, to match the version preferred by your manifests and already installed dependencies. To use {preferred} everywhere, add an override: {{ "pnpm": {{ "overrides": {{ "{}": "{preferred}" }} }} }}"#,
         spec.name,
         spec.name,
     );
