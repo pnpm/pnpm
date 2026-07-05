@@ -100,6 +100,46 @@ fn global_add_list_remove_round_trip() {
     drop(root);
 }
 
+/// A global install must ignore the `pnpm-workspace.yaml` of global
+/// settings (`allowBuilds`, `catalog`, ...) that lives in the global packages
+/// directory: the per-group install dir sits under it, so an install that
+/// walked up and adopted it as a workspace would fail enumerating its
+/// non-existent root project. Regression test for that walk-up.
+#[cfg(unix)]
+#[test]
+fn global_add_ignores_ambient_global_workspace_yaml() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    let global_pkg_dir = pnpm_home.join("global").join("v11");
+    fs::create_dir_all(&global_bin).expect("create global bin dir");
+    fs::create_dir_all(&global_pkg_dir).expect("create global packages dir");
+    fs::write(
+        global_pkg_dir.join("pnpm-workspace.yaml"),
+        "allowBuilds:\n  esbuild: true\ncatalog:\n  node: 'lts@runtime:'\n",
+    )
+    .expect("write ambient global workspace yaml");
+
+    global_command(&workspace, &pnpm_home)
+        .with_arg("add")
+        .with_arg("-g")
+        .with_arg("@foo/touch-file-one-bin")
+        .assert()
+        .success();
+
+    assert!(
+        global_bin.join("touch-file-one-bin").exists(),
+        "the package's bin should be linked even with a global-settings workspace yaml present",
+    );
+
+    drop(npmrc_info);
+    drop(root);
+}
+
 /// `pacquet list -g` with nothing installed reports the empty state rather
 /// than erroring. No registry needed.
 #[test]

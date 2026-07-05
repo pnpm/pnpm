@@ -286,7 +286,15 @@ async fn run_group_install<Reporter: self::Reporter + 'static>(
     // `lockfileDir = installDir`). `outdated -g` / `update -g` read these
     // pins to determine the currently-installed versions.
     cfg.lockfile = true;
-    cfg.workspace_dir = None;
+    // Pin the group's workspace root to its own install dir (pnpm's
+    // `rootProjectManifestDir: installDir`, `workspaceDir: undefined`). The
+    // install dir sits *under* the global packages dir, which carries a
+    // `pnpm-workspace.yaml` of global settings (`allowBuilds`, `catalog`,
+    // ...). Leaving this unset would let the install pipeline walk up, adopt
+    // that file as the workspace, and then fail trying to enumerate its
+    // non-existent root project. Anchoring here keeps the group install an
+    // isolated single project.
+    cfg.workspace_dir = Some(install_dir.clone());
     cfg.supported_architectures = supported_architectures;
 
     // Build-script policy for global installs comes from the global packages
