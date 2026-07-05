@@ -38,6 +38,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.pnpm-cli-runner": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "render-help": "catalog:"
   },
   "peerDependencies": {

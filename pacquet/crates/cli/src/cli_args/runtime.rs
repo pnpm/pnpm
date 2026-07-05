@@ -6,7 +6,7 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::Config;
-use pacquet_package_manifest::DependencyGroup;
+use pacquet_package_manifest::{DependencyGroup, is_runtime_alias};
 use pacquet_registry::PinnedVersion;
 use pacquet_reporter::Reporter;
 use std::path::Path;
@@ -49,6 +49,13 @@ pub enum RuntimeError {
     )]
     #[diagnostic(code(ERR_PNPM_MISSING_RUNTIME_NAME))]
     MissingRuntimeName,
+
+    #[display(r#""{name}" is not a supported runtime. Supported runtimes are: node, deno, bun"#)]
+    #[diagnostic(code(ERR_PNPM_INVALID_RUNTIME_NAME))]
+    InvalidRuntimeName {
+        #[error(not(source))]
+        name: String,
+    },
 }
 
 #[derive(Debug)]
@@ -111,6 +118,13 @@ impl RuntimeArgs {
             .map(|name| name.trim())
             .filter(|name| !name.is_empty())
             .ok_or(RuntimeError::MissingRuntimeName)?;
+        // The runtime name is interpolated into an `add` selector, so reject
+        // anything that isn't a known runtime before it can be misread as a
+        // comma-separated package list or a local path by the global-add
+        // pipeline.
+        if !is_runtime_alias(runtime_name) {
+            return Err(RuntimeError::InvalidRuntimeName { name: runtime_name.to_string() });
+        }
         let version_spec = self.params.get(2).map_or("", |version| version.trim());
         let dependency_group = if self.save_dev || !self.save_prod {
             DependencyGroup::Dev

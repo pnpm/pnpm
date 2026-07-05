@@ -154,3 +154,21 @@ test('fail if runtime name is missing', async () => {
 
   expect(mockRunPnpmCli).not.toHaveBeenCalled()
 })
+
+test.each([
+  ['an unknown runtime', 'python'],
+  ['a comma-separated package list', 'node,is-positive'],
+  ['a relative local path', './evil'],
+  ['a file: local path', 'file:./evil'],
+])('fail if the runtime name is %s', async (_description, runtimeName) => {
+  await expect(
+    runtime.handler({
+      bin: '/usr/local/bin',
+      dir: '/tmp/project',
+      global: true,
+      pnpmHomeDir: '/tmp/pnpm-home',
+    }, ['set', runtimeName, '22'])
+  ).rejects.toEqual(new PnpmError('INVALID_RUNTIME_NAME', `"${runtimeName}" is not a supported runtime. Supported runtimes are: node, deno, bun`))
+
+  expect(mockRunPnpmCli).not.toHaveBeenCalled()
+})

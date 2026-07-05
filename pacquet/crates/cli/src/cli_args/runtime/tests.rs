@@ -68,6 +68,24 @@ fn set_request_fails_without_runtime_name() {
 }
 
 #[test]
+fn set_request_rejects_unsupported_runtime_names() {
+    // An unknown runtime, plus the comma-list and local-path forms the
+    // global-add pipeline would otherwise misread as extra install targets.
+    for name in ["python", "node,is-positive", "./evil", "file:./evil"] {
+        let err = args(&["set", name, "22"]).set_request().unwrap_err();
+        assert_eq!(err, RuntimeError::InvalidRuntimeName { name: name.to_string() });
+    }
+}
+
+#[test]
+fn set_request_accepts_every_supported_runtime() {
+    for name in ["node", "deno", "bun"] {
+        let request = args(&["set", name, "22"]).set_request().unwrap();
+        assert_eq!(request.package_name, format!("{name}@runtime:22"));
+    }
+}
+
+#[test]
 fn global_install_builds_the_same_runtime_selector() {
     // `--global` routes through `run_global`, which reuses `set_request`
     // to build the `<name>@runtime:<version>` selector. The
