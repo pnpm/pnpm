@@ -78,6 +78,14 @@ fn set_request_rejects_unsupported_runtime_names() {
 }
 
 #[test]
+fn set_request_rejects_a_comma_in_the_version() {
+    // The version is interpolated into the comma-splittable selector, so a
+    // comma could smuggle in a second global install target.
+    let err = args(&["set", "node", "22,is-positive"]).set_request().unwrap_err();
+    assert_eq!(err, RuntimeError::InvalidRuntimeVersion { version: "22,is-positive".to_string() });
+}
+
+#[test]
 fn set_request_accepts_every_supported_runtime() {
     for name in ["node", "deno", "bun"] {
         let request = args(&["set", name, "22"]).set_request().unwrap();

@@ -111,6 +111,13 @@ function runtimeSet (opts: RuntimeCommandOptions, params: string[]): void {
   }
 
   const versionSpec = params[1]?.trim()
+  // The version is interpolated into the same selector, which the global-add
+  // pipeline splits on commas. Reject a comma so `runtime set node 22,evil -g`
+  // can't smuggle in a second install target. No valid runtime version
+  // (semver, dist-tag, channel) contains one.
+  if (versionSpec?.includes(',')) {
+    throw new PnpmError('INVALID_RUNTIME_VERSION', `Invalid runtime version "${versionSpec}": a version cannot contain a comma`)
+  }
 
   const args = ['add', `${runtimeName}@runtime:${versionSpec ?? ''}`]
   // Default to `devEngines.runtime`; the manifest writer maps a

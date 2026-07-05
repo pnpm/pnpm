@@ -172,3 +172,16 @@ test.each([
 
   expect(mockRunPnpmCli).not.toHaveBeenCalled()
 })
+
+test('fail if the version contains a comma', async () => {
+  await expect(
+    runtime.handler({
+      bin: '/usr/local/bin',
+      dir: '/tmp/project',
+      global: true,
+      pnpmHomeDir: '/tmp/pnpm-home',
+    }, ['set', 'node', '22,is-positive'])
+  ).rejects.toEqual(new PnpmError('INVALID_RUNTIME_VERSION', 'Invalid runtime version "22,is-positive": a version cannot contain a comma'))
+
+  expect(mockRunPnpmCli).not.toHaveBeenCalled()
+})

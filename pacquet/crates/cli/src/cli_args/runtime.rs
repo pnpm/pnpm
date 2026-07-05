@@ -56,6 +56,13 @@ pub enum RuntimeError {
         #[error(not(source))]
         name: String,
     },
+
+    #[display(r#"Invalid runtime version "{version}": a version cannot contain a comma"#)]
+    #[diagnostic(code(ERR_PNPM_INVALID_RUNTIME_VERSION))]
+    InvalidRuntimeVersion {
+        #[error(not(source))]
+        version: String,
+    },
 }
 
 #[derive(Debug)]
@@ -126,6 +133,14 @@ impl RuntimeArgs {
             return Err(RuntimeError::InvalidRuntimeName { name: runtime_name.to_string() });
         }
         let version_spec = self.params.get(2).map_or("", |version| version.trim());
+        // The version is interpolated into the same `<name>@runtime:<version>`
+        // selector, which the global-add pipeline splits on commas. Reject a
+        // comma so `runtime set node 22,evil -g` can't smuggle in a second
+        // install target. No valid runtime version (semver, dist-tag,
+        // channel) contains one.
+        if version_spec.contains(',') {
+            return Err(RuntimeError::InvalidRuntimeVersion { version: version_spec.to_string() });
+        }
         let dependency_group = if self.save_dev || !self.save_prod {
             DependencyGroup::Dev
         } else {
