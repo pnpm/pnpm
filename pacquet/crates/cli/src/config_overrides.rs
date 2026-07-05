@@ -109,7 +109,9 @@ impl ConfigOverrides {
 fn external_command_index(argv: &[OsString]) -> Option<usize> {
     let mut index = 1;
     while index < argv.len() {
-        let arg = argv[index].to_str()?;
+        let Some(arg) = argv[index].to_str() else {
+            return Some(index);
+        };
         if arg == "--" {
             return None;
         }

@@ -96,6 +96,26 @@ fn config_tokens_after_external_command_stay_in_argv() {
     assert_eq!(config.registry, "https://example.test/");
 }
 
+#[cfg(unix)]
+#[test]
+fn non_utf8_token_stops_config_token_extraction() {
+    use std::os::unix::ffi::OsStringExt;
+
+    let non_utf8 = OsString::from_vec(vec![0xff]);
+    let (overrides, remaining) = ConfigOverrides::extract(vec![
+        OsString::from("pacquet"),
+        OsString::from("--config.registry=https://example.test/"),
+        non_utf8.clone(),
+        OsString::from("--config.foo=bar"),
+    ]);
+    let expected = vec![OsString::from("pacquet"), non_utf8, OsString::from("--config.foo=bar")];
+    assert_eq!(remaining, expected);
+
+    let mut config = Config::default();
+    overrides.apply(&mut config);
+    assert_eq!(config.registry, "https://example.test/");
+}
+
 #[test]
 fn malformed_tokens_are_dropped() {
     let (_, remaining) =
