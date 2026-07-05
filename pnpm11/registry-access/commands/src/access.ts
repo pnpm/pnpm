@@ -11,7 +11,12 @@ import { normalizeRegistryUrl, rcOptionsTypes } from './common.js'
 
 export { rcOptionsTypes }
 
+const DEFAULT_REGISTRY_URL = 'https://registry.npmjs.org/'
 const ERROR_BODY_LIMIT = 64 * 1024
+
+function getRegistries (opts: AccessOptions): Registries {
+  return opts.registries ?? { default: DEFAULT_REGISTRY_URL }
+}
 
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
@@ -154,14 +159,22 @@ export async function handler (
   throw new PnpmError('ACCESS_UNKNOWN_SUBCOMMAND', `Unknown subcommand: ${params.join(' ')}. Run "pnpm help access" for available subcommands.`)
 }
 
+interface ListRequestContext {
+  registries: Registries
+  fetchFromRegistry: FetchFromRegistry
+  authHeader: string | undefined
+  jsonMode: boolean
+}
+
 async function listPackages (
   opts: AccessOptions,
   params: string[]
 ): Promise<string> {
-  const registries = opts.registries ?? { default: 'https://registry.npmjs.org/' }
+  const registries = getRegistries(opts)
   const fetchFromRegistry = createFetchFromRegistry(opts)
-  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registries.default ?? 'https://registry.npmjs.org/')
+  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registries.default ?? DEFAULT_REGISTRY_URL)
   const jsonMode = opts.cliOptions?.json ?? false
+  const ctx: ListRequestContext = { registries, fetchFromRegistry, authHeader, jsonMode }
 
   let entity: string | undefined
   let entityType: 'user' | 'org' | 'team' | undefined
@@ -181,33 +194,24 @@ async function listPackages (
   }
 
   if (entityType == null || entity == null) {
-    return listOwnPackages(registries, fetchFromRegistry, authHeader, jsonMode)
+    return listOwnPackages(ctx)
   }
 
-  return listEntityPackages(entityType, entity, params.slice(1), registries, fetchFromRegistry, authHeader, jsonMode)
+  return listEntityPackages(entityType, entity, ctx)
 }
 
-async function listOwnPackages (
-  registries: Registries,
-  fetchFromRegistry: FetchFromRegistry,
-  authHeader: string | undefined,
-  jsonMode: boolean
-): Promise<string> {
-  const registryUrl = normalizeRegistryUrl(registries.default ?? 'https://registry.npmjs.org/')
+async function listOwnPackages (ctx: ListRequestContext): Promise<string> {
+  const registryUrl = normalizeRegistryUrl(ctx.registries.default ?? DEFAULT_REGISTRY_URL)
   const url = new URL('-/-/package?format=cli', registryUrl).href
-  return fetchListResponse(url, registries, fetchFromRegistry, authHeader, jsonMode)
+  return fetchListResponse(url, ctx)
 }
 
 async function listEntityPackages (
   entityType: 'user' | 'org' | 'team',
   entity: string,
-  params: string[],
-  registries: Registries,
-  fetchFromRegistry: FetchFromRegistry,
-  authHeader: string | undefined,
-  jsonMode: boolean
+  ctx: ListRequestContext
 ): Promise<string> {
-  const registryUrl = normalizeRegistryUrl(registries.default ?? 'https://registry.npmjs.org/')
+  const registryUrl = normalizeRegistryUrl(ctx.registries.default ?? DEFAULT_REGISTRY_URL)
   let listUrl: string
 
   if (entityType === 'team') {
@@ -219,18 +223,15 @@ async function listEntityPackages (
     listUrl = new URL(`-/user/${encodeURIComponent(entity)}/package?format=cli`, registryUrl).href
   }
 
-  return fetchListResponse(listUrl, registries, fetchFromRegistry, authHeader, jsonMode)
+  return fetchListResponse(listUrl, ctx)
 }
 
 async function fetchListResponse (
   url: string,
-  registries: Registries,
-  fetchFromRegistry: FetchFromRegistry,
-  authHeader: string | undefined,
-  jsonMode: boolean
+  ctx: ListRequestContext
 ): Promise<string> {
-  const response = await fetchFromRegistry(url, {
-    authHeaderValue: authHeader,
+  const response = await ctx.fetchFromRegistry(url, {
+    authHeaderValue: ctx.authHeader,
   })
 
   if (!response.ok) {
@@ -238,7 +239,7 @@ async function fetchListResponse (
   }
 
   const data = await response.json() as Record<string, unknown>
-  if (jsonMode) {
+  if (ctx.jsonMode) {
     return JSON.stringify(data, null, 2)
   }
   return formatPackagesList(data)
@@ -266,7 +267,7 @@ async function listCollaborators (
 
   const packageName = params[0]
   const user = params[1]
-  const registries = opts.registries ?? { default: 'https://registry.npmjs.org/' }
+  const registries = getRegistries(opts)
   const registryUrl = pickRegistryForPackage(registries, packageName)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, packageName)
   const fetchFromRegistry = createFetchFromRegistry(opts)
@@ -317,7 +318,7 @@ async function getStatus (
   }
 
   const packageName = params[0]
-  const registries = opts.registries ?? { default: 'https://registry.npmjs.org/' }
+  const registries = getRegistries(opts)
   const registryUrl = pickRegistryForPackage(registries, packageName)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, packageName)
   const fetchFromRegistry = createFetchFromRegistry(opts)
@@ -375,7 +376,7 @@ async function setStatus (
     throw new PnpmError('ACCESS_SET_STATUS_UNSCOPED', 'Access settings can only be changed for scoped packages (@scope/name). Unscoped packages are always public.')
   }
 
-  const registries = opts.registries ?? { default: 'https://registry.npmjs.org/' }
+  const registries = getRegistries(opts)
   const registryUrl = pickRegistryForPackage(registries, packageName)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, packageName)
   const fetchFromRegistry = createFetchFromRegistry(opts)
@@ -417,7 +418,7 @@ async function setMfa (
     throw new PnpmError('ACCESS_SET_MFA_PACKAGE_REQUIRED', 'Package name is required (e.g., pnpm access set mfa=automation @scope/pkg)')
   }
 
-  const registries = opts.registries ?? { default: 'https://registry.npmjs.org/' }
+  const registries = getRegistries(opts)
   const registryUrl = pickRegistryForPackage(registries, packageName)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, packageName)
   const fetchFromRegistry = createFetchFromRegistry(opts)
@@ -467,7 +468,7 @@ async function grantAccess (
   }
 
   const [scope, team] = scopeTeam.split(':')
-  const registries = opts.registries ?? { default: 'https://registry.npmjs.org/' }
+  const registries = getRegistries(opts)
   const registryUrl = pickRegistryForPackage(registries, packageName)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, packageName)
   const fetchFromRegistry = createFetchFromRegistry(opts)
@@ -510,7 +511,7 @@ async function revokeAccess (
   }
 
   const [scope, team] = scopeTeam.split(':')
-  const registries = opts.registries ?? { default: 'https://registry.npmjs.org/' }
+  const registries = getRegistries(opts)
   const registryUrl = pickRegistryForPackage(registries, packageName)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, packageName)
   const fetchFromRegistry = createFetchFromRegistry(opts)
@@ -544,7 +545,12 @@ function getAuthHeaderForRegistry (
 }
 
 function escapePackageName (packageName: string): string {
-  const parsed = npa(packageName)
+  let parsed
+  try {
+    parsed = npa(packageName)
+  } catch {
+    throw new PnpmError('ACCESS_INVALID_PACKAGE_NAME', `Invalid package name "${packageName}"`)
+  }
   return parsed.escapedName ?? encodeURIComponent(packageName).replace(/^%40/, '@')
 }
 

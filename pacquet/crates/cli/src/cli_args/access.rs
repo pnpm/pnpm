@@ -211,18 +211,8 @@ impl AccessArgs {
 
         let (action, rest) = match (first.as_str(), second.as_deref()) {
             ("list", Some("packages") | None) => ("list_packages", params),
-            ("ls", rest) => ("list_packages", {
-                if rest == Some("packages") {
-                    params
-                } else {
-                    let mut p: Vec<String> = Vec::new();
-                    if let Some(r) = rest {
-                        p.push(r.to_string());
-                    }
-                    p.extend(params);
-                    p
-                }
-            }),
+            ("ls", None) => ("list_packages", params),
+            ("ls", Some("packages")) => ("list_packages", params),
             ("list", Some("collaborators")) => ("list_collaborators", params),
             ("get", Some("status")) => ("get_status", params),
             ("set", Some(status_val)) if status_val.starts_with("status=") => {
@@ -594,6 +584,7 @@ async fn set_status(context: &AccessContext<'_>, params: &[String]) -> miette::R
         return Err(write_error_from_response(
             response,
             format!("set access to \"{access_value}\" for"),
+            package_name,
         )
         .await);
     }
@@ -648,7 +639,9 @@ async fn set_mfa(context: &AccessContext<'_>, params: &[String]) -> miette::Resu
         .wrap_err("requesting the registry MFA set endpoint")?;
 
     if !response.status().is_success() {
-        return Err(write_error_from_response(response, "set MFA for".to_string()).await);
+        return Err(
+            write_error_from_response(response, "set MFA for".to_string(), package_name).await
+        );
     }
 
     Ok(format!("{package_name}: mfa={mfa_val}"))
@@ -713,6 +706,7 @@ async fn grant_access(context: &AccessContext<'_>, params: &[String]) -> miette:
         return Err(write_error_from_response(
             response,
             format!("grant {permissions} access for {scope_team} on"),
+            package_name,
         )
         .await);
     }
@@ -771,6 +765,7 @@ async fn revoke_access(context: &AccessContext<'_>, params: &[String]) -> miette
         return Err(write_error_from_response(
             response,
             format!("revoke {scope_team}'s access to"),
+            package_name,
         )
         .await);
     }
@@ -806,24 +801,19 @@ fn escaped_package_name(package_name: &str) -> String {
 
 async fn fetch_error_from_response(response: Response, action: &str) -> miette::Report {
     let status = response.status();
-    let status_text = status.canonical_reason().unwrap_or_default().to_string();
-    if status == StatusCode::NOT_FOUND {
-        return AccessError::RegistryFetchFailed {
-            action: action.to_string(),
-            status: status.as_u16(),
-            status_text,
-        }
-        .into();
-    }
     AccessError::RegistryFetchFailed {
         action: action.to_string(),
         status: status.as_u16(),
-        status_text,
+        status_text: status.canonical_reason().unwrap_or_default().to_string(),
     }
     .into()
 }
 
-async fn write_error_from_response(response: Response, action: String) -> miette::Report {
+async fn write_error_from_response(
+    response: Response,
+    action: String,
+    package_name: &str,
+) -> miette::Report {
     let status = response.status();
     let status_text = status.canonical_reason().unwrap_or_default().to_string();
     let body = redact_and_sanitize(&read_error_body(response).await);
@@ -832,7 +822,7 @@ async fn write_error_from_response(response: Response, action: String) -> miette
         StatusCode::UNAUTHORIZED => AccessError::Unauthorized { action, body }.into(),
         StatusCode::FORBIDDEN => AccessError::Forbidden { action, body }.into(),
         StatusCode::NOT_FOUND => {
-            AccessError::PackageNotFound { package_name: "unknown".to_string() }.into()
+            AccessError::PackageNotFound { package_name: package_name.to_string() }.into()
         }
         StatusCode::UNPROCESSABLE_ENTITY => AccessError::ValidationError { body }.into(),
         _ => {
