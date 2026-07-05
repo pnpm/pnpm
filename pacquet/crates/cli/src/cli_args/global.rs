@@ -376,7 +376,20 @@ async fn prompt_approve_global_builds<Reporter: self::Reporter + 'static>(
     }
 
     let manifest_path = install_dir.join("package.json");
-    let config_fn = || -> miette::Result<&'static mut Config> { Ok(Config::leak(config.clone())) };
+    let config_fn = || -> miette::Result<&'static mut Config> {
+        // `prepare` persists the `allowBuilds` decision to
+        // `config.workspace_dir`, falling back to the passed dir (the global
+        // packages dir). The group install pins `workspace_dir` to the
+        // ephemeral install dir; clear it here so the decision lands in the
+        // stable global packages dir, where the next global install reads it
+        // back — rather than in a throwaway install group.
+        let mut cfg = config.clone();
+        cfg.workspace_dir = None;
+        Ok(Config::leak(cfg))
+    };
+    // The rebuild stays anchored at the install dir (keeping `config`'s
+    // `workspace_dir`), so its install pipeline doesn't walk up into the
+    // global settings workspace.
     let state_fn = |require_lockfile: bool| -> miette::Result<State> {
         State::init(manifest_path.clone(), Config::leak(config.clone()), require_lockfile)
             .wrap_err("initialize the global approve-builds state")

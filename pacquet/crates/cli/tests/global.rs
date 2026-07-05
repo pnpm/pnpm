@@ -13,23 +13,27 @@ use std::{
     process::Command,
 };
 
-/// Create the global bin directory and seed the pnpm-home `.npmrc` with the
-/// mocked registry / store / cache. A `-g` install anchors its config at the
-/// pnpm home (not the caller project), so its network + store settings must
-/// be reachable from there rather than the workspace `.npmrc`.
+/// Create the global bin directory and seed the pnpm home with the mocked
+/// registry / store / cache. A `-g` install anchors its config at the pnpm
+/// home (not the caller project), so its network + store settings must be
+/// reachable from there rather than the workspace. The registry goes in
+/// `.npmrc`; `storeDir` / `cacheDir` go in `pnpm-workspace.yaml` (pnpm reads
+/// those from the yaml, not `.npmrc`), pinning a per-test store so a build's
+/// side-effects cache can't leak across runs.
 #[cfg(unix)]
 fn prepare_global_home(pnpm_home: &Path, npmrc_info: &AddMockedRegistry) {
     fs::create_dir_all(pnpm_home.join("bin")).expect("create global bin dir");
+    fs::write(pnpm_home.join(".npmrc"), format!("registry={}\n", npmrc_info.mock_instance.url()))
+        .expect("seed the pnpm-home npmrc");
     fs::write(
-        pnpm_home.join(".npmrc"),
+        pnpm_home.join("pnpm-workspace.yaml"),
         format!(
-            "registry={}\nstore-dir={}\ncache-dir={}\n",
-            npmrc_info.mock_instance.url(),
+            "storeDir: {}\ncacheDir: {}\nenableGlobalVirtualStore: false\n",
             npmrc_info.store_dir.display(),
             npmrc_info.cache_dir.display(),
         ),
     )
-    .expect("seed the pnpm-home npmrc");
+    .expect("seed the pnpm-home workspace yaml");
 }
 
 /// Build a fresh `pacquet` command in `workspace` with `PNPM_HOME` set and
@@ -116,6 +120,56 @@ fn global_add_list_remove_round_trip() {
         symlink_entries(&global_pkg_dir).is_empty(),
         "remove -g should delete the hash symlink",
     );
+
+    drop(npmrc_info);
+    drop(root);
+}
+
+/// A build approved during a global install must persist to the stable
+/// global packages directory (where the next global install reads it back),
+/// not to the throwaway per-group install dir. Regression test: the group
+/// install pins `workspace_dir` to the install dir, which `approve-builds`
+/// would otherwise use as the `allowBuilds` write target.
+#[cfg(unix)]
+#[test]
+fn global_add_persists_build_approvals_to_the_global_packages_dir() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_pkg_dir = pnpm_home.join("global").join("v11");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    global_command(&workspace, &pnpm_home)
+        .with_env("PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS", "1")
+        .with_arg("add")
+        .with_arg("-g")
+        .with_arg("@pnpm.e2e/install-script-example")
+        .assert()
+        .success();
+
+    let global_yaml = fs::read_to_string(global_pkg_dir.join("pnpm-workspace.yaml"))
+        .expect("allowBuilds should persist to the global packages dir");
+    assert!(
+        global_yaml.contains("allowBuilds:")
+            && global_yaml.contains("@pnpm.e2e/install-script-example"),
+        "the global packages dir should hold the allowBuilds decision: {global_yaml}",
+    );
+
+    // No per-group install dir should carry the decision.
+    for entry in fs::read_dir(&global_pkg_dir).expect("read global packages dir").flatten() {
+        if entry.file_type().is_ok_and(|file_type| file_type.is_dir())
+            && let Ok(text) = fs::read_to_string(entry.path().join("pnpm-workspace.yaml"))
+        {
+            assert!(
+                !text.contains("allowBuilds:"),
+                "an install group must not carry the allowBuilds decision: {}",
+                entry.path().display(),
+            );
+        }
+    }
 
     drop(npmrc_info);
     drop(root);
