@@ -255,6 +255,7 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
         CliCommand::SetScript(args) => dispatch_script::set_script(ctx, args),
         CliCommand::Test => dispatch_script::test(ctx),
         CliCommand::Run(args) => dispatch_script::run(ctx, args),
+        CliCommand::External(command) => dispatch_script::fallback(ctx, command),
         CliCommand::Exec(args) => dispatch_script::exec(ctx, args),
         CliCommand::Dlx(args) => dispatch_install::dlx(ctx, args),
         CliCommand::Create(args) => dispatch_install::create(ctx, args),

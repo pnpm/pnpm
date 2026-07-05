@@ -279,4 +279,6 @@ pub enum CliCommand {
     /// single invocation, ignoring the "packageManager" and
     /// "devEngines.packageManager" fields of the project's manifest.
     With(WithArgs),
+    #[clap(external_subcommand)]
+    External(Vec<String>),
 }

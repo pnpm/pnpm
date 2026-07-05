@@ -159,6 +159,32 @@ fn install_command_parses_i_alias() {
 }
 
 #[test]
+fn unknown_top_level_command_parses_as_external() {
+    let parsed = CliArgs::try_parse_from([
+        "pacquet",
+        "commitlint",
+        "--edit",
+        "--config=commitlint.config.cjs",
+    ])
+    .expect("parses external command");
+    let CliCommand::External(command) = parsed.command else {
+        panic!("expected external command");
+    };
+    assert_eq!(command, ["commitlint", "--edit", "--config=commitlint.config.cjs"]);
+}
+
+#[test]
+fn unknown_top_level_command_preserves_global_options() {
+    let parsed = CliArgs::try_parse_from(["pacquet", "--dir", "project", "commitlint"])
+        .expect("parses external command with globals");
+    let CliCommand::External(command) = parsed.command else {
+        panic!("expected external command");
+    };
+    assert_eq!(parsed.dir, std::path::PathBuf::from("project"));
+    assert_eq!(command, ["commitlint"]);
+}
+
+#[test]
 fn parse_package_manager_handles_unscoped_scoped_and_url_references() {
     // Unscoped `name@version`.
     assert_eq!(

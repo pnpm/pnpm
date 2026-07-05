@@ -332,6 +332,100 @@ fn run_finds_local_bin_on_path() {
     drop(root);
 }
 
+#[cfg(unix)]
+#[test]
+fn top_level_fallback_runs_script_before_local_bin() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let bin_dir = workspace.join("node_modules").join(".bin");
+    fs::create_dir_all(&bin_dir).expect("create node_modules/.bin");
+    let marker = workspace.join("source.txt");
+    write_executable(
+        &bin_dir.join("commitlint"),
+        &format!("#!/bin/sh\nprintf bin > \"{}\"\n", marker.display()),
+    );
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": {
+            "commitlint": format!(r#"printf script > "{}""#, marker.display()),
+        },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    pacquet.with_arg("commitlint").assert().success();
+    assert_eq!(fs::read_to_string(&marker).expect("read marker"), "script");
+
+    drop(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn top_level_fallback_runs_local_bin_when_script_is_missing() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let bin_dir = workspace.join("node_modules").join(".bin");
+    fs::create_dir_all(&bin_dir).expect("create node_modules/.bin");
+    let marker = workspace.join("args.txt");
+    write_executable(
+        &bin_dir.join("commitlint"),
+        &format!("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"{}\"\n", marker.display()),
+    );
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": {},
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    pacquet
+        .with_args(["commitlint", "--edit", "--config=commitlint.config.cjs"])
+        .assert()
+        .success();
+    assert_eq!(
+        fs::read_to_string(&marker).expect("read marker"),
+        "--edit\n--config=commitlint.config.cjs\n",
+    );
+
+    drop(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn top_level_fallback_runs_local_bin_without_package_json() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let bin_dir = workspace.join("node_modules").join(".bin");
+    fs::create_dir_all(&bin_dir).expect("create node_modules/.bin");
+    let marker = workspace.join("args.txt");
+    write_executable(
+        &bin_dir.join("commitlint"),
+        &format!("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"{}\"\n", marker.display()),
+    );
+
+    pacquet.with_args(["commitlint", "--edit", "COMMIT_EDITMSG"]).assert().success();
+    assert_eq!(fs::read_to_string(&marker).expect("read marker"), "--edit\nCOMMIT_EDITMSG\n");
+
+    drop(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn top_level_fallback_forwards_dotted_config_args_to_local_bin() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let bin_dir = workspace.join("node_modules").join(".bin");
+    fs::create_dir_all(&bin_dir).expect("create node_modules/.bin");
+    let marker = workspace.join("args.txt");
+    write_executable(
+        &bin_dir.join("commitlint"),
+        &format!("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"{}\"\n", marker.display()),
+    );
+
+    pacquet.with_args(["commitlint", "--config.foo=bar"]).assert().success();
+    assert_eq!(fs::read_to_string(&marker).expect("read marker"), "--config.foo=bar\n");
+
+    drop(root);
+}
+
 /// With a non-silent reporter (the default, or e.g. `--reporter=ndjson`),
 /// `pacquet run` echoes `$ <script>` to stderr before spawning the script —
 /// matching pnpm's `runLifecycleHook.ts:110`
