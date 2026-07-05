@@ -100,6 +100,36 @@ fn recursive_run_executes_script_in_every_project() {
 }
 
 #[test]
+fn top_level_fallback_enters_recursive_run() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let commitlint_writes_marker = |name: &str| {
+        json!({
+            "name": name,
+            "version": "1.0.0",
+            "scripts": { "commitlint": "touch ran.txt" },
+        })
+    };
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", commitlint_writes_marker("project-1")),
+            ("project-2", commitlint_writes_marker("project-2")),
+        ],
+    );
+
+    pacquet.with_arg("-r").with_arg("commitlint").assert().success();
+
+    for name in ["project-1", "project-2"] {
+        assert!(
+            workspace.join(name).join("ran.txt").exists(),
+            "{name} commitlint script should have run through recursive fallback",
+        );
+    }
+
+    drop(root);
+}
+
+#[test]
 fn recursive_run_settings_only_workspace_enumerates_root_only() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(
