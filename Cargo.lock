@@ -4054,6 +4054,7 @@ dependencies = [
  "pacquet-cmd-shim",
  "pacquet-crypto-hash",
  "pacquet-fs",
+ "pacquet-package-manifest",
  "pacquet-resolving-deps-resolver",
  "serde_json",
  "tempfile",

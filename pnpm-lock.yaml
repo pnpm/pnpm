@@ -4103,6 +4103,9 @@ importers:
       '@pnpm/network.fetch':
         specifier: workspace:*
         version: link:../../../network/fetch
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../../core/types
       render-help:
         specifier: 'catalog:'
         version: 2.0.0

@@ -137,6 +137,16 @@ pub fn read_installed_packages(install_dir: &Path) -> Vec<PackageBinSource> {
         .collect()
 }
 
+/// The validated direct-dependency aliases of an install directory's
+/// `package.json`. A downloaded runtime pinned via `devEngines.runtime` /
+/// `engines.runtime` is reified into a dependency alias when the manifest
+/// is read, so it is included alongside regular dependencies.
+#[must_use]
+pub fn read_direct_dependency_aliases(install_dir: &Path) -> Vec<String> {
+    let Some(manifest) = read_package_json(install_dir) else { return Vec::new() };
+    dependencies_of(&manifest).into_iter().map(|(alias, _)| alias).collect()
+}
+
 /// Remove install directories under `global_dir` that no hash symlink
 /// points at. A 5-minute safety window avoids racing a concurrent install
 /// which has created its dir but not yet its symlink.
@@ -209,3 +219,6 @@ fn dependencies_of(manifest: &Value) -> Vec<(String, String)> {
         })
         .unwrap_or_default()
 }
+
+#[cfg(test)]
+mod tests;
