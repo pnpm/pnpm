@@ -4,7 +4,8 @@ use futures_util::StreamExt as _;
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_config::Config;
 use pacquet_network::{
-    NetworkSettings, RetryOpts, ThrottledClient, encode_uri_component, send_with_retry,
+    NetworkSettings, RetryOpts, ThrottledClient, encode_uri_component, redact_and_sanitize,
+    send_with_retry,
 };
 use reqwest::{Response, StatusCode};
 use std::{collections::HashMap, time::Duration};
@@ -313,7 +314,7 @@ fn build_access_context<'a>(
 }
 
 async fn list_packages(context: &AccessContext<'_>, params: &[String]) -> miette::Result<String> {
-    let (entity_type, entity, remaining) = if params.is_empty() {
+    let (entity_type, entity, _rest) = if params.is_empty() {
         (None, None, &[][..])
     } else {
         let raw = &params[0];
@@ -359,17 +360,7 @@ async fn list_packages(context: &AccessContext<'_>, params: &[String]) -> miette
                 encode_uri_component(&user),
             )
         }
-        _ => {
-            if let Some(pkg) = remaining.first() {
-                format!(
-                    "{}-/package/{}/collaborators?format=cli",
-                    normalize_registry_url(&context.registry),
-                    escaped_package_name(pkg),
-                )
-            } else {
-                format!("{}-/-/package?format=cli", normalize_registry_url(&context.registry))
-            }
-        }
+        _ => format!("{}-/-/package?format=cli", normalize_registry_url(&context.registry)),
     };
 
     fetch_list_response(context, &url, auth_header.as_deref()).await
@@ -835,7 +826,7 @@ async fn fetch_error_from_response(response: Response, action: &str) -> miette::
 async fn write_error_from_response(response: Response, action: String) -> miette::Report {
     let status = response.status();
     let status_text = status.canonical_reason().unwrap_or_default().to_string();
-    let body = read_error_body(response).await;
+    let body = redact_and_sanitize(&read_error_body(response).await);
 
     match status {
         StatusCode::UNAUTHORIZED => AccessError::Unauthorized { action, body }.into(),

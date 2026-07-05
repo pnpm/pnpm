@@ -11,6 +11,8 @@ import { normalizeRegistryUrl, rcOptionsTypes } from './common.js'
 
 export { rcOptionsTypes }
 
+const ERROR_BODY_LIMIT = 64 * 1024
+
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...rcOptionsTypes(),
@@ -80,7 +82,7 @@ export function help (): string {
     ],
     url: docsUrl('access'),
     usages: [
-      'pnpm access list packages [<user>|<scope>|<scope:team>] [<package>]',
+      'pnpm access list packages [<user>|<scope>|<scope:team>]',
       'pnpm access list collaborators [<package> [<user>]]',
       'pnpm access get status [<package>]',
       'pnpm access set status=public|private [<package>]',
@@ -179,26 +181,18 @@ async function listPackages (
   }
 
   if (entityType == null || entity == null) {
-    return listOwnPackages(params, registries, fetchFromRegistry, authHeader, jsonMode)
+    return listOwnPackages(registries, fetchFromRegistry, authHeader, jsonMode)
   }
 
   return listEntityPackages(entityType, entity, params.slice(1), registries, fetchFromRegistry, authHeader, jsonMode)
 }
 
 async function listOwnPackages (
-  params: string[],
   registries: Registries,
   fetchFromRegistry: FetchFromRegistry,
   authHeader: string | undefined,
   jsonMode: boolean
 ): Promise<string> {
-  const packageName = params.length > 0 ? params[0] : undefined
-  if (packageName != null) {
-    const registryUrl = pickRegistryForPackage(registries, packageName)
-    const collaboratorsUrl = new URL(`-/package/${escapePackageName(packageName)}/collaborators?format=cli`, normalizeRegistryUrl(registryUrl)).href
-    return fetchListResponse(collaboratorsUrl, registries, fetchFromRegistry, authHeader, jsonMode)
-  }
-
   const registryUrl = normalizeRegistryUrl(registries.default ?? 'https://registry.npmjs.org/')
   const url = new URL('-/-/package?format=cli', registryUrl).href
   return fetchListResponse(url, registries, fetchFromRegistry, authHeader, jsonMode)
@@ -555,7 +549,7 @@ function escapePackageName (packageName: string): string {
 }
 
 async function throwRegistryError (response: Response, action: string): Promise<never> {
-  const errorBody = await response.text()
+  const errorBody = sanitize(await readErrorBody(response))
   if (response.status === 401) {
     throw new PnpmError('UNAUTHORIZED', `You must be logged in to ${action} packages. ${errorBody}`)
   }
@@ -569,4 +563,45 @@ async function throwRegistryError (response: Response, action: string): Promise<
     throw new PnpmError('ACCESS_VALIDATION_ERROR', `Invalid request: ${errorBody}`)
   }
   throw new PnpmError('REGISTRY_ERROR', `Failed to ${action} package: ${response.status} ${response.statusText}. ${errorBody}`)
+}
+
+async function readErrorBody (response: Response): Promise<string> {
+  const reader = response.body?.getReader()
+  if (reader == null) return ''
+  const chunks: Uint8Array[] = []
+  let total = 0
+  let truncated = false
+  while (total < ERROR_BODY_LIMIT) {
+    // eslint-disable-next-line no-await-in-loop
+    const { done, value } = await reader.read()
+    if (done) break
+    const need = ERROR_BODY_LIMIT - total
+    if (value.length > need) {
+      chunks.push(value.subarray(0, need))
+      truncated = true
+      break
+    }
+    chunks.push(value)
+    total += value.length
+  }
+  reader.cancel().catch(() => {})
+  let body = new TextDecoder().decode(Buffer.concat(chunks))
+  if (truncated) {
+    if (body.length > 0 && !body.endsWith(' ')) {
+      body += ' '
+    }
+    body += '(response body truncated)'
+  }
+  return body
+}
+
+function sanitize (text: string): string {
+  let result = ''
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i)
+    if ((code > 31 && code !== 127) || code === 9 || code === 10 || code === 13) {
+      result += text[i]
+    }
+  }
+  return result
 }
