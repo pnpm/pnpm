@@ -13,13 +13,19 @@ pub struct PruneArgs {
     dev: bool,
     #[clap(long)]
     no_optional: bool,
-    #[clap(long = "ignore-scripts")]
+    #[clap(long = "ignore-scripts", overrides_with = "no_ignore_scripts")]
     pub ignore_scripts: bool,
+    /// Force-enable lifecycle scripts for this invocation, overriding a
+    /// `pnpm-workspace.yaml` / `.npmrc` `ignoreScripts: true`. Mirrors
+    /// pnpm's `--no-ignore-scripts`. Paired with `ignore_scripts` by
+    /// mutual `overrides_with` (last-one-wins).
+    #[clap(long = "no-ignore-scripts", overrides_with = "ignore_scripts")]
+    pub no_ignore_scripts: bool,
 }
 
 impl PruneArgs {
     fn dependency_groups(&self) -> impl Iterator<Item = DependencyGroup> {
-        let &PruneArgs { prod, dev, no_optional, ignore_scripts: _ } = self;
+        let &PruneArgs { prod, dev, no_optional, ignore_scripts: _, no_ignore_scripts: _ } = self;
         let has_both = prod == dev;
         let has_prod = has_both || prod;
         let has_dev = has_both || dev;

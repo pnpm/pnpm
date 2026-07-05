@@ -1,3 +1,4 @@
+mod boolean_negations;
 mod cli_args;
 mod config_deps;
 mod config_overrides;
@@ -5,7 +6,8 @@ mod job_control;
 mod state;
 mod with_current;
 
-use clap::Parser;
+use boolean_negations::with_boolean_negations;
+use clap::{CommandFactory, FromArgMatches};
 use cli_args::CliArgs;
 use config_overrides::ConfigOverrides;
 use miette::set_panic_hook;
@@ -30,7 +32,13 @@ pub fn main() -> miette::Result<()> {
     // The default reporter's `Done in ... using pacquet v<version>` footer needs
     // the version before the first event (including the fast path's).
     pacquet_default_reporter::set_package_version(pacquet_config::PACQUET_VERSION);
-    let mut args = match CliArgs::try_parse_from(argv) {
+    // Parse through a command augmented with a `--no-<flag>` negation for
+    // every boolean flag, so pnpm's forwarded negations (`--no-frozen-lockfile`,
+    // etc.) parse the same way nopt accepts them upstream. See `boolean_negations`.
+    let mut args = match with_boolean_negations(CliArgs::command())
+        .try_get_matches_from(argv)
+        .and_then(|matches| CliArgs::from_arg_matches(&matches))
+    {
         Ok(args) => args,
         // pnpm prints the bare version, not clap's "pnpm <version>" rendering.
         Err(err) if err.kind() == clap::error::ErrorKind::DisplayVersion => {

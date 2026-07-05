@@ -102,10 +102,10 @@ pub struct InstallArgs {
 
     /// Force-enable `preferFrozenLockfile` for this invocation.
     /// Overrides `pnpm-workspace.yaml` / `PNPM_CONFIG_PREFER_FROZEN_LOCKFILE`.
-    /// Mirrors pnpm's `--prefer-frozen-lockfile`. Conflicts with
-    /// [`Self::no_prefer_frozen_lockfile`] so a single invocation
-    /// can't both force-on and force-off.
-    #[clap(long = "prefer-frozen-lockfile")]
+    /// Mirrors pnpm's `--prefer-frozen-lockfile`. Paired with
+    /// [`Self::no_prefer_frozen_lockfile`] by mutual `overrides_with`, so
+    /// both spellings in one argv resolve last-one-wins (nopt semantics).
+    #[clap(long = "prefer-frozen-lockfile", overrides_with = "no_prefer_frozen_lockfile")]
     pub prefer_frozen_lockfile: bool,
 
     /// Force-disable `preferFrozenLockfile` for this invocation.
@@ -113,7 +113,7 @@ pub struct InstallArgs {
     /// Mirrors pnpm's `--no-prefer-frozen-lockfile`. Useful for CI
     /// runs that want to force a re-resolve against the registry
     /// without setting the flag globally.
-    #[clap(long = "no-prefer-frozen-lockfile", conflicts_with = "prefer_frozen_lockfile")]
+    #[clap(long = "no-prefer-frozen-lockfile", overrides_with = "prefer_frozen_lockfile")]
     pub no_prefer_frozen_lockfile: bool,
 
     /// Skip the per-importer `package.json` ↔ `pnpm-lock.yaml`
@@ -152,11 +152,17 @@ pub struct InstallArgs {
     /// `--ignore-scripts`.
     ///
     /// Merged into `config.ignore_scripts` at the CLI dispatch in
-    /// `cli_args.rs` (it only ever enables, never toggles a yaml `true`
-    /// back off), so the install reads it from the config like every
-    /// other build-script setting.
-    #[clap(long = "ignore-scripts")]
+    /// `cli_args.rs`, so the install reads it from the config like every
+    /// other build-script setting. Paired with [`Self::no_ignore_scripts`],
+    /// the CLI inverse, by mutual `overrides_with` (last-one-wins).
+    #[clap(long = "ignore-scripts", overrides_with = "no_ignore_scripts")]
     pub ignore_scripts: bool,
+
+    /// Force-enable lifecycle scripts for this invocation, overriding a
+    /// `pnpm-workspace.yaml` / `.npmrc` `ignoreScripts: true`. Mirrors
+    /// pnpm's `--no-ignore-scripts`.
+    #[clap(long = "no-ignore-scripts", overrides_with = "ignore_scripts")]
+    pub no_ignore_scripts: bool,
 
     /// Override `nodeLinker` from `pnpm-workspace.yaml` /
     /// `.npmrc`. `None` (flag not passed) leaves the config's value
@@ -178,23 +184,35 @@ pub struct InstallArgs {
     /// fetches. Stage 2's resolver will extend the gate to the
     /// metadata path.
     ///
-    /// Overrides `offline` from `pnpm-workspace.yaml`: any
-    /// `--offline` upgrades a yaml `false` to `true`, but cannot
-    /// turn an explicit yaml `true` back off.
-    #[clap(long)]
+    /// Overrides `offline` from `pnpm-workspace.yaml`. Paired with
+    /// [`Self::no_offline`], the CLI inverse that forces a yaml `true`
+    /// back off, by mutual `overrides_with` (last-one-wins).
+    #[clap(long, overrides_with = "no_offline")]
     pub offline: bool,
+
+    /// Force-disable offline mode for this invocation, overriding a
+    /// `pnpm-workspace.yaml` `offline: true`. Mirrors pnpm's
+    /// `--no-offline`.
+    #[clap(long = "no-offline", overrides_with = "offline")]
+    pub no_offline: bool,
 
     /// Open the package store read-only (immutable) and skip all store
     /// writes. For installs against a store on a read-only filesystem
     /// (e.g. a Nix store); pair with `--offline --frozen-lockfile`.
     /// Mirrors pnpm's `--frozen-store`. Overrides `frozenStore` from
-    /// `pnpm-workspace.yaml`: any `--frozen-store` upgrades a yaml
-    /// `false` to `true`, but cannot turn an explicit yaml `true` back
-    /// off. (pnpm additionally rejects `--frozen-store` combined with
-    /// `--force`; pacquet has no `force` flow yet, so there is nothing
-    /// to conflict with — the guard ports alongside `force`.)
-    #[clap(long = "frozen-store")]
+    /// `pnpm-workspace.yaml`. Paired with [`Self::no_frozen_store`], the
+    /// CLI inverse, by mutual `overrides_with` (last-one-wins). (pnpm
+    /// additionally rejects `--frozen-store` combined with `--force`;
+    /// pacquet has no `force` flow yet, so there is nothing to conflict
+    /// with — the guard ports alongside `force`.)
+    #[clap(long = "frozen-store", overrides_with = "no_frozen_store")]
     pub frozen_store: bool,
+
+    /// Force-disable the read-only store for this invocation, overriding
+    /// a `pnpm-workspace.yaml` `frozenStore: true`. Mirrors pnpm's
+    /// `--no-frozen-store`.
+    #[clap(long = "no-frozen-store", overrides_with = "frozen_store")]
+    pub no_frozen_store: bool,
 
     /// Prefer cached artifacts over network fetches when both have
     /// what's needed. The `--prefer-offline` flag biases the
@@ -203,16 +221,31 @@ pub struct InstallArgs {
     /// local store via the warm prefetch + `index.db` lookups, so
     /// the flag is a no-op for artifact fetches today. Field exists
     /// so yaml / CLI parse cleanly; Stage 2's resolver will honor it
-    /// on the metadata path.
-    #[clap(long)]
+    /// on the metadata path. Paired with [`Self::no_prefer_offline`], the
+    /// CLI inverse, by mutual `overrides_with` (last-one-wins).
+    #[clap(long, overrides_with = "no_prefer_offline")]
     pub prefer_offline: bool,
+
+    /// Force-disable prefer-offline for this invocation, overriding a
+    /// `pnpm-workspace.yaml` `preferOffline: true`. Mirrors pnpm's
+    /// `--no-prefer-offline`.
+    #[clap(long = "no-prefer-offline", overrides_with = "prefer_offline")]
+    pub no_prefer_offline: bool,
 
     /// Skip the lockfile supply-chain verification pass entirely.
     /// Overrides `pnpm-workspace.yaml#trustLockfile`. Mirrors pnpm's
     /// `--trust-lockfile`. See [`pacquet_config::Config::trust_lockfile`].
     /// Added for [pnpm/pnpm#11860](https://github.com/pnpm/pnpm/issues/11860).
-    #[clap(long = "trust-lockfile")]
+    /// Paired with [`Self::no_trust_lockfile`], the CLI inverse, by mutual
+    /// `overrides_with` (last-one-wins).
+    #[clap(long = "trust-lockfile", overrides_with = "no_trust_lockfile")]
     pub trust_lockfile: bool,
+
+    /// Force the supply-chain verification pass to run for this
+    /// invocation, overriding a `pnpm-workspace.yaml` `trustLockfile: true`.
+    /// Mirrors pnpm's `--no-trust-lockfile`.
+    #[clap(long = "no-trust-lockfile", overrides_with = "trust_lockfile")]
+    pub no_trust_lockfile: bool,
 
     /// Refresh the integrity checksums recorded in `pnpm-lock.yaml`
     /// from the registry. Mirrors pnpm's `--update-checksums`. Skips
@@ -266,6 +299,17 @@ pub struct InstallArgs {
     pub pnpr_server: Option<String>,
 }
 
+/// Resolve a boolean whose CLI surface is a `--flag` / `--no-flag` pair
+/// against the yaml/`.npmrc` `config` value. The pair's mutual
+/// `overrides_with` collapses both spellings in one argv to the
+/// last-specified, so at most one of `force_on` / `force_off` is ever
+/// set: a set flag wins over `config` in its own direction and an unset
+/// pair falls through to it. Mirrors pnpm, where a CLI boolean overrides
+/// the workspace/`.npmrc` value either way (nopt's `--no-` negation).
+pub(crate) fn resolve_bool_override(force_on: bool, force_off: bool, config: bool) -> bool {
+    force_on || (config && !force_off)
+}
+
 impl InstallArgs {
     pub(crate) fn for_patch_manifest_change() -> Self {
         Self {
@@ -283,11 +327,16 @@ impl InstallArgs {
             ignore_manifest_check: false,
             no_runtime: false,
             ignore_scripts: false,
+            no_ignore_scripts: false,
             node_linker: None,
             offline: false,
+            no_offline: false,
             frozen_store: false,
+            no_frozen_store: false,
             prefer_offline: false,
+            no_prefer_offline: false,
             trust_lockfile: false,
+            no_trust_lockfile: false,
             update_checksums: false,
             workspace_concurrency: None,
             network_concurrency: None,
@@ -377,16 +426,22 @@ impl InstallArgs {
             no_prefer_frozen_lockfile,
             ignore_manifest_check,
             no_runtime,
-            // Read from `config.ignore_scripts` (the CLI flag was already
-            // merged in by the dispatch in `cli_args.rs`), not from here.
+            // The `ignore_scripts` / `offline` / `frozen_store` /
+            // `prefer_offline` flags and their `--no-` inverses are
+            // resolved against config by `apply_install_cli_config` in the
+            // dispatch (`cli_args.rs`), so the install reads them from
+            // `config`, not from here.
             ignore_scripts: _,
+            no_ignore_scripts: _,
             node_linker,
             offline: _,
-            // Read from `config.frozen_store` (the CLI flag was already
-            // merged in by the dispatch in `cli_args.rs`), not from here.
+            no_offline: _,
             frozen_store: _,
+            no_frozen_store: _,
             prefer_offline: _,
+            no_prefer_offline: _,
             trust_lockfile,
+            no_trust_lockfile,
             update_checksums,
             workspace_concurrency: _,
             network_concurrency: _,
@@ -399,9 +454,10 @@ impl InstallArgs {
 
         // `--prefer-frozen-lockfile` / `--no-prefer-frozen-lockfile`
         // map to `Option<bool>`: `Some(true)` / `Some(false)` when
-        // either flag is set, `None` otherwise (use config). Clap's
-        // `conflicts_with` on the off-flag ensures the two aren't
-        // both set, so the precedence here is straightforward.
+        // either flag is set, `None` otherwise (use config). The pair's
+        // mutual `overrides_with` collapses both spellings to the
+        // last-specified, so at most one is set and the precedence here
+        // is straightforward.
         let prefer_frozen_lockfile = if prefer_frozen_lockfile {
             Some(true)
         } else if no_prefer_frozen_lockfile {
@@ -425,11 +481,14 @@ impl InstallArgs {
         // matching pnpm's stance on the same flag.
         let skip_runtimes = config.skip_runtimes || no_runtime;
 
-        // Same shape as `skip_runtimes`: yaml `trustLockfile: true`
-        // or the CLI flag turns the verification skip on. There's no
-        // CLI inverse — relax the yaml value if you need to flip it
-        // back off for a single invocation.
-        let trust_lockfile = config.trust_lockfile || trust_lockfile;
+        // `--trust-lockfile` / `--no-trust-lockfile` override the yaml
+        // `trustLockfile` in either direction; an unset pair falls
+        // through to it. Forcing the verification pass back on from the
+        // CLI matters for security: a repo-controlled
+        // `pnpm-workspace.yaml` can't pin `trustLockfile: true` past a
+        // user's explicit `--no-trust-lockfile`.
+        let trust_lockfile =
+            resolve_bool_override(trust_lockfile, no_trust_lockfile, config.trust_lockfile);
 
         // `--node-linker` flag (if passed) overrides the
         // yaml/npmrc value for this invocation. Mirrors pnpm's
