@@ -16,7 +16,7 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_cmd_shim::{Host as CmdShimHost, link_bins_of_packages_with_excludes, remove_bin};
-use pacquet_config::{Config, WorkspaceSettings, check_global_bin_dir};
+use pacquet_config::{CatalogMode, Config, WorkspaceSettings, check_global_bin_dir};
 use pacquet_fs::{force_symlink_dir, is_subdir, lexical_normalize};
 use pacquet_global::{
     GlobalPackageInfo, check_global_bin_conflicts, clean_orphaned_install_dirs,
@@ -296,6 +296,21 @@ async fn run_group_install<Reporter: self::Reporter + 'static>(
     // isolated single project.
     cfg.workspace_dir = Some(install_dir.clone());
     cfg.supported_architectures = supported_architectures;
+
+    // A global install is isolated from the caller's project, so it must
+    // not inherit that project's dependency-graph configuration. pnpm
+    // achieves this by running the install with `cwd` = the pnpm home dir;
+    // pacquet clones the caller's already-loaded config, so drop those
+    // project-scoped resolution settings explicitly. Inheriting `overrides`
+    // is what surfaced as `ERR_PNPM_CATALOG_IN_OVERRIDES` — a repo override
+    // referencing a `catalog:` the isolated install (with no catalogs) no
+    // longer resolves — and inheriting `catalogMode: strict` would likewise
+    // reject the install against an empty catalog.
+    cfg.overrides = None;
+    cfg.catalogs = None;
+    cfg.catalog_mode = CatalogMode::default();
+    cfg.package_extensions = None;
+    cfg.patched_dependencies = None;
 
     // Build-script policy for global installs comes from the global packages
     // directory, never the caller's repo — otherwise a repo-controlled

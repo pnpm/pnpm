@@ -140,6 +140,46 @@ fn global_add_ignores_ambient_global_workspace_yaml() {
     drop(root);
 }
 
+/// A global install must not inherit the caller project's dependency-graph
+/// configuration. A project `overrides` entry that references a `catalog:`
+/// — resolved against the caller's catalogs, which the isolated global
+/// install does not see — would otherwise fail the install with
+/// `ERR_PNPM_CATALOG_IN_OVERRIDES`. `catalogMode: strict` is included for
+/// the same reason. Regression test for that leak.
+#[cfg(unix)]
+#[test]
+fn global_add_ignores_caller_project_overrides() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "catalogMode: strict\noverrides:\n  is-positive: 'catalog:'\n",
+    )
+    .expect("write caller project workspace yaml");
+
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    fs::create_dir_all(&global_bin).expect("create global bin dir");
+
+    global_command(&workspace, &pnpm_home)
+        .with_arg("add")
+        .with_arg("-g")
+        .with_arg("@foo/touch-file-one-bin")
+        .assert()
+        .success();
+
+    assert!(
+        global_bin.join("touch-file-one-bin").exists(),
+        "the global install should ignore the caller project's overrides / catalog mode",
+    );
+
+    drop(npmrc_info);
+    drop(root);
+}
+
 /// `pacquet list -g` with nothing installed reports the empty state rather
 /// than erroring. No registry needed.
 #[test]
