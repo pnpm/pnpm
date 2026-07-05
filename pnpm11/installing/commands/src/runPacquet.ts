@@ -288,16 +288,19 @@ function pacquetSupportsResolution (version: string | undefined): boolean {
  * surface pnpm itself accepts on `install`, so the flags don't need
  * reshaping.
  *
- * Flags we always inject ourselves (`--frozen-lockfile`,
+ * Flags we manage ourselves (`--frozen-lockfile`,
  * `--ignore-manifest-check`) are dropped in every form the user can
  * type them — positive (`--frozen-lockfile`), negated
- * (`--no-frozen-lockfile`), and any `=value` form. Pacquet's clap
- * defines these as plain `#[clap(long)] bool` flags, so a duplicate
- * `--frozen-lockfile` or a conflicting `--no-frozen-lockfile`
- * crashes the parser with "used multiple times" / "unexpected
- * argument". The user's `--no-frozen-lockfile` intent is already
- * honored upstream (pnpm did a fresh resolve before delegating);
- * pacquet's role here is just lockfile-driven materialization.
+ * (`--no-frozen-lockfile`), and any `=value` form. pnpm resolves the
+ * frozen-lockfile setting itself and encodes the decision in the mode
+ * it hands pacquet: a resolving install (pacquet resolves and writes
+ * the lockfile, no `--frozen-lockfile` injected) or a frozen
+ * materialization (pacquet is pinned to the lockfile via an injected
+ * `--frozen-lockfile`) — see `frozenArgs` in `makeRun`. Forwarding the
+ * user's own token would contradict that choice: pacquet accepts a
+ * `--no-<flag>` negation for every boolean flag with last-one-wins
+ * override semantics, so a user `--no-frozen-lockfile` sitting next to
+ * our injected `--frozen-lockfile` would flip the pinning back off.
  *
  * `--reporter` is stripped in any form (`--reporter=foo`,
  * `--reporter foo`): pacquet's `reporter` is a clap value option

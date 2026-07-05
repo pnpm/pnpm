@@ -1,7 +1,7 @@
 use super::{
     dedupe::{self, DedupeArgs},
     deploy::DeployArgs,
-    install::InstallArgs,
+    install::{InstallArgs, resolve_bool_override},
     package_manager::{PackageManagerToSync, package_manager_to_sync},
     prune::PruneArgs,
 };
@@ -99,10 +99,13 @@ pub(crate) fn derive_config_root_and_package_manager_to_sync(
 }
 
 pub(crate) fn apply_install_cli_config(cfg: &mut Config, args: &InstallArgs) {
-    cfg.offline = cfg.offline || args.offline;
-    cfg.prefer_offline = cfg.prefer_offline || args.prefer_offline;
-    cfg.frozen_store = cfg.frozen_store || args.frozen_store;
-    cfg.ignore_scripts = cfg.ignore_scripts || args.ignore_scripts;
+    cfg.offline = resolve_bool_override(args.offline, args.no_offline, cfg.offline);
+    cfg.prefer_offline =
+        resolve_bool_override(args.prefer_offline, args.no_prefer_offline, cfg.prefer_offline);
+    cfg.frozen_store =
+        resolve_bool_override(args.frozen_store, args.no_frozen_store, cfg.frozen_store);
+    cfg.ignore_scripts =
+        resolve_bool_override(args.ignore_scripts, args.no_ignore_scripts, cfg.ignore_scripts);
     cfg.workspace_concurrency = args.resolve_workspace_concurrency(cfg.workspace_concurrency);
     if let Some(network_concurrency) = args.network_concurrency {
         cfg.network_concurrency = network_concurrency;
@@ -219,7 +222,8 @@ impl PrunePipeline {
         // - `--ignore-scripts` from the CLI wins over any value the
         //   hooks set via `WorkspaceSettings::apply_to`.
         cfg.modules_cache_max_age = 0;
-        cfg.ignore_scripts = cfg.ignore_scripts || args.ignore_scripts;
+        cfg.ignore_scripts =
+            resolve_bool_override(args.ignore_scripts, args.no_ignore_scripts, cfg.ignore_scripts);
         let cfg: &'static Config = cfg;
         let state = State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
         args.run::<Reporter>(state).await

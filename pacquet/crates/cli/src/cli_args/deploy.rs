@@ -1,6 +1,6 @@
 use crate::{
     State,
-    cli_args::install::{InstallArgs, NodeLinkerArg},
+    cli_args::install::{InstallArgs, NodeLinkerArg, resolve_bool_override},
 };
 use clap::Args;
 use derive_more::{Display, Error};
@@ -338,7 +338,11 @@ impl DeployArgs {
             .supported_architectures
             .apply_to(config.supported_architectures.clone());
         let skip_runtimes = config.skip_runtimes || self.install_args.no_runtime;
-        let trust_lockfile = config.trust_lockfile || self.install_args.trust_lockfile;
+        let trust_lockfile = resolve_bool_override(
+            self.install_args.trust_lockfile,
+            self.install_args.no_trust_lockfile,
+            config.trust_lockfile,
+        );
         let lockfile_path = config.lockfile.then(|| deploy_dir.join(Lockfile::FILE_NAME));
         let prefer_frozen_lockfile = frozen_lockfile.then_some(true).or(Some(false));
         let dependency_groups =
