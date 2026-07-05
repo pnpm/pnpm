@@ -62,6 +62,18 @@ fn engines_runtime_without_download_is_not_treated_as_installed() {
     assert!(read_installed_packages(tmp.path()).is_empty());
 }
 
+#[test]
+fn ordinary_engines_node_range_is_not_reified() {
+    // A plain `engines.node` version constraint (very common in real
+    // packages) is not a downloaded runtime, so reification must leave it
+    // out of the dependency aliases and installed packages entirely.
+    let tmp = TempDir::new().unwrap();
+    write_json(&tmp.path().join("package.json"), &json!({ "engines": { "node": ">=18" } }));
+
+    assert!(read_direct_dependency_aliases(tmp.path()).is_empty());
+    assert!(read_installed_packages(tmp.path()).is_empty());
+}
+
 #[cfg(unix)]
 #[test]
 fn scan_finds_a_globally_installed_runtime() {
