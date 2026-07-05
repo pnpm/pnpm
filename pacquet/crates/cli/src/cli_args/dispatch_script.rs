@@ -45,6 +45,27 @@ pub(super) fn run<'a>(ctx: &RunCtx<'a>, args: RunArgs) -> miette::Result<Command
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
+pub(super) fn fallback<'a>(
+    ctx: &RunCtx<'a>,
+    command: Vec<String>,
+) -> miette::Result<CommandFuture<'a>> {
+    let mut command = command.into_iter();
+    let args = RunArgs {
+        command: command.next(),
+        args: command.collect(),
+        if_present: false,
+        resume_from: None,
+        report_summary: false,
+        no_bail: false,
+    };
+    if ctx.recursive {
+        args.run_recursive((ctx.config)()?, ctx.dir)?;
+    } else {
+        args.run_fallback(ctx.dir, (ctx.config)()?, matches!(ctx.reporter, ReporterType::Silent))?;
+    }
+    Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
 pub(super) fn exec<'a>(ctx: &RunCtx<'a>, args: ExecArgs) -> miette::Result<CommandFuture<'a>> {
     if ctx.recursive {
         args.run_recursive((ctx.config)()?, ctx.dir)?;

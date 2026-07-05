@@ -1,3 +1,4 @@
+use super::exec::ExecArgs;
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -92,6 +93,20 @@ impl RunArgs {
     /// meaningful for the recursive path (see [`Self::run_recursive`])
     /// and are ignored here.
     pub fn run(self, dir: &Path, config: &Config, silent: bool) -> miette::Result<()> {
+        self.run_inner(dir, config, silent, false)
+    }
+
+    pub fn run_fallback(self, dir: &Path, config: &Config, silent: bool) -> miette::Result<()> {
+        self.run_inner(dir, config, silent, true)
+    }
+
+    fn run_inner(
+        self,
+        dir: &Path,
+        config: &Config,
+        silent: bool,
+        fallback_to_exec: bool,
+    ) -> miette::Result<()> {
         let RunArgs { command, args, if_present, .. } = self;
         let manifest =
             PackageManifest::from_path(dir.join("package.json")).map_err(RunError::Manifest)?;
@@ -113,6 +128,16 @@ impl RunArgs {
         if specified.is_empty() {
             if if_present {
                 return Ok(());
+            }
+            if fallback_to_exec {
+                return ExecArgs {
+                    command: std::iter::once(script_name).chain(args).collect(),
+                    shell_mode: false,
+                    resume_from: None,
+                    report_summary: false,
+                    no_bail: false,
+                }
+                .run(dir, config);
             }
             return Err(RunError::NoScript {
                 script: script_name.clone(),
