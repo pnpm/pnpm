@@ -111,7 +111,7 @@ export async function handler (opts: InitOptions, params?: string[]): Promise<st
       ...packageJson.devEngines,
       packageManager: {
         name: 'pnpm',
-        version: `^${packageManager.version}`,
+        version: `${packageManager.version}`,
         onFail: 'download',
       },
     }
