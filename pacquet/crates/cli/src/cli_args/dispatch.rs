@@ -5,7 +5,7 @@ use super::{
 };
 use crate::{State, config_overrides::ConfigOverrides};
 use miette::{Context, IntoDiagnostic};
-use pacquet_config::{Config, Host};
+use pacquet_config::{Config, Host, default_pnpm_home_dir};
 use pacquet_reporter::{ExecutionTimeLog, LogEvent, LogLevel};
 use std::{future::Future, path::Path, pin::Pin};
 
@@ -29,6 +29,10 @@ pub(crate) struct RunCtx<'a> {
     pub(crate) reporter: ReporterType,
     pub(crate) recursive: bool,
     pub(crate) config: &'a (dyn Fn() -> miette::Result<&'static mut Config> + Sync),
+    /// Like [`Self::config`] but anchored at the pnpm home dir instead of
+    /// `--dir`, so a `-g` install can't inherit the caller project's
+    /// `.npmrc` network / TLS / registry settings.
+    pub(crate) global_config: &'a (dyn Fn() -> miette::Result<&'static mut Config> + Sync),
     pub(crate) state: &'a (dyn Fn(bool) -> miette::Result<State> + Sync),
 }
 
@@ -153,31 +157,25 @@ impl CliArgs {
                 | CliCommand::PatchRemove(_),
         );
         let manifest_path = dir.join("package.json");
-        // Resolve `.npmrc` / `pnpm-workspace.yaml` from the canonicalized
-        // `--dir` rather than the process cwd, matching pnpm 11 (which
-        // builds its `localPrefix` from `cliOptions.dir`, not `cwd`).
+        // Load config anchored at `anchor`, reading `.npmrc` /
+        // `pnpm-workspace.yaml` from there.
         //
-        // Production callers turbofish `Host` explicitly so the
-        // dependency-injection plumbing is visible at the call site.
-        // See [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339)
-        // for the pattern and rationale.
-        let config = || -> miette::Result<&'static mut Config> {
-            // Seed `npmrc_auth_file` from the CLI flag before
-            // `current()` reads `.npmrc`, so the override redirects the
-            // user-level read. Mirrors pnpm's `--npmrc-auth-file`.
+        // Seed `npmrc_auth_file` from the CLI flag before `current()` reads
+        // `.npmrc`, so the override redirects the user-level read. Mirrors
+        // pnpm's `--npmrc-auth-file`. Production callers turbofish `Host`
+        // explicitly so the dependency-injection plumbing is visible at the
+        // call site. See
+        // [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339).
+        let load_config = |anchor: &Path| -> miette::Result<&'static mut Config> {
             Config { npmrc_auth_file: npmrc_auth_file.clone(), ..Config::default() }
-                .current::<Host>(&dir)
+                .current::<Host>(anchor)
                 .map(|mut cfg| {
                     config_overrides.apply(&mut cfg);
-                    // `--recursive` / `-r` is CLI-only upstream (not a
-                    // `.npmrc` / yaml key), so it is set here from the
-                    // global flag rather than through the yaml / env
-                    // overlay. Mirrors pnpm's `Config.recursive`.
+                    // `--recursive` / `--filter` / `--filter-prod` are
+                    // CLI-only upstream (not `.npmrc` / yaml keys), so the
+                    // global flags are threaded in here. Mirrors pnpm's
+                    // `Config.recursive` / `.filter` / `.filterProd`.
                     cfg.recursive = recursive;
-                    // `--filter` / `--filter-prod` are likewise CLI-only
-                    // (pnpm's `Config.filter` / `Config.filterProd`),
-                    // so the parsed selector strings are threaded in
-                    // from the global flags here.
                     cfg.filter.clone_from(&filter);
                     cfg.filter_prod.clone_from(&filter_prod);
                     Config::leak(cfg)
@@ -185,6 +183,21 @@ impl CliArgs {
                 .map_err(miette::Report::new)
                 .wrap_err("load configuration")
         };
+        // Resolve `.npmrc` / `pnpm-workspace.yaml` from the canonicalized
+        // `--dir` rather than the process cwd, matching pnpm 11 (which
+        // builds its `localPrefix` from `cliOptions.dir`, not `cwd`).
+        let config = || load_config(&dir);
+        // A `-g` install is isolated from the caller's project: pnpm runs it
+        // with `cwd` = the pnpm home dir, so a project `.npmrc` cannot
+        // influence the network / TLS / registry decisions of a *global*
+        // install. Mirror that by anchoring the global-install config at the
+        // pnpm home (resolved from `PNPM_HOME` / platform defaults, never the
+        // project). Falls back to the `--dir` anchor when the home can't be
+        // determined — the global command then fails at the missing-global-
+        // bin-dir check regardless.
+        let pnpm_home_dir = default_pnpm_home_dir::<Host>();
+        let global_config_anchor = pnpm_home_dir.as_deref().unwrap_or(&dir);
+        let global_config = || load_config(global_config_anchor);
         // `require_lockfile` is the "this subcommand cannot run without a
         // lockfile loaded" signal, used by `State::init` to override
         // `config.lockfile=false`. Only `install --frozen-lockfile` needs
@@ -203,6 +216,7 @@ impl CliArgs {
             reporter,
             recursive,
             config: &config,
+            global_config: &global_config,
             state: &state,
         };
         route(command, &ctx)?.await?;

@@ -32,7 +32,7 @@ use pacquet_reporter::{NdjsonReporter, SilentReporter};
 
 pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFuture<'a>> {
     if args.global {
-        let config = (ctx.config)()?;
+        let config = (ctx.global_config)()?;
         let dir = ctx.dir;
         return Ok(match ctx.reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
@@ -54,7 +54,7 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
 
 pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<CommandFuture<'a>> {
     if args.global {
-        let config = (ctx.config)()?;
+        let config = (ctx.global_config)()?;
         return Ok(match ctx.reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
                 Box::pin(args.run_global::<DefaultReporter>(config))
@@ -75,7 +75,7 @@ pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<C
 
 pub(super) fn remove<'a>(ctx: &RunCtx<'a>, args: RemoveArgs) -> miette::Result<CommandFuture<'a>> {
     if args.global {
-        global::handle_global_remove((ctx.config)()?, &args.package_names)?;
+        global::handle_global_remove((ctx.global_config)()?, &args.package_names)?;
         return Ok(Box::pin(std::future::ready(Ok(()))));
     }
     let command_state = (ctx.state)(false)?;
@@ -317,7 +317,7 @@ pub(super) fn runtime<'a>(
     args: RuntimeArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     if args.global {
-        let config = (ctx.config)()?;
+        let config = (ctx.global_config)()?;
         let dir = ctx.dir;
         return Ok(match ctx.reporter {
             ReporterType::Default | ReporterType::AppendOnly => {

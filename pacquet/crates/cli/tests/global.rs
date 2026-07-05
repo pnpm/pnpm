@@ -4,12 +4,33 @@
 
 use assert_cmd::cargo::CommandCargoExt;
 use command_extra::CommandExtra;
+#[cfg(unix)]
+use pacquet_testing_utils::bin::AddMockedRegistry;
 use pacquet_testing_utils::bin::CommandTempCwd;
 use std::{
     fs,
     path::{Path, PathBuf},
     process::Command,
 };
+
+/// Create the global bin directory and seed the pnpm-home `.npmrc` with the
+/// mocked registry / store / cache. A `-g` install anchors its config at the
+/// pnpm home (not the caller project), so its network + store settings must
+/// be reachable from there rather than the workspace `.npmrc`.
+#[cfg(unix)]
+fn prepare_global_home(pnpm_home: &Path, npmrc_info: &AddMockedRegistry) {
+    fs::create_dir_all(pnpm_home.join("bin")).expect("create global bin dir");
+    fs::write(
+        pnpm_home.join(".npmrc"),
+        format!(
+            "registry={}\nstore-dir={}\ncache-dir={}\n",
+            npmrc_info.mock_instance.url(),
+            npmrc_info.store_dir.display(),
+            npmrc_info.cache_dir.display(),
+        ),
+    )
+    .expect("seed the pnpm-home npmrc");
+}
 
 /// Build a fresh `pacquet` command in `workspace` with `PNPM_HOME` set and
 /// the global bin directory prepended to `PATH` (so `checkGlobalBinDir`
@@ -51,7 +72,7 @@ fn global_add_list_remove_round_trip() {
     let pnpm_home = root.path().join("pnpm-home");
     let global_bin = pnpm_home.join("bin");
     let global_pkg_dir = pnpm_home.join("global").join("v11");
-    fs::create_dir_all(&global_bin).expect("create global bin dir");
+    prepare_global_home(&pnpm_home, &npmrc_info);
 
     // add -g
     global_command(&workspace, &pnpm_home)
@@ -116,7 +137,7 @@ fn global_add_ignores_ambient_global_workspace_yaml() {
     let pnpm_home = root.path().join("pnpm-home");
     let global_bin = pnpm_home.join("bin");
     let global_pkg_dir = pnpm_home.join("global").join("v11");
-    fs::create_dir_all(&global_bin).expect("create global bin dir");
+    prepare_global_home(&pnpm_home, &npmrc_info);
     fs::create_dir_all(&global_pkg_dir).expect("create global packages dir");
     fs::write(
         global_pkg_dir.join("pnpm-workspace.yaml"),
@@ -162,7 +183,7 @@ fn global_add_ignores_caller_project_overrides() {
 
     let pnpm_home = root.path().join("pnpm-home");
     let global_bin = pnpm_home.join("bin");
-    fs::create_dir_all(&global_bin).expect("create global bin dir");
+    prepare_global_home(&pnpm_home, &npmrc_info);
 
     global_command(&workspace, &pnpm_home)
         .with_arg("add")
@@ -174,6 +195,43 @@ fn global_add_ignores_caller_project_overrides() {
     assert!(
         global_bin.join("touch-file-one-bin").exists(),
         "the global install should ignore the caller project's overrides / catalog mode",
+    );
+
+    drop(npmrc_info);
+    drop(root);
+}
+
+/// A global install must not use the caller project's `.npmrc` for network
+/// settings — a repo `.npmrc` could otherwise redirect the registry or
+/// downgrade TLS for a global runtime/package fetch. pnpm runs the install
+/// with `cwd` = the pnpm home; pacquet anchors the global-install config
+/// there. Pointing the caller project at a dead registry proves the global
+/// install ignores it and uses the trusted (pnpm-home) registry instead.
+#[cfg(unix)]
+#[test]
+fn global_add_ignores_caller_project_npmrc_registry() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    fs::write(workspace.join(".npmrc"), "registry=http://127.0.0.1:1/\n")
+        .expect("overwrite caller project npmrc with a dead registry");
+
+    global_command(&workspace, &pnpm_home)
+        .with_arg("add")
+        .with_arg("-g")
+        .with_arg("@foo/touch-file-one-bin")
+        .assert()
+        .success();
+
+    assert!(
+        global_bin.join("touch-file-one-bin").exists(),
+        "the global install must ignore the caller project's .npmrc registry",
     );
 
     drop(npmrc_info);
