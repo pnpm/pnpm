@@ -1,4 +1,5 @@
 use super::{
+    access::AccessArgs,
     add::AddArgs,
     approve_builds::ApproveBuildsArgs,
     audit::AuditArgs,
@@ -147,6 +148,9 @@ impl CliArgs {
 
 #[derive(Debug, Subcommand)]
 pub enum CliCommand {
+    /// Manage package access and visibility on the registry.
+    #[clap(visible_alias = "accesses")]
+    Access(AccessArgs),
     /// Initialize a package.json
     Init,
     /// Add a package

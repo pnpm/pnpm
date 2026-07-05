@@ -248,6 +248,7 @@ impl CliArgs {
 /// [`CliArgs::run_completion_if_requested`], so they are unreachable here.
 fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
     match command {
+        CliCommand::Access(args) => dispatch_query::access(ctx, args),
         CliCommand::Init => dispatch_script::init(ctx),
         CliCommand::Add(args) => dispatch_install::add(ctx, args),
         CliCommand::Install(args) => dispatch_install::install(ctx, args),
