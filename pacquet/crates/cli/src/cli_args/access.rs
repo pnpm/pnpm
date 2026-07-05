@@ -216,46 +216,46 @@ impl AccessArgs {
             ("list", Some("collaborators")) => ("list_collaborators", params),
             ("get", Some("status")) => ("get_status", params),
             ("set", Some(status_val)) if status_val.starts_with("status=") => {
-                let mut p: Vec<String> = vec![format!("status={}", &status_val[7..])];
-                p.extend(params);
-                ("set_status", p)
+                let mut rest: Vec<String> = vec![format!("status={}", &status_val[7..])];
+                rest.extend(params);
+                ("set_status", rest)
             }
             ("set", Some(mfa_val)) if mfa_val.starts_with("mfa=") => {
-                let mut p: Vec<String> = vec![format!("mfa={}", &mfa_val[4..])];
-                p.extend(params);
-                ("set_mfa", p)
+                let mut rest: Vec<String> = vec![format!("mfa={}", &mfa_val[4..])];
+                rest.extend(params);
+                ("set_mfa", rest)
             }
             ("public", _) => {
-                let mut p: Vec<String> = vec!["status=public".to_string()];
+                let mut rest: Vec<String> = vec!["status=public".to_string()];
                 if let Some(s) = second {
-                    p.push(s);
+                    rest.push(s);
                 }
-                p.extend(params);
-                ("set_status", p)
+                rest.extend(params);
+                ("set_status", rest)
             }
             ("restricted", _) => {
-                let mut p: Vec<String> = vec!["status=restricted".to_string()];
+                let mut rest: Vec<String> = vec!["status=restricted".to_string()];
                 if let Some(s) = second {
-                    p.push(s);
+                    rest.push(s);
                 }
-                p.extend(params);
-                ("set_status", p)
+                rest.extend(params);
+                ("set_status", rest)
             }
             ("grant", _) => {
-                let mut p: Vec<String> = Vec::new();
+                let mut rest: Vec<String> = Vec::new();
                 if let Some(s) = second {
-                    p.push(s);
+                    rest.push(s);
                 }
-                p.extend(params);
-                ("grant", p)
+                rest.extend(params);
+                ("grant", rest)
             }
             ("revoke", _) => {
-                let mut p: Vec<String> = Vec::new();
+                let mut rest: Vec<String> = Vec::new();
                 if let Some(s) = second {
-                    p.push(s);
+                    rest.push(s);
                 }
-                p.extend(params);
-                ("revoke", p)
+                rest.extend(params);
+                ("revoke", rest)
             }
             _ => {
                 return Err(AccessError::UnknownSubcommand {
@@ -587,7 +587,7 @@ async fn set_status(context: &AccessContext<'_>, params: &[String]) -> miette::R
     if !response.status().is_success() {
         return Err(write_error_from_response(
             response,
-            format!("set access to \"{access_value}\" for"),
+            format!(r#"set access to "{access_value}" for"#),
             package_name,
         )
         .await);

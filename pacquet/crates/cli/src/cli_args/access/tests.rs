@@ -1,15 +1,16 @@
-use super::*;
+use crate::cli_args::access::{AccessArgs, escaped_package_name, normalize_registry_url};
+use pacquet_config::Config;
 
 #[tokio::test]
 async fn test_normalize_registry_url() {
     assert_eq!(normalize_registry_url("https://registry.npmjs.org"), "https://registry.npmjs.org/");
     assert_eq!(
         normalize_registry_url("https://registry.npmjs.org/"),
-        "https://registry.npmjs.org/"
+        "https://registry.npmjs.org/",
     );
     assert_eq!(
         normalize_registry_url("https://custom.registry.com/some-path"),
-        "https://custom.registry.com/some-path/"
+        "https://custom.registry.com/some-path/",
     );
 }
 
