@@ -80,6 +80,23 @@ fn unknown_keys_are_dropped_silently() {
 }
 
 #[test]
+fn config_tokens_after_external_command_stay_in_argv() {
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "--config.registry=https://example.test/",
+        "--dir",
+        "project",
+        "commitlint",
+        "--config.foo=bar",
+    ]));
+    let expected = argv(["pacquet", "--dir", "project", "commitlint", "--config.foo=bar"]);
+    assert_eq!(remaining, expected);
+    let mut config = Config::default();
+    overrides.apply(&mut config);
+    assert_eq!(config.registry, "https://example.test/");
+}
+
+#[test]
 fn malformed_tokens_are_dropped() {
     let (_, remaining) =
         ConfigOverrides::extract(argv(["--config.registry", "--config.=missing-key", "install"]));

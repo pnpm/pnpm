@@ -1,3 +1,5 @@
+use crate::cli_args::CliArgs;
+use clap::CommandFactory;
 use pacquet_config::Config;
 use std::{
     collections::BTreeMap,
@@ -35,9 +37,15 @@ impl ConfigOverrides {
     where
         Argv: IntoIterator<Item = OsString>,
     {
+        let argv = argv.into_iter().collect::<Vec<_>>();
+        let external_command_index = external_command_index(&argv);
         let mut overrides = Self::default();
         let mut remaining = Vec::new();
-        for arg in argv {
+        for (index, arg) in argv.into_iter().enumerate() {
+            if external_command_index.is_some_and(|command_index| index > command_index) {
+                remaining.push(arg);
+                continue;
+            }
             match classify(&arg) {
                 ConfigToken::WellFormed { key, value } => overrides.set(key, value),
                 ConfigToken::Malformed => {}
@@ -96,6 +104,55 @@ impl ConfigOverrides {
             config.shared_workspace_lockfile = value;
         }
     }
+}
+
+fn external_command_index(argv: &[OsString]) -> Option<usize> {
+    let mut index = 1;
+    while index < argv.len() {
+        let arg = argv[index].to_str()?;
+        if arg == "--" {
+            return None;
+        }
+        if arg.starts_with("--config.") {
+            index += 1;
+            continue;
+        }
+        if let Some(width) = global_option_width(arg) {
+            index += width;
+            continue;
+        }
+        if arg.starts_with('-') {
+            index += 1;
+            continue;
+        }
+        return (!is_known_top_level_command(arg)).then_some(index);
+    }
+    None
+}
+
+fn global_option_width(arg: &str) -> Option<usize> {
+    if matches!(arg, "-r" | "-v") {
+        return Some(1);
+    }
+    if matches!(arg, "-C" | "-F") {
+        return Some(2);
+    }
+    if arg.starts_with("-C") || arg.starts_with("-F") {
+        return Some(1);
+    }
+    let name = arg.strip_prefix("--")?;
+    let (name, has_value) = name.split_once('=').map_or((name, false), |(name, _)| (name, true));
+    let consumes_value = matches!(
+        name,
+        "dir" | "filter" | "filter-prod" | "npmrc-auth-file" | "reporter" | "userconfig",
+    );
+    Some(if consumes_value && !has_value { 2 } else { 1 })
+}
+
+fn is_known_top_level_command(name: &str) -> bool {
+    CliArgs::command().get_subcommands().any(|command| {
+        command.get_name() == name || command.get_all_aliases().any(|alias| alias == name)
+    })
 }
 
 enum ConfigToken<'a> {

@@ -408,6 +408,24 @@ fn top_level_fallback_runs_local_bin_without_package_json() {
     drop(root);
 }
 
+#[cfg(unix)]
+#[test]
+fn top_level_fallback_forwards_dotted_config_args_to_local_bin() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let bin_dir = workspace.join("node_modules").join(".bin");
+    fs::create_dir_all(&bin_dir).expect("create node_modules/.bin");
+    let marker = workspace.join("args.txt");
+    write_executable(
+        &bin_dir.join("commitlint"),
+        &format!("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"{}\"\n", marker.display()),
+    );
+
+    pacquet.with_args(["commitlint", "--config.foo=bar"]).assert().success();
+    assert_eq!(fs::read_to_string(&marker).expect("read marker"), "--config.foo=bar\n");
+
+    drop(root);
+}
+
 /// With a non-silent reporter (the default, or e.g. `--reporter=ndjson`),
 /// `pacquet run` echoes `$ <script>` to stderr before spawning the script —
 /// matching pnpm's `runLifecycleHook.ts:110`
