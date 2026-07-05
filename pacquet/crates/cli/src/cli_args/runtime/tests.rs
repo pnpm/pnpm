@@ -68,9 +68,13 @@ fn set_request_fails_without_runtime_name() {
 }
 
 #[test]
-fn global_is_rejected_before_state_initialization() {
-    let err = RuntimeArgs { global: true, ..args(&["set", "node", "22"]) }
-        .reject_unsupported_global()
-        .unwrap_err();
-    assert_eq!(err, RuntimeError::GlobalUnsupported);
+fn global_install_builds_the_same_runtime_selector() {
+    // `--global` routes through `run_global`, which reuses `set_request`
+    // to build the `<name>@runtime:<version>` selector. The
+    // `--save-dev` / `--save-prod` group is irrelevant globally (the
+    // global group always saves to `dependencies`), so only the selector
+    // is asserted here.
+    let request =
+        RuntimeArgs { global: true, ..args(&["set", "node", "22"]) }.set_request().unwrap();
+    assert_eq!(request.package_name, "node@runtime:22");
 }

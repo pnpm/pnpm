@@ -316,7 +316,17 @@ pub(super) fn runtime<'a>(
     ctx: &RunCtx<'a>,
     args: RuntimeArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    args.reject_unsupported_global()?;
+    if args.global {
+        let config = (ctx.config)()?;
+        let dir = ctx.dir;
+        return Ok(match ctx.reporter {
+            ReporterType::Default | ReporterType::AppendOnly => {
+                Box::pin(args.run_global::<DefaultReporter>(config, dir))
+            }
+            ReporterType::Ndjson => Box::pin(args.run_global::<NdjsonReporter>(config, dir)),
+            ReporterType::Silent => Box::pin(args.run_global::<SilentReporter>(config, dir)),
+        });
+    }
     let command_state = (ctx.state)(false)?;
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => {

@@ -21,14 +21,14 @@ use pacquet_fs::{force_symlink_dir, is_subdir, lexical_normalize};
 use pacquet_global::{
     GlobalPackageInfo, check_global_bin_conflicts, clean_orphaned_install_dirs,
     create_global_cache_key, create_install_dir, find_global_package, get_hash_link,
-    get_installed_bin_names, read_installed_packages, scan_global_packages,
+    get_installed_bin_names, read_direct_dependency_aliases, read_installed_packages,
+    scan_global_packages,
 };
 use pacquet_package_is_installable::SupportedArchitectures;
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_registry::PinnedVersion;
 use pacquet_reporter::Reporter;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
-use serde_json::Value;
 use std::{
     collections::HashSet,
     fs,
@@ -107,7 +107,7 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
         .await?;
 
         let pkgs = read_installed_packages(&install_dir);
-        let aliases = read_aliases(&install_dir);
+        let aliases = read_direct_dependency_aliases(&install_dir);
 
         let bins_to_skip = match check_global_bin_conflicts(
             &global_pkg_dir,
@@ -430,21 +430,6 @@ fn bin_names_of_other_groups(
         }
     }
     Ok(names)
-}
-
-/// The direct-dependency aliases of an install directory's `package.json`.
-fn read_aliases(install_dir: &Path) -> Vec<String> {
-    let Ok(text) = fs::read_to_string(install_dir.join("package.json")) else {
-        return Vec::new();
-    };
-    let Ok(value) = serde_json::from_str::<Value>(&text) else {
-        return Vec::new();
-    };
-    value
-        .get("dependencies")
-        .and_then(Value::as_object)
-        .map(|deps| deps.keys().cloned().collect())
-        .unwrap_or_default()
 }
 
 /// Build the registry map (`{ default, ...scoped }`) hashed into the
