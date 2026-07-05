@@ -370,6 +370,7 @@ async fn fetch_list_response(
             builder
         })
         .await
+        .map_err(reqwest::Error::without_url)
         .into_diagnostic()
         .wrap_err("requesting the registry access list endpoint")?;
 
@@ -430,6 +431,7 @@ async fn list_collaborators(
             builder
         })
         .await
+        .map_err(reqwest::Error::without_url)
         .into_diagnostic()
         .wrap_err("requesting the registry collaborators endpoint")?;
 
@@ -500,6 +502,7 @@ async fn get_status(context: &AccessContext<'_>, params: &[String]) -> miette::R
             builder
         })
         .await
+        .map_err(reqwest::Error::without_url)
         .into_diagnostic()
         .wrap_err("requesting the registry access status endpoint")?;
 
@@ -577,6 +580,7 @@ async fn set_status(context: &AccessContext<'_>, params: &[String]) -> miette::R
             builder
         })
         .await
+        .map_err(reqwest::Error::without_url)
         .into_diagnostic()
         .wrap_err("requesting the registry access set endpoint")?;
 
@@ -635,6 +639,7 @@ async fn set_mfa(context: &AccessContext<'_>, params: &[String]) -> miette::Resu
             builder
         })
         .await
+        .map_err(reqwest::Error::without_url)
         .into_diagnostic()
         .wrap_err("requesting the registry MFA set endpoint")?;
 
@@ -699,6 +704,7 @@ async fn grant_access(context: &AccessContext<'_>, params: &[String]) -> miette:
             builder
         })
         .await
+        .map_err(reqwest::Error::without_url)
         .into_diagnostic()
         .wrap_err("requesting the registry grant access endpoint")?;
 
@@ -758,6 +764,7 @@ async fn revoke_access(context: &AccessContext<'_>, params: &[String]) -> miette
             builder
         })
         .await
+        .map_err(reqwest::Error::without_url)
         .into_diagnostic()
         .wrap_err("requesting the registry revoke access endpoint")?;
 
