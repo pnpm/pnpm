@@ -51,7 +51,7 @@ impl InstallPipeline {
         let cfg: &'static Config = cfg;
         let state =
             State::init(manifest_path, cfg, require_lockfile).wrap_err("initialize the state")?;
-        args.run::<Reporter>(state).await
+        Box::pin(args.run::<Reporter>(state)).await
     }
 }
 

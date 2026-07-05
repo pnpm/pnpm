@@ -8,8 +8,7 @@ use serde::{Deserialize, Serialize};
 /// against which a package's wanted platform is evaluated. Each list
 /// defaults to `['current']` at the call site (read from the config
 /// setting, falling back to `['current']` if absent). The `'current'`
-/// sentinel is replaced with the host triple via `dedupe_current`
-/// before the `os` / `cpu` / `libc` lists are compared.
+/// sentinel is compared as the concrete host triple.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SupportedArchitectures {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -116,7 +115,7 @@ fn json_string_array(values: &[String]) -> String {
 /// Returns `None` when the package is compatible, or
 /// `Some(UnsupportedPlatformError)` when any constraint rejects the
 /// host. Negation entries (`!foo`) and the special `any` sentinel are
-/// honored (see `check_list` in this module).
+/// honored.
 ///
 /// The wanted axes are taken as `Option<&[String]>` slices so the
 /// hot path doesn't allocate a [`WantedPlatform`] per snapshot —
@@ -125,9 +124,7 @@ fn json_string_array(values: &[String]) -> String {
 /// (for diagnostic display via the
 /// [`UnsupportedPlatformError`]).
 ///
-/// `supported_architectures` substitutes for `['current']` per axis;
-/// `'current'` entries are replaced with the host value before
-/// comparison (see `dedupe_current` in this module).
+/// `supported_architectures` substitutes for `['current']` per axis.
 ///
 /// `current_os`, `current_cpu`, and `current_libc` are passed in
 /// rather than read from the environment so this function stays
@@ -140,83 +137,92 @@ pub fn check_platform(
     current_cpu: &str,
     current_libc: &str,
 ) -> Option<UnsupportedPlatformError> {
-    let default_current = vec!["current".to_string()];
-    let os_supp = supported.and_then(|supported| supported.os.as_ref()).unwrap_or(&default_current);
-    let cpu_supp =
-        supported.and_then(|supported| supported.cpu.as_ref()).unwrap_or(&default_current);
-    let libc_supp =
-        supported.and_then(|supported| supported.libc.as_ref()).unwrap_or(&default_current);
+    if platform_is_supported(wanted, supported, current_os, current_cpu, current_libc) {
+        return None;
+    }
 
-    let current = Platform {
-        os: dedupe_current(current_os, os_supp),
-        cpu: dedupe_current(current_cpu, cpu_supp),
-        libc: dedupe_current(current_libc, libc_supp),
+    let owned_wanted = WantedPlatform {
+        os: wanted.os.map(<[String]>::to_vec),
+        cpu: wanted.cpu.map(<[String]>::to_vec),
+        libc: wanted.libc.map(<[String]>::to_vec),
     };
-
-    let mut os_ok = true;
-    let mut cpu_ok = true;
-    let mut libc_ok = true;
-
-    if let Some(wanted_os) = wanted.os {
-        os_ok = check_list(&current.os, wanted_os);
-    }
-    if let Some(wanted_cpu) = wanted.cpu {
-        cpu_ok = check_list(&current.cpu, wanted_cpu);
-    }
-    if let Some(wanted_libc) = wanted.libc
-        && current_libc != "unknown"
-    {
-        libc_ok = check_list(&current.libc, wanted_libc);
-    }
-
-    if !os_ok || !cpu_ok || !libc_ok {
-        // Cold path. Only here do we materialise the owned
-        // `WantedPlatform` for the error payload — the rest of the
-        // pass borrows.
-        let owned_wanted = WantedPlatform {
-            os: wanted.os.map(<[String]>::to_vec),
-            cpu: wanted.cpu.map(<[String]>::to_vec),
-            libc: wanted.libc.map(<[String]>::to_vec),
-        };
-        let real_current = Platform {
-            os: vec![current_os.to_string()],
-            cpu: vec![current_cpu.to_string()],
-            libc: vec![current_libc.to_string()],
-        };
-        return Some(UnsupportedPlatformError::new(
-            package_id.to_string(),
-            owned_wanted,
-            real_current,
-        ));
-    }
-    None
+    let real_current = Platform {
+        os: vec![current_os.to_string()],
+        cpu: vec![current_cpu.to_string()],
+        libc: vec![current_libc.to_string()],
+    };
+    Some(UnsupportedPlatformError::new(package_id.to_string(), owned_wanted, real_current))
 }
 
-/// Replace the literal `current` sentinel in `supported` with the
-/// concrete host value.
-fn dedupe_current(current: &str, supported: &[String]) -> Vec<String> {
-    supported
-        .iter()
-        .map(|item| if item == "current" { current.to_string() } else { item.clone() })
-        .collect()
+#[must_use]
+pub fn platform_is_supported(
+    wanted: WantedPlatformRef<'_>,
+    supported: Option<&SupportedArchitectures>,
+    current_os: &str,
+    current_cpu: &str,
+    current_libc: &str,
+) -> bool {
+    wanted.os.is_none_or(|wanted_os| {
+        axis_is_supported(
+            current_os,
+            supported.and_then(|supported| supported.os.as_deref()),
+            wanted_os,
+        )
+    }) && wanted.cpu.is_none_or(|wanted_cpu| {
+        axis_is_supported(
+            current_cpu,
+            supported.and_then(|supported| supported.cpu.as_deref()),
+            wanted_cpu,
+        )
+    }) && wanted.libc.is_none_or(|wanted_libc| {
+        current_libc == "unknown"
+            || axis_is_supported(
+                current_libc,
+                supported.and_then(|supported| supported.libc.as_deref()),
+                wanted_libc,
+            )
+    })
 }
 
-/// Decide whether any element of `value` is allowed by `list`.
-fn check_list(value: &[String], list: &[String]) -> bool {
-    if list.len() == 1 && list[0] == "any" {
+fn axis_is_supported(current: &str, supported: Option<&[String]>, wanted: &[String]) -> bool {
+    if wanted.len() == 1 && wanted[0] == "any" {
         return true;
     }
+
     let mut matched = false;
-    for v in value {
-        for entry in list {
-            if let Some(stripped) = entry.strip_prefix('!') {
-                if stripped == v {
-                    return false;
-                }
-            } else if entry == v {
-                matched = true;
+    if let Some(supported) = supported {
+        for value in supported {
+            match platform_value_match(if value == "current" { current } else { value }, wanted) {
+                PlatformValueMatch::Rejected => return false,
+                PlatformValueMatch::Matched => matched = true,
+                PlatformValueMatch::NoMatch => {}
             }
         }
+    } else {
+        match platform_value_match(current, wanted) {
+            PlatformValueMatch::Rejected => return false,
+            PlatformValueMatch::Matched => matched = true,
+            PlatformValueMatch::NoMatch => {}
+        }
     }
-    matched || list.iter().all(|e| e.starts_with('!'))
+    matched || wanted.iter().all(|entry| entry.starts_with('!'))
+}
+
+enum PlatformValueMatch {
+    Rejected,
+    Matched,
+    NoMatch,
+}
+
+fn platform_value_match(value: &str, wanted: &[String]) -> PlatformValueMatch {
+    for entry in wanted {
+        if let Some(stripped) = entry.strip_prefix('!') {
+            if stripped == value {
+                return PlatformValueMatch::Rejected;
+            }
+        } else if entry == value {
+            return PlatformValueMatch::Matched;
+        }
+    }
+    PlatformValueMatch::NoMatch
 }

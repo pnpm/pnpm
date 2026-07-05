@@ -5321,6 +5321,124 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
     drop((dir, mock_instance));
 }
 
+#[tokio::test]
+async fn fresh_install_skips_platform_incompatible_optional_dependency() {
+    let mock_instance = TestRegistry::start();
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/not-compatible-with-any-os", "1.0.0", DependencyGroup::Optional)
+        .unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.enable_global_virtual_store = false;
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir.clone();
+    config.registry = mock_instance.url();
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: false,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("install should succeed");
+
+    assert!(
+        is_symlink_or_junction(&project_root.join("node_modules/@pnpm.e2e/hello-world-js-bin"))
+            .unwrap(),
+        "compatible prod dependency should be linked",
+    );
+    assert!(
+        !project_root.join("node_modules/@pnpm.e2e/not-compatible-with-any-os").exists(),
+        "platform-incompatible optional dependency must not be linked",
+    );
+    assert!(
+        !virtual_store_dir.join("@pnpm.e2e+not-compatible-with-any-os@1.0.0").exists(),
+        "platform-incompatible optional dependency must not be extracted",
+    );
+
+    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    let content = std::fs::read_to_string(&lockfile_path).expect("read lockfile");
+    let lockfile: Lockfile = serde_saphyr::from_str(&content).expect("parse lockfile");
+    let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
+    let skipped_key = snapshots
+        .iter()
+        .find(|(key, _)| {
+            key.name.scope.as_deref() == Some("pnpm.e2e")
+                && key.name.bare == "not-compatible-with-any-os"
+        })
+        .map(|(key, snapshot)| {
+            assert!(snapshot.optional, "lockfile snapshot should stay marked optional");
+            key.clone()
+        })
+        .expect("optional dependency should stay in the lockfile");
+
+    let written = modules_dir
+        .pipe_as_ref(read_modules_manifest::<Host>)
+        .expect("read .modules.yaml")
+        .expect("modules manifest exists");
+    assert_eq!(written.skipped, [skipped_key.to_string()]);
+
+    let current_lockfile_path = virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
+    let current_content =
+        std::fs::read_to_string(&current_lockfile_path).expect("read current lockfile");
+    let current_lockfile: Lockfile =
+        serde_saphyr::from_str(&current_content).expect("parse current lockfile");
+    assert!(
+        current_lockfile
+            .packages
+            .as_ref()
+            .is_some_and(|packages| packages.contains_key(&skipped_key.without_peer())),
+        "platform-incompatible optional dependency metadata must stay in current lockfile",
+    );
+    assert!(
+        !current_lockfile
+            .snapshots
+            .as_ref()
+            .is_some_and(|snapshots| snapshots.contains_key(&skipped_key)),
+        "platform-incompatible optional dependency must not be saved in current lockfile",
+    );
+
+    drop((dir, mock_instance));
+}
+
 /// `nodeLinker: hoisted` on the fresh-lockfile path (no lockfile,
 /// not frozen) installs successfully and records the hoisted linker
 /// in `.modules.yaml`. With an empty manifest there is nothing to

@@ -1222,7 +1222,7 @@ where
         // gate at the tail. Kept out of the tuple below to avoid a
         // `clippy::type_complexity` annotation.
         let ignored_builds: Vec<String>;
-        let (hoisted_dependencies, hoisted_locations, frozen_skipped, fresh_lockfile): (
+        let (hoisted_dependencies, hoisted_locations, install_skipped, fresh_lockfile): (
             HoistedDependencies,
             BTreeMap<String, Vec<String>>,
             crate::SkippedSnapshots,
@@ -1410,7 +1410,7 @@ where
             (
                 fresh_result.hoisted_dependencies,
                 fresh_result.hoisted_locations,
-                crate::SkippedSnapshots::new(),
+                fresh_result.skipped,
                 fresh_result.wanted_lockfile,
             )
         };
@@ -1494,7 +1494,7 @@ where
                         crate::prune_virtual_store::prune_virtual_store(
                             &prune_dir,
                             wanted.snapshots.iter().flat_map(|snapshots| snapshots.keys()),
-                            &frozen_skipped,
+                            &install_skipped,
                             config.virtual_store_dir_max_length as usize,
                         )
                         .is_some()
@@ -1537,7 +1537,7 @@ where
                 included,
                 hoisted_dependencies,
                 hoisted_locations,
-                &frozen_skipped,
+                &install_skipped,
                 &ignored_builds,
                 pruned_at,
             ),
@@ -1546,7 +1546,7 @@ where
 
         let filtered_current_lockfile = if take_frozen_path {
             lockfile.map(|lockfile| {
-                crate::filter_lockfile_for_current(lockfile, included, &frozen_skipped)
+                crate::filter_lockfile_for_current(lockfile, included, &install_skipped)
             })
         } else {
             None
@@ -1581,13 +1581,12 @@ where
         } else if let Some(fresh_lockfile) = fresh_lockfile.as_ref() {
             // Fresh-install path: mirror the frozen behavior by
             // persisting `<virtual_store_dir>/lock.yaml` from the
-            // freshly-built wanted lockfile. No filtering needed —
-            // the resolver only walked the dep groups the install
-            // requested, so the wanted and materialized graphs match
-            // by construction. The save is gated on the same
-            // `config.lockfile` knob the wanted-side write honors
-            // (`fresh_lockfile` is `None` when the opt-out fired).
-            fresh_lockfile
+            // freshly-built wanted lockfile after removing snapshots
+            // the install skipped before materialization. The save is
+            // gated on the same `config.lockfile` knob the wanted-side
+            // write honors (`fresh_lockfile` is `None` when the
+            // opt-out fired).
+            crate::filter_lockfile_for_current(fresh_lockfile, included, &install_skipped)
                 .save_current_to_virtual_store_dir(&config.virtual_store_dir)
                 .map_err(InstallError::SaveCurrentLockfile)?;
         }

@@ -3,10 +3,9 @@
 //!
 //! Rather than re-running the engine + `supportedArchitectures` +
 //! `skipped` checks at filter time, reuse the [`SkippedSnapshots`]
-//! set produced during install. Its union of `installability`
-//! (slice 1) + `fetch_failed` (slice 4) + `optional_excluded`
-//! (slice 5) is the exact set the filter would drop — just
-//! precomputed during the install pipeline, no duplicated walk.
+//! set produced during install. The full set filters materialized
+//! snapshots; the package metadata map only drops user exclusions
+//! such as `--no-optional` and `--no-runtime`.
 //!
 //! The output drives the **next** install's diff. Without this
 //! filter, pacquet's current lockfile recorded every snapshot the
@@ -30,15 +29,24 @@ use crate::SkippedSnapshots;
 ///
 /// Importers lose dep maps whose `include` flag is false; importer
 /// `optionalDependencies` lose entries whose resolved snapshot got
-/// skipped; the snapshot + package maps are pruned to the transitive
-/// closure reachable from the surviving importer roots.
+/// skipped; the snapshot map is pruned to the transitive closure
+/// reachable from the surviving importer roots. The package metadata
+/// map preserves installability-skipped entries, matching pnpm's
+/// current-lockfile shape while `.modules.yaml.skipped` records the
+/// materialization skip.
 #[must_use]
 pub fn filter_lockfile_for_current(
     lockfile: &Lockfile,
     included: IncludedDependencies,
     skipped: &SkippedSnapshots,
 ) -> Lockfile {
-    let reachable = collect_reachable(&lockfile.importers, lockfile.snapshots.as_ref(), skipped);
+    let reachable = collect_reachable(&lockfile.importers, lockfile.snapshots.as_ref(), |key| {
+        skipped.contains(key)
+    });
+    let metadata_reachable =
+        collect_reachable(&lockfile.importers, lockfile.snapshots.as_ref(), |key| {
+            skipped.contains_optional_excluded(key)
+        });
 
     // Reachable metadata keys: snapshot keys without the peer suffix.
     // The `packages:` map is keyed by `metadata_key` (e.g.
@@ -48,7 +56,7 @@ pub fn filter_lockfile_for_current(
     // union of `without_peer()` keys so peer-variant survivors keep
     // their shared metadata row.
     let mut reachable_metadata: HashSet<PackageKey> = HashSet::new();
-    for snap_key in &reachable {
+    for snap_key in &metadata_reachable {
         reachable_metadata.insert(snap_key.without_peer());
     }
 
@@ -141,15 +149,17 @@ fn retain_reachable(map: &mut ResolvedDependencyMap, reachable: &HashSet<Package
     });
 }
 
-/// BFS the snapshot graph from every importer-root dep, skipping
-/// keys in `skipped`. Returns the set of snapshot keys that
-/// survive — every other snapshot (and its metadata row) gets
-/// pruned from the current lockfile.
-fn collect_reachable(
+/// BFS the snapshot graph from every importer-root dep, skipping keys
+/// selected by `should_skip`. Returns the set of snapshot keys that
+/// survive.
+fn collect_reachable<ShouldSkip>(
     importers: &HashMap<String, ProjectSnapshot>,
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
-    skipped: &SkippedSnapshots,
-) -> HashSet<PackageKey> {
+    should_skip: ShouldSkip,
+) -> HashSet<PackageKey>
+where
+    ShouldSkip: Fn(&PackageKey) -> bool,
+{
     let Some(snapshots) = snapshots else { return HashSet::new() };
 
     let mut reachable: HashSet<PackageKey> = HashSet::new();
@@ -173,7 +183,7 @@ fn collect_reachable(
         {
             for (name, spec) in map {
                 let Some(key) = spec.version.resolved_key(name) else { continue };
-                if skipped.contains(&key) {
+                if should_skip(&key) {
                     continue;
                 }
                 if snapshots.contains_key(&key) {
@@ -192,7 +202,7 @@ fn collect_reachable(
             [snap.dependencies.as_ref(), snap.optional_dependencies.as_ref()].into_iter().flatten()
         {
             for (alias, dep_ref) in dep_map {
-                if let Some(child) = resolve_child(alias, dep_ref, snapshots, skipped) {
+                if let Some(child) = resolve_child(alias, dep_ref, snapshots, &should_skip) {
                     queue.push_back(child);
                 }
             }
@@ -202,19 +212,22 @@ fn collect_reachable(
     reachable
 }
 
-/// Resolve a snapshot child to its `PackageKey`, dropping it if
-/// the target is in `skipped` or absent from the snapshot map.
-fn resolve_child(
+/// Resolve a snapshot child to its `PackageKey`, dropping it if the
+/// target should be skipped or is absent from the snapshot map.
+fn resolve_child<ShouldSkip>(
     alias: &PkgName,
     dep_ref: &SnapshotDepRef,
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
-    skipped: &SkippedSnapshots,
-) -> Option<PackageKey> {
+    should_skip: &ShouldSkip,
+) -> Option<PackageKey>
+where
+    ShouldSkip: Fn(&PackageKey) -> bool,
+{
     // `link:` deps live outside the virtual store and have no
     // snapshot to reach — they aren't part of the reachable-snapshot
     // graph this helper computes.
     let resolved = dep_ref.resolve(alias)?;
-    if skipped.contains(&resolved) {
+    if should_skip(&resolved) {
         return None;
     }
     snapshots.contains_key(&resolved).then_some(resolved)

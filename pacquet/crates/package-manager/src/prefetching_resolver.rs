@@ -30,6 +30,9 @@ use dashmap::{DashMap, DashSet};
 use pacquet_config::Config;
 use pacquet_lockfile::{LockfileResolution, is_git_hosted_tarball_url};
 use pacquet_network::{AuthHeaders, ThrottledClient};
+use pacquet_package_is_installable::{
+    SupportedArchitectures, WantedPlatformRef, platform_is_supported,
+};
 use pacquet_reporter::{Reporter, SilentReporter};
 use pacquet_resolving_resolver_base::{
     LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult,
@@ -61,6 +64,7 @@ pub struct PrefetchContext<'a> {
     pub verified_files_cache: &'a SharedVerifiedFilesCache,
     pub config: &'static Config,
     pub requester: &'a str,
+    pub supported_architectures: Option<&'a SupportedArchitectures>,
     /// Install-scoped set the background download records when it emits
     /// a package-status progress event. The later warm/cold install pass
     /// consults the set so prefetch progress is visible immediately
@@ -85,6 +89,10 @@ struct OwnedFetchCtx {
     requester: Arc<str>,
     offline: bool,
     verify_store_integrity: bool,
+    supported_architectures: Option<SupportedArchitectures>,
+    current_os: &'static str,
+    current_cpu: &'static str,
+    current_libc: &'static str,
     progress_reported: SharedReportedProgressKeys,
     /// Set of URLs that already had a prefetch task spawned, used as
     /// an atomic check-and-claim gate so concurrent resolves for the
@@ -139,6 +147,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             verified_files_cache,
             config,
             requester,
+            supported_architectures,
             progress_reported,
         } = prefetch_ctx;
         let ctx = OwnedFetchCtx {
@@ -153,6 +162,10 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             requester: Arc::<str>::from(requester),
             offline: config.offline,
             verify_store_integrity: config.verify_store_integrity,
+            supported_architectures: supported_architectures.cloned(),
+            current_os: pacquet_graph_hasher::host_platform(),
+            current_cpu: pacquet_graph_hasher::host_arch(),
+            current_libc: pacquet_graph_hasher::host_libc(),
             progress_reported: SharedReportedProgressKeys::clone(progress_reported),
             spawned_urls: Arc::new(DashSet::new()),
             integrity_cache: Arc::new(DashMap::new()),
@@ -324,6 +337,32 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             .await;
         });
     }
+
+    fn should_skip_prefetch(
+        &self,
+        wanted_dependency: &WantedDependency,
+        result: &ResolveResult,
+    ) -> bool {
+        if wanted_dependency.optional != Some(true) || !is_remote_tarball(&result.resolution) {
+            return false;
+        }
+        let manifest = crate::platform_manifest_from_resolve_result(
+            result,
+            wanted_dependency.alias.as_deref(),
+        );
+        let manifest = crate::manifest_with_inferred_platform(&manifest);
+        !platform_is_supported(
+            WantedPlatformRef {
+                os: manifest.os.as_deref(),
+                cpu: manifest.cpu.as_deref(),
+                libc: manifest.libc.as_deref(),
+            },
+            self.ctx.supported_architectures.as_ref(),
+            self.ctx.current_os,
+            self.ctx.current_cpu,
+            self.ctx.current_libc,
+        )
+    }
 }
 
 impl<Reporter: self::Reporter + 'static> Resolver for PrefetchingResolver<Reporter> {
@@ -336,7 +375,9 @@ impl<Reporter: self::Reporter + 'static> Resolver for PrefetchingResolver<Report
             let mut result = self.inner.resolve(wanted_dependency, opts).await?;
             if let Some(result_mut) = result.as_mut() {
                 self.populate_missing_integrity(result_mut).await?;
-                self.maybe_kickoff_download(result_mut);
+                if !self.should_skip_prefetch(wanted_dependency, result_mut) {
+                    self.maybe_kickoff_download(result_mut);
+                }
             }
             Ok(result)
         })
@@ -350,3 +391,11 @@ impl<Reporter: self::Reporter + 'static> Resolver for PrefetchingResolver<Report
         self.inner.resolve_latest(query, opts)
     }
 }
+
+fn is_remote_tarball(resolution: &LockfileResolution) -> bool {
+    let LockfileResolution::Tarball(tarball) = resolution else { return false };
+    !tarball.tarball.starts_with("file:") && !is_git_hosted_tarball_url(&tarball.tarball)
+}
+
+#[cfg(test)]
+mod tests;
