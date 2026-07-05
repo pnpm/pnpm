@@ -5,12 +5,14 @@ use crate::{
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
+use pacquet_catalogs_config::get_catalogs_from_workspace_manifest;
 use pacquet_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest};
 use pacquet_config::Config;
+use pacquet_config_parse_overrides::parse_overrides_iter;
 use pacquet_crypto_hash::create_short_hash;
 use pacquet_fs::force_symlink_dir;
 use pacquet_package_is_installable::SupportedArchitectures;
-use pacquet_package_manifest::DependencyGroup;
+use pacquet_package_manifest::{DependencyGroup, convert_engines_runtime_to_dependencies};
 use pacquet_registry::PinnedVersion;
 use pacquet_reporter::Reporter;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
@@ -261,6 +263,28 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     // The cache install is always fresh, so no lockfile is loaded from
     // the process working directory.
     config.lockfile = false;
+    // The cache install inherits the caller project's `overrides` (pnpm's
+    // dlx likewise runs its install with the invoking project's
+    // already-loaded config), and a `catalog:` value in them resolves
+    // against the caller's catalogs. Those catalogs are only reachable
+    // through `workspace_dir`, which is severed right below — resolve the
+    // references now, or the install would look them up against an empty
+    // catalog set and fail with ERR_PNPM_CATALOG_IN_OVERRIDES.
+    if let (Some(overrides), Some(workspace_dir)) =
+        (config.overrides.as_ref(), config.workspace_dir.as_deref())
+    {
+        let workspace_manifest =
+            pacquet_workspace::read_workspace_manifest(workspace_dir).into_diagnostic()?;
+        let catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
+            .into_diagnostic()
+            .wrap_err("reading the caller's catalogs for the dlx install")?;
+        let resolved = parse_overrides_iter(overrides.iter(), &catalogs)
+            .map_err(miette::Report::new)?
+            .into_iter()
+            .map(|entry| (entry.selector, entry.new_bare_specifier))
+            .collect();
+        config.overrides = Some(resolved);
+    }
     // The throwaway cache project is not part of the caller's
     // workspace. If a caller has a settings-only pnpm-workspace.yaml,
     // carrying its workspace root here makes the install enumerate that
@@ -485,7 +509,13 @@ fn get_bin_name(cached_dir: &Path) -> Result<String, DlxError> {
 
 /// The first key of the installed manifest's `dependencies`.
 fn get_pkg_name(cached_dir: &Path) -> Result<String, DlxError> {
-    let manifest = read_json(&cached_dir.join("package.json"))?;
+    let mut manifest = read_json(&cached_dir.join("package.json"))?;
+    // The manifest writer records a `runtime:` dependency (e.g.
+    // `pnpm dlx node@runtime:26.4.0`) as `engines.runtime` on disk;
+    // reify it back into the dependency map — the same conversion the
+    // manifest reader applies — so the runtime is discoverable here.
+    convert_engines_runtime_to_dependencies(&mut manifest, "devEngines", "devDependencies");
+    convert_engines_runtime_to_dependencies(&mut manifest, "engines", "dependencies");
     manifest
         .get("dependencies")
         .and_then(Value::as_object)

@@ -250,3 +250,31 @@ fn get_bin_name_errors_on_ambiguous_bins() {
     );
     assert!(matches!(get_bin_name(dir.path()), Err(DlxError::MultipleBins { .. })));
 }
+
+/// A dlx-installed runtime (`pnpm dlx node@runtime:<version>`) is recorded
+/// in the cache manifest as `engines.runtime` by the manifest writer's
+/// round-trip, not under `dependencies` — the installed package must still
+/// be found there.
+#[test]
+fn get_bin_name_finds_a_runtime_recorded_as_engines_runtime() {
+    let dir = tempdir().expect("temp dir");
+    fs::write(
+        dir.path().join("package.json"),
+        serde_json::json!({
+            "name": "dlx",
+            "version": "0.0.0",
+            "dependencies": {},
+            "engines": {
+                "runtime": { "name": "node", "version": "26.4.0", "onFail": "download" },
+            },
+        })
+        .to_string(),
+    )
+    .expect("write root manifest");
+    write_pkg(
+        dir.path(),
+        "node",
+        serde_json::json!({ "name": "node", "version": "26.4.0", "bin": { "node": "bin/node" } }),
+    );
+    assert_eq!(get_bin_name(dir.path()).expect("bin name"), "node");
+}

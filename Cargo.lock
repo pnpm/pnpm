@@ -3664,6 +3664,7 @@ dependencies = [
  "pacquet-catalogs-config",
  "pacquet-cmd-shim",
  "pacquet-config",
+ "pacquet-config-parse-overrides",
  "pacquet-crypto-hash",
  "pacquet-default-reporter",
  "pacquet-deps-path",
