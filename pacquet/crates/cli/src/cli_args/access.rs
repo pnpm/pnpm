@@ -320,7 +320,7 @@ async fn list_packages(context: &AccessContext<'_>, params: &[String]) -> miette
     let url = match (entity_type, entity) {
         (Some("team"), Some(team_str)) => {
             let parts: Vec<&str> = team_str.splitn(2, ':').collect();
-            let scope = parts[0];
+            let scope = parts[0].strip_prefix('@').unwrap_or(parts[0]);
             let team = parts.get(1).unwrap_or(&"");
             let team_path = if team.is_empty() {
                 String::new()
@@ -668,7 +668,7 @@ async fn grant_access(context: &AccessContext<'_>, params: &[String]) -> miette:
     let package_name = params.get(2).ok_or(AccessError::GrantPackageRequired)?;
 
     let parts: Vec<&str> = scope_team.splitn(2, ':').collect();
-    let scope = parts[0];
+    let scope = parts[0].strip_prefix('@').unwrap_or(parts[0]);
     let team = parts[1];
 
     let auth_header =
@@ -731,7 +731,7 @@ async fn revoke_access(context: &AccessContext<'_>, params: &[String]) -> miette
     let package_name = params.get(1).ok_or(AccessError::RevokePackageRequired)?;
 
     let parts: Vec<&str> = scope_team.splitn(2, ':').collect();
-    let scope = parts[0];
+    let scope = parts[0].strip_prefix('@').unwrap_or(parts[0]);
     let team = parts[1];
 
     let auth_header =

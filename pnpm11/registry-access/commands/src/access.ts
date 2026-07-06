@@ -474,7 +474,7 @@ async function grantAccess (
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp
 
-  const grantUrl = new URL(`-/team/${encodeURIComponent(scope)}/${encodeURIComponent(team)}/package`, normalizeRegistryUrl(registryUrl)).href
+  const grantUrl = new URL(`-/team/${encodeURIComponent(scope.startsWith('@') ? scope.slice(1) : scope)}/${encodeURIComponent(team)}/package`, normalizeRegistryUrl(registryUrl)).href
   const response = await fetchFromRegistry(grantUrl, {
     authHeaderValue: authHeader,
     method: 'PUT',
@@ -517,7 +517,7 @@ async function revokeAccess (
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp
 
-  const revokeUrl = new URL(`-/team/${encodeURIComponent(scope)}/${encodeURIComponent(team)}/package`, normalizeRegistryUrl(registryUrl)).href
+  const revokeUrl = new URL(`-/team/${encodeURIComponent(scope.startsWith('@') ? scope.slice(1) : scope)}/${encodeURIComponent(team)}/package`, normalizeRegistryUrl(registryUrl)).href
   const response = await fetchFromRegistry(revokeUrl, {
     authHeaderValue: authHeader,
     method: 'DELETE',
@@ -605,7 +605,7 @@ function sanitize (text: string): string {
   let result = ''
   for (let i = 0; i < text.length; i++) {
     const code = text.charCodeAt(i)
-    if ((code > 31 && code !== 127) || code === 9 || code === 10 || code === 13) {
+    if ((code > 31 && code !== 127) || code === 9 || code === 10) {
       result += text[i]
     }
   }

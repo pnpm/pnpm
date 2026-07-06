@@ -1,5 +1,6 @@
 import { URL } from 'node:url'
 
+import { redactUrlCredentials } from '@pnpm/error'
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import type { RegistryConfig } from '@pnpm/types'
 
@@ -170,7 +171,7 @@ function extractTlsConfigs (configByUri?: Record<string, RegistryConfig>): Clien
 function resolveRedirectUrl (response: Response, currentUrl: URL): URL {
   const location = response.headers.get('location')
   if (!location) {
-    throw new Error(`Redirect location header missing for ${currentUrl.toString()}`)
+    throw new Error(`Redirect location header missing for ${redactUrlCredentials(currentUrl.toString())}`)
   }
   return new URL(location, currentUrl)
 }
