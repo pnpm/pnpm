@@ -8,7 +8,7 @@ use url::Url;
 
 use crate::{
     capabilities::{OidcFetch, OidcMethod, OidcRequest},
-    oidc::{OidcHttpOptions, escaped_package_name},
+    oidc::{OidcHttpOptions, escaped_package_name, redact_registry_credentials},
 };
 
 #[cfg(test)]
@@ -30,7 +30,7 @@ pub async fn fetch_auth_token<Sys: OidcFetch>(
         .map_err(|error| AuthTokenError::Fetch {
             error_source: error.to_string(),
             package_name: package_name.to_owned(),
-            registry: registry.to_owned(),
+            registry: redact_registry_credentials(registry),
         })?
         .to_string();
 
@@ -45,7 +45,7 @@ pub async fn fetch_auth_token<Sys: OidcFetch>(
     .map_err(|error| AuthTokenError::Fetch {
         error_source: error.reason,
         package_name: package_name.to_owned(),
-        registry: registry.to_owned(),
+        registry: redact_registry_credentials(registry),
     })?;
 
     if !response.ok {
@@ -67,7 +67,7 @@ pub async fn fetch_auth_token<Sys: OidcFetch>(
         Some(token) => Ok(token.to_owned()),
         None => Err(AuthTokenError::MalformedJson {
             package_name: package_name.to_owned(),
-            registry: registry.to_owned(),
+            registry: redact_registry_credentials(registry),
         }),
     }
 }

@@ -9,7 +9,10 @@ use url::Url;
 
 use crate::{
     capabilities::{EnvVar, OidcFetch, OidcFetchError, OidcMethod, OidcRequest},
-    oidc::{OidcHttpOptions, escaped_package_name, is_github_actions, is_gitlab},
+    oidc::{
+        OidcHttpOptions, escaped_package_name, is_github_actions, is_gitlab,
+        redact_registry_credentials,
+    },
 };
 
 #[cfg(test)]
@@ -142,7 +145,7 @@ impl ProvenanceError {
             message,
             status,
             package_name: package_name.to_owned(),
-            registry: registry.to_owned(),
+            registry: redact_registry_credentials(registry),
         }
     }
 }

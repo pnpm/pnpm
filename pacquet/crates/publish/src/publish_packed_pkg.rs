@@ -20,7 +20,7 @@ use crate::{
     capabilities::{Clock, EnvVar, OidcFetch},
     failed_to_publish_error::FailedToPublishError,
     global_log::{global_info, global_warn},
-    oidc::{OidcHttpOptions, escaped_package_name},
+    oidc::{OidcHttpOptions, escaped_package_name, redact_registry_credentials},
     provenance_gen::{ProvenanceGenError, SignProvenance, generate_provenance},
     publish_options::{
         Access, CreatePublishOptionsError, CreatePublishOptionsInput, create_publish_options,
@@ -466,20 +466,11 @@ fn join_registry(
 
 /// Render the registry URL for logging with any `user:pass@` userinfo stripped,
 /// so credentials a user embedded in a `registry=` URL don't leak into CI logs.
-/// The unsanitized URL is still used for the request and auth-header lookup —
-/// only the human-facing log is sanitized. Returns the original string
-/// unchanged when there is no userinfo (the common case) or the URL doesn't
-/// parse.
+/// A typed entry point over [`redact_registry_credentials`] for the
+/// `NormalizedRegistryUrl` log site; the unsanitized URL is still used for the
+/// request and auth-header lookup.
 fn registry_for_display(registry: &NormalizedRegistryUrl) -> String {
-    let Ok(mut url) = url::Url::parse(registry.as_str()) else {
-        return registry.as_str().to_owned();
-    };
-    if url.username().is_empty() && url.password().is_none() {
-        return registry.as_str().to_owned();
-    }
-    let _ = url.set_username("");
-    let _ = url.set_password(None);
-    url.to_string()
+    redact_registry_credentials(registry.as_str())
 }
 
 /// Clean a version string to `major.minor.patch` plus any prerelease,

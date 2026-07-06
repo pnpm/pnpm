@@ -1,4 +1,4 @@
-import { PnpmError } from '@pnpm/error'
+import { PnpmError, redactUrlCredentials } from '@pnpm/error'
 import npa from '@pnpm/npm-package-arg'
 
 import { displayError } from '../displayError.js'
@@ -119,10 +119,11 @@ export class AuthTokenFetchError extends AuthTokenError {
   readonly packageName: string
   readonly registry: string
   constructor (error: unknown, packageName: string, registry: string) {
-    super('AUTH_TOKEN_FETCH', `Failed to fetch authToken for package ${packageName} from registry ${registry}: ${displayError(error)}`)
+    const redactedRegistry = redactUrlCredentials(registry)
+    super('AUTH_TOKEN_FETCH', `Failed to fetch authToken for package ${packageName} from registry ${redactedRegistry}: ${displayError(error)}`)
     this.errorSource = error
     this.packageName = packageName
-    this.registry = registry
+    this.registry = redactedRegistry
   }
 }
 
@@ -150,9 +151,10 @@ export class AuthTokenMalformedJsonError extends AuthTokenError {
   readonly packageName: string
   readonly registry: string
   constructor (malformedJsonResponse: unknown, packageName: string, registry: string) {
-    super('AUTH_TOKEN_MALFORMED_JSON', `Failed to fetch authToken for package ${packageName} from registry ${registry} due to malformed JSON response`)
+    const redactedRegistry = redactUrlCredentials(registry)
+    super('AUTH_TOKEN_MALFORMED_JSON', `Failed to fetch authToken for package ${packageName} from registry ${redactedRegistry} due to malformed JSON response`)
     this.malformedJsonResponse = malformedJsonResponse
     this.packageName = packageName
-    this.registry = registry
+    this.registry = redactedRegistry
   }
 }

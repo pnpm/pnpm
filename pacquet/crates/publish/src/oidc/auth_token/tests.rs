@@ -102,3 +102,25 @@ async fn wraps_fetch_rejection() {
         AuthTokenError::Fetch { ref error_source, .. } if error_source == "connection refused"
     ));
 }
+
+#[tokio::test]
+async fn redacts_registry_credentials_in_the_error_message() {
+    oidc_fetch!(Sys, |_: OidcRequest<'_>| Err(OidcFetchError {
+        reason: "connection refused".to_owned(),
+    }));
+
+    let err = fetch_auth_token::<Sys>(
+        "id-token",
+        "pkg",
+        "https://user:secret@registry.example.com/",
+        &OidcHttpOptions::default(),
+    )
+    .await
+    .unwrap_err();
+    let message = err.to_string();
+    assert!(!message.contains("secret"), "credentials leaked into the OIDC error: {message}");
+    assert!(
+        message.contains("registry.example.com"),
+        "the registry host should still be shown: {message}",
+    );
+}
