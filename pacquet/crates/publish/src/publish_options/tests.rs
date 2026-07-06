@@ -4,7 +4,7 @@ use super::{
     scope_of,
 };
 use crate::{
-    capabilities::{CiInfo, Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
+    capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
     oidc::OidcHttpOptions,
 };
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -95,14 +95,6 @@ fn github_chain_fetch(
 macro_rules! github_sys {
     ($name:ident, $fetch:expr) => {
         struct $name;
-        impl CiInfo for $name {
-            fn github_actions() -> bool {
-                true
-            }
-            fn gitlab() -> bool {
-                false
-            }
-        }
         impl Clock for $name {
             fn now_ms() -> u64 {
                 0
@@ -111,6 +103,7 @@ macro_rules! github_sys {
         impl EnvVar for $name {
             fn var(name: &str) -> Option<String> {
                 match name {
+                    "GITHUB_ACTIONS" => Some("true".to_owned()),
                     "ACTIONS_ID_TOKEN_REQUEST_TOKEN" => Some("request-token".to_owned()),
                     "ACTIONS_ID_TOKEN_REQUEST_URL" => {
                         Some("https://github.example/token".to_owned())
@@ -154,14 +147,6 @@ async fn oidc_happy_path_returns_token_and_provenance() {
 #[tokio::test]
 async fn oidc_returns_none_outside_ci() {
     struct Sys;
-    impl CiInfo for Sys {
-        fn github_actions() -> bool {
-            false
-        }
-        fn gitlab() -> bool {
-            false
-        }
-    }
     impl Clock for Sys {
         fn now_ms() -> u64 {
             unreachable!()
@@ -262,14 +247,6 @@ async fn oidc_keeps_token_when_provenance_undeterminable() {
 #[tokio::test]
 async fn create_publish_options_skips_oidc_when_disabled() {
     struct Sys;
-    impl CiInfo for Sys {
-        fn github_actions() -> bool {
-            unreachable!("no OIDC probe when disabled")
-        }
-        fn gitlab() -> bool {
-            unreachable!()
-        }
-    }
     impl Clock for Sys {
         fn now_ms() -> u64 {
             unreachable!()
@@ -335,14 +312,6 @@ async fn create_publish_options_applies_oidc_when_enabled() {
 #[tokio::test]
 async fn create_publish_options_rejects_unsupported_protocol() {
     struct Sys;
-    impl CiInfo for Sys {
-        fn github_actions() -> bool {
-            unreachable!()
-        }
-        fn gitlab() -> bool {
-            unreachable!()
-        }
-    }
     impl Clock for Sys {
         fn now_ms() -> u64 {
             unreachable!()

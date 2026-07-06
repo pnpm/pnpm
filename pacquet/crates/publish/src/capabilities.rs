@@ -1,8 +1,8 @@
 //! Per-capability dependency-injection traits and the production [`Host`]
 //! provider for the publish flow.
 //!
-//! Each side effect the publish flow needs — HTTP requests, the clock, the
-//! CI-provider probes, environment reads, subprocess spawns — is its own
+//! Each side effect the publish flow needs — HTTP requests, the clock,
+//! environment reads, subprocess spawns — is its own
 //! `self`-less capability trait, composed as bounds on a single `Sys` type
 //! parameter, with the real OS behind [`Host`] and `fn`-bound unit-struct
 //! fakes in tests. See the "Dependency injection for tests" section of
@@ -29,13 +29,6 @@ use std::{
 /// filter it themselves.
 pub trait EnvVar {
     fn var(name: &str) -> Option<String>;
-}
-
-/// Detect the continuous-integration provider: whether the publish flow is
-/// running under GitHub Actions or GitLab CI.
-pub trait CiInfo {
-    fn github_actions() -> bool;
-    fn gitlab() -> bool;
 }
 
 /// Read the current wall-clock time as Unix-epoch milliseconds. Used only to
@@ -120,22 +113,6 @@ impl EnvVar for Host {
     fn var(name: &str) -> Option<String> {
         std::env::var(name).ok()
     }
-}
-
-impl CiInfo for Host {
-    fn github_actions() -> bool {
-        env_is_truthy("GITHUB_ACTIONS")
-    }
-
-    fn gitlab() -> bool {
-        env_is_truthy("GITLAB_CI")
-    }
-}
-
-/// An environment variable counts as set for CI detection when it is present
-/// and non-empty.
-fn env_is_truthy(name: &str) -> bool {
-    std::env::var(name).is_ok_and(|value| !value.is_empty())
 }
 
 impl Clock for Host {

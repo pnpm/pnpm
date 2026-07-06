@@ -5,7 +5,7 @@ use super::{
     web_auth_fetch_options,
 };
 use crate::{
-    capabilities::{CiInfo, Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
+    capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
     oidc::OidcHttpOptions,
     provenance_gen::{ProvenanceGenError, SignProvenance, SignedProvenance},
     publish_options::{CreatePublishOptionsError, PublishUnsupportedRegistryProtocolError},
@@ -587,14 +587,6 @@ fn publish_packed_pkg_error_wraps_option_and_otp_failures() {
 /// the network — and the token exchange (clock) and any registry fetch stay
 /// unreachable.
 struct OfflineSys;
-impl CiInfo for OfflineSys {
-    fn github_actions() -> bool {
-        false
-    }
-    fn gitlab() -> bool {
-        false
-    }
-}
 impl Clock for OfflineSys {
     fn now_ms() -> u64 {
         unreachable!("no OIDC token exchange outside CI")
@@ -664,14 +656,6 @@ async fn publish_packed_pkg_dry_run_returns_the_summary_without_publishing() {
 /// real sigstore call is made. The registry `PUT` itself still goes over the
 /// wire to the mocked server.
 struct ProvenanceSys;
-impl CiInfo for ProvenanceSys {
-    fn github_actions() -> bool {
-        true
-    }
-    fn gitlab() -> bool {
-        false
-    }
-}
 impl Clock for ProvenanceSys {
     fn now_ms() -> u64 {
         0
@@ -680,6 +664,7 @@ impl Clock for ProvenanceSys {
 impl EnvVar for ProvenanceSys {
     fn var(name: &str) -> Option<String> {
         let value = match name {
+            "GITHUB_ACTIONS" => "true",
             "NPM_ID_TOKEN" => "npm-id-token",
             "ACTIONS_ID_TOKEN_REQUEST_TOKEN" => "request-token",
             "ACTIONS_ID_TOKEN_REQUEST_URL" => "https://github.example/token",

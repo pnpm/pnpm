@@ -17,8 +17,8 @@ mod publish_summary;
 mod registry_config_keys;
 
 pub use capabilities::{
-    CiInfo, Clock, CommandOutput, ConfirmPrompt, EnvVar, Host, OidcFetch, OidcFetchError,
-    OidcMethod, OidcRequest, OidcResponse, RunCommand,
+    Clock, CommandOutput, ConfirmPrompt, EnvVar, Host, OidcFetch, OidcFetchError, OidcMethod,
+    OidcRequest, OidcResponse, RunCommand,
 };
 pub use display_error::display_error;
 pub use execute_token_helper::execute_token_helper;

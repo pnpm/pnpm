@@ -1,6 +1,6 @@
 use super::{DetermineProvenanceError, ProvenanceError, determine_provenance};
 use crate::{
-    capabilities::{CiInfo, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
+    capabilities::{EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
     oidc::OidcHttpOptions,
 };
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -34,17 +34,12 @@ fn repository_visibility(value: &'static str) -> Payload {
 macro_rules! github_sys {
     ($name:ident, $fetch:expr) => {
         struct $name;
-        impl CiInfo for $name {
-            fn github_actions() -> bool {
-                true
-            }
-            fn gitlab() -> bool {
-                false
-            }
-        }
         impl EnvVar for $name {
-            fn var(_: &str) -> Option<String> {
-                None
+            fn var(name: &str) -> Option<String> {
+                match name {
+                    "GITHUB_ACTIONS" => Some("true".to_owned()),
+                    _ => None,
+                }
             }
         }
         impl OidcFetch for $name {

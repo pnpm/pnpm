@@ -3,8 +3,8 @@
 //! These cover only the two impls that carry real branching and can be
 //! exercised portably without mutating process-global state: [`OidcFetch`]
 //! (driven against a `mockito` server) and [`RunCommand`] (a real
-//! subprocess). The remaining impls are deliberately untested here — `EnvVar`,
-//! `CiInfo`, and `Clock` are one-line passes through to `std::env` /
+//! subprocess). The remaining impls are deliberately untested here — `EnvVar`
+//! and `Clock` are one-line passes through to `std::env` /
 //! `SystemTime` whose only test seam is `env::set_var` / a wall clock (the
 //! shared-global hazard the `Sys` dependency-injection seam exists to avoid),
 //! and `ConfirmPrompt` reads an interactive TTY. Their consumers are covered

@@ -19,9 +19,12 @@ use sha2::{Digest, Sha512};
 use sigstore_sign::{SigningContext, oidc::IdentityToken};
 
 use crate::{
-    capabilities::{CiInfo, Clock, EnvVar, Host, OidcFetch, OidcFetchError},
+    capabilities::{Clock, EnvVar, Host, OidcFetch, OidcFetchError},
     global_log::global_info,
-    oidc::{GitHubRequestTokenError, OidcHttpOptions, github_request_token, truthy_env},
+    oidc::{
+        GitHubRequestTokenError, OidcHttpOptions, github_request_token, is_github_actions,
+        is_gitlab, truthy_env,
+    },
 };
 
 const IN_TOTO_STATEMENT_V1_TYPE: &str = "https://in-toto.io/Statement/v1";
@@ -55,7 +58,7 @@ pub async fn generate_provenance<Sys, Reporter>(
     options: &OidcHttpOptions,
 ) -> Result<ProvenanceAttachment, ProvenanceGenError>
 where
-    Sys: EnvVar + CiInfo + Clock + OidcFetch + SignProvenance,
+    Sys: EnvVar + Clock + OidcFetch + SignProvenance,
     Reporter: self::Reporter,
 {
     let sha512_hex = format!("{:x}", Sha512::digest(tarball_data));
@@ -128,11 +131,11 @@ fn npm_purl(name: &str, version: &str) -> String {
 /// Build the in-toto SLSA statement from the CI environment. GitHub Actions
 /// emits a Statement v1 + SLSA predicate v1; GitLab CI emits a Statement v0.1 +
 /// SLSA predicate v0.2.
-fn build_statement<Sys: EnvVar + CiInfo>(subject: &Value) -> Result<Value, ProvenanceGenError> {
-    if Sys::github_actions() {
+fn build_statement<Sys: EnvVar>(subject: &Value) -> Result<Value, ProvenanceGenError> {
+    if is_github_actions::<Sys>() {
         return Ok(github_statement::<Sys>(subject));
     }
-    if Sys::gitlab() {
+    if is_gitlab::<Sys>() {
         return Ok(gitlab_statement::<Sys>(subject));
     }
     Err(ProvenanceGenError::UnsupportedProvider)
@@ -240,16 +243,16 @@ async fn fetch_sigstore_token<Sys, Reporter>(
     options: &OidcHttpOptions,
 ) -> Result<String, ProvenanceGenError>
 where
-    Sys: EnvVar + CiInfo + Clock + OidcFetch,
+    Sys: EnvVar + Clock + OidcFetch,
     Reporter: self::Reporter,
 {
-    if Sys::github_actions() {
+    if is_github_actions::<Sys>() {
         return github_request_token::<Sys, Reporter>(SIGSTORE_AUDIENCE, options)
             .await
             .map_err(Into::into);
     }
 
-    if Sys::gitlab() {
+    if is_gitlab::<Sys>() {
         return truthy_env::<Sys>("SIGSTORE_ID_TOKEN")
             .ok_or(ProvenanceGenError::GitLabMissingToken);
     }

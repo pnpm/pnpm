@@ -1,6 +1,6 @@
 use super::{GetIdTokenError, IdTokenError, get_id_token};
 use crate::{
-    capabilities::{CiInfo, Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
+    capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
     oidc::OidcHttpOptions,
 };
 use pacquet_reporter::SilentReporter;
@@ -13,14 +13,6 @@ const REGISTRY: &str = "https://registry.npmjs.org/";
 macro_rules! github_actions_env {
     ($name:ident, $var:expr, $fetch:expr) => {
         struct $name;
-        impl CiInfo for $name {
-            fn github_actions() -> bool {
-                true
-            }
-            fn gitlab() -> bool {
-                false
-            }
-        }
         impl Clock for $name {
             fn now_ms() -> u64 {
                 0
@@ -28,7 +20,11 @@ macro_rules! github_actions_env {
         }
         impl EnvVar for $name {
             fn var(name: &str) -> Option<String> {
-                $var(name)
+                match name {
+                    "GITHUB_ACTIONS" => Some("true".to_owned()),
+                    "GITLAB_CI" => None,
+                    _ => $var(name),
+                }
             }
         }
         impl OidcFetch for $name {
@@ -45,14 +41,6 @@ async fn returns_npm_id_token_without_any_fetch() {
     impl EnvVar for Sys {
         fn var(name: &str) -> Option<String> {
             (name == "NPM_ID_TOKEN").then(|| "forwarded-token".to_owned())
-        }
-    }
-    impl CiInfo for Sys {
-        fn github_actions() -> bool {
-            unreachable!("NPM_ID_TOKEN short-circuits before the CI probe")
-        }
-        fn gitlab() -> bool {
-            unreachable!()
         }
     }
     impl Clock for Sys {
@@ -77,14 +65,6 @@ async fn returns_none_outside_supported_ci() {
     impl EnvVar for Sys {
         fn var(_: &str) -> Option<String> {
             None
-        }
-    }
-    impl CiInfo for Sys {
-        fn github_actions() -> bool {
-            false
-        }
-        fn gitlab() -> bool {
-            false
         }
     }
     impl Clock for Sys {

@@ -8,8 +8,8 @@ use serde_json::Value;
 use url::Url;
 
 use crate::{
-    capabilities::{CiInfo, EnvVar, OidcFetch, OidcFetchError, OidcMethod, OidcRequest},
-    oidc::{OidcHttpOptions, escaped_package_name},
+    capabilities::{EnvVar, OidcFetch, OidcFetchError, OidcMethod, OidcRequest},
+    oidc::{OidcHttpOptions, escaped_package_name, is_github_actions, is_gitlab},
 };
 
 #[cfg(test)]
@@ -30,7 +30,7 @@ pub async fn determine_provenance<Sys>(
     options: &OidcHttpOptions,
 ) -> Result<Option<bool>, DetermineProvenanceError>
 where
-    Sys: CiInfo + EnvVar + OidcFetch,
+    Sys: EnvVar + OidcFetch,
 {
     let mut parts = id_token.split('.');
     let (Some(header_b64), Some(payload_b64)) = (parts.next(), parts.next()) else {
@@ -44,8 +44,8 @@ where
     let repository_visibility = payload.get("repository_visibility").and_then(Value::as_str);
     let project_visibility = payload.get("project_visibility").and_then(Value::as_str);
 
-    let github_public = Sys::github_actions() && repository_visibility == Some("public");
-    let gitlab_public = Sys::gitlab()
+    let github_public = is_github_actions::<Sys>() && repository_visibility == Some("public");
+    let gitlab_public = is_gitlab::<Sys>()
         && project_visibility == Some("public")
         && Sys::var("SIGSTORE_ID_TOKEN").is_some_and(|token| !token.is_empty());
     if !github_public && !gitlab_public {

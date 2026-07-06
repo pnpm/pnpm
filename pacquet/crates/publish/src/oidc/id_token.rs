@@ -6,8 +6,11 @@ use pacquet_reporter::Reporter;
 use url::Url;
 
 use crate::{
-    capabilities::{CiInfo, Clock, EnvVar, OidcFetch, OidcFetchError},
-    oidc::{GitHubRequestTokenError, OidcHttpOptions, github_request_token, truthy_env},
+    capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError},
+    oidc::{
+        GitHubRequestTokenError, OidcHttpOptions, github_request_token, is_github_actions,
+        truthy_env,
+    },
 };
 
 #[cfg(test)]
@@ -23,14 +26,14 @@ pub async fn get_id_token<Sys, Reporter>(
     options: &OidcHttpOptions,
 ) -> Result<Option<String>, GetIdTokenError>
 where
-    Sys: EnvVar + CiInfo + Clock + OidcFetch,
+    Sys: EnvVar + Clock + OidcFetch,
     Reporter: self::Reporter,
 {
     if let Some(token) = truthy_env::<Sys>("NPM_ID_TOKEN") {
         return Ok(Some(token));
     }
 
-    if !Sys::github_actions() {
+    if !is_github_actions::<Sys>() {
         return Ok(None);
     }
 

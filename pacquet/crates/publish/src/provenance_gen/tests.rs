@@ -3,7 +3,7 @@ use super::{
     generate_provenance, github_statement, gitlab_statement, npm_purl,
 };
 use crate::{
-    capabilities::{CiInfo, Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
+    capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
     oidc::OidcHttpOptions,
 };
 use pacquet_reporter::SilentReporter;
@@ -108,50 +108,29 @@ fn gitlab_statement_shapes_the_slsa_v02_predicate() {
 /// A GitHub-Actions provider that reuses [`GhEnv`]'s variable bodies.
 struct GhProvider;
 
-impl CiInfo for GhProvider {
-    fn github_actions() -> bool {
-        true
-    }
-    fn gitlab() -> bool {
-        false
-    }
-}
-
 impl EnvVar for GhProvider {
     fn var(name: &str) -> Option<String> {
-        GhEnv::var(name)
+        match name {
+            "GITHUB_ACTIONS" => Some("true".to_owned()),
+            _ => GhEnv::var(name),
+        }
     }
 }
 
 /// A GitLab-CI provider that reuses [`GlEnv`]'s variable bodies.
 struct GlProvider;
 
-impl CiInfo for GlProvider {
-    fn github_actions() -> bool {
-        false
-    }
-    fn gitlab() -> bool {
-        true
-    }
-}
-
 impl EnvVar for GlProvider {
     fn var(name: &str) -> Option<String> {
-        GlEnv::var(name)
+        match name {
+            "GITLAB_CI" => Some("true".to_owned()),
+            _ => GlEnv::var(name),
+        }
     }
 }
 
 /// A provider that is neither GitHub Actions nor GitLab CI.
 struct NoProvider;
-
-impl CiInfo for NoProvider {
-    fn github_actions() -> bool {
-        false
-    }
-    fn gitlab() -> bool {
-        false
-    }
-}
 
 impl EnvVar for NoProvider {
     fn var(_: &str) -> Option<String> {
@@ -184,14 +163,6 @@ fn build_statement_rejects_unsupported_provider() {
 macro_rules! github_sigstore_sys {
     ($name:ident, $fetch:expr) => {
         struct $name;
-        impl CiInfo for $name {
-            fn github_actions() -> bool {
-                true
-            }
-            fn gitlab() -> bool {
-                false
-            }
-        }
         impl Clock for $name {
             fn now_ms() -> u64 {
                 0
@@ -200,6 +171,7 @@ macro_rules! github_sigstore_sys {
         impl EnvVar for $name {
             fn var(name: &str) -> Option<String> {
                 match name {
+                    "GITHUB_ACTIONS" => Some("true".to_owned()),
                     "ACTIONS_ID_TOKEN_REQUEST_TOKEN" => Some("request-token".to_owned()),
                     "ACTIONS_ID_TOKEN_REQUEST_URL" => {
                         Some("https://github.example/token".to_owned())
@@ -236,14 +208,6 @@ async fn fetch_sigstore_token_uses_github_request_token() {
 #[tokio::test]
 async fn fetch_sigstore_token_reads_gitlab_env_token() {
     struct Sys;
-    impl CiInfo for Sys {
-        fn github_actions() -> bool {
-            false
-        }
-        fn gitlab() -> bool {
-            true
-        }
-    }
     impl Clock for Sys {
         fn now_ms() -> u64 {
             unreachable!("no request when GitLab forwards the token via env")
@@ -251,7 +215,11 @@ async fn fetch_sigstore_token_reads_gitlab_env_token() {
     }
     impl EnvVar for Sys {
         fn var(name: &str) -> Option<String> {
-            (name == "SIGSTORE_ID_TOKEN").then(|| "gl-sigstore-token".to_owned())
+            match name {
+                "GITLAB_CI" => Some("true".to_owned()),
+                "SIGSTORE_ID_TOKEN" => Some("gl-sigstore-token".to_owned()),
+                _ => None,
+            }
         }
     }
     impl OidcFetch for Sys {
@@ -268,22 +236,17 @@ async fn fetch_sigstore_token_reads_gitlab_env_token() {
 #[tokio::test]
 async fn fetch_sigstore_token_errors_when_gitlab_token_missing() {
     struct Sys;
-    impl CiInfo for Sys {
-        fn github_actions() -> bool {
-            false
-        }
-        fn gitlab() -> bool {
-            true
-        }
-    }
     impl Clock for Sys {
         fn now_ms() -> u64 {
             unreachable!()
         }
     }
     impl EnvVar for Sys {
-        fn var(_: &str) -> Option<String> {
-            None
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "GITLAB_CI" => Some("true".to_owned()),
+                _ => None,
+            }
         }
     }
     impl OidcFetch for Sys {
@@ -302,14 +265,6 @@ async fn fetch_sigstore_token_errors_when_gitlab_token_missing() {
 /// answers the `sigstore`-audience token request, and a fake signer that
 /// returns a canned bundle so no real Fulcio / Rekor call is made.
 struct GhSignSys;
-impl CiInfo for GhSignSys {
-    fn github_actions() -> bool {
-        true
-    }
-    fn gitlab() -> bool {
-        false
-    }
-}
 impl Clock for GhSignSys {
     fn now_ms() -> u64 {
         0
@@ -318,6 +273,7 @@ impl Clock for GhSignSys {
 impl EnvVar for GhSignSys {
     fn var(name: &str) -> Option<String> {
         match name {
+            "GITHUB_ACTIONS" => Some("true".to_owned()),
             "ACTIONS_ID_TOKEN_REQUEST_TOKEN" => Some("request-token".to_owned()),
             "ACTIONS_ID_TOKEN_REQUEST_URL" => Some("https://github.example/token".to_owned()),
             _ => GhEnv::var(name),
@@ -366,14 +322,6 @@ async fn generate_provenance_builds_the_signed_attachment() {
 #[tokio::test]
 async fn generate_provenance_surfaces_a_signer_failure() {
     struct FailingSigner;
-    impl CiInfo for FailingSigner {
-        fn github_actions() -> bool {
-            true
-        }
-        fn gitlab() -> bool {
-            false
-        }
-    }
     impl Clock for FailingSigner {
         fn now_ms() -> u64 {
             0
@@ -409,14 +357,6 @@ async fn generate_provenance_surfaces_a_signer_failure() {
 #[tokio::test]
 async fn fetch_sigstore_token_rejects_unsupported_provider() {
     struct Sys;
-    impl CiInfo for Sys {
-        fn github_actions() -> bool {
-            false
-        }
-        fn gitlab() -> bool {
-            false
-        }
-    }
     impl Clock for Sys {
         fn now_ms() -> u64 {
             unreachable!()

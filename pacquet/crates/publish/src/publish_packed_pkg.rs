@@ -16,7 +16,7 @@ use pacquet_reporter::Reporter;
 use serde_json::{Map, Value};
 
 use crate::{
-    capabilities::{CiInfo, Clock, EnvVar, OidcFetch},
+    capabilities::{Clock, EnvVar, OidcFetch},
     failed_to_publish_error::FailedToPublishError,
     global_log::{global_info, global_warn},
     oidc::{OidcHttpOptions, escaped_package_name},
@@ -71,7 +71,7 @@ pub async fn publish_packed_pkg<Sys, Reporter>(
     network: &PublishNetwork<'_>,
 ) -> Result<PublishSummary, PublishPackedPkgError>
 where
-    Sys: EnvVar + CiInfo + Clock + OidcFetch + SignProvenance,
+    Sys: EnvVar + Clock + OidcFetch + SignProvenance,
     Reporter: self::Reporter,
 {
     let input = CreatePublishOptionsInput {

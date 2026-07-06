@@ -2,9 +2,10 @@
 //! registry auth token, and decide whether to attach provenance.
 //!
 //! Each step is generic over a single `Sys` type parameter carrying only the
-//! capabilities it consumes ([`EnvVar`], [`CiInfo`](crate::CiInfo), [`Clock`],
-//! [`OidcFetch`]), so a test drives the external-service happy path with
-//! `fn`-bound unit-struct fakes instead of a live registry.
+//! capabilities it consumes ([`EnvVar`], [`Clock`], [`OidcFetch`]), so a test
+//! drives the external-service happy path with `fn`-bound unit-struct fakes
+//! instead of a live registry. CI-provider detection is a plain `EnvVar` read
+//! ([`is_github_actions`], [`is_gitlab`]).
 
 mod auth_token;
 mod id_token;
@@ -26,6 +27,18 @@ pub use provenance::{DetermineProvenanceError, ProvenanceError, determine_proven
 /// Read an environment variable, treating an empty value as unset.
 pub(crate) fn truthy_env<Sys: EnvVar>(name: &str) -> Option<String> {
     Sys::var(name).filter(|value| !value.is_empty())
+}
+
+/// Whether the publish is running under GitHub Actions — the `GITHUB_ACTIONS`
+/// environment variable is present and non-empty.
+pub(crate) fn is_github_actions<Sys: EnvVar>() -> bool {
+    truthy_env::<Sys>("GITHUB_ACTIONS").is_some()
+}
+
+/// Whether the publish is running under GitLab CI — the `GITLAB_CI`
+/// environment variable is present and non-empty.
+pub(crate) fn is_gitlab<Sys: EnvVar>() -> bool {
+    truthy_env::<Sys>("GITLAB_CI").is_some()
 }
 
 /// A failure of [`github_request_token`]. Each OIDC caller maps these onto its

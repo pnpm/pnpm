@@ -9,7 +9,7 @@ use pacquet_reporter::Reporter;
 use serde_json::Value;
 
 use crate::{
-    capabilities::{CiInfo, Clock, EnvVar, OidcFetch},
+    capabilities::{Clock, EnvVar, OidcFetch},
     display_error::display_diagnostic,
     global_log::global_warn,
     oidc::{
@@ -135,7 +135,7 @@ pub async fn fetch_token_and_provenance_by_oidc<Sys, Reporter>(
     http: &OidcHttpOptions,
 ) -> Result<Option<OidcTokenProvenance>, FetchTokenAndProvenanceError>
 where
-    Sys: EnvVar + CiInfo + Clock + OidcFetch,
+    Sys: EnvVar + Clock + OidcFetch,
     Reporter: self::Reporter,
 {
     let id_token = match get_id_token::<Sys, Reporter>(registry, http).await {
@@ -212,7 +212,7 @@ pub async fn create_publish_options<Sys, Reporter>(
     oidc_enabled: bool,
 ) -> Result<ResolvedPublishOptions, CreatePublishOptionsError>
 where
-    Sys: EnvVar + CiInfo + Clock + OidcFetch,
+    Sys: EnvVar + Clock + OidcFetch,
     Reporter: self::Reporter,
 {
     let publish_config_registry = manifest
