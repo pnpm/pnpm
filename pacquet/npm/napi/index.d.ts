@@ -44,6 +44,12 @@ export interface NetworkConfig {
   key?: string
   localAddress?: string
   strictSsl?: boolean
+  /**
+   * Maximum number of concurrent connections (sockets) to a single registry
+   * origin — pnpm's `maxSockets`. Bounds each `scheme://host[:port]` origin
+   * independently; the global `networkConcurrency` remains the outer cap.
+   */
+  maxSockets?: number
   networkConcurrency?: number
   fetchRetries?: number
   fetchRetryFactor?: number
@@ -112,6 +118,42 @@ export interface InstallOptions extends SharedEngineOptions {
   minimumReleaseAgeExclude?: string[]
   includeOptionalDeps?: boolean
   ignoreScripts?: boolean
+  /**
+   * Re-resolve the whole dependency graph to the highest in-range version
+   * (pnpm's `update: true` / `depth: Infinity`). The binding takes no package
+   * selectors, so an update always targets every dependency.
+   */
+  update?: boolean
+  /**
+   * pnpm's `depth`. Accepted for API compatibility; it only toggles pnpm's
+   * direct-vs-any-depth selector matching, which has no effect without package
+   * selectors, so it does not change the whole-graph `update` behavior.
+   */
+  depth?: number
+  /**
+   * Fail the install with `ERR_PNPM_UNSUPPORTED_ENGINE` when a dependency's
+   * `engines` / platform constraint the host does not satisfy is required
+   * (rather than warning). Defaults to `false`.
+   */
+  engineStrict?: boolean
+  /**
+   * Node.js version used as the `engines.node` target for the engine check.
+   * Defaults to the version auto-detected from the `node` binary.
+   */
+  nodeVersion?: string
+  /**
+   * `false` installs without creating a `node_modules` directory: the graph
+   * resolves and the lockfile is written, but nothing is materialized.
+   */
+  enableModulesDir?: boolean
+  /**
+   * Install from the lockfile without gating on the `package.json` ↔
+   * `pnpm-lock.yaml` freshness check, so an in-memory manifest that disagrees
+   * with the lockfile does not block the install.
+   */
+  ignorePackageManifest?: boolean
+  /** pnpm home directory. Accepted for compatibility; unused for project installs. */
+  pnpmHomeDir?: string
   /**
    * Fail with `ERR_PNPM_IGNORED_BUILDS` when a dependency build script is
    * blocked. Defaults to `false`: the blocked packages are reported in

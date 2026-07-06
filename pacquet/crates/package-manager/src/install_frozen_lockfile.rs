@@ -669,7 +669,16 @@ where
         // `node --version` on the blocking pool so it doesn't stall
         // the reactor thread.
         let (mut skipped, host_node) = if needs_installability_check {
-            let mut host = tokio::task::spawn_blocking(InstallabilityHost::detect)
+            let engine_strict = config.engine_strict;
+            let mut host = match config.node_version.clone() {
+                // An explicit `nodeVersion` needs no `node --version` probe, so
+                // build the host directly off the reactor thread.
+                node_version @ Some(_) => {
+                    InstallabilityHost::detect_with(engine_strict, node_version)
+                }
+                None => tokio::task::spawn_blocking(move || {
+                    InstallabilityHost::detect_with(engine_strict, None)
+                })
                 .await
                 .unwrap_or_else(|_| InstallabilityHost {
                     node_version: "99999.0.0".to_string(),
@@ -678,8 +687,9 @@ where
                     cpu: pacquet_graph_hasher::host_arch(),
                     libc: pacquet_graph_hasher::host_libc(),
                     supported_architectures: None,
-                    engine_strict: false,
-                });
+                    engine_strict,
+                }),
+            };
             // Plant the CLI-merged `supportedArchitectures` (yaml +
             // `--cpu`/`--os`/`--libc`) onto the host context so
             // `check_platform`'s `dedupe_current` substitution picks
@@ -1458,13 +1468,11 @@ pub(crate) fn run_hoisted_linker<Reporter: self::Reporter>(
         auto_install_peers: config.auto_install_peers,
         skipped: walker_skipped.clone(),
         force: false,
-        // Pacquet's [`Config`] does not yet expose `engineStrict`
-        // (tracked separately); default to `false` so the walker
-        // matches `compute_skipped_snapshots` upthread, which uses
-        // [`crate::InstallabilityHost::detect`]'s `false` default.
-        // Promotes engine mismatches to skip-optional rather than
-        // hard errors, in line with pacquet's production posture.
-        engine_strict: false,
+        // Matches the `engineStrict` policy `compute_skipped_snapshots`
+        // used upthread (both read `config.engine_strict`): an engine
+        // mismatch on a required package is a hard error under strict,
+        // otherwise a skip-optional / warning.
+        engine_strict: config.engine_strict,
         current_node_version: host_node.map(|(_, ver)| ver.clone()).unwrap_or_default(),
         current_os: pacquet_graph_hasher::host_platform().to_string(),
         current_cpu: pacquet_graph_hasher::host_arch().to_string(),

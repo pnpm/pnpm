@@ -636,6 +636,21 @@ pub struct Config {
     /// with another pacquet binary) flip this to `true`.
     pub skip_runtimes: bool,
 
+    /// When `true`, a dependency whose `engines` (or `cpu` / `os` / `libc`)
+    /// constraint the host does not satisfy fails the install with
+    /// `ERR_PNPM_UNSUPPORTED_ENGINE` instead of being skipped (optional) or
+    /// warned about (required). The `engineStrict` setting; default `false`,
+    /// matching pnpm.
+    pub engine_strict: bool,
+
+    /// Overrides the Node.js version used as the `engines.node` satisfiability
+    /// target for the installability check. The `nodeVersion` setting. When
+    /// `None` (the default), the version is auto-detected from the `node`
+    /// binary on `PATH` (falling back to a synthetic high version when no
+    /// `node` is found). An explicit value is treated as authoritative — no
+    /// `node --version` probe runs.
+    pub node_version: Option<String>,
+
     /// Copy every project file during `pnpm deploy` instead of the publish
     /// packlist. The `deployAllFiles` setting; default `false`.
     pub deploy_all_files: bool,
@@ -965,6 +980,14 @@ pub struct Config {
     /// implemented by [`pacquet_network::default_network_concurrency`].
     #[default(_code = "pacquet_network::default_network_concurrency()")]
     pub network_concurrency: usize,
+
+    /// Maximum number of concurrent connections (sockets) to a single
+    /// registry origin — the `maxSockets` setting, mirroring undici's
+    /// per-origin `connections` cap that pnpm applies. `None` (the default)
+    /// leaves the per-origin socket count bounded only by
+    /// [`Self::network_concurrency`]; `Some(n)` additionally caps each
+    /// `scheme://host[:port]` at `n` in-flight sockets, queueing the rest.
+    pub max_sockets: Option<usize>,
 
     /// Per-request network timeout in milliseconds. The `fetchTimeout`
     /// setting (default `60000` — 60 s, see

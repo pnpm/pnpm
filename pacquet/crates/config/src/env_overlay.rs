@@ -165,6 +165,7 @@ impl WorkspaceSettings {
         json_field!(fetch_retry_mintimeout, "FETCH_RETRY_MINTIMEOUT");
         json_field!(fetch_retry_maxtimeout, "FETCH_RETRY_MAXTIMEOUT");
         json_field!(network_concurrency, "NETWORK_CONCURRENCY");
+        json_field!(max_sockets, "MAX_SOCKETS");
         json_field!(fetch_timeout, "FETCH_TIMEOUT");
         string_field!(user_agent, "USER_AGENT");
         json_field!(patched_dependencies, "PATCHED_DEPENDENCIES");
@@ -173,6 +174,8 @@ impl WorkspaceSettings {
         json_field!(dangerously_allow_all_builds, "DANGEROUSLY_ALLOW_ALL_BUILDS");
         json_field!(strict_dep_builds, "STRICT_DEP_BUILDS");
         json_field!(ignore_scripts, "IGNORE_SCRIPTS");
+        json_field!(engine_strict, "ENGINE_STRICT");
+        string_field!(node_version, "NODE_VERSION");
         enum_field!(scripts_prepend_node_path, "SCRIPTS_PREPEND_NODE_PATH", ScriptsPrependNodePath);
         json_field!(enable_pre_post_scripts, "ENABLE_PRE_POST_SCRIPTS");
         tri_string_field!(script_shell, "SCRIPT_SHELL");

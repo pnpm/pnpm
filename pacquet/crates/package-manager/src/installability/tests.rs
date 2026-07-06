@@ -687,3 +687,55 @@ fn generic_name_does_not_trigger_slow_path() {
         "a generic name segment must not block the fast path",
     );
 }
+
+#[test]
+fn detect_with_overrides_node_version_and_engine_strict() {
+    let overridden = InstallabilityHost::detect_with(true, Some("18.20.4".to_string()));
+    assert_eq!(overridden.node_version, "18.20.4");
+    // An explicit `nodeVersion` is authoritative — treated as detected so the
+    // side-effects cache keys off it.
+    assert!(overridden.node_detected);
+    assert!(overridden.engine_strict);
+
+    // Without a version override, `engine_strict` still layers on detection.
+    assert!(InstallabilityHost::detect_with(true, None).engine_strict);
+}
+
+#[test]
+fn engine_strict_hard_fails_a_required_incompatible_dep() {
+    let key = snapshot_key("needs-newer-node@1.0.0");
+    let mut snapshots = HashMap::new();
+    snapshots.insert(key.clone(), SnapshotEntry { optional: false, ..Default::default() });
+    let mut packages = HashMap::new();
+    packages.insert(key, synthetic_metadata(Some(&[("node", ">=99")]), None, None, None));
+
+    let strict_host = InstallabilityHost {
+        node_version: "20.10.0".to_string(),
+        node_detected: true,
+        os: "darwin",
+        cpu: "arm64",
+        libc: "unknown",
+        supported_architectures: None,
+        engine_strict: true,
+    };
+    reset_events();
+    let strict = compute_skipped_snapshots::<RecordingReporter>(
+        &snapshots,
+        &packages,
+        &strict_host,
+        "/proj",
+        SkippedSnapshots::new(),
+    );
+    assert!(strict.is_err(), "engine_strict must hard-fail a required incompatible dep");
+
+    // The same graph under the default (non-strict) host only warns and installs.
+    reset_events();
+    let lenient = compute_skipped_snapshots::<RecordingReporter>(
+        &snapshots,
+        &packages,
+        &host("20.10.0", "darwin", "arm64"),
+        "/proj",
+        SkippedSnapshots::new(),
+    );
+    assert!(lenient.is_ok(), "without engine_strict a required incompatible dep is only a warning");
+}
