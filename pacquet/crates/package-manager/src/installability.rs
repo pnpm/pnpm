@@ -274,11 +274,14 @@ impl InstallabilityHost {
     ///
     /// An explicit `node_version` is authoritative: no `node --version` probe
     /// runs and `node_detected` is `true`, so the side-effects cache keys off
-    /// the pinned major exactly as it would off a detected one. `None` falls
-    /// back to [`Self::detect`], then overrides `engine_strict`.
+    /// the pinned major exactly as it would off a detected one. A leading `v`
+    /// (as in `process.version` / `node --version`, e.g. `v22.11.0`) is
+    /// stripped so the value parses as exact semver, matching the auto-detect
+    /// path. `None` falls back to [`Self::detect`], then overrides
+    /// `engine_strict`.
     #[must_use]
     pub fn detect_with(engine_strict: bool, node_version: Option<String>) -> Self {
-        match node_version {
+        match node_version.map(|version| normalize_node_version(&version)) {
             Some(node_version) => Self {
                 node_version,
                 node_detected: true,
@@ -291,6 +294,14 @@ impl InstallabilityHost {
             None => Self { engine_strict, ..Self::detect() },
         }
     }
+}
+
+/// Canonicalize a Node.js version string for the engine check: trim surrounding
+/// whitespace and drop a single leading `v` (`v22.11.0` → `22.11.0`) so a value
+/// copied from `process.version` / `node --version` parses as exact semver.
+fn normalize_node_version(version: &str) -> String {
+    let trimmed = version.trim();
+    trimmed.strip_prefix('v').unwrap_or(trimmed).to_string()
 }
 
 pub(crate) fn check_installability(

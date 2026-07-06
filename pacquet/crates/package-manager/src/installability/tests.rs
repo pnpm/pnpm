@@ -697,6 +697,13 @@ fn detect_with_overrides_node_version_and_engine_strict() {
     assert!(overridden.node_detected);
     assert!(overridden.engine_strict);
 
+    // A `v`-prefixed / whitespace-padded value (as in `process.version`) is
+    // canonicalized so it parses as exact semver.
+    assert_eq!(
+        InstallabilityHost::detect_with(false, Some(" v22.11.0\n".to_string())).node_version,
+        "22.11.0",
+    );
+
     // Without a version override, `engine_strict` still layers on detection.
     assert!(InstallabilityHost::detect_with(true, None).engine_strict);
 }
