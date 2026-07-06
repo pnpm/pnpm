@@ -37,7 +37,7 @@ pub enum AccessError {
     #[diagnostic(code(ERR_PNPM_ACCESS_SUBCOMMAND_REQUIRED))]
     SubcommandRequired,
 
-    #[display("Unknown subcommand: {cmd}")]
+    #[display(r#"Unknown subcommand: {cmd}. Run "pnpm help access" for available subcommands."#)]
     #[diagnostic(code(ERR_PNPM_ACCESS_UNKNOWN_SUBCOMMAND))]
     UnknownSubcommand {
         #[error(not(source))]
@@ -208,7 +208,7 @@ impl AccessArgs {
         let second = if params.is_empty() { None } else { Some(params.remove(0)) };
 
         let (action, rest) = match (first.as_str(), second.as_deref()) {
-            ("list", Some("packages") | None) => ("list_packages", params),
+            ("list", Some("packages")) => ("list_packages", params),
             ("ls", None) => ("list_packages", params),
             ("ls", Some("packages")) => ("list_packages", params),
             ("list", Some("collaborators")) => ("list_collaborators", params),
@@ -256,13 +256,12 @@ impl AccessArgs {
                 ("revoke", rest)
             }
             _ => {
-                return Err(AccessError::UnknownSubcommand {
-                    cmd: match second {
-                        Some(s) => format!("{first} {s}"),
-                        None => first.clone(),
-                    },
+                let mut parts = vec![first.clone()];
+                if let Some(s) = &second {
+                    parts.push(s.clone());
                 }
-                .into());
+                parts.extend(params.iter().cloned());
+                return Err(AccessError::UnknownSubcommand { cmd: parts.join(" ") }.into());
             }
         };
 
