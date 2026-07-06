@@ -13,6 +13,8 @@
 //! `ERR_PNPM_NAPI_UNIMPLEMENTED` returns.
 
 use std::{
+    collections::{BTreeSet, HashMap},
+    net::IpAddr,
     path::PathBuf,
     sync::{Arc, OnceLock},
 };
@@ -20,7 +22,7 @@ use std::{
 use napi_derive::napi;
 use pacquet_hooks::PnpmfileHooks;
 use pacquet_lockfile::{LazyLockfile, Lockfile, MaybeLazyLockfile};
-use pacquet_network::{NetworkSettings, ThrottledClient};
+use pacquet_network::{NetworkSettings, NoProxySetting, ProxyConfig, ThrottledClient, TlsConfig};
 use pacquet_package_manager::{Install, RebuildOptions, ResolvedPackages, UpdateSeedPolicy};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_tarball::MemCache;
@@ -28,7 +30,7 @@ use tokio::sync::Mutex;
 
 use crate::{
     config::{ConfigOverlay, resolve_config},
-    error::{to_napi_error, unimplemented_error},
+    error::{to_napi_error, unimplemented_error, unsupported_option_error},
     hooks::{HookSink, JsReadPackageHook},
     reporter_bridge::{
         LogSink, NodeBridgeReporter, begin_stats, clear_global_log_sink, set_global_log_sink,
@@ -52,11 +54,15 @@ pub struct InstallOptions {
     pub projects: Vec<NodeApiProject>,
     pub store_dir: Option<String>,
     pub cache_dir: Option<String>,
-    pub registries: Option<std::collections::HashMap<String, String>>,
+    pub registries: Option<HashMap<String, String>>,
+    pub auth_config: Option<HashMap<String, String>>,
+    pub proxy_config: Option<ProxyConfigInput>,
+    pub network_config: Option<NetworkConfigInput>,
     pub node_linker: Option<String>,
     pub hoist_pattern: Option<Vec<String>>,
     pub public_hoist_pattern: Option<Vec<String>>,
-    pub overrides: Option<std::collections::HashMap<String, String>>,
+    pub external_dependencies: Option<Vec<String>>,
+    pub overrides: Option<HashMap<String, String>>,
     pub package_import_method: Option<String>,
     pub auto_install_peers: Option<bool>,
     pub exclude_links_from_lockfile: Option<bool>,
@@ -71,8 +77,24 @@ pub struct InstallOptions {
     pub dedupe_direct_deps: Option<bool>,
     pub dedupe_injected_deps: Option<bool>,
     pub resolve_peers_from_workspace_root: Option<bool>,
+    pub inject_workspace_packages: Option<bool>,
+    pub hoist_workspace_packages: Option<bool>,
+    pub enable_modules_dir: Option<bool>,
+    pub ignore_package_manifest: Option<bool>,
+    pub node_version: Option<String>,
+    pub engine_strict: Option<bool>,
+    pub minimum_release_age: Option<u32>,
+    pub minimum_release_age_exclude: Option<Vec<String>>,
+    pub never_built_dependencies: Option<Vec<String>>,
+    pub update: Option<bool>,
+    pub depth: Option<u32>,
     pub include_optional_deps: Option<bool>,
+    pub ignore_scripts: Option<bool>,
     pub network_concurrency: Option<u32>,
+    pub fetch_retries: Option<u32>,
+    pub fetch_retry_factor: Option<u32>,
+    pub fetch_retry_mintimeout: Option<u32>,
+    pub fetch_retry_maxtimeout: Option<u32>,
     pub fetch_timeout: Option<u32>,
     pub user_agent: Option<String>,
     /// Fail the install with `ERR_PNPM_IGNORED_BUILDS` when a dependency build
@@ -81,14 +103,40 @@ pub struct InstallOptions {
     /// gate builds themselves.
     pub strict_dep_builds: Option<bool>,
     /// Per-package build-script allow-list: `name -> allowed`.
-    pub allow_builds: Option<std::collections::HashMap<String, bool>>,
+    pub allow_builds: Option<HashMap<String, bool>>,
     /// Allow every dependency's build scripts to run.
     pub dangerously_allow_all_builds: Option<bool>,
     /// `peerDependencyRules` — how peer-dependency mismatches are treated.
     pub peer_dependency_rules: Option<PeerDependencyRulesInput>,
     /// Pre-computed `Authorization` header values keyed by nerf-darted registry
     /// URI (`//host/path/`), plus `""` for the default registry.
-    pub auth_header_by_uri: Option<std::collections::HashMap<String, String>>,
+    pub auth_header_by_uri: Option<HashMap<String, String>>,
+    pub pnpm_home_dir: Option<String>,
+}
+
+#[napi(object)]
+#[expect(clippy::struct_field_names, reason = "fields mirror the JavaScript proxyConfig contract")]
+pub struct ProxyConfigInput {
+    pub http_proxy: Option<String>,
+    pub https_proxy: Option<String>,
+    pub no_proxy: Option<serde_json::Value>,
+}
+
+#[napi(object)]
+pub struct NetworkConfigInput {
+    pub ca: Option<serde_json::Value>,
+    pub cert: Option<serde_json::Value>,
+    pub key: Option<String>,
+    pub local_address: Option<String>,
+    pub strict_ssl: Option<bool>,
+    pub max_sockets: Option<u32>,
+    pub network_concurrency: Option<u32>,
+    pub fetch_retries: Option<u32>,
+    pub fetch_retry_factor: Option<u32>,
+    pub fetch_retry_mintimeout: Option<u32>,
+    pub fetch_retry_maxtimeout: Option<u32>,
+    pub fetch_timeout: Option<u32>,
+    pub user_agent: Option<String>,
 }
 
 /// `peerDependencyRules` input. Mirrors `PeerDependencyRules` in `index.d.ts`.
@@ -96,7 +144,7 @@ pub struct InstallOptions {
 pub struct PeerDependencyRulesInput {
     pub ignore_missing: Option<Vec<String>>,
     pub allow_any: Option<Vec<String>>,
-    pub allowed_versions: Option<std::collections::HashMap<String, String>>,
+    pub allowed_versions: Option<HashMap<String, String>>,
 }
 
 /// Per-project add/remove counts. `linkedToRoot` mirrors pnpm's field; pacquet
@@ -209,7 +257,8 @@ fn run_install_inner(
         })?;
     let workspace_projects_override = build_workspace_projects_override(&options.projects);
 
-    let overlay = build_overlay(options);
+    reject_unsupported_install_options(options)?;
+    let overlay = build_overlay(options)?;
     let config = resolve_config(&dir, &overlay).map_err(|error| to_napi_error(&error))?;
 
     let manifest = PackageManifest::from_value(dir.join("package.json"), root_manifest_value);
@@ -326,12 +375,15 @@ fn build_workspace_projects_override(
     )
 }
 
-fn build_overlay(options: &InstallOptions) -> ConfigOverlay {
-    ConfigOverlay {
+fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
+    let network_config = options.network_config.as_ref();
+    Ok(ConfigOverlay {
         store_dir: options.store_dir.as_ref().map(PathBuf::from),
         cache_dir: options.cache_dir.as_ref().map(PathBuf::from),
         registry: None,
         registries: options.registries.as_ref().map(|map| map.clone().into_iter().collect()),
+        proxy: options.proxy_config.as_ref().map(build_proxy_config).transpose()?,
+        tls: network_config.map(build_tls_config).transpose()?,
         node_linker: options.node_linker.as_deref().and_then(parse_node_linker),
         package_import_method: options
             .package_import_method
@@ -340,8 +392,15 @@ fn build_overlay(options: &InstallOptions) -> ConfigOverlay {
         virtual_store_dir_max_length: options.virtual_store_dir_max_length.map(u64::from),
         hoist_pattern: options.hoist_pattern.clone(),
         public_hoist_pattern: options.public_hoist_pattern.clone(),
+        external_dependencies: options
+            .external_dependencies
+            .as_ref()
+            .map(|items| items.iter().cloned().collect::<BTreeSet<_>>()),
         overrides: options.overrides.as_ref().map(|map| map.clone().into_iter().collect()),
         auto_install_peers: options.auto_install_peers,
+        exclude_links_from_lockfile: options.exclude_links_from_lockfile,
+        hoist_workspace_packages: options.hoist_workspace_packages,
+        inject_workspace_packages: options.inject_workspace_packages,
         prefer_offline: options.prefer_offline,
         offline: options.offline,
         lockfile: None,
@@ -351,13 +410,39 @@ fn build_overlay(options: &InstallOptions) -> ConfigOverlay {
         dedupe_injected_deps: options.dedupe_injected_deps,
         resolve_peers_from_workspace_root: options.resolve_peers_from_workspace_root,
         peers_suffix_max_length: options.peers_suffix_max_length.map(u64::from),
-        network_concurrency: options.network_concurrency.map(|value| value as usize),
-        fetch_timeout: options.fetch_timeout.map(u64::from),
-        user_agent: options.user_agent.clone(),
+        network_concurrency: options
+            .network_concurrency
+            .or_else(|| network_config.and_then(|config| config.network_concurrency))
+            .map(|value| value as usize),
+        fetch_retries: options
+            .fetch_retries
+            .or_else(|| network_config.and_then(|config| config.fetch_retries)),
+        fetch_retry_factor: options
+            .fetch_retry_factor
+            .or_else(|| network_config.and_then(|config| config.fetch_retry_factor)),
+        fetch_retry_mintimeout: options
+            .fetch_retry_mintimeout
+            .or_else(|| network_config.and_then(|config| config.fetch_retry_mintimeout))
+            .map(u64::from),
+        fetch_retry_maxtimeout: options
+            .fetch_retry_maxtimeout
+            .or_else(|| network_config.and_then(|config| config.fetch_retry_maxtimeout))
+            .map(u64::from),
+        fetch_timeout: options
+            .fetch_timeout
+            .or_else(|| network_config.and_then(|config| config.fetch_timeout))
+            .map(u64::from),
+        user_agent: options
+            .user_agent
+            .clone()
+            .or_else(|| network_config.and_then(|config| config.user_agent.clone())),
         // Embedders gate builds themselves, so default to report-not-fail.
         strict_dep_builds: Some(options.strict_dep_builds.unwrap_or(false)),
         allow_builds: options.allow_builds.clone(),
         dangerously_allow_all_builds: options.dangerously_allow_all_builds,
+        ignore_scripts: options.ignore_scripts,
+        minimum_release_age: options.minimum_release_age.map(u64::from),
+        minimum_release_age_exclude: options.minimum_release_age_exclude.clone(),
         peer_dependency_rules: options.peer_dependency_rules.as_ref().map(|rules| {
             crate::config::PeerDependencyRulesOverlay {
                 ignore_missing: rules.ignore_missing.clone(),
@@ -369,6 +454,96 @@ fn build_overlay(options: &InstallOptions) -> ConfigOverlay {
             }
         }),
         auth_header_by_uri: options.auth_header_by_uri.clone(),
+    })
+}
+
+fn reject_unsupported_install_options(options: &InstallOptions) -> napi::Result<()> {
+    reject_non_empty_map(options.auth_config.as_ref(), "authConfig")?;
+    reject_non_empty_list(options.never_built_dependencies.as_ref(), "neverBuiltDependencies")?;
+    reject_if(options.enable_modules_dir == Some(false), "enableModulesDir")?;
+    reject_if(options.ignore_package_manifest == Some(true), "ignorePackageManifest")?;
+    reject_if(options.node_version.is_some(), "nodeVersion")?;
+    reject_if(options.engine_strict == Some(true), "engineStrict")?;
+    reject_if(options.update == Some(true), "update")?;
+    reject_if(options.depth.is_some(), "depth")?;
+    reject_if(options.pnpm_home_dir.is_some(), "pnpmHomeDir")?;
+    if let Some(network_config) = &options.network_config {
+        reject_if(network_config.max_sockets.is_some(), "networkConfig.maxSockets")?;
+    }
+    Ok(())
+}
+
+fn reject_non_empty_map<Value>(
+    value: Option<&HashMap<String, Value>>,
+    option: &str,
+) -> napi::Result<()> {
+    reject_if(value.is_some_and(|map| !map.is_empty()), option)
+}
+
+fn reject_non_empty_list<Value>(value: Option<&Vec<Value>>, option: &str) -> napi::Result<()> {
+    reject_if(value.is_some_and(|items| !items.is_empty()), option)
+}
+
+fn reject_if(condition: bool, option: &str) -> napi::Result<()> {
+    if condition { Err(unsupported_option_error("install", option)) } else { Ok(()) }
+}
+
+fn build_proxy_config(input: &ProxyConfigInput) -> napi::Result<ProxyConfig> {
+    Ok(ProxyConfig {
+        https_proxy: input.https_proxy.clone(),
+        http_proxy: input.http_proxy.clone(),
+        no_proxy: input.no_proxy.as_ref().map(parse_no_proxy).transpose()?.flatten(),
+    })
+}
+
+fn parse_no_proxy(value: &serde_json::Value) -> napi::Result<Option<NoProxySetting>> {
+    match value {
+        serde_json::Value::Bool(true) => Ok(Some(NoProxySetting::Bypass)),
+        serde_json::Value::Bool(false) | serde_json::Value::Null => Ok(None),
+        serde_json::Value::String(items) => Ok(Some(NoProxySetting::List(
+            items
+                .split(',')
+                .map(str::trim)
+                .filter(|item| !item.is_empty())
+                .map(ToOwned::to_owned)
+                .collect(),
+        ))),
+        _ => Err(unsupported_option_error("install", "proxyConfig.noProxy")),
+    }
+}
+
+fn build_tls_config(input: &NetworkConfigInput) -> napi::Result<TlsConfig> {
+    Ok(TlsConfig {
+        ca: input.ca.as_ref().map(parse_string_list).transpose()?.unwrap_or_default(),
+        cert: input.cert.as_ref().map(parse_single_string).transpose()?.flatten(),
+        key: input.key.clone(),
+        strict_ssl: input.strict_ssl,
+        local_address: input
+            .local_address
+            .as_deref()
+            .and_then(|value| value.parse::<IpAddr>().ok()),
+    })
+}
+
+fn parse_string_list(value: &serde_json::Value) -> napi::Result<Vec<String>> {
+    match value {
+        serde_json::Value::String(item) => Ok(vec![item.clone()]),
+        serde_json::Value::Array(items) => items
+            .iter()
+            .map(|item| match item {
+                serde_json::Value::String(value) => Ok(value.clone()),
+                _ => Err(unsupported_option_error("install", "networkConfig.ca")),
+            })
+            .collect(),
+        _ => Err(unsupported_option_error("install", "networkConfig.ca")),
+    }
+}
+
+fn parse_single_string(value: &serde_json::Value) -> napi::Result<Option<String>> {
+    match value {
+        serde_json::Value::Null => Ok(None),
+        serde_json::Value::String(item) => Ok(Some(item.clone())),
+        _ => Err(unsupported_option_error("install", "networkConfig.cert")),
     }
 }
 
@@ -440,3 +615,6 @@ pub async fn get_peer_dependency_issues(
 ) -> napi::Result<serde_json::Value> {
     Err(unimplemented_error("getPeerDependencyIssues"))
 }
+
+#[cfg(test)]
+mod tests;

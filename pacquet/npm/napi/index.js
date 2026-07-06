@@ -30,29 +30,51 @@ function platformTriple() {
   return `${platform}-${arch}`
 }
 
-function tryLoad(candidate) {
+function tryLoad(candidate, loadErrors) {
   if (!candidate) return null
   try {
     if (candidate.endsWith('.node') && !fs.existsSync(candidate)) return null
     return require(candidate)
-  } catch {
-    return null
+  } catch (err) {
+    if (isMissingCandidate(err, candidate)) {
+      loadErrors.push(err)
+      return null
+    }
+    throw err
   }
+}
+
+function isMissingCandidate(err, candidate) {
+  return (
+    err &&
+    err.code === 'MODULE_NOT_FOUND' &&
+    typeof err.message === 'string' &&
+    err.message.includes(`'${candidate}'`)
+  )
+}
+
+function loadFailure(triple, loadErrors) {
+  const error = new Error(
+    `Failed to load the pnpm Rust engine for ${triple}. ` +
+      'Install the matching @pnpm/napi platform package, or point ' +
+      'PNPM_NAPI_BINARY at a locally built .node file.'
+  )
+  if (loadErrors.length > 0) {
+    error.cause = loadErrors[0]
+  }
+  return error
 }
 
 function loadBinding() {
   const triple = platformTriple()
+  const loadErrors = []
   const binding =
-    tryLoad(process.env.PNPM_NAPI_BINARY) ??
-    tryLoad(`@pnpm/napi.${triple}`) ??
-    tryLoad(path.join(__dirname, `pnpm-napi.${triple}.node`)) ??
-    tryLoad(path.join(__dirname, 'pnpm-napi.node'))
+    tryLoad(process.env.PNPM_NAPI_BINARY, loadErrors) ??
+    tryLoad(`@pnpm/napi.${triple}`, loadErrors) ??
+    tryLoad(path.join(__dirname, `pnpm-napi.${triple}.node`), loadErrors) ??
+    tryLoad(path.join(__dirname, 'pnpm-napi.node'), loadErrors)
   if (!binding) {
-    throw new Error(
-      `Failed to load the pnpm Rust engine for ${triple}. ` +
-        'Install the matching @pnpm/napi platform package, or point ' +
-        'PNPM_NAPI_BINARY at a locally built .node file.'
-    )
+    throw loadFailure(triple, loadErrors)
   }
   return binding
 }

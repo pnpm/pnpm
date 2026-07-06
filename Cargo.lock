@@ -4480,6 +4480,7 @@ dependencies = [
  "pacquet-workspace",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
 ]
 

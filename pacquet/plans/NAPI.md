@@ -92,7 +92,7 @@ interface InstallOptions {
   depth?: number
   includeOptionalDeps?: boolean
   // --- host callbacks ---
-  readPackageHook?: (manifest: object, workspaceDir?: string) => object | Promise<object>
+  readPackageHook?: (manifest: object) => object
   onLog?: (event: object) => void        // reporter bridge, see below
 }
 interface InstallResult {
@@ -115,11 +115,10 @@ Implementation notes:
   accepted (`allProjects` with in-memory manifests).
 - Build ordering: Rust's `graph_sequencer`/`build_sequence` handles lifecycle ordering;
   callers do not pass `buildIndex` (Bit's `groupPkgs`/`sortProjects` dance is dropped).
-- `readPackageHook` maps onto the existing `ManifestHook` seam of `resolve_workspace`
-  (`resolve_workspace.rs:65-69`) via a `ThreadsafeFunction` that serializes the manifest
-  to JSON, awaits the JS result, and deserializes. The JS side receives
-  `(manifest, workspaceDir?)` — the same contract as pnpm's `ReadPackageHook` — so hosts
-  keep arbitrary in-process hooks with zero behavior drift.
+- `readPackageHook` maps onto the existing `PnpmfileHooks` seam via a `ThreadsafeFunction`
+  that serializes the manifest to JSON and deserializes the synchronous JS result. The JS
+  side receives `(manifest)` for dependency manifests. Importer-manifest transforms that
+  need `workspaceDir` stay on the host side before calling the binding.
 - Run each install on a dedicated tokio runtime thread with a 32 MiB stack (same
   rationale as `pacquet_cli::main`), and lazily init the global rayon pool exactly like
   the CLI (`configure_rayon_pool`).
@@ -226,7 +225,8 @@ Dropped from consumers: `@pnpm/installing.deps-installer`, `@pnpm/installing.cli
   `finder::load_pnpmfile` on the fresh-resolve path). The binding's
   `JsReadPackageHook` (`hooks.rs`) adapts a **synchronous** JS
   `(manifest) => manifest` callback via a `ThreadsafeFunction::call_async`,
-  invoked per resolved dependency manifest. Verified: installing `is-odd`
+  invoked per resolved dependency manifest. Promise-returning hooks are rejected by the
+  TypeScript contract rather than being silently ignored. Verified: installing `is-odd`
   (deps on `is-number`) with a hook that strips `is-number` produced
   `added: 1` and no `is-number` on disk. Contract gap to keep in mind:
   pacquet's `PnpmfileHooks::read_package(pkg, ctx)` passes **no `workspaceDir`**

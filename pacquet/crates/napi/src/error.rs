@@ -66,3 +66,21 @@ pub fn unimplemented_error(operation: &str) -> napi::Error {
         Err(_) => napi::Error::from_reason(envelope.message),
     }
 }
+
+/// Build a structured [`napi::Error`] for an option that the binding does not
+/// implement yet. Unsupported options fail closed instead of being silently
+/// ignored, because many install options affect script execution, auth,
+/// registry policy, or lockfile shape.
+pub fn unsupported_option_error(operation: &str, option: &str) -> napi::Error {
+    let envelope = ErrorEnvelope {
+        code: Some("ERR_PNPM_NAPI_UNSUPPORTED_OPTION".to_string()),
+        message: format!(
+            "`{option}` is not supported by `{operation}` in the pnpm Rust engine binding yet.",
+        ),
+        hint: Some("Remove the option or keep using the TypeScript engine for this call.".into()),
+    };
+    match serde_json::to_string(&envelope) {
+        Ok(json) => napi::Error::from_reason(format!("{ENVELOPE_PREFIX}{json}")),
+        Err(_) => napi::Error::from_reason(envelope.message),
+    }
+}
