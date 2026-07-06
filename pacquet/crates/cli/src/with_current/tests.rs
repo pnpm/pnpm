@@ -31,6 +31,12 @@ fn preserves_global_flags_before_with() {
         plan(argv(&["--recursive", "with", "current", "install"])).expect("plan");
     assert!(force);
     assert_eq!(strings(&rewritten), vec!["pnpm", "--recursive", "install"]);
+
+    for flag in ["--color", "--yes"] {
+        let (rewritten, force) = plan(argv(&[flag, "with", "current", "--version"])).expect("plan");
+        assert!(force);
+        assert_eq!(strings(&rewritten), vec!["pnpm", flag, "--version"]);
+    }
 }
 
 #[test]
@@ -93,7 +99,9 @@ fn option_value_consumption_matches_pnpm() {
     assert!(option_consumes_value("-C"));
     assert!(option_consumes_value("-F"));
     // Booleans, `--no-` negations, inline `=` values, and boolean shorts do not.
+    assert!(!option_consumes_value("--color"));
     assert!(!option_consumes_value("--recursive"));
+    assert!(!option_consumes_value("--yes"));
     assert!(!option_consumes_value("--no-something"));
     assert!(!option_consumes_value("--reporter=ndjson"));
     assert!(!option_consumes_value("-r"));

@@ -75,6 +75,14 @@ pub struct CliArgs {
     #[clap(short = 'v', long = "version", action = clap::ArgAction::Version)]
     pub version: Option<bool>,
 
+    /// Force colored output.
+    #[clap(long, global = true)]
+    pub color: bool,
+
+    /// Automatically answer yes to prompts.
+    #[clap(short = 'y', long, global = true)]
+    pub yes: bool,
+
     /// Set working directory.
     #[clap(short = 'C', long, default_value = ".")]
     pub dir: PathBuf,

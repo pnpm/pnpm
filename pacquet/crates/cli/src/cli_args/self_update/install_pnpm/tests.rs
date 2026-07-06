@@ -1,4 +1,7 @@
-use super::{exe_platform_pkg_dir_name, exe_platform_pkg_dir_name_next, link_exe_platform_binary};
+use super::{
+    PNPM_EXE_PACKAGE_NAME, PNPM_PACKAGE_NAME, exe_platform_pkg_dir_name,
+    exe_platform_pkg_dir_name_next, link_exe_platform_binary, package_dir, pnpm_package_to_install,
+};
 use pacquet_graph_hasher::{host_arch, host_libc, host_platform};
 use std::fs;
 
@@ -22,12 +25,42 @@ fn next_platform_dir_names() {
     assert_eq!(exe_platform_pkg_dir_name_next("linux", "arm64", "musl"), "exe.linux-arm64-musl");
 }
 
+#[test]
+fn target_package_name_matches_pnpm_engine_layout() {
+    assert_eq!(pnpm_package_to_install("12.0.0-alpha.1").name, PNPM_PACKAGE_NAME);
+    assert_eq!(pnpm_package_to_install("12.0.0").name, PNPM_PACKAGE_NAME);
+    assert_eq!(pnpm_package_to_install("11.10.0").name, PNPM_EXE_PACKAGE_NAME);
+    assert_eq!(pnpm_package_to_install("10.34.4").name, PNPM_EXE_PACKAGE_NAME);
+    assert_eq!(pnpm_package_to_install("6.17.1").name, PNPM_EXE_PACKAGE_NAME);
+    assert_eq!(pnpm_package_to_install("6.16.0").name, PNPM_PACKAGE_NAME);
+    assert_eq!(pnpm_package_to_install("5.18.10").name, PNPM_PACKAGE_NAME);
+    assert_eq!(pnpm_package_to_install("not-semver").name, PNPM_EXE_PACKAGE_NAME);
+}
+
+#[test]
+fn native_binary_linking_matches_pnpm_engine_layout() {
+    assert!(pnpm_package_to_install("12.0.0-alpha.1").links_native_binary);
+    assert!(pnpm_package_to_install("11.10.0").links_native_binary);
+    assert!(pnpm_package_to_install("6.17.1").links_native_binary);
+    assert!(!pnpm_package_to_install("6.16.0").links_native_binary);
+    assert!(!pnpm_package_to_install("5.18.10").links_native_binary);
+    assert!(pnpm_package_to_install("not-semver").links_native_binary);
+}
+
 /// Lay out a fake engine install: the `pnpm` wrapper and, under
 /// `@pnpm/<host-platform-dir>`, the native binary the wrapper's preinstall
 /// would normally link.
 fn fake_engine_install(install_dir: &std::path::Path, with_native_binary: bool) {
+    fake_engine_install_for(install_dir, PNPM_PACKAGE_NAME, with_native_binary);
+}
+
+fn fake_engine_install_for(
+    install_dir: &std::path::Path,
+    wrapper_pkg_name: &str,
+    with_native_binary: bool,
+) {
     let node_modules = install_dir.join("node_modules");
-    fs::create_dir_all(node_modules.join("pnpm")).expect("create wrapper dir");
+    fs::create_dir_all(package_dir(install_dir, wrapper_pkg_name)).expect("create wrapper dir");
     if with_native_binary {
         let platform_dir =
             exe_platform_pkg_dir_name_next(host_platform(), host_arch(), host_libc());
@@ -52,6 +85,81 @@ fn links_the_host_platform_binary_into_the_wrapper() {
     assert_eq!(fs::read(&dest).expect("read linked binary"), b"#!/bin/sh\necho pnpm\n");
     let mode = fs::metadata(&dest).expect("stat linked binary").permissions().mode();
     assert_eq!(mode & 0o777, 0o755, "the linked binary is executable");
+}
+
+#[cfg(unix)]
+#[test]
+fn links_the_host_platform_binary_into_scoped_exe_wrapper() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    fake_engine_install_for(temp.path(), PNPM_EXE_PACKAGE_NAME, true);
+
+    link_exe_platform_binary(temp.path(), PNPM_EXE_PACKAGE_NAME).expect("linking should succeed");
+
+    let dest = package_dir(temp.path(), PNPM_EXE_PACKAGE_NAME).join("pnpm");
+    assert!(dest.exists(), "the native binary is linked into the scoped wrapper");
+    assert_eq!(fs::read(&dest).expect("read linked binary"), b"#!/bin/sh\necho pnpm\n");
+}
+
+#[cfg(unix)]
+#[test]
+fn rejects_wrapper_symlink_that_escapes_the_install_dir() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let outside = tempfile::tempdir().expect("outside tempdir");
+    let outside_wrapper = outside.path().join("exe");
+    fs::create_dir_all(&outside_wrapper).expect("create outside wrapper");
+    fs::write(outside_wrapper.join("pnpm"), b"outside").expect("write outside placeholder");
+
+    fs::create_dir_all(temp.path().join("node_modules").join("@pnpm")).expect("create scope dir");
+    std::os::unix::fs::symlink(&outside_wrapper, package_dir(temp.path(), PNPM_EXE_PACKAGE_NAME))
+        .expect("symlink wrapper outside install dir");
+
+    let err = link_exe_platform_binary(temp.path(), PNPM_EXE_PACKAGE_NAME)
+        .expect_err("escaped wrapper must be rejected");
+    assert!(err.to_string().contains("resolves outside"), "unexpected error: {err:?}");
+    assert_eq!(fs::read(outside_wrapper.join("pnpm")).expect("read outside file"), b"outside");
+}
+
+#[cfg(unix)]
+#[test]
+fn rejects_native_binary_symlink_that_escapes_the_install_dir() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let outside = tempfile::tempdir().expect("outside tempdir");
+    let outside_binary = outside.path().join("pnpm");
+    fs::write(&outside_binary, b"outside").expect("write outside binary");
+    fake_engine_install(temp.path(), false);
+
+    let platform_dir = exe_platform_pkg_dir_name_next(host_platform(), host_arch(), host_libc());
+    let src_dir = temp.path().join("node_modules").join("@pnpm").join(platform_dir);
+    fs::create_dir_all(&src_dir).expect("create platform dir");
+    std::os::unix::fs::symlink(&outside_binary, src_dir.join("pnpm"))
+        .expect("symlink native binary outside install dir");
+
+    let err =
+        link_exe_platform_binary(temp.path(), "pnpm").expect_err("escaped native source rejected");
+    assert!(err.to_string().contains("is a symlink"), "unexpected error: {err:?}");
+    assert!(!package_dir(temp.path(), "pnpm").join("pnpm").exists());
+    assert_eq!(fs::read(outside_binary).expect("read outside file"), b"outside");
+}
+
+#[cfg(unix)]
+#[test]
+fn rejects_native_binary_scope_symlink_that_escapes_the_install_dir() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let outside = tempfile::tempdir().expect("outside tempdir");
+    fake_engine_install(temp.path(), false);
+
+    let platform_dir = exe_platform_pkg_dir_name_next(host_platform(), host_arch(), host_libc());
+    let outside_scope = outside.path().join("@pnpm");
+    let outside_platform_dir = outside_scope.join(platform_dir);
+    fs::create_dir_all(&outside_platform_dir).expect("create outside platform dir");
+    fs::write(outside_platform_dir.join("pnpm"), b"outside").expect("write outside binary");
+    std::os::unix::fs::symlink(&outside_scope, temp.path().join("node_modules").join("@pnpm"))
+        .expect("symlink native scope outside install dir");
+
+    let err =
+        link_exe_platform_binary(temp.path(), "pnpm").expect_err("escaped native source rejected");
+    assert!(err.to_string().contains("resolves outside"), "unexpected error: {err:?}");
+    assert!(!package_dir(temp.path(), "pnpm").join("pnpm").exists());
 }
 
 #[test]
