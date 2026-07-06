@@ -4,7 +4,11 @@
 //! pins fixed blocks below scrolling non-fixed blocks, with one rendering
 //! path per log channel.
 
-use std::{collections::HashMap, fmt::Write as _};
+use std::{
+    collections::HashMap,
+    fmt::Write as _,
+    path::{Component, Path, PathBuf},
+};
 
 use pacquet_reporter::{
     AddedRoot, ContextLog, DependencyType, ExecutionTimeLog, FetchingProgressMessage, HookLog,
@@ -612,7 +616,9 @@ impl ReporterState {
     }
 
     fn is_current_prefix(&self, prefix: &str) -> bool {
-        self.summary_scope == SummaryScope::AllPrefixes || prefix == self.cwd
+        self.summary_scope == SummaryScope::AllPrefixes
+            || prefix == self.cwd
+            || normalized_prefix(&self.cwd, prefix) == normalized_prefix(&self.cwd, &self.cwd)
     }
 
     fn apply_manifest_diff(&mut self) {
@@ -1041,6 +1047,38 @@ impl ReporterState {
         let mut slot = BlockSlot::default();
         self.frame.emit(&mut slot, message, false);
     }
+}
+
+fn normalized_prefix(cwd: &str, prefix: &str) -> String {
+    let cwd = normalize(cwd);
+    let prefix = normalize(prefix);
+    let path = Path::new(&prefix);
+    let absolute = if path.is_absolute() { path.to_path_buf() } else { Path::new(&cwd).join(path) };
+    let normalized = normalize(&lexically_normalize(&absolute).to_string_lossy());
+    strip_trailing_separators(&normalized)
+}
+
+fn lexically_normalize(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if !normalized.pop() {
+                    normalized.push(component.as_os_str());
+                }
+            }
+            Component::Normal(_) | Component::RootDir | Component::Prefix(_) => {
+                normalized.push(component.as_os_str());
+            }
+        }
+    }
+    normalized
+}
+
+fn strip_trailing_separators(path: &str) -> String {
+    let trimmed = path.trim_end_matches('/');
+    if trimmed.is_empty() && path.starts_with('/') { "/".to_string() } else { trimmed.to_string() }
 }
 
 fn diff_key(kind: DepKind) -> &'static str {

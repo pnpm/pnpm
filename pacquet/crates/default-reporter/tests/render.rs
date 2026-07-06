@@ -194,6 +194,26 @@ fn summary_ignores_root_events_outside_current_prefix() {
 }
 
 #[test]
+fn summary_matches_lexically_equivalent_current_prefix() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![added_root_at("/repo/./", "foo", "1.0.0", DependencyType::Prod), summary()],
+    );
+    assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0\n");
+}
+
+#[test]
+fn summary_matches_relative_current_prefix() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![added_root_at(".", "foo", "1.0.0", DependencyType::Prod), summary()],
+    );
+    assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0\n");
+}
+
+#[test]
 fn summary_ignores_manifest_events_outside_current_prefix() {
     let mut reporter = state(false);
     let frame = render(
