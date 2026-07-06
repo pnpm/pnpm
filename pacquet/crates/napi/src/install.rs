@@ -313,8 +313,12 @@ fn run_install_inner(
     // `enableModulesDir: false` ("do not create a `node_modules` directory") is
     // honored via pacquet's lockfile-only path: the graph resolves and the
     // lockfile is written, but nothing is materialized under `node_modules`.
-    let lockfile_only =
-        options.lockfile_only.unwrap_or(false) || options.enable_modules_dir == Some(false);
+    // Confined to the install path — a rebuild runs against an
+    // already-materialized `node_modules`, so it must never take the
+    // lockfile-only short-circuit (which would make it silently do nothing) even
+    // when the caller reuses install options that disable the modules dir.
+    let lockfile_only = matches!(mode, EngineMode::Install)
+        && (options.lockfile_only.unwrap_or(false) || options.enable_modules_dir == Some(false));
 
     // A rebuild takes the frozen path against the already-materialized
     // `node_modules`, and re-runs dependency build scripts rather than the
