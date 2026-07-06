@@ -369,6 +369,18 @@ pub struct WorkspaceSettings {
     /// `pmOnFail` from `pnpm-workspace.yaml`. See [`PmOnFail`].
     pub pm_on_fail: Option<PmOnFail>,
 
+    /// `pnpmExecCommand` from `pnpm-workspace.yaml`: a command (argv
+    /// array, executed without a shell) that prints the absolute path
+    /// of the pnpm binary this project must run under. Kept as a raw
+    /// [`serde_json::Value`] so the CLI's re-exec step can reject a
+    /// malformed value (e.g. a plain string) with pnpm's
+    /// `EXEC_COMMAND_INVALID` error instead of a yaml parse error.
+    /// Deliberately honored only from `pnpm-workspace.yaml`: not
+    /// env-settable, not a CLI flag, and cleared from the global
+    /// `config.yaml` — the same containment pnpm applies so nothing
+    /// but the workspace file can redirect which binary runs.
+    pub pnpm_exec_command: Option<serde_json::Value>,
+
     /// `auditLevel` from `pnpm-workspace.yaml`.
     pub audit_level: Option<AuditLevel>,
 
@@ -588,6 +600,25 @@ impl WorkspaceSettings {
         self.ignored_optional_dependencies = None;
         self.overrides = None;
         self.package_extensions = None;
+        self.pnpm_exec_command = None;
+    }
+
+    /// Read the `pnpm-workspace.yaml` directly in `dir`, without the
+    /// upward walk of [`Self::find_and_load`]. Returns `Ok(None)` when
+    /// the file does not exist; read or parse failures propagate.
+    /// Used when the workspace dir is already known (e.g. from the
+    /// `NPM_CONFIG_WORKSPACE_DIR` env override).
+    pub fn load_exact(dir: &Path) -> Result<Option<Self>, LoadWorkspaceYamlError> {
+        let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
+        let text = match fs::read_to_string(&path) {
+            Ok(text) => text,
+            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
+            Err(source) => return Err(LoadWorkspaceYamlError::ReadFile { path, source }),
+        };
+        serde_saphyr::from_str(&text)
+            .map_err(Box::new)
+            .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path, source })
+            .map(Some)
     }
 
     /// Walk up from `start_dir` looking for a readable `pnpm-workspace.yaml`.
@@ -765,6 +796,9 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.pnpr_server {
             config.pnpr_server = Some(v);
+        }
+        if let Some(v) = self.pnpm_exec_command {
+            config.pnpm_exec_command = Some(v);
         }
         if let Some(v) = self.named_registries {
             config.named_registries = v;

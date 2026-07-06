@@ -69,7 +69,7 @@ mod package_manager;
 mod pipelines;
 mod reporter;
 
-pub(crate) use cli_command::CliArgs;
+pub(crate) use cli_command::{CliArgs, CliCommand};
 
 #[cfg(test)]
 mod tests;

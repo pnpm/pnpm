@@ -123,6 +123,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         trust_lockfile: false,
         trust_policy: Default::default(),
         pm_on_fail: None,
+        pnpm_exec_command: None,
         audit_level: None,
         audit_config: Default::default(),
         trust_policy_exclude: None,

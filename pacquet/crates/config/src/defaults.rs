@@ -162,6 +162,31 @@ where
     )
 }
 
+/// Resolve pnpm's per-user state directory, where `pnpm-state.json`
+/// lives (update-check timestamps, `pnpmExecCommand` trust records).
+///
+/// Resolution order mirrors pnpm's `getStateDir`: `XDG_STATE_HOME/pnpm`
+/// → `~/.local/state/pnpm` (non-Windows) → `%LOCALAPPDATA%/pnpm-state`
+/// (Windows) → `~/.pnpm-state`. Returns `None` only when the home
+/// directory cannot be determined and no env override is set.
+#[must_use]
+pub fn default_state_dir<Sys>() -> Option<PathBuf>
+where
+    Sys: EnvVar + GetHomeDir,
+{
+    if let Some(xdg_state_home) = Sys::var("XDG_STATE_HOME") {
+        return Some(PathBuf::from(xdg_state_home).join("pnpm"));
+    }
+    let home_dir = Sys::home_dir()?;
+    Some(match env::consts::OS {
+        "windows" => Sys::var("LOCALAPPDATA").map_or_else(
+            || home_dir.join(".pnpm-state"),
+            |local_app_data| PathBuf::from(local_app_data).join("pnpm-state"),
+        ),
+        _ => home_dir.join(".local/state/pnpm"),
+    })
+}
+
 /// Resolve the default packument-cache directory.
 ///
 /// Generic over [`EnvVar`] and [`GetHomeDir`] for the same reason

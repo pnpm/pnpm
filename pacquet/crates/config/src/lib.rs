@@ -36,7 +36,7 @@ use std::{
 
 pub use crate::defaults::{
     GLOBAL_LAYOUT_VERSION, PACQUET_VERSION, available_parallelism, default_git_shallow_hosts,
-    default_peers_suffix_max_length, default_pnpm_home_dir, default_unsafe_perm,
+    default_peers_suffix_max_length, default_pnpm_home_dir, default_state_dir, default_unsafe_perm,
     default_virtual_store_dir_max_length, default_workspace_concurrency, is_unsafe_perm_posix,
     resolve_child_concurrency,
 };
@@ -1318,6 +1318,17 @@ pub struct Config {
     /// package-manager check applies the documented `download` default
     /// when unset.
     pub pm_on_fail: Option<PmOnFail>,
+
+    /// `pnpmExecCommand` from `pnpm-workspace.yaml`: the command that
+    /// prints the absolute path of the pnpm binary this project must
+    /// run under. Raw yaml value — validated (argv array of non-empty
+    /// strings) by the CLI's re-exec step so a malformed value raises
+    /// pnpm's `EXEC_COMMAND_INVALID` error. See
+    /// [`WorkspaceSettings::pnpm_exec_command`] for why this is
+    /// yaml-only.
+    ///
+    /// [`WorkspaceSettings::pnpm_exec_command`]: crate::workspace_yaml::WorkspaceSettings::pnpm_exec_command
+    pub pnpm_exec_command: Option<serde_json::Value>,
 
     /// `audit-level` / `auditLevel` config for `pnpm audit`.
     pub audit_level: Option<AuditLevel>,

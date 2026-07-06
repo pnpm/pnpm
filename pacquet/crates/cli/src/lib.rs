@@ -2,6 +2,7 @@ mod cli_args;
 mod config_deps;
 mod config_overrides;
 mod job_control;
+mod pnpm_exec_command;
 mod state;
 mod with_current;
 
@@ -32,6 +33,12 @@ pub fn main() -> miette::Result<()> {
     pacquet_default_reporter::set_package_version(pacquet_config::PACQUET_VERSION);
     let mut args = CliArgs::parse_from(argv);
     args.promote_recursive_for_filter();
+    // When the workspace delegates pnpm-binary selection to an external
+    // command (`pnpmExecCommand`), resolve and re-exec before anything
+    // else runs — including the install fast path — so the whole
+    // command executes inside the binary the project selected. Exits
+    // the process when a re-exec happens.
+    pnpm_exec_command::resolve_and_re_exec(&args)?;
     // An up-to-date `pacquet install` finishes here, without paying for
     // the runtime, the HTTP client, or any worker threads.
     if args.finished_via_install_fast_path(&config_overrides) {
