@@ -1,4 +1,5 @@
-use super::{SwitchInput, SwitchSource, switch_target};
+use super::{SwitchInput, SwitchProcessState, SwitchSource, switch_plan_from_input, switch_target};
+use crate::config_overrides::ConfigOverrides;
 use pacquet_config::{Config, PmOnFail};
 use std::{
     ffi::OsString,
@@ -68,6 +69,21 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
         );
         assert_eq!(input.command.as_deref(), case.command, "case: {}", case.name);
     }
+}
+
+#[test]
+fn switch_plan_skips_when_executed_by_corepack() {
+    let input =
+        SwitchInput { dir: PathBuf::from("missing-project"), npmrc_auth_file: None, command: None };
+
+    let plan = switch_plan_from_input(
+        &input,
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: true },
+    )
+    .expect("switch plan");
+
+    assert!(plan.is_none(), "unexpected switch plan when executed by Corepack");
 }
 
 #[test]

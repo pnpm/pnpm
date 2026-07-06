@@ -30,14 +30,22 @@ pub(crate) fn switch_plan(
     if should_skip_command(&args.command) {
         return Ok(None);
     }
-    switch_plan_from_input(&SwitchInput::from_cli_args(args), config_overrides)
+    switch_plan_from_input(
+        &SwitchInput::from_cli_args(args),
+        config_overrides,
+        SwitchProcessState::current(),
+    )
 }
 
 pub(crate) fn switch_plan_for_version_flag(
     argv: &[OsString],
     config_overrides: &ConfigOverrides,
 ) -> miette::Result<Option<SwitchPlan>> {
-    switch_plan_from_input(&SwitchInput::from_version_argv(argv), config_overrides)
+    switch_plan_from_input(
+        &SwitchInput::from_version_argv(argv),
+        config_overrides,
+        SwitchProcessState::current(),
+    )
 }
 
 #[expect(clippy::exit, reason = "delegated pnpm must preserve the child exit code")]
@@ -86,10 +94,11 @@ pub(crate) async fn execute_switch(
 fn switch_plan_from_input(
     input: &SwitchInput,
     config_overrides: &ConfigOverrides,
+    process_state: SwitchProcessState,
 ) -> miette::Result<Option<SwitchPlan>> {
     if input.command.as_deref().is_some_and(should_skip_command_name)
-        || package_manager_switch_disabled()
-        || std::env::var_os("COREPACK_ROOT").is_some()
+        || process_state.package_manager_switch_disabled
+        || process_state.executed_by_corepack
     {
         return Ok(None);
     }
@@ -348,6 +357,21 @@ fn env_var_is_false(name: &str) -> bool {
     std::env::var_os(name)
         .and_then(|value| value.into_string().ok())
         .is_some_and(|value| matches!(value.to_ascii_lowercase().as_str(), "false" | "0"))
+}
+
+#[derive(Clone, Copy)]
+struct SwitchProcessState {
+    package_manager_switch_disabled: bool,
+    executed_by_corepack: bool,
+}
+
+impl SwitchProcessState {
+    fn current() -> Self {
+        Self {
+            package_manager_switch_disabled: package_manager_switch_disabled(),
+            executed_by_corepack: std::env::var_os("COREPACK_ROOT").is_some(),
+        }
+    }
 }
 
 #[derive(Debug)]

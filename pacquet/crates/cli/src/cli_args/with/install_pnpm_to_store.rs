@@ -15,6 +15,7 @@ use pacquet_graph_hasher::{detect_node_major, engine_name};
 use pacquet_lockfile::{EnvLockfile, PackageKey};
 use pacquet_package_manager::{AllowBuildPolicy, VirtualStoreLayout};
 use pacquet_reporter::Reporter;
+use pacquet_store_dir::StoreDir;
 use serde_json::Value;
 use std::{
     fs,
@@ -46,6 +47,7 @@ pub(crate) async fn install_pnpm_to_store<Reporter: self::Reporter + 'static>(
     spec: &str,
     version: &str,
 ) -> miette::Result<PathBuf> {
+    let config = package_manager_engine_config(config)?.leak();
     fs::create_dir_all(env_root).into_diagnostic().wrap_err_with(|| {
         format!("create the package-manager env directory at {}", env_root.display())
     })?;
@@ -62,6 +64,15 @@ pub(crate) async fn install_pnpm_to_store<Reporter: self::Reporter + 'static>(
 }
 
 pub(crate) async fn install_pnpm_from_env<Reporter: self::Reporter + 'static>(
+    config: &'static Config,
+    env: &EnvLockfile,
+    version: &str,
+) -> miette::Result<PathBuf> {
+    let config = package_manager_engine_config(config)?.leak();
+    install_pnpm_from_env_with_config::<Reporter>(config, env, version).await
+}
+
+async fn install_pnpm_from_env_with_config<Reporter: self::Reporter + 'static>(
     config: &'static Config,
     env: &EnvLockfile,
     version: &str,
@@ -123,6 +134,26 @@ pub(crate) async fn install_pnpm_from_env<Reporter: self::Reporter + 'static>(
     }
     link_bins(&pkg_dir, &bin_dir)?;
     Ok(bin_dir)
+}
+
+fn package_manager_engine_config(config: &Config) -> miette::Result<Config> {
+    let global_pkg_dir = config.global_pkg_dir.as_ref().ok_or_else(|| {
+        miette::miette!(
+            r#"Unable to find the global packages directory. Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable."#,
+        )
+    })?;
+    let mut config = config.clone();
+    config.store_dir = StoreDir::new(package_manager_engine_store_root(global_pkg_dir));
+    config.global_virtual_store_dir = config.store_dir.links();
+    Ok(config)
+}
+
+fn package_manager_engine_store_root(global_pkg_dir: &Path) -> PathBuf {
+    global_pkg_dir
+        .parent()
+        .and_then(Path::parent)
+        .unwrap_or(global_pkg_dir)
+        .join("package-manager-store")
 }
 
 fn link_cached_engine_bins(
