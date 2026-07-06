@@ -18,7 +18,7 @@ use std::ffi::OsString;
 /// option (known value-takers like `--dir` / `--reporter`, and any unknown
 /// flag) is assumed to consume its successor: a non-boolean (including
 /// unknown) option is treated as value-consuming.
-const BOOLEAN_LONG_OPTIONS: &[&str] = &["recursive"];
+const BOOLEAN_LONG_OPTIONS: &[&str] = &["color", "recursive", "yes"];
 
 /// Global short options that take a value (`-C` = `--dir`, `-F` =
 /// `--filter`), so the next token is the value, not the subcommand. Other

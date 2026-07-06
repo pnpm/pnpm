@@ -203,8 +203,8 @@ async fn handler<Reporter: self::Reporter + 'static>(
     );
 
     let env_root = config.global_pkg_dir.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
-    // Resolve integrities (pnpm + @pnpm/exe + platform binary) into the
-    // env lockfile so the engine identity can be verified before install.
+    // Resolve integrities into the env lockfile so the engine identity can
+    // be verified before install.
     Box::pin(config_deps::sync_package_manager_dependencies(
         config,
         &env_root,
@@ -230,7 +230,7 @@ async fn handler<Reporter: self::Reporter + 'static>(
     ))
     .await?;
 
-    link_into_global_bin(config, &result.install_dir)?;
+    link_into_global_bin(config, &result.install_dir, result.package_name)?;
 
     if result.already_existed {
         return Ok(Some(format!(
@@ -407,7 +407,11 @@ fn read_project_pinned_pnpm_version(lockfile_dir: &Path, spec: Option<&str>) -> 
 /// Link the installed engine's bins into the global bin directory and
 /// record its cache-keyed hash symlink (so `pnpm ls -g` and `store prune`
 /// see it).
-fn link_into_global_bin(config: &Config, install_dir: &Path) -> miette::Result<()> {
+fn link_into_global_bin(
+    config: &Config,
+    install_dir: &Path,
+    package_name: &str,
+) -> miette::Result<()> {
     let global_bin = config.global_bin.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
     let global_pkg_dir = config.global_pkg_dir.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
 
@@ -416,7 +420,7 @@ fn link_into_global_bin(config: &Config, install_dir: &Path) -> miette::Result<(
         .map_err(miette::Report::new)
         .wrap_err("link the updated pnpm bins")?;
 
-    let aliases = vec![install_pnpm::PNPM_PACKAGE_NAME.to_string()];
+    let aliases = vec![package_name.to_string()];
     let cache_hash = create_global_cache_key(&aliases, &registries_for_cache_key(config));
     let hash_link = get_hash_link(&global_pkg_dir, &cache_hash);
     force_symlink_dir(install_dir, &hash_link)

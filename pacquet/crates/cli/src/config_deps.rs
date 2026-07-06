@@ -50,7 +50,7 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
     resolve_and_install::<Reporter>(config, config_dependencies, root_dir, frozen_lockfile).await
 }
 
-/// Resolve `pnpm` / `@pnpm/exe` into the env lockfile's
+/// Resolve the package-manager engine dependencies into the env lockfile's
 /// `packageManagerDependencies` block before the wanted lockfile is
 /// loaded.
 pub async fn sync_package_manager_dependencies(
