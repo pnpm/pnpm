@@ -130,6 +130,51 @@ fn add_runs_with_ndjson_and_silent_reporters() {
     }
 }
 
+#[test]
+fn add_lockfile_only_from_workspace_subdir_prints_manifest_summary() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        std::fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("packages:\n  - 'packages/*'\n");
+    std::fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    let package_dir = workspace.join("packages/a");
+    std::fs::create_dir_all(&package_dir).expect("mkdir packages/a");
+    std::fs::write(
+        package_dir.join("package.json"),
+        serde_json::json!({ "name": "a", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write packages/a/package.json");
+
+    let output = pacquet
+        .with_args([
+            "--dir",
+            "packages/a",
+            "--reporter=append-only",
+            "add",
+            "@pnpm.e2e/hello-world-js-bin",
+            "--lockfile-only",
+        ])
+        .output()
+        .expect("run pacquet add");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "add failed\nstdout:\n{stdout}\nstderr:\n{stderr}");
+    assert!(
+        stdout.contains("dependencies:\n+ @pnpm.e2e/hello-world-js-bin ^1.0.0"),
+        "add --lockfile-only should print the manifest diff summary for the selected importer\nstdout:\n{stdout}",
+    );
+
+    assert_eq!(prod_spec(&package_dir, "@pnpm.e2e/hello-world-js-bin"), "^1.0.0");
+    drop((root, npmrc_info)); // cleanup
+}
+
 fn prod_spec(dir: &std::path::Path, name: &str) -> String {
     let manifest = dir.join("package.json").pipe(PackageManifest::from_path).unwrap();
     let (_, spec) = manifest

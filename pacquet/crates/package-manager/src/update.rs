@@ -1,6 +1,7 @@
 use crate::{
     CatalogDecision, CatalogModeDep, CatalogVersionMismatchError, Install, InstallError,
-    ResolvedPackages, UpdateSeedPolicy, decide_catalog,
+    ResolvedPackages, UpdateSeedPolicy, decide_catalog, emit_initial_package_manifest,
+    package_manifest_prefix,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -14,7 +15,9 @@ use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_registry::{PackageTag, PackageVersion, PinnedVersion};
-use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
+use pacquet_reporter::{
+    LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter, SummaryLog,
+};
 use pacquet_resolving_npm_resolver::{pick_registry_for_package, which_version_is_pinned};
 use pacquet_tarball::MemCache;
 use pacquet_workspace_manifest_writer::{UpdateWorkspaceManifestError, update_workspace_manifest};
@@ -505,6 +508,9 @@ impl Update<'_> {
         // mutation still drives resolution (so `pnpm-lock.yaml` updates)
         // but the manifest is not persisted below.
         let persist_manifest = save && !rewrites.is_empty();
+        if persist_manifest {
+            emit_initial_package_manifest::<Reporter>(manifest);
+        }
         for (name, group, spec) in &rewrites {
             manifest.add_dependency(name, spec, *group).map_err(UpdateError::UpdateManifest)?;
         }
@@ -580,16 +586,12 @@ impl Update<'_> {
             let updated =
                 manifest.save_and_get_written_value().map_err(UpdateError::SaveManifest)?;
 
-            let prefix = manifest
-                .path()
-                .parent()
-                .unwrap_or_else(|| manifest.path())
-                .to_string_lossy()
-                .into_owned();
+            let prefix = package_manifest_prefix(manifest);
             Reporter::emit(&LogEvent::PackageManifest(PackageManifestLog {
                 level: LogLevel::Debug,
-                message: PackageManifestMessage::Updated { prefix, updated },
+                message: PackageManifestMessage::Updated { prefix: prefix.clone(), updated },
             }));
+            Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
         }
 
         Ok(())

@@ -1,6 +1,7 @@
 use crate::{
     CatalogDecision, CatalogModeDep, CatalogVersionMismatchError, Install, InstallError,
-    ResolvedPackages, UpdateSeedPolicy, decide_catalog,
+    ResolvedPackages, UpdateSeedPolicy, decide_catalog, emit_initial_package_manifest,
+    package_manifest_prefix,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -14,7 +15,9 @@ use pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_an
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_registry::{PackageTag, PackageVersion, PinnedVersion};
-use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
+use pacquet_reporter::{
+    LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter, SummaryLog,
+};
 use pacquet_resolving_git_resolver::{HostedGit, HostedOpts};
 use pacquet_resolving_npm_resolver::{
     InMemoryPackageMetaCache, PickPackageContext, PickPackageError, PickPackageOptions,
@@ -242,6 +245,8 @@ where
             }
         };
 
+        emit_initial_package_manifest::<Reporter>(manifest);
+
         for dependency_group in list_dependency_groups() {
             manifest
                 .add_dependency(package_name, &manifest_specifier, dependency_group)
@@ -316,16 +321,12 @@ where
         // doesn't crash the post-save emit. `to_string_lossy`
         // coerces non-UTF-8 path bytes to U+FFFD instead of
         // panicking.
-        let prefix = manifest
-            .path()
-            .parent()
-            .unwrap_or_else(|| manifest.path())
-            .to_string_lossy()
-            .into_owned();
+        let prefix = package_manifest_prefix(manifest);
         Reporter::emit(&LogEvent::PackageManifest(PackageManifestLog {
             level: LogLevel::Debug,
-            message: PackageManifestMessage::Updated { prefix, updated },
+            message: PackageManifestMessage::Updated { prefix: prefix.clone(), updated },
         }));
+        Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
 
         Ok(())
     }

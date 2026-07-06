@@ -138,6 +138,12 @@ struct PackageDiff {
     latest: Option<String>,
 }
 
+#[derive(Debug, Default)]
+struct ManifestDiff {
+    initial: Option<Value>,
+    updated: Option<Value>,
+}
+
 /// The five dependency buckets, in summary render order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DepKind {
@@ -210,8 +216,7 @@ pub struct ReporterState {
     stats_slot: BlockSlot,
 
     diff: HashMap<&'static str, HashMap<String, PackageDiff>>,
-    manifest_initial: Option<Value>,
-    manifest_updated: Option<Value>,
+    manifest_diffs: HashMap<String, ManifestDiff>,
     summary_slot: BlockSlot,
     summary_rendered: bool,
     summary_scope: SummaryScope,
@@ -279,8 +284,7 @@ impl ReporterState {
             stats_removed: None,
             stats_slot: BlockSlot::default(),
             diff,
-            manifest_initial: None,
-            manifest_updated: None,
+            manifest_diffs: HashMap::new(),
             summary_slot: BlockSlot::default(),
             summary_rendered: false,
             summary_scope,
@@ -581,12 +585,13 @@ impl ReporterState {
         if !self.is_current_prefix(prefix) {
             return;
         }
+        let diff = self.manifest_diffs.entry(prefix.clone()).or_default();
         match message {
             PackageManifestMessage::Initial { initial, .. } => {
-                self.manifest_initial = Some(initial.clone());
+                diff.initial.get_or_insert_with(|| initial.clone());
             }
             PackageManifestMessage::Updated { updated, .. } => {
-                self.manifest_updated = Some(updated.clone());
+                diff.updated = Some(updated.clone());
             }
         }
     }
@@ -595,9 +600,12 @@ impl ReporterState {
         if self.summary_rendered {
             return;
         }
-        self.summary_rendered = true;
         self.apply_manifest_diff();
         let msg = self.render_summary();
+        if msg.is_empty() {
+            return;
+        }
+        self.summary_rendered = true;
         let mut slot = std::mem::take(&mut self.summary_slot);
         self.frame.emit(&mut slot, msg, false);
         self.summary_slot = slot;
@@ -608,11 +616,19 @@ impl ReporterState {
     }
 
     fn apply_manifest_diff(&mut self) {
-        let (Some(initial), Some(updated)) =
-            (self.manifest_initial.as_ref(), self.manifest_updated.as_ref())
-        else {
-            return;
-        };
+        let manifest_diffs: Vec<(Value, Value)> = self
+            .manifest_diffs
+            .values()
+            .filter_map(|diff| {
+                Some((diff.initial.as_ref()?.clone(), diff.updated.as_ref()?.clone()))
+            })
+            .collect();
+        for (initial, updated) in manifest_diffs {
+            self.apply_manifest_pair_diff(&initial, &updated);
+        }
+    }
+
+    fn apply_manifest_pair_diff(&mut self, initial: &Value, updated: &Value) {
         let initial = remove_optional_from_prod(initial);
         let updated = remove_optional_from_prod(updated);
         for kind in [DepKind::Peer, DepKind::Prod, DepKind::Optional, DepKind::Dev] {

@@ -41,7 +41,17 @@ fn create_converts_name_and_runs_via_dlx() {
     let CommandTempCwd { pacquet, root, workspace, .. } =
         CommandTempCwd::init().add_mocked_registry();
 
-    pacquet.with_arg("create").with_arg("touch-file-one-bin").assert().success();
+    let output = pacquet
+        .with_args(["--reporter=append-only", "create", "touch-file-one-bin"])
+        .output()
+        .expect("run pacquet create");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "create failed\nstdout:\n{stdout}\nstderr:\n{stderr}");
+    assert!(
+        stdout.contains("dependencies:\n+ create-touch-file-one-bin"),
+        "create should print the installed package summary\nstdout:\n{stdout}",
+    );
 
     let touch_txt = workspace.join("touch.txt");
     assert!(

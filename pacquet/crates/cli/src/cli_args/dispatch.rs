@@ -134,12 +134,7 @@ impl CliArgs {
         // The default reporter renders paths relative to the install root and
         // its `Done in ...` footer over the whole command; seed both before any
         // event can fire.
-        let summary_scope = if command.runs_global_install_groups() {
-            SummaryScope::AllPrefixes
-        } else {
-            SummaryScope::CurrentPrefix
-        };
-        configure_default_reporter(reporter, &dir, summary_scope);
+        configure_default_reporter(reporter, &dir, command.default_reporter_summary_scope());
         let started_at = now_millis();
         let is_install_family = matches!(
             &command,

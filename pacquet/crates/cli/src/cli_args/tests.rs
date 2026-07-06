@@ -7,6 +7,7 @@ use super::{
     },
 };
 use clap::Parser;
+use pacquet_default_reporter::SummaryScope;
 use tempfile::TempDir;
 
 fn install_args(argv: &[&str]) -> InstallArgs {
@@ -16,8 +17,8 @@ fn install_args(argv: &[&str]) -> InstallArgs {
     }
 }
 
-fn runs_global_install_groups(argv: &[&str]) -> bool {
-    CliArgs::try_parse_from(argv).expect("parses").command.runs_global_install_groups()
+fn default_reporter_summary_scope(argv: &[&str]) -> SummaryScope {
+    CliArgs::try_parse_from(argv).expect("parses").command.default_reporter_summary_scope()
 }
 
 #[test]
@@ -132,12 +133,35 @@ fn runtime_global_flag_parses_after_version() {
 }
 
 #[test]
-fn global_install_group_detection_is_limited_to_in_process_install_groups() {
-    assert!(runs_global_install_groups(&["pacquet", "add", "foo", "-g"]));
-    assert!(runs_global_install_groups(&["pacquet", "update", "-g"]));
-    assert!(runs_global_install_groups(&["pacquet", "runtime", "set", "node", "22", "-g"]));
-    assert!(!runs_global_install_groups(&["pacquet", "add", "foo"]));
-    assert!(!runs_global_install_groups(&["pacquet", "remove", "foo", "-g"]));
+fn default_reporter_summary_scope_matches_install_summary_prefixes() {
+    assert_eq!(
+        default_reporter_summary_scope(&["pacquet", "add", "foo", "-g"]),
+        SummaryScope::AllPrefixes,
+    );
+    assert_eq!(
+        default_reporter_summary_scope(&["pacquet", "update", "-g"]),
+        SummaryScope::AllPrefixes,
+    );
+    assert_eq!(
+        default_reporter_summary_scope(&["pacquet", "runtime", "set", "node", "22", "-g"]),
+        SummaryScope::AllPrefixes,
+    );
+    assert_eq!(
+        default_reporter_summary_scope(&["pacquet", "dlx", "@foo/touch-file-one-bin"]),
+        SummaryScope::AllPrefixes,
+    );
+    assert_eq!(
+        default_reporter_summary_scope(&["pacquet", "create", "touch-file-one-bin"]),
+        SummaryScope::AllPrefixes,
+    );
+    assert_eq!(
+        default_reporter_summary_scope(&["pacquet", "add", "foo"]),
+        SummaryScope::CurrentPrefix,
+    );
+    assert_eq!(
+        default_reporter_summary_scope(&["pacquet", "remove", "foo", "-g"]),
+        SummaryScope::CurrentPrefix,
+    );
 }
 
 #[test]

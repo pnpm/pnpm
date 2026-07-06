@@ -54,6 +54,7 @@ use super::{
     with::WithArgs,
 };
 use clap::{Parser, Subcommand};
+use pacquet_default_reporter::SummaryScope;
 use std::path::PathBuf;
 
 /// Experimental package manager for node.js written in rust.
@@ -292,12 +293,13 @@ pub enum CliCommand {
 }
 
 impl CliCommand {
-    pub(crate) fn runs_global_install_groups(&self) -> bool {
+    pub(crate) fn default_reporter_summary_scope(&self) -> SummaryScope {
         match self {
-            CliCommand::Add(args) => args.global,
-            CliCommand::Runtime(args) => args.global,
-            CliCommand::Update(args) => args.global,
-            _ => false,
+            CliCommand::Add(args) if args.global => SummaryScope::AllPrefixes,
+            CliCommand::Runtime(args) if args.global => SummaryScope::AllPrefixes,
+            CliCommand::Update(args) if args.global => SummaryScope::AllPrefixes,
+            CliCommand::Dlx(_) | CliCommand::Create(_) => SummaryScope::AllPrefixes,
+            _ => SummaryScope::CurrentPrefix,
         }
     }
 }
