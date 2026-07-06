@@ -241,6 +241,7 @@ impl WritePackageForPatch<'_> {
                 ignore_file_pattern: None,
                 offline: config.offline,
                 progress_reported: None,
+                append_manifest: None,
             }
             .run_with_mem_cache::<Reporter>(tarball_mem_cache)
             .await

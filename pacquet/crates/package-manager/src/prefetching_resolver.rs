@@ -332,6 +332,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
                 ignore_file_pattern: None,
                 offline,
                 progress_reported: Some(progress_reported),
+                append_manifest: None,
             }
             .run_with_mem_cache::<Reporter>(&mem_cache)
             .await;

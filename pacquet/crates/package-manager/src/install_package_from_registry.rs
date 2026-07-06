@@ -178,6 +178,7 @@ impl InstallPackageFromRegistry<'_> {
                 // progress directly; no resolve-time prefetch shares a
                 // dedupe set with it.
                 progress_reported: None,
+                append_manifest: None,
             }
             .run_with_mem_cache::<Reporter>(tarball_mem_cache)
             .await
