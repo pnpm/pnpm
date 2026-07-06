@@ -100,6 +100,7 @@ impl Remove<'_> {
             http_client_arc,
             config,
             manifest,
+            emit_initial_manifest: false,
             lockfile: MaybeLazyLockfile::Loaded(lockfile),
             lockfile_path,
             // `pnpm remove`'s `include` defaults to every dependency

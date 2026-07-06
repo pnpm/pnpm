@@ -97,6 +97,7 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
         http_client_arc: std::sync::Arc::clone(http_client),
         config,
         manifest,
+        emit_initial_manifest: true,
         lockfile: MaybeLazyLockfile::Lazy(lockfile),
         lockfile_path: lockfile_path.as_deref(),
         // Reuse exactly the dependency groups the current `node_modules`

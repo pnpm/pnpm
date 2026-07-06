@@ -547,6 +547,7 @@ impl Update<'_> {
             http_client_arc,
             config,
             manifest,
+            emit_initial_manifest: false,
             lockfile: MaybeLazyLockfile::Loaded(lockfile),
             lockfile_path,
             // `include` is always all-true for updates: the materialized

@@ -106,6 +106,10 @@ where
     pub http_client_arc: Arc<ThrottledClient>,
     pub config: &'static Config,
     pub manifest: &'a PackageManifest,
+    /// Emit `pnpm:package-manifest initial` from this install run.
+    /// Partial mutations that need the pre-mutation manifest snapshot
+    /// emit it before changing the manifest and pass `false` here.
+    pub emit_initial_manifest: bool,
     pub lockfile: MaybeLazyLockfile<'a>,
     /// Absolute path of the loaded `pnpm-lock.yaml`. Threaded into
     /// the lockfile-verification gate so the per-path stat shortcut
@@ -493,6 +497,7 @@ where
             http_client_arc,
             config,
             manifest,
+            emit_initial_manifest,
             lockfile,
             lockfile_path,
             dependency_groups,
@@ -726,7 +731,9 @@ where
         // `package.json` body for this importer. Fires before
         // `pnpm:context` so consumers that key off manifest contents
         // have it ready when the install header renders.
-        emit_initial_package_manifest::<Reporter>(manifest);
+        if emit_initial_manifest {
+            emit_initial_package_manifest::<Reporter>(manifest);
+        }
 
         // Load the *current* lockfile that records what the previous
         // install actually materialized in `<virtual_store_dir>/lock.yaml`.

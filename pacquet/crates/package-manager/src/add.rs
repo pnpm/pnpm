@@ -266,6 +266,7 @@ where
             http_client_arc,
             config,
             manifest,
+            emit_initial_manifest: false,
             lockfile: MaybeLazyLockfile::Loaded(lockfile),
             lockfile_path,
             dependency_groups: list_dependency_groups(),

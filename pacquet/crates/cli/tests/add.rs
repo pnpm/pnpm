@@ -196,9 +196,23 @@ fn add_lockfile_only_from_workspace_subdir_prints_manifest_summary() {
         .expect("run pacquet add with ndjson reporter");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(output.status.success(), "add failed\nstderr:\n{stderr}");
-    let summary_count = stderr
+    let records = stderr
         .lines()
         .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .collect::<Vec<_>>();
+    let initial_manifest_count = records
+        .iter()
+        .filter(|record| {
+            record.get("name").and_then(|name| name.as_str()) == Some("pnpm:package-manifest")
+                && record.get("initial").is_some()
+        })
+        .count();
+    assert_eq!(
+        initial_manifest_count, 1,
+        "ndjson should emit one initial package manifest\nstderr:\n{stderr}",
+    );
+    let summary_count = records
+        .iter()
         .filter(|record| record.get("name").and_then(|name| name.as_str()) == Some("pnpm:summary"))
         .count();
     assert_eq!(summary_count, 1, "ndjson should emit one pnpm:summary\nstderr:\n{stderr}");
