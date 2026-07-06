@@ -160,7 +160,7 @@ fn default_reporter_summary_scope_matches_install_summary_prefixes() {
     );
     assert_eq!(
         default_reporter_summary_scope(&["pacquet", "remove", "foo", "-g"]),
-        SummaryScope::CurrentPrefix,
+        SummaryScope::AllPrefixes,
     );
 }
 
