@@ -4111,10 +4111,12 @@ version = "0.0.1"
 dependencies = [
  "derive_more",
  "indexmap 2.14.0",
+ "libc",
  "node-semver",
  "pacquet-catalogs-types",
  "pacquet-crypto-hash",
  "pacquet-diagnostics",
+ "pacquet-fs",
  "pacquet-package-manifest",
  "pipe-trait",
  "pretty_assertions",

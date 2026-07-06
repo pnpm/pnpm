@@ -9,7 +9,7 @@
 //! version / range / dist-tag spec, which it resolves, installs into the
 //! global virtual store, and spawns.
 
-mod install_pnpm_to_store;
+pub(crate) mod install_pnpm_to_store;
 
 use clap::Args;
 use derive_more::{Display, Error};
@@ -18,7 +18,7 @@ use pacquet_config::Config;
 use pacquet_reporter::Reporter;
 use std::{ffi::OsString, fs, path::Path, process::Command};
 
-use crate::config_deps;
+use crate::{cli_args::package_manager::PACKAGE_MANAGER_SWITCH_ENV_VARS, config_deps};
 
 /// Errors specific to `pacquet with`. The codes carry the shared
 /// `ERR_PNPM_` prefix.
@@ -90,7 +90,7 @@ impl WithArgs {
         ))
         .await?;
 
-        let status = spawn_pnpm(&bin_dir, args)?;
+        let status = spawn_pnpm(&bin_dir, args, PackageManagerCheck::Disabled)?;
         if !status.success() {
             // Propagate the child's exit code. A signal-terminated child
             // has no code; fall back to 1, matching pnpm's `exitCode ?? 1`.
@@ -100,9 +100,23 @@ impl WithArgs {
     }
 }
 
-/// Spawn the downloaded `pnpm` with `bin_dir` prepended to `PATH` and the
-/// child's package-manager check disabled, inheriting stdio.
-fn spawn_pnpm(bin_dir: &Path, args: &[String]) -> miette::Result<std::process::ExitStatus> {
+#[derive(Clone, Copy)]
+pub(crate) enum PackageManagerCheck {
+    Enabled,
+    Disabled,
+}
+
+/// Spawn the downloaded `pnpm` with `bin_dir` prepended to `PATH`,
+/// inheriting stdio.
+pub(crate) fn spawn_pnpm<Args, Arg>(
+    bin_dir: &Path,
+    args: Args,
+    package_manager_check: PackageManagerCheck,
+) -> miette::Result<std::process::ExitStatus>
+where
+    Args: IntoIterator<Item = Arg>,
+    Arg: AsRef<std::ffi::OsStr>,
+{
     let path = prepend_to_path(bin_dir)?;
     // Resolve `pnpm` strictly within `bin_dir`, never the full PATH, so a
     // missing or broken shim is an error rather than silently falling
@@ -120,17 +134,26 @@ fn spawn_pnpm(bin_dir: &Path, args: &[String]) -> miette::Result<std::process::E
     cmd.env_remove("PATH");
     cmd.env_remove("Path");
     cmd.env("PATH", &path);
-    // The child pnpm must skip the packageManager / devEngines check so the
-    // requested version stays active. `COREPACK_ROOT` is honored by every
-    // pnpm release that supports corepack (older versions skip the check
-    // whenever it is set); `pnpm_config_pm_on_fail=ignore` is the
-    // principled override for releases that ship the `pmOnFail` setting.
-    if std::env::var_os("COREPACK_ROOT").is_none() {
-        cmd.env("COREPACK_ROOT", "pnpm-with");
+    disable_package_manager_switching(&mut cmd);
+    if matches!(package_manager_check, PackageManagerCheck::Disabled) {
+        // The child pnpm must skip the packageManager / devEngines check so the
+        // requested version stays active. `COREPACK_ROOT` is honored by every
+        // pnpm release that supports corepack (older versions skip the check
+        // whenever it is set); `pnpm_config_pm_on_fail=ignore` is the
+        // principled override for releases that ship the `pmOnFail` setting.
+        if std::env::var_os("COREPACK_ROOT").is_none() {
+            cmd.env("COREPACK_ROOT", "pnpm-with");
+        }
+        cmd.env("pnpm_config_pm_on_fail", "ignore");
     }
-    cmd.env("pnpm_config_pm_on_fail", "ignore");
 
     cmd.status().into_diagnostic().wrap_err("run the requested pnpm version")
+}
+
+fn disable_package_manager_switching(cmd: &mut Command) {
+    for name in PACKAGE_MANAGER_SWITCH_ENV_VARS {
+        cmd.env(name, "false");
+    }
 }
 
 /// Prepend `dir` to the current process `PATH`, rejecting a `dir` that

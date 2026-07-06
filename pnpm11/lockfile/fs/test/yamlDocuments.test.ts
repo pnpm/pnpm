@@ -9,6 +9,8 @@ import {
   streamReadFirstYamlDocument,
 } from '../lib/yamlDocuments.js'
 
+const testOnNonWindows = process.platform === 'win32' ? test.skip : test
+
 describe('streamReadFirstYamlDocument', () => {
   test('returns the first document content from a two-document file', async () => {
     const dir = temporaryDirectory()
@@ -119,6 +121,16 @@ describe('streamReadFirstYamlDocument', () => {
     fs.writeFileSync(filePath, content)
     const result = await streamReadFirstYamlDocument(filePath)
     expect(result).toBe('foo: bar')
+  })
+
+  testOnNonWindows('rejects a symlinked lockfile', async () => {
+    const dir = temporaryDirectory()
+    const realLockfile = path.join(dir, 'real-lockfile.yaml')
+    const lockfilePath = path.join(dir, 'pnpm-lock.yaml')
+    fs.writeFileSync(realLockfile, '---\nfoo: bar\n---\nlockfileVersion: 9.0\n')
+    fs.symlinkSync(realLockfile, lockfilePath, 'file')
+
+    await expect(streamReadFirstYamlDocument(lockfilePath)).rejects.toThrow(/symlinked lockfile/)
   })
 })
 
