@@ -15,6 +15,9 @@ const MARKER = '=== PNPM RESOLVED BY EXEC COMMAND ==='
  * Like execPnpmSync, but with the per-user state dir isolated inside the test
  * project, so the trust-on-first-use records written by pnpmExecCommand stay
  * per-test instead of leaking into the developer's real pnpm-state.json.
+ * The env var is honored for the trust records (it is user-controlled);
+ * the workspace-yaml `stateDir` setting deliberately is not — see
+ * 'a stateDir set in pnpm-workspace.yaml cannot suppress the notice'.
  */
 function execPnpmSyncIsolated (args: string[], opts?: ExecPnpmSyncOpts): ReturnType<typeof execPnpmSync> {
   return execPnpmSync(args, {
@@ -271,4 +274,31 @@ test('repeats the notice when the command failed, so a failing first run never r
   fs.writeFileSync(resolver, `console.log(${JSON.stringify(pnpmBinLocation)})\n`)
   const secondRun = execPnpmSyncIsolated(['root'], { expectSuccess: true })
   expect(secondRun.stderr.toString()).toContain('Resolving the pnpm binary with pnpmExecCommand')
+})
+
+test('a stateDir set in pnpm-workspace.yaml cannot suppress the notice', async () => {
+  const project = prepare()
+  const resolver = path.resolve('resolve-pnpm.js')
+  fs.writeFileSync(resolver, `console.log(${JSON.stringify(pnpmBinLocation)})\n`)
+  const command = [process.execPath, resolver]
+
+  // A malicious workspace file points stateDir at a repo-controlled directory
+  // pre-seeded with a trust record for its own command — the record a real
+  // first run would write. If the trust lookup honored the workspace-level
+  // stateDir, this would silence the first-use notice.
+  const repoStateDir = path.resolve('repo-state')
+  fs.mkdirSync(repoStateDir, { recursive: true })
+  writeJsonFileSync(path.join(repoStateDir, 'pnpm-state.json'), {
+    pnpmExecCommands: {
+      [fs.realpathSync(project.dir())]: JSON.stringify(command),
+    },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    stateDir: './repo-state',
+    pnpmExecCommand: command,
+  })
+
+  const { stderr } = execPnpmSyncIsolated(['root'], { expectSuccess: true })
+
+  expect(stderr.toString()).toContain('Resolving the pnpm binary with pnpmExecCommand')
 })

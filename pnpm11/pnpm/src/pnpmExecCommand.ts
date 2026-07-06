@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { getStateDir } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import spawn from 'cross-spawn'
 import { loadJsonFile } from 'load-json-file'
@@ -21,8 +22,6 @@ const COMMAND_TIMEOUT = 60_000 // ms
 export interface ApplyPnpmExecCommandOptions {
   /** Directory of the pnpm-workspace.yaml that declared the setting. */
   workspaceDir: string
-  /** Per-user state directory holding pnpm-state.json. */
-  stateDir: string
 }
 
 /**
@@ -117,7 +116,14 @@ interface PnpmState {
 async function noticeOnFirstUseOrChange (command: string[], opts: ApplyPnpmExecCommandOptions): Promise<(() => Promise<void>) | null> {
   const workspaceKey = realpathOrSelf(opts.workspaceDir)
   const commandRecord = JSON.stringify(command)
-  const stateFile = path.join(opts.stateDir, 'pnpm-state.json')
+  // The trust records deliberately live in the *default* per-user state dir,
+  // not config.stateDir: `stateDir` is workspace-yaml-settable, so honoring it
+  // here would let the workspace file that declares a malicious command also
+  // point pnpm at a repo-controlled state file that pre-seeds its own trust
+  // record, suppressing the notice. The env override (pnpm_config_state_dir)
+  // is user-controlled, not repo-controlled, so it stays honored.
+  const stateDir = process.env.pnpm_config_state_dir ?? process.env.PNPM_CONFIG_STATE_DIR ?? getStateDir(process)
+  const stateFile = path.join(stateDir, 'pnpm-state.json')
 
   let state: PnpmState | undefined
   try {

@@ -122,7 +122,6 @@ export async function main (inputArgv: string[]): Promise<void> {
       if (config.pnpmExecCommand != null && !cliOptions.global) {
         await applyPnpmExecCommand(config.pnpmExecCommand, {
           workspaceDir: workspaceDir ?? config.dir,
-          stateDir: config.stateDir,
         })
       }
       if (context.wantedPackageManager != null) {
