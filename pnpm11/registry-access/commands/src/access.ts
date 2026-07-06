@@ -216,7 +216,7 @@ async function listEntityPackages (
 
   if (entityType === 'team') {
     const [scope, team] = entity.split(':')
-    listUrl = new URL(`-/team/${encodeURIComponent(scope)}/${encodeURIComponent(team)}/package?format=cli`, registryUrl).href
+    listUrl = new URL(`-/team/${encodeURIComponent(scope.startsWith('@') ? scope.slice(1) : scope)}/${encodeURIComponent(team)}/package?format=cli`, registryUrl).href
   } else if (entityType === 'org') {
     listUrl = new URL(`-/org/${encodeURIComponent(entity)}/package?format=cli`, registryUrl).href
   } else {
