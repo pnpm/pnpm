@@ -25,7 +25,8 @@ use std::{
 use crate::{
     cli_args::self_update::{
         install_pnpm::{
-            PNPM_ALLOW_BUILDS, PNPM_PACKAGE_NAME, link_exe_platform_binary, run_install,
+            PNPM_ALLOW_BUILDS, link_exe_platform_binary, package_dir, pnpm_package_name_to_install,
+            run_install,
         },
         verify_engine::verify_pnpm_engine_identity,
     },
@@ -45,6 +46,7 @@ pub(super) async fn install_pnpm_to_store<Reporter: self::Reporter + 'static>(
     spec: &str,
     version: &str,
 ) -> miette::Result<PathBuf> {
+    let package_name = pnpm_package_name_to_install(version);
     // Resolve `pnpm` + `@pnpm/exe` + their closure into the env lockfile
     // (a no-op when this spec+version is already recorded there).
     config_deps::sync_package_manager_dependencies(config, env_root, spec, version, false).await?;
@@ -61,10 +63,11 @@ pub(super) async fn install_pnpm_to_store<Reporter: self::Reporter + 'static>(
     // with the same hashing the install pipeline uses, so a stale or wrong
     // computation merely misses the cache (the idempotent install below
     // then re-derives the slot from the install's own symlink).
-    if let Some(slot) = compute_pnpm_slot(config, &env, version) {
-        let pkg_dir = slot.join("node_modules").join(PNPM_PACKAGE_NAME);
+    if let Some(slot) = compute_engine_slot(config, &env, package_name, version) {
+        let pkg_dir = package_dir(&slot, package_name);
         let bin_dir = slot.join("bin");
         if pkg_dir.join("package.json").exists() {
+            link_exe_platform_binary(&slot, package_name)?;
             if !bin_dir.exists() {
                 link_bins(&pkg_dir, &bin_dir)?;
             }
@@ -90,12 +93,13 @@ pub(super) async fn install_pnpm_to_store<Reporter: self::Reporter + 'static>(
     let slot = Box::pin(run_install::<Reporter>(
         config,
         &tmp_install_dir,
+        package_name,
         version,
         config.supported_architectures.clone(),
         true,
     ))
     .await
-    .and_then(|()| resolve_slot(&tmp_install_dir));
+    .and_then(|()| resolve_slot(&tmp_install_dir, package_name));
     // The temp directory held only symlinks into the GVS, so removing it
     // does not touch the installed engine. Refuse to recurse through a
     // symlink at the temp path as defense-in-depth — even though the store
@@ -104,21 +108,26 @@ pub(super) async fn install_pnpm_to_store<Reporter: self::Reporter + 'static>(
     let _ = remove_dir_if_not_symlink(&tmp_install_dir);
     let slot = slot?;
 
-    let pkg_dir = slot.join("node_modules").join(PNPM_PACKAGE_NAME);
+    let pkg_dir = package_dir(&slot, package_name);
     let bin_dir = slot.join("bin");
     // Replicate the wrapper's preinstall (skipped because the engine is
     // installed with scripts disabled): link the host's native binary.
-    link_exe_platform_binary(&slot, PNPM_PACKAGE_NAME)?;
+    link_exe_platform_binary(&slot, package_name)?;
     link_bins(&pkg_dir, &bin_dir)?;
     Ok(bin_dir)
 }
 
-/// The global-virtual-store slot `pnpm@<version>` resolves to, or `None`
+/// The global-virtual-store slot the selected engine wrapper resolves to, or `None`
 /// when it can't be derived (e.g. the engine snapshot is missing or the
 /// allow-build policy fails to compile). Drives only the cache-hit
 /// short-circuit, so `None` is a safe "treat as a miss".
-fn compute_pnpm_slot(config: &Config, env: &EnvLockfile, version: &str) -> Option<PathBuf> {
-    let wanted: PackageKey = format!("{PNPM_PACKAGE_NAME}@{version}").parse().ok()?;
+fn compute_engine_slot(
+    config: &Config,
+    env: &EnvLockfile,
+    package_name: &str,
+    version: &str,
+) -> Option<PathBuf> {
+    let wanted: PackageKey = format!("{package_name}@{version}").parse().ok()?;
     let key = env.snapshots.keys().find(|key| key.without_peer() == wanted)?.clone();
 
     let mut cfg = config.clone();
@@ -140,19 +149,24 @@ fn compute_pnpm_slot(config: &Config, env: &EnvLockfile, version: &str) -> Optio
     Some(layout.slot_dir(&key))
 }
 
-/// Derive the engine's GVS slot from the install's own `pnpm` symlink
-/// (`<install_dir>/node_modules/pnpm` → `<slot>/node_modules/pnpm`). This
+/// Derive the engine's GVS slot from the install's own wrapper symlink. This
 /// is the ground truth after an install, independent of any hash
 /// recomputation.
-fn resolve_slot(install_dir: &Path) -> miette::Result<PathBuf> {
-    let link = install_dir.join("node_modules").join(PNPM_PACKAGE_NAME);
+fn resolve_slot(install_dir: &Path, package_name: &str) -> miette::Result<PathBuf> {
+    let link = package_dir(install_dir, package_name);
     let real = fs::canonicalize(&link)
         .into_diagnostic()
         .wrap_err_with(|| format!("resolve the installed pnpm at {}", link.display()))?;
-    real.parent()
-        .and_then(Path::parent)
-        .map(Path::to_path_buf)
+    slot_from_package_dir(&real, package_name)
         .ok_or_else(|| miette::miette!("could not locate the pnpm global-virtual-store slot"))
+}
+
+pub(super) fn slot_from_package_dir(package_dir: &Path, package_name: &str) -> Option<PathBuf> {
+    let mut slot = package_dir;
+    for _ in package_name.split('/') {
+        slot = slot.parent()?;
+    }
+    slot.parent().map(Path::to_path_buf)
 }
 
 /// Link `pnpm`'s declared bins into `bin_dir` after the engine install.

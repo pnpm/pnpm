@@ -24,9 +24,9 @@ use std::{
 use super::SelfUpdateError;
 
 /// From v12 the unscoped `pnpm` package is itself the native engine
-/// (equal content to `@pnpm/exe`), so a self-update always converges on
-/// installing `pnpm`.
+/// (equal content to `@pnpm/exe`), so v12+ installs converge on `pnpm`.
 pub(crate) const PNPM_PACKAGE_NAME: &str = "pnpm";
+pub(crate) const PNPM_EXE_PACKAGE_NAME: &str = "@pnpm/exe";
 
 /// The package-manager components marked buildable when installing the
 /// engine (`{ '@pnpm/exe': true, 'pnpm': true }`), so the `ENGINE_NAME` is
@@ -36,10 +36,11 @@ pub(crate) const PNPM_ALLOW_BUILDS: [&str; 2] = ["pnpm", "@pnpm/exe"];
 
 pub(super) struct InstallPnpmResult {
     pub install_dir: PathBuf,
+    pub package_name: &'static str,
     pub already_existed: bool,
 }
 
-/// Install `pnpm@<version>` into the global packages directory. Returns
+/// Install the target pnpm engine into the global packages directory. Returns
 /// the install directory and whether the requested version was already
 /// present (in which case nothing is downloaded and the caller just
 /// relinks it).
@@ -48,18 +49,24 @@ pub(super) async fn install_pnpm<Reporter: self::Reporter + 'static>(
     version: &str,
     supported_architectures: Option<SupportedArchitectures>,
 ) -> miette::Result<InstallPnpmResult> {
+    let package_name = pnpm_package_name_to_install(version);
     let global_pkg_dir = base_config.global_pkg_dir.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
     fs::create_dir_all(&global_pkg_dir)
         .into_diagnostic()
         .wrap_err("create the global packages directory")?;
     clean_orphaned_install_dirs(&global_pkg_dir);
 
-    if let Some(existing) = find_global_package(&global_pkg_dir, PNPM_PACKAGE_NAME)
+    if let Some(existing) = find_global_package(&global_pkg_dir, package_name)
         .into_diagnostic()
         .wrap_err("scan global packages")?
-        && installed_version(&existing.install_dir).as_deref() == Some(version)
+        && installed_version(&existing.install_dir, package_name).as_deref() == Some(version)
     {
-        return Ok(InstallPnpmResult { install_dir: existing.install_dir, already_existed: true });
+        link_exe_platform_binary(&existing.install_dir, package_name)?;
+        return Ok(InstallPnpmResult {
+            install_dir: existing.install_dir,
+            package_name,
+            already_existed: true,
+        });
     }
 
     let install_dir = create_install_dir(&global_pkg_dir)
@@ -68,29 +75,38 @@ pub(super) async fn install_pnpm<Reporter: self::Reporter + 'static>(
     let outcome = Box::pin(run_install::<Reporter>(
         base_config,
         &install_dir,
+        package_name,
         version,
         supported_architectures,
         false,
     ))
     .await
-    .and_then(|()| link_exe_platform_binary(&install_dir, PNPM_PACKAGE_NAME));
+    .and_then(|()| link_exe_platform_binary(&install_dir, package_name));
     if let Err(err) = outcome {
         let _ = fs::remove_dir_all(&install_dir);
         return Err(err);
     }
-    Ok(InstallPnpmResult { install_dir, already_existed: false })
+    Ok(InstallPnpmResult { install_dir, package_name, already_existed: false })
 }
 
-/// The `version` recorded in `<install_dir>/node_modules/pnpm/package.json`,
-/// or `None` when the install is absent or unreadable.
-fn installed_version(install_dir: &Path) -> Option<String> {
-    let pkg_json = install_dir.join("node_modules").join(PNPM_PACKAGE_NAME).join("package.json");
+/// The installed wrapper's recorded version, or `None` when the install is
+/// absent or unreadable.
+fn installed_version(install_dir: &Path, package_name: &str) -> Option<String> {
+    let pkg_json = package_dir(install_dir, package_name).join("package.json");
     let text = fs::read_to_string(pkg_json).ok()?;
     let value: Value = serde_json::from_str(&text).ok()?;
     value.get("version").and_then(Value::as_str).map(ToString::to_string)
 }
 
-/// Install `pnpm@<version>` into a fresh group directory, mirroring the
+pub(crate) fn pnpm_package_name_to_install(pnpm_version: &str) -> &'static str {
+    if node_semver::Version::parse(pnpm_version).is_ok_and(|version| version.major >= 12) {
+        PNPM_PACKAGE_NAME
+    } else {
+        PNPM_EXE_PACKAGE_NAME
+    }
+}
+
+/// Install a pnpm engine wrapper into a fresh group directory, mirroring the
 /// global-add group install but with scripts disabled (the native binary
 /// is linked manually afterwards) and no build-approval prompt.
 ///
@@ -105,6 +121,7 @@ fn installed_version(install_dir: &Path) -> Option<String> {
 pub(crate) async fn run_install<Reporter: self::Reporter + 'static>(
     base_config: &'static Config,
     install_dir: &Path,
+    package_name: &str,
     version: &str,
     supported_architectures: Option<SupportedArchitectures>,
     enable_global_virtual_store: bool,
@@ -158,7 +175,7 @@ pub(crate) async fn run_install<Reporter: self::Reporter + 'static>(
         .wrap_err("initialize the self-update install state")?;
     add_package::<Reporter, _, _>(
         state,
-        &format!("{PNPM_PACKAGE_NAME}@{version}"),
+        &format!("{package_name}@{version}"),
         PinnedVersion::Patch,
         None,
         false,
@@ -229,10 +246,7 @@ pub(crate) fn link_exe_platform_binary(
     install_dir: &Path,
     wrapper_pkg_name: &str,
 ) -> miette::Result<()> {
-    let mut wrapper_dir = install_dir.join("node_modules");
-    for segment in wrapper_pkg_name.split('/') {
-        wrapper_dir.push(segment);
-    }
+    let wrapper_dir = package_dir(install_dir, wrapper_pkg_name);
     if !wrapper_dir.exists() {
         let wrapper_display = wrapper_dir.display();
         return Err(miette::miette!("the installed pnpm wrapper is missing at {wrapper_display}"));
@@ -284,6 +298,14 @@ pub(crate) fn link_exe_platform_binary(
         rewrite_windows_bin_field(&wrapper_dir);
     }
     Ok(())
+}
+
+pub(crate) fn package_dir(install_dir: &Path, package_name: &str) -> PathBuf {
+    let mut package_dir = install_dir.join("node_modules");
+    for segment in package_name.split('/') {
+        package_dir.push(segment);
+    }
+    package_dir
 }
 
 /// Hard-link `src` to `dest`, replacing any existing file. Marks the
