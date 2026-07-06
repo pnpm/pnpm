@@ -8,9 +8,7 @@ use pacquet_config::Config;
 use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
-use pacquet_reporter::{
-    LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter, SummaryLog,
-};
+use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
 use pacquet_tarball::MemCache;
 use std::{collections::HashSet, fmt::Write as _, sync::Arc};
 
@@ -153,9 +151,8 @@ impl Remove<'_> {
         let prefix = package_manifest_prefix(manifest);
         Reporter::emit(&LogEvent::PackageManifest(PackageManifestLog {
             level: LogLevel::Debug,
-            message: PackageManifestMessage::Updated { prefix: prefix.clone(), updated },
+            message: PackageManifestMessage::Updated { prefix, updated },
         }));
-        Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
 
         Ok(())
     }

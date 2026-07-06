@@ -242,7 +242,6 @@ fn empty_summary_does_not_prevent_later_manifest_diff_summary() {
                 CWD,
                 serde_json::json!({ "dependencies": { "foo": "^1.0.0" } }),
             ),
-            summary(),
         ],
     );
     assert_eq!(frame, "\ndependencies:\n+ foo ^1.0.0\n");

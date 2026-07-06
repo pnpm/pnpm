@@ -15,9 +15,7 @@ use pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_an
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_registry::{PackageTag, PackageVersion, PinnedVersion};
-use pacquet_reporter::{
-    LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter, SummaryLog,
-};
+use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
 use pacquet_resolving_git_resolver::{HostedGit, HostedOpts};
 use pacquet_resolving_npm_resolver::{
     InMemoryPackageMetaCache, PickPackageContext, PickPackageError, PickPackageOptions,
@@ -324,9 +322,8 @@ where
         let prefix = package_manifest_prefix(manifest);
         Reporter::emit(&LogEvent::PackageManifest(PackageManifestLog {
             level: LogLevel::Debug,
-            message: PackageManifestMessage::Updated { prefix: prefix.clone(), updated },
+            message: PackageManifestMessage::Updated { prefix, updated },
         }));
-        Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
 
         Ok(())
     }

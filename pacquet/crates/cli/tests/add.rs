@@ -9,7 +9,7 @@ use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::fs;
-use std::{ffi::OsStr, path::PathBuf};
+use std::{ffi::OsStr, path::PathBuf, process::Command};
 use tempfile::TempDir;
 
 fn exec_pacquet_in_temp_cwd<Args>(args: Args) -> (TempDir, PathBuf, AddMockedRegistry)
@@ -170,6 +170,38 @@ fn add_lockfile_only_from_workspace_subdir_prints_manifest_summary() {
         stdout.contains("dependencies:\n+ @pnpm.e2e/hello-world-js-bin ^1.0.0"),
         "add --lockfile-only should print the manifest diff summary for the selected importer\nstdout:\n{stdout}",
     );
+
+    assert_eq!(prod_spec(&package_dir, "@pnpm.e2e/hello-world-js-bin"), "^1.0.0");
+
+    let package_dir = workspace.join("packages/b");
+    std::fs::create_dir_all(&package_dir).expect("mkdir packages/b");
+    std::fs::write(
+        package_dir.join("package.json"),
+        serde_json::json!({ "name": "b", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write packages/b/package.json");
+
+    let output = Command::cargo_bin("pacquet")
+        .expect("find the pacquet binary")
+        .with_current_dir(&workspace)
+        .with_args([
+            "--dir",
+            "packages/b",
+            "--reporter=ndjson",
+            "add",
+            "@pnpm.e2e/hello-world-js-bin",
+            "--lockfile-only",
+        ])
+        .output()
+        .expect("run pacquet add with ndjson reporter");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "add failed\nstderr:\n{stderr}");
+    let summary_count = stderr
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .filter(|record| record.get("name").and_then(|name| name.as_str()) == Some("pnpm:summary"))
+        .count();
+    assert_eq!(summary_count, 1, "ndjson should emit one pnpm:summary\nstderr:\n{stderr}");
 
     assert_eq!(prod_spec(&package_dir, "@pnpm.e2e/hello-world-js-bin"), "^1.0.0");
     drop((root, npmrc_info)); // cleanup

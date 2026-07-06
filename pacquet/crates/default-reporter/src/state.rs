@@ -222,6 +222,7 @@ pub struct ReporterState {
     diff: HashMap<&'static str, HashMap<String, PackageDiff>>,
     manifest_diffs: HashMap<String, ManifestDiff>,
     summary_slot: BlockSlot,
+    summary_seen: bool,
     summary_rendered: bool,
     summary_scope: SummaryScope,
 
@@ -290,6 +291,7 @@ impl ReporterState {
             diff,
             manifest_diffs: HashMap::new(),
             summary_slot: BlockSlot::default(),
+            summary_seen: false,
             summary_rendered: false,
             summary_scope,
             lifecycle: HashMap::new(),
@@ -589,18 +591,30 @@ impl ReporterState {
         if !self.is_current_prefix(prefix) {
             return;
         }
-        let diff = self.manifest_diffs.entry(prefix.clone()).or_default();
-        match message {
-            PackageManifestMessage::Initial { initial, .. } => {
-                diff.initial.get_or_insert_with(|| initial.clone());
+        let should_render_after_update =
+            matches!(message, PackageManifestMessage::Updated { .. }) && self.summary_seen;
+        {
+            let diff = self.manifest_diffs.entry(prefix.clone()).or_default();
+            match message {
+                PackageManifestMessage::Initial { initial, .. } => {
+                    diff.initial.get_or_insert_with(|| initial.clone());
+                }
+                PackageManifestMessage::Updated { updated, .. } => {
+                    diff.updated = Some(updated.clone());
+                }
             }
-            PackageManifestMessage::Updated { updated, .. } => {
-                diff.updated = Some(updated.clone());
-            }
+        }
+        if should_render_after_update {
+            self.try_render_summary();
         }
     }
 
     fn on_summary(&mut self) {
+        self.summary_seen = true;
+        self.try_render_summary();
+    }
+
+    fn try_render_summary(&mut self) {
         if self.summary_rendered {
             return;
         }
