@@ -3,16 +3,14 @@
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use pacquet_diagnostics::miette::{self, Diagnostic};
+use pacquet_network::redact_url_credentials;
 use pipe_trait::Pipe;
 use serde_json::Value;
 use url::Url;
 
 use crate::{
     capabilities::{EnvVar, OidcFetch, OidcFetchError, OidcMethod, OidcRequest},
-    oidc::{
-        OidcHttpOptions, escaped_package_name, is_github_actions, is_gitlab,
-        redact_registry_credentials,
-    },
+    oidc::{OidcHttpOptions, escaped_package_name, is_github_actions, is_gitlab},
 };
 
 #[cfg(test)]
@@ -145,7 +143,7 @@ impl ProvenanceError {
             message,
             status,
             package_name: package_name.to_owned(),
-            registry: redact_registry_credentials(registry),
+            registry: redact_url_credentials(registry),
         }
     }
 }

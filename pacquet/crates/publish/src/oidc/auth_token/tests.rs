@@ -124,3 +124,26 @@ async fn redacts_registry_credentials_in_the_error_message() {
         "the registry host should still be shown: {message}",
     );
 }
+
+#[tokio::test]
+async fn redacts_credentials_even_when_the_registry_url_is_malformed() {
+    // A registry whose `Url::parse` fails (here, a non-numeric port) still has
+    // its credentials stripped from the error: the string-scan redactor does not
+    // depend on the URL parsing, matching pnpm's `redactUrlCredentials`.
+    oidc_fetch!(Sys, |_: OidcRequest<'_>| panic!(
+        "fetch must not be reached for an unparsable URL"
+    ));
+
+    let err = fetch_auth_token::<Sys>(
+        "id-token",
+        "pkg",
+        "https://user:secret@registry.example.com:notaport/",
+        &OidcHttpOptions::default(),
+    )
+    .await
+    .unwrap_err();
+    assert!(
+        !err.to_string().contains("secret"),
+        "credentials leaked for a malformed registry URL: {err}",
+    );
+}

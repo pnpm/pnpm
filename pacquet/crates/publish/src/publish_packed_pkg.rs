@@ -6,7 +6,7 @@
 use std::collections::BTreeMap;
 
 use pacquet_diagnostics::miette::{self, Diagnostic};
-use pacquet_network::{AuthHeaders, ThrottledClient};
+use pacquet_network::{AuthHeaders, ThrottledClient, redact_url_credentials};
 use pacquet_network_web_auth::{
     Clock as WebAuthClock, EnterKeyListener, Host as WebAuthHost, OpenUrl, OtpChallenge, OtpError,
     OtpErrorBody, PromptOtp, Sleep, StdinIsTty, StdoutIsTty, WebAuthFetch, WebAuthFetchOptions,
@@ -20,7 +20,7 @@ use crate::{
     capabilities::{Clock, EnvVar, OidcFetch},
     failed_to_publish_error::FailedToPublishError,
     global_log::{global_info, global_warn},
-    oidc::{OidcHttpOptions, escaped_package_name, redact_registry_credentials},
+    oidc::{OidcHttpOptions, escaped_package_name},
     provenance_gen::{ProvenanceGenError, SignProvenance, generate_provenance},
     publish_options::{
         Access, CreatePublishOptionsError, CreatePublishOptionsInput, create_publish_options,
@@ -466,11 +466,11 @@ fn join_registry(
 
 /// Render the registry URL for logging with any `user:pass@` userinfo stripped,
 /// so credentials a user embedded in a `registry=` URL don't leak into CI logs.
-/// A typed entry point over [`redact_registry_credentials`] for the
+/// A typed entry point over [`redact_url_credentials`] for the
 /// `NormalizedRegistryUrl` log site; the unsanitized URL is still used for the
 /// request and auth-header lookup.
 fn registry_for_display(registry: &NormalizedRegistryUrl) -> String {
-    redact_registry_credentials(registry.as_str())
+    redact_url_credentials(registry.as_str())
 }
 
 /// Clean a version string to `major.minor.patch` plus any prerelease,

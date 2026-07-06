@@ -112,23 +112,6 @@ pub(crate) fn escaped_package_name(name: &str) -> String {
     name.replace('/', "%2f")
 }
 
-/// Strip any `user:pass@` userinfo from a registry URL so credentials a user
-/// embedded in a `registry=` URL don't leak into logs or error messages. Only
-/// the displayed/stored string is sanitized; the URL used for requests keeps
-/// its userinfo. Returns the input unchanged when there is no userinfo (the
-/// common case) or the URL doesn't parse.
-pub(crate) fn redact_registry_credentials(registry: &str) -> String {
-    let Ok(mut url) = Url::parse(registry) else {
-        return registry.to_owned();
-    };
-    if url.username().is_empty() && url.password().is_none() {
-        return registry.to_owned();
-    }
-    let _ = url.set_username("");
-    let _ = url.set_password(None);
-    url.to_string()
-}
-
 /// The fetch-retry / timeout knobs the OIDC requests forward, sourced from the
 /// publish options, shared by all three OIDC steps.
 #[derive(Debug, Default, Clone)]
