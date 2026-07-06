@@ -46,6 +46,9 @@ pub(crate) async fn install_pnpm_to_store<Reporter: self::Reporter + 'static>(
     spec: &str,
     version: &str,
 ) -> miette::Result<PathBuf> {
+    fs::create_dir_all(env_root).into_diagnostic().wrap_err_with(|| {
+        format!("create the package-manager env directory at {}", env_root.display())
+    })?;
     // Resolve the package-manager closure into the env lockfile (a no-op
     // when this spec+version is already recorded there).
     config_deps::sync_package_manager_dependencies(config, env_root, spec, version, false).await?;

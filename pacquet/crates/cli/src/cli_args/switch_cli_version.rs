@@ -13,10 +13,12 @@ use super::{
 use crate::{config_deps, config_overrides::ConfigOverrides};
 use miette::{Context, IntoDiagnostic};
 use pacquet_config::{Config, Host, PACQUET_VERSION, PmOnFail};
-use pacquet_lockfile::{EnvLockfile, LockfileResolution, PackageKey};
+use pacquet_lockfile::{EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, VersionPart};
 use pacquet_reporter::SilentReporter;
 use std::{
+    collections::HashSet,
     ffi::{OsStr, OsString},
+    fmt::Display,
     path::{Path, PathBuf},
 };
 
@@ -133,7 +135,7 @@ fn switch_target(config: &Config, root_dir: &Path) -> miette::Result<Option<Swit
             EnvLockfile::read(root_dir).map_err(miette::Report::new).wrap_err_with(|| {
                 format!("read the package-manager env lockfile in {}", root_dir.display())
             })?
-        && let Some(version) = locked_package_manager_version(&env, &spec)
+        && let Some(version) = locked_package_manager_version(&env, &spec)?
     {
         return Ok(Some(SwitchTarget { spec, source: SwitchSource::LockedEnv { env, version } }));
     }
@@ -150,29 +152,135 @@ fn switch_target(config: &Config, root_dir: &Path) -> miette::Result<Option<Swit
     Ok(Some(SwitchTarget { spec, source: SwitchSource::Resolve { env_root } }))
 }
 
-fn locked_package_manager_version(env: &EnvLockfile, wanted_range: &str) -> Option<String> {
-    let version = env
+fn locked_package_manager_version(
+    env: &EnvLockfile,
+    wanted_range: &str,
+) -> miette::Result<Option<String>> {
+    let Some(version) = env
         .importers
-        .get(EnvLockfile::ROOT_IMPORTER_KEY)?
-        .package_manager_dependencies
-        .as_ref()?
-        .get("pnpm")?
-        .version
-        .clone();
-    (version_satisfies(&version, wanted_range) && package_manager_entries_exist(env, &version))
-        .then_some(version)
+        .get(EnvLockfile::ROOT_IMPORTER_KEY)
+        .and_then(|importer| importer.package_manager_dependencies.as_ref())
+        .and_then(|dependencies| dependencies.get("pnpm"))
+        .map(|dependency| dependency.version.clone())
+    else {
+        return Ok(None);
+    };
+    if !version_satisfies(&version, wanted_range) {
+        return Ok(None);
+    }
+    if !package_manager_dependencies_are_resolved(env, &version) {
+        return Ok(None);
+    }
+    assert_package_manager_lockfile_uses_registry_resolutions(env)?;
+    Ok(Some(version))
 }
 
-fn package_manager_entries_exist(env: &EnvLockfile, version: &str) -> bool {
-    PACKAGE_MANAGER_DEPS.iter().all(|name| {
-        let Ok(key) = format!("{name}@{version}").parse::<PackageKey>() else {
-            return false;
-        };
-        env.snapshots.contains_key(&key)
-            && env.packages.get(&key).is_some_and(|metadata| {
-                matches!(&metadata.resolution, LockfileResolution::Registry(_))
-            })
-    })
+fn package_manager_dependencies_are_resolved(env: &EnvLockfile, version: &str) -> bool {
+    let Some(dependencies) = env
+        .importers
+        .get(EnvLockfile::ROOT_IMPORTER_KEY)
+        .and_then(|importer| importer.package_manager_dependencies.as_ref())
+    else {
+        return false;
+    };
+    PACKAGE_MANAGER_DEPS
+        .iter()
+        .all(|name| dependencies.get(*name).is_some_and(|dep| dep.version == version))
+}
+
+fn assert_package_manager_lockfile_uses_registry_resolutions(
+    env: &EnvLockfile,
+) -> miette::Result<()> {
+    let Some(package_manager_dependencies) = env
+        .importers
+        .get(EnvLockfile::ROOT_IMPORTER_KEY)
+        .and_then(|importer| importer.package_manager_dependencies.as_ref())
+    else {
+        return Err(miette::miette!(
+            "The packageManager dependencies were not found in pnpm-lock.yaml"
+        ));
+    };
+
+    let mut visited = HashSet::new();
+    for (name, dependency) in package_manager_dependencies {
+        let key = format!("{name}@{}", dependency.version)
+            .parse::<PackageKey>()
+            .map_err(|_| invalid_package_manager_lockfile(name))?;
+        assert_registry_package_manager_dependency(env, &key, &mut visited)?;
+    }
+    Ok(())
+}
+
+fn assert_registry_package_manager_dependency(
+    env: &EnvLockfile,
+    key: &PackageKey,
+    visited: &mut HashSet<PackageKey>,
+) -> miette::Result<()> {
+    if !visited.insert(key.clone()) {
+        return Ok(());
+    }
+
+    let package_key = key.without_peer();
+    let package_info =
+        env.packages.get(&package_key).ok_or_else(|| invalid_package_manager_lockfile(key))?;
+    let snapshot = env.snapshots.get(key).ok_or_else(|| invalid_package_manager_lockfile(key))?;
+
+    assert_registry_package_path(key, package_info)?;
+    assert_integrity_only_resolution(key, &package_info.resolution)?;
+
+    for dependencies in
+        [&snapshot.dependencies, &snapshot.optional_dependencies].into_iter().flatten()
+    {
+        for (name, reference) in dependencies {
+            let next_key =
+                reference.resolve(name).ok_or_else(|| invalid_package_manager_lockfile(key))?;
+            assert_registry_package_manager_dependency(env, &next_key, visited)?;
+        }
+    }
+    Ok(())
+}
+
+fn assert_registry_package_path(
+    key: &PackageKey,
+    package_info: &PackageMetadata,
+) -> miette::Result<()> {
+    if key.suffix.prefix() != pacquet_lockfile::Prefix::None
+        || !matches!(key.suffix.version(), VersionPart::Semver(_))
+    {
+        return Err(invalid_package_manager_lockfile(key));
+    }
+    if let Some(version) = &package_info.version
+        && version != &key.suffix.without_peer().to_string()
+    {
+        return Err(invalid_package_manager_lockfile(key));
+    }
+    Ok(())
+}
+
+fn assert_integrity_only_resolution(
+    key: &PackageKey,
+    resolution: &LockfileResolution,
+) -> miette::Result<()> {
+    match resolution {
+        LockfileResolution::Registry(resolution)
+            if !resolution.integrity.to_string().is_empty() =>
+        {
+            Ok(())
+        }
+        LockfileResolution::Registry(_)
+        | LockfileResolution::Tarball(_)
+        | LockfileResolution::Directory(_)
+        | LockfileResolution::Git(_)
+        | LockfileResolution::Binary(_)
+        | LockfileResolution::Variations(_) => Err(invalid_package_manager_lockfile(key)),
+    }
+}
+
+fn invalid_package_manager_lockfile(dep_path: impl Display) -> miette::Report {
+    miette::miette!(
+        r#"The packageManager dependency "{}" in pnpm-lock.yaml must use a registry package path and an integrity-only resolution"#,
+        dep_path,
+    )
 }
 
 fn effective_on_fail(config: &Config, pm: &WantedPackageManager) -> PmOnFail {
