@@ -47,3 +47,9 @@ pub use specifier::{ParsedBareSpecifier, parse_bare_specifier};
 pub fn engine_version() -> &'static str {
     pacquet_config::PACQUET_VERSION
 }
+
+/// No-op stubs for the napi runtime symbols the `#[napi]` trampolines
+/// reference, defined only for the crate's unit-test binary so it is
+/// self-contained. See the module for the full rationale.
+#[cfg(test)]
+mod napi_runtime_test_stubs;
