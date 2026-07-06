@@ -20,8 +20,10 @@ mod tests;
 /// attached, `None` when it should not.
 ///
 /// A [`ProvenanceError`] is skippable (the publish proceeds without
-/// provenance); a malformed id-token payload or a failed visibility request is
-/// a hard error that propagates.
+/// provenance): a malformed JWT shape, insufficient CI information, or a non-OK
+/// visibility response. Failing to decode the id-token payload or the
+/// visibility body, an invalid registry URL, or a transport error propagates as
+/// a hard error.
 pub async fn determine_provenance<Sys>(
     auth_token: &str,
     id_token: &str,
