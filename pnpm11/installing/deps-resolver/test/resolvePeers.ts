@@ -1112,6 +1112,64 @@ describe('locked peer provider preferences', () => {
     expect(preferred.dependenciesGraph['consumer/1.0.0(peer/1.0.0)' as DepPath]).toBeTruthy()
     expect(preferred.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeUndefined()
   })
+
+  test('does not reuse a locked provider for an optional peer that is not visible in scope', async () => {
+    // Regression test for https://github.com/pnpm/pnpm/issues/12756. The
+    // consumer's peer is OPTIONAL and its only provider (peer@2.0.0) lives in an
+    // unrelated sibling subtree (under retainer), so it is not visible from the
+    // consumer's own scope. A fresh resolution leaves the optional peer unbound,
+    // so the locked-context reuse pass must not re-bind it — doing so would add
+    // a `(peer@2.0.0)` suffix that `pnpm install` produces but `pnpm dedupe`
+    // does not, drifting the lockfile. Contrast with the childless-consumer test
+    // above, where the peer is required and reusing the lateral provider is
+    // correct.
+    const optionalConsumerPkg = {
+      ...consumerPkg,
+      peerDependencies: {
+        peer: { version: '>=1', optional: true },
+      },
+    }
+    const dependenciesTree = new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+      [retainerNodeId, {
+        children: { peer: retainedPeerNodeId },
+        installable: true,
+        resolvedPackage: retainerPkg,
+        depth: 0,
+      }],
+      [retainedPeerNodeId, {
+        children: {},
+        installable: true,
+        previousDepPath: 'peer/2.0.0' as DepPath,
+        resolvedPackage: peer2Pkg,
+        depth: 1,
+      }],
+      [wrapperNodeId, {
+        children: { consumer: consumerNodeId },
+        installable: true,
+        resolvedPackage: wrapperPkg,
+        depth: 0,
+      }],
+      [consumerNodeId, {
+        children: {},
+        installable: true,
+        lockedPeerContext: { peer: 'peer/2.0.0' as DepPath },
+        resolvedPackage: optionalConsumerPkg,
+        depth: 1,
+      }],
+    ])
+    const resolutionOpts = options(dependenciesTree, new Map([
+      ['retainer', retainerNodeId],
+      ['wrapper', wrapperNodeId],
+    ]))
+    const initial = await resolvePeers(resolutionOpts)
+    const preferred = await resolvePeers({
+      ...resolutionOpts,
+      resolvedPeerProviderPaths: initial.pathsByNodeId,
+    })
+
+    expect(preferred.dependenciesGraph['consumer/1.0.0' as DepPath]).toBeTruthy()
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeUndefined()
+  })
 })
 
 describe('dedupePeers', () => {

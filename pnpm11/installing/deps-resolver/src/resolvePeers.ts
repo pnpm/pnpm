@@ -501,6 +501,16 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       const currentPeerDepPath = ctx.pathsByNodeId.get(peerNodeId)
       if (currentPeerDepPath != null && currentPeerDepPath !== previousPeerDepPath) continue
       if (hasCurrentPeerProviderThatMustWin(peerName, parentPkgs, ctx)) continue
+      // An optional peer only binds when a provider is actually visible in the
+      // resolving package's scope; a fresh resolution / `pnpm dedupe` leaves it
+      // unbound otherwise. `parentPkgs` holds the peer providers visible from
+      // the current ancestor chain, so if it has no entry for an optional peer,
+      // reusing the locked provider would bind it laterally to a provider in an
+      // unrelated sibling subtree, spuriously adding a peer suffix that a fresh
+      // resolution never produces. Required peers may still reuse a locked
+      // lateral provider — that is the context preservation this pass exists for.
+      // See https://github.com/pnpm/pnpm/issues/12756.
+      if (peerDependency.optional === true && parentPkgs[peerName] == null) continue
       const lockedPeer = toPkgByName([{
         alias: peerName,
         node: ctx.dependenciesTree.get(peerNodeId)!,
