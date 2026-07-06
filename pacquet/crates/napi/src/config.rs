@@ -9,6 +9,15 @@
 //! of allocating a new one, but changed `.npmrc` / `pnpm-workspace.yaml` /
 //! environment policy builds a fresh config.
 //!
+//! Each *distinct* input still leaks once and is never evicted (the map exists
+//! to stop *repeated identical* calls from leaking, not to bound total memory —
+//! leaked memory cannot be reclaimed). Retained configs therefore grow with the
+//! number of unique `(dir, overlay, config sources)` combinations the process
+//! observes, which is bounded in practice for the trusted embedder this binding
+//! targets. Removing the leak entirely requires the engine to accept a borrowed
+//! or `Arc` config instead of `&'static Config`; that is a pacquet-core change
+//! tracked as a follow-up.
+//!
 //! The base is [`Config::current`] over `dir` — it reads the `.npmrc`
 //! auth/registry/network subset and `pnpm-workspace.yaml` exactly as the CLI
 //! does — then the explicit overlay fields the host passed (store/cache dirs,

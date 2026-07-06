@@ -151,6 +151,12 @@ fn run_resolve_blocking(
 
     let resolved = runtime
         .block_on(async { resolver.resolve(&wanted_dependency, &resolve_options).await })
+        // `Resolver::resolve` erases its error to `ResolveError`
+        // (`Box<dyn Error>`), so the underlying miette `Diagnostic` — and its
+        // `ERR_PNPM_*` code / hint — is already gone by the time it reaches
+        // here; only the message survives. Restoring the code on this path
+        // requires the resolver trait to carry a typed diagnostic error, a
+        // pacquet-core change tracked as a follow-up.
         .map_err(|error| napi::Error::from_reason(error.to_string()))?;
 
     let Some(resolved) = resolved else {
