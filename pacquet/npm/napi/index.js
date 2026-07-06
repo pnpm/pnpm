@@ -68,8 +68,14 @@ function loadFailure(triple, loadErrors) {
 function loadBinding() {
   const triple = platformTriple()
   const loadErrors = []
+  // Only ever hand a `.node` addon to require(). Without this, a non-.node
+  // PNPM_NAPI_BINARY value would be require()'d as an arbitrary JS module.
+  const explicit = process.env.PNPM_NAPI_BINARY
+  if (explicit && !explicit.endsWith('.node')) {
+    throw new Error(`PNPM_NAPI_BINARY must point to a .node addon file, got: ${explicit}`)
+  }
   const binding =
-    tryLoad(process.env.PNPM_NAPI_BINARY, loadErrors) ??
+    tryLoad(explicit, loadErrors) ??
     tryLoad(`@pnpm/napi.${triple}`, loadErrors) ??
     tryLoad(path.join(__dirname, `pnpm-napi.${triple}.node`), loadErrors) ??
     tryLoad(path.join(__dirname, 'pnpm-napi.node'), loadErrors)

@@ -15,7 +15,7 @@
 //! registries, linker, hoist patterns, overrides, peer/dedupe policy, ...) win.
 
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, hash_map::DefaultHasher},
+    collections::{BTreeMap, BTreeSet, hash_map::DefaultHasher},
     fs,
     hash::{Hash, Hasher},
     path::{Path, PathBuf},
@@ -78,8 +78,9 @@ pub struct ConfigOverlay {
     pub strict_dep_builds: Option<bool>,
     /// Per-package build-script allow-list: `name -> allowed`. A package must
     /// be `true` here (or covered by `dangerously_allow_all_builds`) for its
-    /// lifecycle scripts to run.
-    pub allow_builds: Option<HashMap<String, bool>>,
+    /// lifecycle scripts to run. `BTreeMap` (not `HashMap`) so the overlay's
+    /// `Debug` output — which feeds the config intern cache key — is stable.
+    pub allow_builds: Option<BTreeMap<String, bool>>,
     /// Allow every dependency's build scripts to run.
     pub dangerously_allow_all_builds: Option<bool>,
     /// When `true`, skip all dependency and project lifecycle scripts.
@@ -100,8 +101,9 @@ pub struct ConfigOverlay {
     /// registry. When present, replaces the `.npmrc`-derived `auth_headers` —
     /// the host (which owns the raw `.npmrc`/config credentials) resolves the
     /// `Bearer ...` / `Basic ...` values and passes them in, so the binding never
-    /// reparses npmrc auth.
-    pub auth_header_by_uri: Option<HashMap<String, String>>,
+    /// reparses npmrc auth. `BTreeMap` (not `HashMap`) so the overlay's `Debug`
+    /// output — which feeds the config intern cache key — is stable.
+    pub auth_header_by_uri: Option<BTreeMap<String, String>>,
 }
 
 /// Host-supplied `peerDependencyRules`. Mirrors pnpm's shape and pacquet's
@@ -123,6 +125,11 @@ fn config_cache() -> &'static DashMap<u64, &'static Config> {
 fn cache_key(dir: &Path, overlay: &ConfigOverlay) -> u64 {
     let mut hasher = DefaultHasher::new();
     dir.hash(&mut hasher);
+    // The overlay's `Debug` string covers every field. This is only stable
+    // because the map-typed fields are `BTreeMap` (ordered) rather than
+    // `HashMap` (per-instance random iteration order) — otherwise logically
+    // identical overlays would hash differently, miss the cache, and leak a
+    // fresh `Config` on every call.
     format!("{overlay:?}").hash(&mut hasher);
     hash_config_sources(dir, &mut hasher);
     hasher.finish()
@@ -331,7 +338,8 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
         config.strict_dep_builds = value;
     }
     if let Some(allow_builds) = &overlay.allow_builds {
-        config.allow_builds.clone_from(allow_builds);
+        config.allow_builds =
+            allow_builds.iter().map(|(name, allowed)| (name.clone(), *allowed)).collect();
     }
     if let Some(value) = overlay.dangerously_allow_all_builds {
         config.dangerously_allow_all_builds = value;
@@ -371,3 +379,6 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
     }
     Ok(config)
 }
+
+#[cfg(test)]
+mod tests;

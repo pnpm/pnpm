@@ -99,7 +99,7 @@ fn unsupported_install_options_fail_closed() {
 
 #[test]
 fn newly_supported_install_options_are_accepted() {
-    // Options the binding used to reject now flow through the engine.
+    // These options are accepted and flow through to the engine.
     let mut options = install_options();
     options.update = Some(true);
     options.depth = Some(0);

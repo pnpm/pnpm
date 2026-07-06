@@ -69,7 +69,7 @@ pub struct InstallStats {
 
 /// Process-global stats accumulator, active only while an install runs. A
 /// global (rather than per-call) accumulator is safe because engine calls that
-/// collect stats are serialized behind [`crate::install::install_lock`].
+/// collect stats are serialized behind [`crate::install::engine_call_lock`].
 fn stats_slot() -> &'static Mutex<Option<InstallStats>> {
     static SLOT: OnceLock<Mutex<Option<InstallStats>>> = OnceLock::new();
     SLOT.get_or_init(|| Mutex::new(None))
@@ -87,6 +87,40 @@ pub fn begin_stats() {
 /// accumulated).
 pub fn take_stats() -> InstallStats {
     stats_slot().lock().ok().and_then(|mut guard| guard.take()).unwrap_or_default()
+}
+
+/// RAII guard over one engine call's global reporter state. Installs `sink`
+/// (when the caller supplied one) as the process-global log sink and restores
+/// the previously installed sink on drop — including on unwind. Without this, a
+/// panic in a worker thread would leave a stale sink installed, misrouting a
+/// later caller's log events to a dead JS callback. Any un-taken stats are also
+/// discarded on drop so a panicked call cannot bleed counts into the next one.
+pub struct EngineCallGuard {
+    prev_sink: Option<LogSink>,
+    installed: bool,
+}
+
+impl EngineCallGuard {
+    pub fn new(sink: Option<LogSink>) -> Self {
+        match sink {
+            Some(sink) => Self { prev_sink: set_global_log_sink(sink), installed: true },
+            None => Self { prev_sink: None, installed: false },
+        }
+    }
+}
+
+impl Drop for EngineCallGuard {
+    fn drop(&mut self) {
+        if self.installed {
+            match self.prev_sink.take() {
+                Some(prev) => {
+                    set_global_log_sink(prev);
+                }
+                None => clear_global_log_sink(),
+            }
+        }
+        let _ = take_stats();
+    }
 }
 
 fn accumulate_stats(event: &LogEvent) {

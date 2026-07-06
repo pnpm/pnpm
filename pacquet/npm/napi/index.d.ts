@@ -192,7 +192,7 @@ export interface InstallResult {
 export function install(
   options: InstallOptions,
   onLog?: LogListener,
-  readPackageHook?: ReadPackageHook
+  readPackageHook?: ReadPackageHook,
 ): Promise<InstallResult>
 
 /**
@@ -204,7 +204,7 @@ export function install(
 export function rebuild(
   options: InstallOptions,
   onLog?: LogListener,
-  selectedNames?: string[]
+  selectedNames?: string[],
 ): Promise<void>
 
 export interface PeerIssuesOptions extends SharedEngineOptions {

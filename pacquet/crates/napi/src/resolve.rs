@@ -89,7 +89,7 @@ fn run_resolve_blocking(
         registries: options.registries.as_ref().map(|map| map.clone().into_iter().collect()),
         offline: options.offline,
         prefer_offline: options.prefer_offline,
-        auth_header_by_uri: options.auth_header_by_uri.clone(),
+        auth_header_by_uri: options.auth_header_by_uri.clone().map(|map| map.into_iter().collect()),
         ..ConfigOverlay::default()
     };
     let config = resolve_config(&dir, &overlay).map_err(|error| to_napi_error(&error))?;

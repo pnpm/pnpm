@@ -32,10 +32,7 @@ use crate::{
     config::{ConfigOverlay, resolve_config},
     error::{to_napi_error, unimplemented_error, unsupported_option_error},
     hooks::{HookSink, JsReadPackageHook},
-    reporter_bridge::{
-        LogSink, NodeBridgeReporter, begin_stats, clear_global_log_sink, set_global_log_sink,
-        take_stats,
-    },
+    reporter_bridge::{EngineCallGuard, LogSink, NodeBridgeReporter, begin_stats, take_stats},
 };
 
 /// One importer: an absolute directory plus its in-memory manifest.
@@ -165,11 +162,12 @@ pub struct InstallResult {
     pub store_dir: String,
 }
 
-/// Serializes engine calls that collect stats through the process-global
-/// accumulator (see `reporter_bridge::begin_stats`). Held across the whole
-/// install; different install dirs still run one at a time, matching Bit's
-/// per-directory `installsRunning` serialization conservatively.
-pub fn install_lock() -> &'static Mutex<()> {
+/// Serializes every engine call that touches the process-global log sink /
+/// stats accumulator (`install`, `rebuild`, `pack`) so their reporter state
+/// never overlaps. Held across the whole call; different install dirs still run
+/// one at a time, matching Bit's per-directory `installsRunning` serialization
+/// conservatively.
+pub fn engine_call_lock() -> &'static Mutex<()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
     LOCK.get_or_init(|| Mutex::new(()))
 }
@@ -180,7 +178,7 @@ pub async fn install(
     on_log: Option<LogSink>,
     read_package_hook: Option<HookSink>,
 ) -> napi::Result<InstallResult> {
-    let _guard = install_lock().lock().await;
+    let _guard = engine_call_lock().lock().await;
     let (tx, rx) = tokio::sync::oneshot::channel();
     std::thread::Builder::new()
         .name("pnpm-napi-install".to_string())
@@ -201,18 +199,14 @@ fn run_install_blocking(
     on_log: Option<LogSink>,
     read_package_hook: Option<HookSink>,
 ) -> napi::Result<InstallResult> {
-    let had_sink = on_log.is_some();
-    if let Some(sink) = on_log {
-        set_global_log_sink(sink);
-    }
+    // Restores the previous sink and clears stats on drop — including on a
+    // panic in `run_install_inner`, which unwinds this dedicated thread.
+    let _sink_guard = EngineCallGuard::new(on_log);
     let pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>> = read_package_hook
         .map(|sink| Arc::new(JsReadPackageHook::new(sink)) as Arc<dyn PnpmfileHooks>);
     begin_stats();
     let outcome = run_install_inner(options, pnpmfile_hook, EngineMode::Install);
     let stats = take_stats();
-    if had_sink {
-        clear_global_log_sink();
-    }
     let store_dir = outcome?;
     Ok(InstallResult {
         stats: InstallStatsResult {
@@ -482,7 +476,7 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
             .or_else(|| network_config.and_then(|config| config.user_agent.clone())),
         // Embedders gate builds themselves, so default to report-not-fail.
         strict_dep_builds: Some(options.strict_dep_builds.unwrap_or(false)),
-        allow_builds: options.allow_builds.clone(),
+        allow_builds: options.allow_builds.clone().map(|map| map.into_iter().collect()),
         dangerously_allow_all_builds: options.dangerously_allow_all_builds,
         ignore_scripts: options.ignore_scripts,
         engine_strict: options.engine_strict,
@@ -499,13 +493,13 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
                     .map(|map| map.clone().into_iter().collect()),
             }
         }),
-        auth_header_by_uri: options.auth_header_by_uri.clone(),
+        auth_header_by_uri: options.auth_header_by_uri.clone().map(|map| map.into_iter().collect()),
     })
 }
 
 fn reject_unsupported_install_options(options: &InstallOptions) -> napi::Result<()> {
     reject_non_empty_map(options.auth_config.as_ref(), "authConfig")?;
-    reject_non_empty_list(options.never_built_dependencies.as_ref(), "neverBuiltDependencies")?;
+    reject_non_empty_list(options.never_built_dependencies.as_deref(), "neverBuiltDependencies")?;
     Ok(())
 }
 
@@ -516,7 +510,7 @@ fn reject_non_empty_map<Value>(
     reject_if(value.is_some_and(|map| !map.is_empty()), option)
 }
 
-fn reject_non_empty_list<Value>(value: Option<&Vec<Value>>, option: &str) -> napi::Result<()> {
+fn reject_non_empty_list<Value>(value: Option<&[Value]>, option: &str) -> napi::Result<()> {
     reject_if(value.is_some_and(|items| !items.is_empty()), option)
 }
 
@@ -608,7 +602,7 @@ pub async fn rebuild(
     on_log: Option<LogSink>,
     selected_names: Option<Vec<String>>,
 ) -> napi::Result<()> {
-    let _guard = install_lock().lock().await;
+    let _guard = engine_call_lock().lock().await;
     let (tx, rx) = tokio::sync::oneshot::channel();
     std::thread::Builder::new()
         .name("pnpm-napi-rebuild".to_string())
@@ -627,10 +621,9 @@ fn run_rebuild_blocking(
     on_log: Option<LogSink>,
     selected_names: Option<Vec<String>>,
 ) -> napi::Result<()> {
-    let had_sink = on_log.is_some();
-    if let Some(sink) = on_log {
-        set_global_log_sink(sink);
-    }
+    // Restores the previous sink on drop — including on a panic in
+    // `run_install_inner`, which unwinds this dedicated thread.
+    let _sink_guard = EngineCallGuard::new(on_log);
     // `None` (or an empty list) rebuilds every build-needing package; a
     // non-empty list restricts the rebuild to the matching names / build keys.
     let rebuild_options = RebuildOptions {
@@ -639,9 +632,6 @@ fn run_rebuild_blocking(
             .map(|names| names.into_iter().collect()),
     };
     let outcome = run_install_inner(options, None, EngineMode::Rebuild(rebuild_options));
-    if had_sink {
-        clear_global_log_sink();
-    }
     outcome.map(|_| ())
 }
 

@@ -15,7 +15,8 @@ use pacquet_config::{NodeLinker, PACQUET_VERSION};
 
 use crate::{
     error::to_napi_error,
-    reporter_bridge::{LogSink, NodeBridgeReporter, clear_global_log_sink, set_global_log_sink},
+    install::engine_call_lock,
+    reporter_bridge::{EngineCallGuard, LogSink, NodeBridgeReporter},
 };
 
 /// Inputs for [`pack`]. Mirrors [`PackOptions`] in `index.d.ts`.
@@ -47,10 +48,11 @@ pub struct PackResult {
 
 #[napi]
 pub async fn pack(options: PackOptions, on_log: Option<LogSink>) -> napi::Result<PackResult> {
-    let had_sink = on_log.is_some();
-    if let Some(sink) = on_log {
-        set_global_log_sink(sink);
-    }
+    // Share the serialization lock with install/rebuild: they all drive the
+    // same process-global log sink, so overlapping calls would misroute events.
+    let _guard = engine_call_lock().lock().await;
+    // Restores the previous sink on drop, whatever path `pack` returns on.
+    let _sink_guard = EngineCallGuard::new(on_log);
 
     let pack_opts = pacquet_pack::PackOptions {
         dir: PathBuf::from(&options.dir),
@@ -81,10 +83,6 @@ pub async fn pack(options: PackOptions, on_log: Option<LogSink>) -> napi::Result
         pacquet_pack::api::<NodeBridgeReporter, pacquet_pack::Host>(&pack_opts)
     })
     .await;
-
-    if had_sink {
-        clear_global_log_sink();
-    }
 
     match result {
         Ok(Ok(packed)) => Ok(PackResult {
