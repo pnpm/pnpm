@@ -40,6 +40,10 @@ fn byte_mode_code(data: &[u8], ec_level: EcLevel) -> Result<QrCode, GenerateQrCo
 /// stacking two vertical modules. A real QR always has an odd module count, so
 /// the bottom edge is the last row's light lower half — no separate bottom
 /// border row.
+///
+/// Every line (including the last) is terminated by a newline, as
+/// `qrcode-terminal` does. That trailing newline is what separates the code
+/// from a following prompt with a blank line.
 fn render_small(code: &QrCode) -> String {
     let width = code.width();
     let colors = code.to_colors();
@@ -47,25 +51,25 @@ fn render_small(code: &QrCode) -> String {
     // character row's lower half is the (thin) bottom quiet zone.
     let is_dark = |row: usize, col: usize| row < width && colors[row * width + col] == Color::Dark;
 
-    let mut lines = Vec::with_capacity(width / 2 + 2);
-    lines.push("\u{2584}".repeat(width + 2));
+    let mut out = String::with_capacity((width / 2 + 2) * (width + 3) * 3);
+    out.push_str(&"\u{2584}".repeat(width + 2));
+    out.push('\n');
     let mut row = 0;
     while row < width {
-        let mut line = String::with_capacity((width + 2) * 3);
-        line.push('\u{2588}');
+        out.push('\u{2588}');
         for col in 0..width {
-            line.push(match (is_dark(row, col), is_dark(row + 1, col)) {
+            out.push(match (is_dark(row, col), is_dark(row + 1, col)) {
                 (false, false) => '\u{2588}', // both light  -> full block
                 (false, true) => '\u{2580}',  // light / dark -> upper half
                 (true, false) => '\u{2584}',  // dark / light -> lower half
                 (true, true) => ' ',          // both dark   -> blank
             });
         }
-        line.push('\u{2588}');
-        lines.push(line);
+        out.push('\u{2588}');
+        out.push('\n');
         row += 2;
     }
-    lines.join("\n")
+    out
 }
 
 /// `text` could not be encoded as a QR code (e.g. it exceeds the maximum
