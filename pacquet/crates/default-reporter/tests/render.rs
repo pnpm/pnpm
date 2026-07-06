@@ -4,21 +4,32 @@
 //! plain-text assertions and on for the ANSI-specific ones.
 
 use pacquet_default_reporter::{
+    SummaryScope,
     colors::Colors,
     state::{Output, ReporterState},
 };
 use pacquet_reporter::{
     AddedRoot, ContextLog, DependencyType, ExecutionTimeLog, GlobalLog, HookLog, LifecycleLog,
     LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, PackageImportMethod,
-    PackageImportMethodLog, PnpmLog, ProgressLog, ProgressMessage, RootLog, RootMessage,
-    SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason, Stage, StageLog,
-    StatsLog, StatsMessage, SummaryLog,
+    PackageImportMethodLog, PackageManifestLog, PackageManifestMessage, PnpmLog, ProgressLog,
+    ProgressMessage, RootLog, RootMessage, SkippedOptionalDependencyLog, SkippedOptionalPackage,
+    SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
 };
 
 const CWD: &str = "/repo";
 
 fn state(colors: bool) -> ReporterState {
     ReporterState::new(CWD.to_string(), 80, Colors { enabled: colors }, false)
+}
+
+fn state_without_summary_prefix_filter() -> ReporterState {
+    ReporterState::new_with_summary_scope(
+        CWD.to_string(),
+        80,
+        Colors { enabled: false },
+        false,
+        SummaryScope::AllPrefixes,
+    )
 }
 
 /// Feed events through the in-place renderer and return the last full frame.
@@ -58,10 +69,14 @@ fn importing_done() -> LogEvent {
 }
 
 fn added_root(name: &str, version: &str, dt: DependencyType) -> LogEvent {
+    added_root_at(CWD, name, version, dt)
+}
+
+fn added_root_at(prefix: &str, name: &str, version: &str, dt: DependencyType) -> LogEvent {
     LogEvent::Root(RootLog {
         level: LogLevel::Debug,
         message: RootMessage::Added {
-            prefix: CWD.to_string(),
+            prefix: prefix.to_string(),
             added: AddedRoot {
                 name: name.to_string(),
                 real_name: name.to_string(),
@@ -72,6 +87,20 @@ fn added_root(name: &str, version: &str, dt: DependencyType) -> LogEvent {
                 linked_from: None,
             },
         },
+    })
+}
+
+fn package_manifest_initial_at(prefix: &str, value: serde_json::Value) -> LogEvent {
+    LogEvent::PackageManifest(PackageManifestLog {
+        level: LogLevel::Debug,
+        message: PackageManifestMessage::Initial { prefix: prefix.to_string(), initial: value },
+    })
+}
+
+fn package_manifest_updated_at(prefix: &str, value: serde_json::Value) -> LogEvent {
+    LogEvent::PackageManifest(PackageManifestLog {
+        level: LogLevel::Debug,
+        message: PackageManifestMessage::Updated { prefix: prefix.to_string(), updated: value },
     })
 }
 
@@ -148,6 +177,109 @@ fn summary_groups_by_dependency_type_in_order() {
         ],
     );
     assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0\n\ndevDependencies:\n+ bar 2.0.0\n");
+}
+
+#[test]
+fn summary_ignores_root_events_outside_current_prefix() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            added_root_at("/repo/packages/foo", "extra", "1.0.0", DependencyType::Prod),
+            added_root("foo", "1.0.0", DependencyType::Prod),
+            summary(),
+        ],
+    );
+    assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0\n");
+}
+
+#[test]
+fn summary_matches_lexically_equivalent_current_prefix() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![added_root_at("/repo/./", "foo", "1.0.0", DependencyType::Prod), summary()],
+    );
+    assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0\n");
+}
+
+#[test]
+fn summary_matches_relative_current_prefix() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![added_root_at(".", "foo", "1.0.0", DependencyType::Prod), summary()],
+    );
+    assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0\n");
+}
+
+#[test]
+fn summary_ignores_manifest_events_outside_current_prefix() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            package_manifest_initial_at("/repo/packages/foo", serde_json::json!({})),
+            package_manifest_updated_at(
+                "/repo/packages/foo",
+                serde_json::json!({ "dependencies": { "extra": "^1.0.0" } }),
+            ),
+            summary(),
+        ],
+    );
+    assert_eq!(frame, "");
+}
+
+#[test]
+fn empty_summary_does_not_prevent_later_manifest_diff_summary() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            package_manifest_initial_at(CWD, serde_json::json!({})),
+            summary(),
+            package_manifest_updated_at(
+                CWD,
+                serde_json::json!({ "dependencies": { "foo": "^1.0.0" } }),
+            ),
+        ],
+    );
+    assert_eq!(frame, "\ndependencies:\n+ foo ^1.0.0\n");
+}
+
+#[test]
+fn summary_can_include_events_outside_current_prefix() {
+    let mut reporter = state_without_summary_prefix_filter();
+    let frame = render(
+        &mut reporter,
+        vec![
+            added_root_at("/global/pnpm/packages/foo", "foo", "1.0.0", DependencyType::Prod),
+            summary(),
+        ],
+    );
+    assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0\n");
+}
+
+#[test]
+fn summary_keeps_manifest_diffs_separate_when_including_all_prefixes() {
+    let mut reporter = state_without_summary_prefix_filter();
+    let frame = render(
+        &mut reporter,
+        vec![
+            package_manifest_initial_at("/global/a", serde_json::json!({})),
+            package_manifest_updated_at(
+                "/global/a",
+                serde_json::json!({ "dependencies": { "a": "1.0.0" } }),
+            ),
+            package_manifest_initial_at("/global/b", serde_json::json!({})),
+            package_manifest_updated_at(
+                "/global/b",
+                serde_json::json!({ "devDependencies": { "b": "2.0.0" } }),
+            ),
+            summary(),
+        ],
+    );
+    assert_eq!(frame, "\ndependencies:\n+ a 1.0.0\n\ndevDependencies:\n+ b 2.0.0\n");
 }
 
 #[test]

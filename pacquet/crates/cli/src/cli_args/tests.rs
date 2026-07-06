@@ -7,6 +7,7 @@ use super::{
     },
 };
 use clap::Parser;
+use pacquet_default_reporter::SummaryScope;
 use tempfile::TempDir;
 
 fn install_args(argv: &[&str]) -> InstallArgs {
@@ -14,6 +15,10 @@ fn install_args(argv: &[&str]) -> InstallArgs {
         CliCommand::Install(install) => install,
         other => panic!("expected install, got {other:?}"),
     }
+}
+
+fn default_reporter_summary_scope(argv: &[&str]) -> SummaryScope {
+    CliArgs::try_parse_from(argv).expect("parses").command.default_reporter_summary_scope()
 }
 
 #[test]
@@ -125,6 +130,38 @@ fn runtime_global_flag_parses_after_version() {
     };
     assert!(args.global);
     assert_eq!(args.params, ["set", "node", "22"]);
+}
+
+#[test]
+fn default_reporter_summary_scope_matches_install_summary_prefixes() {
+    assert_eq!(
+        default_reporter_summary_scope(&["pacquet", "add", "foo", "-g"]),
+        SummaryScope::AllPrefixes,
+    );
+    assert_eq!(
+        default_reporter_summary_scope(&["pacquet", "update", "-g"]),
+        SummaryScope::AllPrefixes,
+    );
+    assert_eq!(
+        default_reporter_summary_scope(&["pacquet", "runtime", "set", "node", "22", "-g"]),
+        SummaryScope::AllPrefixes,
+    );
+    assert_eq!(
+        default_reporter_summary_scope(&["pacquet", "dlx", "@foo/touch-file-one-bin"]),
+        SummaryScope::AllPrefixes,
+    );
+    assert_eq!(
+        default_reporter_summary_scope(&["pacquet", "create", "touch-file-one-bin"]),
+        SummaryScope::AllPrefixes,
+    );
+    assert_eq!(
+        default_reporter_summary_scope(&["pacquet", "add", "foo"]),
+        SummaryScope::CurrentPrefix,
+    );
+    assert_eq!(
+        default_reporter_summary_scope(&["pacquet", "remove", "foo", "-g"]),
+        SummaryScope::AllPrefixes,
+    );
 }
 
 #[test]

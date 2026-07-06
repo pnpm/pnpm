@@ -54,6 +54,7 @@ use super::{
     with::WithArgs,
 };
 use clap::{Parser, Subcommand};
+use pacquet_default_reporter::SummaryScope;
 use std::path::PathBuf;
 
 /// Experimental package manager for node.js written in rust.
@@ -289,4 +290,17 @@ pub enum CliCommand {
     With(WithArgs),
     #[clap(external_subcommand)]
     External(Vec<String>),
+}
+
+impl CliCommand {
+    pub(crate) fn default_reporter_summary_scope(&self) -> SummaryScope {
+        match self {
+            CliCommand::Add(args) if args.global => SummaryScope::AllPrefixes,
+            CliCommand::Remove(args) if args.global => SummaryScope::AllPrefixes,
+            CliCommand::Runtime(args) if args.global => SummaryScope::AllPrefixes,
+            CliCommand::Update(args) if args.global => SummaryScope::AllPrefixes,
+            CliCommand::Dlx(_) | CliCommand::Create(_) => SummaryScope::AllPrefixes,
+            _ => SummaryScope::CurrentPrefix,
+        }
+    }
 }

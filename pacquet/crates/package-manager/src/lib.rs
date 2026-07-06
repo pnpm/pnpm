@@ -98,3 +98,23 @@ pub use update_project_manifest::*;
 pub use update_project_manifest_object::*;
 pub use version_policy::*;
 pub use virtual_store_layout::*;
+
+pub(crate) fn package_manifest_prefix(
+    manifest: &pacquet_package_manifest::PackageManifest,
+) -> String {
+    manifest.path().parent().unwrap_or_else(|| manifest.path()).to_string_lossy().into_owned()
+}
+
+pub(crate) fn emit_initial_package_manifest<Reporter: pacquet_reporter::Reporter>(
+    manifest: &pacquet_package_manifest::PackageManifest,
+) {
+    Reporter::emit(&pacquet_reporter::LogEvent::PackageManifest(
+        pacquet_reporter::PackageManifestLog {
+            level: pacquet_reporter::LogLevel::Debug,
+            message: pacquet_reporter::PackageManifestMessage::Initial {
+                prefix: package_manifest_prefix(manifest),
+                initial: manifest.value().clone(),
+            },
+        },
+    ));
+}

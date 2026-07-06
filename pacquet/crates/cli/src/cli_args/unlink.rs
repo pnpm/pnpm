@@ -78,6 +78,7 @@ impl UnlinkArgs {
             http_client_arc: Arc::clone(http_client),
             config,
             manifest,
+            emit_initial_manifest: true,
             lockfile: pacquet_lockfile::MaybeLazyLockfile::Lazy(lockfile),
             lockfile_path: lockfile_path.as_deref(),
             dependency_groups: [

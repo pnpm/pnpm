@@ -1,5 +1,5 @@
 use clap::ValueEnum;
-use pacquet_default_reporter::DefaultReporter;
+use pacquet_default_reporter::{DefaultReporter, SummaryScope};
 use pacquet_reporter::{LogEvent, NdjsonReporter, Reporter, SilentReporter};
 use std::path::Path;
 
@@ -33,11 +33,15 @@ pub(crate) fn reporter_emit(reporter: ReporterType) -> fn(&LogEvent) {
 }
 
 /// Seed the process-global default-reporter state that can't be recovered
-/// from events: the project root (for relative paths) and, for
-/// `--reporter=append-only`, the forced append-only mode. Idempotent; safe to
-/// call from both the fast path and the main run.
-pub(crate) fn configure_default_reporter(reporter: ReporterType, dir: &Path) {
+/// from events. Idempotent; safe to call from both the fast path and the main
+/// run.
+pub(crate) fn configure_default_reporter(
+    reporter: ReporterType,
+    dir: &Path,
+    summary_scope: SummaryScope,
+) {
     pacquet_default_reporter::set_cwd(dir.to_string_lossy().into_owned());
+    pacquet_default_reporter::set_summary_scope(summary_scope);
     if matches!(reporter, ReporterType::AppendOnly) {
         pacquet_default_reporter::force_append_only();
     }

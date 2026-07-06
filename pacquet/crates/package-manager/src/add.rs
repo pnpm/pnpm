@@ -1,6 +1,7 @@
 use crate::{
     CatalogDecision, CatalogModeDep, CatalogVersionMismatchError, Install, InstallError,
-    ResolvedPackages, UpdateSeedPolicy, decide_catalog,
+    ResolvedPackages, UpdateSeedPolicy, decide_catalog, emit_initial_package_manifest,
+    package_manifest_prefix,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -242,6 +243,8 @@ where
             }
         };
 
+        emit_initial_package_manifest::<Reporter>(manifest);
+
         for dependency_group in list_dependency_groups() {
             manifest
                 .add_dependency(package_name, &manifest_specifier, dependency_group)
@@ -263,6 +266,7 @@ where
             http_client_arc,
             config,
             manifest,
+            emit_initial_manifest: false,
             lockfile: MaybeLazyLockfile::Loaded(lockfile),
             lockfile_path,
             dependency_groups: list_dependency_groups(),
@@ -316,12 +320,7 @@ where
         // doesn't crash the post-save emit. `to_string_lossy`
         // coerces non-UTF-8 path bytes to U+FFFD instead of
         // panicking.
-        let prefix = manifest
-            .path()
-            .parent()
-            .unwrap_or_else(|| manifest.path())
-            .to_string_lossy()
-            .into_owned();
+        let prefix = package_manifest_prefix(manifest);
         Reporter::emit(&LogEvent::PackageManifest(PackageManifestLog {
             level: LogLevel::Debug,
             message: PackageManifestMessage::Updated { prefix, updated },

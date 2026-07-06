@@ -4,7 +4,11 @@
 //! pins fixed blocks below scrolling non-fixed blocks, with one rendering
 //! path per log channel.
 
-use std::{collections::HashMap, fmt::Write as _};
+use std::{
+    collections::HashMap,
+    fmt::Write as _,
+    path::{Component, Path, PathBuf},
+};
 
 use pacquet_reporter::{
     AddedRoot, ContextLog, DependencyType, ExecutionTimeLog, FetchingProgressMessage, HookLog,
@@ -15,6 +19,7 @@ use pacquet_reporter::{
 use serde_json::Value;
 
 use crate::{
+    SummaryScope,
     colors::Colors,
     format::{
         contains_path, cut_line, format_prefix, format_prefix_no_trim, highlight_last_folder,
@@ -137,6 +142,12 @@ struct PackageDiff {
     latest: Option<String>,
 }
 
+#[derive(Debug, Default)]
+struct ManifestDiff {
+    initial: Option<Value>,
+    updated: Option<Value>,
+}
+
 /// The five dependency buckets, in summary render order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DepKind {
@@ -209,10 +220,11 @@ pub struct ReporterState {
     stats_slot: BlockSlot,
 
     diff: HashMap<&'static str, HashMap<String, PackageDiff>>,
-    manifest_initial: Option<Value>,
-    manifest_updated: Option<Value>,
+    manifest_diffs: HashMap<String, ManifestDiff>,
     summary_slot: BlockSlot,
+    summary_seen: bool,
     summary_rendered: bool,
+    summary_scope: SummaryScope,
 
     lifecycle: HashMap<String, LifecycleEntry>,
     lifecycle_slots: HashMap<String, BlockSlot>,
@@ -246,6 +258,17 @@ const COLOR_WHEEL: [fn(&Colors, &str) -> String; 6] = [
 impl ReporterState {
     #[must_use]
     pub fn new(cwd: String, width: usize, colors: Colors, append_only: bool) -> Self {
+        Self::new_with_summary_scope(cwd, width, colors, append_only, SummaryScope::CurrentPrefix)
+    }
+
+    #[must_use]
+    pub fn new_with_summary_scope(
+        cwd: String,
+        width: usize,
+        colors: Colors,
+        append_only: bool,
+        summary_scope: SummaryScope,
+    ) -> Self {
         let mut diff = HashMap::new();
         for kind in SUMMARY_ORDER {
             diff.insert(diff_key(kind), HashMap::new());
@@ -266,10 +289,11 @@ impl ReporterState {
             stats_removed: None,
             stats_slot: BlockSlot::default(),
             diff,
-            manifest_initial: None,
-            manifest_updated: None,
+            manifest_diffs: HashMap::new(),
             summary_slot: BlockSlot::default(),
+            summary_seen: false,
             summary_rendered: false,
+            summary_scope,
             lifecycle: HashMap::new(),
             lifecycle_slots: HashMap::new(),
             lifecycle_colors: HashMap::new(),
@@ -534,6 +558,12 @@ impl ReporterState {
 
     fn on_root(&mut self, message: &pacquet_reporter::RootMessage) {
         use pacquet_reporter::RootMessage;
+        let prefix = match message {
+            RootMessage::Added { prefix, .. } | RootMessage::Removed { prefix, .. } => prefix,
+        };
+        if !self.is_current_prefix(prefix) {
+            return;
+        }
         let (added, kind, name, version, real_name, from, latest) = match message {
             RootMessage::Added { added, .. } => added_fields(added),
             RootMessage::Removed { removed, .. } => removed_fields(removed),
@@ -554,34 +584,71 @@ impl ReporterState {
     }
 
     fn on_manifest(&mut self, message: &PackageManifestMessage) {
-        match message {
-            PackageManifestMessage::Initial { initial, .. } => {
-                self.manifest_initial = Some(initial.clone());
+        let prefix = match message {
+            PackageManifestMessage::Initial { prefix, .. }
+            | PackageManifestMessage::Updated { prefix, .. } => prefix,
+        };
+        if !self.is_current_prefix(prefix) {
+            return;
+        }
+        let should_render_after_update =
+            matches!(message, PackageManifestMessage::Updated { .. }) && self.summary_seen;
+        {
+            let diff = self.manifest_diffs.entry(prefix.clone()).or_default();
+            match message {
+                PackageManifestMessage::Initial { initial, .. } => {
+                    diff.initial.get_or_insert_with(|| initial.clone());
+                }
+                PackageManifestMessage::Updated { updated, .. } => {
+                    diff.updated = Some(updated.clone());
+                }
             }
-            PackageManifestMessage::Updated { updated, .. } => {
-                self.manifest_updated = Some(updated.clone());
-            }
+        }
+        if should_render_after_update {
+            self.try_render_summary();
         }
     }
 
     fn on_summary(&mut self) {
+        self.summary_seen = true;
+        self.try_render_summary();
+    }
+
+    fn try_render_summary(&mut self) {
         if self.summary_rendered {
             return;
         }
-        self.summary_rendered = true;
         self.apply_manifest_diff();
         let msg = self.render_summary();
+        if msg.is_empty() {
+            return;
+        }
+        self.summary_rendered = true;
         let mut slot = std::mem::take(&mut self.summary_slot);
         self.frame.emit(&mut slot, msg, false);
         self.summary_slot = slot;
     }
 
+    fn is_current_prefix(&self, prefix: &str) -> bool {
+        self.summary_scope == SummaryScope::AllPrefixes
+            || prefix == self.cwd
+            || normalized_prefix(&self.cwd, prefix) == normalized_prefix(&self.cwd, &self.cwd)
+    }
+
     fn apply_manifest_diff(&mut self) {
-        let (Some(initial), Some(updated)) =
-            (self.manifest_initial.as_ref(), self.manifest_updated.as_ref())
-        else {
-            return;
-        };
+        let manifest_diffs: Vec<(Value, Value)> = self
+            .manifest_diffs
+            .values()
+            .filter_map(|diff| {
+                Some((diff.initial.as_ref()?.clone(), diff.updated.as_ref()?.clone()))
+            })
+            .collect();
+        for (initial, updated) in manifest_diffs {
+            self.apply_manifest_pair_diff(&initial, &updated);
+        }
+    }
+
+    fn apply_manifest_pair_diff(&mut self, initial: &Value, updated: &Value) {
         let initial = remove_optional_from_prod(initial);
         let updated = remove_optional_from_prod(updated);
         for kind in [DepKind::Peer, DepKind::Prod, DepKind::Optional, DepKind::Dev] {
@@ -994,6 +1061,38 @@ impl ReporterState {
         let mut slot = BlockSlot::default();
         self.frame.emit(&mut slot, message, false);
     }
+}
+
+fn normalized_prefix(cwd: &str, prefix: &str) -> String {
+    let cwd = normalize(cwd);
+    let prefix = normalize(prefix);
+    let path = Path::new(&prefix);
+    let absolute = if path.is_absolute() { path.to_path_buf() } else { Path::new(&cwd).join(path) };
+    let normalized = normalize(&lexically_normalize(&absolute).to_string_lossy());
+    strip_trailing_separators(&normalized)
+}
+
+fn lexically_normalize(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if !normalized.pop() {
+                    normalized.push(component.as_os_str());
+                }
+            }
+            Component::Normal(_) | Component::RootDir | Component::Prefix(_) => {
+                normalized.push(component.as_os_str());
+            }
+        }
+    }
+    normalized
+}
+
+fn strip_trailing_separators(path: &str) -> String {
+    let trimmed = path.trim_end_matches('/');
+    if trimmed.is_empty() && path.starts_with('/') { "/".to_string() } else { trimmed.to_string() }
 }
 
 fn diff_key(kind: DepKind) -> &'static str {

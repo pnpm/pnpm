@@ -1,4 +1,7 @@
-use crate::{Install, InstallError, ResolvedPackages, UpdateSeedPolicy};
+use crate::{
+    Install, InstallError, ResolvedPackages, UpdateSeedPolicy, emit_initial_package_manifest,
+    package_manifest_prefix,
+};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::Config;
@@ -88,6 +91,7 @@ impl Remove<'_> {
 
         validate_removable(manifest, package_names, save_type).map_err(RemoveError::Validation)?;
 
+        emit_initial_package_manifest::<Reporter>(manifest);
         manifest.remove_dependencies(package_names, save_type);
 
         Install {
@@ -96,6 +100,7 @@ impl Remove<'_> {
             http_client_arc,
             config,
             manifest,
+            emit_initial_manifest: false,
             lockfile: MaybeLazyLockfile::Loaded(lockfile),
             lockfile_path,
             // `pnpm remove`'s `include` defaults to every dependency
@@ -144,12 +149,7 @@ impl Remove<'_> {
         // `pnpm:package-manifest updated` mirrors the post-mutation emit
         // pnpm fires after rewriting the manifest. See the parallel emit
         // in `add.rs` for the `prefix` derivation rationale.
-        let prefix = manifest
-            .path()
-            .parent()
-            .unwrap_or_else(|| manifest.path())
-            .to_string_lossy()
-            .into_owned();
+        let prefix = package_manifest_prefix(manifest);
         Reporter::emit(&LogEvent::PackageManifest(PackageManifestLog {
             level: LogLevel::Debug,
             message: PackageManifestMessage::Updated { prefix, updated },

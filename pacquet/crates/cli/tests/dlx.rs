@@ -50,7 +50,17 @@ fn dlx_installs_and_runs_packages_bin() {
     let CommandTempCwd { pacquet, root, workspace, .. } =
         CommandTempCwd::init().add_mocked_registry();
 
-    pacquet.with_arg("dlx").with_arg("@foo/touch-file-one-bin").assert().success();
+    let output = pacquet
+        .with_args(["--reporter=append-only", "dlx", "@foo/touch-file-one-bin"])
+        .output()
+        .expect("run pacquet dlx");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "dlx failed\nstdout:\n{stdout}\nstderr:\n{stderr}");
+    assert!(
+        stdout.contains("dependencies:\n+ @foo/touch-file-one-bin"),
+        "dlx should print the installed package summary\nstdout:\n{stdout}",
+    );
 
     assert!(
         workspace.join("touch.txt").exists(),

@@ -2,7 +2,7 @@ use crate::{
     BuildVerifiersError, HoistedDependencies, InstallFrozenLockfile, InstallFrozenLockfileError,
     InstallWithFreshLockfile, InstallWithFreshLockfileError, LockfileVerificationOverride,
     OptimisticRepeatInstallCheck, RebuildOptions, ResolvedPackages, UpdateSeedPolicy,
-    build_resolution_verifiers, check_optimistic_repeat_install,
+    build_resolution_verifiers, check_optimistic_repeat_install, emit_initial_package_manifest,
     optimistic_repeat_install::Decision as OptimisticRepeatInstallDecision,
 };
 use derive_more::{Display, Error};
@@ -31,8 +31,7 @@ use pacquet_modules_yaml::{
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{
-    ContextLog, LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, PnpmLog, Reporter,
-    Stage, StageLog, SummaryLog,
+    ContextLog, LogEvent, LogLevel, PnpmLog, Reporter, Stage, StageLog, SummaryLog,
 };
 use pacquet_resolving_npm_resolver::InMemoryPackageMetaCache;
 use pacquet_resolving_resolver_base::ResolutionVerifier;
@@ -107,6 +106,10 @@ where
     pub http_client_arc: Arc<ThrottledClient>,
     pub config: &'static Config,
     pub manifest: &'a PackageManifest,
+    /// Emit `pnpm:package-manifest initial` from this install run.
+    /// Partial mutations that need the pre-mutation manifest snapshot
+    /// emit it before changing the manifest and pass `false` here.
+    pub emit_initial_manifest: bool,
     pub lockfile: MaybeLazyLockfile<'a>,
     /// Absolute path of the loaded `pnpm-lock.yaml`. Threaded into
     /// the lockfile-verification gate so the per-path stat shortcut
@@ -494,6 +497,7 @@ where
             http_client_arc,
             config,
             manifest,
+            emit_initial_manifest,
             lockfile,
             lockfile_path,
             dependency_groups,
@@ -724,16 +728,12 @@ where
         }
 
         // `pnpm:package-manifest initial` carries the on-disk
-        // `package.json` body. Fires before `pnpm:context` so consumers
-        // that key off manifest contents have it ready when the install
-        // header renders.
-        Reporter::emit(&LogEvent::PackageManifest(PackageManifestLog {
-            level: LogLevel::Debug,
-            message: PackageManifestMessage::Initial {
-                prefix: prefix.clone(),
-                initial: manifest.value().clone(),
-            },
-        }));
+        // `package.json` body for this importer. Fires before
+        // `pnpm:context` so consumers that key off manifest contents
+        // have it ready when the install header renders.
+        if emit_initial_manifest {
+            emit_initial_package_manifest::<Reporter>(manifest);
+        }
 
         // Load the *current* lockfile that records what the previous
         // install actually materialized in `<virtual_store_dir>/lock.yaml`.
