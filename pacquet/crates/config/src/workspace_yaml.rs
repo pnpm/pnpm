@@ -168,6 +168,9 @@ pub struct WorkspaceSettings {
     pub fetch_retry_mintimeout: Option<u64>,
     pub fetch_retry_maxtimeout: Option<u64>,
     pub network_concurrency: Option<usize>,
+    /// `maxSockets` — per-origin concurrent-connection cap. See
+    /// [`Config::max_sockets`]. Default unset (no per-origin cap).
+    pub max_sockets: Option<usize>,
     pub fetch_timeout: Option<u64>,
     pub user_agent: Option<String>,
     /// `npmrcAuthFile` is read only from the global `config.yaml`
@@ -241,6 +244,14 @@ pub struct WorkspaceSettings {
     /// `--no-git-checks` CLI flag forces it off on top of this. Default
     /// `true`.
     pub git_checks: Option<bool>,
+
+    /// `engineStrict` from `pnpm-workspace.yaml` / global `config.yaml`.
+    /// See [`Config::engine_strict`]. Default `false`.
+    pub engine_strict: Option<bool>,
+
+    /// `nodeVersion` from `pnpm-workspace.yaml` / global `config.yaml`.
+    /// See [`Config::node_version`]. Default unset (auto-detect).
+    pub node_version: Option<String>,
 
     /// `scriptsPrependNodePath` from `pnpm-workspace.yaml`. Tri-state
     /// — yaml accepts `true` / `false` / `"warn-only"`. Custom serde
@@ -802,6 +813,15 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.git_checks {
             config.git_checks = v;
+        }
+        if let Some(v) = self.engine_strict {
+            config.engine_strict = v;
+        }
+        if let Some(v) = self.node_version {
+            config.node_version = Some(v);
+        }
+        if let Some(v) = self.max_sockets {
+            config.max_sockets = Some(v);
         }
         if let Some(v) = self.scripts_prepend_node_path {
             config.scripts_prepend_node_path = v;

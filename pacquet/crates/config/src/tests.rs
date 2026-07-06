@@ -1923,6 +1923,29 @@ pub fn virtual_store_dir_max_length_from_workspace_yaml() {
 }
 
 #[test]
+pub fn engine_strict_node_version_and_max_sockets_default() {
+    let tmp = tempdir().unwrap();
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+    assert!(!config.engine_strict);
+    assert_eq!(config.node_version, None);
+    assert_eq!(config.max_sockets, None);
+}
+
+#[test]
+pub fn engine_strict_node_version_and_max_sockets_from_workspace_yaml() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "engineStrict: true\nnodeVersion: 18.20.4\nmaxSockets: 5\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(config.engine_strict);
+    assert_eq!(config.node_version.as_deref(), Some("18.20.4"));
+    assert_eq!(config.max_sockets, Some(5));
+}
+
+#[test]
 pub fn virtual_store_dir_max_length_env_var_overrides_yaml() {
     let tmp = tempdir().unwrap();
     fs::write(tmp.path().join("pnpm-workspace.yaml"), "virtualStoreDirMaxLength: 90\n")

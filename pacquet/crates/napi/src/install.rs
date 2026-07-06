@@ -273,7 +273,8 @@ fn run_install_inner(
                 user_agent: config.user_agent.clone(),
             },
         )
-        .map_err(|error| to_napi_error(&error))?,
+        .map_err(|error| to_napi_error(&error))?
+        .with_max_sockets_per_host(config.max_sockets),
     );
     let lazy_lockfile = if config.lockfile {
         LazyLockfile::deferred(dir.clone())
@@ -289,13 +290,47 @@ fn run_install_inner(
         groups.push(DependencyGroup::Optional);
     }
 
+    // `update: true` re-resolves the whole graph to the highest in-range
+    // version — pnpm's `update: true` / `depth: Infinity`. The binding takes no
+    // package selectors, so an update always targets every dependency
+    // (`UpdateSeedPolicy::DropAll`); `depth` is only pnpm's direct-vs-any-depth
+    // selector toggle, which has no effect without selectors and is accepted for
+    // API compatibility only. Mirrors `pacquet_package_manager::Update`, which
+    // forces `prefer_frozen_lockfile: false` and a non-frozen path so the
+    // re-resolution is not short-circuited by the auto-frozen / repeat-install
+    // fast paths.
+    let update_requested = matches!(mode, EngineMode::Install) && options.update == Some(true);
+
+    // `ignorePackageManifest` maps to pacquet's `ignore_manifest_check`: the
+    // per-importer `package.json` ↔ `pnpm-lock.yaml` freshness gate is skipped,
+    // so the install proceeds from the lockfile even when the in-memory
+    // manifest disagrees with it. pnpm additionally skips the project-level
+    // linking phase (its `pnpm fetch` semantics); pacquet still links direct
+    // dependencies. The difference is immaterial to the programmatic consumers
+    // that pass this option — a fuller native port is tracked in NAPI.md.
+    let ignore_manifest_check = options.ignore_package_manifest == Some(true);
+
+    // `enableModulesDir: false` ("do not create a `node_modules` directory") is
+    // honored via pacquet's lockfile-only path: the graph resolves and the
+    // lockfile is written, but nothing is materialized under `node_modules`.
+    // Confined to the install path — a rebuild runs against an
+    // already-materialized `node_modules`, so it must never take the
+    // lockfile-only short-circuit (which would make it silently do nothing) even
+    // when the caller reuses install options that disable the modules dir.
+    let lockfile_only = matches!(mode, EngineMode::Install)
+        && (options.lockfile_only.unwrap_or(false) || options.enable_modules_dir == Some(false));
+
     // A rebuild takes the frozen path against the already-materialized
     // `node_modules`, and re-runs dependency build scripts rather than the
     // root project's own lifecycle scripts.
     let frozen_lockfile = match &mode {
-        EngineMode::Install => options.frozen_lockfile.unwrap_or(false),
+        EngineMode::Install => !update_requested && options.frozen_lockfile.unwrap_or(false),
         EngineMode::Rebuild(_) => true,
     };
+    let prefer_frozen_lockfile =
+        if update_requested { Some(false) } else { options.prefer_frozen_lockfile };
+    let update_seed_policy =
+        if update_requested { UpdateSeedPolicy::DropAll } else { UpdateSeedPolicy::KeepAll };
     let is_full_install = matches!(mode, EngineMode::Install);
 
     let runtime =
@@ -312,21 +347,22 @@ fn run_install_inner(
                 http_client_arc: Arc::clone(&http_client),
                 config,
                 manifest: &manifest,
+                emit_initial_manifest: true,
                 lockfile: MaybeLazyLockfile::Lazy(&lazy_lockfile),
                 lockfile_path: lockfile_path.as_deref(),
                 dependency_groups: groups,
                 frozen_lockfile,
-                prefer_frozen_lockfile: options.prefer_frozen_lockfile,
-                ignore_manifest_check: false,
+                prefer_frozen_lockfile,
+                ignore_manifest_check,
                 skip_runtimes: false,
                 trust_lockfile: config.trust_lockfile,
                 update_checksums: false,
                 is_full_install,
                 supported_architectures: None,
                 node_linker: config.node_linker,
-                lockfile_only: options.lockfile_only.unwrap_or(false),
+                lockfile_only,
                 dry_run: false,
-                update_seed_policy: UpdateSeedPolicy::KeepAll,
+                update_seed_policy,
                 auth_override: None,
                 resolution_observer: None,
                 catalogs_override: None,
@@ -403,7 +439,12 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
         inject_workspace_packages: options.inject_workspace_packages,
         prefer_offline: options.prefer_offline,
         offline: options.offline,
-        lockfile: None,
+        // `enableModulesDir: false` writes the lockfile while skipping
+        // `node_modules`, so it runs through the lockfile-only path — which
+        // requires the lockfile to be enabled. Force it on for that case so an
+        // ambient `lockfile: false` can't turn the install into an opaque
+        // `ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE`.
+        lockfile: (options.enable_modules_dir == Some(false)).then_some(true),
         prefer_frozen_lockfile: options.prefer_frozen_lockfile,
         dedupe_peer_dependents: options.dedupe_peer_dependents,
         dedupe_direct_deps: options.dedupe_direct_deps,
@@ -413,6 +454,9 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
         network_concurrency: options
             .network_concurrency
             .or_else(|| network_config.and_then(|config| config.network_concurrency))
+            .map(|value| value as usize),
+        max_sockets: network_config
+            .and_then(|config| config.max_sockets)
             .map(|value| value as usize),
         fetch_retries: options
             .fetch_retries
@@ -441,6 +485,8 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
         allow_builds: options.allow_builds.clone(),
         dangerously_allow_all_builds: options.dangerously_allow_all_builds,
         ignore_scripts: options.ignore_scripts,
+        engine_strict: options.engine_strict,
+        node_version: options.node_version.clone(),
         minimum_release_age: options.minimum_release_age.map(u64::from),
         minimum_release_age_exclude: options.minimum_release_age_exclude.clone(),
         peer_dependency_rules: options.peer_dependency_rules.as_ref().map(|rules| {
@@ -460,16 +506,6 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
 fn reject_unsupported_install_options(options: &InstallOptions) -> napi::Result<()> {
     reject_non_empty_map(options.auth_config.as_ref(), "authConfig")?;
     reject_non_empty_list(options.never_built_dependencies.as_ref(), "neverBuiltDependencies")?;
-    reject_if(options.enable_modules_dir == Some(false), "enableModulesDir")?;
-    reject_if(options.ignore_package_manifest == Some(true), "ignorePackageManifest")?;
-    reject_if(options.node_version.is_some(), "nodeVersion")?;
-    reject_if(options.engine_strict == Some(true), "engineStrict")?;
-    reject_if(options.update == Some(true), "update")?;
-    reject_if(options.depth.is_some(), "depth")?;
-    reject_if(options.pnpm_home_dir.is_some(), "pnpmHomeDir")?;
-    if let Some(network_config) = &options.network_config {
-        reject_if(network_config.max_sockets.is_some(), "networkConfig.maxSockets")?;
-    }
     Ok(())
 }
 

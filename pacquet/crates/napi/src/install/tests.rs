@@ -28,6 +28,8 @@ fn build_overlay_maps_supported_install_options() {
     options.inject_workspace_packages = Some(true);
     options.hoist_workspace_packages = Some(false);
     options.ignore_scripts = Some(true);
+    options.engine_strict = Some(true);
+    options.node_version = Some("18.20.4".to_string());
     options.minimum_release_age = Some(60);
     options.minimum_release_age_exclude = Some(vec!["left-pad".to_string()]);
     options.network_config = Some(NetworkConfigInput {
@@ -36,7 +38,7 @@ fn build_overlay_maps_supported_install_options() {
         key: Some("client-key".to_string()),
         local_address: Some("127.0.0.1".to_string()),
         strict_ssl: Some(false),
-        max_sockets: None,
+        max_sockets: Some(7),
         network_concurrency: Some(12),
         fetch_retries: Some(4),
         fetch_retry_factor: Some(2),
@@ -57,9 +59,12 @@ fn build_overlay_maps_supported_install_options() {
     assert_eq!(overlay.inject_workspace_packages, Some(true));
     assert_eq!(overlay.hoist_workspace_packages, Some(false));
     assert_eq!(overlay.ignore_scripts, Some(true));
+    assert_eq!(overlay.engine_strict, Some(true));
+    assert_eq!(overlay.node_version, Some("18.20.4".to_string()));
     assert_eq!(overlay.minimum_release_age, Some(60));
     assert_eq!(overlay.minimum_release_age_exclude, Some(vec!["left-pad".to_string()]));
     assert_eq!(overlay.network_concurrency, Some(12));
+    assert_eq!(overlay.max_sockets, Some(7));
     assert_eq!(overlay.fetch_retries, Some(4));
     assert_eq!(overlay.fetch_retry_factor, Some(2));
     assert_eq!(overlay.fetch_retry_mintimeout, Some(10));
@@ -88,12 +93,24 @@ fn unsupported_install_options_fail_closed() {
     assert!(reject_unsupported_install_options(&options).is_err());
 
     let mut options = install_options();
-    options.engine_strict = Some(true);
+    options.never_built_dependencies = Some(vec!["esbuild".to_string()]);
     assert!(reject_unsupported_install_options(&options).is_err());
+}
 
+#[test]
+fn newly_supported_install_options_are_accepted() {
+    // Options the binding used to reject now flow through the engine.
     let mut options = install_options();
+    options.update = Some(true);
+    options.depth = Some(0);
+    options.engine_strict = Some(true);
+    options.node_version = Some("20.11.0".to_string());
+    options.enable_modules_dir = Some(false);
+    options.ignore_package_manifest = Some(true);
+    options.pnpm_home_dir = Some("/home/user/.local/share/pnpm".to_string());
     options.network_config = Some(NetworkConfigInput { max_sockets: Some(20), ..network_config() });
-    assert!(reject_unsupported_install_options(&options).is_err());
+    assert!(reject_unsupported_install_options(&options).is_ok());
+    assert_eq!(build_overlay(&options).expect("overlay").max_sockets, Some(20));
 }
 
 fn install_options() -> InstallOptions {

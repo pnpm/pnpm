@@ -63,6 +63,9 @@ pub struct ConfigOverlay {
     pub resolve_peers_from_workspace_root: Option<bool>,
     pub peers_suffix_max_length: Option<u64>,
     pub network_concurrency: Option<usize>,
+    /// `maxSockets` — per-origin concurrent-connection cap. Threaded onto the
+    /// install client via `ThrottledClient::with_max_sockets_per_host`.
+    pub max_sockets: Option<usize>,
     pub fetch_retries: Option<u32>,
     pub fetch_retry_factor: Option<u32>,
     pub fetch_retry_mintimeout: Option<u64>,
@@ -81,6 +84,12 @@ pub struct ConfigOverlay {
     pub dangerously_allow_all_builds: Option<bool>,
     /// When `true`, skip all dependency and project lifecycle scripts.
     pub ignore_scripts: Option<bool>,
+    /// `engineStrict` — fail the install when a dependency's `engines` /
+    /// platform constraint the host does not satisfy is required.
+    pub engine_strict: Option<bool>,
+    /// `nodeVersion` — overrides the Node.js version the installability check
+    /// uses as the `engines.node` target. `None` auto-detects from `node`.
+    pub node_version: Option<String>,
     pub minimum_release_age: Option<u64>,
     pub minimum_release_age_exclude: Option<Vec<String>>,
     /// `peerDependencyRules` — customizations for how peer-dependency
@@ -297,6 +306,9 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
     if let Some(value) = overlay.network_concurrency {
         config.network_concurrency = value;
     }
+    if let Some(value) = overlay.max_sockets {
+        config.max_sockets = Some(value);
+    }
     if let Some(value) = overlay.fetch_retries {
         config.fetch_retries = value;
     }
@@ -326,6 +338,12 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
     }
     if let Some(value) = overlay.ignore_scripts {
         config.ignore_scripts = value;
+    }
+    if let Some(value) = overlay.engine_strict {
+        config.engine_strict = value;
+    }
+    if let Some(node_version) = &overlay.node_version {
+        config.node_version = Some(node_version.clone());
     }
     if let Some(value) = overlay.minimum_release_age {
         config.minimum_release_age = Some(value);

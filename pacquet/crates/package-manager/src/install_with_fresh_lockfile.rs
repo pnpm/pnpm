@@ -1416,7 +1416,16 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let needs_installability_host =
             needs_optional_installability_check || needs_hoisted_installability_host;
         let installability_host = if needs_installability_host {
-            let mut host = tokio::task::spawn_blocking(crate::InstallabilityHost::detect)
+            let engine_strict = config.engine_strict;
+            let mut host = match config.node_version.clone() {
+                // An explicit `nodeVersion` needs no `node --version` probe, so
+                // build the host directly off the reactor thread.
+                node_version @ Some(_) => {
+                    crate::InstallabilityHost::detect_with(engine_strict, node_version)
+                }
+                None => tokio::task::spawn_blocking(move || {
+                    crate::InstallabilityHost::detect_with(engine_strict, None)
+                })
                 .await
                 .ok()
                 .unwrap_or_else(|| crate::InstallabilityHost {
@@ -1426,8 +1435,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     cpu: pacquet_graph_hasher::host_arch(),
                     libc: pacquet_graph_hasher::host_libc(),
                     supported_architectures: None,
-                    engine_strict: false,
-                });
+                    engine_strict,
+                }),
+            };
             if let Some(supp) = supported_architectures {
                 host.supported_architectures = Some(supp.clone());
             }

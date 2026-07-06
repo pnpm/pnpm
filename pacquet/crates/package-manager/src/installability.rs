@@ -250,9 +250,8 @@ impl InstallabilityHost {
     /// than the over-acceptance the very-high fallback produces.
     /// `node_detected` records which path was taken so callers can
     /// suppress side-effects-cache lookups when the version is
-    /// synthetic. Slice 2 will wire a proper `nodeVersion` config
-    /// setting and surface `ERR_PNPM_INVALID_NODE_VERSION`, throwing
-    /// on detection failure.
+    /// synthetic. [`Self::detect_with`] overrides both the version
+    /// (the `nodeVersion` setting) and the engine-strict policy.
     #[must_use]
     pub fn detect() -> Self {
         let detected = pacquet_graph_hasher::detect_node_version();
@@ -268,6 +267,41 @@ impl InstallabilityHost {
             engine_strict: false,
         }
     }
+
+    /// Build the host context with a caller-supplied engine-strict policy and
+    /// optional Node.js version override (the `engineStrict` / `nodeVersion`
+    /// config settings).
+    ///
+    /// An explicit `node_version` is authoritative: no `node --version` probe
+    /// runs and `node_detected` is `true`, so the side-effects cache keys off
+    /// the pinned major exactly as it would off a detected one. A leading `v`
+    /// (as in `process.version` / `node --version`, e.g. `v22.11.0`) is
+    /// stripped so the value parses as exact semver, matching the auto-detect
+    /// path. `None` falls back to [`Self::detect`], then overrides
+    /// `engine_strict`.
+    #[must_use]
+    pub fn detect_with(engine_strict: bool, node_version: Option<String>) -> Self {
+        match node_version.map(|version| normalize_node_version(&version)) {
+            Some(node_version) => Self {
+                node_version,
+                node_detected: true,
+                os: pacquet_graph_hasher::host_platform(),
+                cpu: pacquet_graph_hasher::host_arch(),
+                libc: pacquet_graph_hasher::host_libc(),
+                supported_architectures: None,
+                engine_strict,
+            },
+            None => Self { engine_strict, ..Self::detect() },
+        }
+    }
+}
+
+/// Canonicalize a Node.js version string for the engine check: trim surrounding
+/// whitespace and drop a single leading `v` (`v22.11.0` → `22.11.0`) so a value
+/// copied from `process.version` / `node --version` parses as exact semver.
+fn normalize_node_version(version: &str) -> String {
+    let trimmed = version.trim();
+    trimmed.strip_prefix('v').unwrap_or(trimmed).to_string()
 }
 
 pub(crate) fn check_installability(

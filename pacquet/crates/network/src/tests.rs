@@ -13,7 +13,7 @@
 
 use super::{
     ForInstallsError, NetworkSettings, NoProxyMatcher, NoProxySetting, PerRegistryTls, ProxyConfig,
-    ProxyError, ThrottledClient, TlsConfig, parse_proxy_url,
+    ProxyError, ThrottledClient, TlsConfig, origin_of, parse_proxy_url,
 };
 use crate::proxy::{percent_decode_str, strip_userinfo};
 use pacquet_testing_utils::env_guard::EnvGuard;
@@ -789,4 +789,72 @@ async fn redirect_guard_follows_allowlisted_redirect_target() {
     assert_eq!(resp.text().await.expect("body"), "ok");
     redirect.assert_async().await;
     body.assert_async().await;
+}
+
+#[test]
+fn origin_of_extracts_scheme_host_and_port() {
+    assert_eq!(
+        origin_of("https://registry.npmjs.org/is-odd").as_deref(),
+        Some("https://registry.npmjs.org"),
+    );
+    // A non-default port is part of the origin key.
+    assert_eq!(
+        origin_of("http://localhost:4873/is-odd/-/is-odd-3.0.1.tgz").as_deref(),
+        Some("http://localhost:4873"),
+    );
+    // Same host over http vs https are distinct origins.
+    assert_ne!(origin_of("http://example.com/a"), origin_of("https://example.com/a"));
+    assert_eq!(origin_of("not a url"), None);
+}
+
+/// `maxSockets` caps concurrent in-flight requests to a single origin: a
+/// second request to the same origin blocks while the first guard is held,
+/// but a request to a different origin is unaffected.
+#[tokio::test]
+async fn max_sockets_caps_concurrent_sockets_per_origin() {
+    use std::time::Duration;
+
+    let client = ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1));
+    let held = client.acquire_for_url("https://registry.example.com/a").await;
+
+    // A second socket to the same origin must wait for `held` to drop.
+    let blocked = tokio::time::timeout(
+        Duration::from_millis(150),
+        client.acquire_for_url("https://registry.example.com/b"),
+    )
+    .await;
+    assert!(blocked.is_err(), "second socket to the same origin should block under maxSockets=1");
+
+    // A different origin has its own budget and is not blocked.
+    tokio::time::timeout(
+        Duration::from_millis(150),
+        client.acquire_for_url("https://other.example.com/a"),
+    )
+    .await
+    .expect("a different origin should not be blocked");
+
+    // Releasing the first guard frees the origin's single slot.
+    drop(held);
+    tokio::time::timeout(
+        Duration::from_millis(150),
+        client.acquire_for_url("https://registry.example.com/c"),
+    )
+    .await
+    .expect("the origin's slot should be free after the first guard drops");
+}
+
+/// Without a `maxSockets` cap, many concurrent requests to one origin all
+/// acquire immediately (bounded only by the global concurrency semaphore).
+#[tokio::test]
+async fn no_max_sockets_leaves_per_origin_uncapped() {
+    use std::time::Duration;
+
+    let client = ThrottledClient::new_for_installs();
+    let _g1 = client.acquire_for_url("https://registry.example.com/a").await;
+    tokio::time::timeout(
+        Duration::from_millis(150),
+        client.acquire_for_url("https://registry.example.com/b"),
+    )
+    .await
+    .expect("a second socket to the same origin should not block without maxSockets");
 }

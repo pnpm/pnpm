@@ -270,7 +270,8 @@ impl EnvInstallerContext {
                 },
             )
             .into_diagnostic()
-            .wrap_err("create the network client for env-installer dependencies")?,
+            .wrap_err("create the network client for env-installer dependencies")?
+            .with_max_sockets_per_host(config.max_sockets),
         );
 
         let registries: HashMap<String, String> = registries.into_iter().collect();

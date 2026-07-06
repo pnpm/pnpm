@@ -88,7 +88,8 @@ impl State {
                         user_agent: config.user_agent.clone(),
                     },
                 )
-                .map_err(InitStateError::Network)?,
+                .map_err(InitStateError::Network)?
+                .with_max_sockets_per_host(config.max_sockets),
             ),
             tarball_mem_cache: Arc::new(MemCache::new()),
             resolved_packages: ResolvedPackages::new(),

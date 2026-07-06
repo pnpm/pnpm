@@ -262,6 +262,30 @@ Dropped from consumers: `@pnpm/installing.deps-installer`, `@pnpm/installing.cli
   build-needing package). Verified: rebuild runs the frozen path against a
   materialized install and emits the expected event stream.
 
+- **Install-option coverage — DONE.** The options the binding used to reject
+  with `ERR_PNPM_NAPI_UNSUPPORTED_OPTION` now flow through the engine
+  (pnpm/pnpm#12823). Only `authConfig` (use `authHeaderByUri` instead) and
+  `neverBuiltDependencies` remain rejected.
+  - `update` → `UpdateSeedPolicy::DropAll` (whole-graph re-resolve to
+    highest-in-range); `prefer_frozen_lockfile` / frozen fast paths are forced
+    off so the re-resolution runs. `depth` is accepted but, without package
+    selectors, is a no-op toggle.
+  - `engineStrict` / `nodeVersion` → two new `pacquet_config::Config` fields
+    (also parsed from `pnpm-workspace.yaml` / `PNPM_CONFIG_*`), threaded into
+    `InstallabilityHost` (fresh + frozen paths) via `detect_with`. An explicit
+    `nodeVersion` is authoritative (no `node --version` probe).
+  - `maxSockets` → a per-origin socket cap on `ThrottledClient`
+    (`with_max_sockets_per_host`), mirroring undici's per-origin `connections`;
+    the global `networkConcurrency` semaphore stays the outer bound.
+  - `enableModulesDir: false` → pacquet's lockfile-only path (resolve + write
+    lockfile, materialize no `node_modules`).
+  - `ignorePackageManifest` → pacquet's existing `ignore_manifest_check` (skip
+    the manifest↔lockfile freshness gate). pnpm additionally skips the
+    project-level linking phase (`pnpm fetch` semantics); a fuller native port
+    of that is a follow-up.
+  - `pnpmHomeDir` → accepted and ignored; only global flows consult it and the
+    binding drives project installs.
+
 - **`install` remaining work** (additive; core pipeline + hook + multi-importer
   + build approval above are proven):
   1. **Auth / private registries** — build `config.auth_headers` /
