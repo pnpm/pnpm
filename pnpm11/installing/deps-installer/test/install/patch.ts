@@ -2,15 +2,17 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { afterAll, expect, jest, test } from '@jest/globals'
-import { ENGINE_NAME } from '@pnpm/constants'
+import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
 import { createHexHashFromFile } from '@pnpm/crypto.hash'
 import { install } from '@pnpm/installing.deps-installer'
+import type { LockfileFile } from '@pnpm/lockfile.types'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
 import { getIntegrity } from '@pnpm/testing.registry-mock'
 import { rimrafSync } from '@zkochan/rimraf'
+import { readYamlFileSync } from 'read-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
 
@@ -569,4 +571,40 @@ test('patch package should fail when the name-only range patch fails to apply', 
   }, opts)).rejects.toThrow(/Could not apply patch/)
 
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).not.toContain('// patched')
+})
+
+test('patch with relative paths resolved against lockfileDir', async () => {
+  prepareEmpty()
+  // The lockfile and the patches dir live in the parent of the project dir
+  // (and of the cwd), so the still-relative patchedDependencies paths can
+  // only be read when resolved against lockfileDir.
+  const lockfileDir = path.resolve('..')
+  const patchesDir = path.join(lockfileDir, 'patches')
+  fs.mkdirSync(patchesDir, { recursive: true })
+  fs.copyFileSync(
+    path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch'),
+    path.join(patchesDir, 'is-positive@1.0.0.patch')
+  )
+
+  const patchedDependencies = {
+    'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
+  }
+  const opts = testDefaults({
+    fastUnpack: false,
+    patchedDependencies,
+    lockfileDir,
+  }, {}, {}, { packageImportMethod: 'hardlink' })
+  await install({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }, opts)
+
+  expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
+
+  const patchFileHash = await createHexHashFromFile(path.join(patchesDir, 'is-positive@1.0.0.patch'))
+  const lockfile = readYamlFileSync<LockfileFile>(path.join(lockfileDir, WANTED_LOCKFILE))
+  expect(lockfile.patchedDependencies).toStrictEqual({
+    'is-positive@1.0.0': patchFileHash,
+  })
 })

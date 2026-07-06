@@ -30,6 +30,7 @@ use super::{
     patch::PatchArgs,
     patch_commit::PatchCommitArgs,
     patch_remove::PatchRemoveArgs,
+    peers::PeersArgs,
     ping::PingArgs,
     prefix::PrefixArgs,
     prune::PruneArgs,
@@ -61,10 +62,18 @@ use std::path::PathBuf;
 #[clap(name = "pnpm")]
 #[clap(bin_name = "pnpm")]
 #[clap(version = pacquet_config::PACQUET_VERSION)]
+#[clap(disable_version_flag = true)]
 #[clap(about = "Experimental package manager for node.js")]
 pub struct CliArgs {
     #[clap(subcommand)]
     pub command: CliCommand,
+
+    /// Print the pnpm version.
+    // Replaces clap's built-in flag, whose short form is `-V` and whose
+    // output is prefixed; pnpm uses `-v` and prints the bare version in
+    // `main` when the `Version` action raises `DisplayVersion`.
+    #[clap(short = 'v', long = "version", action = clap::ArgAction::Version)]
+    pub version: Option<bool>,
 
     /// Set working directory.
     #[clap(short = 'C', long, default_value = ".")]
@@ -183,6 +192,9 @@ pub enum CliCommand {
     /// Remove existing patch files.
     #[clap(name = "patch-remove")]
     PatchRemove(PatchRemoveArgs),
+    /// Checks for unmet or missing peer dependency issues.
+    #[clap(name = "peers")]
+    Peers(PeersArgs),
     /// Set a script in package.json
     #[clap(visible_alias = "ss")]
     SetScript(SetScriptArgs),
@@ -270,4 +282,6 @@ pub enum CliCommand {
     /// single invocation, ignoring the "packageManager" and
     /// "devEngines.packageManager" fields of the project's manifest.
     With(WithArgs),
+    #[clap(external_subcommand)]
+    External(Vec<String>),
 }

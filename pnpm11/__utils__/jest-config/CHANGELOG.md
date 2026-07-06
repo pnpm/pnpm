@@ -1,5 +1,12 @@
 # @pnpm/jest-config
 
+## 1100.0.19
+
+### Patch Changes
+
+- @pnpm/worker@1100.2.3
+- @pnpm/testing.registry-mock@1100.0.8
+
 ## 1100.0.18
 
 ### Patch Changes

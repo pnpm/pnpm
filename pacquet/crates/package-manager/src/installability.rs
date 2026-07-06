@@ -13,7 +13,10 @@
 //! host, since the host arch may have changed since the previous
 //! install wrote `.modules.yaml`.
 
-use std::collections::{HashMap, HashSet};
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+};
 
 use pacquet_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
 use pacquet_package_is_installable::{
@@ -24,6 +27,8 @@ use pacquet_reporter::{
     LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
     SkippedOptionalReason,
 };
+use pacquet_resolving_resolver_base::ResolveResult;
+use serde_json::Value;
 
 /// The set of snapshot keys skipped on this host.
 ///
@@ -163,6 +168,19 @@ impl SkippedSnapshots {
     }
 
     #[must_use]
+    pub(crate) fn contains_optional_excluded(&self, key: &PackageKey) -> bool {
+        self.optional_excluded.contains(key)
+    }
+
+    pub(crate) fn retain_installability_for_optional_snapshots(
+        &mut self,
+        snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    ) {
+        self.installability
+            .retain(|key| snapshots.get(key).is_some_and(|snapshot| snapshot.optional));
+    }
+
+    #[must_use]
     pub fn len(&self) -> usize {
         self.installability.len() + self.fetch_failed.len() + self.optional_excluded.len()
     }
@@ -252,6 +270,80 @@ impl InstallabilityHost {
     }
 }
 
+pub(crate) fn check_installability(
+    package_id: &str,
+    manifest: &PackageInstallabilityManifest,
+    options: &InstallabilityOptions<'_>,
+) -> Result<Option<InstallabilityError>, Box<InstallabilityError>> {
+    let manifest = if options.optional {
+        manifest_with_inferred_platform(manifest)
+    } else {
+        Cow::Borrowed(manifest)
+    };
+    check_package(package_id, manifest.as_ref(), options)
+        .map_err(|invalid| Box::new(InstallabilityError::InvalidNodeVersion(invalid)))
+}
+
+pub(crate) fn manifest_with_inferred_platform(
+    manifest: &PackageInstallabilityManifest,
+) -> Cow<'_, PackageInstallabilityManifest> {
+    let Some(platform) = inferred_platform(
+        &manifest.name,
+        WantedPlatformRef {
+            os: manifest.os.as_deref(),
+            cpu: manifest.cpu.as_deref(),
+            libc: manifest.libc.as_deref(),
+        },
+    ) else {
+        return Cow::Borrowed(manifest);
+    };
+    Cow::Owned(PackageInstallabilityManifest {
+        name: manifest.name.clone(),
+        engines: manifest.engines.clone(),
+        os: platform.os,
+        cpu: platform.cpu,
+        libc: platform.libc,
+    })
+}
+
+pub(crate) fn platform_manifest_from_resolve_result(
+    result: &ResolveResult,
+    fallback_alias: Option<&str>,
+) -> PackageInstallabilityManifest {
+    let manifest = result.manifest.as_deref();
+    PackageInstallabilityManifest {
+        name: result
+            .name_ver
+            .as_ref()
+            .map(|name_ver| name_ver.name.to_string())
+            .or_else(|| {
+                manifest
+                    .and_then(|manifest| manifest.get("name"))
+                    .and_then(Value::as_str)
+                    .map(ToString::to_string)
+            })
+            .or_else(|| result.alias.clone())
+            .or_else(|| fallback_alias.map(ToString::to_string))
+            .unwrap_or_default(),
+        engines: None,
+        cpu: read_string_list(manifest, "cpu"),
+        os: read_string_list(manifest, "os"),
+        libc: read_string_list(manifest, "libc"),
+    }
+}
+
+fn read_string_list(manifest: Option<&Value>, key: &str) -> Option<Vec<String>> {
+    let value = manifest?.get(key)?;
+    let out: Vec<String> = match value {
+        Value::String(value) => vec![value.clone()],
+        Value::Array(items) => {
+            items.iter().filter_map(Value::as_str).map(ToString::to_string).collect()
+        }
+        _ => Vec::new(),
+    };
+    (!out.is_empty()).then_some(out)
+}
+
 /// Compute the [`SkippedSnapshots`] set for a frozen-lockfile install.
 ///
 /// For each `(snapshot_key, snapshot)`:
@@ -279,8 +371,10 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
     packages: &HashMap<PackageKey, PackageMetadata>,
     host: &InstallabilityHost,
     prefix: &str,
-    seed: SkippedSnapshots,
+    mut seed: SkippedSnapshots,
 ) -> Result<SkippedSnapshots, Box<InstallabilityError>> {
+    seed.retain_installability_for_optional_snapshots(snapshots);
+
     // Fast path: if no package in the lockfile declares any
     // installability constraint, every snapshot is trivially
     // installable. Skip the per-snapshot
@@ -291,9 +385,9 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
     // decomposing each metadata row only to find no constraints to
     // evaluate.
     //
-    // The `seed` is returned as-is on the fast path so previously
-    // skipped snapshots survive across reinstalls even when the
-    // lockfile's per-snapshot constraints have since been removed.
+    // The filtered `seed` is returned on the fast path so previously
+    // skipped optional snapshots survive across reinstalls even when
+    // the lockfile's per-snapshot constraints have since been removed.
     //
     // Concretely on the integrated benchmark (1352 packages with no
     // platform / engine constraints): drops ~1352 `String` and
@@ -364,24 +458,10 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
         let warn = if let Some(cached) = check_cache.get(&cache_key) {
             cached.clone()
         } else {
-            let mut manifest = manifest_from_metadata(&metadata_key, metadata);
-            if snapshot.optional
-                && let Some(platform) = inferred_platform(
-                    &manifest.name,
-                    WantedPlatformRef {
-                        os: manifest.os.as_deref(),
-                        cpu: manifest.cpu.as_deref(),
-                        libc: manifest.libc.as_deref(),
-                    },
-                )
-            {
-                manifest.os = platform.os;
-                manifest.cpu = platform.cpu;
-                manifest.libc = platform.libc;
-            }
+            let manifest = manifest_from_metadata(&metadata_key, metadata);
             let pkg_id = metadata_key.to_string();
-            let result = check_package(&pkg_id, &manifest, &base_options)
-                .map_err(|invalid| Box::new(InstallabilityError::InvalidNodeVersion(invalid)))?;
+            let options = InstallabilityOptions { optional: snapshot.optional, ..base_options };
+            let result = check_installability(&pkg_id, &manifest, &options)?;
             check_cache.insert(cache_key, result.clone());
             result
         };
@@ -443,7 +523,7 @@ pub fn any_installability_constraint(
                 let metadata_key = snapshot_key.without_peer();
                 packages.get(&metadata_key).is_some_and(|metadata| {
                     inferred_platform(
-                        &metadata_key.name.to_string(),
+                        metadata_key.name.bare.as_str(),
                         WantedPlatformRef {
                             os: metadata.os.as_deref(),
                             cpu: metadata.cpu.as_deref(),
@@ -454,6 +534,31 @@ pub fn any_installability_constraint(
                 })
             }
         })
+}
+
+#[must_use]
+pub fn any_optional_installability_constraint(
+    snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    packages: &HashMap<PackageKey, PackageMetadata>,
+) -> bool {
+    snapshots.iter().any(|(snapshot_key, snapshot)| {
+        if !snapshot.optional {
+            return false;
+        }
+        let metadata_key = snapshot_key.without_peer();
+        packages.get(&metadata_key).is_some_and(|metadata| {
+            metadata_has_meaningful_constraint(metadata)
+                || inferred_platform(
+                    metadata_key.name.bare.as_str(),
+                    WantedPlatformRef {
+                        os: metadata.os.as_deref(),
+                        cpu: metadata.cpu.as_deref(),
+                        libc: metadata.libc.as_deref(),
+                    },
+                )
+                .is_some()
+        })
+    })
 }
 
 /// True if a single metadata row carries a constraint pacquet would

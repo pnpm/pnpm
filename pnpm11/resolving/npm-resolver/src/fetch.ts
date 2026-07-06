@@ -15,6 +15,17 @@ import type { PackageMeta } from '@pnpm/resolving.registry.types'
 import * as retry from '@zkochan/retry'
 import semver from 'semver'
 
+import { clearMeta } from './clearMeta.js'
+
+/**
+ * Content type of an abbreviated (install-oriented) package metadata document.
+ * A spec-compliant registry echoes this in the response `Content-Type` when it
+ * honors the abbreviated `Accept` header. Its absence signals that the registry
+ * ignored the header and served the full document instead.
+ * https://github.com/npm/registry/blob/main/docs/responses/package-metadata.md
+ */
+const ABBREVIATED_META_CONTENT_TYPE = 'application/vnd.npm.install-v1+json'
+
 interface RegistryResponse {
   status: number
   statusText: string
@@ -181,8 +192,7 @@ export async function fetchMetadataFromFromRegistry (
           globalWarn(`Request took ${elapsedMs}ms: ${uri}`)
         }
         resolve({
-          meta,
-          jsonText,
+          ...normalizeAbbreviatedResponse({ fullMetadata, meta, jsonText, response }),
           etag: response.headers.get('etag') ?? undefined,
         })
       } catch (error: any) { // eslint-disable-line
@@ -212,6 +222,44 @@ export async function fetchMetadataFromFromRegistry (
       }
     })
   })
+}
+
+/**
+ * When the resolver asked for abbreviated metadata but the registry ignored the
+ * `Accept` header and returned the full document (detected via the response
+ * `Content-Type`), strip it down to the abbreviated field set so downstream
+ * consumers — the in-memory cache, the on-disk mirror, and the resolver — never
+ * carry the megabytes of install-irrelevant data (scripts, exports, readme,
+ * custom fields) that a full document contains.
+ *
+ * Registries that honor the header (e.g. the npm registry) echo the abbreviated
+ * `Content-Type`, so this is a no-op for them: no re-serialization, no field
+ * stripping — the happy path pays nothing.
+ */
+function normalizeAbbreviatedResponse (
+  { fullMetadata, meta, jsonText, response }: {
+    fullMetadata?: boolean
+    meta: PackageMeta
+    jsonText: string
+    response: RegistryResponse
+  }
+): { meta: PackageMeta, jsonText: string } {
+  if (fullMetadata) return { meta, jsonText }
+  if (parseMediaType(response.headers.get('content-type')) === ABBREVIATED_META_CONTENT_TYPE) return { meta, jsonText }
+  const normalized = clearMeta(meta)
+  return { meta: normalized, jsonText: JSON.stringify(normalized) }
+}
+
+/**
+ * Extracts the media type from a `Content-Type` header value, dropping
+ * parameters such as `; charset=utf-8`. Media types are case-insensitive
+ * (RFC 9110 §8.3.1), so the result is lowercased for comparison.
+ */
+function parseMediaType (contentType: string | null): string | undefined {
+  if (contentType == null) return undefined
+  const semicolonIndex = contentType.indexOf(';')
+  const mediaType = semicolonIndex === -1 ? contentType : contentType.slice(0, semicolonIndex)
+  return mediaType.trim().toLowerCase()
 }
 
 function toUri (pkgName: string, registry: string): string {

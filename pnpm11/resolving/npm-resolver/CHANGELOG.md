@@ -1,5 +1,22 @@
 # @pnpm/npm-resolver
 
+## 1102.1.1
+
+### Patch Changes
+
+- 25c7388: pnpm now rejects named-registry specifiers (e.g. `gh:`) whose package name is not a valid npm package name — an empty scope (e.g. `gh:@/bar`), path separators inside the name (e.g. `gh:@scope/../name`), or any other shape `validate-npm-package-name` rejects — with `ERR_PNPM_INVALID_NAMED_REGISTRY_PACKAGE_NAME` instead of passing the name through to registry URLs and metadata cache file paths.
+- 99982b9: Sped up resolution and reduced memory use against registries that ignore npm's abbreviated metadata format and always return the full package document (for example, Azure DevOps Artifacts). pnpm now strips such documents down to the abbreviated field set before caching them. Resolution output is unchanged, and registries that honor the abbreviated format (such as the npm registry) pay no extra cost.
+- 11a7fdd: Sped up offline and `--prefer-offline` resolution on large workspaces (e.g. `pnpm dedupe --offline`, `pnpm install --offline`). Package metadata loaded from the local cache is now kept in memory, so each package's metadata is parsed once per command instead of once per dependent that references it.
+- dcabb78: Fixed `pnpm up <pkg>` producing a different result than a fresh install of the same manifests would. The resolver now distinguishes `updateRequested` (true only for packages that match the user's update target) from the broader `update` flag, and for the targeted package ignores only its own lockfile-derived preferred-version pins — so the target re-resolves exactly as if its lockfile entries were deleted and `pnpm install` ran. Preferred versions a fresh install applies (manifest pins, versions propagated down the dependency chain, and the vulnerability-avoidance penalties of `pnpm audit --fix`) stay in effect, so an update never installs duplicate versions that a reinstall from scratch would not reproduce. When a preferred version holds the update target below the newest version its range admits, pnpm now prints a warning explaining that reaching the newer version everywhere requires an override.
+- a6c4d5f: When a dependency cannot be found in the registry (404) or the registry has no matching version, and a workspace project with the same name exists only at non-matching versions, the error now reports the available workspace versions (`ERR_PNPM_NO_MATCHING_VERSION_INSIDE_WORKSPACE`) instead of the raw registry failure [pnpm/pnpm#1379](https://github.com/pnpm/pnpm/issues/1379). Other registry failures (authorization, network, server errors) still propagate unchanged. The pacquet (Rust) resolver applies the same behavior.
+- Updated dependencies [25c7388]
+- Updated dependencies [dcabb78]
+  - @pnpm/resolving.jsr-specifier-parser@1100.0.2
+  - @pnpm/resolving.resolver-base@1100.5.1
+  - @pnpm/store.cafs@1100.1.12
+  - @pnpm/worker@1100.2.3
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1102.1.0
 
 ### Minor Changes

@@ -1,5 +1,25 @@
 # @pnpm/headless
 
+## 1102.1.2
+
+### Patch Changes
+
+- Updated dependencies [dcabb78]
+  - @pnpm/store.controller-types@1100.1.7
+  - @pnpm/installing.linking.modules-cleaner@1100.1.10
+  - @pnpm/building.during-install@1102.0.3
+  - @pnpm/deps.graph-hasher@1100.2.7
+  - @pnpm/installing.package-requester@1102.1.1
+  - @pnpm/lockfile.utils@1100.1.1
+  - @pnpm/deps.graph-builder@1100.0.19
+  - @pnpm/exec.lifecycle@1100.1.2
+  - @pnpm/lockfile.filtering@1100.1.9
+  - @pnpm/lockfile.fs@1100.1.8
+  - @pnpm/installing.linking.real-hoist@1100.1.5
+  - @pnpm/lockfile.to-pnp@1100.1.2
+  - @pnpm/worker@1100.2.3
+  - @pnpm/fs.symlink-dependency@1100.0.10
+
 ## 1102.1.1
 
 ### Patch Changes

@@ -59,3 +59,32 @@ fn dlx_installs_and_runs_packages_bin() {
 
     drop(root);
 }
+
+/// The dlx cache install inherits the caller project's `overrides` (pnpm's
+/// dlx runs its install with the invoking project's already-loaded config),
+/// so a `catalog:` value in them must resolve against the caller's catalogs
+/// even though the cache install itself has no workspace. Regression test
+/// for `ERR_PNPM_CATALOG_IN_OVERRIDES` failing every dlx invocation from
+/// such a project. `catalogMode: strict` is included because it is likewise
+/// inherited and must not break the throwaway install.
+#[cfg(unix)]
+#[test]
+fn dlx_resolves_caller_catalog_references_in_overrides() {
+    let CommandTempCwd { pacquet, root, workspace, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    std::fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "catalog:\n  is-positive: 3.1.0\ncatalogMode: strict\noverrides:\n  is-positive: 'catalog:'\n",
+    )
+    .expect("write caller project workspace yaml");
+
+    pacquet.with_arg("dlx").with_arg("@foo/touch-file-one-bin").assert().success();
+
+    assert!(
+        workspace.join("touch.txt").exists(),
+        "the package's bin should run in the process cwd and write `touch.txt`",
+    );
+
+    drop(root);
+}

@@ -13,6 +13,7 @@ mod global_package_dir;
 mod list;
 mod scan;
 
+use pacquet_package_manifest::convert_engines_runtime_to_dependencies;
 use serde_json::Value;
 use std::path::Path;
 
@@ -24,13 +25,25 @@ pub use global_package_dir::{create_install_dir, get_hash_link, resolve_install_
 pub use list::{ListReportAs, list_global_packages};
 pub use scan::{
     GlobalPackageInfo, InstalledGlobalPackage, clean_orphaned_install_dirs, find_global_package,
-    get_global_package_details, get_installed_bin_names, read_installed_packages,
-    scan_global_packages,
+    get_global_package_details, get_installed_bin_names, read_direct_dependency_aliases,
+    read_installed_packages, scan_global_packages,
 };
 
 /// Read and parse a `package.json` from `dir`, returning `None` on any
 /// read or parse failure. Mirrors pnpm's `safeReadPackageJsonFromDir`.
+///
+/// A downloaded runtime (`node`/`deno`/`bun`) is stored under
+/// `devEngines.runtime` / `engines.runtime` on disk, not under a
+/// dependency field — the manifest writer folds `<name>: runtime:<v>`
+/// into it on save. Reifying it back into `dependencies` /
+/// `devDependencies` here (the same conversion
+/// [`pacquet_package_manifest::PackageManifest`] applies on read) lets
+/// every global scanner and bin-linker treat an installed runtime as the
+/// direct dependency it is.
 pub(crate) fn read_package_json(dir: &Path) -> Option<Value> {
     let text = std::fs::read_to_string(dir.join("package.json")).ok()?;
-    serde_json::from_str(&text).ok()
+    let mut value: Value = serde_json::from_str(&text).ok()?;
+    convert_engines_runtime_to_dependencies(&mut value, "devEngines", "devDependencies");
+    convert_engines_runtime_to_dependencies(&mut value, "engines", "dependencies");
+    Some(value)
 }

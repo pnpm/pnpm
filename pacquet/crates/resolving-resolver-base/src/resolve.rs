@@ -132,6 +132,17 @@ pub enum VersionSelectorEntry {
     Weighted(VersionSelectorWithWeight),
 }
 
+impl VersionSelectorEntry {
+    /// The selector's type, regardless of whether it carries a weight.
+    #[must_use]
+    pub fn selector_type(&self) -> VersionSelectorType {
+        match self {
+            VersionSelectorEntry::Plain(selector_type) => *selector_type,
+            VersionSelectorEntry::Weighted(weighted) => weighted.selector_type,
+        }
+    }
+}
+
 /// One resolution level's preferred-version additions, layered over a
 /// parent level: after a package's direct dependencies resolve, their
 /// `(name, version)` pairs become plain `version` selectors for the
@@ -292,6 +303,15 @@ pub struct ResolveOptions {
     pub prefer_workspace_packages: bool,
     pub always_try_workspace_packages: bool,
     pub update: UpdateBehavior,
+    /// True only when this specific package matches the user's update
+    /// target (e.g. `pnpm up <name>`). Unlike `update`, this is false for
+    /// unrelated packages that get re-resolved as a side effect of an
+    /// update. The npm picker uses it to warn when a
+    /// [`preferred_versions`](Self::preferred_versions) selector holds
+    /// the update target below the newest version its range admits —
+    /// the seed already withholds the target's own lockfile pins, so
+    /// any remaining preference is one a fresh install would apply too.
+    pub update_requested: bool,
     /// When `true`, bypass cached metadata fast paths so the registry
     /// is the authority on integrity values. The `--update-checksums`
     /// flag.

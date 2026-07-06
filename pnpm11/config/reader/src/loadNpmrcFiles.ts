@@ -89,11 +89,18 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
 
   // Read .npmrc from workspace root (or project root if no workspace)
   const workspaceNpmrcDir = opts.workspaceDir ?? localPrefix
+  const workspaceNpmrcPath = path.resolve(workspaceNpmrcDir, '.npmrc')
+  // When npmrcAuthFile explicitly points at the project .npmrc, the user has
+  // opted in to trusting it — allow auth env expansion and suppress the warning.
+  const workspaceIsTrustedAuthFile = userConfigPath === workspaceNpmrcPath
   const workspaceNpmrc = readAndFilterNpmrc(
-    path.resolve(workspaceNpmrcDir, '.npmrc'),
+    workspaceNpmrcPath,
     warnings,
     env,
-    { expandAuthValueEnv: false, expandRequestDestinationEnv: false }
+    {
+      expandAuthValueEnv: workspaceIsTrustedAuthFile,
+      expandRequestDestinationEnv: workspaceIsTrustedAuthFile,
+    }
   )
 
   // Read user .npmrc (from npmrcAuthFile setting or ~/.npmrc)

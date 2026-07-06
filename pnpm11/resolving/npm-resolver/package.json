@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolving.npm-resolver",
-  "version": "1102.1.0",
+  "version": "1102.1.1",
   "description": "Resolver for npm-hosted packages",
   "keywords": [
     "pnpm",
@@ -63,6 +63,7 @@
     "semver": "catalog:",
     "semver-utils": "catalog:",
     "ssri": "catalog:",
+    "validate-npm-package-name": "catalog:",
     "version-selector-type": "catalog:"
   },
   "peerDependencies": {
@@ -80,6 +81,7 @@
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
     "@types/ssri": "catalog:",
+    "@types/validate-npm-package-name": "catalog:",
     "load-json-file": "catalog:",
     "tempy": "catalog:"
   },

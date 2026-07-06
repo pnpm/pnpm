@@ -2,14 +2,15 @@
 // Keeps the embedded npm registry signing keys (src/npmSigningKeys.ts) in sync
 // with https://registry.npmjs.org/-/npm/v1/keys.
 //
-//   node update-npm-signing-keys.mjs            # check (CI / release gate)
+//   node update-npm-signing-keys.mjs            # check
 //   node update-npm-signing-keys.mjs --update   # rewrite the embedded keys
 //
-// `--check` fails when npm advertises a signing key that is not embedded
-// verbatim, so a key rotation cannot silently break (or weaken) pnpm's
-// signature verification. `--update` writes the union of npm's keys and any
-// embedded keys npm no longer lists (older keys are kept so packages published
-// before a rotation still verify).
+// The create-release-pr workflow runs `--update`, so a key rotation is
+// committed into the release PR and reviewed there rather than silently
+// breaking (or weakening) pnpm's signature verification. `--update` writes the
+// union of npm's keys and any embedded keys npm no longer lists (older keys are
+// kept so packages published before a rotation still verify). Check mode
+// reports the drift without writing.
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -37,11 +38,13 @@ async function main () {
   }
 
   // Union: every npm key, plus embedded keys npm no longer lists (kept for
-  // verifying packages published before a rotation).
+  // verifying packages published before a rotation). Sorted so a reordering of
+  // npm's response cannot churn the generated file.
   const merged = [...npmKeys]
   for (const e of embedded) {
     if (!merged.some((m) => m.keyid === e.keyid)) merged.push(e)
   }
+  merged.sort((a, b) => a.keyid.localeCompare(b.keyid))
   fs.writeFileSync(KEYS_FILE, render(merged))
   console.log(missing.length === 0
     ? '✓ Embedded npm signing keys already current; rewrote file.'
@@ -87,8 +90,8 @@ function render (keys) {
 // ${KEYS_URL}
 //
 // Refresh with: node deps/security/signatures/scripts/update-npm-signing-keys.mjs --update
-// The release workflow runs \`--check\` and fails if these drift from npm, so a
-// rotated key cannot silently break (or weaken) signature verification.
+// The create-release-pr workflow refreshes these automatically, so a rotated
+// key cannot silently break (or weaken) signature verification.
 export const NPM_SIGNING_KEYS = ${body} as const satisfies ReadonlyArray<{
   expires: string | null
   keyid: string

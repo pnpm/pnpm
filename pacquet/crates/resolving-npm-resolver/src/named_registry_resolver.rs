@@ -194,6 +194,8 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
     ) -> Result<Option<PickedFromRegistry>, ResolveError> {
         let overlay_selectors =
             crate::preferred_overlay::overlay_merged_selectors(opts, &spec.name);
+        let base_selectors =
+            overlay_selectors.as_ref().or_else(|| opts.preferred_versions.get(&spec.name));
         let ctx = PickPackageContext {
             http_client: &self.http_client,
             auth_headers: &self.auth_headers,
@@ -208,14 +210,12 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             retry_opts: self.retry_opts,
         };
 
-        pick_from_registry_with_guard(
+        let picked = pick_from_registry_with_guard(
             &ctx,
             PickFromRegistryOptions {
                 registry,
                 spec,
-                preferred_version_selectors: overlay_selectors
-                    .as_ref()
-                    .or_else(|| opts.preferred_versions.get(&spec.name)),
+                preferred_version_selectors: base_selectors,
                 published_by: opts.published_by,
                 published_by_exclude: opts.published_by_exclude.as_ref(),
                 pick_lowest_version: opts.pick_lowest_version,
@@ -226,7 +226,17 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
                 package_version_guard: opts.package_version_guard.as_ref(),
             },
         )
-        .await
+        .await?;
+        if let Some(picked) = &picked {
+            crate::preferred_overlay::warn_once_on_held_back_update(
+                opts,
+                spec,
+                base_selectors,
+                &picked.meta,
+                &picked.version.version.to_string(),
+            );
+        }
+        Ok(picked)
     }
 }
 

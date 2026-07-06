@@ -1,5 +1,13 @@
 # @pnpm/lifecycle
 
+## 1100.1.2
+
+### Patch Changes
+
+- Updated dependencies [dcabb78]
+  - @pnpm/store.controller-types@1100.1.7
+  - @pnpm/fetching.directory-fetcher@1100.0.19
+
 ## 1100.1.1
 
 ### Patch Changes

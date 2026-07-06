@@ -1,3 +1,4 @@
+use super::exec::ExecArgs;
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -92,13 +93,33 @@ impl RunArgs {
     /// meaningful for the recursive path (see [`Self::run_recursive`])
     /// and are ignored here.
     pub fn run(self, dir: &Path, config: &Config, silent: bool) -> miette::Result<()> {
-        let RunArgs { command, args, if_present, .. } = self;
-        let manifest =
-            PackageManifest::from_path(dir.join("package.json")).map_err(RunError::Manifest)?;
+        self.run_inner(dir, config, silent, false)
+    }
 
+    pub fn run_fallback(self, dir: &Path, config: &Config, silent: bool) -> miette::Result<()> {
+        self.run_inner(dir, config, silent, true)
+    }
+
+    fn run_inner(
+        self,
+        dir: &Path,
+        config: &Config,
+        silent: bool,
+        fallback_to_exec: bool,
+    ) -> miette::Result<()> {
+        let RunArgs { command, args, if_present, .. } = self;
         let Some(script_name) = command else {
+            let manifest =
+                PackageManifest::from_path(dir.join("package.json")).map_err(RunError::Manifest)?;
             println!("{}", render_project_commands(manifest.value()));
             return Ok(());
+        };
+        let manifest = match PackageManifest::from_path(dir.join("package.json")) {
+            Ok(manifest) => manifest,
+            Err(PackageManifestError::NoImporterManifestFound(_)) if fallback_to_exec => {
+                return exec_fallback(script_name, args, dir, config);
+            }
+            Err(err) => return Err(RunError::Manifest(err).into()),
         };
 
         let mut specified = specified_scripts(manifest.value(), &script_name);
@@ -113,6 +134,9 @@ impl RunArgs {
         if specified.is_empty() {
             if if_present {
                 return Ok(());
+            }
+            if fallback_to_exec {
+                return exec_fallback(script_name, args, dir, config);
             }
             return Err(RunError::NoScript {
                 script: script_name.clone(),
@@ -168,6 +192,22 @@ impl RunArgs {
     pub fn run_recursive(&self, config: &Config, dir: &Path) -> miette::Result<()> {
         recursive::run_recursive(self, config, dir)
     }
+}
+
+fn exec_fallback(
+    script_name: String,
+    args: Vec<String>,
+    dir: &Path,
+    config: &Config,
+) -> miette::Result<()> {
+    ExecArgs {
+        command: std::iter::once(script_name).chain(args).collect(),
+        shell_mode: false,
+        resume_from: None,
+        report_summary: false,
+        no_bail: false,
+    }
+    .run(dir, config)
 }
 
 /// Shared inputs for running a script, threaded through

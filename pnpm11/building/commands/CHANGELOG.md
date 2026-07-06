@@ -1,5 +1,22 @@
 # @pnpm/building.commands
 
+## 1100.1.8
+
+### Patch Changes
+
+- c121235: Fixed the topological order of `--filter`ed commands (`pnpm run`, `pnpm exec`, `pnpm publish`, `pnpm pack`, `pnpm rebuild`) when the selected projects depend on each other only transitively through projects that were not selected. Previously such selected projects could run concurrently or in the wrong order; now a project always runs after the selected projects it transitively depends on, while projects without a real dependency relationship still run concurrently. This now also holds for prod-only filters (`--filter-prod`), which resolve order through the production dependency graph so transitive production dependencies are respected without pulling back the dev dependencies the filter drops, and for selections that mix `--filter` with `--filter-prod` [#8335](https://github.com/pnpm/pnpm/issues/8335).
+- Updated dependencies [be6505a]
+- Updated dependencies [3425e80]
+- Updated dependencies [806c3ec]
+- Updated dependencies [c121235]
+- Updated dependencies [dcabb78]
+  - @pnpm/installing.commands@1100.10.2
+  - @pnpm/config.reader@1101.11.0
+  - @pnpm/workspace.projects-sorter@1100.0.8
+  - @pnpm/building.after-install@1102.0.3
+  - @pnpm/store.connection-manager@1100.3.3
+  - @pnpm/config.writer@1100.0.15
+
 ## 1100.1.7
 
 ### Patch Changes

@@ -327,6 +327,22 @@ jobs:
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE.json
 
+      - name: 'Benchmark: Isolated linker: fresh resolve, hot cache, offline'
+        shell: bash
+        # Offline re-resolution from the warm on-disk packument mirror:
+        # `install --offline --lockfile-only` with the lockfile removed per
+        # iteration (an online pre-warm pass primes the mirror first). No
+        # network and no linking, so the timed work is almost purely mirror
+        # reads + packument parsing — the series that guards offline /
+        # prefer-offline resolution, e.g. the disk-to-memory metadata
+        # promotion of pnpm/pnpm#12760. Cheapest scenario per iteration, so
+        # 15 min is ample.
+        timeout-minutes: 15
+        run: |
+          just integrated-benchmark --reuse-prebuilt-binaries --scenario=isolated-linker.fresh-resolve.hot-cache.offline --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $BENCHMARK_TARGETS
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE.md
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE.json
+
       - name: 'Benchmark: Isolated linker: fresh restore, cold cache + cold store + cold pnpr'
         shell: bash
         # The only scenario with a cold pnpr-side cache: the per-revision mock
@@ -457,6 +473,18 @@ jobs:
             echo
             echo '</details>'
             echo
+            echo '### Scenario: Isolated linker: fresh resolve, hot cache, offline'
+            echo
+            cat bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE.md
+            echo
+            echo '<details><summary>BENCHMARK_REPORT.json</summary>'
+            echo
+            echo '```json'
+            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE.json
+            echo '```'
+            echo
+            echo '</details>'
+            echo
             echo '### Scenario: Isolated linker: fresh restore, cold cache + cold store + cold pnpr'
             echo
             cat bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR.md
@@ -475,7 +503,7 @@ jobs:
         # Bencher's shell_hyperfine adapter accepts, one per testbed. For
         # each, keep only the chosen target's result from each scenario
         # and rename `.command` to the scenario name, so Bencher names the
-        # benchmark after the scenario. Both tools run all five scenarios,
+        # benchmark after the scenario. Both tools run every scenario,
         # so the `pacquet` testbed gets `pacquet@HEAD` and the `pnpr`
         # testbed gets `pnpr@HEAD`, each across the same scenario set.
         shell: bash
@@ -507,6 +535,7 @@ jobs:
             'ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE:isolated-linker.fresh-install.cold-cache.cold-store' \
             'ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE:isolated-linker.fresh-install.hot-cache.hot-store' \
             'ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE:isolated-linker.fresh-install.cold-cache.hot-store' \
+            'ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE:isolated-linker.fresh-resolve.hot-cache.offline' \
             'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR:isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr'
 
           build_bencher_file bench-work-env/bencher-results-pnpr.json pnpr@HEAD \
@@ -515,6 +544,7 @@ jobs:
             'ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE:isolated-linker.fresh-install.cold-cache.cold-store' \
             'ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE:isolated-linker.fresh-install.hot-cache.hot-store' \
             'ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE:isolated-linker.fresh-install.cold-cache.hot-store' \
+            'ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE:isolated-linker.fresh-resolve.hot-cache.offline' \
             'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR:isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr'
 
       - name: Stage artifact contents

@@ -101,9 +101,10 @@ pub fn pnpr_command_with_binary(bin: &Path, port: u16, public_url: Option<&str>)
         default_public_url.trim_end_matches('/')
     };
     let mut cmd = Command::new(bin);
-    // `pnpr` defaults to its bundled verdaccio-shaped config
-    // (npmjs uplink + `**` proxy rule), which matches what the mock
-    // needs — no `-c` override required. We only pin the runtime
+    // `pnpr` defaults to its bundled registry-mock config (the fixture
+    // namespace served from local hosted storage, everything else proxied
+    // through the pattern-less npmjs upstream), which is exactly what the
+    // mock needs — no `-c` override required. We only pin the runtime
     // bits the bundled config can't know about.
     cmd.arg("--storage")
         .arg(runtime_storage())

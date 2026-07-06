@@ -46,6 +46,7 @@ function generateNativePackage(target) {
   const manifestData = {
     name: packageName,
     version,
+    license: "MIT",
     os: [target.platform],
     cpu: [target.arch],
     repository: {

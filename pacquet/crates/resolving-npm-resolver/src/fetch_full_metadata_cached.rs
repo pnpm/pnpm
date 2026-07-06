@@ -24,7 +24,10 @@ use reqwest::{StatusCode, header};
 
 use crate::{
     FetchMetadataError,
-    fetch_full_metadata::{ACCEPT_ABBREVIATED_DOC, ACCEPT_FULL_DOC},
+    fetch_full_metadata::{
+        ACCEPT_ABBREVIATED_DOC, ACCEPT_FULL_DOC, is_abbreviated_content_type,
+        normalize_abbreviated_meta,
+    },
     mirror::{
         ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, clear_meta,
         get_pkg_mirror_path, load_meta_async, load_meta_headers_async, save_meta_indexed,
@@ -155,6 +158,8 @@ pub async fn fetch_full_metadata_cached(
             .get(header::ETAG)
             .and_then(|value| value.to_str().ok())
             .map(str::to_string);
+        let normalize_to_abbreviated =
+            !opts.full_metadata && !is_abbreviated_content_type(response.headers());
         let raw_body = response.text().await.map_err(|error| FetchMetadataError::BodyRead {
             url: redact_url_credentials(&url),
             error,
@@ -180,6 +185,9 @@ pub async fn fetch_full_metadata_cached(
             let mut meta: Package = serde_json::from_str(&raw_body).map_err(|error| {
                 FetchMetadataError::Decode { url: redact_url_credentials(&task_url), error }
             })?;
+            if normalize_to_abbreviated {
+                meta = normalize_abbreviated_meta(meta);
+            }
             if should_filter_metadata {
                 meta = clear_meta(&meta).map_err(|error| FetchMetadataError::FilterMetadata {
                     url: redact_url_credentials(&task_url),

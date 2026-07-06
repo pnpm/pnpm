@@ -1,5 +1,15 @@
 # @pnpm/get-context
 
+## 1100.0.21
+
+### Patch Changes
+
+- Updated dependencies [dcabb78]
+  - @pnpm/resolving.resolver-base@1100.5.1
+  - @pnpm/store.controller@1102.0.3
+  - @pnpm/lockfile.fs@1100.1.8
+  - @pnpm/installing.read-projects-context@1100.0.18
+
 ## 1100.0.20
 
 ### Patch Changes

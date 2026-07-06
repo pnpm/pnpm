@@ -3,12 +3,13 @@
 // signature of SHASUMS256.txt) from the canonical nodejs/release-keys repo into
 // src/nodeReleaseKeys.ts and pacquet's matching Rust key module.
 //
-//   node update-node-release-keys.mjs            # check (CI / release gate)
+//   node update-node-release-keys.mjs            # check
 //   node update-node-release-keys.mjs --update   # rewrite the embedded keys
 //
-// `--check` fails when the authoritative keys.list contains a fingerprint that
-// is not embedded, so a newly added release signer cannot silently break Node
-// runtime verification.
+// The create-release-pr workflow runs `--update`, so any drift from the
+// authoritative keys.list is committed into the release PR and reviewed there —
+// a newly added release signer cannot silently break Node runtime verification.
+// Check mode reports the drift without writing.
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -97,10 +98,13 @@ ${entries}
 }
 
 function renderRust (keys) {
+  // Hashed delimiters only when the key itself contains a quote, or clippy's
+  // needless_raw_string_hashes rejects the generated file.
+  const rustRawString = (s) => s.includes('"') ? `r#"${s}"#` : `r"${s}"`
   const entries = keys.map(({ fingerprint, armored }) =>
-    `    NodeReleaseKey {\n        fingerprint: "${fingerprint}",\n        armored_key: r#"${armored}\n"#,\n    },`).join('\n')
+    `    NodeReleaseKey {\n        fingerprint: "${fingerprint}",\n        armored_key: ${rustRawString(`${armored}\n`)},\n    },`).join('\n')
   return `// GENERATED - the Node.js release team's OpenPGP public keys, mirrored from
-// https://github.com/nodejs/release-keys (keys.list + keys/<fingerprint>.asc).
+// <https://github.com/nodejs/release-keys> (keys.list + keys/<fingerprint>.asc).
 //
 // Used to verify the signature of a Node.js release's SHASUMS256.txt before
 // trusting its hashes. Refresh with:

@@ -1,5 +1,13 @@
 # @pnpm/directory-fetcher
 
+## 1100.0.19
+
+### Patch Changes
+
+- Updated dependencies [dcabb78]
+  - @pnpm/resolving.resolver-base@1100.5.1
+  - @pnpm/fetching.fetcher-base@1100.2.1
+
 ## 1100.0.18
 
 ### Patch Changes

@@ -1,5 +1,80 @@
 # pnpm
 
+## 11.10.0
+
+### Minor Changes
+
+- e2e3c81: Added the `issues` command as an alias of `bugs`, so `pnpm issues` opens the package's bug tracker URL in the browser.
+- 8491f8e: Added the `prefix` command which prints the current package prefix directory (or global prefix directory if `-g` / `--global` is used).
+- 3425e80: Added an `_auth` setting for configuring registry authentication as a single structured (URL-keyed) value. It can be set in the **global** pnpm config (`config.yaml`) or, for CI, via the `pnpm_config__auth` environment variable. The env form sidesteps the GitHub Actions / bash / zsh limitation that broke the existing `pnpm_config_//host/:_authToken=…` form (env var names containing `/`, `:`, or `.` are silently dropped). Closes pnpm/pnpm#12314.
+
+  The value is keyed by registry URL so each secret is explicitly bound to the host that may receive it. Registry URL keys must use `http` or `https` and must not include credentials, query strings, or fragments:
+
+  ```sh
+  export pnpm_config__auth='{"https://registry.npmjs.org":{"@":{"authToken":"npm-token"},"@org":{"authToken":"org-token"}}}'
+  ```
+
+  The equivalent in the global `config.yaml`:
+
+  ```yaml
+  _auth:
+    https://registry.npmjs.org:
+      "@":
+        authToken: npm-token
+      "@org":
+        authToken: org-token
+  ```
+
+  Within each registry URL, `@` means registry-wide/default credentials and package scopes like `@org` bind credentials to that scope on the same host. The only supported credential field is `authToken` (maps to `_authToken` / bearer auth); the deprecated `basicAuth` / `username` + `password` forms are intentionally not accepted here.
+
+  Each entry also infers a trusted registry route: `@` routes the default registry (and `pnpm add <pkg>` resolves there), and `@org` routes that scope. Because the credential and destination host arrive in one trusted value, repo-controlled `pnpm-workspace.yaml` or project `.npmrc` cannot redirect the token to a different host. `_auth` is honored **only** from the env var and the global config — it is ignored in a project `pnpm-workspace.yaml` / `.npmrc`, so repo-controlled config can never supply registry auth. Precedence: CLI flags (`--registry`, `--@scope:registry`) > `pnpm_config__auth` > global `config.yaml` `_auth` > `pnpm-workspace.yaml`.
+
+  Both `pnpm_config__auth` (lowercase, documented form) and `PNPM_CONFIG__AUTH` (all-caps, the shell convention some CI runners apply) are honored. If both are set, lowercase wins unless it is empty, in which case uppercase is used. The env var wins over the global `config.yaml` `_auth` on a conflicting key. `tokenHelper` is not supported in `_auth`. Parsing is strict: a malformed value (bad JSON, wrong shape, invalid registry URL or scope, an unsupported credential field) fails fast with an error rather than being silently dropped.
+
+  **Pacquet parity note:** the pacquet (Rust) port supports the same single credential field as the TS CLI: `authToken`.
+
+- a33eeec: `pnpm self-update` and `packageManager` version-switching can now install and link pnpm v12 (the Rust port), published with equal content under both the `pnpm` and `@pnpm/exe` names on the `next-12` dist-tag. Its native binaries ship as `@pnpm/exe.<platform>-<arch>` packages, which pnpm's built-in installer links directly — no Node.js launcher, so the command pays no Node startup cost. v12 is initialized exactly like `@pnpm/exe`, including per-platform global-virtual-store hashing. From v12 onward the install converges on the unscoped `pnpm` package (the Rust exe) — even when updating from the SEA `@pnpm/exe` build.
+- 1dd12bd: When resolving through a pnpr install-accelerator server, pnpm no longer forwards its own upstream registry credentials in the resolve request. Only the `Authorization` header identifying the caller to pnpr is sent. The pnpr server now selects upstream credentials from its own route policy (operator-configured upstream credential aliases), so private dependencies resolve through a pnpr-managed alias the caller is authorized to use, rather than by sending the client's registry tokens to the server.
+- 1e81761: Expose web authentication `authUrl` and `doneUrl` in JSON error output when OTP is required in a non-interactive terminal [#12724](https://github.com/pnpm/pnpm/issues/12724).
+
+### Patch Changes
+
+- 2f389d6: Added the Node.js release team's new signing key (Stewart X Addison, `655F3B5C1FB3FA8D1A0CA6BDE4A7D232B936D2FD`) to the embedded Node.js release keys, so runtimes whose `SHASUMS256.txt` is signed by the new releaser verify successfully.
+- acbdb94: Fixed shell tab completion not suggesting workspaces after the `-F` alias for `--filter` option.
+- dcabb78: Fixed `pnpm up -r <pkg>` bumping unrelated packages that have open semver ranges. Previously, any update mutation nullified the lockfile-derived `preferredVersions` globally, so packages with `^x.y.z` ranges could re-resolve to newer compatible versions even though the user only asked to update a specific package. The install layer now always seeds `preferredVersions` from the lockfile, and caller-supplied preferred versions (such as the vulnerability penalties of `pnpm audit --fix`) layer on top of the seed instead of replacing it. The targeted package still bumps: the per-resolve `updateRequested` flag makes the resolver ignore the target's own lockfile pins.
+
+  Closes pnpm/pnpm#10662.
+
+- d539172: Fixed pnpm pack and pnpm publish failing when prepack generates files that are included in the package and postpack cleans them up.
+- be6505a: Hardened global package management:
+
+  - On Windows, removing or updating a global package now also cleans up the `node.exe` flavor of a bin, so a stale `node.exe` no longer survives on `PATH` after uninstall, and a new global install no longer silently overwrites an existing `node.exe`.
+  - `pnpm add -g pnpm@<version>` (and `@pnpm/exe@<version>`) is now rejected like the bare `pnpm` form, pointing to `pnpm self-update`.
+  - Dependency aliases read from a global package's manifest are validated before being joined onto `node_modules` paths, preventing a tampered manifest from escaping the install directory.
+  - Each global install group is created in its own freshly-made directory (no longer reusing a colliding or pre-existing path).
+  - Removing or updating a global package no longer unlinks a bin that belongs to a different globally installed package.
+
+- 25c7388: pnpm now rejects `jsr:` specifiers whose package name is not a valid npm package name — an empty scope or name (e.g. `jsr:@scope/`), path separators inside the name, or any other shape `validate-npm-package-name` rejects — with `ERR_PNPM_INVALID_JSR_PACKAGE_NAME` instead of silently converting them into a malformed `@jsr/...` npm package name.
+- 25c7388: pnpm now rejects named-registry specifiers (e.g. `gh:`) whose package name is not a valid npm package name — an empty scope (e.g. `gh:@/bar`), path separators inside the name (e.g. `gh:@scope/../name`), or any other shape `validate-npm-package-name` rejects — with `ERR_PNPM_INVALID_NAMED_REGISTRY_PACKAGE_NAME` instead of passing the name through to registry URLs and metadata cache file paths.
+- 96da7c5: node-gyp's `gyp_main.py` and `gyp` entrypoints are now packed with the executable bit in the `pnpm` and `@pnpm/exe` tarballs. Without it, building native addons from source could fail with a permission error.
+- 99982b9: Sped up resolution and reduced memory use against registries that ignore npm's abbreviated metadata format and always return the full package document (for example, Azure DevOps Artifacts). pnpm now strips such documents down to the abbreviated field set before caching them. Resolution output is unchanged, and registries that honor the abbreviated format (such as the npm registry) pay no extra cost.
+- 11a7fdd: Sped up offline and `--prefer-offline` resolution on large workspaces (e.g. `pnpm dedupe --offline`, `pnpm install --offline`). Package metadata loaded from the local cache is now kept in memory, so each package's metadata is parsed once per command instead of once per dependent that references it.
+- 2c7369d: `pnpm pack-app` now rejects `--entry` / `pnpm.app.entry` and `--output-dir` / `pnpm.app.outputDir` values that are absolute paths or escape the project directory via `..` (or a symlink that resolves outside it), and refuses to write the produced executable when its target path already exists as a symlink (or other non-regular file). This prevents a repository-controlled `package.json` from embedding host files (such as an SSH key) into the produced executable, writing build artifacts outside the project, or overwriting an arbitrary file through a committed symlink. The new error codes are `ERR_PNPM_PACK_APP_ENTRY_OUTSIDE_PROJECT`, `ERR_PNPM_PACK_APP_OUTPUT_DIR_OUTSIDE_PROJECT`, and `ERR_PNPM_PACK_APP_OUTPUT_FILE_NOT_REGULAR`.
+
+  When ad-hoc signing macOS targets, `pnpm pack-app` now runs the system `codesign` by absolute path and resolves `ldid` to a location outside the project, so a repository-controlled `node_modules/.bin` on `PATH` cannot hijack the signer.
+
+- ce5d5a5: Relative paths in `patchedDependencies` are now resolved against the lockfile directory when computing patch file hashes, so running `pnpm install` from a subdirectory no longer fails with `ENOENT` looking for the patch file in the wrong location [#12762](https://github.com/pnpm/pnpm/pull/12762).
+- ebb4096: `pnpm peers` no longer reports a conflict for a missing peer dependency that is ignored via `pnpm.peerDependencyRules.ignoreMissing`.
+- dcabb78: Fixed a prototype-pollution hazard when seeding preferred versions: a dependency named `__proto__` in a manifest or in `pnpm-lock.yaml` could write through `Object.prototype` (or crash the install) while the preferred-versions map was being built. The maps are now null-prototype objects, so crafted package names land as plain keys.
+- f38e696: Hardened `pnpm deploy --force` so it refuses unsafe deploy targets such as workspace roots, parent directories, out-of-workspace paths, and symlinked target parents.
+- 806c3ec: pnpm no longer warns about ignored project-level auth settings when `PNPM_CONFIG_NPMRC_AUTH_FILE` points at the project `.npmrc` — setting it to that file is an explicit opt-in to trusting it, so auth env variables in it are expanded [pnpm/pnpm#12480](https://github.com/pnpm/pnpm/issues/12480).
+- 991405e: Restore differential rendering (`ansi-diff`) to fix duplicated output lines introduced by pnpm/pnpm#12351.
+- c121235: Fixed the topological order of `--filter`ed commands (`pnpm run`, `pnpm exec`, `pnpm publish`, `pnpm pack`, `pnpm rebuild`) when the selected projects depend on each other only transitively through projects that were not selected. Previously such selected projects could run concurrently or in the wrong order; now a project always runs after the selected projects it transitively depends on, while projects without a real dependency relationship still run concurrently. This now also holds for prod-only filters (`--filter-prod`), which resolve order through the production dependency graph so transitive production dependencies are respected without pulling back the dev dependencies the filter drops, and for selections that mix `--filter` with `--filter-prod` [#8335](https://github.com/pnpm/pnpm/issues/8335).
+- d539172: `pnpm pack` and `pnpm publish` no longer follow a symlinked workspace `LICENSE` file when injecting it into a package that has no license of its own. Following the symlink could pack bytes from outside the workspace into the published tarball.
+- dcabb78: Fixed `pnpm up <pkg>` producing a different result than a fresh install of the same manifests would. The resolver now distinguishes `updateRequested` (true only for packages that match the user's update target) from the broader `update` flag, and for the targeted package ignores only its own lockfile-derived preferred-version pins — so the target re-resolves exactly as if its lockfile entries were deleted and `pnpm install` ran. Preferred versions a fresh install applies (manifest pins, versions propagated down the dependency chain, and the vulnerability-avoidance penalties of `pnpm audit --fix`) stay in effect, so an update never installs duplicate versions that a reinstall from scratch would not reproduce. When a preferred version holds the update target below the newest version its range admits, pnpm now prints a warning explaining that reaching the newer version everywhere requires an override.
+- dcabb78: `pnpm update <dep>@<version>` now prints a warning when `<dep>` is only present as a transitive dependency: the requested version cannot be applied there (updates resolve the target the way a fresh install would), and the warning recommends adding the version to `pnpm.overrides` instead, which is the mechanism that does pin transitive dependencies. Closes pnpm/pnpm#12744.
+- a6c4d5f: When a dependency cannot be found in the registry (404) or the registry has no matching version, and a workspace project with the same name exists only at non-matching versions, the error now reports the available workspace versions (`ERR_PNPM_NO_MATCHING_VERSION_INSIDE_WORKSPACE`) instead of the raw registry failure [pnpm/pnpm#1379](https://github.com/pnpm/pnpm/issues/1379). Other registry failures (authorization, network, server errors) still propagate unchanged. The pacquet (Rust) resolver applies the same behavior.
+
 ## 11.9.0
 
 ### Minor Changes

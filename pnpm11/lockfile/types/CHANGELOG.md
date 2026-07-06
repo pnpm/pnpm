@@ -1,5 +1,12 @@
 # @pnpm/lockfile-types
 
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [dcabb78]
+  - @pnpm/resolving.resolver-base@1100.5.1
+
 ## 1100.0.12
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "pnpm",
-  "version": "11.9.0",
+  "version": "11.10.0",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -112,6 +112,7 @@
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
+    "@pnpm/network.web-auth": "workspace:*",
     "@pnpm/nopt": "catalog:",
     "@pnpm/patching.commands": "workspace:*",
     "@pnpm/pkg-manifest.commands": "workspace:*",
@@ -185,6 +186,22 @@
   },
   "engines": {
     "node": ">=22.13"
+  },
+  "pnpm": {
+    "app": {
+      "entry": "pnpm.cjs",
+      "outputDir": "artifacts",
+      "outputName": "pnpm",
+      "targets": [
+        "win32-x64",
+        "linux-x64",
+        "darwin-arm64",
+        "linux-arm64",
+        "win32-arm64",
+        "linux-x64-musl",
+        "linux-arm64-musl"
+      ]
+    }
   },
   "jest": {
     "collectCoverage": false,

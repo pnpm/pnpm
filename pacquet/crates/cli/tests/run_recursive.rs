@@ -23,6 +23,13 @@ fn write_workspace(workspace: &Path, manifests: &[(&str, Value)]) {
     }
 }
 
+fn write_executable(path: &Path, body: &str) {
+    fs::write(path, body).expect("write executable");
+    let mut perms = fs::metadata(path).expect("stat executable").permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(path, perms).expect("chmod +x");
+}
+
 /// Map each summary entry to `(basename, status)` so assertions don't
 /// depend on the absolute tempdir path used as the key.
 fn summary_statuses(workspace: &Path) -> HashMap<String, String> {
@@ -95,6 +102,71 @@ fn recursive_run_executes_script_in_every_project() {
         !workspace.join("ran.txt").exists(),
         "scripts must run from each package root, not the workspace root",
     );
+
+    drop(root);
+}
+
+#[test]
+fn top_level_fallback_enters_recursive_run() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let commitlint_writes_marker = |name: &str| {
+        json!({
+            "name": name,
+            "version": "1.0.0",
+            "scripts": {
+                "commitlint": r#"node -e "require('fs').writeFileSync('ran.txt', '')""#,
+            },
+        })
+    };
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", commitlint_writes_marker("project-1")),
+            ("project-2", commitlint_writes_marker("project-2")),
+        ],
+    );
+
+    pacquet.with_arg("-r").with_arg("commitlint").assert().success();
+
+    for name in ["project-1", "project-2"] {
+        assert!(
+            workspace.join(name).join("ran.txt").exists(),
+            "{name} commitlint script should have run through recursive fallback",
+        );
+    }
+
+    drop(root);
+}
+
+#[test]
+fn top_level_fallback_does_not_exec_local_bin_recursively() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", json!({ "name": "project-1", "version": "1.0.0", "scripts": {} })),
+            ("project-2", json!({ "name": "project-2", "version": "1.0.0", "scripts": {} })),
+        ],
+    );
+    for name in ["project-1", "project-2"] {
+        let bin_dir = workspace.join(name).join("node_modules").join(".bin");
+        fs::create_dir_all(&bin_dir).expect("create node_modules/.bin");
+        write_executable(&bin_dir.join("commitlint"), "#!/bin/sh\ntouch bin-ran.txt\n");
+    }
+
+    let output = pacquet.with_arg("-r").with_arg("commitlint").output().expect("spawn pacquet");
+    assert!(!output.status.success(), "recursive shorthand without matching scripts must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT"),
+        "recursive shorthand must report the recursive no-script error, got: {stderr}",
+    );
+    for name in ["project-1", "project-2"] {
+        assert!(
+            !workspace.join(name).join("bin-ran.txt").exists(),
+            "{name} local binary must not run from recursive shorthand",
+        );
+    }
 
     drop(root);
 }

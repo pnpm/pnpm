@@ -17,6 +17,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
 use pacquet_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
+use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use reqwest::Url;
 
 use crate::pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType};
@@ -157,9 +158,13 @@ pub struct NamedRegistryPackageSpec {
 #[derive(Debug, Display, Error, Diagnostic, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ParseNamedRegistrySpecifierError {
-    /// Scope without a `/<name>` segment. Always a configuration bug,
-    /// refused so the user gets an immediate, actionable error instead
-    /// of a confusing downstream 404.
+    /// Package name that is not a valid npm package name — a missing
+    /// or empty scope/name segment, path separators inside the name,
+    /// or anything else `validate-npm-package-name` rejects. Always a
+    /// configuration bug, refused so the user gets an immediate,
+    /// actionable error instead of a confusing downstream 404 (or a
+    /// name that escapes into registry URL paths and metadata cache
+    /// file paths).
     #[display("The package name '{pkg_name}' in named registry '{registry_name}:' is invalid")]
     #[diagnostic(code(ERR_PNPM_INVALID_NAMED_REGISTRY_PACKAGE_NAME))]
     InvalidPackageName {
@@ -174,9 +179,9 @@ pub enum ParseNamedRegistrySpecifierError {
 ///
 /// Returns `Ok(None)` for any specifier that does not use one of the
 /// configured aliases (no colon, alias unknown, body unparsable) so
-/// the caller can fall through to other resolvers. Errors only for
-/// recoverable-by-the-user input — a scoped name with no `/<name>`
-/// segment.
+/// the caller can fall through to other resolvers. Errors when the
+/// alias matches but the package name is malformed (see
+/// [`ParseNamedRegistrySpecifierError::InvalidPackageName`]).
 ///
 /// Supported shapes:
 /// - `<alias>:[@<owner>/]<name>[@<version_selector>]`
@@ -216,12 +221,6 @@ pub fn parse_named_registry_specifier_to_registry_package_spec(
         } else {
             (&body[..last_at], Some(body[last_at + 1..].to_string()))
         };
-        if !name_part.contains('/') || name_part.ends_with('/') {
-            return Err(ParseNamedRegistrySpecifierError::InvalidPackageName {
-                registry_name: registry_name.to_string(),
-                pkg_name: name_part.to_string(),
-            });
-        }
         pkg_name = name_part.to_string();
         version_selector = ver_part;
     } else if package_alias.is_some_and(|alias| alias.starts_with('@')) {
@@ -242,6 +241,16 @@ pub fn parse_named_registry_specifier_to_registry_package_spec(
         }
         pkg_name = name_part.to_string();
         version_selector = ver_part;
+    }
+
+    // The name is used in registry URLs and metadata cache file paths, so
+    // anything that is not a valid npm package name must never make it
+    // through.
+    if !is_valid_old_npm_package_name(&pkg_name) {
+        return Err(ParseNamedRegistrySpecifierError::InvalidPackageName {
+            registry_name: registry_name.to_string(),
+            pkg_name,
+        });
     }
 
     let selector_input = version_selector.as_deref().unwrap_or(default_tag);

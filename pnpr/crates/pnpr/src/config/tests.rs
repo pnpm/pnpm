@@ -1,7 +1,7 @@
 use super::{
     BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, FeatureOverrides, HostedStoreConfig,
-    Interval, LogFormat, LogLevel, TokenEnv, UplinkAuthFile, UplinkAuthType, UplinkConfig,
-    UplinkFile, config_file_in, parse_interval, resolve_relative, resolve_uplink,
+    Interval, LogFormat, LogLevel, TokenEnv, UpstreamAuthFile, UpstreamAuthType, UpstreamConfig,
+    UpstreamConfigFile, config_file_in, parse_interval, resolve_relative, resolve_upstream_config,
 };
 use crate::{error::RegistryError, policy::Identity};
 use indexmap::IndexMap;
@@ -29,8 +29,11 @@ impl EnvVar for FakeEnv {
     }
 }
 
-fn uplink_file(auth: Option<UplinkAuthFile>, headers: IndexMap<String, String>) -> UplinkFile {
-    UplinkFile {
+fn upstream_config_file(
+    auth: Option<UpstreamAuthFile>,
+    headers: IndexMap<String, String>,
+) -> UpstreamConfigFile {
+    UpstreamConfigFile {
         url: "https://upstream.test/".to_string(),
         auth,
         headers,
@@ -43,173 +46,204 @@ fn uplink_file(auth: Option<UplinkAuthFile>, headers: IndexMap<String, String>) 
     }
 }
 
-fn auth_header(uplink: &super::UplinkConfig) -> Option<&str> {
-    uplink.headers.get(AUTHORIZATION).map(|value| value.to_str().unwrap())
+fn auth_header(upstream: &super::UpstreamConfig) -> Option<&str> {
+    upstream.headers.get(AUTHORIZATION).map(|value| value.to_str().unwrap())
 }
 
 #[test]
-fn uplink_bearer_token_becomes_bearer_authorization() {
-    let auth = UplinkAuthFile {
-        r#type: UplinkAuthType::Bearer,
+fn upstream_bearer_token_becomes_bearer_authorization() {
+    let auth = UpstreamAuthFile {
+        r#type: UpstreamAuthType::Bearer,
         token: Some("abc123".to_string()),
         token_env: None,
     };
-    let uplink = resolve_uplink::<FakeEnv>("npmjs", uplink_file(Some(auth), IndexMap::new()))
-        .expect("bearer token resolves");
-    assert_eq!(auth_header(&uplink), Some("Bearer abc123"));
+    let upstream = resolve_upstream_config::<FakeEnv>(
+        "npmjs",
+        upstream_config_file(Some(auth), IndexMap::new()),
+    )
+    .expect("bearer token resolves");
+    assert_eq!(auth_header(&upstream), Some("Bearer abc123"));
 }
 
 #[test]
-fn uplink_basic_token_becomes_basic_authorization_verbatim() {
-    let auth = UplinkAuthFile {
-        r#type: UplinkAuthType::Basic,
+fn upstream_basic_token_becomes_basic_authorization_verbatim() {
+    let auth = UpstreamAuthFile {
+        r#type: UpstreamAuthType::Basic,
         token: Some("dXNlcjpwYXNz".to_string()),
         token_env: None,
     };
-    let uplink = resolve_uplink::<FakeEnv>("priv", uplink_file(Some(auth), IndexMap::new()))
-        .expect("basic token resolves");
-    assert_eq!(auth_header(&uplink), Some("Basic dXNlcjpwYXNz"));
+    let upstream = resolve_upstream_config::<FakeEnv>(
+        "priv",
+        upstream_config_file(Some(auth), IndexMap::new()),
+    )
+    .expect("basic token resolves");
+    assert_eq!(auth_header(&upstream), Some("Basic dXNlcjpwYXNz"));
 }
 
 #[test]
-fn uplink_token_env_true_reads_npm_token() {
-    let auth = UplinkAuthFile {
-        r#type: UplinkAuthType::Bearer,
+fn upstream_token_env_true_reads_npm_token() {
+    let auth = UpstreamAuthFile {
+        r#type: UpstreamAuthType::Bearer,
         token: None,
         token_env: Some(TokenEnv::Flag(true)),
     };
-    let uplink = resolve_uplink::<FakeEnv>("npmjs", uplink_file(Some(auth), IndexMap::new()))
-        .expect("token_env: true reads NPM_TOKEN");
-    assert_eq!(auth_header(&uplink), Some("Bearer default-env-token"));
+    let upstream = resolve_upstream_config::<FakeEnv>(
+        "npmjs",
+        upstream_config_file(Some(auth), IndexMap::new()),
+    )
+    .expect("token_env: true reads NPM_TOKEN");
+    assert_eq!(auth_header(&upstream), Some("Bearer default-env-token"));
 }
 
 #[test]
-fn uplink_token_env_named_reads_that_var() {
-    let auth = UplinkAuthFile {
-        r#type: UplinkAuthType::Bearer,
+fn upstream_token_env_named_reads_that_var() {
+    let auth = UpstreamAuthFile {
+        r#type: UpstreamAuthType::Bearer,
         token: None,
         token_env: Some(TokenEnv::Named("CUSTOM_TOKEN".to_string())),
     };
-    let uplink = resolve_uplink::<FakeEnv>("npmjs", uplink_file(Some(auth), IndexMap::new()))
-        .expect("named token_env reads that var");
-    assert_eq!(auth_header(&uplink), Some("Bearer custom-env-token"));
+    let upstream = resolve_upstream_config::<FakeEnv>(
+        "npmjs",
+        upstream_config_file(Some(auth), IndexMap::new()),
+    )
+    .expect("named token_env reads that var");
+    assert_eq!(auth_header(&upstream), Some("Bearer custom-env-token"));
 }
 
 #[test]
-fn uplink_literal_token_beats_token_env() {
-    let auth = UplinkAuthFile {
-        r#type: UplinkAuthType::Bearer,
+fn upstream_literal_token_beats_token_env() {
+    let auth = UpstreamAuthFile {
+        r#type: UpstreamAuthType::Bearer,
         token: Some("literal".to_string()),
         token_env: Some(TokenEnv::Named("CUSTOM_TOKEN".to_string())),
     };
-    let uplink = resolve_uplink::<FakeEnv>("npmjs", uplink_file(Some(auth), IndexMap::new()))
-        .expect("literal token wins");
-    assert_eq!(auth_header(&uplink), Some("Bearer literal"));
+    let upstream = resolve_upstream_config::<FakeEnv>(
+        "npmjs",
+        upstream_config_file(Some(auth), IndexMap::new()),
+    )
+    .expect("literal token wins");
+    assert_eq!(auth_header(&upstream), Some("Bearer literal"));
 }
 
 #[test]
-fn uplink_custom_headers_are_forwarded() {
+fn upstream_custom_headers_are_forwarded() {
     let headers = IndexMap::from_iter([("x-custom".to_string(), "value".to_string())]);
-    let uplink = resolve_uplink::<FakeEnv>("npmjs", uplink_file(None, headers))
+    let upstream = resolve_upstream_config::<FakeEnv>("npmjs", upstream_config_file(None, headers))
         .expect("custom headers resolve");
-    assert_eq!(uplink.headers.get("x-custom").unwrap().to_str().unwrap(), "value");
-    assert!(auth_header(&uplink).is_none());
+    assert_eq!(upstream.headers.get("x-custom").unwrap().to_str().unwrap(), "value");
+    assert!(auth_header(&upstream).is_none());
 }
 
 #[test]
-fn uplink_custom_authorization_header_overrides_auth_block() {
-    let auth = UplinkAuthFile {
-        r#type: UplinkAuthType::Bearer,
+fn upstream_custom_authorization_header_overrides_auth_block() {
+    let auth = UpstreamAuthFile {
+        r#type: UpstreamAuthType::Bearer,
         token: Some("from-auth".to_string()),
         token_env: None,
     };
     let headers =
         IndexMap::from_iter([("authorization".to_string(), "Basic override".to_string())]);
-    let uplink = resolve_uplink::<FakeEnv>("npmjs", uplink_file(Some(auth), headers))
-        .expect("custom header overrides auth-derived one");
-    assert_eq!(auth_header(&uplink), Some("Basic override"));
+    let upstream =
+        resolve_upstream_config::<FakeEnv>("npmjs", upstream_config_file(Some(auth), headers))
+            .expect("custom header overrides auth-derived one");
+    assert_eq!(auth_header(&upstream), Some("Basic override"));
 }
 
 #[test]
-fn uplink_auth_without_resolvable_token_is_a_config_error() {
-    let auth = UplinkAuthFile {
-        r#type: UplinkAuthType::Bearer,
+fn upstream_auth_without_resolvable_token_is_a_config_error() {
+    let auth = UpstreamAuthFile {
+        r#type: UpstreamAuthType::Bearer,
         token: None,
         token_env: Some(TokenEnv::Named("UNSET_VAR".to_string())),
     };
-    let err = resolve_uplink::<FakeEnv>("npmjs", uplink_file(Some(auth), IndexMap::new()))
-        .expect_err("missing token must error");
+    let err = resolve_upstream_config::<FakeEnv>(
+        "npmjs",
+        upstream_config_file(Some(auth), IndexMap::new()),
+    )
+    .expect_err("missing token must error");
     assert!(matches!(err, RegistryError::InvalidConfig { .. }));
 }
 
 #[test]
-fn uplink_auth_with_empty_literal_token_is_a_config_error() {
-    let auth = UplinkAuthFile {
-        r#type: UplinkAuthType::Bearer,
+fn upstream_auth_with_empty_literal_token_is_a_config_error() {
+    let auth = UpstreamAuthFile {
+        r#type: UpstreamAuthType::Bearer,
         token: Some(String::new()),
         token_env: None,
     };
-    let err = resolve_uplink::<FakeEnv>("npmjs", uplink_file(Some(auth), IndexMap::new()))
-        .expect_err("an empty token must error");
+    let err = resolve_upstream_config::<FakeEnv>(
+        "npmjs",
+        upstream_config_file(Some(auth), IndexMap::new()),
+    )
+    .expect_err("an empty token must error");
     assert!(matches!(err, RegistryError::InvalidConfig { .. }));
 }
 
 #[test]
-fn uplink_auth_with_empty_env_token_is_a_config_error() {
-    let auth = UplinkAuthFile {
-        r#type: UplinkAuthType::Bearer,
+fn upstream_auth_with_empty_env_token_is_a_config_error() {
+    let auth = UpstreamAuthFile {
+        r#type: UpstreamAuthType::Bearer,
         token: None,
         token_env: Some(TokenEnv::Named("EMPTY_TOKEN".to_string())),
     };
-    let err = resolve_uplink::<FakeEnv>("npmjs", uplink_file(Some(auth), IndexMap::new()))
-        .expect_err("an empty env token must error");
+    let err = resolve_upstream_config::<FakeEnv>(
+        "npmjs",
+        upstream_config_file(Some(auth), IndexMap::new()),
+    )
+    .expect_err("an empty env token must error");
     assert!(matches!(err, RegistryError::InvalidConfig { .. }));
 }
 
 #[test]
-fn uplink_token_env_false_resolves_no_token_and_is_a_config_error() {
-    let auth = UplinkAuthFile {
-        r#type: UplinkAuthType::Bearer,
+fn upstream_token_env_false_resolves_no_token_and_is_a_config_error() {
+    let auth = UpstreamAuthFile {
+        r#type: UpstreamAuthType::Bearer,
         token: None,
         token_env: Some(TokenEnv::Flag(false)),
     };
-    let err = resolve_uplink::<FakeEnv>("npmjs", uplink_file(Some(auth), IndexMap::new()))
-        .expect_err("token_env: false reads nothing, so an auth block must error");
+    let err = resolve_upstream_config::<FakeEnv>(
+        "npmjs",
+        upstream_config_file(Some(auth), IndexMap::new()),
+    )
+    .expect_err("token_env: false reads nothing, so an auth block must error");
     assert!(matches!(err, RegistryError::InvalidConfig { .. }));
 }
 
 #[test]
-fn uplink_auth_token_with_control_char_is_a_config_error() {
-    let auth = UplinkAuthFile {
-        r#type: UplinkAuthType::Bearer,
+fn upstream_auth_token_with_control_char_is_a_config_error() {
+    let auth = UpstreamAuthFile {
+        r#type: UpstreamAuthType::Bearer,
         token: Some("bad\ntoken".to_string()),
         token_env: None,
     };
-    let err = resolve_uplink::<FakeEnv>("npmjs", uplink_file(Some(auth), IndexMap::new()))
-        .expect_err("a token that is not a valid header value must error");
+    let err = resolve_upstream_config::<FakeEnv>(
+        "npmjs",
+        upstream_config_file(Some(auth), IndexMap::new()),
+    )
+    .expect_err("a token that is not a valid header value must error");
     assert!(matches!(err, RegistryError::InvalidConfig { .. }));
 }
 
 #[test]
-fn uplink_invalid_custom_header_name_is_a_config_error() {
+fn upstream_invalid_custom_header_name_is_a_config_error() {
     let headers = IndexMap::from_iter([("bad header".to_string(), "value".to_string())]);
-    let err = resolve_uplink::<FakeEnv>("npmjs", uplink_file(None, headers))
+    let err = resolve_upstream_config::<FakeEnv>("npmjs", upstream_config_file(None, headers))
         .expect_err("a header name with a space must error");
     assert!(matches!(err, RegistryError::InvalidConfig { .. }));
 }
 
 #[test]
-fn uplink_invalid_custom_header_value_is_a_config_error() {
+fn upstream_invalid_custom_header_value_is_a_config_error() {
     let headers = IndexMap::from_iter([("x-custom".to_string(), "bad\nvalue".to_string())]);
-    let err = resolve_uplink::<FakeEnv>("npmjs", uplink_file(None, headers))
+    let err = resolve_upstream_config::<FakeEnv>("npmjs", upstream_config_file(None, headers))
         .expect_err("a header value with a control char must error");
     assert!(matches!(err, RegistryError::InvalidConfig { .. }));
 }
 
 #[test]
-fn from_yaml_str_resolves_uplink_auth_and_headers() {
+fn from_yaml_str_resolves_upstream_auth_and_headers() {
     let yaml = r"
-mounts:
+registries:
   npmjs:
     type: upstream
     url: https://registry.npmjs.org/
@@ -221,21 +255,24 @@ mounts:
       X-Org: acme
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    let uplink = &config.uplinks["npmjs"];
-    assert_eq!(uplink.headers.get(AUTHORIZATION).unwrap().to_str().unwrap(), "Bearer secret-token");
-    assert_eq!(uplink.headers.get("x-org").unwrap().to_str().unwrap(), "acme");
+    let upstream = &config.upstreams["npmjs"];
+    assert_eq!(
+        upstream.headers.get(AUTHORIZATION).unwrap().to_str().unwrap(),
+        "Bearer secret-token",
+    );
+    assert_eq!(upstream.headers.get("x-org").unwrap().to_str().unwrap(), "acme");
 }
 
 #[test]
-fn registry_surface_is_derived_from_declared_mounts() {
-    // No mounts ⇒ nothing to serve on the npm-registry surface; declaring
+fn registry_surface_is_derived_from_declared_registries() {
+    // No registries ⇒ nothing to serve on the npm-registry surface; declaring
     // one turns the surface on. There is no YAML toggle in between.
     let config = Config::from_yaml_str("{}", Path::new("/x"), listen(), None).unwrap();
     assert!(!config.registry.enabled);
     assert!(config.resolver.enabled);
 
     let yaml = "
-mounts:
+registries:
   npmjs: { type: upstream, url: https://registry.npmjs.org/, public: true }
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
@@ -276,7 +313,7 @@ fn unknown_key_in_feature_block_is_a_config_error() {
 #[test]
 fn from_yaml_str_parses_the_resolver_toggle() {
     let yaml = "
-mounts:
+registries:
   npmjs: { type: upstream, url: https://registry.npmjs.org/, public: true }
 resolver:
   enabled: false
@@ -288,7 +325,7 @@ resolver:
 
 #[test]
 fn nothing_to_serve_is_a_config_error() {
-    // No mounts (⇒ no registry surface) and the resolver disabled leaves
+    // No registries (⇒ no registry surface) and the resolver disabled leaves
     // only `/-/ping` and the account endpoints — a misconfiguration.
     let yaml = "resolver:\n  enabled: false\n";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
@@ -304,7 +341,7 @@ fn from_yaml_str_accepts_string_and_bare_number_intervals() {
     // both); the bare number must read as seconds rather than failing to
     // deserialize against the `Option<String>`-shaped field.
     let yaml = r"
-mounts:
+registries:
   npmjs:
     type: upstream
     url: https://registry.npmjs.org/
@@ -313,18 +350,15 @@ mounts:
     timeout: 45
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    let uplink = &config.uplinks["npmjs"];
-    assert_eq!(uplink.maxage, Some(Duration::from_mins(10)));
-    assert_eq!(uplink.timeout, Duration::from_secs(45));
+    let upstream = &config.upstreams["npmjs"];
+    assert_eq!(upstream.maxage, Some(Duration::from_mins(10)));
+    assert_eq!(upstream.timeout, Duration::from_secs(45));
 }
 
 #[test]
 fn from_yaml_str_tolerates_unresolved_env_var_references() {
     let yaml = r"
 storage: ${PNPR_UNSET_VAR_FOR_TEST}./store
-packages:
-  '**':
-    proxy: npmjs
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
         .expect("an unresolved ${VAR} is replaced with empty, not an error");
@@ -355,62 +389,62 @@ fn resolve_relative_joins_relative_paths_to_base() {
 
 #[test]
 fn proxy_constructor_serves_fixtures_locally_and_proxies_the_rest() {
-    use crate::mount::{ConcreteKind, Resolved};
+    use crate::registry::{ConcreteKind, Resolved};
     let config = Config::proxy(listen(), PathBuf::from("/tmp"));
-    assert!(config.uplinks.contains_key("npmjs"));
-    assert_eq!(config.mounts.default_target(), Some("main"));
+    assert!(config.upstreams.contains_key("npmjs"));
+    assert_eq!(config.registries.default_registry(), Some("main"));
     // The flat-root hosted org serves the registry-mock fixture scopes.
     assert_eq!(config.hosted["local"].org, "");
     assert_eq!(
-        config.mounts.resolve_default("@pnpm.e2e/dep-of-pkg-with-1-dep"),
-        Resolved::Concrete { mount: "local", kind: ConcreteKind::Hosted },
+        config.registries.resolve_default("@pnpm.e2e/dep-of-pkg-with-1-dep"),
+        Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
     );
     assert_eq!(
-        config.mounts.resolve_default("create-touch-file-one-bin"),
-        Resolved::Concrete { mount: "local", kind: ConcreteKind::Hosted },
+        config.registries.resolve_default("create-touch-file-one-bin"),
+        Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
     );
     // Everything else proxies to the npm upstream.
     assert_eq!(
-        config.mounts.resolve_default("is-positive"),
-        Resolved::Concrete { mount: "npmjs", kind: ConcreteKind::Upstream },
+        config.registries.resolve_default("is-positive"),
+        Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
     );
 }
 
 #[test]
 fn static_constructor_serves_everything_from_one_hosted() {
-    use crate::mount::{ConcreteKind, Resolved};
+    use crate::registry::{ConcreteKind, Resolved};
     let config = Config::static_serve(listen(), PathBuf::from("/tmp"));
-    assert!(config.uplinks.is_empty());
-    // Everything routes to the single local hosted mount, which serves the
+    assert!(config.upstreams.is_empty());
+    // Everything routes to the single local hosted registry, which serves the
     // flat storage root (its `org` namespace is empty).
     assert_eq!(config.hosted["local"].org, "");
     assert_eq!(
-        config.mounts.resolve_default("anything"),
-        Resolved::Concrete { mount: "local", kind: ConcreteKind::Hosted },
+        config.registries.resolve_default("anything"),
+        Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
     );
 }
 
 #[test]
 fn from_default_yaml_parses_bundled_file() {
-    use crate::mount::{ConcreteKind, Resolved};
+    use crate::registry::{ConcreteKind, Resolved};
     let config = Config::from_default_yaml(Path::new("/tmp"), listen(), None);
-    assert!(config.uplinks.contains_key("npmjs"));
-    assert_eq!(config.uplinks["npmjs"].url, "https://registry.npmjs.org/");
+    assert!(config.upstreams.contains_key("npmjs"));
+    assert_eq!(config.upstreams["npmjs"].url, "https://registry.npmjs.org/");
     assert_eq!(config.auth.htpasswd.max_users, super::MaxUsers::Disabled);
     // The bundled file routes fixture scopes, the fixture packages living in
     // real npm scopes, and test-published names to the local hosted org, and
     // everything else — including the rest of those real scopes — to npmjs.
     for local in ["@pnpm.e2e/foo", "@pnpm/y", "test-publish-tarball", "project-100"] {
         assert_eq!(
-            config.mounts.resolve_default(local),
-            Resolved::Concrete { mount: "local", kind: ConcreteKind::Hosted },
+            config.registries.resolve_default(local),
+            Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
             "{local} must be hosted",
         );
     }
     for upstream in ["react", "lodash", "test-exclude", "@pnpm/error"] {
         assert_eq!(
-            config.mounts.resolve_default(upstream),
-            Resolved::Concrete { mount: "npmjs", kind: ConcreteKind::Upstream },
+            config.registries.resolve_default(upstream),
+            Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
             "{upstream} must proxy npm",
         );
     }
@@ -427,28 +461,28 @@ fn default_yaml_const_matches_what_from_default_parses() {
 
 #[test]
 fn from_yaml_str_storage_is_resolved_relative_to_base_dir() {
-    let yaml = "storage: ./store\nuplinks: {}\npackages: {}\n";
+    let yaml = "storage: ./store\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert_eq!(config.storage, PathBuf::from("/etc/pnpr/./store"));
 }
 
 #[test]
 fn from_yaml_str_absolute_storage_is_left_alone() {
-    let yaml = "storage: /var/lib/pnpr\nuplinks: {}\npackages: {}\n";
+    let yaml = "storage: /var/lib/pnpr\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert_eq!(config.storage, PathBuf::from("/var/lib/pnpr"));
 }
 
 #[test]
 fn cache_storage_defaults_to_subdir_of_storage() {
-    let yaml = "storage: /var/lib/pnpr\nuplinks: {}\npackages: {}\n";
+    let yaml = "storage: /var/lib/pnpr\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert_eq!(config.cache_storage, PathBuf::from("/var/lib/pnpr/.pnpr-cache"));
 }
 
 #[test]
 fn explicit_cache_key_overrides_the_default() {
-    let yaml = "storage: /var/lib/pnpr\ncache: /scratch/pnpr\nuplinks: {}\npackages: {}\n";
+    let yaml = "storage: /var/lib/pnpr\ncache: /scratch/pnpr\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert_eq!(config.storage, PathBuf::from("/var/lib/pnpr"));
     assert_eq!(config.cache_storage, PathBuf::from("/scratch/pnpr"));
@@ -456,24 +490,19 @@ fn explicit_cache_key_overrides_the_default() {
 
 #[test]
 fn relative_cache_key_is_resolved_against_base_dir() {
-    let yaml = "storage: ./store\ncache: ./cache\nuplinks: {}\npackages: {}\n";
+    let yaml = "storage: ./store\ncache: ./cache\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert_eq!(config.cache_storage, PathBuf::from("/etc/pnpr/./cache"));
 }
 
 #[test]
 fn osv_config_defaults_off_and_resolves_relative_path() {
-    let defaulted = Config::from_yaml_str(
-        "uplinks: {}\npackages: {}\n",
-        Path::new("/etc/pnpr"),
-        listen(),
-        None,
-    )
-    .unwrap();
+    let defaulted =
+        Config::from_yaml_str("upstreams: {}\n", Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert!(!defaulted.osv.enabled);
     assert_eq!(defaulted.osv.path, None);
 
-    let yaml = "osv:\n  enabled: true\n  path: ./osv/npm/all.zip\nuplinks: {}\npackages: {}\n";
+    let yaml = "osv:\n  enabled: true\n  path: ./osv/npm/all.zip\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert!(config.osv.enabled);
     assert_eq!(config.osv.path, Some(PathBuf::from("/etc/pnpr/./osv/npm/all.zip")));
@@ -481,7 +510,7 @@ fn osv_config_defaults_off_and_resolves_relative_path() {
 
 #[test]
 fn hosted_store_defaults_to_fs_without_an_s3_block() {
-    let yaml = "storage: /var/lib/pnpr\nuplinks: {}\npackages: {}\n";
+    let yaml = "storage: /var/lib/pnpr\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert!(matches!(config.hosted_store, HostedStoreConfig::Fs));
 }
@@ -497,8 +526,7 @@ s3:
   prefix: packages
   accessKeyId: AKIA-test
   secretAccessKey: secret-test
-uplinks: {}
-packages: {}
+upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.hosted_store {
@@ -509,20 +537,20 @@ packages: {}
 
 #[test]
 fn s3_block_without_a_bucket_is_a_config_error() {
-    let yaml = "storage: /x\ns3:\n  region: auto\nuplinks: {}\npackages: {}\n";
+    let yaml = "storage: /x\ns3:\n  region: auto\n";
     assert!(Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).is_err());
 }
 
 #[test]
 fn backend_defaults_to_local_without_a_block() {
-    let yaml = "storage: /var/lib/pnpr\nuplinks: {}\npackages: {}\n";
+    let yaml = "storage: /var/lib/pnpr\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert!(matches!(config.backend, BackendConfig::Local));
 }
 
 #[test]
 fn backend_block_rejects_empty_selection() {
-    let yaml = "storage: /var/lib/pnpr\nbackend: {}\nuplinks: {}\npackages: {}\n";
+    let yaml = "storage: /var/lib/pnpr\nbackend: {}\n";
     let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
         .expect_err("an empty backend block must not fall back to local");
     assert!(
@@ -538,8 +566,7 @@ storage: /var/lib/pnpr
 backend:
   sqlite:
     url: sqlite:///var/lib/pnpr/auth.db
-uplinks: {}
-packages: {}
+upstreams: {}
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
         .expect_err("an unknown backend key must not fall back to local");
@@ -557,8 +584,7 @@ backend:
   libsql:
     url: libsql://db.turso.io
     authToken: tok-secret
-uplinks: {}
-packages: {}
+upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.backend {
@@ -577,8 +603,7 @@ storage: /var/lib/pnpr
 backend:
   libsql:
     url: http://127.0.0.1:8080
-uplinks: {}
-packages: {}
+upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.backend {
@@ -599,8 +624,7 @@ backend:
     url: libsql://db.turso.io
     replicaPath: auth-replica.db
     syncIntervalSecs: 15
-uplinks: {}
-packages: {}
+upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.backend {
@@ -624,8 +648,7 @@ backend:
   libsql:
     url: libsql://db.turso.io
     replicaPath: /var/lib/pnpr/auth-replica.db
-uplinks: {}
-packages: {}
+upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.backend {
@@ -647,8 +670,7 @@ backend:
     maxConnections: 12
     timeout: 5s
     startupTimeout: 2m
-uplinks: {}
-packages: {}
+upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.backend {
@@ -669,8 +691,7 @@ storage: /var/lib/pnpr
 backend:
   postgresql:
     url: postgresql://pnpr:secret@db.example/pnpr
-uplinks: {}
-packages: {}
+upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.backend {
@@ -694,8 +715,7 @@ storage: /var/lib/pnpr
 backend:
   mysql:
     url: mysql://pnpr:secret@db.example/pnpr
-uplinks: {}
-packages: {}
+upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.backend {
@@ -720,8 +740,7 @@ backend:
   mysql:
     url: mysql://pnpr:secret@db.example/pnpr
     startupTimeout: 0
-uplinks: {}
-packages: {}
+upstreams: {}
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
         .expect_err("zero startup timeout must not be accepted");
@@ -739,8 +758,7 @@ backend:
   postgres:
     url: postgres://pnpr:secret@db.example/pnpr
     timeout: 0
-uplinks: {}
-packages: {}
+upstreams: {}
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
         .expect_err("zero timeout must not be accepted");
@@ -759,8 +777,7 @@ backend:
     url: libsql://db.turso.io
   postgres:
     url: postgres://pnpr:secret@db.example/pnpr
-uplinks: {}
-packages: {}
+upstreams: {}
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
         .expect_err("a backend block must not select two databases");
@@ -780,26 +797,23 @@ web:
   enable: false
 plugins: ../node_modules
 secret: a-sufficiently-long-secret-value
-uplinks:
+upstreams:
   npmjs:
     url: https://registry.npmjs.org/
-packages:
-  '**':
-    access: $all
-    proxy: npmjs
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     // The unimplemented sections parse silently and the config is usable.
     assert_eq!(config.auth.htpasswd.max_users, super::MaxUsers::Disabled);
 }
 
-/// A router mount routes each package to exactly one concrete source — the
-/// safe alternative to a multi-uplink fallback chain.
+/// A router registry routes each package to exactly one concrete source — the
+/// first listed source whose declared patterns claim it — the safe
+/// alternative to a multi-upstream fallback chain.
 #[test]
 fn from_yaml_str_router_routes_each_package_to_one_source() {
     let yaml = "\
 storage: ./s
-mounts:
+registries:
   npmjs:
     type: upstream
     url: https://registry.npmjs.org/
@@ -808,76 +822,100 @@ mounts:
     type: upstream
     url: https://npm.corp.example/
     access: $authenticated
+    packages: { '@corp/*': {} }
   main:
     type: router
-    routes:
-      - patterns: ['@corp/*']
-        source: corp
-      - patterns: ['**']
-        source: npmjs
-defaultTarget: main
+    sources: [corp, npmjs]
+defaultRegistry: main
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    // Both upstream mounts are exposed as uplinks for serving.
-    assert!(config.uplinks.contains_key("npmjs"));
-    assert!(config.uplinks.contains_key("corp"));
+    // Both upstream registries are exposed as upstreams for serving.
+    assert!(config.upstreams.contains_key("npmjs"));
+    assert!(config.upstreams.contains_key("corp"));
     // The public upstream carries no credential gate; the private one does.
-    assert!(config.uplinks["npmjs"].access.is_none());
-    assert!(config.uplinks["corp"].access.is_some());
-    assert_eq!(config.mounts.default_target(), Some("main"));
-    assert!(config.mounts.is_router("main"));
-    match config.mounts.resolve("main", "@corp/secret") {
-        crate::mount::Resolved::Concrete { mount, .. } => assert_eq!(mount, "corp"),
+    assert!(config.upstreams["npmjs"].access.is_none());
+    assert!(config.upstreams["corp"].access.is_some());
+    assert_eq!(config.registries.default_registry(), Some("main"));
+    assert!(config.registries.is_router("main"));
+    match config.registries.resolve("main", "@corp/secret") {
+        crate::registry::Resolved::Concrete { registry, .. } => assert_eq!(registry, "corp"),
         other => panic!("expected @corp/* -> corp, got {other:?}"),
     }
-    match config.mounts.resolve("main", "lodash") {
-        crate::mount::Resolved::Concrete { mount, .. } => assert_eq!(mount, "npmjs"),
+    match config.registries.resolve("main", "lodash") {
+        crate::registry::Resolved::Concrete { registry, .. } => assert_eq!(registry, "npmjs"),
         other => panic!("expected lodash -> npmjs, got {other:?}"),
     }
 }
 
-/// A misordered router (catch-all before a narrower private route) fails config
-/// load rather than silently serving a private scope from the public source.
+/// A misordered router (the pattern-less catch-all listed before a narrower
+/// private source) fails config load rather than silently serving a private
+/// scope from the public source.
 #[test]
 fn from_yaml_str_rejects_misordered_router() {
     let yaml = "\
 storage: ./s
-mounts:
+registries:
   npmjs: { type: upstream, url: https://registry.npmjs.org/, public: true }
-  acme: { type: hosted, org: acme }
+  acme: { type: hosted, org: acme, packages: { '@acme/*': {} } }
   main:
     type: router
-    routes:
-      - patterns: ['**']
-        source: npmjs
-      - patterns: ['@acme/*']
-        source: acme
+    sources: [npmjs, acme]
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
         .expect_err("misordered router must be rejected");
     assert!(err.to_string().contains("unreachable"), "unexpected error: {err}");
 }
 
-/// `defaultTarget` naming an undefined mount fails closed.
+/// An unsupported wildcard key in a registry's `packages:` fails config load, named
+/// for the offending registry, rather than becoming a claim that never matches.
 #[test]
-fn from_yaml_str_rejects_undefined_default_target() {
+fn from_yaml_str_rejects_invalid_registry_pattern() {
     let yaml = "\
 storage: ./s
-mounts:
+registries:
+  acme: { type: hosted, org: acme, packages: { '@acme/ba*r': {} } }
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+        .expect_err("an unsupported registry pattern must be rejected");
+    let message = err.to_string();
+    assert!(message.contains("acme"), "expected the registry named, got: {message}");
+    assert!(message.contains("@acme/ba*r"), "expected the pattern named, got: {message}");
+}
+
+/// A duplicate key within one registry's `packages:` map fails config load —
+/// the one within-registry error (selection is by specificity, so nothing
+/// else about the map can be a defect).
+#[test]
+fn from_yaml_str_rejects_duplicate_registry_pattern() {
+    let yaml = "\
+storage: ./s
+registries:
+  acme: { type: hosted, org: acme, packages: { '@acme/*': {}, '@acme/*': {} } }
+";
+    Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+        .expect_err("a duplicate packages key must be rejected");
+}
+
+/// `defaultRegistry` naming an undefined registry fails closed.
+#[test]
+fn from_yaml_str_rejects_undefined_default_registry() {
+    let yaml = "\
+storage: ./s
+registries:
   npmjs: { type: upstream, url: https://registry.npmjs.org/, public: true }
-defaultTarget: ghost
+defaultRegistry: ghost
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
         .expect_err("undefined default target must be rejected");
-    assert!(err.to_string().contains("defaultTarget"), "unexpected error: {err}");
+    assert!(err.to_string().contains("defaultRegistry"), "unexpected error: {err}");
 }
 
-/// A non-`public` upstream mount must declare who may reach it.
+/// A non-`public` upstream registry must declare who may reach it.
 #[test]
 fn from_yaml_str_rejects_private_upstream_without_access() {
     let yaml = "\
 storage: ./s
-mounts:
+registries:
   corp:
     type: upstream
     url: https://npm.corp.example/
@@ -893,7 +931,7 @@ mounts:
 fn from_yaml_str_rejects_public_upstream_with_access() {
     let yaml = "\
 storage: ./s
-mounts:
+registries:
   npmjs:
     type: upstream
     url: https://registry.npmjs.org/
@@ -914,7 +952,7 @@ fn from_yaml_str_rejects_public_upstream_with_custom_headers() {
         let yaml = format!(
             "\
 storage: ./s
-mounts:
+registries:
   npmjs:
     type: upstream
     url: https://registry.npmjs.org/
@@ -929,13 +967,13 @@ mounts:
     }
 }
 
-/// Two hosted mounts sharing an `org` namespace would alias the same storage, so
+/// Two hosted registries sharing an `org` namespace would alias the same storage, so
 /// the collision must be rejected at load.
 #[test]
 fn from_yaml_str_rejects_duplicate_hosted_org() {
     let yaml = "\
 storage: ./s
-mounts:
+registries:
   acme:
     type: hosted
     org: shared
@@ -944,7 +982,7 @@ mounts:
     org: shared
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
-        .expect_err("two hosted mounts on the same org must be rejected");
+        .expect_err("two hosted registries on the same org must be rejected");
     assert!(err.to_string().contains("reuses the `org`"), "unexpected error: {err}");
 }
 
@@ -955,7 +993,8 @@ mounts:
 #[test]
 fn from_yaml_str_rejects_hosted_org_path_traversal() {
     for org in ["../../etc", "C:acme", "a/b"] {
-        let yaml = format!("storage: ./s\nmounts:\n  evil:\n    type: hosted\n    org: {org}\n");
+        let yaml =
+            format!("storage: ./s\nregistries:\n  evil:\n    type: hosted\n    org: {org}\n");
         let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
             .expect_err("a traversal-y hosted org must be rejected");
         assert!(err.to_string().contains("path-safe"), "unexpected error for {org:?}: {err}");
@@ -968,23 +1007,24 @@ fn from_yaml_str_rejects_hosted_org_path_traversal() {
 #[test]
 fn from_yaml_str_rejects_dot_prefixed_hosted_org() {
     for org in [".pnpr-cache", ".pnpr-journal", ".hidden"] {
-        let yaml = format!("storage: ./s\nmounts:\n  sneaky:\n    type: hosted\n    org: {org}\n");
+        let yaml =
+            format!("storage: ./s\nregistries:\n  sneaky:\n    type: hosted\n    org: {org}\n");
         let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
             .expect_err("a dot-prefixed hosted org must be rejected");
         assert!(err.to_string().contains("path-safe"), "unexpected error for {org:?}: {err}");
     }
 }
 
-/// A mount name is addressed as the single URL path segment `/~<name>/` and is
+/// A registry name is addressed as the single URL path segment `/~<name>/` and is
 /// embedded in rewritten tarball URLs, so a name that cannot survive that
 /// round trip (separators, traversal, URL delimiters, whitespace) must fail at
-/// load instead of becoming an unreachable or URL-ambiguous mount.
+/// load instead of becoming an unreachable or URL-ambiguous registry.
 #[test]
-fn from_yaml_str_rejects_url_unsafe_mount_names() {
+fn from_yaml_str_rejects_url_unsafe_registry_names() {
     for name in ["'a/b'", "'..'", "'.hidden'", "'a b'", "'a%2Fb'", "'a?b'", "'a#b'", "'C:d'"] {
-        let yaml = format!("storage: ./s\nmounts:\n  {name}:\n    type: hosted\n");
+        let yaml = format!("storage: ./s\nregistries:\n  {name}:\n    type: hosted\n");
         let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
-            .expect_err("a URL-unsafe mount name must be rejected");
+            .expect_err("a URL-unsafe registry name must be rejected");
         assert!(
             err.to_string().contains("URL-safe path segment"),
             "unexpected error for {name}: {err}",
@@ -993,36 +1033,34 @@ fn from_yaml_str_rejects_url_unsafe_mount_names() {
 }
 
 /// `--disable-registry` skips upstream-credential resolution but still
-/// validates the mount graph, so a misconfigured router fails startup on a
+/// validates the registry graph, so a misconfigured router fails startup on a
 /// resolver-only tier too instead of surfacing only when the registry is
 /// re-enabled.
 #[test]
-fn cli_disable_registry_still_validates_the_mount_graph() {
+fn cli_disable_registry_still_validates_the_registry_graph() {
     let yaml = "\
 storage: ./s
-mounts:
+registries:
   main:
     type: router
-    routes:
-      - patterns: ['**']
-        source: ghost
+    sources: [ghost]
 ";
     let overrides = FeatureOverrides { disable_registry: true, disable_resolver: false };
     let err =
         Config::from_yaml_str_with_overrides(yaml, Path::new("/x"), listen(), None, overrides)
-            .expect_err("a broken mount graph must fail even with the registry disabled");
+            .expect_err("a broken registry graph must fail even with the registry disabled");
     assert!(err.to_string().contains("ghost"), "unexpected error: {err}");
 }
 
-/// With the registry disabled, an upstream mount whose credential cannot
+/// With the registry disabled, an upstream registry whose credential cannot
 /// resolve must not fail startup — the tier never talks to that upstream. The
-/// mount still joins the (validated) graph; only its serving config is
+/// registry still joins the (validated) graph; only its serving config is
 /// skipped.
 #[test]
-fn cli_disable_registry_skips_upstream_mount_credentials_but_keeps_the_graph() {
+fn cli_disable_registry_skips_upstream_registry_credentials_but_keeps_the_graph() {
     let yaml = "\
 storage: ./s
-mounts:
+registries:
   corp:
     type: upstream
     url: https://corp.example/npm/
@@ -1032,31 +1070,29 @@ mounts:
       token_env: PNPR_DEFINITELY_UNSET_TOKEN_VAR
   main:
     type: router
-    routes:
-      - patterns: ['**']
-        source: corp
+    sources: [corp]
 ";
     let overrides = FeatureOverrides { disable_registry: true, disable_resolver: false };
     let config =
         Config::from_yaml_str_with_overrides(yaml, Path::new("/x"), listen(), None, overrides)
             .expect("a resolver-only tier must not fail on unused upstream credentials");
-    assert!(config.uplinks.is_empty(), "credentials must not be resolved or carried");
-    assert!(config.mounts.get("main").is_some(), "the graph is still built and validated");
+    assert!(config.upstreams.is_empty(), "credentials must not be resolved or carried");
+    assert!(config.registries.get("main").is_some(), "the graph is still built and validated");
 }
 
-/// The internally-tagged mount enum names the valid kinds, so a typo'd `type:`
+/// The internally-tagged registry enum names the valid kinds, so a typo'd `type:`
 /// fails to load rather than being silently misrouted.
 #[test]
-fn from_yaml_str_rejects_unknown_mount_type() {
+fn from_yaml_str_rejects_unknown_registry_type() {
     let yaml = "\
 storage: ./s
-mounts:
+registries:
   npmjs:
-    type: uplink
+    type: mirror
     url: https://registry.npmjs.org/
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
-        .expect_err("an unknown mount `type:` must be rejected");
+        .expect_err("an unknown registry `type:` must be rejected");
     let message = err.to_string();
     assert!(message.contains("hosted"), "expected the valid kinds listed, got: {message}");
     assert!(message.contains("upstream"), "expected the valid kinds listed, got: {message}");
@@ -1064,14 +1100,14 @@ mounts:
 
 #[test]
 fn from_yaml_str_public_url_defaults_to_listen_when_none_passed() {
-    let yaml = "storage: ./s\nuplinks: {}\npackages: {}\n";
+    let yaml = "storage: ./s\n";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.public_url, format!("http://{}", listen()));
 }
 
 #[test]
 fn from_yaml_str_public_url_override_wins() {
-    let yaml = "storage: ./s\nuplinks: {}\npackages: {}\n";
+    let yaml = "storage: ./s\n";
     let config = Config::from_yaml_str(
         yaml,
         Path::new("/x"),
@@ -1089,7 +1125,7 @@ fn from_yaml_path_round_trips_through_tempfile() {
     // resolved against the *config file's* parent dir.
     let dir = tempfile::tempdir().unwrap();
     let config_path = dir.path().join("registry.yml");
-    std::fs::write(&config_path, "storage: ./store\nuplinks: {}\npackages: {}\n").unwrap();
+    std::fs::write(&config_path, "storage: ./store\n").unwrap();
     let config = Config::from_yaml(&config_path, listen(), None).unwrap();
     assert_eq!(config.storage, dir.path().join("./store"));
 }
@@ -1116,8 +1152,7 @@ storage: ./s
 auth:
   htpasswd:
     file: ./htpasswd
-uplinks: {}
-packages: {}
+upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert_eq!(config.auth.htpasswd.file.as_deref(), Some(Path::new("/etc/pnpr/./htpasswd")));
@@ -1127,7 +1162,7 @@ packages: {}
 
 #[test]
 fn auth_block_absent_disables_registration_by_default() {
-    let yaml = "storage: ./s\nuplinks: {}\npackages: {}\n";
+    let yaml = "storage: ./s\n";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert!(config.auth.htpasswd.file.is_none());
     assert!(config.auth.tokens.file.is_none());
@@ -1142,8 +1177,7 @@ storage: ./s
 auth:
   htpasswd:
     file: ./htpasswd
-uplinks: {}
-packages: {}
+upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.auth.htpasswd.max_users, super::MaxUsers::Disabled);
@@ -1158,8 +1192,7 @@ auth:
     file: ./htpasswd
   tokens:
     file: /var/lib/pnpr/tokens.sqlite
-uplinks: {}
-packages: {}
+upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert_eq!(config.auth.tokens.file.as_deref(), Some(Path::new("/var/lib/pnpr/tokens.sqlite")));
@@ -1173,8 +1206,7 @@ auth:
   htpasswd:
     file: ./htpasswd
     max_users: -1
-uplinks: {}
-packages: {}
+upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.auth.htpasswd.max_users, super::MaxUsers::Disabled);
@@ -1188,8 +1220,7 @@ auth:
   htpasswd:
     file: ./htpasswd
     max_users: 5
-uplinks: {}
-packages: {}
+upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.auth.htpasswd.max_users, super::MaxUsers::Limited(5));
@@ -1197,7 +1228,7 @@ packages: {}
 
 #[test]
 fn logs_default_when_yaml_omits_block() {
-    let yaml = "storage: ./s\nuplinks: {}\npackages: {}\n";
+    let yaml = "storage: ./s\n";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.logs.format, LogFormat::Pretty);
     assert_eq!(config.logs.level, LogLevel::Info);
@@ -1212,8 +1243,7 @@ fn log_unsupported_sink_type_is_recorded_but_flagged_unsupported() {
     // and the binary warns at startup. Format/level still apply.
     let yaml = "\
 storage: ./s
-uplinks: {}
-packages: {}
+upstreams: {}
 log:
   type: file
   format: json
@@ -1228,8 +1258,7 @@ log:
 fn log_pretty_and_level_picked_from_singular_block() {
     let yaml = "\
 storage: ./s
-uplinks: {}
-packages: {}
+upstreams: {}
 log:
   type: stdout
   format: pretty
@@ -1244,8 +1273,7 @@ log:
 fn log_json_format_parses() {
     let yaml = "\
 storage: ./s
-uplinks: {}
-packages: {}
+upstreams: {}
 log:
   type: stdout
   format: json
@@ -1263,8 +1291,7 @@ fn log_legacy_plural_list_is_ignored() {
     // is silently dropped and defaults apply.
     let yaml = "\
 storage: ./s
-uplinks: {}
-packages: {}
+upstreams: {}
 logs:
   - type: stdout
     format: json
@@ -1280,8 +1307,7 @@ fn log_missing_fields_fall_back_to_defaults() {
     // Only `type:` is given. Format and level default individually.
     let yaml = "\
 storage: ./s
-uplinks: {}
-packages: {}
+upstreams: {}
 log:
   type: stdout
 ";
@@ -1326,7 +1352,7 @@ fn config_file_in_returns_none_when_file_is_missing() {
 fn config_file_in_returns_path_when_file_exists() {
     let dir = tempfile::tempdir().unwrap();
     let expected = dir.path().join("config.yaml");
-    std::fs::write(&expected, "storage: ./s\nuplinks: {}\npackages: {}\n").unwrap();
+    std::fs::write(&expected, "storage: ./s\n").unwrap();
     let resolved = config_file_in(Some(dir.path().to_path_buf())).expect("file is present");
     assert_eq!(resolved, expected);
 }
@@ -1357,11 +1383,8 @@ fn config_file_in_resolved_file_round_trips_through_from_yaml() {
     let yaml = format!(
         "\
 storage: {storage}
-uplinks:
+upstreams:
   npmjs: {{ url: https://registry.npmjs.org/ }}
-packages:
-  '**':
-    proxy: npmjs
 log:
   type: stdout
   format: json
@@ -1445,14 +1468,14 @@ fn write_yaml(dir: &Path, name: &str, contents: &str) -> PathBuf {
     path
 }
 
-const MINIMAL_YAML: &str = "storage: ./s\nuplinks: {}\npackages: {}\n";
+const MINIMAL_YAML: &str = "storage: ./s\n";
 
 #[test]
 fn resolve_bundled_when_no_path_supplied() {
     let (config, source) = Config::resolve(None, None, listen(), None).unwrap();
     assert_eq!(source, ConfigSource::Bundled);
-    // The bundled config has the `npmjs` uplink + `**` route.
-    assert!(config.uplinks.contains_key("npmjs"));
+    // The bundled config has the `npmjs` upstream + `**` route.
+    assert!(config.upstreams.contains_key("npmjs"));
 }
 
 #[test]
@@ -1483,16 +1506,10 @@ fn resolve_cli_wins_over_default_path() {
     let tmp = tempfile::tempdir().unwrap();
     let cli_storage = tmp.path().join("from-cli");
     let default_storage = tmp.path().join("from-default");
-    let cli = write_yaml(
-        tmp.path(),
-        "explicit.yml",
-        &format!("storage: {}\nuplinks: {{}}\npackages: {{}}\n", cli_storage.display()),
-    );
-    let default = write_yaml(
-        tmp.path(),
-        "default.yml",
-        &format!("storage: {}\nuplinks: {{}}\npackages: {{}}\n", default_storage.display()),
-    );
+    let cli =
+        write_yaml(tmp.path(), "explicit.yml", &format!("storage: {}\n", cli_storage.display()));
+    let default =
+        write_yaml(tmp.path(), "default.yml", &format!("storage: {}\n", default_storage.display()));
     let (config, source) = Config::resolve(Some(&cli), Some(&default), listen(), None).unwrap();
     assert_eq!(source, ConfigSource::Cli(cli));
     // Confirms the *content* came from the CLI file, not the default.
@@ -1550,7 +1567,7 @@ fn yaml_with_no_storage_uses_default_storage_string() {
     // `storage:` is absent entirely — `default_storage_string`
     // supplies `"./storage"`, which `resolve_relative` then joins
     // to the config-file's parent dir.
-    let yaml = "uplinks: {}\npackages: {}\n";
+    let yaml = "upstreams: {}\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert_eq!(config.storage, PathBuf::from("/etc/pnpr/./storage"));
 }
@@ -1564,8 +1581,7 @@ fn yaml_log_block_with_no_type_field_uses_default_log_type() {
     // to reflect the supplied format/level).
     let yaml = "\
 storage: ./s
-uplinks: {}
-packages: {}
+upstreams: {}
 log:
   format: json
   level: warn
@@ -1578,29 +1594,29 @@ log:
     assert!(config.logs.sink_is_supported());
 }
 
-// ----- policy wiring from YAML ------------------------------------------
+// ----- per-registry `packages:` rules from YAML -------------------------
+
+/// A one-hosted-registry config whose `packages:` map is the given YAML
+/// fragment (indented under `packages:`).
+fn hosted_rules_config(packages: &str) -> Config {
+    let yaml = format!(
+        "storage: ./s\nregistries:\n  local:\n    type: hosted\n    packages:\n{packages}",
+    );
+    Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None).unwrap()
+}
 
 #[test]
-fn policies_are_derived_from_packages_block() {
-    // The `access` / `publish` tokens in each entry drive the
-    // runtime policy — not a hard-coded default set.
-    let yaml = "\
-storage: ./s
-uplinks: {}
-packages:
-  '@secret/*':
-    access: $authenticated
-    publish: $authenticated
-    unpublish: admin
-  '**':
-    access: $all
-    publish: $authenticated
-";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    let secret = config.policies.for_package("@secret/thing");
+fn rules_are_derived_from_the_registry_packages_map() {
+    // The `access` / `publish` tokens in each entry drive the runtime
+    // rules — not a hard-coded default set.
+    let config = hosted_rules_config(
+        "      '@secret/*':\n        access: $authenticated\n        publish: $authenticated\n        unpublish: admin\n      '**':\n        access: $all\n        publish: $authenticated\n",
+    );
+    let rules = &config.hosted["local"].rules;
+    let secret = rules.for_package("@secret/thing");
     assert!(!secret.access.allows(&Identity::Anonymous));
     assert!(secret.access.allows(&user("alice")));
-    let public = config.policies.for_package("lodash");
+    let public = rules.for_package("lodash");
     assert!(public.access.allows(&Identity::Anonymous));
     assert!(!public.publish.allows(&Identity::Anonymous));
     assert!(!secret.unpublish.allows(&user("alice")));
@@ -1608,51 +1624,61 @@ packages:
 }
 
 #[test]
-fn policy_first_matching_rule_wins() {
-    // `@secret/*` is declared before the `**` catch-all, so it
-    // wins for a scoped package even though both match.
-    let yaml = "\
-storage: ./s
-uplinks: {}
-packages:
-  '@secret/*':
-    access: $authenticated
-  '**':
-    access: $all
-";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    assert!(!config.policies.for_package("@secret/x").access.allows(&Identity::Anonymous));
-    assert!(config.policies.for_package("anything").access.allows(&Identity::Anonymous));
+fn most_specific_key_wins_regardless_of_declaration_order() {
+    // Selection is by specificity, not key order: a formatter or `yq`
+    // round-trip that reorders the YAML mapping must not change which
+    // access rule applies. The same two keys, both orders, same answers.
+    let scope_then_catch_all =
+        "      '@secret/*':\n        access: $authenticated\n      '**':\n        access: $all\n";
+    let catch_all_then_scope =
+        "      '**':\n        access: $all\n      '@secret/*':\n        access: $authenticated\n";
+    for packages in [scope_then_catch_all, catch_all_then_scope] {
+        let config = hosted_rules_config(packages);
+        let rules = &config.hosted["local"].rules;
+        assert!(!rules.for_package("@secret/x").access.allows(&Identity::Anonymous), "{packages}");
+        assert!(rules.for_package("anything").access.allows(&Identity::Anonymous), "{packages}");
+    }
 }
 
 #[test]
-fn policy_missing_access_and_publish_default_to_all_and_authenticated() {
-    let yaml = "\
-storage: ./s
-uplinks: {}
-packages:
-  'lodash': {}
-";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    let effective = config.policies.for_package("lodash");
-    assert!(effective.access.allows(&Identity::Anonymous));
-    assert!(!effective.publish.allows(&Identity::Anonymous));
-    assert!(effective.publish.allows(&user("alice")));
-    assert!(!effective.unpublish.allows(&Identity::Anonymous));
-    assert!(!effective.unpublish.allows(&user("alice")));
+fn empty_and_null_map_values_mean_default_rules() {
+    for value in ["{}", "", "~"] {
+        let config = hosted_rules_config(&format!("      'lodash': {value}\n"));
+        let rules = &config.hosted["local"].rules;
+        let effective = rules.for_package("lodash");
+        assert!(effective.access.allows(&Identity::Anonymous), "value {value:?}");
+        assert!(!effective.publish.allows(&Identity::Anonymous), "value {value:?}");
+        assert!(effective.publish.allows(&user("alice")), "value {value:?}");
+        assert!(!effective.unpublish.allows(&user("alice")), "value {value:?}");
+    }
 }
 
 #[test]
-fn policy_missing_unpublish_denies_destructive_writes() {
+fn registry_level_access_is_the_default_for_omitted_fields() {
     let yaml = "\
 storage: ./s
-uplinks: {}
-packages:
-  '@team/*':
-    publish: alice
+registries:
+  local:
+    type: hosted
+    access: team
+    packages:
+      '@team/*': {}
+      '@team/open':
+        access: $all
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    let team = config.policies.for_package("@team/x");
+    let rules = &config.hosted["local"].rules;
+    // Omitted `access` falls back to the registry-level default...
+    assert!(rules.for_package("@team/x").access.allows(&user("team")));
+    assert!(!rules.for_package("@team/x").access.allows(&user("carol")));
+    // ...while the more specific key overrides it.
+    assert!(rules.for_package("@team/open").access.allows(&Identity::Anonymous));
+}
+
+#[test]
+fn rule_missing_unpublish_denies_destructive_writes() {
+    let config = hosted_rules_config("      '@team/*':\n        publish: alice\n");
+    let team = config.hosted["local"].rules.for_package("@team/x");
     assert!(team.publish.allows(&user("alice")));
     assert!(!team.publish.allows(&user("bob")));
     assert!(!team.unpublish.allows(&user("alice")));
@@ -1660,69 +1686,37 @@ packages:
 }
 
 #[test]
-fn policy_empty_unpublish_denies_destructive_writes() {
-    let as_null = "\
-storage: ./s
-uplinks: {}
-packages:
-  '@team/*':
-    publish: $authenticated
-    unpublish:
-";
-    let as_empty_string = "\
-storage: ./s
-uplinks: {}
-packages:
-  '@team/*':
-    publish: $authenticated
-    unpublish: ''
-";
-    let as_empty_sequence = "\
-storage: ./s
-uplinks: {}
-packages:
-  '@team/*':
-    publish: $authenticated
-    unpublish: []
-";
-    for yaml in [as_null, as_empty_string, as_empty_sequence] {
-        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-        let team = config.policies.for_package("@team/x");
-        assert!(team.publish.allows(&user("alice")), "{yaml}");
-        assert!(!team.unpublish.allows(&Identity::Anonymous), "{yaml}");
-        assert!(!team.unpublish.allows(&user("alice")), "{yaml}");
+fn rule_empty_unpublish_denies_destructive_writes() {
+    let as_null = "      '@team/*':\n        publish: $authenticated\n        unpublish:\n";
+    let as_empty_string =
+        "      '@team/*':\n        publish: $authenticated\n        unpublish: ''\n";
+    let as_empty_sequence =
+        "      '@team/*':\n        publish: $authenticated\n        unpublish: []\n";
+    for packages in [as_null, as_empty_string, as_empty_sequence] {
+        let config = hosted_rules_config(packages);
+        let team = config.hosted["local"].rules.for_package("@team/x");
+        assert!(team.publish.allows(&user("alice")), "{packages}");
+        assert!(!team.unpublish.allows(&Identity::Anonymous), "{packages}");
+        assert!(!team.unpublish.allows(&user("alice")), "{packages}");
     }
 }
 
 #[test]
-fn policy_anonymous_token_is_wired() {
-    let yaml = "\
-storage: ./s
-uplinks: {}
-packages:
-  '@anon/*':
-    access: $anonymous
-";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    let anon = config.policies.for_package("@anon/x");
+fn rule_anonymous_token_is_wired() {
+    let config = hosted_rules_config("      '@anon/*':\n        access: $anonymous\n");
+    let anon = config.hosted["local"].rules.for_package("@anon/x");
     assert!(anon.access.allows(&Identity::Anonymous));
     assert!(!anon.access.allows(&user("alice")));
 }
 
 #[test]
-fn policy_usernames_grant_per_user_access() {
+fn rule_usernames_grant_per_user_access() {
     // Bare names are usernames/groups (verdaccio-style), no longer
     // a config error.
-    let yaml = "\
-storage: ./s
-uplinks: {}
-packages:
-  '@team/*':
-    access: alice bob
-    publish: alice
-";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    let team = config.policies.for_package("@team/x");
+    let config = hosted_rules_config(
+        "      '@team/*':\n        access: alice bob\n        publish: alice\n",
+    );
+    let team = config.hosted["local"].rules.for_package("@team/x");
     assert!(team.access.allows(&user("alice")));
     assert!(team.access.allows(&user("bob")));
     assert!(!team.access.allows(&user("carol")));
@@ -1738,10 +1732,12 @@ groups:
   platform: alice bob
   release:
     - carol
-packages:
-  '@team/*':
-    access: platform
-mounts:
+registries:
+  local:
+    type: hosted
+    packages:
+      '@team/*':
+        access: platform
   corp:
     type: upstream
     url: https://npm.corp.example/
@@ -1755,43 +1751,146 @@ mounts:
     let bob = config.identity_for_user("bob");
     let carol = config.identity_for_user("carol");
 
-    let team = config.policies.for_package("@team/widget");
+    let rules = &config.hosted["local"].rules;
+    let team = rules.for_package("@team/widget");
     assert!(team.access.allows(&alice));
     assert!(team.access.allows(&bob));
     assert!(!team.access.allows(&carol));
     assert!(!team.access.allows(&Identity::Anonymous));
 
-    let access = config.uplinks["corp"].access.as_ref().expect("uplink declares access");
+    let access = config.upstreams["corp"].access.as_ref().expect("upstream declares access");
     assert!(access.allows(&alice));
     assert!(access.allows(&bob));
     assert!(!access.allows(&carol));
 }
 
 #[test]
-fn policy_access_list_accepts_string_and_sequence_forms() {
+fn rule_access_list_accepts_string_and_sequence_forms() {
     // verdaccio accepts both a space-separated string and a YAML
     // sequence; they must compile to the same token list.
-    let as_string = "\
-storage: ./s
-uplinks: {}
-packages:
-  '@team/*':
-    access: alice bob
-";
-    let as_sequence = "\
-storage: ./s
-uplinks: {}
-packages:
-  '@team/*':
-    access: [alice, bob]
-";
-    for yaml in [as_string, as_sequence] {
-        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-        let access = config.policies.for_package("@team/x").access;
-        assert!(access.allows(&user("alice")), "{yaml}");
-        assert!(access.allows(&user("bob")), "{yaml}");
-        assert!(!access.allows(&user("carol")), "{yaml}");
+    let as_string = "      '@team/*':\n        access: alice bob\n";
+    let as_sequence = "      '@team/*':\n        access: [alice, bob]\n";
+    for packages in [as_string, as_sequence] {
+        let config = hosted_rules_config(packages);
+        let access = config.hosted["local"].rules.for_package("@team/x").access;
+        assert!(access.allows(&user("alice")), "{packages}");
+        assert!(access.allows(&user("bob")), "{packages}");
+        assert!(!access.allows(&user("carol")), "{packages}");
     }
+}
+
+#[test]
+fn top_level_packages_block_is_a_startup_error() {
+    // The removed global ACL must not be silently dropped like an unknown
+    // verdaccio key: it used to *enforce* access, so ignoring it would
+    // quietly open previously-gated packages on upgrade.
+    let yaml = "\
+storage: ./s
+registries:
+  local:
+    type: hosted
+packages:
+  '@secret/*':
+    access: $authenticated
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(
+        matches!(
+            &err,
+            RegistryError::InvalidConfig { reason }
+                if reason.contains("top-level `packages:`")
+                    && reason.contains("registries.<name>.packages"),
+        ),
+        "unexpected error: {err}",
+    );
+
+    // A *bare* `packages:` (YAML null) and an empty block are the same
+    // removed key and must be rejected identically — a plain `Option`
+    // would map null to "absent" and let it slip through.
+    for stub in ["packages:\n", "packages: {}\n", "packages: ~\n"] {
+        let yaml = format!("storage: ./s\nregistries:\n  local:\n    type: hosted\n{stub}");
+        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
+            .expect_err("a present top-level packages: key must be rejected");
+        assert!(
+            matches!(
+                &err,
+                RegistryError::InvalidConfig { reason } if reason.contains("top-level `packages:`"),
+            ),
+            "unexpected error for {stub:?}: {err}",
+        );
+    }
+}
+
+#[test]
+fn upstream_write_rules_are_rejected() {
+    // No write can land on an upstream, so a `publish`/`unpublish` value in
+    // its `packages:` map is a config mistake — and it fails on every tier,
+    // whether or not the registry surface resolves upstream credentials.
+    let yaml = "\
+storage: ./s
+registries:
+  corp:
+    type: upstream
+    url: https://npm.corp.example/
+    public: true
+    packages:
+      '@corp/*':
+        publish: $authenticated
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(
+        matches!(
+            &err,
+            RegistryError::InvalidConfig { reason }
+                if reason.contains("publish") && reason.contains("upstream"),
+        ),
+        "unexpected error: {err}",
+    );
+}
+
+#[test]
+fn public_upstream_allows_per_package_access_rules() {
+    // `public: true` describes the upstream *fetch* (anonymous, no
+    // credential, no registry-level access default). A per-package `access`
+    // rule still gates who may read the name through pnpr.
+    let yaml = "\
+storage: ./s
+registries:
+  npmjs:
+    type: upstream
+    url: https://registry.npmjs.org/
+    public: true
+    packages:
+      '@internal/*':
+        access: $authenticated
+      '**': {}
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let rules = &config.upstreams["npmjs"].rules;
+    assert!(!rules.for_package("@internal/x").access.allows(&Identity::Anonymous));
+    assert!(rules.for_package("@internal/x").access.allows(&user("alice")));
+    assert!(rules.for_package("lodash").access.allows(&Identity::Anonymous));
+}
+
+#[test]
+fn upstream_packages_map_bounds_the_namespace() {
+    let yaml = "\
+storage: ./s
+registries:
+  corp:
+    type: upstream
+    url: https://npm.corp.example/
+    access: $authenticated
+    packages:
+      '@corp/*': {}
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    use crate::registry::{ConcreteKind, Resolved};
+    assert_eq!(
+        config.registries.resolve("corp", "@corp/tool"),
+        Resolved::Concrete { registry: "corp", kind: ConcreteKind::Upstream },
+    );
+    assert_eq!(config.registries.resolve("corp", "lodash"), Resolved::Unclaimed);
 }
 
 #[test]
@@ -1823,39 +1922,41 @@ fn parse_interval_rejects_garbage() {
 }
 
 #[test]
-fn resolve_uplink_defaults_knobs_to_verdaccio_values() {
-    let uplink = resolve_uplink::<FakeEnv>("npmjs", uplink_file(None, IndexMap::new())).unwrap();
+fn resolve_upstream_config_defaults_knobs_to_verdaccio_values() {
+    let upstream =
+        resolve_upstream_config::<FakeEnv>("npmjs", upstream_config_file(None, IndexMap::new()))
+            .unwrap();
     // An unset `maxage` defers to the global packument TTL (`None` here),
     // while the rest fall back to verdaccio's documented defaults.
-    assert_eq!(uplink.maxage, None);
-    assert_eq!(uplink.timeout, UplinkConfig::DEFAULT_TIMEOUT);
-    assert_eq!(uplink.max_fails, UplinkConfig::DEFAULT_MAX_FAILS);
-    assert_eq!(uplink.fail_timeout, UplinkConfig::DEFAULT_FAIL_TIMEOUT);
-    assert!(uplink.cache);
+    assert_eq!(upstream.maxage, None);
+    assert_eq!(upstream.timeout, UpstreamConfig::DEFAULT_TIMEOUT);
+    assert_eq!(upstream.max_fails, UpstreamConfig::DEFAULT_MAX_FAILS);
+    assert_eq!(upstream.fail_timeout, UpstreamConfig::DEFAULT_FAIL_TIMEOUT);
+    assert!(upstream.cache);
 }
 
 #[test]
-fn resolve_uplink_parses_explicit_knobs() {
+fn resolve_upstream_config_parses_explicit_knobs() {
     use std::time::Duration;
-    let mut file = uplink_file(None, IndexMap::new());
+    let mut file = upstream_config_file(None, IndexMap::new());
     file.maxage = Some(Interval("10m".to_string()));
     file.timeout = Some(Interval("45s".to_string()));
     file.max_fails = Some(5);
     file.fail_timeout = Some(Interval("1m".to_string()));
     file.cache = Some(false);
-    let uplink = resolve_uplink::<FakeEnv>("npmjs", file).unwrap();
-    assert_eq!(uplink.maxage, Some(Duration::from_mins(10)));
-    assert_eq!(uplink.timeout, Duration::from_secs(45));
-    assert_eq!(uplink.max_fails, 5);
-    assert_eq!(uplink.fail_timeout, Duration::from_mins(1));
-    assert!(!uplink.cache);
+    let upstream = resolve_upstream_config::<FakeEnv>("npmjs", file).unwrap();
+    assert_eq!(upstream.maxage, Some(Duration::from_mins(10)));
+    assert_eq!(upstream.timeout, Duration::from_secs(45));
+    assert_eq!(upstream.max_fails, 5);
+    assert_eq!(upstream.fail_timeout, Duration::from_mins(1));
+    assert!(!upstream.cache);
 }
 
 #[test]
-fn resolve_uplink_rejects_an_unparsable_interval() {
-    let mut file = uplink_file(None, IndexMap::new());
+fn resolve_upstream_config_rejects_an_unparsable_interval() {
+    let mut file = upstream_config_file(None, IndexMap::new());
     file.maxage = Some(Interval("whenever".to_string()));
-    let err = resolve_uplink::<FakeEnv>("npmjs", file).unwrap_err();
+    let err = resolve_upstream_config::<FakeEnv>("npmjs", file).unwrap_err();
     assert!(
         matches!(err, RegistryError::InvalidConfig { reason } if reason.contains("maxage")),
         "expected an InvalidConfig naming the offending field",
@@ -1867,13 +1968,26 @@ fn bundled_default_config_enforces_its_protections() {
     // The bundled YAML is the only place the registry-mock protections are
     // declared, so building from it must yield every one of them.
     let config = Config::from_default_yaml(Path::new("/tmp"), listen(), None);
-    let needs_auth = config.policies.for_package("@pnpm.e2e/needs-auth");
+    let rules = &config.hosted["local"].rules;
+    // The exact needs-auth key wins over the '@pnpm.e2e/*' scope key by
+    // specificity (both are declared, in either order).
+    let needs_auth = rules.for_package("@pnpm.e2e/needs-auth");
     assert!(!needs_auth.access.allows(&Identity::Anonymous));
     assert!(needs_auth.access.allows(&user("alice")));
-    assert!(!config.policies.for_package("@private/foo").access.allows(&Identity::Anonymous));
-    let public = config.policies.for_package("lodash");
+    assert!(!rules.for_package("@private/foo").access.allows(&Identity::Anonymous));
+    let public = rules.for_package("@pnpm.e2e/no-deps");
     assert!(public.access.allows(&Identity::Anonymous));
     assert!(!public.publish.allows(&Identity::Anonymous));
+    // The registry-mock contract: any authenticated user may unpublish.
+    assert!(public.unpublish.allows(&user("alice")));
+    assert!(!public.unpublish.allows(&Identity::Anonymous));
+    // `lodash` is not local: it is unclaimed by the hosted registry and
+    // resolves to the npmjs catch-all through the router.
+    use crate::registry::{ConcreteKind, Resolved};
+    assert_eq!(
+        config.registries.resolve_default("lodash"),
+        Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
+    );
 }
 
 #[test]
@@ -1902,9 +2016,9 @@ routes:
 }
 
 #[test]
-fn uplink_resolves_bearer_auth_and_access() {
+fn upstream_resolves_bearer_auth_and_access() {
     let yaml = r"
-mounts:
+registries:
   corp:
     type: upstream
     url: https://npm.corp.example/
@@ -1914,18 +2028,18 @@ mounts:
       token: corp-token
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    let uplink = &config.uplinks["corp"];
-    assert_eq!(uplink.url, "https://npm.corp.example/");
-    assert_eq!(auth_header(uplink), Some("Bearer corp-token"));
-    let access = uplink.access.as_ref().expect("uplink declares access");
+    let upstream = &config.upstreams["corp"];
+    assert_eq!(upstream.url, "https://npm.corp.example/");
+    assert_eq!(auth_header(upstream), Some("Bearer corp-token"));
+    let access = upstream.access.as_ref().expect("upstream declares access");
     assert!(access.allows(&user("alice")));
     assert!(!access.allows(&Identity::Anonymous));
 }
 
 #[test]
-fn uplink_resolves_basic_auth_and_access() {
+fn upstream_resolves_basic_auth_and_access() {
     let yaml = r"
-mounts:
+registries:
   corp:
     type: upstream
     url: https://npm.corp.example/
@@ -1935,26 +2049,26 @@ mounts:
       token: dXNlcjpwYXNz
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    let uplink = &config.uplinks["corp"];
-    assert_eq!(auth_header(uplink), Some("Basic dXNlcjpwYXNz"));
-    let access = uplink.access.as_ref().expect("uplink declares access");
+    let upstream = &config.upstreams["corp"];
+    assert_eq!(auth_header(upstream), Some("Basic dXNlcjpwYXNz"));
+    let access = upstream.access.as_ref().expect("upstream declares access");
     assert!(access.allows(&user("bob")));
     assert!(!access.allows(&Identity::Anonymous));
 }
 
 #[test]
-fn public_upstream_mount_carries_no_access_credential() {
+fn public_upstream_registry_carries_no_access_credential() {
     let yaml = r"
-mounts:
+registries:
   corp:
     type: upstream
     url: https://npm.corp.example/
     public: true
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    // A public upstream mount is reachable anonymously and carries no access
+    // A public upstream registry is reachable anonymously and carries no access
     // policy or upstream credential.
-    assert!(config.uplinks["corp"].access.is_none());
+    assert!(config.upstreams["corp"].access.is_none());
 }
 
 #[test]

@@ -15,6 +15,7 @@ export {
 } from './promptBrowserOpen.js'
 export { WebAuthTimeoutError } from './WebAuthTimeoutError.js'
 export {
+  canonicalHttpUrl,
   isOtpError,
   type OtpContext,
   type OtpEnquirer,

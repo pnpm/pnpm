@@ -23,6 +23,7 @@ import {
   calcPatchHashes,
   createOverridesMapFromParsed,
   getOutdatedLockfileSetting,
+  resolvePatchedDependencies,
 } from '@pnpm/lockfile.settings-checker'
 import {
   getWorkspacePackagesByDirectory,
@@ -660,11 +661,12 @@ async function assertWantedLockfileUpToDate (
     wantedLockfileDir,
   } = opts
 
+  const resolvedPatchedDeps = resolvePatchedDependencies(config.patchedDependencies, wantedLockfileDir)
   const [
     patchedDependencies,
     pnpmfileChecksum,
   ] = await Promise.all([
-    calcPatchHashes(config.patchedDependencies ?? {}),
+    calcPatchHashes(resolvedPatchedDeps ?? {}),
     config.hooks?.calculatePnpmfileChecksum?.(),
   ])
 

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exe",
-  "version": "11.9.0",
+  "version": "11.10.0",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -53,22 +53,6 @@
     "@pnpm/jest-config": "workspace:*",
     "@zkochan/cmd-shim": "catalog:",
     "execa": "catalog:"
-  },
-  "pnpm": {
-    "app": {
-      "entry": "../../pnpm.cjs",
-      "outputDir": "..",
-      "outputName": "pnpm",
-      "targets": [
-        "win32-x64",
-        "linux-x64",
-        "darwin-arm64",
-        "linux-arm64",
-        "win32-arm64",
-        "linux-x64-musl",
-        "linux-arm64-musl"
-      ]
-    }
   },
   "jest": {
     "preset": "@pnpm/jest-config"

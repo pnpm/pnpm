@@ -1,5 +1,27 @@
 # @pnpm/config.deps-installer
 
+## 1102.0.3
+
+### Patch Changes
+
+- Updated dependencies [25c7388]
+- Updated dependencies [99982b9]
+- Updated dependencies [11a7fdd]
+- Updated dependencies [dcabb78]
+- Updated dependencies [dcabb78]
+- Updated dependencies [a6c4d5f]
+  - @pnpm/resolving.npm-resolver@1102.1.1
+  - @pnpm/installing.deps-resolver@1100.2.6
+  - @pnpm/store.controller-types@1100.1.7
+  - @pnpm/deps.graph-hasher@1100.2.7
+  - @pnpm/lockfile.types@1100.0.13
+  - @pnpm/lockfile.utils@1100.1.1
+  - @pnpm/store.controller@1102.0.3
+  - @pnpm/lockfile.fs@1100.1.8
+  - @pnpm/lockfile.pruner@1100.0.13
+  - @pnpm/worker@1100.2.3
+  - @pnpm/config.writer@1100.0.15
+
 ## 1102.0.2
 
 ### Patch Changes

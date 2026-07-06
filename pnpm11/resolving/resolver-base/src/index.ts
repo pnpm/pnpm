@@ -395,6 +395,14 @@ export interface ResolveOptions {
   preferWorkspacePackages?: boolean
   workspacePackages?: WorkspacePackages
   update?: false | 'compatible' | 'latest'
+  /**
+   * True only when this specific package matches the user's update target
+   * (e.g. `pnpm up <name>`). Unlike `update`, this is false for unrelated
+   * packages that get re-resolved as a side effect of an update, so it can
+   * be used to bypass preferred-version propagation without forcing
+   * unrelated transitives to jump to their latest versions.
+   */
+  updateRequested?: boolean
   updateChecksums?: boolean
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean

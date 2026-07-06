@@ -32,6 +32,7 @@ pacquet-lockfile                          = { workspace = true }
 pacquet-modules-yaml                      = { workspace = true }
 pacquet-network                           = { workspace = true }
 pacquet-config                            = { workspace = true }
+pacquet-config-parse-overrides            = { workspace = true }
 pacquet-default-reporter                  = { workspace = true }
 pacquet-deps-path                         = { workspace = true }
 pacquet-pack                              = { workspace = true }

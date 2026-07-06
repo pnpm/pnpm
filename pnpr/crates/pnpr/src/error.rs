@@ -19,16 +19,16 @@ pub enum RegistryError {
         body: String,
     },
 
-    /// The uplink's circuit breaker is open: it reached `max_fails`
+    /// The upstream's circuit breaker is open: it reached `max_fails`
     /// consecutive failures and is still inside its `fail_timeout`
     /// cooldown, so pnpr short-circuits the request instead of hammering
     /// a known-down upstream. The packument path turns this into a
     /// stale-cache fallback; with nothing cached it surfaces as 503.
-    #[display("Upstream {uplink} is temporarily unavailable (circuit open)")]
+    #[display("Upstream {upstream} is temporarily unavailable (circuit open)")]
     #[from(skip)]
     UpstreamUnavailable {
         #[error(not(source))]
-        uplink: String,
+        upstream: String,
     },
 
     #[display("EINTEGRITY: tarball {filename:?} for package {package:?}: {reason}")]
@@ -51,14 +51,6 @@ pub enum RegistryError {
         #[error(not(source))]
         package: String,
         filename: String,
-    },
-
-    #[display("Package policy pattern {pattern:?} is invalid: {reason}")]
-    #[from(skip)]
-    InvalidPolicyPattern {
-        #[error(not(source))]
-        pattern: String,
-        reason: String,
     },
 
     /// The YAML config could not be parsed. Startup-only — this never
@@ -242,7 +234,6 @@ impl RegistryError {
             RegistryError::TarballIntegrity { .. } => "tarball_integrity",
             RegistryError::InvalidPackageName { .. } => "invalid_package_name",
             RegistryError::InvalidTarballName { .. } => "invalid_tarball_name",
-            RegistryError::InvalidPolicyPattern { .. } => "invalid_policy_pattern",
             RegistryError::InvalidConfig { .. } => "invalid_config",
             RegistryError::Unauthenticated { .. } => "unauthenticated",
             RegistryError::Forbidden { .. } => "forbidden",
@@ -319,7 +310,6 @@ impl RegistryError {
             RegistryError::UpstreamUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
             RegistryError::InvalidPackageName { .. }
             | RegistryError::InvalidTarballName { .. }
-            | RegistryError::InvalidPolicyPattern { .. }
             | RegistryError::InvalidConfig { .. }
             | RegistryError::InvalidAttachment { .. }
             | RegistryError::BadRequest { .. } => StatusCode::BAD_REQUEST,

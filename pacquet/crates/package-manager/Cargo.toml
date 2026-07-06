@@ -77,15 +77,17 @@ miette          = { workspace = true }
 pacquet-testing-utils = { workspace = true }
 
 async-trait       = { workspace = true }
-node-semver       = { workspace = true }
 dunce             = { workspace = true }
+flate2            = { workspace = true }
 insta             = { workspace = true }
 mockito           = { workspace = true }
+node-semver       = { workspace = true }
 pathdiff          = { workspace = true }
 pretty_assertions = { workspace = true }
 serde-saphyr      = { workspace = true }
 sha2              = { workspace = true }
 ssri              = { workspace = true }
+tar               = { workspace = true }
 tempfile          = { workspace = true }
 text-block-macros = { workspace = true }
 walkdir           = { workspace = true }

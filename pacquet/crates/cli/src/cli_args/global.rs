@@ -16,19 +16,19 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_cmd_shim::{Host as CmdShimHost, link_bins_of_packages_with_excludes, remove_bin};
-use pacquet_config::{Config, WorkspaceSettings, check_global_bin_dir};
+use pacquet_config::{CatalogMode, Config, WorkspaceSettings, check_global_bin_dir};
 use pacquet_fs::{force_symlink_dir, is_subdir, lexical_normalize};
 use pacquet_global::{
     GlobalPackageInfo, check_global_bin_conflicts, clean_orphaned_install_dirs,
     create_global_cache_key, create_install_dir, find_global_package, get_hash_link,
-    get_installed_bin_names, read_installed_packages, scan_global_packages,
+    get_installed_bin_names, read_direct_dependency_aliases, read_installed_packages,
+    scan_global_packages,
 };
 use pacquet_package_is_installable::SupportedArchitectures;
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_registry::PinnedVersion;
 use pacquet_reporter::Reporter;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
-use serde_json::Value;
 use std::{
     collections::HashSet,
     fs,
@@ -107,7 +107,7 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
         .await?;
 
         let pkgs = read_installed_packages(&install_dir);
-        let aliases = read_aliases(&install_dir);
+        let aliases = read_direct_dependency_aliases(&install_dir);
 
         let bins_to_skip = match check_global_bin_conflicts(
             &global_pkg_dir,
@@ -286,8 +286,31 @@ async fn run_group_install<Reporter: self::Reporter + 'static>(
     // `lockfileDir = installDir`). `outdated -g` / `update -g` read these
     // pins to determine the currently-installed versions.
     cfg.lockfile = true;
-    cfg.workspace_dir = None;
+    // Pin the group's workspace root to its own install dir (pnpm's
+    // `rootProjectManifestDir: installDir`, `workspaceDir: undefined`). The
+    // install dir sits *under* the global packages dir, which carries a
+    // `pnpm-workspace.yaml` of global settings (`allowBuilds`, `catalog`,
+    // ...). Leaving this unset would let the install pipeline walk up, adopt
+    // that file as the workspace, and then fail trying to enumerate its
+    // non-existent root project. Anchoring here keeps the group install an
+    // isolated single project.
+    cfg.workspace_dir = Some(install_dir.clone());
     cfg.supported_architectures = supported_architectures;
+
+    // A global install is isolated from the caller's project, so it must
+    // not inherit that project's dependency-graph configuration. pnpm
+    // achieves this by running the install with `cwd` = the pnpm home dir;
+    // pacquet clones the caller's already-loaded config, so drop those
+    // project-scoped resolution settings explicitly. Inheriting `overrides`
+    // is what surfaced as `ERR_PNPM_CATALOG_IN_OVERRIDES` — a repo override
+    // referencing a `catalog:` the isolated install (with no catalogs) no
+    // longer resolves — and inheriting `catalogMode: strict` would likewise
+    // reject the install against an empty catalog.
+    cfg.overrides = None;
+    cfg.catalogs = None;
+    cfg.catalog_mode = CatalogMode::default();
+    cfg.package_extensions = None;
+    cfg.patched_dependencies = None;
 
     // Build-script policy for global installs comes from the global packages
     // directory, never the caller's repo — otherwise a repo-controlled
@@ -353,7 +376,20 @@ async fn prompt_approve_global_builds<Reporter: self::Reporter + 'static>(
     }
 
     let manifest_path = install_dir.join("package.json");
-    let config_fn = || -> miette::Result<&'static mut Config> { Ok(Config::leak(config.clone())) };
+    let config_fn = || -> miette::Result<&'static mut Config> {
+        // `prepare` persists the `allowBuilds` decision to
+        // `config.workspace_dir`, falling back to the passed dir (the global
+        // packages dir). The group install pins `workspace_dir` to the
+        // ephemeral install dir; clear it here so the decision lands in the
+        // stable global packages dir, where the next global install reads it
+        // back — rather than in a throwaway install group.
+        let mut cfg = config.clone();
+        cfg.workspace_dir = None;
+        Ok(Config::leak(cfg))
+    };
+    // The rebuild stays anchored at the install dir (keeping `config`'s
+    // `workspace_dir`), so its install pipeline doesn't walk up into the
+    // global settings workspace.
     let state_fn = |require_lockfile: bool| -> miette::Result<State> {
         State::init(manifest_path.clone(), Config::leak(config.clone()), require_lockfile)
             .wrap_err("initialize the global approve-builds state")
@@ -430,21 +466,6 @@ fn bin_names_of_other_groups(
         }
     }
     Ok(names)
-}
-
-/// The direct-dependency aliases of an install directory's `package.json`.
-fn read_aliases(install_dir: &Path) -> Vec<String> {
-    let Ok(text) = fs::read_to_string(install_dir.join("package.json")) else {
-        return Vec::new();
-    };
-    let Ok(value) = serde_json::from_str::<Value>(&text) else {
-        return Vec::new();
-    };
-    value
-        .get("dependencies")
-        .and_then(Value::as_object)
-        .map(|deps| deps.keys().cloned().collect())
-        .unwrap_or_default()
 }
 
 /// Build the registry map (`{ default, ...scoped }`) hashed into the

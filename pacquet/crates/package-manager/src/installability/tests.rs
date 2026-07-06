@@ -1,7 +1,8 @@
 //! Unit tests for [`crate::installability::compute_skipped_snapshots`].
 
 use crate::installability::{
-    InstallabilityHost, SkippedSnapshots, any_installability_constraint, compute_skipped_snapshots,
+    InstallabilityHost, SkippedSnapshots, any_installability_constraint,
+    any_optional_installability_constraint, compute_skipped_snapshots,
 };
 use pacquet_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgNameVerPeer, SnapshotEntry,
@@ -293,6 +294,35 @@ fn meaningful_platform_value_triggers_slow_path() {
 }
 
 #[test]
+fn required_only_constraint_does_not_trigger_optional_gate() {
+    let key = snapshot_key("not-compatible-with-any-os@1.0.0");
+    let mut snapshots = HashMap::new();
+    snapshots.insert(key.clone(), SnapshotEntry { optional: false, ..Default::default() });
+    let mut packages = HashMap::new();
+    packages.insert(key, synthetic_metadata(None, None, Some(&["this-os-does-not-exist"]), None));
+
+    assert!(any_installability_constraint(&snapshots, &packages));
+    assert!(
+        !any_optional_installability_constraint(&snapshots, &packages),
+        "fresh pre-pass should stay off when only required snapshots carry constraints",
+    );
+}
+
+#[test]
+fn optional_constraint_triggers_optional_gate() {
+    let key = snapshot_key("not-compatible-with-any-os@1.0.0");
+    let mut snapshots = HashMap::new();
+    snapshots.insert(key.clone(), SnapshotEntry { optional: true, ..Default::default() });
+    let mut packages = HashMap::new();
+    packages.insert(key, synthetic_metadata(None, None, Some(&["this-os-does-not-exist"]), None));
+
+    assert!(
+        any_optional_installability_constraint(&snapshots, &packages),
+        "fresh pre-pass should run when an optional snapshot can be skipped",
+    );
+}
+
+#[test]
 fn duplicate_metadata_dedupes_reporter_events() {
     reset_events();
     let metadata_key = snapshot_key("not-compatible-with-any-os@1.0.0");
@@ -422,6 +452,33 @@ fn seeded_snapshot_short_circuits_recheck() {
 }
 
 #[test]
+fn seeded_non_optional_snapshot_is_rechecked() {
+    reset_events();
+    let key = snapshot_key("not-compatible-with-any-os@1.0.0");
+    let mut snapshots = HashMap::new();
+    snapshots.insert(key.clone(), SnapshotEntry { optional: false, ..Default::default() });
+    let mut packages = HashMap::new();
+    packages.insert(key.clone(), synthetic_metadata(None, None, Some(&["missing-os"]), None));
+
+    let seed = SkippedSnapshots::from_set(std::iter::once(key.clone()).collect());
+    let skipped = compute_skipped_snapshots::<RecordingReporter>(
+        &snapshots,
+        &packages,
+        &host("20.10.0", "darwin", "arm64"),
+        "/proj",
+        seed,
+    )
+    .unwrap();
+
+    assert!(!skipped.contains(&key), "non-optional snapshots must not stay seeded as skipped");
+    let events = take_events();
+    assert!(
+        events.iter().all(|event| !matches!(event, LogEvent::SkippedOptionalDependency(_))),
+        "non-optional incompatibility must not emit skipped-optional events, got {events:?}",
+    );
+}
+
+#[test]
 fn fast_path_preserves_seed() {
     reset_events();
     let key = snapshot_key("previously-skipped@1.0.0");
@@ -442,6 +499,27 @@ fn fast_path_preserves_seed() {
 
     assert_eq!(skipped.len(), 1, "fast path must keep the seed entry");
     assert!(skipped.contains(&key));
+}
+
+#[test]
+fn fast_path_drops_seed_for_non_optional_snapshot() {
+    let key = snapshot_key("previously-skipped@1.0.0");
+    let mut snapshots = HashMap::new();
+    snapshots.insert(key.clone(), SnapshotEntry { optional: false, ..Default::default() });
+    let mut packages = HashMap::new();
+    packages.insert(key.clone(), synthetic_metadata(None, None, None, None));
+
+    let seed = SkippedSnapshots::from_set(std::iter::once(key).collect());
+    let skipped = compute_skipped_snapshots::<RecordingReporter>(
+        &snapshots,
+        &packages,
+        &host("20.10.0", "darwin", "arm64"),
+        "/proj",
+        seed,
+    )
+    .unwrap();
+
+    assert!(skipped.is_empty());
 }
 
 #[test]
@@ -590,6 +668,10 @@ fn name_inferable_optional_snapshot_triggers_slow_path() {
     assert!(
         any_installability_constraint(&snapshots, &packages),
         "a platform-named optional snapshot must trigger the slow path",
+    );
+    assert!(
+        any_optional_installability_constraint(&snapshots, &packages),
+        "a platform-named optional snapshot must trigger the fresh pre-pass",
     );
 }
 

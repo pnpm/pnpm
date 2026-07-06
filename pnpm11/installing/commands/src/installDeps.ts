@@ -22,7 +22,7 @@ import {
 } from '@pnpm/installing.deps-installer'
 import { writeWantedLockfile } from '@pnpm/lockfile.fs'
 import type { LockfileObject } from '@pnpm/lockfile.types'
-import { globalInfo, logger } from '@pnpm/logger'
+import { globalInfo, globalWarn, logger } from '@pnpm/logger'
 import { applyRuntimeOnFailOverride, filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
 import type { PreferredVersions, VersionSelectors } from '@pnpm/resolving.resolver-base'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
@@ -50,6 +50,7 @@ import {
   createMatcher,
   makeIgnorePatterns,
   matchDependencies,
+  parseUpdateParam,
   recursive,
   type RecursiveOptions,
   type UpdateDepsMatcher,
@@ -370,10 +371,10 @@ export async function installDeps (
   }
   if (opts.packageVulnerabilityAudit != null) {
     updateMatch = null
-    const { packageVulnerabilityAudit } = opts
-    updateMatching = (pkgName: string, version?: string) => version != null && packageVulnerabilityAudit.isVulnerable(pkgName, version)
+    updateMatching = createVulnerabilityUpdateMatching(opts.packageVulnerabilityAudit)
   }
   if (updateMatch != null) {
+    const updateSpecs = params
     params = matchDependencies(updateMatch, manifest, includeDirect)
     if (params.length === 0) {
       if (opts.latest) return
@@ -385,6 +386,7 @@ export async function installDeps (
       // Don't update package.json in this case, and limit updates to only matching dependencies
       updatePackageManifest = false
       updateMatching = (pkgName: string) => updateMatch!(pkgName) != null
+      warnAboutIgnoredVersionsOfIndirectUpdateSpecs(updateSpecs)
     }
   }
 
@@ -584,6 +586,41 @@ function getVulnerabilityPenalty (severity: VulnerabilitySeverity): number {
       // Treat unrecognized severity as the lowest severity
     default: return -1100
   }
+}
+
+/**
+ * `pnpm update <dep>@<version>` where `<dep>` matches only transitive
+ * dependencies has no manifest entry to write the version into, and an
+ * update resolves the target the same way a fresh install would — which a
+ * command-line version cannot influence. Tell the user the version part is
+ * ignored, and that an override is the mechanism that does pin a
+ * transitive dependency. The recommended override is scoped to the
+ * dependents' declared range so it cannot violate any consumer's range;
+ * the range itself is not known at this layer (it lives in the dependents'
+ * manifests), hence the placeholder.
+ */
+function warnAboutIgnoredVersionsOfIndirectUpdateSpecs (updateSpecs: string[]): void {
+  for (const spec of updateSpecs) {
+    const { pattern, versionSpec } = parseUpdateParam(spec)
+    if (versionSpec == null) continue
+    globalWarn(`"${pattern}" is not a direct dependency, so the requested version "${versionSpec}" is ignored — "${pattern}" is updated to what a fresh install would resolve. To force a version of a transitive dependency, add an override scoped to the range its dependents declare to pnpm-workspace.yaml, e.g.: overrides: { "${pattern}@<declared range>": "${versionSpec}" }`)
+  }
+}
+
+/**
+ * The `updateMatching` predicate of `pnpm audit --fix`: a package is an
+ * update target when its resolved version is vulnerable. The resolver calls
+ * it without a version when the edge has no lockfile reference — e.g. after
+ * the vulnerable pin was widened, which forgets the reference — so a
+ * version-less call matches by name against the vulnerable set: such an
+ * edge belongs to a package under vulnerability management and must
+ * re-resolve without its seeded lockfile pins.
+ */
+export function createVulnerabilityUpdateMatching (packageVulnerabilityAudit: PackageVulnerabilityAudit): UpdateMatchingFunction {
+  const vulnerablePackageNames = new Set(packageVulnerabilityAudit.getVulnerabilities().keys())
+  return (pkgName: string, version?: string) => version != null
+    ? packageVulnerabilityAudit.isVulnerable(pkgName, version)
+    : vulnerablePackageNames.has(pkgName)
 }
 
 function preferNonvulnerablePackageVersions (packageVulnerabilityAudit: PackageVulnerabilityAudit): PreferredVersions {

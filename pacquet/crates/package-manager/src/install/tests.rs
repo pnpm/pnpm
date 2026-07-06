@@ -16,8 +16,8 @@ use pacquet_modules_yaml::{
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{
     BrokenModulesLog, ContextLog, HookLog, IgnoredScriptsLog, LockfileVerificationMessage,
-    LogEvent, PackageManifestLog, PackageManifestMessage, ProgressLog, ProgressMessage, Reporter,
-    SilentReporter, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
+    LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, ProgressLog, ProgressMessage,
+    Reporter, SilentReporter, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
 };
 use pacquet_store_dir::STORE_VERSION;
 use pacquet_testing_utils::{
@@ -45,6 +45,20 @@ fn is_modules_yaml_consistent(
     pacquet_modules_yaml::read_modules_layout::<Host>(modules_dir).ok().flatten().is_some_and(
         |modules| super::modules_consistent_with(&modules, config, node_linker, included),
     )
+}
+
+/// Reading wrapper over [`super::modules_layout_consistent_with`] — the
+/// purge-gate consistency check, which (unlike [`is_modules_yaml_consistent`])
+/// ignores `included`.
+fn is_modules_yaml_layout_consistent(
+    modules_dir: &std::path::Path,
+    config: &Config,
+    node_linker: pacquet_config::NodeLinker,
+) -> bool {
+    pacquet_modules_yaml::read_modules_layout::<Host>(modules_dir)
+        .ok()
+        .flatten()
+        .is_some_and(|modules| super::modules_layout_consistent_with(&modules, config, node_linker))
 }
 
 const SCOPED_TEST_INTEGRITY: &str = "sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa==";
@@ -5307,6 +5321,124 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
     drop((dir, mock_instance));
 }
 
+#[tokio::test]
+async fn fresh_install_skips_platform_incompatible_optional_dependency() {
+    let mock_instance = TestRegistry::start();
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/not-compatible-with-any-os", "1.0.0", DependencyGroup::Optional)
+        .unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.enable_global_virtual_store = false;
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir.clone();
+    config.registry = mock_instance.url();
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: false,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("install should succeed");
+
+    assert!(
+        is_symlink_or_junction(&project_root.join("node_modules/@pnpm.e2e/hello-world-js-bin"))
+            .unwrap(),
+        "compatible prod dependency should be linked",
+    );
+    assert!(
+        !project_root.join("node_modules/@pnpm.e2e/not-compatible-with-any-os").exists(),
+        "platform-incompatible optional dependency must not be linked",
+    );
+    assert!(
+        !virtual_store_dir.join("@pnpm.e2e+not-compatible-with-any-os@1.0.0").exists(),
+        "platform-incompatible optional dependency must not be extracted",
+    );
+
+    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    let content = std::fs::read_to_string(&lockfile_path).expect("read lockfile");
+    let lockfile: Lockfile = serde_saphyr::from_str(&content).expect("parse lockfile");
+    let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
+    let skipped_key = snapshots
+        .iter()
+        .find(|(key, _)| {
+            key.name.scope.as_deref() == Some("pnpm.e2e")
+                && key.name.bare == "not-compatible-with-any-os"
+        })
+        .map(|(key, snapshot)| {
+            assert!(snapshot.optional, "lockfile snapshot should stay marked optional");
+            key.clone()
+        })
+        .expect("optional dependency should stay in the lockfile");
+
+    let written = modules_dir
+        .pipe_as_ref(read_modules_manifest::<Host>)
+        .expect("read .modules.yaml")
+        .expect("modules manifest exists");
+    assert_eq!(written.skipped, [skipped_key.to_string()]);
+
+    let current_lockfile_path = virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
+    let current_content =
+        std::fs::read_to_string(&current_lockfile_path).expect("read current lockfile");
+    let current_lockfile: Lockfile =
+        serde_saphyr::from_str(&current_content).expect("parse current lockfile");
+    assert!(
+        current_lockfile
+            .packages
+            .as_ref()
+            .is_some_and(|packages| packages.contains_key(&skipped_key.without_peer())),
+        "platform-incompatible optional dependency metadata must stay in current lockfile",
+    );
+    assert!(
+        !current_lockfile
+            .snapshots
+            .as_ref()
+            .is_some_and(|snapshots| snapshots.contains_key(&skipped_key)),
+        "platform-incompatible optional dependency must not be saved in current lockfile",
+    );
+
+    drop((dir, mock_instance));
+}
+
 /// `nodeLinker: hoisted` on the fresh-lockfile path (no lockfile,
 /// not frozen) installs successfully and records the hoisted linker
 /// in `.modules.yaml`. With an empty manifest there is nothing to
@@ -5839,6 +5971,244 @@ fn is_modules_yaml_consistent_returns_false_when_included_drifts() {
         pacquet_config::NodeLinker::Isolated,
         with_optional,
     ));
+}
+
+/// A `--prod`<->full switch changes `.modules.yaml.included`, which the
+/// up-to-date fast path must still notice (so it relinks). But it must NOT
+/// make the *layout* look inconsistent: pnpm never purges the root
+/// project's `node_modules` for an included mismatch (validateModules's
+/// `lockfileDir !== rootDir` guard), and the purge wipes the user's
+/// non-pnpm entries (a vendored dir, custom files). So an included-only
+/// drift keeps the layout consistent — the purge does not run and the
+/// directory is left untouched; relinking adds/removes the right deps.
+#[test]
+fn included_drift_alone_does_not_make_the_layout_inconsistent() {
+    let dir = tempdir().unwrap();
+    let modules_dir = dir.path().join("node_modules");
+
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = modules_dir.join(".pacquet");
+    let config = config.leak();
+
+    let prod_only = pacquet_modules_yaml::IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: false,
+        optional_dependencies: false,
+    };
+    let with_optional = pacquet_modules_yaml::IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: false,
+        optional_dependencies: true,
+    };
+
+    let seed = Modules {
+        layout_version: Some(LayoutVersion),
+        node_linker: Some(NodeLinker::Isolated),
+        included: prod_only,
+        hoist_pattern: config.hoist_pattern.clone(),
+        public_hoist_pattern: config.public_hoist_pattern.clone(),
+        store_dir: config.store_dir.display().to_string(),
+        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir_max_length: config.virtual_store_dir_max_length,
+        ..Default::default()
+    };
+    write_modules_manifest::<Host>(&modules_dir, seed).expect("seed .modules.yaml");
+
+    // The fast path still sees the included change and forces a reinstall...
+    assert!(!is_modules_yaml_consistent(
+        &modules_dir,
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        with_optional,
+    ));
+    // ...but the layout is still consistent, so the destructive purge does
+    // not run and the user's node_modules contents survive.
+    assert!(is_modules_yaml_layout_consistent(
+        &modules_dir,
+        config,
+        pacquet_config::NodeLinker::Isolated,
+    ));
+}
+
+/// A real layout setting (here `nodeLinker`) drifting still makes the
+/// layout inconsistent, so the purge that recreates `node_modules` runs —
+/// the included guard above must not suppress genuine layout rebuilds.
+#[test]
+fn layout_drift_still_makes_the_layout_inconsistent() {
+    let dir = tempdir().unwrap();
+    let modules_dir = dir.path().join("node_modules");
+
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = modules_dir.join(".pacquet");
+    let config = config.leak();
+
+    let seed = Modules {
+        layout_version: Some(LayoutVersion),
+        node_linker: Some(NodeLinker::Hoisted),
+        hoist_pattern: config.hoist_pattern.clone(),
+        public_hoist_pattern: config.public_hoist_pattern.clone(),
+        store_dir: config.store_dir.display().to_string(),
+        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir_max_length: config.virtual_store_dir_max_length,
+        ..Default::default()
+    };
+    write_modules_manifest::<Host>(&modules_dir, seed).expect("seed .modules.yaml");
+
+    assert!(!is_modules_yaml_layout_consistent(
+        &modules_dir,
+        config,
+        pacquet_config::NodeLinker::Isolated,
+    ));
+}
+
+/// Run one install against `modules_dir` for the purge regression below: a
+/// fresh leaked config per call (the install path needs `&'static Config`),
+/// `included` driven by `dependency_groups`, and `virtual_store_dir_max_length`
+/// surfaced so the test can force a layout drift. `disable_optimistic_repeat_install`
+/// keeps every call on the full path so the purge branch is actually evaluated.
+async fn run_purge_regression_install(
+    store_dir: &std::path::Path,
+    modules_dir: &std::path::Path,
+    virtual_store_dir: &std::path::Path,
+    registry: String,
+    manifest: &PackageManifest,
+    dependency_groups: Vec<DependencyGroup>,
+    virtual_store_dir_max_length: u64,
+) {
+    let mut config = Config::new();
+    config.store_dir = store_dir.to_path_buf().into();
+    config.modules_dir = modules_dir.to_path_buf();
+    config.virtual_store_dir = virtual_store_dir.to_path_buf();
+    config.registry = registry;
+    config.virtual_store_dir_max_length = virtual_store_dir_max_length;
+    let config = config.leak();
+    let is_full_install = dependency_groups.contains(&DependencyGroup::Dev);
+    // One client behind both fields, matching the CLI's single-source
+    // wiring documented on [`Install::http_client_arc`].
+    let http_client_arc: std::sync::Arc<pacquet_network::ThrottledClient> =
+        std::sync::Arc::default();
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &http_client_arc,
+        http_client_arc: std::sync::Arc::clone(&http_client_arc),
+        config,
+        manifest,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        lockfile_path: None,
+        dependency_groups,
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: true,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("install should succeed");
+}
+
+/// Install-level regression for the purge guard: switching `--prod` <-> full
+/// (an `included` drift) must keep a user's own non-pnpm entry in
+/// `node_modules`, while a real layout drift still recreates the directory
+/// from scratch. Without the `modules_layout_consistent_with` split, the
+/// included drift would purge the directory and delete the user's file.
+///
+/// The skipped purge must not leave the excluded dev dep behind either:
+/// the targeted prune ([`crate::prune_direct_deps_excluded_by_groups`])
+/// removes its `node_modules` link and its `.bin` shim while everything
+/// else stays.
+#[tokio::test]
+async fn included_drift_keeps_user_node_modules_entry_while_layout_drift_wipes_it() {
+    let mock_instance = TestRegistry::start();
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    fs::create_dir_all(&project_root).unwrap();
+    let manifest_path = project_root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    manifest.add_dependency("@pnpm.e2e/console-log", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest.add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Dev).unwrap();
+    manifest.save().unwrap();
+
+    let full = || vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+    let prod_only = || vec![DependencyGroup::Prod];
+
+    // 1. A full install creates node_modules + .modules.yaml (included = full).
+    run_purge_regression_install(
+        &store_dir,
+        &modules_dir,
+        &virtual_store_dir,
+        mock_instance.url(),
+        &manifest,
+        full(),
+        DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH,
+    )
+    .await;
+
+    let prod_link = modules_dir.join("@pnpm.e2e/console-log");
+    let dev_link = modules_dir.join("@pnpm.e2e/hello-world-js-bin");
+    let dev_shim = modules_dir.join(".bin/hello-world-js-bin");
+    assert!(dev_link.symlink_metadata().is_ok(), "full install links the dev dep");
+    assert!(dev_shim.exists(), "full install shims the dev dep's bin");
+
+    // The user drops their own non-pnpm file directly into node_modules.
+    let vendored = modules_dir.join("vendored-by-user.txt");
+    fs::write(&vendored, b"keep me").unwrap();
+
+    // 2. Switching to --prod is an included drift only, so the file survives —
+    // but the now-excluded dev dep's link and bin shim must be pruned.
+    run_purge_regression_install(
+        &store_dir,
+        &modules_dir,
+        &virtual_store_dir,
+        mock_instance.url(),
+        &manifest,
+        prod_only(),
+        DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH,
+    )
+    .await;
+    assert!(vendored.exists(), "included drift must not purge the user's node_modules entry");
+    assert!(
+        dev_link.symlink_metadata().is_err(),
+        "the excluded dev dep's link must be pruned on an included drift",
+    );
+    assert!(
+        !dev_shim.exists(),
+        "the excluded dev dep's bin shim must be pruned on an included drift",
+    );
+    assert!(prod_link.symlink_metadata().is_ok(), "the prod dep stays linked");
+
+    // 3. A real layout drift (virtual-store-dir-max-length) still wipes it.
+    run_purge_regression_install(
+        &store_dir,
+        &modules_dir,
+        &virtual_store_dir,
+        mock_instance.url(),
+        &manifest,
+        prod_only(),
+        DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH - 1,
+    )
+    .await;
+    assert!(!vendored.exists(), "layout drift must still recreate node_modules from scratch");
 }
 
 /// End-to-end: when `.modules.yaml`, `<virtual_store_dir>/lock.yaml`,
@@ -8058,6 +8428,72 @@ async fn async_after_all_resolved_hook_log_is_forwarded_to_pnpm_hook_channel() {
     let hook_log = first_hook_log(&captured);
     assert_eq!(hook_log.hook, "afterAllResolved");
     assert_eq!(hook_log.message, "All resolved");
+
+    drop((dir, registry));
+}
+
+// Ports pnpm's `pnpmfile: preResolution hook logger`: a `preResolution`
+// hook's `logger.info(...)` and `logger.warn(...)` surface on the
+// `pnpm:hook` channel with `from: "pnpmfile"`, `hook: "preResolution"`,
+// and the matching log level. Mirrors the TypeScript
+// `createPreResolutionHookLogger` which emits at `info`/`warn`. A raw
+// `console.log(...)` line from the hook (not wrapped in the JSON logger
+// protocol) is forwarded at `info` rather than silently dropped.
+#[tokio::test]
+async fn pre_resolution_hook_log_is_forwarded_to_pnpm_hook_channel() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    install_with_pnpmfile_reporter::<RecordingReporter>(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+        r"module.exports = { hooks: { preResolution (ctx, logger) {
+  logger.info('Starting resolution');
+  logger.warn('Some packages may need updates');
+  console.log('raw hook output');
+} } }",
+    )
+    .await
+    .expect("install should succeed");
+
+    let captured = EVENTS.lock().unwrap();
+    let find_hook_event = |level: LogLevel, message: &str| {
+        captured
+            .iter()
+            .find_map(|event| match event {
+                LogEvent::Hook(log)
+                    if log.hook == "preResolution"
+                        && log.level == level
+                        && log.message == message =>
+                {
+                    Some(log)
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| {
+                panic!("a pnpm:hook {level:?} event with message {message:?} must be emitted")
+            })
+    };
+
+    for log in [
+        find_hook_event(LogLevel::Info, "Starting resolution"),
+        find_hook_event(LogLevel::Warn, "Some packages may need updates"),
+        find_hook_event(LogLevel::Info, "raw hook output"),
+    ] {
+        assert_eq!(log.from, "pnpmfile", "preResolution from is hardcoded to 'pnpmfile'");
+        assert_eq!(log.prefix, *dir.path().to_string_lossy(), "prefix must be the lockfile dir");
+    }
 
     drop((dir, registry));
 }

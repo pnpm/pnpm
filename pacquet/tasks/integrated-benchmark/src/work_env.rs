@@ -28,6 +28,7 @@ use std::{
 };
 
 const BENCHMARK_OUTPUT_LOG: &str = "BENCHMARK_OUTPUT.ndjson";
+const PREWARM_SCRIPT: &str = "prewarm.bash";
 const BENCHMARK_DIAGNOSTICS_JSON: &str = "BENCHMARK_DIAGNOSTICS.json";
 const BENCHMARK_DIAGNOSTICS_MD: &str = "BENCHMARK_DIAGNOSTICS.md";
 const PNPR_DIRECT_RATIO_MAX: f64 = 1.05;
@@ -144,6 +145,12 @@ impl WorkEnv {
         self.bench_dir(id).join("install.bash")
     }
 
+    /// Path of the untimed online priming script, written only for
+    /// scenarios with [`BenchmarkScenario::prewarm_install_args`].
+    fn prewarm_script_path(&self, id: BenchId) -> PathBuf {
+        self.bench_dir(id).join(PREWARM_SCRIPT)
+    }
+
     fn bash_command(&self, id: BenchId) -> String {
         // Hyperfine runs each command through a shell, so the script
         // path needs to survive shell-tokenization. `maybe_quote()`
@@ -212,14 +219,24 @@ impl WorkEnv {
                 "./pacquet/target/release/pacquet".to_string()
             }
             BenchId::PnpmRevision(_) => {
-                // Prefer `pnpm.mjs`, fall back to `pnpm.cjs`. Resolved
-                // at script runtime so the existence check sees the
-                // bundle produced by `pnpm run compile-only`, not the empty
-                // tree visible during `init()`. Mirrors
-                // `resolve_pnpm_bin` in `benchmarks/bench.sh`.
-                let mjs = "./pnpm-source/pnpm/dist/pnpm.mjs";
-                let cjs = "./pnpm-source/pnpm/dist/pnpm.cjs";
-                format!(r#"node "$([ -f {mjs} ] && echo {mjs} || echo {cjs})""#)
+                // Take the first bundle that exists: `pnpm.mjs` over
+                // `pnpm.cjs`, and the `pnpm11/` layout (where the
+                // TypeScript CLI lives) over the pre-move root layout
+                // (still produced by revisions that predate the move,
+                // e.g. a `pnpm@v10` target). Resolved at script runtime
+                // so the existence check sees the bundle produced by
+                // `pnpm run compile-only`, not the empty tree visible
+                // during `init()`.
+                let candidates = [
+                    "./pnpm-source/pnpm11/pnpm/dist/pnpm.mjs",
+                    "./pnpm-source/pnpm11/pnpm/dist/pnpm.cjs",
+                    "./pnpm-source/pnpm/dist/pnpm.mjs",
+                    "./pnpm-source/pnpm/dist/pnpm.cjs",
+                ]
+                .join(" ");
+                format!(
+                    r#"node "$(for f in {candidates}; do if [ -f "$f" ]; then echo "$f"; break; fi; done)""#,
+                )
             }
             BenchId::Static(_) => "pnpm".to_string(),
         }
@@ -506,6 +523,30 @@ impl WorkEnv {
         let cleanup = scenario.cleanup();
         let cleanup_command =
             build_cleanup_command(&cleanup, self.benchmarked_ids(), |id| self.bench_dir(id));
+
+        // Offline scenarios can't let hyperfine's warmup prime the caches —
+        // the measured `--offline` command fails against the mirror the
+        // pre-benchmark wipe above just emptied — so run the online priming
+        // script once per target first. The per-iteration cleanup runs
+        // before the priming too: a reused work-env can carry a lockfile or
+        // `node_modules` from a previous scenario, and either would let the
+        // priming install skip the full resolution that populates the
+        // metadata mirror (a locked install fetches tarballs, not
+        // packuments; an up-to-date `node_modules` short-circuits the
+        // install outright).
+        if scenario.prewarm_install_args().is_some() {
+            Command::new("bash")
+                .current_dir(self.root())
+                .arg("-c")
+                .arg(&cleanup_command)
+                .pipe_mut(executor("prewarm cleanup"));
+            for id in self.benchmarked_ids() {
+                eprintln!("Pre-warming caches for {id}...");
+                Command::new("bash")
+                    .arg(self.prewarm_script_path(id))
+                    .pipe_mut(executor(PREWARM_SCRIPT));
+            }
+        }
 
         let mut command = Command::new("hyperfine");
         command.current_dir(self.root()).arg("--prepare").arg(&cleanup_command);
@@ -1655,23 +1696,25 @@ fn write_pnpr_benchmark_config(
 /// at the warm origin, so every request is a cache miss proxied through to it.
 ///
 /// The routing is expressed in *two* shapes so one file drives every
-/// benchmarked `pnpr` binary regardless of revision: the `mounts:` +
-/// `defaultTarget:` mount model that current `pnpr` reads, and the legacy
-/// `uplinks:` + `packages: proxy:` shape that a `pnpr` built before the mount
-/// model reads. Each server ignores the block it doesn't recognize — neither
-/// `ConfigFile` sets `deny_unknown_fields`, and neither `PackageAccess` does
-/// either — so both proxy every request to the same `origin`.
+/// benchmarked `pnpr` binary back to the mount model: the `registries:` +
+/// `defaultRegistry:` model that current `pnpr` reads, and the `mounts:` +
+/// `defaultTarget:` shape it replaced. Each server ignores the block it
+/// doesn't recognize, so both proxy every request to the same `origin`. The
+/// pre-mount `uplinks:` + `packages: proxy:` shape can no longer ride along:
+/// current `pnpr` deliberately *rejects* a top-level `packages:` block at
+/// startup (per-package rules live on each registry now, and silently
+/// dropping a formerly-enforced ACL would be a security regression), so a
+/// revision older than the mount model cannot share a config file with
+/// current ones.
 fn cold_mock_config_yaml(storage: &Path, origin: &str) -> String {
-    let mut packages = HashMap::new();
-    packages.insert("**", ColdMockPackageAccess { access: "$all", proxy: "npmjs" });
+    let upstream =
+        || ColdMockUpstreamEntry { kind: "upstream", url: origin.to_string(), public: true };
     let config = ColdMockConfig {
         storage: storage.display().to_string(),
-        uplinks: ColdMockUplinks { npmjs: ColdMockUplink { url: origin.to_string() } },
-        packages,
-        mounts: ColdMockMounts {
-            npmjs: ColdMockMount { kind: "upstream", url: origin.to_string(), public: true },
-        },
+        mounts: ColdMockUpstreamTable { npmjs: upstream() },
         default_target: "npmjs",
+        registries: ColdMockUpstreamTable { npmjs: upstream() },
+        default_registry: "npmjs",
         log: ColdMockLog { kind: "stdout", format: "pretty", level: "error" },
     };
     serde_saphyr::to_string(&config).expect("serialize cold mock config")
@@ -1682,39 +1725,26 @@ fn cold_mock_config_yaml(storage: &Path, origin: &str) -> String {
 #[derive(Serialize)]
 struct ColdMockConfig {
     storage: String,
-    uplinks: ColdMockUplinks,
-    packages: HashMap<&'static str, ColdMockPackageAccess>,
-    mounts: ColdMockMounts,
+    mounts: ColdMockUpstreamTable,
     #[serde(rename = "defaultTarget")]
     default_target: &'static str,
+    registries: ColdMockUpstreamTable,
+    #[serde(rename = "defaultRegistry")]
+    default_registry: &'static str,
     log: ColdMockLog,
 }
 
+/// The `mounts:` / `registries:` table — the same single-upstream entry under
+/// either key, since the registries model kept the tagged-entry shape.
 #[derive(Serialize)]
-struct ColdMockUplinks {
-    npmjs: ColdMockUplink,
+struct ColdMockUpstreamTable {
+    npmjs: ColdMockUpstreamEntry,
 }
 
-#[derive(Serialize)]
-struct ColdMockUplink {
-    url: String,
-}
-
-#[derive(Serialize)]
-struct ColdMockPackageAccess {
-    access: &'static str,
-    proxy: &'static str,
-}
-
-#[derive(Serialize)]
-struct ColdMockMounts {
-    npmjs: ColdMockMount,
-}
-
-/// One `mounts:` entry in the new mount model: the `type:` tag selects the kind
+/// One `mounts:`/`registries:` entry: the `type:` tag selects the kind
 /// (`upstream` here), and the kind's fields sit alongside it.
 #[derive(Serialize)]
-struct ColdMockMount {
+struct ColdMockUpstreamEntry {
     #[serde(rename = "type")]
     kind: &'static str,
     url: String,
@@ -1879,11 +1909,36 @@ fn may_create_lockfile(dst_dir: &Path, scenario: BenchmarkScenario, src_dir: Opt
 /// through it. The `source` fails loudly under `errexit` if the file is
 /// missing, rather than silently falling back to a direct install.
 fn create_install_script(dir: &Path, scenario: BenchmarkScenario, command: &str, id: BenchId) {
-    let path = dir.join("install.bash");
-    let capture_pacquet_metrics = id.is_pacquet_like();
+    // The proxy-cache populator must reach the registry, so a scenario
+    // whose measured args are offline hands it the online pre-warm args.
+    let args = if id.is_proxy_cache_populator() {
+        scenario.prewarm_install_args().unwrap_or_else(|| scenario.install_args())
+    } else {
+        scenario.install_args()
+    };
+    write_bench_script(dir, "install.bash", command, id, args, id.is_pacquet_like());
+    if let Some(prewarm_args) = scenario.prewarm_install_args() {
+        // Untimed online priming run (see
+        // `BenchmarkScenario::prewarm_install_args`). Metrics capture is
+        // off so the priming run can't pollute the diagnostics log the
+        // timed runs append to.
+        write_bench_script(dir, PREWARM_SCRIPT, command, id, prewarm_args, false);
+    }
+}
+
+fn write_bench_script(
+    dir: &Path,
+    file_name: &str,
+    command: &str,
+    id: BenchId,
+    args: &[&str],
+    capture_pacquet_metrics: bool,
+) {
+    let path = dir.join(file_name);
 
     eprintln!("Creating script {path:?}...");
-    let mut file = File::create(&path).expect("create install.bash");
+    let mut file =
+        File::create(&path).unwrap_or_else(|error| panic!("create {file_name}: {error}"));
 
     writeln!(file, "#!/bin/bash").unwrap();
     writeln!(file, "set -o errexit -o nounset -o pipefail").unwrap();
@@ -1909,7 +1964,7 @@ fn create_install_script(dir: &Path, scenario: BenchmarkScenario, command: &str,
     if capture_pacquet_metrics {
         write!(file, " --reporter ndjson").unwrap();
     }
-    for arg in scenario.install_args() {
+    for arg in args {
         write!(file, " {arg}").unwrap();
     }
     if capture_pacquet_metrics {

@@ -33,14 +33,25 @@ fn static_config_with_packages(dir: &TempDir, packages_block: &str) -> (Config, 
     let storage = dir.path().join("storage");
     std::fs::create_dir_all(&storage).unwrap();
     // Route everything to one local hosted over the flat storage root (an
-    // empty `org` namespace), so publishes/reads resolve through the path-less
-    // base and the per-package ACL in `packages_block` gates them.
-    let mounts_block = "mounts:\n  \
-        local:\n    type: hosted\n    org: \"\"\n    access: $all\n  \
-        main:\n    type: router\n    routes:\n      - patterns: ['**']\n        source: local\n\
-        defaultTarget: main\n";
-    let yaml =
-        format!("storage: {}\n{mounts_block}packages:\n{packages_block}\n", storage.display());
+    // empty `org` namespace), so publishes/reads resolve through the
+    // path-less base and the per-package rules in `packages_block` gate
+    // them. The callers indent keys by two spaces; re-indent under
+    // `registries.local.packages`, and add a `'**'` catch-all with the
+    // default rules so the namespace stays name-unbounded like the old
+    // static shape.
+    let nested: String = packages_block
+        .lines()
+        .map(|line| if line.trim().is_empty() { line.to_string() } else { format!("    {line}") })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let yaml = format!(
+        "storage: {}\nregistries:\n  \
+         local:\n    type: hosted\n    org: \"\"\n    access: $all\n    packages:\n\
+         {nested}\n      '**': {{}}\n  \
+         main:\n    type: router\n    sources: [local]\n\
+         defaultRegistry: main\n",
+        storage.display(),
+    );
     let config_path = dir.path().join("config.yaml");
     std::fs::write(&config_path, yaml).unwrap();
     let mut config =
@@ -1427,7 +1438,7 @@ async fn search_augment_skips_when_upstream_404s() {
     let tmp = TempDir::new().unwrap();
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0));
     let mut config = Config::proxy(listen, tmp.path().to_path_buf());
-    config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").url = upstream.url();
+    config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").url = upstream.url();
     config.public_url = "http://example.test".to_string();
     config.packument_ttl = Duration::from_mins(1);
     let app = router(config);

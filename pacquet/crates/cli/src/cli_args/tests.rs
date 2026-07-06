@@ -1,12 +1,20 @@
 use super::{
     CliArgs,
     cli_command::CliCommand,
+    install::{InstallArgs, resolve_bool_override},
     package_manager::{
         current_source_pnpm_version, package_manager_to_sync, parse_package_manager,
     },
 };
 use clap::Parser;
 use tempfile::TempDir;
+
+fn install_args(argv: &[&str]) -> InstallArgs {
+    match CliArgs::try_parse_from(argv).expect("parses").command {
+        CliCommand::Install(install) => install,
+        other => panic!("expected install, got {other:?}"),
+    }
+}
 
 #[test]
 fn recursive_default_is_false() {
@@ -159,6 +167,32 @@ fn install_command_parses_i_alias() {
 }
 
 #[test]
+fn unknown_top_level_command_parses_as_external() {
+    let parsed = CliArgs::try_parse_from([
+        "pacquet",
+        "commitlint",
+        "--edit",
+        "--config=commitlint.config.cjs",
+    ])
+    .expect("parses external command");
+    let CliCommand::External(command) = parsed.command else {
+        panic!("expected external command");
+    };
+    assert_eq!(command, ["commitlint", "--edit", "--config=commitlint.config.cjs"]);
+}
+
+#[test]
+fn unknown_top_level_command_preserves_global_options() {
+    let parsed = CliArgs::try_parse_from(["pacquet", "--dir", "project", "commitlint"])
+        .expect("parses external command with globals");
+    let CliCommand::External(command) = parsed.command else {
+        panic!("expected external command");
+    };
+    assert_eq!(parsed.dir, std::path::PathBuf::from("project"));
+    assert_eq!(command, ["commitlint"]);
+}
+
+#[test]
 fn parse_package_manager_handles_unscoped_scoped_and_url_references() {
     // Unscoped `name@version`.
     assert_eq!(
@@ -206,4 +240,47 @@ fn package_manager_to_sync_preserves_dev_engine_specifier() {
         package_manager.version,
         current_source_pnpm_version().expect("source pnpm version"),
     );
+}
+
+#[test]
+fn resolve_bool_override_tri_state() {
+    // force_on wins, force_off wins over a config `true`, and an unset
+    // pair falls through to config — in both config polarities.
+    assert!(resolve_bool_override(true, false, false), "force_on over config false");
+    assert!(resolve_bool_override(true, false, true), "force_on over config true");
+    assert!(!resolve_bool_override(false, true, true), "force_off over config true");
+    assert!(!resolve_bool_override(false, true, false), "force_off over config false");
+    assert!(resolve_bool_override(false, false, true), "unset falls through to config true");
+    assert!(!resolve_bool_override(false, false, false), "unset falls through to config false");
+}
+
+#[test]
+fn trust_lockfile_pair_resolves_last_one_wins() {
+    assert!(install_args(&["pacquet", "install", "--no-trust-lockfile"]).no_trust_lockfile);
+    assert!(install_args(&["pacquet", "install", "--trust-lockfile"]).trust_lockfile);
+
+    // Both spellings in one argv must not error (pnpm forwards raw tokens);
+    // mutual `overrides_with` collapses them to the last-specified.
+    let last_off = install_args(&["pacquet", "install", "--trust-lockfile", "--no-trust-lockfile"]);
+    assert!(last_off.no_trust_lockfile && !last_off.trust_lockfile, "--no wins when last");
+    let last_on = install_args(&["pacquet", "install", "--no-trust-lockfile", "--trust-lockfile"]);
+    assert!(last_on.trust_lockfile && !last_on.no_trust_lockfile, "--trust wins when last");
+}
+
+#[test]
+fn config_merged_boolean_negations_parse() {
+    // Each config-OR-merged boolean now exposes an explicit `--no-` inverse
+    // so the CLI can force a yaml `true` back off, matching pnpm.
+    let args = install_args(&[
+        "pacquet",
+        "install",
+        "--no-offline",
+        "--no-prefer-offline",
+        "--no-frozen-store",
+        "--no-ignore-scripts",
+    ]);
+    assert!(args.no_offline);
+    assert!(args.no_prefer_offline);
+    assert!(args.no_frozen_store);
+    assert!(args.no_ignore_scripts);
 }

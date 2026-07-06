@@ -59,10 +59,13 @@ pub trait GetHomeDir {
 /// Mirrors [`std::env::current_dir`]. Only used by code that
 /// genuinely needs the cwd — the `SmartDefault` for
 /// [`crate::Config::store_dir`] consults it on Windows for the
-/// drive-letter derivation. Code that needs a "starting path" — like
-/// [`crate::Config::current`] — takes a direct path parameter
-/// instead, because production passes a caller-supplied path (the
-/// canonicalized `--dir`) rather than the host's cwd.
+/// drive-letter derivation, and [`crate::Config::current`] anchors a
+/// relative `npmrcAuthFile` value at the cwd (matching where the file
+/// is actually read from, and pnpm's `path.resolve`). Code that needs
+/// a "starting path" — like [`crate::Config::current`] — otherwise
+/// takes a direct path parameter, because production passes a
+/// caller-supplied path (the canonicalized `--dir`) rather than the
+/// host's cwd.
 pub trait GetCurrentDir {
     /// Return the process's current working directory, or an error
     /// if it can't be determined. Mirrors [`std::env::current_dir`].

@@ -1,5 +1,11 @@
 # @pnpm/config.config-writer
 
+## 1100.0.15
+
+### Patch Changes
+
+- @pnpm/workspace.workspace-manifest-writer@1100.0.15
+
 ## 1100.0.14
 
 ### Patch Changes

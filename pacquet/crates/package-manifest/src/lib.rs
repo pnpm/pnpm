@@ -336,6 +336,13 @@ impl PackageManifest {
 /// `engines.runtime` reification.
 const RUNTIME_NAMES: [&str; 3] = ["node", "deno", "bun"];
 
+/// Whether `alias` names a runtime pnpm can download and manage
+/// (`node` / `deno` / `bun`).
+#[must_use]
+pub fn is_runtime_alias(alias: &str) -> bool {
+    RUNTIME_NAMES.contains(&alias)
+}
+
 /// Reify `devEngines.runtime` / `engines.runtime` entries with
 /// `onFail: "download"` into the matching `devDependencies` /
 /// `dependencies` slot as `runtime:<version>` specifiers.

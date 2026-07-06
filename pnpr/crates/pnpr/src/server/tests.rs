@@ -6,7 +6,7 @@ use crate::{
     auth::{AuthState, TokenBackend, TokenRecord, UserStore},
     config::Config,
     error::{RegistryError, Result},
-    policy::{AccessList, PackagePolicies, PackagePolicy},
+    policy::{AccessList, PackageRule, PackageRules},
 };
 use async_trait::async_trait;
 use axum::{
@@ -223,20 +223,31 @@ async fn configured_groups_reach_package_authorization() {
     let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
     let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
     config.groups.add_user_to_group("alice", "platform");
-    config.policies = PackagePolicies::new(vec![
-        PackagePolicy::new(
-            "@team/*",
-            AccessList::parse("platform"),
-            AccessList::default(),
-            AccessList::default(),
-        )
-        .unwrap(),
-    ]);
-    let app = app_with_config_and_token(config, "tok", record(false, &[]));
+    use crate::registry::PackagePattern;
+    config.hosted.get_mut("local").unwrap().rules = PackageRules::new(
+        vec![PackageRule {
+            pattern: PackagePattern::parse("@team/*").unwrap(),
+            access: Some(AccessList::parse("platform")),
+            publish: None,
+            unpublish: None,
+        }],
+        None,
+    );
+    // Group membership reaches the per-package rule evaluation.
+    let alice = config.identity_for_user("alice");
+    let carol = config.identity_for_user("carol");
+    let rules = &config.hosted["local"].rules;
+    assert!(rules.for_package("@team/x").access.allows(&alice));
+    assert!(!rules.for_package("@team/x").access.allows(&carol));
 
+    // Over HTTP: the group member reaches storage (404, the package is
+    // absent); a caller denied by the *explicit* `@team/*` entry is
+    // rejected loudly — 401 for anonymous, so clients can prompt for
+    // credentials — rather than masked (masking is the registry-level
+    // default's behavior, not an explicit entry's).
+    let app = app_with_config_and_token(config, "tok", record(false, &[]));
     let allowed = app.clone().oneshot(signed(Method::GET, "/@team/missing", "tok")).await.unwrap();
     assert_eq!(allowed.status(), StatusCode::NOT_FOUND);
-
     let anonymous = app.oneshot(signed(Method::GET, "/@team/missing", "unknown")).await.unwrap();
     assert_eq!(anonymous.status(), StatusCode::UNAUTHORIZED);
 }

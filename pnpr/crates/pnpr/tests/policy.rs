@@ -1,6 +1,7 @@
-//! Integration tests for the YAML-driven access policy: the
-//! `packages:` `access` / `publish` tokens compile into the runtime
-//! policy and gate requests, including the `$anonymous` rule.
+//! Integration tests for the YAML-driven access rules: a registry's
+//! `packages:` map (`access` / `publish` values on pattern keys) compiles
+//! into that registry's runtime rules and gates requests, including the
+//! `$anonymous` rule and the explicit-entry 401/403 answers.
 //! Static-mode (no upstream) to keep the tests hermetic.
 
 use axum::{
@@ -17,22 +18,31 @@ fn listen() -> SocketAddr {
     SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873))
 }
 
-/// Write a `config.yaml` (with `packages_block` spliced in) into a
-/// fresh tempdir and load it through the real `from_yaml` path, so
-/// the test exercises YAML parsing → policy compilation end to end.
+/// Write a `config.yaml` (with `packages_block` spliced onto the `local`
+/// hosted registry) into a fresh tempdir and load it through the real
+/// `from_yaml` path, so the test exercises YAML parsing → rules compilation
+/// end to end.
 fn config_from_yaml(packages_block: &str) -> (TempDir, Config) {
     let dir = TempDir::new().unwrap();
     let storage = dir.path().join("storage");
     std::fs::create_dir_all(&storage).unwrap();
     // Route everything to one local hosted over the flat storage root (an
-    // empty `org` namespace), so the path-less base resolves and the per-package
-    // ACL in `packages_block` gates the request.
-    let mounts_block = "mounts:\n  \
-        local:\n    type: hosted\n    org: \"\"\n    access: $all\n  \
-        main:\n    type: router\n    routes:\n      - patterns: ['**']\n        source: local\n\
-        defaultTarget: main\n";
+    // empty `org` namespace), so the path-less base resolves and the
+    // registry's own `packages:` rules gate the request. The callers pass a
+    // top-level-shaped block ("packages:\n  '<key>': ..."); nest it under
+    // the registry by re-indenting.
+    let nested: String = packages_block
+        .strip_prefix("packages:\n")
+        .expect("callers pass a packages: block")
+        .lines()
+        .map(|line| format!("    {line}"))
+        .collect::<Vec<_>>()
+        .join("\n");
     let yaml = format!(
-        "storage: {}\nauth:\n  htpasswd:\n    max_users: 100\n{mounts_block}{packages_block}\n",
+        "storage: {}\nauth:\n  htpasswd:\n    max_users: 100\nregistries:\n  \
+         local:\n    type: hosted\n    org: \"\"\n    access: $all\n    packages:\n{nested}\n  \
+         main:\n    type: router\n    sources: [local]\n\
+         defaultRegistry: main\n",
         storage.display(),
     );
     let path = dir.path().join("config.yaml");

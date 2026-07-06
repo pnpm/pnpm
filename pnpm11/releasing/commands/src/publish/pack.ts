@@ -275,16 +275,48 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   const filesMap = Object.fromEntries(files.map((file) => [`package/${file}`, path.join(dir, file)]))
   // cspell:disable-next-line
   if (opts.workspaceDir != null && dir !== opts.workspaceDir && !files.some((file) => /LICEN[CS]E(?:\..+)?/i.test(file))) {
-    const licenses = await glob([LICENSE_GLOB], { cwd: opts.workspaceDir, expandDirectories: false })
-    for (const license of licenses) {
-      filesMap[`package/${license}`] = path.join(opts.workspaceDir, license)
-    }
+    const { workspaceDir } = opts
+    const licenses = await glob([LICENSE_GLOB], { cwd: workspaceDir, expandDirectories: false })
+    await Promise.all(licenses.map(async (license) => {
+      const licensePath = path.join(workspaceDir, license)
+      // Only inject a regular file. A symlink could point outside the workspace and leak its
+      // target's bytes into the published tarball, so `lstat()` (which does not follow symlinks)
+      // rejects it — matching pacquet's inject_workspace_license.
+      const stats = await fs.promises.lstat(licensePath)
+      if (stats.isFile()) {
+        filesMap[`package/${license}`] = licensePath
+      }
+    }))
   }
   const destDir = packDestination
     ? (path.isAbsolute(packDestination) ? packDestination : path.join(dir, packDestination ?? '.'))
     : dir
   if (!opts.dryRun) {
     await fs.promises.mkdir(destDir, { recursive: true })
+  }
+  // Derive `contents` and `unpackedSize` from `filesMap` (the full set of tar entries) rather than
+  // from `files` (the packlist subset) so that:
+  //   - workspace LICENSE files appended to `filesMap` after the packlist call are included; and
+  //   - `package.yaml` / `package.json5` entries are reported under the name they actually have in
+  //     the tar (`package.json`), since `packPkg()` rewrites them.
+  // The `stat()` pass must run before `postpack`, which may delete prepack-generated files that
+  // were packed. See https://github.com/pnpm/pnpm/issues/12775.
+  const sizes = await Promise.all(Object.entries(filesMap).map(async ([name, source]) => {
+    if (isManifestEntry(name)) {
+      return Buffer.byteLength(JSON.stringify(publishManifest, null, 2))
+    }
+    const stat = await fs.promises.stat(source)
+    return stat.size
+  }))
+  const unpackedSize = sizes.reduce((acc, size) => acc + size, 0)
+  const packedContents = Array.from(new Set(
+    Object.keys(filesMap).map((name) =>
+      isManifestEntry(name)
+        ? 'package.json'
+        : name.replace(/^package\//, '')
+    )
+  )).sort((a, b) => a.localeCompare(b, 'en'))
+  if (!opts.dryRun) {
     await packPkg({
       destFile: path.join(destDir, tarballName),
       filesMap,
@@ -307,26 +339,6 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   } else {
     packedTarballPath = path.relative(opts.dir, path.join(dir, tarballName))
   }
-  // Derive `contents` and `unpackedSize` from `filesMap` (the full set of tar entries) rather than
-  // from `files` (the packlist subset) so that:
-  //   - workspace LICENSE files appended to `filesMap` after the packlist call are included; and
-  //   - `package.yaml` / `package.json5` entries are reported under the name they actually have in
-  //     the tar (`package.json`), since `packPkg()` rewrites them.
-  const sizes = await Promise.all(Object.entries(filesMap).map(async ([name, source]) => {
-    if (/^package\/package\.(?:json|json5|yaml)$/.test(name)) {
-      return Buffer.byteLength(JSON.stringify(publishManifest, null, 2))
-    }
-    const stat = await fs.promises.stat(source)
-    return stat.size
-  }))
-  const unpackedSize = sizes.reduce((acc, size) => acc + size, 0)
-  const packedContents = Array.from(new Set(
-    Object.keys(filesMap).map((name) =>
-      /^package\/package\.(?:json|json5|yaml)$/.test(name)
-        ? 'package.json'
-        : name.replace(/^package\//, '')
-    )
-  )).sort((a, b) => a.localeCompare(b, 'en'))
   return {
     publishedManifest: publishManifest,
     contents: packedContents,
@@ -341,6 +353,13 @@ export interface PackResult {
   tarballPath: string
   /** Total uncompressed size of all files in the tarball, in bytes. */
   unpackedSize: number
+}
+
+// True when a `package/<path>` tar key names the package manifest, which is
+// packed as a single serialized `package/package.json` entry and reported as
+// `package.json` in the contents listing regardless of the source file name.
+function isManifestEntry (name: string): boolean {
+  return name === 'package/package.json' || name === 'package/package.json5' || name === 'package/package.yaml'
 }
 
 function stripBuildMetadata (version: string): string {
@@ -379,7 +398,7 @@ async function packPkg (opts: {
   await Promise.all(Object.entries(filesMap).map(async ([name, source]) => {
     const isExecutable = bins.some((bin) => path.relative(bin, source) === '')
     const mode = isExecutable ? 0o755 : 0o644
-    if (/^package\/package\.(?:json|json5|yaml)$/.test(name)) {
+    if (isManifestEntry(name)) {
       pack.entry({ mode, mtime, name: 'package/package.json' }, JSON.stringify(manifest, null, 2))
       return
     }

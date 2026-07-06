@@ -1,5 +1,53 @@
 # @pnpm/plugin-commands-installation
 
+## 1100.10.2
+
+### Patch Changes
+
+- be6505a: Hardened global package management:
+
+  - On Windows, removing or updating a global package now also cleans up the `node.exe` flavor of a bin, so a stale `node.exe` no longer survives on `PATH` after uninstall, and a new global install no longer silently overwrites an existing `node.exe`.
+  - `pnpm add -g pnpm@<version>` (and `@pnpm/exe@<version>`) is now rejected like the bare `pnpm` form, pointing to `pnpm self-update`.
+  - Dependency aliases read from a global package's manifest are validated before being joined onto `node_modules` paths, preventing a tampered manifest from escaping the install directory.
+  - Each global install group is created in its own freshly-made directory (no longer reusing a colliding or pre-existing path).
+  - Removing or updating a global package no longer unlinks a bin that belongs to a different globally installed package.
+
+- dcabb78: `pnpm update <dep>@<version>` now prints a warning when `<dep>` is only present as a transitive dependency: the requested version cannot be applied there (updates resolve the target the way a fresh install would), and the warning recommends adding the version to `pnpm.overrides` instead, which is the mechanism that does pin transitive dependencies. Closes pnpm/pnpm#12744.
+- Updated dependencies [dcabb78]
+- Updated dependencies [be6505a]
+- Updated dependencies [3425e80]
+- Updated dependencies [25c7388]
+- Updated dependencies [99982b9]
+- Updated dependencies [11a7fdd]
+- Updated dependencies [ce5d5a5]
+- Updated dependencies [1dd12bd]
+- Updated dependencies [806c3ec]
+- Updated dependencies [c121235]
+- Updated dependencies [dcabb78]
+- Updated dependencies [a6c4d5f]
+  - @pnpm/installing.deps-installer@1102.2.0
+  - @pnpm/global.commands@1100.0.31
+  - @pnpm/config.reader@1101.11.0
+  - @pnpm/resolving.npm-resolver@1102.1.1
+  - @pnpm/deps.status@1100.1.4
+  - @pnpm/workspace.projects-sorter@1100.0.8
+  - @pnpm/workspace.projects-filter@1100.0.24
+  - @pnpm/resolving.resolver-base@1100.5.1
+  - @pnpm/building.after-install@1102.0.3
+  - @pnpm/store.connection-manager@1100.3.3
+  - @pnpm/workspace.state@1100.0.25
+  - @pnpm/deps.inspection.outdated@1100.1.11
+  - @pnpm/installing.env-installer@1102.0.3
+  - @pnpm/workspace.projects-graph@1100.0.21
+  - @pnpm/installing.context@1100.0.21
+  - @pnpm/lockfile.types@1100.0.13
+  - @pnpm/store.controller@1102.0.3
+  - @pnpm/hooks.pnpmfile@1100.0.17
+  - @pnpm/installing.dedupe.check@1100.1.2
+  - @pnpm/lockfile.fs@1100.1.8
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.15
+  - @pnpm/config.writer@1100.0.15
+
 ## 1100.10.1
 
 ### Patch Changes

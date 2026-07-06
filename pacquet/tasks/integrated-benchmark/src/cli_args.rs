@@ -218,6 +218,18 @@ pub enum BenchmarkScenario {
     /// `pnpm add <dep>` against an existing lockfile, hot cache + hot store.
     #[value(name = "isolated-linker.fresh-add-dep.hot-cache.hot-store")]
     IsolatedFreshAddDepHotCacheHotStore,
+    /// Hot metadata mirror, fully offline resolution, no linking: the
+    /// measured command is `install --offline --lockfile-only` with
+    /// `pnpm-lock.yaml` removed per iteration, so every timed run
+    /// re-resolves the whole tree from the on-disk packument mirror.
+    /// With no network and no materialization, mirror reads and
+    /// packument parsing dominate — the series that guards offline /
+    /// prefer-offline resolution (e.g. the disk-to-memory metadata
+    /// promotion). The measured command can't prime the mirror itself
+    /// (`--offline` fails on a cold one), so an online pre-warm pass
+    /// runs first (see [`Self::prewarm_install_args`]).
+    #[value(name = "isolated-linker.fresh-resolve.hot-cache.offline")]
+    IsolatedFreshResolveHotCacheOffline,
     /// Frozen lockfile, hot cache + hot store, `enableGlobalVirtualStore: true` with a pre-warmed GVS.
     #[value(name = "gvs-linker.fresh-restore.hot-cache.hot-store")]
     GvsFreshRestoreHotCacheHotStore,
@@ -247,6 +259,22 @@ impl BenchmarkScenario {
                 &["install", "--frozen-lockfile"]
             }
             BenchmarkScenario::IsolatedFreshAddDepHotCacheHotStore => &["add", "is-odd"],
+            BenchmarkScenario::IsolatedFreshResolveHotCacheOffline => {
+                &["install", "--offline", "--lockfile-only"]
+            }
+        }
+    }
+
+    /// Arguments of the online install that primes `cache-dir` /
+    /// `store-dir` before hyperfine runs, for scenarios whose measured
+    /// command can't do its own priming (an `--offline` run against the
+    /// freshly wiped mirror fails). `None` for every other scenario:
+    /// hyperfine's warmup run primes whatever their per-iteration
+    /// cleanup preserves.
+    pub fn prewarm_install_args(self) -> Option<&'static [&'static str]> {
+        match self {
+            BenchmarkScenario::IsolatedFreshResolveHotCacheOffline => Some(&["install"]),
+            _ => None,
         }
     }
 
@@ -267,19 +295,30 @@ impl BenchmarkScenario {
             | BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStoreColdPnpr
             | BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore
             | BenchmarkScenario::IsolatedFreshAddDepHotCacheHotStore
+            | BenchmarkScenario::IsolatedFreshResolveHotCacheOffline
             | BenchmarkScenario::GvsFreshRestoreHotCacheHotStore => true,
         }
     }
 
     /// Whether to seed a `pnpm-lock.yaml` into the bench dir during
     /// init. The two install variants skip this; the restore, add-dep,
-    /// and GVS variants need it.
+    /// and GVS variants need it. The fresh-resolve variant keeps the
+    /// lockfile *enabled* but seeds none: a seeded lockfile would let
+    /// the online pre-warm pass skip resolution, leaving the metadata
+    /// mirror cold for the measured offline runs.
+    pub fn seeds_lockfile(self) -> bool {
+        self.lockfile_enabled()
+            && !matches!(self, BenchmarkScenario::IsolatedFreshResolveHotCacheOffline)
+    }
+
+    /// The `pnpm-lock.yaml` contents to seed during init, when
+    /// [`Self::seeds_lockfile`] says the scenario wants one.
     pub fn lockfile<Text, LoadLockfile>(self, load_lockfile: LoadLockfile) -> Option<String>
     where
         Text: Into<String>,
         LoadLockfile: FnOnce() -> Text,
     {
-        self.lockfile_enabled().then(|| load_lockfile().into())
+        self.seeds_lockfile().then(|| load_lockfile().into())
     }
 
     /// Per-iteration cleanup (paths to remove and saved copies to
@@ -331,6 +370,16 @@ impl BenchmarkScenario {
             },
             BenchmarkScenario::GvsFreshRestoreHotCacheHotStore => {
                 Cleanup { remove: &["node_modules"], restore: &[SAVED_LOCKFILE] }
+            }
+            // `node_modules` is wiped alongside the lockfile even though
+            // `--lockfile-only` never writes it: a populated `node_modules`
+            // left by the pre-warm pass lets the install's up-to-date
+            // short-circuit skip resolution entirely ("Already up to
+            // date"), and the timed runs would measure a no-op. The warm
+            // `cache-dir` / `store-dir` the pre-warm populated are the
+            // scenario's contract and survive.
+            BenchmarkScenario::IsolatedFreshResolveHotCacheOffline => {
+                Cleanup { remove: &["node_modules", "pnpm-lock.yaml"], restore: &[] }
             }
         }
     }

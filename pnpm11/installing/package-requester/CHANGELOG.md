@@ -1,5 +1,18 @@
 # @pnpm/package-requester
 
+## 1102.1.1
+
+### Patch Changes
+
+- Updated dependencies [dcabb78]
+  - @pnpm/resolving.resolver-base@1100.5.1
+  - @pnpm/store.controller-types@1100.1.7
+  - @pnpm/fetching.fetcher-base@1100.2.1
+  - @pnpm/fetching.pick-fetcher@1100.0.14
+  - @pnpm/hooks.types@1100.1.1
+  - @pnpm/store.cafs@1100.1.12
+  - @pnpm/worker@1100.2.3
+
 ## 1102.1.0
 
 ### Minor Changes
