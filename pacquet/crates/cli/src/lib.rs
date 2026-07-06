@@ -13,7 +13,7 @@ use config_overrides::ConfigOverrides;
 use miette::set_panic_hook;
 use pacquet_diagnostics::enable_tracing_by_env;
 use state::State;
-use std::{ffi::OsString, path::Path};
+use std::{ffi::OsString, future::Future, path::Path};
 
 pub fn main() -> miette::Result<()> {
     enable_tracing_by_env();
@@ -23,7 +23,9 @@ pub fn main() -> miette::Result<()> {
     // arbitrary, so a `--config.registry=...` from pnpm's forwarded flags
     // would otherwise error out as "unexpected argument". Each extracted
     // token is layered onto `Config` after `.npmrc` / yaml run.
-    let (config_overrides, argv) = ConfigOverrides::extract(argv_with_alias_subcommand());
+    let argv_with_alias = argv_with_alias_subcommand();
+    let child_argv = argv_with_alias.iter().skip(1).cloned().collect::<Vec<_>>();
+    let (config_overrides, argv) = ConfigOverrides::extract(argv_with_alias);
     // `pnpm with current <cmd>` is sugar for running `<cmd>` in-process with
     // the packageManager / devEngines check disabled; rewrite argv before
     // clap parses it. A version spec (`pnpm with 10 <cmd>`) is left for the
@@ -36,18 +38,34 @@ pub fn main() -> miette::Result<()> {
     // every boolean flag, so pnpm's forwarded negations (`--no-frozen-lockfile`,
     // etc.) parse the same way nopt accepts them upstream. See `boolean_negations`.
     let mut args = match with_boolean_negations(CliArgs::command())
-        .try_get_matches_from(argv)
+        .try_get_matches_from(argv.clone())
         .and_then(|matches| CliArgs::from_arg_matches(&matches))
     {
         Ok(args) => args,
         // pnpm prints the bare version, not clap's "pnpm <version>" rendering.
         Err(err) if err.kind() == clap::error::ErrorKind::DisplayVersion => {
+            if block_on_runtime(
+                "pacquet-switch",
+                cli_args::switch_cli_version::maybe_switch_for_version_flag(
+                    &argv,
+                    &config_overrides,
+                    &child_argv,
+                ),
+            )? {
+                return Ok(());
+            }
             println!("{}", pacquet_config::PACQUET_VERSION);
             return Ok(());
         }
         Err(err) => err.exit(),
     };
     args.promote_recursive_for_filter();
+    if block_on_runtime(
+        "pacquet-switch",
+        cli_args::switch_cli_version::maybe_switch(&args, &config_overrides, &child_argv),
+    )? {
+        return Ok(());
+    }
     // An up-to-date `pacquet install` finishes here, without paying for
     // the runtime, the HTTP client, or any worker threads.
     if args.finished_via_install_fast_path(&config_overrides) {
@@ -67,29 +85,40 @@ pub fn main() -> miette::Result<()> {
     // default to 8 MiB, so the limit trips on Windows first). Run it on a
     // thread with a generous, platform-uniform stack instead of the OS
     // default main-thread stack.
-    std::thread::Builder::new()
-        .name("pacquet-main".to_string())
-        .stack_size(MAIN_STACK_SIZE)
-        .spawn(move || {
-            tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()
-                .expect("build the tokio runtime")
-                // Boxed for `clippy::large_futures`: the command future
-                // exceeds the lint's stack-size threshold.
-                .block_on(Box::pin(args.run(&config_overrides)))
-        })
-        .expect("spawn the pacquet-main thread")
-        .join()
-        // Re-raise a panic from the worker on this thread so the process
-        // still aborts with the original message and backtrace.
-        .unwrap_or_else(|payload| std::panic::resume_unwind(payload))
+    block_on_runtime("pacquet-main", args.run(&config_overrides))
 }
 
 /// Stack size for the thread the command runs on. Generous headroom over
 /// the 8 MiB Linux/macOS default so the deep install call chain has the
 /// same room on every platform, including Windows (1 MiB default).
 const MAIN_STACK_SIZE: usize = 32 * 1024 * 1024;
+
+fn block_on_runtime<Work, Output>(thread_name: &str, work: Work) -> Output
+where
+    Work: Future<Output = Output> + Send,
+    Output: Send,
+{
+    std::thread::scope(|scope| {
+        let handle = std::thread::Builder::new()
+            .name(thread_name.to_string())
+            .stack_size(MAIN_STACK_SIZE)
+            .spawn_scoped(scope, move || {
+                tokio::runtime::Builder::new_multi_thread()
+                    .enable_all()
+                    .build()
+                    .expect("build the tokio runtime")
+                    // Boxed for `clippy::large_futures`: the command future
+                    // exceeds the lint's stack-size threshold.
+                    .block_on(Box::pin(work))
+            })
+            .expect("spawn the pacquet runtime thread");
+        handle
+            .join()
+            // Re-raise a panic from the worker on this thread so the process
+            // still aborts with the original message and backtrace.
+            .unwrap_or_else(|payload| std::panic::resume_unwind(payload))
+    })
+}
 
 /// Process argv with a leading `dlx` injected when launched as `pnpx`/`pnx`
 /// (shorthand for `pnpm dlx`), mirroring pnpm's `buildArgv`. Only the Windows

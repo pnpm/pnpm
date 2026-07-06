@@ -33,21 +33,19 @@ use crate::{
     config_deps,
 };
 
-/// Install `pnpm@<version>` into the global virtual store and return the
-/// directory holding the linked `pnpm` binary.
+/// Install the pnpm engine for `version` into the global virtual store and
+/// return the directory holding the linked `pnpm` binary.
 ///
 /// `env_root` is where the package-manager env lockfile (the resolved
 /// `pnpm` + `@pnpm/exe` closure) is written, under the pnpm home
 /// directory. `spec` is the user's bare specifier (a version, range,
 /// or dist-tag) and `version` the exact version it resolved to.
-pub(super) async fn install_pnpm_to_store<Reporter: self::Reporter + 'static>(
+pub(crate) async fn install_pnpm_to_store<Reporter: self::Reporter + 'static>(
     config: &'static Config,
     env_root: &Path,
     spec: &str,
     version: &str,
 ) -> miette::Result<PathBuf> {
-    let package = pnpm_package_to_install(version);
-    let package_name = package.name;
     // Resolve the package-manager closure into the env lockfile (a no-op
     // when this spec+version is already recorded there).
     config_deps::sync_package_manager_dependencies(config, env_root, spec, version, false).await?;
@@ -57,14 +55,23 @@ pub(super) async fn install_pnpm_to_store<Reporter: self::Reporter + 'static>(
         .ok_or_else(|| {
             miette::miette!("the package-manager env lockfile is missing after resolution")
         })?;
+    install_pnpm_from_env::<Reporter>(config, &env, version).await
+}
 
+pub(crate) async fn install_pnpm_from_env<Reporter: self::Reporter + 'static>(
+    config: &'static Config,
+    env: &EnvLockfile,
+    version: &str,
+) -> miette::Result<PathBuf> {
+    let package = pnpm_package_to_install(version);
+    let package_name = package.name;
     // Cache hit: when the engine already sits in its GVS slot, skip both
     // the signature check and the install — short-circuit on the engine's
     // `package.json` already existing. The slot is computed
     // with the same hashing the install pipeline uses, so a stale or wrong
     // computation merely misses the cache (the idempotent install below
     // then re-derives the slot from the install's own symlink).
-    if let Some(slot) = compute_engine_slot(config, &env, package_name, version) {
+    if let Some(slot) = compute_engine_slot(config, env, package_name, version) {
         let pkg_dir = package_dir(&slot, package_name);
         let bin_dir = slot.join("bin");
         if pkg_dir.join("package.json").exists() {
@@ -80,7 +87,7 @@ pub(super) async fn install_pnpm_to_store<Reporter: self::Reporter + 'static>(
 
     // Genuine download: verify the engine's registry signature before
     // installing or executing it.
-    verify_pnpm_engine_identity(&env, version, config)
+    verify_pnpm_engine_identity(env, version, config)
         .await
         .map_err(miette::Report::new)
         .wrap_err("verify the pnpm engine identity")?;

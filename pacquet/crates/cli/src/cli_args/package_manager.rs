@@ -157,7 +157,7 @@ pub(crate) fn exact_version(version: &str) -> Option<String> {
     (parsed.to_string() == version).then(|| version.to_string())
 }
 
-fn version_satisfies(version: &str, wanted_range: &str) -> bool {
+pub(crate) fn version_satisfies(version: &str, wanted_range: &str) -> bool {
     let Ok(version) = node_semver::Version::parse(version) else {
         return false;
     };

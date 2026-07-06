@@ -68,6 +68,7 @@ mod dispatch_script;
 mod package_manager;
 mod pipelines;
 mod reporter;
+pub(crate) mod switch_cli_version;
 
 pub(crate) use cli_command::CliArgs;
 
