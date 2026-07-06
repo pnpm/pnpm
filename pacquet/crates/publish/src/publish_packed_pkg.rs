@@ -245,27 +245,30 @@ where
         + PromptOtp,
     Reporter: self::Reporter,
 {
-    with_otp_handling::<Sys, Reporter, PublishResponse, PublishHttpError, _>(
+    with_otp_handling::<Sys, Reporter, PublishResponse, PublishHttpError, _, _>(
         fetch_options,
-        async move |challenge_otp: Option<&str>| {
+        // A plain `FnMut` returning an `async move` block (not an `AsyncFnMut`),
+        // so the produced future is a concrete type with an ordinary `Send`
+        // obligation — see `with_otp_handling`'s `Operation` bound.
+        move |challenge_otp: Option<String>| {
             // The web-auth-provided OTP (a fresh challenge) takes precedence
             // over any statically configured one.
-            // Convert to an owned value before the first await so the borrowed
-            // challenge argument is not held across it (which would make the
-            // returned future's `Send` bound not general enough for the CLI).
-            let effective_otp = challenge_otp.map(str::to_owned).or_else(|| otp.map(str::to_owned));
+            let effective_otp = challenge_otp.or_else(|| otp.map(str::to_owned));
             // `Bytes::clone` is a cheap refcount bump, so the megabytes-large
             // body is not re-copied when the OTP retry re-invokes this closure.
-            put_publish(
-                client,
-                put_url,
-                authorization,
-                npm_command,
-                body.clone(),
-                effective_otp.as_deref(),
-                is_stage,
-            )
-            .await
+            let body = body.clone();
+            async move {
+                put_publish(
+                    client,
+                    put_url,
+                    authorization,
+                    npm_command,
+                    body,
+                    effective_otp.as_deref(),
+                    is_stage,
+                )
+                .await
+            }
         },
     )
     .await

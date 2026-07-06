@@ -14,9 +14,9 @@ async fn returns_the_result_when_the_operation_succeeds_without_otp() {
     web_auth_fake!();
     reset();
 
-    let result = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _>(
+    let result = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(
         WebAuthFetchOptions::default(),
-        async |_otp| Ok("success".to_owned()),
+        |_otp| async move { Ok("success".to_owned()) },
     )
     .await
     .expect("a result");
@@ -29,9 +29,9 @@ async fn throws_non_otp_errors_as_is() {
     web_auth_fake!();
     reset();
 
-    let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _>(
+    let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(
         WebAuthFetchOptions::default(),
-        async |_otp| Err(FakeOtpError::Other("network error".to_owned())),
+        |_otp| async move { Err(FakeOtpError::Other("network error".to_owned())) },
     )
     .await
     .expect_err("an error");
@@ -48,9 +48,9 @@ async fn throws_non_interactive_error_when_stdin_is_not_interactive() {
     reset();
     set_stdin_tty(false);
 
-    let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _>(
+    let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(
         WebAuthFetchOptions::default(),
-        async |_otp| Err(FakeOtpError::Otp { body: None }),
+        |_otp| async move { Err(FakeOtpError::Otp { body: None }) },
     )
     .await
     .expect_err("an error");
@@ -64,9 +64,9 @@ async fn throws_non_interactive_error_when_stdout_is_not_interactive() {
     reset();
     set_stdout_tty(false);
 
-    let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _>(
+    let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(
         WebAuthFetchOptions::default(),
-        async |_otp| Err(FakeOtpError::Otp { body: None }),
+        |_otp| async move { Err(FakeOtpError::Otp { body: None }) },
     )
     .await
     .expect_err("an error");
@@ -80,9 +80,9 @@ async fn preserves_web_auth_urls_on_non_interactive_error() {
     reset();
     set_stdin_tty(false);
 
-    let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _>(
+    let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(
         WebAuthFetchOptions::default(),
-        async |_otp| Err(FakeOtpError::Otp { body: web_auth_body() }),
+        |_otp| async move { Err(FakeOtpError::Otp { body: web_auth_body() }) },
     )
     .await
     .expect_err("an error");
@@ -102,9 +102,9 @@ async fn strips_credentials_from_web_auth_urls_on_non_interactive_error() {
     reset();
     set_stdin_tty(false);
 
-    let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _>(
+    let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(
         WebAuthFetchOptions::default(),
-        async |_otp| {
+        |_otp| async move {
             Err(FakeOtpError::Otp {
                 body: Some(OtpErrorBody {
                     auth_url: Some("https://user:secret@registry.npmjs.org/auth/abc".to_owned()),
@@ -137,9 +137,9 @@ async fn omits_non_http_web_auth_urls_on_non_interactive_error() {
     reset();
     set_stdin_tty(false);
 
-    let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _>(
+    let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(
         WebAuthFetchOptions::default(),
-        async |_otp| {
+        |_otp| async move {
             Err(FakeOtpError::Otp {
                 body: Some(OtpErrorBody {
                     auth_url: Some("javascript:alert(1)".to_owned()),
@@ -168,15 +168,18 @@ async fn classic_flow_prompts_for_otp_and_retries_operation() {
     let calls = Rc::new(Cell::new(0));
     let counter = Rc::clone(&calls);
 
-    let result = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _>(
+    let result = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(
         WebAuthFetchOptions::default(),
-        async move |otp| {
-            counter.set(counter.get() + 1);
-            if counter.get() == 1 {
-                Err(FakeOtpError::Otp { body: None })
-            } else {
-                assert_eq!(otp, Some("654321"));
-                Ok("ok".to_owned())
+        move |otp| {
+            let counter = Rc::clone(&counter);
+            async move {
+                counter.set(counter.get() + 1);
+                if counter.get() == 1 {
+                    Err(FakeOtpError::Otp { body: None })
+                } else {
+                    assert_eq!(otp.as_deref(), Some("654321"));
+                    Ok("ok".to_owned())
+                }
             }
         },
     )
@@ -193,9 +196,9 @@ async fn classic_flow_throws_second_challenge_error_if_retry_also_requires_otp()
     reset();
     set_input(InputResponse::Value(Some("123456".to_owned())));
 
-    let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _>(
+    let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(
         WebAuthFetchOptions::default(),
-        async |_otp| Err(FakeOtpError::Otp { body: None }),
+        |_otp| async move { Err(FakeOtpError::Otp { body: None }) },
     )
     .await
     .expect_err("an error");
@@ -211,14 +214,17 @@ async fn classic_flow_throws_non_otp_errors_from_the_retry_as_is() {
     let calls = Rc::new(Cell::new(0));
     let counter = Rc::clone(&calls);
 
-    let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _>(
+    let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(
         WebAuthFetchOptions::default(),
-        async move |_otp| {
-            counter.set(counter.get() + 1);
-            if counter.get() == 1 {
-                Err(FakeOtpError::Otp { body: None })
-            } else {
-                Err(FakeOtpError::Other("server error".to_owned()))
+        move |_otp| {
+            let counter = Rc::clone(&counter);
+            async move {
+                counter.set(counter.get() + 1);
+                if counter.get() == 1 {
+                    Err(FakeOtpError::Otp { body: None })
+                } else {
+                    Err(FakeOtpError::Other("server error".to_owned()))
+                }
             }
         },
     )
@@ -237,9 +243,9 @@ async fn classic_flow_re_throws_the_original_otp_error_when_prompt_returns_empty
     reset();
     set_input(InputResponse::Value(Some(String::new())));
 
-    let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _>(
+    let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(
         WebAuthFetchOptions::default(),
-        async |_otp| Err(FakeOtpError::Otp { body: None }),
+        |_otp| async move { Err(FakeOtpError::Otp { body: None }) },
     )
     .await
     .expect_err("an error");
@@ -253,9 +259,9 @@ async fn classic_flow_re_throws_the_original_otp_error_when_prompt_returns_none(
     reset();
     set_input(InputResponse::Value(None));
 
-    let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _>(
+    let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(
         WebAuthFetchOptions::default(),
-        async |_otp| Err(FakeOtpError::Otp { body: None }),
+        |_otp| async move { Err(FakeOtpError::Otp { body: None }) },
     )
     .await
     .expect_err("an error");
@@ -269,9 +275,9 @@ async fn classic_flow_re_throws_the_original_otp_error_when_prompt_is_cancelled(
     reset();
     set_input(InputResponse::Cancelled);
 
-    let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _>(
+    let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(
         WebAuthFetchOptions::default(),
-        async |_otp| Err(FakeOtpError::Otp { body: None }),
+        |_otp| async move { Err(FakeOtpError::Otp { body: None }) },
     )
     .await
     .expect_err("an error");
@@ -295,15 +301,18 @@ async fn web_auth_flow_polls_done_url_and_uses_returned_token() {
     let op_calls = Rc::new(Cell::new(0));
     let op_counter = Rc::clone(&op_calls);
 
-    let result = with_otp_handling::<FakeHost, RecordingReporter, String, FakeOtpError, _>(
+    let result = with_otp_handling::<FakeHost, RecordingReporter, String, FakeOtpError, _, _>(
         WebAuthFetchOptions::default(),
-        async move |otp| {
-            op_counter.set(op_counter.get() + 1);
-            if op_counter.get() == 1 {
-                Err(FakeOtpError::Otp { body: web_auth_body() })
-            } else {
-                assert_eq!(otp, Some("web-token-123"));
-                Ok("published".to_owned())
+        move |otp| {
+            let op_counter = Rc::clone(&op_counter);
+            async move {
+                op_counter.set(op_counter.get() + 1);
+                if op_counter.get() == 1 {
+                    Err(FakeOtpError::Otp { body: web_auth_body() })
+                } else {
+                    assert_eq!(otp.as_deref(), Some("web-token-123"));
+                    Ok("published".to_owned())
+                }
             }
         },
     )
@@ -328,20 +337,23 @@ async fn web_auth_flow_falls_back_to_classic_prompt_when_urls_are_not_http() {
     let calls = Rc::new(Cell::new(0));
     let counter = Rc::clone(&calls);
 
-    let result = with_otp_handling::<FakeHost, RecordingReporter, String, FakeOtpError, _>(
+    let result = with_otp_handling::<FakeHost, RecordingReporter, String, FakeOtpError, _, _>(
         WebAuthFetchOptions::default(),
-        async move |otp| {
-            counter.set(counter.get() + 1);
-            if counter.get() == 1 {
-                Err(FakeOtpError::Otp {
-                    body: Some(OtpErrorBody {
-                        auth_url: Some("javascript:alert(1)".to_owned()),
-                        done_url: Some("file:///tmp/token".to_owned()),
-                    }),
-                })
-            } else {
-                assert_eq!(otp, Some("manual-code"));
-                Ok("done".to_owned())
+        move |otp| {
+            let counter = Rc::clone(&counter);
+            async move {
+                counter.set(counter.get() + 1);
+                if counter.get() == 1 {
+                    Err(FakeOtpError::Otp {
+                        body: Some(OtpErrorBody {
+                            auth_url: Some("javascript:alert(1)".to_owned()),
+                            done_url: Some("file:///tmp/token".to_owned()),
+                        }),
+                    })
+                } else {
+                    assert_eq!(otp.as_deref(), Some("manual-code"));
+                    Ok("done".to_owned())
+                }
             }
         },
     )
@@ -359,20 +371,23 @@ async fn web_auth_flow_falls_back_to_classic_prompt_when_only_auth_url_is_presen
     let calls = Rc::new(Cell::new(0));
     let counter = Rc::clone(&calls);
 
-    let result = with_otp_handling::<FakeHost, RecordingReporter, String, FakeOtpError, _>(
+    let result = with_otp_handling::<FakeHost, RecordingReporter, String, FakeOtpError, _, _>(
         WebAuthFetchOptions::default(),
-        async move |otp| {
-            counter.set(counter.get() + 1);
-            if counter.get() == 1 {
-                Err(FakeOtpError::Otp {
-                    body: Some(OtpErrorBody {
-                        auth_url: Some("https://registry.npmjs.org/auth/abc".to_owned()),
-                        done_url: None,
-                    }),
-                })
-            } else {
-                assert_eq!(otp, Some("manual-code"));
-                Ok("done".to_owned())
+        move |otp| {
+            let counter = Rc::clone(&counter);
+            async move {
+                counter.set(counter.get() + 1);
+                if counter.get() == 1 {
+                    Err(FakeOtpError::Otp {
+                        body: Some(OtpErrorBody {
+                            auth_url: Some("https://registry.npmjs.org/auth/abc".to_owned()),
+                            done_url: None,
+                        }),
+                    })
+                } else {
+                    assert_eq!(otp.as_deref(), Some("manual-code"));
+                    Ok("done".to_owned())
+                }
             }
         },
     )
@@ -390,20 +405,23 @@ async fn web_auth_flow_falls_back_to_classic_prompt_when_only_done_url_is_presen
     let calls = Rc::new(Cell::new(0));
     let counter = Rc::clone(&calls);
 
-    let result = with_otp_handling::<FakeHost, RecordingReporter, String, FakeOtpError, _>(
+    let result = with_otp_handling::<FakeHost, RecordingReporter, String, FakeOtpError, _, _>(
         WebAuthFetchOptions::default(),
-        async move |otp| {
-            counter.set(counter.get() + 1);
-            if counter.get() == 1 {
-                Err(FakeOtpError::Otp {
-                    body: Some(OtpErrorBody {
-                        auth_url: None,
-                        done_url: Some("https://registry.npmjs.org/auth/abc/done".to_owned()),
-                    }),
-                })
-            } else {
-                assert_eq!(otp, Some("manual-code"));
-                Ok("done".to_owned())
+        move |otp| {
+            let counter = Rc::clone(&counter);
+            async move {
+                counter.set(counter.get() + 1);
+                if counter.get() == 1 {
+                    Err(FakeOtpError::Otp {
+                        body: Some(OtpErrorBody {
+                            auth_url: None,
+                            done_url: Some("https://registry.npmjs.org/auth/abc/done".to_owned()),
+                        }),
+                    })
+                } else {
+                    assert_eq!(otp.as_deref(), Some("manual-code"));
+                    Ok("done".to_owned())
+                }
             }
         },
     )
@@ -422,12 +440,15 @@ async fn web_auth_flow_throws_timeout_error_when_polling_times_out() {
     let calls = Rc::new(Cell::new(0));
     let counter = Rc::clone(&calls);
 
-    let error = with_otp_handling::<FakeHost, RecordingReporter, String, FakeOtpError, _>(
+    let error = with_otp_handling::<FakeHost, RecordingReporter, String, FakeOtpError, _, _>(
         WebAuthFetchOptions::default(),
-        async move |_otp| {
-            counter.set(counter.get() + 1);
-            assert_eq!(counter.get(), 1, "the operation must not be retried after a timeout");
-            Err(FakeOtpError::Otp { body: web_auth_body() })
+        move |_otp| {
+            let counter = Rc::clone(&counter);
+            async move {
+                counter.set(counter.get() + 1);
+                assert_eq!(counter.get(), 1, "the operation must not be retried after a timeout");
+                Err(FakeOtpError::Otp { body: web_auth_body() })
+            }
         },
     )
     .await

@@ -196,20 +196,24 @@ pub(super) fn pack<'a>(ctx: &RunCtx<'a>, args: &PackArgs) -> miette::Result<Comm
 /// and uploads the tarball. Co-located with its sibling `pack` (both come from
 /// pnpm's `releasing/commands`).
 ///
-/// Unlike the other handlers this returns its result directly rather than a
-/// boxed [`CommandFuture`]: the OTP / web-auth retry callback borrows a `&str`
-/// challenge, so the publish future is not `Send` and cannot be boxed into the
-/// `Send` `CommandFuture`. `CliArgs::run` awaits it inline instead, where the
-/// command future is only ever `block_on`'d, never spawned.
-pub(super) async fn publish(ctx: &RunCtx<'_>, args: PublishArgs) -> miette::Result<()> {
+/// `dir` / `config` / `recursive` are read off `ctx` here, before the boxed
+/// future, so the future captures only owned/concrete values and never holds
+/// `&RunCtx` — whose higher-ranked config closures would otherwise make the
+/// boxed [`CommandFuture`] not `Send`.
+pub(super) fn publish<'a>(
+    ctx: &RunCtx<'a>,
+    args: PublishArgs,
+) -> miette::Result<CommandFuture<'a>> {
     let config = (ctx.config)()?;
-    match ctx.reporter {
+    let dir = ctx.dir;
+    let recursive = ctx.recursive;
+    Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => {
-            args.run::<DefaultReporter>(ctx.dir, config, ctx.recursive).await
+            Box::pin(args.run::<DefaultReporter>(dir, config, recursive))
         }
-        ReporterType::Ndjson => args.run::<NdjsonReporter>(ctx.dir, config, ctx.recursive).await,
-        ReporterType::Silent => args.run::<SilentReporter>(ctx.dir, config, ctx.recursive).await,
-    }
+        ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(dir, config, recursive)),
+        ReporterType::Silent => Box::pin(args.run::<SilentReporter>(dir, config, recursive)),
+    })
 }
 
 pub(super) fn bin<'a>(ctx: &RunCtx<'a>, args: BinArgs) -> miette::Result<CommandFuture<'a>> {
