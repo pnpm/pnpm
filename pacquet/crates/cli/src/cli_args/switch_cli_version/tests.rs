@@ -8,18 +8,66 @@ use std::{
 use tempfile::TempDir;
 
 #[test]
-fn version_argv_reads_dir_and_auth_file() {
-    let input = SwitchInput::from_version_argv(&[
-        OsString::from("pnpm"),
-        OsString::from("--dir"),
-        OsString::from("/tmp/project"),
-        OsString::from("--npmrc-auth-file=auth.ini"),
-        OsString::from("--version"),
-    ]);
+fn version_argv_reads_dir_auth_file_and_command_forms() {
+    struct Case {
+        name: &'static str,
+        argv: &'static [&'static str],
+        dir: &'static str,
+        npmrc_auth_file: Option<&'static str>,
+        command: Option<&'static str>,
+    }
 
-    assert_eq!(input.dir, PathBuf::from("/tmp/project"));
-    assert_eq!(input.npmrc_auth_file, Some(PathBuf::from("auth.ini")));
-    assert_eq!(input.command, None);
+    let cases = [
+        Case {
+            name: "separate long dir and equals auth file",
+            argv: &["pnpm", "--dir", "/tmp/project", "--npmrc-auth-file=auth.ini", "--version"],
+            dir: "/tmp/project",
+            npmrc_auth_file: Some("auth.ini"),
+            command: None,
+        },
+        Case {
+            name: "short dir",
+            argv: &["pnpm", "-C", "/tmp/short-dir", "--version"],
+            dir: "/tmp/short-dir",
+            npmrc_auth_file: None,
+            command: None,
+        },
+        Case {
+            name: "equals dir and userconfig alias",
+            argv: &["pnpm", "--dir=/tmp/equals-dir", "--userconfig", "user.ini", "--version"],
+            dir: "/tmp/equals-dir",
+            npmrc_auth_file: Some("user.ini"),
+            command: None,
+        },
+        Case {
+            name: "separator stops command detection",
+            argv: &["pnpm", "--dir=/tmp/separator", "--", "run"],
+            dir: "/tmp/separator",
+            npmrc_auth_file: None,
+            command: None,
+        },
+        Case {
+            name: "value-taking global option is skipped",
+            argv: &["pnpm", "--filter", "pkg", "--reporter", "append-only", "install"],
+            dir: ".",
+            npmrc_auth_file: None,
+            command: Some("install"),
+        },
+    ];
+
+    for case in cases {
+        let argv = case.argv.iter().copied().map(OsString::from).collect::<Vec<_>>();
+        let input = SwitchInput::from_version_argv(&argv);
+
+        assert_eq!(input.dir, PathBuf::from(case.dir), "case: {}", case.name);
+        assert_eq!(
+            input.npmrc_auth_file,
+            case.npmrc_auth_file.map(PathBuf::from),
+            "case: {}",
+            case.name,
+        );
+        assert_eq!(input.command.as_deref(), case.command, "case: {}", case.name);
+    }
 }
 
 #[test]
@@ -172,7 +220,7 @@ fn switch_target_respects_pm_on_fail_ignore() {
     )
     .expect("target");
 
-    assert!(target.is_none());
+    assert!(target.is_none(), "unexpected switch target: {target:?}");
 }
 
 #[test]
@@ -185,7 +233,7 @@ fn switch_target_does_not_switch_dev_engine_without_download() {
 
     let target = switch_target(&Config::default(), root.path()).expect("target");
 
-    assert!(target.is_none());
+    assert!(target.is_none(), "unexpected switch target: {target:?}");
 }
 
 fn write_dev_engine_manifest(root: &Path, version: &str) {

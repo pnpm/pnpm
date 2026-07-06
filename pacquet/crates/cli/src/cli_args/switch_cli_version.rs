@@ -207,39 +207,37 @@ fn assert_package_manager_lockfile_uses_registry_resolutions(
     };
 
     let mut visited = HashSet::new();
+    let mut pending = Vec::with_capacity(package_manager_dependencies.len());
     for (name, dependency) in package_manager_dependencies {
         let key = format!("{name}@{}", dependency.version)
             .parse::<PackageKey>()
             .map_err(|_| invalid_package_manager_lockfile(name))?;
-        assert_registry_package_manager_dependency(env, &key, &mut visited)?;
-    }
-    Ok(())
-}
-
-fn assert_registry_package_manager_dependency(
-    env: &EnvLockfile,
-    key: &PackageKey,
-    visited: &mut HashSet<PackageKey>,
-) -> miette::Result<()> {
-    if !visited.insert(key.clone()) {
-        return Ok(());
+        pending.push(key);
     }
 
-    let package_key = key.without_peer();
-    let package_info =
-        env.packages.get(&package_key).ok_or_else(|| invalid_package_manager_lockfile(key))?;
-    let snapshot = env.snapshots.get(key).ok_or_else(|| invalid_package_manager_lockfile(key))?;
+    while let Some(key) = pending.pop() {
+        if !visited.insert(key.clone()) {
+            continue;
+        }
 
-    assert_registry_package_path(key, package_info)?;
-    assert_integrity_only_resolution(key, &package_info.resolution)?;
+        let package_key = key.without_peer();
+        let package_info =
+            env.packages.get(&package_key).ok_or_else(|| invalid_package_manager_lockfile(&key))?;
+        let snapshot =
+            env.snapshots.get(&key).ok_or_else(|| invalid_package_manager_lockfile(&key))?;
 
-    for dependencies in
-        [&snapshot.dependencies, &snapshot.optional_dependencies].into_iter().flatten()
-    {
-        for (name, reference) in dependencies {
-            let next_key =
-                reference.resolve(name).ok_or_else(|| invalid_package_manager_lockfile(key))?;
-            assert_registry_package_manager_dependency(env, &next_key, visited)?;
+        assert_registry_package_path(&key, package_info)?;
+        assert_integrity_only_resolution(&key, &package_info.resolution)?;
+
+        for dependencies in
+            [&snapshot.dependencies, &snapshot.optional_dependencies].into_iter().flatten()
+        {
+            for (name, reference) in dependencies {
+                let next_key = reference
+                    .resolve(name)
+                    .ok_or_else(|| invalid_package_manager_lockfile(&key))?;
+                pending.push(next_key);
+            }
         }
     }
     Ok(())
@@ -352,6 +350,7 @@ fn env_var_is_false(name: &str) -> bool {
         .is_some_and(|value| matches!(value.to_ascii_lowercase().as_str(), "false" | "0"))
 }
 
+#[derive(Debug)]
 struct SwitchTarget {
     spec: String,
     source: SwitchSource,
@@ -362,6 +361,7 @@ pub(crate) struct SwitchPlan {
     target: SwitchTarget,
 }
 
+#[derive(Debug)]
 enum SwitchSource {
     LockedEnv { env: EnvLockfile, version: String },
     Resolve { env_root: PathBuf },
