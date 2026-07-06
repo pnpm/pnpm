@@ -15,6 +15,7 @@ use pacquet_graph_hasher::{detect_node_major, engine_name};
 use pacquet_lockfile::{EnvLockfile, PackageKey};
 use pacquet_package_manager::{AllowBuildPolicy, VirtualStoreLayout};
 use pacquet_reporter::Reporter;
+use pacquet_store_dir::StoreDir;
 use serde_json::Value;
 use std::{
     fs,
@@ -33,21 +34,23 @@ use crate::{
     config_deps,
 };
 
-/// Install `pnpm@<version>` into the global virtual store and return the
-/// directory holding the linked `pnpm` binary.
+/// Install the pnpm engine for `version` into the global virtual store and
+/// return the directory holding the linked `pnpm` binary.
 ///
 /// `env_root` is where the package-manager env lockfile (the resolved
 /// `pnpm` + `@pnpm/exe` closure) is written, under the pnpm home
 /// directory. `spec` is the user's bare specifier (a version, range,
 /// or dist-tag) and `version` the exact version it resolved to.
-pub(super) async fn install_pnpm_to_store<Reporter: self::Reporter + 'static>(
+pub(crate) async fn install_pnpm_to_store<Reporter: self::Reporter + 'static>(
     config: &'static Config,
     env_root: &Path,
     spec: &str,
     version: &str,
 ) -> miette::Result<PathBuf> {
-    let package = pnpm_package_to_install(version);
-    let package_name = package.name;
+    let config = package_manager_engine_config(config)?.leak();
+    fs::create_dir_all(env_root).into_diagnostic().wrap_err_with(|| {
+        format!("create the package-manager env directory at {}", env_root.display())
+    })?;
     // Resolve the package-manager closure into the env lockfile (a no-op
     // when this spec+version is already recorded there).
     config_deps::sync_package_manager_dependencies(config, env_root, spec, version, false).await?;
@@ -57,30 +60,41 @@ pub(super) async fn install_pnpm_to_store<Reporter: self::Reporter + 'static>(
         .ok_or_else(|| {
             miette::miette!("the package-manager env lockfile is missing after resolution")
         })?;
+    install_pnpm_from_env::<Reporter>(config, &env, version).await
+}
 
+pub(crate) async fn install_pnpm_from_env<Reporter: self::Reporter + 'static>(
+    config: &'static Config,
+    env: &EnvLockfile,
+    version: &str,
+) -> miette::Result<PathBuf> {
+    let config = package_manager_engine_config(config)?.leak();
+    install_pnpm_from_env_with_config::<Reporter>(config, env, version).await
+}
+
+async fn install_pnpm_from_env_with_config<Reporter: self::Reporter + 'static>(
+    config: &'static Config,
+    env: &EnvLockfile,
+    version: &str,
+) -> miette::Result<PathBuf> {
+    let package = pnpm_package_to_install(version);
+    let package_name = package.name;
     // Cache hit: when the engine already sits in its GVS slot, skip both
     // the signature check and the install — short-circuit on the engine's
     // `package.json` already existing. The slot is computed
     // with the same hashing the install pipeline uses, so a stale or wrong
     // computation merely misses the cache (the idempotent install below
     // then re-derives the slot from the install's own symlink).
-    if let Some(slot) = compute_engine_slot(config, &env, package_name, version) {
+    if let Some(slot) = compute_engine_slot(config, env, package_name, version) {
         let pkg_dir = package_dir(&slot, package_name);
-        let bin_dir = slot.join("bin");
         if pkg_dir.join("package.json").exists() {
-            if package.links_native_binary {
-                link_exe_platform_binary(&slot, package_name)?;
-            }
-            if !bin_dir.exists() {
-                link_bins(&pkg_dir, &bin_dir)?;
-            }
-            return Ok(bin_dir);
+            return link_cached_engine_bins(&slot, package_name, package.links_native_binary);
         }
     }
 
     // Genuine download: verify the engine's registry signature before
     // installing or executing it.
-    verify_pnpm_engine_identity(&env, version, config)
+    verify_pnpm_engine_identity(env, version, config)
         .await
         .map_err(miette::Report::new)
         .wrap_err("verify the pnpm engine identity")?;
@@ -117,6 +131,40 @@ pub(super) async fn install_pnpm_to_store<Reporter: self::Reporter + 'static>(
         // Replicate the wrapper's preinstall (skipped because the engine is
         // installed with scripts disabled): link the host's native binary.
         link_exe_platform_binary(&slot, package_name)?;
+    }
+    link_bins(&pkg_dir, &bin_dir)?;
+    Ok(bin_dir)
+}
+
+fn package_manager_engine_config(config: &Config) -> miette::Result<Config> {
+    let global_pkg_dir = config.global_pkg_dir.as_ref().ok_or_else(|| {
+        miette::miette!(
+            r#"Unable to find the global packages directory. Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable."#,
+        )
+    })?;
+    let mut config = config.clone();
+    config.store_dir = StoreDir::new(package_manager_engine_store_root(global_pkg_dir));
+    config.global_virtual_store_dir = config.store_dir.links();
+    Ok(config)
+}
+
+fn package_manager_engine_store_root(global_pkg_dir: &Path) -> PathBuf {
+    global_pkg_dir
+        .parent()
+        .and_then(Path::parent)
+        .unwrap_or(global_pkg_dir)
+        .join("package-manager-store")
+}
+
+fn link_cached_engine_bins(
+    slot: &Path,
+    package_name: &str,
+    links_native_binary: bool,
+) -> miette::Result<PathBuf> {
+    let pkg_dir = package_dir(slot, package_name);
+    let bin_dir = slot.join("bin");
+    if links_native_binary {
+        link_exe_platform_binary(slot, package_name)?;
     }
     link_bins(&pkg_dir, &bin_dir)?;
     Ok(bin_dir)
@@ -219,3 +267,6 @@ fn unique_suffix() -> String {
         SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |elapsed| elapsed.as_nanos());
     format!("{}-{nanos}", std::process::id())
 }
+
+#[cfg(test)]
+mod tests;
