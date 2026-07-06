@@ -562,6 +562,8 @@ impl InstallArgs {
             resolution_observer: None,
             catalogs_override: None,
             disable_optimistic_repeat_install: false,
+            pnpmfile_hook_override: None,
+            workspace_projects_override: None,
         }
         .run::<Reporter>()
         .await
@@ -813,6 +815,8 @@ pub(crate) async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             resolution_observer: None,
             catalogs_override: None,
             disable_optimistic_repeat_install: false,
+            pnpmfile_hook_override: None,
+            workspace_projects_override: None,
         };
 
         let result = match lockfile_verification_override {
@@ -942,6 +946,8 @@ pub(crate) async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         resolution_observer: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
+        pnpmfile_hook_override: None,
+        workspace_projects_override: None,
     }
     .run::<Reporter>()
     .await

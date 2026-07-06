@@ -178,6 +178,11 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// yields it. `None` for every local install; the pnpr server sets
     /// one. See [`crate::Install::resolution_observer`].
     pub resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
+    /// In-process `readPackage`/`afterAllResolved` hooks supplied by an
+    /// embedder instead of a `.pnpmfile.cjs` on disk. `Some` replaces the
+    /// disk lookup entirely; `None` (every CLI install) falls back to
+    /// [`finder::load_pnpmfile`]. See [`crate::Install::pnpmfile_hook_override`].
+    pub pnpmfile_hook_override: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
 }
 
 /// Which lockfile-pinned `(name, version)` pairs to *withhold* from the
@@ -480,6 +485,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             update_seed_policy,
             auth_override,
             resolution_observer,
+            pnpmfile_hook_override,
         } = self;
 
         // The pnpr override when supplied, else the config's npmrc headers;
@@ -719,7 +725,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             filter_metadata: full_metadata,
             retry_opts: crate::retry_config::retry_opts_from_config(config),
         };
-        let pnpmfile_hook = finder::load_pnpmfile(lockfile_dir);
+        let pnpmfile_hook = pnpmfile_hook_override.or_else(|| finder::load_pnpmfile(lockfile_dir));
         let custom_resolvers_raw: Vec<Arc<dyn pacquet_hooks::CustomResolver>> =
             if let Some(ref hook) = pnpmfile_hook {
                 hook.get_custom_resolvers().await.map_err(|err| {

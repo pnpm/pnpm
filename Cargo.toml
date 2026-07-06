@@ -42,6 +42,7 @@ pacquet-lockfile-preferred-versions       = { path = "pacquet/crates/lockfile-pr
 pacquet-lockfile-verification             = { path = "pacquet/crates/lockfile-verification" }
 pacquet-modules-yaml                      = { path = "pacquet/crates/modules-yaml" }
 pacquet-network                           = { path = "pacquet/crates/network" }
+pacquet-napi                              = { path = "pacquet/crates/napi" }
 pacquet-network-web-auth                  = { path = "pacquet/crates/network-web-auth" }
 pacquet-config                            = { path = "pacquet/crates/config" }
 pacquet-config-dir                        = { path = "pacquet/crates/config-dir" }
@@ -119,6 +120,9 @@ flate2 = { version = "1.1.9" }
 gethostname = { version = "1" }
 getrandom = { version = "0.4.2" }
 miette = { version = "7.6.0", features = ["fancy"] }
+napi = { version = "3.10.3", default-features = false, features = ["napi8", "serde-json", "tokio_rt", "async"] }
+napi-build = { version = "2.3.2" }
+napi-derive = { version = "3.5.9" }
 num_cpus = { version = "1.17.0" }
 object_store = { version = "0.13", features = ["aws"] }
 open = { version = "5.3.5" }
@@ -276,3 +280,13 @@ panic         = "abort"   # Let it crash and force ourselves to write safe Rust.
 inherits = "release"
 strip    = false
 debug    = true
+
+# Profile for the Node.js NAPI addon (`pacquet-node-api`, a cdylib loaded
+# into a host `node` process). The `release` profile above uses
+# `panic = "abort"`, which would abort the entire host process on any Rust
+# panic that unwinds to the FFI boundary. napi-rs catches unwinding panics
+# and turns them into JS exceptions, so the addon must be built with
+# `panic = "unwind"` instead.
+[profile.napi-release]
+inherits = "release"
+panic    = "unwind"

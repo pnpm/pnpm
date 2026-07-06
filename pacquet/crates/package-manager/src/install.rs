@@ -245,6 +245,18 @@ where
     /// the virtual-store sweep, meaning extraneous packages can
     /// survive a prune when the lockfile hasn't changed.
     pub disable_optimistic_repeat_install: bool,
+    /// In-process `readPackage` / `afterAllResolved` hooks supplied by an
+    /// embedder (the Node API binding) instead of a `.pnpmfile.cjs` on disk.
+    /// `Some` replaces the disk lookup on the fresh-resolve path entirely;
+    /// `None` (every CLI install) falls back to `finder::load_pnpmfile`.
+    /// Ignored on the frozen path, which performs no resolution.
+    pub pnpmfile_hook_override: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
+    /// Workspace importers supplied in memory by an embedder (the Node API
+    /// binding) instead of discovering them from a `pnpm-workspace.yaml` on
+    /// disk. `Some` bypasses the on-disk workspace-project walk entirely — the
+    /// root importer still comes from [`Self::manifest`], siblings from this
+    /// list. `None` (every CLI install) walks the workspace on disk.
+    pub workspace_projects_override: Option<Vec<pacquet_workspace::Project>>,
 }
 
 /// Error type of [`Install`].
@@ -513,6 +525,8 @@ where
             resolution_observer,
             catalogs_override,
             disable_optimistic_repeat_install,
+            pnpmfile_hook_override,
+            workspace_projects_override,
         } = self;
 
         // `--dry-run` resolves but never materializes, so it borrows the
@@ -596,9 +610,15 @@ where
         // single-project installs only have the root manifest, which
         // the short-circuit and the install paths both reach via
         // `manifest` directly.
-        let workspace_projects =
-            load_workspace_projects(&workspace_root, workspace_manifest.as_ref())
-                .map_err(InstallError::FindWorkspaceProjects)?;
+        //
+        // An embedder that supplies its importers in memory
+        // (`workspace_projects_override`) bypasses the on-disk walk
+        // entirely; the override's `Vec` is used verbatim.
+        let workspace_projects = match workspace_projects_override {
+            Some(projects) => Some(projects),
+            None => load_workspace_projects(&workspace_root, workspace_manifest.as_ref())
+                .map_err(InstallError::FindWorkspaceProjects)?,
+        };
 
         // Optimistic repeat-install short-circuit. When nothing has
         // changed since the previous successful install (settings,
@@ -1385,6 +1405,7 @@ where
                 update_seed_policy,
                 auth_override,
                 resolution_observer,
+                pnpmfile_hook_override,
             }
             .run::<Reporter>()
             .await
