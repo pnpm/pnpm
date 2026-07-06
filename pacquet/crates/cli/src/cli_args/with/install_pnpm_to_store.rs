@@ -4,9 +4,9 @@
 //! The engine lands in `<store>/links/...` (shared across `pnpm with`
 //! invocations and, unlike `self-update`, not registered in the global
 //! packages directory, so `pnpm ls -g` does not see it), its registry
-//! signature is verified on a genuine download, and its native platform
-//! binary + bins are linked into a `bin/` directory the caller prepends to
-//! `PATH`.
+//! signature is verified on a genuine download, native target installs have
+//! their platform binary linked, and the package bins are linked into a
+//! `bin/` directory the caller prepends to `PATH`.
 
 use miette::{Context, IntoDiagnostic};
 use pacquet_cmd_shim::{Host as CmdShimHost, PackageBinSource, link_bins_of_packages};
@@ -25,7 +25,7 @@ use std::{
 use crate::{
     cli_args::self_update::{
         install_pnpm::{
-            PNPM_ALLOW_BUILDS, link_exe_platform_binary, package_dir, pnpm_package_name_to_install,
+            PNPM_ALLOW_BUILDS, link_exe_platform_binary, package_dir, pnpm_package_to_install,
             run_install,
         },
         verify_engine::verify_pnpm_engine_identity,
@@ -46,9 +46,10 @@ pub(super) async fn install_pnpm_to_store<Reporter: self::Reporter + 'static>(
     spec: &str,
     version: &str,
 ) -> miette::Result<PathBuf> {
-    let package_name = pnpm_package_name_to_install(version);
-    // Resolve `pnpm` + `@pnpm/exe` + their closure into the env lockfile
-    // (a no-op when this spec+version is already recorded there).
+    let package = pnpm_package_to_install(version);
+    let package_name = package.name;
+    // Resolve the package-manager closure into the env lockfile (a no-op
+    // when this spec+version is already recorded there).
     config_deps::sync_package_manager_dependencies(config, env_root, spec, version, false).await?;
     let env = EnvLockfile::read(env_root)
         .map_err(miette::Report::new)
@@ -67,7 +68,9 @@ pub(super) async fn install_pnpm_to_store<Reporter: self::Reporter + 'static>(
         let pkg_dir = package_dir(&slot, package_name);
         let bin_dir = slot.join("bin");
         if pkg_dir.join("package.json").exists() {
-            link_exe_platform_binary(&slot, package_name)?;
+            if package.links_native_binary {
+                link_exe_platform_binary(&slot, package_name)?;
+            }
             if !bin_dir.exists() {
                 link_bins(&pkg_dir, &bin_dir)?;
             }
@@ -110,9 +113,11 @@ pub(super) async fn install_pnpm_to_store<Reporter: self::Reporter + 'static>(
 
     let pkg_dir = package_dir(&slot, package_name);
     let bin_dir = slot.join("bin");
-    // Replicate the wrapper's preinstall (skipped because the engine is
-    // installed with scripts disabled): link the host's native binary.
-    link_exe_platform_binary(&slot, package_name)?;
+    if package.links_native_binary {
+        // Replicate the wrapper's preinstall (skipped because the engine is
+        // installed with scripts disabled): link the host's native binary.
+        link_exe_platform_binary(&slot, package_name)?;
+    }
     link_bins(&pkg_dir, &bin_dir)?;
     Ok(bin_dir)
 }

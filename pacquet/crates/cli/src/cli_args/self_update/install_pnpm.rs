@@ -1,10 +1,10 @@
 //! Install pnpm into the global packages directory for a self-update.
 //!
 //! The engine is installed into a fresh directory under the global
-//! packages dir (visible to `pnpm ls -g`), the host's native platform
-//! binary is linked into the wrapper (replicating the wrapper's
-//! preinstall, which is skipped because the engine is installed with
-//! scripts disabled), and the caller links the bins + hash symlink.
+//! packages dir (visible to `pnpm ls -g`), native target installs have the
+//! host's platform binary linked into the wrapper (replicating the wrapper's
+//! preinstall, which is skipped because the engine is installed with scripts
+//! disabled), and the caller links the bins + hash symlink.
 
 use crate::{State, cli_args::add::add_package};
 use miette::{Context, IntoDiagnostic};
@@ -28,11 +28,19 @@ use super::SelfUpdateError;
 pub(crate) const PNPM_PACKAGE_NAME: &str = "pnpm";
 pub(crate) const PNPM_EXE_PACKAGE_NAME: &str = "@pnpm/exe";
 
+const PNPM_EXE_INTRODUCED: (u64, u64, u64) = (6, 17, 1);
+
 /// The package-manager components marked buildable when installing the
 /// engine (`{ '@pnpm/exe': true, 'pnpm': true }`), so the `ENGINE_NAME` is
 /// folded into their global-virtual-store hash and each platform resolves
 /// to its own slot instead of colliding.
 pub(crate) const PNPM_ALLOW_BUILDS: [&str; 2] = ["pnpm", "@pnpm/exe"];
+
+#[derive(Clone, Copy)]
+pub(crate) struct PnpmPackageToInstall {
+    pub name: &'static str,
+    pub links_native_binary: bool,
+}
 
 pub(super) struct InstallPnpmResult {
     pub install_dir: PathBuf,
@@ -49,7 +57,8 @@ pub(super) async fn install_pnpm<Reporter: self::Reporter + 'static>(
     version: &str,
     supported_architectures: Option<SupportedArchitectures>,
 ) -> miette::Result<InstallPnpmResult> {
-    let package_name = pnpm_package_name_to_install(version);
+    let package = pnpm_package_to_install(version);
+    let package_name = package.name;
     let global_pkg_dir = base_config.global_pkg_dir.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
     fs::create_dir_all(&global_pkg_dir)
         .into_diagnostic()
@@ -61,7 +70,9 @@ pub(super) async fn install_pnpm<Reporter: self::Reporter + 'static>(
         .wrap_err("scan global packages")?
         && installed_version(&existing.install_dir, package_name).as_deref() == Some(version)
     {
-        link_exe_platform_binary(&existing.install_dir, package_name)?;
+        if package.links_native_binary {
+            link_exe_platform_binary(&existing.install_dir, package_name)?;
+        }
         return Ok(InstallPnpmResult {
             install_dir: existing.install_dir,
             package_name,
@@ -81,7 +92,13 @@ pub(super) async fn install_pnpm<Reporter: self::Reporter + 'static>(
         false,
     ))
     .await
-    .and_then(|()| link_exe_platform_binary(&install_dir, package_name));
+    .and_then(|()| {
+        if package.links_native_binary {
+            link_exe_platform_binary(&install_dir, package_name)
+        } else {
+            Ok(())
+        }
+    });
     if let Err(err) = outcome {
         let _ = fs::remove_dir_all(&install_dir);
         return Err(err);
@@ -98,12 +115,22 @@ fn installed_version(install_dir: &Path, package_name: &str) -> Option<String> {
     value.get("version").and_then(Value::as_str).map(ToString::to_string)
 }
 
-pub(crate) fn pnpm_package_name_to_install(pnpm_version: &str) -> &'static str {
-    if node_semver::Version::parse(pnpm_version).is_ok_and(|version| version.major >= 12) {
-        PNPM_PACKAGE_NAME
-    } else {
-        PNPM_EXE_PACKAGE_NAME
+pub(crate) fn pnpm_package_to_install(pnpm_version: &str) -> PnpmPackageToInstall {
+    let Some(version) = node_semver::Version::parse(pnpm_version).ok() else {
+        return PnpmPackageToInstall { name: PNPM_EXE_PACKAGE_NAME, links_native_binary: true };
+    };
+    if version.major >= 12 {
+        return PnpmPackageToInstall { name: PNPM_PACKAGE_NAME, links_native_binary: true };
     }
+    if version_gte(&version, PNPM_EXE_INTRODUCED) {
+        PnpmPackageToInstall { name: PNPM_EXE_PACKAGE_NAME, links_native_binary: true }
+    } else {
+        PnpmPackageToInstall { name: PNPM_PACKAGE_NAME, links_native_binary: false }
+    }
+}
+
+fn version_gte(version: &node_semver::Version, minimum: (u64, u64, u64)) -> bool {
+    (version.major, version.minor, version.patch) >= minimum
 }
 
 /// Install a pnpm engine wrapper into a fresh group directory, mirroring the

@@ -1,7 +1,6 @@
 use super::{
     PNPM_EXE_PACKAGE_NAME, PNPM_PACKAGE_NAME, exe_platform_pkg_dir_name,
-    exe_platform_pkg_dir_name_next, link_exe_platform_binary, package_dir,
-    pnpm_package_name_to_install,
+    exe_platform_pkg_dir_name_next, link_exe_platform_binary, package_dir, pnpm_package_to_install,
 };
 use pacquet_graph_hasher::{host_arch, host_libc, host_platform};
 use std::fs;
@@ -28,10 +27,23 @@ fn next_platform_dir_names() {
 
 #[test]
 fn target_package_name_matches_pnpm_engine_layout() {
-    assert_eq!(pnpm_package_name_to_install("12.0.0-alpha.1"), PNPM_PACKAGE_NAME);
-    assert_eq!(pnpm_package_name_to_install("12.0.0"), PNPM_PACKAGE_NAME);
-    assert_eq!(pnpm_package_name_to_install("11.10.0"), PNPM_EXE_PACKAGE_NAME);
-    assert_eq!(pnpm_package_name_to_install("not-semver"), PNPM_EXE_PACKAGE_NAME);
+    assert_eq!(pnpm_package_to_install("12.0.0-alpha.1").name, PNPM_PACKAGE_NAME);
+    assert_eq!(pnpm_package_to_install("12.0.0").name, PNPM_PACKAGE_NAME);
+    assert_eq!(pnpm_package_to_install("11.10.0").name, PNPM_EXE_PACKAGE_NAME);
+    assert_eq!(pnpm_package_to_install("10.34.4").name, PNPM_EXE_PACKAGE_NAME);
+    assert_eq!(pnpm_package_to_install("6.17.1").name, PNPM_EXE_PACKAGE_NAME);
+    assert_eq!(pnpm_package_to_install("6.16.0").name, PNPM_PACKAGE_NAME);
+    assert_eq!(pnpm_package_to_install("5.18.10").name, PNPM_PACKAGE_NAME);
+    assert_eq!(pnpm_package_to_install("not-semver").name, PNPM_EXE_PACKAGE_NAME);
+}
+
+#[test]
+fn native_binary_linking_matches_pnpm_engine_layout() {
+    assert!(pnpm_package_to_install("12.0.0-alpha.1").links_native_binary);
+    assert!(pnpm_package_to_install("11.10.0").links_native_binary);
+    assert!(pnpm_package_to_install("6.17.1").links_native_binary);
+    assert!(!pnpm_package_to_install("6.16.0").links_native_binary);
+    assert!(!pnpm_package_to_install("5.18.10").links_native_binary);
 }
 
 /// Lay out a fake engine install: the `pnpm` wrapper and, under

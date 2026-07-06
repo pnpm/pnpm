@@ -13,7 +13,9 @@ use pacquet_lockfile::{
 use pacquet_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
 use std::{collections::HashMap, path::PathBuf};
 
-const PACKAGE_MANAGER_DEPS: [&str; 2] = ["pnpm", "@pnpm/exe"];
+const PACKAGE_MANAGER_DEPS_WITH_EXE: [&str; 2] = ["pnpm", "@pnpm/exe"];
+const PACKAGE_MANAGER_DEPS_JS_ONLY: [&str; 1] = ["pnpm"];
+const PNPM_EXE_INTRODUCED: (u64, u64, u64) = (6, 17, 1);
 
 pub async fn resolve_package_manager_integrities(
     wanted_specifier: &str,
@@ -24,6 +26,7 @@ pub async fn resolve_package_manager_integrities(
     let mut env_lockfile = EnvLockfile::read(opts.root_dir)
         .map_err(ConfigDepError::ReadLockfile)?
         .unwrap_or_else(EnvLockfile::create);
+    let package_manager_deps = package_manager_deps(pnpm_version);
     if is_package_manager_resolved(&env_lockfile, wanted_specifier, pnpm_version) {
         return Ok(());
     }
@@ -35,7 +38,7 @@ pub async fn resolve_package_manager_integrities(
 
     let mut package_manager_dependencies = std::collections::BTreeMap::new();
     let mut resolved = Vec::new();
-    for name in PACKAGE_MANAGER_DEPS {
+    for name in package_manager_deps {
         let package = resolve_dep(name, pnpm_version, false, resolver, opts).await?;
         package_manager_dependencies.insert(
             name.to_string(),
@@ -110,14 +113,30 @@ pub fn is_package_manager_resolved(
     else {
         return false;
     };
-    pm_deps.len() == PACKAGE_MANAGER_DEPS.len()
-        && PACKAGE_MANAGER_DEPS.iter().all(|name| {
+    let package_manager_deps = package_manager_deps(pnpm_version);
+    pm_deps.len() == package_manager_deps.len()
+        && package_manager_deps.iter().all(|name| {
             pm_deps.get(*name).is_some_and(|dep| {
                 dep.specifier == wanted_specifier
                     && dep.version == pnpm_version
                     && package_manager_entry_exists(env_lockfile, name, &dep.version)
             })
         })
+}
+
+fn package_manager_deps(pnpm_version: &str) -> &'static [&'static str] {
+    if pnpm_exe_package_exists(pnpm_version) {
+        &PACKAGE_MANAGER_DEPS_WITH_EXE
+    } else {
+        &PACKAGE_MANAGER_DEPS_JS_ONLY
+    }
+}
+
+fn pnpm_exe_package_exists(pnpm_version: &str) -> bool {
+    let Some(version) = node_semver::Version::parse(pnpm_version).ok() else {
+        return true;
+    };
+    (version.major, version.minor, version.patch) >= PNPM_EXE_INTRODUCED
 }
 
 fn package_manager_entry_exists(env_lockfile: &EnvLockfile, name: &str, version: &str) -> bool {

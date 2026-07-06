@@ -203,8 +203,8 @@ async fn handler<Reporter: self::Reporter + 'static>(
     );
 
     let env_root = config.global_pkg_dir.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
-    // Resolve integrities (pnpm + @pnpm/exe + platform binary) into the
-    // env lockfile so the engine identity can be verified before install.
+    // Resolve integrities into the env lockfile so the engine identity can
+    // be verified before install.
     Box::pin(config_deps::sync_package_manager_dependencies(
         config,
         &env_root,

@@ -346,6 +346,42 @@ async fn resolves_package_manager_dependencies_graph() {
 }
 
 #[tokio::test]
+async fn resolves_package_manager_dependencies_without_exe_before_it_was_published() {
+    let harness = harness();
+    let root = TempDir::new().unwrap();
+    let resolver = FixtureResolver::new().package(serde_json::json!({
+        "name": "pnpm",
+        "version": "6.16.0",
+        "bin": { "pnpm": "bin/pnpm.cjs", "pnpx": "bin/pnpx.cjs" },
+    }));
+
+    resolve_package_manager_integrities(
+        "^6.0.0",
+        "6.16.0",
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+
+    let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
+    let pm_deps = env.importers[EnvLockfile::ROOT_IMPORTER_KEY]
+        .package_manager_dependencies
+        .as_ref()
+        .expect("package manager deps recorded");
+    assert_eq!(pm_deps.len(), 1);
+    assert_eq!(pm_deps["pnpm"].specifier, "^6.0.0");
+    assert_eq!(pm_deps["pnpm"].version, "6.16.0");
+    assert!(!pm_deps.contains_key("@pnpm/exe"));
+
+    let pnpm_key: PackageKey = "pnpm@6.16.0".parse().unwrap();
+    assert!(env.packages.contains_key(&pnpm_key));
+    assert!(env.snapshots.contains_key(&pnpm_key));
+    assert!(is_package_manager_resolved(&env, "^6.0.0", "6.16.0"));
+    assert!(!is_package_manager_resolved(&env, "^6.0.0", "6.17.1"));
+}
+
+#[tokio::test]
 async fn rejects_optional_subdep_with_non_exact_version() {
     let harness = harness();
     let (resolver, _cache) = build_resolver(&harness.registry_url);
