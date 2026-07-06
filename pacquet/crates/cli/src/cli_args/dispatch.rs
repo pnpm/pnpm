@@ -115,6 +115,8 @@ impl CliArgs {
             filter,
             filter_prod,
             version: _,
+            color: _,
+            yes: _,
         } = self;
 
         // Canonicalize `--dir` so the bunyan-envelope `prefix` emitted by
