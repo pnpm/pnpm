@@ -575,12 +575,19 @@ The runtime lockfile *format* (importer `version: runtime:<ver>`, the
 `nodeRuntime.ts:236-269`) is covered at pacquet's adapter/resolver layer by
 `dependencies_graph_to_lockfile::tests::runtime_dependency_strips_importer_prefix_and_records_package_version`
 and `node_resolver::tests::bin_spec_is_a_named_map`. The full
-install-and-reinstall integration tests below are still unported (they
-download real runtime artifacts).
+install-and-reinstall integration tests below are still unported end-to-end
+against a real mirror (they download real runtime artifacts), but the
+*cold-install → wipe → offline-reinstall* regression at their core — a
+runtime archive ships no `package.json`, so the synthesized manifest must
+be baked into the persisted store-index row for the warm reinstall to
+re-materialize it (pnpm/pnpm#12811) — is covered without the network by
+`install_package_by_snapshot::tests::installing_a_runtime_persists_the_synthesized_manifest_into_the_store_index_row`
+(drives `InstallPackageBySnapshot` on a `Binary` resolution pointing at a
+local `file:` runtime-archive fixture).
 
 Node runtime tests:
 
-- [ ] `TypeScript repo: installing/deps-installer/test/install/nodeRuntime.ts:209` `installing Node.js runtime` includes frozen/offline reinstall after deleting `node_modules`.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/nodeRuntime.ts:209` `installing Node.js runtime` includes frozen/offline reinstall after deleting `node_modules`. _(Regression core — the offline reinstall re-materializing the synthesized `package.json` — is covered by `installing_a_runtime_persists_the_synthesized_manifest_into_the_store_index_row`; the real-download lockfile-shape / musl-variant / npm+corepack-filter assertions remain unported.)_
 - [ ] `TypeScript repo: installing/deps-installer/test/install/nodeRuntime.ts:332` `installing node.js runtime fails if offline mode is used and node.js not found locally`
 - [ ] `TypeScript repo: installing/deps-installer/test/install/nodeRuntime.ts:339` `installing Node.js runtime from RC channel`
 - [ ] `TypeScript repo: installing/deps-installer/test/install/nodeRuntime.ts:346` `installing Node.js runtime fails if integrity check fails` verifies frozen integrity failure.

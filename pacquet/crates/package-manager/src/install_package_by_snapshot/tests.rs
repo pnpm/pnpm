@@ -585,3 +585,185 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
 
     drop(store_tmp);
 }
+
+/// A minimal runtime archive: one executable at `<top>/bin/node` and no
+/// `package.json`. Real Node.js / Bun / Deno archives likewise ship no
+/// manifest of their own; the synthesized `bin` comes from the
+/// resolution, not the archive, so the payload is deliberately trivial.
+fn build_runtime_tarball_fixture() -> Vec<u8> {
+    use flate2::{Compression, write::GzEncoder};
+    use std::io::Write;
+
+    let script = b"#!/bin/sh\necho v22.0.0\n";
+    let mut tar_builder = tar::Builder::new(Vec::new());
+    let mut header = tar::Header::new_gnu();
+    header.set_size(script.len() as u64);
+    header.set_mode(0o755);
+    tar_builder
+        .append_data(&mut header, "node-v22.0.0-fixture/bin/node", &script[..])
+        .expect("append the fixture bin entry");
+    let tar_bytes = tar_builder.into_inner().expect("finalize the fixture tar");
+
+    let mut gz = GzEncoder::new(Vec::new(), Compression::default());
+    gz.write_all(&tar_bytes).expect("gzip the fixture tar");
+    gz.finish().expect("finish the gzip stream")
+}
+
+/// End-to-end regression for the CI failure on pnpm/pnpm#12811, mirroring
+/// the core of `installing/deps-installer/test/install/nodeRuntime.ts:209`
+/// (`installing Node.js runtime`): a cold install, then `rimraf
+/// node_modules` + an offline reinstall. A runtime archive ships no
+/// `package.json`, so pacquet synthesizes one — and it must be baked into
+/// the persisted store-index row, not just this install's `cas_paths`.
+/// Pre-fix the row recorded neither the `package.json` file nor a bundled
+/// `manifest`, so a later *warm* install (which materializes straight from
+/// the row and never re-runs `fetch_binary_resolution_to_cas`) landed a
+/// manifest-less slot and `pnpm dlx node@runtime:<v>` died in `getBinName`
+/// with `dlx_read_manifest`.
+#[tokio::test]
+async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_index_row() {
+    use pacquet_store_dir::{
+        SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, store_index_key,
+    };
+    use std::sync::atomic::AtomicU8;
+
+    let archive_tmp = tempfile::tempdir().expect("tempdir");
+    let tarball_path = archive_tmp.path().join("node-fixture.tar.gz");
+    let tarball_bytes = build_runtime_tarball_fixture();
+    std::fs::write(&tarball_path, &tarball_bytes).expect("write the fixture tarball");
+    let integrity = ssri::IntegrityOpts::new()
+        .algorithm(ssri::Algorithm::Sha512)
+        .chain(&tarball_bytes)
+        .result();
+
+    let store_tmp = tempfile::tempdir().expect("tempdir");
+    // `offline: true` is safe — a `file:` URL bypasses the offline gate,
+    // and it guarantees the install never reaches the network.
+    let config = leaked_offline_config("https://registry.test", store_tmp.path());
+    let (writer, writer_task) = StoreIndexWriter::spawn(&config.store_dir);
+
+    let package_key: PackageKey = "node@runtime:22.0.0".parse().expect("parse runtime key");
+    let metadata = pacquet_lockfile::PackageMetadata {
+        resolution: LockfileResolution::Binary(BinaryResolution {
+            url: format!("file:{}", tarball_path.display()),
+            integrity: integrity.clone(),
+            bin: BinarySpec::Map(std::collections::BTreeMap::from([(
+                "node".to_string(),
+                "bin/node".to_string(),
+            )])),
+            archive: BinaryArchive::Tarball,
+            prefix: None,
+        }),
+        version: Some("22.0.0".to_string()),
+        has_bin: Some(true),
+        engines: None,
+        cpu: None,
+        os: None,
+        libc: None,
+        deprecated: None,
+        prepare: None,
+        bundled_dependencies: None,
+        peer_dependencies: None,
+        peer_dependencies_meta: None,
+    };
+    let snapshot = pacquet_lockfile::SnapshotEntry::default();
+    let layout = crate::VirtualStoreLayout::legacy(store_tmp.path().join("vstore"), 120);
+    let allow_build_policy = crate::AllowBuildPolicy::new(
+        std::collections::HashSet::default(),
+        std::collections::HashSet::default(),
+        false,
+    );
+    let skipped = crate::SkippedSnapshots::new();
+    let logged_methods = AtomicU8::new(0);
+    let verified_files_cache = SharedVerifiedFilesCache::default();
+
+    // Cold install: fetch the fixture, synthesize the manifest, queue the row.
+    let cold_cas_paths = super::InstallPackageBySnapshot {
+        http_client: &pacquet_network::ThrottledClient::default(),
+        config,
+        layout: &layout,
+        store_index: None,
+        store_index_writer: Some(&writer),
+        prefetched_cas_paths: None,
+        progress_reported: None,
+        tarball_mem_cache: None,
+        verified_files_cache: &verified_files_cache,
+        logged_methods: &logged_methods,
+        requester: "/project",
+        package_key: &package_key,
+        metadata: &metadata,
+        snapshot: &snapshot,
+        allow_build_policy: &allow_build_policy,
+        skipped: &skipped,
+        workspace_root: store_tmp.path(),
+        node_linker: pacquet_config::NodeLinker::Hoisted,
+        defer_link: false,
+        link_concurrency_probe: None,
+    }
+    .run::<pacquet_reporter::SilentReporter>()
+    .await
+    .expect("cold runtime install");
+    assert!(cold_cas_paths.contains_key("package.json"), "the cold slot gets the manifest");
+
+    // Flush the store-index writer so the row is durable before read-back.
+    drop(writer);
+    writer_task.await.expect("join the writer task").expect("flush the store index");
+
+    // The persisted row must carry the synthesized `package.json` in both
+    // its `files` map and its bundled `manifest` — the pre-fix gap that a
+    // warm materialization would inherit.
+    let index_key =
+        store_index_key(&integrity.to_string(), &package_key.without_peer().to_string());
+    let row = StoreIndex::open_in(&config.store_dir)
+        .expect("open the store index")
+        .get(&index_key)
+        .expect("read the runtime row")
+        .expect("the runtime row was persisted");
+    assert!(row.files.contains_key("package.json"), "the row records the synthesized package.json");
+    let manifest = row.manifest.expect("the row records a bundled manifest");
+    assert_eq!(
+        manifest.get("bin").and_then(|bin| bin.get("node")).and_then(serde_json::Value::as_str),
+        Some("bin/node"),
+        "the bundled manifest carries the runtime bin",
+    );
+
+    // Warm reinstall — nodeRuntime.ts's `rimraf node_modules` + offline
+    // reinstall. Delete the archive so the store is the only possible
+    // source, then materialize straight from the persisted row. The slot
+    // must still get the `package.json`; pre-fix the row lacked it.
+    std::fs::remove_file(&tarball_path).expect("remove the fixture so only the store can serve");
+    let warm_index = StoreIndex::shared_readonly_in(&config.store_dir);
+    let warm_verified = SharedVerifiedFilesCache::default();
+    let warm_logged = AtomicU8::new(0);
+    let warm_cas_paths = super::InstallPackageBySnapshot {
+        http_client: &pacquet_network::ThrottledClient::default(),
+        config,
+        layout: &layout,
+        store_index: warm_index.as_ref(),
+        store_index_writer: None,
+        prefetched_cas_paths: None,
+        progress_reported: None,
+        tarball_mem_cache: None,
+        verified_files_cache: &warm_verified,
+        logged_methods: &warm_logged,
+        requester: "/project",
+        package_key: &package_key,
+        metadata: &metadata,
+        snapshot: &snapshot,
+        allow_build_policy: &allow_build_policy,
+        skipped: &skipped,
+        workspace_root: store_tmp.path(),
+        node_linker: pacquet_config::NodeLinker::Hoisted,
+        defer_link: false,
+        link_concurrency_probe: None,
+    }
+    .run::<pacquet_reporter::SilentReporter>()
+    .await
+    .expect("warm runtime reinstall reads the store, not the network");
+    assert!(
+        warm_cas_paths.contains_key("package.json"),
+        "the warm reinstall re-materializes the manifest from the persisted row",
+    );
+
+    drop((store_tmp, archive_tmp));
+}
