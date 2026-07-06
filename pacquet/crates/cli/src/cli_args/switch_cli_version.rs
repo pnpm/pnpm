@@ -466,6 +466,7 @@ fn command_name(command: &CliCommand) -> &'static str {
         CliCommand::Ping(_) => "ping",
         CliCommand::Rebuild(_) => "rebuild",
         CliCommand::Pack(_) => "pack",
+        CliCommand::Publish(_) => "publish",
         CliCommand::Remove(_) => "remove",
         CliCommand::Patch(_) => "patch",
         CliCommand::PatchCommit(_) => "patch-commit",

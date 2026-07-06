@@ -16,9 +16,6 @@ use crate::{
     prompt_browser_open::prompt_browser_open,
 };
 
-#[cfg(test)]
-mod tests;
-
 /// The `authUrl` / `doneUrl` an OTP challenge may carry. Both are optional
 /// because a registry may send neither (a classic OTP) or a malformed
 /// body.
@@ -213,7 +210,7 @@ pub enum WithOtpError<Error: Diagnostic + 'static> {
 /// `authUrl` and `doneUrl`) or prompts for a classic OTP, then retries the
 /// operation once with the obtained one-time password. Any non-OTP error,
 /// or an OTP challenge with no usable code, propagates unchanged.
-pub async fn with_otp_handling<Sys, Reporter, Token, Error, Operation>(
+pub async fn with_otp_handling<Sys, Reporter, Token, Error, Operation, Fut>(
     fetch_options: WebAuthFetchOptions,
     mut operation: Operation,
 ) -> Result<Token, WithOtpError<Error>>
@@ -228,7 +225,15 @@ where
         + PromptOtp,
     Reporter: self::Reporter,
     Error: OtpError + Diagnostic + 'static,
-    Operation: AsyncFnMut(Option<&str>) -> Result<Token, Error>,
+    // The operation is a plain `FnMut` returning a named future `Fut`, not an
+    // `AsyncFnMut`. `AsyncFnMut`'s per-call `CallRefFuture<'a>` is higher-ranked
+    // over the closure's `&mut` borrow, so a `Send` bound on the resulting
+    // future would have to hold `for<'a>` — which the compiler cannot prove for
+    // the CLI's `Send`-required command future. A concrete `Fut` makes `Send`
+    // an ordinary, non-higher-ranked obligation. The one-time password is passed
+    // by value so `Fut` borrows nothing from the closure.
+    Operation: FnMut(Option<String>) -> Fut,
+    Fut: Future<Output = Result<Token, Error>>,
 {
     let error = match operation(None).await {
         Ok(value) => return Ok(value),
@@ -280,7 +285,7 @@ where
         return Err(WithOtpError::Operation(error));
     };
 
-    match operation(Some(&otp)).await {
+    match operation(Some(otp)).await {
         Ok(value) => Ok(value),
         Err(retry_error) if retry_error.as_otp_challenge().is_some() => {
             Err(WithOtpError::SecondChallenge(OtpSecondChallengeError))

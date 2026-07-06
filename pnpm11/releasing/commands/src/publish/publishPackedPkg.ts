@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 
 import type { Config } from '@pnpm/config.reader'
-import { PnpmError } from '@pnpm/error'
+import { PnpmError, redactUrlCredentials } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { createDispatchedFetch } from '@pnpm/network.fetch'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
@@ -61,7 +61,8 @@ export async function publishPackedPkg (
   const { name, version } = publishedManifest
   const { registry } = publishOptions
   const isStage = opts.stage === true
-  globalInfo(`📦 ${name}@${version} → ${registry ?? 'the default registry'}`)
+  // Redact any `user:pass@` credentials a registry= URL may carry so they don't leak into logs.
+  globalInfo(`📦 ${name}@${version} → ${registry != null ? redactUrlCredentials(registry) : 'the default registry'}`)
   const summary = createPublishSummary({ publishedManifest, tarballPath, contents, unpackedSize }, tarballData)
   if (opts.dryRun) {
     globalWarn(`Skip ${isStage ? 'staging' : 'publishing'} ${name}@${version} (dry run)`)

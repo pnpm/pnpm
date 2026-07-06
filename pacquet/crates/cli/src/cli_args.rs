@@ -36,6 +36,7 @@ pub mod peers;
 pub mod ping;
 pub mod prefix;
 pub mod prune;
+pub mod publish;
 pub mod rebuild;
 pub mod recursive;
 pub mod registry_client;

@@ -36,6 +36,7 @@ pacquet-config-parse-overrides            = { workspace = true }
 pacquet-default-reporter                  = { workspace = true }
 pacquet-deps-path                         = { workspace = true }
 pacquet-pack                              = { workspace = true }
+pacquet-publish                           = { workspace = true }
 pacquet-package-manifest                  = { workspace = true }
 pacquet-package-manager                   = { workspace = true }
 pacquet-patching                          = { workspace = true }

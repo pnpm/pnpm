@@ -19,6 +19,7 @@ use super::{
     peers::{PeersArgs, PeersOutcome},
     ping::PingArgs,
     prefix::PrefixArgs,
+    publish::PublishArgs,
     repo::RepoArgs,
     reporter::ReporterType,
     root::RootArgs,
@@ -189,6 +190,30 @@ pub(super) fn pack<'a>(ctx: &RunCtx<'a>, args: &PackArgs) -> miette::Result<Comm
         println!("{output}");
     }
     Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+/// `publish` packs the project, runs its prepublish/publish lifecycle scripts,
+/// and uploads the tarball. Co-located with its sibling `pack` (both come from
+/// pnpm's `releasing/commands`).
+///
+/// `dir` / `config` / `recursive` are read off `ctx` here, before the boxed
+/// future, so the future captures only owned/concrete values and never holds
+/// `&RunCtx` — whose higher-ranked config closures would otherwise make the
+/// boxed [`CommandFuture`] not `Send`.
+pub(super) fn publish<'a>(
+    ctx: &RunCtx<'a>,
+    args: PublishArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let config = (ctx.config)()?;
+    let dir = ctx.dir;
+    let recursive = ctx.recursive;
+    Ok(match ctx.reporter {
+        ReporterType::Default | ReporterType::AppendOnly => {
+            Box::pin(args.run::<DefaultReporter>(dir, config, recursive))
+        }
+        ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(dir, config, recursive)),
+        ReporterType::Silent => Box::pin(args.run::<SilentReporter>(dir, config, recursive)),
+    })
 }
 
 pub(super) fn bin<'a>(ctx: &RunCtx<'a>, args: BinArgs) -> miette::Result<CommandFuture<'a>> {

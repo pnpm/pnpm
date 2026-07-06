@@ -8,9 +8,10 @@ extend-exclude = [
 ]
 
 [default.extend-words]
-cafs = "cafs"
-ect  = "ect"
-pn   = "pn"
+cafs   = "cafs"
+ect    = "ect"
+intoto = "intoto"
+pn     = "pn"
 
 [default.extend-identifiers]
 PnP = "PnP"
