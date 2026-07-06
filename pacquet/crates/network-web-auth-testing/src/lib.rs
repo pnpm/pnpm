@@ -77,6 +77,11 @@ pub type FetchScript = Box<dyn FnMut() -> Result<WebAuthFetchResponse, WebAuthFe
 /// [`InputResponse`], [`SleepBehavior`], [`FetchScript`] — through `$crate`,
 /// and everything else through absolute paths, so a caller needs only to
 /// import the macro, not any of the items it names.
+///
+/// The generated `FakeHost` and `set_*` / query helpers carry
+/// `#[allow(dead_code)]`: the macro emits the complete fake surface into every
+/// test, but each test drives only the capabilities its scenario needs, so the
+/// unused ones are expected rather than a lint to fix.
 #[macro_export]
 macro_rules! web_auth_fake {
     () => {

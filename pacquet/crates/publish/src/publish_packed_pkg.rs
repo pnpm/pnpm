@@ -91,7 +91,7 @@ where
     let registry = resolved.registry.clone();
     let is_stage = opts.stage;
 
-    global_info::<Reporter>(&format!("📦 {name}@{version} → {}", registry.as_str()));
+    global_info::<Reporter>(&format!("📦 {name}@{version} → {}", registry_for_display(&registry)));
 
     let mut summary = create_publish_summary(
         &PackedPkgInfo {
@@ -452,6 +452,24 @@ fn join_registry(
         .and_then(|base| base.join(path))
         .map(|url| url.to_string())
         .map_err(PublishPackedPkgError::InvalidUrl)
+}
+
+/// Render the registry URL for logging with any `user:pass@` userinfo stripped,
+/// so credentials a user embedded in a `registry=` URL don't leak into CI logs.
+/// The unsanitized URL is still used for the request and auth-header lookup —
+/// only the human-facing log is sanitized. Returns the original string
+/// unchanged when there is no userinfo (the common case) or the URL doesn't
+/// parse.
+fn registry_for_display(registry: &NormalizedRegistryUrl) -> String {
+    let Ok(mut url) = url::Url::parse(registry.as_str()) else {
+        return registry.as_str().to_owned();
+    };
+    if url.username().is_empty() && url.password().is_none() {
+        return registry.as_str().to_owned();
+    }
+    let _ = url.set_username("");
+    let _ = url.set_password(None);
+    url.to_string()
 }
 
 /// Clean a version string to `major.minor.patch` plus any prerelease,

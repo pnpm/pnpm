@@ -192,7 +192,11 @@ fn write_publish_summary(dir: &Path, published: &[PublishSummary]) -> miette::Re
     let path = dir.join("pnpm-publish-summary.json");
     let body = serde_json::json!({ "publishedPackages": published });
     let json = body.pipe_ref(serde_json::to_string_pretty).into_diagnostic()?;
-    std::fs::write(&path, json)
+    // Write atomically (temp file + rename), matching pnpm's `writeJsonFile`:
+    // the target sits under the repo-controlled workspace root, and a
+    // non-atomic `std::fs::write` would follow a symlink planted there and
+    // could leave a truncated file on a mid-write crash.
+    pacquet_fs::write_atomic(&path, json.as_bytes())
         .into_diagnostic()
         .wrap_err_with(|| format!("write {}", path.display()))
 }

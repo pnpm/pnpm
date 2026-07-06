@@ -2,7 +2,7 @@ use super::{
     DistHashes, PackedPkg, PublishHttpError, PublishNetwork, PublishPackedPkgError,
     PublishPackedPkgOptions, build_publish_document, clean_version, is_otp_challenge,
     parse_otp_challenge, publish_packed_pkg, publish_with_otp_handling, put_publish,
-    web_auth_fetch_options,
+    registry_for_display, web_auth_fetch_options,
 };
 use crate::{
     capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
@@ -747,4 +747,18 @@ async fn publish_packed_pkg_attaches_signed_provenance_to_the_document() {
 
     assert_eq!(summary.name, "pkg");
     mock.assert_async().await;
+}
+
+#[test]
+fn registry_for_display_strips_userinfo_and_leaves_a_plain_registry_untouched() {
+    let plain = parse_supported_registry_url("https://registry.npmjs.org/")
+        .expect("a supported registry")
+        .normalized_url;
+    assert_eq!(registry_for_display(&plain), "https://registry.npmjs.org/");
+
+    let with_credentials =
+        parse_supported_registry_url("https://user:secret@registry.example.com/")
+            .expect("a supported registry")
+            .normalized_url;
+    assert_eq!(registry_for_display(&with_credentials), "https://registry.example.com/");
 }
