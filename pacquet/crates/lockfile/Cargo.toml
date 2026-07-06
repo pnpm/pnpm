@@ -19,6 +19,7 @@ pacquet-package-manifest = { workspace = true }
 
 derive_more      = { workspace = true }
 indexmap         = { workspace = true }
+libc             = { workspace = true }
 node-semver      = { workspace = true }
 pipe-trait       = { workspace = true }
 serde            = { workspace = true }
