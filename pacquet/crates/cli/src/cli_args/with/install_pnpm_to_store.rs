@@ -76,15 +76,8 @@ pub(crate) async fn install_pnpm_from_env<Reporter: self::Reporter + 'static>(
     // then re-derives the slot from the install's own symlink).
     if let Some(slot) = compute_engine_slot(config, env, package_name, version) {
         let pkg_dir = package_dir(&slot, package_name);
-        let bin_dir = slot.join("bin");
         if pkg_dir.join("package.json").exists() {
-            if package.links_native_binary {
-                link_exe_platform_binary(&slot, package_name)?;
-            }
-            if !bin_dir.exists() {
-                link_bins(&pkg_dir, &bin_dir)?;
-            }
-            return Ok(bin_dir);
+            return link_cached_engine_bins(&slot, package_name, package.links_native_binary);
         }
     }
 
@@ -127,6 +120,20 @@ pub(crate) async fn install_pnpm_from_env<Reporter: self::Reporter + 'static>(
         // Replicate the wrapper's preinstall (skipped because the engine is
         // installed with scripts disabled): link the host's native binary.
         link_exe_platform_binary(&slot, package_name)?;
+    }
+    link_bins(&pkg_dir, &bin_dir)?;
+    Ok(bin_dir)
+}
+
+fn link_cached_engine_bins(
+    slot: &Path,
+    package_name: &str,
+    links_native_binary: bool,
+) -> miette::Result<PathBuf> {
+    let pkg_dir = package_dir(slot, package_name);
+    let bin_dir = slot.join("bin");
+    if links_native_binary {
+        link_exe_platform_binary(slot, package_name)?;
     }
     link_bins(&pkg_dir, &bin_dir)?;
     Ok(bin_dir)
@@ -228,4 +235,31 @@ fn unique_suffix() -> String {
     let nanos =
         SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |elapsed| elapsed.as_nanos());
     format!("{}-{nanos}", std::process::id())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cache_hit_relinks_missing_pnpm_bin() {
+        let root = tempfile::TempDir::new().expect("tmp dir");
+        let slot = root.path().join("slot");
+        let pkg_dir = package_dir(&slot, "pnpm");
+        fs::create_dir_all(pkg_dir.join("bin")).expect("create package bin dir");
+        fs::write(
+            pkg_dir.join("package.json"),
+            r#"{"name":"pnpm","version":"6.16.0","bin":{"pnpm":"bin/pnpm.cjs"}}"#,
+        )
+        .expect("write manifest");
+        fs::write(pkg_dir.join("bin").join("pnpm.cjs"), "#!/usr/bin/env node\n")
+            .expect("write pnpm bin");
+        let bin_dir = slot.join("bin");
+        fs::create_dir_all(&bin_dir).expect("create stale bin dir");
+
+        let linked = link_cached_engine_bins(&slot, "pnpm", false).expect("link bins");
+
+        assert_eq!(linked, bin_dir);
+        assert!(bin_dir.join("pnpm").exists());
+    }
 }

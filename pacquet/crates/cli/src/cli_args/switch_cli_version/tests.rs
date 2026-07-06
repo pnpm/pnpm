@@ -87,6 +87,20 @@ fn switch_target_accepts_peer_suffixed_package_manager_lockfile() {
 }
 
 #[test]
+fn switch_target_accepts_v12_lockfile_without_legacy_wrapper_entry() {
+    let root = TempDir::new().expect("tmp dir");
+    write_manifest(root.path(), r#"{"packageManager":"pnpm@99.0.0"}"#);
+    write_lockfile(root.path(), LOCKED_99_0_0);
+
+    let target = switch_target(&Config::default(), root.path()).expect("target").expect("switch");
+
+    let SwitchSource::LockedEnv { version, .. } = target.source else {
+        panic!("expected locked env target");
+    };
+    assert_eq!(version, "99.0.0");
+}
+
+#[test]
 fn switch_target_rejects_package_manager_lockfile_resolution_with_non_integrity_fields() {
     let root = TempDir::new().expect("tmp dir");
     write_dev_engine_manifest(root.path(), "9.3.0");
@@ -349,5 +363,28 @@ snapshots:
   '@pnpm/exe@9.1.1': {}
 
   pnpm@9.1.1: {}
+---
+";
+
+const LOCKED_99_0_0: &str = r"---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    configDependencies: {}
+    packageManagerDependencies:
+      pnpm:
+        specifier: 99.0.0
+        version: 99.0.0
+
+packages:
+
+  pnpm@99.0.0:
+    resolution: {integrity: sha512-QVocwll0cx51RVwUaDcb50xapft2IbUNQFbSIkUWCfEUEvI/1gLmFp8eBgRmZB95hZfhvpYaEGiINqZ7FlaUmQ==}
+
+snapshots:
+
+  pnpm@99.0.0: {}
 ---
 ";

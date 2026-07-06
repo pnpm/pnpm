@@ -4,6 +4,7 @@ use super::{
         WantedPackageManager, read_manifest_json, should_persist_package_manager_lockfile,
         version_satisfies, wanted_package_manager,
     },
+    self_update::install_pnpm::pnpm_package_to_install,
     with::{
         PackageManagerCheck,
         install_pnpm_to_store::{install_pnpm_from_env, install_pnpm_to_store},
@@ -22,59 +23,32 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const PACKAGE_MANAGER_DEPS: [&str; 2] = ["pnpm", "@pnpm/exe"];
-
-pub(crate) async fn maybe_switch(
+pub(crate) fn switch_plan(
     args: &CliArgs,
     config_overrides: &ConfigOverrides,
-    child_argv: &[OsString],
-) -> miette::Result<bool> {
+) -> miette::Result<Option<SwitchPlan>> {
     if should_skip_command(&args.command) {
-        return Ok(false);
+        return Ok(None);
     }
-    maybe_switch_from_input(&SwitchInput::from_cli_args(args), config_overrides, child_argv).await
+    switch_plan_from_input(&SwitchInput::from_cli_args(args), config_overrides)
 }
 
-pub(crate) async fn maybe_switch_for_version_flag(
+pub(crate) fn switch_plan_for_version_flag(
     argv: &[OsString],
     config_overrides: &ConfigOverrides,
-    child_argv: &[OsString],
-) -> miette::Result<bool> {
-    maybe_switch_from_input(&SwitchInput::from_version_argv(argv), config_overrides, child_argv)
-        .await
+) -> miette::Result<Option<SwitchPlan>> {
+    switch_plan_from_input(&SwitchInput::from_version_argv(argv), config_overrides)
 }
 
 #[expect(clippy::exit, reason = "delegated pnpm must preserve the child exit code")]
-async fn maybe_switch_from_input(
-    input: &SwitchInput,
-    config_overrides: &ConfigOverrides,
+pub(crate) async fn execute_switch(
+    plan: SwitchPlan,
     child_argv: &[OsString],
 ) -> miette::Result<bool> {
-    if input.command.as_deref().is_some_and(should_skip_command_name)
-        || package_manager_switch_disabled()
-        || std::env::var_os("COREPACK_ROOT").is_some()
-    {
-        return Ok(false);
-    }
-    let dir = dunce::canonicalize(&input.dir).into_diagnostic().wrap_err_with(|| {
-        format!("canonicalizing the `--dir` argument: {}", input.dir.display())
-    })?;
-    let mut config = Config { npmrc_auth_file: input.npmrc_auth_file.clone(), ..Config::default() }
-        .current::<Host>(&dir)
-        .map_err(miette::Report::new)
-        .wrap_err("load configuration")?;
-    config_overrides.apply(&mut config);
-
-    let root_dir = config.workspace_dir.clone().unwrap_or_else(|| dir.clone());
-    let Some(target) = switch_target(&config, &root_dir)? else {
-        return Ok(false);
-    };
-    if version_satisfies(PACQUET_VERSION, &target.spec) {
-        return Ok(false);
-    }
-
+    let SwitchPlan { config, target } = plan;
+    let SwitchTarget { spec, source } = target;
     let config = Config::leak(config);
-    let (version, bin_dir) = match target.source {
+    let (version, bin_dir) = match source {
         SwitchSource::LockedEnv { env, version } => {
             if version == PACQUET_VERSION {
                 return Ok(false);
@@ -84,17 +58,16 @@ async fn maybe_switch_from_input(
             (version, bin_dir)
         }
         SwitchSource::Resolve { env_root } => {
-            let resolved =
-                config_deps::resolve_pnpm_version(config, &target.spec).await?.ok_or_else(
-                    || miette::miette!(r#"Cannot resolve pnpm version for "{}""#, target.spec),
-                )?;
+            let resolved = config_deps::resolve_pnpm_version(config, &spec)
+                .await?
+                .ok_or_else(|| miette::miette!(r#"Cannot resolve pnpm version for "{}""#, spec))?;
             if resolved.version == PACQUET_VERSION {
                 return Ok(false);
             }
             let bin_dir = Box::pin(install_pnpm_to_store::<SilentReporter>(
                 config,
                 &env_root,
-                &target.spec,
+                &spec,
                 &resolved.version,
             ))
             .await?;
@@ -108,6 +81,35 @@ async fn maybe_switch_from_input(
         std::process::exit(status.code().unwrap_or(1));
     }
     Ok(true)
+}
+
+fn switch_plan_from_input(
+    input: &SwitchInput,
+    config_overrides: &ConfigOverrides,
+) -> miette::Result<Option<SwitchPlan>> {
+    if input.command.as_deref().is_some_and(should_skip_command_name)
+        || package_manager_switch_disabled()
+        || std::env::var_os("COREPACK_ROOT").is_some()
+    {
+        return Ok(None);
+    }
+    let dir = dunce::canonicalize(&input.dir).into_diagnostic().wrap_err_with(|| {
+        format!("canonicalizing the `--dir` argument: {}", input.dir.display())
+    })?;
+    let mut config = Config { npmrc_auth_file: input.npmrc_auth_file.clone(), ..Config::default() }
+        .current::<Host>(&dir)
+        .map_err(miette::Report::new)
+        .wrap_err("load configuration")?;
+    config_overrides.apply(&mut config);
+
+    let root_dir = config.workspace_dir.clone().unwrap_or_else(|| dir.clone());
+    let Some(target) = switch_target(&config, &root_dir)? else {
+        return Ok(None);
+    };
+    if version_satisfies(PACQUET_VERSION, &target.spec) {
+        return Ok(None);
+    }
+    Ok(Some(SwitchPlan { config, target }))
 }
 
 fn switch_target(config: &Config, root_dir: &Path) -> miette::Result<Option<SwitchTarget>> {
@@ -183,9 +185,12 @@ fn package_manager_dependencies_are_resolved(env: &EnvLockfile, version: &str) -
     else {
         return false;
     };
-    PACKAGE_MANAGER_DEPS
-        .iter()
-        .all(|name| dependencies.get(*name).is_some_and(|dep| dep.version == version))
+    if dependencies.get("pnpm").is_none_or(|dep| dep.version != version) {
+        return false;
+    }
+    let wrapper_pkg_name = pnpm_package_to_install(version).name;
+    wrapper_pkg_name == "pnpm"
+        || dependencies.get(wrapper_pkg_name).is_some_and(|dep| dep.version == version)
 }
 
 fn assert_package_manager_lockfile_uses_registry_resolutions(
@@ -350,6 +355,11 @@ fn env_var_is_false(name: &str) -> bool {
 struct SwitchTarget {
     spec: String,
     source: SwitchSource,
+}
+
+pub(crate) struct SwitchPlan {
+    config: Config,
+    target: SwitchTarget,
 }
 
 enum SwitchSource {

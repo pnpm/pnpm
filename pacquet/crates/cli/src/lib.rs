@@ -44,13 +44,12 @@ pub fn main() -> miette::Result<()> {
         Ok(args) => args,
         // pnpm prints the bare version, not clap's "pnpm <version>" rendering.
         Err(err) if err.kind() == clap::error::ErrorKind::DisplayVersion => {
-            if block_on_runtime(
+            if let Some(plan) = cli_args::switch_cli_version::switch_plan_for_version_flag(
+                &argv,
+                &config_overrides,
+            )? && block_on_runtime(
                 "pacquet-switch",
-                cli_args::switch_cli_version::maybe_switch_for_version_flag(
-                    &argv,
-                    &config_overrides,
-                    &child_argv,
-                ),
+                cli_args::switch_cli_version::execute_switch(plan, &child_argv),
             )? {
                 return Ok(());
             }
@@ -60,10 +59,12 @@ pub fn main() -> miette::Result<()> {
         Err(err) => err.exit(),
     };
     args.promote_recursive_for_filter();
-    if block_on_runtime(
-        "pacquet-switch",
-        cli_args::switch_cli_version::maybe_switch(&args, &config_overrides, &child_argv),
-    )? {
+    if let Some(plan) = cli_args::switch_cli_version::switch_plan(&args, &config_overrides)?
+        && block_on_runtime(
+            "pacquet-switch",
+            cli_args::switch_cli_version::execute_switch(plan, &child_argv),
+        )?
+    {
         return Ok(());
     }
     // An up-to-date `pacquet install` finishes here, without paying for
