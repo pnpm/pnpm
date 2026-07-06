@@ -4,6 +4,7 @@
 //! plain-text assertions and on for the ANSI-specific ones.
 
 use pacquet_default_reporter::{
+    SummaryScope,
     colors::Colors,
     state::{Output, ReporterState},
 };
@@ -22,12 +23,12 @@ fn state(colors: bool) -> ReporterState {
 }
 
 fn state_without_summary_prefix_filter() -> ReporterState {
-    ReporterState::new_with_summary_prefix_filter(
+    ReporterState::new_with_summary_scope(
         CWD.to_string(),
         80,
         Colors { enabled: false },
         false,
-        false,
+        SummaryScope::AllPrefixes,
     )
 }
 

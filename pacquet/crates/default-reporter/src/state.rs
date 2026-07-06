@@ -15,6 +15,7 @@ use pacquet_reporter::{
 use serde_json::Value;
 
 use crate::{
+    SummaryScope,
     colors::Colors,
     format::{
         contains_path, cut_line, format_prefix, format_prefix_no_trim, highlight_last_folder,
@@ -213,7 +214,7 @@ pub struct ReporterState {
     manifest_updated: Option<Value>,
     summary_slot: BlockSlot,
     summary_rendered: bool,
-    filter_summary_by_prefix: bool,
+    summary_scope: SummaryScope,
 
     lifecycle: HashMap<String, LifecycleEntry>,
     lifecycle_slots: HashMap<String, BlockSlot>,
@@ -247,16 +248,16 @@ const COLOR_WHEEL: [fn(&Colors, &str) -> String; 6] = [
 impl ReporterState {
     #[must_use]
     pub fn new(cwd: String, width: usize, colors: Colors, append_only: bool) -> Self {
-        Self::new_with_summary_prefix_filter(cwd, width, colors, append_only, true)
+        Self::new_with_summary_scope(cwd, width, colors, append_only, SummaryScope::CurrentPrefix)
     }
 
     #[must_use]
-    pub fn new_with_summary_prefix_filter(
+    pub fn new_with_summary_scope(
         cwd: String,
         width: usize,
         colors: Colors,
         append_only: bool,
-        filter_summary_by_prefix: bool,
+        summary_scope: SummaryScope,
     ) -> Self {
         let mut diff = HashMap::new();
         for kind in SUMMARY_ORDER {
@@ -282,7 +283,7 @@ impl ReporterState {
             manifest_updated: None,
             summary_slot: BlockSlot::default(),
             summary_rendered: false,
-            filter_summary_by_prefix,
+            summary_scope,
             lifecycle: HashMap::new(),
             lifecycle_slots: HashMap::new(),
             lifecycle_colors: HashMap::new(),
@@ -603,7 +604,7 @@ impl ReporterState {
     }
 
     fn is_current_prefix(&self, prefix: &str) -> bool {
-        !self.filter_summary_by_prefix || prefix == self.cwd
+        self.summary_scope == SummaryScope::AllPrefixes || prefix == self.cwd
     }
 
     fn apply_manifest_diff(&mut self) {

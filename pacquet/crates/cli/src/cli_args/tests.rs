@@ -16,6 +16,10 @@ fn install_args(argv: &[&str]) -> InstallArgs {
     }
 }
 
+fn runs_global_install_groups(argv: &[&str]) -> bool {
+    CliArgs::try_parse_from(argv).expect("parses").command.runs_global_install_groups()
+}
+
 #[test]
 fn recursive_default_is_false() {
     let parsed = CliArgs::try_parse_from(["pacquet", "install"]).expect("parses");
@@ -125,6 +129,15 @@ fn runtime_global_flag_parses_after_version() {
     };
     assert!(args.global);
     assert_eq!(args.params, ["set", "node", "22"]);
+}
+
+#[test]
+fn global_install_group_detection_is_limited_to_in_process_install_groups() {
+    assert!(runs_global_install_groups(&["pacquet", "add", "foo", "-g"]));
+    assert!(runs_global_install_groups(&["pacquet", "update", "-g"]));
+    assert!(runs_global_install_groups(&["pacquet", "runtime", "set", "node", "22", "-g"]));
+    assert!(!runs_global_install_groups(&["pacquet", "add", "foo"]));
+    assert!(!runs_global_install_groups(&["pacquet", "remove", "foo", "-g"]));
 }
 
 #[test]

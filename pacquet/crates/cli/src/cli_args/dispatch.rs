@@ -6,6 +6,7 @@ use super::{
 use crate::{State, config_overrides::ConfigOverrides};
 use miette::{Context, IntoDiagnostic};
 use pacquet_config::{Config, Host, default_pnpm_home_dir};
+use pacquet_default_reporter::SummaryScope;
 use pacquet_reporter::{ExecutionTimeLog, LogEvent, LogLevel};
 use std::{future::Future, path::Path, pin::Pin};
 
@@ -79,7 +80,7 @@ impl CliArgs {
             return false;
         };
         config_overrides.apply(&mut config);
-        configure_default_reporter(self.reporter, &dir, true);
+        configure_default_reporter(self.reporter, &dir, SummaryScope::CurrentPrefix);
         let emit = reporter_emit(self.reporter);
         let finished = install_args.finished_via_up_to_date_fast_path(&dir, &config, emit);
         if finished {
@@ -133,13 +134,12 @@ impl CliArgs {
         // The default reporter renders paths relative to the install root and
         // its `Done in ...` footer over the whole command; seed both before any
         // event can fire.
-        let filter_summary_by_prefix = match &command {
-            CliCommand::Add(args) => !args.global,
-            CliCommand::Runtime(args) => !args.global,
-            CliCommand::Update(args) => !args.global,
-            _ => true,
+        let summary_scope = if command.runs_global_install_groups() {
+            SummaryScope::AllPrefixes
+        } else {
+            SummaryScope::CurrentPrefix
         };
-        configure_default_reporter(reporter, &dir, filter_summary_by_prefix);
+        configure_default_reporter(reporter, &dir, summary_scope);
         let started_at = now_millis();
         let is_install_family = matches!(
             &command,

@@ -1,5 +1,5 @@
 use clap::ValueEnum;
-use pacquet_default_reporter::DefaultReporter;
+use pacquet_default_reporter::{DefaultReporter, SummaryScope};
 use pacquet_reporter::{LogEvent, NdjsonReporter, Reporter, SilentReporter};
 use std::path::Path;
 
@@ -38,10 +38,10 @@ pub(crate) fn reporter_emit(reporter: ReporterType) -> fn(&LogEvent) {
 pub(crate) fn configure_default_reporter(
     reporter: ReporterType,
     dir: &Path,
-    filter_summary_by_prefix: bool,
+    summary_scope: SummaryScope,
 ) {
     pacquet_default_reporter::set_cwd(dir.to_string_lossy().into_owned());
-    pacquet_default_reporter::set_filter_summary_by_prefix(filter_summary_by_prefix);
+    pacquet_default_reporter::set_summary_scope(summary_scope);
     if matches!(reporter, ReporterType::AppendOnly) {
         pacquet_default_reporter::force_append_only();
     }

@@ -35,7 +35,16 @@ use crate::{
 static CWD: OnceLock<String> = OnceLock::new();
 static PACKAGE_VERSION: OnceLock<String> = OnceLock::new();
 static FORCE_APPEND_ONLY: OnceLock<bool> = OnceLock::new();
-static FILTER_SUMMARY_BY_PREFIX: OnceLock<bool> = OnceLock::new();
+static SUMMARY_SCOPE: OnceLock<SummaryScope> = OnceLock::new();
+
+/// Which prefixes contribute to the packages-diff summary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SummaryScope {
+    /// Include only events whose `prefix` is the configured current working directory.
+    CurrentPrefix,
+    /// Include events from every prefix, used by global install groups.
+    AllPrefixes,
+}
 
 /// Set the project root the reporter renders paths relative to. Call once
 /// before the first event; ignored if already set.
@@ -59,10 +68,9 @@ pub fn force_append_only() {
     let _ = FORCE_APPEND_ONLY.set(true);
 }
 
-/// Configure whether the packages-diff summary is restricted to `cwd`.
-/// Global installs aggregate every group, matching pnpm's global reporter path.
-pub fn set_filter_summary_by_prefix(filter: bool) {
-    let _ = FILTER_SUMMARY_BY_PREFIX.set(filter);
+/// Configure which prefixes contribute to the packages-diff summary.
+pub fn set_summary_scope(scope: SummaryScope) {
+    let _ = SUMMARY_SCOPE.set(scope);
 }
 
 fn cwd() -> String {
@@ -116,12 +124,12 @@ impl Sink {
         // pnpm's `outputMaxWidth`: `columns - 2` on a TTY, else 80.
         let width = if is_tty { columns.saturating_sub(2) } else { 80 };
         let colors = Colors { enabled: is_tty && std::env::var_os("NO_COLOR").is_none() };
-        let state = ReporterState::new_with_summary_prefix_filter(
+        let state = ReporterState::new_with_summary_scope(
             cwd(),
             width,
             colors,
             append_only,
-            FILTER_SUMMARY_BY_PREFIX.get().copied().unwrap_or(true),
+            SUMMARY_SCOPE.get().copied().unwrap_or(SummaryScope::CurrentPrefix),
         );
         let diff = diff::Diff::new(columns);
         let throttle =

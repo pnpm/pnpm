@@ -290,3 +290,14 @@ pub enum CliCommand {
     #[clap(external_subcommand)]
     External(Vec<String>),
 }
+
+impl CliCommand {
+    pub(crate) fn runs_global_install_groups(&self) -> bool {
+        match self {
+            CliCommand::Add(args) => args.global,
+            CliCommand::Runtime(args) => args.global,
+            CliCommand::Update(args) => args.global,
+            _ => false,
+        }
+    }
+}
