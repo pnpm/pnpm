@@ -10,8 +10,7 @@ use pacquet_reporter::{
     AddedRoot, ContextLog, DependencyType, ExecutionTimeLog, FetchingProgressMessage, HookLog,
     IgnoredScriptsLog, InstallingConfigDepsLog, InstallingConfigDepsStatus, LifecycleMessage,
     LifecycleStdio, LockfileVerificationMessage, LogEvent, LogLevel, PackageImportMethod,
-    PackageManifestMessage, ProgressMessage, RemovedRoot, RequestRetryLog, SkippedOptionalPackage,
-    Stage, StatsMessage,
+    PackageManifestMessage, ProgressMessage, RemovedRoot, RequestRetryLog, Stage, StatsMessage,
 };
 use serde_json::Value;
 
@@ -300,15 +299,11 @@ impl ReporterState {
             LogEvent::Summary(_) => self.on_summary(),
             LogEvent::Lifecycle(log) => self.on_lifecycle(&log.message),
             LogEvent::IgnoredScripts(log) => self.on_ignored_scripts(log),
-            LogEvent::SkippedOptionalDependency(log) => {
-                let pkg = match &log.package {
-                    SkippedOptionalPackage::Installed { id, .. } => id.clone(),
-                    SkippedOptionalPackage::ResolutionFailure { bare_specifier, .. } => {
-                        bare_specifier.clone()
-                    }
-                };
-                self.push_warning(&format!("Skipping optional dependency {pkg}"));
-            }
+            // Upstream's `reportSkippedOptionalDependencies` only prints top-level
+            // resolution failures (its filter needs a `parents: []`); the emits
+            // pacquet produces carry no `parents`, so upstream drops them from the
+            // console. Consume without rendering to match.
+            LogEvent::SkippedOptionalDependency(_) => {}
             LogEvent::InstallingConfigDeps(log) => self.on_config_deps(log),
             LogEvent::LockfileVerification(log) => self.on_lockfile_verification(&log.message),
             LogEvent::RequestRetry(log) => self.on_request_retry(log),
