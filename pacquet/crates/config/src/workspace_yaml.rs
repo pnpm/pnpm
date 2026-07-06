@@ -728,7 +728,6 @@ impl WorkspaceSettings {
             fetch_retries, fetch_retry_factor,
             fetch_retry_mintimeout, fetch_retry_maxtimeout,
             network_concurrency, fetch_timeout, user_agent,
-            engine_strict,
             enable_global_virtual_store,
             git_shallow_hosts,
             resolution_mode, catalog_mode, registry_supports_time_field,
@@ -805,6 +804,9 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.ignore_scripts {
             config.ignore_scripts = v;
+        }
+        if let Some(v) = self.engine_strict {
+            config.engine_strict = v;
         }
         if let Some(v) = self.node_version {
             config.node_version = Some(v);

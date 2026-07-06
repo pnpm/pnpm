@@ -143,11 +143,10 @@ pub struct ThrottledClient {
 /// option (the `maxSockets` setting pnpm applies per registry origin).
 ///
 /// Each distinct `scheme://host[:port]` origin gets its own [`Semaphore`] of
-/// `max` permits, minted on first request to that origin. Acquired *after*
-/// the global [`ThrottledClient::semaphore`], so `network_concurrency` stays
-/// the outer bound and `maxSockets` the per-origin inner one — the same
-/// layering pnpm has (its `networkConcurrency` queue wraps undici's per-origin
-/// pool).
+/// `max` permits, minted on first request to that origin. Acquired *before*
+/// the global [`ThrottledClient::semaphore`] so a request waiting on a
+/// saturated origin does not hold a global concurrency slot — that would let a
+/// burst to one origin hoard every global permit and starve other origins.
 #[derive(Debug)]
 struct HostSocketLimit {
     max: NonZeroUsize,
@@ -477,13 +476,15 @@ impl ThrottledClient {
         url: &str,
         priority: u64,
     ) -> ThrottledClientGuard<'_> {
-        let permit = self.semaphore.acquire(priority).await;
-        // The per-origin `maxSockets` permit is acquired after the global
-        // concurrency permit so `network_concurrency` stays the outer bound.
+        // Acquire the per-origin `maxSockets` permit *before* the global
+        // concurrency permit: a request queued behind a saturated origin must
+        // not hold a global slot while it waits, or a burst to one origin would
+        // hoard every global permit and starve requests to other origins.
         let host_permit = match &self.host_socket_limit {
             Some(limit) => limit.acquire(url).await,
             None => None,
         };
+        let permit = self.semaphore.acquire(priority).await;
         let client = self
             .routing
             .pick_for_url(url)
