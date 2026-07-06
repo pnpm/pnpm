@@ -272,6 +272,7 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     // catalog set and fail with ERR_PNPM_CATALOG_IN_OVERRIDES.
     if let (Some(overrides), Some(workspace_dir)) =
         (config.overrides.as_ref(), config.workspace_dir.as_deref())
+        && overrides.values().any(|spec| spec.starts_with("catalog:"))
     {
         let workspace_manifest =
             pacquet_workspace::read_workspace_manifest(workspace_dir).into_diagnostic()?;
