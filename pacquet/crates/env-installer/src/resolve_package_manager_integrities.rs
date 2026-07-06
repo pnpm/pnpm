@@ -27,7 +27,12 @@ pub async fn resolve_package_manager_integrities(
         .map_err(ConfigDepError::ReadLockfile)?
         .unwrap_or_else(EnvLockfile::create);
     let package_manager_deps = package_manager_deps(pnpm_version);
-    if is_package_manager_resolved(&env_lockfile, wanted_specifier, pnpm_version) {
+    if is_package_manager_resolved_with_deps(
+        &env_lockfile,
+        wanted_specifier,
+        pnpm_version,
+        package_manager_deps,
+    ) {
         return Ok(());
     }
     if opts.frozen_lockfile {
@@ -106,6 +111,20 @@ pub fn is_package_manager_resolved(
     wanted_specifier: &str,
     pnpm_version: &str,
 ) -> bool {
+    is_package_manager_resolved_with_deps(
+        env_lockfile,
+        wanted_specifier,
+        pnpm_version,
+        package_manager_deps(pnpm_version),
+    )
+}
+
+fn is_package_manager_resolved_with_deps(
+    env_lockfile: &EnvLockfile,
+    wanted_specifier: &str,
+    pnpm_version: &str,
+    package_manager_deps: &[&str],
+) -> bool {
     let Some(pm_deps) = env_lockfile
         .importers
         .get(EnvLockfile::ROOT_IMPORTER_KEY)
@@ -113,7 +132,6 @@ pub fn is_package_manager_resolved(
     else {
         return false;
     };
-    let package_manager_deps = package_manager_deps(pnpm_version);
     pm_deps.len() == package_manager_deps.len()
         && package_manager_deps.iter().all(|name| {
             pm_deps.get(*name).is_some_and(|dep| {

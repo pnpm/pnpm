@@ -44,6 +44,7 @@ fn native_binary_linking_matches_pnpm_engine_layout() {
     assert!(pnpm_package_to_install("6.17.1").links_native_binary);
     assert!(!pnpm_package_to_install("6.16.0").links_native_binary);
     assert!(!pnpm_package_to_install("5.18.10").links_native_binary);
+    assert!(pnpm_package_to_install("not-semver").links_native_binary);
 }
 
 /// Lay out a fake engine install: the `pnpm` wrapper and, under
@@ -97,6 +98,25 @@ fn links_the_host_platform_binary_into_scoped_exe_wrapper() {
     let dest = package_dir(temp.path(), PNPM_EXE_PACKAGE_NAME).join("pnpm");
     assert!(dest.exists(), "the native binary is linked into the scoped wrapper");
     assert_eq!(fs::read(&dest).expect("read linked binary"), b"#!/bin/sh\necho pnpm\n");
+}
+
+#[cfg(unix)]
+#[test]
+fn rejects_wrapper_symlink_that_escapes_the_install_dir() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let outside = tempfile::tempdir().expect("outside tempdir");
+    let outside_wrapper = outside.path().join("exe");
+    fs::create_dir_all(&outside_wrapper).expect("create outside wrapper");
+    fs::write(outside_wrapper.join("pnpm"), b"outside").expect("write outside placeholder");
+
+    fs::create_dir_all(temp.path().join("node_modules").join("@pnpm")).expect("create scope dir");
+    std::os::unix::fs::symlink(&outside_wrapper, package_dir(temp.path(), PNPM_EXE_PACKAGE_NAME))
+        .expect("symlink wrapper outside install dir");
+
+    let err = link_exe_platform_binary(temp.path(), PNPM_EXE_PACKAGE_NAME)
+        .expect_err("escaped wrapper must be rejected");
+    assert!(err.to_string().contains("resolves outside"), "unexpected error: {err:?}");
+    assert_eq!(fs::read(outside_wrapper.join("pnpm")).expect("read outside file"), b"outside");
 }
 
 #[test]

@@ -287,9 +287,21 @@ pub(crate) fn link_exe_platform_binary(
     // real virtual store, not via a `node_modules` walk (which a
     // repo-controlled store-dir could shadow). `@pnpm/exe`'s parent is
     // already `@pnpm`; the unscoped `pnpm` descends into `@pnpm`.
+    let install_real_dir = fs::canonicalize(install_dir)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("resolve the pnpm install dir at {}", install_dir.display()))?;
     let wrapper_real_dir = fs::canonicalize(&wrapper_dir)
         .into_diagnostic()
         .wrap_err_with(|| format!("resolve the pnpm wrapper at {}", wrapper_dir.display()))?;
+    if !wrapper_real_dir.starts_with(&install_real_dir) {
+        let wrapper_display = wrapper_dir.display();
+        let install_display = install_dir.display();
+        return Err(miette::miette!(
+            "the installed pnpm wrapper at {} resolves outside {}",
+            wrapper_display,
+            install_display
+        ));
+    }
     let parent = wrapper_real_dir
         .parent()
         .ok_or_else(|| miette::miette!("the pnpm wrapper has no parent directory"))?;
@@ -307,7 +319,7 @@ pub(crate) fn link_exe_platform_binary(
         .ok_or_else(|| {
             miette::miette!("no @pnpm/exe.{platform}-{arch} native binary was found for this host")
         })?;
-    let dest = wrapper_dir.join(executable);
+    let dest = wrapper_real_dir.join(executable);
     force_link(&src, &dest)
         .into_diagnostic()
         .wrap_err("link the native pnpm binary into the wrapper")?;
@@ -318,11 +330,11 @@ pub(crate) fn link_exe_platform_binary(
         // target under MSYS2 / Git Bash. The native binary detects which
         // name it was launched as and prepends `dlx` for pnpx / pnx.
         for alias in ["pn", "pnpx", "pnx"] {
-            force_link(&src, &wrapper_dir.join(format!("{alias}.exe")))
+            force_link(&src, &wrapper_real_dir.join(format!("{alias}.exe")))
                 .into_diagnostic()
                 .wrap_err_with(|| format!("link the {alias} alias into the wrapper"))?;
         }
-        rewrite_windows_bin_field(&wrapper_dir);
+        rewrite_windows_bin_field(&wrapper_real_dir);
     }
     Ok(())
 }

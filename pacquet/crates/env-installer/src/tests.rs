@@ -382,6 +382,54 @@ async fn resolves_package_manager_dependencies_without_exe_before_it_was_publish
 }
 
 #[tokio::test]
+async fn resolves_package_manager_dependencies_with_exe_at_first_published_version() {
+    let harness = harness();
+    let root = TempDir::new().unwrap();
+    let resolver = FixtureResolver::new()
+        .package(serde_json::json!({
+            "name": "pnpm",
+            "version": "6.17.1",
+            "bin": { "pnpm": "bin/pnpm.cjs", "pnpx": "bin/pnpx.cjs" },
+        }))
+        .package(serde_json::json!({
+            "name": "@pnpm/exe",
+            "version": "6.17.1",
+            "bin": { "pnpm": "pnpm" },
+            "optionalDependencies": { "@pnpm/macos-arm64": "6.17.1" },
+        }))
+        .package(serde_json::json!({
+            "name": "@pnpm/macos-arm64",
+            "version": "6.17.1",
+            "cpu": ["arm64"],
+            "os": ["darwin"],
+        }));
+
+    resolve_package_manager_integrities(
+        "^6.0.0",
+        "6.17.1",
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+
+    let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
+    let pm_deps = env.importers[EnvLockfile::ROOT_IMPORTER_KEY]
+        .package_manager_dependencies
+        .as_ref()
+        .expect("package manager deps recorded");
+    assert_eq!(pm_deps.len(), 2);
+    assert_eq!(pm_deps["pnpm"].version, "6.17.1");
+    assert_eq!(pm_deps["@pnpm/exe"].version, "6.17.1");
+
+    let exe_key: PackageKey = "@pnpm/exe@6.17.1".parse().unwrap();
+    let platform_key: PackageKey = "@pnpm/macos-arm64@6.17.1".parse().unwrap();
+    assert!(env.packages.contains_key(&exe_key));
+    assert!(env.packages.contains_key(&platform_key));
+    assert!(is_package_manager_resolved(&env, "^6.0.0", "6.17.1"));
+}
+
+#[tokio::test]
 async fn rejects_optional_subdep_with_non_exact_version() {
     let harness = harness();
     let (resolver, _cache) = build_resolver(&harness.registry_url);
