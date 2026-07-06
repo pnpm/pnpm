@@ -47,6 +47,13 @@ function nativePackageName(target) {
 
 function generateNativePackage(target) {
   const packageName = nativePackageName(target)
+  // Treat a missing prebuilt artifact as fatal: the release must publish the
+  // full native target matrix, so a gap can't be silently skipped (that would
+  // publish the wrapper with incomplete platform coverage).
+  const source = resolve(REPO_ROOT, `${ARTIFACT_BASE}.${target.codeTarget}.node`)
+  if (!fs.existsSync(source)) {
+    throw new Error(`Missing prebuilt artifact ${source} for ${packageName}`)
+  }
   const packageRoot = resolve(PACKAGES_ROOT, `napi.${target.codeTarget}`)
   fs.rmSync(packageRoot, { recursive: true, force: true })
   fs.mkdirSync(packageRoot)
@@ -67,12 +74,6 @@ function generateNativePackage(target) {
     manifestData.libc = [target.libc]
   }
   fs.writeFileSync(resolve(packageRoot, 'package.json'), `${JSON.stringify(manifestData, null, 2)}\n`)
-
-  const source = resolve(REPO_ROOT, `${ARTIFACT_BASE}.${target.codeTarget}.node`)
-  if (!fs.existsSync(source)) {
-    console.warn(`WARN: missing prebuilt artifact ${source}; skipping ${packageName}`)
-    return false
-  }
   fs.copyFileSync(source, resolve(packageRoot, NATIVE_ADDON_FILE))
   console.log(`Generated ${packageName}`)
   return true
@@ -82,10 +83,9 @@ function patchWrapperOptionalDependencies(generatedTargets) {
   const optionalDependencies = Object.fromEntries(
     generatedTargets.map((target) => [nativePackageName(target), rootManifest.version])
   )
-  rootManifest.optionalDependencies = {
-    ...rootManifest.optionalDependencies,
-    ...optionalDependencies,
-  }
+  // Replace rather than merge so a rerun with a smaller target set can't leave
+  // stale optionalDependencies entries pointing at packages we no longer build.
+  rootManifest.optionalDependencies = optionalDependencies
   fs.writeFileSync(MANIFEST_PATH, `${JSON.stringify(rootManifest, null, 2)}\n`)
   console.log('Patched @pnpm/napi optionalDependencies')
 }

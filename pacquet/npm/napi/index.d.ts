@@ -97,7 +97,6 @@ export interface InstallOptions extends SharedEngineOptions {
   overrides?: Record<string, string>
   allowBuilds?: Record<string, boolean>
   dangerouslyAllowAllBuilds?: boolean
-  neverBuiltDependencies?: string[]
   autoInstallPeers?: boolean
   excludeLinksFromLockfile?: boolean
   lockfileOnly?: boolean

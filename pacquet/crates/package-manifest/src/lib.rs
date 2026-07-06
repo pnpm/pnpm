@@ -164,6 +164,14 @@ impl PackageManifest {
     /// Nothing is written; [`Self::save`] persists it if the caller wants.
     #[must_use]
     pub fn from_value(path: PathBuf, mut value: Value) -> PackageManifest {
+        // A manifest must be a JSON object. A non-object value (array / string /
+        // number) supplied across the FFI boundary would otherwise panic later
+        // when a dependency is inserted via `self.value[key] = ...`; coerce
+        // anything that isn't an object to an empty one so malformed input
+        // degrades gracefully instead of aborting the host process.
+        if !value.is_object() {
+            value = json!({});
+        }
         convert_engines_runtime_to_dependencies(&mut value, "devEngines", "devDependencies");
         convert_engines_runtime_to_dependencies(&mut value, "engines", "dependencies");
         PackageManifest { path, value }

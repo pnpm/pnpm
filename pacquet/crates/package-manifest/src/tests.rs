@@ -817,3 +817,16 @@ fn convert_engines_ignores_non_array_non_object_runtime_entries() {
     convert_engines_runtime_to_dependencies(&mut manifest, "devEngines", "devDependencies");
     assert_eq!(manifest, before, "manifest must be unchanged for unsupported `runtime` shape");
 }
+
+#[test]
+fn from_value_coerces_non_object_input_to_an_empty_object() {
+    // A non-object manifest supplied across the FFI boundary must not later
+    // panic when a dependency is inserted; `from_value` normalizes it to `{}`.
+    for value in [json!([1, 2, 3]), json!("oops"), json!(42), json!(true), json!(null)] {
+        let mut manifest = PackageManifest::from_value("/x/package.json".into(), value.clone());
+        assert!(manifest.value().is_object(), "input {value} should normalize to an object");
+        manifest
+            .add_dependency("is-odd", "3.0.1", DependencyGroup::Prod)
+            .expect("adding a dependency to a normalized manifest must not fail");
+    }
+}
