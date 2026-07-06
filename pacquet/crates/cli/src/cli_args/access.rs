@@ -33,9 +33,7 @@ pub struct AccessArgs {
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum AccessError {
-    #[display(
-        "A subcommand is required (e.g., \"list packages\", \"get status\", \"set status=public\", \"grant\", \"revoke\")"
-    )]
+    #[display(r#"A subcommand is required (e.g., "list packages", "get status", "set status=public", "grant", "revoke")"#)]
     #[diagnostic(code(ERR_PNPM_ACCESS_SUBCOMMAND_REQUIRED))]
     SubcommandRequired,
 
