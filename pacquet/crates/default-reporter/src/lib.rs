@@ -35,6 +35,7 @@ use crate::{
 static CWD: OnceLock<String> = OnceLock::new();
 static PACKAGE_VERSION: OnceLock<String> = OnceLock::new();
 static FORCE_APPEND_ONLY: OnceLock<bool> = OnceLock::new();
+static FILTER_SUMMARY_BY_PREFIX: OnceLock<bool> = OnceLock::new();
 
 /// Set the project root the reporter renders paths relative to. Call once
 /// before the first event; ignored if already set.
@@ -56,6 +57,12 @@ pub(crate) fn package_version() -> &'static str {
 /// backing `--reporter=append-only`. Call once before the first event.
 pub fn force_append_only() {
     let _ = FORCE_APPEND_ONLY.set(true);
+}
+
+/// Configure whether the packages-diff summary is restricted to `cwd`.
+/// Global installs aggregate every group, matching pnpm's global reporter path.
+pub fn set_filter_summary_by_prefix(filter: bool) {
+    let _ = FILTER_SUMMARY_BY_PREFIX.set(filter);
 }
 
 fn cwd() -> String {
@@ -109,7 +116,13 @@ impl Sink {
         // pnpm's `outputMaxWidth`: `columns - 2` on a TTY, else 80.
         let width = if is_tty { columns.saturating_sub(2) } else { 80 };
         let colors = Colors { enabled: is_tty && std::env::var_os("NO_COLOR").is_none() };
-        let state = ReporterState::new(cwd(), width, colors, append_only);
+        let state = ReporterState::new_with_summary_prefix_filter(
+            cwd(),
+            width,
+            colors,
+            append_only,
+            FILTER_SUMMARY_BY_PREFIX.get().copied().unwrap_or(true),
+        );
         let diff = diff::Diff::new(columns);
         let throttle =
             if append_only { Duration::from_secs(1) } else { Duration::from_millis(200) };

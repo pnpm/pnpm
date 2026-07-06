@@ -213,6 +213,7 @@ pub struct ReporterState {
     manifest_updated: Option<Value>,
     summary_slot: BlockSlot,
     summary_rendered: bool,
+    filter_summary_by_prefix: bool,
 
     lifecycle: HashMap<String, LifecycleEntry>,
     lifecycle_slots: HashMap<String, BlockSlot>,
@@ -246,6 +247,17 @@ const COLOR_WHEEL: [fn(&Colors, &str) -> String; 6] = [
 impl ReporterState {
     #[must_use]
     pub fn new(cwd: String, width: usize, colors: Colors, append_only: bool) -> Self {
+        Self::new_with_summary_prefix_filter(cwd, width, colors, append_only, true)
+    }
+
+    #[must_use]
+    pub fn new_with_summary_prefix_filter(
+        cwd: String,
+        width: usize,
+        colors: Colors,
+        append_only: bool,
+        filter_summary_by_prefix: bool,
+    ) -> Self {
         let mut diff = HashMap::new();
         for kind in SUMMARY_ORDER {
             diff.insert(diff_key(kind), HashMap::new());
@@ -270,6 +282,7 @@ impl ReporterState {
             manifest_updated: None,
             summary_slot: BlockSlot::default(),
             summary_rendered: false,
+            filter_summary_by_prefix,
             lifecycle: HashMap::new(),
             lifecycle_slots: HashMap::new(),
             lifecycle_colors: HashMap::new(),
@@ -534,6 +547,12 @@ impl ReporterState {
 
     fn on_root(&mut self, message: &pacquet_reporter::RootMessage) {
         use pacquet_reporter::RootMessage;
+        let prefix = match message {
+            RootMessage::Added { prefix, .. } | RootMessage::Removed { prefix, .. } => prefix,
+        };
+        if !self.is_current_prefix(prefix) {
+            return;
+        }
         let (added, kind, name, version, real_name, from, latest) = match message {
             RootMessage::Added { added, .. } => added_fields(added),
             RootMessage::Removed { removed, .. } => removed_fields(removed),
@@ -554,6 +573,13 @@ impl ReporterState {
     }
 
     fn on_manifest(&mut self, message: &PackageManifestMessage) {
+        let prefix = match message {
+            PackageManifestMessage::Initial { prefix, .. }
+            | PackageManifestMessage::Updated { prefix, .. } => prefix,
+        };
+        if !self.is_current_prefix(prefix) {
+            return;
+        }
         match message {
             PackageManifestMessage::Initial { initial, .. } => {
                 self.manifest_initial = Some(initial.clone());
@@ -574,6 +600,10 @@ impl ReporterState {
         let mut slot = std::mem::take(&mut self.summary_slot);
         self.frame.emit(&mut slot, msg, false);
         self.summary_slot = slot;
+    }
+
+    fn is_current_prefix(&self, prefix: &str) -> bool {
+        !self.filter_summary_by_prefix || prefix == self.cwd
     }
 
     fn apply_manifest_diff(&mut self) {

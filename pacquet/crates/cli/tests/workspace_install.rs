@@ -80,7 +80,16 @@ fn fresh_resolve_walks_every_workspace_importer() {
 
     // Run the install. No --frozen-lockfile and no pre-existing
     // lockfile → fresh-resolve path.
-    pacquet.with_arg("install").assert().success();
+    let output =
+        pacquet.with_args(["--reporter=append-only", "install"]).output().expect("run install");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "install failed\nstdout:\n{stdout}\nstderr:\n{stderr}");
+    assert!(
+        !stdout.contains("\n+ @pnpm.e2e/hello-world-js-bin-parent")
+            && !stdout.contains("\n+ @pnpm.e2e/hello-world-js-bin"),
+        "root summary must not list dependencies from child importers\nstdout:\n{stdout}",
+    );
 
     let a_dep = workspace.join("packages/a/node_modules/@pnpm.e2e/hello-world-js-bin-parent");
     assert!(

@@ -79,7 +79,7 @@ impl CliArgs {
             return false;
         };
         config_overrides.apply(&mut config);
-        configure_default_reporter(self.reporter, &dir);
+        configure_default_reporter(self.reporter, &dir, true);
         let emit = reporter_emit(self.reporter);
         let finished = install_args.finished_via_up_to_date_fast_path(&dir, &config, emit);
         if finished {
@@ -133,7 +133,13 @@ impl CliArgs {
         // The default reporter renders paths relative to the install root and
         // its `Done in ...` footer over the whole command; seed both before any
         // event can fire.
-        configure_default_reporter(reporter, &dir);
+        let filter_summary_by_prefix = match &command {
+            CliCommand::Add(args) => !args.global,
+            CliCommand::Runtime(args) => !args.global,
+            CliCommand::Update(args) => !args.global,
+            _ => true,
+        };
+        configure_default_reporter(reporter, &dir, filter_summary_by_prefix);
         let started_at = now_millis();
         let is_install_family = matches!(
             &command,
