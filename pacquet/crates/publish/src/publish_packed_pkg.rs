@@ -13,6 +13,7 @@ use pacquet_network_web_auth::{
     WebAuthRetryOptions, WithOtpError, with_otp_handling,
 };
 use pacquet_reporter::Reporter;
+use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use serde_json::{Map, Value};
 
 use crate::{
@@ -391,6 +392,15 @@ fn build_publish_document(
         return Err(PublishPackedPkgError::Private);
     }
     let name = manifest_string(manifest, "name");
+    // Validate the name before it flows into the tarball URI and (in the caller)
+    // the authenticated PUT URL, mirroring libnpmpublish's `npa.resolve(name, ..)`
+    // gate. Without it a crafted tarball's `package.json` name could parse as an
+    // absolute URL under `Url::join` (special-scheme URLs also treat `\` as `/`)
+    // and redirect the publish request — carrying the `Authorization` / `npm-otp`
+    // headers — to an attacker-controlled host.
+    if !is_valid_old_npm_package_name(&name) {
+        return Err(PublishPackedPkgError::InvalidPackageName { name });
+    }
     let version = clean_version(&manifest_string(manifest, "version"))?;
 
     if !name.starts_with('@') && access == Some(Access::Restricted) {
@@ -513,6 +523,10 @@ pub enum PublishPackedPkgError {
     #[display("Can't restrict access to the unscoped package {name}")]
     #[diagnostic(code(ERR_PNPM_UNSCOPED_RESTRICTED))]
     UnscopedRestricted { name: String },
+
+    #[display("Invalid package name \"{name}\".")]
+    #[diagnostic(code(ERR_PNPM_INVALID_PACKAGE_NAME))]
+    InvalidPackageName { name: String },
 
     #[display("Invalid semver: {version}")]
     #[diagnostic(code(ERR_PNPM_BAD_SEMVER))]

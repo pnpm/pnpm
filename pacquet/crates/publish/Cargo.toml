@@ -11,12 +11,13 @@ license.workspace    = true
 repository.workspace = true
 
 [dependencies]
-pacquet-diagnostics      = { workspace = true }
-pacquet-executor         = { workspace = true }
-pacquet-network          = { workspace = true }
-pacquet-network-web-auth = { workspace = true }
-pacquet-pack             = { workspace = true }
-pacquet-reporter         = { workspace = true }
+pacquet-diagnostics                       = { workspace = true }
+pacquet-executor                          = { workspace = true }
+pacquet-network                           = { workspace = true }
+pacquet-network-web-auth                  = { workspace = true }
+pacquet-pack                              = { workspace = true }
+pacquet-reporter                          = { workspace = true }
+pacquet-resolving-parse-wanted-dependency = { workspace = true }
 
 base64        = { workspace = true }
 bytes         = { workspace = true }

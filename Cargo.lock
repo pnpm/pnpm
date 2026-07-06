@@ -4599,6 +4599,7 @@ dependencies = [
  "pacquet-network-web-auth-testing",
  "pacquet-pack",
  "pacquet-reporter",
+ "pacquet-resolving-parse-wanted-dependency",
  "pipe-trait",
  "pretty_assertions",
  "reqwest 0.13.4",

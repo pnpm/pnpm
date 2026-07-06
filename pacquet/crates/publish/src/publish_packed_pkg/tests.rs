@@ -762,3 +762,25 @@ fn registry_for_display_strips_userinfo_and_leaves_a_plain_registry_untouched() 
             .normalized_url;
     assert_eq!(registry_for_display(&with_credentials), "https://registry.example.com/");
 }
+
+#[test]
+fn rejects_a_package_name_that_could_redirect_the_publish_url() {
+    // A crafted tarball name that would parse as an absolute (or protocol-relative)
+    // URL under `Url::join` must be rejected before it reaches the authenticated
+    // PUT URL — mirroring libnpmpublish's `npa.resolve` name validation.
+    for bad in ["https://evil.com", r"\\evil.com\pkg", "pnpm:evil", "foo/bar", "//evil.com"] {
+        let manifest = json!({ "name": bad, "version": "1.0.0" });
+        let err = build_publish_document(&manifest, b"x", &registry(), None, "latest", &hashes())
+            .unwrap_err();
+        assert!(
+            matches!(err, super::PublishPackedPkgError::InvalidPackageName { .. }),
+            "{bad:?} should be rejected, got {err:?}",
+        );
+    }
+
+    // A legitimate scoped name still builds the document.
+    let manifest = json!({ "name": "@scope/pkg", "version": "1.0.0" });
+    assert!(
+        build_publish_document(&manifest, b"x", &registry(), None, "latest", &hashes()).is_ok(),
+    );
+}
