@@ -78,9 +78,9 @@ function generateNativePackage(target) {
   return true
 }
 
-function patchWrapperOptionalDependencies() {
+function patchWrapperOptionalDependencies(generatedTargets) {
   const optionalDependencies = Object.fromEntries(
-    TARGETS.map((target) => [nativePackageName(target), rootManifest.version])
+    generatedTargets.map((target) => [nativePackageName(target), rootManifest.version])
   )
   rootManifest.optionalDependencies = {
     ...rootManifest.optionalDependencies,
@@ -90,7 +90,5 @@ function patchWrapperOptionalDependencies() {
   console.log('Patched @pnpm/napi optionalDependencies')
 }
 
-for (const target of TARGETS) {
-  generateNativePackage(target)
-}
-patchWrapperOptionalDependencies()
+const generatedTargets = TARGETS.filter((target) => generateNativePackage(target))
+patchWrapperOptionalDependencies(generatedTargets)

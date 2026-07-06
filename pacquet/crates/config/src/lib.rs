@@ -35,18 +35,17 @@ use std::{
 };
 
 pub use crate::defaults::{
-    GLOBAL_LAYOUT_VERSION, PACQUET_VERSION, available_parallelism, default_git_shallow_hosts,
-    default_peers_suffix_max_length, default_pnpm_home_dir, default_unsafe_perm,
-    default_virtual_store_dir_max_length, default_workspace_concurrency, is_unsafe_perm_posix,
-    resolve_child_concurrency,
+    GLOBAL_LAYOUT_VERSION, PACQUET_VERSION, available_parallelism, default_config_dir,
+    default_git_shallow_hosts, default_peers_suffix_max_length, default_pnpm_home_dir,
+    default_unsafe_perm, default_virtual_store_dir_max_length, default_workspace_concurrency,
+    is_unsafe_perm_posix, resolve_child_concurrency,
 };
 use crate::defaults::{
-    default_cache_dir, default_child_concurrency, default_config_dir,
-    default_enable_global_virtual_store, default_fetch_retries, default_fetch_retry_factor,
-    default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout, default_fetch_timeout,
-    default_hoist_pattern, default_modules_cache_max_age, default_modules_dir,
-    default_public_hoist_pattern, default_registry, default_store_dir, default_user_agent,
-    default_virtual_store_dir,
+    default_cache_dir, default_child_concurrency, default_enable_global_virtual_store,
+    default_fetch_retries, default_fetch_retry_factor, default_fetch_retry_maxtimeout,
+    default_fetch_retry_mintimeout, default_fetch_timeout, default_hoist_pattern,
+    default_modules_cache_max_age, default_modules_dir, default_public_hoist_pattern,
+    default_registry, default_store_dir, default_user_agent, default_virtual_store_dir,
 };
 pub use workspace_yaml::{
     GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError, PackageExtension, PeerDependencyMeta,

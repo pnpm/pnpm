@@ -44,7 +44,6 @@ export interface NetworkConfig {
   key?: string
   localAddress?: string
   strictSsl?: boolean
-  maxSockets?: number
   networkConcurrency?: number
   fetchRetries?: number
   fetchRetryFactor?: number
@@ -54,15 +53,8 @@ export interface NetworkConfig {
   userAgent?: string
 }
 
-/**
- * A `readPackage` hook applied to every manifest before resolution.
- * `workspaceDir` is set only for workspace (importer) packages.
- * May return the manifest synchronously or as a promise.
- */
-export type ReadPackageHook = (
-  manifest: PackageManifest,
-  workspaceDir?: string
-) => PackageManifest | Promise<PackageManifest>
+/** A synchronous `readPackage` hook applied to resolved dependency manifests. */
+export type ReadPackageHook = (manifest: PackageManifest) => PackageManifest
 
 /**
  * Receives engine log events. The event stream is wire-compatible with
@@ -74,8 +66,6 @@ export type LogListener = (event: Record<string, unknown>) => void
 export interface SharedEngineOptions {
   /** Registry routes: `{ default: url, '@scope': url, ... }` */
   registries?: Record<string, string>
-  /** Raw nerf-darted `.npmrc`-style auth entries (`//host/:_authToken=...`). */
-  authConfig?: Record<string, string>
   /**
    * Pre-computed `Authorization` header values keyed by nerf-darted registry
    * URI (`//host/path/`), plus `''` for the default registry — e.g.
@@ -118,15 +108,8 @@ export interface InstallOptions extends SharedEngineOptions {
   resolvePeersFromWorkspaceRoot?: boolean
   injectWorkspacePackages?: boolean
   hoistWorkspacePackages?: boolean
-  enableModulesDir?: boolean
-  ignorePackageManifest?: boolean
-  nodeVersion?: string
-  engineStrict?: boolean
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
-  /** Re-resolve every dependency to the highest version satisfying its range. */
-  update?: boolean
-  depth?: number
   includeOptionalDeps?: boolean
   ignoreScripts?: boolean
   /**
@@ -137,9 +120,6 @@ export interface InstallOptions extends SharedEngineOptions {
   strictDepBuilds?: boolean
   /** Customizations for how peer-dependency mismatches are treated. */
   peerDependencyRules?: PeerDependencyRules
-  pnpmHomeDir?: string
-  readPackageHook?: ReadPackageHook
-  onLog?: LogListener
 }
 
 /** pnpm's `peerDependencyRules`. */
@@ -170,7 +150,7 @@ export interface InstallResult {
 export function install(
   options: InstallOptions,
   onLog?: LogListener,
-  readPackageHook?: (manifest: PackageManifest) => PackageManifest
+  readPackageHook?: ReadPackageHook
 ): Promise<InstallResult>
 
 /**

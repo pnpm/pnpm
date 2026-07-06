@@ -1,12 +1,11 @@
 name: Release pnpm (Rust)
 
-# Manual-trigger only: patches the version into pacquet/npm/pnpm/package.json,
-# generates the per-platform packages, and publishes (no git tag / release asset
-# — npm is the artifact store). Ships the Rust port under two names, `pnpm` and
-# `@pnpm/exe`, both depending on the `@pnpm/exe.<target>` natives. The natives
-# go live directly; the two wrappers are only staged and must be approved with
-# `pnpm stage approve` to go live. The `tag` defaults to `next-12` so a release
-# never touches the production `latest`.
+# Manual-trigger only: patches the npm wrapper versions, generates the
+# per-platform packages, and publishes (no git tag / release asset — npm is the
+# artifact store). Ships the Rust port under `pnpm`, `@pnpm/exe`, and
+# `@pnpm/napi`. Native packages go live directly; wrappers are staged and must
+# be approved with `pnpm stage approve` to go live. The `tag` defaults to
+# `next-12` so a release never touches the production `latest`.
 on:
   workflow_dispatch:
     inputs:
@@ -118,6 +117,19 @@ jobs:
       - name: Build with cross
         run: cross build -p pacquet-cli --bin pacquet --release --target=${{ matrix.target }}
 
+      - name: Build NAPI addon with cross
+        run: cross build -p pacquet-napi --profile napi-release --target=${{ matrix.target }}
+
+      - name: Prepare NAPI addon
+        shell: bash
+        run: |
+          case "${{ runner.os }}" in
+            Windows) source="target/${{ matrix.target }}/napi-release/pacquet_napi.dll" ;;
+            macOS) source="target/${{ matrix.target }}/napi-release/libpacquet_napi.dylib" ;;
+            *) source="target/${{ matrix.target }}/napi-release/libpacquet_napi.so" ;;
+          esac
+          cp "$source" "pnpm-napi.${{ matrix.code-target }}.node"
+
       # The binary is zipped to fix permission loss https://github.com/actions/upload-artifact#permission-loss
       - name: Archive Binary
         if: runner.os == 'Windows'
@@ -140,6 +152,7 @@ jobs:
         with:
           subject-path: |
             pacquet-${{ matrix.code-target }}*
+            pnpm-napi.${{ matrix.code-target }}.node
 
       - name: Upload Binary
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -149,6 +162,7 @@ jobs:
           path: |
             *.zip
             *.tar.gz
+            *.node
 
   publish:
     name: Publish
@@ -183,6 +197,14 @@ jobs:
           mv pacquet/npm/pnpm/package.json.tmp pacquet/npm/pnpm/package.json
           cat pacquet/npm/pnpm/package.json
 
+      - name: Inject version into pacquet/npm/napi/package.json
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          jq --arg v "$VERSION" '.version = $v' pacquet/npm/napi/package.json > pacquet/npm/napi/package.json.tmp
+          mv pacquet/npm/napi/package.json.tmp pacquet/npm/napi/package.json
+          cat pacquet/npm/napi/package.json
+
       - name: Install pnpm and Node
         uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
         with:
@@ -206,8 +228,10 @@ jobs:
       - name: Generate npm packages
         run: |
           node pacquet/npm/pnpm/scripts/generate-packages.mjs
+          node pacquet/npm/napi/scripts/generate-packages.mjs
           cat pacquet/npm/pnpm/package.json
-          for package in pacquet/npm/pacquet-* pacquet/npm/pnpm*; do cat $package/package.json ; echo ; done
+          cat pacquet/npm/napi/package.json
+          for package in pacquet/npm/pacquet-* pacquet/npm/napi.* pacquet/npm/pnpm*; do cat $package/package.json ; echo ; done
 
       # The publish is split into two steps because npm allows a single trusted
       # publisher per package, and `pnpm` / `@pnpm/exe` have theirs bound to
@@ -229,7 +253,7 @@ jobs:
         env:
           TAG: ${{ inputs.tag }}
         run: |
-          for package in pacquet/npm/pacquet-*; do
+          for package in pacquet/npm/pacquet-* pacquet/npm/napi.*; do
             pnpm publish "$package/" --tag "$TAG" --access public --provenance --no-git-checks
           done
 
@@ -241,7 +265,7 @@ jobs:
           set -o pipefail
           trap 'pnpm config delete "//registry.npmjs.org/:_authToken" || true' EXIT
           pnpm config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
-          for package in pacquet/npm/pnpm*; do
+          for package in pacquet/npm/pnpm* pacquet/npm/napi; do
             # tee the output (which includes the stage id) into the job summary
             # so the approver doesn't have to dig through the raw log.
             pnpm stage publish "$package/" --tag "$TAG" --access public --provenance --no-git-checks | tee -a "$GITHUB_STEP_SUMMARY"
