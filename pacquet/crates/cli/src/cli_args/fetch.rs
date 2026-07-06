@@ -67,6 +67,8 @@ impl FetchArgs {
             resolution_observer: None,
             catalogs_override: None,
             disable_optimistic_repeat_install: false,
+            pnpmfile_hook_override: None,
+            workspace_projects_override: None,
         }
         .run::<Reporter>()
         .await

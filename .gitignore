@@ -74,3 +74,8 @@ pnpm11/__fixtures__/custom-modules-dir/patches/
 ## test registry auth state (written by pnpr when serving with auth)
 htpasswd
 tokens.db
+pacquet/npm/napi/*.node
+
+# Generated NAPI addon platform packages + cross-compiled artifacts
+pacquet/npm/napi.*/
+/pnpm-napi.*.node
