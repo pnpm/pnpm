@@ -119,6 +119,49 @@ fn rejects_wrapper_symlink_that_escapes_the_install_dir() {
     assert_eq!(fs::read(outside_wrapper.join("pnpm")).expect("read outside file"), b"outside");
 }
 
+#[cfg(unix)]
+#[test]
+fn rejects_native_binary_symlink_that_escapes_the_install_dir() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let outside = tempfile::tempdir().expect("outside tempdir");
+    let outside_binary = outside.path().join("pnpm");
+    fs::write(&outside_binary, b"outside").expect("write outside binary");
+    fake_engine_install(temp.path(), false);
+
+    let platform_dir = exe_platform_pkg_dir_name_next(host_platform(), host_arch(), host_libc());
+    let src_dir = temp.path().join("node_modules").join("@pnpm").join(platform_dir);
+    fs::create_dir_all(&src_dir).expect("create platform dir");
+    std::os::unix::fs::symlink(&outside_binary, src_dir.join("pnpm"))
+        .expect("symlink native binary outside install dir");
+
+    let err =
+        link_exe_platform_binary(temp.path(), "pnpm").expect_err("escaped native source rejected");
+    assert!(err.to_string().contains("is a symlink"), "unexpected error: {err:?}");
+    assert!(!package_dir(temp.path(), "pnpm").join("pnpm").exists());
+    assert_eq!(fs::read(outside_binary).expect("read outside file"), b"outside");
+}
+
+#[cfg(unix)]
+#[test]
+fn rejects_native_binary_scope_symlink_that_escapes_the_install_dir() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let outside = tempfile::tempdir().expect("outside tempdir");
+    fake_engine_install(temp.path(), false);
+
+    let platform_dir = exe_platform_pkg_dir_name_next(host_platform(), host_arch(), host_libc());
+    let outside_scope = outside.path().join("@pnpm");
+    let outside_platform_dir = outside_scope.join(platform_dir);
+    fs::create_dir_all(&outside_platform_dir).expect("create outside platform dir");
+    fs::write(outside_platform_dir.join("pnpm"), b"outside").expect("write outside binary");
+    std::os::unix::fs::symlink(&outside_scope, temp.path().join("node_modules").join("@pnpm"))
+        .expect("symlink native scope outside install dir");
+
+    let err =
+        link_exe_platform_binary(temp.path(), "pnpm").expect_err("escaped native source rejected");
+    assert!(err.to_string().contains("resolves outside"), "unexpected error: {err:?}");
+    assert!(!package_dir(temp.path(), "pnpm").join("pnpm").exists());
+}
+
 #[test]
 fn link_errors_when_the_native_binary_is_missing() {
     let temp = tempfile::tempdir().expect("tempdir");

@@ -319,6 +319,8 @@ pub(crate) fn link_exe_platform_binary(
         .ok_or_else(|| {
             miette::miette!("no @pnpm/exe.{platform}-{arch} native binary was found for this host")
         })?;
+    let native_source_root = native_source_trust_root(&install_real_dir, wrapper_pkg_name);
+    let src = validate_native_binary_source(&src, &native_source_root)?;
     let dest = wrapper_real_dir.join(executable);
     force_link(&src, &dest)
         .into_diagnostic()
@@ -337,6 +339,65 @@ pub(crate) fn link_exe_platform_binary(
         rewrite_windows_bin_field(&wrapper_real_dir);
     }
     Ok(())
+}
+
+fn native_source_trust_root(install_real_dir: &Path, wrapper_pkg_name: &str) -> PathBuf {
+    // In the global virtual store, the wrapper and platform binary live
+    // in sibling slots under `links`; self-update installs keep both
+    // under the one install dir.
+    global_virtual_store_root_from_slot(install_real_dir, wrapper_pkg_name)
+        .unwrap_or_else(|| install_real_dir.to_path_buf())
+}
+
+fn global_virtual_store_root_from_slot(slot_dir: &Path, package_name: &str) -> Option<PathBuf> {
+    let mut cursor = slot_dir.parent()?;
+    let version = cursor.file_name()?.to_str()?;
+    node_semver::Version::parse(version).ok()?;
+
+    cursor = cursor.parent()?;
+    let mut package_segments = package_name.split('/').rev();
+    let name = package_segments.next()?;
+    if cursor.file_name()?.to_str()? != name {
+        return None;
+    }
+    for segment in package_segments {
+        cursor = cursor.parent()?;
+        if cursor.file_name()?.to_str()? != segment {
+            return None;
+        }
+    }
+
+    let root = cursor.parent()?;
+    (root.file_name()?.to_str()? == "links").then(|| root.to_path_buf())
+}
+
+fn validate_native_binary_source(src: &Path, source_root: &Path) -> miette::Result<PathBuf> {
+    let src_display = src.display().to_string();
+    let link_meta = fs::symlink_metadata(src)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("inspect the native pnpm binary at {src_display}"))?;
+    if link_meta.file_type().is_symlink() {
+        return Err(miette::miette!("the native pnpm binary at {src_display} is a symlink"));
+    }
+    let src_real = fs::canonicalize(src)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("resolve the native pnpm binary at {src_display}"))?;
+    if !src_real.starts_with(source_root) {
+        let source_root_display = source_root.display().to_string();
+        return Err(miette::miette!(
+            "the native pnpm binary at {src_display} resolves outside {source_root_display}"
+        ));
+    }
+    let src_real_display = src_real.display().to_string();
+    let meta = fs::metadata(&src_real)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("inspect the native pnpm binary at {src_real_display}"))?;
+    if !meta.is_file() {
+        return Err(miette::miette!(
+            "the native pnpm binary at {src_real_display} is not a regular file"
+        ));
+    }
+    Ok(src_real)
 }
 
 pub(crate) fn package_dir(install_dir: &Path, package_name: &str) -> PathBuf {
