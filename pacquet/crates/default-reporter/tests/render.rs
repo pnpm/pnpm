@@ -10,8 +10,9 @@ use pacquet_default_reporter::{
 use pacquet_reporter::{
     AddedRoot, ContextLog, DependencyType, ExecutionTimeLog, GlobalLog, HookLog, LifecycleLog,
     LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, PackageImportMethod,
-    PackageImportMethodLog, PnpmLog, ProgressLog, ProgressMessage, RootLog, RootMessage, Stage,
-    StageLog, StatsLog, StatsMessage, SummaryLog,
+    PackageImportMethodLog, PnpmLog, ProgressLog, ProgressMessage, RootLog, RootMessage,
+    SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason, Stage, StageLog,
+    StatsLog, StatsMessage, SummaryLog,
 };
 
 const CWD: &str = "/repo";
@@ -286,6 +287,39 @@ fn warnings_collapse_after_five() {
     assert_eq!(lines.len(), 6);
     assert_eq!(lines[0], "[WARN] something");
     assert_eq!(lines[5], "[WARN] 1 other warnings");
+}
+
+/// Upstream keeps the console silent for the skipped-optional emits pacquet
+/// produces (they carry no `parents`), so this channel must render nothing.
+#[test]
+fn skipped_optional_dependency_renders_nothing() {
+    let mut reporter = state(false);
+    let skipped = |reason, id: &str, name: &str, version: &str| {
+        LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
+            level: LogLevel::Debug,
+            details: Some("incompatible".to_string()),
+            package: SkippedOptionalPackage::Installed {
+                id: id.to_string(),
+                name: name.to_string(),
+                version: version.to_string(),
+            },
+            prefix: CWD.to_string(),
+            reason,
+        })
+    };
+    let frame = render(
+        &mut reporter,
+        vec![
+            skipped(
+                SkippedOptionalReason::UnsupportedPlatform,
+                "fsevents@2.3.3",
+                "fsevents",
+                "2.3.3",
+            ),
+            skipped(SkippedOptionalReason::BuildFailure, "esbuild@0.20.0", "esbuild", "0.20.0"),
+        ],
+    );
+    assert!(frame.is_empty(), "skipped-optional events must not render, got: {frame:?}");
 }
 
 #[test]
