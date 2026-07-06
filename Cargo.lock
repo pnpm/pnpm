@@ -4115,6 +4115,7 @@ dependencies = [
  "pacquet-catalogs-types",
  "pacquet-crypto-hash",
  "pacquet-diagnostics",
+ "pacquet-fs",
  "pacquet-package-manifest",
  "pipe-trait",
  "pretty_assertions",

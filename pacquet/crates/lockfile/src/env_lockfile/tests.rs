@@ -84,6 +84,39 @@ fn write_preserves_existing_main_document() {
     assert!(loaded.root_project().is_some());
 }
 
+#[cfg(unix)]
+#[test]
+fn read_rejects_symlinked_lockfile() {
+    let dir = TempDir::new().unwrap();
+    let real_lockfile = dir.path().join("real-lockfile.yaml");
+    std::fs::write(
+        &real_lockfile,
+        "---\nlockfileVersion: '9.0'\nimporters:\n  .:\n    configDependencies: {}\npackages: {}\nsnapshots: {}\n---\n",
+    )
+    .unwrap();
+    std::os::unix::fs::symlink(&real_lockfile, dir.path().join(Lockfile::FILE_NAME)).unwrap();
+
+    let error = EnvLockfile::read(dir.path()).expect_err("symlinked lockfile must fail");
+
+    assert!(error.to_string().contains("symlinked lockfile"), "unexpected error: {error:?}");
+}
+
+#[cfg(unix)]
+#[test]
+fn write_rejects_symlinked_lockfile_without_touching_target() {
+    let dir = TempDir::new().unwrap();
+    let real_lockfile = dir.path().join("real-lockfile.yaml");
+    std::fs::write(&real_lockfile, "target content").unwrap();
+    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    std::os::unix::fs::symlink(&real_lockfile, &lockfile_path).unwrap();
+
+    let error = sample_env_lockfile().write(dir.path()).expect_err("symlinked lockfile must fail");
+
+    assert!(error.to_string().contains("symlinked lockfile"), "unexpected error: {error:?}");
+    assert!(std::fs::symlink_metadata(&lockfile_path).unwrap().file_type().is_symlink());
+    assert_eq!(std::fs::read_to_string(real_lockfile).unwrap(), "target content");
+}
+
 #[test]
 fn saving_main_lockfile_preserves_env_document() {
     let dir = TempDir::new().unwrap();

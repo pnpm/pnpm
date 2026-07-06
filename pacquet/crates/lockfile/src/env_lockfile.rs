@@ -17,11 +17,12 @@ use crate::{
     extract_env_document, extract_main_document, serialize_yaml,
     yaml_documents::{YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START},
 };
+use pacquet_fs::write_atomic;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashMap},
     fs,
-    io::ErrorKind,
+    io::{self, ErrorKind},
     path::Path,
 };
 
@@ -103,6 +104,7 @@ impl EnvLockfile {
     ///   importer (and its `configDependencies` map) exists.
     pub fn read(root_dir: &Path) -> Result<Option<Self>, LoadLockfileError> {
         let path = root_dir.join(Lockfile::FILE_NAME);
+        ensure_lockfile_is_not_symlink(&path).map_err(LoadLockfileError::ReadFile)?;
         let content = match fs::read_to_string(&path) {
             Ok(content) => content,
             Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
@@ -122,6 +124,7 @@ impl EnvLockfile {
     /// document. Emits `---\n${envYaml}\n---\n${mainDoc}`.
     pub fn write(&self, root_dir: &Path) -> Result<(), SaveLockfileError> {
         let path = root_dir.join(Lockfile::FILE_NAME);
+        ensure_lockfile_is_not_symlink(&path).map_err(SaveLockfileError::WriteFile)?;
         let env_yaml = serialize_yaml::to_string(self).map_err(SaveLockfileError::SerializeYaml)?;
         let main_doc = match fs::read_to_string(&path) {
             Ok(existing) => extract_main_document(&existing).to_string(),
@@ -130,7 +133,19 @@ impl EnvLockfile {
         };
         let combined =
             format!("{YAML_DOCUMENT_START}{env_yaml}{YAML_DOCUMENT_SEPARATOR}{main_doc}");
-        fs::write(&path, combined).map_err(SaveLockfileError::WriteFile)
+        write_atomic(&path, combined.as_bytes()).map_err(SaveLockfileError::WriteFile)
+    }
+}
+
+fn ensure_lockfile_is_not_symlink(path: &Path) -> io::Result<()> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() => Err(io::Error::new(
+            ErrorKind::InvalidInput,
+            format!("refusing to read or write symlinked lockfile at {}", path.display()),
+        )),
+        Ok(_) => Ok(()),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
     }
 }
 
