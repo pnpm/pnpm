@@ -1,8 +1,8 @@
 use super::{
     cli_command::{CliArgs, CliCommand},
     package_manager::{
-        WantedPackageManager, read_manifest_json, should_persist_package_manager_lockfile,
-        version_satisfies, wanted_package_manager,
+        PACKAGE_MANAGER_SWITCH_ENV_VARS, WantedPackageManager, read_manifest_json,
+        should_persist_package_manager_lockfile, version_satisfies, wanted_package_manager,
     },
     self_update::install_pnpm::pnpm_package_to_install,
     with::{
@@ -343,14 +343,7 @@ fn should_skip_command_name(command: &str) -> bool {
 }
 
 fn package_manager_switch_disabled() -> bool {
-    [
-        "npm_config_manage_package_manager_versions",
-        "NPM_CONFIG_MANAGE_PACKAGE_MANAGER_VERSIONS",
-        "pnpm_config_manage_package_manager_versions",
-        "PNPM_CONFIG_MANAGE_PACKAGE_MANAGER_VERSIONS",
-    ]
-    .into_iter()
-    .any(env_var_is_false)
+    PACKAGE_MANAGER_SWITCH_ENV_VARS.into_iter().any(env_var_is_false)
 }
 
 fn env_var_is_false(name: &str) -> bool {

@@ -1,6 +1,9 @@
-use super::{WithError, prepend_to_path};
-use crate::cli_args::with::install_pnpm_to_store::slot_from_package_dir;
-use std::path::Path;
+use super::{WithError, disable_package_manager_switching, prepend_to_path};
+use crate::cli_args::{
+    package_manager::PACKAGE_MANAGER_SWITCH_ENV_VARS,
+    with::install_pnpm_to_store::slot_from_package_dir,
+};
+use std::{ffi::OsStr, path::Path, process::Command};
 
 #[test]
 fn prepend_to_path_rejects_a_delimiter_in_the_bin_dir() {
@@ -14,6 +17,21 @@ fn prepend_to_path_accepts_a_normal_bin_dir() {
     let dir = if cfg!(windows) { r"C:\store\bin" } else { "/store/bin" };
     let path = prepend_to_path(Path::new(dir)).expect("a normal dir is accepted");
     assert!(path.to_string_lossy().starts_with(dir));
+}
+
+#[test]
+fn child_pnpm_disables_all_package_manager_switch_env_variants() {
+    let mut command = Command::new("pnpm");
+
+    disable_package_manager_switching(&mut command);
+
+    for name in PACKAGE_MANAGER_SWITCH_ENV_VARS {
+        let value = command
+            .get_envs()
+            .find(|(key, _)| *key == OsStr::new(name))
+            .and_then(|(_, value)| value);
+        assert_eq!(value, Some(OsStr::new("false")), "expected {name}=false");
+    }
 }
 
 #[test]

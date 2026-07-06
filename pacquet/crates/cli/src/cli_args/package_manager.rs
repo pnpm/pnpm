@@ -2,6 +2,13 @@ use miette::IntoDiagnostic;
 use serde_json::Value;
 use std::{fs, io::ErrorKind, path::Path};
 
+pub(crate) const PACKAGE_MANAGER_SWITCH_ENV_VARS: [&str; 4] = [
+    "npm_config_manage_package_manager_versions",
+    "NPM_CONFIG_MANAGE_PACKAGE_MANAGER_VERSIONS",
+    "pnpm_config_manage_package_manager_versions",
+    "PNPM_CONFIG_MANAGE_PACKAGE_MANAGER_VERSIONS",
+];
+
 #[derive(Debug)]
 pub(crate) struct WantedPackageManager {
     pub(crate) name: String,

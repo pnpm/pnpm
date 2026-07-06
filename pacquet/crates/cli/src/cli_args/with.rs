@@ -18,7 +18,7 @@ use pacquet_config::Config;
 use pacquet_reporter::Reporter;
 use std::{ffi::OsString, fs, path::Path, process::Command};
 
-use crate::config_deps;
+use crate::{cli_args::package_manager::PACKAGE_MANAGER_SWITCH_ENV_VARS, config_deps};
 
 /// Errors specific to `pacquet with`. The codes carry the shared
 /// `ERR_PNPM_` prefix.
@@ -134,7 +134,7 @@ where
     cmd.env_remove("PATH");
     cmd.env_remove("Path");
     cmd.env("PATH", &path);
-    cmd.env("npm_config_manage_package_manager_versions", "false");
+    disable_package_manager_switching(&mut cmd);
     if matches!(package_manager_check, PackageManagerCheck::Disabled) {
         // The child pnpm must skip the packageManager / devEngines check so the
         // requested version stays active. `COREPACK_ROOT` is honored by every
@@ -148,6 +148,12 @@ where
     }
 
     cmd.status().into_diagnostic().wrap_err("run the requested pnpm version")
+}
+
+fn disable_package_manager_switching(cmd: &mut Command) {
+    for name in PACKAGE_MANAGER_SWITCH_ENV_VARS {
+        cmd.env(name, "false");
+    }
 }
 
 /// Prepend `dir` to the current process `PATH`, rejecting a `dir` that
