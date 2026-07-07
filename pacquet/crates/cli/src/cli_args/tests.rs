@@ -87,7 +87,39 @@ fn recursive_run_flags_parse_before_fallback_command() {
     assert!(parsed.no_sort);
     assert_eq!(parsed.workspace_concurrency, Some(1));
     assert!(parsed.report_summary);
-    assert!(matches!(parsed.command, CliCommand::External(command) if command == [".test"]));
+    assert!(
+        matches!(&parsed.command, CliCommand::External(command) if command.as_slice() == [".test"]),
+    );
+    parsed.validate_command_scoped_global_options().expect("recursive fallback flags are valid");
+}
+
+#[test]
+fn script_scoped_global_flags_parse_before_script_commands() {
+    for argv in [
+        ["pacquet", "--report-summary", "run", "build"].as_slice(),
+        ["pacquet", "--resume-from", "pkg", "exec", "echo"].as_slice(),
+        ["pacquet", "--no-bail", "run", "build"].as_slice(),
+        ["pacquet", "-r", "--report-summary", ".test"].as_slice(),
+    ] {
+        let parsed = CliArgs::try_parse_from(argv).expect("parses script-scoped global flag");
+        parsed.validate_command_scoped_global_options().expect("script command accepts flag");
+    }
+}
+
+#[test]
+fn script_scoped_global_flags_reject_unrelated_commands() {
+    for argv in [
+        ["pacquet", "install", "--report-summary"].as_slice(),
+        ["pacquet", "install", "--resume-from", "pkg"].as_slice(),
+        ["pacquet", "install", "--no-bail"].as_slice(),
+    ] {
+        let parsed =
+            CliArgs::try_parse_from(argv).expect("global parser accepts compatibility flag");
+        let err = parsed
+            .validate_command_scoped_global_options()
+            .expect_err("non-script command rejects flag");
+        assert_eq!(err.kind(), clap::error::ErrorKind::UnknownArgument);
+    }
 }
 
 #[test]

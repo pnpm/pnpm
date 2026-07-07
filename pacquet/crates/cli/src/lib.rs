@@ -58,6 +58,9 @@ pub fn main() -> miette::Result<()> {
         }
         Err(err) => err.exit(),
     };
+    if let Err(err) = args.validate_command_scoped_global_options() {
+        err.exit();
+    }
     args.promote_recursive_for_filter();
     if let Some(plan) = cli_args::switch_cli_version::switch_plan(&args, &config_overrides)?
         && block_on_runtime(

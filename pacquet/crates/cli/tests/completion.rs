@@ -174,7 +174,7 @@ fn completion_server_filters_option_prefixes() {
         .expect("run pacquet completion-server");
     let reply = stdout(output);
 
-    assert_eq!(reply.lines().collect::<Vec<_>>(), ["--report-summary", "--reporter"]);
+    assert_eq!(reply.lines().collect::<Vec<_>>(), ["--reporter"]);
 }
 
 #[test]
