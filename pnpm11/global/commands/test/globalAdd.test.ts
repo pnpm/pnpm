@@ -51,7 +51,7 @@ jest.unstable_mockModule('../src/installGlobalPackages.js', () => ({ installGlob
 jest.unstable_mockModule('../src/promptApproveGlobalBuilds.js', () => ({ promptApproveGlobalBuilds }))
 jest.unstable_mockModule('../src/readInstalledPackages.js', () => ({ readInstalledPackages }))
 
-const { getReplacementAliases, handleGlobalAdd } = await import('../src/globalAdd.js')
+const { getReplacementAliases, handleGlobalAdd, shouldReplaceExistingGlobalInstall } = await import('../src/globalAdd.js')
 
 test('global add treats pnpm and @pnpm/exe as replacement aliases', () => {
   expect(getReplacementAliases(['@pnpm/exe'])).toStrictEqual(['@pnpm/exe', 'pnpm'])
@@ -60,6 +60,39 @@ test('global add treats pnpm and @pnpm/exe as replacement aliases', () => {
 
 test('global add does not expand unrelated replacement aliases', () => {
   expect(getReplacementAliases(['eslint', 'typescript'])).toStrictEqual(['eslint', 'typescript'])
+})
+
+test('global add only uses pnpm alias equivalence for pnpm-only existing groups', () => {
+  const aliases = ['@pnpm/exe']
+  const replacementAliases = getReplacementAliases(aliases)
+
+  expect(shouldReplaceExistingGlobalInstall({
+    dependencies: { pnpm: '12.0.0-alpha.2' },
+    hash: 'old-pnpm',
+    installDir: '/global/v11/old-pnpm',
+  }, aliases, replacementAliases)).toBe(true)
+  expect(shouldReplaceExistingGlobalInstall({
+    dependencies: {
+      pnpm: '12.0.0-alpha.2',
+      eslint: '^9.0.0',
+    },
+    hash: 'mixed-group',
+    installDir: '/global/v11/mixed-group',
+  }, aliases, replacementAliases)).toBe(false)
+})
+
+test('global add still replaces exact aliases in mixed existing groups', () => {
+  const aliases = ['@pnpm/exe']
+  const replacementAliases = getReplacementAliases(aliases)
+
+  expect(shouldReplaceExistingGlobalInstall({
+    dependencies: {
+      '@pnpm/exe': 'file:/tmp/pnpm',
+      eslint: '^9.0.0',
+    },
+    hash: 'mixed-exact-group',
+    installDir: '/global/v11/mixed-exact-group',
+  }, aliases, replacementAliases)).toBe(true)
 })
 
 test('global add replaces an existing pnpm install when installing @pnpm/exe', async () => {

@@ -1,5 +1,9 @@
-use super::{is_windows_drive_path, replacement_aliases, split_comma_separated};
-use std::path::Path;
+use super::{
+    is_windows_drive_path, replacement_aliases, should_replace_existing_package,
+    split_comma_separated,
+};
+use pacquet_global::GlobalPackageInfo;
+use std::path::{Path, PathBuf};
 
 #[test]
 fn comma_splits_into_selectors() {
@@ -36,4 +40,44 @@ fn unrelated_aliases_are_not_expanded() {
         replacement_aliases(&["eslint".to_string(), "typescript".to_string()]),
         vec!["eslint", "typescript"],
     );
+}
+
+#[test]
+fn pnpm_alias_equivalence_only_replaces_pnpm_cli_groups() {
+    let aliases = vec!["@pnpm/exe".to_string()];
+    let aliases_to_replace = replacement_aliases(&aliases);
+
+    assert!(should_replace_existing_package(
+        &global_package(&["pnpm"]),
+        &aliases,
+        &aliases_to_replace,
+    ));
+    assert!(!should_replace_existing_package(
+        &global_package(&["pnpm", "eslint"]),
+        &aliases,
+        &aliases_to_replace,
+    ));
+}
+
+#[test]
+fn exact_aliases_still_replace_mixed_groups() {
+    let aliases = vec!["@pnpm/exe".to_string()];
+    let aliases_to_replace = replacement_aliases(&aliases);
+
+    assert!(should_replace_existing_package(
+        &global_package(&["@pnpm/exe", "eslint"]),
+        &aliases,
+        &aliases_to_replace,
+    ));
+}
+
+fn global_package(aliases: &[&str]) -> GlobalPackageInfo {
+    GlobalPackageInfo {
+        hash: "hash".to_string(),
+        install_dir: PathBuf::from("/global/hash"),
+        dependencies: aliases
+            .iter()
+            .map(|alias| ((*alias).to_string(), "1.0.0".to_string()))
+            .collect(),
+    }
 }

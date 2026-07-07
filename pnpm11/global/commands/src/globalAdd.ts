@@ -12,6 +12,7 @@ import {
   findGlobalPackage,
   getHashLink,
   getInstalledBinNames,
+  type GlobalPackageInfo,
 } from '@pnpm/global.packages'
 import { readPackageJsonFromDirRawSync } from '@pnpm/pkg-manifest.reader'
 import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
@@ -151,7 +152,7 @@ async function installGroup (
       globalDir,
       globalBinDir,
       newPkgs: pkgs,
-      shouldSkip: (pkg) => replacementAliases.some((alias) => alias in pkg.dependencies),
+      shouldSkip: (pkg) => shouldReplaceExistingGlobalInstall(pkg, aliases, replacementAliases),
     })
   } catch (err) {
     await fs.promises.rm(installDir, { recursive: true, force: true })
@@ -159,7 +160,7 @@ async function installGroup (
   }
 
   // Remove any existing global installations of these aliases
-  await removeExistingGlobalInstalls(globalDir, globalBinDir, replacementAliases)
+  await removeExistingGlobalInstalls(globalDir, globalBinDir, aliases, replacementAliases)
 
   // Compute cache key and create hash symlink pointing to install dir
   const cacheHash = createGlobalCacheKey({
@@ -179,6 +180,20 @@ const PNPM_CLI_PACKAGE_ALIASES = ['pnpm', '@pnpm/exe']
 export function getReplacementAliases (aliases: string[]): string[] {
   if (!aliases.some((alias) => PNPM_CLI_PACKAGE_ALIASES.includes(alias))) return aliases
   return [...new Set([...aliases, ...PNPM_CLI_PACKAGE_ALIASES])]
+}
+
+export function shouldReplaceExistingGlobalInstall (
+  pkg: GlobalPackageInfo,
+  aliases: string[],
+  replacementAliases: string[]
+): boolean {
+  if (aliases.some((alias) => alias in pkg.dependencies)) return true
+  return isPnpmCliOnlyGroup(pkg) && replacementAliases.some((alias) => alias in pkg.dependencies)
+}
+
+function isPnpmCliOnlyGroup (pkg: GlobalPackageInfo): boolean {
+  const aliases = Object.keys(pkg.dependencies)
+  return aliases.length > 0 && aliases.every((alias) => PNPM_CLI_PACKAGE_ALIASES.includes(alias))
 }
 
 function splitCommaSeparated (param: string, baseDir: string): string[] {
@@ -235,13 +250,18 @@ function resolveLocalParam (param: string, baseDir: string): string {
 async function removeExistingGlobalInstalls (
   globalDir: string,
   globalBinDir: string,
-  aliases: string[]
+  aliases: string[],
+  replacementAliases: string[]
 ): Promise<void> {
   // Collect unique groups to remove (dedup by hash)
   const groupsToRemove = new Map<string, ReturnType<typeof getInstalledBinNames>>()
-  for (const alias of aliases) {
+  for (const alias of replacementAliases) {
     const existing = findGlobalPackage(globalDir, alias)
-    if (existing && !groupsToRemove.has(existing.hash)) {
+    if (
+      existing &&
+      shouldReplaceExistingGlobalInstall(existing, aliases, replacementAliases) &&
+      !groupsToRemove.has(existing.hash)
+    ) {
       groupsToRemove.set(existing.hash, getInstalledBinNames(existing))
     }
   }
