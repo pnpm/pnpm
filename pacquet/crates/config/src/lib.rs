@@ -1557,18 +1557,27 @@ impl Config {
     /// Whether version resolution must fetch the full packument to obtain
     /// per-version `time` and trust evidence.
     ///
-    /// Full metadata is required when time-based resolution or the
-    /// no-downgrade trust check is active and the registry doesn't already
-    /// serve `time` in its abbreviated metadata. Mirrors pnpm's
-    /// `(time-based || no-downgrade) && !registrySupportsTimeField`. The
-    /// install resolver, `pacquet add`'s pre-resolution, and the
-    /// `self-update` / `pnpm with` engine probe all derive their metadata
-    /// mode from here so none of them can drift.
+    /// The `no-downgrade` trust check reads per-version trust evidence
+    /// (`_npmUser` / `dist.attestations`) that the abbreviated packument
+    /// *never* carries — `registrySupportsTimeField` only concerns the
+    /// `time` field — so it always requires the full packument. Time-based
+    /// resolution needs only `time`, which abbreviated metadata carries
+    /// when the registry advertises it, so it is gated on
+    /// `!registrySupportsTimeField`.
+    ///
+    /// `minimumReleaseAge` is intentionally absent: the resolver upgrades
+    /// abbreviated metadata to full on demand for the maturity check (see
+    /// `maybe_upgrade_abbreviated_meta_for_release_age`), so it doesn't
+    /// need the full packument requested up front.
+    ///
+    /// The install resolver (`PickPolicy`), `pacquet add`'s pre-resolution,
+    /// and the `self-update` / `pnpm with` engine probe all derive their
+    /// metadata mode from here so none of them can drift.
     #[must_use]
     pub fn requires_full_metadata_for_resolution(&self) -> bool {
-        (self.resolution_mode == ResolutionMode::TimeBased
-            || self.trust_policy == TrustPolicy::NoDowngrade)
-            && !self.registry_supports_time_field
+        self.trust_policy == TrustPolicy::NoDowngrade
+            || (self.resolution_mode == ResolutionMode::TimeBased
+                && !self.registry_supports_time_field)
     }
 
     /// Registry map in pnpm's `Registries` shape: `default` plus the

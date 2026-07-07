@@ -80,17 +80,16 @@ export async function handler (
     throw new PnpmError('CANT_SELF_UPDATE_IN_COREPACK', 'You should update pnpm with corepack')
   }
   globalInfo('Checking for updates...')
-  // Resolve the engine version exactly as a regular install would: fetch
-  // full metadata when a policy needs the per-version `time` (and trust
-  // evidence), which abbreviated metadata omits. Without this the
-  // `minimumReleaseAge` and `trustPolicy: 'no-downgrade'` checks below fail
-  // closed against real npm. Mirrors the same computation in `dlx`.
+  // Resolve the engine version exactly as a regular install would. The
+  // no-downgrade trust check reads per-version trust evidence (`_npmUser` /
+  // `dist.attestations`) that abbreviated metadata never carries — so it
+  // always needs full metadata, regardless of `registrySupportsTimeField`
+  // (which only concerns the `time` field). Time-based resolution needs
+  // only `time`. `minimumReleaseAge` is handled by the resolver's on-demand
+  // abbreviated→full upgrade, so it isn't requested up front here.
   const fullMetadata = (
-    (
-      opts.resolutionMode === 'time-based' ||
-      opts.trustPolicy === 'no-downgrade' ||
-      Boolean(opts.minimumReleaseAge)
-    ) && !opts.registrySupportsTimeField
+    opts.trustPolicy === 'no-downgrade' ||
+    (opts.resolutionMode === 'time-based' && !opts.registrySupportsTimeField)
   )
   const { resolve: baseResolve } = createResolver({
     ...opts,

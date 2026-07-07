@@ -117,6 +117,40 @@ const ABBREVIATED_BODY: &str = r#"{
     }
 }"#;
 
+/// Abbreviated packument that *does* carry `time` — what a registry with
+/// `registrySupportsTimeField=true` serves. It still omits the trust
+/// evidence (`_npmUser` / `dist.attestations`) that no abbreviated
+/// packument carries, so a no-downgrade check run against it would see no
+/// evidence and miss the downgrade.
+const ABBREVIATED_WITH_TIME_BODY: &str = r#"{
+    "name": "pnpm",
+    "dist-tags": { "latest": "1.1.0" },
+    "time": {
+        "1.0.0": "2024-01-10T08:30:00.000Z",
+        "1.1.0": "2024-12-10T08:30:00.000Z"
+    },
+    "versions": {
+        "1.0.0": {
+            "name": "pnpm",
+            "version": "1.0.0",
+            "dist": {
+                "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                "shasum": "0000000000000000000000000000000000000000",
+                "tarball": "https://registry/pnpm-1.0.0.tgz"
+            }
+        },
+        "1.1.0": {
+            "name": "pnpm",
+            "version": "1.1.0",
+            "dist": {
+                "integrity": "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
+                "shasum": "1111111111111111111111111111111111111111",
+                "tarball": "https://registry/pnpm-1.1.0.tgz"
+            }
+        }
+    }
+}"#;
+
 fn no_downgrade_config(registry: String, cache_dir: &Path) -> Config {
     let mut config = Config {
         trust_policy: TrustPolicy::NoDowngrade,
@@ -197,4 +231,43 @@ async fn resolve_pnpm_version_resolves_a_clean_update_under_no_downgrade() {
 
     assert_eq!(resolved.version, "1.1.0");
     assert!(!resolved.policy_violation);
+}
+
+/// `registrySupportsTimeField=true` (abbreviated metadata carries `time`)
+/// must NOT let the no-downgrade check settle for abbreviated metadata:
+/// abbreviated still omits the trust evidence, so the check would see none
+/// and miss the downgrade. The probe must fetch full metadata regardless of
+/// `registrySupportsTimeField` and reject the downgrade.
+#[tokio::test]
+async fn resolve_pnpm_version_forces_full_metadata_for_no_downgrade_despite_registry_time_field() {
+    let mut server = mockito::Server::new_async().await;
+    let _full = server
+        .mock("GET", "/pnpm")
+        .match_header("accept", ACCEPT_FULL)
+        .with_status(200)
+        .with_body(FULL_DOWNGRADE_BODY)
+        .create_async()
+        .await;
+    // Abbreviated here carries `time` (as a `registrySupportsTimeField`
+    // registry would) but no trust evidence. If the probe wrongly settled
+    // for it, the downgrade would be missed and resolution would succeed.
+    let _abbreviated = server
+        .mock("GET", "/pnpm")
+        .match_header("accept", ACCEPT_ABBREVIATED)
+        .with_status(200)
+        .with_body(ABBREVIATED_WITH_TIME_BODY)
+        .create_async()
+        .await;
+    let cache_dir = tempfile::TempDir::new().expect("cache tempdir");
+    let mut config = no_downgrade_config(format!("{}/", server.url()), cache_dir.path());
+    config.registry_supports_time_field = true;
+
+    let err = resolve_pnpm_version(&config, "^1.0.0")
+        .await
+        .expect_err("the downgrade must be rejected even with registrySupportsTimeField");
+    let report = format!("{err:?}");
+    assert!(
+        report.contains("trust downgrade"),
+        "expected a trust-downgrade rejection, got: {report}",
+    );
 }
