@@ -613,13 +613,13 @@ fn build_runtime_tarball_fixture() -> Vec<u8> {
 /// the core of `installing/deps-installer/test/install/nodeRuntime.ts:209`
 /// (`installing Node.js runtime`): a cold install, then `rimraf
 /// node_modules` + an offline reinstall. A runtime archive ships no
-/// `package.json`, so pacquet synthesizes one — and it must be baked into
-/// the persisted store-index row, not just this install's `cas_paths`.
-/// Pre-fix the row recorded neither the `package.json` file nor a bundled
-/// `manifest`, so a later *warm* install (which materializes straight from
-/// the row and never re-runs `fetch_binary_resolution_to_cas`) landed a
-/// manifest-less slot and `pnpm dlx node@runtime:<v>` died in `getBinName`
-/// with `dlx_read_manifest`.
+/// `package.json`, so pacquet synthesizes one, and it must be baked into
+/// the persisted store-index row rather than only this install's
+/// `cas_paths`: a warm install materializes the runtime straight from that
+/// row and never re-runs `fetch_binary_resolution_to_cas`, so a row that
+/// omits the `package.json` file and bundled `manifest` yields a
+/// manifest-less slot and makes `pnpm dlx node@runtime:<v>` fail in
+/// `getBinName` with `dlx_read_manifest`.
 #[tokio::test]
 async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_index_row() {
     use pacquet_store_dir::{
@@ -710,8 +710,8 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
     writer_task.await.expect("join the writer task").expect("flush the store index");
 
     // The persisted row must carry the synthesized `package.json` in both
-    // its `files` map and its bundled `manifest` — the pre-fix gap that a
-    // warm materialization would inherit.
+    // its `files` map and its bundled `manifest` — this is the copy a warm
+    // materialization reads back.
     let index_key =
         store_index_key(&integrity.to_string(), &package_key.without_peer().to_string());
     let row = StoreIndex::open_in(&config.store_dir)
@@ -729,8 +729,8 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
 
     // Warm reinstall — nodeRuntime.ts's `rimraf node_modules` + offline
     // reinstall. Delete the archive so the store is the only possible
-    // source, then materialize straight from the persisted row. The slot
-    // must still get the `package.json`; pre-fix the row lacked it.
+    // source, then materialize straight from the persisted row; the slot's
+    // `package.json` can come only from that row.
     std::fs::remove_file(&tarball_path).expect("remove the fixture so only the store can serve");
     let warm_index = StoreIndex::shared_readonly_in(&config.store_dir);
     let warm_verified = SharedVerifiedFilesCache::default();
