@@ -19,8 +19,11 @@
 //!   ([pnpm/pnpm#12230](https://github.com/pnpm/pnpm/issues/12230)).
 //! * `POST /-/pnpr/v0/verify-lockfile` — verify an already-fresh client
 //!   lockfile under the same policy without resolving. A frozen restore
-//!   can start local fetch/materialization immediately and only use this
-//!   endpoint as the trust verdict.
+//!   can start local fetch/materialization immediately and use this
+//!   endpoint as the trust verdict. When the verification fan-out fetched
+//!   packument metadata it also emits the same sized `package` frames the
+//!   resolve frozen fast path does, ahead of the verdict, so the client can
+//!   prioritize its largest pending tarball downloads.
 //!
 //! pnpr is a stateless resolver: it stores no tarballs. Public tarballs
 //! can still be fetched directly from their upstream registry, while a
@@ -506,10 +509,12 @@ pub(crate) async fn handle_resolve(
 }
 
 /// Handle `POST /-/pnpr/v0/verify-lockfile`: verify the client's input
-/// lockfile under the client's policy, returning only a terminal NDJSON
-/// verdict frame. The client already knows the lockfile is fresh for
-/// the current manifests, so this endpoint deliberately does not
-/// resolve or echo the lockfile back.
+/// lockfile under the client's policy. The client already knows the
+/// lockfile is fresh for the current manifests, so this endpoint does not
+/// resolve or echo the lockfile back; it returns a terminal NDJSON verdict
+/// frame, optionally preceded by sized `package` frames (see
+/// [`verify_done_with_frames`]) when the verification fan-out observed
+/// dist sizes.
 pub(crate) async fn handle_verify_lockfile(
     runtime: &Resolver,
     identity: Identity,
@@ -554,10 +559,21 @@ pub(crate) async fn handle_verify_lockfile(
     let input_lockfile = tarball_router.verification_lockfile(input_lockfile);
 
     match verify_input_lockfile(runtime, config, &request_auth, &input_lockfile).await {
-        // The dist stats the verifier observed feed `/-/pnpr/v0/resolve`'s sized
-        // `package` frames; this endpoint's client prefetches from its own
-        // lockfile before the verdict arrives, so only the verdict is sent.
-        Ok(_) => verify_done_or_osv_violations(runtime.osv_index.as_ref(), &input_lockfile),
+        // When the verifier's metadata fan-out observed dist sizes, emit the
+        // same sized `package` frames `/-/pnpr/v0/resolve`'s frozen fast path
+        // does, ahead of the verdict, so the client can prioritize its largest
+        // pending tarball downloads. The client joins each frame to its own
+        // lockfile by `integrity` (the announced URL is `route_url`'d and need
+        // not match the client's mem-cache key). A verdict-cache hit fetched no
+        // metadata, so there are no sizes and the bare verdict is sent.
+        Ok(Some(dist_stats)) => verify_done_with_frames(
+            runtime.osv_index.as_ref(),
+            config,
+            &tarball_router,
+            &input_lockfile,
+            &dist_stats,
+        ),
+        Ok(None) => verify_done_or_osv_violations(runtime.osv_index.as_ref(), &input_lockfile),
         Err(VerifyFailure::Internal(response)) => response,
         Err(VerifyFailure::Violations(violations)) => {
             ndjson_single_frame(&violations_frame(&violations))
@@ -1096,6 +1112,31 @@ fn verify_done_or_osv_violations(
     } else {
         ndjson_single_frame(&violations_frame(&violations))
     }
+}
+
+/// Terminal verdict for `/-/pnpr/v0/verify-lockfile`, preceded by the sized
+/// `package` frames `/-/pnpr/v0/resolve`'s frozen fast path emits. The
+/// verifier's metadata fan-out already fetched each packument to check the
+/// client's policy, so the observed `dist_stats` come for free — surfacing
+/// them lets the client prioritize its largest pending tarball downloads.
+/// OSV violations suppress the frames: a vulnerable lockfile must not seed
+/// any download. The verdict frame is always last.
+fn verify_done_with_frames(
+    osv_index: Option<&Arc<OsvIndex>>,
+    config: &PacquetConfig,
+    tarball_router: &TarballRouter,
+    lockfile: &Lockfile,
+    dist_stats: &ObservedDistStats,
+) -> Response {
+    if let Some(osv_index) = osv_index {
+        let violations = osv_violations_for_lockfile(osv_index, lockfile);
+        if !violations.is_empty() {
+            return ndjson_single_frame(&violations_frame(&violations));
+        }
+    }
+    let mut frames = frozen_package_frames(config, tarball_router, lockfile, dist_stats);
+    frames.push(verify_done_frame());
+    ndjson_frames(&frames)
 }
 
 fn osv_violations_for_lockfile(index: &OsvIndex, lockfile: &Lockfile) -> Vec<serde_json::Value> {

@@ -241,10 +241,26 @@ impl PnprClient {
 
     /// Ask the server to verify a lockfile under the client's registry
     /// and policy settings, without resolving or echoing the lockfile
-    /// back.
+    /// back, ignoring any streamed `package` frames. Equivalent to
+    /// [`Self::verify_lockfile_streaming`] with a no-op callback.
     pub async fn verify_lockfile(
         &self,
         opts: VerifyLockfileOptions,
+    ) -> Result<(), PnprClientError> {
+        self.verify_lockfile_streaming(opts, |_| {}).await
+    }
+
+    /// Verify a lockfile, invoking `on_package` once per sized `package`
+    /// frame the server streams ahead of the verdict — *before* the trust
+    /// verdict arrives — so the caller can prioritize its largest pending
+    /// tarball downloads. The frame's `tarball` URL is `route_url`'d and is
+    /// not guaranteed to match the caller's mem-cache key; join each frame
+    /// to the local lockfile by `integrity`. Returns once the terminal
+    /// verdict frame arrives (`Ok(())` on a clean pass).
+    pub async fn verify_lockfile_streaming(
+        &self,
+        opts: VerifyLockfileOptions,
+        mut on_package: impl FnMut(ResolvedPackage),
     ) -> Result<(), PnprClientError> {
         let request = serde_json::json!({
             "registry": opts.registry,
@@ -285,6 +301,25 @@ impl PnprClient {
                     continue;
                 }
                 match parse_verify_frame(line)? {
+                    VerifyFrame::Package {
+                        id,
+                        name,
+                        version,
+                        integrity,
+                        tarball,
+                        unpacked_size,
+                        file_count,
+                    } => {
+                        on_package(ResolvedPackage {
+                            id,
+                            name,
+                            version,
+                            integrity,
+                            tarball,
+                            unpacked_size,
+                            file_count,
+                        });
+                    }
                     VerifyFrame::Done => return Ok(()),
                     VerifyFrame::Error { message } => {
                         return Err(PnprClientError::Server(message));
@@ -438,12 +473,32 @@ enum Frame {
     },
 }
 
+/// One NDJSON frame from `/-/pnpr/v0/verify-lockfile`. When the verification
+/// fan-out fetched packument metadata the server streams sized `package`
+/// frames ahead of the verdict (mirroring the resolve frozen fast path), so
+/// the client can prioritize its largest pending tarball downloads; exactly
+/// one terminal frame (`done` / `error` / `violations`) closes the response.
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum VerifyFrame {
+    Package {
+        id: String,
+        name: String,
+        version: String,
+        integrity: String,
+        tarball: String,
+        #[serde(rename = "unpackedSize", default)]
+        unpacked_size: Option<usize>,
+        #[serde(rename = "fileCount", default)]
+        file_count: Option<usize>,
+    },
     Done,
-    Error { message: String },
-    Violations { violations: Vec<WireViolation> },
+    Error {
+        message: String,
+    },
+    Violations {
+        violations: Vec<WireViolation>,
+    },
 }
 
 #[derive(Deserialize)]
