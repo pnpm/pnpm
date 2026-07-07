@@ -24,3 +24,17 @@ fn test_runs_declared_test_script() {
 
     drop(root);
 }
+
+#[test]
+fn test_skips_missing_test_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({
+        "name": "test-command",
+        "version": "0.0.0",
+    });
+    fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
+
+    pacquet.with_arg("test").assert().success();
+
+    drop(root);
+}

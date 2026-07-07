@@ -234,8 +234,8 @@ pub(super) struct RunContext<'a> {
 /// Resolve `name` to a runnable main script body, or `Ok(None)` when
 /// there's nothing to run (the manifest has no truthy `scripts[name]`
 /// and `name` isn't `start`). An absent (or empty) `start` falls back
-/// to `node server.js` provided `server.js` exists in the process cwd;
-/// otherwise [`RunError::NoScriptOrServer`].
+/// to `node server.js` provided `server.js` exists in the script
+/// execution directory; otherwise [`RunError::NoScriptOrServer`].
 fn resolve_main_script(ctx: &RunContext<'_>, name: &str) -> Result<Option<String>, RunError> {
     let get_script = |key: &str| -> Option<String> {
         ctx.manifest
@@ -249,7 +249,7 @@ fn resolve_main_script(ctx: &RunContext<'_>, name: &str) -> Result<Option<String
     match get_script(name) {
         Some(body) if !body.is_empty() => Ok(Some(body)),
         _ if name == "start" => {
-            if !ctx.init_cwd.join("server.js").exists() {
+            if !ctx.dir.join("server.js").exists() {
                 return Err(RunError::NoScriptOrServer);
             }
             Ok(Some("node server.js".to_string()))

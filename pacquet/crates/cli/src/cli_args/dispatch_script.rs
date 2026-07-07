@@ -27,7 +27,7 @@ pub(super) fn set_script<'a>(
 }
 
 pub(super) fn test<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
-    run(ctx, run_args_for_script("test"))
+    run(ctx, run_args_for_script("test", true))
 }
 
 pub(super) fn run<'a>(ctx: &RunCtx<'a>, args: RunArgs) -> miette::Result<CommandFuture<'a>> {
@@ -90,7 +90,7 @@ fn with_recursive_exec_options(ctx: &RunCtx<'_>, mut args: ExecArgs) -> ExecArgs
 }
 
 pub(super) fn start<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
-    run(ctx, run_args_for_script("start"))
+    run(ctx, run_args_for_script("start", false))
 }
 
 pub(super) fn stop<'a>(ctx: &RunCtx<'a>, args: StopArgs) -> miette::Result<CommandFuture<'a>> {
@@ -110,11 +110,11 @@ pub(super) fn restart<'a>(
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
-fn run_args_for_script(command: &str) -> RunArgs {
+fn run_args_for_script(command: &str, if_present: bool) -> RunArgs {
     RunArgs {
         command: Some(command.to_string()),
         args: Vec::new(),
-        if_present: false,
+        if_present,
         resume_from: None,
         report_summary: false,
         no_bail: false,
