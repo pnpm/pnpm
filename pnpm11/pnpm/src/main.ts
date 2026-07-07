@@ -462,19 +462,22 @@ function checkPackageManager (pm: EngineDependency, opts: { underCorepack: boole
       // When something other than pnpm selects the running version — corepack,
       // or the project's pnpmExecCommand — users see this mismatch even with
       // onFail='download' (which would normally auto-switch). Spell out what
-      // selected the version and point at the ways out.
-      if (opts.underCorepack) {
-        msg += '\nCorepack invoked pnpm with this version, and pnpm does not switch versions when running under corepack.'
-      } else if (opts.viaExecCommand) {
+      // selected the version and point at the ways out. pnpmExecCommand takes
+      // precedence over corepack: it still owns binary selection when pnpm is
+      // invoked directly, so the corepack hint's "invoke pnpm directly"
+      // suggestion would not help.
+      if (opts.viaExecCommand) {
         msg += '\nThe pnpm binary was selected by the "pnpmExecCommand" setting, which overrides download-based version switching.'
+      } else if (opts.underCorepack) {
+        msg += '\nCorepack invoked pnpm with this version, and pnpm does not switch versions when running under corepack.'
       }
       if (shouldError) {
         const baseHint = 'If you want to bypass this version check, you can set the "pmOnFail" configuration to "warn" or "ignore" (e.g. via --pm-on-fail=ignore). If using "devEngines.packageManager", you can set its "onFail" to "warn" or "ignore"'
         let hint = baseHint
-        if (opts.underCorepack) {
-          hint = `Align the "packageManager" field in package.json with "devEngines.packageManager", or invoke pnpm directly (without corepack) so it can switch versions automatically.\n${baseHint}`
-        } else if (opts.viaExecCommand) {
+        if (opts.viaExecCommand) {
           hint = `Align the version required by "packageManager"/"devEngines.packageManager" with the pnpm binary provided by your "pnpmExecCommand" tooling, or declare a version range that the provided binary satisfies.\n${baseHint}`
+        } else if (opts.underCorepack) {
+          hint = `Align the "packageManager" field in package.json with "devEngines.packageManager", or invoke pnpm directly (without corepack) so it can switch versions automatically.\n${baseHint}`
         }
         throw new PnpmError('BAD_PM_VERSION', msg, { hint })
       } else {

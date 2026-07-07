@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { getStateDir } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
@@ -76,7 +77,7 @@ export async function applyPnpmExecCommand (command: unknown, opts: ApplyPnpmExe
   }
 
   await reExecPnpm(binPath, {
-    target: `the binary resolved by pnpmExecCommand ("${command.join(' ')}")`,
+    target: `the binary resolved by pnpmExecCommand ("${displayCommand(command)}")`,
     extraEnv: { [PNPM_EXEC_PATH_ENV]: binPath },
     // The sentinel guarantees the child won't re-exec, so it is fine for the
     // resolved bin dir to already lead PATH (typical when an external version
@@ -123,26 +124,37 @@ async function noticeOnFirstUseOrChange (command: string[], opts: ApplyPnpmExecC
   // record, suppressing the notice. The env override (pnpm_config_state_dir)
   // is user-controlled, not repo-controlled, so it stays honored.
   const stateDir = process.env.pnpm_config_state_dir ?? process.env.PNPM_CONFIG_STATE_DIR ?? getStateDir(process)
+  if (!path.isAbsolute(stateDir)) {
+    // A relative state dir would resolve against the current (typically
+    // repo-controlled) directory, so the trust record could be pre-seeded.
+    // Reachable only with an empty home dir or a relative env override.
+    return printNoticeWithoutTrustStore(command)
+  }
   const stateFile = path.join(stateDir, 'pnpm-state.json')
 
   let state: PnpmState | undefined
   try {
     state = await loadJsonFile(stateFile)
-  } catch {}
+  } catch (err: unknown) {
+    // A missing state file is the normal first run, and an unparsable one is
+    // rewritten below (nothing valid is lost). Any other read failure (e.g.
+    // permissions) leaves a file whose other keys the persist step would
+    // clobber, so skip persistence for this run.
+    if (util.types.isNativeError(err) && 'code' in err && err.code !== 'ENOENT') {
+      return printNoticeWithoutTrustStore(command)
+    }
+  }
 
   const seen = state?.pnpmExecCommands?.[workspaceKey]
   if (seen === commandRecord) return null
 
   if (seen == null) {
-    process.stderr.write(
-      'Resolving the pnpm binary with pnpmExecCommand:\n' +
-      `> ${command.join(' ')}\n`
-    )
+    printFirstUseNotice(command)
   } else {
     process.stderr.write(
       'The pnpmExecCommand for this workspace has changed:\n' +
-      `  was: ${(JSON.parse(seen) as string[]).join(' ')}\n` +
-      `  now: ${command.join(' ')}\n`
+      `  was: ${displaySeenCommand(seen)}\n` +
+      `  now: ${displayCommand(command)}\n`
     )
   }
 
@@ -160,6 +172,56 @@ async function noticeOnFirstUseOrChange (command: string[], opts: ApplyPnpmExecC
       // an acceptable failure mode; a suppressed notice is not.
     }
   }
+}
+
+/**
+ * The fallback when the trust store can't be consulted safely: the notice
+ * prints on every run (noise over silence) and nothing is recorded.
+ */
+function printNoticeWithoutTrustStore (command: string[]): () => Promise<void> {
+  printFirstUseNotice(command)
+  return async () => {}
+}
+
+function printFirstUseNotice (command: string[]): void {
+  process.stderr.write(
+    'Resolving the pnpm binary with pnpmExecCommand:\n' +
+    `> ${displayCommand(command)}\n`
+  )
+}
+
+function displaySeenCommand (seen: string): string {
+  try {
+    const parsed: unknown = JSON.parse(seen)
+    if (Array.isArray(parsed) && parsed.every((arg) => typeof arg === 'string')) {
+      return displayCommand(parsed)
+    }
+  } catch {}
+  // A corrupted record still gets shown (escaped) rather than crashing the
+  // notice that is reporting the change away from it.
+  return escapeControlCharacters(seen)
+}
+
+function displayCommand (command: string[]): string {
+  return escapeControlCharacters(command.join(' '))
+}
+
+const SHORT_CONTROL_CHARACTER_ESCAPES: Record<string, string> = {
+  '\b': '\\b',
+  '\t': '\\t',
+  '\n': '\\n',
+  '\f': '\\f',
+  '\r': '\\r',
+}
+
+/**
+ * The notice is a trust signal, so argv elements must not be able to forge it
+ * (or hide parts of it) with embedded newlines or terminal escape sequences.
+ * Control characters are rendered as their JSON escape. Kept in sync with
+ * pacquet's `escape_control_characters`.
+ */
+function escapeControlCharacters (text: string): string {
+  return text.replace(/\p{Cc}/gu, (ch) => SHORT_CONTROL_CHARACTER_ESCAPES[ch] ?? `\\u${ch.codePointAt(0)!.toString(16).padStart(4, '0')}`)
 }
 
 function realpathOrSelf (dir: string): string {
@@ -181,7 +243,7 @@ function runPnpmExecCommand (command: string[]): string {
   if (error != null || status !== 0) {
     throw new PnpmError(
       'EXEC_COMMAND_FAIL',
-      `The pnpmExecCommand ("${command.join(' ')}") failed${status != null ? ` with exit code ${status}` : ''}`,
+      `The pnpmExecCommand ("${displayCommand(command)}") failed${status != null ? ` with exit code ${status}` : ''}`,
       {
         hint: error instanceof Error ? error.message : undefined,
       }
@@ -192,22 +254,30 @@ function runPnpmExecCommand (command: string[]): string {
   if (binPath === '') {
     throw new PnpmError(
       'EXEC_COMMAND_NO_OUTPUT',
-      `The pnpmExecCommand ("${command.join(' ')}") printed no path to stdout`
+      `The pnpmExecCommand ("${displayCommand(command)}") printed no path to stdout`
     )
   }
   if (!path.isAbsolute(binPath)) {
     throw new PnpmError(
       'EXEC_COMMAND_RELATIVE_PATH',
-      `The pnpmExecCommand ("${command.join(' ')}") printed a non-absolute path: "${binPath}"`
+      `The pnpmExecCommand ("${displayCommand(command)}") printed a non-absolute path: "${binPath}"`
     )
   }
-  if (!fs.existsSync(binPath)) {
+  if (!isFile(binPath)) {
     throw new PnpmError(
       'EXEC_COMMAND_BAD_PATH',
-      `The pnpmExecCommand ("${command.join(' ')}") printed a path that does not exist: "${binPath}"`
+      `The pnpmExecCommand ("${displayCommand(command)}") printed a path that is not an existing file: "${binPath}"`
     )
   }
   return binPath
+}
+
+function isFile (binPath: string): boolean {
+  try {
+    return fs.statSync(binPath).isFile()
+  } catch {
+    return false
+  }
 }
 
 function isCurrentBinary (binPath: string): boolean {

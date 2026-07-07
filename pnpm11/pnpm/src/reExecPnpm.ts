@@ -52,7 +52,11 @@ export async function reExecPnpm (pnpmBinPath: string, opts: ReExecPnpmOptions =
   const binDir = path.dirname(pnpmBinPath)
   const target = opts.target ?? `the binary at "${pnpmBinPath}"`
 
-  const depth = Number(process.env[RE_EXEC_DEPTH_ENV] ?? '0')
+  // A malformed depth (e.g. a poisoned env var yielding NaN) must count as 0,
+  // not disable the guard: NaN >= MAX would be false on every level of an
+  // otherwise unbounded recursion.
+  const parsedDepth = Number(process.env[RE_EXEC_DEPTH_ENV] ?? '0')
+  const depth = Number.isSafeInteger(parsedDepth) && parsedDepth >= 0 ? parsedDepth : 0
   if (depth >= MAX_RE_EXEC_DEPTH) {
     throw new VersionSwitchFail(
       target,
@@ -82,9 +86,11 @@ export async function reExecPnpm (pnpmBinPath: string, opts: ReExecPnpmOptions =
     stdio: 'inherit',
     env: {
       ...process.env,
+      ...opts.extraEnv,
+      // Set after extraEnv: the depth sentinel is owned by this helper and
+      // must not be clobbered by a caller.
       [pnpmEnv.name]: pnpmEnv.value,
       [RE_EXEC_DEPTH_ENV]: String(depth + 1),
-      ...opts.extraEnv,
     },
   })
 

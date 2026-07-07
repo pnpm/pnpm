@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
+import PATH_NAME from 'path-name'
 import { writeJsonFileSync } from 'write-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
@@ -46,6 +47,7 @@ function setupVendedPnpm (): { fakeBin: string, resolverCommand: string[] } {
 console.log(${JSON.stringify(MARKER)})
 console.log('args: ' + process.argv.slice(2).join(' '))
 console.log('sentinel: ' + (process.env.PNPM_EXEC_PATH ?? 'unset'))
+console.log('depth: ' + (process.env.PNPM_RE_EXEC_DEPTH ?? 'unset'))
 `,
     { mode: 0o755 }
   )
@@ -142,7 +144,21 @@ test('fails when the command prints a path that does not exist', async () => {
   const { status, stderr } = execPnpmSyncIsolated(['root'])
 
   expect(status).not.toBe(0)
-  expect(stderr.toString()).toContain('printed a path that does not exist')
+  expect(stderr.toString()).toContain('printed a path that is not an existing file')
+})
+
+test('fails when the command prints a path that is a directory', async () => {
+  prepare()
+  const dir = path.resolve('a-directory')
+  fs.mkdirSync(dir)
+  const resolver = path.resolve('resolve-pnpm.js')
+  fs.writeFileSync(resolver, `console.log(${JSON.stringify(dir)})\n`)
+  writeYamlFileSync('pnpm-workspace.yaml', { pnpmExecCommand: [process.execPath, resolver] })
+
+  const { status, stderr } = execPnpmSyncIsolated(['root'])
+
+  expect(status).not.toBe(0)
+  expect(stderr.toString()).toContain('printed a path that is not an existing file')
 })
 
 test('fails when the setting is not an array of strings', async () => {
@@ -153,6 +169,67 @@ test('fails when the setting is not an array of strings', async () => {
 
   expect(status).not.toBe(0)
   expect(stderr.toString()).toContain('must be an array of non-empty strings')
+})
+
+test('skips pnpmExecCommand for --global invocations', async () => {
+  prepare()
+  const resolver = path.resolve('resolve-pnpm.js')
+  fs.writeFileSync(resolver, 'console.error("pnpmExecCommand should not run for --global")\nprocess.exit(1)\n')
+  writeYamlFileSync('pnpm-workspace.yaml', { pnpmExecCommand: [process.execPath, resolver] })
+
+  const global = path.resolve('global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
+
+  const { status, stderr } = execPnpmSyncIsolated(['root', '--global'], {
+    env: {
+      [PATH_NAME]: `${path.join(pnpmHome, 'bin')}${path.delimiter}${process.env[PATH_NAME]!}`,
+      PNPM_HOME: pnpmHome,
+      XDG_DATA_HOME: global,
+    },
+    expectSuccess: true,
+  })
+
+  expect(status).toBe(0)
+  expect(stderr.toString()).not.toContain('pnpmExecCommand should not run for --global')
+})
+
+test('a poisoned PNPM_RE_EXEC_DEPTH counts as depth 0 instead of disabling the backstop', async () => {
+  prepare()
+  const { resolverCommand } = setupVendedPnpm()
+  writeYamlFileSync('pnpm-workspace.yaml', { pnpmExecCommand: resolverCommand })
+
+  // NaN >= MAX must not silently pass on every level: the malformed value is
+  // coerced to 0, so the child sees the well-formed depth 1.
+  const poisoned = execPnpmSyncIsolated(['root'], {
+    env: { PNPM_RE_EXEC_DEPTH: 'NaN' },
+    expectSuccess: true,
+  })
+  expect(poisoned.status).toBe(0)
+  expect(poisoned.stdout.toString()).toContain('depth: 1')
+
+  // A depth at the cap trips the guard before spawning anything.
+  const atMax = execPnpmSyncIsolated(['root'], {
+    env: { PNPM_RE_EXEC_DEPTH: '2' },
+  })
+  expect(atMax.status).not.toBe(0)
+  expect(atMax.stderr.toString()).toContain('re-exec depth exceeded')
+  expect(atMax.stdout.toString()).not.toContain(MARKER)
+})
+
+test('control characters in the command cannot forge the notice', async () => {
+  prepare()
+  const resolver = path.resolve('resolve-pnpm.js')
+  fs.writeFileSync(resolver, `console.log(${JSON.stringify(pnpmBinLocation)})\n`)
+  // The extra argv element tries to inject a fake resolution line into the
+  // trust notice via an embedded newline.
+  const forgery = 'ignored-arg\nResolved to /forged/pnpm'
+  writeYamlFileSync('pnpm-workspace.yaml', { pnpmExecCommand: [process.execPath, resolver, forgery] })
+
+  const { stderr } = execPnpmSyncIsolated(['root'], { expectSuccess: true })
+
+  expect(stderr.toString()).toContain('ignored-arg\\nResolved to /forged/pnpm')
+  expect(stderr.toString()).not.toContain('\nResolved to /forged/pnpm')
 })
 
 test('pnpmExecCommand suppresses download-based version switching; the mismatch errors instead', async () => {
