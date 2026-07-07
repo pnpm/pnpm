@@ -138,6 +138,16 @@ function createShellScript (targetDir: string, name: string, command: string): v
   }
 }
 
+function writeGitHubActionsEnvironmentFiles (pnpmHomeDir: string, binDir: string): void {
+  const githubEnv = process.env.GITHUB_ENV
+  const githubPath = process.env.GITHUB_PATH
+  if (githubEnv == null || githubPath == null) {
+    return
+  }
+  fs.appendFileSync(githubEnv, `PNPM_HOME=${pnpmHomeDir}\n`)
+  fs.appendFileSync(githubPath, `${binDir}\n`)
+}
+
 // v10-layout shim names that v11 writes under pnpmHomeDir/bin instead.
 export const LEGACY_HOME_DIR_SHIM_NAMES = [
   'pnpm', 'pnpm.cmd', 'pnpm.ps1',
@@ -174,6 +184,7 @@ export async function handler (
       overwrite: opts.force,
       position: 'start',
     })
+    writeGitHubActionsEnvironmentFiles(opts.pnpmHomeDir, binDir)
     removeLegacyHomeDirShims(opts.pnpmHomeDir)
     return renderSetupOutput(report)
   } catch (err: any) { // eslint-disable-line

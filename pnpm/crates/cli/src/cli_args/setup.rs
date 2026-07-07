@@ -14,7 +14,12 @@ use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use path_extender::{
     AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, ConfigReport, PathExtenderReport,
 };
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs::{self, OpenOptions},
+    io::Write,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 #[derive(Debug, Args)]
 pub struct SetupArgs {
@@ -67,8 +72,36 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
             position: AddingPosition::Start,
         },
     )?;
+    persist_github_actions_environment(&pnpm_home_dir, &bin_dir)?;
     remove_legacy_homedir_shims(&pnpm_home_dir);
     Ok(render_setup_output(&report))
+}
+
+fn persist_github_actions_environment(pnpm_home_dir: &Path, bin_dir: &Path) -> miette::Result<()> {
+    let Some(github_env) = std::env::var_os("GITHUB_ENV").map(PathBuf::from) else {
+        return Ok(());
+    };
+    let Some(github_path) = std::env::var_os("GITHUB_PATH").map(PathBuf::from) else {
+        return Ok(());
+    };
+    write_github_actions_environment_files(pnpm_home_dir, bin_dir, &github_env, &github_path)
+        .into_diagnostic()
+        .wrap_err("write GitHub Actions environment files")?;
+    Ok(())
+}
+
+fn write_github_actions_environment_files(
+    pnpm_home_dir: &Path,
+    bin_dir: &Path,
+    github_env: &Path,
+    github_path: &Path,
+) -> std::io::Result<()> {
+    let mut env_file = OpenOptions::new().create(true).append(true).open(github_env)?;
+    writeln!(env_file, "PNPM_HOME={}", pnpm_home_dir.display())?;
+
+    let mut path_file = OpenOptions::new().create(true).append(true).open(github_path)?;
+    writeln!(path_file, "{}", bin_dir.display())?;
+    Ok(())
 }
 
 /// Install the CLI as a global package using `pnpm add -g file:<dir>`,

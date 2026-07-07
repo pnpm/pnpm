@@ -5,6 +5,7 @@
 use super::{
     ConfigFileChangeType, ConfigReport, LEGACY_HOME_DIR_SHIM_NAMES, PathExtenderReport,
     create_alias_scripts, remove_legacy_homedir_shims, render_setup_output,
+    write_github_actions_environment_files,
 };
 use pretty_assertions::assert_eq;
 use std::path::PathBuf;
@@ -96,4 +97,25 @@ fn remove_legacy_homedir_shims_tolerates_missing_files() {
     // not treat absent files as an error.
     let dir = tempfile::tempdir().expect("create temp dir");
     remove_legacy_homedir_shims(dir.path());
+}
+
+#[test]
+fn github_actions_environment_files_receive_home_and_bin() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let pnpm_home_dir = dir.path().join("pnpm-home");
+    let bin_dir = pnpm_home_dir.join("bin");
+    let github_env = dir.path().join("github-env");
+    let github_path = dir.path().join("github-path");
+
+    write_github_actions_environment_files(&pnpm_home_dir, &bin_dir, &github_env, &github_path)
+        .expect("write GitHub Actions environment files");
+
+    assert_eq!(
+        std::fs::read_to_string(github_env).expect("read github env"),
+        format!("PNPM_HOME={}\n", pnpm_home_dir.display()),
+    );
+    assert_eq!(
+        std::fs::read_to_string(github_path).expect("read github path"),
+        format!("{}\n", bin_dir.display()),
+    );
 }
