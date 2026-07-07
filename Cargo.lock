@@ -1523,6 +1523,7 @@ checksum = "25f104b501bf2364e78d0d3974cbc774f738f5865306ed128e1e0d7499c0ad96"
 dependencies = [
  "console",
  "shell-words",
+ "zeroize",
 ]
 
 [[package]]
@@ -3839,16 +3840,22 @@ name = "pacquet-auth-commands"
 version = "0.0.1"
 dependencies = [
  "derive_more",
+ "dialoguer",
  "miette 7.6.0",
  "mockito",
  "pacquet-fs",
  "pacquet-network",
+ "pacquet-network-web-auth",
+ "pacquet-network-web-auth-testing",
  "pacquet-reporter",
+ "pretty_assertions",
  "reqwest 0.13.4",
+ "serde_json",
  "tempfile",
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "url",
 ]
 
 [[package]]

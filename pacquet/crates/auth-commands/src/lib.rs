@@ -1,7 +1,7 @@
-//! Commands for authenticating with npm registries.
-//!
-//! Only `logout` is ported so far.
+//! Commands for authenticating with npm registries: `login` / `adduser` and
+//! `logout`.
 
+pub mod login;
 pub mod logout;
 
 mod ini;

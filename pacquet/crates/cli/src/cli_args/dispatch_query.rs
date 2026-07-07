@@ -12,6 +12,7 @@ use super::{
     find_hash::FindHashArgs,
     ignored_builds::IgnoredBuildsArgs,
     list::ListArgs,
+    login::LoginArgs,
     logout::LogoutArgs,
     outdated::{OutdatedArgs, OutdatedOutcome},
     pack::PackArgs,
@@ -320,6 +321,25 @@ pub(super) fn setup<'a>(ctx: &RunCtx<'a>, args: SetupArgs) -> miette::Result<Com
         ReporterType::Default | ReporterType::AppendOnly => run_setup!(DefaultReporter),
         ReporterType::Ndjson => run_setup!(NdjsonReporter),
         ReporterType::Silent => run_setup!(SilentReporter),
+    })
+}
+
+// `login` (a.k.a. `adduser`) authenticates with the registry and writes the
+// token to `auth.ini`. Like `logout` it needs config (registry, config dir,
+// network settings) but no lockfile or install pipeline. Its `globalInfo`
+// messages (the auth URL / QR code, the "Logged in as ..." line) route through
+// the reporter, so the reporter type is threaded through `run`.
+pub(super) fn login<'a>(ctx: &RunCtx<'a>, args: LoginArgs) -> miette::Result<CommandFuture<'a>> {
+    let config: &Config = (ctx.config)()?;
+    macro_rules! run_login {
+        ($reporter:ty) => {
+            Box::pin(async move { args.run::<$reporter>(config).await })
+        };
+    }
+    Ok(match ctx.reporter {
+        ReporterType::Default | ReporterType::AppendOnly => run_login!(DefaultReporter),
+        ReporterType::Ndjson => run_login!(NdjsonReporter),
+        ReporterType::Silent => run_login!(SilentReporter),
     })
 }
 

@@ -506,6 +506,7 @@ fn command_name(command: &CliCommand) -> &'static str {
         CliCommand::Repo(_) => "repo",
         CliCommand::SelfUpdate(_) => "self-update",
         CliCommand::Setup(_) => "setup",
+        CliCommand::Login(_) => "login",
         CliCommand::Logout(_) => "logout",
         CliCommand::With(_) => "with",
         CliCommand::Completion(_) => "completion",

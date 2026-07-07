@@ -36,6 +36,19 @@ impl IniSettings {
         IniSettings { entries }
     }
 
+    /// Set `key` to `value`, updating the existing entry in place when the
+    /// key is already present (preserving its position) and appending
+    /// otherwise. Mirrors assigning a property on the object
+    /// `write-ini-file` serializes.
+    pub fn set(&mut self, key: &str, value: &str) {
+        if let Some((_, existing)) = self.entries.iter_mut().find(|(entry_key, _)| entry_key == key)
+        {
+            *existing = value.to_string();
+        } else {
+            self.entries.push((key.to_string(), value.to_string()));
+        }
+    }
+
     /// Remove every entry whose key equals `key`. Returns `true` when at
     /// least one entry was removed.
     pub fn remove(&mut self, key: &str) -> bool {

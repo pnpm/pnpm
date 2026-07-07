@@ -209,7 +209,7 @@ fn global<Reporter: self::Reporter>(prefix: &str, level: LogLevel, message: Stri
 
 /// Append a trailing slash if the registry URL lacks one. Mirrors npm's
 /// `normalize-registry-url`.
-fn normalize_registry_url(registry: &str) -> String {
+pub(crate) fn normalize_registry_url(registry: &str) -> String {
     if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
 }
 

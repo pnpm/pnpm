@@ -23,6 +23,7 @@ use super::{
     install::InstallArgs,
     link::LinkArgs,
     list::ListArgs,
+    login::LoginArgs,
     logout::LogoutArgs,
     outdated::OutdatedArgs,
     pack::PackArgs,
@@ -345,6 +346,9 @@ pub enum CliCommand {
     SelfUpdate(SelfUpdateArgs),
     /// Sets up pnpm
     Setup(SetupArgs),
+    /// Log in to an npm registry.
+    #[clap(visible_alias = "adduser")]
+    Login(LoginArgs),
     /// Log out of an npm registry.
     Logout(LogoutArgs),
     /// Runs pnpm at a specific version (or the currently running one) for a
