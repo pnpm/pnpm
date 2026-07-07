@@ -68,11 +68,8 @@ pub(super) async fn install_pnpm<Reporter: self::Reporter + 'static>(
     if let Some(existing) = find_global_package(&global_pkg_dir, package_name)
         .into_diagnostic()
         .wrap_err("scan global packages")?
-        && installed_version(&existing.install_dir, package_name).as_deref() == Some(version)
+        && reuse_cached_engine(&existing.install_dir, package, version)
     {
-        if package.links_native_binary {
-            link_exe_platform_binary(&existing.install_dir, package_name)?;
-        }
         return Ok(InstallPnpmResult {
             install_dir: existing.install_dir,
             package_name,
@@ -113,6 +110,33 @@ fn installed_version(install_dir: &Path, package_name: &str) -> Option<String> {
     let text = fs::read_to_string(pkg_json).ok()?;
     let value: Value = serde_json::from_str(&text).ok()?;
     value.get("version").and_then(Value::as_str).map(ToString::to_string)
+}
+
+/// Whether an existing global slot at `install_dir` can be reused for
+/// `version` instead of reinstalling: it records the target version and,
+/// for native engines, its wrapper's platform binary relinks cleanly.
+///
+/// The relink is best-effort *on the reuse decision only* — it does not
+/// weaken any check. [`link_exe_platform_binary`]'s wrapper-containment
+/// guard still runs and still refuses to link when the wrapper resolves
+/// outside `install_dir`; on refusal it links nothing. This helper simply
+/// reports that refusal as "not reusable" (returning `false`) instead of
+/// propagating it as a hard error, so the caller falls through to a fresh
+/// install rather than aborting the whole self-update. Nothing from the
+/// rejected slot is linked or executed: the fresh install downloads and
+/// signature-verifies the engine into a new self-contained slot (see
+/// `verify_pnpm_engine_identity` in the `self-update` handler), and the
+/// rejected slot is never returned.
+///
+/// A slot whose wrapper escapes the slot is what an older global-virtual-
+/// store layout legitimately produces (the wrapper symlinks into the
+/// shared `<store>/links` tree), so this recovery is the common upgrade
+/// path, not only an adversarial one.
+fn reuse_cached_engine(install_dir: &Path, package: PnpmPackageToInstall, version: &str) -> bool {
+    if installed_version(install_dir, package.name).as_deref() != Some(version) {
+        return false;
+    }
+    !package.links_native_binary || link_exe_platform_binary(install_dir, package.name).is_ok()
 }
 
 pub(crate) fn pnpm_package_to_install(pnpm_version: &str) -> PnpmPackageToInstall {
