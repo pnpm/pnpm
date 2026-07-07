@@ -706,8 +706,9 @@ pub(crate) fn print_label(dep: &DepNode, color: &dyn Fn(&str) -> String) -> Stri
 }
 
 pub(crate) fn name_at_version(name: &str, version: &str) -> String {
+    let name = sanitize(name);
     if version.is_empty() {
-        name.to_string()
+        name.into_owned()
     } else {
         format!("{}{}", name, gray(&format!("@{version}")))
     }

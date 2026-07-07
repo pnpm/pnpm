@@ -227,6 +227,22 @@ fn render_local_tree_empty_returns_root_line() {
 }
 
 #[test]
+fn render_local_tree_sanitizes_root_name_without_deps() {
+    let root = LocalTreeRoot {
+        name: Some("bad\u{1b}[31m-name".into()),
+        version: Some("0.0.0".into()),
+        private: Some(false),
+        path: "/nowhere".into(),
+        dependencies: vec![],
+        dev_dependencies: vec![],
+        optional_dependencies: vec![],
+    };
+    let output = render_local_tree(&root, false);
+    assert!(!output.contains('\u{1b}'));
+    assert!(output.contains("bad[31m-name"));
+}
+
+#[test]
 fn render_local_json_basic() {
     let root = LocalTreeRoot {
         name: Some("pkg".into()),
