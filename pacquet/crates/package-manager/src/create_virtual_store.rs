@@ -1280,7 +1280,8 @@ fn is_fetch_side_failure(err: &InstallPackageBySnapshotError) -> bool {
         err,
         InstallPackageBySnapshotError::DownloadTarball(_)
             | InstallPackageBySnapshotError::GitFetch(_)
-            | InstallPackageBySnapshotError::DirectoryFetch(_),
+            | InstallPackageBySnapshotError::DirectoryFetch(_)
+            | InstallPackageBySnapshotError::CustomFetcher(_),
     )
 }
 

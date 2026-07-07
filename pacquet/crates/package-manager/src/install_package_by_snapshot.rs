@@ -296,14 +296,14 @@ impl InstallPackageBySnapshot<'_> {
             }
         };
 
-        // Consult custom fetchers before the built-in dispatch. A custom
-        // fetcher that returns a `delegate` field triggers the standard
-        // tarball download with the rewritten resolution rather than
-        // replacing the fetch entirely.
         let effective_resolution: Option<LockfileResolution> =
             if let Some(picker) = custom_fetcher_picker {
                 let resolution_value =
-                    serde_json::to_value(&metadata.resolution).unwrap_or(serde_json::Value::Null);
+                    serde_json::to_value(&metadata.resolution).map_err(|err| {
+                        InstallPackageBySnapshotError::CustomFetcher(format!(
+                            "failed to serialize resolution for {package_id}: {err}",
+                        ))
+                    })?;
                 let opts_value = serde_json::json!({
                     "packageKey": package_key.to_string(),
                     "version": metadata.version,
@@ -311,7 +311,11 @@ impl InstallPackageBySnapshot<'_> {
                 match picker.try_fetch(&package_id, &resolution_value, &opts_value).await {
                     Ok(Some(result)) => {
                         if let Some(delegate) = result.get("delegate") {
-                            serde_json::from_value(delegate.clone()).ok()
+                            Some(serde_json::from_value(delegate.clone()).map_err(|err| {
+                                InstallPackageBySnapshotError::CustomFetcher(format!(
+                                    "invalid delegate resolution for {package_id}: {err}",
+                                ))
+                            })?)
                         } else {
                             None
                         }

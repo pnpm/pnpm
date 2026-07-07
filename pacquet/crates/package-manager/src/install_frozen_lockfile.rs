@@ -1810,7 +1810,13 @@ async fn load_custom_fetcher_picker(
     lockfile_dir: &Path,
 ) -> Option<Arc<pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker>> {
     let hook = pacquet_hooks::finder::load_pnpmfile(lockfile_dir)?;
-    let fetchers = hook.get_custom_fetchers().await.ok()?;
+    let fetchers = match hook.get_custom_fetchers().await {
+        Ok(f) => f,
+        Err(err) => {
+            tracing::warn!(%err, "failed to load custom fetchers from pnpmfile");
+            return None;
+        }
+    };
     if fetchers.is_empty() {
         return None;
     }

@@ -130,8 +130,9 @@ pub trait PnpmfileHooks: Send + Sync {
 /// A custom fetcher exported from a pnpmfile's `fetchers` array.
 ///
 /// Custom fetchers are consulted before the built-in fetchers. If `can_fetch`
-/// returns `true`, the package is fetched via `fetch` instead of the standard
-/// tarball/git/directory path.
+/// returns `true`, `fetch` is called. Currently only delegation is supported:
+/// the fetcher returns `{ "delegate": <LockfileResolution> }` to rewrite the
+/// resolution and fall through to the built-in fetch path.
 #[async_trait]
 pub trait CustomFetcher: Send + Sync {
     fn has_can_fetch(&self) -> bool {
@@ -145,9 +146,13 @@ pub trait CustomFetcher: Send + Sync {
     /// Determines whether this fetcher handles the given package.
     async fn can_fetch(&self, pkg_id: &str, resolution: Value) -> Result<bool, HookError>;
 
-    /// Fetches the package and returns a files-index value describing the
-    /// extracted contents. The returned JSON is a map of relative archive
-    /// paths to objects containing `integrity` and optional `mode`.
+    /// Calls the fetcher hook. The returned JSON envelope is interpreted by the
+    /// installer:
+    ///
+    /// - `{ "delegate": <resolution> }` — rewrites the lockfile resolution and
+    ///   falls through to the built-in fetch path for the rewritten value.
+    /// - Any other shape (or `None` from the picker) — the built-in fetch path
+    ///   runs with the original resolution unchanged.
     async fn fetch(&self, pkg_id: &str, resolution: Value, opts: Value)
     -> Result<Value, HookError>;
 }

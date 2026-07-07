@@ -750,7 +750,7 @@ async fn custom_fetcher_round_trips_can_fetch_and_fetch() {
     let resolution =
         serde_json::json!({ "type": "@custom/local", "url": "https://example.com/pkg" });
 
-    assert!(fetchers[0].can_fetch("foo@1.0.0", resolution.clone()).await.expect("canFetch"),);
+    assert!(fetchers[0].can_fetch("foo@1.0.0", resolution.clone()).await.expect("canFetch"));
     assert!(
         !fetchers[0]
             .can_fetch("foo@1.0.0", serde_json::json!({ "type": "tarball" }))
