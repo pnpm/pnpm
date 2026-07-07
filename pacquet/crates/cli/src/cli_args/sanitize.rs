@@ -4,13 +4,9 @@ use std::borrow::Cow;
 /// terminal, keeping `\n` and `\t`. Prevents stored metadata from emitting
 /// raw escape sequences to the user's terminal.
 pub fn sanitize(text: &str) -> Cow<'_, str> {
-    if text.bytes().any(|byte| byte < 0x20 && byte != b'\n' && byte != b'\t') {
+    if text.chars().any(|ch| ch.is_control() && ch != '\n' && ch != '\t') {
         Cow::Owned(
-            text.chars()
-                .filter(|character| {
-                    !character.is_control() || *character == '\n' || *character == '\t'
-                })
-                .collect(),
+            text.chars().filter(|ch| !ch.is_control() || *ch == '\n' || *ch == '\t').collect(),
         )
     } else {
         Cow::Borrowed(text)

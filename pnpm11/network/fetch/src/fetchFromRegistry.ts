@@ -119,8 +119,10 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
       // This is a workaround to remove authorization headers on redirect.
       // Related pnpm issue: https://github.com/pnpm/pnpm/issues/1815
       urlObject = resolveRedirectUrl(response, urlObject)
-      if (!headers['authorization'] || originalHost === urlObject.host) continue
-      delete headers.authorization
+      if (originalHost === urlObject.host) continue
+      if (headers['authorization']) {
+        delete headers.authorization
+      }
       delete headers['npm-otp']
     }
     /* eslint-enable no-await-in-loop */

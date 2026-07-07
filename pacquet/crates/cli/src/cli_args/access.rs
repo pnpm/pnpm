@@ -287,20 +287,15 @@ fn build_access_context<'a>(
 
     let redirect_guard = args.otp.as_ref().map(|_| {
         let registry_origin: Option<(String, String, Option<u16>)> =
-            reqwest::Url::parse(&registry).ok().and_then(|u| {
-                u.host_str().map(|host| {
-                    (u.scheme().to_string(), host.to_string(), u.port())
-                })
+            reqwest::Url::parse(&registry).ok().and_then(|url| {
+                url.host_str().map(|host| (url.scheme().to_string(), host.to_string(), url.port()))
             });
         let guard: RedirectGuard = Arc::new(move |target: &reqwest::Url| -> bool {
-            registry_origin
-                .as_ref()
-                .map(|(scheme, host, port)| {
-                    target.scheme() == scheme
-                        && target.host_str() == Some(host.as_str())
-                        && target.port() == *port
-                })
-                .unwrap_or(false)
+            registry_origin.as_ref().is_some_and(|(scheme, host, port)| {
+                target.scheme() == scheme
+                    && target.host_str() == Some(host.as_str())
+                    && target.port() == *port
+            })
         });
         guard
     });
@@ -347,7 +342,7 @@ async fn list_packages(context: &AccessContext<'_>, params: &[String]) -> miette
                 format!("{}/", encode_uri_component(team))
             };
             format!(
-                "{}-/team/{}{}package?format=cli",
+                "{}-/team/{}/{}package?format=cli",
                 normalize_registry_url(&context.registry),
                 encode_uri_component(scope),
                 team_path,
