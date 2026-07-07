@@ -1,4 +1,4 @@
-use super::{is_windows_drive_path, split_comma_separated};
+use super::{is_windows_drive_path, replacement_aliases, split_comma_separated};
 use std::path::Path;
 
 #[test]
@@ -22,4 +22,18 @@ fn detects_windows_drive_paths() {
     assert!(is_windows_drive_path(r"C:\foo"));
     assert!(is_windows_drive_path("d:/bar"));
     assert!(!is_windows_drive_path("foo"));
+}
+
+#[test]
+fn pnpm_package_aliases_replace_each_other() {
+    assert_eq!(replacement_aliases(&["@pnpm/exe".to_string()]), vec!["@pnpm/exe", "pnpm"]);
+    assert_eq!(replacement_aliases(&["pnpm".to_string()]), vec!["pnpm", "@pnpm/exe"]);
+}
+
+#[test]
+fn unrelated_aliases_are_not_expanded() {
+    assert_eq!(
+        replacement_aliases(&["eslint".to_string(), "typescript".to_string()]),
+        vec!["eslint", "typescript"],
+    );
 }

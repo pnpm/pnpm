@@ -108,12 +108,15 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
 
         let pkgs = read_installed_packages(&install_dir);
         let aliases = read_direct_dependency_aliases(&install_dir);
+        let aliases_to_replace = replacement_aliases(&aliases);
 
         let bins_to_skip = match check_global_bin_conflicts(
             &global_pkg_dir,
             &global_bin_dir,
             &pkgs,
-            |existing: &GlobalPackageInfo| aliases.iter().any(|alias| existing.has_alias(alias)),
+            |existing: &GlobalPackageInfo| {
+                aliases_to_replace.iter().any(|alias| existing.has_alias(alias))
+            },
         ) {
             Ok(skip) => skip,
             Err(error) => {
@@ -122,7 +125,7 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
             }
         };
 
-        remove_existing_global_installs(&global_pkg_dir, &global_bin_dir, &aliases)
+        remove_existing_global_installs(&global_pkg_dir, &global_bin_dir, &aliases_to_replace)
             .into_diagnostic()
             .wrap_err("remove existing global installs")?;
 
@@ -428,6 +431,20 @@ fn remove_existing_global_installs(
         remove_group(global_pkg_dir, global_bin_dir, pkg, &protected);
     }
     Ok(())
+}
+
+fn replacement_aliases(aliases: &[String]) -> Vec<String> {
+    const PNPM_CLI_PACKAGE_ALIASES: [&str; 2] = ["pnpm", "@pnpm/exe"];
+
+    let mut expanded = aliases.to_vec();
+    if aliases.iter().any(|alias| PNPM_CLI_PACKAGE_ALIASES.contains(&alias.as_str())) {
+        for alias in PNPM_CLI_PACKAGE_ALIASES {
+            if !expanded.iter().any(|existing| existing == alias) {
+                expanded.push(alias.to_string());
+            }
+        }
+    }
+    expanded
 }
 
 /// Remove a group's bins (except those in `protected`, owned by a surviving

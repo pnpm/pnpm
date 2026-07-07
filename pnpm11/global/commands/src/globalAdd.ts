@@ -140,6 +140,7 @@ async function installGroup (
   // Read resolved aliases from the installed package.json
   const pkgJson = readPackageJsonFromDirRawSync(installDir)
   const aliases = Object.keys(pkgJson.dependencies ?? {})
+  const replacementAliases = getReplacementAliases(aliases)
 
   // Check for bin name conflicts with other global packages
   // (must happen before removeExistingGlobalInstalls so we don't lose existing packages on failure)
@@ -150,7 +151,7 @@ async function installGroup (
       globalDir,
       globalBinDir,
       newPkgs: pkgs,
-      shouldSkip: (pkg) => aliases.some((alias) => alias in pkg.dependencies),
+      shouldSkip: (pkg) => replacementAliases.some((alias) => alias in pkg.dependencies),
     })
   } catch (err) {
     await fs.promises.rm(installDir, { recursive: true, force: true })
@@ -158,7 +159,7 @@ async function installGroup (
   }
 
   // Remove any existing global installations of these aliases
-  await removeExistingGlobalInstalls(globalDir, globalBinDir, aliases)
+  await removeExistingGlobalInstalls(globalDir, globalBinDir, replacementAliases)
 
   // Compute cache key and create hash symlink pointing to install dir
   const cacheHash = createGlobalCacheKey({
@@ -171,6 +172,13 @@ async function installGroup (
   // Link bins from installed packages into global bin dir
   await linkBinsOfPackages(pkgs, globalBinDir, { excludeBins: binsToSkip })
   await opts.updateResolutionPolicyManifest?.(resolutionPolicyViolations, globalDir)
+}
+
+const PNPM_CLI_PACKAGE_ALIASES = ['pnpm', '@pnpm/exe']
+
+export function getReplacementAliases (aliases: string[]): string[] {
+  if (!aliases.some((alias) => PNPM_CLI_PACKAGE_ALIASES.includes(alias))) return aliases
+  return [...new Set([...aliases, ...PNPM_CLI_PACKAGE_ALIASES])]
 }
 
 function splitCommaSeparated (param: string, baseDir: string): string[] {
