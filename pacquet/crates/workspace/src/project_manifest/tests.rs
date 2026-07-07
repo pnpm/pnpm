@@ -10,6 +10,10 @@ fn write_manifest(dir: &std::path::Path, body: &str) {
     fs::write(dir.join("package.json"), body).unwrap();
 }
 
+fn write_yaml_manifest(dir: &std::path::Path, body: &str) {
+    fs::write(dir.join("package.yaml"), body).unwrap();
+}
+
 #[test]
 fn try_read_returns_manifest_when_present() {
     let tmp = TempDir::new().unwrap();
@@ -17,6 +21,25 @@ fn try_read_returns_manifest_when_present() {
     let result = try_read_project_manifest(tmp.path()).unwrap().unwrap();
     assert_eq!(result.0, "package.json");
     assert_eq!(result.1.value().get("name").and_then(|v| v.as_str()), Some("alpha"));
+}
+
+#[test]
+fn try_read_returns_yaml_manifest_when_json_is_missing() {
+    let tmp = TempDir::new().unwrap();
+    write_yaml_manifest(tmp.path(), "name: alpha\nversion: 1.2.3\n");
+    let result = try_read_project_manifest(tmp.path()).unwrap().unwrap();
+    assert_eq!(result.0, "package.yaml");
+    assert_eq!(result.1.value().get("name").and_then(|v| v.as_str()), Some("alpha"));
+}
+
+#[test]
+fn try_read_prefers_json_over_yaml() {
+    let tmp = TempDir::new().unwrap();
+    write_manifest(tmp.path(), r#"{"name": "json", "version": "1.2.3"}"#);
+    write_yaml_manifest(tmp.path(), "name: yaml\nversion: 1.2.3\n");
+    let result = try_read_project_manifest(tmp.path()).unwrap().unwrap();
+    assert_eq!(result.0, "package.json");
+    assert_eq!(result.1.value().get("name").and_then(|v| v.as_str()), Some("json"));
 }
 
 #[test]
@@ -46,12 +69,12 @@ fn strict_read_errors_when_missing() {
 #[test]
 fn read_exact_rejects_other_basenames() {
     let tmp = TempDir::new().unwrap();
-    let path = tmp.path().join("package.yaml");
+    let path = tmp.path().join("package.json5");
     fs::write(&path, "name: alpha\n").unwrap();
     match read_exact_project_manifest(&path) {
         Ok(_) => panic!("expected UnsupportedName"),
         Err(ReadProjectManifestError::UnsupportedName { basename }) => {
-            assert_eq!(basename, "package.yaml");
+            assert_eq!(basename, "package.json5");
         }
         Err(err) => panic!("unexpected error: {err}"),
     }
@@ -62,6 +85,15 @@ fn read_exact_accepts_package_json() {
     let tmp = TempDir::new().unwrap();
     let path = tmp.path().join("package.json");
     fs::write(&path, r#"{"name": "beta", "version": "0.1.0"}"#).unwrap();
+    let manifest = read_exact_project_manifest(&path).unwrap();
+    assert_eq!(manifest.value().get("name").and_then(|v| v.as_str()), Some("beta"));
+}
+
+#[test]
+fn read_exact_accepts_package_yaml() {
+    let tmp = TempDir::new().unwrap();
+    let path = tmp.path().join("package.yaml");
+    fs::write(&path, "name: beta\nversion: 0.1.0\n").unwrap();
     let manifest = read_exact_project_manifest(&path).unwrap();
     assert_eq!(manifest.value().get("name").and_then(|v| v.as_str()), Some("beta"));
 }

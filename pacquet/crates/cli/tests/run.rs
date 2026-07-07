@@ -359,6 +359,34 @@ fn top_level_fallback_runs_script_before_local_bin() {
     drop(root);
 }
 
+#[test]
+fn top_level_fallback_runs_package_yaml_script_with_dir() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let fixtures = workspace.join("fixtures");
+    fs::create_dir_all(&fixtures).expect("create fixtures dir");
+    let marker = workspace.join("prepared.txt");
+    fs::write(
+        fixtures.join("package.yaml"),
+        r#"name: fixtures
+version: 0.0.0
+scripts:
+  prepareFixtures: node -e "require('fs').writeFileSync(process.env.MARKER_PATH, 'prepared')"
+"#,
+    )
+    .expect("write package.yaml");
+
+    pacquet
+        .with_env("MARKER_PATH", marker.to_string_lossy().as_ref())
+        .with_arg("--dir")
+        .with_arg(&fixtures)
+        .with_arg("prepareFixtures")
+        .assert()
+        .success();
+    assert_eq!(fs::read_to_string(&marker).expect("read marker"), "prepared");
+
+    drop(root);
+}
+
 #[cfg(unix)]
 #[test]
 fn top_level_fallback_runs_local_bin_when_script_is_missing() {

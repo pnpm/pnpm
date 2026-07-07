@@ -10,6 +10,7 @@ use super::{
 use miette::Context;
 use pacquet_executor::execute_shell;
 use pacquet_package_manifest::PackageManifest;
+use pacquet_workspace::read_project_manifest_only;
 
 pub(super) fn init<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
     let result = PackageManifest::init(ctx.manifest_path).wrap_err("initialize package.json");
@@ -28,8 +29,8 @@ pub(super) fn set_script<'a>(
 }
 
 pub(super) fn test<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
-    let manifest = PackageManifest::from_path(ctx.manifest_path.to_path_buf())
-        .wrap_err("getting the package.json in current directory")?;
+    let manifest = read_project_manifest_only(ctx.dir)
+        .wrap_err("getting the package manifest in current directory")?;
     if let Some(script) = manifest.script("test", false)? {
         execute_shell(script).wrap_err(format!(r#"executing command: "{script}""#))?;
     }
@@ -76,8 +77,8 @@ pub(super) fn exec<'a>(ctx: &RunCtx<'a>, args: ExecArgs) -> miette::Result<Comma
 }
 
 pub(super) fn start<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
-    let manifest = PackageManifest::from_path(ctx.manifest_path.to_path_buf())
-        .wrap_err("getting the package.json in current directory")?;
+    let manifest = read_project_manifest_only(ctx.dir)
+        .wrap_err("getting the package manifest in current directory")?;
     let command = manifest.script("start", true)?.unwrap_or("node server.js");
     execute_shell(command).wrap_err(format!(r#"executing command: "{command}""#))?;
     Ok(Box::pin(std::future::ready(Ok(()))))

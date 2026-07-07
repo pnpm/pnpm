@@ -5,7 +5,8 @@ use miette::Diagnostic;
 use pacquet_config::Config;
 use pacquet_executor::{RunScript, ScriptsPrependNodePath, run_script};
 use pacquet_package_manager::{make_node_package_map_option, package_map_path_for_execution};
-use pacquet_package_manifest::{PackageManifest, PackageManifestError};
+use pacquet_package_manifest::PackageManifest;
+use pacquet_workspace::{ReadProjectManifestOnlyError, read_project_manifest_only};
 use serde_json::Value;
 use std::{
     collections::HashMap,
@@ -56,7 +57,7 @@ pub struct RunArgs {
 #[non_exhaustive]
 pub enum RunError {
     #[diagnostic(transparent)]
-    Manifest(#[error(source)] PackageManifestError),
+    Manifest(#[error(source)] ReadProjectManifestOnlyError),
 
     #[display("Missing script: {script}")]
     #[diagnostic(code(ERR_PNPM_NO_SCRIPT), help("{hint}"))]
@@ -109,14 +110,15 @@ impl RunArgs {
     ) -> miette::Result<()> {
         let RunArgs { command, args, if_present, .. } = self;
         let Some(script_name) = command else {
-            let manifest =
-                PackageManifest::from_path(dir.join("package.json")).map_err(RunError::Manifest)?;
+            let manifest = read_project_manifest_only(dir).map_err(RunError::Manifest)?;
             println!("{}", render_project_commands(manifest.value()));
             return Ok(());
         };
-        let manifest = match PackageManifest::from_path(dir.join("package.json")) {
+        let manifest = match read_project_manifest_only(dir) {
             Ok(manifest) => manifest,
-            Err(PackageManifestError::NoImporterManifestFound(_)) if fallback_to_exec => {
+            Err(ReadProjectManifestOnlyError::NoImporterManifestFound { .. })
+                if fallback_to_exec =>
+            {
                 return exec_fallback(script_name, args, dir, config);
             }
             Err(err) => return Err(RunError::Manifest(err).into()),
