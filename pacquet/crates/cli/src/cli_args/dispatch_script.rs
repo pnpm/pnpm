@@ -1,6 +1,7 @@
 use super::{
     dispatch::{CommandFuture, RunCtx},
     exec::ExecArgs,
+    pkg::PkgArgs,
     reporter::ReporterType,
     restart::RestartArgs,
     run::RunArgs,
@@ -23,6 +24,15 @@ pub(super) fn set_script<'a>(
     args: SetScriptArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let result = args.run(ctx.manifest_path);
+    Ok(Box::pin(std::future::ready(result)))
+}
+
+pub(super) fn pkg<'a>(ctx: &RunCtx<'a>, args: PkgArgs) -> miette::Result<CommandFuture<'a>> {
+    let result = if ctx.recursive {
+        args.run_recursive((ctx.config)()?, ctx.dir)
+    } else {
+        args.run(ctx.manifest_path)
+    };
     Ok(Box::pin(std::future::ready(result)))
 }
 

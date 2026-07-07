@@ -34,6 +34,7 @@ pub mod patch_remove;
 pub(crate) mod patch_state;
 pub mod peers;
 pub mod ping;
+pub mod pkg;
 pub mod prefix;
 pub mod prune;
 pub mod publish;
