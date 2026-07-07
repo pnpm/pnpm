@@ -172,8 +172,11 @@ impl HostSocketLimit {
 }
 
 /// The `scheme://host[:port]` origin of `url`, or `None` when it has no host.
-/// The port is included so `https://host` and `https://host:8443` are treated
-/// as distinct origins (matching undici's per-origin keying).
+/// `url` strips a scheme-default port while parsing (`https://host:443` parses
+/// with `port() == None`), so an explicit default and the implicit form map to
+/// the same origin key and a `:443` / `:80` variation cannot fragment the
+/// per-origin socket cap; a non-default port (`https://host:8443`) stays
+/// distinct — matching undici's per-origin keying.
 fn origin_of(url: &str) -> Option<String> {
     let parsed = reqwest::Url::parse(url).ok()?;
     let host = parsed.host_str()?;

@@ -30,7 +30,7 @@ use tokio::sync::Mutex;
 
 use crate::{
     config::{ConfigOverlay, resolve_config},
-    error::{to_napi_error, unimplemented_error, unsupported_option_error},
+    error::{invalid_manifest_error, to_napi_error, unimplemented_error, unsupported_option_error},
     hooks::{HookSink, JsReadPackageHook},
     reporter_bridge::{EngineCallGuard, LogSink, NodeBridgeReporter, begin_stats, take_stats},
 };
@@ -233,6 +233,7 @@ fn run_install_inner(
     pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>,
     mode: EngineMode,
 ) -> napi::Result<String> {
+    reject_non_object_manifests(&options.projects)?;
     let dir = PathBuf::from(&options.dir);
 
     // The root importer is the project at `dir`; any others are siblings. A
@@ -495,6 +496,19 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
         }),
         auth_header_by_uri: options.auth_header_by_uri.clone().map(|map| map.into_iter().collect()),
     })
+}
+
+/// Reject a project whose `manifest` is not a JSON object up front.
+/// `PackageManifest::from_value` coerces a non-object to `{}` as a last-resort
+/// panic guard, but a silently-emptied manifest would drive resolution and
+/// lockfile writing off missing data — so fail closed with a clear error here.
+fn reject_non_object_manifests(projects: &[NodeApiProject]) -> napi::Result<()> {
+    for project in projects {
+        if !project.manifest.is_object() {
+            return Err(invalid_manifest_error(&project.root_dir));
+        }
+    }
+    Ok(())
 }
 
 fn reject_unsupported_install_options(options: &InstallOptions) -> napi::Result<()> {

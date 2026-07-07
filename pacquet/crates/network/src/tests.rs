@@ -802,6 +802,12 @@ fn origin_of_extracts_scheme_host_and_port() {
         origin_of("http://localhost:4873/is-odd/-/is-odd-3.0.1.tgz").as_deref(),
         Some("http://localhost:4873"),
     );
+    // An explicit scheme-default port normalizes to the same origin as the
+    // implicit form, so it cannot fragment the per-origin socket cap.
+    assert_eq!(origin_of("https://host/a"), origin_of("https://host:443/a"));
+    assert_eq!(origin_of("http://host/a"), origin_of("http://host:80/a"));
+    // A non-default port stays distinct.
+    assert_ne!(origin_of("https://host/a"), origin_of("https://host:8443/a"));
     // Same host over http vs https are distinct origins.
     assert_ne!(origin_of("http://example.com/a"), origin_of("https://example.com/a"));
     assert_eq!(origin_of("not a url"), None);

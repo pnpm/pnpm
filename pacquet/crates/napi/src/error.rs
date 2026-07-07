@@ -67,6 +67,23 @@ pub fn unimplemented_error(operation: &str) -> napi::Error {
     }
 }
 
+/// Build a structured [`napi::Error`] for a project whose `manifest` is not a
+/// JSON object. Rejecting it at the boundary surfaces the invalid input instead
+/// of silently coercing it to `{}` and driving the install off empty data.
+pub fn invalid_manifest_error(root_dir: &str) -> napi::Error {
+    let envelope = ErrorEnvelope {
+        code: Some("ERR_PNPM_NAPI_INVALID_MANIFEST".to_string()),
+        message: format!("the `manifest` for project `{root_dir}` is not a JSON object"),
+        hint: Some(
+            "Each project's `manifest` must be a plain object with the package.json shape.".into(),
+        ),
+    };
+    match serde_json::to_string(&envelope) {
+        Ok(json) => napi::Error::from_reason(format!("{ENVELOPE_PREFIX}{json}")),
+        Err(_) => napi::Error::from_reason(envelope.message),
+    }
+}
+
 /// Build a structured [`napi::Error`] for an option that the binding does not
 /// implement yet. Unsupported options fail closed instead of being silently
 /// ignored, because many install options affect script execution, auth,

@@ -2,7 +2,7 @@ use pacquet_network::NoProxySetting;
 
 use super::{
     InstallOptions, NetworkConfigInput, NodeApiProject, ProxyConfigInput, build_overlay,
-    reject_unsupported_install_options,
+    reject_non_object_manifests, reject_unsupported_install_options,
 };
 use crate::config::{ConfigOverlay, resolve_config};
 
@@ -95,6 +95,25 @@ fn unsupported_install_options_fail_closed() {
     let mut options = install_options();
     options.never_built_dependencies = Some(vec!["esbuild".to_string()]);
     assert!(reject_unsupported_install_options(&options).is_err());
+}
+
+#[test]
+fn non_object_project_manifests_are_rejected() {
+    let ok = vec![NodeApiProject {
+        root_dir: "/a".to_string(),
+        manifest: serde_json::json!({ "name": "x" }),
+    }];
+    assert!(reject_non_object_manifests(&ok).is_ok());
+
+    for bad in [
+        serde_json::json!([1, 2, 3]),
+        serde_json::json!("oops"),
+        serde_json::json!(42),
+        serde_json::json!(null),
+    ] {
+        let projects = vec![NodeApiProject { root_dir: "/a".to_string(), manifest: bad }];
+        assert!(reject_non_object_manifests(&projects).is_err());
+    }
 }
 
 #[test]
