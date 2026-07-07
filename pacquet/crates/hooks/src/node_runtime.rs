@@ -341,6 +341,19 @@ impl crate::PnpmfileHooks for NodeJsHooks {
             })
             .collect())
     }
+
+    async fn get_custom_fetchers(&self) -> Result<Vec<Arc<dyn crate::CustomFetcher>>, HookError> {
+        let worker = self.worker().await?;
+        let capabilities = worker.get_fetcher_capabilities().await?;
+        Ok(capabilities
+            .into_iter()
+            .enumerate()
+            .map(|(index, capabilities)| {
+                Arc::new(NodeJsCustomFetcher { worker: Arc::clone(&worker), index, capabilities })
+                    as Arc<dyn crate::CustomFetcher>
+            })
+            .collect())
+    }
 }
 
 pub struct NodeJsCustomResolver {
@@ -402,6 +415,52 @@ impl crate::CustomResolver for NodeJsCustomResolver {
             )
             .await?;
         Ok(res.as_bool().unwrap_or(false))
+    }
+}
+
+pub struct NodeJsCustomFetcher {
+    worker: Arc<NodeWorker>,
+    index: usize,
+    capabilities: crate::worker::FetcherCapabilities,
+}
+
+#[async_trait]
+impl crate::CustomFetcher for NodeJsCustomFetcher {
+    fn has_can_fetch(&self) -> bool {
+        self.capabilities.can_fetch
+    }
+
+    fn has_fetch(&self) -> bool {
+        self.capabilities.fetch
+    }
+
+    async fn can_fetch(&self, pkg_id: &str, resolution: Value) -> Result<bool, HookError> {
+        let res = self
+            .worker
+            .call_fetcher(
+                self.index,
+                "canFetch",
+                serde_json::json!([pkg_id, resolution]),
+                Arc::new(|_| {}),
+            )
+            .await?;
+        Ok(res.as_bool().unwrap_or(false))
+    }
+
+    async fn fetch(
+        &self,
+        pkg_id: &str,
+        resolution: Value,
+        opts: Value,
+    ) -> Result<Value, HookError> {
+        self.worker
+            .call_fetcher(
+                self.index,
+                "fetch",
+                serde_json::json!([pkg_id, resolution, opts]),
+                Arc::new(|_| {}),
+            )
+            .await
     }
 }
 

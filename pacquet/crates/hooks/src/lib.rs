@@ -3,6 +3,7 @@ use derive_more::Display;
 use serde_json::Value;
 use std::sync::Arc;
 
+pub mod custom_fetcher_adapter;
 pub mod custom_resolver_adapter;
 pub mod finder;
 pub mod node_runtime;
@@ -118,6 +119,37 @@ pub trait PnpmfileHooks: Send + Sync {
     async fn get_custom_resolvers(&self) -> Result<Vec<Arc<dyn CustomResolver>>, HookError> {
         Ok(vec![])
     }
+
+    /// Get custom fetchers exported from the pnpmfile's top-level
+    /// `fetchers` array.
+    async fn get_custom_fetchers(&self) -> Result<Vec<Arc<dyn CustomFetcher>>, HookError> {
+        Ok(vec![])
+    }
+}
+
+/// A custom fetcher exported from a pnpmfile's `fetchers` array.
+///
+/// Custom fetchers are consulted before the built-in fetchers. If `can_fetch`
+/// returns `true`, the package is fetched via `fetch` instead of the standard
+/// tarball/git/directory path.
+#[async_trait]
+pub trait CustomFetcher: Send + Sync {
+    fn has_can_fetch(&self) -> bool {
+        true
+    }
+
+    fn has_fetch(&self) -> bool {
+        true
+    }
+
+    /// Determines whether this fetcher handles the given package.
+    async fn can_fetch(&self, pkg_id: &str, resolution: Value) -> Result<bool, HookError>;
+
+    /// Fetches the package and returns a files-index value describing the
+    /// extracted contents. The returned JSON is a map of relative archive
+    /// paths to objects containing `integrity` and optional `mode`.
+    async fn fetch(&self, pkg_id: &str, resolution: Value, opts: Value)
+    -> Result<Value, HookError>;
 }
 
 /// A custom resolver exported from a pnpmfile. The pnpmfile interface's

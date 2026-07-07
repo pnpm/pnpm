@@ -672,3 +672,154 @@ async fn custom_resolver_errors_propagate() {
 
     assert!(err.to_string().contains("refresh check crashed"), "got: {err}");
 }
+
+// --- Custom fetcher integration tests ---
+
+fn write_custom_fetchers_pnpmfile(dir: &std::path::Path) -> std::path::PathBuf {
+    let pnpmfile_path = dir.join(".pnpmfile.cjs");
+    std::fs::write(
+        &pnpmfile_path,
+        r"
+module.exports = {
+  fetchers: [
+    {
+      canFetch (pkgId, resolution) {
+        return resolution.type === '@custom/local';
+      },
+      fetch (pkgId, resolution, opts) {
+        return {
+          filesIndex: {
+            'package.json': {
+              integrity: 'sha512-abc123',
+              mode: 420,
+            },
+            'index.js': {
+              integrity: 'sha512-def456',
+              mode: 420,
+            },
+          },
+          receivedPkgId: pkgId,
+          receivedUrl: resolution.url,
+        };
+      },
+    },
+    {
+      canFetch () { return false; },
+    },
+  ],
+}
+",
+    )
+    .expect("write pnpmfile");
+    pnpmfile_path
+}
+
+#[tokio::test]
+async fn get_custom_fetchers_reports_per_fetcher_capabilities() {
+    let tmp = TempDir::new().expect("temp dir");
+    let hooks =
+        pacquet_hooks::node_runtime::NodeJsHooks::new(write_custom_fetchers_pnpmfile(tmp.path()));
+
+    let fetchers = hooks.get_custom_fetchers().await.expect("load fetchers");
+
+    assert_eq!(fetchers.len(), 2);
+    assert!(fetchers[0].has_can_fetch());
+    assert!(fetchers[0].has_fetch());
+    assert!(fetchers[1].has_can_fetch());
+    assert!(!fetchers[1].has_fetch());
+}
+
+#[tokio::test]
+async fn get_custom_fetchers_is_empty_without_fetchers_export() {
+    let tmp = TempDir::new().expect("temp dir");
+    let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
+    std::fs::write(&pnpmfile_path, "module.exports = { hooks: {} }").expect("write pnpmfile");
+    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+
+    let fetchers = hooks.get_custom_fetchers().await.expect("load fetchers");
+
+    assert!(fetchers.is_empty());
+}
+
+#[tokio::test]
+async fn custom_fetcher_round_trips_can_fetch_and_fetch() {
+    let tmp = TempDir::new().expect("temp dir");
+    let hooks =
+        pacquet_hooks::node_runtime::NodeJsHooks::new(write_custom_fetchers_pnpmfile(tmp.path()));
+    let fetchers = hooks.get_custom_fetchers().await.expect("load fetchers");
+    let resolution =
+        serde_json::json!({ "type": "@custom/local", "url": "https://example.com/pkg" });
+
+    assert!(fetchers[0].can_fetch("foo@1.0.0", resolution.clone()).await.expect("canFetch"),);
+    assert!(
+        !fetchers[0]
+            .can_fetch("foo@1.0.0", serde_json::json!({ "type": "tarball" }))
+            .await
+            .expect("canFetch"),
+    );
+
+    let opts = serde_json::json!({ "manifest": { "name": "foo" } });
+    let result = fetchers[0].fetch("foo@1.0.0", resolution, opts).await.expect("fetch");
+    assert_eq!(result["filesIndex"]["package.json"]["integrity"], "sha512-abc123");
+    assert_eq!(result["receivedPkgId"], "foo@1.0.0");
+    assert_eq!(result["receivedUrl"], "https://example.com/pkg");
+}
+
+#[tokio::test]
+async fn custom_fetcher_errors_propagate() {
+    let tmp = TempDir::new().expect("temp dir");
+    let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
+    std::fs::write(
+        &pnpmfile_path,
+        r"
+module.exports = {
+  fetchers: [{
+    canFetch () { return true; },
+    fetch () { throw new Error('fetch crashed'); },
+  }],
+}
+",
+    )
+    .expect("write pnpmfile");
+    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let fetchers = hooks.get_custom_fetchers().await.expect("load fetchers");
+
+    let err = fetchers[0]
+        .fetch("foo@1.0.0", serde_json::json!({}), serde_json::json!({}))
+        .await
+        .expect_err("throwing fetch must surface as an error");
+
+    assert!(err.to_string().contains("fetch crashed"), "got: {err}");
+}
+
+#[cfg_attr(
+    target_os = "windows",
+    ignore = "Node.js ESM import() on Windows resolves absolute paths differently"
+)]
+#[tokio::test]
+async fn custom_fetcher_works_with_mjs_pnpmfile() {
+    let tmp = TempDir::new().expect("temp dir");
+    let pnpmfile_path = tmp.path().join(".pnpmfile.mjs");
+    std::fs::write(
+        &pnpmfile_path,
+        r"
+export const fetchers = [{
+  canFetch (pkgId, resolution) {
+    return resolution.type === '@custom/esm';
+  },
+  fetch (pkgId, resolution) {
+    return { filesIndex: { 'main.js': { integrity: 'sha512-esm' } } };
+  },
+}];
+",
+    )
+    .expect("write pnpmfile");
+    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let fetchers = hooks.get_custom_fetchers().await.expect("load fetchers");
+
+    assert_eq!(fetchers.len(), 1);
+    let resolution = serde_json::json!({ "type": "@custom/esm" });
+    assert!(fetchers[0].can_fetch("x@1.0.0", resolution.clone()).await.unwrap());
+    let result = fetchers[0].fetch("x@1.0.0", resolution, serde_json::json!({})).await.unwrap();
+    assert_eq!(result["filesIndex"]["main.js"]["integrity"], "sha512-esm");
+}
