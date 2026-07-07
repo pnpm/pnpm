@@ -110,14 +110,13 @@ fn persist_github_actions_environment_to_files<Reporter: self::Reporter>(
     }
     validate_github_actions_environment_file_value("PNPM_HOME", pnpm_home_dir)?;
     validate_github_actions_environment_file_value("pnpm setup bin directory", bin_dir)?;
-    if let Err(err) =
-        write_github_actions_environment_files(pnpm_home_dir, bin_dir, github_env, github_path)
-    {
-        warn::<Reporter>(
-            prefix_dir,
-            &format!("Failed to write GitHub Actions environment files: {err}"),
-        );
-    }
+    write_github_actions_environment_files::<Reporter>(
+        prefix_dir,
+        pnpm_home_dir,
+        bin_dir,
+        github_env,
+        github_path,
+    );
     Ok(())
 }
 
@@ -132,22 +131,46 @@ fn validate_github_actions_environment_file_value(name: &str, value: &Path) -> m
     Ok(())
 }
 
-fn write_github_actions_environment_files(
+fn write_github_actions_environment_files<Reporter: self::Reporter>(
+    prefix_dir: &Path,
     pnpm_home_dir: &Path,
     bin_dir: &Path,
     github_env: Option<&Path>,
     github_path: Option<&Path>,
-) -> std::io::Result<()> {
+) {
     if let Some(github_env) = github_env {
-        append_existing_regular_file(
+        append_github_actions_environment_file::<Reporter>(
+            prefix_dir,
+            "GITHUB_ENV",
             github_env,
             &format!("PNPM_HOME={}", pnpm_home_dir.display()),
-        )?;
+        );
     }
     if let Some(github_path) = github_path {
-        append_existing_regular_file(github_path, &format!("{}", bin_dir.display()))?;
+        append_github_actions_environment_file::<Reporter>(
+            prefix_dir,
+            "GITHUB_PATH",
+            github_path,
+            &format!("{}", bin_dir.display()),
+        );
     }
-    Ok(())
+}
+
+fn append_github_actions_environment_file<Reporter: self::Reporter>(
+    prefix_dir: &Path,
+    target_name: &str,
+    path: &Path,
+    line: &str,
+) {
+    if let Err(err) = append_existing_regular_file(path, line) {
+        warn::<Reporter>(
+            prefix_dir,
+            &format!(
+                "Failed to write GitHub Actions environment file {target_name} ({}): {err}",
+                path.display()
+            ),
+        );
+    }
 }
 
 fn append_existing_regular_file(path: &Path, line: &str) -> std::io::Result<()> {
