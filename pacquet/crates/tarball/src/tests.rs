@@ -1,10 +1,10 @@
 use super::{
     DownloadTarballToStore, FetchTarballForResolution, HttpStatusError, MemCache, NetworkError,
     PrefetchedCasPaths, RetryOpts, SharedReportedProgressKeys, TarballError, VerifyChecksumError,
-    allocate_local_tarball_buffer, allocate_tarball_buffer, download_priority,
-    extract_tarball_entries, extract_zip_entries, fetch_and_extract_with_retry, is_transient_error,
-    local_file_tarball_path, normalize_bundled_manifest, open_local_tarball, prefetch_cas_paths,
-    read_local_tarball_buffer,
+    allocate_local_tarball_buffer, allocate_tarball_buffer, apply_append_manifest,
+    download_priority, extract_tarball_entries, extract_zip_entries, fetch_and_extract_with_retry,
+    is_transient_error, local_file_tarball_path, normalize_bundled_manifest, open_local_tarball,
+    prefetch_cas_paths, read_local_tarball_buffer,
 };
 use pacquet_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
 use pacquet_reporter::SilentReporter;
@@ -188,6 +188,7 @@ async fn packages_under_orgs_should_work() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
+        append_manifest: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -252,6 +253,7 @@ async fn network_fetch_records_progress_key() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
+        append_manifest: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -288,6 +290,7 @@ async fn should_throw_error_on_checksum_mismatch() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
+        append_manifest: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -371,6 +374,7 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
+        append_manifest: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -438,6 +442,7 @@ async fn reuses_prefetched_cas_paths_when_provided() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
+        append_manifest: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -719,6 +724,7 @@ async fn falls_through_when_cafs_file_missing() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
+        append_manifest: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -780,6 +786,7 @@ async fn falls_through_when_digest_is_malformed() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
+        append_manifest: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -846,6 +853,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
+        append_manifest: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -922,6 +930,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
+        append_manifest: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -1273,6 +1282,7 @@ async fn run_without_mem_cache_reads_local_file_tarball() {
         ignore_file_pattern: None,
         offline: true,
         progress_reported: None,
+        append_manifest: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -1667,6 +1677,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                     ignore_file_pattern: None,
                     offline: false,
                     progress_reported: None,
+                    append_manifest: None,
                 };
 
                 // Spawn each task and yield once before the next so the
@@ -1961,6 +1972,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
+        append_manifest: None,
     }
     .run_with_mem_cache::<pacquet_reporter::SilentReporter>(&mem_cache)
     .await
@@ -1990,6 +2002,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
+        append_manifest: None,
     }
     .run_with_mem_cache::<RecordingReporter>(&mem_cache)
     .await
@@ -2086,6 +2099,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
+        append_manifest: None,
     }
     .run_with_mem_cache::<RecordingReporter>(&mem_cache)
     .await
@@ -2124,6 +2138,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
+        append_manifest: None,
     }
     .run_with_mem_cache::<RecordingReporter>(&mem_cache)
     .await
@@ -2206,6 +2221,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
+        append_manifest: None,
     };
 
     // Drive both calls concurrently. One hits the `else` branch and
@@ -2493,6 +2509,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
+        append_manifest: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -2533,6 +2550,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
+        append_manifest: None,
     }
     .run_without_mem_cache::<RecordingReporter>()
     .await
@@ -2920,6 +2938,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
         ignore_file_pattern: None,
         offline: true,
         progress_reported: None,
+        append_manifest: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -2992,6 +3011,7 @@ async fn offline_mode_still_uses_prefetched_cache() {
         ignore_file_pattern: None,
         offline: true,
         progress_reported: None,
+        append_manifest: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -3188,4 +3208,54 @@ fn download_priority_never_reaches_the_latency_sentinel() {
     let priority = download_priority(Some(usize::MAX), Some(usize::MAX));
     assert!(priority < UNPRIORITIZED);
     assert_eq!(priority, UNPRIORITIZED - 1);
+}
+
+/// A runtime archive (Node.js / Bun / Deno) ships no `package.json`, so
+/// `apply_append_manifest` must bake the synthesized manifest into the
+/// persisted store-index row — both its `files` map and its bundled
+/// `manifest` — and into this install's `cas_paths`. Without the row
+/// entry, a later *warm* materialization reads a `package.json`-less row
+/// and `pnpm dlx node@runtime:<v>` fails with `dlx_read_manifest`.
+#[test]
+fn apply_append_manifest_folds_the_synthesized_manifest_into_the_row() {
+    let (_keep, store_path) = tempdir_with_leaked_path();
+    let manifest_bytes =
+        br#"{"name":"node","version":"26.4.0","bin":{"node":"bin/node"}}"#.to_vec();
+    let mut cas_paths = HashMap::new();
+    let mut idx = PackageFilesIndex { algo: "sha512".to_string(), ..Default::default() };
+
+    apply_append_manifest(store_path, &manifest_bytes, &mut cas_paths, &mut idx)
+        .expect("write the synthesized manifest into the CAS");
+
+    // This install's slot materializes the manifest...
+    assert!(cas_paths.contains_key("package.json"), "cas_paths gains package.json");
+    // ...and so does the persisted row, so warm reinstalls get it too.
+    let file = idx.files.get("package.json").expect("row records the package.json file");
+    assert_eq!(file.size, manifest_bytes.len() as u64);
+    assert!(!file.digest.is_empty(), "the synthesized file is content-addressed");
+    // The bundled manifest carries the runtime's bin so the warm-batch
+    // bin linker links it without stat-ing the slot's package.json.
+    let manifest = idx.manifest.expect("row records the bundled manifest");
+    assert_eq!(manifest.get("bin"), Some(&serde_json::json!({ "node": "bin/node" })));
+}
+
+/// An ordinary npm tarball already carries its own `package.json`;
+/// `apply_append_manifest` must leave it untouched (pnpm's `manifest ==
+/// null` guard) rather than displacing the real manifest with a
+/// synthesized one.
+#[test]
+fn apply_append_manifest_is_a_noop_when_the_archive_ships_a_package_json() {
+    let (_keep, store_path) = tempdir_with_leaked_path();
+    let existing =
+        CafsFileInfo { digest: "kept".to_string(), mode: 0o644, size: 3, checked_at: None };
+    let mut idx = PackageFilesIndex { algo: "sha512".to_string(), ..Default::default() };
+    idx.files.insert("package.json".to_string(), existing);
+    let mut cas_paths = HashMap::new();
+
+    apply_append_manifest(store_path, br#"{"name":"node"}"#, &mut cas_paths, &mut idx)
+        .expect("a no-op still returns Ok");
+
+    assert!(cas_paths.is_empty(), "the real package.json is not overwritten in cas_paths");
+    assert_eq!(idx.files["package.json"].digest, "kept", "the row's real file entry is kept");
+    assert!(idx.manifest.is_none(), "the archive's manifest handling is left alone");
 }

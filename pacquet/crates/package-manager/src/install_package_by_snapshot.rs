@@ -309,6 +309,7 @@ impl InstallPackageBySnapshot<'_> {
                     ignore_file_pattern: None,
                     offline: config.offline,
                     progress_reported: progress_reported.cloned(),
+                    append_manifest: None,
                 };
                 // Reuse an in-flight or completed background download
                 // through the shared mem cache when one is provided;
@@ -752,7 +753,18 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
 ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
     let package_id = package_key.without_peer().to_string();
-    let mut cas_paths = match binary.archive {
+
+    // Synthesize the `package.json` runtime archives (Node.js / Bun /
+    // Deno) don't ship, and hand it to the fetcher as `append_manifest`.
+    // The fetcher folds it into both this install's `cas_paths` and the
+    // persisted store-index row (its `files` map and bundled `manifest`),
+    // so a later *warm* install — which materializes straight from the
+    // row and never re-runs this function — still lands a `package.json`
+    // slot and lets the bin linker find the runtime's bin. The object
+    // carries `name`, `version`, and `bin` — the three fields pacquet's
+    // bin linking and `dlx` look at.
+    let manifest_bytes = synthesize_runtime_manifest_bytes(package_key, binary)?;
+    let cas_paths = match binary.archive {
         BinaryArchive::Tarball => DownloadTarballToStore {
             http_client,
             store_dir: &config.store_dir,
@@ -774,6 +786,7 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
             // Cold-batch binary tarball download: emits `fetched`
             // directly, so no network-fetched tracking is needed.
             progress_reported: None,
+            append_manifest: Some(&manifest_bytes),
         }
         .run_without_mem_cache::<Reporter>()
         .await
@@ -795,35 +808,13 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
             archive_prefix: binary.prefix.as_deref(),
             ignore_file_pattern,
             offline: config.offline,
+            append_manifest: Some(&manifest_bytes),
         }
         .run_without_mem_cache::<Reporter>()
         .await
         .map_err(InstallPackageBySnapshotError::DownloadTarball)?,
     };
 
-    // Synthesize the package.json for the runtime archive and import
-    // it through the same CAS write path the rest of the archive
-    // takes. Runtime archives don't ship their own `package.json`,
-    // so the existing bin-link step (which reads the manifest off
-    // the slot's `package.json`) has nothing to consume by default.
-    // The synthesized object has `name`, `version`, and `bin` — the
-    // three fields pacquet's `link_bins_of_packages` actually looks
-    // at. Writing the bytes through `write_cas_file` keeps the
-    // import path uniform with every other CAS-imported file and
-    // means the bytes are content-addressed (so two runtimes with
-    // the same `(name, version, bin)` share one blob).
-    let manifest_bytes = synthesize_runtime_manifest_bytes(package_key, binary)?;
-    let (cas_path, _hash) =
-        config.store_dir.write_cas_file(&manifest_bytes, false).map_err(|err| {
-            InstallPackageBySnapshotError::DownloadTarball(TarballError::WriteCasFile(err))
-        })?;
-    if let Some(previous) = cas_paths.insert("package.json".to_string(), cas_path) {
-        tracing::warn!(
-            ?previous,
-            ?package_id,
-            "synthesized package.json displaced an existing entry — runtime archives are not expected to ship a package.json",
-        );
-    }
     Ok(cas_paths)
 }
 

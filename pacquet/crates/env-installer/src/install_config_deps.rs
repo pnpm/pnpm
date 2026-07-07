@@ -191,6 +191,7 @@ async fn materialize<Reporter: self::Reporter>(
         ignore_file_pattern: None,
         offline: opts.offline,
         progress_reported: None,
+        append_manifest: None,
     }
     .run_without_mem_cache::<Reporter>()
     .await

@@ -135,6 +135,7 @@ pub(crate) fn spawn_tarball_download(download: TarballDownload) {
             // against — the frozen materialization install emits its own
             // progress as it consumes each tarball from the mem cache.
             progress_reported: None,
+            append_manifest: None,
         }
         .run_with_mem_cache::<SilentReporter>(&mem_cache)
         .await;

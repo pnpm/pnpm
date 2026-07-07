@@ -597,6 +597,54 @@ fn write_cas_entry(
     Ok((file.cleaned_path.clone(), file_path, info))
 }
 
+/// Fold a synthesized `package.json` (pnpm's `appendManifest`) into a
+/// freshly extracted archive's CAFS output. Runtime archives (Node.js /
+/// Bun / Deno) carry no `package.json`, so the bytes are written to the
+/// content-addressed store and recorded in both `cas_paths` (this
+/// install's slot) and the persisted `pkg_files_idx` — its `files` map
+/// *and* its bundled `manifest`. Baking the manifest into the store-index
+/// row is what lets a later warm materialization land a `package.json`
+/// slot and lets the warm-batch bin linker find the runtime's bin without
+/// a disk round-trip.
+///
+/// A no-op when the archive already carries a `package.json` (matches
+/// pnpm's `manifest == null` guard), so ordinary npm tarballs are
+/// untouched.
+fn apply_append_manifest(
+    store_dir: &StoreDir,
+    manifest_bytes: &[u8],
+    cas_paths: &mut HashMap<String, PathBuf>,
+    pkg_files_idx: &mut PackageFilesIndex,
+) -> Result<(), TarballError> {
+    if pkg_files_idx.files.contains_key("package.json") {
+        return Ok(());
+    }
+    let (cas_path, file_hash) =
+        store_dir.write_cas_file(manifest_bytes, false).map_err(TarballError::WriteCasFile)?;
+    let checked_at =
+        UNIX_EPOCH.elapsed().ok().and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok());
+    let info = CafsFileInfo {
+        digest: format!("{file_hash:x}"),
+        // A synthesized manifest is a plain, non-executable data file;
+        // `0o644` is the same canonical mode `add_files_from_dir` reports
+        // for a non-executable entry (and pnpm's Windows-host default).
+        mode: 0o644,
+        size: manifest_bytes.len() as u64,
+        checked_at,
+    };
+    cas_paths.insert("package.json".to_string(), cas_path);
+    pkg_files_idx.files.insert("package.json".to_string(), info);
+    // Surface the synthesized manifest as the row's bundled manifest so
+    // the warm-batch bin linker reads the bin here instead of stat-ing the
+    // slot. Only when the archive supplied none, mirroring pnpm's guard.
+    if pkg_files_idx.manifest.is_none()
+        && let Ok(parsed) = serde_json::from_slice::<serde_json::Value>(manifest_bytes)
+    {
+        pkg_files_idx.manifest = normalize_bundled_manifest(&parsed);
+    }
+    Ok(())
+}
+
 /// Walk decompressed tar bytes, writing each regular-file entry into
 /// the CAFS and returning the `{in-tarball path → CAFS path}` map plus
 /// the per-tarball [`PackageFilesIndex`] row to hand off to the shared
@@ -1457,6 +1505,18 @@ pub struct DownloadTarballToStore<'a> {
     /// threads this set through, because resolve-time prefetches can
     /// otherwise report the same package again in the warm batch.
     pub progress_reported: Option<SharedReportedProgressKeys>,
+    /// Synthesized `package.json` to fold into the freshly extracted
+    /// archive, mirroring pnpm's `appendManifest`. Runtime archives
+    /// (Node.js / Bun / Deno) ship no manifest of their own, so without
+    /// this the store-index row records no `package.json`: every later
+    /// *warm* materialization then lands a manifest-less slot, and the
+    /// warm-batch bin linker (which reads `PackageFilesIndex.manifest`)
+    /// links no bin. When `Some`, the bytes are written to the CAFS and
+    /// recorded in the row's `files` map and bundled `manifest` before
+    /// the row is queued, so warm and cold installs see the same slot.
+    /// `None` (ordinary registry/tarball packages) is a no-op — they
+    /// carry their own `package.json`. See `apply_append_manifest`.
+    pub append_manifest: Option<&'a [u8]>,
 }
 
 /// Project [`TarballError`] onto pnpm's `requestRetryLogger`'s
@@ -2213,6 +2273,7 @@ impl<'a> DownloadTarballToStore<'a> {
             prefetched_cas_paths,
             retry_opts,
             auth_headers,
+            append_manifest,
             ..
         } = self;
         let store_index = self.store_index.clone();
@@ -2313,7 +2374,7 @@ impl<'a> DownloadTarballToStore<'a> {
         // re-fetch instead of aborting the install
         // (<https://github.com/pnpm/pacquet/issues/259>). Only HTTP 401 / 403 / 404 fail fast — see
         // [`is_transient_error`].
-        let (_computed_integrity, cas_paths, pkg_files_idx) =
+        let (_computed_integrity, mut cas_paths, mut pkg_files_idx) =
             fetch_and_extract_with_retry::<Reporter>(
                 http_client,
                 package_url,
@@ -2329,6 +2390,12 @@ impl<'a> DownloadTarballToStore<'a> {
                 progress_key,
             )
             .await?;
+
+        // Fold the synthesized runtime `package.json` into the row before
+        // it is persisted, so warm reinstalls (which read the row) get it.
+        if let Some(manifest_bytes) = append_manifest {
+            apply_append_manifest(store_dir, manifest_bytes, &mut cas_paths, &mut pkg_files_idx)?;
+        }
 
         // Hand the per-tarball files index off to the shared writer task
         // from <https://github.com/pnpm/pacquet/pull/265> *after* the retry loop returns, so transient failures
@@ -2752,6 +2819,11 @@ pub struct DownloadZipArchiveToStore<'a> {
     /// [`TarballError::NoOfflineTarball`] rather than hitting the
     /// network.
     pub offline: bool,
+    /// Synthesized `package.json` to fold into the extracted archive.
+    /// See [`DownloadTarballToStore::append_manifest`] — same
+    /// `appendManifest` semantics for the zip path, used for the
+    /// runtime archives (e.g. Deno / Bun) that arrive as zips.
+    pub append_manifest: Option<&'a [u8]>,
 }
 
 impl DownloadZipArchiveToStore<'_> {
@@ -2775,6 +2847,7 @@ impl DownloadZipArchiveToStore<'_> {
             retry_opts,
             auth_headers,
             archive_prefix,
+            append_manifest,
             ..
         } = self;
         let store_index = self.store_index.clone();
@@ -2831,7 +2904,7 @@ impl DownloadZipArchiveToStore<'_> {
 
         tracing::info!(target: "pacquet::download", ?package_url, "New cache (zip)");
 
-        let (cas_paths, pkg_files_idx) = fetch_and_extract_zip_with_retry::<Reporter>(
+        let (mut cas_paths, mut pkg_files_idx) = fetch_and_extract_zip_with_retry::<Reporter>(
             http_client,
             package_url,
             package_integrity,
@@ -2844,6 +2917,12 @@ impl DownloadZipArchiveToStore<'_> {
             ignore_file_pattern,
         )
         .await?;
+
+        // Fold the synthesized runtime `package.json` into the row before
+        // it is persisted, so warm reinstalls (which read the row) get it.
+        if let Some(manifest_bytes) = append_manifest {
+            apply_append_manifest(store_dir, manifest_bytes, &mut cas_paths, &mut pkg_files_idx)?;
+        }
 
         let index_key = store_index_key(&package_integrity.to_string(), package_id);
         if let Some(writer) = store_index_writer {
