@@ -155,6 +155,29 @@ impl PackageManifest {
         Ok(PackageManifest { path, value })
     }
 
+    /// Build a manifest from an in-memory JSON value paired with the path it
+    /// would live at, without touching the filesystem.
+    ///
+    /// Applies the same `engines.runtime` → dependency normalization the
+    /// on-disk read performs, so a manifest supplied programmatically (e.g. by
+    /// the Node API binding) resolves identically to one read from disk.
+    /// Nothing is written; [`Self::save`] persists it if the caller wants.
+    #[must_use]
+    pub fn from_value(path: PathBuf, mut value: Value) -> PackageManifest {
+        // A manifest must be a JSON object. This is a last-resort guard: callers
+        // that accept untrusted input (the Node API binding) reject a non-object
+        // manifest at their boundary for a clear error, but if any value other
+        // than an object still reaches here, inserting a dependency via
+        // `self.value[key] = ...` would panic — so coerce it to an empty object
+        // rather than aborting the host process.
+        if !value.is_object() {
+            value = json!({});
+        }
+        convert_engines_runtime_to_dependencies(&mut value, "devEngines", "devDependencies");
+        convert_engines_runtime_to_dependencies(&mut value, "engines", "dependencies");
+        PackageManifest { path, value }
+    }
+
     #[must_use]
     pub fn path(&self) -> &'_ Path {
         &self.path

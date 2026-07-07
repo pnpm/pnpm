@@ -196,6 +196,8 @@ pub async fn resolve(
         resolution_observer: observer,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
+        pnpmfile_hook_override: None,
+        workspace_projects_override: None,
     }
     .run::<SilentReporter>()
     .await

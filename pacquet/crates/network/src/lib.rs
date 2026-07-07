@@ -23,7 +23,14 @@ use reqwest::{
     Certificate, Client, Identity, Proxy,
     header::{HeaderMap, HeaderValue, USER_AGENT},
 };
-use std::{collections::HashMap, num::NonZeroUsize, ops::Deref, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    num::NonZeroUsize,
+    ops::Deref,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 /// Fallback `User-Agent` for the install client's no-config
 /// constructors ([`ThrottledClient::new_for_installs`],
@@ -126,6 +133,57 @@ pub struct ThrottledClient {
     /// to `PerRegistryTls` (which lives on `Config`). Empty when
     /// `per_registry` is empty.
     routing: PerRegistryTls,
+    /// Per-origin socket cap (the `maxSockets` setting). `None` (the
+    /// default) leaves the per-origin socket count bounded only by
+    /// `semaphore`; see [`HostSocketLimit`].
+    host_socket_limit: Option<HostSocketLimit>,
+}
+
+/// Per-origin concurrent-connection cap, mirroring undici's `connections`
+/// option (the `maxSockets` setting pnpm applies per registry origin).
+///
+/// Each distinct `scheme://host[:port]` origin gets its own [`Semaphore`] of
+/// `max` permits, minted on first request to that origin. Acquired *before*
+/// the global [`ThrottledClient::semaphore`] so a request waiting on a
+/// saturated origin does not hold a global concurrency slot — that would let a
+/// burst to one origin hoard every global permit and starve other origins.
+#[derive(Debug)]
+struct HostSocketLimit {
+    max: NonZeroUsize,
+    per_origin: Mutex<HashMap<String, Arc<Semaphore>>>,
+}
+
+impl HostSocketLimit {
+    /// Acquire an owned permit for `url`'s origin, or `None` when `url` has no
+    /// parseable `scheme://host` (in which case the request falls back to the
+    /// global concurrency bound alone).
+    async fn acquire(&self, url: &str) -> Option<OwnedSemaphorePermit> {
+        let origin = origin_of(url)?;
+        // Lock only long enough to look up (or mint) the origin's semaphore and
+        // clone its `Arc` — never held across the `.await` below.
+        let semaphore = {
+            let mut map = self.per_origin.lock().expect("host-socket-limit mutex poisoned");
+            Arc::clone(
+                map.entry(origin).or_insert_with(|| Arc::new(Semaphore::new(self.max.get()))),
+            )
+        };
+        Some(semaphore.acquire_owned().await.expect("host-socket semaphore is never closed"))
+    }
+}
+
+/// The `scheme://host[:port]` origin of `url`, or `None` when it has no host.
+/// `url` strips a scheme-default port while parsing (`https://host:443` parses
+/// with `port() == None`), so an explicit default and the implicit form map to
+/// the same origin key and a `:443` / `:80` variation cannot fragment the
+/// per-origin socket cap; a non-default port (`https://host:8443`) stays
+/// distinct — matching undici's per-origin keying.
+fn origin_of(url: &str) -> Option<String> {
+    let parsed = reqwest::Url::parse(url).ok()?;
+    let host = parsed.host_str()?;
+    Some(match parsed.port() {
+        Some(port) => format!("{}://{host}:{port}", parsed.scheme()),
+        None => format!("{}://{host}", parsed.scheme()),
+    })
 }
 
 /// RAII guard returned from [`ThrottledClient::acquire`]. Holds a
@@ -145,6 +203,10 @@ pub struct ThrottledClient {
 /// platform limit — surfacing as `EMFILE` "too many open files".
 pub struct ThrottledClientGuard<'a> {
     _permit: Permit,
+    /// The per-origin `maxSockets` permit, held for the same request lifetime
+    /// as `_permit`. `None` when no `maxSockets` cap is configured or the URL
+    /// had no parseable origin.
+    _host_permit: Option<OwnedSemaphorePermit>,
     client: &'a Client,
 }
 
@@ -164,7 +226,20 @@ impl ThrottledClient {
     /// `send + body-consume` lifetime, not just `.send()`.
     pub async fn acquire(&self) -> ThrottledClientGuard<'_> {
         let permit = self.semaphore.acquire(UNPRIORITIZED).await;
-        ThrottledClientGuard { _permit: permit, client: &self.client }
+        ThrottledClientGuard { _permit: permit, _host_permit: None, client: &self.client }
+    }
+
+    /// Install a per-origin socket cap (the `maxSockets` setting) on this
+    /// client. `None` or `Some(0)` leaves the client uncapped — the per-origin
+    /// socket count then stays bounded only by the global concurrency
+    /// semaphore. Chained onto [`Self::for_installs`] at the install call
+    /// sites; the client's other constructors leave it uncapped.
+    #[must_use]
+    pub fn with_max_sockets_per_host(mut self, max_sockets: Option<usize>) -> Self {
+        self.host_socket_limit = max_sockets
+            .and_then(NonZeroUsize::new)
+            .map(|max| HostSocketLimit { max, per_origin: Mutex::new(HashMap::new()) });
+        self
     }
 
     /// Construct the default throttled client used for real installs.
@@ -350,6 +425,7 @@ impl ThrottledClient {
             client: default_client,
             per_registry: per_registry_clients,
             routing: per_registry.clone(),
+            host_socket_limit: None,
         })
     }
 
@@ -366,6 +442,7 @@ impl ThrottledClient {
             client,
             per_registry: HashMap::new(),
             routing: PerRegistryTls::default(),
+            host_socket_limit: None,
         }
     }
 
@@ -402,13 +479,21 @@ impl ThrottledClient {
         url: &str,
         priority: u64,
     ) -> ThrottledClientGuard<'_> {
+        // Acquire the per-origin `maxSockets` permit *before* the global
+        // concurrency permit: a request queued behind a saturated origin must
+        // not hold a global slot while it waits, or a burst to one origin would
+        // hoard every global permit and starve requests to other origins.
+        let host_permit = match &self.host_socket_limit {
+            Some(limit) => limit.acquire(url).await,
+            None => None,
+        };
         let permit = self.semaphore.acquire(priority).await;
         let client = self
             .routing
             .pick_for_url(url)
             .and_then(|key| self.per_registry.get(key))
             .unwrap_or(&self.client);
-        ThrottledClientGuard { _permit: permit, client }
+        ThrottledClientGuard { _permit: permit, _host_permit: host_permit, client }
     }
 }
 
