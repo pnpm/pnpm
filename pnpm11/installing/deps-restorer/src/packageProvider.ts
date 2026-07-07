@@ -5,7 +5,6 @@ import path from 'node:path'
 import { findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
 import { engineName } from '@pnpm/engine.runtime.system-version'
 import { PnpmError } from '@pnpm/error'
-import type { DependenciesGraph } from '@pnpm/installing.deps-resolver'
 import type { DepPath } from '@pnpm/types'
 
 const PROTOCOL_VERSION = 1
@@ -29,6 +28,26 @@ interface ProviderRequestNode {
 }
 
 /**
+ * The subset of a dependency graph node the provider integration needs.
+ * Both the full-install graph (keyed by depPath, children reference
+ * depPaths) and the headless graph (keyed by install dir, children reference
+ * dirs) satisfy it: children values are graph keys, and the real depPath is
+ * always on the node.
+ */
+export interface PackageProviderGraphNode {
+  depPath: string
+  name: string
+  version: string
+  resolution: unknown
+  children: Record<string, string>
+  optional?: boolean
+  prepare?: boolean
+  patch?: { hash: string, patchFilePath?: string }
+  dir: string
+  modules: string
+}
+
+/**
  * Sends the whole dependency graph to the configured external package
  * provider, which materializes every depPath as a read-only directory (e.g.
  * a Nix store path) whose node_modules holds the package next to symlinks to
@@ -42,14 +61,19 @@ interface ProviderRequestNode {
  */
 export async function materializeThroughPackageProvider (
   packageProvider: string,
-  depGraph: DependenciesGraph,
+  depGraph: Record<string, PackageProviderGraphNode>,
   opts: {
     lockfileDir: string
   }
 ): Promise<DepPath[]> {
-  const engine = engineName(findRuntimeNodeVersion(Object.keys(depGraph)))
+  const engine = engineName(findRuntimeNodeVersion(Object.values(depGraph).map((node) => node.depPath)))
   const nodes: Record<string, ProviderRequestNode> = {}
-  for (const [depPath, node] of Object.entries(depGraph)) {
+  const keyByDepPath = new Map<string, string>()
+  for (const [key, node] of Object.entries(depGraph)) {
+    keyByDepPath.set(node.depPath, key)
+  }
+  for (const node of Object.values(depGraph)) {
+    const depPath = node.depPath
     const resolution = node.resolution as { type?: string, tarball?: string, integrity?: string, directory?: string, repo?: string, commit?: string }
     let source: Pick<ProviderRequestNode, 'tarball' | 'integrity' | 'directory' | 'git'>
     if (resolution.type == null && resolution.tarball && resolution.integrity) {
@@ -68,13 +92,13 @@ export async function materializeThroughPackageProvider (
       throw new PnpmError('PACKAGE_PROVIDER_UNSUPPORTED', `The package provider needs the patch file of ${depPath}, but only its hash is known`)
     }
     const deps: ProviderRequestNode['deps'] = {}
-    for (const [alias, childDepPath] of Object.entries(node.children as Record<string, DepPath>)) {
-      const child = depGraph[childDepPath]
+    for (const [alias, childKey] of Object.entries(node.children)) {
+      const child = depGraph[childKey]
       if (child == null) continue // skipped package (e.g. an optional dependency for another platform)
       if (alias === node.name) {
         throw new PnpmError('PACKAGE_PROVIDER_UNSUPPORTED', `The package provider cannot install ${depPath}, which depends on a different version of itself`)
       }
-      deps[alias] = { depPath: childDepPath, name: child.name }
+      deps[alias] = { depPath: child.depPath, name: child.name }
     }
     nodes[depPath] = {
       name: node.name,
@@ -86,9 +110,9 @@ export async function materializeThroughPackageProvider (
     }
   }
   if (Object.keys(nodes).length === 0) return []
-  await Promise.all(Object.entries(depGraph).map(async ([depPath, node]) => {
+  await Promise.all(Object.values(depGraph).map(async (node) => {
     if (node.patch?.patchFilePath == null) return
-    nodes[depPath].patch = {
+    nodes[node.depPath].patch = {
       content: await fs.readFile(node.patch.patchFilePath, 'utf8'),
       hash: node.patch.hash,
     }
@@ -98,23 +122,25 @@ export async function materializeThroughPackageProvider (
     gcRootDir: path.join(opts.lockfileDir, 'node_modules', '.pnpm-nix'),
     nodes,
   })
-  const skippedSet = new Set(skipped)
-  for (const depPath of skippedSet) {
-    const node = depGraph[depPath as DepPath]
+  const skippedKeys = new Set<string>()
+  for (const depPath of skipped) {
+    const key = keyByDepPath.get(depPath)
+    const node = key == null ? undefined : depGraph[key]
     if (node == null || node.optional !== true) {
       throw new PnpmError('PACKAGE_PROVIDER_RESULT_INVALID', `The package provider skipped ${depPath}, which is not an optional dependency`)
     }
-    delete depGraph[depPath as DepPath] // eslint-disable-line @typescript-eslint/no-dynamic-delete
+    skippedKeys.add(key!)
+    delete depGraph[key!] // eslint-disable-line @typescript-eslint/no-dynamic-delete
   }
-  for (const [depPath, node] of Object.entries(depGraph)) {
-    if (skippedSet.size > 0) {
-      for (const [alias, childDepPath] of Object.entries(node.children as Record<string, DepPath>)) {
-        if (skippedSet.has(childDepPath)) delete node.children[alias] // eslint-disable-line @typescript-eslint/no-dynamic-delete
+  for (const node of Object.values(depGraph)) {
+    if (skippedKeys.size > 0) {
+      for (const [alias, childKey] of Object.entries(node.children)) {
+        if (skippedKeys.has(childKey)) delete node.children[alias] // eslint-disable-line @typescript-eslint/no-dynamic-delete
       }
     }
-    const providedDir = paths[depPath]
+    const providedDir = paths[node.depPath]
     if (typeof providedDir !== 'string') {
-      throw new PnpmError('PACKAGE_PROVIDER_RESULT_INVALID', `The package provider returned no path for ${depPath}`)
+      throw new PnpmError('PACKAGE_PROVIDER_RESULT_INVALID', `The package provider returned no path for ${node.depPath}`)
     }
     node.modules = path.join(providedDir, 'node_modules')
     node.dir = path.join(node.modules, node.name)

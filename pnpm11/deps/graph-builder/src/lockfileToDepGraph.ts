@@ -78,6 +78,8 @@ export interface LockfileToDepGraphOptions {
    * and doesn't need local packages that won't be available (e.g., in Docker builds).
    */
   ignoreLocalPackages?: boolean
+  /** Build the graph without fetching anything into the store (packages will be materialized externally). */
+  skipFetching?: boolean
   lockfileDir: string
   nodeVersion: string
   pnpmVersion: string
@@ -279,8 +281,13 @@ async function buildGraphFromPackages (
         }
       }
 
+      const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
+      if (!fetchResponse && opts.skipFetching) {
+        progressLogger.debug({ packageId, requester: opts.lockfileDir, status: 'resolved' })
+        fetchResponse = {}
+      }
+
       if (!fetchResponse) {
-        const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
         progressLogger.debug({ packageId, requester: opts.lockfileDir, status: 'resolved' })
 
         try {
@@ -301,7 +308,7 @@ async function buildGraphFromPackages (
       graph[dir] = {
         children: {},
         pkgIdWithPatchHash,
-        resolution: pkgSnapshot.resolution,
+        resolution,
         depPath,
         dir,
         fetching: fetchResponse.fetching,

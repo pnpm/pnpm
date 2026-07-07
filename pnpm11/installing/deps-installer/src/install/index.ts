@@ -999,10 +999,6 @@ export async function mutateModules (
       !opts.fixLockfile &&
       !opts.dedupe &&
 
-      // The headless installer cannot materialize through an external
-      // package provider yet, so take the full install path.
-      opts.packageProvider == null &&
-
       // A check-only install (`lockfileCheck`, used by `--dry-run` and
       // `dedupe --check`) must always run a full resolution so the wanted
       // lockfile can be compared, and must never materialize anything. The
@@ -2149,7 +2145,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
     if (!opts.frozenLockfile && opts.useLockfile) {
       const allProjectsLocatedInsideWorkspace = Object.values(ctx.projects)
         .filter((project) => isPathInsideWorkspace(project.rootDirRealPath ?? project.rootDir))
-      if (allProjectsLocatedInsideWorkspace.length > projects.length && !isCheckOnlyInstall(opts) && opts.enableModulesDir && opts.packageProvider == null) {
+      if (allProjectsLocatedInsideWorkspace.length > projects.length && !isCheckOnlyInstall(opts) && opts.enableModulesDir) {
         const newProjects = [...projects]
         const getWantedDepsOpts = {
           autoInstallPeers: opts.autoInstallPeers,

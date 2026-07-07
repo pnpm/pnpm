@@ -6131,6 +6131,9 @@ importers:
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../../deps/path
+      '@pnpm/engine.runtime.system-version':
+        specifier: workspace:*
+        version: link:../../engine/runtime/system-version
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error

@@ -42,7 +42,11 @@ process.stdin.on('end', () => {
       if (paths[dep.depPath] == null) continue
       const link = path.join(paths[depPath], 'node_modules', alias)
       fs.mkdirSync(path.dirname(link), { recursive: true })
-      fs.symlinkSync(path.join(paths[dep.depPath], 'node_modules', dep.name), link)
+      try {
+        fs.symlinkSync(path.join(paths[dep.depPath], 'node_modules', dep.name), link)
+      } catch (err) {
+        if (err.code !== 'EEXIST') throw err
+      }
     }
   }
   process.stdout.write(JSON.stringify({ protocol: 1, paths, skipped }))
@@ -125,6 +129,22 @@ test('patched dependencies are sent to the package provider with their patch con
   const node = Object.values<any>(request.nodes).find((requestNode) => requestNode.name === 'is-positive') // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(node.patch.content).toContain('// patched')
   expect(node.patch.hash).toBeTruthy()
+})
+
+test('a frozen install materializes through the provider on the headless path', async () => {
+  prepareEmpty()
+  const { providerBin, providerDir } = prepareFakeProvider()
+  const { updatedManifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults({ packageProvider: providerBin }))
+
+  fs.rmSync('node_modules', { recursive: true, force: true })
+  await install(updatedManifest, testDefaults({ packageProvider: providerBin, frozenLockfile: true }))
+
+  const realDir = fs.realpathSync(path.join('node_modules', '@pnpm.e2e/pkg-with-1-dep'))
+  expect(realDir.startsWith(path.join(providerDir, 'store'))).toBeTruthy()
+  const transitive = fs.realpathSync(path.join(realDir, '../..', '@pnpm.e2e/dep-of-pkg-with-1-dep'))
+  expect(transitive.startsWith(path.join(providerDir, 'store'))).toBeTruthy()
+  const virtualStoreEntries = fs.existsSync('node_modules/.pnpm') ? fs.readdirSync('node_modules/.pnpm') : []
+  expect(virtualStoreEntries.filter((entry) => entry.includes('pkg-with-1-dep'))).toHaveLength(0)
 })
 
 test('local directory dependencies are sent as absolute directories', async () => {

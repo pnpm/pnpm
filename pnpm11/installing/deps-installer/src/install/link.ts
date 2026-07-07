@@ -15,7 +15,7 @@ import {
   isValidDependencyAlias,
   type LinkedDependency,
 } from '@pnpm/installing.deps-resolver'
-import type { InstallationResultStats } from '@pnpm/installing.deps-restorer'
+import { type InstallationResultStats, materializeThroughPackageProvider, type PackageProviderGraphNode } from '@pnpm/installing.deps-restorer'
 import { linkDirectDeps } from '@pnpm/installing.linking.direct-dep-linker'
 import { hoist, type HoistedWorkspaceProject } from '@pnpm/installing.linking.hoist'
 import { prune } from '@pnpm/installing.linking.modules-cleaner'
@@ -41,7 +41,6 @@ import { pathExists } from 'path-exists'
 import { difference, equals, isEmpty, pick, pickBy, props } from 'ramda'
 
 import type { ImporterToUpdate } from './index.js'
-import { materializeThroughPackageProvider } from './packageProvider.js'
 
 const brokenModulesLogger = logger('_broken_node_modules')
 
@@ -134,7 +133,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
   })
 
   if (opts.packageProvider) {
-    const providerSkipped = await materializeThroughPackageProvider(opts.packageProvider, depGraph, {
+    const providerSkipped = await materializeThroughPackageProvider(opts.packageProvider, depGraph as unknown as Record<string, PackageProviderGraphNode>, {
       lockfileDir: opts.lockfileDir,
     })
     for (const depPath of providerSkipped) {
