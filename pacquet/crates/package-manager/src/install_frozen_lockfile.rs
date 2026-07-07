@@ -952,6 +952,7 @@ where
                 node_linker,
                 progress_reported: &progress_reported,
                 tarball_mem_cache,
+                custom_fetcher_picker: None,
                 #[cfg(test)]
                 link_concurrency_probe: None,
             }

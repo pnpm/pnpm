@@ -422,6 +422,7 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
         // only the download-coordination branch and gets the CAS map
         // back directly.
         node_linker: pacquet_config::NodeLinker::Hoisted,
+        custom_fetcher_picker: None,
         defer_link: false,
         link_concurrency_probe: None,
     }
@@ -495,6 +496,7 @@ async fn without_mem_cache_skips_coordination_and_downloads() {
         skipped: &skipped,
         workspace_root: store_tmp.path(),
         node_linker: pacquet_config::NodeLinker::Hoisted,
+        custom_fetcher_picker: None,
         defer_link: false,
         link_concurrency_probe: None,
     }
@@ -568,6 +570,7 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
         skipped: &skipped,
         workspace_root: store_tmp.path(),
         node_linker: pacquet_config::NodeLinker::Hoisted,
+        custom_fetcher_picker: None,
         defer_link: false,
         link_concurrency_probe: None,
     }
@@ -697,6 +700,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
         skipped: &skipped,
         workspace_root: store_tmp.path(),
         node_linker: pacquet_config::NodeLinker::Hoisted,
+        custom_fetcher_picker: None,
         defer_link: false,
         link_concurrency_probe: None,
     }
@@ -754,6 +758,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
         skipped: &skipped,
         workspace_root: store_tmp.path(),
         node_linker: pacquet_config::NodeLinker::Hoisted,
+        custom_fetcher_picker: None,
         defer_link: false,
         link_concurrency_probe: None,
     }

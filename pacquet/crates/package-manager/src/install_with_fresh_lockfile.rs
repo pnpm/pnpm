@@ -1590,6 +1590,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             // routing the cold batch through the mem cache fixes by
             // reusing the in-flight download instead.
             tarball_mem_cache: Some(&tarball_mem_cache),
+            custom_fetcher_picker: None,
             #[cfg(test)]
             link_concurrency_probe: None,
         }

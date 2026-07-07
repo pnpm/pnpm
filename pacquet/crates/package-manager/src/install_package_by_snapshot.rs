@@ -10,6 +10,7 @@ use pacquet_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
 use pacquet_fs::lexical_normalize;
 use pacquet_git_fetcher::{GitFetchOutput, GitFetcher, GitFetcherError, GitHostedTarballFetcher};
 use pacquet_graph_hasher::{host_arch, host_libc, host_platform};
+use pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker;
 use pacquet_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, LockfileResolution,
     PackageKey, PackageMetadata, PlatformSelector, SnapshotEntry, select_platform_variant,
@@ -112,6 +113,10 @@ pub struct InstallPackageBySnapshot<'a> {
     /// land in the store, so this is purely about whether the
     /// virtual-store slot gets materialized.
     pub node_linker: NodeLinker,
+    /// Custom fetchers from `.pnpmfile.mjs`'s `fetchers` export.
+    /// Consulted before the built-in resolution-type dispatch; `None`
+    /// when no pnpmfile exports fetchers.
+    pub custom_fetcher_picker: Option<&'a Arc<CustomFetcherPicker>>,
     /// When `true`, return the fetched CAS paths without populating the
     /// virtual-store slot ([`CreateVirtualDirBySnapshot`]) — the caller
     /// links them itself in a separate parallel pass. The cold batch in
@@ -165,6 +170,11 @@ pub enum InstallPackageBySnapshotError {
     /// `includeOnlyPackageFiles` mode.
     #[diagnostic(transparent)]
     DirectoryFetch(#[error(source)] DirectoryFetcherError),
+
+    /// A custom fetcher from `.pnpmfile.mjs` threw or returned an error.
+    #[display("Custom fetcher failed: {_0}")]
+    #[diagnostic(code(pacquet_package_manager::custom_fetcher_failed))]
+    CustomFetcher(#[error(not(source))] String),
 
     /// No variant in a [`LockfileResolution::Variations`] matches the
     /// host triple `(os, cpu, libc?)`. Surfaces with the host triple
@@ -257,6 +267,7 @@ impl InstallPackageBySnapshot<'_> {
             skipped,
             workspace_root,
             node_linker,
+            custom_fetcher_picker,
             defer_link,
             #[cfg(test)]
             link_concurrency_probe,
@@ -285,10 +296,40 @@ impl InstallPackageBySnapshot<'_> {
             }
         };
 
-        let cas_paths: HashMap<String, PathBuf> = match &metadata.resolution {
+        // Consult custom fetchers before the built-in dispatch. A custom
+        // fetcher that returns a `delegate` field triggers the standard
+        // tarball download with the rewritten resolution rather than
+        // replacing the fetch entirely.
+        let effective_resolution: Option<LockfileResolution> =
+            if let Some(picker) = custom_fetcher_picker {
+                let resolution_value =
+                    serde_json::to_value(&metadata.resolution).unwrap_or(serde_json::Value::Null);
+                let opts_value = serde_json::json!({
+                    "packageKey": package_key.to_string(),
+                    "version": metadata.version,
+                });
+                match picker.try_fetch(&package_id, &resolution_value, &opts_value).await {
+                    Ok(Some(result)) => {
+                        if let Some(delegate) = result.get("delegate") {
+                            serde_json::from_value(delegate.clone()).ok()
+                        } else {
+                            None
+                        }
+                    }
+                    Ok(None) => None,
+                    Err(err) => {
+                        return Err(InstallPackageBySnapshotError::CustomFetcher(err.to_string()));
+                    }
+                }
+            } else {
+                None
+            };
+        let resolution = effective_resolution.as_ref().unwrap_or(&metadata.resolution);
+
+        let cas_paths: HashMap<String, PathBuf> = match resolution {
             LockfileResolution::Tarball(_) | LockfileResolution::Registry(_) => {
                 let (tarball_url, integrity) =
-                    tarball_url_and_integrity(&metadata.resolution, package_key, config)?;
+                    tarball_url_and_integrity(resolution, package_key, config)?;
                 let tarball_url = local_file_tarball_install_url(tarball_url, self.workspace_root);
                 let download = DownloadTarballToStore {
                     http_client,
@@ -332,9 +373,7 @@ impl InstallPackageBySnapshot<'_> {
                 // warm store, so remote tarballs must take the standalone
                 // path.
                 let raw_cas_paths = match tarball_mem_cache {
-                    Some(mem_cache)
-                        if matches!(&metadata.resolution, LockfileResolution::Registry(_)) =>
-                    {
+                    Some(mem_cache) if matches!(resolution, LockfileResolution::Registry(_)) => {
                         // `clone()` is cheap (refs + `Arc`s) and lets us
                         // retry through `run_without_mem_cache` below if
                         // the shared download failed.
@@ -357,7 +396,7 @@ impl InstallPackageBySnapshot<'_> {
                 // `remoteTarballFetcher`, because the host's archive
                 // endpoint doesn't run `prepare`/`prepublish*` and
                 // the file set typically needs packlist filtering.
-                if let LockfileResolution::Tarball(t) = &metadata.resolution
+                if let LockfileResolution::Tarball(t) = resolution
                     && t.git_hosted == Some(true)
                 {
                     // `built` tracks `!ignore_scripts`, in lock-step

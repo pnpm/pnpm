@@ -185,6 +185,7 @@ async fn cold_batch_links_slots_in_parallel() {
         node_linker: NodeLinker::Isolated,
         progress_reported: &progress_reported,
         tarball_mem_cache: Some(&mem_cache),
+        custom_fetcher_picker: None,
         link_concurrency_probe: Some(&probe),
     }
     .run::<SilentReporter>()

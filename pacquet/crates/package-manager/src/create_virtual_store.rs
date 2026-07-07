@@ -7,6 +7,7 @@ use futures_util::future;
 use miette::Diagnostic;
 use pacquet_config::{Config, NodeLinker, PackageImportMethod};
 use pacquet_deps_path::get_pkg_id_with_patch_hash;
+use pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker;
 use pacquet_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgName, PkgNameVerPeer,
     SnapshotEntry, select_platform_variant,
@@ -27,7 +28,7 @@ use std::{
     collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
-    sync::atomic::AtomicU8,
+    sync::{Arc, atomic::AtomicU8},
 };
 
 /// Bundled package manifests recovered from the `SQLite` store index
@@ -174,6 +175,9 @@ pub struct CreateVirtualStore<'a> {
     /// the fresh-resolve path's [`crate::PrefetchingResolver`] (closing
     /// <https://github.com/pnpm/pnpm/issues/12241>); `None` otherwise.
     pub tarball_mem_cache: Option<&'a std::sync::Arc<MemCache>>,
+    /// Custom fetchers from `.pnpmfile.mjs`. Consulted per snapshot
+    /// before the built-in resolution-type dispatch.
+    pub custom_fetcher_picker: Option<&'a Arc<CustomFetcherPicker>>,
     #[cfg(test)]
     pub(crate) link_concurrency_probe:
         Option<&'a crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe>,
@@ -223,6 +227,7 @@ impl CreateVirtualStore<'_> {
             node_linker,
             progress_reported,
             tarball_mem_cache,
+            custom_fetcher_picker,
             #[cfg(test)]
             link_concurrency_probe,
         } = self;
@@ -801,6 +806,7 @@ impl CreateVirtualStore<'_> {
                         skipped,
                         workspace_root,
                         node_linker,
+                        custom_fetcher_picker,
                         // The slot link is deferred to the parallel pass
                         // below so it doesn't serialize inside this
                         // cooperative `try_join_all` task.
