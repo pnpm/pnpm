@@ -221,6 +221,7 @@ impl S3Store {
             Ok(_) => Ok(true),
             Err(
                 object_store::Error::AlreadyExists { .. }
+                | object_store::Error::NotFound { .. }
                 | object_store::Error::Precondition { .. },
             ) => Ok(false),
             Err(err) => Err(err.into()),

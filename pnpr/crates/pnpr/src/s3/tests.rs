@@ -93,6 +93,27 @@ async fn stale_packument_update_is_rejected() {
 }
 
 #[tokio::test]
+async fn deleted_packument_update_is_rejected() {
+    let (store, _staging) = store_with_prefix("");
+    let name = pkg("removed-racer");
+    write_packument(&store, &name, br#"{"name":"removed-racer"}"#).await;
+
+    let read = store.read_packument_for_update(&name).await.unwrap().unwrap();
+    store.remove_package(&name).await.unwrap();
+
+    let written = store
+        .write_packument_if_current(
+            &name,
+            br#"{"name":"removed-racer","versions":{"1.0.0":{"version":"1.0.0"}}}"#,
+            Some(&read.version),
+        )
+        .await
+        .unwrap();
+    assert!(!written);
+    assert!(store.read_packument(&name).await.unwrap().is_none());
+}
+
+#[tokio::test]
 async fn tarball_uploads_streams_and_reports_length() {
     let (store, _staging) = store_with_prefix("");
     let name = pkg("is-positive");

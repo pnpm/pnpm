@@ -30,7 +30,10 @@ use crate::{
     error::{RegistryError, Result},
     package_name::PackageName,
     publish::{merge_manifest, now_iso},
-    storage::{PackumentWrite, Storage, TarballSlot, unique_tmp_path},
+    storage::{
+        PackumentWrite, RECOVERY_PACKUMENT_WRITE_RETRIES, Storage, TarballSlot, unique_tmp_path,
+        wait_after_packument_write_conflict,
+    },
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -50,7 +53,6 @@ pub(crate) const JOURNAL_DIR: &str = ".pnpr-journal";
 
 const COMMIT_MARKER: &str = "commit";
 const MANIFEST_FILE: &str = "manifest.json";
-const PACKUMENT_WRITE_RETRIES: usize = 8;
 
 /// Per-process counter feeding [`txn_id`] so two transactions sealed in
 /// the same millisecond get distinct directories.
@@ -258,7 +260,7 @@ async fn write_merged_packument(
     name: &PackageName,
     journaled: &serde_json::Value,
 ) -> Result<()> {
-    for _ in 0..PACKUMENT_WRITE_RETRIES {
+    for attempt in 0..RECOVERY_PACKUMENT_WRITE_RETRIES {
         let existing_packument = store.read_hosted_packument_for_update(name).await?;
         let (existing_bytes, version) = match existing_packument {
             Some(packument) => (Some(packument.bytes), Some(packument.version)),
@@ -273,7 +275,11 @@ async fn write_merged_packument(
         match store.write_hosted_packument_if_current(name, &merged_bytes, version.as_ref()).await?
         {
             PackumentWrite::Written => return Ok(()),
-            PackumentWrite::Conflict => {}
+            PackumentWrite::Conflict => {
+                if attempt + 1 < RECOVERY_PACKUMENT_WRITE_RETRIES {
+                    wait_after_packument_write_conflict(attempt).await;
+                }
+            }
         }
     }
     Err(RegistryError::PackumentWriteConflict { package: name.as_str().to_string() })

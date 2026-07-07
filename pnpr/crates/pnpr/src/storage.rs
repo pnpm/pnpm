@@ -29,6 +29,21 @@ const PACKUMENT_FILE: &str = "package.json";
 /// on POSIX as long as src and dest sit in the same directory (they do).
 static TMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 const MAX_TEMP_CREATE_ATTEMPTS: usize = 16;
+pub(crate) const PACKUMENT_WRITE_RETRIES: usize = 8;
+pub(crate) const RECOVERY_PACKUMENT_WRITE_RETRIES: usize = 32;
+const PACKUMENT_WRITE_CONFLICT_DELAY_MS: u64 = 5;
+const MAX_PACKUMENT_WRITE_CONFLICT_DELAY_MS: u64 = 250;
+
+pub(crate) fn packument_write_conflict_delay(attempt: usize) -> Duration {
+    let delay = PACKUMENT_WRITE_CONFLICT_DELAY_MS
+        .saturating_mul(1_u64 << attempt.min(6))
+        .min(MAX_PACKUMENT_WRITE_CONFLICT_DELAY_MS);
+    Duration::from_millis(delay)
+}
+
+pub(crate) async fn wait_after_packument_write_conflict(attempt: usize) {
+    tokio::time::sleep(packument_write_conflict_delay(attempt)).await;
+}
 
 /// Handle returned from [`Storage::open_upstream_tarball_tmp`]. The caller
 /// writes through [`Self::write_all`] (and on success calls [`Self::finalize`] to

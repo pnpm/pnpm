@@ -10,7 +10,10 @@ use crate::{
         stream_decode_verify_and_write,
     },
     registry::{ConcreteKind, Registry, Resolved},
-    storage::{HostedPackumentVersion, PackumentWrite, Storage},
+    storage::{
+        HostedPackumentVersion, PACKUMENT_WRITE_RETRIES, PackumentWrite, Storage,
+        wait_after_packument_write_conflict,
+    },
     streaming,
     upstream::{
         CacheValidators, FetchOutcome, PackumentFetch, Upstream, abbreviate_packument,
@@ -68,7 +71,6 @@ const MAX_TARBALL_BYTES: u64 = 100 * 1024 * 1024;
 /// [`DefaultBodyLimit::max`] on the router rather than on each
 /// route, so future write endpoints inherit the same ceiling.
 const MAX_PUBLISH_BODY_BYTES: usize = MAX_TARBALL_BYTES as usize;
-const PACKUMENT_WRITE_RETRIES: usize = 8;
 
 /// Cap adduser/login bodies far below the publish ceiling. The body is a
 /// small couchdb-user JSON document, and login is the one body-accepting
@@ -3610,10 +3612,14 @@ async fn set_dist_tag(
     tag: &str,
     body: &[u8],
 ) -> Response {
-    update_dist_tag(state, identity, registry, raw_name, tag, |tags| {
-        let version: String = match serde_json::from_slice(body) {
-            Ok(s) => s,
-            Err(err) => return Err(RegistryError::Json(err)),
+    let mut parsed_version: Option<String> = None;
+    update_dist_tag(state, identity, registry, raw_name, tag, move |tags| {
+        let version = if let Some(version) = parsed_version.as_ref() {
+            version.clone()
+        } else {
+            let version: String = serde_json::from_slice(body).map_err(RegistryError::Json)?;
+            parsed_version = Some(version.clone());
+            version
         };
         tags.insert(tag.to_string(), Value::String(version));
         Ok(())
@@ -3645,10 +3651,10 @@ async fn update_dist_tag<Mutate>(
     registry: Option<&str>,
     raw_name: &str,
     tag: &str,
-    mutate: Mutate,
+    mut mutate: Mutate,
 ) -> Response
 where
-    Mutate: Fn(&mut serde_json::Map<String, Value>) -> Result<(), RegistryError>,
+    Mutate: FnMut(&mut serde_json::Map<String, Value>) -> Result<(), RegistryError>,
 {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
@@ -3678,7 +3684,7 @@ where
     let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
 
     let mut written = false;
-    for _ in 0..PACKUMENT_WRITE_RETRIES {
+    for attempt in 0..PACKUMENT_WRITE_RETRIES {
         let hosted_packument = match storage.read_hosted_packument_for_update(&name).await {
             Ok(Some(packument)) => packument,
             Ok(None) => return not_found(),
@@ -3729,7 +3735,12 @@ where
                 written = true;
                 break;
             }
-            Ok(PackumentWrite::Conflict) => continue,
+            Ok(PackumentWrite::Conflict) => {
+                if attempt + 1 < PACKUMENT_WRITE_RETRIES {
+                    wait_after_packument_write_conflict(attempt).await;
+                }
+                continue;
+            }
             Err(err) => return error_response(&err),
         }
     }
