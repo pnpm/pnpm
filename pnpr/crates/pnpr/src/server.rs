@@ -10,7 +10,7 @@ use crate::{
         stream_decode_verify_and_write,
     },
     registry::{ConcreteKind, Registry, Resolved},
-    storage::Storage,
+    storage::{HostedPackumentVersion, PackumentWrite, Storage},
     streaming,
     upstream::{
         CacheValidators, FetchOutcome, PackumentFetch, Upstream, abbreviate_packument,
@@ -68,6 +68,7 @@ const MAX_TARBALL_BYTES: u64 = 100 * 1024 * 1024;
 /// [`DefaultBodyLimit::max`] on the router rather than on each
 /// route, so future write endpoints inherit the same ceiling.
 const MAX_PUBLISH_BODY_BYTES: usize = MAX_TARBALL_BYTES as usize;
+const PACKUMENT_WRITE_RETRIES: usize = 8;
 
 /// Cap adduser/login bodies far below the publish ceiling. The body is a
 /// small couchdb-user JSON document, and login is the one body-accepting
@@ -2894,6 +2895,7 @@ fn validate_publish_attachments(
 struct StagedPublish {
     name: PackageName,
     merged_bytes: Vec<u8>,
+    base_version: Option<HostedPackumentVersion>,
     slots: Vec<crate::storage::TarballSlot>,
     /// Hosted-org storage namespace this publish targets, or `None` for the
     /// flat (path-less) hosted store. Threaded into the commit and journal so
@@ -2915,7 +2917,11 @@ async fn stage_publish(
     let ValidatedPublish { name, incoming, prepared } = doc;
     let storage = hosted_storage(state, org);
 
-    let hosted_bytes = storage.read_hosted_packument(&name).await?;
+    let hosted_packument = storage.read_hosted_packument_for_update(&name).await?;
+    let (hosted_bytes, base_version) = match hosted_packument {
+        Some(packument) => (Some(packument.bytes), Some(packument.version)),
+        None => (None, None),
+    };
     let hosted: Option<Value> = match hosted_bytes.as_deref().map(serde_json::from_slice) {
         Some(Ok(value)) => Some(value),
         Some(Err(err)) => return Err(RegistryError::Json(err)),
@@ -3014,7 +3020,13 @@ async fn stage_publish(
             }
         }
     }
-    Ok(StagedPublish { name, merged_bytes, slots: written_slots, org: org.map(str::to_string) })
+    Ok(StagedPublish {
+        name,
+        merged_bytes,
+        base_version,
+        slots: written_slots,
+        org: org.map(str::to_string),
+    })
 }
 
 /// Make every staged publish visible. The full intent — merged
@@ -3067,7 +3079,21 @@ async fn commit_publishes(
             for slot in stage.slots {
                 store.finalize_tarball_slot(slot).await?;
             }
-            store.write_hosted_packument(&stage.name, &stage.merged_bytes).await?;
+            match store
+                .write_hosted_packument_if_current(
+                    &stage.name,
+                    &stage.merged_bytes,
+                    stage.base_version.as_ref(),
+                )
+                .await?
+            {
+                PackumentWrite::Written => {}
+                PackumentWrite::Conflict => {
+                    return Err(RegistryError::PackumentWriteConflict {
+                        package: stage.name.as_str().to_string(),
+                    });
+                }
+            }
         }
         Ok::<(), RegistryError>(())
     }
@@ -3271,16 +3297,40 @@ async fn update_packument(
     // packument writers (publish / dist-tag), so the client-supplied
     // rewrite can't interleave with a concurrent merge.
     let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
-    if let Some(err) = enforce_published_version_immutability(&storage, &name, &mut packument).await
-    {
+    let hosted_packument = match storage.read_hosted_packument_for_update(&name).await {
+        Ok(Some(packument)) => packument,
+        Ok(None) => {
+            return error_response(&RegistryError::BadRequest {
+                reason: format!(
+                    "cannot update {:?}: it has no published packument to unpublish from",
+                    name.as_str(),
+                ),
+            });
+        }
+        Err(err) => return error_response(&err),
+    };
+    let hosted: Value = match serde_json::from_slice(&hosted_packument.bytes) {
+        Ok(value) => value,
+        Err(err) => return error_response(&RegistryError::Json(err)),
+    };
+    if let Some(err) = enforce_published_version_immutability(&hosted, &name, &mut packument) {
         return error_response(&err);
     }
     let bytes = match serde_json::to_vec_pretty(&packument) {
         Ok(b) => b,
         Err(err) => return error_response(&RegistryError::Json(err)),
     };
-    if let Err(err) = storage.write_hosted_packument(&name, &bytes).await {
-        return error_response(&err);
+    match storage
+        .write_hosted_packument_if_current(&name, &bytes, Some(&hosted_packument.version))
+        .await
+    {
+        Ok(PackumentWrite::Written) => {}
+        Ok(PackumentWrite::Conflict) => {
+            return error_response(&RegistryError::PackumentWriteConflict {
+                package: name.as_str().to_string(),
+            });
+        }
+        Err(err) => return error_response(&err),
     }
     let body = json!({ "ok": true });
     let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
@@ -3309,27 +3359,11 @@ async fn update_packument(
 ///
 /// Returns the rejection, or `None` when the body is acceptable (after any
 /// restores). Must hold the package lock so a concurrent publish can't race it.
-async fn enforce_published_version_immutability(
-    storage: &Storage,
+fn enforce_published_version_immutability(
+    hosted: &Value,
     name: &PackageName,
     incoming: &mut Value,
 ) -> Option<RegistryError> {
-    let hosted: Value = match storage.read_hosted_packument(name).await {
-        // Fail closed: a corrupt packument must not silently disable the gate.
-        Ok(Some(bytes)) => match serde_json::from_slice(&bytes) {
-            Ok(value) => value,
-            Err(err) => return Some(RegistryError::Json(err)),
-        },
-        Ok(None) => {
-            return Some(RegistryError::BadRequest {
-                reason: format!(
-                    "cannot update {:?}: it has no published packument to unpublish from",
-                    name.as_str(),
-                ),
-            });
-        }
-        Err(err) => return Some(err),
-    };
     // None (no versions to enforce) means "accept", not "error" here.
     let incoming_versions = incoming.get("versions").and_then(Value::as_object)?;
     let hosted_versions = hosted.get("versions").and_then(Value::as_object);
@@ -3614,7 +3648,7 @@ async fn update_dist_tag<Mutate>(
     mutate: Mutate,
 ) -> Response
 where
-    Mutate: FnOnce(&mut serde_json::Map<String, Value>) -> Result<(), RegistryError>,
+    Mutate: Fn(&mut serde_json::Map<String, Value>) -> Result<(), RegistryError>,
 {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
@@ -3643,53 +3677,66 @@ where
     // on this instance (held until this function returns).
     let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
 
-    // A hosted org has no upstream, so a dist-tag change starts from the org's
-    // own packument; a package it does not host can't be tagged.
-    let mut packument: Value = match storage.read_hosted_packument(&name).await {
-        Ok(Some(bytes)) => match serde_json::from_slice(&bytes) {
-            Ok(v) => v,
+    let mut written = false;
+    for _ in 0..PACKUMENT_WRITE_RETRIES {
+        let hosted_packument = match storage.read_hosted_packument_for_update(&name).await {
+            Ok(Some(packument)) => packument,
+            Ok(None) => return not_found(),
+            Err(err) => return error_response(&err),
+        };
+        let mut packument: Value = match serde_json::from_slice(&hosted_packument.bytes) {
+            Ok(value) => value,
             Err(err) => return error_response(&RegistryError::Json(err)),
-        },
-        Ok(None) => return not_found(),
-        Err(err) => return error_response(&err),
-    };
+        };
 
-    let Some(packument_obj) = packument.as_object_mut() else {
-        return error_response(&RegistryError::BadRequest {
-            reason: "stored packument is not an object".to_string(),
-        });
-    };
-    let tags_entry = packument_obj
-        .entry("dist-tags".to_string())
-        .or_insert_with(|| Value::Object(serde_json::Map::new()));
-    let Some(tags) = tags_entry.as_object_mut() else {
-        return error_response(&RegistryError::BadRequest {
-            reason: "stored dist-tags is not an object".to_string(),
-        });
-    };
-    if let Err(err) = mutate(tags) {
-        return error_response(&err);
+        let Some(packument_obj) = packument.as_object_mut() else {
+            return error_response(&RegistryError::BadRequest {
+                reason: "stored packument is not an object".to_string(),
+            });
+        };
+        let tags_entry = packument_obj
+            .entry("dist-tags".to_string())
+            .or_insert_with(|| Value::Object(serde_json::Map::new()));
+        let Some(tags) = tags_entry.as_object_mut() else {
+            return error_response(&RegistryError::BadRequest {
+                reason: "stored dist-tags is not an object".to_string(),
+            });
+        };
+        if let Err(err) = mutate(tags) {
+            return error_response(&err);
+        }
+        let _ = tag;
+        // dist-tag 변경 뒤에도 클라이언트의 신선도 판단이 뒤처지지 않게
+        // `time.modified`를 갱신한다.
+        let time_entry = packument_obj
+            .entry("time".to_string())
+            .or_insert_with(|| Value::Object(serde_json::Map::new()));
+        let Some(time_obj) = time_entry.as_object_mut() else {
+            return error_response(&RegistryError::BadRequest {
+                reason: "stored time is not an object".to_string(),
+            });
+        };
+        time_obj.insert("modified".to_string(), Value::String(now_iso()));
+        let new_bytes = match serde_json::to_vec_pretty(&packument) {
+            Ok(b) => b,
+            Err(err) => return error_response(&RegistryError::Json(err)),
+        };
+        match storage
+            .write_hosted_packument_if_current(&name, &new_bytes, Some(&hosted_packument.version))
+            .await
+        {
+            Ok(PackumentWrite::Written) => {
+                written = true;
+                break;
+            }
+            Ok(PackumentWrite::Conflict) => continue,
+            Err(err) => return error_response(&err),
+        }
     }
-    let _ = tag; // tag name is used by the mutate closure
-    // Refresh `time.modified` so clients that rely on it for
-    // freshness (pacquet's pick_package, npm's abbreviated-packument
-    // staleness check) don't see the post-mutation packument as
-    // older than its dist-tag change.
-    let time_entry = packument_obj
-        .entry("time".to_string())
-        .or_insert_with(|| Value::Object(serde_json::Map::new()));
-    let Some(time_obj) = time_entry.as_object_mut() else {
-        return error_response(&RegistryError::BadRequest {
-            reason: "stored time is not an object".to_string(),
+    if !written {
+        return error_response(&RegistryError::PackumentWriteConflict {
+            package: name.as_str().to_string(),
         });
-    };
-    time_obj.insert("modified".to_string(), Value::String(now_iso()));
-    let new_bytes = match serde_json::to_vec_pretty(&packument) {
-        Ok(b) => b,
-        Err(err) => return error_response(&RegistryError::Json(err)),
-    };
-    if let Err(err) = storage.write_hosted_packument(&name, &new_bytes).await {
-        return error_response(&err);
     }
     let body = json!({ "ok": true });
     let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");

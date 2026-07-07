@@ -6,6 +6,7 @@ use crate::{
     streaming,
 };
 use axum::body::Body;
+use object_store::UpdateVersion;
 use std::{
     io::{ErrorKind, SeekFrom},
     path::{Path, PathBuf},
@@ -192,6 +193,24 @@ enum HostedStore {
     S3(S3Store),
 }
 
+#[derive(Debug)]
+pub(crate) struct HostedPackumentForUpdate {
+    pub(crate) bytes: Vec<u8>,
+    pub(crate) version: HostedPackumentVersion,
+}
+
+#[derive(Debug)]
+pub(crate) enum HostedPackumentVersion {
+    Fs,
+    S3(UpdateVersion),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PackumentWrite {
+    Written,
+    Conflict,
+}
+
 impl HostedStore {
     async fn read_packument(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
         match self {
@@ -200,10 +219,47 @@ impl HostedStore {
         }
     }
 
-    async fn write_packument(&self, name: &PackageName, bytes: &[u8]) -> Result<()> {
+    async fn read_packument_for_update(
+        &self,
+        name: &PackageName,
+    ) -> Result<Option<HostedPackumentForUpdate>> {
         match self {
-            HostedStore::Fs(store) => store.write_packument(name, bytes).await,
-            HostedStore::S3(store) => store.write_packument(name, bytes).await,
+            HostedStore::Fs(store) => Ok(store.read_packument_any_age(name).await?.map(|bytes| {
+                HostedPackumentForUpdate { bytes, version: HostedPackumentVersion::Fs }
+            })),
+            HostedStore::S3(store) => {
+                Ok(store.read_packument_for_update(name).await?.map(|packument| {
+                    HostedPackumentForUpdate {
+                        bytes: packument.bytes,
+                        version: HostedPackumentVersion::S3(packument.version),
+                    }
+                }))
+            }
+        }
+    }
+
+    async fn write_packument_if_current(
+        &self,
+        name: &PackageName,
+        bytes: &[u8],
+        version: Option<&HostedPackumentVersion>,
+    ) -> Result<PackumentWrite> {
+        match self {
+            HostedStore::Fs(store) => {
+                store.write_packument(name, bytes).await?;
+                Ok(PackumentWrite::Written)
+            }
+            HostedStore::S3(store) => {
+                let version = match version {
+                    Some(HostedPackumentVersion::S3(version)) => Some(version),
+                    Some(HostedPackumentVersion::Fs) | None => None,
+                };
+                if store.write_packument_if_current(name, bytes, version).await? {
+                    Ok(PackumentWrite::Written)
+                } else {
+                    Ok(PackumentWrite::Conflict)
+                }
+            }
         }
     }
 
@@ -347,8 +403,20 @@ impl Storage {
         self.hosted.read_packument(name).await
     }
 
-    pub async fn write_hosted_packument(&self, name: &PackageName, bytes: &[u8]) -> Result<()> {
-        self.hosted.write_packument(name, bytes).await
+    pub(crate) async fn read_hosted_packument_for_update(
+        &self,
+        name: &PackageName,
+    ) -> Result<Option<HostedPackumentForUpdate>> {
+        self.hosted.read_packument_for_update(name).await
+    }
+
+    pub(crate) async fn write_hosted_packument_if_current(
+        &self,
+        name: &PackageName,
+        bytes: &[u8],
+        version: Option<&HostedPackumentVersion>,
+    ) -> Result<PackumentWrite> {
+        self.hosted.write_packument_if_current(name, bytes, version).await
     }
 
     /// Open a tarball from the authoritative hosted store. Hosted

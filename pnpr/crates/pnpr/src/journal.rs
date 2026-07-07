@@ -27,10 +27,10 @@
 
 use crate::{
     config::Config,
-    error::Result,
+    error::{RegistryError, Result},
     package_name::PackageName,
     publish::{merge_manifest, now_iso},
-    storage::{Storage, TarballSlot, unique_tmp_path},
+    storage::{PackumentWrite, Storage, TarballSlot, unique_tmp_path},
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -50,6 +50,7 @@ pub(crate) const JOURNAL_DIR: &str = ".pnpr-journal";
 
 const COMMIT_MARKER: &str = "commit";
 const MANIFEST_FILE: &str = "manifest.json";
+const PACKUMENT_WRITE_RETRIES: usize = 8;
 
 /// Per-process counter feeding [`txn_id`] so two transactions sealed in
 /// the same millisecond get distinct directories.
@@ -246,17 +247,36 @@ async fn roll_forward(storage: &Storage, dir: &Path) -> Result<()> {
         }
         let journaled: serde_json::Value =
             serde_json::from_slice(&fs::read(dir.join(&package.packument_file)).await?)?;
-        let existing: Option<serde_json::Value> = match store.read_hosted_packument(&name).await? {
-            Some(bytes) => Some(serde_json::from_slice(&bytes)?),
-            None => None,
-        };
-        // `existing` is the hosted packument here, so it is also the
-        // immutability reference.
-        let merged = merge_manifest(existing.as_ref(), &journaled, existing.as_ref(), &now_iso());
-        store.write_hosted_packument(&name, &serde_json::to_vec_pretty(&merged)?).await?;
+        write_merged_packument(&store, &name, &journaled).await?;
     }
     fs::remove_dir_all(dir).await?;
     Ok(())
+}
+
+async fn write_merged_packument(
+    store: &Storage,
+    name: &PackageName,
+    journaled: &serde_json::Value,
+) -> Result<()> {
+    for _ in 0..PACKUMENT_WRITE_RETRIES {
+        let existing_packument = store.read_hosted_packument_for_update(name).await?;
+        let (existing_bytes, version) = match existing_packument {
+            Some(packument) => (Some(packument.bytes), Some(packument.version)),
+            None => (None, None),
+        };
+        let existing: Option<serde_json::Value> = match existing_bytes.as_deref() {
+            Some(bytes) => Some(serde_json::from_slice(bytes)?),
+            None => None,
+        };
+        let merged = merge_manifest(existing.as_ref(), journaled, existing.as_ref(), &now_iso());
+        let merged_bytes = serde_json::to_vec_pretty(&merged)?;
+        match store.write_hosted_packument_if_current(name, &merged_bytes, version.as_ref()).await?
+        {
+            PackumentWrite::Written => return Ok(()),
+            PackumentWrite::Conflict => {}
+        }
+    }
+    Err(RegistryError::PackumentWriteConflict { package: name.as_str().to_string() })
 }
 
 /// Discard an unsealed transaction: nothing of it ever became visible,

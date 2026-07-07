@@ -124,6 +124,13 @@ pub enum RegistryError {
         version: String,
     },
 
+    #[display("Hosted packument for package {package:?} changed while writing")]
+    #[from(skip)]
+    PackumentWriteConflict {
+        #[error(not(source))]
+        package: String,
+    },
+
     #[display(
         "Package {package}@{version} is listed in the local OSV database as vulnerable ({advisories})"
     )]
@@ -251,6 +258,7 @@ impl RegistryError {
             RegistryError::InvalidAttachment { .. } => "invalid_attachment",
             RegistryError::BadRequest { .. } => "bad_request",
             RegistryError::VersionAlreadyPublished { .. } => "version_already_published",
+            RegistryError::PackumentWriteConflict { .. } => "packument_write_conflict",
             RegistryError::OsvVulnerability { .. } => "osv_vulnerability",
             RegistryError::RegistrationDisabled => "registration_disabled",
             RegistryError::TooManyUsers { .. } => "too_many_users",
@@ -324,7 +332,8 @@ impl RegistryError {
             | RegistryError::InvalidConfig { .. }
             | RegistryError::InvalidAttachment { .. }
             | RegistryError::BadRequest { .. } => StatusCode::BAD_REQUEST,
-            RegistryError::VersionAlreadyPublished { .. } => StatusCode::CONFLICT,
+            RegistryError::VersionAlreadyPublished { .. }
+            | RegistryError::PackumentWriteConflict { .. } => StatusCode::CONFLICT,
             RegistryError::Unauthenticated { .. } => StatusCode::UNAUTHORIZED,
             RegistryError::Forbidden { .. } => StatusCode::FORBIDDEN,
             RegistryError::TeamsConfigManaged { .. } => StatusCode::FORBIDDEN,
