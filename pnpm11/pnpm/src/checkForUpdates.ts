@@ -4,7 +4,7 @@ import { updateCheckLogger } from '@pnpm/core-loggers'
 import { createResolver } from '@pnpm/installing.client'
 import { globalWarn } from '@pnpm/logger'
 
-import { readPnpmState, writePnpmState } from './pnpmState.js'
+import { readPnpmState, updatePnpmState } from './pnpmState.js'
 
 const UPDATE_CHECK_FREQUENCY = 24 * 60 * 60 * 1000 // 1 day
 
@@ -43,7 +43,7 @@ export async function checkForUpdates (config: Config): Promise<void> {
       latestVersion: resolution?.manifest.version,
     })
   }
-  await writePnpmState(config.stateDir, {
+  await updatePnpmState(config.stateDir, () => ({
     lastUpdateCheck: new Date().toUTCString(),
-  })
+  }))
 }

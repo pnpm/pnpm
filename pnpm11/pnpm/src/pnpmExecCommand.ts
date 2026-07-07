@@ -4,7 +4,7 @@ import path from 'node:path'
 import { PnpmError } from '@pnpm/error'
 import spawn from 'cross-spawn'
 
-import { getDefaultStateDir, readPnpmState, writePnpmState } from './pnpmState.js'
+import { getDefaultStateDir, readPnpmState, updatePnpmState } from './pnpmState.js'
 import { reExecPnpm } from './reExecPnpm.js'
 
 /**
@@ -138,12 +138,16 @@ async function noticeOnFirstUseOrChange (command: string[], opts: ApplyPnpmExecC
 
   return async () => {
     try {
-      await writePnpmState(stateDir, {
+      // The merge spreads the state as re-read at write time, not the copy
+      // from the check above: the command may run for up to a minute, and a
+      // check-time copy would clobber records other pnpm processes wrote in
+      // the meantime.
+      await updatePnpmState(stateDir, (freshState) => ({
         pnpmExecCommands: {
-          ...state?.pnpmExecCommands,
+          ...freshState?.pnpmExecCommands,
           [workspaceKey]: commandRecord,
         },
-      })
+      }))
     } catch {
       // If the state can't be persisted the notice repeats next run. Noise is
       // an acceptable failure mode; a suppressed notice is not.

@@ -6,7 +6,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { loadJsonFileSync } from 'load-json-file'
 import { writeJsonFileSync } from 'write-json-file'
 
-import { readPnpmState, writePnpmState } from './pnpmState.js'
+import { readPnpmState, updatePnpmState } from './pnpmState.js'
 
 test('a write merges over the other features\' keys instead of clobbering them', async () => {
   prepareEmpty()
@@ -16,7 +16,7 @@ test('a write merges over the other features\' keys instead of clobbering them',
     pnpmExecCommands: { '/some/workspace': '["tool"]' },
   })
 
-  await writePnpmState(stateDir, { lastUpdateCheck: 'today' })
+  await updatePnpmState(stateDir, () => ({ lastUpdateCheck: 'today' }))
 
   expect(loadJsonFileSync('pnpm-state.json')).toStrictEqual({
     lastUpdateCheck: 'today',
@@ -33,11 +33,39 @@ test('a write re-reads the file, so a concurrent update to another key is kept',
   // Another process writes between this process's read and write.
   writeJsonFileSync('pnpm-state.json', { lastUpdateCheck: 'concurrent' })
 
-  await writePnpmState(stateDir, { pnpmExecCommands: { '/w': '["tool"]' } })
+  await updatePnpmState(stateDir, (freshState) => ({
+    pnpmExecCommands: { ...freshState?.pnpmExecCommands, '/w': '["tool"]' },
+  }))
 
   expect(loadJsonFileSync('pnpm-state.json')).toStrictEqual({
     lastUpdateCheck: 'concurrent',
     pnpmExecCommands: { '/w': '["tool"]' },
+  })
+})
+
+test('the update callback sees the freshly read state, so a concurrent entry in the same map is kept', async () => {
+  prepareEmpty()
+  const stateDir = process.cwd()
+  writeJsonFileSync('pnpm-state.json', {
+    pnpmExecCommands: { '/workspace-a': '["tool-a"]' },
+  })
+
+  // Another process trusts a second workspace between this process's earlier
+  // read (which saw only workspace-a) and its write.
+  writeJsonFileSync('pnpm-state.json', {
+    pnpmExecCommands: { '/workspace-a': '["tool-a"]', '/workspace-b': '["tool-b"]' },
+  })
+
+  await updatePnpmState(stateDir, (freshState) => ({
+    pnpmExecCommands: { ...freshState?.pnpmExecCommands, '/workspace-c': '["tool-c"]' },
+  }))
+
+  expect(loadJsonFileSync('pnpm-state.json')).toStrictEqual({
+    pnpmExecCommands: {
+      '/workspace-a': '["tool-a"]',
+      '/workspace-b': '["tool-b"]',
+      '/workspace-c': '["tool-c"]',
+    },
   })
 })
 
@@ -50,7 +78,7 @@ test('an unparsable state file is writable (rewriting loses nothing valid)', asy
   expect(state).toBeUndefined()
   expect(writable).toBe(true)
 
-  await writePnpmState(stateDir, { lastUpdateCheck: 'recovered' })
+  await updatePnpmState(stateDir, () => ({ lastUpdateCheck: 'recovered' }))
   expect(loadJsonFileSync('pnpm-state.json')).toStrictEqual({ lastUpdateCheck: 'recovered' })
 })
 
@@ -66,6 +94,6 @@ test('an unreadable state file is not writable, so its keys cannot be clobbered'
   expect(writable).toBe(false)
   expect(readError?.message).toContain('pnpm-state.json')
 
-  await writePnpmState(stateDir, { lastUpdateCheck: 'must not land' })
+  await updatePnpmState(stateDir, () => ({ lastUpdateCheck: 'must not land' }))
   expect(fs.statSync(path.join(stateDir, 'pnpm-state.json')).isDirectory()).toBe(true)
 })

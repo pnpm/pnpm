@@ -8,7 +8,7 @@ import { writeJsonFile } from 'write-json-file'
 /**
  * The shape of `pnpm-state.json`, the per-user scratch state file. Every
  * feature that stores something here owns one top-level key and must write
- * through {@link writePnpmState} so it merges with (never clobbers) the keys
+ * through {@link updatePnpmState} so it merges with (never clobbers) the keys
  * of the other features.
  */
 export interface PnpmState {
@@ -85,16 +85,18 @@ export async function readPnpmState (stateDir: string): Promise<PnpmStateReadRes
 }
 
 /**
- * Merge `update`'s top-level keys over freshly re-read state and write the
- * result, so two features updating different keys close together don't drop
- * each other's writes. The state passed around since {@link readPnpmState}
- * may be stale by write time; only `update`'s own keys are taken from the
- * caller.
+ * Re-read the state, apply `update` to the fresh copy, merge its top-level
+ * keys over that copy, and write the result. Deriving the update from the
+ * freshly read state (rather than passing a precomputed object built from an
+ * earlier read) keeps writes from dropping what another process wrote in the
+ * meantime — both other features' top-level keys and entries inside a shared
+ * map like `pnpmExecCommands`. The unsynchronized read-modify-write still has
+ * a small window, but losing it only costs a repeated notice or update check.
  */
-export async function writePnpmState (stateDir: string, update: Partial<PnpmState>): Promise<void> {
+export async function updatePnpmState (stateDir: string, update: (state: PnpmState | undefined) => Partial<PnpmState>): Promise<void> {
   const { state, writable } = await readPnpmState(stateDir)
   if (!writable) return
-  await writeJsonFile(stateFile(stateDir), { ...state, ...update })
+  await writeJsonFile(stateFile(stateDir), { ...state, ...update(state) })
 }
 
 function stateFile (stateDir: string): string {
