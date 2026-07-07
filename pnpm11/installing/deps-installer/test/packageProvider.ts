@@ -3,10 +3,13 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { addDependenciesToPackage } from '@pnpm/installing.deps-installer'
+import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
+import { fixtures } from '@pnpm/test-fixtures'
 
 import { testDefaults } from './utils/index.js'
+
+const f = fixtures(import.meta.dirname)
 
 // Mimics the nix-provider contract: materializes every requested depPath as
 // a directory whose node_modules holds the package next to symlinks to its
@@ -96,6 +99,24 @@ test('a repeat install keeps resolving from the package provider', async () => {
     expect(realDir.startsWith(path.join(providerDir, 'store'))).toBeTruthy()
   }
   expect(project.requireModule('is-negative/package.json').name).toBe('is-negative')
+})
+
+test('patched dependencies are sent to the package provider with their patch content', async () => {
+  prepareEmpty()
+  const { providerBin, providerDir } = prepareFakeProvider()
+  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+
+  await install({
+    dependencies: { 'is-positive': '1.0.0' },
+  }, testDefaults({
+    packageProvider: providerBin,
+    patchedDependencies: { 'is-positive@1.0.0': patchPath },
+  }))
+
+  const request = JSON.parse(fs.readFileSync(path.join(providerDir, 'request.json'), 'utf8'))
+  const node = Object.values<any>(request.nodes).find((requestNode) => requestNode.name === 'is-positive') // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect(node.patch.content).toContain('// patched')
+  expect(node.patch.hash).toBeTruthy()
 })
 
 test('the install aborts when the package provider fails', async () => {

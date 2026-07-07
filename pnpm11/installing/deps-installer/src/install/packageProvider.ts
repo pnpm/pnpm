@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
@@ -17,6 +18,8 @@ interface ProviderRequestNode {
   integrity: string
   deps: Record<string, { depPath: string, name: string }>
   engine: string
+  /** Patches are deterministic, so their content is just another provider input. */
+  patch?: { content: string, hash: string }
 }
 
 /**
@@ -43,8 +46,8 @@ export async function materializeThroughPackageProvider (
     if (resolution.type != null || !resolution.tarball || !resolution.integrity) {
       throw new PnpmError('PACKAGE_PROVIDER_UNSUPPORTED', `The package provider only supports registry tarball dependencies, but ${depPath} does not resolve to a tarball with integrity`)
     }
-    if (node.patch != null) {
-      throw new PnpmError('PACKAGE_PROVIDER_UNSUPPORTED', `The package provider does not support patched dependencies (${depPath})`)
+    if (node.patch != null && !node.patch.patchFilePath) {
+      throw new PnpmError('PACKAGE_PROVIDER_UNSUPPORTED', `The package provider needs the patch file of ${depPath}, but only its hash is known`)
     }
     const deps: ProviderRequestNode['deps'] = {}
     for (const [alias, childDepPath] of Object.entries(node.children as Record<string, DepPath>)) {
@@ -65,6 +68,13 @@ export async function materializeThroughPackageProvider (
     }
   }
   if (Object.keys(nodes).length === 0) return
+  await Promise.all(Object.entries(depGraph).map(async ([depPath, node]) => {
+    if (node.patch?.patchFilePath == null) return
+    nodes[depPath].patch = {
+      content: await fs.readFile(node.patch.patchFilePath, 'utf8'),
+      hash: node.patch.hash,
+    }
+  }))
   const paths = await invokeProvider(packageProvider, {
     protocol: PROTOCOL_VERSION,
     gcRootDir: path.join(opts.lockfileDir, 'node_modules', '.pnpm-nix'),
