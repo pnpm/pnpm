@@ -4,9 +4,11 @@
 
 use super::{
     ConfigFileChangeType, ConfigReport, LEGACY_HOME_DIR_SHIM_NAMES, PathExtenderReport,
-    create_alias_scripts, remove_legacy_homedir_shims, render_setup_output,
+    create_alias_scripts, persist_github_actions_environment_to_files, remove_legacy_homedir_shims,
+    render_setup_output, validate_github_actions_environment_file_value,
     write_github_actions_environment_files,
 };
+use pacquet_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use std::path::PathBuf;
 
@@ -106,9 +108,16 @@ fn github_actions_environment_files_receive_home_and_bin() {
     let bin_dir = pnpm_home_dir.join("bin");
     let github_env = dir.path().join("github-env");
     let github_path = dir.path().join("github-path");
+    std::fs::write(&github_env, "").expect("create github env");
+    std::fs::write(&github_path, "").expect("create github path");
 
-    write_github_actions_environment_files(&pnpm_home_dir, &bin_dir, &github_env, &github_path)
-        .expect("write GitHub Actions environment files");
+    write_github_actions_environment_files(
+        &pnpm_home_dir,
+        &bin_dir,
+        Some(&github_env),
+        Some(&github_path),
+    )
+    .expect("write GitHub Actions environment files");
 
     assert_eq!(
         std::fs::read_to_string(github_env).expect("read github env"),
@@ -118,4 +127,98 @@ fn github_actions_environment_files_receive_home_and_bin() {
         std::fs::read_to_string(github_path).expect("read github path"),
         format!("{}\n", bin_dir.display()),
     );
+}
+
+#[test]
+fn github_actions_environment_files_are_ignored_outside_github_actions() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let pnpm_home_dir = dir.path().join("pnpm-home");
+    let bin_dir = pnpm_home_dir.join("bin");
+    let github_env = dir.path().join("github-env");
+    let github_path = dir.path().join("github-path");
+    std::fs::write(&github_env, "").expect("create github env");
+    std::fs::write(&github_path, "").expect("create github path");
+
+    persist_github_actions_environment_to_files::<SilentReporter>(
+        dir.path(),
+        false,
+        &pnpm_home_dir,
+        &bin_dir,
+        Some(&github_env),
+        Some(&github_path),
+    )
+    .expect("skip outside GitHub Actions");
+
+    assert_eq!(std::fs::read_to_string(github_env).expect("read github env"), "");
+    assert_eq!(std::fs::read_to_string(github_path).expect("read github path"), "");
+}
+
+#[test]
+fn github_actions_environment_files_are_written_independently() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let pnpm_home_dir = dir.path().join("pnpm-home");
+    let bin_dir = pnpm_home_dir.join("bin");
+    let github_env = dir.path().join("github-env");
+    let github_path = dir.path().join("github-path");
+    std::fs::write(&github_env, "").expect("create github env");
+    std::fs::write(&github_path, "").expect("create github path");
+
+    persist_github_actions_environment_to_files::<SilentReporter>(
+        dir.path(),
+        true,
+        &pnpm_home_dir,
+        &bin_dir,
+        Some(&github_env),
+        None,
+    )
+    .expect("write github env");
+    persist_github_actions_environment_to_files::<SilentReporter>(
+        dir.path(),
+        true,
+        &pnpm_home_dir,
+        &bin_dir,
+        None,
+        Some(&github_path),
+    )
+    .expect("write github path");
+
+    assert_eq!(
+        std::fs::read_to_string(github_env).expect("read github env"),
+        format!("PNPM_HOME={}\n", pnpm_home_dir.display()),
+    );
+    assert_eq!(
+        std::fs::read_to_string(github_path).expect("read github path"),
+        format!("{}\n", bin_dir.display()),
+    );
+}
+
+#[test]
+fn github_actions_environment_files_are_not_created() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let pnpm_home_dir = dir.path().join("pnpm-home");
+    let bin_dir = pnpm_home_dir.join("bin");
+    let github_env = dir.path().join("missing-github-env");
+
+    persist_github_actions_environment_to_files::<SilentReporter>(
+        dir.path(),
+        true,
+        &pnpm_home_dir,
+        &bin_dir,
+        Some(&github_env),
+        None,
+    )
+    .expect("skip missing github env");
+
+    assert!(!github_env.exists());
+}
+
+#[test]
+fn github_actions_environment_file_values_reject_line_breaking_characters() {
+    let err = validate_github_actions_environment_file_value(
+        "PNPM_HOME",
+        &PathBuf::from("/tmp/pnpm-home\nINJECTED=value"),
+    )
+    .expect_err("reject newline");
+
+    assert!(err.to_string().contains("PNPM_HOME"));
 }

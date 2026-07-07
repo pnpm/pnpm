@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { detectIfCurrentPkgIsExecutable, packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
+import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import {
   addDirToEnvPath,
@@ -138,14 +139,58 @@ function createShellScript (targetDir: string, name: string, command: string): v
   }
 }
 
+function shouldPersistGitHubActionsEnvironmentFiles (): boolean {
+  return process.env.GITHUB_ACTIONS === 'true' && (process.env.GITHUB_ENV != null || process.env.GITHUB_PATH != null)
+}
+
+function validateGitHubActionsEnvironmentFileValue (name: string, value: string): void {
+  if (/[\n\r\0]/.test(value)) {
+    throw new PnpmError('BAD_GITHUB_ACTIONS_ENVIRONMENT_VALUE', `${name} cannot contain newline or NUL characters`)
+  }
+}
+
+function validateGitHubActionsEnvironmentFileValues (pnpmHomeDir: string, binDir: string): void {
+  if (!shouldPersistGitHubActionsEnvironmentFiles()) return
+  validateGitHubActionsEnvironmentFileValue('PNPM_HOME', pnpmHomeDir)
+  validateGitHubActionsEnvironmentFileValue('pnpm setup bin directory', binDir)
+}
+
+function appendGitHubActionsEnvironmentFile (filePath: string, line: string): void {
+  try {
+    const stats = fs.lstatSync(filePath)
+    if (!stats.isFile()) {
+      logger.warn({
+        message: `Skipping GitHub Actions environment file ${filePath}: not a regular file`,
+        prefix: process.cwd(),
+      })
+      return
+    }
+    const fd = fs.openSync(filePath, 'r+')
+    try {
+      const { size } = fs.fstatSync(fd)
+      fs.writeSync(fd, `${line}\n`, size, 'utf8')
+    } finally {
+      fs.closeSync(fd)
+    }
+  } catch (err: unknown) {
+    logger.warn({
+      message: `Failed to write GitHub Actions environment file ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
+      prefix: process.cwd(),
+    })
+  }
+}
+
 function writeGitHubActionsEnvironmentFiles (pnpmHomeDir: string, binDir: string): void {
+  if (!shouldPersistGitHubActionsEnvironmentFiles()) return
+  validateGitHubActionsEnvironmentFileValues(pnpmHomeDir, binDir)
   const githubEnv = process.env.GITHUB_ENV
   const githubPath = process.env.GITHUB_PATH
-  if (githubEnv == null || githubPath == null) {
-    return
+  if (githubEnv != null) {
+    appendGitHubActionsEnvironmentFile(githubEnv, `PNPM_HOME=${pnpmHomeDir}`)
   }
-  fs.appendFileSync(githubEnv, `PNPM_HOME=${pnpmHomeDir}\n`)
-  fs.appendFileSync(githubPath, `${binDir}\n`)
+  if (githubPath != null) {
+    appendGitHubActionsEnvironmentFile(githubPath, binDir)
+  }
 }
 
 // v10-layout shim names that v11 writes under pnpmHomeDir/bin instead.
@@ -172,6 +217,7 @@ export async function handler (
 ): Promise<string> {
   const execPath = getExecPath()
   const binDir = path.join(opts.pnpmHomeDir, 'bin')
+  validateGitHubActionsEnvironmentFileValues(opts.pnpmHomeDir, binDir)
   if (execPath.match(/\.[cm]?js$/) == null) {
     installCliGlobally(execPath, opts.pnpmHomeDir)
     createAliasScripts(binDir)

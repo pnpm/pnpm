@@ -38,6 +38,7 @@ const { detectIfCurrentPkgIsExecutable } = await import('@pnpm/cli.meta')
 const { spawnSync } = await import('node:child_process')
 const { setup, LEGACY_HOME_DIR_SHIM_NAMES } = await import('@pnpm/engine.pm.commands')
 
+const originalGithubActions = process.env.GITHUB_ACTIONS
 const originalGithubEnv = process.env.GITHUB_ENV
 const originalGithubPath = process.env.GITHUB_PATH
 
@@ -50,11 +51,13 @@ function restoreEnvVar (name: string, value: string | undefined): void {
 }
 
 beforeEach(() => {
+  delete process.env.GITHUB_ACTIONS
   delete process.env.GITHUB_ENV
   delete process.env.GITHUB_PATH
 })
 
 afterEach(() => {
+  restoreEnvVar('GITHUB_ACTIONS', originalGithubActions)
   restoreEnvVar('GITHUB_ENV', originalGithubEnv)
   restoreEnvVar('GITHUB_PATH', originalGithubPath)
 })
@@ -109,12 +112,99 @@ test('setup persists PNPM_HOME and bin path for GitHub Actions', async () => {
   const pnpmHomeDir = path.join(tmpDir, 'pnpm-home')
   const githubEnv = path.join(tmpDir, 'github-env')
   const githubPath = path.join(tmpDir, 'github-path')
+  actualFs.writeFileSync(githubEnv, '')
+  actualFs.writeFileSync(githubPath, '')
+  process.env.GITHUB_ACTIONS = 'true'
   process.env.GITHUB_ENV = githubEnv
   process.env.GITHUB_PATH = githubPath
   try {
     await setup.handler({ pnpmHomeDir })
     expect(actualFs.readFileSync(githubEnv, 'utf8')).toBe(`PNPM_HOME=${pnpmHomeDir}\n`)
     expect(actualFs.readFileSync(githubPath, 'utf8')).toBe(`${path.join(pnpmHomeDir, 'bin')}\n`)
+  } finally {
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('setup ignores GitHub Actions env files outside GitHub Actions', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-github-actions-'))
+  const pnpmHomeDir = path.join(tmpDir, 'pnpm-home')
+  const githubEnv = path.join(tmpDir, 'github-env')
+  const githubPath = path.join(tmpDir, 'github-path')
+  actualFs.writeFileSync(githubEnv, '')
+  actualFs.writeFileSync(githubPath, '')
+  process.env.GITHUB_ENV = githubEnv
+  process.env.GITHUB_PATH = githubPath
+  try {
+    await setup.handler({ pnpmHomeDir })
+    expect(actualFs.readFileSync(githubEnv, 'utf8')).toBe('')
+    expect(actualFs.readFileSync(githubPath, 'utf8')).toBe('')
+  } finally {
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('setup writes each available GitHub Actions file independently', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-github-actions-'))
+  const pnpmHomeDir = path.join(tmpDir, 'pnpm-home')
+  const githubEnv = path.join(tmpDir, 'github-env')
+  const githubPath = path.join(tmpDir, 'github-path')
+  actualFs.writeFileSync(githubEnv, '')
+  actualFs.writeFileSync(githubPath, '')
+  process.env.GITHUB_ACTIONS = 'true'
+  try {
+    process.env.GITHUB_ENV = githubEnv
+    await setup.handler({ pnpmHomeDir })
+    expect(actualFs.readFileSync(githubEnv, 'utf8')).toBe(`PNPM_HOME=${pnpmHomeDir}\n`)
+
+    delete process.env.GITHUB_ENV
+    process.env.GITHUB_PATH = githubPath
+    await setup.handler({ pnpmHomeDir })
+    expect(actualFs.readFileSync(githubPath, 'utf8')).toBe(`${path.join(pnpmHomeDir, 'bin')}\n`)
+  } finally {
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('setup does not create missing GitHub Actions env files', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-github-actions-'))
+  const pnpmHomeDir = path.join(tmpDir, 'pnpm-home')
+  const githubEnv = path.join(tmpDir, 'missing-github-env')
+  process.env.GITHUB_ACTIONS = 'true'
+  process.env.GITHUB_ENV = githubEnv
+  try {
+    await setup.handler({ pnpmHomeDir })
+    expect(actualFs.existsSync(githubEnv)).toBeFalsy()
+  } finally {
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('setup rejects GitHub Actions env-file values with line-breaking characters', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-github-actions-'))
+  const githubEnv = path.join(tmpDir, 'github-env')
+  actualFs.writeFileSync(githubEnv, '')
+  process.env.GITHUB_ACTIONS = 'true'
+  process.env.GITHUB_ENV = githubEnv
+  try {
+    await expect(setup.handler({ pnpmHomeDir: `${tmpDir}\nINJECTED=value` }))
+      .rejects.toMatchObject({ code: 'ERR_PNPM_BAD_GITHUB_ACTIONS_ENVIRONMENT_VALUE' })
   } finally {
     actualFs.rmSync(tmpDir, { recursive: true, force: true })
   }

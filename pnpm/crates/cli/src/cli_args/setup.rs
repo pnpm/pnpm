@@ -15,6 +15,7 @@ use path_extender::{
     AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, ConfigReport, PathExtenderReport,
 };
 use std::{
+    ffi::OsStr,
     fs::{self, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
@@ -72,35 +73,92 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
             position: AddingPosition::Start,
         },
     )?;
-    persist_github_actions_environment(&pnpm_home_dir, &bin_dir)?;
+    persist_github_actions_environment::<Reporter>(dir, &pnpm_home_dir, &bin_dir)?;
     remove_legacy_homedir_shims(&pnpm_home_dir);
     Ok(render_setup_output(&report))
 }
 
-fn persist_github_actions_environment(pnpm_home_dir: &Path, bin_dir: &Path) -> miette::Result<()> {
-    let Some(github_env) = std::env::var_os("GITHUB_ENV").map(PathBuf::from) else {
+fn persist_github_actions_environment<Reporter: self::Reporter>(
+    prefix_dir: &Path,
+    pnpm_home_dir: &Path,
+    bin_dir: &Path,
+) -> miette::Result<()> {
+    let is_github_actions =
+        std::env::var_os("GITHUB_ACTIONS").is_some_and(|value| value == OsStr::new("true"));
+    let github_env = std::env::var_os("GITHUB_ENV").map(PathBuf::from);
+    let github_path = std::env::var_os("GITHUB_PATH").map(PathBuf::from);
+    persist_github_actions_environment_to_files::<Reporter>(
+        prefix_dir,
+        is_github_actions,
+        pnpm_home_dir,
+        bin_dir,
+        github_env.as_deref(),
+        github_path.as_deref(),
+    )
+}
+
+fn persist_github_actions_environment_to_files<Reporter: self::Reporter>(
+    prefix_dir: &Path,
+    is_github_actions: bool,
+    pnpm_home_dir: &Path,
+    bin_dir: &Path,
+    github_env: Option<&Path>,
+    github_path: Option<&Path>,
+) -> miette::Result<()> {
+    if !is_github_actions || (github_env.is_none() && github_path.is_none()) {
         return Ok(());
-    };
-    let Some(github_path) = std::env::var_os("GITHUB_PATH").map(PathBuf::from) else {
-        return Ok(());
-    };
-    write_github_actions_environment_files(pnpm_home_dir, bin_dir, &github_env, &github_path)
-        .into_diagnostic()
-        .wrap_err("write GitHub Actions environment files")?;
+    }
+    validate_github_actions_environment_file_value("PNPM_HOME", pnpm_home_dir)?;
+    validate_github_actions_environment_file_value("pnpm setup bin directory", bin_dir)?;
+    if let Err(err) =
+        write_github_actions_environment_files(pnpm_home_dir, bin_dir, github_env, github_path)
+    {
+        warn::<Reporter>(
+            prefix_dir,
+            &format!("Failed to write GitHub Actions environment files: {err}"),
+        );
+    }
+    Ok(())
+}
+
+fn validate_github_actions_environment_file_value(name: &str, value: &Path) -> miette::Result<()> {
+    let value = value.to_string_lossy();
+    if let Some(character) = value.chars().find(|character| matches!(character, '\n' | '\r' | '\0'))
+    {
+        return Err(miette::miette!(
+            "{name} cannot contain newline or NUL characters: found {character:?}"
+        ));
+    }
     Ok(())
 }
 
 fn write_github_actions_environment_files(
     pnpm_home_dir: &Path,
     bin_dir: &Path,
-    github_env: &Path,
-    github_path: &Path,
+    github_env: Option<&Path>,
+    github_path: Option<&Path>,
 ) -> std::io::Result<()> {
-    let mut env_file = OpenOptions::new().create(true).append(true).open(github_env)?;
-    writeln!(env_file, "PNPM_HOME={}", pnpm_home_dir.display())?;
+    if let Some(github_env) = github_env {
+        append_existing_regular_file(
+            github_env,
+            &format!("PNPM_HOME={}", pnpm_home_dir.display()),
+        )?;
+    }
+    if let Some(github_path) = github_path {
+        append_existing_regular_file(github_path, &format!("{}", bin_dir.display()))?;
+    }
+    Ok(())
+}
 
-    let mut path_file = OpenOptions::new().create(true).append(true).open(github_path)?;
-    writeln!(path_file, "{}", bin_dir.display())?;
+fn append_existing_regular_file(path: &Path, line: &str) -> std::io::Result<()> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_file() => {}
+        Ok(_) => return Ok(()),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(err),
+    }
+    let mut file = OpenOptions::new().append(true).open(path)?;
+    writeln!(file, "{line}")?;
     Ok(())
 }
 
@@ -257,6 +315,14 @@ fn info<Reporter: self::Reporter>(prefix: &str, message: &str) {
         level: LogLevel::Info,
         message: message.to_string(),
         prefix: prefix.to_string(),
+    }));
+}
+
+fn warn<Reporter: self::Reporter>(prefix: &Path, message: &str) {
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Warn,
+        message: message.to_string(),
+        prefix: prefix.to_string_lossy().into_owned(),
     }));
 }
 
