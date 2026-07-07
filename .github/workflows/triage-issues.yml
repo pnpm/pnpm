@@ -37,7 +37,7 @@ jobs:
           persist-credentials: false
 
       - name: Triage with Oz agent
-        uses: warpdotdev/oz-agent-action@501d24fbf4d1447e8db60eb0973eeadeb5ff54c2 # v1.0.19
+        uses: warpdotdev/oz-agent-action@1922f22c008c6263607a398f31c80299349a1fa6 # v1.0.21
         id: triage
         env:
           # Authenticates the `gh` CLI the agent uses to read/label/comment.
