@@ -108,12 +108,15 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
 
         let pkgs = read_installed_packages(&install_dir);
         let aliases = read_direct_dependency_aliases(&install_dir);
+        let aliases_to_replace = replacement_aliases(&aliases);
 
         let bins_to_skip = match check_global_bin_conflicts(
             &global_pkg_dir,
             &global_bin_dir,
             &pkgs,
-            |existing: &GlobalPackageInfo| aliases.iter().any(|alias| existing.has_alias(alias)),
+            |existing: &GlobalPackageInfo| {
+                should_replace_existing_package(existing, &aliases, &aliases_to_replace)
+            },
         ) {
             Ok(skip) => skip,
             Err(error) => {
@@ -122,9 +125,14 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
             }
         };
 
-        remove_existing_global_installs(&global_pkg_dir, &global_bin_dir, &aliases)
-            .into_diagnostic()
-            .wrap_err("remove existing global installs")?;
+        remove_existing_global_installs(
+            &global_pkg_dir,
+            &global_bin_dir,
+            &aliases,
+            &aliases_to_replace,
+        )
+        .into_diagnostic()
+        .wrap_err("remove existing global installs")?;
 
         let cache_hash = create_global_cache_key(&aliases, &registries_with_default(config));
         let hash_link = get_hash_link(&global_pkg_dir, &cache_hash);
@@ -410,11 +418,13 @@ fn remove_existing_global_installs(
     global_pkg_dir: &Path,
     global_bin_dir: &Path,
     aliases: &[String],
+    aliases_to_replace: &[String],
 ) -> std::io::Result<()> {
     let mut to_remove: Vec<GlobalPackageInfo> = Vec::new();
     let mut seen = HashSet::new();
-    for alias in aliases {
+    for alias in aliases_to_replace {
         if let Some(pkg) = find_global_package(global_pkg_dir, alias)?
+            && should_replace_existing_package(&pkg, aliases, aliases_to_replace)
             && seen.insert(pkg.hash.clone())
         {
             to_remove.push(pkg);
@@ -428,6 +438,40 @@ fn remove_existing_global_installs(
         remove_group(global_pkg_dir, global_bin_dir, pkg, &protected);
     }
     Ok(())
+}
+
+fn replacement_aliases(aliases: &[String]) -> Vec<String> {
+    const PNPM_CLI_PACKAGE_ALIASES: [&str; 2] = ["pnpm", "@pnpm/exe"];
+
+    let mut expanded = aliases.to_vec();
+    if aliases.iter().any(|alias| is_pnpm_cli_package_alias(alias)) {
+        for alias in PNPM_CLI_PACKAGE_ALIASES {
+            if !expanded.iter().any(|existing| existing == alias) {
+                expanded.push(alias.to_string());
+            }
+        }
+    }
+    expanded
+}
+
+fn should_replace_existing_package(
+    pkg: &GlobalPackageInfo,
+    aliases: &[String],
+    aliases_to_replace: &[String],
+) -> bool {
+    if aliases.iter().any(|alias| pkg.has_alias(alias)) {
+        return true;
+    }
+    is_pnpm_cli_only_group(pkg) && aliases_to_replace.iter().any(|alias| pkg.has_alias(alias))
+}
+
+fn is_pnpm_cli_only_group(pkg: &GlobalPackageInfo) -> bool {
+    !pkg.dependencies.is_empty()
+        && pkg.dependencies.iter().all(|(alias, _)| is_pnpm_cli_package_alias(alias))
+}
+
+fn is_pnpm_cli_package_alias(alias: &str) -> bool {
+    matches!(alias, "pnpm" | "@pnpm/exe")
 }
 
 /// Remove a group's bins (except those in `protected`, owned by a surviving
