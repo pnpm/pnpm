@@ -175,7 +175,7 @@ pub struct CreateVirtualStore<'a> {
     /// the fresh-resolve path's [`crate::PrefetchingResolver`] (closing
     /// <https://github.com/pnpm/pnpm/issues/12241>); `None` otherwise.
     pub tarball_mem_cache: Option<&'a std::sync::Arc<MemCache>>,
-    /// Custom fetchers from `.pnpmfile.mjs`. Consulted per snapshot
+    /// Custom fetchers from the pnpmfile. Consulted per snapshot
     /// before the built-in resolution-type dispatch.
     pub custom_fetcher_picker: Option<&'a Arc<CustomFetcherPicker>>,
     #[cfg(test)]

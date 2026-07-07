@@ -113,7 +113,7 @@ pub struct InstallPackageBySnapshot<'a> {
     /// land in the store, so this is purely about whether the
     /// virtual-store slot gets materialized.
     pub node_linker: NodeLinker,
-    /// Custom fetchers from `.pnpmfile.mjs`'s `fetchers` export.
+    /// Custom fetchers from the pnpmfile's `fetchers` export.
     /// Consulted before the built-in resolution-type dispatch; `None`
     /// when no pnpmfile exports fetchers.
     pub custom_fetcher_picker: Option<&'a Arc<CustomFetcherPicker>>,
@@ -171,7 +171,7 @@ pub enum InstallPackageBySnapshotError {
     #[diagnostic(transparent)]
     DirectoryFetch(#[error(source)] DirectoryFetcherError),
 
-    /// A custom fetcher from `.pnpmfile.mjs` threw or returned an error.
+    /// A custom fetcher from the pnpmfile threw or returned an error.
     #[display("Custom fetcher failed: {_0}")]
     #[diagnostic(code(pacquet_package_manager::custom_fetcher_failed))]
     CustomFetcher(#[error(not(source))] String),

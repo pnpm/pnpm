@@ -511,6 +511,7 @@ fn command_name(command: &CliCommand) -> &'static str {
         CliCommand::Setup(_) => "setup",
         CliCommand::Logout(_) => "logout",
         CliCommand::With(_) => "with",
+        CliCommand::Pkg(_) => "pkg",
         CliCommand::Completion(_) => "completion",
         CliCommand::CompletionServer(_) => "completion-server",
     }
