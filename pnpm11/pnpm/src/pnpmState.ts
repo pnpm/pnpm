@@ -90,8 +90,9 @@ export async function readPnpmState (stateDir: string): Promise<PnpmStateReadRes
  * freshly read state (rather than passing a precomputed object built from an
  * earlier read) keeps writes from dropping what another process wrote in the
  * meantime — both other features' top-level keys and entries inside a shared
- * map like `pnpmExecCommands`. The unsynchronized read-modify-write still has
- * a small window, but losing it only costs a repeated notice or update check.
+ * map like `pnpmExecCommands`. The read-modify-write is not synchronized, so
+ * a small window remains, but losing it only costs a repeated notice or
+ * update check.
  */
 export async function updatePnpmState (stateDir: string, update: (state: PnpmState | undefined) => Partial<PnpmState>): Promise<void> {
   const { state, writable } = await readPnpmState(stateDir)
