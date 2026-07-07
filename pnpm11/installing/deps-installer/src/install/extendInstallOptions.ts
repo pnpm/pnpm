@@ -38,6 +38,8 @@ export interface StrictInstallOptions {
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
   frozenStore: boolean
+  /** Path to an external package provider executable that materializes packages (e.g. into the Nix store). */
+  packageProvider?: string
   enableGlobalVirtualStore: boolean
   enablePnp: boolean
   extraBinPaths: string[]
@@ -450,6 +452,16 @@ export function extendOptions (
     // populated it). Without this, a build under frozenStore (e.g. with the
     // global virtual store disabled) would attempt a store write.
     extendedOpts.sideEffectsCacheWrite = false
+  }
+  if (extendedOpts.packageProvider) {
+    if (extendedOpts.nodeLinker !== 'isolated') {
+      throw new PnpmError('CONFIG_CONFLICT_PACKAGE_PROVIDER_NODE_LINKER',
+        'packageProvider requires node-linker=isolated')
+    }
+    if (extendedOpts.enableGlobalVirtualStore) {
+      throw new PnpmError('CONFIG_CONFLICT_PACKAGE_PROVIDER_GLOBAL_VIRTUAL_STORE',
+        'packageProvider cannot be used together with enableGlobalVirtualStore: both take over where packages are materialized')
+    }
   }
   if (extendedOpts.userAgent.startsWith('npm/')) {
     extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`

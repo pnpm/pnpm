@@ -41,6 +41,7 @@ import { pathExists } from 'path-exists'
 import { difference, equals, isEmpty, pick, pickBy, props } from 'ramda'
 
 import type { ImporterToUpdate } from './index.js'
+import { materializeThroughPackageProvider } from './packageProvider.js'
 
 const brokenModulesLogger = logger('_broken_node_modules')
 
@@ -64,6 +65,7 @@ export interface LinkPackagesOptions {
   lockfileDir: string
   makePartialCurrentLockfile: boolean
   outdatedDependencies: Record<string, string>
+  packageProvider?: string
   pruneStore: boolean
   pruneVirtualStore: boolean
   registries: Registries
@@ -131,6 +133,12 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
     wantedLockfile: opts.wantedLockfile,
   })
 
+  if (opts.packageProvider) {
+    await materializeThroughPackageProvider(opts.packageProvider, depGraph, {
+      lockfileDir: opts.lockfileDir,
+    })
+  }
+
   stageLogger.debug({
     prefix: opts.lockfileDir,
     stage: 'importing_started',
@@ -159,6 +167,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
       allowBuild: opts.allowBuild,
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
       enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
+      externallyMaterialized: opts.packageProvider != null,
       force: opts.force,
       depsStateCache: opts.depsStateCache,
       ignoreScripts: opts.ignoreScripts,
@@ -332,6 +341,12 @@ interface LinkNewPackagesOptions {
   depsStateCache: DepsStateCache
   disableRelinkLocalDirDeps?: boolean
   enableGlobalVirtualStore: boolean
+  /**
+   * The packages already exist as read-only directories outside the virtual
+   * store (created by a package provider), so nothing may be imported,
+   * written, or symlinked into their directories.
+   */
+  externallyMaterialized?: boolean
   force: boolean
   optional: boolean
   ignoreScripts: boolean
@@ -380,7 +395,7 @@ async function linkNewPackages (
   })
 
   const existingWithUpdatedDeps: ModulesLinkJob[] = []
-  if (!opts.force && (currentLockfile.packages != null) && (wantedLockfile.packages != null)) {
+  if (!opts.force && !opts.externallyMaterialized && (currentLockfile.packages != null) && (wantedLockfile.packages != null)) {
     const currentPackages = currentLockfile.packages
     const wantedPackages = wantedLockfile.packages
     // add subdependencies that have been updated
@@ -435,6 +450,8 @@ async function linkNewPackages (
   const newDepPaths = Array.from(newDepPathsSet)
 
   const newPkgs = props<DepPath, DependenciesGraphNode>(newDepPaths, depGraph)
+
+  if (opts.externallyMaterialized) return { newDepPaths, added }
 
   await Promise.all(newPkgs.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
   await Promise.all([
