@@ -160,7 +160,7 @@ async function installGroup (
   }
 
   // Remove any existing global installations of these aliases
-  await removeExistingGlobalInstalls(globalDir, globalBinDir, aliases, replacementAliases)
+  await removeExistingGlobalInstalls({ globalDir, globalBinDir, aliases, replacementAliases })
 
   // Compute cache key and create hash symlink pointing to install dir
   const cacheHash = createGlobalCacheKey({
@@ -248,11 +248,15 @@ function resolveLocalParam (param: string, baseDir: string): string {
 }
 
 async function removeExistingGlobalInstalls (
-  globalDir: string,
-  globalBinDir: string,
-  aliases: string[],
-  replacementAliases: string[]
+  opts: {
+    globalDir: string
+    globalBinDir: string
+    aliases: string[]
+    replacementAliases: string[]
+  }
 ): Promise<void> {
+  const { globalDir, globalBinDir, aliases, replacementAliases } = opts
+
   // Collect unique groups to remove (dedup by hash)
   const groupsToRemove = new Map<string, ReturnType<typeof getInstalledBinNames>>()
   for (const alias of replacementAliases) {
