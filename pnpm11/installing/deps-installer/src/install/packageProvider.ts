@@ -20,6 +20,8 @@ interface ProviderRequestNode {
   engine: string
   /** Patches are deterministic, so their content is just another provider input. */
   patch?: { content: string, hash: string }
+  /** The provider may skip an optional package whose build fails instead of aborting. */
+  optional?: boolean
 }
 
 /**
@@ -30,7 +32,9 @@ interface ProviderRequestNode {
  * the returned location, so the regular direct-dependency, hoist, and bin
  * linking steps work unchanged; importing into the virtual store and running
  * lifecycle scripts must be skipped by the caller (the provider already did
- * both). Any provider failure aborts the install.
+ * both). Optional packages the provider could not build are removed from the
+ * graph and returned so the caller can record them as skipped. Any other
+ * provider failure aborts the install.
  */
 export async function materializeThroughPackageProvider (
   packageProvider: string,
@@ -38,7 +42,7 @@ export async function materializeThroughPackageProvider (
   opts: {
     lockfileDir: string
   }
-): Promise<void> {
+): Promise<DepPath[]> {
   const engine = engineName(findRuntimeNodeVersion(Object.keys(depGraph)))
   const nodes: Record<string, ProviderRequestNode> = {}
   for (const [depPath, node] of Object.entries(depGraph)) {
@@ -65,9 +69,10 @@ export async function materializeThroughPackageProvider (
       integrity: resolution.integrity,
       deps,
       engine,
+      optional: node.optional === true ? true : undefined,
     }
   }
-  if (Object.keys(nodes).length === 0) return
+  if (Object.keys(nodes).length === 0) return []
   await Promise.all(Object.entries(depGraph).map(async ([depPath, node]) => {
     if (node.patch?.patchFilePath == null) return
     nodes[depPath].patch = {
@@ -75,12 +80,25 @@ export async function materializeThroughPackageProvider (
       hash: node.patch.hash,
     }
   }))
-  const paths = await invokeProvider(packageProvider, {
+  const { paths, skipped } = await invokeProvider(packageProvider, {
     protocol: PROTOCOL_VERSION,
     gcRootDir: path.join(opts.lockfileDir, 'node_modules', '.pnpm-nix'),
     nodes,
   })
+  const skippedSet = new Set(skipped)
+  for (const depPath of skippedSet) {
+    const node = depGraph[depPath as DepPath]
+    if (node == null || node.optional !== true) {
+      throw new PnpmError('PACKAGE_PROVIDER_RESULT_INVALID', `The package provider skipped ${depPath}, which is not an optional dependency`)
+    }
+    delete depGraph[depPath as DepPath] // eslint-disable-line @typescript-eslint/no-dynamic-delete
+  }
   for (const [depPath, node] of Object.entries(depGraph)) {
+    if (skippedSet.size > 0) {
+      for (const [alias, childDepPath] of Object.entries(node.children as Record<string, DepPath>)) {
+        if (skippedSet.has(childDepPath)) delete node.children[alias] // eslint-disable-line @typescript-eslint/no-dynamic-delete
+      }
+    }
     const providedDir = paths[depPath]
     if (typeof providedDir !== 'string') {
       throw new PnpmError('PACKAGE_PROVIDER_RESULT_INVALID', `The package provider returned no path for ${depPath}`)
@@ -88,9 +106,10 @@ export async function materializeThroughPackageProvider (
     node.modules = path.join(providedDir, 'node_modules')
     node.dir = path.join(node.modules, node.name)
   }
+  return skipped as DepPath[]
 }
 
-async function invokeProvider (packageProvider: string, request: unknown): Promise<Record<string, string>> {
+async function invokeProvider (packageProvider: string, request: unknown): Promise<{ paths: Record<string, string>, skipped: string[] }> {
   const stdout = await new Promise<string>((resolve, reject) => {
     // stderr is inherited so provider/Nix build output reaches the user.
     const child = spawn(packageProvider, [], { stdio: ['pipe', 'pipe', 'inherit'] })
@@ -110,7 +129,7 @@ async function invokeProvider (packageProvider: string, request: unknown): Promi
     })
     child.stdin.end(JSON.stringify(request))
   })
-  let response: { protocol?: number, paths?: Record<string, string> }
+  let response: { protocol?: number, paths?: Record<string, string>, skipped?: string[] }
   try {
     response = JSON.parse(stdout)
   } catch {
@@ -119,5 +138,5 @@ async function invokeProvider (packageProvider: string, request: unknown): Promi
   if (response.protocol !== PROTOCOL_VERSION || response.paths == null) {
     throw new PnpmError('PACKAGE_PROVIDER_RESULT_INVALID', `The package provider at "${packageProvider}" returned an unsupported response (protocol ${String(response.protocol ?? 'missing')})`)
   }
-  return response.paths
+  return { paths: response.paths, skipped: response.skipped ?? [] }
 }

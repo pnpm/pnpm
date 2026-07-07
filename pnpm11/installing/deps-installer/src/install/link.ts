@@ -134,9 +134,12 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
   })
 
   if (opts.packageProvider) {
-    await materializeThroughPackageProvider(opts.packageProvider, depGraph, {
+    const providerSkipped = await materializeThroughPackageProvider(opts.packageProvider, depGraph, {
       lockfileDir: opts.lockfileDir,
     })
+    for (const depPath of providerSkipped) {
+      opts.skipped.add(depPath)
+    }
   }
 
   stageLogger.debug({

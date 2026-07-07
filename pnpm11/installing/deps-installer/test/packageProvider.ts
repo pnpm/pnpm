@@ -24,20 +24,28 @@ process.stdin.on('end', () => {
   fs.writeFileSync(path.join(__dirname, 'request.json'), JSON.stringify(request))
   const subdir = (depPath) => depPath.replace(/[^A-Za-z0-9._@-]/g, '+')
   const paths = {}
+  const skipped = []
   for (const [depPath, node] of Object.entries(request.nodes)) {
+    // simulate an optional package whose build fails
+    if (node.optional === true) {
+      skipped.push(depPath)
+      continue
+    }
     const dir = path.join(__dirname, 'store', subdir(depPath))
     fs.mkdirSync(path.join(dir, 'node_modules', node.name), { recursive: true })
     fs.writeFileSync(path.join(dir, 'node_modules', node.name, 'package.json'), JSON.stringify({ name: node.name, version: node.version }))
     paths[depPath] = dir
   }
   for (const [depPath, node] of Object.entries(request.nodes)) {
+    if (paths[depPath] == null) continue
     for (const [alias, dep] of Object.entries(node.deps)) {
+      if (paths[dep.depPath] == null) continue
       const link = path.join(paths[depPath], 'node_modules', alias)
       fs.mkdirSync(path.dirname(link), { recursive: true })
       fs.symlinkSync(path.join(paths[dep.depPath], 'node_modules', dep.name), link)
     }
   }
-  process.stdout.write(JSON.stringify({ protocol: 1, paths }))
+  process.stdout.write(JSON.stringify({ protocol: 1, paths, skipped }))
 })
 `
 
@@ -117,6 +125,23 @@ test('patched dependencies are sent to the package provider with their patch con
   const node = Object.values<any>(request.nodes).find((requestNode) => requestNode.name === 'is-positive') // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(node.patch.content).toContain('// patched')
   expect(node.patch.hash).toBeTruthy()
+})
+
+test('optional packages the provider cannot build are skipped', async () => {
+  prepareEmpty()
+  const { providerBin, providerDir } = prepareFakeProvider()
+
+  await install({
+    dependencies: { 'is-positive': '1.0.0' },
+    optionalDependencies: { 'is-negative': '1.0.0' },
+  }, testDefaults({ packageProvider: providerBin }))
+
+  expect(fs.existsSync(path.join('node_modules', 'is-positive'))).toBeTruthy()
+  expect(fs.existsSync(path.join('node_modules', 'is-negative'))).toBeFalsy()
+
+  const request = JSON.parse(fs.readFileSync(path.join(providerDir, 'request.json'), 'utf8'))
+  const negNode = Object.values<any>(request.nodes).find((node) => node.name === 'is-negative') // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect(negNode.optional).toBe(true)
 })
 
 test('the install aborts when the package provider fails', async () => {
