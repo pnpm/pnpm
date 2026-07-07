@@ -45,12 +45,22 @@ function tryLoad(candidate, loadErrors) {
     if (candidate.endsWith('.node') && !fs.existsSync(candidate)) return null
     return require(candidate)
   } catch (err) {
-    if (isMissingCandidate(err, candidate)) {
+    if (isRetryableLoadError(err, candidate)) {
       loadErrors.push(err)
       return null
     }
     throw err
   }
+}
+
+function isRetryableLoadError(err, candidate) {
+  if (!err) return false
+  // The candidate isn't installed (platform package absent) — try the next one.
+  if (isMissingCandidate(err, candidate)) return true
+  // The candidate exists but is the wrong libc / ABI: `require()` throws
+  // `ERR_DLOPEN_FAILED`. Fall through to the other Linux libc variant rather
+  // than aborting the whole load on a wrong first guess.
+  return err.code === 'ERR_DLOPEN_FAILED'
 }
 
 function isMissingCandidate(err, candidate) {
@@ -77,29 +87,35 @@ function loadFailure(triple, loadErrors) {
 function loadBinding() {
   const triples = platformTriples()
   const loadErrors = []
-  // Only ever hand a `.node` addon to require(). Without this, a non-.node
-  // PNPM_NAPI_BINARY value would be require()'d as an arbitrary JS module.
+  // An explicit PNPM_NAPI_BINARY is strict: it must be a `.node` file (so a
+  // non-.node value can't be require()'d as an arbitrary module), and if it
+  // exists but fails to load we surface that error directly rather than
+  // silently falling back to a platform package.
   const explicit = process.env.PNPM_NAPI_BINARY
-  if (explicit && !explicit.endsWith('.node')) {
-    throw new Error(`PNPM_NAPI_BINARY must point to a .node addon file, got: ${explicit}`)
+  if (explicit) {
+    if (!explicit.endsWith('.node')) {
+      throw new Error(`PNPM_NAPI_BINARY must point to a .node addon file, got: ${explicit}`)
+    }
+    if (fs.existsSync(explicit)) {
+      return require(explicit)
+    }
+    loadErrors.push(new Error(`PNPM_NAPI_BINARY was set but not found: ${explicit}`))
   }
+  // Platform packages / local artifacts. On Linux both libc variants are tried,
+  // so a wrong-ABI first candidate (an `ERR_DLOPEN_FAILED`) falls through to the
+  // other rather than aborting.
   const candidates = [
-    explicit,
     ...triples.flatMap((triple) => [
       `@pnpm/napi.${triple}`,
       path.join(__dirname, `pnpm-napi.${triple}.node`),
     ]),
     path.join(__dirname, 'pnpm-napi.node'),
   ]
-  let binding = null
   for (const candidate of candidates) {
-    binding = tryLoad(candidate, loadErrors)
-    if (binding) break
+    const binding = tryLoad(candidate, loadErrors)
+    if (binding) return binding
   }
-  if (!binding) {
-    throw loadFailure(triples[0], loadErrors)
-  }
-  return binding
+  throw loadFailure(triples[0], loadErrors)
 }
 
 // The Rust side encodes structured error fields (code/hint) as a JSON envelope
