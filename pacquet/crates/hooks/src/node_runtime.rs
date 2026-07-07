@@ -444,7 +444,7 @@ impl crate::CustomFetcher for NodeJsCustomFetcher {
                 Arc::new(|_| {}),
             )
             .await?;
-        Ok(!res.is_null() && res != false)
+        Ok(is_js_truthy(&res))
     }
 
     async fn fetch(
@@ -461,6 +461,17 @@ impl crate::CustomFetcher for NodeJsCustomFetcher {
                 Arc::new(|_| {}),
             )
             .await
+    }
+}
+
+/// Match JavaScript's truthiness rules for JSON-representable values.
+/// Falsy: `null`, `false`, `0`, `""`. Everything else is truthy.
+fn is_js_truthy(value: &Value) -> bool {
+    match value {
+        Value::Null | Value::Bool(false) => false,
+        Value::Number(n) => n.as_f64() != Some(0.0),
+        Value::String(s) => !s.is_empty(),
+        _ => true,
     }
 }
 

@@ -823,3 +823,108 @@ export const fetchers = [{
     let result = fetchers[0].fetch("x@1.0.0", resolution, serde_json::json!({})).await.unwrap();
     assert_eq!(result["filesIndex"]["main.js"]["integrity"], "sha512-esm");
 }
+
+#[tokio::test]
+async fn custom_fetcher_delegate_response_round_trips() {
+    let tmp = TempDir::new().expect("temp dir");
+    let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
+    std::fs::write(
+        &pnpmfile_path,
+        r#"
+module.exports = {
+  fetchers: [{
+    canFetch (pkgId, resolution) {
+      return resolution.type === '@custom/proxy';
+    },
+    fetch (pkgId, resolution, opts) {
+      return {
+        delegate: {
+          type: "tarball",
+          tarball: resolution.proxyUrl,
+          integrity: "sha512-delegated",
+        },
+      };
+    },
+  }],
+}
+"#,
+    )
+    .expect("write pnpmfile");
+    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let fetchers = hooks.get_custom_fetchers().await.expect("load fetchers");
+
+    let resolution = serde_json::json!({
+        "type": "@custom/proxy",
+        "proxyUrl": "https://proxy.example.com/foo-1.0.0.tgz",
+    });
+    assert!(fetchers[0].can_fetch("foo@1.0.0", resolution.clone()).await.unwrap());
+    let result = fetchers[0].fetch("foo@1.0.0", resolution, serde_json::json!({})).await.unwrap();
+    assert_eq!(result["delegate"]["tarball"], "https://proxy.example.com/foo-1.0.0.tgz");
+    assert_eq!(result["delegate"]["integrity"], "sha512-delegated");
+}
+
+#[tokio::test]
+async fn custom_fetcher_null_entries_are_skipped() {
+    let tmp = TempDir::new().expect("temp dir");
+    let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
+    std::fs::write(
+        &pnpmfile_path,
+        r"
+module.exports = {
+  fetchers: [
+    null,
+    undefined,
+    { canFetch() { return true; }, fetch() { return { delegate: {} }; } },
+  ],
+}
+",
+    )
+    .expect("write pnpmfile");
+    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let fetchers = hooks.get_custom_fetchers().await.expect("load fetchers");
+
+    assert_eq!(fetchers.len(), 3);
+    assert!(!fetchers[0].has_can_fetch());
+    assert!(!fetchers[0].has_fetch());
+    assert!(!fetchers[1].has_can_fetch());
+    assert!(!fetchers[1].has_fetch());
+    assert!(fetchers[2].has_can_fetch());
+    assert!(fetchers[2].has_fetch());
+}
+
+#[tokio::test]
+async fn custom_fetcher_can_fetch_truthy_values() {
+    let tmp = TempDir::new().expect("temp dir");
+    let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
+    std::fs::write(
+        &pnpmfile_path,
+        r#"
+module.exports = {
+  fetchers: [
+    { canFetch() { return 1; }, fetch() { return { delegate: {} }; } },
+    { canFetch() { return "yes"; }, fetch() { return { delegate: {} }; } },
+    { canFetch() { return 0; }, fetch() { return { delegate: {} }; } },
+    { canFetch() { return ""; }, fetch() { return { delegate: {} }; } },
+  ],
+}
+"#,
+    )
+    .expect("write pnpmfile");
+    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let fetchers = hooks.get_custom_fetchers().await.expect("load fetchers");
+    let empty_resolution = serde_json::json!({});
+
+    assert!(
+        fetchers[0].can_fetch("a@1.0.0", empty_resolution.clone()).await.unwrap(),
+        "1 is truthy",
+    );
+    assert!(
+        fetchers[1].can_fetch("a@1.0.0", empty_resolution.clone()).await.unwrap(),
+        r#""yes" is truthy"#,
+    );
+    assert!(
+        !fetchers[2].can_fetch("a@1.0.0", empty_resolution.clone()).await.unwrap(),
+        "0 is falsy",
+    );
+    assert!(!fetchers[3].can_fetch("a@1.0.0", empty_resolution).await.unwrap(), r#""" is falsy"#,);
+}
