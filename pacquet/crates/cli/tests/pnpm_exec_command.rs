@@ -225,7 +225,7 @@ fn fails_when_the_command_prints_a_path_that_does_not_exist() {
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     let unwrapped = unwrap_miette_lines(&stderr);
-    assert!(unwrapped.contains("printed a path that is not an existing file"), "stderr:\n{stderr}",);
+    assert!(unwrapped.contains("printed a path that is not an existing file"), "stderr:\n{stderr}");
 
     drop(root);
 }
@@ -247,7 +247,7 @@ fn fails_when_the_command_prints_a_path_that_is_a_directory() {
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     let unwrapped = unwrap_miette_lines(&stderr);
-    assert!(unwrapped.contains("printed a path that is not an existing file"), "stderr:\n{stderr}",);
+    assert!(unwrapped.contains("printed a path that is not an existing file"), "stderr:\n{stderr}");
 
     drop(root);
 }

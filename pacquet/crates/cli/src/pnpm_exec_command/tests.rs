@@ -42,7 +42,7 @@ fn prepend_to_path_skips_a_dir_already_leading_path() {
 #[test]
 fn escape_control_characters_renders_json_escapes() {
     assert_eq!(escape_control_characters("plain ascii ünïcode"), "plain ascii ünïcode");
-    assert_eq!(escape_control_characters("a\nb\tc\rd\u{8}e\u{c}f"), "a\\nb\\tc\\rd\\be\\ff",);
+    assert_eq!(escape_control_characters("a\nb\tc\rd\u{8}e\u{c}f"), "a\\nb\\tc\\rd\\be\\ff");
     assert_eq!(escape_control_characters("\u{1b}[31mred\u{1b}[0m"), "\\u001b[31mred\\u001b[0m");
 }
 
