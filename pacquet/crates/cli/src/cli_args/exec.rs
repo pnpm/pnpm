@@ -34,18 +34,22 @@ pub struct ExecArgs {
 
     /// Recursive only: resume execution from the given package, skipping
     /// every earlier project in the topological order.
-    #[clap(long = "resume-from")]
+    #[clap(skip)]
     pub resume_from: Option<String>,
 
     /// Recursive only: write a `pnpm-exec-summary.json` execution report
     /// to the workspace root.
-    #[clap(long = "report-summary")]
+    #[clap(skip)]
     pub report_summary: bool,
 
     /// Recursive only: keep going after a project fails instead of
     /// stopping at the first failure.
-    #[clap(long = "no-bail")]
+    #[clap(skip)]
     pub no_bail: bool,
+
+    /// Sort recursive workspace projects topologically before running.
+    #[clap(skip = true)]
+    pub sort: bool,
 }
 
 /// Errors from `pacquet exec`.

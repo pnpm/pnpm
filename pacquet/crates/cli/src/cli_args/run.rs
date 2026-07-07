@@ -34,21 +34,25 @@ pub struct RunArgs {
     /// Run the script starting from the given package, skipping every
     /// package that sorts before it. Only meaningful together with the
     /// global `-r` / `--recursive` flag (the `--resume-from` flag).
-    #[clap(long = "resume-from")]
+    #[clap(skip)]
     pub resume_from: Option<String>,
 
     /// Save the execution result of every package to
     /// `pnpm-exec-summary.json`. Only meaningful together with the
     /// global `-r` / `--recursive` flag (the `--report-summary` flag).
-    #[clap(long = "report-summary")]
+    #[clap(skip)]
     pub report_summary: bool,
 
     /// Keep running the remaining packages after a script fails instead
     /// of aborting on the first failure. Only meaningful together with
     /// the global `-r` / `--recursive` flag (the `--no-bail` flag;
     /// recursive runs bail by default).
-    #[clap(long = "no-bail")]
+    #[clap(skip)]
     pub no_bail: bool,
+
+    /// Sort recursive workspace projects topologically before running.
+    #[clap(skip = true)]
+    pub sort: bool,
 }
 
 /// Errors from `pacquet run`, including the hidden-script rejections from
@@ -208,6 +212,7 @@ fn exec_fallback(
         resume_from: None,
         report_summary: false,
         no_bail: false,
+        sort: true,
     }
     .run(dir, config)
 }

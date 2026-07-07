@@ -29,6 +29,7 @@ impl StopArgs {
             resume_from: None,
             report_summary: false,
             no_bail: false,
+            sort: true,
         }
         .run(dir, config, silent)
     }

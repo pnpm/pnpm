@@ -6,7 +6,6 @@ use clap::Parser;
 use pacquet_config::NodeLinker;
 use pacquet_lockfile::{LockfileResolution, TarballResolution};
 use pacquet_package_manifest::DependencyGroup;
-use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 
 #[test]
@@ -134,53 +133,6 @@ fn frozen_store_flag_parses() {
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test", "--frozen-store"])
         .expect("parses --frozen-store");
     assert!(parsed.args.frozen_store, "flag present → true");
-}
-
-#[test]
-fn workspace_concurrency_default_is_none() {
-    let parsed = ["pacquet-test"].pipe(InstallArgsHarness::try_parse_from).expect("parses");
-    assert_eq!(parsed.args.workspace_concurrency, None, "flag absent → None");
-}
-
-#[test]
-fn workspace_concurrency_parses_positive() {
-    let parsed = ["pacquet-test", "--workspace-concurrency", "3"]
-        .pipe(InstallArgsHarness::try_parse_from)
-        .expect("parses --workspace-concurrency 3");
-    assert_eq!(parsed.args.workspace_concurrency, Some(3));
-}
-
-#[test]
-fn workspace_concurrency_parses_negative() {
-    let parsed = ["pacquet-test", "--workspace-concurrency=-1"]
-        .pipe(InstallArgsHarness::try_parse_from)
-        .expect("parses --workspace-concurrency=-1");
-    assert_eq!(parsed.args.workspace_concurrency, Some(-1));
-}
-
-#[test]
-fn resolve_workspace_concurrency_keeps_config_value_when_flag_absent() {
-    let args = ["pacquet-test"].pipe(InstallArgsHarness::try_parse_from).expect("parses").args;
-    assert_eq!(args.resolve_workspace_concurrency(7), 7);
-}
-
-#[test]
-fn resolve_workspace_concurrency_positive_flag_overrides_config() {
-    let args = ["pacquet-test", "--workspace-concurrency", "3"]
-        .pipe(InstallArgsHarness::try_parse_from)
-        .expect("parses")
-        .args;
-    assert_eq!(args.resolve_workspace_concurrency(7), 3);
-}
-
-#[test]
-fn resolve_workspace_concurrency_negative_flag_resolves_to_offset() {
-    let args = ["pacquet-test", "--workspace-concurrency=-1"]
-        .pipe(InstallArgsHarness::try_parse_from)
-        .expect("parses")
-        .args;
-    let expected = pacquet_config::available_parallelism().saturating_sub(1).max(1);
-    assert_eq!(args.resolve_workspace_concurrency(7), expected);
 }
 
 /// `NodeLinkerArg::into_config` maps every variant 1:1 to the

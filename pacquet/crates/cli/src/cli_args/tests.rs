@@ -73,6 +73,35 @@ fn filter_flag_is_global_and_parses_before_subcommand() {
 }
 
 #[test]
+fn recursive_run_flags_parse_before_fallback_command() {
+    let parsed = CliArgs::try_parse_from([
+        "pacquet",
+        "--no-sort",
+        "--workspace-concurrency=1",
+        "-r",
+        "--report-summary",
+        ".test",
+    ])
+    .expect("parses recursive fallback flags");
+    assert!(parsed.recursive);
+    assert!(parsed.no_sort);
+    assert_eq!(parsed.workspace_concurrency, Some(1));
+    assert!(parsed.report_summary);
+    assert!(matches!(parsed.command, CliCommand::External(command) if command == [".test"]));
+}
+
+#[test]
+fn workspace_concurrency_parses_as_global_option() {
+    let positive = CliArgs::try_parse_from(["pacquet", "--workspace-concurrency", "3", "install"])
+        .expect("parses --workspace-concurrency 3");
+    assert_eq!(positive.workspace_concurrency, Some(3));
+
+    let negative = CliArgs::try_parse_from(["pacquet", "install", "--workspace-concurrency=-1"])
+        .expect("parses --workspace-concurrency=-1 after subcommand");
+    assert_eq!(negative.workspace_concurrency, Some(-1));
+}
+
+#[test]
 fn filter_flag_split_across_subcommand_keeps_only_subcommand_side() {
     let parsed = CliArgs::try_parse_from(["pacquet", "-F", "a", "install", "-F", "b"])
         .expect("parses split -F");

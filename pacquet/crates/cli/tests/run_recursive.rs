@@ -648,6 +648,39 @@ fn recursive_run_filter_no_match_is_a_noop() {
     drop(root);
 }
 
+#[test]
+fn recursive_run_no_sort_uses_workspace_order() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            (
+                "app",
+                json!({
+                    "name": "app",
+                    "version": "1.0.0",
+                    "scripts": { "build": "echo app >> ../order.log" },
+                    "dependencies": { "lib": "workspace:*" },
+                }),
+            ),
+            ("lib", build_appends_run_order("lib")),
+        ],
+    );
+
+    pacquet
+        .with_arg("--no-sort")
+        .with_arg("-r")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    assert_eq!(order, "app\nlib\n");
+
+    drop(root);
+}
+
 /// `pacquet -r run --resume-from <pkg>` skips every chunk that sorts
 /// before the chunk containing `<pkg>`. With `project-2` and `project-3`
 /// both depending on `project-1`, the sorted chunks are

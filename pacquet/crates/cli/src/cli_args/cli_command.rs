@@ -127,6 +127,30 @@ pub struct CliArgs {
     /// [`pacquet_config::Config::filter_prod`].
     #[clap(long = "filter-prod", global = true)]
     pub filter_prod: Vec<String>,
+
+    /// Keep recursive workspace projects sorted topologically.
+    #[clap(long = "sort", global = true, overrides_with = "no_sort")]
+    pub sort: bool,
+
+    /// Run recursive workspace projects in workspace order.
+    #[clap(long = "no-sort", global = true, overrides_with = "sort")]
+    pub no_sort: bool,
+
+    /// Maximum number of workspace projects to process in parallel.
+    #[clap(long = "workspace-concurrency", global = true)]
+    pub workspace_concurrency: Option<i32>,
+
+    /// Recursive only: resume execution from the given package.
+    #[clap(long = "resume-from", global = true)]
+    pub resume_from: Option<String>,
+
+    /// Recursive only: write a `pnpm-exec-summary.json` execution report.
+    #[clap(long = "report-summary", global = true)]
+    pub report_summary: bool,
+
+    /// Recursive only: keep going after a project fails.
+    #[clap(long = "no-bail", global = true)]
+    pub no_bail: bool,
 }
 
 impl CliArgs {

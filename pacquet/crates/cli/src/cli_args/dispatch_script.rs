@@ -38,6 +38,7 @@ pub(super) fn test<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
 }
 
 pub(super) fn run<'a>(ctx: &RunCtx<'a>, args: RunArgs) -> miette::Result<CommandFuture<'a>> {
+    let args = with_recursive_run_options(ctx, args);
     if ctx.recursive {
         args.run_recursive((ctx.config)()?, ctx.dir)?;
     } else {
@@ -58,7 +59,9 @@ pub(super) fn fallback<'a>(
         resume_from: None,
         report_summary: false,
         no_bail: false,
+        sort: true,
     };
+    let args = with_recursive_run_options(ctx, args);
     if ctx.recursive {
         args.run_recursive((ctx.config)()?, ctx.dir)?;
     } else {
@@ -68,12 +71,29 @@ pub(super) fn fallback<'a>(
 }
 
 pub(super) fn exec<'a>(ctx: &RunCtx<'a>, args: ExecArgs) -> miette::Result<CommandFuture<'a>> {
+    let args = with_recursive_exec_options(ctx, args);
     if ctx.recursive {
         args.run_recursive((ctx.config)()?, ctx.dir)?;
     } else {
         args.run(ctx.dir, (ctx.config)()?)?;
     }
     Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+fn with_recursive_run_options(ctx: &RunCtx<'_>, mut args: RunArgs) -> RunArgs {
+    args.resume_from = ctx.recursive_resume_from.map(str::to_string);
+    args.report_summary = ctx.recursive_report_summary;
+    args.no_bail = ctx.recursive_no_bail;
+    args.sort = ctx.recursive_sort;
+    args
+}
+
+fn with_recursive_exec_options(ctx: &RunCtx<'_>, mut args: ExecArgs) -> ExecArgs {
+    args.resume_from = ctx.recursive_resume_from.map(str::to_string);
+    args.report_summary = ctx.recursive_report_summary;
+    args.no_bail = ctx.recursive_no_bail;
+    args.sort = ctx.recursive_sort;
+    args
 }
 
 pub(super) fn start<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
