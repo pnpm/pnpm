@@ -1,10 +1,11 @@
 use crate::{
     AllowBuildPolicy, CreateVirtualStore, CreateVirtualStoreError, CreateVirtualStoreOutput,
     GraphToLockfileOptions, HoistedDependencies, ImporterLockfileInput,
-    InstallPackageFromRegistryError, LinkVirtualStoreBins, LinkVirtualStoreBinsError,
-    PrefetchContext, PrefetchingResolver, SkippedSnapshots, SymlinkDirectDependencies,
-    SymlinkDirectDependenciesError, VersionPolicyError, VersionsOverrider, VirtualStoreLayout,
-    dependencies_graph_to_lockfile, store_init::init_store_dir_best_effort,
+    InstallPackageFromRegistryError, LinkRootComponentMembersError, LinkVirtualStoreBins,
+    LinkVirtualStoreBinsError, PrefetchContext, PrefetchingResolver, SkippedSnapshots,
+    SymlinkDirectDependencies, SymlinkDirectDependenciesError, VersionPolicyError,
+    VersionsOverrider, VirtualStoreLayout, dependencies_graph_to_lockfile,
+    link_root_component_members, store_init::init_store_dir_best_effort,
 };
 use dashmap::DashMap;
 use derive_more::{Display, Error};
@@ -223,6 +224,13 @@ pub enum InstallWithFreshLockfileError {
 
     #[diagnostic(transparent)]
     SymlinkDirectDependencies(#[error(source)] SymlinkDirectDependenciesError),
+
+    /// Surfaces a failure to cross-link a Bit root component's injected
+    /// members into one another's virtual-store slot. Only reachable
+    /// when an importer manifest declares
+    /// `installConfig.hoistingLimits: "workspaces"`.
+    #[diagnostic(transparent)]
+    LinkRootComponentMembers(#[error(source)] LinkRootComponentMembersError),
 
     /// Surfaces failures from [`crate::lockfile_to_hoisted_dep_graph`]
     /// when a fresh install runs under `nodeLinker: hoisted`. Same
@@ -1723,6 +1731,28 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             }
             .run::<Reporter>()
             .map_err(InstallWithFreshLockfileError::SymlinkDirectDependencies)?;
+
+            // Bit "root components": make each root's injected members
+            // mutually reachable. Gated on
+            // `installConfig.hoistingLimits: "workspaces"`, so it is a
+            // no-op for every non-Bit install. See
+            // [`link_root_component_members`].
+            let root_component_importers: std::collections::HashSet<String> = importer_manifests
+                .iter()
+                .filter(|(_, manifest)| {
+                    manifest.install_config_hoisting_limits()
+                        == Some(crate::HOISTING_LIMITS_WORKSPACES)
+                })
+                .map(|(id, _)| id.clone())
+                .collect();
+            link_root_component_members(
+                &layout,
+                &built_lockfile.importers,
+                &root_component_importers,
+                &dependency_groups,
+                &skipped,
+            )
+            .map_err(InstallWithFreshLockfileError::LinkRootComponentMembers)?;
 
             // On-disk hoist phase. Mirrors the frozen-install block at
             // `install_frozen_lockfile.rs`: symlink the publicly +

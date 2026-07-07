@@ -263,6 +263,26 @@ impl PackageManifest {
             .transpose()
     }
 
+    /// The `installConfig.hoistingLimits` value declared by this
+    /// manifest, if any.
+    ///
+    /// pnpm reads a per-package `installConfig.hoistingLimits` to
+    /// override how far that package's dependencies are hoisted; the
+    /// value mirrors the workspace-wide `hoistingLimits` setting
+    /// (`"dependencies" | "workspaces" | "none"`). Bit stamps
+    /// `"workspaces"` on the per-root-component importer manifests it
+    /// generates under `node_modules/.bit_roots/<id>`; the isolated
+    /// linker keys root-component member reachability off that value.
+    /// Returned verbatim so callers can match whichever mode they care
+    /// about (today only `"workspaces"` is acted on).
+    #[must_use]
+    pub fn install_config_hoisting_limits(&self) -> Option<&str> {
+        self.value
+            .get("installConfig")
+            .and_then(|install_config| install_config.get("hoistingLimits"))
+            .and_then(Value::as_str)
+    }
+
     pub fn add_dependency(
         &mut self,
         name: &str,
