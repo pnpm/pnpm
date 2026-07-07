@@ -18,7 +18,7 @@
 //! `Sys` type parameter), the credential prompts are the crate-local
 //! [`PromptInput`] / [`PromptPassword`] capabilities, and `auth.ini` I/O reuses
 //! logout's [`FsReadToString`] / [`FsWrite`]. User-facing messages flow through
-//! the `R: Reporter` seam on the `pnpm:global` channel, matching pnpm's
+//! the `Reporter` seam on the `pnpm:global` channel, matching pnpm's
 //! `globalInfo`. The two registry requests (the web-login `POST` and the
 //! classic `PUT`) go over the shared [`ThrottledClient`] — a real fixture
 //! (`mockito`) in tests — so only the effects a fixture can't stage portably
