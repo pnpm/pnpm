@@ -170,7 +170,7 @@ fn append_github_actions_environment_file<Reporter: self::Reporter>(
             prefix_dir,
             &format!(
                 "Failed to write GitHub Actions environment file {target_name} ({}): {err}",
-                path.display()
+                path.display(),
             ),
         );
     }
