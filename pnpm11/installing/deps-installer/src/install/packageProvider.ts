@@ -6,7 +6,6 @@ import { findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
 import { engineName } from '@pnpm/engine.runtime.system-version'
 import { PnpmError } from '@pnpm/error'
 import type { DependenciesGraph } from '@pnpm/installing.deps-resolver'
-import type { TarballResolution } from '@pnpm/store.controller-types'
 import type { DepPath } from '@pnpm/types'
 
 const PROTOCOL_VERSION = 1
@@ -14,8 +13,13 @@ const PROTOCOL_VERSION = 1
 interface ProviderRequestNode {
   name: string
   version: string
-  tarball: string
-  integrity: string
+  /** Registry tarball resolution. */
+  tarball?: string
+  integrity?: string
+  /** Local directory resolution (file: deps and injected workspace packages) — an install-time snapshot. */
+  directory?: string
+  /** Git resolution, deterministic by commit. */
+  git?: { repo: string, commit: string }
   deps: Record<string, { depPath: string, name: string }>
   engine: string
   /** Patches are deterministic, so their content is just another provider input. */
@@ -46,9 +50,19 @@ export async function materializeThroughPackageProvider (
   const engine = engineName(findRuntimeNodeVersion(Object.keys(depGraph)))
   const nodes: Record<string, ProviderRequestNode> = {}
   for (const [depPath, node] of Object.entries(depGraph)) {
-    const resolution = node.resolution as TarballResolution & { type?: string }
-    if (resolution.type != null || !resolution.tarball || !resolution.integrity) {
-      throw new PnpmError('PACKAGE_PROVIDER_UNSUPPORTED', `The package provider only supports registry tarball dependencies, but ${depPath} does not resolve to a tarball with integrity`)
+    const resolution = node.resolution as { type?: string, tarball?: string, integrity?: string, directory?: string, repo?: string, commit?: string }
+    let source: Pick<ProviderRequestNode, 'tarball' | 'integrity' | 'directory' | 'git'>
+    if (resolution.type == null && resolution.tarball && resolution.integrity) {
+      source = { tarball: resolution.tarball, integrity: resolution.integrity }
+    } else if (resolution.type === 'directory' && resolution.directory != null) {
+      source = { directory: path.resolve(opts.lockfileDir, resolution.directory) }
+    } else if (resolution.type === 'git' && resolution.repo && resolution.commit) {
+      if ((node as { prepare?: boolean }).prepare === true) {
+        throw new PnpmError('PACKAGE_PROVIDER_UNSUPPORTED', `The package provider cannot install ${depPath}: git dependencies that need to be built (prepare) are not supported yet`)
+      }
+      source = { git: { repo: resolution.repo, commit: resolution.commit } }
+    } else {
+      throw new PnpmError('PACKAGE_PROVIDER_UNSUPPORTED', `The package provider does not support the resolution of ${depPath} (${resolution.type ?? 'tarball without integrity'})`)
     }
     if (node.patch != null && !node.patch.patchFilePath) {
       throw new PnpmError('PACKAGE_PROVIDER_UNSUPPORTED', `The package provider needs the patch file of ${depPath}, but only its hash is known`)
@@ -65,8 +79,7 @@ export async function materializeThroughPackageProvider (
     nodes[depPath] = {
       name: node.name,
       version: node.version,
-      tarball: resolution.tarball,
-      integrity: resolution.integrity,
+      ...source,
       deps,
       engine,
       optional: node.optional === true ? true : undefined,

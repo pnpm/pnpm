@@ -127,6 +127,22 @@ test('patched dependencies are sent to the package provider with their patch con
   expect(node.patch.hash).toBeTruthy()
 })
 
+test('local directory dependencies are sent as absolute directories', async () => {
+  prepareEmpty()
+  const { providerBin, providerDir } = prepareFakeProvider()
+  fs.mkdirSync('local-pkg')
+  fs.writeFileSync(path.join('local-pkg', 'package.json'), JSON.stringify({ name: 'local-pkg', version: '1.0.0' }))
+
+  await addDependenciesToPackage({}, ['file:./local-pkg'], testDefaults({ packageProvider: providerBin }))
+
+  const request = JSON.parse(fs.readFileSync(path.join(providerDir, 'request.json'), 'utf8'))
+  const localNode = Object.values<any>(request.nodes).find((node) => node.name === 'local-pkg') // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect(localNode.directory).toBe(path.resolve('local-pkg'))
+  expect(localNode.tarball).toBeUndefined()
+  const realDir = fs.realpathSync(path.join('node_modules', 'local-pkg'))
+  expect(realDir.startsWith(path.join(providerDir, 'store'))).toBeTruthy()
+})
+
 test('optional packages the provider cannot build are skipped', async () => {
   prepareEmpty()
   const { providerBin, providerDir } = prepareFakeProvider()
