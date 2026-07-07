@@ -131,9 +131,12 @@ impl PatchCommitArgs {
             })?;
         let name = manifest_string(patched_manifest.value(), "name", &manifest_path)?;
         let version = manifest_string(patched_manifest.value(), "version", &manifest_path)?;
-        let state_value = read_edit_dir_state(&state.config.modules_dir, &patch_dir)
-            .map_err(PatchCommitError::StateFile)?
-            .ok_or_else(|| PatchCommitError::InvalidPatchDir { patch_dir: patch_dir.clone() })?;
+        let state_value =
+            read_edit_dir_state::<pacquet_config::Host>(&state.config.modules_dir, &patch_dir)
+                .map_err(PatchCommitError::StateFile)?
+                .ok_or_else(|| PatchCommitError::InvalidPatchDir {
+                    patch_dir: patch_dir.clone(),
+                })?;
 
         let current_lockfile =
             Lockfile::load_current_from_virtual_store_dir(&state.config.virtual_store_dir)

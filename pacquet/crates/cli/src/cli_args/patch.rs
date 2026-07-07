@@ -173,7 +173,7 @@ impl PatchArgs {
         .await
         .map_err(PatchError::WritePackage)?;
 
-        write_edit_dir_state(
+        write_edit_dir_state::<pacquet_config::Host>(
             &state.config.modules_dir,
             &edit_dir,
             &EditDirState {

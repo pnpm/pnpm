@@ -2,12 +2,14 @@ use super::{
     EditDirState, StateFileError, edit_dir_key, read_edit_dir_state, write_edit_dir_state,
     write_state_file_atomically,
 };
+use pacquet_config::{GetCurrentDir, Host};
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use std::{env, fs, path::Path, sync::Mutex};
+use std::{
+    fs, io,
+    path::{Path, PathBuf},
+};
 use tempfile::tempdir;
-
-static CWD_LOCK: Mutex<()> = Mutex::new(());
 
 fn sample_state() -> EditDirState {
     EditDirState {
@@ -23,7 +25,7 @@ fn patch_state_read_missing_state_file_returns_none() {
     let modules_dir = tmp.path().join("node_modules");
     let edit_dir = tmp.path().join("edit");
 
-    assert_eq!(read_edit_dir_state(&modules_dir, &edit_dir).unwrap(), None);
+    assert_eq!(read_edit_dir_state::<Host>(&modules_dir, &edit_dir).unwrap(), None);
 }
 
 #[test]
@@ -33,7 +35,7 @@ fn patch_state_write_creates_pnpm_state_file() {
     let edit_dir = tmp.path().join("edit");
     fs::create_dir_all(&edit_dir).expect("create edit dir");
 
-    write_edit_dir_state(&modules_dir, &edit_dir, &sample_state()).unwrap();
+    write_edit_dir_state::<Host>(&modules_dir, &edit_dir, &sample_state()).unwrap();
 
     let state_path = modules_dir.join(".pnpm_patches").join("state.json");
     let text = fs::read_to_string(state_path).expect("state file");
@@ -58,8 +60,8 @@ fn patch_state_write_updates_existing_state_file() {
     fs::create_dir_all(&first_edit_dir).expect("create first edit dir");
     fs::create_dir_all(&second_edit_dir).expect("create second edit dir");
 
-    write_edit_dir_state(&modules_dir, &first_edit_dir, &sample_state()).unwrap();
-    write_edit_dir_state(
+    write_edit_dir_state::<Host>(&modules_dir, &first_edit_dir, &sample_state()).unwrap();
+    write_edit_dir_state::<Host>(
         &modules_dir,
         &second_edit_dir,
         &EditDirState {
@@ -113,11 +115,11 @@ fn patch_state_read_uses_resolved_edit_dir_key() {
     let edit_dir = tmp.path().join("edit");
     fs::create_dir_all(&edit_dir).expect("create edit dir");
 
-    write_edit_dir_state(&modules_dir, &edit_dir, &sample_state()).unwrap();
+    write_edit_dir_state::<Host>(&modules_dir, &edit_dir, &sample_state()).unwrap();
 
     let edit_dir_with_dot = tmp.path().join(".").join("edit");
     assert_eq!(
-        read_edit_dir_state(&modules_dir, &edit_dir_with_dot).unwrap(),
+        read_edit_dir_state::<Host>(&modules_dir, &edit_dir_with_dot).unwrap(),
         Some(sample_state()),
     );
 }
@@ -130,7 +132,7 @@ fn patch_state_malformed_json_is_an_error() {
     fs::create_dir_all(&state_dir).expect("create state dir");
     fs::write(state_dir.join("state.json"), "{").expect("write malformed state");
 
-    let err = read_edit_dir_state(&modules_dir, &tmp.path().join("edit")).unwrap_err();
+    let err = read_edit_dir_state::<Host>(&modules_dir, &tmp.path().join("edit")).unwrap_err();
     assert!(err.to_string().contains("state.json"), "error includes state path: {err}");
 }
 
@@ -141,7 +143,7 @@ fn patch_state_read_errors_when_state_path_is_not_a_file() {
     let state_path = modules_dir.join(".pnpm_patches").join("state.json");
     fs::create_dir_all(&state_path).expect("create state dir at file path");
 
-    let err = read_edit_dir_state(&modules_dir, &tmp.path().join("edit")).unwrap_err();
+    let err = read_edit_dir_state::<Host>(&modules_dir, &tmp.path().join("edit")).unwrap_err();
 
     assert!(matches!(err, StateFileError::Read { .. }));
 }
@@ -155,7 +157,7 @@ fn patch_state_read_rejects_oversized_state_file() {
     fs::write(&state_path, " ".repeat(super::MAX_STATE_FILE_BYTES + 1))
         .expect("write oversized state");
 
-    let err = read_edit_dir_state(&modules_dir, &tmp.path().join("edit")).unwrap_err();
+    let err = read_edit_dir_state::<Host>(&modules_dir, &tmp.path().join("edit")).unwrap_err();
 
     assert!(matches!(err, StateFileError::StateFileTooLarge { .. }));
 }
@@ -167,8 +169,8 @@ fn patch_state_write_errors_when_existing_state_path_is_not_a_file() {
     let state_path = modules_dir.join(".pnpm_patches").join("state.json");
     fs::create_dir_all(&state_path).expect("create state dir at file path");
 
-    let err =
-        write_edit_dir_state(&modules_dir, &tmp.path().join("edit"), &sample_state()).unwrap_err();
+    let err = write_edit_dir_state::<Host>(&modules_dir, &tmp.path().join("edit"), &sample_state())
+        .unwrap_err();
 
     assert!(matches!(err, StateFileError::Read { .. }));
 }
@@ -184,8 +186,8 @@ fn patch_state_write_rejects_symlinked_state_dir() {
     fs::create_dir(&outside_dir).expect("create outside dir");
     std::os::unix::fs::symlink(&outside_dir, &state_dir).expect("symlink state dir");
 
-    let err =
-        write_edit_dir_state(&modules_dir, &tmp.path().join("edit"), &sample_state()).unwrap_err();
+    let err = write_edit_dir_state::<Host>(&modules_dir, &tmp.path().join("edit"), &sample_state())
+        .unwrap_err();
 
     assert!(matches!(err, StateFileError::UnsafePath { .. }));
     assert!(!outside_dir.join("state.json").exists(), "outside state file must not be written");
@@ -203,32 +205,51 @@ fn patch_state_write_rejects_symlinked_state_file() {
     fs::write(&outside_target, "{}").expect("write outside state");
     std::os::unix::fs::symlink(&outside_target, &state_path).expect("symlink state file");
 
-    let err =
-        write_edit_dir_state(&modules_dir, &tmp.path().join("edit"), &sample_state()).unwrap_err();
+    let err = write_edit_dir_state::<Host>(&modules_dir, &tmp.path().join("edit"), &sample_state())
+        .unwrap_err();
 
     assert!(matches!(err, StateFileError::UnsafePath { .. }));
     assert_eq!(fs::read_to_string(&outside_target).expect("read outside state"), "{}");
 }
 
+/// [`GetCurrentDir`] provider pinned to a fixed path, so the relative
+/// edit-dir branches run without mutating the process cwd (which would
+/// race the rest of the parallel test suite).
+struct FakeCwd;
+
+static FAKE_CWD: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
+impl GetCurrentDir for FakeCwd {
+    fn current_dir() -> io::Result<PathBuf> {
+        Ok(FAKE_CWD.get().expect("FAKE_CWD initialized by the test").clone())
+    }
+}
+
+/// [`GetCurrentDir`] provider whose cwd is unavailable, standing in for
+/// a deleted current directory.
+struct NoCwd;
+
+impl GetCurrentDir for NoCwd {
+    fn current_dir() -> io::Result<PathBuf> {
+        Err(io::Error::from(io::ErrorKind::NotFound))
+    }
+}
+
 #[test]
 fn patch_state_write_uses_current_dir_for_relative_edit_dirs() {
-    let _guard = CWD_LOCK.lock().expect("cwd lock");
     let tmp = tempdir().expect("temp dir");
-    let original_cwd = env::current_dir().expect("current dir");
-    env::set_current_dir(tmp.path()).expect("enter temp dir");
-    let _restore = CurrentDirGuard(original_cwd);
+    let cwd = dunce::canonicalize(tmp.path()).expect("canonical temp dir");
+    FAKE_CWD.set(cwd.clone()).expect("set FAKE_CWD once");
 
-    let modules_dir = tmp.path().join("node_modules");
-    fs::create_dir("edit").expect("create relative edit dir");
+    let modules_dir = cwd.join("node_modules");
+    fs::create_dir(cwd.join("edit")).expect("create relative edit dir");
 
-    write_edit_dir_state(&modules_dir, Path::new("edit"), &sample_state()).unwrap();
+    write_edit_dir_state::<FakeCwd>(&modules_dir, Path::new("edit"), &sample_state()).unwrap();
 
     let state_path = modules_dir.join(".pnpm_patches").join("state.json");
     let text = fs::read_to_string(state_path).expect("state file");
-    let key = dunce::canonicalize(tmp.path().join("edit"))
-        .expect("canonical edit dir")
-        .display()
-        .to_string();
+    let key =
+        dunce::canonicalize(cwd.join("edit")).expect("canonical edit dir").display().to_string();
     assert_eq!(
         serde_json::from_str::<serde_json::Value>(&text).expect("valid JSON"),
         json!({
@@ -240,19 +261,9 @@ fn patch_state_write_uses_current_dir_for_relative_edit_dirs() {
     );
 }
 
-#[cfg(unix)]
 #[test]
 fn patch_state_reports_current_dir_resolution_errors_for_relative_edit_dirs() {
-    let _guard = CWD_LOCK.lock().expect("cwd lock");
-    let tmp = tempdir().expect("temp dir");
-    let doomed = tmp.path().join("doomed");
-    fs::create_dir(&doomed).expect("create cwd");
-    let original_cwd = env::current_dir().expect("current dir");
-    env::set_current_dir(&doomed).expect("enter doomed cwd");
-    let _restore = CurrentDirGuard(original_cwd);
-    fs::remove_dir(&doomed).expect("remove cwd");
-
-    let err = edit_dir_key(Path::new("edit")).expect_err("deleted cwd should fail");
+    let err = edit_dir_key::<NoCwd>(Path::new("edit")).expect_err("unavailable cwd should fail");
 
     assert!(matches!(err, StateFileError::ResolveEditDir { .. }));
 }
@@ -263,7 +274,7 @@ fn patch_state_write_uses_normalized_missing_edit_dir_key() {
     let modules_dir = tmp.path().join("node_modules");
     let missing_edit_dir = tmp.path().join("missing-edit");
 
-    write_edit_dir_state(&modules_dir, &missing_edit_dir, &sample_state()).unwrap();
+    write_edit_dir_state::<Host>(&modules_dir, &missing_edit_dir, &sample_state()).unwrap();
 
     let state_path = modules_dir.join(".pnpm_patches").join("state.json");
     let text = fs::read_to_string(state_path).expect("state file");
@@ -281,15 +292,7 @@ fn patch_state_errors_when_edit_dir_parent_is_not_a_directory() {
     let file_parent = tmp.path().join("file-parent");
     fs::write(&file_parent, "").expect("write file parent");
 
-    let err = edit_dir_key(&file_parent.join("edit")).expect_err("file parent should fail");
+    let err = edit_dir_key::<Host>(&file_parent.join("edit")).expect_err("file parent should fail");
 
     assert!(matches!(err, StateFileError::ResolveEditDir { .. }));
-}
-
-struct CurrentDirGuard(std::path::PathBuf);
-
-impl Drop for CurrentDirGuard {
-    fn drop(&mut self) {
-        env::set_current_dir(&self.0).expect("restore current dir");
-    }
 }

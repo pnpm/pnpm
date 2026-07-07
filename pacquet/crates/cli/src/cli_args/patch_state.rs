@@ -1,11 +1,12 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pacquet_config::GetCurrentDir;
 use pacquet_fs::{is_subdir, lexical_normalize};
 use pacquet_lockfile::PackageKey;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
-    env, fs,
+    fs,
     io::{self, Write},
     path::{Path, PathBuf},
 };
@@ -76,7 +77,7 @@ pub(crate) enum StateFileError {
     },
 }
 
-pub(crate) fn read_edit_dir_state(
+pub(crate) fn read_edit_dir_state<Sys: GetCurrentDir>(
     modules_dir: &Path,
     edit_dir: &Path,
 ) -> Result<Option<EditDirState>, StateFileError> {
@@ -84,18 +85,18 @@ pub(crate) fn read_edit_dir_state(
     let Some(text) = read_state_file_text(&path)? else { return Ok(None) };
     let state: BTreeMap<String, EditDirState> = serde_json::from_str(&text)
         .map_err(|source| StateFileError::Parse { path: path.clone(), source })?;
-    let key = edit_dir_key(edit_dir)?;
+    let key = edit_dir_key::<Sys>(edit_dir)?;
     Ok(state.get(&key).cloned())
 }
 
-pub(crate) fn write_edit_dir_state(
+pub(crate) fn write_edit_dir_state<Sys: GetCurrentDir>(
     modules_dir: &Path,
     edit_dir: &Path,
     edit_dir_state: &EditDirState,
 ) -> Result<(), StateFileError> {
     let path = checked_state_file_path_for_write(modules_dir)?;
     let mut state = read_state_file_for_write(&path)?;
-    state.insert(edit_dir_key(edit_dir)?, edit_dir_state.clone());
+    state.insert(edit_dir_key::<Sys>(edit_dir)?, edit_dir_state.clone());
 
     let text = serde_json::to_string_pretty(&state)
         .map_err(|source| StateFileError::Serialize { path: path.clone(), source })?;
@@ -191,11 +192,11 @@ fn write_state_file_atomically(target: &Path, content: &[u8]) -> io::Result<()> 
     Ok(())
 }
 
-fn edit_dir_key(edit_dir: &Path) -> Result<String, StateFileError> {
+fn edit_dir_key<Sys: GetCurrentDir>(edit_dir: &Path) -> Result<String, StateFileError> {
     let absolute = if edit_dir.is_absolute() {
         edit_dir.to_path_buf()
     } else {
-        env::current_dir()
+        Sys::current_dir()
             .map_err(|source| StateFileError::ResolveEditDir {
                 path: edit_dir.to_path_buf(),
                 source,
