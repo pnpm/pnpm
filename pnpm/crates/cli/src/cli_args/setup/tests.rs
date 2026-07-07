@@ -10,10 +10,7 @@ use super::{
 };
 use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter, SilentReporter};
 use pretty_assertions::assert_eq;
-use std::{
-    path::{Path, PathBuf},
-    sync::Mutex,
-};
+use std::{path::PathBuf, sync::Mutex};
 
 fn report(change_type: ConfigFileChangeType, old: &str, new: &str) -> PathExtenderReport {
     PathExtenderReport {
@@ -133,6 +130,34 @@ fn github_actions_environment_files_receive_home_and_bin() {
 }
 
 #[test]
+fn github_actions_environment_files_start_new_records_after_existing_content() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let pnpm_home_dir = dir.path().join("pnpm-home");
+    let bin_dir = pnpm_home_dir.join("bin");
+    let github_env = dir.path().join("github-env");
+    let github_path = dir.path().join("github-path");
+    std::fs::write(&github_env, "EXISTING=value").expect("create github env");
+    std::fs::write(&github_path, "/existing/bin").expect("create github path");
+
+    write_github_actions_environment_files::<SilentReporter>(
+        dir.path(),
+        &pnpm_home_dir,
+        &bin_dir,
+        Some(&github_env),
+        Some(&github_path),
+    );
+
+    assert_eq!(
+        std::fs::read_to_string(github_env).expect("read github env"),
+        format!("EXISTING=value\nPNPM_HOME={}\n", pnpm_home_dir.display()),
+    );
+    assert_eq!(
+        std::fs::read_to_string(github_path).expect("read github path"),
+        format!("/existing/bin\n{}\n", bin_dir.display()),
+    );
+}
+
+#[test]
 fn github_actions_environment_files_are_ignored_outside_github_actions() {
     let dir = tempfile::tempdir().expect("create temp dir");
     let pnpm_home_dir = dir.path().join("pnpm-home");
@@ -211,11 +236,9 @@ fn github_actions_environment_file_failures_do_not_skip_other_targets() {
     let dir = tempfile::tempdir().expect("create temp dir");
     let pnpm_home_dir = dir.path().join("pnpm-home");
     let bin_dir = pnpm_home_dir.join("bin");
-    let github_env = dir.path().join("github-env");
+    let github_env = dir.path().join("a".repeat(300));
     let github_path = dir.path().join("github-path");
-    std::fs::write(&github_env, "").expect("create github env");
     std::fs::write(&github_path, "").expect("create github path");
-    make_file_readonly(&github_env);
 
     let result = persist_github_actions_environment_to_files::<RecordingReporter>(
         dir.path(),
@@ -225,7 +248,6 @@ fn github_actions_environment_file_failures_do_not_skip_other_targets() {
         Some(&github_env),
         Some(&github_path),
     );
-    make_file_writable(&github_env);
     result.expect("persist GitHub Actions environment files");
 
     assert_eq!(
@@ -234,6 +256,7 @@ fn github_actions_environment_file_failures_do_not_skip_other_targets() {
     );
     let warnings = WARNINGS.lock().expect("lock warnings");
     assert_eq!(warnings.len(), 1);
+    eprintln!("captured warning: {}", warnings[0]);
     assert!(warnings[0].contains("GITHUB_ENV"));
     assert!(warnings[0].contains(&github_env.display().to_string()));
 }
@@ -267,28 +290,4 @@ fn github_actions_environment_file_values_reject_line_breaking_characters() {
     .expect_err("reject newline");
 
     assert!(err.to_string().contains("PNPM_HOME"));
-}
-
-fn make_file_readonly(path: &Path) {
-    let mut permissions = std::fs::metadata(path).expect("stat file").permissions();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        permissions.set_mode(0o400);
-    }
-    #[cfg(windows)]
-    permissions.set_readonly(true);
-    std::fs::set_permissions(path, permissions).expect("make file read-only");
-}
-
-fn make_file_writable(path: &Path) {
-    let mut permissions = std::fs::metadata(path).expect("stat file").permissions();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        permissions.set_mode(0o600);
-    }
-    #[cfg(windows)]
-    permissions.set_readonly(false);
-    std::fs::set_permissions(path, permissions).expect("make file writable");
 }

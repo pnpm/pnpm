@@ -156,8 +156,15 @@ function validateGitHubActionsEnvironmentFileValues (pnpmHomeDir: string, binDir
 }
 
 function appendGitHubActionsEnvironmentFile (filePath: string, line: string): void {
+  let fd: number | undefined
   try {
-    const stats = fs.lstatSync(filePath)
+    fd = fs.openSync(
+      filePath,
+      fs.constants.O_RDWR |
+        fs.constants.O_APPEND |
+        (process.platform === 'win32' ? 0 : fs.constants.O_NOFOLLOW)
+    )
+    const stats = fs.fstatSync(fd)
     if (!stats.isFile()) {
       logger.warn({
         message: `Skipping GitHub Actions environment file ${filePath}: not a regular file`,
@@ -165,19 +172,36 @@ function appendGitHubActionsEnvironmentFile (filePath: string, line: string): vo
       })
       return
     }
-    const fd = fs.openSync(filePath, 'r+')
-    try {
-      const { size } = fs.fstatSync(fd)
-      fs.writeSync(fd, `${line}\n`, size, 'utf8')
-    } finally {
-      fs.closeSync(fd)
-    }
+    fs.writeSync(
+      fd,
+      `${githubActionsEnvironmentFileLinePrefix(fd, stats.size)}${line}\n`,
+      null,
+      'utf8'
+    )
   } catch (err: unknown) {
+    if (isFileNotFoundError(err)) {
+      return
+    }
     logger.warn({
       message: `Failed to write GitHub Actions environment file ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
       prefix: process.cwd(),
     })
+  } finally {
+    if (fd != null) {
+      fs.closeSync(fd)
+    }
   }
+}
+
+function githubActionsEnvironmentFileLinePrefix (fd: number, size: number): string {
+  if (size === 0) return ''
+  const lastByte = Buffer.allocUnsafe(1)
+  const bytesRead = fs.readSync(fd, lastByte, 0, 1, size - 1)
+  return bytesRead === 1 && lastByte[0] !== 0x0A ? '\n' : ''
+}
+
+function isFileNotFoundError (err: unknown): boolean {
+  return typeof err === 'object' && err != null && (err as NodeJS.ErrnoException).code === 'ENOENT'
 }
 
 function writeGitHubActionsEnvironmentFiles (pnpmHomeDir: string, binDir: string): void {

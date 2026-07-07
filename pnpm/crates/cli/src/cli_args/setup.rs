@@ -16,11 +16,14 @@ use path_extender::{
 };
 use std::{
     ffi::OsStr,
-    fs::{self, OpenOptions},
-    io::Write,
+    fs::{self, File, OpenOptions},
+    io::{Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
     process::Command,
 };
+
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt;
 
 #[derive(Debug, Args)]
 pub struct SetupArgs {
@@ -180,9 +183,39 @@ fn append_existing_regular_file(path: &Path, line: &str) -> std::io::Result<()> 
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(err) => return Err(err),
     }
-    let mut file = OpenOptions::new().append(true).open(path)?;
-    writeln!(file, "{line}")?;
+    let mut file = match open_existing_file_for_append(path) {
+        Ok(file) => file,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(err),
+    };
+    if !file.metadata()?.file_type().is_file() {
+        return Ok(());
+    }
+    write_line_to_file(&mut file, line)?;
     Ok(())
+}
+
+fn open_existing_file_for_append(path: &Path) -> std::io::Result<File> {
+    let mut options = OpenOptions::new();
+    options.read(true).append(true);
+    #[cfg(unix)]
+    options.custom_flags(libc::O_NOFOLLOW);
+    options.open(path)
+}
+
+fn write_line_to_file(file: &mut File, line: &str) -> std::io::Result<()> {
+    let mut output = String::new();
+    if file.metadata()?.len() > 0 {
+        let mut last_byte = [0];
+        file.seek(SeekFrom::End(-1))?;
+        file.read_exact(&mut last_byte)?;
+        if last_byte[0] != b'\n' {
+            output.push('\n');
+        }
+    }
+    output.push_str(line);
+    output.push('\n');
+    file.write_all(output.as_bytes())
 }
 
 /// Install the CLI as a global package using `pnpm add -g file:<dir>`,

@@ -101,6 +101,9 @@ wax                  = { workspace = true }
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true, features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
 [dev-dependencies]
 pacquet-network-web-auth-testing = { workspace = true }
 pacquet-testing-utils            = { workspace = true }
