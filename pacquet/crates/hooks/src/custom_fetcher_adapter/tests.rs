@@ -123,7 +123,7 @@ async fn tries_fetchers_in_order_stops_at_first_match() {
     assert_eq!(
         third.can_fetch_calls.load(Ordering::SeqCst),
         0,
-        "must not consult fetchers after a match"
+        "must not consult fetchers after a match",
     );
 }
 
