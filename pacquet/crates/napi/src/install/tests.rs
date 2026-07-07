@@ -87,6 +87,34 @@ fn build_overlay_maps_supported_install_options() {
 }
 
 #[test]
+fn build_overlay_parses_link_workspace_packages() {
+    use pacquet_config::LinkWorkspacePackages;
+
+    let mut options = install_options();
+    options.link_workspace_packages = Some(serde_json::json!("deep"));
+    assert_eq!(
+        build_overlay(&options).expect("overlay").link_workspace_packages,
+        Some(LinkWorkspacePackages::Deep),
+    );
+
+    options.link_workspace_packages = Some(serde_json::json!(true));
+    assert_eq!(
+        build_overlay(&options).expect("overlay").link_workspace_packages,
+        Some(LinkWorkspacePackages::DirectOnly),
+    );
+
+    options.link_workspace_packages = Some(serde_json::json!(false));
+    assert_eq!(
+        build_overlay(&options).expect("overlay").link_workspace_packages,
+        Some(LinkWorkspacePackages::Off),
+    );
+
+    // Anything other than a boolean or "deep" is rejected.
+    options.link_workspace_packages = Some(serde_json::json!("shallow"));
+    assert!(build_overlay(&options).is_err());
+}
+
+#[test]
 fn unsupported_install_options_fail_closed() {
     let mut options = install_options();
     options.auth_config = Some([("token".to_string(), "secret".to_string())].into());
@@ -143,6 +171,7 @@ fn install_options() -> InstallOptions {
         proxy_config: None,
         network_config: None,
         node_linker: None,
+        link_workspace_packages: None,
         hoist_pattern: None,
         public_hoist_pattern: None,
         external_dependencies: None,

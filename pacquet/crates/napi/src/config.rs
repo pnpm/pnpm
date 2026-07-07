@@ -34,7 +34,8 @@ use std::{
 use dashmap::DashMap;
 use indexmap::IndexMap;
 use pacquet_config::{
-    Config, GetHomeDir, Host, LoadWorkspaceYamlError, NodeLinker, PackageImportMethod,
+    Config, GetHomeDir, Host, LinkWorkspacePackages, LoadWorkspaceYamlError, NodeLinker,
+    PackageImportMethod,
 };
 use pacquet_network::{AuthHeaders, ProxyConfig, TlsConfig};
 use pacquet_store_dir::StoreDir;
@@ -52,6 +53,10 @@ pub struct ConfigOverlay {
     pub proxy: Option<ProxyConfig>,
     pub tls: Option<TlsConfig>,
     pub node_linker: Option<NodeLinker>,
+    /// `linkWorkspacePackages` — whether a bare-semver dependency may resolve
+    /// to a workspace package by name. `Off` (the default) matches only
+    /// `workspace:`-prefixed ranges.
+    pub link_workspace_packages: Option<LinkWorkspacePackages>,
     pub package_import_method: Option<PackageImportMethod>,
     pub virtual_store_dir_max_length: Option<u64>,
     pub hoist_pattern: Option<Vec<String>>,
@@ -261,6 +266,9 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
     }
     if let Some(node_linker) = overlay.node_linker {
         config.node_linker = node_linker;
+    }
+    if let Some(link_workspace_packages) = overlay.link_workspace_packages {
+        config.link_workspace_packages = link_workspace_packages;
     }
     if let Some(method) = overlay.package_import_method {
         config.package_import_method = method;
