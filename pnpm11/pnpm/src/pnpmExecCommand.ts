@@ -62,7 +62,7 @@ export async function applyPnpmExecCommand (command: unknown, opts: ApplyPnpmExe
 
   const binPath = runPnpmExecCommand(command)
   if (persistSeenCommand != null) {
-    process.stderr.write(`Resolved to ${binPath}\n`)
+    process.stderr.write(`Resolved to ${escapeControlCharacters(binPath)}\n`)
     // Record the command only after it resolved successfully, so a failing
     // first run doesn't silence the notice on the next (successful) one.
     await persistSeenCommand()

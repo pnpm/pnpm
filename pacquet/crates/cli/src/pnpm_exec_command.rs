@@ -215,7 +215,7 @@ fn apply(value: &serde_json::Value, workspace_dir: &Path) -> Result<(), PnpmExec
 
     let bin_path = run_command(&command)?;
     if let Some(trust) = trust {
-        eprintln!("Resolved to {}", bin_path.display());
+        eprintln!("Resolved to {}", escape_control_characters(&bin_path.display().to_string()));
         // Record the command only after it resolved successfully, so a
         // failing first run doesn't silence the notice on the next
         // (successful) one.
