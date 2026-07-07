@@ -60,6 +60,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         registry: "https://registry.npmjs.com/".to_string(),
         registries: Default::default(),
         pnpr_server: None,
+        package_provider: None,
         named_registries: Default::default(),
         auto_install_peers: false,
         auto_install_peers_from_highest_match: false,

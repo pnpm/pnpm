@@ -196,6 +196,9 @@ pub async fn resolve(
         resolution_observer: observer,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
+        // Resolve-only (`lockfile_only: true`): nothing is materialized
+        // server-side, so no package provider is ever consulted.
+        package_provider: None,
     }
     .run::<SilentReporter>()
     .await

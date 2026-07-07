@@ -83,6 +83,7 @@ pub type RequiresBuildBySnapshot = HashMap<PackageKey, bool>;
 /// (`build_sequence`, `link_bins`, hoisting, etc.) treat them as
 /// absent — a failed-fetch optional snapshot is simply not present
 /// in the install graph.
+#[derive(Default)]
 pub struct CreateVirtualStoreOutput {
     pub package_manifests: PackageManifests,
     pub side_effects_maps_by_snapshot: SideEffectsMapsBySnapshot,

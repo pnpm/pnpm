@@ -31,6 +31,7 @@ mod optimistic_repeat_install;
 mod overrides;
 mod package_extender;
 mod package_map;
+mod package_provider;
 mod patch;
 mod patch_commit;
 mod prefetching_resolver;
@@ -83,6 +84,10 @@ pub use overrides::*;
 pub use package_extender::*;
 pub use package_map::{
     WritePackageMapError, make_node_package_map_option, package_map_path_for_execution,
+};
+pub use package_provider::{
+    PackageProviderError, PackageProviderInputs, PackageProviderOutput,
+    materialize_through_package_provider,
 };
 pub use patch::*;
 pub use patch_commit::*;

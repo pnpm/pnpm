@@ -179,6 +179,13 @@ where
     /// `run_build_phase`'s `BuildPhaseInputs`. See
     /// [`crate::RebuildOptions`].
     pub rebuild: Option<&'a crate::RebuildOptions>,
+    /// Path to the external package-provider executable. When set, the
+    /// lockfile graph is materialized through it — see
+    /// [`crate::materialize_through_package_provider`] — and the
+    /// virtual-store population, hoist, per-slot bin, and dependency
+    /// build phases are skipped. See
+    /// [`crate::Install::package_provider`].
+    pub package_provider: Option<String>,
 }
 
 /// Error type of [`InstallFrozenLockfile`].
@@ -270,6 +277,14 @@ pub enum InstallFrozenLockfileError {
     #[display("failed to write package map: {_0}")]
     #[diagnostic(code(pacquet_package_manager::write_package_map))]
     WritePackageMap(#[error(source)] crate::WritePackageMapError),
+
+    /// Surfaces any failure from the external package provider —
+    /// unsupported resolutions in the graph, a provider that could not
+    /// be spawned or exited non-zero, or an invalid response. See
+    /// [`crate::PackageProviderError`] for the `ERR_PNPM_PACKAGE_PROVIDER_*`
+    /// codes.
+    #[diagnostic(transparent)]
+    PackageProvider(#[error(source)] crate::PackageProviderError),
 
     #[diagnostic(transparent)]
     InstallError(#[error(source)] Box<crate::InstallError>),
@@ -577,6 +592,7 @@ where
             tarball_mem_cache,
             seed_skipped,
             rebuild,
+            package_provider,
         } = self;
 
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
@@ -853,6 +869,14 @@ where
                 ),
             }
         };
+        // The package provider needs the engine string in its request
+        // (it is part of every node), so resolve the deferred
+        // `node --version` probe up front instead of right before the
+        // (skipped) build phase.
+        let (initial_engine_name, deferred_engine_handle) = match deferred_engine_handle {
+            Some(handle) if package_provider.is_some() => (handle.await.ok().flatten(), None),
+            other => (initial_engine_name, other),
+        };
         let engine_name = initial_engine_name;
 
         // Build the install-scoped slot-directory layout. When
@@ -864,7 +888,7 @@ where
         // `slot_dir` call. Either way every downstream consumer
         // (warm batch, cold batch, direct-dep symlinks, bin linker,
         // build module) routes through this one lookup.
-        let layout = VirtualStoreLayout::new(
+        let mut layout = VirtualStoreLayout::new(
             config,
             engine_name.as_deref(),
             snapshots,
@@ -903,46 +927,55 @@ where
             .await
             .map_err(InstallFrozenLockfileError::LockfileVerification)
         };
-        let create_virtual_store_fut = async {
-            CreateVirtualStore {
-                http_client,
-                config,
-                packages,
-                snapshots,
-                current_snapshots,
-                current_packages,
-                layout: &layout,
-                logged_methods,
-                requester,
-                store_index_writer: &store_index_writer,
-                allow_build_policy: &allow_build_policy,
-                skipped: &skipped,
-                workspace_root,
-                node_linker,
-                progress_reported: &progress_reported,
-                tarball_mem_cache,
-                #[cfg(test)]
-                link_concurrency_probe: None,
-            }
-            .run::<Reporter>()
-            .await
-            .map_err(InstallFrozenLockfileError::CreateVirtualStore)
-        };
         let phase_start = std::time::Instant::now();
-        // The verification verdict takes precedence over a concurrent fetch
-        // error — a plain `try_join!` would surface whichever error lands
-        // first, letting an unrelated fetch failure mask a rejected
-        // lockfile. A verification failure still aborts the fetch in
-        // flight (the select drops `create_virtual_store_fut`); a fetch
-        // failure waits for the verdict and only surfaces once the
-        // lockfile is known trusted.
         let CreateVirtualStoreOutput {
             package_manifests,
             side_effects_maps_by_snapshot,
             requires_build_by_snapshot,
             fetch_failed,
             cas_paths_by_pkg_id,
-        } = {
+        } = if package_provider.is_some() {
+            // The package provider owns materialization: nothing is
+            // fetched into the store and no virtual-store slot is
+            // populated. Verification still gates the provider spawn
+            // below — the provider runs the dependency lifecycle
+            // scripts, which must not execute for an unverified
+            // lockfile.
+            verify_fut.await?;
+            CreateVirtualStoreOutput::default()
+        } else {
+            let create_virtual_store_fut = async {
+                CreateVirtualStore {
+                    http_client,
+                    config,
+                    packages,
+                    snapshots,
+                    current_snapshots,
+                    current_packages,
+                    layout: &layout,
+                    logged_methods,
+                    requester,
+                    store_index_writer: &store_index_writer,
+                    allow_build_policy: &allow_build_policy,
+                    skipped: &skipped,
+                    workspace_root,
+                    node_linker,
+                    progress_reported: &progress_reported,
+                    tarball_mem_cache,
+                    #[cfg(test)]
+                    link_concurrency_probe: None,
+                }
+                .run::<Reporter>()
+                .await
+                .map_err(InstallFrozenLockfileError::CreateVirtualStore)
+            };
+            // The verification verdict takes precedence over a concurrent fetch
+            // error — a plain `try_join!` would surface whichever error lands
+            // first, letting an unrelated fetch failure mask a rejected
+            // lockfile. A verification failure still aborts the fetch in
+            // flight (the select drops `create_virtual_store_fut`); a fetch
+            // failure waits for the verdict and only surfaces once the
+            // lockfile is known trusted.
             let mut verify_fut = std::pin::pin!(verify_fut);
             let mut create_virtual_store_fut = std::pin::pin!(create_virtual_store_fut);
             tokio::select! {
@@ -975,6 +1008,36 @@ where
             skipped.add_fetch_failed(key);
         }
 
+        // Delegate materialization to the external package provider.
+        // The provider returns the directory each snapshot lives at;
+        // repointing the layout at those directories makes the
+        // direct-dep symlink and bin-link passes below work unchanged.
+        // Optional packages the provider could not build are folded
+        // into the installability skip set so they are excluded from
+        // linking and recorded in `.modules.yaml.skipped`, exactly
+        // like platform-skipped optionals.
+        if let Some(package_provider) = &package_provider {
+            let patches = resolve_snapshot_patches(config, None, snapshots)
+                .map_err(InstallFrozenLockfileError::BuildPhase)?;
+            let provided =
+                crate::materialize_through_package_provider(&crate::PackageProviderInputs {
+                    package_provider,
+                    lockfile_dir: workspace_root,
+                    snapshots,
+                    packages,
+                    skipped: &skipped,
+                    patches: patches.as_ref(),
+                    engine: engine_name.as_deref(),
+                    config,
+                })
+                .await
+                .map_err(InstallFrozenLockfileError::PackageProvider)?;
+            for key in provided.skipped {
+                skipped.insert_installability(key);
+            }
+            layout.set_provider_paths(provided.paths);
+        }
+
         // Pre-compute the hoist plan so the dedupe pass inside
         // `SymlinkDirectDependencies` can fold publicly-hoisted aliases
         // into root's target map — pacquet runs hoist *after*
@@ -983,6 +1046,10 @@ where
         // direct dep that would land at root via public-hoist stays
         // un-deduped. The full `HoistResult` is also threaded to the
         // on-disk hoist pass below so the BFS isn't run twice.
+        //
+        // Runs under a package provider too: the hoist symlinks live in
+        // writable project dirs and resolve to the provider paths through
+        // the layout, matching the TypeScript CLI.
         let pre_hoist = compute_hoist_plan(
             config,
             snapshots,
@@ -1028,15 +1095,21 @@ where
             // its own per-`node_modules` bin pass while walking the
             // hierarchy, routing both link phases through the hoisted
             // linker.
-            LinkVirtualStoreBins {
-                layout: &layout,
-                snapshots,
-                packages,
-                package_manifests: &package_manifests,
-                skipped: &skipped,
+            //
+            // Skipped under a package provider: the provider already
+            // wired each package's dependency bins inside its
+            // read-only directory.
+            if package_provider.is_none() {
+                LinkVirtualStoreBins {
+                    layout: &layout,
+                    snapshots,
+                    packages,
+                    package_manifests: &package_manifests,
+                    skipped: &skipped,
+                }
+                .run()
+                .map_err(InstallFrozenLockfileError::LinkVirtualStoreBins)?;
             }
-            .run()
-            .map_err(InstallFrozenLockfileError::LinkVirtualStoreBins)?;
         }
 
         // Hoisted-linker materialization. Replaces the isolated
@@ -1228,32 +1301,61 @@ where
         // lossy `requester` string so non-UTF-8 filenames survive.
         // `allow_build_policy` was constructed up-front (before
         // `CreateVirtualStore`) so the git fetcher could consult it.
-        let ignored_builds = run_build_phase::<Reporter>(&BuildPhaseInputs {
-            config,
-            workspace_root,
-            top_level_bin_root: workspace_root,
-            layout: &layout,
-            snapshots,
-            packages,
-            importers,
-            dependency_groups: &dependency_groups,
-            // Resolved once inside `resolve_snapshot_patches`; the frozen
-            // path has no earlier patch resolution to reuse.
-            patch_groups: None,
-            allow_build_policy: &allow_build_policy,
-            side_effects_maps_by_snapshot: &side_effects_maps_by_snapshot,
-            requires_build_by_snapshot: &requires_build_by_snapshot,
-            engine_name: engine_name.as_deref(),
-            extra_env: &build_extra_env,
-            store_index_writer: &store_index_writer,
-            skipped: &skipped,
-            hoisted_pkg_root_by_key: hoisted_pkg_root_by_key.as_ref(),
-            is_hoisted,
-            publicly_hoisted_for_post_build: &publicly_hoisted_for_post_build,
-            logged_methods,
-            rebuild,
-        })
-        .map_err(InstallFrozenLockfileError::BuildPhase)?;
+        //
+        // Under a package provider the dependency build phase is the
+        // provider's job (the returned directories are read-only with
+        // scripts already run), so only the reporter emit and the
+        // per-importer top-level bin pass remain.
+        let ignored_builds = if package_provider.is_some() {
+            Reporter::emit(&LogEvent::IgnoredScripts(IgnoredScriptsLog {
+                level: LogLevel::Debug,
+                package_names: Vec::new(),
+                strict_dep_builds: config.strict_dep_builds,
+            }));
+            let modules_dir_basename: &OsStr =
+                config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
+            for (importer_id, importer_snapshot) in importers {
+                let project_dir = importer_root_dir(workspace_root, importer_id);
+                let modules_dir = project_dir.join(modules_dir_basename);
+                let direct_names = direct_dep_names_for_importer(
+                    importer_snapshot,
+                    dependency_groups.iter().copied(),
+                    &skipped,
+                    false,
+                );
+                link_top_level_bins(&modules_dir, &direct_names, &[])
+                    .map_err(BuildPhaseError::TopLevelBinLink)
+                    .map_err(InstallFrozenLockfileError::BuildPhase)?;
+            }
+            Vec::new()
+        } else {
+            run_build_phase::<Reporter>(&BuildPhaseInputs {
+                config,
+                workspace_root,
+                top_level_bin_root: workspace_root,
+                layout: &layout,
+                snapshots,
+                packages,
+                importers,
+                dependency_groups: &dependency_groups,
+                // Resolved once inside `resolve_snapshot_patches`; the frozen
+                // path has no earlier patch resolution to reuse.
+                patch_groups: None,
+                allow_build_policy: &allow_build_policy,
+                side_effects_maps_by_snapshot: &side_effects_maps_by_snapshot,
+                requires_build_by_snapshot: &requires_build_by_snapshot,
+                engine_name: engine_name.as_deref(),
+                extra_env: &build_extra_env,
+                store_index_writer: &store_index_writer,
+                skipped: &skipped,
+                hoisted_pkg_root_by_key: hoisted_pkg_root_by_key.as_ref(),
+                is_hoisted,
+                publicly_hoisted_for_post_build: &publicly_hoisted_for_post_build,
+                logged_methods,
+                rebuild,
+            })
+            .map_err(InstallFrozenLockfileError::BuildPhase)?
+        };
 
         // Drop the orchestrator's clone of the writer so the channel
         // closes once every per-snapshot clone has also been dropped;

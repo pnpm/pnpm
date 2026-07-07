@@ -103,6 +103,11 @@ pub struct WorkspaceSettings {
     pub registry: Option<String>,
     pub registries: Option<BTreeMap<String, String>>,
     pub pnpr_server: Option<String>,
+    /// `packageProvider` from `pnpm-workspace.yaml` / global
+    /// `config.yaml`. See [`Config::package_provider`].
+    ///
+    /// [`Config::package_provider`]: crate::Config::package_provider
+    pub package_provider: Option<String>,
 
     /// User-defined named-registry aliases. Outer key is the alias
     /// name (`gh`, `work`, ...); inner string is the registry URL the
@@ -679,6 +684,7 @@ impl WorkspaceSettings {
         substitute_optional_string::<Sys>(&mut self.npmrc_auth_file);
         substitute_optional_string::<Sys>(&mut self.patches_dir);
         substitute_optional_string::<Sys>(&mut self.cache_dir);
+        substitute_optional_string::<Sys>(&mut self.package_provider);
         substitute_optional_inner_string::<Sys>(&mut self.script_shell);
         substitute_optional_inner_string::<Sys>(&mut self.node_options);
     }
@@ -771,6 +777,9 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.pnpr_server {
             config.pnpr_server = Some(v);
+        }
+        if let Some(v) = self.package_provider {
+            config.package_provider = Some(v);
         }
         if let Some(v) = self.named_registries {
             config.named_registries = v;

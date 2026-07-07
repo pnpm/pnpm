@@ -576,6 +576,7 @@ impl Update<'_> {
             resolution_observer,
             catalogs_override,
             disable_optimistic_repeat_install: false,
+            package_provider: config.package_provider.clone(),
         }
         .run::<Reporter>()
         .await

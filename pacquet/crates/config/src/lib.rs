@@ -991,6 +991,16 @@ pub struct Config {
     /// `None` runs the normal local resolution flow.
     pub pnpr_server: Option<String>,
 
+    /// Path to an external package-provider executable. The
+    /// `packageProvider` setting. When set, the install sends the
+    /// resolved dependency graph to the executable (JSON on stdin,
+    /// protocol v1) and symlinks `node_modules` straight to the
+    /// directories it returns, skipping virtual-store materialization
+    /// and dependency lifecycle scripts (the provider already ran
+    /// them). Requires `nodeLinker: isolated` and conflicts with
+    /// `enableGlobalVirtualStore`. `None` materializes locally.
+    pub package_provider: Option<String>,
+
     /// Path to the user-level `.npmrc` to read auth from, overriding the
     /// default `~/.npmrc`. The `npmrcAuthFile` setting (and the
     /// `--userconfig` alias). Resolved in [`Config::current`] from this

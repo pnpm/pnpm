@@ -64,6 +64,7 @@ impl DedupeArgs {
             resolution_observer: None,
             catalogs_override: None,
             disable_optimistic_repeat_install: false,
+            package_provider: config.package_provider.clone(),
         }
         .run::<Reporter>()
         .await

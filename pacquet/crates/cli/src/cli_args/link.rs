@@ -164,6 +164,7 @@ impl LinkArgs {
             lockfile_only: false,
             dry_run: false,
             disable_optimistic_repeat_install: false,
+            package_provider: config.package_provider.clone(),
             update_seed_policy: UpdateSeedPolicy::KeepAll,
             auth_override: None,
             resolution_observer: None,
