@@ -13,6 +13,18 @@ import { exit } from './exit.js'
 const RE_EXEC_DEPTH_ENV = 'PNPM_RE_EXEC_DEPTH'
 const MAX_RE_EXEC_DEPTH = 2
 
+/**
+ * Reset the re-exec depth once a resolution is confirmed settled (the running
+ * binary is the one the project wants), so the backstop counts consecutive
+ * redirects of one resolution. Without the reset, an inherited depth from an
+ * unrelated outer resolution (e.g. a lifecycle script invoking pnpm in a
+ * different project) would accumulate toward the cap and trip it with no
+ * loop present.
+ */
+export function clearReExecDepth (): void {
+  delete process.env[RE_EXEC_DEPTH_ENV]
+}
+
 export class VersionSwitchFail extends PnpmError {
   constructor (target: string, wantedPnpmBinDir: string, cause?: unknown) {
     super(

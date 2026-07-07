@@ -1,24 +1,18 @@
-import path from 'node:path'
-
 import { packageManager } from '@pnpm/cli.meta'
 import type { Config } from '@pnpm/config.reader'
 import { updateCheckLogger } from '@pnpm/core-loggers'
 import { createResolver } from '@pnpm/installing.client'
-import { loadJsonFile } from 'load-json-file'
-import { writeJsonFile } from 'write-json-file'
 
-interface State {
-  lastUpdateCheck?: string
-}
+import { readPnpmState, writePnpmState } from './pnpmState.js'
 
 const UPDATE_CHECK_FREQUENCY = 24 * 60 * 60 * 1000 // 1 day
 
 export async function checkForUpdates (config: Config): Promise<void> {
-  const stateFile = path.join(config.stateDir, 'pnpm-state.json')
-  let state: State | undefined
-  try {
-    state = await loadJsonFile(stateFile)
-  } catch {}
+  // The configured stateDir (unlike the pnpmExecCommand trust records, which
+  // use the default per-user dir): the update-check timestamp is a
+  // performance hint, not a security signal, so a workspace-set stateDir
+  // costs at most an extra registry query.
+  const { state } = await readPnpmState(config.stateDir)
 
   if (
     state?.lastUpdateCheck &&
@@ -43,8 +37,7 @@ export async function checkForUpdates (config: Config): Promise<void> {
       latestVersion: resolution?.manifest.version,
     })
   }
-  await writeJsonFile(stateFile, {
-    ...state,
+  await writePnpmState(config.stateDir, {
     lastUpdateCheck: new Date().toUTCString(),
   })
 }

@@ -31,6 +31,7 @@ import { getConfig, installConfigDepsAndLoadHooks } from './getConfig.js'
 import type { ParsedCliArgsWithBuiltIn } from './parseCliArgs.js'
 import { parseCliArgs } from './parseCliArgs.js'
 import { applyPnpmExecCommand } from './pnpmExecCommand.js'
+import { clearReExecDepth } from './reExecPnpm.js'
 import { initReporter, type ReporterType } from './reporter/index.js'
 import { switchCliVersion } from './switchCliVersion.js'
 import { syncEnvLockfile } from './syncEnvLockfile.js'
@@ -158,6 +159,12 @@ export async function main (inputArgv: string[]): Promise<void> {
         }
       }
     }
+    // Reaching this line means neither re-exec mechanism re-exec'd, so this
+    // process is the settled binary for this invocation. Reset the depth so
+    // nested pnpm invocations (lifecycle scripts, possibly in unrelated
+    // projects) start their own resolutions from zero instead of inheriting
+    // this chain's count.
+    clearReExecDepth()
     // `pnpm set` / `pnpm get` are separate top-level commands whose handlers
     // delegate to the `config` command internally. They are not rewritten to
     // `cmd === 'config'` at this layer, so list them explicitly — users can

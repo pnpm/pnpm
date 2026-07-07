@@ -1,13 +1,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
-import { getStateDir } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import spawn from 'cross-spawn'
-import { loadJsonFile } from 'load-json-file'
-import { writeJsonFile } from 'write-json-file'
 
+import { getDefaultStateDir, readPnpmState, writePnpmState } from './pnpmState.js'
 import { reExecPnpm } from './reExecPnpm.js'
 
 /**
@@ -43,21 +40,22 @@ export interface ApplyPnpmExecCommandOptions {
  * actually produced.
  */
 export async function applyPnpmExecCommand (command: unknown, opts: ApplyPnpmExecCommandOptions): Promise<void> {
+  if (process.env[PNPM_EXEC_PATH_ENV] != null) {
+    // A parent pnpm already ran the command and re-exec'd into its result
+    // (which is why this is checked before anything else, validation
+    // included — resolution happens once per user invocation). If that result
+    // is the running binary (the normal case), there is nothing to do. If it
+    // isn't — e.g. a stale sentinel inherited from an unrelated parent
+    // process — re-running the command could loop, so proceed and let the
+    // packageManager check surface any version mismatch.
+    return
+  }
+
   if (!Array.isArray(command) || command.length === 0 || !command.every((arg) => typeof arg === 'string' && arg !== '')) {
     throw new PnpmError(
       'EXEC_COMMAND_INVALID',
       'The pnpmExecCommand setting must be an array of non-empty strings, e.g. ["my-tool", "which-pnpm"]'
     )
-  }
-
-  const resolvedByParent = process.env[PNPM_EXEC_PATH_ENV]
-  if (resolvedByParent != null) {
-    // A parent pnpm already ran the command and re-exec'd into its result. If
-    // that result is the running binary (the normal case), there is nothing to
-    // do. If it isn't — e.g. a stale sentinel inherited from an unrelated
-    // parent process — re-running the command could loop, so proceed and let
-    // the packageManager check surface any version mismatch.
-    return
   }
 
   const persistSeenCommand = await noticeOnFirstUseOrChange(command, opts)
@@ -86,29 +84,21 @@ export async function applyPnpmExecCommand (command: unknown, opts: ApplyPnpmExe
   })
 }
 
-interface PnpmState {
-  /**
-   * Trust-on-first-use record of pnpmExecCommand values, keyed by the real
-   * path of the workspace directory. The value is the JSON-encoded argv. A
-   * workspace whose command matches its record runs silently; an unseen
-   * workspace or a changed command prints a notice to stderr first. Stored in
-   * the per-user state dir, outside the repository, so a project cannot
-   * pre-seed it to suppress its own notice.
-   */
-  pnpmExecCommands?: Record<string, string>
-  [key: string]: unknown
-}
-
 /**
  * Print a notice to stderr the first time a workspace's pnpmExecCommand runs
  * under this user, and a louder one whenever the command changes — the same
  * trust-on-first-use pattern as SSH known hosts, turning a quietly edited
- * pnpm-workspace.yaml into a visible signal.
+ * pnpm-workspace.yaml into a visible signal. The records live under the
+ * `pnpmExecCommands` key of `pnpm-state.json`, in the default per-user state
+ * dir ({@link getDefaultStateDir} explains why the configured `stateDir` is
+ * deliberately not honored here).
  *
  * stderr keeps stdout machine-clean (`$(pnpm --version)` etc.); a direct
  * write is used because the reporter is not initialized this early in
- * startup. State-file read/write failures fall back to printing the notice —
- * failing open on noise, never on silence.
+ * startup. When the trust store can't be consulted safely — no absolute
+ * state dir, or a state file that exists but can't be read — the notice
+ * prints on every run and nothing is recorded: failing open on noise, never
+ * on silence.
  *
  * Returns `null` when the command matches its record (no notice printed).
  * Otherwise the notice is printed and a callback that records the command is
@@ -117,32 +107,14 @@ interface PnpmState {
 async function noticeOnFirstUseOrChange (command: string[], opts: ApplyPnpmExecCommandOptions): Promise<(() => Promise<void>) | null> {
   const workspaceKey = realpathOrSelf(opts.workspaceDir)
   const commandRecord = JSON.stringify(command)
-  // The trust records deliberately live in the *default* per-user state dir,
-  // not config.stateDir: `stateDir` is workspace-yaml-settable, so honoring it
-  // here would let the workspace file that declares a malicious command also
-  // point pnpm at a repo-controlled state file that pre-seeds its own trust
-  // record, suppressing the notice. The env override (pnpm_config_state_dir)
-  // is user-controlled, not repo-controlled, so it stays honored.
-  const stateDir = process.env.pnpm_config_state_dir ?? process.env.PNPM_CONFIG_STATE_DIR ?? getStateDir(process)
-  if (!path.isAbsolute(stateDir)) {
-    // A relative state dir would resolve against the current (typically
-    // repo-controlled) directory, so the trust record could be pre-seeded.
-    // Reachable only with an empty home dir or a relative env override.
+  const stateDir = getDefaultStateDir()
+  if (stateDir == null) {
     return printNoticeWithoutTrustStore(command)
   }
-  const stateFile = path.join(stateDir, 'pnpm-state.json')
 
-  let state: PnpmState | undefined
-  try {
-    state = await loadJsonFile(stateFile)
-  } catch (err: unknown) {
-    // A missing state file is the normal first run, and an unparsable one is
-    // rewritten below (nothing valid is lost). Any other read failure (e.g.
-    // permissions) leaves a file whose other keys the persist step would
-    // clobber, so skip persistence for this run.
-    if (util.types.isNativeError(err) && 'code' in err && err.code !== 'ENOENT') {
-      return printNoticeWithoutTrustStore(command)
-    }
+  const { state, writable } = await readPnpmState(stateDir)
+  if (!writable) {
+    return printNoticeWithoutTrustStore(command)
   }
 
   const seen = state?.pnpmExecCommands?.[workspaceKey]
@@ -160,8 +132,7 @@ async function noticeOnFirstUseOrChange (command: string[], opts: ApplyPnpmExecC
 
   return async () => {
     try {
-      await writeJsonFile(stateFile, {
-        ...state,
+      await writePnpmState(stateDir, {
         pnpmExecCommands: {
           ...state?.pnpmExecCommands,
           [workspaceKey]: commandRecord,

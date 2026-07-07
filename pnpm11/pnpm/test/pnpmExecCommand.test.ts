@@ -353,6 +353,27 @@ test('repeats the notice when the command failed, so a failing first run never r
   expect(secondRun.stderr.toString()).toContain('Resolving the pnpm binary with pnpmExecCommand')
 })
 
+test('an exported-but-empty state dir env override counts as unset', async () => {
+  prepare()
+  const resolver = path.resolve('resolve-pnpm.js')
+  fs.writeFileSync(resolver, `console.log(${JSON.stringify(pnpmBinLocation)})\n`)
+  writeYamlFileSync('pnpm-workspace.yaml', { pnpmExecCommand: [process.execPath, resolver] })
+
+  // The empty lowercase form must not shadow the uppercase one: trust
+  // persists to the uppercase override's dir instead of the flow degrading
+  // to a notice on every run.
+  const env = {
+    pnpm_config_state_dir: '',
+    PNPM_CONFIG_STATE_DIR: path.resolve('state'),
+  }
+
+  const firstRun = execPnpmSync(['root'], { env, expectSuccess: true })
+  expect(firstRun.stderr.toString()).toContain('Resolving the pnpm binary with pnpmExecCommand')
+
+  const secondRun = execPnpmSync(['root'], { env, expectSuccess: true })
+  expect(secondRun.stderr.toString()).not.toContain('Resolving the pnpm binary with pnpmExecCommand')
+})
+
 test('a stateDir set in pnpm-workspace.yaml cannot suppress the notice', async () => {
   const project = prepare()
   const resolver = path.resolve('resolve-pnpm.js')
