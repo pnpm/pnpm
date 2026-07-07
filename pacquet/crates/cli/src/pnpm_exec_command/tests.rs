@@ -1,4 +1,4 @@
-use super::{PnpmExecCommandError, prepend_to_path, validate};
+use super::{PnpmExecCommandError, escape_control_characters, prepend_to_path, validate};
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use std::{ffi::OsString, path::Path};
@@ -37,6 +37,13 @@ fn prepend_to_path_skips_a_dir_already_leading_path() {
     let already_leading = OsString::from(format!("/vended/bin{delimiter}/usr/bin"));
     let out = prepend_to_path(Path::new("/vended/bin"), Some(already_leading.clone()));
     assert_eq!(out, already_leading);
+}
+
+#[test]
+fn escape_control_characters_renders_json_escapes() {
+    assert_eq!(escape_control_characters("plain ascii ünïcode"), "plain ascii ünïcode");
+    assert_eq!(escape_control_characters("a\nb\tc\rd\u{8}e\u{c}f"), "a\\nb\\tc\\rd\\be\\ff",);
+    assert_eq!(escape_control_characters("\u{1b}[31mred\u{1b}[0m"), "\\u001b[31mred\\u001b[0m");
 }
 
 #[test]

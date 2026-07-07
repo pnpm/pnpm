@@ -65,6 +65,14 @@ fn setup_vended_pnpm(root: &Path) -> (PathBuf, PathBuf) {
     (fake_bin, resolver)
 }
 
+/// Undo miette's terminal-width wrapping (newline + `│` gutter) so
+/// assertions can match an error message regardless of where the
+/// tempdir path made it wrap.
+#[cfg(unix)]
+fn unwrap_miette_lines(stderr: &str) -> String {
+    stderr.split_whitespace().filter(|word| *word != "│").collect::<Vec<_>>().join(" ")
+}
+
 /// Write a resolver that prints the path of the running pacquet binary
 /// itself, so no re-exec happens.
 #[cfg(unix)]
@@ -216,7 +224,36 @@ fn fails_when_the_command_prints_a_path_that_does_not_exist() {
     assert!(!output.status.success());
 
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("printed a path that does not exist"), "stderr:\n{stderr}");
+    let unwrapped = unwrap_miette_lines(&stderr);
+    assert!(
+        unwrapped.contains("printed a path that is not an existing file"),
+        "stderr:\n{stderr}",
+    );
+
+    drop(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn fails_when_the_command_prints_a_path_that_is_a_directory() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let dir = root.path().join("a-directory");
+    fs::create_dir_all(&dir).expect("create directory");
+    let resolver = root.path().join("resolve-pnpm.sh");
+    write_executable(&resolver, &format!("#!/bin/sh\necho '{}'\n", dir.display()));
+    write_workspace_yaml(&workspace, &[&resolver.display().to_string()]);
+
+    let output =
+        isolated(pacquet, root.path()).with_args(["root"]).output().expect("run pacquet root");
+    dbg!(&output);
+    assert!(!output.status.success());
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let unwrapped = unwrap_miette_lines(&stderr);
+    assert!(
+        unwrapped.contains("printed a path that is not an existing file"),
+        "stderr:\n{stderr}",
+    );
 
     drop(root);
 }
@@ -361,6 +398,68 @@ fn repeats_the_notice_when_the_command_failed() {
         second_stderr.contains("Resolving the pnpm binary with pnpmExecCommand"),
         "a failed first run must not record trust:\n{second_stderr}",
     );
+
+    drop(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn control_characters_in_the_command_cannot_forge_the_notice() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let resolver = setup_self_resolver(root.path());
+    // The extra argv element tries to inject a fake resolution line
+    // into the trust notice via an embedded newline.
+    write_workspace_yaml(
+        &workspace,
+        &[&resolver.display().to_string(), "ignored-arg\nResolved to /forged/pnpm"],
+    );
+
+    let output =
+        isolated(pacquet, root.path()).with_args(["root"]).output().expect("run pacquet root");
+    dbg!(&output);
+    assert!(output.status.success());
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ignored-arg\\nResolved to /forged/pnpm"),
+        "the newline should be escaped:\n{stderr}",
+    );
+    assert!(
+        !stderr.contains("\nResolved to /forged/pnpm"),
+        "the forged line must not appear on its own line:\n{stderr}",
+    );
+
+    drop(root);
+}
+
+/// A resolver that floods stdout past the OS pipe buffer must not
+/// wedge until the timeout: stdout is drained concurrently, so the
+/// command finishes promptly (and fails on the garbage path).
+#[cfg(unix)]
+#[test]
+fn a_resolver_flooding_stdout_does_not_hang() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let resolver = root.path().join("resolve-pnpm.sh");
+    // ~8 MiB of output, far past any pipe buffer.
+    write_executable(
+        &resolver,
+        "#!/bin/sh\ni=0\nwhile [ $i -lt 131072 ]; do echo 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; i=$((i+1)); done\n",
+    );
+    write_workspace_yaml(&workspace, &[&resolver.display().to_string()]);
+
+    let started = std::time::Instant::now();
+    let output =
+        isolated(pacquet, root.path()).with_args(["root"]).output().expect("run pacquet root");
+    dbg!(output.status);
+    assert!(!output.status.success());
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(30),
+        "the resolver must not block until the 60s timeout: took {:?}",
+        started.elapsed(),
+    );
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("printed a non-absolute path"), "stderr:\n{stderr}");
 
     drop(root);
 }

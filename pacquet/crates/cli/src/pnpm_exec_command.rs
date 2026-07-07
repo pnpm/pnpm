@@ -76,7 +76,9 @@ pub enum PnpmExecCommandError {
     #[diagnostic(code(ERR_PNPM_EXEC_COMMAND_RELATIVE_PATH))]
     RelativePath { command: String, path: String },
 
-    #[display(r#"The pnpmExecCommand ("{command}") printed a path that does not exist: "{path}""#)]
+    #[display(
+        r#"The pnpmExecCommand ("{command}") printed a path that is not an existing file: "{path}""#
+    )]
     #[diagnostic(code(ERR_PNPM_EXEC_COMMAND_BAD_PATH))]
     BadPath { command: String, path: String },
 
@@ -233,6 +235,13 @@ fn validate(value: &serde_json::Value) -> Result<Vec<String>, PnpmExecCommandErr
 /// in the per-user state dir, outside the repository, so a project
 /// cannot pre-seed it to suppress its own notice.
 struct TrustRecord {
+    /// `None` when the trust store couldn't be consulted safely (the
+    /// notice was printed anyway); [`persist`](Self::persist) is then a
+    /// no-op and the notice repeats next run.
+    store: Option<TrustStore>,
+}
+
+struct TrustStore {
     state_file: PathBuf,
     state: serde_json::Map<String, serde_json::Value>,
     workspace_key: String,
@@ -246,8 +255,10 @@ impl TrustRecord {
     /// `None` when the command matches its record (no notice printed).
     ///
     /// stderr keeps stdout machine-clean (`$(pnpm --version)` etc.).
-    /// State-file read failures fall back to printing the notice —
-    /// failing open on noise, never on silence.
+    /// When the trust store can't be consulted safely — no resolvable
+    /// state dir, a relative one, or an unreadable state file — the
+    /// notice prints on every run and nothing is recorded: failing open
+    /// on noise, never on silence.
     fn check(command: &[String], workspace_dir: &Path) -> Option<Self> {
         let workspace_key = dunce::canonicalize(workspace_dir)
             .unwrap_or_else(|_| workspace_dir.to_path_buf())
@@ -263,17 +274,40 @@ impl TrustRecord {
         // trust record, suppressing the notice. The env override
         // (`pnpm_config_state_dir`) is user-controlled, not
         // repo-controlled, so it stays honored.
-        let state_dir = std::env::var("pnpm_config_state_dir")
+        let Some(state_dir) = std::env::var("pnpm_config_state_dir")
             .or_else(|_| std::env::var("PNPM_CONFIG_STATE_DIR"))
             .map(PathBuf::from)
             .ok()
-            .or_else(default_state_dir::<Host>)?;
+            .or_else(default_state_dir::<Host>)
+        else {
+            print_first_use_notice(command);
+            return Some(TrustRecord { store: None });
+        };
+        // A relative state dir would resolve against the current
+        // (typically repo-controlled) directory, so the trust record
+        // could be pre-seeded. Reachable only with a relative env
+        // override.
+        if !state_dir.is_absolute() {
+            print_first_use_notice(command);
+            return Some(TrustRecord { store: None });
+        }
         let state_file = state_dir.join("pnpm-state.json");
 
-        let state = fs::read_to_string(&state_file)
-            .ok()
-            .and_then(|text| serde_json::from_str::<serde_json::Map<_, _>>(&text).ok())
-            .unwrap_or_default();
+        let state = match fs::read_to_string(&state_file) {
+            // An unparsable file is rewritten by `persist` (nothing
+            // valid is lost).
+            Ok(text) => serde_json::from_str::<serde_json::Map<_, _>>(&text).unwrap_or_default(),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                serde_json::Map::default()
+            }
+            // Any other read failure (e.g. permissions) leaves a file
+            // whose other keys `persist` would clobber, so skip
+            // persistence for this run.
+            Err(_) => {
+                print_first_use_notice(command);
+                return Some(TrustRecord { store: None });
+            }
+        };
 
         let seen = state
             .get("pnpmExecCommands")
@@ -282,34 +316,41 @@ impl TrustRecord {
         match seen {
             Some(seen) if seen == command_record => return None,
             Some(seen) => {
-                let was = serde_json::from_str::<Vec<String>>(seen)
-                    .map_or_else(|_| seen.to_string(), |args| args.join(" "));
+                let was = serde_json::from_str::<Vec<String>>(seen).map_or_else(
+                    // A corrupted record still gets shown (escaped)
+                    // rather than crashing the notice that is reporting
+                    // the change away from it.
+                    |_| escape_control_characters(seen),
+                    |args| display_command(&args),
+                );
                 eprintln!("The pnpmExecCommand for this workspace has changed:");
                 eprintln!("  was: {was}");
-                eprintln!("  now: {}", command.join(" "));
+                eprintln!("  now: {}", display_command(command));
             }
-            None => {
-                eprintln!("Resolving the pnpm binary with pnpmExecCommand:");
-                eprintln!("> {}", command.join(" "));
-            }
+            None => print_first_use_notice(command),
         }
 
-        Some(TrustRecord { state_file, state, workspace_key, command_record })
+        Some(TrustRecord {
+            store: Some(TrustStore { state_file, state, workspace_key, command_record }),
+        })
     }
 
     /// Record the command as seen. Failures are ignored: the notice
     /// then repeats next run, and noise is an acceptable failure mode
     /// where a suppressed notice is not.
-    fn persist(mut self) {
-        if let Some(records) = self
+    fn persist(self) {
+        let Some(mut store) = self.store else {
+            return;
+        };
+        if let Some(records) = store
             .state
             .entry("pnpmExecCommands")
             .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()))
             .as_object_mut()
         {
-            records.insert(self.workspace_key, serde_json::Value::String(self.command_record));
+            records.insert(store.workspace_key, serde_json::Value::String(store.command_record));
         }
-        if let Some(parent) = self.state_file.parent() {
+        if let Some(parent) = store.state_file.parent() {
             let _ = fs::create_dir_all(parent);
         }
         // Tab-indented plus a trailing newline: the format
@@ -318,11 +359,44 @@ impl TrustRecord {
         let mut text = Vec::new();
         let formatter = serde_json::ser::PrettyFormatter::with_indent(b"\t");
         let mut serializer = serde_json::Serializer::with_formatter(&mut text, formatter);
-        if serde::Serialize::serialize(&self.state, &mut serializer).is_ok() {
+        if serde::Serialize::serialize(&store.state, &mut serializer).is_ok() {
             text.push(b'\n');
-            let _ = fs::write(&self.state_file, text);
+            let _ = fs::write(&store.state_file, text);
         }
     }
+}
+
+fn print_first_use_notice(command: &[String]) {
+    eprintln!("Resolving the pnpm binary with pnpmExecCommand:");
+    eprintln!("> {}", display_command(command));
+}
+
+fn display_command(command: &[String]) -> String {
+    escape_control_characters(&command.join(" "))
+}
+
+/// The notice is a trust signal, so argv elements must not be able to
+/// forge it (or hide parts of it) with embedded newlines or terminal
+/// escape sequences. Control characters are rendered as their JSON
+/// escape. Kept in sync with the TypeScript CLI's
+/// `escapeControlCharacters`.
+fn escape_control_characters(text: &str) -> String {
+    use std::fmt::Write;
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ch {
+            '\u{8}' => out.push_str("\\b"),
+            '\t' => out.push_str("\\t"),
+            '\n' => out.push_str("\\n"),
+            '\u{c}' => out.push_str("\\f"),
+            '\r' => out.push_str("\\r"),
+            ch if ch.is_control() => {
+                let _ = write!(out, "\\u{:04x}", u32::from(ch));
+            }
+            ch => out.push(ch),
+        }
+    }
+    out
 }
 
 /// Run the resolver command with stdout piped and stderr inherited (so
@@ -333,7 +407,7 @@ impl TrustRecord {
 /// running the current (potentially mismatched) pnpm instead would
 /// defeat the point of the setting.
 fn run_command(command: &[String]) -> Result<PathBuf, PnpmExecCommandError> {
-    let joined = command.join(" ");
+    let joined = display_command(command);
     let (program, args) = command.split_first().expect("command was validated as non-empty");
     let mut child = Command::new(program)
         .args(args)
@@ -347,6 +421,17 @@ fn run_command(command: &[String]) -> Result<PathBuf, PnpmExecCommandError> {
             hint: Some(error.to_string()),
         })?;
 
+    // Drain stdout on its own thread while waiting, so a resolver that
+    // writes more than the OS pipe buffer blocks neither itself nor the
+    // wait below (it would otherwise sit wedged until the timeout).
+    let reader = child.stdout.take().map(|mut pipe| {
+        std::thread::spawn(move || {
+            let mut stdout = Vec::new();
+            let _ = pipe.read_to_end(&mut stdout);
+            stdout
+        })
+    });
+
     let status = wait_with_timeout(&mut child, COMMAND_TIMEOUT).map_err(|_elapsed| {
         PnpmExecCommandError::Fail {
             command: joined.clone(),
@@ -355,10 +440,9 @@ fn run_command(command: &[String]) -> Result<PathBuf, PnpmExecCommandError> {
         }
     })?;
 
-    let mut stdout = Vec::new();
-    if let Some(mut pipe) = child.stdout.take() {
-        let _ = pipe.read_to_end(&mut stdout);
-    }
+    // The child has exited (or been killed), so its end of the pipe is
+    // closed and the reader finishes promptly.
+    let stdout = reader.and_then(|handle| handle.join().ok()).unwrap_or_default();
 
     if !status.success() {
         return Err(PnpmExecCommandError::Fail {
@@ -382,7 +466,7 @@ fn run_command(command: &[String]) -> Result<PathBuf, PnpmExecCommandError> {
             path: bin_path.display().to_string(),
         });
     }
-    if !bin_path.exists() {
+    if !bin_path.is_file() {
         return Err(PnpmExecCommandError::BadPath {
             command: joined,
             path: bin_path.display().to_string(),
@@ -392,9 +476,7 @@ fn run_command(command: &[String]) -> Result<PathBuf, PnpmExecCommandError> {
 }
 
 /// Wait for `child`, killing it and returning `Err` when `timeout`
-/// elapses first. Polling (rather than a reader thread) is fine here:
-/// the resolver's expected output is one path, far below the OS pipe
-/// buffer, so the child can't block on a full pipe before exiting.
+/// elapses first.
 fn wait_with_timeout(
     child: &mut std::process::Child,
     timeout: Duration,
@@ -430,7 +512,8 @@ fn is_current_binary(bin_path: &Path) -> bool {
 /// invocations from lifecycle scripts resolve to the same binary).
 fn re_exec(bin_path: &Path, command: &[String]) -> Result<(), PnpmExecCommandError> {
     let bin_dir = bin_path.parent().unwrap_or_else(|| Path::new("/"));
-    let target = format!(r#"the binary resolved by pnpmExecCommand ("{}")"#, command.join(" "));
+    let target =
+        format!(r#"the binary resolved by pnpmExecCommand ("{}")"#, display_command(command));
 
     let depth: u32 =
         std::env::var(RE_EXEC_DEPTH_ENV).ok().and_then(|d| d.parse().ok()).unwrap_or(0);
