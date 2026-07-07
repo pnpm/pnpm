@@ -797,9 +797,6 @@ impl WorkspaceSettings {
         if let Some(v) = self.pnpr_server {
             config.pnpr_server = Some(v);
         }
-        if let Some(v) = self.pnpm_exec_command {
-            config.pnpm_exec_command = Some(v);
-        }
         if let Some(v) = self.named_registries {
             config.named_registries = v;
         }

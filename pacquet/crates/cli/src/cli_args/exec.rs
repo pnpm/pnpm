@@ -8,7 +8,7 @@ use pacquet_executor::{push_script_arg, select_shell};
 use pacquet_package_manager::{make_node_package_map_option, package_map_path_for_execution};
 use pacquet_package_manifest::PackageManifest;
 use std::{
-    ffi::{OsStr, OsString},
+    ffi::OsString,
     path::{Path, PathBuf},
     process::{Command, ExitStatus},
 };
@@ -208,31 +208,6 @@ fn read_package_name(dir: &Path) -> Option<String> {
 /// in `PATH`, so it is rejected with [`ExecError::BadPathDir`] rather than
 /// silently splitting into two entries.
 fn prepend_dirs_to_path(dirs: &[PathBuf]) -> Result<OsString, ExecError> {
-    let delimiter = if cfg!(windows) { ';' } else { ':' };
-    for dir in dirs {
-        if dir.to_string_lossy().contains(delimiter) {
-            return Err(ExecError::BadPathDir {
-                dir: dir.to_string_lossy().into_owned(),
-                delimiter,
-            });
-        }
-    }
-
-    let sep: &OsStr = if cfg!(windows) { OsStr::new(";") } else { OsStr::new(":") };
-    let mut out = OsString::new();
-    for (i, dir) in dirs.iter().enumerate() {
-        if i > 0 {
-            out.push(sep);
-        }
-        out.push(dir);
-    }
-    if let Some(current) = std::env::var_os("PATH")
-        && !current.is_empty()
-    {
-        if !out.is_empty() {
-            out.push(sep);
-        }
-        out.push(current);
-    }
-    Ok(out)
+    crate::path_env::prepend_dirs_to_path(dirs, std::env::var_os("PATH"))
+        .map_err(|error| ExecError::BadPathDir { dir: error.dir, delimiter: error.delimiter })
 }

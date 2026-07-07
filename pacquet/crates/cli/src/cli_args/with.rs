@@ -133,22 +133,11 @@ fn spawn_pnpm(bin_dir: &Path, args: &[String]) -> miette::Result<std::process::E
     cmd.status().into_diagnostic().wrap_err("run the requested pnpm version")
 }
 
-/// Prepend `dir` to the current process `PATH`, rejecting a `dir` that
-/// contains the platform path delimiter (it cannot be expressed as a
-/// single `PATH` entry and would silently split into several). Mirrors the
-/// `BAD_PATH_DIR` guard `exec`'s `prepend_dirs_to_path` already applies;
-/// `dir` here is the engine's store-resident `bin` directory.
+/// Prepend `dir` (the engine's store-resident `bin` directory) to the
+/// current process `PATH`.
 fn prepend_to_path(dir: &Path) -> Result<OsString, WithError> {
-    let delimiter = if cfg!(windows) { ';' } else { ':' };
-    if dir.to_string_lossy().contains(delimiter) {
-        return Err(WithError::BadPathDir { dir: dir.to_string_lossy().into_owned(), delimiter });
-    }
-    let mut out = OsString::from(dir);
-    if let Some(current) = std::env::var_os("PATH").filter(|value| !value.is_empty()) {
-        out.push(if cfg!(windows) { ";" } else { ":" });
-        out.push(current);
-    }
-    Ok(out)
+    crate::path_env::prepend_dirs_to_path(&[dir.to_path_buf()], std::env::var_os("PATH"))
+        .map_err(|error| WithError::BadPathDir { dir: error.dir, delimiter: error.delimiter })
 }
 
 /// `true` when pnpm is running under corepack (which sets `COREPACK_ROOT`

@@ -513,33 +513,8 @@ fn scopeless(pkg_name: &str) -> &str {
 }
 
 fn prepend_dirs_to_path(dirs: &[PathBuf]) -> Result<OsString, DlxError> {
-    let delimiter = if cfg!(windows) { ';' } else { ':' };
-    for dir in dirs {
-        if dir.to_string_lossy().contains(delimiter) {
-            return Err(DlxError::BadPathDir {
-                dir: dir.to_string_lossy().into_owned(),
-                delimiter,
-            });
-        }
-    }
-
-    let sep = if cfg!(windows) { ";" } else { ":" };
-    let mut out = OsString::new();
-    for (index, dir) in dirs.iter().enumerate() {
-        if index > 0 {
-            out.push(sep);
-        }
-        out.push(dir);
-    }
-    if let Some(current) = std::env::var_os("PATH")
-        && !current.is_empty()
-    {
-        if !out.is_empty() {
-            out.push(sep);
-        }
-        out.push(current);
-    }
-    Ok(out)
+    crate::path_env::prepend_dirs_to_path(dirs, std::env::var_os("PATH"))
+        .map_err(|error| DlxError::BadPathDir { dir: error.dir, delimiter: error.delimiter })
 }
 
 #[cfg(test)]

@@ -14,6 +14,7 @@ mod workspace_yaml;
 
 pub use crate::{
     api::{EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe},
+    env_overlay::read_env,
     global_bin_check::{CheckGlobalBinDirError, check_global_bin_dir},
 };
 
@@ -1318,17 +1319,6 @@ pub struct Config {
     /// package-manager check applies the documented `download` default
     /// when unset.
     pub pm_on_fail: Option<PmOnFail>,
-
-    /// `pnpmExecCommand` from `pnpm-workspace.yaml`: the command that
-    /// prints the absolute path of the pnpm binary this project must
-    /// run under. Raw yaml value — validated (argv array of non-empty
-    /// strings) by the CLI's re-exec step so a malformed value raises
-    /// pnpm's `EXEC_COMMAND_INVALID` error. See
-    /// [`WorkspaceSettings::pnpm_exec_command`] for why this is
-    /// yaml-only.
-    ///
-    /// [`WorkspaceSettings::pnpm_exec_command`]: crate::workspace_yaml::WorkspaceSettings::pnpm_exec_command
-    pub pnpm_exec_command: Option<serde_json::Value>,
 
     /// `audit-level` / `auditLevel` config for `pnpm audit`.
     pub audit_level: Option<AuditLevel>,

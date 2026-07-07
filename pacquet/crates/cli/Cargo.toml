@@ -88,6 +88,11 @@ wax                  = { workspace = true }
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true, features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 
+# raise(3), to re-raise a re-exec'd child's fatal signal on this process.
+# See `src/pnpm_exec_command.rs`.
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
 [dev-dependencies]
 pacquet-testing-utils = { workspace = true }
 pnpr                  = { workspace = true }

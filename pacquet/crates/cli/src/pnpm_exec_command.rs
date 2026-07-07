@@ -19,9 +19,8 @@
 use crate::cli_args::{CliArgs, CliCommand, config::ConfigSubcommand};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::{Host, WorkspaceSettings, default_state_dir};
+use pacquet_config::{Host, WorkspaceSettings, default_state_dir, read_env};
 use std::{
-    ffi::OsString,
     fs,
     io::Read,
     path::{Path, PathBuf},
@@ -43,6 +42,21 @@ pub(crate) const PNPM_EXEC_PATH_ENV: &str = "PNPM_EXEC_PATH";
 /// fork-bombing.
 const RE_EXEC_DEPTH_ENV: &str = "PNPM_RE_EXEC_DEPTH";
 const MAX_RE_EXEC_DEPTH: u32 = 2;
+
+/// Reset the re-exec depth once a resolution is confirmed settled (the
+/// running binary is the one the project wants), so the backstop counts
+/// consecutive redirects of one resolution. Without the reset, an
+/// inherited depth from an unrelated outer resolution (e.g. a lifecycle
+/// script invoking pnpm in a different project) would accumulate toward
+/// the cap and trip it with no loop present.
+pub(crate) fn clear_re_exec_depth() {
+    // SAFETY: this runs in `main` before the tokio runtime and rayon
+    // pool start, so the process is single-threaded and no other thread
+    // can be reading the environment concurrently.
+    unsafe {
+        std::env::remove_var(RE_EXEC_DEPTH_ENV);
+    }
+}
 
 const COMMAND_TIMEOUT: Duration = Duration::from_mins(1);
 
@@ -106,6 +120,18 @@ pub enum PnpmExecCommandError {
 /// discovery or yaml errors are also a no-op here: command dispatch
 /// hits the same error moments later and owns its reporting.
 pub(crate) fn resolve_and_re_exec(args: &CliArgs) -> miette::Result<()> {
+    if std::env::var_os(PNPM_EXEC_PATH_ENV).is_some() {
+        // A parent pnpm already ran the command and re-exec'd into its
+        // result, so skip before paying any I/O below — this is the hot
+        // path for every nested invocation under a re-exec (which is why
+        // it precedes even validation; resolution happens once per user
+        // invocation). If the sentinel's result is the running binary
+        // (the normal case), there is nothing to do. If it isn't — e.g.
+        // a stale sentinel inherited from an unrelated parent process —
+        // re-running the command could loop, so proceed and let the
+        // packageManager check surface any version mismatch.
+        return Ok(());
+    }
     if skips_binary_selection(&args.command) || is_global(&args.command) {
         return Ok(());
     }
@@ -175,16 +201,6 @@ fn is_global(command: &CliCommand) -> bool {
 /// so it operates on the raw setting plus the workspace dir only.
 fn apply(value: &serde_json::Value, workspace_dir: &Path) -> Result<(), PnpmExecCommandError> {
     let command = validate(value)?;
-
-    if std::env::var_os(PNPM_EXEC_PATH_ENV).is_some() {
-        // A parent pnpm already ran the command and re-exec'd into its
-        // result. If that result is the running binary (the normal
-        // case), there is nothing to do. If it isn't — e.g. a stale
-        // sentinel inherited from an unrelated parent process —
-        // re-running the command could loop, so proceed and let the
-        // packageManager check surface any version mismatch.
-        return Ok(());
-    }
 
     let trust = TrustRecord::check(&command, workspace_dir);
 
@@ -274,11 +290,8 @@ impl TrustRecord {
         // trust record, suppressing the notice. The env override
         // (`pnpm_config_state_dir`) is user-controlled, not
         // repo-controlled, so it stays honored.
-        let Some(state_dir) = std::env::var("pnpm_config_state_dir")
-            .or_else(|_| std::env::var("PNPM_CONFIG_STATE_DIR"))
-            .map(PathBuf::from)
-            .ok()
-            .or_else(default_state_dir::<Host>)
+        let Some(state_dir) =
+            read_env::<Host>("STATE_DIR").map(PathBuf::from).or_else(default_state_dir::<Host>)
         else {
             print_first_use_notice(command);
             return Some(TrustRecord { store: None });
@@ -350,18 +363,18 @@ impl TrustRecord {
         {
             records.insert(store.workspace_key, serde_json::Value::String(store.command_record));
         }
-        if let Some(parent) = store.state_file.parent() {
-            let _ = fs::create_dir_all(parent);
-        }
         // Tab-indented plus a trailing newline: the format
         // `write-json-file` produces, so the two CLIs rewrite the
-        // shared `pnpm-state.json` identically.
+        // shared `pnpm-state.json` identically. Written atomically: a
+        // torn write would parse as empty on the next read, and the
+        // rewrite would then discard every other key of the shared
+        // file.
         let mut text = Vec::new();
         let formatter = serde_json::ser::PrettyFormatter::with_indent(b"\t");
         let mut serializer = serde_json::Serializer::with_formatter(&mut text, formatter);
         if serde::Serialize::serialize(&store.state, &mut serializer).is_ok() {
             text.push(b'\n');
-            let _ = fs::write(&store.state_file, text);
+            let _ = pacquet_fs::write_atomic(&store.state_file, &text);
         }
     }
 }
@@ -506,10 +519,13 @@ fn is_current_binary(bin_path: &Path) -> bool {
 }
 
 /// Re-exec the current invocation through the pnpm binary at
-/// `bin_path`, then exit with the child's status. The child inherits
-/// the [`PNPM_EXEC_PATH_ENV`] sentinel (so it skips re-resolution) and
-/// `bin_path`'s directory prepended to `PATH` (so nested `pnpm`
-/// invocations from lifecycle scripts resolve to the same binary).
+/// `bin_path`, then exit with the child's status (re-raising the
+/// child's fatal signal on Unix, so e.g. a Ctrl-C during the child
+/// reads as a signal death to the shell, as the TypeScript
+/// `reExecPnpm` does). The child inherits the [`PNPM_EXEC_PATH_ENV`]
+/// sentinel (so it skips re-resolution) and `bin_path`'s directory
+/// prepended to `PATH` (so nested `pnpm` invocations from lifecycle
+/// scripts resolve to the same binary).
 fn re_exec(bin_path: &Path, command: &[String]) -> Result<(), PnpmExecCommandError> {
     let bin_dir = bin_path.parent().unwrap_or_else(|| Path::new("/"));
     let target =
@@ -527,6 +543,16 @@ fn re_exec(bin_path: &Path, command: &[String]) -> Result<(), PnpmExecCommandErr
         });
     }
 
+    let path =
+        crate::path_env::prepend_dirs_to_path(&[bin_dir.to_path_buf()], std::env::var_os("PATH"))
+            // A resolved binary under a delimiter-containing directory cannot be
+            // put on the child's PATH, so the path the resolver printed is
+            // unusable — the same hard-error family as a missing file.
+            .map_err(|error| PnpmExecCommandError::BadPath {
+                command: display_command(command),
+                path: error.dir,
+            })?;
+
     // Spawn the exact resolved file path rather than relying on PATH
     // resolution, so a broken bin dir cannot silently fall through to a
     // different pnpm (see pnpm/pnpm#8679 for the fork-bomb this
@@ -535,7 +561,7 @@ fn re_exec(bin_path: &Path, command: &[String]) -> Result<(), PnpmExecCommandErr
         .args(std::env::args_os().skip(1))
         .env_remove("PATH")
         .env_remove("Path")
-        .env("PATH", prepend_to_path(bin_dir, std::env::var_os("PATH")))
+        .env("PATH", path)
         .env(RE_EXEC_DEPTH_ENV, (depth + 1).to_string())
         .env(PNPM_EXEC_PATH_ENV, bin_path)
         .status()
@@ -545,37 +571,25 @@ fn re_exec(bin_path: &Path, command: &[String]) -> Result<(), PnpmExecCommandErr
             hint: Some(error.to_string()),
         })?;
 
+    #[cfg(unix)]
+    if let Some(signal) = std::os::unix::process::ExitStatusExt::signal(&status) {
+        // Best-effort: die of the same signal the child received, so the
+        // shell observes a signal death rather than exit code 1. If the
+        // signal is handled or ignored, fall through to the exit below.
+        //
+        // SAFETY: raise(3) is async-signal-safe and takes no pointers;
+        // the only precondition is a valid signal number, which `signal`
+        // is (it came from the child's wait status).
+        unsafe {
+            libc::raise(signal);
+        }
+    }
+
     #[expect(
         clippy::exit,
         reason = "the re-exec'd child owns the invocation; this process only relays its exit code"
     )]
     std::process::exit(status.code().unwrap_or(1));
-}
-
-/// Prepend `dir` to `current` (the inherited `PATH`), unless it
-/// already leads it. `current` is a parameter rather than read here so
-/// the function is testable without process-env access.
-fn prepend_to_path(dir: &Path, current: Option<OsString>) -> OsString {
-    let delimiter = if cfg!(windows) { ";" } else { ":" };
-    let current = current.filter(|value| !value.is_empty());
-    if let Some(current) = &current {
-        let leading = {
-            let mut prefix = OsString::from(dir);
-            prefix.push(delimiter);
-            prefix
-        };
-        if current == dir.as_os_str()
-            || current.as_encoded_bytes().starts_with(leading.as_encoded_bytes())
-        {
-            return current.clone();
-        }
-    }
-    let mut out = OsString::from(dir);
-    if let Some(current) = current {
-        out.push(delimiter);
-        out.push(current);
-    }
-    out
 }
 
 #[cfg(test)]

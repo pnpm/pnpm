@@ -18,8 +18,10 @@ use crate::{
 use serde::de::DeserializeOwned;
 
 /// Read an env var by suffix, accepting both `PNPM_CONFIG_<UPPER>` and
-/// `pnpm_config_<lower>`. Empty values are treated as unset.
-fn read_env<Sys: EnvVar>(suffix: &str) -> Option<String> {
+/// `pnpm_config_<lower>` (the uppercase form wins). Empty values are
+/// treated as unset.
+#[must_use]
+pub fn read_env<Sys: EnvVar>(suffix: &str) -> Option<String> {
     let upper = format!("PNPM_CONFIG_{suffix}");
     let lower = format!("pnpm_config_{}", suffix.to_lowercase());
     Sys::var(&upper).or_else(|| Sys::var(&lower)).filter(|value| !value.is_empty())

@@ -3655,6 +3655,7 @@ dependencies = [
  "home",
  "indexmap 2.14.0",
  "insta",
+ "libc",
  "miette 7.6.0",
  "mockito",
  "node-semver",

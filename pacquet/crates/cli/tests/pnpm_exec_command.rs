@@ -318,6 +318,70 @@ fn prints_a_first_use_notice_then_stays_silent_while_unchanged() {
     drop(root);
 }
 
+/// An exported-but-empty `pnpm_config_state_dir` counts as unset (the
+/// config layer's `read_env` semantics), so the uppercase form is
+/// honored and trust persists — instead of the empty string degrading
+/// the flow to a notice on every run.
+#[cfg(unix)]
+#[test]
+fn an_empty_state_dir_env_override_counts_as_unset() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let resolver = setup_self_resolver(root.path());
+    write_workspace_yaml(&workspace, &[&resolver.display().to_string()]);
+
+    let with_envs = |mut pacquet: Command| {
+        pacquet
+            .env("pnpm_config_state_dir", "")
+            .env("PNPM_CONFIG_STATE_DIR", root.path().join("state"));
+        pacquet
+    };
+
+    let first = with_envs(pacquet).with_args(["root"]).output().expect("run pacquet root (first)");
+    dbg!(&first);
+    assert!(first.status.success());
+    assert!(
+        String::from_utf8_lossy(&first.stderr)
+            .contains("Resolving the pnpm binary with pnpmExecCommand"),
+    );
+
+    let second_cmd = Command::cargo_bin("pacquet")
+        .expect("find the pacquet binary")
+        .with_current_dir(&workspace);
+    let second =
+        with_envs(second_cmd).with_args(["root"]).output().expect("run pacquet root (second)");
+    dbg!(&second);
+    assert!(second.status.success());
+    let second_stderr = String::from_utf8_lossy(&second.stderr);
+    assert!(
+        !second_stderr.contains("Resolving the pnpm binary with pnpmExecCommand"),
+        "trust must persist to the uppercase override's dir:\n{second_stderr}",
+    );
+
+    drop(root);
+}
+
+/// Once this process is the settled binary, children start their own
+/// resolutions from depth zero: an inherited depth from an unrelated
+/// outer resolution must not accumulate toward the backstop cap.
+#[cfg(unix)]
+#[test]
+fn the_re_exec_depth_resets_once_resolution_settles() {
+    let CommandTempCwd { pacquet, root, workspace: _, .. } = CommandTempCwd::init();
+
+    let output = isolated(pacquet, root.path())
+        .with_env("PNPM_RE_EXEC_DEPTH", "1")
+        .with_args(["exec", "sh", "-c", "echo \"depth: ${PNPM_RE_EXEC_DEPTH:-unset}\""])
+        .output()
+        .expect("run pacquet exec");
+    dbg!(&output);
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("depth: unset"), "the child must not inherit the depth:\n{stdout}");
+
+    drop(root);
+}
+
 #[cfg(unix)]
 #[test]
 fn prints_a_changed_command_notice_when_the_yaml_is_edited() {

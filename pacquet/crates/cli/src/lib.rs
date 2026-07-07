@@ -2,6 +2,7 @@ mod cli_args;
 mod config_deps;
 mod config_overrides;
 mod job_control;
+mod path_env;
 mod pnpm_exec_command;
 mod state;
 mod with_current;
@@ -37,8 +38,12 @@ pub fn main() -> miette::Result<()> {
     // command (`pnpmExecCommand`), resolve and re-exec before anything
     // else runs — including the install fast path — so the whole
     // command executes inside the binary the project selected. Exits
-    // the process when a re-exec happens.
+    // the process when a re-exec happens; returning means this process
+    // is the settled binary for this invocation, so the re-exec depth
+    // resets and nested pnpm invocations start their own resolutions
+    // from zero.
     pnpm_exec_command::resolve_and_re_exec(&args)?;
+    pnpm_exec_command::clear_re_exec_depth();
     // An up-to-date `pacquet install` finishes here, without paying for
     // the runtime, the HTTP client, or any worker threads.
     if args.finished_via_install_fast_path(&config_overrides) {
