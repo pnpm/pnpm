@@ -124,9 +124,18 @@ jobs:
         # libc at load time (this is what napi-rs does for musl prebuilds). The
         # CLI binary keeps `crt-static` — it's built in the separate step above,
         # so it stays fully static for portability across musl distros.
+        #
+        # Set RUSTFLAGS only for musl: an empty RUSTFLAGS is not a no-op — Cargo
+        # treats it as an override that discards any `rustflags` from
+        # `.cargo/config.toml`, so we leave it unset on every other target.
+        shell: bash
         env:
-          RUSTFLAGS: ${{ contains(matrix.target, 'musl') && '-C target-feature=-crt-static' || '' }}
-        run: cross build -p pacquet-napi --profile napi-release --target=${{ matrix.target }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          if [[ "$TARGET" == *musl* ]]; then
+            export RUSTFLAGS="-C target-feature=-crt-static"
+          fi
+          cross build -p pacquet-napi --profile napi-release --target="$TARGET"
 
       - name: Prepare NAPI addon
         shell: bash
