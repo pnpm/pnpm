@@ -578,6 +578,89 @@ fn a_resolver_leaking_a_descendant_with_stdout_open_fails_fast() {
     drop(root);
 }
 
+/// An unreadable state file disables persistence for the run; the
+/// diagnostic names the file so the repeating notice can be traced to
+/// its cause instead of degrading silently.
+#[cfg(unix)]
+#[test]
+fn an_unreadable_state_file_prints_a_diagnostic_before_the_notice() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let resolver = setup_self_resolver(root.path());
+    write_workspace_yaml(&workspace, &[&resolver.display().to_string()]);
+
+    // A directory at the file's path makes every read fail with a
+    // non-NotFound error (EISDIR), standing in for a permissions
+    // failure portably.
+    let state_file = root.path().join("state").join("pnpm-state.json");
+    fs::create_dir_all(&state_file).expect("create directory at the state file's path");
+
+    let output =
+        isolated(pacquet, root.path()).with_args(["root"]).output().expect("run pacquet root");
+    dbg!(&output);
+    assert!(output.status.success(), "an unreadable trust store must not fail the run");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains(&format!("Failed to read {}", state_file.display())),
+        "the read failure must be surfaced:\n{stderr}",
+    );
+    assert!(
+        stderr.contains("Resolving the pnpm binary with pnpmExecCommand"),
+        "the notice still prints (fail open on noise):\n{stderr}",
+    );
+
+    drop(root);
+}
+
+/// The trust record is persisted against the state as re-read at write
+/// time, so a record another process writes while the resolver command
+/// runs (the check-to-persist window) survives. The resolver itself
+/// plays the concurrent writer: it runs inside exactly that window.
+#[cfg(unix)]
+#[test]
+fn persisting_a_record_keeps_entries_written_while_the_command_ran() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let pacquet_bin = assert_cmd::cargo::cargo_bin("pacquet");
+    let state_dir = root.path().join("state");
+    let state_file = state_dir.join("pnpm-state.json");
+    let resolver = root.path().join("resolve-and-write.sh");
+    write_executable(
+        &resolver,
+        &format!(
+            "#!/bin/sh\n\
+             mkdir -p '{state_dir}'\n\
+             printf '{{\"pnpmExecCommands\": {{\"/other-workspace\": \"[\\\\\"other-tool\\\\\"]\"}}}}' > '{state_file}'\n\
+             echo '{pacquet_bin}'\n",
+            state_dir = state_dir.display(),
+            state_file = state_file.display(),
+            pacquet_bin = pacquet_bin.display(),
+        ),
+    );
+    write_workspace_yaml(&workspace, &[&resolver.display().to_string()]);
+
+    let output =
+        isolated(pacquet, root.path()).with_args(["root"]).output().expect("run pacquet root");
+    dbg!(&output);
+    assert!(output.status.success());
+
+    let state: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&state_file).expect("read pnpm-state.json"))
+            .expect("parse pnpm-state.json");
+    dbg!(&state);
+    let records = state["pnpmExecCommands"].as_object().expect("pnpmExecCommands object");
+    assert!(
+        records.contains_key("/other-workspace"),
+        "the concurrently written record must survive: {state}",
+    );
+    let workspace_key = dunce::canonicalize(&workspace).expect("canonicalize workspace");
+    assert!(
+        records.contains_key(&workspace_key.display().to_string()),
+        "this run's own record must be present: {state}",
+    );
+
+    drop(root);
+}
+
 /// A malicious workspace file cannot point the trust lookup at a
 /// repo-controlled state dir: the `stateDir` yaml setting is ignored by
 /// the trust records (only the default per-user dir and the

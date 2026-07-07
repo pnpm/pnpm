@@ -268,7 +268,6 @@ struct TrustRecord {
 
 struct TrustStore {
     state_file: PathBuf,
-    state: serde_json::Map<String, serde_json::Value>,
     workspace_key: String,
     command_record: String,
 }
@@ -315,17 +314,13 @@ impl TrustRecord {
         }
         let state_file = state_dir.join("pnpm-state.json");
 
-        let state = match fs::read_to_string(&state_file) {
-            // An unparsable file is rewritten by `persist` (nothing
-            // valid is lost).
-            Ok(text) => serde_json::from_str::<serde_json::Map<_, _>>(&text).unwrap_or_default(),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                serde_json::Map::default()
-            }
-            // Any other read failure (e.g. permissions) leaves a file
-            // whose other keys `persist` would clobber, so skip
-            // persistence for this run.
-            Err(_) => {
+        let state = match read_state(&state_file) {
+            Ok(state) => state,
+            Err(error) => {
+                // Without the diagnostic, persistence silently stopping
+                // (the notice repeating forever) would be impossible to
+                // debug.
+                eprintln!("Failed to read {}: {error}", state_file.display());
                 print_first_use_notice(command);
                 return Some(TrustRecord { store: None });
             }
@@ -352,20 +347,27 @@ impl TrustRecord {
             None => print_first_use_notice(command),
         }
 
-        Some(TrustRecord {
-            store: Some(TrustStore { state_file, state, workspace_key, command_record }),
-        })
+        Some(TrustRecord { store: Some(TrustStore { state_file, workspace_key, command_record }) })
     }
 
     /// Record the command as seen. Failures are ignored: the notice
     /// then repeats next run, and noise is an acceptable failure mode
     /// where a suppressed notice is not.
     fn persist(self) {
-        let Some(mut store) = self.store else {
+        let Some(store) = self.store else {
             return;
         };
-        if let Some(records) = store
-            .state
+        // The state is re-read at write time rather than carried over
+        // from `check`: the command may run for up to a minute, and a
+        // check-time copy would clobber what other pnpm processes wrote
+        // in the meantime (records of other workspaces, other features'
+        // keys). A read that failed at check time never reaches here
+        // (`store` is `None`); one that starts failing in the window is
+        // treated the same — skip the write rather than clobber.
+        let Ok(mut state) = read_state(&store.state_file) else {
+            return;
+        };
+        if let Some(records) = state
             .entry("pnpmExecCommands")
             .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()))
             .as_object_mut()
@@ -381,10 +383,27 @@ impl TrustRecord {
         let mut text = Vec::new();
         let formatter = serde_json::ser::PrettyFormatter::with_indent(b"\t");
         let mut serializer = serde_json::Serializer::with_formatter(&mut text, formatter);
-        if serde::Serialize::serialize(&store.state, &mut serializer).is_ok() {
+        if serde::Serialize::serialize(&state, &mut serializer).is_ok() {
             text.push(b'\n');
             let _ = pacquet_fs::write_atomic(&store.state_file, &text);
         }
+    }
+}
+
+/// Read `pnpm-state.json`. A missing file is an empty state (first run)
+/// and an unparsable one is treated the same: rewriting it loses
+/// nothing valid. Any other read failure (e.g. permissions) is returned
+/// for the caller to handle — the file's contents may be intact but
+/// unreadable, so a rewrite would clobber them.
+fn read_state(
+    state_file: &Path,
+) -> Result<serde_json::Map<String, serde_json::Value>, std::io::Error> {
+    match fs::read_to_string(state_file) {
+        Ok(text) => Ok(serde_json::from_str(&text).unwrap_or_default()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            Ok(serde_json::Map::default())
+        }
+        Err(error) => Err(error),
     }
 }
 
