@@ -202,11 +202,12 @@ pub(super) fn pack<'a>(ctx: &RunCtx<'a>, args: &PackArgs) -> miette::Result<Comm
 /// boxed [`CommandFuture`] not `Send`.
 pub(super) fn publish<'a>(
     ctx: &RunCtx<'a>,
-    args: PublishArgs,
+    mut args: PublishArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let config = (ctx.config)()?;
     let dir = ctx.dir;
     let recursive = ctx.recursive;
+    args.report_summary |= ctx.recursive_report_summary;
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => {
             Box::pin(args.run::<DefaultReporter>(dir, config, recursive))

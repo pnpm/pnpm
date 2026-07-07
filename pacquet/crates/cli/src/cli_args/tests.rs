@@ -99,10 +99,24 @@ fn script_scoped_global_flags_parse_before_script_commands() {
         ["pacquet", "--report-summary", "run", "build"].as_slice(),
         ["pacquet", "--resume-from", "pkg", "exec", "echo"].as_slice(),
         ["pacquet", "--no-bail", "run", "build"].as_slice(),
+        ["pacquet", "--report-summary", "test"].as_slice(),
+        ["pacquet", "--resume-from", "pkg", "start"].as_slice(),
+        ["pacquet", "--no-bail", "stop"].as_slice(),
         ["pacquet", "-r", "--report-summary", ".test"].as_slice(),
     ] {
         let parsed = CliArgs::try_parse_from(argv).expect("parses script-scoped global flag");
         parsed.validate_command_scoped_global_options().expect("script command accepts flag");
+    }
+}
+
+#[test]
+fn report_summary_global_flag_parses_for_publish() {
+    for argv in [
+        ["pacquet", "--report-summary", "publish"].as_slice(),
+        ["pacquet", "publish", "--report-summary"].as_slice(),
+    ] {
+        let parsed = CliArgs::try_parse_from(argv).expect("parses report-summary for publish");
+        parsed.validate_command_scoped_global_options().expect("publish accepts report-summary");
     }
 }
 
@@ -112,6 +126,10 @@ fn script_scoped_global_flags_reject_unrelated_commands() {
         ["pacquet", "install", "--report-summary"].as_slice(),
         ["pacquet", "install", "--resume-from", "pkg"].as_slice(),
         ["pacquet", "install", "--no-bail"].as_slice(),
+        ["pacquet", "restart", "--report-summary"].as_slice(),
+        ["pacquet", "restart", "--no-bail"].as_slice(),
+        ["pacquet", "publish", "--resume-from", "pkg"].as_slice(),
+        ["pacquet", "publish", "--no-bail"].as_slice(),
     ] {
         let parsed =
             CliArgs::try_parse_from(argv).expect("global parser accepts compatibility flag");

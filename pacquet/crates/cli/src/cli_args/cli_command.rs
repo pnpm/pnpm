@@ -156,13 +156,13 @@ pub struct CliArgs {
 impl CliArgs {
     pub fn validate_command_scoped_global_options(&self) -> Result<(), clap::Error> {
         if self.resume_from.is_some() {
-            self.validate_script_scoped_global_option("--resume-from")?;
+            self.validate_run_scoped_global_option("--resume-from")?;
         }
         if self.report_summary {
-            self.validate_script_scoped_global_option("--report-summary")?;
+            self.validate_report_summary_global_option()?;
         }
         if self.no_bail {
-            self.validate_script_scoped_global_option("--no-bail")?;
+            self.validate_run_scoped_global_option("--no-bail")?;
         }
         Ok(())
     }
@@ -181,15 +181,27 @@ impl CliArgs {
         }
     }
 
-    fn validate_script_scoped_global_option(&self, option: &str) -> Result<(), clap::Error> {
+    fn validate_run_scoped_global_option(&self, option: &str) -> Result<(), clap::Error> {
         if matches!(
             self.command,
-            CliCommand::Run(_) | CliCommand::Exec(_) | CliCommand::External(_),
+            CliCommand::Run(_)
+                | CliCommand::Exec(_)
+                | CliCommand::External(_)
+                | CliCommand::Test
+                | CliCommand::Start
+                | CliCommand::Stop(_),
         ) {
             return Ok(());
         }
         Err(Self::command()
             .error(ErrorKind::UnknownArgument, format!("unexpected argument '{option}' found")))
+    }
+
+    fn validate_report_summary_global_option(&self) -> Result<(), clap::Error> {
+        if matches!(self.command, CliCommand::Publish(_)) {
+            return Ok(());
+        }
+        self.validate_run_scoped_global_option("--report-summary")
     }
 }
 

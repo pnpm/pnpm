@@ -8,9 +8,7 @@ use super::{
     stop::StopArgs,
 };
 use miette::Context;
-use pacquet_executor::execute_shell;
 use pacquet_package_manifest::PackageManifest;
-use pacquet_workspace::read_project_manifest_only;
 
 pub(super) fn init<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
     let result = PackageManifest::init(ctx.manifest_path).wrap_err("initialize package.json");
@@ -29,12 +27,7 @@ pub(super) fn set_script<'a>(
 }
 
 pub(super) fn test<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
-    let manifest = read_project_manifest_only(ctx.dir)
-        .wrap_err("getting the package manifest in current directory")?;
-    if let Some(script) = manifest.script("test", false)? {
-        execute_shell(script).wrap_err(format!(r#"executing command: "{script}""#))?;
-    }
-    Ok(Box::pin(std::future::ready(Ok(()))))
+    run(ctx, run_args_for_script("test"))
 }
 
 pub(super) fn run<'a>(ctx: &RunCtx<'a>, args: RunArgs) -> miette::Result<CommandFuture<'a>> {
@@ -97,16 +90,16 @@ fn with_recursive_exec_options(ctx: &RunCtx<'_>, mut args: ExecArgs) -> ExecArgs
 }
 
 pub(super) fn start<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
-    let manifest = read_project_manifest_only(ctx.dir)
-        .wrap_err("getting the package manifest in current directory")?;
-    let command = manifest.script("start", true)?.unwrap_or("node server.js");
-    execute_shell(command).wrap_err(format!(r#"executing command: "{command}""#))?;
-    Ok(Box::pin(std::future::ready(Ok(()))))
+    run(ctx, run_args_for_script("start"))
 }
 
 pub(super) fn stop<'a>(ctx: &RunCtx<'a>, args: StopArgs) -> miette::Result<CommandFuture<'a>> {
-    args.run(ctx.dir, (ctx.config)()?, matches!(ctx.reporter, ReporterType::Silent))?;
-    Ok(Box::pin(std::future::ready(Ok(()))))
+    if ctx.recursive {
+        run(ctx, args.into_run_args())
+    } else {
+        args.run(ctx.dir, (ctx.config)()?, matches!(ctx.reporter, ReporterType::Silent))?;
+        Ok(Box::pin(std::future::ready(Ok(()))))
+    }
 }
 
 pub(super) fn restart<'a>(
@@ -115,4 +108,16 @@ pub(super) fn restart<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     args.run(ctx.dir, (ctx.config)()?, matches!(ctx.reporter, ReporterType::Silent))?;
     Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+fn run_args_for_script(command: &str) -> RunArgs {
+    RunArgs {
+        command: Some(command.to_string()),
+        args: Vec::new(),
+        if_present: false,
+        resume_from: None,
+        report_summary: false,
+        no_bail: false,
+        sort: true,
+    }
 }
