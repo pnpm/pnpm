@@ -121,6 +121,7 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
       urlObject = resolveRedirectUrl(response, urlObject)
       if (!headers['authorization'] || originalHost === urlObject.host) continue
       delete headers.authorization
+      delete headers['npm-otp']
     }
     /* eslint-enable no-await-in-loop */
   }

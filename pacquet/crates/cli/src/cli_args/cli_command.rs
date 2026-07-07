@@ -301,6 +301,7 @@ pub enum CliCommand {
 impl CliCommand {
     pub(crate) fn default_reporter_summary_scope(&self) -> SummaryScope {
         match self {
+            CliCommand::Access(_) => SummaryScope::CurrentPrefix,
             CliCommand::Add(args) if args.global => SummaryScope::AllPrefixes,
             CliCommand::Remove(args) if args.global => SummaryScope::AllPrefixes,
             CliCommand::Runtime(args) if args.global => SummaryScope::AllPrefixes,

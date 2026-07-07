@@ -4,11 +4,11 @@ use futures_util::StreamExt as _;
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_config::Config;
 use pacquet_network::{
-    NetworkSettings, RetryOpts, ThrottledClient, encode_uri_component, redact_and_sanitize,
-    send_with_retry,
+    NetworkSettings, RedirectGuard, RetryOpts, ThrottledClient, encode_uri_component,
+    redact_and_sanitize, send_with_retry,
 };
 use reqwest::{Response, StatusCode};
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 const ACCESS_ERROR_BODY_LIMIT: usize = 64 * 1024;
 
@@ -285,9 +285,29 @@ fn build_access_context<'a>(
     let registry =
         args.registry.as_deref().map_or_else(|| config.registry.clone(), normalize_registry_url);
 
+    let redirect_guard = args.otp.as_ref().map(|_| {
+        let registry_origin: Option<(String, String, Option<u16>)> =
+            reqwest::Url::parse(&registry).ok().and_then(|u| {
+                u.host_str().map(|host| {
+                    (u.scheme().to_string(), host.to_string(), u.port())
+                })
+            });
+        let guard: RedirectGuard = Arc::new(move |target: &reqwest::Url| -> bool {
+            registry_origin
+                .as_ref()
+                .map(|(scheme, host, port)| {
+                    target.scheme() == scheme
+                        && target.host_str() == Some(host.as_str())
+                        && target.port() == *port
+                })
+                .unwrap_or(false)
+        });
+        guard
+    });
+
     Ok(AccessContext {
         config,
-        http_client: build_http_client(config)?,
+        http_client: build_http_client(config, redirect_guard.as_ref())?,
         retry_opts: RetryOpts {
             retries: config.fetch_retries,
             factor: config.fetch_retry_factor,
@@ -777,8 +797,11 @@ async fn revoke_access(context: &AccessContext<'_>, params: &[String]) -> miette
     Ok(format!("-{scope_team}: {package_name}"))
 }
 
-fn build_http_client(config: &Config) -> miette::Result<ThrottledClient> {
-    ThrottledClient::for_installs(
+fn build_http_client(
+    config: &Config,
+    redirect_guard: Option<&RedirectGuard>,
+) -> miette::Result<ThrottledClient> {
+    ThrottledClient::for_installs_with_guard(
         &config.proxy,
         &config.tls,
         &config.tls_by_uri,
@@ -787,6 +810,7 @@ fn build_http_client(config: &Config) -> miette::Result<ThrottledClient> {
             fetch_timeout: Duration::from_millis(config.fetch_timeout),
             user_agent: config.user_agent.clone(),
         },
+        redirect_guard,
     )
     .into_diagnostic()
     .wrap_err("create the network client for access command")

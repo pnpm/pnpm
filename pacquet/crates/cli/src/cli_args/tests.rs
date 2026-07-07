@@ -21,6 +21,7 @@ fn default_reporter_summary_scope(argv: &[&str]) -> SummaryScope {
     CliArgs::try_parse_from(argv).expect("parses").command.default_reporter_summary_scope()
 }
 
+
 #[test]
 fn recursive_default_is_false() {
     let parsed = CliArgs::try_parse_from(["pacquet", "install"]).expect("parses");

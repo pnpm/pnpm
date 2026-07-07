@@ -450,6 +450,7 @@ impl SwitchInput {
 
 fn command_name(command: &CliCommand) -> &'static str {
     match command {
+        CliCommand::Access(_) => "access",
         CliCommand::Init => "init",
         CliCommand::Add(_) => "add",
         CliCommand::Install(_) => "install",
