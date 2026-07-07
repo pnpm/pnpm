@@ -285,6 +285,12 @@ pub(crate) struct ImporterHoistState {
     importer_id: String,
     ctx: TreeCtx,
     direct: Vec<DirectDep>,
+    /// `NodeIds` appended to `direct` by
+    /// [`Self::append_resolved_peer_providers`]. Threaded into
+    /// [`ResolvePeersOptions::hoisted_peer_provider_node_ids`] so the
+    /// peer walk resolves them at their tree position instead of the
+    /// importer root.
+    hoisted_peer_provider_node_ids: HashSet<crate::NodeId>,
     parent_pkg_aliases: HashSet<String>,
     all_missing_optional_peers: BTreeMap<String, Vec<String>>,
     all_preferred_versions: PreferredVersions,
@@ -357,6 +363,7 @@ impl ImporterHoistState {
             importer_id: importer_id.to_string(),
             ctx,
             direct,
+            hoisted_peer_provider_node_ids: HashSet::new(),
             parent_pkg_aliases,
             all_missing_optional_peers: BTreeMap::new(),
             all_preferred_versions,
@@ -379,6 +386,7 @@ impl ImporterHoistState {
             lockfile_dir: self.lockfile_dir.clone(),
             modules_dir: self.modules_dir.clone(),
             hoist_missing_scope: None,
+            hoisted_peer_provider_node_ids: self.hoisted_peer_provider_node_ids.clone(),
         }
     }
 
@@ -517,6 +525,7 @@ impl ImporterHoistState {
                 node_id: node_id.clone(),
                 id: tree_node.resolved_package_id.clone(),
             });
+            self.hoisted_peer_provider_node_ids.insert(node_id.clone());
             self.parent_pkg_aliases.insert(alias.clone());
         }
     }
@@ -558,9 +567,11 @@ impl ImporterHoistState {
 
     /// The importer's direct-dep envelopes for the workspace-wide peer
     /// pass (which recomputes peers across importers; the per-importer
-    /// pass would be discarded).
-    pub(crate) fn into_direct(self) -> Vec<DirectDep> {
-        self.direct
+    /// pass would be discarded), together with the `NodeIds` of the peer
+    /// providers among them (see
+    /// [`ResolvePeersOptions::hoisted_peer_provider_node_ids`]).
+    pub(crate) fn into_direct(self) -> (Vec<DirectDep>, HashSet<crate::NodeId>) {
+        (self.direct, self.hoisted_peer_provider_node_ids)
     }
 
     /// Run the final per-importer peer pass and emit the result. Used

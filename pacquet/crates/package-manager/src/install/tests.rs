@@ -1720,6 +1720,91 @@ async fn auto_install_peers_skips_meta_only_optional_peers() {
     drop((dir, mock_instance));
 }
 
+/// Mirror of the TS test "a root dependency does not override the
+/// peers provided inside a self-contained subtree"
+/// (`deps-installer/test/install/autoInstallPeers.ts`).
+///
+/// `@pnpm.e2e/closure-plugins` provides every peer of its own subtree
+/// (`closure-lib-a` and `closure-lib-b` peer-depend on each other and
+/// on `closure-peer-x`, and all three are its regular dependencies).
+/// The root project additionally depends on the incompatible
+/// `closure-peer-x@2.0.0`. With `autoInstallPeers` (the default), the
+/// peers resolved inside the subtree are attached to the root project
+/// for reuse — but they must not be peer-resolved again in the root
+/// context, where `closure-peer-x@2.0.0` is the nearest provider, or
+/// the subtree's peer graph gets a mix of both versions.
+#[tokio::test]
+async fn root_dependency_does_not_override_peers_of_self_contained_subtree() {
+    let mock_instance = TestRegistry::start();
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
+    manifest.add_dependency("@pnpm.e2e/closure-plugins", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest.add_dependency("@pnpm.e2e/closure-peer-x", "2.0.0", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir;
+    config.registry = mock_instance.url();
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        emit_initial_manifest: true,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: false,
+        pnpmfile_hook_override: None,
+        workspace_projects_override: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("install should succeed");
+
+    let content =
+        std::fs::read_to_string(dir.path().join(Lockfile::FILE_NAME)).expect("read pnpm-lock.yaml");
+    assert!(
+        !content.contains("(@pnpm.e2e/closure-peer-x@2.0.0)"),
+        "no peer inside the self-contained subtree may bind to the root's \
+         closure-peer-x@2.0.0; lockfile:\n{content}",
+    );
+    assert!(
+        content.contains("(@pnpm.e2e/closure-peer-x@1.0.0)"),
+        "the subtree's peers must bind to its own closure-peer-x@1.0.0; lockfile:\n{content}",
+    );
+
+    drop((dir, mock_instance));
+}
+
 /// A v9 lockfile fixture pinned to a placeholder package whose
 /// integrity is bogus on purpose. Pacquet enforces tarball integrity
 /// on the install path, so any test that lets the install reach the

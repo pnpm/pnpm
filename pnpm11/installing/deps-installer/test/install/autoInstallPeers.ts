@@ -758,3 +758,30 @@ test('a locked optional peer version is not rewritten when a sibling workspace p
     expect(optionalPeerVersion).not.toContain('(@pnpm.e2e/peer-c@1.0.0)')
   }
 })
+
+test('a root dependency does not override the peers provided inside a self-contained subtree', async () => {
+  // Regression test for the closure-poisoning bug: @pnpm.e2e/closure-plugins
+  // provides every peer of its own subtree (closure-lib-a and closure-lib-b
+  // peer-depend on each other and on closure-peer-x, and all of them are
+  // regular dependencies of closure-plugins). The root project additionally
+  // depends on the incompatible closure-peer-x@2.0.0. With autoInstallPeers
+  // enabled, the peers resolved inside the subtree are also attached to the
+  // root project so other subtrees can reuse them — but they must not be
+  // peer-resolved again in the root context, where closure-peer-x@2.0.0 is
+  // the nearest provider, or the subtree's peer graph gets a mix of both
+  // versions.
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, [
+    '@pnpm.e2e/closure-plugins@1.0.0',
+    '@pnpm.e2e/closure-peer-x@2.0.0',
+  ], testDefaults({ autoInstallPeers: true }))
+  const lockfile = project.readLockfile()
+  const pluginsSnapshot = lockfile.snapshots['@pnpm.e2e/closure-plugins@1.0.0']
+  expect(pluginsSnapshot.dependencies?.['@pnpm.e2e/closure-peer-x']).toBe('1.0.0')
+  expect(pluginsSnapshot.dependencies?.['@pnpm.e2e/closure-lib-a']).not.toContain('closure-peer-x@2.0.0')
+  expect(pluginsSnapshot.dependencies?.['@pnpm.e2e/closure-lib-b']).not.toContain('closure-peer-x@2.0.0')
+  for (const depPath of Object.keys(lockfile.snapshots)) {
+    if (!depPath.startsWith('@pnpm.e2e/closure-lib')) continue
+    expect(depPath).not.toContain('closure-peer-x@2.0.0')
+  }
+})

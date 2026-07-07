@@ -70,6 +70,8 @@ export interface GenericDependenciesGraphWithResolvedChildren<T extends PartialR
 
 export interface ProjectToResolve {
   directNodeIdsByAlias: Map<string, NodeId>
+  // See PkgAddress.hoistedPeerProvider in resolveDependencies.ts
+  hoistedPeerProviderNodeIds?: Set<NodeId>
   declaredDirectDependencies?: Set<string>
   explicitlyRequestedDirectDependencies?: Set<string>
   // only the top dependencies that were already installed
@@ -121,7 +123,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
   const finishingList: FinishingResolutionPromise[] = []
   const peersCache = new Map<PkgIdWithPatchHash, PeersCacheItem[]>()
   const purePkgs = new Set<PkgIdWithPatchHash>()
-  for (const { directNodeIdsByAlias, declaredDirectDependencies, explicitlyRequestedDirectDependencies, topParents, rootDir, id } of opts.projects) {
+  for (const { directNodeIdsByAlias, hoistedPeerProviderNodeIds, declaredDirectDependencies, explicitlyRequestedDirectDependencies, topParents, rootDir, id } of opts.projects) {
     const currentProviderSources: CurrentProviderSource[] = [{
       directNodeIdsByAlias,
       declaredDirectDependencies: declaredDirectDependencies ?? new Set(),
@@ -145,10 +147,25 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       }
     }
 
-    // eslint-disable-next-line no-await-in-loop
-    const { finishing } = await resolvePeersOfChildren(Object.fromEntries(directNodeIdsByAlias.entries()), pkgsByName, {
+    // Hoisted peer providers stay visible as providers (via pkgsByName) but are
+    // not traversed as direct children: their nodeIds point into subtrees, and
+    // resolving them a second time in the project's root context would bind
+    // their peers to the project's own dependencies instead of the providers
+    // next to them in the tree, racing with the in-place resolution on
+    // pathsByNodeId and producing peer graphs that mix both contexts.
+    const ownDirectChildren: Record<string, NodeId> = {}
+    const hoistedProviderChildren: Record<string, NodeId> = {}
+    for (const [alias, nodeId] of directNodeIdsByAlias.entries()) {
+      if (hoistedPeerProviderNodeIds?.has(nodeId)) {
+        hoistedProviderChildren[alias] = nodeId
+      } else {
+        ownDirectChildren[alias] = nodeId
+      }
+    }
+    const parentPkgsOfNode: ParentPkgsOfNode = new Map()
+    const projectPeersContext = {
       allPeerDepNames: opts.allPeerDepNames,
-      parentPkgsOfNode: new Map(),
+      parentPkgsOfNode,
       dependenciesTree: opts.dependenciesTree,
       depGraph,
       lockfileDir: opts.lockfileDir,
@@ -168,9 +185,23 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       rootDir,
       virtualStoreDir: opts.virtualStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-    })
+    }
+    // eslint-disable-next-line no-await-in-loop
+    const { finishing } = await resolvePeersOfChildren(ownDirectChildren, pkgsByName, projectPeersContext)
     if (finishing) {
       finishingList.push(finishing)
+    }
+    // A provider whose tree position was pruned from the traversal (its parent
+    // hit peersCache, so its children were never visited) still has consumers
+    // awaiting its dep path, so resolve it here as a last resort. Providers
+    // visited by the traversal above are recorded in parentPkgsOfNode.
+    for (const [alias, nodeId] of Object.entries(hoistedProviderChildren)) {
+      if (parentPkgsOfNode.has(nodeId)) continue
+      // eslint-disable-next-line no-await-in-loop
+      const { finishing } = await resolvePeersOfChildren({ [alias]: nodeId }, pkgsByName, projectPeersContext)
+      if (finishing) {
+        finishingList.push(finishing)
+      }
     }
     if (Object.keys(peerDependencyIssues.bad).length > 0 || Object.keys(peerDependencyIssues.missing).length > 0) {
       peerDependencyIssuesByProjects[id] = {
