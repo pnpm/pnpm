@@ -6,6 +6,7 @@ import {
   exePlatformPkgDirNames,
   linkExePlatformBinary,
   pnpmPackageNameToInstall,
+  safeWrapperBinNames,
 } from '@pnpm/tools.plugin-commands-self-updater'
 
 const NATIVE_BYTES = '#!/native/pnpm binary bytes'
@@ -46,6 +47,28 @@ describe('exePlatformPkgDirNames', () => {
 
   test('normalizes the legacy Windows ia32 arch to x86', () => {
     expect(exePlatformPkgDirNames('win32', 'ia32')).toStrictEqual(['win-x86', 'exe.win32-ia32'])
+  })
+})
+
+describe('safeWrapperBinNames', () => {
+  const wrapperDir = path.join('stage', 'node_modules', 'pnpm')
+
+  test('keeps the real pnpm bin names', () => {
+    const bin = { pnpm: 'pnpm', pn: 'pn', pnpx: 'pnpx', pnx: 'pnx' }
+    expect(safeWrapperBinNames(wrapperDir, bin)).toStrictEqual(['pnpm', 'pn', 'pnpx', 'pnx'])
+  })
+
+  test('drops names that would escape the wrapper directory (path traversal / separators / absolute)', () => {
+    const bin = {
+      pnpm: 'pnpm',
+      '../evil': 'pnpm',
+      '../../evil': 'pnpm',
+      'sub/evil': 'pnpm',
+      '..': 'pnpm',
+      '.': 'pnpm',
+      [path.join(path.sep, 'abs', 'evil')]: 'pnpm',
+    }
+    expect(safeWrapperBinNames(wrapperDir, bin)).toStrictEqual(['pnpm'])
   })
 })
 

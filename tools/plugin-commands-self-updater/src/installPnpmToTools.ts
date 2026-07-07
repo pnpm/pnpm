@@ -86,6 +86,14 @@ export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateC
         pnpm_config_pm_on_fail: 'ignore',
       },
     })
+    // Reached only when the wanted version is not yet in the tools directory
+    // (an actual download), so the signature check does not run on every
+    // invocation. Verify BEFORE relinking (below) and before the staged install
+    // is linked into place and spawned: relinking mutates files whose names come
+    // from the wrapper's own (still untrusted) package.json, so it must not run
+    // until the wrapper is proven to be a genuine, signed pnpm release. On
+    // failure the stage is removed by the catch below.
+    await verifyPnpmEngineIdentity(stage, targetPkgName, pnpmVersion, opts)
     // pnpm's own installs run with --ignore-scripts, so the wrapper's
     // preinstall (which links the native binary over the placeholder bin) never
     // runs — replicate it here. Needed for any wrapper that ships a native
@@ -93,11 +101,6 @@ export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateC
     if (targetPkgName === '@pnpm/exe' || semver.major(pnpmVersion) >= 12) {
       linkExePlatformBinary(stage, targetPkgName)
     }
-    // Reached only when the wanted version is not yet in the tools directory
-    // (an actual download), so the signature check does not run on every
-    // invocation. Verify before the staged install is linked into place and
-    // spawned — on failure the stage is removed by the catch below.
-    await verifyPnpmEngineIdentity(stage, targetPkgName, pnpmVersion, opts)
     // We need the operation of installing pnpm to be atomic.
     // However, we cannot use a rename as that breaks the command shim created for pnpm.
     // Hence, we use a symlink.
@@ -126,7 +129,7 @@ export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateC
  *
  * For earlier majors the running package name is kept, except that a v11+
  * update of a darwin-x64 `@pnpm/exe` install falls back to the JS `pnpm`
- * package: pnpm v11 dropped the darwin-x64 artifact from `@pnpm/exe` because
+ * package: pnpm v11+ ships no darwin-x64 artifact for `@pnpm/exe` because
  * Node.js SEA injection produces a binary that segfaults at startup on Intel
  * Macs (pnpm/pnpm#11423, upstream nodejs/node#62893), which would leave the
  * user with no working binary. The JS `pnpm` package runs against the user's
@@ -186,7 +189,7 @@ export function linkExePlatformBinary (stageDir: string, wrapperPkgName: string)
   const bin: Record<string, string> = (typeof wrapperPkg.bin === 'object' && wrapperPkg.bin != null)
     ? wrapperPkg.bin
     : { pnpm: 'pnpm' }
-  for (const name of Object.keys(bin)) {
+  for (const name of safeWrapperBinNames(wrapperDir, bin)) {
     // Link the native binary onto both `<name>.exe` (cmd.exe resolves the
     // extension-less shim target through PATHEXT) and the extension-less file
     // (Git Bash runs it directly), matching the wrapper's own install.js. The
@@ -236,6 +239,19 @@ export function exePlatformPkgDirNames (platform: NodeJS.Platform, arch: string)
   default:
     return [`${platform}-${arch}`, `exe.${platform}-${arch}`]
   }
+}
+
+/**
+ * The bin names from a wrapper's `package.json` that are safe to relink. The
+ * manifest is not signature-verified at the point of relinking (defense in
+ * depth behind the verify-before-relink ordering in installPnpmToTools), so a
+ * crafted `bin` map must not be able to traverse out of the wrapper directory
+ * via `..`, path separators, or absolute paths: only names that resolve to a
+ * direct child of `wrapperDir` are kept.
+ */
+export function safeWrapperBinNames (wrapperDir: string, bin: Record<string, string>): string[] {
+  const resolvedWrapperDir = path.resolve(wrapperDir)
+  return Object.keys(bin).filter((name) => path.dirname(path.resolve(wrapperDir, name)) === resolvedWrapperDir)
 }
 
 function forceLink (src: string, dest: string): void {
