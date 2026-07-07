@@ -117,7 +117,7 @@ async function noticeOnFirstUseOrChange (command: string[], opts: ApplyPnpmExecC
     if (readError != null) {
       // Direct write: the reporter is not initialized this early. Without
       // the diagnostic, persistence silently stopping (the notice repeating
-      // forever) would be undebuggable.
+      // forever) would be impossible to debug.
       process.stderr.write(`${readError.message}\n`)
     }
     return printNoticeWithoutTrustStore(command)

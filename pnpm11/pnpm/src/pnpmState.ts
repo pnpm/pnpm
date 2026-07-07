@@ -58,8 +58,9 @@ export interface PnpmStateReadResult {
   /**
    * The read failure behind `writable: false`, for the caller to surface —
    * persistence silently stopping with no diagnostic trail would be
-   * undebuggable. Callers own the reporting because they run at different
-   * stages of startup (before or after the reporter is initialized).
+   * impossible to debug. Callers own the reporting because they run at
+   * different stages of startup (before or after the reporter is
+   * initialized).
    */
   readError?: Error
 }
