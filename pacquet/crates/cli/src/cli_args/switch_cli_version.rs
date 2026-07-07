@@ -488,6 +488,7 @@ fn command_name(command: &CliCommand) -> &'static str {
         CliCommand::Root(_) => "root",
         CliCommand::Prefix(_) => "prefix",
         CliCommand::Config(_) => "config",
+        CliCommand::Pkg(_) => "pkg",
         CliCommand::PackApp(_) => "pack-app",
         CliCommand::Store(_) => "store",
         CliCommand::Cache(_) => "cache",
