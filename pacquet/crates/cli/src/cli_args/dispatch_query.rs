@@ -92,13 +92,13 @@ pub(super) fn audit<'a>(ctx: &RunCtx<'a>, args: AuditArgs) -> miette::Result<Com
 }
 
 pub(super) fn list<'a>(ctx: &RunCtx<'a>, args: ListArgs) -> miette::Result<CommandFuture<'a>> {
-    args.run((ctx.config)()?, ctx.dir)?;
+    args.run((ctx.config)()?, ctx.dir, ctx.recursive)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
 pub(super) fn ll<'a>(ctx: &RunCtx<'a>, mut args: ListArgs) -> miette::Result<CommandFuture<'a>> {
     args.long = true;
-    args.run((ctx.config)()?, ctx.dir)?;
+    args.run((ctx.config)()?, ctx.dir, ctx.recursive)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
