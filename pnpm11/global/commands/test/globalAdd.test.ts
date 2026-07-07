@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { expect, jest, test } from '@jest/globals'
 import type { GlobalPackageInfo } from '@pnpm/global.packages'
 import type { DependencyManifest } from '@pnpm/types'
@@ -118,7 +120,7 @@ test('global add replaces an existing pnpm install when installing @pnpm/exe', a
 
   expect(findGlobalPackage).toHaveBeenCalledWith('/global/v11', '@pnpm/exe')
   expect(findGlobalPackage).toHaveBeenCalledWith('/global/v11', 'pnpm')
-  expect(removeBin).toHaveBeenCalledWith('/global/bin/pnpm')
+  expect(removeBin).toHaveBeenCalledWith(path.join('/global/bin', 'pnpm'))
   expect(symlinkDir).toHaveBeenCalledWith('/global/v11/new', '/global/v11/new-hash', { overwrite: true })
   expect(linkBinsOfPackages).toHaveBeenCalledWith([], '/global/bin', { excludeBins: new Set() })
 })
