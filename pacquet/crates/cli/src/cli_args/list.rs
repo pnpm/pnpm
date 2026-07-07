@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use clap::Args;
@@ -12,7 +12,10 @@ pub(crate) use pacquet_lockfile::PkgNameVerPeer;
 use pacquet_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotEntry};
 use serde_json::{Map, Value, json};
 
-use crate::cli_args::sanitize::sanitize;
+use crate::cli_args::{
+    recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
+    sanitize::sanitize,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum RecursionLimit {
@@ -71,9 +74,12 @@ pub struct ListArgs {
 }
 
 impl ListArgs {
-    pub fn run(self, config: &Config, dir: &Path) -> miette::Result<()> {
+    pub fn run(self, config: &Config, dir: &Path, recursive: bool) -> miette::Result<()> {
         if self.global {
             return self.run_global(config);
+        }
+        if recursive {
+            return self.run_recursive(config, dir);
         }
         self.run_local(config, dir)
     }
@@ -101,7 +107,55 @@ impl ListArgs {
         Ok(())
     }
 
+    fn run_recursive(&self, config: &Config, dir: &Path) -> miette::Result<()> {
+        let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
+        let (projects, _) = discover_workspace_projects(workspace_root)?;
+        let selection =
+            select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
+
+        let roots = if self.depth == RecursionLimit::ProjectsOnly {
+            selection
+                .selected
+                .values()
+                .map(|node| project_only_root(node.package.project))
+                .collect::<Vec<_>>()
+        } else {
+            let mut roots = Vec::new();
+            for project_dir in selection.selected.keys() {
+                if let LocalRootResult::Root(root) = self.local_root(config, project_dir)? {
+                    roots.push(root);
+                }
+            }
+            roots
+        };
+
+        self.print_roots(&roots);
+        Ok(())
+    }
+
     fn run_local(&self, config: &Config, dir: &Path) -> miette::Result<()> {
+        match self.local_root(config, dir)? {
+            LocalRootResult::Root(root) => self.print_roots(&[root]),
+            LocalRootResult::NoLockfile { lockfile_dir } => {
+                if self.packages.is_empty() {
+                    println!("No lockfile found in {}", lockfile_dir.display());
+                } else {
+                    println!("No matching packages found");
+                }
+            }
+            LocalRootResult::NoPackages => {
+                if self.packages.is_empty() {
+                    println!("No packages found");
+                } else {
+                    println!("No matching packages found");
+                }
+            }
+            LocalRootResult::NoMatchingPackages => println!("No matching packages found"),
+        }
+        Ok(())
+    }
+
+    fn local_root(&self, config: &Config, dir: &Path) -> miette::Result<LocalRootResult> {
         let lockfile_dir = config.workspace_dir.as_deref().unwrap_or(dir);
         let lockfile_result = if self.lockfile_only {
             Lockfile::load_wanted_from_dir(lockfile_dir)
@@ -113,12 +167,7 @@ impl ListArgs {
             }
         };
         let Some(lockfile) = lockfile_result.into_diagnostic().wrap_err("load lockfile")? else {
-            if self.packages.is_empty() {
-                println!("No lockfile found in {}", lockfile_dir.display());
-            } else {
-                println!("No matching packages found");
-            }
-            return Ok(());
+            return Ok(LocalRootResult::NoLockfile { lockfile_dir: lockfile_dir.to_path_buf() });
         };
 
         let importer_id: String = if dir == lockfile_dir {
@@ -133,12 +182,7 @@ impl ListArgs {
         let Some(importer) =
             lockfile.importers.get(&importer_id).or_else(|| lockfile.root_project())
         else {
-            if self.packages.is_empty() {
-                println!("No packages found");
-            } else {
-                println!("No matching packages found");
-            }
-            return Ok(());
+            return Ok(LocalRootResult::NoPackages);
         };
 
         let manifest_path = dir.join("package.json");
@@ -171,8 +215,7 @@ impl ListArgs {
                 && tree.dev_dependencies.is_empty()
                 && tree.optional_dependencies.is_empty()
             {
-                println!("No matching packages found");
-                return Ok(());
+                return Ok(LocalRootResult::NoMatchingPackages);
             }
         }
 
@@ -186,21 +229,46 @@ impl ListArgs {
             optional_dependencies: tree.optional_dependencies,
         };
 
+        Ok(LocalRootResult::Root(root))
+    }
+
+    fn print_roots(&self, roots: &[LocalTreeRoot]) {
         if self.json {
-            let output = render_local_json(&root);
+            let output = match roots {
+                [root] => render_local_json(root),
+                _ => render_local_roots_json(roots),
+            };
             println!("{output}");
         } else if self.parseable {
-            let output = render_local_parseable(&root, self.long);
-            println!("{output}");
+            let output = roots
+                .iter()
+                .map(|root| render_local_parseable(root, self.long))
+                .filter(|output| !output.is_empty())
+                .collect::<Vec<_>>()
+                .join("\n");
+            if !output.is_empty() {
+                println!("{output}");
+            }
         } else {
-            let output = render_local_tree(&root, self.long);
+            let joiner = if self.depth == RecursionLimit::ProjectsOnly { "\n" } else { "\n\n" };
+            let output = roots
+                .iter()
+                .map(|root| render_local_tree(root, self.long))
+                .filter(|output| !output.is_empty())
+                .collect::<Vec<_>>()
+                .join(joiner);
             if !output.is_empty() {
                 println!("{output}");
             }
         }
-
-        Ok(())
     }
+}
+
+enum LocalRootResult {
+    Root(LocalTreeRoot),
+    NoLockfile { lockfile_dir: PathBuf },
+    NoPackages,
+    NoMatchingPackages,
 }
 
 #[derive(Debug, Clone)]
@@ -224,6 +292,19 @@ pub(crate) struct LocalTreeRoot {
     pub(crate) dependencies: Vec<DepNode>,
     pub(crate) dev_dependencies: Vec<DepNode>,
     pub(crate) optional_dependencies: Vec<DepNode>,
+}
+
+fn project_only_root(project: &pacquet_workspace::Project) -> LocalTreeRoot {
+    let manifest = project.manifest.value();
+    LocalTreeRoot {
+        name: manifest.get("name").and_then(Value::as_str).map(str::to_string),
+        version: manifest.get("version").and_then(Value::as_str).map(str::to_string),
+        private: manifest.get("private").and_then(Value::as_bool),
+        path: project.root_dir.to_string_lossy().into_owned(),
+        dependencies: Vec::new(),
+        dev_dependencies: Vec::new(),
+        optional_dependencies: Vec::new(),
+    }
 }
 
 struct BuiltTree {
@@ -683,6 +764,15 @@ fn render_archy(node: &TreeNode, connector: &str, prefix: &str, out: &mut String
 }
 
 pub(crate) fn render_local_json(root: &LocalTreeRoot) -> String {
+    render_local_roots_json(std::slice::from_ref(root))
+}
+
+fn render_local_roots_json(roots: &[LocalTreeRoot]) -> String {
+    let root_objs = roots.iter().map(local_root_to_json).collect::<Vec<_>>();
+    serde_json::to_string_pretty(&root_objs).expect("serialize local list")
+}
+
+fn local_root_to_json(root: &LocalTreeRoot) -> Value {
     let mut deps_map = Map::new();
     for dep in &root.dependencies {
         deps_map.insert(dep.alias.clone(), dep_to_json(dep));
@@ -716,7 +806,7 @@ pub(crate) fn render_local_json(root: &LocalTreeRoot) -> String {
         root_obj.insert("optionalDependencies".to_string(), Value::Object(opt_map));
     }
 
-    serde_json::to_string_pretty(&json!([root_obj])).expect("serialize local list")
+    Value::Object(root_obj)
 }
 
 pub(crate) fn dep_to_json(dep: &DepNode) -> Value {
