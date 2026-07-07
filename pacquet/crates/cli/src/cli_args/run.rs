@@ -5,7 +5,8 @@ use miette::Diagnostic;
 use pacquet_config::Config;
 use pacquet_executor::{RunScript, ScriptsPrependNodePath, run_script};
 use pacquet_package_manager::{make_node_package_map_option, package_map_path_for_execution};
-use pacquet_package_manifest::{PackageManifest, PackageManifestError};
+use pacquet_package_manifest::PackageManifest;
+use pacquet_workspace::{ReadProjectManifestOnlyError, read_project_manifest_only};
 use serde_json::Value;
 use std::{
     collections::HashMap,
@@ -33,21 +34,25 @@ pub struct RunArgs {
     /// Run the script starting from the given package, skipping every
     /// package that sorts before it. Only meaningful together with the
     /// global `-r` / `--recursive` flag (the `--resume-from` flag).
-    #[clap(long = "resume-from")]
+    #[clap(skip)]
     pub resume_from: Option<String>,
 
     /// Save the execution result of every package to
     /// `pnpm-exec-summary.json`. Only meaningful together with the
     /// global `-r` / `--recursive` flag (the `--report-summary` flag).
-    #[clap(long = "report-summary")]
+    #[clap(skip)]
     pub report_summary: bool,
 
     /// Keep running the remaining packages after a script fails instead
     /// of aborting on the first failure. Only meaningful together with
     /// the global `-r` / `--recursive` flag (the `--no-bail` flag;
     /// recursive runs bail by default).
-    #[clap(long = "no-bail")]
+    #[clap(skip)]
     pub no_bail: bool,
+
+    /// Sort recursive workspace projects topologically before running.
+    #[clap(skip = true)]
+    pub sort: bool,
 }
 
 /// Errors from `pacquet run`, including the hidden-script rejections from
@@ -56,7 +61,7 @@ pub struct RunArgs {
 #[non_exhaustive]
 pub enum RunError {
     #[diagnostic(transparent)]
-    Manifest(#[error(source)] PackageManifestError),
+    Manifest(#[error(source)] ReadProjectManifestOnlyError),
 
     #[display("Missing script: {script}")]
     #[diagnostic(code(ERR_PNPM_NO_SCRIPT), help("{hint}"))]
@@ -109,14 +114,15 @@ impl RunArgs {
     ) -> miette::Result<()> {
         let RunArgs { command, args, if_present, .. } = self;
         let Some(script_name) = command else {
-            let manifest =
-                PackageManifest::from_path(dir.join("package.json")).map_err(RunError::Manifest)?;
+            let manifest = read_project_manifest_only(dir).map_err(RunError::Manifest)?;
             println!("{}", render_project_commands(manifest.value()));
             return Ok(());
         };
-        let manifest = match PackageManifest::from_path(dir.join("package.json")) {
+        let manifest = match read_project_manifest_only(dir) {
             Ok(manifest) => manifest,
-            Err(PackageManifestError::NoImporterManifestFound(_)) if fallback_to_exec => {
+            Err(ReadProjectManifestOnlyError::NoImporterManifestFound { .. })
+                if fallback_to_exec =>
+            {
                 return exec_fallback(script_name, args, dir, config);
             }
             Err(err) => return Err(RunError::Manifest(err).into()),
@@ -206,6 +212,7 @@ fn exec_fallback(
         resume_from: None,
         report_summary: false,
         no_bail: false,
+        sort: true,
     }
     .run(dir, config)
 }
@@ -227,8 +234,8 @@ pub(super) struct RunContext<'a> {
 /// Resolve `name` to a runnable main script body, or `Ok(None)` when
 /// there's nothing to run (the manifest has no truthy `scripts[name]`
 /// and `name` isn't `start`). An absent (or empty) `start` falls back
-/// to `node server.js` provided `server.js` exists in the process cwd;
-/// otherwise [`RunError::NoScriptOrServer`].
+/// to `node server.js` provided `server.js` exists in the script
+/// execution directory; otherwise [`RunError::NoScriptOrServer`].
 fn resolve_main_script(ctx: &RunContext<'_>, name: &str) -> Result<Option<String>, RunError> {
     let get_script = |key: &str| -> Option<String> {
         ctx.manifest
@@ -242,7 +249,7 @@ fn resolve_main_script(ctx: &RunContext<'_>, name: &str) -> Result<Option<String
     match get_script(name) {
         Some(body) if !body.is_empty() => Ok(Some(body)),
         _ if name == "start" => {
-            if !ctx.init_cwd.join("server.js").exists() {
+            if !ctx.dir.join("server.js").exists() {
                 return Err(RunError::NoScriptOrServer);
             }
             Ok(Some("node server.js".to_string()))

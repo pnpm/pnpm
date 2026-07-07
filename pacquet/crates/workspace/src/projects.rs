@@ -119,12 +119,13 @@ pub fn find_workspace_projects_no_check(
             if body.starts_with('/') {
                 continue;
             }
-            let normalized = normalize_pattern(body);
-            Glob::new(&normalized).map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
-                pattern: pattern.clone(),
-                message: err.to_string(),
-            })?;
-            user_negation_globs.push(normalized);
+            for normalized in normalize_manifest_patterns(body) {
+                Glob::new(&normalized).map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
+                    pattern: pattern.clone(),
+                    message: err.to_string(),
+                })?;
+                user_negation_globs.push(normalized);
+            }
         } else {
             include_patterns.push(pattern);
         }
@@ -150,39 +151,41 @@ pub fn find_workspace_projects_no_check(
 
     let mut manifest_paths: BTreeSet<PathBuf> = BTreeSet::new();
     for pattern in include_patterns {
-        let normalized = normalize_pattern(pattern);
-        let glob =
-            Glob::new(&normalized).map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
-                pattern: pattern.to_string(),
-                message: err.to_string(),
-            })?;
-
-        let walk = glob.walk(workspace_root).not(ignore_template.clone()).map_err(|err| {
-            FindWorkspaceProjectsError::InvalidGlob {
-                pattern: pattern.to_string(),
-                message: err.to_string(),
+        for normalized in normalize_manifest_patterns(pattern) {
+            if is_literal_pattern(&normalized) && !workspace_root.join(&normalized).is_file() {
+                continue;
             }
-        })?;
+            let glob =
+                Glob::new(&normalized).map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
+                    pattern: pattern.to_string(),
+                    message: err.to_string(),
+                })?;
 
-        for entry in walk {
-            let entry = entry.map_err(|err| FindWorkspaceProjectsError::Walk {
-                root: workspace_root.to_path_buf(),
-                source: std::io::Error::other(err.to_string()),
+            let walk = glob.walk(workspace_root).not(ignore_template.clone()).map_err(|err| {
+                FindWorkspaceProjectsError::InvalidGlob {
+                    pattern: pattern.to_string(),
+                    message: err.to_string(),
+                }
             })?;
-            manifest_paths.insert(entry.path().to_path_buf());
+
+            for entry in walk {
+                let entry = entry.map_err(|err| FindWorkspaceProjectsError::Walk {
+                    root: workspace_root.to_path_buf(),
+                    source: std::io::Error::other(err.to_string()),
+                })?;
+                manifest_paths.insert(entry.path().to_path_buf());
+            }
         }
     }
 
-    let root_manifest = workspace_root.join("package.json");
-    if root_manifest.is_file() {
-        manifest_paths.insert(root_manifest);
+    for basename in PROJECT_MANIFEST_BASENAMES {
+        let root_manifest = workspace_root.join(basename);
+        if root_manifest.is_file() {
+            manifest_paths.insert(root_manifest);
+        }
     }
 
     // Sort lexicographically by `rootDir` (= parent of the manifest).
-    // `BTreeSet` already sorts by full path, but the contract is "by
-    // dir then by basename"; with our basename always being
-    // `package.json` the two orderings coincide. Keep the explicit
-    // sort below to make the contract visible.
     let mut sorted: Vec<PathBuf> = manifest_paths.into_iter().collect();
     sorted.sort_by(|left, right| {
         let dir_left = left.parent().unwrap_or_else(|| Path::new(""));
@@ -191,7 +194,12 @@ pub fn find_workspace_projects_no_check(
     });
 
     let mut projects = Vec::with_capacity(sorted.len());
+    let mut seen_roots = BTreeSet::new();
     for manifest_path in sorted {
+        let root_dir = manifest_path.parent().unwrap_or(workspace_root).to_path_buf();
+        if seen_roots.contains(&root_dir) {
+            continue;
+        }
         let manifest = match read_exact_project_manifest(&manifest_path) {
             Ok(m) => m,
             // Swallow ENOENT mid-walk (a file vanished between listing
@@ -205,12 +213,17 @@ pub fn find_workspace_projects_no_check(
             {
                 continue;
             }
+            Err(ReadProjectManifestError::ReadFile { source, .. })
+                if source.kind() == ErrorKind::NotFound =>
+            {
+                continue;
+            }
             Err(ReadProjectManifestError::Read(PackageManifestError::NoImporterManifestFound(
                 _,
             ))) => continue,
             Err(err) => return Err(FindWorkspaceProjectsError::ReadManifest(err)),
         };
-        let root_dir = manifest_path.parent().unwrap_or(workspace_root).to_path_buf();
+        seen_roots.insert(root_dir.clone());
         projects.push(Project { root_dir, manifest });
     }
 
@@ -222,19 +235,20 @@ pub fn find_workspace_projects_no_check(
 /// `**/tests/**` directories that the lower-level package-finding path
 /// excludes.
 const IGNORE_PATTERNS: &[&str] = &["**/node_modules/**", "**/bower_components/**"];
+const PROJECT_MANIFEST_BASENAMES: &[&str] = &["package.json", "package.yaml"];
 
-fn normalize_pattern(pattern: &str) -> String {
-    // Each user pattern is suffixed with the manifest basename so the
-    // glob matches manifest files rather than directories. Pacquet only
-    // supports `package.json` today; the `{json,yaml,json5}` brace
-    // expansion is dropped to match the [`project_manifest`] reader.
+fn normalize_manifest_patterns(pattern: &str) -> Vec<String> {
+    // Each user pattern is suffixed with every supported manifest basename
+    // so the glob matches manifest files rather than directories.
     let trimmed = pattern.trim_end_matches('/');
-    if trimmed.is_empty() {
-        // `.` and `''` both mean "match the workspace root itself".
-        "package.json".to_string()
-    } else {
-        format!("{trimmed}/package.json")
+    if trimmed.is_empty() || trimmed == "." {
+        return Vec::new();
     }
+    PROJECT_MANIFEST_BASENAMES.iter().map(|basename| format!("{trimmed}/{basename}")).collect()
+}
+
+fn is_literal_pattern(pattern: &str) -> bool {
+    !pattern.chars().any(|ch| matches!(ch, '*' | '?' | '[' | ']' | '{' | '}'))
 }
 
 #[cfg(test)]

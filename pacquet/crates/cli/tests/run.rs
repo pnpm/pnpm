@@ -359,6 +359,34 @@ fn top_level_fallback_runs_script_before_local_bin() {
     drop(root);
 }
 
+#[test]
+fn top_level_fallback_runs_package_yaml_script_with_dir() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let fixtures = workspace.join("fixtures");
+    fs::create_dir_all(&fixtures).expect("create fixtures dir");
+    let marker = workspace.join("prepared.txt");
+    fs::write(
+        fixtures.join("package.yaml"),
+        r#"name: fixtures
+version: 0.0.0
+scripts:
+  prepareFixtures: node -e "require('fs').writeFileSync(process.env.MARKER_PATH, 'prepared')"
+"#,
+    )
+    .expect("write package.yaml");
+
+    pacquet
+        .with_env("MARKER_PATH", marker.to_string_lossy().as_ref())
+        .with_arg("--dir")
+        .with_arg(&fixtures)
+        .with_arg("prepareFixtures")
+        .assert()
+        .success();
+    assert_eq!(fs::read_to_string(&marker).expect("read marker"), "prepared");
+
+    drop(root);
+}
+
 #[cfg(unix)]
 #[test]
 fn top_level_fallback_runs_local_bin_when_script_is_missing() {
@@ -476,9 +504,8 @@ fn run_start_falls_back_to_node_server_js_when_present() {
     })
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
-    // `server.js` is probed via `existsSync('server.js')`, resolved
-    // against the process cwd (which `CommandTempCwd` sets to the
-    // workspace), so the file goes here, not under any project subdir.
+    // `server.js` is probed in the same directory where the script
+    // runs, which `CommandTempCwd` sets to the workspace for this case.
     fs::write(workspace.join("server.js"), "// placeholder").expect("write server.js");
 
     let shim_dir = workspace.join("shim");
@@ -498,6 +525,47 @@ fn run_start_falls_back_to_node_server_js_when_present() {
 
     let written = fs::read_to_string(&marker).expect("read marker");
     assert_eq!(written, "server.js");
+
+    drop(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn run_start_fallback_uses_dir_for_server_js_probe() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let project = workspace.join("project");
+    fs::create_dir_all(&project).expect("create project");
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+    })
+    .to_string();
+    fs::write(project.join("package.json"), manifest).expect("write package.json");
+    fs::write(project.join("server.js"), "// placeholder").expect("write server.js");
+
+    let shim_dir = workspace.join("shim");
+    fs::create_dir_all(&shim_dir).expect("create shim dir");
+    let marker = workspace.join("node-cwd-and-args.txt");
+    write_executable(
+        &shim_dir.join("node"),
+        &format!("#!/bin/sh\nprintf '%s\\n%s' \"$(pwd)\" \"$*\" > \"{}\"\n", marker.display()),
+    );
+
+    let existing_path = std::env::var("PATH").unwrap_or_default();
+    let new_path = format!("{}:{}", shim_dir.display(), existing_path);
+    std::process::Command::cargo_bin("pacquet")
+        .expect("find pacquet binary")
+        .with_current_dir(&workspace)
+        .with_env("PATH", new_path)
+        .with_arg("--dir")
+        .with_arg(&project)
+        .with_arg("start")
+        .assert()
+        .success();
+
+    let written = fs::read_to_string(&marker).expect("read marker");
+    let project = fs::canonicalize(project).expect("canonicalize project");
+    assert_eq!(written, format!("{}\nserver.js", project.display()));
 
     drop(root);
 }

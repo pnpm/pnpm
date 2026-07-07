@@ -73,6 +73,85 @@ fn filter_flag_is_global_and_parses_before_subcommand() {
 }
 
 #[test]
+fn recursive_run_flags_parse_before_fallback_command() {
+    let parsed = CliArgs::try_parse_from([
+        "pacquet",
+        "--no-sort",
+        "--workspace-concurrency=1",
+        "-r",
+        "--report-summary",
+        ".test",
+    ])
+    .expect("parses recursive fallback flags");
+    assert!(parsed.recursive);
+    assert!(parsed.no_sort);
+    assert_eq!(parsed.workspace_concurrency, Some(1));
+    assert!(parsed.report_summary);
+    assert!(
+        matches!(&parsed.command, CliCommand::External(command) if command.as_slice() == [".test"]),
+    );
+    parsed.validate_command_scoped_global_options().expect("recursive fallback flags are valid");
+}
+
+#[test]
+fn script_scoped_global_flags_parse_before_script_commands() {
+    for argv in [
+        ["pacquet", "--report-summary", "run", "build"].as_slice(),
+        ["pacquet", "--resume-from", "pkg", "exec", "echo"].as_slice(),
+        ["pacquet", "--no-bail", "run", "build"].as_slice(),
+        ["pacquet", "--report-summary", "test"].as_slice(),
+        ["pacquet", "--resume-from", "pkg", "start"].as_slice(),
+        ["pacquet", "--no-bail", "stop"].as_slice(),
+        ["pacquet", "-r", "--report-summary", ".test"].as_slice(),
+    ] {
+        let parsed = CliArgs::try_parse_from(argv).expect("parses script-scoped global flag");
+        parsed.validate_command_scoped_global_options().expect("script command accepts flag");
+    }
+}
+
+#[test]
+fn report_summary_global_flag_parses_for_publish() {
+    for argv in [
+        ["pacquet", "--report-summary", "publish"].as_slice(),
+        ["pacquet", "publish", "--report-summary"].as_slice(),
+    ] {
+        let parsed = CliArgs::try_parse_from(argv).expect("parses report-summary for publish");
+        parsed.validate_command_scoped_global_options().expect("publish accepts report-summary");
+    }
+}
+
+#[test]
+fn script_scoped_global_flags_reject_unrelated_commands() {
+    for argv in [
+        ["pacquet", "install", "--report-summary"].as_slice(),
+        ["pacquet", "install", "--resume-from", "pkg"].as_slice(),
+        ["pacquet", "install", "--no-bail"].as_slice(),
+        ["pacquet", "restart", "--report-summary"].as_slice(),
+        ["pacquet", "restart", "--no-bail"].as_slice(),
+        ["pacquet", "publish", "--resume-from", "pkg"].as_slice(),
+        ["pacquet", "publish", "--no-bail"].as_slice(),
+    ] {
+        let parsed =
+            CliArgs::try_parse_from(argv).expect("global parser accepts compatibility flag");
+        let err = parsed
+            .validate_command_scoped_global_options()
+            .expect_err("non-script command rejects flag");
+        assert_eq!(err.kind(), clap::error::ErrorKind::UnknownArgument);
+    }
+}
+
+#[test]
+fn workspace_concurrency_parses_as_global_option() {
+    let positive = CliArgs::try_parse_from(["pacquet", "--workspace-concurrency", "3", "install"])
+        .expect("parses --workspace-concurrency 3");
+    assert_eq!(positive.workspace_concurrency, Some(3));
+
+    let negative = CliArgs::try_parse_from(["pacquet", "install", "--workspace-concurrency=-1"])
+        .expect("parses --workspace-concurrency=-1 after subcommand");
+    assert_eq!(negative.workspace_concurrency, Some(-1));
+}
+
+#[test]
 fn filter_flag_split_across_subcommand_keeps_only_subcommand_side() {
     let parsed = CliArgs::try_parse_from(["pacquet", "-F", "a", "install", "-F", "b"])
         .expect("parses split -F");

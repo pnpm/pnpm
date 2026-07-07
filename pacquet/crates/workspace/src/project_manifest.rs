@@ -1,16 +1,17 @@
-//! Read a project's `package.json`.
+//! Read a project's package manifest.
 //!
-//! pnpm also supports `package.json5` and `package.yaml` and returns a
-//! writer closure that preserves formatting. Pacquet doesn't consume
-//! either alternative format yet, and the install pipeline never writes
-//! the manifest back — so this handles `package.json` only and has no
-//! writer closure. Adding the other formats is a follow-up if real
-//! workspaces in the wild use them.
+//! pnpm also supports `package.json5` and returns a writer closure that
+//! preserves formatting. Pacquet does not consume JSON5 yet, and the
+//! install pipeline never writes the manifest back through this reader,
+//! so this handles `package.json` plus read-only `package.yaml`.
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_package_manifest::{PackageManifest, PackageManifestError};
-use std::path::{Path, PathBuf};
+use std::{
+    fs, io,
+    path::{Path, PathBuf},
+};
 
 /// Error type of [`read_exact_project_manifest`].
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -18,6 +19,22 @@ use std::path::{Path, PathBuf};
 pub enum ReadProjectManifestError {
     #[diagnostic(transparent)]
     Read(#[error(source)] PackageManifestError),
+
+    #[display("Failed to read {}: {source}", path.display())]
+    #[diagnostic(code(pacquet_workspace::read_project_manifest))]
+    ReadFile {
+        path: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
+
+    #[display("Failed to parse {}: {source}", path.display())]
+    #[diagnostic(code(pacquet_workspace::parse_project_manifest))]
+    ParseYaml {
+        path: PathBuf,
+        #[error(source)]
+        source: Box<serde_saphyr::Error>,
+    },
 
     #[display("Not supported manifest name {basename:?}")]
     #[diagnostic(code(pacquet_workspace::unsupported_project_manifest))]
@@ -29,34 +46,29 @@ pub enum ReadProjectManifestError {
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum ReadProjectManifestOnlyError {
-    // pnpm's variant of this message lists `package.yaml` and
-    // `package.json5` alongside `package.json`. Pacquet only probes
-    // `package.json` today, so the diagnostic mentions just that one —
-    // bring back the alternatives when the readers do.
-    #[display("No package.json was found in {:?}", project_dir.display())]
+    #[display("No package.json or package.yaml was found in {:?}", project_dir.display())]
     #[diagnostic(code(pacquet_workspace::no_importer_manifest_found))]
     NoImporterManifestFound { project_dir: PathBuf },
 
     #[diagnostic(transparent)]
-    Read(#[error(source)] PackageManifestError),
+    Read(#[error(source)] ReadProjectManifestError),
 }
 
 /// Read the manifest under `project_dir`.
 ///
-/// Returns the manifest plus the basename that was loaded. Today the
-/// only supported basename is `package.json`; the function returns the
-/// basename so callers can stay structurally the same when
-/// `package.json5` / `package.yaml` support lands.
+/// Returns the manifest plus the basename that was loaded.
 pub fn try_read_project_manifest(
     project_dir: &Path,
 ) -> Result<Option<(&'static str, PackageManifest)>, ReadProjectManifestOnlyError> {
-    let json_path = project_dir.join("package.json");
-    if !json_path.is_file() {
-        return Ok(None);
+    for basename in ["package.json", "package.yaml"] {
+        let manifest_path = project_dir.join(basename);
+        if manifest_path.is_file() {
+            let manifest = read_exact_project_manifest(&manifest_path)
+                .map_err(ReadProjectManifestOnlyError::Read)?;
+            return Ok(Some((basename, manifest)));
+        }
     }
-    let manifest =
-        PackageManifest::from_path(json_path).map_err(ReadProjectManifestOnlyError::Read)?;
-    Ok(Some(("package.json", manifest)))
+    Ok(None)
 }
 
 /// Strict version: error when no manifest is found.
@@ -80,8 +92,7 @@ pub fn safe_read_project_manifest_only(
 }
 
 /// Read a manifest from an explicit path, probing the basename to pick
-/// a parser. Pacquet only supports `package.json`; other basenames are
-/// rejected with the same wording pnpm uses.
+/// a parser.
 pub fn read_exact_project_manifest(
     manifest_path: &Path,
 ) -> Result<PackageManifest, ReadProjectManifestError> {
@@ -92,8 +103,20 @@ pub fn read_exact_project_manifest(
     match basename.as_str() {
         "package.json" => PackageManifest::from_path(manifest_path.to_path_buf())
             .map_err(ReadProjectManifestError::Read),
+        "package.yaml" => read_package_yaml(manifest_path),
         _ => Err(ReadProjectManifestError::UnsupportedName { basename }),
     }
+}
+
+fn read_package_yaml(path: &Path) -> Result<PackageManifest, ReadProjectManifestError> {
+    let text = fs::read_to_string(path).map_err(|source| ReadProjectManifestError::ReadFile {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    let value = serde_saphyr::from_str(&text).map_err(|source| {
+        ReadProjectManifestError::ParseYaml { path: path.to_path_buf(), source: Box::new(source) }
+    })?;
+    Ok(PackageManifest::from_value(path.to_path_buf(), value))
 }
 
 #[cfg(test)]

@@ -6,7 +6,7 @@ use miette::Diagnostic;
 use pacquet_config::Config;
 use pacquet_executor::{push_script_arg, select_shell};
 use pacquet_package_manager::{make_node_package_map_option, package_map_path_for_execution};
-use pacquet_package_manifest::PackageManifest;
+use pacquet_workspace::safe_read_project_manifest_only;
 use std::{
     ffi::{OsStr, OsString},
     path::{Path, PathBuf},
@@ -34,18 +34,22 @@ pub struct ExecArgs {
 
     /// Recursive only: resume execution from the given package, skipping
     /// every earlier project in the topological order.
-    #[clap(long = "resume-from")]
+    #[clap(skip)]
     pub resume_from: Option<String>,
 
     /// Recursive only: write a `pnpm-exec-summary.json` execution report
     /// to the workspace root.
-    #[clap(long = "report-summary")]
+    #[clap(skip)]
     pub report_summary: bool,
 
     /// Recursive only: keep going after a project fails instead of
     /// stopping at the first failure.
-    #[clap(long = "no-bail")]
+    #[clap(skip)]
     pub no_bail: bool,
+
+    /// Sort recursive workspace projects topologically before running.
+    #[clap(skip = true)]
+    pub sort: bool,
 }
 
 /// Errors from `pacquet exec`.
@@ -189,17 +193,12 @@ pub(super) fn spawn_in_dir(
     cmd.status().map_err(|source| ExecError::Spawn { command: command[0].clone(), source })
 }
 
-/// Read the `name` field of the project's `package.json`, if any.
+/// Read the `name` field of the project's package manifest, if any.
 ///
 /// Used only to stamp `PNPM_PACKAGE_NAME`; a missing or nameless manifest
 /// is not an error for `exec` (it can run a command in any directory).
 fn read_package_name(dir: &Path) -> Option<String> {
-    PackageManifest::from_path(dir.join("package.json"))
-        .ok()?
-        .value()
-        .get("name")?
-        .as_str()
-        .map(str::to_string)
+    safe_read_project_manifest_only(dir).ok()??.value().get("name")?.as_str().map(str::to_string)
 }
 
 /// Prepend `dirs` to the current process `PATH`.

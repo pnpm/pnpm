@@ -139,6 +139,52 @@ fn top_level_fallback_enters_recursive_run() {
 }
 
 #[test]
+fn recursive_lifecycle_aliases_use_recursive_run_options() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let lifecycle_scripts = |name: &str| {
+        json!({
+            "name": name,
+            "version": "1.0.0",
+            "scripts": {
+                "test": "touch test-ran.txt",
+                "start": "touch start-ran.txt",
+                "stop": "touch stop-ran.txt",
+            },
+        })
+    };
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", lifecycle_scripts("project-1")),
+            ("project-2", lifecycle_scripts("project-2")),
+        ],
+    );
+
+    for (command, marker) in
+        [("test", "test-ran.txt"), ("start", "start-ran.txt"), ("stop", "stop-ran.txt")]
+    {
+        let _ = fs::remove_file(workspace.join("pnpm-exec-summary.json"));
+        std::process::Command::cargo_bin("pacquet")
+            .expect("find pacquet binary")
+            .with_current_dir(&workspace)
+            .with_arg("-r")
+            .with_arg("--report-summary")
+            .with_arg(command)
+            .assert()
+            .success();
+
+        for name in ["project-1", "project-2"] {
+            assert!(workspace.join(name).join(marker).exists(), "{command} should run in {name}");
+        }
+        let statuses = summary_statuses(&workspace);
+        assert_eq!(statuses.get("project-1").map(String::as_str), Some("passed"));
+        assert_eq!(statuses.get("project-2").map(String::as_str), Some("passed"));
+    }
+
+    drop(root);
+}
+
+#[test]
 fn top_level_fallback_does_not_exec_local_bin_recursively() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(
@@ -644,6 +690,39 @@ fn recursive_run_filter_no_match_is_a_noop() {
         !workspace.join("project-1").join("ran.txt").exists(),
         "no project is selected, so nothing should run",
     );
+
+    drop(root);
+}
+
+#[test]
+fn recursive_run_no_sort_uses_workspace_order() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            (
+                "app",
+                json!({
+                    "name": "app",
+                    "version": "1.0.0",
+                    "scripts": { "build": "echo app >> ../order.log" },
+                    "dependencies": { "lib": "workspace:*" },
+                }),
+            ),
+            ("lib", build_appends_run_order("lib")),
+        ],
+    );
+
+    pacquet
+        .with_arg("--no-sort")
+        .with_arg("-r")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    assert_eq!(order, "app\nlib\n");
 
     drop(root);
 }

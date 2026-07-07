@@ -15,12 +15,7 @@ pub struct StopArgs {
 }
 
 impl StopArgs {
-    pub fn run(
-        self,
-        dir: &std::path::Path,
-        config: &pacquet_config::Config,
-        silent: bool,
-    ) -> miette::Result<()> {
+    pub(crate) fn into_run_args(self) -> RunArgs {
         let StopArgs { args, if_present } = self;
         RunArgs {
             command: Some("stop".to_string()),
@@ -29,8 +24,17 @@ impl StopArgs {
             resume_from: None,
             report_summary: false,
             no_bail: false,
+            sort: true,
         }
-        .run(dir, config, silent)
+    }
+
+    pub fn run(
+        self,
+        dir: &std::path::Path,
+        config: &pacquet_config::Config,
+        silent: bool,
+    ) -> miette::Result<()> {
+        self.into_run_args().run(dir, config, silent)
     }
 }
 

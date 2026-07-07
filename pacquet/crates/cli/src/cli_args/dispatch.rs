@@ -29,6 +29,10 @@ pub(crate) struct RunCtx<'a> {
     pub(crate) manifest_path: &'a Path,
     pub(crate) reporter: ReporterType,
     pub(crate) recursive: bool,
+    pub(crate) recursive_resume_from: Option<&'a str>,
+    pub(crate) recursive_report_summary: bool,
+    pub(crate) recursive_no_bail: bool,
+    pub(crate) recursive_sort: bool,
     pub(crate) config: &'a (dyn Fn() -> miette::Result<&'static mut Config> + Sync),
     /// Like [`Self::config`] but anchored at the pnpm home dir instead of
     /// `--dir`, so a `-g` install can't inherit the caller project's
@@ -118,6 +122,12 @@ impl CliArgs {
             version: _,
             color: _,
             yes: _,
+            sort: _,
+            no_sort,
+            workspace_concurrency,
+            resume_from,
+            report_summary,
+            no_bail,
         } = self;
 
         // Canonicalize `--dir` so the bunyan-envelope `prefix` emitted by
@@ -181,6 +191,10 @@ impl CliArgs {
                     cfg.recursive = recursive;
                     cfg.filter.clone_from(&filter);
                     cfg.filter_prod.clone_from(&filter_prod);
+                    if let Some(workspace_concurrency) = workspace_concurrency {
+                        cfg.workspace_concurrency =
+                            pacquet_config::resolve_child_concurrency(Some(workspace_concurrency));
+                    }
                     Config::leak(cfg)
                 })
                 .map_err(miette::Report::new)
@@ -218,6 +232,10 @@ impl CliArgs {
             manifest_path: &manifest_path,
             reporter,
             recursive,
+            recursive_resume_from: resume_from.as_deref(),
+            recursive_report_summary: report_summary,
+            recursive_no_bail: no_bail,
+            recursive_sort: !no_sort,
             config: &config,
             global_config: &global_config,
             state: &state,

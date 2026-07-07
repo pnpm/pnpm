@@ -54,7 +54,7 @@ use super::{
     why::WhyArgs,
     with::WithArgs,
 };
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand, error::ErrorKind};
 use pacquet_default_reporter::SummaryScope;
 use std::path::PathBuf;
 
@@ -127,9 +127,46 @@ pub struct CliArgs {
     /// [`pacquet_config::Config::filter_prod`].
     #[clap(long = "filter-prod", global = true)]
     pub filter_prod: Vec<String>,
+
+    /// Keep recursive workspace projects sorted topologically.
+    #[clap(long = "sort", global = true, overrides_with = "no_sort")]
+    pub sort: bool,
+
+    /// Run recursive workspace projects in workspace order.
+    #[clap(long = "no-sort", global = true, overrides_with = "sort")]
+    pub no_sort: bool,
+
+    /// Maximum number of workspace projects to process in parallel.
+    #[clap(long = "workspace-concurrency", global = true)]
+    pub workspace_concurrency: Option<i32>,
+
+    /// Recursive only: resume execution from the given package.
+    #[clap(long = "resume-from", global = true, hide = true)]
+    pub resume_from: Option<String>,
+
+    /// Recursive only: write a `pnpm-exec-summary.json` execution report.
+    #[clap(long = "report-summary", global = true, hide = true)]
+    pub report_summary: bool,
+
+    /// Recursive only: keep going after a project fails.
+    #[clap(long = "no-bail", global = true, hide = true)]
+    pub no_bail: bool,
 }
 
 impl CliArgs {
+    pub fn validate_command_scoped_global_options(&self) -> Result<(), clap::Error> {
+        if self.resume_from.is_some() {
+            self.validate_run_scoped_global_option("--resume-from")?;
+        }
+        if self.report_summary {
+            self.validate_report_summary_global_option()?;
+        }
+        if self.no_bail {
+            self.validate_run_scoped_global_option("--no-bail")?;
+        }
+        Ok(())
+    }
+
     /// Promote the command to recursive mode when a `--filter` /
     /// `--filter-prod` selector is present, even without an explicit
     /// `-r` / `--recursive`.
@@ -142,6 +179,29 @@ impl CliArgs {
         if !self.filter.is_empty() || !self.filter_prod.is_empty() {
             self.recursive = true;
         }
+    }
+
+    fn validate_run_scoped_global_option(&self, option: &str) -> Result<(), clap::Error> {
+        if matches!(
+            self.command,
+            CliCommand::Run(_)
+                | CliCommand::Exec(_)
+                | CliCommand::External(_)
+                | CliCommand::Test
+                | CliCommand::Start
+                | CliCommand::Stop(_),
+        ) {
+            return Ok(());
+        }
+        Err(Self::command()
+            .error(ErrorKind::UnknownArgument, format!("unexpected argument '{option}' found")))
+    }
+
+    fn validate_report_summary_global_option(&self) -> Result<(), clap::Error> {
+        if matches!(self.command, CliCommand::Publish(_)) {
+            return Ok(());
+        }
+        self.validate_run_scoped_global_option("--report-summary")
     }
 }
 
