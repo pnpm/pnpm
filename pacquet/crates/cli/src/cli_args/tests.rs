@@ -2,6 +2,7 @@ use super::{
     CliArgs,
     cli_command::CliCommand,
     install::{InstallArgs, resolve_bool_override},
+    list::RecursionLimit,
     package_manager::{
         current_source_pnpm_version, package_manager_to_sync, parse_package_manager,
     },
@@ -138,6 +139,18 @@ fn script_scoped_global_flags_reject_unrelated_commands() {
             .expect_err("non-script command rejects flag");
         assert_eq!(err.kind(), clap::error::ErrorKind::UnknownArgument);
     }
+}
+
+#[test]
+fn recursive_list_accepts_depth_minus_one_as_separate_value() {
+    let parsed = CliArgs::try_parse_from(["pacquet", "-r", "list", "--depth", "-1", "--json"])
+        .expect("parses recursive list with --depth -1");
+    assert!(parsed.recursive);
+    let CliCommand::List(args) = parsed.command else {
+        panic!("expected list command");
+    };
+    assert_eq!(args.depth, RecursionLimit::ProjectsOnly);
+    assert!(args.json);
 }
 
 #[test]

@@ -51,7 +51,7 @@ pub struct ListArgs {
     #[clap(long)]
     pub parseable: bool,
 
-    #[clap(long, default_value = "0", value_parser = parse_depth)]
+    #[clap(long, default_value = "0", value_parser = parse_depth, allow_hyphen_values = true)]
     pub depth: RecursionLimit,
 
     #[clap(short = 'P', long = "prod")]
