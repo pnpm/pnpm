@@ -296,38 +296,38 @@ impl InstallPackageBySnapshot<'_> {
             }
         };
 
-        let effective_resolution: Option<LockfileResolution> =
-            if let Some(picker) = custom_fetcher_picker {
-                let resolution_value =
-                    serde_json::to_value(&metadata.resolution).map_err(|err| {
-                        InstallPackageBySnapshotError::CustomFetcher(format!(
-                            "failed to serialize resolution for {package_id}: {err}",
-                        ))
-                    })?;
-                let opts_value = serde_json::json!({
-                    "packageKey": package_key.to_string(),
-                    "version": metadata.version,
-                });
-                match picker.try_fetch(&package_id, &resolution_value, &opts_value).await {
-                    Ok(Some(result)) => {
-                        if let Some(delegate) = result.get("delegate") {
-                            Some(serde_json::from_value(delegate.clone()).map_err(|err| {
-                                InstallPackageBySnapshotError::CustomFetcher(format!(
-                                    "invalid delegate resolution for {package_id}: {err}",
-                                ))
-                            })?)
-                        } else {
-                            None
-                        }
-                    }
-                    Ok(None) => None,
-                    Err(err) => {
-                        return Err(InstallPackageBySnapshotError::CustomFetcher(err.to_string()));
+        let effective_resolution: Option<LockfileResolution> = if let Some(picker) =
+            custom_fetcher_picker
+        {
+            let resolution_value = serde_json::to_value(&metadata.resolution).map_err(|err| {
+                InstallPackageBySnapshotError::CustomFetcher(format!(
+                    "failed to serialize resolution for {package_id}: {err}",
+                ))
+            })?;
+            let opts_value = serde_json::json!({
+                "packageKey": package_key.to_string(),
+                "version": metadata.version,
+            });
+            match picker.try_fetch(&package_id, &resolution_value, &opts_value).await {
+                Ok(Some(result)) => {
+                    if let Some(delegate) = result.get("delegate") {
+                        Some(serde_json::from_value(delegate.clone()).map_err(|err| {
+                            InstallPackageBySnapshotError::CustomFetcher(format!(
+                                "invalid delegate resolution for {package_id}: {err}",
+                            ))
+                        })?)
+                    } else {
+                        None
                     }
                 }
-            } else {
-                None
-            };
+                Ok(None) => None,
+                Err(err) => {
+                    return Err(InstallPackageBySnapshotError::CustomFetcher(err.to_string()));
+                }
+            }
+        } else {
+            None
+        };
         let resolution = effective_resolution.as_ref().unwrap_or(&metadata.resolution);
 
         let cas_paths: HashMap<String, PathBuf> = match resolution {
