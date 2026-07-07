@@ -118,6 +118,14 @@ jobs:
         run: cross build -p pacquet-cli --bin pacquet --release --target=${{ matrix.target }}
 
       - name: Build NAPI addon with cross
+        # musl targets enable `crt-static` by default, but a `cdylib` (the
+        # `.node` addon) can't be produced with a statically linked CRT. Disable
+        # it so the addon builds as a shared object that dynamically links musl
+        # libc at load time (this is what napi-rs does for musl prebuilds). The
+        # CLI binary keeps `crt-static` — it's built in the separate step above,
+        # so it stays fully static for portability across musl distros.
+        env:
+          RUSTFLAGS: ${{ contains(matrix.target, 'musl') && '-C target-feature=-crt-static' || '' }}
         run: cross build -p pacquet-napi --profile napi-release --target=${{ matrix.target }}
 
       - name: Prepare NAPI addon
