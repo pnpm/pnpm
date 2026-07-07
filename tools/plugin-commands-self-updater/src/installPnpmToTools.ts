@@ -19,22 +19,12 @@ export interface InstallPnpmToToolsResult {
 
 export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateCommandOptions): Promise<InstallPnpmToToolsResult> {
   const currentPkgName = getCurrentPackageName()
-  // pnpm v11 dropped the darwin-x64 artifact from @pnpm/exe because Node.js
-  // SEA injection produces a binary that segfaults at startup on Intel Macs
-  // (pnpm/pnpm#11423, upstream nodejs/node#62893). Self-updating a v10
-  // @pnpm/exe install to v11+ on Intel Mac would leave the user with no
-  // working binary. Transparently swap to the JS-only `pnpm` package, which
-  // runs against the user's system Node.js — typically already present
-  // because v10 @pnpm/exe users tend to manage Node via `pnpm env use`.
-  const targetPkgName = (
-    currentPkgName === '@pnpm/exe' &&
-    process.platform === 'darwin' &&
-    process.arch === 'x64' &&
-    semver.major(pnpmVersion) >= 11
-  )
-    ? 'pnpm'
-    : currentPkgName
-  if (targetPkgName !== currentPkgName) {
+  const targetPkgName = pnpmPackageNameToInstall(pnpmVersion, currentPkgName)
+  // The v11-only darwin-x64 fallback (see pnpmPackageNameToInstall) swaps the
+  // native @pnpm/exe for the JS `pnpm` package, which needs Node.js on PATH —
+  // warn about that. From v12 the `pnpm` package is itself native, so the
+  // convergence to `pnpm` is transparent and needs no warning.
+  if (targetPkgName !== currentPkgName && semver.major(pnpmVersion) < 12) {
     globalWarn(
       `Switching from @pnpm/exe to the "pnpm" npm package because @pnpm/exe v${pnpmVersion} no longer ships a binary for Intel macOS (darwin-x64). The new "pnpm" install requires Node.js to be available on PATH. See https://github.com/pnpm/pnpm/issues/11423.`
     )
@@ -96,8 +86,12 @@ export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateC
         pnpm_config_pm_on_fail: 'ignore',
       },
     })
-    if (targetPkgName === '@pnpm/exe') {
-      linkExePlatformBinary(stage)
+    // pnpm's own installs run with --ignore-scripts, so the wrapper's
+    // preinstall (which links the native binary over the placeholder bin) never
+    // runs — replicate it here. Needed for any wrapper that ships a native
+    // binary: `@pnpm/exe` (all majors) and, from v12, the `pnpm` package too.
+    if (targetPkgName === '@pnpm/exe' || semver.major(pnpmVersion) >= 12) {
+      linkExePlatformBinary(stage, targetPkgName)
     }
     // Reached only when the wanted version is not yet in the tools directory
     // (an actual download), so the signature check does not run on every
@@ -122,25 +116,129 @@ export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateC
   }
 }
 
-// This replicates the logic from @pnpm/exe's setup.js (pnpm/artifacts/exe/setup.js).
-// We can't run setup.js via require() or import() because:
-// - require() fails when setup.js is ESM (pnpm v11+)
+/**
+ * The package to install for a switch to `pnpmVersion`.
+ *
+ * From v12 the unscoped `pnpm` package is itself the native executable (equal
+ * content to `@pnpm/exe`) and ships a binary for every target — including
+ * darwin-x64 — so v12+ always converges on `pnpm`, even from a standalone
+ * `@pnpm/exe` build.
+ *
+ * For earlier majors the running package name is kept, except that a v11+
+ * update of a darwin-x64 `@pnpm/exe` install falls back to the JS `pnpm`
+ * package: pnpm v11 dropped the darwin-x64 artifact from `@pnpm/exe` because
+ * Node.js SEA injection produces a binary that segfaults at startup on Intel
+ * Macs (pnpm/pnpm#11423, upstream nodejs/node#62893), which would leave the
+ * user with no working binary. The JS `pnpm` package runs against the user's
+ * system Node.js — typically already present because v10 `@pnpm/exe` users
+ * tend to manage Node via `pnpm env use`.
+ */
+export function pnpmPackageNameToInstall (pnpmVersion: string, currentPkgName: string): string {
+  const major = semver.major(pnpmVersion)
+  if (major >= 12) return 'pnpm'
+  if (
+    currentPkgName === '@pnpm/exe' &&
+    process.platform === 'darwin' &&
+    process.arch === 'x64' &&
+    major >= 11
+  ) {
+    return 'pnpm'
+  }
+  return currentPkgName
+}
+
+// This replicates the logic from the wrapper's preinstall script (the
+// TypeScript @pnpm/exe's setup.js and the Rust pnpm v12's install.js), which
+// we skip via --ignore-scripts. We can't just run the script because:
+// - require() fails when it is ESM (pnpm v11+)
 // - import() is intercepted by pkg's virtual filesystem in standalone executables
-// So we inline the logic: find the platform-specific binary and hard-link it
-// into the @pnpm/exe package directory.
-function linkExePlatformBinary (stageDir: string): void {
-  const platform = process.platform === 'win32'
-    ? 'win'
-    : process.platform === 'darwin'
-      ? 'macos'
-      : process.platform
-  const arch = platform === 'win' && process.arch === 'ia32' ? 'x86' : process.arch
-  const executable = platform === 'win' ? 'pnpm.exe' : 'pnpm'
-  const platformPkgDir = path.join(stageDir, 'node_modules', '@pnpm', `${platform}-${arch}`)
-  const src = path.join(platformPkgDir, executable)
-  if (!fs.existsSync(src)) return
-  const exePkgDir = path.join(stageDir, 'node_modules', '@pnpm', 'exe')
-  const dest = path.join(exePkgDir, executable)
+// So we inline it: find the host's native binary and hard-link it over the
+// wrapper's placeholder bin. Handles both the legacy `@pnpm/<os>-<arch>`
+// platform packages (v10/v11 @pnpm/exe) and the v12 `@pnpm/exe.<platform>-<arch>[-musl]`
+// scheme (shared by both the `pnpm` and `@pnpm/exe` wrappers).
+export function linkExePlatformBinary (stageDir: string, wrapperPkgName: string): void {
+  const wrapperDir = path.join(stageDir, 'node_modules', ...wrapperPkgName.split('/'))
+  if (!fs.existsSync(wrapperDir)) return
+  const scopeDir = path.join(stageDir, 'node_modules', '@pnpm')
+  const isWin = process.platform === 'win32'
+  const executable = isWin ? 'pnpm.exe' : 'pnpm'
+  // Only the platform package matching the host's os/cpu/libc is installed, so
+  // link whichever candidate is actually present on disk.
+  let src: string | undefined
+  for (const dirName of exePlatformPkgDirNames(process.platform, process.arch)) {
+    const candidate = path.join(scopeDir, dirName, executable)
+    if (fs.existsSync(candidate)) {
+      src = candidate
+      break
+    }
+  }
+  if (src == null) return
+
+  if (!isWin) {
+    // On Unix `pn`/`pnpx`/`pnx` are committed `#!/bin/sh` scripts that call
+    // `pnpm` on PATH, so only the `pnpm` placeholder needs the native binary.
+    forceLink(src, path.join(wrapperDir, 'pnpm'))
+    return
+  }
+
+  const wrapperPkgJsonPath = path.join(wrapperDir, 'package.json')
+  const wrapperPkg = JSON.parse(fs.readFileSync(wrapperPkgJsonPath, 'utf8'))
+  const bin: Record<string, string> = (typeof wrapperPkg.bin === 'object' && wrapperPkg.bin != null)
+    ? wrapperPkg.bin
+    : { pnpm: 'pnpm' }
+  for (const name of Object.keys(bin)) {
+    // Link the native binary onto both `<name>.exe` (cmd.exe resolves the
+    // extension-less shim target through PATHEXT) and the extension-less file
+    // (Git Bash runs it directly), matching the wrapper's own install.js. The
+    // native binary self-detects its launch name to inject `dlx` for pnpx/pnx.
+    forceLink(src, path.join(wrapperDir, `${name}.exe`))
+    forceLink(src, path.join(wrapperDir, name))
+    bin[name] = `${name}.exe`
+  }
+  wrapperPkg.bin = bin
+  // Temp file + rename, not in-place: package.json is hard-linked from the
+  // content-addressable store, so writing in place would mutate the shared blob.
+  const tempPkgJsonPath = `${wrapperPkgJsonPath}.pnpm-tmp`
+  try {
+    fs.writeFileSync(tempPkgJsonPath, JSON.stringify(wrapperPkg, null, 2))
+    fs.renameSync(tempPkgJsonPath, wrapperPkgJsonPath)
+  } catch (err: unknown) {
+    try {
+      fs.rmSync(tempPkgJsonPath, { force: true })
+    } catch {}
+    throw err
+  }
+}
+
+/**
+ * Directory names under `node_modules/@pnpm/` of every platform package that
+ * could carry the native pnpm binary for this host, most-preferred first —
+ * both the legacy `@pnpm/<os>-<arch>` names (v10/v11 @pnpm/exe) and the v12
+ * `@pnpm/exe.<platform>-<arch>[-musl]` names. Only the package matching the
+ * host's os/cpu/libc is ever installed, so the caller links the first that
+ * exists on disk; enumerating both libc variants avoids detecting libc here.
+ */
+export function exePlatformPkgDirNames (platform: NodeJS.Platform, arch: string): string[] {
+  switch (platform) {
+  case 'win32': {
+    const legacyArch = arch === 'ia32' ? 'x86' : arch
+    return [`win-${legacyArch}`, `exe.win32-${arch}`]
+  }
+  case 'darwin':
+    return [`macos-${arch}`, `exe.darwin-${arch}`]
+  case 'linux':
+    return [
+      `linux-${arch}`, // legacy glibc
+      `linuxstatic-${arch}`, // legacy musl
+      `exe.linux-${arch}`, // v12 glibc
+      `exe.linux-${arch}-musl`, // v12 musl
+    ]
+  default:
+    return [`${platform}-${arch}`, `exe.${platform}-${arch}`]
+  }
+}
+
+function forceLink (src: string, dest: string): void {
   try {
     fs.unlinkSync(dest)
   } catch (err: unknown) {
@@ -150,11 +248,4 @@ function linkExePlatformBinary (stageDir: string): void {
   }
   fs.linkSync(src, dest)
   fs.chmodSync(dest, 0o755)
-  if (platform === 'win') {
-    const exePkgJsonPath = path.join(exePkgDir, 'package.json')
-    const exePkg = JSON.parse(fs.readFileSync(exePkgJsonPath, 'utf8'))
-    fs.writeFileSync(path.join(exePkgDir, 'pnpm'), 'This file intentionally left blank')
-    exePkg.bin.pnpm = 'pnpm.exe'
-    fs.writeFileSync(exePkgJsonPath, JSON.stringify(exePkg, null, 2))
-  }
 }
