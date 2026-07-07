@@ -61,9 +61,10 @@ test('an unreadable state file is not writable, so its keys cannot be clobbered'
   // error (EISDIR), standing in for a permissions failure portably.
   fs.mkdirSync('pnpm-state.json')
 
-  const { state, writable } = await readPnpmState(stateDir)
+  const { state, writable, readError } = await readPnpmState(stateDir)
   expect(state).toBeUndefined()
   expect(writable).toBe(false)
+  expect(readError?.message).toContain('pnpm-state.json')
 
   await writePnpmState(stateDir, { lastUpdateCheck: 'must not land' })
   expect(fs.statSync(path.join(stateDir, 'pnpm-state.json')).isDirectory()).toBe(true)

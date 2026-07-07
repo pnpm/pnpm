@@ -112,8 +112,14 @@ async function noticeOnFirstUseOrChange (command: string[], opts: ApplyPnpmExecC
     return printNoticeWithoutTrustStore(command)
   }
 
-  const { state, writable } = await readPnpmState(stateDir)
+  const { state, writable, readError } = await readPnpmState(stateDir)
   if (!writable) {
+    if (readError != null) {
+      // Direct write: the reporter is not initialized this early. Without
+      // the diagnostic, persistence silently stopping (the notice repeating
+      // forever) would be undebuggable.
+      process.stderr.write(`${readError.message}\n`)
+    }
     return printNoticeWithoutTrustStore(command)
   }
 

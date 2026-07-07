@@ -2,6 +2,7 @@ import { packageManager } from '@pnpm/cli.meta'
 import type { Config } from '@pnpm/config.reader'
 import { updateCheckLogger } from '@pnpm/core-loggers'
 import { createResolver } from '@pnpm/installing.client'
+import { globalWarn } from '@pnpm/logger'
 
 import { readPnpmState, writePnpmState } from './pnpmState.js'
 
@@ -12,7 +13,12 @@ export async function checkForUpdates (config: Config): Promise<void> {
   // use the default per-user dir): the update-check timestamp is a
   // performance hint, not a security signal, so a workspace-set stateDir
   // costs at most an extra registry query.
-  const { state } = await readPnpmState(config.stateDir)
+  const { state, readError } = await readPnpmState(config.stateDir)
+  if (readError != null) {
+    // Persistence is skipped for an unreadable state file, so the check will
+    // repeat every run; surface why instead of degrading silently.
+    globalWarn(readError.message)
+  }
 
   if (
     state?.lastUpdateCheck &&

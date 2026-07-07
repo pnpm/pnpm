@@ -55,6 +55,13 @@ export interface PnpmStateReadResult {
    * permissions), where a write would clobber keys that failed to load.
    */
   writable: boolean
+  /**
+   * The read failure behind `writable: false`, for the caller to surface —
+   * persistence silently stopping with no diagnostic trail would be
+   * undebuggable. Callers own the reporting because they run at different
+   * stages of startup (before or after the reporter is initialized).
+   */
+  readError?: Error
 }
 
 export async function readPnpmState (stateDir: string): Promise<PnpmStateReadResult> {
@@ -65,7 +72,14 @@ export async function readPnpmState (stateDir: string): Promise<PnpmStateReadRes
     // writable; any other fs error means the file's contents may be intact
     // but unreadable, so writing would clobber them.
     const unreadable = util.types.isNativeError(err) && 'code' in err && err.code !== 'ENOENT'
-    return { state: undefined, writable: !unreadable }
+    if (unreadable) {
+      return {
+        state: undefined,
+        writable: false,
+        readError: new Error(`Failed to read ${stateFile(stateDir)}: ${(err as Error).message}`),
+      }
+    }
+    return { state: undefined, writable: true }
   }
 }
 
