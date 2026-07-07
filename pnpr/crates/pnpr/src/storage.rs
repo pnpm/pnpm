@@ -238,6 +238,8 @@ impl HostedStore {
         }
     }
 
+    /// FS has no hosted packument CAS and always returns `Written`.
+    /// `Conflict` is only returned by the S3 object-version path.
     async fn write_packument_if_current(
         &self,
         name: &PackageName,

@@ -3706,8 +3706,8 @@ where
             return error_response(&err);
         }
         let _ = tag;
-        // dist-tag 변경 뒤에도 클라이언트의 신선도 판단이 뒤처지지 않게
-        // `time.modified`를 갱신한다.
+        // Refresh `time.modified` so clients do not lag behind a
+        // dist-tag change when deciding packument freshness.
         let time_entry = packument_obj
             .entry("time".to_string())
             .or_insert_with(|| Value::Object(serde_json::Map::new()));
