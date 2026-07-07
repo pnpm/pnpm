@@ -444,7 +444,7 @@ impl crate::CustomFetcher for NodeJsCustomFetcher {
                 Arc::new(|_| {}),
             )
             .await?;
-        Ok(res.as_bool().unwrap_or(false))
+        Ok(!res.is_null() && res != false)
     }
 
     async fn fetch(

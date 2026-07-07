@@ -336,8 +336,8 @@ async function handle(line) {{
     if (req.target === 'fetchers') {{
       const fetchers = mod && mod.fetchers;
       send({{ ok: (Array.isArray(fetchers) ? fetchers.map((f) => ({{
-        canFetch: typeof f.canFetch === 'function',
-        fetch: typeof f.fetch === 'function',
+        canFetch: f != null && typeof f.canFetch === 'function',
+        fetch: f != null && typeof f.fetch === 'function',
       }})) : []) }});
       return;
     }}

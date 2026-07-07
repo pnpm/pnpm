@@ -317,7 +317,10 @@ impl InstallPackageBySnapshot<'_> {
                             ))
                         })?)
                     } else {
-                        None
+                        return Err(InstallPackageBySnapshotError::CustomFetcher(format!(
+                            "custom fetcher claimed {package_id} but returned an unhandled \
+                             response (expected {{ \"delegate\": ... }})",
+                        )));
                     }
                 }
                 Ok(None) => None,
