@@ -144,8 +144,14 @@ fn run_resolve_blocking(
     let resolve_options =
         ResolveOptions { project_dir: dir.clone(), lockfile_dir: dir, ..ResolveOptions::default() };
 
+    // A single dependency resolve is one packument fetch — no task parallelism
+    // to exploit — and this already runs on a dedicated worker thread. Use a
+    // current-thread runtime so a `resolveDependency` call spawns no extra
+    // worker-thread pool (a per-call multi-thread runtime would multiply threads
+    // under concurrent resolves). The install path keeps a multi-thread runtime
+    // because it fetches packages in parallel.
     let runtime =
-        tokio::runtime::Builder::new_multi_thread().enable_all().build().map_err(|error| {
+        tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(|error| {
             napi::Error::from_reason(format!("failed to build tokio runtime: {error}"))
         })?;
 
