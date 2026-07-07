@@ -166,9 +166,10 @@ where
 /// lives (update-check timestamps, `pnpmExecCommand` trust records).
 ///
 /// Resolution order mirrors pnpm's `getStateDir`: `XDG_STATE_HOME/pnpm`
-/// → `~/.local/state/pnpm` (non-Windows) → `%LOCALAPPDATA%/pnpm-state`
-/// (Windows) → `~/.pnpm-state`. Returns `None` only when the home
-/// directory cannot be determined and no env override is set.
+/// when set; otherwise `~/.local/state/pnpm` on non-Windows, and on
+/// Windows `%LOCALAPPDATA%/pnpm-state`, falling back to `~/.pnpm-state`
+/// when `LOCALAPPDATA` is unset. Returns `None` only when the home
+/// directory cannot be determined and `XDG_STATE_HOME` is not set.
 #[must_use]
 pub fn default_state_dir<Sys>() -> Option<PathBuf>
 where

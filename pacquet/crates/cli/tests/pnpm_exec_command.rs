@@ -252,6 +252,27 @@ fn fails_when_the_command_prints_a_path_that_is_a_directory() {
     drop(root);
 }
 
+/// A `pnpm-workspace.yaml` that exists but cannot be parsed must be a
+/// hard error even for commands that never load config (`root`): a
+/// silent skip would drop the `pnpmExecCommand` enforcement the file
+/// may declare.
+#[test]
+fn fails_when_the_workspace_yaml_is_malformed() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "pnpmExecCommand: [\"unclosed\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let output =
+        isolated(pacquet, root.path()).with_args(["root"]).output().expect("run pacquet root");
+    dbg!(&output);
+    assert!(!output.status.success());
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Failed to parse pnpm-workspace.yaml"), "stderr:\n{stderr}");
+
+    drop(root);
+}
+
 #[test]
 fn fails_when_the_setting_is_not_an_array_of_strings() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -518,6 +539,41 @@ fn a_resolver_flooding_stdout_does_not_hang() {
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("printed a non-absolute path"), "stderr:\n{stderr}");
+
+    drop(root);
+}
+
+/// A resolver that exits but leaks a background process holding the
+/// stdout pipe open must fail after the drain grace period instead of
+/// blocking forever (a pipe reaches EOF only when every write end
+/// closes).
+#[cfg(unix)]
+#[test]
+fn a_resolver_leaking_a_descendant_with_stdout_open_fails_fast() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let resolver = root.path().join("resolve-pnpm.sh");
+    // The `sleep 120 &` child inherits the resolver's stdout (the pipe
+    // to pacquet) and outlives it. Its stderr is redirected away: the
+    // resolver's stderr is pacquet's stderr, i.e. this test's capture
+    // pipe, and holding *that* open would block the test's own
+    // `.output()` rather than the code under test.
+    write_executable(&resolver, "#!/bin/sh\nsleep 120 2>/dev/null &\nexit 0\n");
+    write_workspace_yaml(&workspace, &[&resolver.display().to_string()]);
+
+    let started = std::time::Instant::now();
+    let output =
+        isolated(pacquet, root.path()).with_args(["root"]).output().expect("run pacquet root");
+    dbg!(output.status);
+    assert!(!output.status.success());
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(30),
+        "must fail within the drain grace period, not hang: took {:?}",
+        started.elapsed(),
+    );
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let unwrapped = unwrap_miette_lines(&stderr);
+    assert!(unwrapped.contains("stdout pipe stayed open"), "stderr:\n{stderr}");
 
     drop(root);
 }

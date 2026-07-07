@@ -60,6 +60,11 @@ pub(crate) fn clear_re_exec_depth() {
 
 const COMMAND_TIMEOUT: Duration = Duration::from_mins(1);
 
+/// How long to wait for the resolver's stdout to reach EOF after the
+/// resolver itself exited. Generous for a slow pipe flush, small enough
+/// that a leaked descendant holding the pipe open fails fast.
+const STDOUT_DRAIN_GRACE: Duration = Duration::from_secs(5);
+
 /// Errors raised by the `pnpmExecCommand` flow. Codes and messages
 /// match the TypeScript CLI's `PnpmError`s (the `ERR_PNPM_` prefix is
 /// part of the public contract).
@@ -116,9 +121,13 @@ pub enum PnpmExecCommandError {
 /// A no-op when the subcommand opts out of package-manager handling
 /// (mirroring pnpm's `skipPackageManagerCheck` set), when `--global` is
 /// used, when no workspace declares the setting, or when a parent pnpm
-/// already resolved it (the [`PNPM_EXEC_PATH_ENV`] sentinel). Workspace
-/// discovery or yaml errors are also a no-op here: command dispatch
-/// hits the same error moments later and owns its reporting.
+/// already resolved it (the [`PNPM_EXEC_PATH_ENV`] sentinel). A missing
+/// workspace or a `--dir` that doesn't resolve stays a no-op (command
+/// dispatch owns reporting those), but a workspace yaml that exists and
+/// fails to read or parse is a hard error: some commands (`root`,
+/// `prefix`) never load config, so swallowing it here would silently
+/// skip the enforcement the workspace asked for — and pnpm errors on a
+/// malformed `pnpm-workspace.yaml` for every command.
 pub(crate) fn resolve_and_re_exec(args: &CliArgs) -> miette::Result<()> {
     if std::env::var_os(PNPM_EXEC_PATH_ENV).is_some() {
         // A parent pnpm already ran the command and re-exec'd into its
@@ -138,10 +147,10 @@ pub(crate) fn resolve_and_re_exec(args: &CliArgs) -> miette::Result<()> {
     let Ok(dir) = dunce::canonicalize(&args.dir) else {
         return Ok(());
     };
-    let Ok(Some(workspace_dir)) = pacquet_workspace::find_workspace_dir(&dir) else {
+    let Some(workspace_dir) = pacquet_workspace::find_workspace_dir(&dir)? else {
         return Ok(());
     };
-    let Ok(Some(settings)) = WorkspaceSettings::load_exact(&workspace_dir) else {
+    let Some(settings) = WorkspaceSettings::load_exact(&workspace_dir)? else {
         return Ok(());
     };
     let Some(value) = settings.pnpm_exec_command else {
@@ -436,14 +445,19 @@ fn run_command(command: &[String]) -> Result<PathBuf, PnpmExecCommandError> {
 
     // Drain stdout on its own thread while waiting, so a resolver that
     // writes more than the OS pipe buffer blocks neither itself nor the
-    // wait below (it would otherwise sit wedged until the timeout).
-    let reader = child.stdout.take().map(|mut pipe| {
+    // wait below (it would otherwise sit wedged until the timeout). The
+    // bytes come back over a channel rather than `join()`: the pipe
+    // only reaches EOF once *every* write end closes, so a descendant
+    // the resolver leaked with stdout inherited would keep the reader
+    // (and an unconditional join) blocked forever, past the timeout.
+    let (send_stdout, recv_stdout) = std::sync::mpsc::channel();
+    if let Some(mut pipe) = child.stdout.take() {
         std::thread::spawn(move || {
             let mut stdout = Vec::new();
             let _ = pipe.read_to_end(&mut stdout);
-            stdout
-        })
-    });
+            let _ = send_stdout.send(stdout);
+        });
+    }
 
     let status = wait_with_timeout(&mut child, COMMAND_TIMEOUT).map_err(|_elapsed| {
         PnpmExecCommandError::Fail {
@@ -453,9 +467,22 @@ fn run_command(command: &[String]) -> Result<PathBuf, PnpmExecCommandError> {
         }
     })?;
 
-    // The child has exited (or been killed), so its end of the pipe is
-    // closed and the reader finishes promptly.
-    let stdout = reader.and_then(|handle| handle.join().ok()).unwrap_or_default();
+    // The child has exited (or been killed); its own pipe end is
+    // closed, so the reader normally finishes promptly. If it hasn't
+    // within the grace period, a leaked descendant is holding the pipe
+    // open — error out (the reader thread is detached and dies with
+    // the process) rather than hanging.
+    let stdout = recv_stdout.recv_timeout(STDOUT_DRAIN_GRACE).map_err(|_elapsed| {
+        PnpmExecCommandError::Fail {
+            command: joined.clone(),
+            status_suffix: String::new(),
+            hint: Some(
+                "the command exited but its stdout pipe stayed open; \
+                 it may have spawned a background process that inherited stdout"
+                    .to_string(),
+            ),
+        }
+    })?;
 
     if !status.success() {
         return Err(PnpmExecCommandError::Fail {
