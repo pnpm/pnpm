@@ -56,6 +56,10 @@ pub struct InstallOptions {
     pub proxy_config: Option<ProxyConfigInput>,
     pub network_config: Option<NetworkConfigInput>,
     pub node_linker: Option<String>,
+    /// `linkWorkspacePackages` — `true` / `false` / `"deep"`. When enabled, a
+    /// bare-semver dependency may resolve to a workspace package by name (not
+    /// only `workspace:`-prefixed ranges).
+    pub link_workspace_packages: Option<serde_json::Value>,
     pub hoist_pattern: Option<Vec<String>>,
     pub public_hoist_pattern: Option<Vec<String>>,
     pub external_dependencies: Option<Vec<String>>,
@@ -416,6 +420,9 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
         proxy: options.proxy_config.as_ref().map(build_proxy_config).transpose()?,
         tls: network_config.map(build_tls_config).transpose()?,
         node_linker: options.node_linker.as_deref().and_then(parse_node_linker),
+        link_workspace_packages: parse_link_workspace_packages(
+            options.link_workspace_packages.as_ref(),
+        )?,
         package_import_method: options
             .package_import_method
             .as_deref()
@@ -598,6 +605,25 @@ fn parse_node_linker(value: &str) -> Option<pacquet_config::NodeLinker> {
         "pnp" => Some(pacquet_config::NodeLinker::Pnp),
         _ => None,
     }
+}
+
+/// Parse the JS `linkWorkspacePackages` value (`true` / `false` / `"deep"`)
+/// into a [`pacquet_config::LinkWorkspacePackages`], reusing the config
+/// crate's `Deserialize`. Rejects any other value.
+fn parse_link_workspace_packages(
+    value: Option<&serde_json::Value>,
+) -> napi::Result<Option<pacquet_config::LinkWorkspacePackages>> {
+    value
+        .map(|value| {
+            serde_json::from_value::<pacquet_config::LinkWorkspacePackages>(value.clone()).map_err(
+                |error| {
+                    napi::Error::from_reason(format!(
+                        r#"invalid linkWorkspacePackages (expected true, false, or "deep"): {error}"#,
+                    ))
+                },
+            )
+        })
+        .transpose()
 }
 
 fn parse_import_method(value: &str) -> Option<pacquet_config::PackageImportMethod> {

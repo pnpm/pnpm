@@ -90,6 +90,12 @@ export interface InstallOptions extends SharedEngineOptions {
   projects: NodeApiProject[]
   storeDir?: string
   nodeLinker?: 'hoisted' | 'isolated'
+  /**
+   * pnpm's `linkWorkspacePackages`. When `true`/`'deep'`, a bare-semver
+   * dependency (including an auto-installed peer) may resolve to a workspace
+   * package by name; `false` (the default) matches only `workspace:` ranges.
+   */
+  linkWorkspacePackages?: boolean | 'deep'
   hoistPattern?: string[]
   publicHoistPattern?: string[]
   /** Packages linked from outside the workspace; excluded from hoisting/pruning. */
