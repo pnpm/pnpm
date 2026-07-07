@@ -1,6 +1,7 @@
 use super::{
     PNPM_EXE_PACKAGE_NAME, PNPM_PACKAGE_NAME, exe_platform_pkg_dir_name,
     exe_platform_pkg_dir_name_next, link_exe_platform_binary, package_dir, pnpm_package_to_install,
+    reuse_cached_engine,
 };
 use pacquet_graph_hasher::{host_arch, host_libc, host_platform};
 use std::fs;
@@ -170,4 +171,56 @@ fn link_errors_when_the_native_binary_is_missing() {
     fake_engine_install(temp.path(), false);
 
     assert!(link_exe_platform_binary(temp.path(), "pnpm").is_err());
+}
+
+/// Write a wrapper `package.json` recording `version` so
+/// [`super::installed_version`] reads it back.
+fn write_wrapper_version(install_dir: &std::path::Path, wrapper_pkg_name: &str, version: &str) {
+    let manifest = format!(r#"{{"name":"{wrapper_pkg_name}","version":"{version}"}}"#);
+    fs::write(package_dir(install_dir, wrapper_pkg_name).join("package.json"), manifest)
+        .expect("write wrapper package.json");
+}
+
+#[cfg(unix)]
+#[test]
+fn reuse_cached_engine_accepts_a_healthy_slot() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    fake_engine_install_for(temp.path(), PNPM_EXE_PACKAGE_NAME, true);
+    write_wrapper_version(temp.path(), PNPM_EXE_PACKAGE_NAME, "11.10.0");
+
+    assert!(reuse_cached_engine(temp.path(), pnpm_package_to_install("11.10.0"), "11.10.0"));
+    // The relink repaired the slot in place: the native binary is now linked.
+    assert!(package_dir(temp.path(), PNPM_EXE_PACKAGE_NAME).join("pnpm").exists());
+}
+
+#[test]
+fn reuse_cached_engine_rejects_a_version_mismatch() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    fake_engine_install_for(temp.path(), PNPM_EXE_PACKAGE_NAME, true);
+    write_wrapper_version(temp.path(), PNPM_EXE_PACKAGE_NAME, "11.9.0");
+
+    assert!(!reuse_cached_engine(temp.path(), pnpm_package_to_install("11.10.0"), "11.10.0"));
+}
+
+/// A slot left by an older layout whose wrapper symlink escapes the slot
+/// (e.g. into a shared global virtual store) must not be reused — the
+/// caller falls through to a fresh install instead of aborting the whole
+/// self-update on the wrapper-containment guard.
+#[cfg(unix)]
+#[test]
+fn reuse_cached_engine_rejects_a_wrapper_that_escapes_the_slot() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let outside = tempfile::tempdir().expect("outside tempdir");
+    let outside_wrapper = outside.path().join("exe");
+    fs::create_dir_all(&outside_wrapper).expect("create outside wrapper");
+    fs::write(outside_wrapper.join("package.json"), r#"{"name":"@pnpm/exe","version":"11.10.0"}"#)
+        .expect("write outside wrapper manifest");
+
+    fs::create_dir_all(temp.path().join("node_modules").join("@pnpm")).expect("create scope dir");
+    std::os::unix::fs::symlink(&outside_wrapper, package_dir(temp.path(), PNPM_EXE_PACKAGE_NAME))
+        .expect("symlink wrapper outside slot");
+
+    // The recorded version matches, but the wrapper resolves outside the
+    // slot, so the slot is not reusable.
+    assert!(!reuse_cached_engine(temp.path(), pnpm_package_to_install("11.10.0"), "11.10.0"));
 }

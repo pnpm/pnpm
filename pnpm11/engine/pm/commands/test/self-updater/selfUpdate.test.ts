@@ -294,6 +294,55 @@ test('self-update respects minimumReleaseAge for implicit latest resolution', as
   expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
 })
 
+test('self-update rejects a trust downgrade under trustPolicy=no-downgrade', async () => {
+  const opts = prepare()
+  const registry = opts.registries.default
+  const now = Date.now()
+  // The earlier 9.0.5 was published with strong trust evidence (trusted
+  // publisher + provenance); the later 9.1.0 has none — a trust downgrade
+  // the no-downgrade policy must refuse to switch to.
+  const metadata = {
+    name: 'pnpm',
+    'dist-tags': { latest: '9.1.0' },
+    time: {
+      '9.0.5': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
+      '9.1.0': new Date(now - 8 * 60 * 60 * 1000).toISOString(),
+    },
+    versions: {
+      '9.0.5': {
+        name: 'pnpm',
+        version: '9.0.5',
+        _npmUser: {
+          name: 'pnpm-bot',
+          trustedPublisher: { id: 'github', oidcConfigId: 'release' },
+        },
+        dist: {
+          shasum: '217063ce3fcbf44f3051666f38b810f1ddefee4a',
+          tarball: `${registry}pnpm/-/pnpm-9.0.5.tgz`,
+          integrity: 'sha512-Z/WHmRapKT5c8FnCOFPVcb6vT3U8cH9AyyK+1fsVeMaq07bEEHzLO6CzW+AD62IaFkcayDbIe+tT+dVLtGEnJA==',
+          attestations: { provenance: { predicateType: 'https://slsa.dev/provenance/v1' } },
+        },
+      },
+      '9.1.0': {
+        name: 'pnpm',
+        version: '9.1.0',
+        dist: {
+          shasum: '217063ce3fcbf44f3051666f38b810f1ddefee4a',
+          tarball: `${registry}pnpm/-/pnpm-9.1.0.tgz`,
+          integrity: 'sha512-Z/WHmRapKT5c8FnCOFPVcb6vT3U8cH9AyyK+1fsVeMaq07bEEHzLO6CzW+AD62IaFkcayDbIe+tT+dVLtGEnJA==',
+        },
+      },
+    },
+  }
+  getMockAgent().get(registry.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, metadata).persist()
+
+  await expect(
+    selfUpdate.handler({ ...opts, trustPolicy: 'no-downgrade' }, [])
+  ).rejects.toThrow(/High-risk trust downgrade/)
+})
+
 test('self-update does not write packageManagerDependencies when package manager onFail is ignore', async () => {
   const opts = prepare({
     devEngines: {

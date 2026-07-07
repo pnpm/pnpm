@@ -70,6 +70,7 @@ pub async fn sync_package_manager_dependencies(
 
 /// The version `pnpm self-update` resolved a specifier to, plus whether
 /// the pick violated the active maturity/trust policy.
+#[derive(Debug)]
 pub struct ResolvedPnpm {
     pub version: String,
     /// `true` when the resolver picked a version despite the maturity
@@ -80,9 +81,16 @@ pub struct ResolvedPnpm {
 
 /// Resolve `pnpm@<bare_specifier>` against the trusted package-manager
 /// bootstrap registry (never the repository-controlled project
-/// registries), applying the same `minimumReleaseAge` / `trustPolicy`
+/// registries), applying the same `minimumReleaseAge` and `trustPolicy`
 /// gates the install path uses. Returns `None` when the specifier cannot
 /// be resolved. Backs `pacquet self-update`'s "check for updates" probe.
+///
+/// The metadata mode follows [`Config::requires_full_metadata_for_resolution`]
+/// (via [`EnvInstallerContext`]), so under `trustPolicy=no-downgrade` or
+/// `resolutionMode=time-based` the probe fetches the full packument the
+/// trust and maturity checks need — the same resolver behaviour as a
+/// regular install, rather than a self-update-specific abbreviated-metadata
+/// path that would fail closed with "missing time".
 pub async fn resolve_pnpm_version(
     config: &Config,
     bare_specifier: &str,
@@ -92,7 +100,7 @@ pub async fn resolve_pnpm_version(
     // `minimumReleaseAge` cutoff, computed the same way as the install
     // path's `PickPolicy::from_config`. When the age is configured, a
     // failure to compute the cutoff fails closed rather than silently
-    // disabling the maturity gate — self-update is a trust decision.
+    // disabling the maturity gate — self-update is security-sensitive.
     let published_by = match config.resolved_minimum_release_age() {
         Some(minutes) => {
             let minutes = i64::try_from(minutes)
@@ -293,8 +301,14 @@ impl EnvInstallerContext {
             offline: config.offline,
             prefer_offline: config.prefer_offline,
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
-            full_metadata: false,
-            filter_metadata: false,
+            // Derive the metadata mode from config exactly as the install
+            // resolver does (via `PickPolicy`), so resolving the pnpm engine
+            // (or a config dependency) under `resolutionMode=time-based` /
+            // `trustPolicy=no-downgrade` fetches the full packument the
+            // `minimumReleaseAge` and trust checks need — instead of failing
+            // closed on abbreviated metadata that omits `time`.
+            full_metadata: config.requires_full_metadata_for_resolution(),
+            filter_metadata: config.requires_full_metadata_for_resolution(),
             retry_opts,
         };
 
@@ -470,3 +484,6 @@ fn hook_logger<Reporter: self::Reporter>(pnpmfile: &Path, prefix: &str) -> LogFn
         }));
     })
 }
+
+#[cfg(test)]
+mod tests;
