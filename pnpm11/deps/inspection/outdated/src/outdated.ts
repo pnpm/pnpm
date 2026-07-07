@@ -117,6 +117,7 @@ export async function outdated (
           if (ignoreDependenciesMatcher?.(alias)) return
 
           const currentRef = (currentLockfile.importers[importerId] as ProjectSnapshot)?.[depType]?.[alias]
+          if (isLocalRef(wantedRef)) return
           const wantedRelative = dp.refToRelative(wantedRef, alias)
           const currentRelative = currentRef ? dp.refToRelative(currentRef, alias) : null
           const wantedSnapshot = wantedRelative != null ? opts.wantedLockfile!.packages?.[wantedRelative] : undefined
@@ -194,6 +195,10 @@ function packageHasNoDeps (manifest: ProjectManifest): boolean {
 
 function isEmpty (obj: object): boolean {
   return Object.keys(obj).length === 0
+}
+
+function isLocalRef (ref: string): boolean {
+  return ref.startsWith('link:') || ref.startsWith('file:') || ref.startsWith('workspace:')
 }
 
 // Pick a clean display string for a lockfile ref.

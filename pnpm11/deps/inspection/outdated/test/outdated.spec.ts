@@ -1,4 +1,4 @@
-import { expect, test } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import type { ResolveLatestDispatcher } from '@pnpm/installing.client'
 import type { DepPath, PackageManifest, ProjectId } from '@pnpm/types'
@@ -61,6 +61,54 @@ async function getLatestManifest (packageName: string): Promise<PackageManifest 
 }
 
 const resolveLatest = makeResolveLatest(getLatestManifest)
+
+test('outdated() skips dependencies resolved from local refs', async () => {
+  const resolveLatest = jest.fn<ResolveLatestDispatcher>(async () => {
+    throw new Error('local dependency should not resolve latest from the registry')
+  })
+
+  const outdatedPkgs = await outdated({
+    currentLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          devDependencies: {
+            'private-workspace-pkg': 'link:../private-workspace-pkg',
+          },
+          specifiers: {
+            'private-workspace-pkg': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+    resolveLatest,
+    lockfileDir: 'project',
+    manifest: {
+      name: 'wanted-shrinkwrap',
+      version: '1.0.0',
+      devDependencies: {
+        'private-workspace-pkg': '^1.0.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          devDependencies: {
+            'private-workspace-pkg': 'link:../private-workspace-pkg',
+          },
+          specifiers: {
+            'private-workspace-pkg': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+  })
+
+  expect(outdatedPkgs).toStrictEqual([])
+  expect(resolveLatest).not.toHaveBeenCalled()
+})
 
 test('outdated()', async () => {
   const outdatedPkgs = await outdated({
