@@ -70,9 +70,11 @@ pub fn unimplemented_error(operation: &str) -> napi::Error {
 /// Build a structured [`napi::Error`] for a project whose `manifest` is not a
 /// JSON object. Rejecting it at the boundary surfaces the invalid input instead
 /// of silently coercing it to `{}` and driving the install off empty data.
+/// Reuses pnpm's canonical `ERR_PNPM_INVALID_PACKAGE_JSON` (rather than a new
+/// `ERR_PNPM_NAPI_*` code) so consumers translate it like any other pnpm error.
 pub fn invalid_manifest_error(root_dir: &str) -> napi::Error {
     let envelope = ErrorEnvelope {
-        code: Some("ERR_PNPM_NAPI_INVALID_MANIFEST".to_string()),
+        code: Some("ERR_PNPM_INVALID_PACKAGE_JSON".to_string()),
         message: format!("the `manifest` for project `{root_dir}` is not a JSON object"),
         hint: Some(
             "Each project's `manifest` must be a plain object with the package.json shape.".into(),

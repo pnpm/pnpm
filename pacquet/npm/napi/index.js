@@ -14,20 +14,29 @@
 const path = require('node:path')
 const fs = require('node:fs')
 
-function platformTriple() {
+// `'glibc' | 'musl' | null` — `null` when the host isn't Linux or the libc
+// can't be probed (`process.report` may be unavailable/disabled). glibc builds
+// set `glibcVersionRuntime`; musl leaves it unset.
+function detectLinuxLibc() {
+  if (process.platform !== 'linux') return null
+  try {
+    return process.report?.getReport()?.header?.glibcVersionRuntime ? 'glibc' : 'musl'
+  } catch {
+    return null
+  }
+}
+
+// Ordered platform triples to try. On Linux both libc variants are attempted
+// (ordered by detection) so a musl host whose libc can't be probed still
+// resolves the `-musl` addon instead of failing on the glibc one; elsewhere
+// there is a single triple.
+function platformTriples() {
   const { platform, arch } = process
   if (platform === 'linux') {
-    const isMusl = (() => {
-      try {
-        const report = process.report?.getReport()
-        return !report?.header?.glibcVersionRuntime
-      } catch {
-        return false
-      }
-    })()
-    return `linux-${arch}${isMusl ? '-musl' : ''}`
+    const order = detectLinuxLibc() === 'musl' ? ['-musl', ''] : ['', '-musl']
+    return order.map((suffix) => `linux-${arch}${suffix}`)
   }
-  return `${platform}-${arch}`
+  return [`${platform}-${arch}`]
 }
 
 function tryLoad(candidate, loadErrors) {
@@ -66,7 +75,7 @@ function loadFailure(triple, loadErrors) {
 }
 
 function loadBinding() {
-  const triple = platformTriple()
+  const triples = platformTriples()
   const loadErrors = []
   // Only ever hand a `.node` addon to require(). Without this, a non-.node
   // PNPM_NAPI_BINARY value would be require()'d as an arbitrary JS module.
@@ -74,13 +83,21 @@ function loadBinding() {
   if (explicit && !explicit.endsWith('.node')) {
     throw new Error(`PNPM_NAPI_BINARY must point to a .node addon file, got: ${explicit}`)
   }
-  const binding =
-    tryLoad(explicit, loadErrors) ??
-    tryLoad(`@pnpm/napi.${triple}`, loadErrors) ??
-    tryLoad(path.join(__dirname, `pnpm-napi.${triple}.node`), loadErrors) ??
-    tryLoad(path.join(__dirname, 'pnpm-napi.node'), loadErrors)
+  const candidates = [
+    explicit,
+    ...triples.flatMap((triple) => [
+      `@pnpm/napi.${triple}`,
+      path.join(__dirname, `pnpm-napi.${triple}.node`),
+    ]),
+    path.join(__dirname, 'pnpm-napi.node'),
+  ]
+  let binding = null
+  for (const candidate of candidates) {
+    binding = tryLoad(candidate, loadErrors)
+    if (binding) break
+  }
   if (!binding) {
-    throw loadFailure(triple, loadErrors)
+    throw loadFailure(triples[0], loadErrors)
   }
   return binding
 }
