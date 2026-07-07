@@ -1802,6 +1802,18 @@ async fn root_dependency_does_not_override_peers_of_self_contained_subtree() {
         "the subtree's peers must bind to its own closure-peer-x@1.0.0; lockfile:\n{content}",
     );
 
+    // The root keeps its own explicitly declared version.
+    let lockfile: Lockfile = serde_saphyr::from_str(&content).expect("parse pnpm-lock.yaml");
+    let root_deps = lockfile
+        .root_project()
+        .expect("root importer recorded")
+        .dependencies
+        .as_ref()
+        .expect("dependencies map");
+    let peer_x_key = pacquet_lockfile::PkgName::parse("@pnpm.e2e/closure-peer-x").unwrap();
+    let root_peer_x = root_deps.get(&peer_x_key).expect("closure-peer-x recorded at root");
+    assert_eq!(root_peer_x.version.to_string(), "2.0.0");
+
     drop((dir, mock_instance));
 }
 

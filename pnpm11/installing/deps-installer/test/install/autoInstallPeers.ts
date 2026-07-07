@@ -784,4 +784,6 @@ test('a root dependency does not override the peers provided inside a self-conta
     if (!depPath.startsWith('@pnpm.e2e/closure-lib')) continue
     expect(depPath).not.toContain('closure-peer-x@2.0.0')
   }
+  // The root keeps its own explicitly declared version.
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/closure-peer-x']?.version).toBe('2.0.0')
 })
