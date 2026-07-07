@@ -934,6 +934,7 @@ where
             .await
             .map_err(InstallFrozenLockfileError::LockfileVerification)
         };
+        let custom_fetcher_picker = load_custom_fetcher_picker(workspace_root).await;
         let create_virtual_store_fut = async {
             CreateVirtualStore {
                 http_client,
@@ -952,7 +953,7 @@ where
                 node_linker,
                 progress_reported: &progress_reported,
                 tarball_mem_cache,
-                custom_fetcher_picker: None,
+                custom_fetcher_picker: custom_fetcher_picker.as_ref(),
                 #[cfg(test)]
                 link_concurrency_probe: None,
             }
@@ -1800,6 +1801,20 @@ pub(crate) fn find_own_runtime_node_major(snapshot: &SnapshotEntry) -> Option<u3
         return Some(ver_peer.version_semver()?.major as u32);
     }
     None
+}
+
+/// Load custom fetchers from the pnpmfile at `lockfile_dir`, if any.
+/// Returns `None` when no pnpmfile exists or exports no fetchers, so
+/// the install path can skip the IPC overhead entirely.
+async fn load_custom_fetcher_picker(
+    lockfile_dir: &Path,
+) -> Option<Arc<pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker>> {
+    let hook = pacquet_hooks::finder::load_pnpmfile(lockfile_dir)?;
+    let fetchers = hook.get_custom_fetchers().await.ok()?;
+    if fetchers.is_empty() {
+        return None;
+    }
+    Some(Arc::new(pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker::new(fetchers)))
 }
 
 #[cfg(test)]
