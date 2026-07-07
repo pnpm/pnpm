@@ -926,5 +926,5 @@ module.exports = {
         !fetchers[2].can_fetch("a@1.0.0", empty_resolution.clone()).await.unwrap(),
         "0 is falsy",
     );
-    assert!(!fetchers[3].can_fetch("a@1.0.0", empty_resolution).await.unwrap(), r#""" is falsy"#,);
+    assert!(!fetchers[3].can_fetch("a@1.0.0", empty_resolution).await.unwrap(), r#""" is falsy"#);
 }
