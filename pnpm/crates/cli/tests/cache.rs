@@ -118,6 +118,31 @@ fn should_delete_packages() {
 }
 
 #[test]
+fn should_delete_packages_from_all_metadata_dirs() {
+    let cwd = CommandTempCwd::init().add_mocked_registry();
+
+    let url_str = cwd.npmrc_info.mock_instance.url();
+    let registry_name =
+        pacquet_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
+    // A package can be cached under any metadata directory depending on the
+    // resolution mode used at fetch time, so all of them must be cleared.
+    let meta_dirs = ["v11/metadata", "v11/metadata-full", "v11/metadata-full-filtered"];
+    for meta_dir in meta_dirs {
+        let dir = cwd.npmrc_info.cache_dir.join(meta_dir).join(&registry_name);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("is-positive.jsonl"), "{}").unwrap();
+    }
+
+    cwd.pacquet.with_arg("cache").with_arg("delete").with_arg("is-positive").assert().success();
+
+    for meta_dir in meta_dirs {
+        let file =
+            cwd.npmrc_info.cache_dir.join(meta_dir).join(&registry_name).join("is-positive.jsonl");
+        assert!(!file.exists(), "expected {file:?} to be deleted");
+    }
+}
+
+#[test]
 fn should_view_package_cache() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
     let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");

@@ -3,7 +3,7 @@ use indexmap::IndexMap;
 use miette::IntoDiagnostic;
 use pacquet_config::{Config, ResolutionMode};
 use pacquet_resolving_npm_resolver::mirror::{
-    ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, get_registry_name, load_meta,
+    ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, get_registry_name, load_meta,
 };
 use pacquet_store_dir::StoreIndex;
 use serde_json::json;
@@ -128,15 +128,26 @@ impl CacheCommand {
                 }
             }
             CacheCommand::Delete { packages } => {
-                if !cache_dir.exists() {
-                    return Ok(());
+                // A package's metadata can be cached under any of the metadata
+                // directories depending on the resolution mode used when it was
+                // fetched, so delete from all of them, not only the one the
+                // current mode reads.
+                let mut deleted: Vec<String> = Vec::new();
+                for meta_dir in [ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR] {
+                    let dir = config.cache_dir.join(meta_dir);
+                    if !dir.exists() {
+                        continue;
+                    }
+                    let meta_files = Self::find_metadata_files(config, &dir, &packages)?;
+                    for meta_file in &meta_files {
+                        fs::remove_file(dir.join(meta_file)).into_diagnostic()?;
+                    }
+                    deleted.extend(meta_files);
                 }
-                let meta_files = Self::find_metadata_files(config, &cache_dir, &packages)?;
-                for meta_file in &meta_files {
-                    fs::remove_file(cache_dir.join(meta_file)).into_diagnostic()?;
-                }
-                if !meta_files.is_empty() {
-                    println!("{}", meta_files.join("\n"));
+                deleted.sort();
+                deleted.dedup();
+                if !deleted.is_empty() {
+                    println!("{}", deleted.join("\n"));
                 }
             }
             CacheCommand::View { package } => {
