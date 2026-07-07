@@ -128,6 +128,25 @@ test('throws when the platform binary signature does not validate over the insta
   await expect(verifyPnpmEngineIdentity(stage, '@pnpm/exe', '9.1.0', optsTrusting(key))).rejects.toThrow(/Refusing to run pnpm/)
 })
 
+test('verifies the platform binary materialized for a pnpm v12 install (the pnpm package is itself native)', async () => {
+  const key = createSigningKey()
+  mockPackument('pnpm', PNPM_INTEGRITY, [{ keyid: key.keyid, sig: key.sign('pnpm@12.0.0', PNPM_INTEGRITY) }], '12.0.0')
+  mockPackument(PLATFORM_PKG_NAME, PLATFORM_INTEGRITY, [{ keyid: key.keyid, sig: key.sign(`${PLATFORM_PKG_NAME}@12.0.0`, PLATFORM_INTEGRITY) }], '12.0.0')
+  const stage = stageWithPnpmV12Lockfile(PLATFORM_INTEGRITY)
+
+  await expect(verifyPnpmEngineIdentity(stage, 'pnpm', '12.0.0', optsTrusting(key))).resolves.toBeUndefined()
+})
+
+test('throws when the pnpm v12 platform binary signature does not validate over the installed bytes', async () => {
+  const key = createSigningKey()
+  mockPackument('pnpm', PNPM_INTEGRITY, [{ keyid: key.keyid, sig: key.sign('pnpm@12.0.0', PNPM_INTEGRITY) }], '12.0.0')
+  // The registry signed a different (genuine) platform binary than the one staged.
+  mockPackument(PLATFORM_PKG_NAME, PLATFORM_INTEGRITY, [{ keyid: key.keyid, sig: key.sign(`${PLATFORM_PKG_NAME}@12.0.0`, 'sha512-genuine-platform') }], '12.0.0')
+  const stage = stageWithPnpmV12Lockfile(PLATFORM_INTEGRITY)
+
+  await expect(verifyPnpmEngineIdentity(stage, 'pnpm', '12.0.0', optsTrusting(key))).rejects.toThrow(/Refusing to run pnpm/)
+})
+
 function baseOpts () {
   return {
     rawConfig: {},
@@ -193,19 +212,46 @@ function stageWithExeLockfile (platformIntegrity: string): string {
   return stage
 }
 
+function stageWithPnpmV12Lockfile (platformIntegrity: string): string {
+  const stage = tempDir(false)
+  writeStageLockfile(stage, [
+    'lockfileVersion: \'9.0\'',
+    'importers:',
+    '  .:',
+    '    dependencies:',
+    '      pnpm:',
+    '        specifier: 12.0.0',
+    '        version: 12.0.0',
+    'packages:',
+    '  pnpm@12.0.0:',
+    `    resolution: {integrity: ${PNPM_INTEGRITY}}`,
+    `  '${PLATFORM_PKG_NAME}@12.0.0':`,
+    `    resolution: {integrity: ${platformIntegrity}}`,
+    'snapshots:',
+    '  pnpm@12.0.0:',
+    '    optionalDependencies:',
+    `      '${PLATFORM_PKG_NAME}': 12.0.0`,
+    `  '${PLATFORM_PKG_NAME}@12.0.0':`,
+    '    optional: true',
+  ])
+  // Only platform packages actually materialized on disk are verified.
+  fs.mkdirSync(path.join(stage, 'node_modules', PLATFORM_PKG_NAME), { recursive: true })
+  return stage
+}
+
 function writeStageLockfile (stage: string, lines: string[]): void {
   fs.writeFileSync(path.join(stage, 'pnpm-lock.yaml'), `${lines.join('\n')}\n`, 'utf8')
 }
 
-function mockPackument (name: string, integrity: string, signatures: unknown): void {
+function mockPackument (name: string, integrity: string, signatures: unknown, version = '9.1.0'): void {
   const encodedPath = name[0] === '@' ? `/@${encodeURIComponent(name.slice(1))}` : `/${name}`
   nock(REGISTRY)
     .get(encodedPath)
     .reply(200, {
       name,
-      time: { '9.1.0': '2024-01-01T00:00:00.000Z' },
+      time: { [version]: '2024-01-01T00:00:00.000Z' },
       versions: {
-        '9.1.0': { name, version: '9.1.0', dist: { integrity, signatures, tarball: `${REGISTRY}${name}/-/x-9.1.0.tgz` } },
+        [version]: { name, version, dist: { integrity, signatures, tarball: `${REGISTRY}${name}/-/x-${version}.tgz` } },
       },
     })
     .persist()

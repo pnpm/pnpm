@@ -11,6 +11,7 @@ import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { type DepPath, type Registries } from '@pnpm/types'
+import semver from 'semver'
 
 import { NPM_SIGNING_KEYS } from './npmSigningKeys.js'
 
@@ -142,11 +143,12 @@ function collectEnginePackagesToVerify (
   registries: Registries
 ): InstalledPackageToVerify[] {
   const toVerify = [engineComponentToVerify(lockfile, registries, targetPkgName, version)]
-  if (targetPkgName === '@pnpm/exe') {
-    // The bytes actually executed are the host's platform binary, listed as an
-    // optional dependency of `@pnpm/exe`. Verify every platform package the
-    // staged install actually materialized on disk.
-    const optionalDeps = lockfile.packages?.[`@pnpm/exe@${version}` as DepPath]?.optionalDependencies ?? {}
+  // The bytes actually executed are the host's platform binary, listed as an
+  // optional dependency of the wrapper. This applies to `@pnpm/exe` (all
+  // majors) and, from v12, the `pnpm` package too (it is itself native).
+  // Verify every platform package the staged install materialized on disk.
+  if (targetPkgName === '@pnpm/exe' || semver.major(version) >= 12) {
+    const optionalDeps = lockfile.packages?.[`${targetPkgName}@${version}` as DepPath]?.optionalDependencies ?? {}
     for (const [name, platformVersion] of Object.entries(optionalDeps)) {
       if (!fs.existsSync(path.join(stageDir, 'node_modules', name))) continue
       toVerify.push(engineComponentToVerify(lockfile, registries, name, platformVersion))

@@ -126,6 +126,39 @@ test('`pnpm version` routes through switchCliVersion to v11 when packageManager 
   expect(fs.existsSync(path.join(toolDir, 'bin/pnpm'))).toBe(true)
 })
 
+test('switch to pnpm v12 relinks the native binary so the installed engine actually runs', () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  // pnpm v12 (the Rust port) publishes the `pnpm` package with placeholder bins
+  // that its preinstall replaces with the host's native binary. Because pnpm
+  // installs its own engine with --ignore-scripts, installPnpmToTools must do
+  // that relinking itself — otherwise `bin/pnpm` is left as a non-executable
+  // placeholder and the switch produces a broken engine.
+  const version = '12.0.0-alpha.2'
+  // Bypass the registry mock: fetching the real v12 wrapper + its ~22MB native
+  // binary needs the public registry, like the v11 test above.
+  const env = {
+    PNPM_HOME: pnpmHome,
+    npm_config_registry: 'https://registry.npmjs.org/',
+  }
+  writeJsonFile('package.json', {
+    packageManager: `pnpm@${version}`,
+  })
+
+  // For v12 the running package name is irrelevant — it always converges on the
+  // native `pnpm` package (equal content to `@pnpm/exe`).
+  const toolDir = getToolDirPath({ pnpmHomeDir: pnpmHome, tool: { name: 'pnpm', version } })
+
+  const { stdout, stderr } = execPnpmSync(['--version'], { env, timeout: 300_000 })
+  const combined = stdout.toString() + stderr.toString()
+
+  // The relinked bin must exist and, unlike v11, v12 is a native binary with no
+  // Node version gate — so it runs and reports a v12 version (the vendored
+  // native binary's own patch may lag the wrapper, so match the alpha prefix).
+  expect(fs.existsSync(path.join(toolDir, 'bin/pnpm'))).toBe(true)
+  expect(combined).toContain('12.0.0-alpha')
+}, 300_000)
+
 test('npm passthrough still fires when packageManager selects pnpm v11+ but switching is disabled via .npmrc', () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
