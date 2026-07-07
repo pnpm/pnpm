@@ -1171,6 +1171,55 @@ test('a tokenHelper set via a URL-scoped env var is not honored (no project-conf
   expect(config.authConfig['//env-test.example/:tokenHelper']).toBeUndefined()
 })
 
+test('a tokenHelper set in the global pnpm auth.ini is honored (not treated as project config)', async () => {
+  prepareEmpty()
+
+  // A tokenHelper configured via `pnpm config set` lands in the global pnpm
+  // auth.ini (trusted config), not ~/.npmrc, so it must be accepted.
+  const configHome = path.resolve('xdg-config')
+  fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
+  fs.writeFileSync(
+    path.join(configHome, 'pnpm', 'auth.ini'),
+    '//registry.example.com/:tokenHelper=/bin/echo'
+  )
+
+  const originalXdg = process.env.XDG_CONFIG_HOME
+  process.env.XDG_CONFIG_HOME = configHome
+  try {
+    const { config } = await getConfig({
+      cliOptions: {},
+      env: {
+        ...env,
+        XDG_CONFIG_HOME: configHome,
+      },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+    })
+
+    expect(config.authConfig['//registry.example.com/:tokenHelper']).toBe('/bin/echo')
+  } finally {
+    if (originalXdg != null) {
+      process.env.XDG_CONFIG_HOME = originalXdg
+    } else {
+      delete process.env.XDG_CONFIG_HOME
+    }
+  }
+})
+
+test('a tokenHelper set in a project .npmrc is rejected', async () => {
+  prepareEmpty()
+
+  // A project-level .npmrc must never be trusted to run a tokenHelper binary.
+  fs.writeFileSync('.npmrc', '//registry.example.com/:tokenHelper=/bin/echo', 'utf8')
+
+  await expect(getConfig({
+    cliOptions: {},
+    env,
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_TOKEN_HELPER_IN_PROJECT_CONFIG',
+  })
+})
+
 test('URL-scoped auth from the environment overrides a project .npmrc for the same host', async () => {
   prepareEmpty()
 
