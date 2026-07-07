@@ -1554,6 +1554,23 @@ impl Config {
         self.minimum_release_age.filter(|&minutes| minutes > 0)
     }
 
+    /// Whether version resolution must fetch the full packument to obtain
+    /// per-version `time` and trust evidence.
+    ///
+    /// Full metadata is required when time-based resolution or the
+    /// no-downgrade trust check is active and the registry doesn't already
+    /// serve `time` in its abbreviated metadata. Mirrors pnpm's
+    /// `(time-based || no-downgrade) && !registrySupportsTimeField`. The
+    /// install resolver, `pacquet add`'s pre-resolution, and the
+    /// `self-update` / `pnpm with` engine probe all derive their metadata
+    /// mode from here so none of them can drift.
+    #[must_use]
+    pub fn requires_full_metadata_for_resolution(&self) -> bool {
+        (self.resolution_mode == ResolutionMode::TimeBased
+            || self.trust_policy == TrustPolicy::NoDowngrade)
+            && !self.registry_supports_time_field
+    }
+
     /// Registry map in pnpm's `Registries` shape: `default` plus the
     /// configured scoped routes keyed by `@scope`.
     #[must_use]

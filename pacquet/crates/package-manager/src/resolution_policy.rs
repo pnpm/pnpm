@@ -6,7 +6,7 @@
 
 use chrono::{DateTime, Utc};
 use pacquet_config::{
-    Config, ResolutionMode, TrustPolicy,
+    Config, ResolutionMode,
     version_policy::{PackageVersionPolicy, VersionPolicyError, create_package_version_policy},
 };
 
@@ -75,8 +75,7 @@ impl PickPolicy {
     ) -> Result<Self, VersionPolicyError> {
         let time_based = config.resolution_mode == ResolutionMode::TimeBased;
         let pick_lowest_direct = config.resolution_mode.picks_lowest_direct();
-        let full_metadata = (time_based || config.trust_policy == TrustPolicy::NoDowngrade)
-            && !config.registry_supports_time_field;
+        let full_metadata = config.requires_full_metadata_for_resolution();
         // On overflow we leave the policy inactive for this run — better
         // than silently producing a cutoff in the wrong direction.
         let published_by = config.resolved_minimum_release_age().and_then(|minutes| {

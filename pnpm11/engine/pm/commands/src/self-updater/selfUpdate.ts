@@ -5,7 +5,7 @@ import { linkBins } from '@pnpm/bins.linker'
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, parsePackageManager, shouldPersistLockfile, types as allTypes } from '@pnpm/config.reader'
-import { getPublishedByPolicy } from '@pnpm/config.version-policy'
+import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
 import { PnpmError } from '@pnpm/error'
 import { createResolver, makeResolutionStrict } from '@pnpm/installing.client'
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
@@ -80,9 +80,23 @@ export async function handler (
     throw new PnpmError('CANT_SELF_UPDATE_IN_COREPACK', 'You should update pnpm with corepack')
   }
   globalInfo('Checking for updates...')
+  // Resolve the engine version exactly as a regular install would: fetch
+  // full metadata when a policy needs the per-version `time` (and trust
+  // evidence), which abbreviated metadata omits. Without this the
+  // `minimumReleaseAge` and `trustPolicy: 'no-downgrade'` checks below fail
+  // closed against real npm. Mirrors the same computation in `dlx`.
+  const fullMetadata = (
+    (
+      opts.resolutionMode === 'time-based' ||
+      opts.trustPolicy === 'no-downgrade' ||
+      Boolean(opts.minimumReleaseAge)
+    ) && !opts.registrySupportsTimeField
+  )
   const { resolve: baseResolve } = createResolver({
     ...opts,
     configByUri: opts.configByUri,
+    fullMetadata,
+    filterMetadata: fullMetadata,
     ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime,
   })
   // self-update has nowhere to "defer to" either — wrap the resolver
@@ -110,6 +124,15 @@ export async function handler (
     projectDir: opts.dir,
     publishedBy,
     publishedByExclude,
+    // Unlike `dlx` (whose real install re-resolves through the store
+    // controller), this `resolve` is self-update's only version selection,
+    // so the trust policy has to be passed here for the no-downgrade check
+    // to run.
+    trustPolicy: opts.trustPolicy,
+    trustPolicyExclude: opts.trustPolicyExclude
+      ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude')
+      : undefined,
+    trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
   })
   if (!resolution?.manifest) {
     throw new PnpmError('CANNOT_RESOLVE_PNPM', `Cannot find "${bareSpecifier}" version of pnpm`)
