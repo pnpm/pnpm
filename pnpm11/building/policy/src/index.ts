@@ -18,17 +18,21 @@ export function createAllowBuildFunction (
     const disallowedPackageBuilds = new Set<string>()
     const allowedDepPathBuilds = new Set<string>()
     const disallowedDepPathBuilds = new Set<string>()
+    const allowedGitRepoBuilds = new Set<string>()
+    const disallowedGitRepoBuilds = new Set<string>()
     for (const [pkg, value] of Object.entries(opts.allowBuilds)) {
       switch (value) {
         case true:
           addAllowBuildRule(pkg, {
             depPaths: allowedDepPathBuilds,
+            gitRepos: allowedGitRepoBuilds,
             packageSpecs: allowedPackageBuilds,
           })
           break
         case false:
           addAllowBuildRule(pkg, {
             depPaths: disallowedDepPathBuilds,
+            gitRepos: disallowedGitRepoBuilds,
             packageSpecs: disallowedPackageBuilds,
           })
           break
@@ -41,6 +45,10 @@ export function createAllowBuildFunction (
       if (disallowedDepPathBuilds.has(pkgIdWithPatchHash)) {
         return false
       }
+      const gitRepoKey = getGitRepoAllowBuildKeyFromDepPath(pkgIdWithPatchHash)
+      if (gitRepoKey != null && disallowedGitRepoBuilds.has(gitRepoKey)) {
+        return false
+      }
       const { name, version, nonSemverVersion } = dp.parse(depPath)
       const nameAtVersion = name != null && version != null ? `${name}@${version}` : undefined
       if (
@@ -50,6 +58,9 @@ export function createAllowBuildFunction (
         return false
       }
       if (allowedDepPathBuilds.has(pkgIdWithPatchHash)) {
+        return true
+      }
+      if (gitRepoKey != null && allowedGitRepoBuilds.has(gitRepoKey)) {
         return true
       }
       // Package-name rules require a trusted package identity. A
@@ -91,14 +102,33 @@ function addAllowBuildRule (
   pkg: string,
   target: {
     depPaths: Set<string>
+    gitRepos: Set<string>
     packageSpecs: Set<string>
   }
 ): void {
+  if (isGitRepoAllowBuildKey(pkg)) {
+    target.gitRepos.add(pkg)
+    return
+  }
   if (isDepPathAllowBuildKey(pkg)) {
     target.depPaths.add(dp.removePeersSuffix(pkg))
   } else {
     target.packageSpecs.add(pkg)
   }
+}
+
+function isGitRepoAllowBuildKey (pkg: string): boolean {
+  return !pkg.includes('#') && isGitRepoDepPath(pkg)
+}
+
+function getGitRepoAllowBuildKeyFromDepPath (depPath: string): string | undefined {
+  if (!isGitRepoDepPath(depPath)) return undefined
+  const refStart = depPath.indexOf('#')
+  return refStart === -1 ? undefined : depPath.slice(0, refStart)
+}
+
+function isGitRepoDepPath (depPath: string): boolean {
+  return depPath.startsWith('git+') || depPath.includes('@git+')
 }
 
 function isDepPathAllowBuildKey (pkg: string): boolean {
