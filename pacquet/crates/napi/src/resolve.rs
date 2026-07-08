@@ -42,9 +42,7 @@ use pacquet_resolving_npm_resolver::{
     NamedRegistryResolver, NpmResolver, merge_named_registries, shared_in_memory_cache,
     shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
-use pacquet_resolving_resolver_base::{
-    LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, Resolver, WantedDependency,
-};
+use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
 use pacquet_resolving_tarball_resolver::TarballResolver;
 
 use crate::{
@@ -187,8 +185,10 @@ fn run_resolve_blocking(
 
     let mut node_resolver = NodeResolver::new(Arc::clone(&http_client));
     node_resolver.offline = config.offline;
-    let deno_resolver = DenoResolver::new(Arc::clone(&http_client), Arc::clone(&npm_resolver));
-    let bun_resolver = BunResolver::new(Arc::clone(&http_client), Arc::clone(&npm_resolver));
+    let mut deno_resolver = DenoResolver::new(Arc::clone(&http_client), Arc::clone(&npm_resolver));
+    deno_resolver.offline = config.offline;
+    let mut bun_resolver = BunResolver::new(Arc::clone(&http_client), Arc::clone(&npm_resolver));
+    bun_resolver.offline = config.offline;
 
     // User-supplied named-registry aliases from
     // `pnpm-workspace.yaml#namedRegistries`, merged with pacquet's
@@ -225,7 +225,7 @@ fn run_resolve_blocking(
     // named-registry resolver instead of being claimed by the path-shape
     // detector on the strength of its embedded `/`.
     let chain: Vec<Box<dyn Resolver>> = vec![
-        Box::new(ArcResolver(Arc::clone(&npm_resolver))),
+        Box::new(Arc::clone(&npm_resolver)),
         Box::new(git_resolver),
         Box::new(tarball_resolver),
         Box::new(local_scheme_resolver),
@@ -283,32 +283,3 @@ fn run_resolve_blocking(
 
 #[cfg(test)]
 mod tests;
-
-/// [`Resolver`] adapter that delegates to a shared `Arc<dyn Resolver>`.
-///
-/// [`DefaultResolver::new`] takes `Vec<Box<dyn Resolver>>` — one owner
-/// per chain slot. The npm resolver, however, is also handed to the deno
-/// / bun runtime resolvers (which reuse it for version picking) via
-/// `Arc<dyn Resolver>`, so the same instance owns its metadata cache
-/// across both call paths. This wrapper bridges the two, forwarding
-/// every call to the shared backing resolver. Mirrors the identically
-/// named helper in `install_with_fresh_lockfile.rs`.
-struct ArcResolver(Arc<dyn Resolver>);
-
-impl Resolver for ArcResolver {
-    fn resolve<'a>(
-        &'a self,
-        wanted_dependency: &'a WantedDependency,
-        opts: &'a ResolveOptions,
-    ) -> ResolveFuture<'a> {
-        self.0.resolve(wanted_dependency, opts)
-    }
-
-    fn resolve_latest<'a>(
-        &'a self,
-        query: &'a LatestQuery,
-        opts: &'a ResolveOptions,
-    ) -> ResolveLatestFuture<'a> {
-        self.0.resolve_latest(query, opts)
-    }
-}

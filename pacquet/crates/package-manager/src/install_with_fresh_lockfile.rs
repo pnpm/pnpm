@@ -34,9 +34,7 @@ use pacquet_resolving_npm_resolver::{
     InMemoryPackageMetaCache, MergeNamedRegistriesError, NamedRegistryResolver, NpmResolver,
     merge_named_registries, shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
-use pacquet_resolving_resolver_base::{
-    LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, Resolver, WantedDependency,
-};
+use pacquet_resolving_resolver_base::{ResolveOptions, Resolver};
 use pacquet_resolving_tarball_resolver::{TarballFetchContext, TarballResolver};
 use pacquet_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, store_index_key};
 use pacquet_tarball::{MemCache, SharedReportedProgressKeys};
@@ -712,10 +710,12 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let local_path_resolver = LocalPathResolver::new(local_ctx);
         let mut node_resolver = NodeResolver::new(Arc::clone(&http_client_arc));
         node_resolver.offline = config.offline;
-        let deno_resolver =
+        let mut deno_resolver =
             DenoResolver::new(Arc::clone(&http_client_arc), Arc::clone(&npm_resolver));
-        let bun_resolver =
+        deno_resolver.offline = config.offline;
+        let mut bun_resolver =
             BunResolver::new(Arc::clone(&http_client_arc), Arc::clone(&npm_resolver));
+        bun_resolver.offline = config.offline;
         let named_registry_resolver = NamedRegistryResolver {
             named_registries: merged_named_registries,
             registry_names: named_registry_aliases,
@@ -770,7 +770,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 }),
         );
         chain.extend([
-            Box::new(ArcResolver(Arc::clone(&npm_resolver))) as Box<dyn Resolver>,
+            Box::new(Arc::clone(&npm_resolver)) as Box<dyn Resolver>,
             Box::new(git_resolver),
             Box::new(tarball_resolver),
             Box::new(local_scheme_resolver),
@@ -1215,7 +1215,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // Drop the resolver (and its packument cache) before the
         // install pass. Dropping `resolver` releases the
         // [`PrefetchingResolver`]'s wrapped inner chain, which in
-        // turn releases the `ArcResolver`'s strong reference to
+        // turn releases the shared npm resolver's strong reference to
         // `npm_resolver`; the standalone `npm_resolver` binding
         // holds a second strong reference because the deno- and
         // bun-resolvers were handed a clone of the same `Arc` for
@@ -2252,35 +2252,6 @@ pub(crate) fn compute_package_extensions_checksum(config: &Config) -> Option<Str
         config.package_extensions.as_ref().filter(|extensions| !extensions.is_empty())?;
     let value = serde_json::to_value(extensions).ok()?;
     pacquet_graph_hasher::hash_object_nullable_with_prefix(&value)
-}
-
-/// [`Resolver`] adapter that delegates to a shared `Arc<dyn Resolver>`.
-///
-/// [`DefaultResolver::new`] takes `Vec<Box<dyn Resolver>>` — one owner
-/// per chain slot. The npm resolver, however, is also handed to the
-/// runtime resolvers (`Node` / `Deno` / `Bun` reuse it for version
-/// picking) via `Arc<dyn Resolver>`, so the same instance owns its
-/// metadata cache across both call paths. This wrapper bridges
-/// the two by implementing [`Resolver`] on a `Box<ArcResolver>`,
-/// forwarding every call to the shared backing resolver.
-struct ArcResolver(Arc<dyn Resolver>);
-
-impl Resolver for ArcResolver {
-    fn resolve<'a>(
-        &'a self,
-        wanted_dependency: &'a WantedDependency,
-        opts: &'a ResolveOptions,
-    ) -> ResolveFuture<'a> {
-        self.0.resolve(wanted_dependency, opts)
-    }
-
-    fn resolve_latest<'a>(
-        &'a self,
-        query: &'a LatestQuery,
-        opts: &'a ResolveOptions,
-    ) -> ResolveLatestFuture<'a> {
-        self.0.resolve_latest(query, opts)
-    }
 }
 
 #[cfg(test)]

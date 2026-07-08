@@ -54,6 +54,7 @@ fn resolves_a_local_directory_via_the_file_scheme() {
     assert_eq!(manifest["name"], "local-pkg");
     assert_eq!(manifest["version"], "1.2.3");
     assert_eq!(result.resolved_via, "local-filesystem");
+    dbg!(&result.normalized_bare_specifier);
     assert!(result.normalized_bare_specifier.is_some());
 }
 
@@ -86,8 +87,55 @@ fn errors_when_no_resolver_in_the_chain_claims_the_spec() {
         panic!("an unclaimed spec should error rather than resolve");
     };
 
+    eprintln!("resolve error: {}", error.reason);
     assert!(
         error.reason.contains("isn't supported by any available resolver"),
+        "unexpected error message: {}",
+        error.reason,
+    );
+}
+
+/// With `offline: true`, a `deno@runtime:` spec fails fast with the
+/// runtime resolver's offline error instead of reaching out to GitHub
+/// Releases for the asset list — the same offline contract the npm and
+/// node resolvers already honor.
+#[test]
+fn offline_blocks_deno_runtime_resolution() {
+    let dir = tempfile::tempdir().expect("tempdir");
+
+    let wanted = WantedDependencyInput {
+        alias: Some("deno".to_string()),
+        bare_specifier: Some("runtime:1.40.0".to_string()),
+    };
+    let Err(error) = run_resolve_blocking(wanted, &options_for(dir.path())) else {
+        panic!("an offline deno runtime resolve should error rather than fetch");
+    };
+
+    eprintln!("resolve error: {}", error.reason);
+    assert!(
+        error.reason.contains("Offline Deno resolution is not supported"),
+        "unexpected error message: {}",
+        error.reason,
+    );
+}
+
+/// The `bun@runtime:` counterpart of
+/// [`offline_blocks_deno_runtime_resolution`].
+#[test]
+fn offline_blocks_bun_runtime_resolution() {
+    let dir = tempfile::tempdir().expect("tempdir");
+
+    let wanted = WantedDependencyInput {
+        alias: Some("bun".to_string()),
+        bare_specifier: Some("runtime:1.1.0".to_string()),
+    };
+    let Err(error) = run_resolve_blocking(wanted, &options_for(dir.path())) else {
+        panic!("an offline bun runtime resolve should error rather than fetch");
+    };
+
+    eprintln!("resolve error: {}", error.reason);
+    assert!(
+        error.reason.contains("Offline Bun resolution is not supported"),
         "unexpected error message: {}",
         error.reason,
     );

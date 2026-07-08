@@ -20,6 +20,10 @@ const BARE_SPEC_PREFIX: &str = "runtime:";
 /// Errors emitted by [`BunResolver`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum BunResolverError {
+    #[display("Offline Bun resolution is not supported")]
+    #[diagnostic(code(NO_OFFLINE_BUN_RESOLUTION))]
+    Offline,
+
     #[display("Could not resolve Bun version specified as {spec}")]
     #[diagnostic(code(BUN_RESOLUTION_FAILURE))]
     ResolutionFailure {
@@ -39,11 +43,16 @@ pub enum BunResolverError {
 pub struct BunResolver {
     pub http_client: Arc<ThrottledClient>,
     pub npm_resolver: Arc<dyn Resolver>,
+    /// When set, the resolver fails fast with
+    /// [`BunResolverError::Offline`] instead of reaching out to GitHub
+    /// Releases for the SHASUMS — matching `NodeResolver`'s offline
+    /// behavior.
+    pub offline: bool,
 }
 
 impl BunResolver {
     pub fn new(http_client: Arc<ThrottledClient>, npm_resolver: Arc<dyn Resolver>) -> Self {
-        Self { http_client, npm_resolver }
+        Self { http_client, npm_resolver, offline: false }
     }
 }
 
@@ -74,6 +83,9 @@ impl BunResolver {
         let Some(version_spec) = bare_runtime_spec(wanted_dependency, "bun") else {
             return Ok(None);
         };
+        if self.offline {
+            return Err(Box::new(BunResolverError::Offline) as ResolveError);
+        }
         let version_spec = normalize_runtime_spec(version_spec);
 
         let npm_result = self
