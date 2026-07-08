@@ -38,8 +38,8 @@ type ReadScript = Box<dyn FnMut(&Path) -> io::Result<String>>;
 /// state, plus the `set_*` / `login_writes` / `reset_login` helpers.
 ///
 /// The prompt scripts live in a fn-local `static` [`Mutex`], not `thread_local!`:
-/// `prompt_line` runs `read_input` / `read_password` inside `spawn_blocking`, so
-/// they execute on a blocking-pool thread where thread-local state would be
+/// `prompt_line` runs `prompt_input` / `prompt_password` inside `spawn_blocking`,
+/// so they execute on a blocking-pool thread where thread-local state would be
 /// invisible. Each test's expansion has its own `static`, so tests stay
 /// isolated. `auth.ini` I/O runs on the test thread and stays `thread_local!`.
 macro_rules! login_fake {

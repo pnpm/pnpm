@@ -164,12 +164,12 @@ enum Masking {
     Masked,
 }
 
-/// Read one credential line: run the injected [`ReadPromptLine`] builder off the
-/// async runtime (`dialoguer` is blocking), selecting the visible read for
-/// [`Masking::Visible`] and the masked read for [`Masking::Masked`], then
-/// classify the outcome — an interrupted prompt (Ctrl-C) maps to
-/// [`PromptError::Cancelled`] (mirroring enquirer's `ExitPromptError`), a task
-/// panic or any other failure to [`PromptError::Other`].
+/// Read one credential line off the async runtime (`dialoguer` is blocking):
+/// run the injected [`PromptInput`] read for [`Masking::Visible`] or the
+/// [`PromptPassword`] read for [`Masking::Masked`], then classify the outcome —
+/// an interrupted prompt (Ctrl-C) maps to [`PromptError::Cancelled`] (mirroring
+/// enquirer's `ExitPromptError`), a task panic or any other failure to
+/// [`PromptError::Other`].
 async fn prompt_line<Sys: PromptInput + PromptPassword + 'static>(
     message: &str,
     masking: Masking,
