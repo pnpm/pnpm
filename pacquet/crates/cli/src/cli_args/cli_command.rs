@@ -33,6 +33,7 @@ use super::{
     patch_remove::PatchRemoveArgs,
     peers::PeersArgs,
     ping::PingArgs,
+    pkg::PkgArgs,
     prefix::PrefixArgs,
     prune::PruneArgs,
     publish::PublishArgs,
@@ -304,6 +305,8 @@ pub enum CliCommand {
     /// Manage the pnpm configuration files.
     #[clap(visible_alias = "c")]
     Config(ConfigArgs),
+    /// Manages your package.json.
+    Pkg(PkgArgs),
     /// Pack a `CommonJS` entry file into a standalone executable for one or more target platforms.
     #[clap(name = "pack-app")]
     PackApp(PackAppArgs),
