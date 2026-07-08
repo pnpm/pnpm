@@ -142,8 +142,11 @@ impl SearchArgs {
         if !response.status().is_success() {
             let status = response.status();
             let error_body = response.text().await.unwrap_or_default().trim().to_string();
-            let detail =
-                if error_body.is_empty() { String::new() } else { format!(". {error_body}") };
+            let detail = if error_body.is_empty() {
+                String::new()
+            } else {
+                format!(". {}", sanitize(&error_body))
+            };
             return Err(SearchError::SearchFailed {
                 status: status.as_u16(),
                 status_text: status.canonical_reason().unwrap_or_default().to_string(),
@@ -207,27 +210,31 @@ fn format_package(pkg: &SearchPackage) -> String {
         lines.push(sanitize(desc).into_owned());
     }
 
-    let mut version_line = vec![format!("Version {}", pkg.version)];
+    let mut version_line = vec![format!("Version {}", sanitize(&pkg.version))];
     if !date.is_empty() {
         version_line.push(format!("published {date}"));
     }
     if !author.is_empty() {
-        version_line.push(format!("by {author}"));
+        version_line.push(format!("by {}", sanitize(&author)));
     }
     lines.push(version_line.join(" "));
 
     if let Some(ref maintainers) = pkg.maintainers
         && !maintainers.is_empty()
     {
-        let usernames: Vec<String> =
-            maintainers.iter().map(|maintainer| maintainer.username.clone()).collect();
+        let usernames: Vec<String> = maintainers
+            .iter()
+            .map(|maintainer| sanitize(&maintainer.username).into_owned())
+            .collect();
         lines.push(format!("Maintainers: {}", usernames.join(", ")));
     }
 
     if let Some(ref keywords) = pkg.keywords
         && !keywords.is_empty()
     {
-        lines.push(format!("Keywords: {}", keywords.join(", ")));
+        let sanitized_keywords: Vec<String> =
+            keywords.iter().map(|keyword| sanitize(keyword).into_owned()).collect();
+        lines.push(format!("Keywords: {}", sanitized_keywords.join(", ")));
     }
 
     lines.push(bright_blue(&format!("https://npmx.dev/package/{}", pkg.name)));
