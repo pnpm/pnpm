@@ -45,6 +45,7 @@ use super::{
     run::RunArgs,
     runtime::RuntimeArgs,
     sbom::SbomArgs,
+    search::SearchArgs,
     self_update::SelfUpdateArgs,
     set_script::SetScriptArgs,
     setup::SetupArgs,
@@ -242,6 +243,9 @@ pub enum CliCommand {
     DistTag(DistTagArgs),
     /// Test connectivity to the configured registry.
     Ping(PingArgs),
+    /// Search for packages in the registry.
+    #[clap(visible_aliases = ["s", "se", "find"])]
+    Search(SearchArgs),
     /// Rebuild a package.
     #[clap(visible_alias = "rb")]
     Rebuild(RebuildArgs),
