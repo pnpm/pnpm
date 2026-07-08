@@ -284,7 +284,7 @@ test('fail on an optional dependency that cannot be resolved when the lockfile h
 // is missing from the version list even though other packages already
 // reference it. Everything else is forwarded to the registry mock.
 function createVersionHidingRegistryProxy (pkgNames: string[], hiddenVersion: string): http.Server {
-  const hiddenPkgPaths = new Set(pkgNames.map((pkgName) => `/${pkgName.replace('/', '%2F')}`))
+  const hiddenPkgPaths = new Set(pkgNames.map((pkgName) => `/${pkgName}`))
   return http.createServer((req, res) => {
     (async () => {
       const upstream = await fetch(`http://localhost:${REGISTRY_MOCK_PORT}${req.url}`, {
@@ -292,7 +292,7 @@ function createVersionHidingRegistryProxy (pkgNames: string[], hiddenVersion: st
         headers: { accept: req.headers.accept ?? '*/*' },
       })
       const contentType = upstream.headers.get('content-type') ?? ''
-      if (hiddenPkgPaths.has(req.url!) && contentType.includes('json')) {
+      if (hiddenPkgPaths.has(decodeURIComponent(req.url!)) && contentType.includes('json')) {
         const doc = await upstream.json() as { versions?: Record<string, unknown>, time?: Record<string, string>, 'dist-tags'?: Record<string, string> }
         delete doc.versions?.[hiddenVersion]
         delete doc.time?.[hiddenVersion]
@@ -308,7 +308,7 @@ function createVersionHidingRegistryProxy (pkgNames: string[], hiddenVersion: st
         res.end(Buffer.from(await upstream.arrayBuffer()))
       }
     })().catch((err) => {
-      res.writeHead(500)
+      res.writeHead(500, { 'content-type': 'text/plain' })
       res.end(String(err))
     })
   })

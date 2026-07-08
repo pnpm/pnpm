@@ -2178,6 +2178,15 @@ async function resolveDependency (
  *
  * Only plain semver specifiers are checked; exotic specifiers (git, catalogs,
  * tags, URLs) keep the skip-on-failure behavior.
+ *
+ * The check is deliberately by package name and range rather than by the
+ * current edge's locked dep path. `pnpm dedupe` — the flow where the erasure
+ * bites — clears every per-snapshot dependency map before resolving
+ * (`forgetResolutionsOfAllPrevWantedDeps`), so on this code path no edge-level
+ * lockfile linkage exists to key on; only the package entries survive. A
+ * satisfying entry locked via any edge also means the registry served this
+ * package in-range before, so failing loudly instead of skipping is the right
+ * outcome even when the failing edge itself was never locked.
  */
 function wantedLockfileContainsSatisfyingEntry (lockfile: LockfileObject, wantedDependency: WantedDependency): boolean {
   if (!wantedDependency.alias) return false
