@@ -1,7 +1,6 @@
 //! `pacquet search` — search for packages in the registry.
 
-use crate::cli_args::registry_client::build_registry_client;
-use crate::cli_args::sanitize::sanitize;
+use crate::cli_args::{registry_client::build_registry_client, sanitize::sanitize};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic, WrapErr};
