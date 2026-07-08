@@ -12,12 +12,13 @@
 //! (no `=`), and comment lines (`;` / `#`) are not part of `auth.ini`'s
 //! shape and are skipped on read.
 //!
-//! A value that would be misread on the way back — one containing `=`, CR,
-//! or LF, one already `"`-wrapped, one padded with whitespace, or one
-//! starting with `[` — is written as a JSON string (the same quoting the
-//! `ini` package's `write-ini-file` applies) and decoded on read. Without
-//! this a registry-controlled auth token with an embedded newline could
-//! plant extra entries in `auth.ini`.
+//! A key or value that would be misread on the way back — one containing
+//! `=`, CR, or LF, one already `"`-wrapped, one padded with whitespace, or
+//! one starting with `[` — is written as a JSON string (the same quoting
+//! the `ini` package's `write-ini-file` applies) and decoded on read.
+//! Without this a registry-controlled auth token with an embedded newline
+//! could plant extra entries in `auth.ini`, and a registry whose path
+//! contains `=` would key its token under a truncated name.
 //!
 //! The `ini` package additionally backslash-escapes inline `;` / `#` (which
 //! it reads as comment starts) and unwraps single-quoted values. That is
@@ -44,8 +45,8 @@ impl IniSettings {
                 if line.is_empty() || line.starts_with([';', '#', '[']) {
                     return None;
                 }
-                let (key, value) = line.split_once('=')?;
-                Some((key.trim().to_string(), decode_value(value.trim())))
+                let (key, value) = split_key_value(line)?;
+                Some((decode_value(key.trim()), decode_value(value.trim())))
             })
             .collect();
         IniSettings { entries }
@@ -88,7 +89,7 @@ impl IniSettings {
     pub fn serialize(&self) -> String {
         use std::fmt::Write;
         self.entries.iter().fold(String::new(), |mut out, (key, value)| {
-            writeln!(out, "{key}={}", encode_value(value))
+            writeln!(out, "{}={}", encode_value(key), encode_value(value))
                 .expect("writing to a String never fails");
             out
         })
@@ -102,11 +103,11 @@ impl IniSettings {
     }
 }
 
-/// Quote a value that would otherwise be misread on the way back, as a JSON
-/// string — the same quoting the `ini` package's `write-ini-file` applies, so
-/// [`encode_value`] and [`decode_value`] stay inverses (`ini`'s inline `;` /
-/// `#` escaping is out of scope; see the module docs). Quoting is required
-/// when the value:
+/// Quote a key or value that would otherwise be misread on the way back, as a
+/// JSON string — the same quoting the `ini` package's `write-ini-file`
+/// applies, so [`encode_value`] and [`decode_value`] stay inverses (`ini`'s
+/// inline `;` / `#` escaping is out of scope; see the module docs). Quoting is
+/// required when the string:
 ///
 /// - contains `=`, CR, or LF (a registry-controlled token with an embedded
 ///   newline would otherwise plant extra `auth.ini` entries);
@@ -134,6 +135,37 @@ fn decode_value(value: &str) -> String {
     } else {
         value.to_owned()
     }
+}
+
+/// Split a stored line into its still-encoded key and value halves. A
+/// JSON-quoted key can itself contain `=`, so the separator is the `=` after
+/// the key's closing quote; an unquoted key never contains `=` (it would have
+/// been quoted by [`encode_value`]), so its first `=` is the separator.
+fn split_key_value(line: &str) -> Option<(&str, &str)> {
+    if line.starts_with('"') {
+        let close = closing_quote_index(line)?;
+        let (key, rest) = line.split_at(close + 1);
+        Some((key, rest.trim_start().strip_prefix('=')?))
+    } else {
+        line.split_once('=')
+    }
+}
+
+/// Byte index of the closing `"` of the JSON string starting at index 0,
+/// skipping `\`-escaped bytes. `None` for an unterminated string. Byte
+/// scanning is safe: a UTF-8 continuation byte is never `"` (`0x22`) or `\`
+/// (`0x5c`).
+fn closing_quote_index(line: &str) -> Option<usize> {
+    let bytes = line.as_bytes();
+    let mut index = 1;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'\\' => index += 2,
+            b'"' => return Some(index),
+            _ => index += 1,
+        }
+    }
+    None
 }
 
 #[cfg(test)]

@@ -74,6 +74,25 @@ fn quotes_every_ambiguous_value_shape_for_a_faithful_round_trip() {
     }
 }
 
+// Keys are quoted like values: a registry whose path contains `=` (or, as an
+// injection guard, CR/LF) must key its token faithfully rather than split at
+// the wrong `=`, and an ordinary key stays unquoted.
+#[test]
+fn quotes_and_round_trips_keys_with_a_separator_or_newline() {
+    for key in [
+        "//npm.example.com/foo=bar/:_authToken",
+        "//npm.example.com/a\nb/:_authToken",
+        "//registry.npmjs.org/:_authToken",
+    ] {
+        let mut settings = IniSettings::default();
+        settings.set(key, "the-token");
+        let text = settings.serialize();
+        assert_eq!(text.lines().count(), 1, "one physical line for {key:?}: {text:?}");
+        let reparsed = IniSettings::parse(&text);
+        assert_eq!(reparsed.get(key), Some("the-token"), "key round-trip failed for {key:?}");
+    }
+}
+
 // `set` collapses pre-existing duplicate keys to a single value, matching
 // `remove`'s all-duplicates handling and the `ini` object model.
 #[test]
