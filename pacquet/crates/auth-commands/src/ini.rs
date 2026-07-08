@@ -12,11 +12,18 @@
 //! (no `=`), and comment lines (`;` / `#`) are not part of `auth.ini`'s
 //! shape and are skipped on read.
 //!
-//! A value that would break the flat one-line shape — one containing `=`,
-//! CR, or LF — is written as a JSON string, matching the `ini` package
-//! `write-ini-file` uses, and decoded back on read. Without this a
-//! registry-controlled auth token with an embedded newline could plant
-//! extra entries in `auth.ini`.
+//! A value that would be misread on the way back — one containing `=`, CR,
+//! or LF, one already `"`-wrapped, one padded with whitespace, or one
+//! starting with `[` — is written as a JSON string (the same quoting the
+//! `ini` package's `write-ini-file` applies) and decoded on read. Without
+//! this a registry-controlled auth token with an embedded newline could
+//! plant extra entries in `auth.ini`.
+//!
+//! The `ini` package additionally backslash-escapes inline `;` / `#` (which
+//! it reads as comment starts) and unwraps single-quoted values. That is
+//! deliberately omitted here: the opaque bearer tokens this file holds are
+//! `[A-Za-z0-9+/=._-]` and never contain `;`, `#`, or quotes, and pacquet
+//! only skips comments at line start, so such values round-trip regardless.
 
 use std::borrow::Cow;
 
@@ -96,8 +103,9 @@ impl IniSettings {
 }
 
 /// Quote a value that would otherwise be misread on the way back, as a JSON
-/// string — matching the `ini` package `write-ini-file` uses so
-/// [`encode_value`] and [`decode_value`] stay inverses. Quoting is required
+/// string — the same quoting the `ini` package's `write-ini-file` applies, so
+/// [`encode_value`] and [`decode_value`] stay inverses (`ini`'s inline `;` /
+/// `#` escaping is out of scope; see the module docs). Quoting is required
 /// when the value:
 ///
 /// - contains `=`, CR, or LF (a registry-controlled token with an embedded
