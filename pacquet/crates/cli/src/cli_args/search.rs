@@ -45,30 +45,30 @@ pub struct SearchArgs {
     pub query: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SearchAuthor {
     #[serde(default)]
     pub name: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum AuthorInfo {
     Object(SearchAuthor),
     String(String),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SearchPublisher {
     pub username: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SearchMaintainer {
     pub username: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SearchPackage {
     pub name: String,
     pub version: String,
@@ -220,7 +220,8 @@ fn format_package(pkg: &SearchPackage) -> String {
     if let Some(ref maintainers) = pkg.maintainers
         && !maintainers.is_empty()
     {
-        let usernames: Vec<String> = maintainers.iter().map(|m| m.username.clone()).collect();
+        let usernames: Vec<String> =
+            maintainers.iter().map(|maintainer| maintainer.username.clone()).collect();
         lines.push(format!("Maintainers: {}", usernames.join(", ")));
     }
 
