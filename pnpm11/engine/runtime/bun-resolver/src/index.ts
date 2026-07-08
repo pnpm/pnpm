@@ -40,6 +40,7 @@ export async function resolveBunRuntime (
     }
   }
 
+  if (ctx.offline) throw new PnpmError('NO_OFFLINE_BUN_RESOLUTION', 'Offline Bun resolution is not supported')
   const versionSpec = normalizeRuntimeSpec(wantedDependency.bareSpecifier.substring('runtime:'.length))
   // We use the npm registry for version resolution as it is easier than using the GitHub API for releases,
   // which uses pagination (e.g. https://api.github.com/repos/oven-sh/bun/releases?per_page=100).
