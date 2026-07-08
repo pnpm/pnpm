@@ -52,13 +52,26 @@ fn quotes_values_with_newlines_to_prevent_auth_ini_injection() {
     );
 }
 
-// A value containing `=` round-trips unambiguously.
+// `encode_value` and `decode_value` must be inverses for every value shape
+// the `ini` package quotes — `=`, an already-`"`-wrapped value (else the
+// quotes are stripped on read), leading/trailing whitespace (else trimmed),
+// and a leading `[` — not just newlines.
 #[test]
-fn quotes_values_with_equals_signs() {
-    let mut settings = IniSettings::default();
-    settings.set("k", "a=b=c");
-    let reparsed = IniSettings::parse(&settings.serialize());
-    assert_eq!(reparsed.get("k"), Some("a=b=c"));
+fn quotes_every_ambiguous_value_shape_for_a_faithful_round_trip() {
+    for value in [
+        "a=b=c",
+        r#""already-quoted""#,
+        r#""""#,
+        " leading-space",
+        "trailing-space ",
+        "[bracketed",
+        "plain-token",
+    ] {
+        let mut settings = IniSettings::default();
+        settings.set("k", value);
+        let reparsed = IniSettings::parse(&settings.serialize());
+        assert_eq!(reparsed.get("k"), Some(value), "round-trip failed for {value:?}");
+    }
 }
 
 // `set` collapses pre-existing duplicate keys to a single value, matching

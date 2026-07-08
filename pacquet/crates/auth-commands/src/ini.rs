@@ -95,12 +95,22 @@ impl IniSettings {
     }
 }
 
-/// Quote a value that would otherwise break the flat one-line `key=value`
-/// shape — one containing `=`, CR, or LF — as a JSON string, matching the
-/// `ini` package `write-ini-file` uses. A registry-controlled auth token
-/// with an embedded newline would otherwise plant extra `auth.ini` entries.
+/// Quote a value that would otherwise be misread on the way back, as a JSON
+/// string — matching the `ini` package `write-ini-file` uses so
+/// [`encode_value`] and [`decode_value`] stay inverses. Quoting is required
+/// when the value:
+///
+/// - contains `=`, CR, or LF (a registry-controlled token with an embedded
+///   newline would otherwise plant extra `auth.ini` entries);
+/// - is already `"`-wrapped, so [`decode_value`] would strip its quotes;
+/// - has leading/trailing whitespace, which [`parse`](IniSettings::parse) trims;
+/// - starts with `[`, which reads as a section header.
 fn encode_value(value: &str) -> Cow<'_, str> {
-    if value.contains(['=', '\r', '\n']) {
+    let needs_quoting = value.contains(['=', '\r', '\n'])
+        || value.starts_with('[')
+        || value != value.trim()
+        || (value.len() > 1 && value.starts_with('"') && value.ends_with('"'));
+    if needs_quoting {
         serde_json::to_string(value).expect("serializing a string never fails").into()
     } else {
         Cow::Borrowed(value)
