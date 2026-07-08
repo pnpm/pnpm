@@ -30,3 +30,42 @@ fn serialize_round_trips_remaining_entries_in_order() {
     settings.remove("//registry.npmjs.org/:_authToken");
     assert_eq!(settings.serialize(), "other=value\n");
 }
+
+// A registry-controlled token with an embedded newline must not be able to
+// plant extra `auth.ini` entries. It is quoted (JSON) so it stays on one
+// physical line and round-trips to the exact value.
+#[test]
+fn quotes_values_with_newlines_to_prevent_auth_ini_injection() {
+    let injected = "x\n//registry.npmjs.org/:_authToken=attacker-token";
+    let mut settings = IniSettings::default();
+    settings.set("//evil.example/:_authToken", injected);
+
+    let text = settings.serialize();
+    assert_eq!(text.lines().count(), 1, "the value must stay on one line: {text:?}");
+
+    let reparsed = IniSettings::parse(&text);
+    assert_eq!(reparsed.get("//evil.example/:_authToken"), Some(injected));
+    assert_eq!(
+        reparsed.get("//registry.npmjs.org/:_authToken"),
+        None,
+        "no auth entry was injected",
+    );
+}
+
+// A value containing `=` round-trips unambiguously.
+#[test]
+fn quotes_values_with_equals_signs() {
+    let mut settings = IniSettings::default();
+    settings.set("k", "a=b=c");
+    let reparsed = IniSettings::parse(&settings.serialize());
+    assert_eq!(reparsed.get("k"), Some("a=b=c"));
+}
+
+// `set` collapses pre-existing duplicate keys to a single value, matching
+// `remove`'s all-duplicates handling and the `ini` object model.
+#[test]
+fn set_collapses_pre_existing_duplicate_keys() {
+    let mut settings = IniSettings::parse("//reg/:_authToken=old1\n//reg/:_authToken=old2\n");
+    settings.set("//reg/:_authToken", "new");
+    assert_eq!(settings.serialize(), "//reg/:_authToken=new\n");
+}

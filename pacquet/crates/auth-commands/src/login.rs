@@ -574,7 +574,7 @@ enum AddUserError {
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum ClassicLoginOpError {
     #[display("The registry requires a one-time password to complete the login")]
-    #[diagnostic(code(ERR_PNPM_LOGIN_OTP_REQUIRED))]
+    #[diagnostic(code(pacquet_auth_commands::login_otp_required))]
     Otp {
         #[error(not(source))]
         challenge: OtpChallenge,
@@ -589,7 +589,7 @@ pub enum ClassicLoginOpError {
     NoToken,
 
     #[display("The login request failed: {reason}")]
-    #[diagnostic(code(ERR_PNPM_LOGIN_REQUEST_FAILED))]
+    #[diagnostic(code(pacquet_auth_commands::login_request_failed))]
     Transport {
         #[error(not(source))]
         reason: String,
@@ -639,18 +639,18 @@ pub enum LoginError {
     WebAuthTimeout(WebAuthTimeoutError),
 
     #[display("Failed to render the login QR code: {_0}")]
-    #[diagnostic(code(ERR_PNPM_LOGIN_QR_CODE))]
+    #[diagnostic(code(pacquet_auth_commands::login_qr_code))]
     QrCode(#[error(source)] GenerateQrCodeError),
 
     #[display("The login request failed: {reason}")]
-    #[diagnostic(code(ERR_PNPM_LOGIN_REQUEST_FAILED))]
+    #[diagnostic(code(pacquet_auth_commands::login_request_failed))]
     Request {
         #[error(not(source))]
         reason: String,
     },
 
     #[display("Failed to read the login prompt: {reason}")]
-    #[diagnostic(code(ERR_PNPM_LOGIN_PROMPT_FAILED))]
+    #[diagnostic(code(pacquet_auth_commands::login_prompt_failed))]
     Prompt {
         #[error(not(source))]
         reason: String,

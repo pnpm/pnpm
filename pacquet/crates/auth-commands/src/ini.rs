@@ -11,6 +11,14 @@
 //! file without churning the rest. Section headers (`[name]`), bare keys
 //! (no `=`), and comment lines (`;` / `#`) are not part of `auth.ini`'s
 //! shape and are skipped on read.
+//!
+//! A value that would break the flat one-line shape — one containing `=`,
+//! CR, or LF — is written as a JSON string, matching the `ini` package
+//! `write-ini-file` uses, and decoded back on read. Without this a
+//! registry-controlled auth token with an embedded newline could plant
+//! extra entries in `auth.ini`.
+
+use std::borrow::Cow;
 
 /// An ordered set of `auth.ini` entries.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -30,21 +38,31 @@ impl IniSettings {
                     return None;
                 }
                 let (key, value) = line.split_once('=')?;
-                Some((key.trim().to_string(), value.trim().to_string()))
+                Some((key.trim().to_string(), decode_value(value.trim())))
             })
             .collect();
         IniSettings { entries }
     }
 
-    /// Set `key` to `value`, updating the existing entry in place when the
-    /// key is already present (preserving its position) and appending
-    /// otherwise. Mirrors assigning a property on the object
-    /// `write-ini-file` serializes.
+    /// Set `key` to `value`, updating the first existing entry in place
+    /// (preserving its position) and dropping any later duplicates so the
+    /// key resolves to a single value, or appending when the key is absent.
+    /// Mirrors assigning a property on the object `write-ini-file`
+    /// serializes (and the all-duplicates handling of [`remove`](Self::remove)).
     pub fn set(&mut self, key: &str, value: &str) {
-        if let Some((_, existing)) = self.entries.iter_mut().find(|(entry_key, _)| entry_key == key)
-        {
-            *existing = value.to_string();
-        } else {
+        let mut updated = false;
+        self.entries.retain_mut(|(entry_key, entry_value)| {
+            if entry_key.as_str() != key {
+                return true;
+            }
+            if updated {
+                return false;
+            }
+            *entry_value = value.to_string();
+            updated = true;
+            true
+        });
+        if !updated {
             self.entries.push((key.to_string(), value.to_string()));
         }
     }
@@ -58,10 +76,13 @@ impl IniSettings {
     }
 
     /// Render back to flat `key=value` lines, each terminated by `\n`.
+    /// Values that would break the one-line shape are JSON-quoted (see
+    /// [`encode_value`]).
     pub fn serialize(&self) -> String {
         use std::fmt::Write;
         self.entries.iter().fold(String::new(), |mut out, (key, value)| {
-            writeln!(out, "{key}={value}").expect("writing to a String never fails");
+            writeln!(out, "{key}={}", encode_value(value))
+                .expect("writing to a String never fails");
             out
         })
     }
@@ -71,6 +92,29 @@ impl IniSettings {
         self.entries
             .iter()
             .find_map(|(entry_key, value)| (entry_key == key).then_some(value.as_str()))
+    }
+}
+
+/// Quote a value that would otherwise break the flat one-line `key=value`
+/// shape — one containing `=`, CR, or LF — as a JSON string, matching the
+/// `ini` package `write-ini-file` uses. A registry-controlled auth token
+/// with an embedded newline would otherwise plant extra `auth.ini` entries.
+fn encode_value(value: &str) -> Cow<'_, str> {
+    if value.contains(['=', '\r', '\n']) {
+        serde_json::to_string(value).expect("serializing a string never fails").into()
+    } else {
+        Cow::Borrowed(value)
+    }
+}
+
+/// Reverse of [`encode_value`]: a JSON-quoted value is decoded to its literal
+/// contents; anything else is taken verbatim. Mirrors the `ini` package's
+/// quoted-value handling on read.
+fn decode_value(value: &str) -> String {
+    if value.len() >= 2 && value.starts_with('"') && value.ends_with('"') {
+        serde_json::from_str::<String>(value).unwrap_or_else(|_| value.to_owned())
+    } else {
+        value.to_owned()
     }
 }
 
