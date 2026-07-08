@@ -1,4 +1,5 @@
 import { rmSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 
 import { expect, test } from '@jest/globals'
 import { ABBREVIATED_META_DIR } from '@pnpm/constants'
@@ -16,6 +17,16 @@ import {
 } from '../src/pickPackage.js'
 
 const REGISTRY = 'https://registry.npmjs.org/'
+
+async function readMirrorWithRetry (pkgMirror: string, attempts: number): Promise<string | undefined> {
+  try {
+    return await readFile(pkgMirror, 'utf8')
+  } catch {
+    if (attempts <= 0) return undefined
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    return readMirrorWithRetry(pkgMirror, attempts - 1)
+  }
+}
 
 function fooMeta (): PackageMeta {
   return {
@@ -152,6 +163,40 @@ test('prefer-offline resolution promotes the disk-loaded packument into the in-m
   rmSync(pkgMirror)
   const second = await pickPackage(ctx, spec, opts)
   expect(second.pickedPackage?.version).toBe('1.0.0')
+})
+
+test('the raw response body is written to the disk mirror and then released from the fetch result', async () => {
+  const meta = fooMeta()
+  // A body distinct from the compact JSON.stringify(meta) so we can prove the
+  // mirror is written from the raw response text, not re-serialized.
+  const rawBody = JSON.stringify(meta, null, 2)
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+
+  let fetchResult: { meta: PackageMeta, jsonText: string | undefined, etag: string | undefined } | undefined
+  const ctx = {
+    fetch: async () => {
+      fetchResult = { meta, jsonText: rawBody, etag: undefined }
+      return fetchResult
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+  // A range spec avoids the exact-version fast path and, with no on-disk mirror,
+  // forces the network-fetch branch that writes the mirror and caches the meta.
+  const spec: RegistryPackageSpec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }
+
+  const res = await pickPackage(ctx, spec, { registry: REGISTRY, dryRun: false, preferredVersionSelectors: undefined })
+  expect(res.pickedPackage?.version).toBe('1.0.0')
+
+  // The mirror is written fire-and-forget, so retry until it appears.
+  const mirror = await readMirrorWithRetry(pkgMirror, 100)
+  // The body after the headers line is the raw response text, unchanged.
+  expect(mirror?.slice(mirror.indexOf('\n') + 1)).toBe(rawBody)
+
+  // Once the mirror is written, the raw body must be released so the memoized
+  // fetch result stops pinning it for the rest of the resolution phase.
+  expect(fetchResult?.jsonText).toBeUndefined()
 })
 
 test('a disk-promoted cache entry that cannot satisfy the spec falls back to the registry under prefer-offline', async () => {
