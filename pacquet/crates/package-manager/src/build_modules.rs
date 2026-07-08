@@ -164,9 +164,9 @@ impl AllowBuildPolicy {
         for (spec, &value) in &config.allow_builds {
             if is_git_repo_allow_build_key(spec) {
                 if value {
-                    allowed_git_repos.insert(spec.to_string());
+                    allowed_git_repos.insert(spec.clone());
                 } else {
-                    disallowed_git_repos.insert(spec.to_string());
+                    disallowed_git_repos.insert(spec.clone());
                 }
             } else if is_dep_path_allow_build_key(spec) {
                 if value {
