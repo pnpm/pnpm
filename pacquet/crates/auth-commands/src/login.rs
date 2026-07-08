@@ -33,7 +33,7 @@ use std::{
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_network::{ThrottledClient, encode_uri_component, nerf_dart};
+use pacquet_network::{ThrottledClient, encode_uri_component, nerf_dart, redact_and_sanitize};
 use pacquet_network_web_auth::{
     Clock, EnterKeyListener, GenerateQrCodeError, Host as WebAuthHost, OpenUrl, OtpChallenge,
     OtpError, PromptError, PromptOtp, Sleep, StdinIsTty, StdoutIsTty, SyntheticOtpError,
@@ -158,7 +158,13 @@ async fn prompt_line(message: String, masking: Masking) -> Result<String, Prompt
         Masking::Visible => {
             dialoguer::Input::<String>::new().with_prompt(message).allow_empty(true).interact_text()
         }
-        Masking::Masked => dialoguer::Password::new().with_prompt(message).interact(),
+        // `allow_empty_password(true)` mirrors `@inquirer/prompts` `password`,
+        // which returns an empty string on a bare Enter. Without it dialoguer
+        // loops until non-empty, so pnpm's empty-password path
+        // (`LOGIN_MISSING_CREDENTIALS`) would be unreachable.
+        Masking::Masked => {
+            dialoguer::Password::new().with_prompt(message).allow_empty_password(true).interact()
+        }
     })
     .await
     .map_err(|join_error| PromptError::Other { reason: join_error.to_string() })?
@@ -258,9 +264,12 @@ where
         settings.set(&format!("{scope}:registry"), &registry);
     }
     Sys::write(&config_path, settings.serialize().as_bytes())
-        .map_err(|error| LoginError::WriteAuthIni { path: config_path.clone(), error })?;
+        .map_err(move |error| LoginError::WriteAuthIni { path: config_path, error })?;
 
-    Ok(format!("Logged in on {registry}"))
+    // A registry from an untrusted `.npmrc` / `--registry` can embed
+    // `user:pass@` credentials or terminal escape sequences, so redact and
+    // sanitize before it reaches stdout. Matches `pnpm logout` / `ping`.
+    Ok(format!("Logged in on {}", redact_and_sanitize(&registry)))
 }
 
 /// Normalize a `--scope` value the way pnpm does: trim it, treat an empty
@@ -449,11 +458,19 @@ async fn add_user(
         .map_err(|error| AddUserError::Transport { reason: error.to_string() })?;
     let ok = response.status().is_success();
     let status = response.status().as_u16();
-    let www_authenticate = response
-        .headers()
-        .get(reqwest::header::WWW_AUTHENTICATE)
-        .and_then(|value| value.to_str().ok())
-        .map(str::to_owned);
+    // Join every `WWW-Authenticate` header the way the Fetch `Headers.get`
+    // pnpm relies on does, so an `otp` challenge that isn't the first of
+    // several challenge headers is still detected.
+    let www_authenticate = {
+        let joined = response
+            .headers()
+            .get_all(reqwest::header::WWW_AUTHENTICATE)
+            .iter()
+            .filter_map(|value| value.to_str().ok())
+            .collect::<Vec<_>>()
+            .join(", ");
+        (!joined.is_empty()).then_some(joined)
+    };
     let text = response.text().await.unwrap_or_default();
 
     if !ok {

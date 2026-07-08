@@ -214,11 +214,9 @@ async fn should_use_web_login_when_registry_supports_it() {
     assert_eq!(written_settings(&writes).get(&token_key), Some("web-auth-token-123"));
 
     let messages = infos();
+    assert_eq!(messages.len(), 2, "expected the auth-URL and Press-ENTER lines: {messages:?}");
     assert!(messages[0].contains("https://example.com/auth/login"), "got {messages:?}");
-    assert!(
-        messages.iter().any(|message| message == "Press ENTER to open the URL in your browser."),
-        "got {messages:?}",
-    );
+    assert_eq!(messages[1], "Press ENTER to open the URL in your browser.");
 }
 
 #[tokio::test]
@@ -724,9 +722,7 @@ async fn should_propagate_non_enoent_errors_from_reading_auth_ini() {
     assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
     // The web-login messages are surfaced before the read is attempted.
     let messages = infos();
+    assert_eq!(messages.len(), 2, "expected the auth-URL and Press-ENTER lines: {messages:?}");
     assert!(messages[0].contains("https://example.org/auth/login"), "got {messages:?}");
-    assert!(
-        messages.iter().any(|message| message == "Press ENTER to open the URL in your browser."),
-        "got {messages:?}",
-    );
+    assert_eq!(messages[1], "Press ENTER to open the URL in your browser.");
 }
