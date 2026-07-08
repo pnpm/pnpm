@@ -15,8 +15,9 @@
 //! `context` object. This port threads them through the project's capability
 //! seam instead: the interactive OTP / web-auth effects reuse
 //! [`pacquet_network_web_auth`]'s capability traits (composed on the single
-//! `Sys` type parameter), the credential prompts are the crate-local
-//! [`PromptInput`] / [`PromptPassword`] capabilities, and `auth.ini` I/O reuses
+//! `Sys` type parameter), the credential prompts read through the crate-local
+//! [`PromptInput`] / [`PromptPassword`] capabilities — the raw `dialoguer`
+//! terminal reads, wrapped by `prompt_line` — and `auth.ini` I/O reuses
 //! logout's [`FsReadToString`] / [`FsWrite`]. User-facing messages flow through
 //! the `Reporter` seam on the `pnpm:global` channel, matching pnpm's
 //! `globalInfo`. The two registry requests (the web-login `POST` and the
@@ -49,16 +50,25 @@ use crate::{
     logout::{DEFAULT_REGISTRY, FsReadToString, FsWrite, normalize_registry_url},
 };
 
-/// Prompt for a line of visible input — the username and email prompts.
-/// Mirrors pnpm's `enquirer.input({ message })`.
+/// Read a visible credential line — the `dialoguer::Input` builder chain (the
+/// username and email prompts). This is the blocking terminal read behind the
+/// capability seam, and nothing more: the production impl is that bare chain.
+///
+/// The surrounding algorithm — running the blocking read off the async runtime,
+/// selecting the visible or masked read by masking, and classifying a
+/// [`dialoguer::Error`] into a [`PromptError`] — deliberately does *not* live
+/// here or in [`PromptPassword`]. It lives in `prompt_line`, so each provider
+/// stays a bare builder chain while a test fakes only the read and that real
+/// algorithm still runs.
 pub trait PromptInput {
-    fn prompt_input(message: &str) -> impl Future<Output = Result<String, PromptError>>;
+    fn prompt_input(message: &str) -> Result<String, dialoguer::Error>;
 }
 
-/// Prompt for a masked secret — the password prompt. Mirrors pnpm's
-/// `enquirer.password({ message })`.
+/// Read a masked credential secret — the `dialoguer::Password` builder chain
+/// (the password prompt). The masked counterpart of [`PromptInput`]; see there
+/// for how the surrounding algorithm is kept out of the provider.
 pub trait PromptPassword {
-    fn prompt_password(message: &str) -> impl Future<Output = Result<String, PromptError>>;
+    fn prompt_password(message: &str) -> Result<String, dialoguer::Error>;
 }
 
 /// Production provider for `pnpm login`. The credential prompts and `auth.ini`
@@ -80,14 +90,18 @@ impl FsWrite for Host {
 }
 
 impl PromptInput for Host {
-    async fn prompt_input(message: &str) -> Result<String, PromptError> {
-        prompt_line(message.to_owned(), Masking::Visible).await
+    fn prompt_input(message: &str) -> Result<String, dialoguer::Error> {
+        dialoguer::Input::<String>::new().with_prompt(message).allow_empty(true).interact_text()
     }
 }
 
 impl PromptPassword for Host {
-    async fn prompt_password(message: &str) -> Result<String, PromptError> {
-        prompt_line(message.to_owned(), Masking::Masked).await
+    fn prompt_password(message: &str) -> Result<String, dialoguer::Error> {
+        // `allow_empty_password(true)` mirrors `@inquirer/prompts` `password`,
+        // which returns an empty string on a bare Enter. Without it dialoguer
+        // loops until non-empty, so pnpm's empty-password path
+        // (`LOGIN_MISSING_CREDENTIALS`) would be unreachable.
+        dialoguer::Password::new().with_prompt(message).allow_empty_password(true).interact()
     }
 }
 
@@ -143,28 +157,27 @@ impl PromptOtp for Host {
     }
 }
 
-/// Whether [`prompt_line`] echoes what the user types.
+/// Whether [`prompt_line`] reads a visible line or a masked secret.
 #[derive(Clone, Copy)]
 enum Masking {
     Visible,
     Masked,
 }
 
-/// Read one line from the terminal with `dialoguer`, off the async runtime
-/// (`dialoguer` is blocking). An interrupted prompt (Ctrl-C) maps to
-/// [`PromptError::Cancelled`], mirroring enquirer's `ExitPromptError`.
-async fn prompt_line(message: String, masking: Masking) -> Result<String, PromptError> {
+/// Read one credential line: run the injected [`ReadPromptLine`] builder off the
+/// async runtime (`dialoguer` is blocking), selecting the visible read for
+/// [`Masking::Visible`] and the masked read for [`Masking::Masked`], then
+/// classify the outcome — an interrupted prompt (Ctrl-C) maps to
+/// [`PromptError::Cancelled`] (mirroring enquirer's `ExitPromptError`), a task
+/// panic or any other failure to [`PromptError::Other`].
+async fn prompt_line<Sys: PromptInput + PromptPassword + 'static>(
+    message: &str,
+    masking: Masking,
+) -> Result<String, PromptError> {
+    let message = message.to_owned();
     tokio::task::spawn_blocking(move || match masking {
-        Masking::Visible => {
-            dialoguer::Input::<String>::new().with_prompt(message).allow_empty(true).interact_text()
-        }
-        // `allow_empty_password(true)` mirrors `@inquirer/prompts` `password`,
-        // which returns an empty string on a bare Enter. Without it dialoguer
-        // loops until non-empty, so pnpm's empty-password path
-        // (`LOGIN_MISSING_CREDENTIALS`) would be unreachable.
-        Masking::Masked => {
-            dialoguer::Password::new().with_prompt(message).allow_empty_password(true).interact()
-        }
+        Masking::Visible => Sys::prompt_input(&message),
+        Masking::Masked => Sys::prompt_password(&message),
     })
     .await
     .map_err(|join_error| PromptError::Other { reason: join_error.to_string() })?
@@ -220,7 +233,8 @@ where
         + PromptInput
         + PromptPassword
         + FsReadToString
-        + FsWrite,
+        + FsWrite
+        + 'static,
     Reporter: self::Reporter,
 {
     let registry = normalize_registry_url(opts.registry.unwrap_or(DEFAULT_REGISTRY));
@@ -371,12 +385,14 @@ where
         + OpenUrl
         + PromptOtp
         + PromptInput
-        + PromptPassword,
+        + PromptPassword
+        + 'static,
     Reporter: self::Reporter,
 {
-    let username = read_credential(Sys::prompt_input("Username:")).await?;
-    let password = read_credential(Sys::prompt_password("Password:")).await?;
-    let email = read_credential(Sys::prompt_input("Email (this IS public):")).await?;
+    let username = read_credential(prompt_line::<Sys>("Username:", Masking::Visible)).await?;
+    let password = read_credential(prompt_line::<Sys>("Password:", Masking::Masked)).await?;
+    let email =
+        read_credential(prompt_line::<Sys>("Email (this IS public):", Masking::Visible)).await?;
 
     if username.is_empty() || password.is_empty() || email.is_empty() {
         return Err(LoginError::MissingCredentials);

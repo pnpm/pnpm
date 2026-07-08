@@ -10,13 +10,12 @@
 
 use std::{
     cell::RefCell,
-    future::Future,
     io,
     path::{Path, PathBuf},
+    sync::Mutex,
 };
 
 use pacquet_network::{ThrottledClient, nerf_dart};
-use pacquet_network_web_auth::PromptError;
 use pacquet_network_web_auth_testing::{InputResponse, ok_token, web_auth_fake};
 use pretty_assertions::assert_eq;
 
@@ -24,40 +23,45 @@ use super::{LoginError, LoginOptions, login};
 use crate::ini::IniSettings;
 
 /// A scripted response for a credential prompt, keyed on the prompt message.
-type PromptScript = Box<dyn FnMut(&str) -> Result<String, PromptError>>;
+/// The error half is `dialoguer::Error` — exactly what the real terminal read
+/// yields — so a script can drive [`super::prompt_line`]'s real error
+/// classification (e.g. an interrupt mapping to a canceled login). `Send`
+/// because `prompt_line` calls the fake read from a `spawn_blocking` thread.
+type PromptScript = Box<dyn FnMut(&str) -> Result<String, dialoguer::Error> + Send>;
 
 /// A scripted `auth.ini` read.
 type ReadScript = Box<dyn FnMut(&Path) -> io::Result<String>>;
 
 /// Expand the login-specific half of the `Sys` fake at the top of a test,
 /// after [`web_auth_fake`]. `$fake` is the unit struct `web_auth_fake!`
-/// generated (`FakeHost`); this adds the four login capabilities to it over
-/// fn-local `thread_local!` state, plus the `set_*` / `login_writes` /
-/// `reset_login` helpers.
+/// generated (`FakeHost`); this adds the login capabilities to it over fn-local
+/// state, plus the `set_*` / `login_writes` / `reset_login` helpers.
+///
+/// The prompt scripts live in a fn-local `static` [`Mutex`], not `thread_local!`:
+/// `prompt_line` runs `read_input` / `read_password` inside `spawn_blocking`, so
+/// they execute on a blocking-pool thread where thread-local state would be
+/// invisible. Each test's expansion has its own `static`, so tests stay
+/// isolated. `auth.ini` I/O runs on the test thread and stays `thread_local!`.
 macro_rules! login_fake {
     ($fake:ident) => {
+        static PROMPT_INPUT: Mutex<Option<PromptScript>> = Mutex::new(None);
+        static PROMPT_PASSWORD: Mutex<Option<PromptScript>> = Mutex::new(None);
         thread_local! {
-            static PROMPT_INPUT: RefCell<Option<PromptScript>> = const { RefCell::new(None) };
-            static PROMPT_PASSWORD: RefCell<Option<PromptScript>> = const { RefCell::new(None) };
             static INI_READ: RefCell<Option<ReadScript>> = const { RefCell::new(None) };
             static INI_WRITES: RefCell<Vec<(PathBuf, String)>> = const { RefCell::new(Vec::new()) };
         }
 
         impl crate::login::PromptInput for $fake {
-            fn prompt_input(message: &str) -> impl Future<Output = Result<String, PromptError>> {
-                let result = PROMPT_INPUT.with(|script| {
-                    (script.borrow_mut().as_mut().expect("an input script must be set"))(message)
-                });
-                std::future::ready(result)
+            fn prompt_input(message: &str) -> Result<String, dialoguer::Error> {
+                let mut script = PROMPT_INPUT.lock().expect("input script mutex");
+                (script.as_mut().expect("an input script must be set"))(message)
             }
         }
 
         impl crate::login::PromptPassword for $fake {
-            fn prompt_password(message: &str) -> impl Future<Output = Result<String, PromptError>> {
-                let result = PROMPT_PASSWORD.with(|script| {
-                    (script.borrow_mut().as_mut().expect("a password script must be set"))(message)
-                });
-                std::future::ready(result)
+            fn prompt_password(message: &str) -> Result<String, dialoguer::Error> {
+                let mut script = PROMPT_PASSWORD.lock().expect("password script mutex");
+                (script.as_mut().expect("a password script must be set"))(message)
             }
         }
 
@@ -83,7 +87,7 @@ macro_rules! login_fake {
             reason = "the macro emits the full fake surface; a given test drives only the helpers its scenario needs"
         )]
         fn set_prompt_input(script: PromptScript) {
-            PROMPT_INPUT.with(|cell| *cell.borrow_mut() = Some(script));
+            *PROMPT_INPUT.lock().expect("input script mutex") = Some(script);
         }
 
         #[allow(
@@ -91,7 +95,7 @@ macro_rules! login_fake {
             reason = "the macro emits the full fake surface; a given test drives only the helpers its scenario needs"
         )]
         fn set_prompt_password(script: PromptScript) {
-            PROMPT_PASSWORD.with(|cell| *cell.borrow_mut() = Some(script));
+            *PROMPT_PASSWORD.lock().expect("password script mutex") = Some(script);
         }
 
         #[allow(
@@ -115,8 +119,8 @@ macro_rules! login_fake {
             reason = "the macro emits the full fake surface; a given test drives only the helpers its scenario needs"
         )]
         fn reset_login() {
-            PROMPT_INPUT.with(|cell| *cell.borrow_mut() = None);
-            PROMPT_PASSWORD.with(|cell| *cell.borrow_mut() = None);
+            *PROMPT_INPUT.lock().expect("input script mutex") = None;
+            *PROMPT_PASSWORD.lock().expect("password script mutex") = None;
             INI_READ.with(|cell| *cell.borrow_mut() = None);
             INI_WRITES.with(|writes| writes.borrow_mut().clear());
         }
@@ -597,6 +601,38 @@ async fn should_throw_when_username_is_empty_in_classic_login() {
         Some("ERR_PNPM_LOGIN_MISSING_CREDENTIALS"),
     );
     assert_eq!(err.to_string(), "Username, password, and email are all required");
+}
+
+#[tokio::test]
+async fn should_cancel_the_login_when_a_credential_prompt_is_interrupted() {
+    web_auth_fake!();
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+    set_prompt_input(credential_prompts("alice", "alice@example.com"));
+    // A Ctrl-C at the password prompt surfaces as dialoguer's interrupted I/O
+    // error; `prompt_line`'s real classification must turn it into a canceled
+    // login. The fake returns the raw `dialoguer::Error`, so this exercises the
+    // wrapper rather than short-circuiting it with a pre-mapped `PromptError`.
+    set_prompt_password(Box::new(|_| {
+        Err(dialoguer::Error::IO(io::Error::from(io::ErrorKind::Interrupted)))
+    }));
+
+    let mut server = mockito::Server::new_async().await;
+    server.mock("POST", "/-/v1/login").with_status(404).with_body("Not Found").create_async().await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, LoginError::Canceled), "got {err:?}");
+    assert_eq!(
+        miette::Diagnostic::code(&err).map(|code| code.to_string()).as_deref(),
+        Some("ERR_PNPM_LOGIN_CANCELED"),
+    );
+    assert_eq!(err.to_string(), "Login canceled");
 }
 
 #[tokio::test]
