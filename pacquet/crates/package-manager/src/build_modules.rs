@@ -304,8 +304,10 @@ fn git_repo_allow_build_key_from_dep_path(dep_path: &str) -> Option<&str> {
     if !is_git_repo_dep_path(dep_path) {
         return None;
     }
-    let ref_start = dep_path.find('#')?;
-    Some(&dep_path[..ref_start])
+    Some(match dep_path.find('#') {
+        Some(ref_start) => &dep_path[..ref_start],
+        None => dep_path,
+    })
 }
 
 fn is_git_repo_dep_path(dep_path: &str) -> bool {

@@ -119,6 +119,7 @@ fn explicit_allow_by_git_repo_allows_untrusted_package_identity() {
     );
 
     assert_eq!(policy.check("foo@git+ssh://git@example.com/org/foo.git#abc123"), Some(true));
+    assert_eq!(policy.check("foo@git+ssh://git@example.com/org/foo.git"), Some(true));
     assert_eq!(
         policy.check("foo@git+ssh://git@example.com/org/foo.git#def456(react@19.0.0)"),
         Some(true),
