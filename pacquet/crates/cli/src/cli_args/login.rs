@@ -3,7 +3,7 @@
 //! `pacquet-auth-commands`; this module is the thin CLI adapter that resolves
 //! config into [`LoginOptions`].
 
-use std::time::Duration;
+use std::{path::Path, time::Duration};
 
 use clap::Args;
 use derive_more::{Display, Error};
@@ -55,24 +55,32 @@ impl LoginArgs {
         )
         .into_diagnostic()?;
 
-        let message = login::<AuthHost, Reporter>(
-            &http_client,
-            LoginOptions {
-                // `--registry` wins; otherwise the resolved registry, which
-                // already folds in `.npmrc` and the npmjs default.
-                registry: self.registry.as_deref().or(Some(config.registry.as_str())),
-                scope: self.scope.as_deref(),
-                config_dir,
-                fetch_retries: config.fetch_retries,
-                fetch_retry_factor: config.fetch_retry_factor,
-                fetch_retry_mintimeout: config.fetch_retry_mintimeout,
-                fetch_retry_maxtimeout: config.fetch_retry_maxtimeout,
-                fetch_timeout: config.fetch_timeout,
-            },
-        )
-        .await?;
+        let message =
+            login::<AuthHost, Reporter>(&http_client, self.login_options(config, config_dir))
+                .await?;
 
         println!("{message}");
         Ok(())
     }
+
+    /// Resolve the `--registry` / `--scope` flags and `config` into
+    /// [`LoginOptions`]. Split out from [`run`](Self::run) so the flag-vs-config
+    /// resolution is unit-testable without a network client.
+    fn login_options<'a>(&'a self, config: &'a Config, config_dir: &'a Path) -> LoginOptions<'a> {
+        LoginOptions {
+            // `--registry` wins; otherwise the resolved registry, which already
+            // folds in `.npmrc` and the npmjs default.
+            registry: self.registry.as_deref().or(Some(config.registry.as_str())),
+            scope: self.scope.as_deref(),
+            config_dir,
+            fetch_retries: config.fetch_retries,
+            fetch_retry_factor: config.fetch_retry_factor,
+            fetch_retry_mintimeout: config.fetch_retry_mintimeout,
+            fetch_retry_maxtimeout: config.fetch_retry_maxtimeout,
+            fetch_timeout: config.fetch_timeout,
+        }
+    }
 }
+
+#[cfg(test)]
+mod tests;
