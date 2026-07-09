@@ -9,7 +9,7 @@ use std::{
 };
 
 fn pacquet_at(workspace: &Path) -> Command {
-    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
+    Command::cargo_bin("pacquet").expect("find the pacquet binary").with_current_dir(workspace)
 }
 
 fn empty_auth_file(root: &Path) -> PathBuf {
@@ -75,10 +75,7 @@ fn deprecates_a_package_version_successfully() {
     put_mock.assert();
     assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("Successfully deprecated 1 version(s) of @scope/test"),
-        "stdout: {stdout}",
-    );
+    assert!(stdout.contains("Successfully deprecated 1 version(s) of @scope/test"));
 }
 
 #[test]
@@ -88,7 +85,7 @@ fn fails_when_package_is_not_provided() {
     let output = run_deprecate(&workspace, &auth_file, None, &[]);
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_DEPRECATE_REQUIRED"), "stderr: {stderr}");
+    assert!(stderr.contains("ERR_PNPM_DEPRECATE_PACKAGE_REQUIRED"));
 }
 
 #[test]
@@ -98,31 +95,7 @@ fn fails_when_message_is_not_provided() {
     let output = run_deprecate(&workspace, &auth_file, None, &["foo"]);
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_DEPRECATE_MESSAGE_REQUIRED"), "stderr: {stderr}");
-}
-
-#[test]
-fn fails_with_no_matching_versions_for_an_invalid_range() {
-    // Parity with the TypeScript CLI: an unparsable range matches nothing and
-    // reports NO_MATCHING_VERSIONS rather than a distinct invalid-spec error.
-    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-    let mut server = mockito::Server::new();
-    let registry = format!("{}/", server.url());
-
-    let get_mock = server
-        .mock("GET", "/test")
-        .with_status(200)
-        .with_body(r#"{"versions":{"1.0.0":{}}}"#)
-        .create();
-
-    let auth_file = empty_auth_file(root.path());
-    let output =
-        run_deprecate(&workspace, &auth_file, Some(&registry), &["test@not-a-range", "msg"]);
-
-    get_mock.assert();
-    assert!(!output.status.success());
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_NO_MATCHING_VERSIONS"), "stderr: {stderr}");
+    assert!(stderr.contains("ERR_PNPM_DEPRECATE_MESSAGE_REQUIRED"));
 }
 
 #[test]
@@ -150,5 +123,5 @@ fn fails_on_unauthorized() {
     put_mock.assert();
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_UNAUTHORIZED"), "stderr: {stderr}");
+    assert!(stderr.contains("ERR_PNPM_UNAUTHORIZED"));
 }

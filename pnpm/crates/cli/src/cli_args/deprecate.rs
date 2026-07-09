@@ -1,12 +1,13 @@
 use super::sanitize;
 use clap::Args;
 use derive_more::{Display, Error};
+use futures_util::StreamExt as _;
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use node_semver::Range;
 use pacquet_config::Config;
 use pacquet_network::{
-    NetworkSettings, RetryOpts, ThrottledClient, encode_uri_component, read_limited_body,
-    redact_url_credentials, retry_async, send_with_retry,
+    NetworkSettings, RetryOpts, ThrottledClient, encode_uri_component, redact_url_credentials,
+    retry_async, send_with_retry,
 };
 use pacquet_resolving_npm_resolver::pick_registry_for_package;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
@@ -38,20 +39,12 @@ pub struct DeprecateArgs {
 #[non_exhaustive]
 pub enum DeprecateError {
     #[display("Package name is required")]
-    #[diagnostic(code(ERR_PNPM_DEPRECATE_REQUIRED))]
+    #[diagnostic(code(ERR_PNPM_DEPRECATE_PACKAGE_REQUIRED))]
     PackageRequired,
 
-    #[display("Deprecation message is required. To un-deprecate, use the undeprecate command.")]
+    #[display("Deprecation message is required")]
     #[diagnostic(code(ERR_PNPM_DEPRECATE_MESSAGE_REQUIRED))]
     MessageRequired,
-
-    #[display("Package name is required")]
-    #[diagnostic(code(ERR_PNPM_UNDEPRECATE_REQUIRED))]
-    UndeprecateRequired,
-
-    #[display("The undeprecate command does not accept a message.")]
-    #[diagnostic(code(ERR_PNPM_UNDEPRECATE_NO_MESSAGE))]
-    UndeprecateNoMessage,
 
     #[display(r#"Package "{package_name}" not found in registry"#)]
     #[diagnostic(code(ERR_PNPM_PACKAGE_NOT_FOUND))]
@@ -74,13 +67,13 @@ pub enum DeprecateError {
         version_range: String,
     },
 
-    #[display("No deprecated versions found in \"{package_name}\"{version_range_suffix}")]
+    #[display(r#"No deprecated versions found in "{package_name}""#)]
     #[diagnostic(code(ERR_PNPM_NOT_DEPRECATED))]
     NotDeprecated {
         #[error(not(source))]
         package_name: String,
         #[error(not(source))]
-        version_range_suffix: String,
+        version_range: Option<String>,
     },
 
     #[display("Invalid package spec: {spec}")]
@@ -224,20 +217,20 @@ pub(crate) async fn update_deprecation(
     }
 
     let versions_to_update: Vec<String> = if let Some(range_str) = version_range {
-        // Mirror the TypeScript CLI's `semver.satisfies`, which treats an
-        // unparsable range as matching nothing (yielding NoMatchingVersions)
-        // rather than a distinct "invalid spec" error.
-        match Range::parse(range_str) {
-            Ok(range) => package_meta
-                .versions
-                .keys()
-                .filter(|ver_str| {
-                    node_semver::Version::parse(ver_str).is_ok_and(|ver| range.satisfies(&ver))
-                })
-                .cloned()
-                .collect(),
-            Err(_) => Vec::new(),
-        }
+        let range = Range::parse(range_str)
+            .map_err(|_| DeprecateError::InvalidPackageSpec { spec: range_str.to_string() })?;
+        package_meta
+            .versions
+            .keys()
+            .filter(|ver_str| {
+                if let Ok(ver) = node_semver::Version::parse(ver_str) {
+                    range.satisfies(&ver)
+                } else {
+                    false
+                }
+            })
+            .cloned()
+            .collect()
     } else {
         package_meta.versions.keys().cloned().collect()
     };
@@ -260,9 +253,7 @@ pub(crate) async fn update_deprecation(
         if !has_deprecated {
             return Err(DeprecateError::NotDeprecated {
                 package_name: package_name.to_string(),
-                version_range_suffix: version_range
-                    .map(|vr| format!(r#" matching "{vr}""#))
-                    .unwrap_or_default(),
+                version_range: version_range.map(ToString::to_string),
             }
             .into());
         }
@@ -270,7 +261,7 @@ pub(crate) async fn update_deprecation(
 
     for ver in &versions_to_update {
         if let Some(info) = package_meta.versions.get_mut(ver) {
-            info.deprecated = Some(deprecated_message.map(ToString::to_string).unwrap_or_default());
+            info.deprecated = deprecated_message.map(ToString::to_string);
         }
     }
 
@@ -430,7 +421,7 @@ async fn write_error_from_response(response: Response, action: String) -> miette
         read_limited_body(response, DEPRECATION_ERROR_BODY_LIMIT).await.map_err(|source| {
             registry_operation_error("reading the registry error response", source)
         })?;
-    let body = sanitize::body_display_string(&body);
+    let body = body.into_display_string();
     if status == StatusCode::UNAUTHORIZED {
         return Err(DeprecateError::Unauthorized { action, body }.into());
     }
@@ -450,6 +441,47 @@ where
         reason: redact_url_credentials(&error.to_string()),
     }
     .into()
+}
+
+pub(crate) struct LimitedBody {
+    bytes: Vec<u8>,
+    truncated: bool,
+}
+
+impl LimitedBody {
+    pub(crate) fn into_display_string(self) -> String {
+        let body = String::from_utf8_lossy(&self.bytes);
+        let mut body = sanitize::sanitize(&body).into_owned();
+        if self.truncated {
+            if !body.is_empty() && !body.chars().next_back().is_some_and(char::is_whitespace) {
+                body.push(' ');
+            }
+            body.push_str("(response body truncated)");
+        }
+        body
+    }
+}
+
+pub(crate) async fn read_limited_body(
+    response: Response,
+    limit: usize,
+) -> Result<LimitedBody, reqwest::Error> {
+    let header_exceeds_limit =
+        response.content_length().is_some_and(|length| length > limit as u64);
+    let mut bytes = Vec::new();
+    let mut truncated = header_exceeds_limit;
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        let remaining = limit.saturating_sub(bytes.len());
+        if chunk.len() > remaining {
+            bytes.extend_from_slice(&chunk[..remaining]);
+            truncated = true;
+            break;
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    Ok(LimitedBody { bytes, truncated })
 }
 
 pub(crate) fn registry_for_package(context: &DeprecateContext<'_>, package_name: &str) -> String {

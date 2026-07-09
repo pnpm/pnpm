@@ -6,7 +6,6 @@ use super::{
     cache::CacheCommand,
     cat_file::CatFileArgs,
     cat_index::CatIndexArgs,
-    change::ChangeArgs,
     config::ConfigArgs,
     deprecate::DeprecateArgs,
     dispatch::{CommandFuture, RunCtx},
@@ -14,7 +13,6 @@ use super::{
     docs::DocsArgs,
     find_hash::FindHashArgs,
     ignored_builds::IgnoredBuildsArgs,
-    lane::LaneArgs,
     list::ListArgs,
     login::LoginArgs,
     logout::LogoutArgs,
@@ -33,13 +31,9 @@ use super::{
     self_update::SelfUpdateArgs,
     setup::SetupArgs,
     stage::StageArgs,
-    star::StarArgs,
-    stars::StarsArgs,
     store::StoreCommand,
     team::TeamArgs,
     undeprecate::UndeprecateArgs,
-    unstar::UnstarArgs,
-    version::VersionArgs,
     why::WhyArgs,
     with::WithArgs,
 };
@@ -152,28 +146,6 @@ pub(super) fn whoami<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> 
     }))
 }
 
-pub(super) fn star<'a>(ctx: &RunCtx<'a>, args: StarArgs) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
-    Ok(Box::pin(async move { args.run(cfg).await }))
-}
-
-pub(super) fn unstar<'a>(ctx: &RunCtx<'a>, args: UnstarArgs) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
-    Ok(Box::pin(async move { args.run(cfg).await }))
-}
-
-pub(super) fn stars<'a>(ctx: &RunCtx<'a>, args: StarsArgs) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
-    Ok(Box::pin(async move {
-        if let Some(output) = args.run(cfg).await?
-            && !output.is_empty()
-        {
-            println!("{output}");
-        }
-        Ok(())
-    }))
-}
-
 pub(super) fn access<'a>(ctx: &RunCtx<'a>, args: AccessArgs) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.config)()?;
     Ok(Box::pin(async move {
@@ -203,29 +175,6 @@ pub(super) fn dist_tag<'a>(
         }
         Ok(())
     }))
-}
-
-/// `change` and `version` are synchronous file-and-prompt commands; the
-/// returned future only carries their already-computed result.
-pub(super) fn change<'a>(ctx: &RunCtx<'a>, args: ChangeArgs) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
-    let result = args.run(cfg);
-    Ok(Box::pin(std::future::ready(result)))
-}
-
-pub(super) fn lane<'a>(ctx: &RunCtx<'a>, args: LaneArgs) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
-    let result = args.run(cfg);
-    Ok(Box::pin(std::future::ready(result)))
-}
-
-pub(super) fn version<'a>(
-    ctx: &RunCtx<'a>,
-    args: VersionArgs,
-) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
-    let recursive = ctx.recursive;
-    Ok(Box::pin(async move { args.run(cfg, recursive).await }))
 }
 
 pub(super) fn deprecate<'a>(
@@ -292,26 +241,24 @@ pub(super) fn ping<'a>(ctx: &RunCtx<'a>, args: PingArgs) -> miette::Result<Comma
 // `pack` prints the tarball summary (or JSON) its handler returns; the
 // reporter type only affects the lifecycle-script output, so it's threaded
 // into `run` and the result printed here, mirroring pnpm's `handler` → CLI
-// print split. `run` is async (it may invoke `beforePacking` pnpmfile
-// hooks), so the work is deferred into the returned future.
-pub(super) fn pack<'a>(ctx: &RunCtx<'a>, args: PackArgs) -> miette::Result<CommandFuture<'a>> {
-    let config = (ctx.config)()?;
-    let dir = ctx.dir;
-    let recursive = ctx.recursive;
-    let reporter = ctx.reporter;
-    Ok(Box::pin(async move {
-        let output = match reporter {
-            ReporterType::Default | ReporterType::AppendOnly => {
-                args.run::<DefaultReporter>(dir, config, recursive).await?
-            }
-            ReporterType::Ndjson => args.run::<NdjsonReporter>(dir, config, recursive).await?,
-            ReporterType::Silent => args.run::<SilentReporter>(dir, config, recursive).await?,
-        };
-        if !output.is_empty() {
-            println!("{output}");
+// print split. The handler is synchronous, so this resolves to a ready future
+// once the output is printed.
+pub(super) fn pack<'a>(ctx: &RunCtx<'a>, args: &PackArgs) -> miette::Result<CommandFuture<'a>> {
+    let output = match ctx.reporter {
+        ReporterType::Default | ReporterType::AppendOnly => {
+            args.run::<DefaultReporter>(ctx.dir, (ctx.config)()?, ctx.recursive)?
         }
-        Ok(())
-    }))
+        ReporterType::Ndjson => {
+            args.run::<NdjsonReporter>(ctx.dir, (ctx.config)()?, ctx.recursive)?
+        }
+        ReporterType::Silent => {
+            args.run::<SilentReporter>(ctx.dir, (ctx.config)()?, ctx.recursive)?
+        }
+    };
+    if !output.is_empty() {
+        println!("{output}");
+    }
+    Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
 /// `publish` packs the project, runs its prepublish/publish lifecycle scripts,
