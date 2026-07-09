@@ -410,7 +410,7 @@ fn segment_to_string(segment: &Segment) -> String {
 /// `validateWorkspaceKey`: a known `types` key becomes camelCase; otherwise it
 /// must already be camelCase.
 fn validate_workspace_key(key: &str) -> Result<String, ConfigError> {
-    if config_types::is_type_key(key) {
+    if config_types::is_type_key(key) || config_types::is_config_file_key(key) {
         return Ok(naming_cases::to_camel_case(key));
     }
     if !naming_cases::is_camel_case(key) {

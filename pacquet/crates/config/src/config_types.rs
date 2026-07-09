@@ -307,6 +307,11 @@ const PNPM_CONFIG_FILE_KEYS: &[&str] = &[
     "virtual-store-dir-max-length",
 ];
 
+/// Structured YAML settings parsed from `pnpm-workspace.yaml` / global
+/// `config.yaml` that have no scalar CLI config type
+/// (`structuredConfigFileKeys` in `configFileKey.ts`).
+const STRUCTURED_CONFIG_FILE_KEYS: &[&str] = &["named-registries", "registries"];
+
 /// Keys present in `pnpmTypes` but excluded from the global config file
 /// (`excludedPnpmKeys` in `configFileKey.ts`) — CLI flags and workspace-only
 /// settings.
@@ -436,6 +441,11 @@ fn pnpm_config_file_keys() -> &'static HashSet<&'static str> {
     SET.get_or_init(|| PNPM_CONFIG_FILE_KEYS.iter().copied().collect())
 }
 
+fn structured_config_file_keys() -> &'static HashSet<&'static str> {
+    static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
+    SET.get_or_init(|| STRUCTURED_CONFIG_FILE_KEYS.iter().copied().collect())
+}
+
 fn excluded_pnpm_keys() -> &'static HashSet<&'static str> {
     static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
     SET.get_or_init(|| EXCLUDED_PNPM_KEYS.iter().copied().collect())
@@ -468,6 +478,7 @@ pub fn is_ini_config_key(key: &str) -> bool {
 #[must_use]
 pub fn is_config_file_key(kebab_key: &str) -> bool {
     pnpm_config_file_keys().contains(kebab_key)
+        || structured_config_file_keys().contains(kebab_key)
         || (npm_config_type_keys().contains(kebab_key) && !excluded_pnpm_keys().contains(kebab_key))
 }
 

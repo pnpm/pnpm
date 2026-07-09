@@ -48,6 +48,9 @@ fn config_file_keys() {
     // npm-compatible, not excluded
     assert!(is_config_file_key("fetch-retries"));
     assert!(is_config_file_key("registry"));
+    // structured YAML settings without scalar CLI types
+    assert!(is_config_file_key("registries"));
+    assert!(is_config_file_key("named-registries"));
     // excluded workspace-only / CLI keys
     assert!(!is_config_file_key("catalog-mode"));
     assert!(!is_config_file_key("node-linker"));
