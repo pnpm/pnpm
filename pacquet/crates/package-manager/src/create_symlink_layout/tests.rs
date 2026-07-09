@@ -238,7 +238,7 @@ fn alias_dep_links_under_alias_but_resolves_via_target() {
 }
 
 /// A dependency alias that is a scoped path traversal
-/// (`@x/../../…/OUTSIDE`) must be rejected before any symlink is
+/// (`@x/../../.../OUTSIDE`) must be rejected before any symlink is
 /// created, rather than escaping the slot's `node_modules`.
 /// `PkgName::parse` accepts such a name (its `bare` field keeps the
 /// `../` segments), so the guard has to live at the join.

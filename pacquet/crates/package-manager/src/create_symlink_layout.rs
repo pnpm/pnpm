@@ -53,7 +53,7 @@ pub fn create_symlink_layout(
         }
         // Both names are lockfile-derived and untrusted: `target.name`
         // is the resolved package's own name and `alias_name` is the
-        // dependency key. A traversal-shaped name (`@x/../../…`) would
+        // dependency key. A traversal-shaped name (`@x/../../...`) would
         // otherwise let the symlink target or the symlink itself escape
         // the slot's `node_modules`, so guard each join.
         let symlink_target = safe_join_modules_dir(
