@@ -122,6 +122,42 @@ fn set_pnpm_key_global_writes_config_yaml_as_number() {
 }
 
 #[test]
+fn set_registries_and_named_registries_global_writes_config_yaml() {
+    let tmp = TempDir::new().unwrap();
+    let config_dir = tmp.path().join("global-config");
+    std::fs::create_dir_all(&config_dir).unwrap();
+    let config = config_with_dir(&config_dir);
+
+    let registries = json!({
+        "default": "https://registry.example.com/",
+        "@scope": "https://scope.example.com/",
+    });
+    config_set(
+        &config,
+        tmp.path(),
+        flags(true, None, true),
+        "registries",
+        Some(registries.to_string()),
+    )
+    .unwrap();
+
+    let named_registries = json!({ "work": "https://work.example.com/" });
+    config_set(
+        &config,
+        tmp.path(),
+        flags(true, None, true),
+        "named-registries",
+        Some(named_registries.to_string()),
+    )
+    .unwrap();
+
+    assert_eq!(
+        read_yaml(&config_dir.join("config.yaml")).unwrap(),
+        json!({ "registries": registries, "namedRegistries": named_registries }),
+    );
+}
+
+#[test]
 fn set_camel_key_location_global() {
     let tmp = TempDir::new().unwrap();
     let config_dir = tmp.path().join("global-config");
