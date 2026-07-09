@@ -1046,7 +1046,7 @@ impl ReporterState {
             }
         };
         self.push_block(format!(
-            "info: {pkg} is an optional dependency and failed compatibility check. Excluding it from installation."
+            "info: {pkg} is an optional dependency and failed compatibility check. Excluding it from installation.",
         ));
     }
 
