@@ -350,9 +350,6 @@ catalogMode: strict
 
 cleanupUnusedCatalogs: true
 
-configDependencies:
-  '@pnpm/pacquet': 0.11.12
-
 enableGlobalVirtualStore: true
 
 enablePrePostScripts: false
