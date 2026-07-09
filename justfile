@@ -16,7 +16,7 @@ init:
 
 # When ready, run the same CI commands
 ready:
-  typos
+  typos pacquet pnpr
   cargo fmt
   just check
   just test
