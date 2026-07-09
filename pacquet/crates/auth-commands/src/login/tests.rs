@@ -16,7 +16,7 @@ use std::{
 };
 
 use pacquet_network::{ThrottledClient, nerf_dart};
-use pacquet_network_web_auth_testing::{InputResponse, ok_token, web_auth_fake};
+use pacquet_network_web_auth_testing::{InputResponse, SleepBehavior, ok_202, ok_token, web_auth_fake};
 use pretty_assertions::assert_eq;
 
 use super::{LoginError, LoginOptions, login};
@@ -761,4 +761,207 @@ async fn should_propagate_non_enoent_errors_from_reading_auth_ini() {
     assert_eq!(messages.len(), 2, "expected the auth-URL and Press-ENTER lines: {messages:?}");
     assert!(messages[0].contains("https://example.org/auth/login"), "got {messages:?}");
     assert_eq!(messages[1], "Press ENTER to open the URL in your browser.");
+}
+
+/// A web-login probe that fails with a status other than 404 / 405 is fatal:
+/// it does not fall back to classic login but surfaces as `WEB_LOGIN_FAILED`,
+/// exercising the `Http` arm of `From<WebLoginFlowError>`.
+#[tokio::test]
+async fn should_surface_a_non_404_web_login_http_error_as_web_login_failed() {
+    web_auth_fake!();
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+
+    let mut server = mockito::Server::new_async().await;
+    let login_mock = server
+        .mock("POST", "/-/v1/login")
+        .with_status(500)
+        .with_body("Internal Server Error")
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    login_mock.assert_async().await;
+    assert!(matches!(err, LoginError::WebLoginFailed { status: 500, .. }), "got {err:?}");
+    assert_eq!(
+        miette::Diagnostic::code(&err).map(|code| code.to_string()).as_deref(),
+        Some("ERR_PNPM_WEB_LOGIN_FAILED"),
+    );
+    assert_eq!(err.to_string(), "Web-based login failed (HTTP 500): Internal Server Error");
+}
+
+/// A web-login probe that never reaches the registry surfaces as a transport
+/// error (`LoginError::Request`), exercising the `Transport` arm of
+/// `From<WebLoginFlowError>`. Binding then dropping an ephemeral loopback
+/// socket yields a port that refuses the connection.
+#[tokio::test]
+async fn should_surface_a_web_login_transport_failure_as_a_request_error() {
+    web_auth_fake!();
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+
+    let addr = {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind an ephemeral port");
+        listener.local_addr().expect("read the assigned port")
+    };
+    let registry = format!("http://{addr}/");
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, LoginError::Request { .. }), "got {err:?}");
+    assert_eq!(
+        miette::Diagnostic::code(&err).map(|code| code.to_string()).as_deref(),
+        Some("pacquet_auth_commands::login_request_failed"),
+    );
+    assert!(err.to_string().starts_with("The login request failed:"), "unexpected message: {err}");
+}
+
+/// A `loginUrl` longer than the maximum QR data capacity makes
+/// `generate_qr_code` fail before the poll begins, exercising the `QrCode` arm
+/// of `From<WebLoginFlowError>`.
+#[tokio::test]
+async fn should_fail_when_the_login_url_cannot_be_rendered_as_a_qr_code() {
+    web_auth_fake!();
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+
+    let long_login_url = format!("https://example.org/auth/{}", "a".repeat(4000));
+    let body = serde_json::json!({
+        "loginUrl": long_login_url,
+        "doneUrl": "https://example.org/auth/done",
+    })
+    .to_string();
+    let mut server = mockito::Server::new_async().await;
+    server.mock("POST", "/-/v1/login").with_status(200).with_body(body).create_async().await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, LoginError::QrCode(_)), "got {err:?}");
+    assert_eq!(
+        miette::Diagnostic::code(&err).map(|code| code.to_string()).as_deref(),
+        Some("pacquet_auth_commands::login_qr_code"),
+    );
+    assert!(
+        err.to_string().starts_with("Failed to render the login QR code:"),
+        "unexpected message: {err}",
+    );
+}
+
+/// When the web-auth poll never sees a token before its budget elapses, the
+/// login fails with the transparent web-auth timeout, exercising the `Timeout`
+/// arm of `From<WebLoginFlowError>`. Each fake sleep jumps the fake clock past
+/// the five-minute budget, so the next poll iteration times out.
+#[tokio::test]
+async fn should_time_out_when_the_web_auth_poll_never_completes() {
+    web_auth_fake!();
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+    set_fetch(Box::new(|| Ok(ok_202())));
+    set_sleep_behavior(SleepBehavior::AdvanceByFixed(6 * 60 * 1000));
+
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_body(r#"{"loginUrl":"https://example.org/auth/login","doneUrl":"https://example.org/auth/done"}"#)
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, LoginError::WebAuthTimeout(_)), "got {err:?}");
+    assert_eq!(
+        miette::Diagnostic::code(&err).map(|code| code.to_string()).as_deref(),
+        Some("ERR_PNPM_WEBAUTH_TIMEOUT"),
+    );
+    assert_eq!(err.to_string(), "Web-based authentication timed out before it could be completed");
+}
+
+/// A credential prompt that fails with a non-interrupt I/O error surfaces as
+/// `LoginError::Prompt` rather than a cancellation, exercising `prompt_line`'s
+/// `PromptError::Other` classification and `read_credential`'s catch-all arm.
+#[tokio::test]
+async fn should_surface_a_non_interrupt_prompt_failure_as_a_prompt_error() {
+    web_auth_fake!();
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+    set_prompt_input(Box::new(|_| {
+        Err(dialoguer::Error::IO(io::Error::from(io::ErrorKind::BrokenPipe)))
+    }));
+
+    let mut server = mockito::Server::new_async().await;
+    server.mock("POST", "/-/v1/login").with_status(404).with_body("Not Found").create_async().await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, LoginError::Prompt { .. }), "got {err:?}");
+    assert_eq!(
+        miette::Diagnostic::code(&err).map(|code| code.to_string()).as_deref(),
+        Some("pacquet_auth_commands::login_prompt_failed"),
+    );
+    assert!(
+        err.to_string().starts_with("Failed to read the login prompt:"),
+        "unexpected message: {err}",
+    );
+}
+
+/// A `--scope` of a bare `@` is treated as "no scope": the token is stored
+/// under the registry key with no scope-to-registry mapping, exercising
+/// `normalize_scope`'s empty-scope guard.
+#[tokio::test]
+async fn should_treat_a_bare_at_scope_as_no_scope() {
+    web_auth_fake!();
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+    set_fetch(Box::new(|| Ok(ok_token("tok"))));
+
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_body(r#"{"loginUrl":"https://example.org/auth/login","doneUrl":"https://example.org/auth/done"}"#)
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let mut options = opts(&registry, config_dir);
+    options.scope = Some("@");
+    login::<FakeHost, RecordingReporter>(&client(), options).await.expect("login");
+
+    let writes = login_writes();
+    let settings = written_settings(&writes);
+    let config_key = nerf_dart(&format!("{registry}/"));
+    assert_eq!(settings.get(&format!("{config_key}:_authToken")), Some("tok"));
+    for (_, text) in &writes {
+        for line in text.lines() {
+            assert!(!line.starts_with('@'), "no scope mapping expected, got line {line:?}");
+        }
+    }
 }
