@@ -87,19 +87,22 @@ fn store_path_resolves_global_and_dotted_overrides_from_workspace_root() {
 #[test]
 fn store_path_expands_a_quoted_home_override() {
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let home_dir = root.path().join("home");
+    fs::create_dir_all(&home_dir).expect("create home directory");
     let output = pacquet
         .with_args(["store", "path", "--store-dir=~/pacquet-quoted-store"])
+        .env("HOME", &home_dir)
+        .env("USERPROFILE", &home_dir)
         .output()
         .expect("run pacquet store path with home-relative override");
-    eprintln!("stderr={}", String::from_utf8_lossy(&output.stderr));
+    if !output.status.success() {
+        eprintln!("stdout={}", String::from_utf8_lossy(&output.stdout));
+        eprintln!("stderr={}", String::from_utf8_lossy(&output.stderr));
+    }
     assert!(output.status.success());
     assert_eq!(
         String::from_utf8_lossy(&output.stdout).trim_end(),
-        home::home_dir()
-            .expect("home directory")
-            .join("pacquet-quoted-store")
-            .join(STORE_VERSION)
-            .to_string_lossy(),
+        home_dir.join("pacquet-quoted-store").join(STORE_VERSION).to_string_lossy(),
     );
 
     drop(root);
