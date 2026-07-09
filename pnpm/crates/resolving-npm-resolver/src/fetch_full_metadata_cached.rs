@@ -16,7 +16,7 @@
 use std::path::Path;
 
 use pacquet_network::{
-    AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials, retry_async, send_with_retry,
+    AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials, retry_async,
 };
 use pacquet_registry::Package;
 use pipe_trait::Pipe;
@@ -25,8 +25,8 @@ use reqwest::{StatusCode, header};
 use crate::{
     FetchMetadataError,
     fetch_full_metadata::{
-        ACCEPT_ABBREVIATED_DOC, ACCEPT_FULL_DOC, is_abbreviated_content_type,
-        normalize_abbreviated_meta,
+        ACCEPT_ABBREVIATED_DOC, ACCEPT_FULL_DOC, MetadataRequestOptions,
+        is_abbreviated_content_type, normalize_abbreviated_meta, send_metadata_request,
     },
     mirror::{
         ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, clear_meta,
@@ -108,27 +108,17 @@ pub async fn fetch_full_metadata_cached(
     // headers and all, so a `304` stays a success that returns the
     // cached mirror body rather than re-fetching it.
     retry_async(&url, opts.retry_opts, FetchMetadataError::is_body_retryable, || async {
-        let (client, response) =
-            send_with_retry(opts.http_client, &url, opts.retry_opts, |client| {
-                let mut request = client.get(&url).header(header::ACCEPT, accept);
-                if let Some(value) = opts.auth_headers.for_url_with_package(&url, Some(pkg_name)) {
-                    request = request.header(header::AUTHORIZATION, value);
-                }
-                if let Some(headers) = cache_headers.as_ref() {
-                    if let Some(etag) = headers.etag.as_deref() {
-                        request = request.header(header::IF_NONE_MATCH, etag);
-                    }
-                    if let Some(modified) = headers.modified.as_deref() {
-                        request = request.header(header::IF_MODIFIED_SINCE, modified);
-                    }
-                }
-                request
-            })
-            .await
-            .map_err(|error| FetchMetadataError::Network {
-                url: redact_url_credentials(&url),
-                error,
-            })?;
+        let (client, response) = send_metadata_request(&MetadataRequestOptions {
+            pkg_name,
+            url: &url,
+            accept,
+            http_client: opts.http_client,
+            auth_headers: opts.auth_headers,
+            etag: cache_headers.as_ref().and_then(|headers| headers.etag.as_deref()),
+            modified: cache_headers.as_ref().and_then(|headers| headers.modified.as_deref()),
+            retry_opts: opts.retry_opts,
+        })
+        .await?;
 
         if response.status() == StatusCode::NOT_MODIFIED {
             // No body to stream — release the connection and its

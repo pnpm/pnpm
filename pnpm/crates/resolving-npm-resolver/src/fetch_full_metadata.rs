@@ -18,10 +18,11 @@
 //! demands it.
 
 use pacquet_network::{
-    AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials, retry_async, send_with_retry,
+    AuthHeaders, RetryOpts, ThrottledClient, ThrottledClientGuard, redact_url_credentials,
+    retry_async, send_with_retry,
 };
 use pacquet_registry::Package;
-use reqwest::{StatusCode, header};
+use reqwest::{Response, StatusCode, header};
 
 use crate::{FetchMetadataError, mirror::clear_meta, registry_url::to_registry_url};
 
@@ -89,6 +90,75 @@ pub enum FetchFullMetadataOutcome {
     NotModified,
 }
 
+pub(crate) struct MetadataRequestOptions<'a> {
+    pub pkg_name: &'a str,
+    pub url: &'a str,
+    pub accept: &'a str,
+    pub http_client: &'a ThrottledClient,
+    pub auth_headers: &'a AuthHeaders,
+    pub etag: Option<&'a str>,
+    pub modified: Option<&'a str>,
+    pub retry_opts: RetryOpts,
+}
+
+/// Send a metadata GET, retrying an unsolicited 304 once with intermediary
+/// cache reuse disabled. A repeated 304 cannot validate any local body and is
+/// reported with the same error in both pnpm implementations.
+pub(crate) async fn send_metadata_request<'a>(
+    opts: &MetadataRequestOptions<'a>,
+) -> Result<(ThrottledClientGuard<'a>, Response), FetchMetadataError> {
+    let etag = opts.etag.filter(|value| !value.is_empty());
+    let modified = opts.modified.filter(|value| !value.is_empty());
+    let has_validator = etag.is_some() || modified.is_some();
+    let build_request = |client: &reqwest::Client, bypass_cache: bool| {
+        let mut request = client.get(opts.url).header(header::ACCEPT, opts.accept);
+        if let Some(value) = opts.auth_headers.for_url_with_package(opts.url, Some(opts.pkg_name)) {
+            request = request.header(header::AUTHORIZATION, value);
+        }
+        if let Some(etag) = etag {
+            request = request.header(header::IF_NONE_MATCH, etag);
+        }
+        if let Some(modified) = modified {
+            request = request.header(header::IF_MODIFIED_SINCE, modified);
+        }
+        if bypass_cache {
+            request = request.header(header::CACHE_CONTROL, "no-cache");
+        }
+        request
+    };
+
+    let (client, response) =
+        send_with_retry(opts.http_client, opts.url, opts.retry_opts, |client| {
+            build_request(client, false)
+        })
+        .await
+        .map_err(|error| FetchMetadataError::Network {
+            url: redact_url_credentials(opts.url),
+            error,
+        })?;
+    if response.status() != StatusCode::NOT_MODIFIED || has_validator {
+        return Ok((client, response));
+    }
+
+    drop(client);
+    let (client, response) =
+        send_with_retry(opts.http_client, opts.url, opts.retry_opts, |client| {
+            build_request(client, true)
+        })
+        .await
+        .map_err(|error| FetchMetadataError::Network {
+            url: redact_url_credentials(opts.url),
+            error,
+        })?;
+    if response.status() == StatusCode::NOT_MODIFIED {
+        drop(client);
+        return Err(FetchMetadataError::NotModifiedWithoutCache {
+            pkg_name: opts.pkg_name.to_string(),
+        });
+    }
+    Ok((client, response))
+}
+
 /// Fetch the registry metadata document for `pkg_name`. The
 /// `full_metadata` flag on [`FetchFullMetadataOptions`] picks
 /// between the full and abbreviated packument forms.
@@ -99,25 +169,17 @@ pub async fn fetch_full_metadata(
     let url = to_registry_url(opts.registry, pkg_name);
     let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
     retry_async(&url, opts.retry_opts, FetchMetadataError::is_body_retryable, || async {
-        let (client, response) =
-            send_with_retry(opts.http_client, &url, opts.retry_opts, |client| {
-                let mut request = client.get(&url).header(header::ACCEPT, accept);
-                if let Some(value) = opts.auth_headers.for_url_with_package(&url, Some(pkg_name)) {
-                    request = request.header(header::AUTHORIZATION, value);
-                }
-                if let Some(etag) = opts.etag {
-                    request = request.header(header::IF_NONE_MATCH, etag);
-                }
-                if let Some(modified) = opts.modified {
-                    request = request.header(header::IF_MODIFIED_SINCE, modified);
-                }
-                request
-            })
-            .await
-            .map_err(|error| FetchMetadataError::Network {
-                url: redact_url_credentials(&url),
-                error,
-            })?;
+        let (client, response) = send_metadata_request(&MetadataRequestOptions {
+            pkg_name,
+            url: &url,
+            accept,
+            http_client: opts.http_client,
+            auth_headers: opts.auth_headers,
+            etag: opts.etag,
+            modified: opts.modified,
+            retry_opts: opts.retry_opts,
+        })
+        .await?;
         if response.status() == StatusCode::NOT_MODIFIED {
             return Ok(FetchFullMetadataOutcome::NotModified);
         }

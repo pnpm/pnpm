@@ -1,10 +1,14 @@
+use mockito::Matcher;
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use tempfile::TempDir;
 
 use super::{FetchFullMetadataCachedOptions, fetch_full_metadata_cached};
-use crate::mirror::{
-    ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, get_pkg_mirror_path, load_meta,
-    load_meta_headers,
+use crate::{
+    FetchMetadataError,
+    mirror::{
+        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, get_pkg_mirror_path,
+        load_meta, load_meta_headers,
+    },
 };
 
 const PACKAGE_BODY: &str = r#"{
@@ -89,6 +93,90 @@ async fn cold_cache_writes_mirror_on_200() {
     assert!(mirror_path.exists(), "mirror file written");
     let headers = load_meta_headers(&mirror_path).expect("headers readable");
     assert_eq!(headers.etag.as_deref(), Some(r#"W/"fresh""#));
+}
+
+#[tokio::test]
+async fn unsolicited_304_retries_without_cache() {
+    let mut server = mockito::Server::new_async().await;
+    let first = server
+        .mock("GET", "/acme")
+        .match_header("if-none-match", Matcher::Missing)
+        .match_header("if-modified-since", Matcher::Missing)
+        .match_header("cache-control", Matcher::Missing)
+        .with_status(304)
+        .expect(1)
+        .create_async()
+        .await;
+    let second = server
+        .mock("GET", "/acme")
+        .match_header("if-none-match", Matcher::Missing)
+        .match_header("if-modified-since", Matcher::Missing)
+        .match_header("cache-control", "no-cache")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let cache = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataCachedOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        cache_dir: Some(cache.path()),
+        full_metadata: true,
+        filter_metadata: false,
+        retry_opts: no_retry_opts(),
+    };
+
+    let pkg = fetch_full_metadata_cached("acme", &opts).await.expect("retry returns metadata");
+    assert_eq!(pkg.name, "acme");
+    first.assert_async().await;
+    second.assert_async().await;
+}
+
+#[tokio::test]
+async fn repeated_unsolicited_304_reports_missing_cache() {
+    let mut server = mockito::Server::new_async().await;
+    let first = server
+        .mock("GET", "/acme")
+        .match_header("cache-control", Matcher::Missing)
+        .with_status(304)
+        .expect(1)
+        .create_async()
+        .await;
+    let second = server
+        .mock("GET", "/acme")
+        .match_header("cache-control", "no-cache")
+        .with_status(304)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let cache = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataCachedOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        cache_dir: Some(cache.path()),
+        full_metadata: true,
+        filter_metadata: false,
+        retry_opts: no_retry_opts(),
+    };
+
+    let error = fetch_full_metadata_cached("acme", &opts).await.expect_err("304 needs a cache");
+    assert!(matches!(
+        error,
+        FetchMetadataError::NotModifiedWithoutCache { ref pkg_name } if pkg_name == "acme"
+    ));
+    first.assert_async().await;
+    second.assert_async().await;
 }
 
 #[tokio::test]
