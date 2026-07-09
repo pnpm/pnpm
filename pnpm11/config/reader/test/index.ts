@@ -1385,12 +1385,11 @@ test('global config.yaml registries cannot redirect pnpm_config__auth routes', a
     },
   })
 
-  process.env.XDG_CONFIG_HOME = path.resolve('.config')
-
   const { config } = await getConfig({
     cliOptions: {},
     env: {
       ...env,
+      XDG_CONFIG_HOME: path.resolve('.config'),
       pnpm_config__auth: JSON.stringify({
         'https://registry.npmjs.org': {
           '@victim-scope': { authToken: 'secret-token' },
