@@ -1150,8 +1150,7 @@ async fn custom_typed_resolution_without_a_claiming_fetcher_fails() {
     );
     assert_eq!(
         err.to_string(),
-        "Cannot fetch dependency with custom resolution type \"custom:cdn\". \
-         Custom resolutions must be handled by custom fetchers.",
+        r#"Cannot fetch dependency with custom resolution type "custom:cdn". Custom resolutions must be handled by custom fetchers."#,
     );
 
     drop(store_tmp);

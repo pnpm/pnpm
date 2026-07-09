@@ -748,7 +748,7 @@ fn serialize_custom_resolution() {
     let received = render_resolution(&custom_cdn_resolution());
     eprintln!("RECEIVED:\n{received}");
     let expected = format!(
-        "resolution: {{integrity: {SHA512}, type: custom:cdn, url: https://cdn.example.com/pkg.tgz}}"
+        "resolution: {{integrity: {SHA512}, type: custom:cdn, url: https://cdn.example.com/pkg.tgz}}",
     );
     assert_eq!(received, expected);
 }

@@ -170,7 +170,7 @@ pub struct VariationsResolution {
 /// tags here keeps a malformed built-in resolution (e.g. a `git` entry
 /// missing `commit`) a hard parse error instead of silently
 /// reclassifying it as custom.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Display)]
+#[derive(Debug, Display, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct CustomResolutionType(String);
 
@@ -206,7 +206,7 @@ impl From<CustomResolutionType> for String {
 /// included, via `serde_json`'s `preserve_order`) so the pnpmfile's
 /// fetcher sees exactly what its resolver wrote to the lockfile.
 ///
-/// Mirrors the TypeScript `CustomResolution` in
+/// Mirrors the TypeScript interface of the same name in
 /// `pnpm11/resolving/resolver-base/src/index.ts`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CustomResolution {

@@ -124,7 +124,7 @@ fn custom_typed_resolution_without_a_fetcher_fails_the_install() {
     let output = pacquet.with_arg("install").assert().failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
     assert!(
-        stderr.contains("Cannot fetch dependency with custom resolution type \"custom:e2e\""),
+        stderr.contains(r#"Cannot fetch dependency with custom resolution type "custom:e2e""#),
         "stderr: {stderr}",
     );
 
