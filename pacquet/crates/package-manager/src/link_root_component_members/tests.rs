@@ -84,38 +84,51 @@ fn member_slot_modules_dir(
     layout.slot_dir(&key).join("node_modules")
 }
 
-/// Materialize a member's own package directory (the target siblings
-/// point at) plus a shared `react` dependency inside its slot, so a
-/// resolution walk that lands in the slot has something real to find.
-fn create_member_slot(slot_modules_dir: &Path, name: &str) {
-    fs::create_dir_all(slot_modules_dir.join(name)).unwrap();
+/// Materialize a member's own package directory — including a
+/// `package.json` declaring `sibling_deps` plus a shared `react` — and a
+/// `react` dependency dir, inside its slot. `link_declared_siblings`
+/// reads that manifest to decide which siblings to link.
+fn create_member_slot(slot_modules_dir: &Path, name: &str, sibling_deps: &[&str]) {
+    let pkg_dir = slot_modules_dir.join(name);
+    fs::create_dir_all(&pkg_dir).unwrap();
     fs::create_dir_all(slot_modules_dir.join("react")).unwrap();
+
+    let mut dependencies = serde_json::Map::new();
+    for dep in sibling_deps {
+        dependencies.insert((*dep).to_string(), serde_json::json!("workspace:*"));
+    }
+    dependencies.insert("react".to_string(), serde_json::json!("16"));
+    let manifest =
+        serde_json::json!({ "name": name, "version": "1.0.0", "dependencies": dependencies });
+    fs::write(pkg_dir.join("package.json"), manifest.to_string()).unwrap();
 }
 
-/// A root importer flagged `hoistingLimits: workspaces` gets its
-/// injected members cross-linked: every member's slot `node_modules/`
-/// gains a symlink to every other member's package directory, so a
-/// `realpath`-based walk from one member reaches its siblings.
+/// A flagged root importer's injected members each gain symlinks only to
+/// the siblings *they declare* — matching pnpm's per-package child
+/// linking. The `comp3 → comp2 → comp1` chain (`a → b → c`) resolves
+/// transitively through each member's own slot, not an all-to-all clique.
 #[test]
-fn injected_members_are_cross_linked() {
+fn injected_members_link_declared_siblings() {
     let dir = tempdir().unwrap();
     let layout = VirtualStoreLayout::legacy(dir.path().join("vs"), 120);
 
-    // Three members model the `comp3 -> comp2 -> comp1` chain: each
-    // sibling must be reachable from every other so the transitive walk
-    // resolves.
-    let members = [("@scope/a", "a"), ("@scope/b", "b"), ("@scope/c", "c")];
+    // a depends on b; b depends on c; c depends on neither.
+    let members: [(&str, &str, &[&str]); 3] = [
+        ("@scope/a", "a", &["@scope/b"]),
+        ("@scope/b", "b", &["@scope/c"]),
+        ("@scope/c", "c", &[]),
+    ];
     let slot_dirs: HashMap<&str, std::path::PathBuf> = members
         .iter()
-        .map(|(name, payload)| {
+        .map(|(name, payload, deps)| {
             let slot = member_slot_modules_dir(&layout, name, payload);
-            create_member_slot(&slot, name);
+            create_member_slot(&slot, name, deps);
             (*name, slot)
         })
         .collect();
 
     let mut deps = ResolvedDependencyMap::new();
-    for (name, payload) in members {
+    for (name, payload, _) in members {
         deps.insert(name.parse().unwrap(), file_member(name, payload));
     }
     // A shared registry dep on the root must NOT be treated as a member.
@@ -134,56 +147,71 @@ fn injected_members_are_cross_linked() {
         ProjectSnapshot { dependencies: Some(deps), ..ProjectSnapshot::default() },
     );
 
-    let root_component_importers = id_set(&[importer_id.as_str()]);
     link_root_component_members(
         &layout,
         &importers,
-        &root_component_importers,
+        &id_set(&[importer_id.as_str()]),
         &[DependencyGroup::Prod],
         &SkippedSnapshots::default(),
     )
-    .expect("cross-link should succeed");
+    .expect("linking should succeed");
 
-    for (host_name, _) in members {
-        let host_slot = &slot_dirs[host_name];
-        for (sibling_name, _) in members {
-            let link = host_slot.join(sibling_name);
-            if sibling_name == host_name {
-                // A member's own package dir stays a real directory; it
-                // is never turned into a self-referential symlink.
-                assert!(link.is_dir() && !is_symlink_or_junction(&link).unwrap());
-                continue;
-            }
-            assert!(
-                is_symlink_or_junction(&link).unwrap(),
-                "expected {host_name} slot to link sibling {sibling_name} at {link:?}",
-            );
-            let expected = slot_dirs[sibling_name].join(sibling_name);
-            assert_eq!(
-                fs::canonicalize(&link).unwrap(),
-                fs::canonicalize(&expected).unwrap(),
-                "{host_name} -> {sibling_name} must point at the sibling package dir",
-            );
-        }
-        // The shared `react` dep is untouched — it is not a member.
-        assert!(!is_symlink_or_junction(&host_slot.join("react")).unwrap());
+    let a_slot = &slot_dirs["@scope/a"];
+    let b_slot = &slot_dirs["@scope/b"];
+    let c_slot = &slot_dirs["@scope/c"];
+
+    // A member's own package dir stays a real directory, never a symlink.
+    assert!(
+        a_slot.join("@scope/a").is_dir()
+            && !is_symlink_or_junction(&a_slot.join("@scope/a")).unwrap()
+    );
+
+    // `a` links its declared sibling `b`, but NOT `c` — it doesn't
+    // declare `c` directly (that edge lives on `b`).
+    assert!(
+        is_symlink_or_junction(&a_slot.join("@scope/b")).unwrap(),
+        "a must link declared sibling b"
+    );
+    assert!(!a_slot.join("@scope/c").exists(), "a must not link c — not directly declared");
+    assert_eq!(
+        fs::canonicalize(a_slot.join("@scope/b")).unwrap(),
+        fs::canonicalize(b_slot.join("@scope/b")).unwrap(),
+        "a -> b must point at b's package dir",
+    );
+
+    // `b` links its declared sibling `c`, but NOT `a`.
+    assert!(
+        is_symlink_or_junction(&b_slot.join("@scope/c")).unwrap(),
+        "b must link declared sibling c"
+    );
+    assert!(!b_slot.join("@scope/a").exists(), "b must not link a — not declared");
+    assert_eq!(
+        fs::canonicalize(b_slot.join("@scope/c")).unwrap(),
+        fs::canonicalize(c_slot.join("@scope/c")).unwrap(),
+        "b -> c must point at c's package dir",
+    );
+
+    // `c` declares no siblings and gains none.
+    assert!(!c_slot.join("@scope/a").exists());
+    assert!(!c_slot.join("@scope/b").exists());
+
+    // The shared `react` dep is never treated as a member.
+    for slot in [a_slot, b_slot, c_slot] {
+        assert!(!is_symlink_or_junction(&slot.join("react")).unwrap());
     }
 
-    // End-to-end reachability mirrors Node's upward `node_modules`
-    // walk. Resolving `b` from `a`'s package dir follows the cross-link
-    // in `a`'s slot to `b`'s package dir; `b`'s sibling `c` then
-    // resolves against `b`'s slot `node_modules/` — the parent of `b`'s
-    // package dir — where the cross-link into `c` lives.
-    let b_pkg_dir = fs::canonicalize(slot_dirs["@scope/a"].join("@scope/b")).unwrap();
+    // End-to-end reachability mirrors Node's upward `node_modules` walk:
+    // `a` requires `b` (in a's slot), then `b` requires `c` (in b's slot).
+    let b_pkg_dir = fs::canonicalize(a_slot.join("@scope/b")).unwrap();
     // `<b_slot>/node_modules/@scope/b` + `../c` → `<b_slot>/node_modules/@scope/c`.
     let c_via_b = fs::canonicalize(b_pkg_dir.join("../c")).unwrap();
-    assert_eq!(c_via_b, fs::canonicalize(slot_dirs["@scope/c"].join("@scope/c")).unwrap());
+    assert_eq!(c_via_b, fs::canonicalize(c_slot.join("@scope/c")).unwrap());
 
     drop(dir);
 }
 
 /// An importer that is NOT flagged as a root component keeps its
-/// injected members isolated — the cross-link never fires for ordinary
+/// injected members isolated — the pass never fires for ordinary
 /// installs.
 #[test]
 fn non_root_component_importer_is_untouched() {
@@ -192,8 +220,9 @@ fn non_root_component_importer_is_untouched() {
 
     let a_slot = member_slot_modules_dir(&layout, "@scope/a", "a");
     let b_slot = member_slot_modules_dir(&layout, "@scope/b", "b");
-    create_member_slot(&a_slot, "@scope/a");
-    create_member_slot(&b_slot, "@scope/b");
+    // `a` declares `b`, but the importer is not flagged, so nothing links.
+    create_member_slot(&a_slot, "@scope/a", &["@scope/b"]);
+    create_member_slot(&b_slot, "@scope/b", &[]);
 
     let mut deps = ResolvedDependencyMap::new();
     deps.insert("@scope/a".parse().unwrap(), file_member("@scope/a", "a"));
@@ -222,8 +251,8 @@ fn non_root_component_importer_is_untouched() {
     drop(dir);
 }
 
-/// The cross-link is purely additive: an entry a member already
-/// resolves for itself (a real dependency symlink) is never clobbered.
+/// The linking is purely additive: a sibling a member already resolves
+/// for itself (a real dependency symlink) is never clobbered.
 #[test]
 fn existing_member_dependency_is_not_clobbered() {
     let dir = tempdir().unwrap();
@@ -231,12 +260,13 @@ fn existing_member_dependency_is_not_clobbered() {
 
     let a_slot = member_slot_modules_dir(&layout, "@scope/a", "a");
     let b_slot = member_slot_modules_dir(&layout, "@scope/b", "b");
-    create_member_slot(&a_slot, "@scope/a");
-    create_member_slot(&b_slot, "@scope/b");
+    // Both declare each other; `a` already has a pre-existing `@scope/b`.
+    create_member_slot(&a_slot, "@scope/a", &["@scope/b"]);
+    create_member_slot(&b_slot, "@scope/b", &["@scope/a"]);
 
     // `a` already resolves `@scope/b` to a pre-existing directory of its
     // own (stand-in for a real, differently-resolved dependency). The
-    // cross-link must leave it alone.
+    // pass must leave it alone.
     let preexisting = dir.path().join("preexisting-b");
     fs::create_dir_all(&preexisting).unwrap();
     fs::create_dir_all(a_slot.join("@scope")).unwrap();
@@ -263,7 +293,7 @@ fn existing_member_dependency_is_not_clobbered() {
         &[DependencyGroup::Prod],
         &SkippedSnapshots::default(),
     )
-    .expect("cross-link should succeed");
+    .expect("linking should succeed");
 
     // `a`'s pre-existing `@scope/b` still points at the original dir.
     assert_eq!(
@@ -275,7 +305,7 @@ fn existing_member_dependency_is_not_clobbered() {
     assert_eq!(
         fs::canonicalize(b_slot.join("@scope/a")).unwrap(),
         fs::canonicalize(a_slot.join("@scope/a")).unwrap(),
-        "a missing sibling must be filled in",
+        "a missing declared sibling must be filled in",
     );
 
     drop(dir);

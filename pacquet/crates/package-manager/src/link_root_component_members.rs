@@ -4,7 +4,7 @@ use miette::Diagnostic;
 use pacquet_lockfile::{
     ImporterDepVersion, PackageKey, PkgName, ProjectSnapshot, ResolvedDependencySpec, VersionPart,
 };
-use pacquet_package_manifest::DependencyGroup;
+use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
@@ -14,42 +14,46 @@ use std::{
 /// component" importer. Bit stamps it on the per-root importer
 /// manifests it writes under `node_modules/.bit_roots/<id>`; no
 /// non-Bit install produces it, so it doubles as the gate for the
-/// cross-linking below.
+/// sibling linking below.
 pub const HOISTING_LIMITS_WORKSPACES: &str = "workspaces";
 
-/// Cross-link each Bit root component's injected members into one
-/// another's virtual-store slot so they are mutually reachable.
+/// Give each Bit root component's injected members the sibling
+/// dependencies they declare, so a member's slot `node_modules/` is
+/// self-contained enough for a `realpath`-based resolution walk.
 ///
 /// ## The problem this solves
 /// Bit's `bit install --root-components` writes one importer per root
 /// under `node_modules/.bit_roots/<id>` whose manifest injects the
-/// root's sibling components as `workspace:*` deps and carries
+/// root's sibling components and carries
 /// `installConfig: { hoistingLimits: "workspaces" }`. Under
 /// `nodeLinker: isolated` those injected members are materialized as
 /// `file:` deps, each landing in its own global-virtual-store slot at
-/// `<store>/links/<name>/<ver>/<hash>/node_modules/<name>`. A member's
-/// slot `node_modules/` only holds that member's own lockfile deps —
-/// it does not hold the sibling members. So a `realpath`-based
-/// resolution (Node's default, `preserveSymlinks: false`) that lands
-/// inside a member's slot and walks up `node_modules/` never reaches a
-/// sibling, and `require('@scope/sibling')` throws `MODULE_NOT_FOUND`
-/// even though the root importer wired the sibling in.
+/// `<store>/links/<name>/<ver>/<hash>/node_modules/<name>`. Because Bit
+/// installs with `excludeLinksFromLockfile` + `dedupeInjectedDeps`, a
+/// member's edges to its sibling members don't survive into the slot,
+/// so a member's slot `node_modules/` ends up missing the siblings it
+/// depends on. A `realpath`-based resolution (Node's default,
+/// `preserveSymlinks: false`) that lands inside a member's slot and
+/// walks up `node_modules/` then can't reach a declared sibling, and
+/// `require('@scope/sibling')` throws `MODULE_NOT_FOUND`.
 ///
-/// The generally-correct fix is a per-root local virtual store; the
-/// pragmatic fix here is to symlink every one of a root's injected
-/// members into every other member's slot `node_modules/`, so the
-/// upward walk from any member finds its siblings.
+/// This restores exactly the edges the isolated linker creates for an
+/// ordinary dependency: for each member it symlinks the siblings that
+/// member *declares in its own manifest* into its slot `node_modules/`.
+/// It mirrors pnpm — each package's slot holds only its own declared
+/// children, and a transitive sibling resolves through the chain
+/// (`comp3 → comp2 → comp1`) rather than an all-to-all clique.
 ///
 /// ## Why this is safe
 /// It fires only for importers whose manifest declares
 /// `installConfig.hoistingLimits: "workspaces"` (`root_component_importers`),
 /// a shape no non-Bit install produces — so ordinary installs are
 /// untouched. It is purely additive: an entry already present in a
-/// member's slot (a real dependency the member resolves for itself) is
-/// never overwritten. And because each root's peer context is folded
-/// into its members' global-virtual-store hashes, two different roots
-/// get distinct member slots; cross-linking one root's members can
-/// never leak a wrongly-resolved sibling into another root's chain.
+/// member's slot (a dependency the member resolves for itself) is never
+/// overwritten. And within one root the member names are unique (each
+/// root's peer context yields distinct slots), so a declared sibling
+/// name resolves to exactly that root's copy — linking one root's
+/// members can never leak a sibling into another root's chain.
 pub fn link_root_component_members(
     layout: &VirtualStoreLayout,
     importers: &HashMap<String, ProjectSnapshot>,
@@ -68,14 +72,14 @@ pub fn link_root_component_members(
             continue;
         }
         let members = collect_injected_members(layout, importer, dependency_groups, skipped);
-        cross_link_members(&members)?;
+        link_declared_siblings(&members)?;
     }
 
     Ok(())
 }
 
 /// One injected `file:` member of a root component, resolved to the
-/// on-disk paths the cross-link pass needs.
+/// on-disk paths the sibling-linking pass needs.
 struct Member {
     /// `@scope/name` — the name siblings import this member as, and the
     /// directory name under `node_modules/`.
@@ -93,7 +97,7 @@ struct Member {
 /// each get an isolated global-virtual-store slot. Registry deps
 /// (`react` etc.) resolve correctly within each member's slot already,
 /// and `link:` deps point straight at a workspace directory whose own
-/// `node_modules/` is reachable — neither needs cross-linking.
+/// `node_modules/` is reachable — neither needs sibling linking.
 ///
 /// An injected member surfaces at the importer level as either an
 /// `Alias` whose resolved version is a `file:` spec (the scoped shape
@@ -164,21 +168,49 @@ fn injected_member_key(
     }
 }
 
-/// Symlink every member into every other member's slot `node_modules/`.
-fn cross_link_members(members: &[Member]) -> Result<(), LinkRootComponentMembersError> {
+/// Symlink each member's declared sibling dependencies into its slot
+/// `node_modules/`.
+///
+/// A member's manifest is the source of truth for which siblings it
+/// depends on — it survives `excludeLinksFromLockfile` /
+/// `dedupeInjectedDeps`, where the lockfile edges do not. Only the
+/// `dependencies` / `optionalDependencies` / `peerDependencies` a
+/// member declares are linked, and only when the named package is
+/// itself a member of this same root (its peer-resolved slot), matching
+/// the isolated linker's per-package child linking.
+fn link_declared_siblings(members: &[Member]) -> Result<(), LinkRootComponentMembersError> {
+    // Within one root importer each member name is unique (one peer
+    // context per root), so a declared name identifies at most one
+    // sibling slot.
+    let by_name: HashMap<&str, &Member> =
+        members.iter().map(|member| (member.name.as_str(), member)).collect();
+
     for host in members {
-        for sibling in members {
-            // A member's own package directory already exists in its
-            // slot; never link a member into itself.
-            if host.name == sibling.name {
+        let manifest_path = host.package_dir.join("package.json");
+        let manifest = PackageManifest::from_path(manifest_path.clone()).map_err(|source| {
+            LinkRootComponentMembersError::ReadManifest {
+                member: host.name.clone(),
+                path: manifest_path,
+                source,
+            }
+        })?;
+        for (dep_name, _) in manifest.dependencies([
+            DependencyGroup::Prod,
+            DependencyGroup::Optional,
+            DependencyGroup::Peer,
+        ]) {
+            // Only siblings that belong to this root; a member's own
+            // package dir already lives in its slot.
+            let Some(&sibling) = by_name.get(dep_name) else { continue };
+            if sibling.name == host.name {
                 continue;
             }
             let symlink_path = host.slot_modules_dir.join(&sibling.name);
-            // Purely additive. `symlink_metadata` doesn't follow the
-            // final component, so an existing symlink — dangling or not
-            // — counts as present and is left untouched; only a genuinely
-            // missing sibling is filled in. This never clobbers a real
-            // dependency a member resolves for itself.
+            // Additive. `symlink_metadata` doesn't follow the final
+            // component, so an existing symlink — dangling or not —
+            // counts as present and is left untouched; only a genuinely
+            // missing declared sibling is filled in. This never clobbers
+            // a dependency the member already resolves for itself.
             if std::fs::symlink_metadata(&symlink_path).is_ok() {
                 continue;
             }
@@ -197,6 +229,17 @@ fn cross_link_members(members: &[Member]) -> Result<(), LinkRootComponentMembers
 /// Error type of [`link_root_component_members`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum LinkRootComponentMembersError {
+    /// An injected member's manifest could not be read to learn which
+    /// siblings it declares.
+    #[display("Failed to read manifest of root-component member {member:?} at {path:?}: {source}")]
+    #[diagnostic(code(pacquet_package_manager::root_component_manifest_read_failed))]
+    ReadManifest {
+        member: String,
+        path: PathBuf,
+        #[error(source)]
+        source: PackageManifestError,
+    },
+
     /// A sibling-into-member symlink failed (e.g. permission denied,
     /// disk full, an existing non-symlink file squatting the path).
     #[display("Failed to link root-component sibling {sibling:?} into member {member:?}: {source}")]
