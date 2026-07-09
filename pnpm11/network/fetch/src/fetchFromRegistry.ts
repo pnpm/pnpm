@@ -1,5 +1,6 @@
 import { URL } from 'node:url'
 
+import { redactUrlCredentials } from '@pnpm/error'
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import type { RegistryConfig } from '@pnpm/types'
 
@@ -118,8 +119,11 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
       // This is a workaround to remove authorization headers on redirect.
       // Related pnpm issue: https://github.com/pnpm/pnpm/issues/1815
       urlObject = resolveRedirectUrl(response, urlObject)
-      if (!headers['authorization'] || originalHost === urlObject.host) continue
-      delete headers.authorization
+      if (originalHost === urlObject.host) continue
+      if (headers['authorization']) {
+        delete headers.authorization
+      }
+      delete headers['npm-otp']
     }
     /* eslint-enable no-await-in-loop */
   }
@@ -170,7 +174,7 @@ function extractTlsConfigs (configByUri?: Record<string, RegistryConfig>): Clien
 function resolveRedirectUrl (response: Response, currentUrl: URL): URL {
   const location = response.headers.get('location')
   if (!location) {
-    throw new Error(`Redirect location header missing for ${currentUrl.toString()}`)
+    throw new Error(`Redirect location header missing for ${redactUrlCredentials(currentUrl.toString())}`)
   }
   return new URL(location, currentUrl)
 }

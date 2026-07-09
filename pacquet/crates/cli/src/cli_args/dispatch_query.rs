@@ -1,4 +1,5 @@
 use super::{
+    access::AccessArgs,
     audit::{AuditArgs, AuditOutcome},
     bin::BinArgs,
     bugs::BugsArgs,
@@ -135,6 +136,20 @@ pub(super) fn whoami<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> 
     Ok(Box::pin(async move {
         let username = super::whoami::whoami(cfg).await?;
         println!("{}", super::sanitize::sanitize(&username));
+        Ok(())
+    }))
+}
+
+pub(super) fn access<'a>(ctx: &RunCtx<'a>, args: AccessArgs) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.config)()?;
+    Ok(Box::pin(async move {
+        if let Some(output) = args.run(cfg).await? {
+            let output = super::sanitize::sanitize(&output);
+            if output.is_empty() {
+                return Ok(());
+            }
+            println!("{output}");
+        }
         Ok(())
     }))
 }

@@ -3,7 +3,6 @@ import { PnpmError } from '@pnpm/error'
 import type { CommandDefinition } from './index.js'
 
 const NOT_IMPLEMENTED_COMMANDS = [
-  'access',
   'edit',
   'profile',
   'set-script',

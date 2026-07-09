@@ -1,4 +1,5 @@
 use super::{
+    access::AccessArgs,
     add::AddArgs,
     approve_builds::ApproveBuildsArgs,
     audit::AuditArgs,
@@ -208,6 +209,8 @@ impl CliArgs {
 
 #[derive(Debug, Subcommand)]
 pub enum CliCommand {
+    /// Manage package access and visibility on the registry.
+    Access(AccessArgs),
     /// Initialize a package.json
     Init,
     /// Add a package
@@ -361,6 +364,7 @@ pub enum CliCommand {
 impl CliCommand {
     pub(crate) fn default_reporter_summary_scope(&self) -> SummaryScope {
         match self {
+            CliCommand::Access(_) => SummaryScope::CurrentPrefix,
             CliCommand::Add(args) if args.global => SummaryScope::AllPrefixes,
             CliCommand::Remove(args) if args.global => SummaryScope::AllPrefixes,
             CliCommand::Runtime(args) if args.global => SummaryScope::AllPrefixes,

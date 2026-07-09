@@ -346,6 +346,19 @@ impl ThrottledClient {
         Self::for_installs_with_redirect(proxy, tls, per_registry, settings, None)
     }
 
+    /// Like [`Self::for_installs`] with an optional redirect guard.
+    /// Pass `Some(guard)` to restrict which redirect targets are followed;
+    /// `None` gives the default reqwest follow policy (same as [`Self::for_installs`]).
+    pub fn for_installs_with_guard(
+        proxy: &ProxyConfig,
+        tls: &TlsConfig,
+        per_registry: &PerRegistryTls,
+        settings: &NetworkSettings,
+        redirect_guard: Option<&RedirectGuard>,
+    ) -> Result<Self, ForInstallsError> {
+        Self::for_installs_with_redirect(proxy, tls, per_registry, settings, redirect_guard)
+    }
+
     /// Like [`Self::new_for_installs`] but installs `redirect_guard` as the
     /// client's redirect policy: every redirect hop is re-validated by the
     /// guard, and a hop it rejects fails the request without fetching. pnpr
