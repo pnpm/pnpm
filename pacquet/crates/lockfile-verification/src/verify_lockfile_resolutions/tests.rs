@@ -884,6 +884,66 @@ snapshots:
 }
 
 #[tokio::test]
+async fn rejects_a_traversal_snapshot_package_name() {
+    // The snapshot's own package name (the `snapshots:` key) becomes
+    // `<slot>/node_modules/<name>` at extract time — a sink the alias
+    // scan of the dependency maps alone doesn't cover.
+    let lockfile = parse(
+        "lockfileVersion: '9.0'
+
+packages:
+
+  ../../../escape@1.0.0:
+    resolution: {integrity: sha512-deadbeef}
+
+snapshots:
+
+  ../../../escape@1.0.0: {}
+",
+    );
+    let err = verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[],
+        &VerifyLockfileResolutionsOptions::default(),
+    )
+    .await
+    .expect_err("a traversal snapshot package name must be rejected");
+    let VerifyError::InvalidDependencyAlias { breakdown, .. } = err else {
+        panic!("expected InvalidDependencyAlias, got {err:?}");
+    };
+    assert!(breakdown.contains("../../../escape"), "breakdown {breakdown:?}");
+}
+
+#[test]
+fn verify_lockfile_dependency_names_rejects_a_packages_less_lockfile() {
+    // A lockfile with only `link:` deps has no `packages:` section, so
+    // the resolution fan-out short-circuits — but the offline name check
+    // must still reject a traversal importer alias.
+    let lockfile = parse(
+        "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      '../../escaped-link':
+        specifier: link:./local
+        version: link:local
+",
+    );
+    assert!(lockfile.packages.is_none(), "fixture must have no packages section");
+    let err = super::verify_lockfile_dependency_names(&lockfile)
+        .expect_err("a traversal alias in a packages-less lockfile must be rejected");
+    assert!(matches!(err, VerifyError::InvalidDependencyAlias { .. }), "got {err:?}");
+}
+
+#[test]
+fn verify_lockfile_dependency_names_accepts_a_clean_lockfile() {
+    super::verify_lockfile_dependency_names(&parse(TWO_PKG_LOCKFILE))
+        .expect("a lockfile with valid names must pass");
+}
+
+#[tokio::test]
 async fn accepts_valid_scoped_and_unscoped_aliases() {
     let lockfile = parse(
         "lockfileVersion: '9.0'

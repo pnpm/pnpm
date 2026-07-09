@@ -11,6 +11,7 @@
 //! JSONL stat-and-skip cache.
 //!
 //! Public surface today: [`verify_lockfile_resolutions()`],
+//! [`verify_lockfile_dependency_names()`],
 //! [`collect_resolution_policy_violations()`], [`hash_lockfile()`],
 //! [`VerifyError`], and [`RenderedViolation`] — the last lets a caller
 //! that resolved violations out-of-process (e.g. the pnpr client
@@ -35,5 +36,6 @@ pub use hash_lockfile::hash_lockfile;
 pub use record_lockfile_verified::record_lockfile_verified;
 pub use verify_lockfile_resolutions::{
     RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE, VerifyLockfileResolutionsOptions,
-    collect_resolution_policy_violations, verify_lockfile_resolutions,
+    collect_resolution_policy_violations, verify_lockfile_dependency_names,
+    verify_lockfile_resolutions,
 };
