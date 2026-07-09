@@ -499,12 +499,11 @@ export async function pickPackage (
       // The fetch is memoized (see index.ts), so its result is retained for the
       // whole resolution phase. jsonText — the raw registry body, up to tens of
       // MB for popular packages — is only needed for the disk-mirror write
-      // above, so release it here to keep the memo cache from pinning it. This
-      // mirrors the projection pnpm applies to the verifier caches in #11878.
+      // above, so release it here to keep the memo cache from pinning it.
       // A concurrent caller sharing this memo entry that reads jsonText after
       // this point just falls back to JSON.stringify(meta) in prepareJsonForDisk.
       resultToSave.jsonText = undefined
-      if (resultToSave !== fetchResult) fetchResult.jsonText = undefined
+      fetchResult.jsonText = undefined
       meta.etag = resultToSave.etag
       // only save meta to cache, when it is fresh
       ctx.metaCache.set(cacheKey, meta)
