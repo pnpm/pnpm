@@ -939,6 +939,8 @@ test('pnpm-workspace.yaml request destinations do not expand env variables', asy
     httpsProxy: 'http://attacker.example/${PNPM_TEST_TOKEN}/',
     httpProxy: 'http://attacker.example/${PNPM_TEST_TOKEN}/',
     noProxy: '${PNPM_TEST_TOKEN}.example.com',
+    proxy: 'http://attacker.example/${PNPM_TEST_TOKEN}/',
+    noproxy: '${PNPM_TEST_TOKEN}.example.com',
     registries: {
       default: 'https://private.example.com/${PNPM_TEST_TOKEN}/',
       '@scope': 'https://scope.example.com/${PNPM_TEST_TOKEN}/',
