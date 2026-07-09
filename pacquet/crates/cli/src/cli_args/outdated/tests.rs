@@ -1,9 +1,12 @@
 use super::{
-    Change, OutdatedDependencyOptions, OutdatedPackage, classify, render_json, render_latest,
-    sort_outdated,
+    Change, OutdatedDependencyOptions, OutdatedPackage, classify, current_versions_from_lockfile,
+    render_json, render_latest, sort_outdated,
 };
 use node_semver::Version;
+use pacquet_lockfile::Lockfile;
 use pacquet_package_manifest::DependencyGroup;
+use std::collections::HashMap;
+use text_block_macros::text_block;
 
 fn v(text: &str) -> Version {
     text.parse().expect("parse semver")
@@ -19,6 +22,33 @@ fn pkg(name: &str, current: &str, target: &str, group: DependencyGroup) -> Outda
         deprecated: None,
         homepage: None,
     }
+}
+
+// Mirrors `outdated() skips dependencies resolved from local refs` in
+// `pnpm11/deps/inspection/outdated/test/outdated.spec.ts`: a dependency
+// resolved to a local `link:`/`file:` ref has no lockfile-pinned semver,
+// so `collect_outdated` drops it before any registry fetch even when its
+// manifest specifier is a plain semver range.
+#[test]
+fn current_versions_omit_local_refs() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    devDependencies:"
+        "      private-workspace-pkg:"
+        "        specifier: ^1.0.0"
+        "        version: link:../private-workspace-pkg"
+        "      injected-pkg:"
+        "        specifier: ^1.0.0"
+        "        version: file:../injected-pkg"
+        "      is-positive:"
+        "        specifier: ^1.0.0"
+        "        version: 1.0.0"
+    })
+    .expect("parse fixture lockfile");
+    let versions = current_versions_from_lockfile(Some(&lockfile), &[DependencyGroup::Dev]);
+    assert_eq!(versions, HashMap::from([("is-positive".to_string(), v("1.0.0"))]));
 }
 
 #[test]
