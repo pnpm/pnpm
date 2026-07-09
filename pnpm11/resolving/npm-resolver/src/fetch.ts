@@ -42,7 +42,7 @@ export interface FetchMetadataResult {
    * The raw registry response body, used only to mirror the response to disk
    * without re-serializing `meta`. A fresh fetch always sets it; consumers of
    * the memoized fetch detach it as soon as they receive the result (see
-   * `takeJsonText` in pickPackage.ts) so the memo cache never pins it.
+   * `detachFetchResult` in pickPackage.ts) so the memo cache never pins it.
    */
   jsonText: string | undefined
   etag?: string
