@@ -481,7 +481,7 @@ fn skipped_optional_resolution_failure_renders_only_top_level() {
     let frame = render(&mut reporter, vec![skipped(Vec::new(), CWD)]);
     assert_eq!(
         frame,
-        "info: broken@^1.0.0 is an optional dependency and failed compatibility check. Excluding it from installation."
+        "info: broken@^1.0.0 is an optional dependency and failed compatibility check. Excluding it from installation.",
     );
 
     let mut reporter = state(false);

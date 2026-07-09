@@ -787,7 +787,7 @@ async fn skips_an_optional_dependency_whose_resolution_fails_with_no_locked_entr
     );
 }
 
-// Covers https://github.com/pnpm/pnpm/issues/12853: a wanted lockfile
+// Covers <https://github.com/pnpm/pnpm/issues/12853>: a wanted lockfile
 // that already resolved the optional dependency must fail the install
 // loudly instead of silently dropping the locked entries.
 #[tokio::test]
