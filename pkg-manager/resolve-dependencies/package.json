@@ -53,6 +53,7 @@
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/semver.peer-range": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
+    "@pnpm/symlink-dependency": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/workspace.spec-parser": "workspace:*",
