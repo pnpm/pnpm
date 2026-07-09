@@ -7,6 +7,7 @@ import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, parsePackageManager, shouldPersistLockfile, types as allTypes } from '@pnpm/config.reader'
 import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
 import { PnpmError } from '@pnpm/error'
+import { findGlobalPackage } from '@pnpm/global.packages'
 import { createResolver, makeResolutionStrict } from '@pnpm/installing.client'
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
@@ -19,7 +20,7 @@ import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
 
-import { installPnpm } from './installPnpm.js'
+import { installPnpm, pnpmPackageNameToInstall } from './installPnpm.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
@@ -224,7 +225,10 @@ export async function handler (
       return `The current project is already set to use pnpm v${resolution.manifest.version}`
     }
   }
-  if (resolution.manifest.version === packageManager.version) {
+  if (
+    resolution.manifest.version === packageManager.version &&
+    isInstalledGlobally(opts.globalPkgDir, pnpmPackageNameToInstall(resolution.manifest.version), resolution.manifest.version)
+  ) {
     return `The currently active ${packageManager.name} v${packageManager.version} is already "${bareSpecifier}" and doesn't need an update`
   }
 
@@ -286,6 +290,17 @@ function hasLegacyHomeDirShim (pnpmHomeDir: string): boolean {
   return false
 }
 
+function isInstalledGlobally (globalPkgDir: string, pkgName: string, version: string): boolean {
+  const existing = findGlobalPackage(globalPkgDir, pkgName)
+  if (!existing) return false
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.join(existing.installDir, 'node_modules', pkgName, 'package.json'), 'utf8'))
+    return manifest.version === version
+  } catch {
+    return false
+  }
+}
+
 /**
  * Returns the updated version constraint for devEngines.packageManager.
  * - Exact versions and simple ranges (^, ~) are updated to the new version,
@@ -343,4 +358,3 @@ async function readProjectPinnedPnpmVersion (rootProjectManifestDir: string, spe
   }
   return lockfilePinned ?? specMin
 }
-
