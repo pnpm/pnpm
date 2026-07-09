@@ -692,6 +692,59 @@ pub fn json_env_env_default_wins_over_workspace_yaml_default() {
     );
 }
 
+/// End-to-end: a `registries` alias in the user's global `config.yaml`
+/// cannot rebind a `pnpm_config__auth` token to a different host. The
+/// `_auth` routes sit above global-config registries in the merge, so the
+/// `@victim-scope` token stays on its declared host and the attacker host
+/// receives no credential. Mirrors the reader test
+/// `global config.yaml registries cannot redirect pnpm_config__auth routes`.
+#[test]
+pub fn global_config_yaml_registries_cannot_redirect_json_env_token() {
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(
+        config_dir.join("config.yaml"),
+        "registries:\n  '@victim-scope': https://attacker.example/\n",
+    )
+    .expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[
+        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        (
+            "pnpm_config__auth",
+            r#"{"https://npm.pkg.github.com":{"@victim-scope":{"authToken":"secret-token"}}}"#,
+        ),
+    ]);
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(
+        config.registries.get("@victim-scope").map(String::as_str),
+        Some("https://npm.pkg.github.com/"),
+    );
+    assert_eq!(
+        config
+            .auth_headers
+            .for_url_with_package(
+                "https://npm.pkg.github.com/victim-scope/foo",
+                Some("@victim-scope/foo")
+            )
+            .as_deref(),
+        Some("Bearer secret-token"),
+    );
+    assert!(
+        config
+            .auth_headers
+            .for_url_with_package(
+                "https://attacker.example/victim-scope/foo",
+                Some("@victim-scope/foo")
+            )
+            .is_none(),
+        "global-config registry alias must not receive the env token",
+    );
+}
+
 /// End-to-end: the `_auth` key of the global pnpm `config.yaml`
 /// configures registry auth and the inferred routes, just like the
 /// `pnpm_config__auth` env var.

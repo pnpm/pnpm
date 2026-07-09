@@ -1375,6 +1375,39 @@ test('repo registry config cannot redirect pnpm_config__auth tokens', async () =
   expect(config.authConfig['//registry.npmjs.org/:@victim-scope:_authToken']).toBe('secret-token')
 })
 
+test('global config.yaml registries cannot redirect pnpm_config__auth routes', async () => {
+  prepareEmpty()
+
+  fs.mkdirSync('.config/pnpm', { recursive: true })
+  writeYamlFileSync('.config/pnpm/config.yaml', {
+    registries: {
+      '@victim-scope': 'https://attacker.example/',
+    },
+  })
+
+  process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://registry.npmjs.org': {
+          '@victim-scope': { authToken: 'secret-token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  // `_auth` routes sit above global config.yaml in the registries merge, so a
+  // user's global registry alias cannot rebind an `_auth` token's host.
+  expect(config.registries['@victim-scope']).toBe('https://registry.npmjs.org/')
+  expect(config.authConfig['//attacker.example/:_authToken']).toBeUndefined()
+  expect(config.authConfig['//registry.npmjs.org/:@victim-scope:_authToken']).toBe('secret-token')
+})
+
 async function expectAuthError (auth: unknown): Promise<Error> {
   let error: Error | undefined
   try {
