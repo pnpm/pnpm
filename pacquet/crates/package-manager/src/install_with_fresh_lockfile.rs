@@ -262,17 +262,15 @@ pub enum InstallWithFreshLockfileError {
     LinkVirtualStoreBins(#[error(source)] LinkVirtualStoreBinsError),
 
     /// The resolver chain failed for at least one dependency. The
-    /// inner message carries the boxed error's `Display`.
+    /// diagnostic is forwarded transparently so a canonical inner code
+    /// (e.g. a traversal name's `ERR_PNPM_INVALID_DEPENDENCY_NAME`)
+    /// reaches the CLI unchanged. The `Display` still interpolates the
+    /// inner error so consumers that stringify the top-level error
+    /// (e.g. pnpr's `resolve.rs`, which forwards `err.to_string()` over
+    /// the wire) keep the detail.
     #[display("Failed to resolve dependency tree: {_0}")]
-    #[diagnostic(code(pacquet_package_manager::resolve_dependency_tree))]
-    ResolveDependencyTree(#[error(not(source))] ResolveDependencyTreeError),
-
-    /// The hoist-loop orchestrator failed. Wraps the tree-walk error
-    /// (the only failure source today) plus any future orchestrator-
-    /// specific failures.
-    #[display("Failed to resolve importer: {_0}")]
-    #[diagnostic(code(pacquet_package_manager::resolve_importer))]
-    ResolveImporter(#[error(not(source))] ResolveImporterError),
+    #[diagnostic(transparent)]
+    ResolveDependencyTree(#[error(source)] ResolveDependencyTreeError),
 
     /// `minimumReleaseAgeExclude` patterns rejected at compile time.
     /// Surfaced as `ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE`.
@@ -1182,7 +1180,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             },
         )
         .await
-        .map_err(InstallWithFreshLockfileError::ResolveImporter)?;
+        .map_err(|ResolveImporterError::Resolve(err)| {
+            InstallWithFreshLockfileError::ResolveDependencyTree(err)
+        })?;
         let total_nodes = workspace_result.peers.graph.len();
         for (importer_id, issues) in &workspace_result.peers.peer_dependency_issues_by_importer {
             tracing::warn!(

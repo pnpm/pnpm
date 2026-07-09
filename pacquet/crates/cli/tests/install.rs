@@ -78,16 +78,17 @@ fn install_rejects_a_traversal_dependency_name_in_the_manifest() {
         "the resolver must reject a traversal dependency name (stderr: {})",
         String::from_utf8_lossy(&output.stderr),
     );
-    // The fresh-resolve path wraps the resolver's
-    // `ERR_PNPM_INVALID_DEPENDENCY_NAME` in an outer `resolve_importer`
-    // diagnostic, so the rendered envelope carries the wrapper's code
-    // rather than the canonical one (the frozen path surfaces the
-    // canonical code — see `lockfile_verification.rs`). Assert on the
-    // stable rejection message and the offending name instead.
+    // The fresh-resolve path forwards the resolver's diagnostic
+    // transparently, so the rendered envelope carries the canonical
+    // `ERR_PNPM_INVALID_DEPENDENCY_NAME` code — matching the frozen path
+    // (see `lockfile_verification.rs`). The offending name is in the
+    // message too, but miette may wrap it across lines at narrow widths,
+    // so assert on the stable code and the unwrapped "invalid name"
+    // phrase instead.
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
     assert!(
-        stderr.contains("../../escaped-link") && stderr.contains("invalid name"),
-        "stderr must report the rejected traversal dependency name; got:\n{stderr}",
+        stderr.contains("ERR_PNPM_INVALID_DEPENDENCY_NAME") && stderr.contains("invalid name"),
+        "stderr must report the invalid-dependency-name code; got:\n{stderr}",
     );
     assert!(
         !workspace.parent().is_some_and(|parent| parent.join("escaped-link").exists()),
