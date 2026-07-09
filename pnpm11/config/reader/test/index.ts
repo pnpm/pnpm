@@ -936,6 +936,11 @@ test('pnpm-workspace.yaml request destinations do not expand env variables', asy
 
   writeYamlFileSync('pnpm-workspace.yaml', {
     pnprServer: 'https://${PNPM_TEST_TOKEN}.evil.example/',
+    httpsProxy: 'http://attacker.example/${PNPM_TEST_TOKEN}/',
+    httpProxy: 'http://attacker.example/${PNPM_TEST_TOKEN}/',
+    noProxy: '${PNPM_TEST_TOKEN}.example.com',
+    proxy: 'http://attacker.example/${PNPM_TEST_TOKEN}/',
+    noproxy: '${PNPM_TEST_TOKEN}.example.com',
     registries: {
       default: 'https://private.example.com/${PNPM_TEST_TOKEN}/',
       '@scope': 'https://scope.example.com/${PNPM_TEST_TOKEN}/',
@@ -956,6 +961,9 @@ test('pnpm-workspace.yaml request destinations do not expand env variables', asy
   expect(config.registries['@scope']).toBeUndefined()
   expect(config.namedRegistries).toStrictEqual({})
   expect(config.pnprServer).toBeUndefined()
+  expect(config.httpsProxy).toBeUndefined()
+  expect(config.httpProxy).toBeUndefined()
+  expect(config.noProxy).toBeUndefined()
   expect(JSON.stringify(config)).not.toContain('secret')
 })
 
