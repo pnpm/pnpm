@@ -22,10 +22,6 @@ const BARE_SPEC_PREFIX: &str = "runtime:";
 /// `DENO_GITHUB_FAILURE` / `DENO_PARSE_HASH` codes.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum DenoResolverError {
-    #[display("Offline Deno resolution is not supported")]
-    #[diagnostic(code(NO_OFFLINE_DENO_RESOLUTION))]
-    Offline,
-
     #[display("Could not resolve Deno version specified as {spec}")]
     #[diagnostic(code(DENO_RESOLUTION_FAILURE))]
     ResolutionFailure {
@@ -49,16 +45,11 @@ pub enum DenoResolverError {
 pub struct DenoResolver {
     pub http_client: Arc<ThrottledClient>,
     pub npm_resolver: Arc<dyn Resolver>,
-    /// When set, the resolver fails fast with
-    /// [`DenoResolverError::Offline`] instead of reaching out to
-    /// GitHub Releases for the asset list — matching `NodeResolver`'s
-    /// offline behavior.
-    pub offline: bool,
 }
 
 impl DenoResolver {
     pub fn new(http_client: Arc<ThrottledClient>, npm_resolver: Arc<dyn Resolver>) -> Self {
-        Self { http_client, npm_resolver, offline: false }
+        Self { http_client, npm_resolver }
     }
 }
 
@@ -89,9 +80,6 @@ impl DenoResolver {
         let Some(version_spec) = bare_runtime_spec(wanted_dependency, "deno") else {
             return Ok(None);
         };
-        if self.offline {
-            return Err(Box::new(DenoResolverError::Offline) as ResolveError);
-        }
         let version_spec = normalize_runtime_spec(version_spec);
 
         let npm_result = self

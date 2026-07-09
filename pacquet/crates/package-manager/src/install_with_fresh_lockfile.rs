@@ -710,12 +710,10 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let local_path_resolver = LocalPathResolver::new(local_ctx);
         let mut node_resolver = NodeResolver::new(Arc::clone(&http_client_arc));
         node_resolver.offline = config.offline;
-        let mut deno_resolver =
+        let deno_resolver =
             DenoResolver::new(Arc::clone(&http_client_arc), Arc::clone(&npm_resolver));
-        deno_resolver.offline = config.offline;
-        let mut bun_resolver =
+        let bun_resolver =
             BunResolver::new(Arc::clone(&http_client_arc), Arc::clone(&npm_resolver));
-        bun_resolver.offline = config.offline;
         let named_registry_resolver = NamedRegistryResolver {
             named_registries: merged_named_registries,
             registry_names: named_registry_aliases,

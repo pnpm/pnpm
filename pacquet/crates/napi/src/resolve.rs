@@ -185,10 +185,8 @@ fn run_resolve_blocking(
 
     let mut node_resolver = NodeResolver::new(Arc::clone(&http_client));
     node_resolver.offline = config.offline;
-    let mut deno_resolver = DenoResolver::new(Arc::clone(&http_client), Arc::clone(&npm_resolver));
-    deno_resolver.offline = config.offline;
-    let mut bun_resolver = BunResolver::new(Arc::clone(&http_client), Arc::clone(&npm_resolver));
-    bun_resolver.offline = config.offline;
+    let deno_resolver = DenoResolver::new(Arc::clone(&http_client), Arc::clone(&npm_resolver));
+    let bun_resolver = BunResolver::new(Arc::clone(&http_client), Arc::clone(&npm_resolver));
 
     // User-supplied named-registry aliases from
     // `pnpm-workspace.yaml#namedRegistries`, merged with pacquet's
