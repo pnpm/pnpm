@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 /// `ERR_PNPM_INVALID_DEPENDENCY_NAME`.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display("Refusing to place a dependency under {} with the invalid alias {alias:?}", modules.display())]
-#[diagnostic(code(INVALID_DEPENDENCY_NAME))]
+#[diagnostic(code(ERR_PNPM_INVALID_DEPENDENCY_NAME))]
 pub struct InvalidDependencyAliasError {
     pub modules: PathBuf,
     #[error(not(source))]

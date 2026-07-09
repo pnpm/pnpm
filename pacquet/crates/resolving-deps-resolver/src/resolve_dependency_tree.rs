@@ -215,11 +215,11 @@ pub enum ResolveDependencyTreeError {
 
     /// A dependency alias contained a path-separator segment that would
     /// escape the intended `node_modules` directory when joined onto a
-    /// modules path, raised with the `INVALID_DEPENDENCY_NAME` code.
+    /// modules path, raised with the `ERR_PNPM_INVALID_DEPENDENCY_NAME` code.
     #[display(
         "{parent} contains a dependency with an invalid name: {alias:?}. Dependency names must be a single package name or \"@scope/name\" — they cannot contain path-separator segments such as \"..\"."
     )]
-    #[diagnostic(code(INVALID_DEPENDENCY_NAME))]
+    #[diagnostic(code(ERR_PNPM_INVALID_DEPENDENCY_NAME))]
     InvalidDependencyName {
         #[error(not(source))]
         parent: String,
