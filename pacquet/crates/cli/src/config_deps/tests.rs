@@ -1,8 +1,52 @@
-use std::path::Path;
+use std::{fs, path::Path};
 
-use pacquet_config::{Config, TrustPolicy};
+use pacquet_config::{Config, Host, TrustPolicy};
+use pacquet_reporter::SilentReporter;
 
-use super::resolve_pnpm_version;
+use super::{resolve_pnpm_version, run_update_config_hooks};
+
+#[tokio::test]
+async fn update_config_null_clears_virtual_store_dir() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "virtualStoreDir: pinned-virtual\n")
+        .expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.virtualStoreDir = null; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
+        .await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.virtual_store_dir, root.path().join("node_modules/.pnpm"));
+    assert!(!config.explicit_settings.contains_key("virtualStoreDir"));
+}
+
+#[tokio::test]
+async fn update_config_null_clears_global_virtual_store_dir() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        "enableGlobalVirtualStore: true\nvirtualStoreDir: pinned-virtual\nglobalVirtualStoreDir: pinned-global\n",
+    )
+    .expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.globalVirtualStoreDir = null; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
+        .await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.global_virtual_store_dir, root.path().join("pinned-virtual"));
+    assert!(!config.explicit_settings.contains_key("globalVirtualStoreDir"));
+}
 
 /// `Accept` header the resolver sends for full metadata
 /// (`ACCEPT_FULL_DOC`); only the full packument carries the per-version

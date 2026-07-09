@@ -452,16 +452,26 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     let changed_store_dir = delta.get("storeDir").and_then(Value::as_str).map(str::to_owned);
     let changed_virtual_store_dir = delta.get("virtualStoreDir").cloned();
     let changed_global_virtual_store_dir = delta.get("globalVirtualStoreDir").cloned();
+    let virtual_store_dir_cleared = changed_virtual_store_dir.as_ref().is_some_and(Value::is_null);
     let delta_settings: WorkspaceSettings = serde_json::from_value(delta)
         .into_diagnostic()
         .wrap_err("deserialize the updateConfig hook result")?;
     delta_settings.apply_to(config, &base_dir);
+    if virtual_store_dir_cleared {
+        config.virtual_store_dir = base_dir.join("node_modules/.pnpm");
+    }
     for (key, value) in [
         ("virtualStoreDir", changed_virtual_store_dir),
         ("globalVirtualStoreDir", changed_global_virtual_store_dir),
     ] {
-        if let Some(value) = value {
-            config.explicit_settings.insert(key.to_string(), value);
+        match value {
+            Some(Value::Null) => {
+                config.explicit_settings.remove(key);
+            }
+            Some(value) => {
+                config.explicit_settings.insert(key.to_string(), value);
+            }
+            None => {}
         }
     }
     if let Some(store_dir) = changed_store_dir {
