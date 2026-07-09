@@ -16,7 +16,9 @@ use std::{
 };
 
 use pacquet_network::{ThrottledClient, nerf_dart};
-use pacquet_network_web_auth_testing::{InputResponse, SleepBehavior, ok_202, ok_token, web_auth_fake};
+use pacquet_network_web_auth_testing::{
+    InputResponse, SleepBehavior, ok_202, ok_token, web_auth_fake,
+};
 use pretty_assertions::assert_eq;
 
 use super::{LoginError, LoginOptions, login};

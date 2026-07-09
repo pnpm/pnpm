@@ -109,10 +109,8 @@ async fn execute_performs_web_login_and_returns_the_success_message() {
     let config = Config { config_dir: Some(PathBuf::from("/mock/config")), ..Default::default() };
     let args = LoginArgs { registry: Some(registry.clone()), scope: None };
 
-    let message = args
-        .execute::<FakeHost, RecordingReporter>(&config)
-        .await
-        .expect("web login succeeds");
+    let message =
+        args.execute::<FakeHost, RecordingReporter>(&config).await.expect("web login succeeds");
 
     assert_eq!(message, format!("Logged in on {registry}/"));
 }
