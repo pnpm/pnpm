@@ -1,3 +1,4 @@
+use crate::safe_join_modules_dir::InvalidDependencyAliasError;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_fs::{ForceSymlinkOutcome, force_symlink_dir};
@@ -23,6 +24,13 @@ pub enum SymlinkPackageError {
         #[error(source)]
         error: io::Error,
     },
+
+    /// A hoisted package's name is not a valid npm package name, so the
+    /// `<slot>/node_modules/<name>` target the hoist symlink would point
+    /// at could escape the slot's `node_modules`. Surfaces pnpm's
+    /// `ERR_PNPM_INVALID_DEPENDENCY_NAME`.
+    #[diagnostic(transparent)]
+    InvalidAlias(#[error(source)] InvalidDependencyAliasError),
 }
 
 /// Create a `node_modules/<name>` symlink for a direct dependency.

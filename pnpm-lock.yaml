@@ -3285,6 +3285,9 @@ importers:
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../path
+      '@pnpm/fs.symlink-dependency':
+        specifier: workspace:*
+        version: link:../../fs/symlink-dependency
       '@pnpm/hooks.types':
         specifier: workspace:*
         version: link:../../hooks/types
@@ -3316,6 +3319,9 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1
       '@pnpm/deps.graph-builder':
         specifier: workspace:*
         version: 'link:'
@@ -5986,6 +5992,9 @@ importers:
       '@pnpm/fetching.pick-fetcher':
         specifier: workspace:*
         version: link:../../fetching/pick-fetcher
+      '@pnpm/fs.symlink-dependency':
+        specifier: workspace:*
+        version: link:../../fs/symlink-dependency
       '@pnpm/hooks.types':
         specifier: workspace:*
         version: link:../../hooks/types
@@ -6294,6 +6303,9 @@ importers:
       '@pnpm/fs.read-modules-dir':
         specifier: workspace:*
         version: link:../../fs/read-modules-dir
+      '@pnpm/fs.symlink-dependency':
+        specifier: workspace:*
+        version: link:../../fs/symlink-dependency
       '@pnpm/installing.deps-resolver':
         specifier: workspace:*
         version: link:../deps-resolver
@@ -7054,6 +7066,9 @@ importers:
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../../deps/path
+      '@pnpm/fs.symlink-dependency':
+        specifier: workspace:*
+        version: link:../../fs/symlink-dependency
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../fs

@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { createPeerDepGraphHash, depPathToFilename, parseDepPath, type PeerId } from '@pnpm/deps.path'
+import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import type {
   DepPath,
   ParentPackages,
@@ -703,7 +704,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     const peerDependencies = { ...resolvedPackage.peerDependencies }
     if (!ctx.depGraph[depPath] || ctx.depGraph[depPath].depth > node.depth) {
       const modules = path.join(ctx.virtualStoreDir, depPathToFilename(depPath, ctx.virtualStoreDirMaxLength), 'node_modules')
-      const dir = path.join(modules, resolvedPackage.name)
+      const dir = safeJoinModulesDir(modules, resolvedPackage.name)
 
       const transitivePeerDependencies = new Set<string>()
       for (const unknownPeer of allResolvedPeers.keys()) {

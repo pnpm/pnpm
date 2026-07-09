@@ -1,6 +1,8 @@
 use crate::{
     ImportIndexedDirError, ImportIndexedDirOpts, SymlinkPackageError, import_indexed_dir,
-    retry_config::retry_opts_from_config, symlink_package,
+    retry_config::retry_opts_from_config,
+    safe_join_modules_dir::{InvalidDependencyAliasError, safe_join_modules_dir},
+    symlink_package,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -89,6 +91,14 @@ pub enum InstallPackageFromRegistryError {
     ImportIndexedDir(#[error(source)] ImportIndexedDirError),
     SymlinkPackage(#[error(source)] SymlinkPackageError),
 
+    /// The resolved package name is not a valid npm package name. For a
+    /// tarball, git, or file dependency the name comes from the fetched
+    /// `package.json`, so a traversal-shaped name would let the import
+    /// escape the virtual store's `node_modules`. Surfaces pnpm's
+    /// `ERR_PNPM_INVALID_DEPENDENCY_NAME`.
+    #[diagnostic(transparent)]
+    InvalidAlias(#[error(source)] InvalidDependencyAliasError),
+
     /// The resolver produced a resolution shape the npm install path
     /// can't materialize (today: anything other than a tarball
     /// resolution carrying an integrity hash). Surfaces with a
@@ -138,7 +148,11 @@ impl InstallPackageFromRegistry<'_> {
         // key (`alias`) so an npm-alias entry and its non-aliased
         // counterpart can coexist in the same parent, both pointing
         // at the same registry-named subdirectory inside `slot_dir`.
-        let save_path = slot_dir.join("node_modules").join(&real_name);
+        // `real_name` is untrusted for tarball/git/file deps (read from
+        // the fetched manifest), so the join is guarded against a
+        // traversal-shaped name escaping `node_modules`.
+        let save_path = safe_join_modules_dir(&slot_dir.join("node_modules"), &real_name)
+            .map_err(InstallPackageFromRegistryError::InvalidAlias)?;
 
         let symlink_path = node_modules_dir.join(alias);
 

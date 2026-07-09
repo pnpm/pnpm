@@ -441,6 +441,7 @@ pub fn symlink_hoisted_dependencies(
     public_hoisted_modules_dir: &std::path::Path,
     skipped: &std::collections::HashSet<PackageKey>,
 ) -> Result<(), crate::SymlinkPackageError> {
+    use crate::safe_join_modules_dir::safe_join_modules_dir;
     use rayon::prelude::*;
     use std::{
         collections::HashSet,
@@ -474,8 +475,16 @@ pub fn symlink_hoisted_dependencies(
             continue;
         }
         let Some(node) = graph.get(node_id) else { continue };
-        let dep_dir =
-            Arc::new(layout.slot_dir(node_id).join("node_modules").join(name_to_dir(&node.name)));
+        // `node.name` originates from the lockfile, so a traversal-shaped
+        // name is guarded here before it becomes the hoist symlink's
+        // `<slot>/node_modules/<name>` target.
+        let dep_dir = Arc::new(
+            safe_join_modules_dir(
+                &layout.slot_dir(node_id).join("node_modules"),
+                &node.name.to_string(),
+            )
+            .map_err(crate::SymlinkPackageError::InvalidAlias)?,
+        );
         for (alias, kind) in alias_map {
             let target_dir_root: &Path = match kind {
                 HoistKind::Public => public_hoisted_modules_dir,
@@ -546,17 +555,6 @@ pub fn symlink_hoisted_dependencies(
             }
         },
     )
-}
-
-/// Render a [`PkgName`] into its on-disk segment under `node_modules`.
-/// Scoped names land at `@scope/name`, unscoped at `name`. Mirrors the
-/// helper used by the bin linker (kept private to this module to avoid
-/// cross-crate dependency churn for one path-join helper).
-fn name_to_dir(name: &PkgName) -> std::path::PathBuf {
-    match &name.scope {
-        Some(scope) => std::path::PathBuf::from(format!("@{scope}")).join(&name.bare),
-        None => std::path::PathBuf::from(&name.bare),
-    }
 }
 
 /// Read the existing symlink at `dest` and decide whether it should

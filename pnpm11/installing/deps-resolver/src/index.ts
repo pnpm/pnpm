@@ -7,6 +7,7 @@ import {
 import { findRuntimeNodeVersion, iterateHashedGraphNodes } from '@pnpm/deps.graph-hasher'
 import { isRuntimeDepPath } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
+import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import type {
   LockfileObject,
   ProjectSnapshot,
@@ -611,7 +612,7 @@ function extendGraph (
     const node = graph[depPath]
     Object.assign(node, {
       modules,
-      dir: path.join(modules, node.name),
+      dir: safeJoinModulesDir(modules, node.name),
     })
   }
   return graph

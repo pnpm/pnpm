@@ -226,3 +226,83 @@ fn trust_lockfile_cli_flag_skips_verification() {
 
     drop((root, mock_instance));
 }
+
+/// Regression test for the crafted-lockfile path-traversal advisory
+/// (GHSA-2rx9-3g3h-c2jv). A dependency name/alias that isn't a valid npm
+/// package name — here a `../../escaped-link` snapshot key — would be
+/// joined into a filesystem path at install time and escape the project.
+/// The dependency-name check must run **even under `--trust-lockfile`**,
+/// which disables the resolution-policy verification fan-out: the two
+/// tests above prove that flag skips the *policy* gate, so this test pins
+/// the complementary contract that the *structural* name check is not
+/// skipped with it. The install must fail with
+/// `ERR_PNPM_INVALID_DEPENDENCY_NAME` before any virtual-store slot is
+/// materialized.
+#[test]
+fn trust_lockfile_still_rejects_traversal_dependency_name() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    // A legit direct dependency keeps the frozen-lockfile freshness
+    // check happy; the crafted entry is an extra `snapshots:` /
+    // `packages:` key whose name is a path traversal. The verifier
+    // walks every snapshot, so an unreferenced hostile key is still
+    // rejected.
+    let manifest_path = workspace.join("package.json");
+    let package_json = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/hello-world-js-bin": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+
+    let lockfile = "lockfileVersion: '9.0'\n\
+        importers:\n  \
+          .:\n    \
+            dependencies:\n      \
+              '@pnpm.e2e/hello-world-js-bin':\n        \
+                specifier: 1.0.0\n        \
+                version: 1.0.0\n\
+        packages:\n  \
+          '@pnpm.e2e/hello-world-js-bin@1.0.0':\n    \
+            resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==}\n  \
+          '../../escaped-link@1.0.0':\n    \
+            resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==}\n\
+        snapshots:\n  \
+          '@pnpm.e2e/hello-world-js-bin@1.0.0': {}\n  \
+          '../../escaped-link@1.0.0': {}\n";
+    fs::write(workspace.join("pnpm-lock.yaml"), lockfile).expect("write lockfile");
+
+    let output = pacquet
+        .with_args(["install", "--frozen-lockfile", "--trust-lockfile"])
+        .output()
+        .expect("spawn pacquet install");
+
+    assert!(
+        !output.status.success(),
+        "the name check must reject the install even under --trust-lockfile (stderr: {})",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(
+        stderr.contains("ERR_PNPM_INVALID_DEPENDENCY_NAME"),
+        "stderr must name the invalid-dependency-name code; got:\n{stderr}",
+    );
+    // The rejection happens before materialization, so nothing is
+    // extracted — neither the legit slot nor any escaped directory.
+    assert!(
+        !workspace.join("node_modules/.pnpm").exists(),
+        "the check must fail before any virtual-store materialization",
+    );
+    // Belt-and-suspenders: the traversal target of the crafted alias
+    // (`<workspace>/node_modules/../../escaped-link`) must not exist.
+    if let Some(parent) = workspace.parent() {
+        assert!(
+            !parent.join("escaped-link").exists(),
+            "no link may be created outside the project",
+        );
+    }
+
+    drop((root, mock_instance));
+}

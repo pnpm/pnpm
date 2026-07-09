@@ -7,6 +7,7 @@ import {
   progressLogger,
 } from '@pnpm/core-loggers'
 import * as dp from '@pnpm/deps.path'
+import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject, LockfileResolution } from '@pnpm/lockfile.fs'
 import {
@@ -230,7 +231,11 @@ async function buildGraphFromPackages (
       const depIntegrityIsUnchanged = isIntegrityEqual(pkgSnapshot.resolution, currentPackages[depPath]?.resolution)
 
       const modules = path.join(dirInVirtualStore, 'node_modules')
-      const dir = path.join(modules, pkgName)
+      // `pkgName` is reconstructed from the (attacker-controllable) lockfile
+      // depPath key via `dp.parse`, which does no validation. Contain it here so
+      // a traversal name (e.g. `../../../tmp/x`) can't make the package import
+      // escape the virtual store. Mirrors the guard on the hoisted linker.
+      const dir = safeJoinModulesDir(modules, pkgName)
       locationByDepPath[depPath] = dir
       // Track directory deps for injected workspace packages
       if (isDirectoryDep) {

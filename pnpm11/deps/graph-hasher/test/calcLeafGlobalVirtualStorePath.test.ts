@@ -6,6 +6,18 @@ describe('calcLeafGlobalVirtualStorePath', () => {
     const path = calcLeafGlobalVirtualStorePath('foo@1.0.0:sha512-abc', 'foo', '1.0.0')
     expect(path).toMatch(/^@\/foo\/1\.0\.0\/[a-f0-9]+$/)
   })
+
+  // The version segment is lockfile-controlled and inserted raw into the slot
+  // path; a `..` segment would let the slot escape the global virtual store
+  // root once joined onto `globalVirtualStoreDir`. All GVS slot builders funnel
+  // through `formatGlobalVirtualStorePath`, so the rejection happens here.
+  it.each(['../../../escape', '..', 'a/../../b', 'x/..'])(
+    'rejects a traversal version segment %p',
+    (version) => {
+      expect(() => calcLeafGlobalVirtualStorePath('foo@1.0.0:sha512-abc', 'foo', version))
+        .toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' }))
+    }
+  )
 })
 
 describe('calcGlobalVirtualStorePathWithSubdeps', () => {

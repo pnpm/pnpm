@@ -890,6 +890,19 @@ where
             Some(&allow_build_policy),
         );
 
+        // Reject a lockfile whose dependency names, aliases, or
+        // virtual-store slots would escape the project or the store once
+        // joined into a filesystem path. Runs before any materialization
+        // and before the warm-install skip filter, and unconditionally —
+        // so it is not bypassed by `trustLockfile`, which disables the
+        // resolution-verification fan-out where the offline name check
+        // would otherwise run. The slot-containment half needs the
+        // install-time `layout`, so it can't live in the verifier crate.
+        pacquet_lockfile_verification::verify_lockfile_dependency_names(lockfile)
+            .map_err(InstallFrozenLockfileError::LockfileVerification)?;
+        crate::validate_virtual_store_slot_containment(snapshots, &layout)
+            .map_err(InstallFrozenLockfileError::LockfileVerification)?;
+
         // The frozen path runs no resolve-time prefetcher, so the warm
         // batch owns package-status progress for store hits. An empty set
         // leaves every warm package reported as `found_in_store`.
