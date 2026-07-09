@@ -105,7 +105,7 @@ pub(super) async fn install_pnpm<Reporter: self::Reporter + 'static>(
 
 /// The installed wrapper's recorded version, or `None` when the install is
 /// absent or unreadable.
-fn installed_version(install_dir: &Path, package_name: &str) -> Option<String> {
+pub(super) fn installed_version(install_dir: &Path, package_name: &str) -> Option<String> {
     let pkg_json = package_dir(install_dir, package_name).join("package.json");
     let text = fs::read_to_string(pkg_json).ok()?;
     let value: Value = serde_json::from_str(&text).ok()?;

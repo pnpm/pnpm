@@ -7,7 +7,6 @@ import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, parsePackageManager, shouldPersistLockfile, types as allTypes } from '@pnpm/config.reader'
 import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
 import { PnpmError } from '@pnpm/error'
-import { findGlobalPackage } from '@pnpm/global.packages'
 import { createResolver, makeResolutionStrict } from '@pnpm/installing.client'
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
@@ -20,7 +19,7 @@ import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
 
-import { installPnpm, pnpmPackageNameToInstall } from './installPnpm.js'
+import { findGlobalPnpmInstallDir, installPnpm, pnpmPackageNameToInstall } from './installPnpm.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
@@ -225,9 +224,12 @@ export async function handler (
       return `The current project is already set to use pnpm v${resolution.manifest.version}`
     }
   }
+  // Version equality with the running binary alone must not skip the
+  // update: a removed global install can be recovered by running a local
+  // pnpm of the same version (see pnpm/pnpm#12877).
   if (
     resolution.manifest.version === packageManager.version &&
-    await isInstalledGlobally(opts.globalPkgDir, pnpmPackageNameToInstall(resolution.manifest.version), resolution.manifest.version)
+    await findGlobalPnpmInstallDir(opts.globalPkgDir, pnpmPackageNameToInstall(resolution.manifest.version), resolution.manifest.version) != null
   ) {
     return `The currently active ${packageManager.name} v${packageManager.version} is already "${bareSpecifier}" and doesn't need an update`
   }
@@ -288,17 +290,6 @@ function hasLegacyHomeDirShim (pnpmHomeDir: string): boolean {
     if (fs.existsSync(path.join(pnpmHomeDir, name))) return true
   }
   return false
-}
-
-async function isInstalledGlobally (globalPkgDir: string, pkgName: string, version: string): Promise<boolean> {
-  const existing = findGlobalPackage(globalPkgDir, pkgName)
-  if (!existing) return false
-  try {
-    const manifest = JSON.parse(await fs.promises.readFile(path.join(existing.installDir, 'node_modules', pkgName, 'package.json'), 'utf8'))
-    return manifest.version === version
-  } catch {
-    return false
-  }
 }
 
 /**
