@@ -64,6 +64,9 @@
       "path": "../../config/parse-overrides"
     },
     {
+      "path": "../../config/version-policy"
+    },
+    {
       "path": "../../core/constants"
     },
     {
