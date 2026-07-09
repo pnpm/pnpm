@@ -21,11 +21,25 @@ interface TreeNode {
 
 export async function packlist (pkgDir: string, opts?: {
   manifest?: Record<string, unknown>
+  workspaceDir?: string
 }): Promise<string[]> {
-  const pkg = opts?.manifest ?? readPackageJson(pkgDir)
-  const tree = buildRootTree(pkgDir, pkg)
-  const files = await npmPacklist(tree)
+  const resolvedPkgDir = path.resolve(pkgDir)
+  const workspaceDir = opts?.workspaceDir == null ? undefined : path.resolve(opts.workspaceDir)
+  const pkg = opts?.manifest ?? readPackageJson(resolvedPkgDir)
+  const tree = buildRootTree(resolvedPkgDir, pkg)
+  const packlistOpts = workspaceDir != null && isSubdir(workspaceDir, resolvedPkgDir)
+    ? { prefix: workspaceDir, workspaces: [resolvedPkgDir] }
+    : undefined
+  const files = await npmPacklist(tree, packlistOpts)
   return files.map((file) => file.replace(/^\.[/\\]/, ''))
+}
+
+function isSubdir (parentDir: string, childDir: string): boolean {
+  const relative = path.relative(parentDir, childDir)
+  return relative !== '' &&
+    relative !== '..' &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative)
 }
 
 function buildRootTree (pkgDir: string, pkg: Record<string, unknown>): TreeNode {

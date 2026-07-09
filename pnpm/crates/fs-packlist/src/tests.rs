@@ -1,4 +1,4 @@
-use super::packlist;
+use super::{PacklistOptions, packlist, packlist_with_options};
 use serde_json::json;
 use std::{fs, path::Path};
 use tempfile::tempdir;
@@ -430,6 +430,55 @@ fn npmignore_in_parent_dir_does_not_leak_in() {
         out.contains(&"index.js".to_string()),
         "parent-directory .gitignore must NOT leak into the packlist: {out:?}",
     );
+}
+
+#[test]
+fn workspace_root_gitignore_excludes_workspace_package_files() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join(".gitignore"), "dist/\n").unwrap();
+    let root = dir.path().join("packages").join("pkg");
+    fs::create_dir_all(&root).unwrap();
+    touch(&root, "package.json");
+    touch(&root, "dist/generated.js");
+    touch(&root, "src/index.js");
+
+    let manifest = json!({ "name": "x", "version": "0.0.0" });
+    let out = packlist_with_options(
+        &root,
+        &manifest,
+        PacklistOptions { workspace_dir: Some(dir.path()) },
+    )
+    .unwrap();
+
+    assert!(out.contains(&"src/index.js".to_string()), "{out:?}");
+    assert!(
+        !out.contains(&"dist/generated.js".to_string()),
+        "workspace-root .gitignore must exclude `dist/`; received {out:?}",
+    );
+}
+
+#[test]
+fn unrelated_workspace_dir_does_not_apply_workspace_gitignore() {
+    let workspace = tempdir().unwrap();
+    fs::write(workspace.path().join(".gitignore"), "dist/\n").unwrap();
+    let package = tempdir().unwrap();
+    touch(package.path(), "package.json");
+    touch(package.path(), "dist/generated.js");
+    touch(package.path(), "src/index.js");
+
+    let manifest = json!({ "name": "x", "version": "0.0.0" });
+    let out = packlist_with_options(
+        package.path(),
+        &manifest,
+        PacklistOptions { workspace_dir: Some(workspace.path()) },
+    )
+    .unwrap();
+
+    assert!(
+        out.contains(&"dist/generated.js".to_string()),
+        "unrelated workspace_dir must not apply workspace-root ignores: {out:?}",
+    );
+    assert!(out.contains(&"src/index.js".to_string()), "{out:?}");
 }
 
 #[test]
