@@ -47,3 +47,23 @@ for (const shell of SUPPORTED_SHELLS) {
     expect(log).toHaveBeenCalledTimes(1)
   })
 }
+
+test.each([
+  ['bash', ['complete -o default -F _pnpm_completion pnpm pn']],
+  ['fish', [
+    'complete -f -d \'pnpm\' -c pnpm -a "(_pnpm_completion)"',
+    'complete -f -d \'pnpm\' -c pn -a "(_pnpm_completion)"',
+  ]],
+  ['pwsh', ['Register-ArgumentCompleter -CommandName \'pnpm\',\'pn\' -ScriptBlock']],
+  ['zsh', [
+    '#compdef pnpm pn',
+    'compdef _pnpm_completion pnpm pn',
+  ]],
+])('pnpm completion %s registers the pn alias', async (shell, expectedSnippets) => {
+  const { log, handler } = createHandler()
+  await handler({}, [shell])
+  const output = log.mock.calls[0][0]
+  for (const snippet of expectedSnippets) {
+    expect(output).toContain(snippet)
+  }
+})
