@@ -589,6 +589,303 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
     drop(store_tmp);
 }
 
+/// A test-double custom fetcher: claims (or declines) every package and
+/// answers `fetch` with one scripted envelope, so each test below pins
+/// one branch of the delegate handling in
+/// [`super::InstallPackageBySnapshot::run`].
+struct ScriptedCustomFetcher {
+    claims: bool,
+    response: Result<serde_json::Value, pacquet_hooks::HookError>,
+}
+
+#[async_trait::async_trait]
+impl pacquet_hooks::CustomFetcher for ScriptedCustomFetcher {
+    async fn can_fetch(
+        &self,
+        _pkg_id: &str,
+        _resolution: serde_json::Value,
+    ) -> Result<bool, pacquet_hooks::HookError> {
+        Ok(self.claims)
+    }
+
+    async fn fetch(
+        &self,
+        _pkg_id: &str,
+        _resolution: serde_json::Value,
+        _opts: serde_json::Value,
+    ) -> Result<serde_json::Value, pacquet_hooks::HookError> {
+        self.response.clone()
+    }
+}
+
+fn scripted_picker(
+    claims: bool,
+    response: Result<serde_json::Value, pacquet_hooks::HookError>,
+) -> std::sync::Arc<pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker> {
+    std::sync::Arc::new(pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker::new(vec![
+        std::sync::Arc::new(ScriptedCustomFetcher { claims, response }),
+    ]))
+}
+
+/// Run one snapshot install for `foo@1.0.0` with the given custom
+/// fetcher picker. Hoisted linker + no store index keeps the run to the
+/// fetch-dispatch branch under test, mirroring the mem-cache tests
+/// above.
+async fn run_snapshot_install_with_picker(
+    config: &'static Config,
+    metadata: &pacquet_lockfile::PackageMetadata,
+    picker: &std::sync::Arc<pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker>,
+    tarball_mem_cache: Option<&std::sync::Arc<pacquet_tarball::MemCache>>,
+    workspace_root: &std::path::Path,
+) -> Result<std::collections::HashMap<String, std::path::PathBuf>, InstallPackageBySnapshotError> {
+    let package_key: PackageKey = "foo@1.0.0".parse().expect("parse key");
+    let layout = crate::VirtualStoreLayout::legacy(workspace_root.join("vstore"), 120);
+    let allow_build_policy = crate::AllowBuildPolicy::new(
+        std::collections::HashSet::default(),
+        std::collections::HashSet::default(),
+        false,
+    );
+    let skipped = crate::SkippedSnapshots::new();
+    let logged_methods = std::sync::atomic::AtomicU8::new(0);
+    let verified_files_cache = pacquet_store_dir::SharedVerifiedFilesCache::default();
+    let snapshot = pacquet_lockfile::SnapshotEntry::default();
+
+    super::InstallPackageBySnapshot {
+        http_client: &pacquet_network::ThrottledClient::default(),
+        config,
+        layout: &layout,
+        store_index: None,
+        store_index_writer: None,
+        prefetched_cas_paths: None,
+        progress_reported: None,
+        tarball_mem_cache,
+        verified_files_cache: &verified_files_cache,
+        logged_methods: &logged_methods,
+        requester: "/project",
+        package_key: &package_key,
+        metadata,
+        snapshot: &snapshot,
+        allow_build_policy: &allow_build_policy,
+        skipped: &skipped,
+        workspace_root,
+        node_linker: pacquet_config::NodeLinker::Hoisted,
+        custom_fetcher_picker: Some(picker),
+        defer_link: false,
+        link_concurrency_probe: None,
+    }
+    .run::<pacquet_reporter::SilentReporter>()
+    .await
+}
+
+/// The original resolution is a remote tarball that `offline: true`
+/// would reject; the fetcher delegates to a registry resolution whose
+/// derived URL is seeded in the mem cache. The install can only return
+/// the seeded CAS map if the delegate replaced the original resolution
+/// (the mem-cache reuse is gated on registry resolutions, and the
+/// original URL was never seeded).
+#[tokio::test]
+async fn custom_fetcher_delegate_rewrites_the_resolution() {
+    use pacquet_tarball::{CacheValue, MemCache};
+    use std::{collections::HashMap, path::PathBuf, sync::Arc};
+
+    let store_tmp = tempfile::tempdir().expect("tempdir");
+    let config = leaked_offline_config("https://registry.test", store_tmp.path());
+
+    let mut metadata = registry_metadata();
+    metadata.resolution = LockfileResolution::Tarball(pacquet_lockfile::TarballResolution {
+        tarball: "https://original.test/foo-1.0.0.tgz".to_string(),
+        integrity: Some(DUMMY_SHA512.parse().expect("parse integrity")),
+        git_hosted: None,
+        path: None,
+    });
+
+    let seeded: HashMap<String, PathBuf> =
+        HashMap::from([("package.json".to_string(), store_tmp.path().join("blob"))]);
+    let mem_cache = Arc::new(MemCache::default());
+    mem_cache.insert(
+        "https://registry.test/foo/-/foo-1.0.0.tgz".to_string(),
+        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded.clone())))),
+    );
+
+    let picker =
+        scripted_picker(true, Ok(serde_json::json!({ "delegate": { "integrity": DUMMY_SHA512 } })));
+
+    let cas_paths = run_snapshot_install_with_picker(
+        config,
+        &metadata,
+        &picker,
+        Some(&mem_cache),
+        store_tmp.path(),
+    )
+    .await
+    .expect("the delegated registry resolution must drive the fetch");
+
+    assert_eq!(cas_paths, seeded);
+
+    drop(store_tmp);
+}
+
+/// A fetcher whose `canFetch` declines must leave the original
+/// resolution in force: the install returns the CAS map seeded under
+/// the *original* registry URL. The scripted response would error if
+/// `fetch` ran (`can_fetch = false` must short-circuit it).
+#[tokio::test]
+async fn custom_fetcher_declining_falls_through_to_the_original_resolution() {
+    use pacquet_tarball::{CacheValue, MemCache};
+    use std::{collections::HashMap, path::PathBuf, sync::Arc};
+
+    let store_tmp = tempfile::tempdir().expect("tempdir");
+    let config = leaked_offline_config("https://registry.test", store_tmp.path());
+    let metadata = registry_metadata();
+
+    let seeded: HashMap<String, PathBuf> =
+        HashMap::from([("package.json".to_string(), store_tmp.path().join("blob"))]);
+    let mem_cache = Arc::new(MemCache::default());
+    mem_cache.insert(
+        "https://registry.test/foo/-/foo-1.0.0.tgz".to_string(),
+        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded.clone())))),
+    );
+
+    let picker = scripted_picker(
+        false,
+        Err(pacquet_hooks::HookError::Execution {
+            pnpmfile: ".pnpmfile.cjs".to_string(),
+            message: "fetch must not run for a declined package".to_string(),
+        }),
+    );
+
+    let cas_paths = run_snapshot_install_with_picker(
+        config,
+        &metadata,
+        &picker,
+        Some(&mem_cache),
+        store_tmp.path(),
+    )
+    .await
+    .expect("a declined package must take the built-in path unchanged");
+
+    assert_eq!(cas_paths, seeded);
+
+    drop(store_tmp);
+}
+
+/// A claiming fetcher that answers with anything other than
+/// `{ "delegate": ... }` fails the install — direct content fetch is
+/// not supported yet, so silently ignoring the response would make the
+/// fetcher a no-op.
+#[tokio::test]
+async fn custom_fetcher_unhandled_response_fails_the_install() {
+    let store_tmp = tempfile::tempdir().expect("tempdir");
+    let config = leaked_offline_config("https://registry.test", store_tmp.path());
+    let metadata = registry_metadata();
+
+    let picker = scripted_picker(true, Ok(serde_json::json!({ "filesIndex": {} })));
+
+    let err = run_snapshot_install_with_picker(config, &metadata, &picker, None, store_tmp.path())
+        .await
+        .expect_err("a non-delegate response must fail the install");
+
+    assert!(
+        matches!(
+            &err,
+            InstallPackageBySnapshotError::CustomFetcher(message)
+                if message.contains("unhandled response"),
+        ),
+        "expected the unhandled-response error, got {err:?}",
+    );
+
+    drop(store_tmp);
+}
+
+/// A delegate payload that doesn't parse as a lockfile resolution is a
+/// custom-fetcher error, not a silent fall-through to the original
+/// resolution.
+#[tokio::test]
+async fn custom_fetcher_invalid_delegate_fails_the_install() {
+    let store_tmp = tempfile::tempdir().expect("tempdir");
+    let config = leaked_offline_config("https://registry.test", store_tmp.path());
+    let metadata = registry_metadata();
+
+    let picker = scripted_picker(true, Ok(serde_json::json!({ "delegate": { "garbage": true } })));
+
+    let err = run_snapshot_install_with_picker(config, &metadata, &picker, None, store_tmp.path())
+        .await
+        .expect_err("a malformed delegate must fail the install");
+
+    assert!(
+        matches!(
+            &err,
+            InstallPackageBySnapshotError::CustomFetcher(message)
+                if message.contains("invalid delegate resolution"),
+        ),
+        "expected the invalid-delegate error, got {err:?}",
+    );
+
+    drop(store_tmp);
+}
+
+/// A delegate that is itself custom-typed is rejected — delegation is
+/// single-step, mirroring the TypeScript `pickFetcher`, which throws
+/// `ERR_PNPM_UNSUPPORTED_RESOLUTION_TYPE` for a custom-typed delegate.
+#[tokio::test]
+async fn custom_fetcher_custom_typed_delegate_is_rejected() {
+    let store_tmp = tempfile::tempdir().expect("tempdir");
+    let config = leaked_offline_config("https://registry.test", store_tmp.path());
+    let metadata = registry_metadata();
+
+    let picker =
+        scripted_picker(true, Ok(serde_json::json!({ "delegate": { "type": "custom:other" } })));
+
+    let err = run_snapshot_install_with_picker(config, &metadata, &picker, None, store_tmp.path())
+        .await
+        .expect_err("a custom-typed delegate must fail the install");
+
+    assert!(
+        matches!(
+            &err,
+            InstallPackageBySnapshotError::UnsupportedResolutionType { resolution_type }
+                if resolution_type == "custom:other",
+        ),
+        "expected the unsupported-resolution-type error, got {err:?}",
+    );
+
+    drop(store_tmp);
+}
+
+/// A throwing fetcher hook surfaces as
+/// [`InstallPackageBySnapshotError::CustomFetcher`] with the hook's
+/// message, so an optional snapshot can swallow it via
+/// `is_fetch_side_failure` and a required one aborts with context.
+#[tokio::test]
+async fn custom_fetcher_hook_error_propagates() {
+    let store_tmp = tempfile::tempdir().expect("tempdir");
+    let config = leaked_offline_config("https://registry.test", store_tmp.path());
+    let metadata = registry_metadata();
+
+    let picker = scripted_picker(
+        true,
+        Err(pacquet_hooks::HookError::Execution {
+            pnpmfile: ".pnpmfile.cjs".to_string(),
+            message: "fetch crashed".to_string(),
+        }),
+    );
+
+    let err = run_snapshot_install_with_picker(config, &metadata, &picker, None, store_tmp.path())
+        .await
+        .expect_err("a throwing fetcher must fail the install");
+
+    assert!(
+        matches!(
+            &err,
+            InstallPackageBySnapshotError::CustomFetcher(message)
+                if message.contains("fetch crashed"),
+        ),
+        "expected the hook error to propagate, got {err:?}",
+    );
+
+    drop(store_tmp);
+}
+
 /// A minimal runtime archive: one executable at `<top>/bin/node` and no
 /// `package.json`. Real Node.js / Bun / Deno archives likewise ship no
 /// manifest of their own; the synthesized `bin` comes from the
@@ -771,4 +1068,91 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
     );
 
     drop((store_tmp, archive_tmp));
+}
+
+fn custom_resolution_metadata(resolution_type: &str) -> pacquet_lockfile::PackageMetadata {
+    let mut extra = serde_json::Map::new();
+    extra.insert(
+        "url".to_string(),
+        serde_json::Value::String("https://example.test/foo-1.0.0.tgz".to_string()),
+    );
+    let mut metadata = registry_metadata();
+    metadata.resolution = LockfileResolution::Custom(pacquet_lockfile::CustomResolution {
+        resolution_type: resolution_type.to_string().try_into().expect("custom type tag"),
+        extra,
+    });
+    metadata
+}
+
+/// The headline custom-fetcher scenario: a lockfile entry with a
+/// custom resolution type is claimed by the pnpmfile fetcher, which
+/// delegates to a registry resolution the built-in path can fetch
+/// (seeded in the mem cache here). The fetcher's `canFetch` must see
+/// the custom `type` tag exactly as the lockfile spells it.
+#[tokio::test]
+async fn custom_typed_resolution_installs_via_delegating_fetcher() {
+    use pacquet_tarball::{CacheValue, MemCache};
+    use std::{collections::HashMap, path::PathBuf, sync::Arc};
+
+    let store_tmp = tempfile::tempdir().expect("tempdir");
+    let config = leaked_offline_config("https://registry.test", store_tmp.path());
+    let metadata = custom_resolution_metadata("@my-org/custom");
+
+    let seeded: HashMap<String, PathBuf> =
+        HashMap::from([("package.json".to_string(), store_tmp.path().join("blob"))]);
+    let mem_cache = Arc::new(MemCache::default());
+    mem_cache.insert(
+        "https://registry.test/foo/-/foo-1.0.0.tgz".to_string(),
+        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded.clone())))),
+    );
+
+    let picker =
+        scripted_picker(true, Ok(serde_json::json!({ "delegate": { "integrity": DUMMY_SHA512 } })));
+
+    let cas_paths = run_snapshot_install_with_picker(
+        config,
+        &metadata,
+        &picker,
+        Some(&mem_cache),
+        store_tmp.path(),
+    )
+    .await
+    .expect("a delegating fetcher must install a custom-typed resolution");
+
+    assert_eq!(cas_paths, seeded);
+
+    drop(store_tmp);
+}
+
+/// A custom-typed resolution that no fetcher claims cannot be
+/// materialized: the built-in dispatch rejects it with the same
+/// message and code as the TypeScript `pickFetcher`
+/// (`ERR_PNPM_UNSUPPORTED_RESOLUTION_TYPE`).
+#[tokio::test]
+async fn custom_typed_resolution_without_a_claiming_fetcher_fails() {
+    let store_tmp = tempfile::tempdir().expect("tempdir");
+    let config = leaked_offline_config("https://registry.test", store_tmp.path());
+    let metadata = custom_resolution_metadata("custom:cdn");
+
+    let picker = scripted_picker(false, Ok(serde_json::Value::Null));
+
+    let err = run_snapshot_install_with_picker(config, &metadata, &picker, None, store_tmp.path())
+        .await
+        .expect_err("an unclaimed custom resolution must fail the install");
+
+    assert!(
+        matches!(
+            &err,
+            InstallPackageBySnapshotError::UnsupportedResolutionType { resolution_type }
+                if resolution_type == "custom:cdn",
+        ),
+        "expected the unsupported-resolution-type error, got {err:?}",
+    );
+    assert_eq!(
+        err.to_string(),
+        "Cannot fetch dependency with custom resolution type \"custom:cdn\". \
+         Custom resolutions must be handled by custom fetchers.",
+    );
+
+    drop(store_tmp);
 }

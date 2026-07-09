@@ -380,6 +380,13 @@ pub enum InstallWithFreshLockfileError {
     #[diagnostic(code(PNPMFILE_FAIL))]
     CustomResolverHook(#[error(not(source))] pacquet_hooks::HookError),
 
+    /// The pnpmfile threw while loading its custom `fetchers` export.
+    /// Same fatality rule as [`Self::CustomResolverHook`] and the
+    /// frozen-lockfile path's custom-fetcher load.
+    #[display("{_0}")]
+    #[diagnostic(code(PNPMFILE_FAIL))]
+    CustomFetcherHook(#[error(not(source))] pacquet_hooks::HookError),
+
     /// A custom resolver's `shouldRefreshResolution` hook threw while
     /// checking whether to force re-resolution. A throwing hook aborts
     /// the install.
@@ -742,6 +749,26 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             } else {
                 vec![]
             };
+        // Loaded alongside the custom resolvers (same worker, same
+        // fatality rule) and consumed by `CreateVirtualStore` below —
+        // a custom resolver typically writes the custom-typed
+        // resolutions its sibling fetcher materializes.
+        let custom_fetcher_picker: Option<
+            Arc<pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker>,
+        > = if let Some(ref hook) = pnpmfile_hook {
+            let fetchers = hook.get_custom_fetchers().await.map_err(|err| {
+                tracing::error!(
+                    target: "pacquet::install",
+                    "Failed to get custom fetchers from pnpmfile: {err}",
+                );
+                InstallWithFreshLockfileError::CustomFetcherHook(err)
+            })?;
+            (!fetchers.is_empty()).then(|| {
+                Arc::new(pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker::new(fetchers))
+            })
+        } else {
+            None
+        };
 
         // Chain order:
         // custom resolvers → npm → jsr (folded into npm) → git →
@@ -1590,7 +1617,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             // routing the cold batch through the mem cache fixes by
             // reusing the in-flight download instead.
             tarball_mem_cache: Some(&tarball_mem_cache),
-            custom_fetcher_picker: None,
+            custom_fetcher_picker: custom_fetcher_picker.as_ref(),
             #[cfg(test)]
             link_concurrency_probe: None,
         }

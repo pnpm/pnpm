@@ -449,15 +449,20 @@ impl crate::CustomFetcher for NodeJsCustomFetcher {
 
     async fn fetch(
         &self,
-        pkg_id: &str,
+        _pkg_id: &str,
         resolution: Value,
         opts: Value,
     ) -> Result<Value, HookError> {
+        // Positional parity with the TypeScript hook signature
+        // `fetch(cafs, resolution, opts, fetchers)`: `cafs` and
+        // `fetchers` cannot cross the IPC boundary, so they are `null`
+        // placeholders — a portable pnpmfile fetcher detects their
+        // absence and answers with `{ delegate: <resolution> }`.
         self.worker
             .call_fetcher(
                 self.index,
                 "fetch",
-                serde_json::json!([pkg_id, resolution, opts]),
+                serde_json::json!([Value::Null, resolution, opts, Value::Null]),
                 Arc::new(|_| {}),
             )
             .await

@@ -176,6 +176,16 @@ pub enum InstallPackageBySnapshotError {
     #[diagnostic(code(pacquet_package_manager::custom_fetcher_failed))]
     CustomFetcher(#[error(not(source))] String),
 
+    /// A custom-typed resolution reached the built-in dispatch — no
+    /// pnpmfile custom fetcher claimed it. Message and code mirror the
+    /// TypeScript `pickFetcher` in
+    /// `pnpm11/fetching/pick-fetcher/src/index.ts`.
+    #[display(
+        "Cannot fetch dependency with custom resolution type \"{resolution_type}\". Custom resolutions must be handled by custom fetchers."
+    )]
+    #[diagnostic(code(UNSUPPORTED_RESOLUTION_TYPE))]
+    UnsupportedResolutionType { resolution_type: String },
+
     /// No variant in a [`LockfileResolution::Variations`] matches the
     /// host triple `(os, cpu, libc?)`. Surfaces with the host triple
     /// plus the list of advertised target triples so the user can see
@@ -304,9 +314,18 @@ impl InstallPackageBySnapshot<'_> {
                     "failed to serialize resolution for {package_id}: {err}",
                 ))
             })?;
+            // Shaped like the TypeScript `FetchOptions` subset a
+            // delegating fetcher can use (`pkg`, `lockfileDir`), so one
+            // pnpmfile works on both stacks.
             let opts_value = serde_json::json!({
-                "packageKey": package_key.to_string(),
-                "version": metadata.version,
+                "pkg": {
+                    "name": package_key.name.to_string(),
+                    "version": metadata
+                        .version
+                        .clone()
+                        .unwrap_or_else(|| package_key.suffix.version().to_string()),
+                },
+                "lockfileDir": workspace_root,
             });
             match picker.try_fetch(&package_id, &resolution_value, &opts_value).await {
                 Ok(Some(result)) => {
@@ -518,6 +537,7 @@ impl InstallPackageBySnapshot<'_> {
                             LockfileResolution::Directory(_) => "directory",
                             LockfileResolution::Git(_) => "git",
                             LockfileResolution::Variations(_) => "variations",
+                            LockfileResolution::Custom(_) => "custom",
                             // Already matched above; reach is unreachable.
                             LockfileResolution::Binary(_) => "binary",
                         },
@@ -567,6 +587,14 @@ impl InstallPackageBySnapshot<'_> {
                 .await
                 .map_err(InstallPackageBySnapshotError::GitFetch)?;
                 cas_paths
+            }
+            // A custom fetcher had its chance above (`try_fetch`) and
+            // either declined or wasn't loaded; without one there is
+            // no way to materialize a custom-typed resolution.
+            LockfileResolution::Custom(custom) => {
+                return Err(InstallPackageBySnapshotError::UnsupportedResolutionType {
+                    resolution_type: custom.resolution_type.to_string(),
+                });
             }
         };
 
@@ -670,14 +698,15 @@ pub fn tarball_url_and_integrity<'a>(
             Ok((Cow::Owned(tarball_url), &registry_resolution.integrity))
         }
         // Caller (`run`) only invokes this helper for the tarball /
-        // registry arms; git, directory, binary, and variations
-        // resolutions never reach here. Return an unreachable-style
-        // error so a future caller that forgets to gate gets a
-        // clear panic in debug.
+        // registry arms; git, directory, binary, variations, and
+        // custom resolutions never reach here. Return an
+        // unreachable-style error so a future caller that forgets to
+        // gate gets a clear panic in debug.
         LockfileResolution::Directory(_)
         | LockfileResolution::Git(_)
         | LockfileResolution::Binary(_)
-        | LockfileResolution::Variations(_) => {
+        | LockfileResolution::Variations(_)
+        | LockfileResolution::Custom(_) => {
             unreachable!("tarball_url_and_integrity called with non-tarball resolution");
         }
     }

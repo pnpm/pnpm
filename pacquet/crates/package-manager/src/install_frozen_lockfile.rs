@@ -195,6 +195,13 @@ pub enum InstallFrozenLockfileError {
     #[diagnostic(transparent)]
     CreateVirtualStore(#[error(source)] CreateVirtualStoreError),
 
+    /// The pnpmfile threw while loading its custom `fetchers` export.
+    /// A throwing pnpmfile aborts the install, matching the
+    /// custom-resolver load on the fresh-lockfile path.
+    #[display("{_0}")]
+    #[diagnostic(code(PNPMFILE_FAIL))]
+    CustomFetcherHook(#[error(not(source))] pacquet_hooks::HookError),
+
     #[diagnostic(transparent)]
     SymlinkDirectDependencies(#[error(source)] SymlinkDirectDependenciesError),
 
@@ -934,7 +941,7 @@ where
             .await
             .map_err(InstallFrozenLockfileError::LockfileVerification)
         };
-        let custom_fetcher_picker = load_custom_fetcher_picker(workspace_root).await;
+        let custom_fetcher_picker = load_custom_fetcher_picker(workspace_root).await?;
         let create_virtual_store_fut = async {
             CreateVirtualStore {
                 http_client,
@@ -1804,23 +1811,30 @@ pub(crate) fn find_own_runtime_node_major(snapshot: &SnapshotEntry) -> Option<u3
 }
 
 /// Load custom fetchers from the pnpmfile at `lockfile_dir`, if any.
-/// Returns `None` when no pnpmfile exists or exports no fetchers, so
-/// the install path can skip the IPC overhead entirely.
+/// Returns `Ok(None)` when no pnpmfile exists or it exports no
+/// fetchers, so the install path can skip the IPC overhead entirely.
+/// A pnpmfile that fails to load or evaluate aborts the install, like
+/// the custom-resolver load on the fresh-lockfile path.
 async fn load_custom_fetcher_picker(
     lockfile_dir: &Path,
-) -> Option<Arc<pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker>> {
-    let hook = pacquet_hooks::finder::load_pnpmfile(lockfile_dir)?;
-    let fetchers = match hook.get_custom_fetchers().await {
-        Ok(f) => f,
-        Err(err) => {
-            tracing::warn!(%err, "failed to load custom fetchers from pnpmfile");
-            return None;
-        }
+) -> Result<
+    Option<Arc<pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker>>,
+    InstallFrozenLockfileError,
+> {
+    let Some(hook) = pacquet_hooks::finder::load_pnpmfile(lockfile_dir) else {
+        return Ok(None);
     };
+    let fetchers = hook.get_custom_fetchers().await.map_err(|err| {
+        tracing::error!(
+            target: "pacquet::install",
+            "Failed to get custom fetchers from pnpmfile: {err}",
+        );
+        InstallFrozenLockfileError::CustomFetcherHook(err)
+    })?;
     if fetchers.is_empty() {
-        return None;
+        return Ok(None);
     }
-    Some(Arc::new(pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker::new(fetchers)))
+    Ok(Some(Arc::new(pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker::new(fetchers))))
 }
 
 #[cfg(test)]

@@ -686,7 +686,7 @@ module.exports = {
       canFetch (pkgId, resolution) {
         return resolution.type === '@custom/local';
       },
-      fetch (pkgId, resolution, opts) {
+      fetch (cafs, resolution, opts, fetchers) {
         return {
           filesIndex: {
             'package.json': {
@@ -698,8 +698,10 @@ module.exports = {
               mode: 420,
             },
           },
-          receivedPkgId: pkgId,
+          receivedNullCafs: cafs === null,
+          receivedNullFetchers: fetchers === null,
           receivedUrl: resolution.url,
+          receivedOpts: opts,
         };
       },
     },
@@ -758,11 +760,15 @@ async fn custom_fetcher_round_trips_can_fetch_and_fetch() {
             .expect("canFetch"),
     );
 
-    let opts = serde_json::json!({ "manifest": { "name": "foo" } });
-    let result = fetchers[0].fetch("foo@1.0.0", resolution, opts).await.expect("fetch");
+    let opts = serde_json::json!({ "pkg": { "name": "foo", "version": "1.0.0" } });
+    let result = fetchers[0].fetch("foo@1.0.0", resolution, opts.clone()).await.expect("fetch");
     assert_eq!(result["filesIndex"]["package.json"]["integrity"], "sha512-abc123");
-    assert_eq!(result["receivedPkgId"], "foo@1.0.0");
+    // TS-parity positions: `cafs` / `fetchers` are null placeholders
+    // over IPC, `resolution` and `opts` arrive in the TS slots.
+    assert_eq!(result["receivedNullCafs"], true);
+    assert_eq!(result["receivedNullFetchers"], true);
     assert_eq!(result["receivedUrl"], "https://example.com/pkg");
+    assert_eq!(result["receivedOpts"], opts);
 }
 
 #[tokio::test]
@@ -807,7 +813,7 @@ export const fetchers = [{
   canFetch (pkgId, resolution) {
     return resolution.type === '@custom/esm';
   },
-  fetch (pkgId, resolution) {
+  fetch (cafs, resolution) {
     return { filesIndex: { 'main.js': { integrity: 'sha512-esm' } } };
   },
 }];
@@ -836,10 +842,9 @@ module.exports = {
     canFetch (pkgId, resolution) {
       return resolution.type === '@custom/proxy';
     },
-    fetch (pkgId, resolution, opts) {
+    fetch (cafs, resolution, opts, fetchers) {
       return {
         delegate: {
-          type: "tarball",
           tarball: resolution.proxyUrl,
           integrity: "sha512-delegated",
         },

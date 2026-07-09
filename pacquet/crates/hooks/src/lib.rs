@@ -133,6 +133,12 @@ pub trait PnpmfileHooks: Send + Sync {
 /// returns `true`, `fetch` is called. Currently only delegation is supported:
 /// the fetcher returns `{ "delegate": <LockfileResolution> }` to rewrite the
 /// resolution and fall through to the built-in fetch path.
+///
+/// The pnpmfile hook is invoked with the same positional arguments as the
+/// TypeScript CLI's `CustomFetcher.fetch(cafs, resolution, opts, fetchers)`
+/// (`pnpm11/hooks/types/src/index.ts`); `cafs` and `fetchers` are `null`
+/// placeholders because they cannot cross the worker IPC boundary, which is
+/// how a portable fetcher knows to delegate instead of fetching directly.
 #[async_trait]
 pub trait CustomFetcher: Send + Sync {
     fn has_can_fetch(&self) -> bool {
@@ -151,8 +157,12 @@ pub trait CustomFetcher: Send + Sync {
     ///
     /// - `{ "delegate": <resolution> }` — rewrites the lockfile resolution and
     ///   falls through to the built-in fetch path for the rewritten value.
-    /// - Any other shape (or `None` from the picker) — the built-in fetch path
-    ///   runs with the original resolution unchanged.
+    /// - Any other shape fails the install (`custom_fetcher_failed`): a fetcher
+    ///   that claims a package via [`CustomFetcher::can_fetch`] must delegate,
+    ///   because direct content fetch isn't supported yet.
+    ///
+    /// The built-in fetch path runs with the original resolution unchanged
+    /// only when no fetcher claims the package.
     async fn fetch(&self, pkg_id: &str, resolution: Value, opts: Value)
     -> Result<Value, HookError>;
 }

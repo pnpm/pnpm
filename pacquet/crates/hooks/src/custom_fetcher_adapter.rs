@@ -9,8 +9,8 @@ use crate::{CustomFetcher, HookError};
 /// one that claims the package via `can_fetch`.
 ///
 /// This mirrors the TypeScript `pickFetcher` logic in
-/// `fetching/pick-fetcher/lib/index.js`, where custom fetchers are tried
-/// before built-in fetchers.
+/// `pnpm11/fetching/pick-fetcher/src/index.ts`, where custom fetchers are
+/// tried before built-in fetchers.
 pub struct CustomFetcherPicker {
     fetchers: Vec<Arc<dyn CustomFetcher>>,
 }

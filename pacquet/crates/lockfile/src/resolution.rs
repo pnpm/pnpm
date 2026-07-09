@@ -1,4 +1,4 @@
-use derive_more::{From, TryInto};
+use derive_more::{Display, From, TryInto};
 use pipe_trait::Pipe;
 use serde::{Deserialize, Serialize};
 use ssri::Integrity;
@@ -162,6 +162,60 @@ pub struct VariationsResolution {
     pub variants: Vec<PlatformAssetResolution>,
 }
 
+/// The `type` tag of a [`CustomResolution`]. Any tag other than the
+/// built-in kinds (`directory`, `git`, `binary`, `variations`) is
+/// custom — matching `classifyResolution` in
+/// `pnpm11/resolving/resolver-base/src/index.ts`, which routes every
+/// unrecognized `type` to the custom fetch path. Rejecting the built-in
+/// tags here keeps a malformed built-in resolution (e.g. a `git` entry
+/// missing `commit`) a hard parse error instead of silently
+/// reclassifying it as custom.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Display)]
+#[serde(try_from = "String", into = "String")]
+pub struct CustomResolutionType(String);
+
+impl CustomResolutionType {
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl TryFrom<String> for CustomResolutionType {
+    type Error = String;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        match value.as_str() {
+            "directory" | "git" | "binary" | "variations" => {
+                Err(format!("`{value}` is a built-in resolution type, not a custom one"))
+            }
+            _ => Ok(Self(value)),
+        }
+    }
+}
+
+impl From<CustomResolutionType> for String {
+    fn from(value: CustomResolutionType) -> Self {
+        value.0
+    }
+}
+
+/// A resolution whose `type` is not one of the built-in kinds —
+/// produced by a custom resolver from a pnpmfile and fetchable only by
+/// a custom fetcher. The object is preserved verbatim (key order
+/// included, via `serde_json`'s `preserve_order`) so the pnpmfile's
+/// fetcher sees exactly what its resolver wrote to the lockfile.
+///
+/// Mirrors the TypeScript `CustomResolution` in
+/// `pnpm11/resolving/resolver-base/src/index.ts`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CustomResolution {
+    #[serde(rename = "type")]
+    pub resolution_type: CustomResolutionType,
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, serde_json::Value>,
+}
+
 /// Host triple used to pick a variant out of a [`VariationsResolution`].
 ///
 /// `libc`'s tri-state encodes the `string | null | undefined` shape:
@@ -232,6 +286,7 @@ pub enum LockfileResolution {
     Git(GitResolution),
     Binary(BinaryResolution),
     Variations(VariationsResolution),
+    Custom(CustomResolution),
 }
 
 impl LockfileResolution {
@@ -245,10 +300,13 @@ impl LockfileResolution {
             // Directory / Git resolutions have no integrity.
             // Variations is a meta-shape — the integrity lives on the
             // picked variant's inner resolution, so callers must
-            // resolve through `pick_variant` first.
+            // resolve through `pick_variant` first. Custom resolutions
+            // are opaque — whatever integrity scheme they carry belongs
+            // to the custom fetcher, not the built-in verification.
             LockfileResolution::Directory(_)
             | LockfileResolution::Git(_)
-            | LockfileResolution::Variations(_) => None,
+            | LockfileResolution::Variations(_)
+            | LockfileResolution::Custom(_) => None,
         }
     }
 
@@ -394,12 +452,19 @@ enum TaggedResolution {
 }
 
 /// Intermediate helper type for serde.
+///
+/// `Custom` must stay the last untagged variant: it accepts any object
+/// with a non-built-in `type` tag, so every built-in shape has to get
+/// its chance to match (or to *fail loudly* — [`CustomResolutionType`]
+/// rejects built-in tags, keeping a malformed built-in resolution a
+/// parse error rather than a silent reclassification) first.
 #[derive(Serialize, Deserialize, From, TryInto)]
 #[serde(untagged)]
 enum ResolutionSerde {
     Tarball(TarballResolution),
     Registry(RegistryResolution),
     Tagged(TaggedResolution),
+    Custom(CustomResolution),
 }
 
 impl From<ResolutionSerde> for LockfileResolution {
@@ -419,6 +484,7 @@ impl From<ResolutionSerde> for LockfileResolution {
             ResolutionSerde::Tagged(TaggedResolution::Git(resolution)) => resolution.into(),
             ResolutionSerde::Tagged(TaggedResolution::Binary(resolution)) => resolution.into(),
             ResolutionSerde::Tagged(TaggedResolution::Variations(resolution)) => resolution.into(),
+            ResolutionSerde::Custom(resolution) => resolution.into(),
         }
     }
 }
@@ -523,6 +589,7 @@ impl From<LockfileResolution> for ResolutionSerde {
             LockfileResolution::Variations(resolution) => {
                 resolution.pipe(TaggedResolution::from).into()
             }
+            LockfileResolution::Custom(resolution) => resolution.into(),
         }
     }
 }

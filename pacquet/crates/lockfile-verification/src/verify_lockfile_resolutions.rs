@@ -298,9 +298,13 @@ fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> bool {
             .variants
             .iter()
             .all(|variant| is_registry_shaped_resolution(&variant.resolution)),
+        // Custom resolutions are opaque to the npm verifier — they are
+        // fetched by a pnpmfile custom fetcher, never bound to the
+        // registry's `dist.tarball`.
         LockfileResolution::Directory(_)
         | LockfileResolution::Git(_)
-        | LockfileResolution::Binary(_) => false,
+        | LockfileResolution::Binary(_)
+        | LockfileResolution::Custom(_) => false,
     }
 }
 

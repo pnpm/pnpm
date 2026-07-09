@@ -1184,10 +1184,13 @@ fn is_osv_checkable_resolution(resolution: &LockfileResolution) -> bool {
         LockfileResolution::Tarball(tarball) => {
             is_http_tarball_url(&tarball.tarball) && !is_git_hosted_tarball_url(&tarball.tarball)
         }
+        // Custom resolutions are not registry artifacts, so OSV has
+        // no `name@version` advisory coordinates for them.
         LockfileResolution::Directory(_)
         | LockfileResolution::Git(_)
         | LockfileResolution::Binary(_)
-        | LockfileResolution::Variations(_) => false,
+        | LockfileResolution::Variations(_)
+        | LockfileResolution::Custom(_) => false,
     }
 }
 

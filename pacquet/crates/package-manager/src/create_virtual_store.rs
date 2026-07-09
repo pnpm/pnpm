@@ -1223,6 +1223,11 @@ fn snapshot_cache_key(
                 _ => Ok(None),
             }
         }
+        // Custom resolutions have no built-in warm-cache key — the
+        // cold path consults the pnpmfile custom fetchers, and the
+        // delegated resolution (unknowable here) determines the row
+        // that gets written.
+        LockfileResolution::Custom(_) => Ok(None),
     }
 }
 
