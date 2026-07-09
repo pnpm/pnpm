@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import url from 'node:url'
+import { createGzip } from 'node:zlib'
 
 import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
@@ -9,6 +10,7 @@ import { preparePackages } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectManifest } from '@pnpm/types'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
+import tar from 'tar-stream'
 import { writeYamlFile } from 'write-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
@@ -45,6 +47,21 @@ function readPackageJson (manifestDir: string): unknown {
   const manifestPath = path.resolve(manifestDir, 'package.json')
   const manifestText = fs.readFileSync(manifestPath, 'utf-8')
   return JSON.parse(manifestText)
+}
+
+async function writePackageTarball (tarballPath: string, manifest: ProjectManifest): Promise<void> {
+  const pack = tar.pack()
+  pack.entry({ name: 'package/package.json' }, JSON.stringify(manifest, undefined, 2))
+  pack.entry({ name: 'package/index.js' }, '')
+
+  const tarball = fs.createWriteStream(tarballPath)
+  pack.pipe(createGzip()).pipe(tarball)
+  pack.finalize()
+
+  return new Promise((resolve, reject) => {
+    tarball.on('close', resolve)
+    tarball.on('error', reject)
+  })
 }
 
 test('deploy with a shared lockfile after full install', async () => {
@@ -272,8 +289,6 @@ test('deploy with a shared lockfile after full install', async () => {
 })
 
 test('deploy with a shared lockfile reuses local tarball package name from the warm store (#12792)', async () => {
-  const tarballPath = path.resolve('vendor/tar-pkg-1.0.0.tgz')
-
   preparePackages([{
     location: '.',
     package: {
@@ -285,8 +300,12 @@ test('deploy with a shared lockfile reuses local tarball package name from the w
       },
     },
   }])
+  const tarballPath = path.resolve('vendor/tar-pkg-1.0.0.tgz')
   fs.mkdirSync('vendor')
-  f.copy('tar-pkg-1.0.0.tgz', tarballPath)
+  await writePackageTarball(tarballPath, {
+    name: 'tar-pkg',
+    version: '1.0.0',
+  })
 
   const {
     allProjects,
