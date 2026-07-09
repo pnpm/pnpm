@@ -168,6 +168,43 @@ impl std::fmt::Debug for ResolveDependencyTreeOptions {
 /// single `Arc::clone` reaches every recursive call.
 pub type ManifestHook = Arc<dyn Fn(Arc<Value>) -> Arc<Value> + Send + Sync>;
 
+/// One skipped-optional-dependency notification from the tree walker:
+/// an optional dependency failed to resolve and the walker dropped the
+/// edge instead of failing the install. Mirrors the package payload of
+/// the `pnpm:skipped-optional-dependency` (`reason=resolution_failure`)
+/// debug log so the install layer can forward it to the reporter wire.
+#[derive(Debug, Clone)]
+pub struct SkippedOptionalDependency {
+    /// Rendering of the resolution error that caused the skip.
+    pub details: String,
+    /// The edge's install alias, when it carries one.
+    pub name: Option<String>,
+    /// The wanted specifier, present only when [`Self::name`] is.
+    pub version: Option<String>,
+    /// The wanted specifier.
+    pub bare_specifier: String,
+    /// The resolved packages between the importer and the failing
+    /// edge, importer first. Empty for a direct optional dependency —
+    /// the default reporter renders only those.
+    pub parents: Vec<SkippedOptionalDependencyParent>,
+    /// The project directory the failing edge was resolved for.
+    pub prefix: String,
+}
+
+/// One ancestor on a [`SkippedOptionalDependency::parents`] chain.
+#[derive(Debug, Clone)]
+pub struct SkippedOptionalDependencyParent {
+    /// The ancestor's `pkgIdWithPatchHash`.
+    pub id: String,
+    pub name: String,
+    pub version: String,
+}
+
+/// Sink for [`SkippedOptionalDependency`] notifications, pre-bound to
+/// the install's reporter so the resolver stays reporter-agnostic. See
+/// [`crate::WorkspaceResolveOptions::skipped_optional_log`].
+pub type SkippedOptionalLogFn = Arc<dyn Fn(SkippedOptionalDependency) + Send + Sync>;
+
 /// Error envelope returned by the tree walker.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum ResolveDependencyTreeError {
@@ -175,6 +212,18 @@ pub enum ResolveDependencyTreeError {
     /// The inner error is the boxed type the resolver returned.
     #[display("Failed to resolve dependency: {_0}")]
     Resolve(#[error(not(source))] String),
+
+    /// An optional dependency failed to resolve while the wanted
+    /// lockfile still holds a package entry satisfying the wanted
+    /// range. Rethrown loudly instead of skipped, because skipping
+    /// would erase the locked entries and make the lockfile differ
+    /// depending on which machine ran the install
+    /// (<https://github.com/pnpm/pnpm/issues/12853>).
+    #[display("{_0}")]
+    #[diagnostic(help(
+        "This optional dependency is not skipped, because the lockfile contains a resolution for it. Skipping it would remove the locked entries, making the lockfile differ depending on which machine ran the install. If the version was intentionally removed from the registry, update the dependent package or remove the entries from the lockfile."
+    ))]
+    LockedOptionalResolutionFailure(#[error(not(source))] Box<ResolveDependencyTreeError>),
 
     /// No resolver in the chain claimed the spec, raised with the
     /// `SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` code.
@@ -550,6 +599,10 @@ pub struct WorkspaceTreeCtx {
     /// pnpmfile path. `None` leaves hook logging a no-op. See
     /// [`WorkspaceTreeCtx::with_read_package_log`].
     read_package_log: Option<pacquet_hooks::LogFn>,
+    /// Sink for skipped-optional-dependency notifications. `None`
+    /// keeps the skip behavior but drops the notification. See
+    /// [`SkippedOptionalLogFn`].
+    skipped_optional_log: Option<SkippedOptionalLogFn>,
     /// The install's `autoInstallPeers` setting. When `true`,
     /// [`fn@resolve_node`] drops a resolved package's `dependencies`
     /// entries that are shadowed by its own `peerDependencies`, so the
@@ -624,6 +677,7 @@ impl Default for WorkspaceTreeCtx {
             subtree_reusable: Mutex::new(HashMap::new()),
             pnpmfile_hook: None,
             read_package_log: None,
+            skipped_optional_log: None,
             auto_install_peers: false,
             registries: HashMap::new(),
             first_importer_by_pkg: Mutex::new(HashMap::new()),
@@ -753,6 +807,17 @@ impl WorkspaceTreeCtx {
     #[must_use]
     pub fn with_read_package_log(mut self, read_package_log: Option<pacquet_hooks::LogFn>) -> Self {
         self.read_package_log = read_package_log;
+        self
+    }
+
+    /// Attach the sink skipped-optional-dependency notifications are
+    /// forwarded to. See [`SkippedOptionalLogFn`].
+    #[must_use]
+    pub fn with_skipped_optional_log(
+        mut self,
+        skipped_optional_log: Option<SkippedOptionalLogFn>,
+    ) -> Self {
+        self.skipped_optional_log = skipped_optional_log;
         self
     }
 
@@ -1354,8 +1419,46 @@ where
         overlay_versions.clone(),
     );
     let result =
-        resolve_wanted_cached(ctx, resolver, &wanted, opts, pick_overlay.as_ref(), cache_key)
-            .await?;
+        match resolve_wanted_cached(ctx, resolver, &wanted, opts, pick_overlay.as_ref(), cache_key)
+            .await
+        {
+            Ok(result) => result,
+            // A resolution failure on an optional edge drops the edge
+            // instead of failing the install — unless the wanted lockfile
+            // already holds a satisfying entry, where the silent skip would
+            // erase the locked entries (see
+            // `wanted_lockfile_contains_satisfying_entry`). Hook errors
+            // keep aborting even for optional edges.
+            Err(
+                err @ (ResolveDependencyTreeError::Resolve(_)
+                | ResolveDependencyTreeError::SpecNotSupported { .. }),
+            ) if wanted.optional.unwrap_or(false) => {
+                if wanted_lockfile_contains_satisfying_entry(
+                    ctx.workspace.wanted_lockfile.as_deref(),
+                    &wanted,
+                ) {
+                    return Err(ResolveDependencyTreeError::LockedOptionalResolutionFailure(
+                        Box::new(err),
+                    ));
+                }
+                if let Some(log) = ctx.workspace.skipped_optional_log.as_ref() {
+                    log(SkippedOptionalDependency {
+                        details: err.to_string(),
+                        name: wanted.alias.clone(),
+                        version: wanted
+                            .alias
+                            .is_some()
+                            .then(|| wanted.bare_specifier.clone())
+                            .flatten(),
+                        bare_specifier: wanted.bare_specifier.clone().unwrap_or_default(),
+                        parents: pkgs_info_from_ids(ctx, ancestor_ids),
+                        prefix: opts.project_dir.display().to_string(),
+                    });
+                }
+                return Ok(NodeSeed::Done(None));
+            }
+            Err(err) => return Err(err),
+        };
 
     if let Some(violation) = result.policy_violation.clone() {
         lock_recoverable(&ctx.workspace.policy_violations).push(violation);
@@ -2106,6 +2209,91 @@ fn update_excludes(scope: &UpdateReuseScope, name: &str) -> bool {
         // same here for completeness.
         UpdateReuseScope::None => true,
         UpdateReuseScope::Except(names) => names.contains(name),
+    }
+}
+
+/// Whether the wanted lockfile already holds a package entry that
+/// satisfies the wanted dependency. An optional dependency that fails
+/// to resolve is normally skipped, but when a locked resolution exists
+/// the failure is environmental (e.g. a registry mirror that hasn't
+/// synced the release yet) rather than a genuinely uninstallable
+/// package. Silently skipping in that case would erase the locked
+/// entries, making the lockfile differ across machines from identical
+/// inputs and leaving frozen installs on other hosts with nothing to
+/// link (<https://github.com/pnpm/pnpm/issues/12853>).
+///
+/// Only plain semver specifiers are checked; exotic specifiers (git,
+/// catalogs, tags, URLs) keep the skip-on-failure behavior.
+///
+/// The check is deliberately by package name and range rather than by
+/// the current edge's locked snapshot ref: a satisfying entry locked
+/// via any edge means the registry served this package in-range
+/// before, so failing loudly instead of skipping is the right outcome
+/// even when the failing edge itself was never locked. This matches
+/// the TypeScript resolver's `wantedLockfileContainsSatisfyingEntry`.
+fn wanted_lockfile_contains_satisfying_entry(
+    lockfile: Option<&pacquet_lockfile::Lockfile>,
+    wanted: &WantedDependency,
+) -> bool {
+    let Some(packages) = lockfile.and_then(|lockfile| lockfile.packages.as_ref()) else {
+        return false;
+    };
+    let Some(alias) = wanted.alias.as_deref().filter(|alias| !alias.is_empty()) else {
+        return false;
+    };
+    let (pkg_name, range) =
+        unwrap_package_name(alias, wanted.bare_specifier.as_deref().unwrap_or_default());
+    let Ok(range) = range.parse::<node_semver::Range>() else {
+        return false;
+    };
+    let Ok(pkg_name) = PkgName::parse(pkg_name) else {
+        return false;
+    };
+    packages.keys().any(|key| {
+        key.name == pkg_name
+            && key.suffix.version_semver().is_some_and(|version| range.satisfies(version))
+    })
+}
+
+/// Map an ancestor-id chain to the `parents` payload of a
+/// skipped-optional-dependency notification, resolving each
+/// `pkgIdWithPatchHash` through the shared packages map (the
+/// counterpart of pnpm's `getPkgsInfoFromIds`).
+fn pkgs_info_from_ids(
+    ctx: &TreeCtx,
+    ancestor_ids: &[String],
+) -> Vec<SkippedOptionalDependencyParent> {
+    let packages = lock_recoverable(&ctx.workspace.packages);
+    ancestor_ids
+        .iter()
+        .map(|id| {
+            let name_ver = packages.get(id).and_then(|pkg| pkg.result.name_ver.as_ref());
+            SkippedOptionalDependencyParent {
+                id: id.clone(),
+                name: name_ver.map(|name_ver| name_ver.name.to_string()).unwrap_or_default(),
+                version: name_ver.map(|name_ver| name_ver.suffix.to_string()).unwrap_or_default(),
+            }
+        })
+        .collect()
+}
+
+/// Normalize an `npm:` alias specifier into the real package name and
+/// the wanted range (`("is-positive", "^1.0.0")` for the edge
+/// `my-alias@npm:is-positive@^1.0.0`; the range is `"*"` for the
+/// spec-less `npm:is-positive` form). A specifier without the `npm:`
+/// prefix is returned as-is: the alias is the real package name.
+///
+/// Mirrors the TypeScript resolver's `unwrapPackageName`; unlike
+/// [`fn@real_package_name_of`] it also yields the range and does not
+/// special-case the `npm:<range>` form, so the locked-entry check
+/// matches its TypeScript counterpart byte for byte.
+fn unwrap_package_name<'a>(alias: &'a str, bare_specifier: &'a str) -> (&'a str, &'a str) {
+    let Some(rest) = bare_specifier.strip_prefix("npm:") else {
+        return (alias, bare_specifier);
+    };
+    match rest.rfind('@') {
+        None | Some(0) => (rest, "*"),
+        Some(index) => (&rest[..index], &rest[index + 1..]),
     }
 }
 

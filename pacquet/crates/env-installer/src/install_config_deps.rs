@@ -319,6 +319,7 @@ fn is_compatible<Reporter: self::Reporter>(
                     name: subdep.name.clone(),
                     version: subdep.version.clone(),
                 },
+                parents: None,
                 prefix: opts.root_dir.to_string_lossy().into_owned(),
                 reason: match error.skip_reason() {
                     pacquet_package_is_installable::SkipReason::UnsupportedEngine => {
