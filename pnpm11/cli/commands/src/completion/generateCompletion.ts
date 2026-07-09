@@ -1,4 +1,4 @@
-import { getCompletionScript, SUPPORTED_SHELLS } from '@pnpm/tabtab'
+import { getCompletionScript, SUPPORTED_SHELLS, type SupportedShell } from '@pnpm/tabtab'
 import { renderHelp } from 'render-help'
 
 import { getShellFromParams } from './getShell.js'
@@ -28,7 +28,7 @@ export type CompletionGenerator = (_opts: unknown, params: string[]) => Promise<
 const PNPM_COMMAND = 'pnpm'
 const PNPM_SHORT_ALIAS = 'pn'
 
-function registerShortAlias (output: string, shell: string): string {
+function registerShortAlias (output: string, shell: SupportedShell): string {
   switch (shell) {
     case 'bash':
       return output.replace(
@@ -52,8 +52,6 @@ function registerShortAlias (output: string, shell: string): string {
           `compdef _${PNPM_COMMAND}_completion ${PNPM_COMMAND}`,
           `compdef _${PNPM_COMMAND}_completion ${PNPM_COMMAND} ${PNPM_SHORT_ALIAS}`
         )
-    default:
-      return output
   }
 }
 
