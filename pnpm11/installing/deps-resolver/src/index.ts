@@ -77,6 +77,7 @@ interface ProjectToLink {
   binsDir: string
   declaredDirectDependencies: Set<string>
   directNodeIdsByAlias: Map<string, NodeId>
+  hoistedPeerProviderNodeIds: Set<NodeId>
   explicitlyRequestedDirectDependencies: Set<string>
   id: ProjectId
   linkedDependencies: LinkedDependency[]
@@ -254,6 +255,7 @@ export async function resolveDependencies (
         ...project.wantedDependencies.flatMap(({ alias, isNew }) => isNew && alias != null ? [alias] : []),
       ]),
       directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
+      hoistedPeerProviderNodeIds: resolvedImporter.hoistedPeerProviderNodeIds,
       explicitlyRequestedDirectDependencies: new Set(
         project.wantedDependencies.flatMap(({ alias, bareSpecifier, isNew, prevSpecifier, updateSpec }) =>
           alias != null && (isNew === true || updateSpec === true || (prevSpecifier != null && bareSpecifier !== prevSpecifier))

@@ -1,4 +1,7 @@
-use super::{NodeRecord, ResolvePeersOptions, Walker, resolve_peers, satisfies_with_prereleases};
+use super::{
+    ImporterPeerInput, NodeRecord, ResolvePeersOptions, Walker, resolve_peers,
+    resolve_peers_workspace, satisfies_with_prereleases,
+};
 use crate::{
     dependencies_graph::{DependenciesGraph, PeerDependencyIssues},
     node_id::NodeId,
@@ -1201,6 +1204,201 @@ fn shared_package_optional_transitive_peer_resolves_deterministically() {
             Some(expected) => assert_eq!(&keys, expected, "graph keys must not vary across runs"),
         }
     }
+}
+
+/// A hoisted peer provider whose tree position was never visited (nothing in
+/// the walk enumerates its node) must still be resolved by the root-context
+/// fallback so consumers that bound it get a depPath.
+#[test]
+fn pruned_hoisted_provider_falls_back_to_root_resolution() {
+    let prov = NodeId::leaf("prov@1.0.0");
+    let consumer = NodeId::next();
+
+    let mut tree = ResolvedTree {
+        direct: vec![
+            DirectDep {
+                alias: "consumer".to_string(),
+                node_id: consumer.clone(),
+                id: "consumer@1.0.0".to_string(),
+            },
+            DirectDep {
+                alias: "prov".to_string(),
+                node_id: prov.clone(),
+                id: "prov@1.0.0".to_string(),
+            },
+        ],
+        packages: HashMap::from([
+            ("prov@1.0.0".to_string(), package("prov", "1.0.0", &[], true)),
+            ("consumer@1.0.0".to_string(), package("consumer", "1.0.0", &[("prov", "*")], false)),
+        ]),
+        dependencies_tree: HashMap::from([
+            (prov.clone(), tree_node("prov@1.0.0", BTreeMap::new(), 1)),
+            (consumer, tree_node("consumer@1.0.0", BTreeMap::new(), 0)),
+        ]),
+        all_peer_dep_names: HashSet::from(["prov".to_string()]),
+        policy_violations: Vec::new(),
+        applied_patches: HashSet::new(),
+        children_by_id: HashMap::new(),
+    };
+
+    let result = resolve_peers(
+        &mut tree,
+        ResolvePeersOptions {
+            hoisted_peer_provider_node_ids: HashSet::from([prov]),
+            ..ResolvePeersOptions::default()
+        },
+    );
+
+    assert_eq!(
+        result.direct_dependencies_by_alias.get("prov"),
+        Some(&DepPath::from("prov@1.0.0")),
+        "the pruned provider must get a depPath from the fallback",
+    );
+    assert!(
+        result.graph.contains_key(&DepPath::from("consumer@1.0.0(prov@1.0.0)")),
+        "the consumer must bind the fallback-resolved provider: {:#?}",
+        result.graph.keys().collect::<Vec<_>>(),
+    );
+}
+
+/// Same as [`pruned_hoisted_provider_falls_back_to_root_resolution`] but
+/// through the multi-importer entry point.
+#[test]
+fn pruned_hoisted_provider_falls_back_in_workspace_pass() {
+    let prov = NodeId::leaf("prov@1.0.0");
+    let consumer = NodeId::next();
+
+    let importer = ImporterPeerInput {
+        id: ".".to_string(),
+        direct: vec![
+            DirectDep {
+                alias: "consumer".to_string(),
+                node_id: consumer.clone(),
+                id: "consumer@1.0.0".to_string(),
+            },
+            DirectDep {
+                alias: "prov".to_string(),
+                node_id: prov.clone(),
+                id: "prov@1.0.0".to_string(),
+            },
+        ],
+        root_dir: std::path::PathBuf::from("/repo"),
+        modules_dir: None,
+    };
+    let mut tree = ResolvedTree {
+        direct: Vec::new(),
+        packages: HashMap::from([
+            ("prov@1.0.0".to_string(), package("prov", "1.0.0", &[], true)),
+            ("consumer@1.0.0".to_string(), package("consumer", "1.0.0", &[("prov", "*")], false)),
+        ]),
+        dependencies_tree: HashMap::from([
+            (prov.clone(), tree_node("prov@1.0.0", BTreeMap::new(), 1)),
+            (consumer, tree_node("consumer@1.0.0", BTreeMap::new(), 0)),
+        ]),
+        all_peer_dep_names: HashSet::from(["prov".to_string()]),
+        policy_violations: Vec::new(),
+        applied_patches: HashSet::new(),
+        children_by_id: HashMap::new(),
+    };
+
+    let result = resolve_peers_workspace(
+        &mut tree,
+        &[importer],
+        std::path::Path::new("/repo"),
+        false,
+        false,
+        false,
+        ResolvePeersOptions {
+            hoisted_peer_provider_node_ids: HashSet::from([prov]),
+            ..ResolvePeersOptions::default()
+        },
+    );
+
+    assert_eq!(
+        result.direct_dependencies_by_importer.get(".").and_then(|deps| deps.get("prov")),
+        Some(&DepPath::from("prov@1.0.0")),
+        "the pruned provider must get a depPath from the fallback",
+    );
+    assert!(
+        result.graph.contains_key(&DepPath::from("consumer@1.0.0(prov@1.0.0)")),
+        "the consumer must bind the fallback-resolved provider: {:#?}",
+        result.graph.keys().collect::<Vec<_>>(),
+    );
+}
+
+/// Mirror of the TS test "pruned hoisted peer providers that peer-depend on
+/// each other are resolved together" (`deps-resolver/test/resolvePeers.ts`):
+/// two pruned providers form a peer cycle, so each one's suffix depends on
+/// the other's. Both must come out of the fallback with the cycle collapsed
+/// to `name@version`, matching the in-place cycle handling.
+#[test]
+fn pruned_hoisted_providers_with_mutual_peers_resolve() {
+    let lib_a = NodeId::leaf("lib-a@1.0.0");
+    let lib_b = NodeId::leaf("lib-b@1.0.0");
+    let consumer = NodeId::next();
+
+    let mut tree = ResolvedTree {
+        direct: vec![
+            DirectDep {
+                alias: "consumer".to_string(),
+                node_id: consumer.clone(),
+                id: "consumer@1.0.0".to_string(),
+            },
+            DirectDep {
+                alias: "lib-a".to_string(),
+                node_id: lib_a.clone(),
+                id: "lib-a@1.0.0".to_string(),
+            },
+            DirectDep {
+                alias: "lib-b".to_string(),
+                node_id: lib_b.clone(),
+                id: "lib-b@1.0.0".to_string(),
+            },
+        ],
+        packages: HashMap::from([
+            ("lib-a@1.0.0".to_string(), package("lib-a", "1.0.0", &[("lib-b", "^1.0.0")], true)),
+            ("lib-b@1.0.0".to_string(), package("lib-b", "1.0.0", &[("lib-a", "^1.0.0")], true)),
+            (
+                "consumer@1.0.0".to_string(),
+                package("consumer", "1.0.0", &[("lib-a", "^1.0.0"), ("lib-b", "^1.0.0")], false),
+            ),
+        ]),
+        dependencies_tree: HashMap::from([
+            (lib_a.clone(), tree_node("lib-a@1.0.0", BTreeMap::new(), 1)),
+            (lib_b.clone(), tree_node("lib-b@1.0.0", BTreeMap::new(), 1)),
+            (consumer, tree_node("consumer@1.0.0", BTreeMap::new(), 0)),
+        ]),
+        all_peer_dep_names: HashSet::from(["lib-a".to_string(), "lib-b".to_string()]),
+        policy_violations: Vec::new(),
+        applied_patches: HashSet::new(),
+        children_by_id: HashMap::new(),
+    };
+
+    let result = resolve_peers(
+        &mut tree,
+        ResolvePeersOptions {
+            hoisted_peer_provider_node_ids: HashSet::from([lib_a, lib_b]),
+            ..ResolvePeersOptions::default()
+        },
+    );
+
+    assert_eq!(
+        result.direct_dependencies_by_alias.get("lib-a"),
+        Some(&DepPath::from("lib-a@1.0.0(lib-b@1.0.0)")),
+        "graph keys: {:#?}",
+        result.graph.keys().collect::<Vec<_>>(),
+    );
+    assert_eq!(
+        result.direct_dependencies_by_alias.get("lib-b"),
+        Some(&DepPath::from("lib-b@1.0.0(lib-a@1.0.0)")),
+        "graph keys: {:#?}",
+        result.graph.keys().collect::<Vec<_>>(),
+    );
+    assert!(
+        result.graph.contains_key(&DepPath::from("consumer@1.0.0(lib-a@1.0.0)(lib-b@1.0.0)")),
+        "the consumer must bind both fallback-resolved providers: {:#?}",
+        result.graph.keys().collect::<Vec<_>>(),
+    );
 }
 
 fn tree_node(pkg_id: &str, children: BTreeMap<String, NodeId>, depth: i32) -> DependenciesTreeNode {

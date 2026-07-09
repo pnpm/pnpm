@@ -281,6 +281,13 @@ export interface PkgAddress extends PkgAddressOrLinkBase {
   saveCatalogName?: string
   lockedPeerContext?: LockedPeerContext
   previousDepPath?: DepPath
+  /**
+   * A peer dependency provider attached to the root importer so that other
+   * subtrees can reuse it. Its `nodeId` keeps pointing at the provider's
+   * original position inside the dependency tree, so the node must be
+   * peer-resolved there — not in the root context.
+   */
+  hoistedPeerProvider?: boolean
 }
 
 export type PkgAddressOrLink = PkgAddress | LinkedDependency
@@ -431,7 +438,10 @@ export async function resolveRootDependencies (
           // even those peers should be hoisted that are not autoinstalled
           for (const [resolvedPeerName, resolvedPeerAddress] of Object.entries(importerResolutionResult.resolvedPeers ?? {})) {
             if (!parentPkgAliases[resolvedPeerName]) {
-              importerResolutionResult.pkgAddresses.push(resolvedPeerAddress)
+              importerResolutionResult.pkgAddresses.push({
+                ...resolvedPeerAddress,
+                hoistedPeerProvider: true,
+              })
             }
           }
         }

@@ -137,6 +137,19 @@ pub struct ResolvePeersOptions {
     /// per-importer snapshots shared across every hoist-loop
     /// iteration.
     pub hoist_missing_scope: Option<std::sync::Arc<HoistMissingScope>>,
+
+    /// `NodeIds` of the peer providers the auto-install-peers loop
+    /// attached to importers' direct dependencies for reuse by other
+    /// subtrees. Each such node keeps its original position inside
+    /// the dependency tree, so the walk resolves its peers there;
+    /// walking it a second time as a root child would bind its peers
+    /// against the importer's own dependencies instead of the
+    /// providers next to it in the tree, and the root-context result
+    /// would overwrite the in-place one in `node_dep_paths`. The walk
+    /// therefore skips these direct entries unless the tree position
+    /// was pruned (an ancestor hit the peers cache) and nothing else
+    /// resolved them.
+    pub hoisted_peer_provider_node_ids: std::collections::HashSet<NodeId>,
 }
 
 /// See [`ResolvePeersOptions::hoist_missing_scope`].
@@ -184,6 +197,7 @@ impl Default for ResolvePeersOptions {
             lockfile_dir: None,
             modules_dir: None,
             hoist_missing_scope: None,
+            hoisted_peer_provider_node_ids: std::collections::HashSet::new(),
         }
     }
 }
@@ -331,12 +345,35 @@ pub fn resolve_peers_workspace(
         let parent_node_ids: Vec<NodeId> = Vec::new();
         let parent_pkg_ids_chain: Vec<String> = Vec::new();
         let importer_parent_dep_paths = walker.parent_dep_paths_from_refs(&importer_parents);
-        for dep in &importer.direct {
+        let (own_direct, provider_direct): (Vec<&DirectDep>, Vec<&DirectDep>) = importer
+            .direct
+            .iter()
+            .partition(|dep| !walker.opts.hoisted_peer_provider_node_ids.contains(&dep.node_id));
+        for dep in &own_direct {
             walker
                 .parent_pkgs_of_node
                 .insert(dep.node_id.clone(), importer_parent_dep_paths.clone());
         }
-        for dep in &importer.direct {
+        for dep in &own_direct {
+            walker.resolve_node(
+                dep.node_id.clone(),
+                &importer_parents,
+                &parent_chain_names,
+                &parent_node_ids,
+                &parent_pkg_ids_chain,
+            );
+        }
+        // See ResolvePeersOptions::hoisted_peer_provider_node_ids — a
+        // provider is normally resolved at its tree position during the
+        // walk above; only one whose position was pruned still needs the
+        // root-context fallback.
+        for dep in &provider_direct {
+            if walker.node_dep_paths.contains_key(&dep.node_id) {
+                continue;
+            }
+            walker
+                .parent_pkgs_of_node
+                .insert(dep.node_id.clone(), importer_parent_dep_paths.clone());
             walker.resolve_node(
                 dep.node_id.clone(),
                 &importer_parents,
@@ -605,10 +642,33 @@ impl Walker<'_> {
         // `self.tree.direct`.
         let direct: Vec<DirectDep> = self.tree.direct.clone();
         let importer_parent_dep_paths = self.parent_dep_paths_from_refs(&importer_parents);
-        for dep in &direct {
+        let (own_direct, provider_direct): (Vec<&DirectDep>, Vec<&DirectDep>) = direct
+            .iter()
+            .partition(|dep| !self.opts.hoisted_peer_provider_node_ids.contains(&dep.node_id));
+        for dep in &own_direct {
             self.parent_pkgs_of_node.insert(dep.node_id.clone(), importer_parent_dep_paths.clone());
         }
-        for dep in &direct {
+        for dep in &own_direct {
+            let output = self.resolve_node(
+                dep.node_id.clone(),
+                &importer_parents,
+                &parent_chain_names,
+                &parent_node_ids,
+                &parent_pkg_ids_chain,
+            );
+            for (peer_alias, peer_node_id) in output.auto_install_resolved_peers {
+                self.resolved_peer_providers_by_alias.insert(peer_alias, peer_node_id);
+            }
+        }
+        // See ResolvePeersOptions::hoisted_peer_provider_node_ids — a
+        // provider is normally resolved at its tree position during the
+        // walk above; only one whose position was pruned still needs the
+        // root-context fallback.
+        for dep in &provider_direct {
+            if self.node_dep_paths.contains_key(&dep.node_id) {
+                continue;
+            }
+            self.parent_pkgs_of_node.insert(dep.node_id.clone(), importer_parent_dep_paths.clone());
             let output = self.resolve_node(
                 dep.node_id.clone(),
                 &importer_parents,

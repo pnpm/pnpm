@@ -253,12 +253,15 @@ where
         }
     }
     let mut per_importer_inputs: Vec<ImporterPeerInput> = Vec::with_capacity(importers.len());
+    let mut hoisted_peer_provider_node_ids = std::collections::HashSet::new();
     for ((importer, state), (project_dir, modules_dir)) in
         importers.iter().zip(states).zip(input_dirs)
     {
+        let (direct, importer_provider_node_ids) = state.into_direct();
+        hoisted_peer_provider_node_ids.extend(importer_provider_node_ids);
         per_importer_inputs.push(ImporterPeerInput {
             id: importer.id.clone(),
-            direct: state.into_direct(),
+            direct,
             root_dir: project_dir,
             modules_dir,
         });
@@ -284,6 +287,7 @@ where
         // importer's walk.
         modules_dir: None,
         hoist_missing_scope: None,
+        hoisted_peer_provider_node_ids,
     };
     let peers = resolve_peers_workspace(
         &mut merged_tree,
