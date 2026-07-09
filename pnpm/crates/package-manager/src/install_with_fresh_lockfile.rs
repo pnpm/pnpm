@@ -1145,7 +1145,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let full_resolution = lockfile_reuse_seed.is_none()
             || matches!(
                 update_reuse_scope,
-                pacquet_resolving_deps_resolver::UpdateReuseScope::None
+                pacquet_resolving_deps_resolver::UpdateReuseScope::None,
             );
 
         let workspace_opts = pacquet_resolving_deps_resolver::WorkspaceResolveOptions {

@@ -128,7 +128,7 @@ fn stale_convergence_override_warning(
     StaleConvergenceOverride { name, current_value, best }: &StaleConvergenceOverride,
 ) -> String {
     format!(
-        "The convergence override \"{name}@\": \"{current_value}\" is stale: every declared range of {name} also admits {best}. Change the override's value to {best} in pnpm-workspace.yaml, or remove the override and run \"pnpm dedupe\"."
+        r#"The convergence override "{name}@": "{current_value}" is stale: every declared range of {name} also admits {best}. Change the override's value to {best} in pnpm-workspace.yaml, or remove the override and run "pnpm dedupe"."#,
     )
 }
 

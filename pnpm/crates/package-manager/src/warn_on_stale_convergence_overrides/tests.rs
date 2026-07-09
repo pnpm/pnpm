@@ -105,6 +105,6 @@ fn warning_message_matches_the_shared_wording() {
     eprintln!("MESSAGE:\n{message}\n");
     assert_eq!(
         message,
-        "The convergence override \"form-data@\": \"4.0.6\" is stale: every declared range of form-data also admits 4.0.9. Change the override's value to 4.0.9 in pnpm-workspace.yaml, or remove the override and run \"pnpm dedupe\".",
+        r#"The convergence override "form-data@": "4.0.6" is stale: every declared range of form-data also admits 4.0.9. Change the override's value to 4.0.9 in pnpm-workspace.yaml, or remove the override and run "pnpm dedupe"."#,
     );
 }
