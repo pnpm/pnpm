@@ -312,6 +312,8 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
         CliCommand::Whoami => dispatch_query::whoami(ctx),
         CliCommand::DistTag(args) => dispatch_query::dist_tag(ctx, args),
         CliCommand::Team(args) => dispatch_query::team(ctx, args),
+        CliCommand::Deprecate(args) => dispatch_query::deprecate(ctx, args),
+        CliCommand::Undeprecate(args) => dispatch_query::undeprecate(ctx, args),
         CliCommand::Ping(args) => dispatch_query::ping(ctx, args),
         CliCommand::Search(args) => dispatch_query::search(ctx, args),
         CliCommand::Rebuild(args) => dispatch_install::rebuild(ctx, args),

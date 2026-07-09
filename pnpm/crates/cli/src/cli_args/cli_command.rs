@@ -14,6 +14,7 @@ use super::{
     create::CreateArgs,
     dedupe::DedupeArgs,
     deploy::DeployArgs,
+    deprecate::DeprecateArgs,
     dist_tag::DistTagArgs,
     dlx::DlxArgs,
     docs::DocsArgs,
@@ -57,6 +58,7 @@ use super::{
     stop::StopArgs,
     store::StoreCommand,
     team::TeamArgs,
+    undeprecate::UndeprecateArgs,
     unlink::UnlinkArgs,
     update::UpdateArgs,
     version::VersionArgs,
@@ -314,6 +316,10 @@ pub enum CliCommand {
     Sbom(SbomArgs),
     /// Displays your pnpm username.
     Whoami,
+    /// Deprecates a version of a package in the registry.
+    Deprecate(DeprecateArgs),
+    /// Removes deprecation from a version of a package in the registry. Only works on already deprecated versions.
+    Undeprecate(UndeprecateArgs),
     /// Manage a package's distribution tags.
     #[clap(name = "dist-tag", visible_alias = "dist-tags")]
     DistTag(DistTagArgs),
