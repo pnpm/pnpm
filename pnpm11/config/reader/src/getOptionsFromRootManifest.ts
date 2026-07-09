@@ -35,7 +35,7 @@ interface ReplaceEnvInSettingsOptions {
   expandRequestDestinationEnv: boolean
 }
 
-const REQUEST_DESTINATION_SCALAR_KEYS = new Set(['pnprServer', 'registry'])
+const REQUEST_DESTINATION_SCALAR_KEYS = new Set(['pnprServer', 'registry', 'httpProxy', 'httpsProxy', 'noProxy'])
 
 export function getOptionsFromPnpmSettings (
   manifestDir: string | undefined,
