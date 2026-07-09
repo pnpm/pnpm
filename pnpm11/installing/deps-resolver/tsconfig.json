@@ -46,6 +46,9 @@
       "path": "../../fetching/pick-fetcher"
     },
     {
+      "path": "../../fs/symlink-dependency"
+    },
+    {
       "path": "../../hooks/types"
     },
     {
