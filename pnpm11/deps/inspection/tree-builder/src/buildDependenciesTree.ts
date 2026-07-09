@@ -16,6 +16,7 @@ import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { StoreIndex } from '@pnpm/store.index'
 import { DEPENDENCIES_FIELDS, type DependenciesField, type Finder, type Registries } from '@pnpm/types'
 import normalizePath from 'normalize-path'
+import pLimit from 'p-limit'
 import { pathAbsolute } from 'path-absolute'
 import { realpathMissing } from 'realpath-missing'
 import { resolveLinkTarget } from 'resolve-link-target'
@@ -24,6 +25,8 @@ import { buildDependencyGraph } from './buildDependencyGraph.js'
 import type { DependencyNode } from './DependencyNode.js'
 import { type BaseTreeOpts, getTree, type MaterializationCache } from './getTree.js'
 import type { TreeNodeId } from './TreeNodeId.js'
+
+const limitUnsavedReads = pLimit(4)
 
 export interface DependenciesTree {
   dependencies?: DependencyNode[]
@@ -207,7 +210,7 @@ async function dependenciesHierarchyForPackage (
     const savedDeps = getAllDirectDependencies(currentLockfile.importers[importerId])
     const unsavedDeps = ((await readModulesDir(modulesDir)) ?? []).filter((directDep) => !savedDeps[directDep])
     if (unsavedDeps.length > 0) await Promise.all(
-      unsavedDeps.map(async (unsavedDep) => {
+      unsavedDeps.map((unsavedDep) => limitUnsavedReads(async () => {
         let pkgPath = path.join(modulesDir, unsavedDep)
         let version!: string
         try {
@@ -229,7 +232,7 @@ async function dependenciesHierarchyForPackage (
         }
         result.unsavedDependencies = result.unsavedDependencies ?? []
         result.unsavedDependencies.push(pkg)
-      })
+      }))
     )
   }
 
