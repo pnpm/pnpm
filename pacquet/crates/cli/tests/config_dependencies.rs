@@ -175,3 +175,72 @@ fn update_config_hook_injects_catalog() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn update_config_observes_and_can_replace_the_cli_store_dir() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    _utils::enable_gvs_in_workspace_yaml(&workspace, "");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "const fs = require('fs');\nconst path = require('path');\nmodule.exports = { hooks: { updateConfig (config) {\n  fs.writeFileSync(path.join(__dirname, 'observed-store.txt'), String(config.storeDir));\n  config.storeDir = 'hook-store';\n  return config;\n} } }",
+    )
+    .expect("write .pnpmfile.cjs");
+
+    pacquet_at(&workspace).with_args(["install", "--store-dir=cli-store"]).assert().success();
+
+    let observed = fs::read_to_string(workspace.join("observed-store.txt"))
+        .expect("read store observed by updateConfig");
+    assert_eq!(observed, "cli-store");
+
+    let modules = pacquet_modules_yaml::read_modules_layout::<pacquet_modules_yaml::Host>(
+        &workspace.join("node_modules"),
+    )
+    .expect("read .modules.yaml")
+    .expect(".modules.yaml exists");
+    let hook_store =
+        dunce::canonicalize(&workspace).expect("canonicalize workspace").join("hook-store/v11");
+    assert_eq!(
+        dunce::canonicalize(&modules.store_dir).expect("canonicalize recorded store"),
+        hook_store,
+    );
+    assert_eq!(
+        dunce::canonicalize(&modules.virtual_store_dir)
+            .expect("canonicalize recorded virtual store"),
+        hook_store.join("links"),
+    );
+    assert!(hook_store.join("index.db").is_file());
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn update_config_observes_an_empty_cli_store_dir() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), serde_json::json!({}).to_string())
+        .expect("write package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "storeDir: yaml-store\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "const fs = require('fs');\nconst path = require('path');\nmodule.exports = { hooks: { updateConfig (config) {\n  fs.writeFileSync(path.join(__dirname, 'observed-store.txt'), JSON.stringify(config.storeDir));\n  return config;\n} } }",
+    )
+    .expect("write .pnpmfile.cjs");
+
+    pacquet_at(&workspace).with_args(["install", "--store-dir="]).assert().success();
+
+    assert_eq!(
+        fs::read_to_string(workspace.join("observed-store.txt"))
+            .expect("read store observed by updateConfig"),
+        r#""""#,
+    );
+
+    drop(root);
+}

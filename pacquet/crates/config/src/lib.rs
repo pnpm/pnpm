@@ -1679,6 +1679,39 @@ impl Config {
             };
     }
 
+    /// Restore the smart default store after a higher-precedence config
+    /// source explicitly clears `storeDir`.
+    pub fn reset_store_dir_to_default<Sys>(&mut self, start_dir: &Path)
+    where
+        Sys: EnvVar + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
+        self.store_dir = default_store_dir::<Sys>();
+        self.resolve_default_store_dir::<Sys>(start_dir);
+        self.explicit_settings.remove("storeDir");
+        let virtual_store_dir_explicit = self.explicit_settings.contains_key("virtualStoreDir");
+        let global_virtual_store_dir_explicit =
+            self.explicit_settings.contains_key("globalVirtualStoreDir");
+        self.apply_global_virtual_store_derivation(
+            virtual_store_dir_explicit,
+            global_virtual_store_dir_explicit,
+        );
+    }
+
+    fn resolve_default_store_dir<Sys: GetHomeDir + LinkProbe>(&mut self, start_dir: &Path) {
+        let Some(home_dir) = Sys::home_dir() else {
+            return;
+        };
+        // `store_dir.root()` includes the layout version, so its parent is
+        // the unversioned store and the next parent is pnpm's home directory.
+        // The linkability probe only cares about that directory's volume;
+        // fall back to the user's home when either parent is unavailable.
+        let store_root_versioned = self.store_dir.root().to_path_buf();
+        let store_root = store_root_versioned.parent().unwrap_or(&home_dir).to_path_buf();
+        let pnpm_home_dir = store_root.parent().unwrap_or(&home_dir).to_path_buf();
+        let resolved = store_path::resolve_store_dir::<Sys>(store_root, &pnpm_home_dir, start_dir);
+        self.store_dir = StoreDir::from(resolved);
+    }
+
     /// Return the `virtualStoreDir` value pnpm exposes externally — the
     /// path written into `.modules.yaml` and emitted in the `pnpm:context`
     /// NDJSON event.
@@ -2133,22 +2166,8 @@ impl Config {
         // Without this, typescript-eslint's case-folded path cache
         // diverges from TypeScript's case-sensitive program when the
         // workspace is case-sensitive and the home is not.
-        if !store_dir_explicit && let Some(home_dir) = Sys::home_dir() {
-            // `store_dir.root()` already carries the [`STORE_VERSION`]
-            // suffix that [`StoreDir::from`] applied, so the
-            // un-suffixed home store sits one level above. The "pnpm
-            // home dir" pnpm probes against is the parent of that
-            // un-suffixed home store (`~/Library/pnpm` for
-            // `~/Library/pnpm/store`). Fall back to the user's actual
-            // home whenever a parent is unavailable — same-volume
-            // linkability is what we're after, and the home dir is on
-            // the same volume as any of its children.
-            let store_root_versioned = self.store_dir.root().to_path_buf();
-            let store_root = store_root_versioned.parent().unwrap_or(&home_dir).to_path_buf();
-            let pnpm_home_dir = store_root.parent().unwrap_or(&home_dir).to_path_buf();
-            let resolved =
-                store_path::resolve_store_dir::<Sys>(store_root, &pnpm_home_dir, start_dir);
-            self.store_dir = StoreDir::from(resolved);
+        if !store_dir_explicit {
+            self.resolve_default_store_dir::<Sys>(start_dir);
         }
 
         // Derive `global_virtual_store_dir` last so it sees the final

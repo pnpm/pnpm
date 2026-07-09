@@ -1,10 +1,62 @@
 use crate::cli_args::CliArgs;
 use clap::CommandFactory;
-use pacquet_config::Config;
+use pacquet_config::{Config, GetHomeDir, Host};
+use pacquet_fs::lexical_normalize;
+use pacquet_store_dir::StoreDir;
 use std::{
     collections::BTreeMap,
     ffi::{OsStr, OsString},
+    path::Path,
 };
+
+pub(crate) fn apply_store_dir_override<Sys: GetHomeDir>(
+    config: &mut Config,
+    store_dir: &Path,
+    dir: &Path,
+) -> miette::Result<()> {
+    let workspace_dir = config.workspace_dir.as_deref().unwrap_or(dir).to_path_buf();
+    if store_dir.as_os_str().is_empty() {
+        config.reset_store_dir_to_default::<Host>(&workspace_dir);
+        config
+            .explicit_settings
+            .insert("storeDir".to_string(), serde_json::Value::String(String::new()));
+        return Ok(());
+    }
+    let resolved = if let Some(relative) = home_relative_store_dir(store_dir) {
+        Sys::home_dir()
+            .ok_or_else(|| {
+                let store_dir_display = store_dir.display();
+                miette::miette!(
+                    "Cannot resolve store directory {} because the home directory is unknown",
+                    store_dir_display,
+                )
+            })?
+            .join(relative)
+    } else if store_dir.is_absolute() {
+        store_dir.to_path_buf()
+    } else {
+        workspace_dir.join(store_dir)
+    };
+    config.store_dir = StoreDir::from(lexical_normalize(&resolved));
+    if let Some(store_dir) = store_dir.to_str() {
+        config
+            .explicit_settings
+            .insert("storeDir".to_string(), serde_json::Value::String(store_dir.to_string()));
+    }
+    let virtual_store_dir_explicit = config.explicit_settings.contains_key("virtualStoreDir");
+    let global_virtual_store_dir_explicit =
+        config.explicit_settings.contains_key("globalVirtualStoreDir");
+    config.apply_global_virtual_store_derivation(
+        virtual_store_dir_explicit,
+        global_virtual_store_dir_explicit,
+    );
+    Ok(())
+}
+
+fn home_relative_store_dir(store_dir: &Path) -> Option<&Path> {
+    let store_dir = store_dir.to_str()?;
+    store_dir.strip_prefix("~/").or_else(|| store_dir.strip_prefix(r"~\")).map(Path::new)
+}
 
 /// CLI overrides parsed from pnpm's `--config.<key>=<value>` dotted-key
 /// syntax. Upstream pnpm uses [`npm-conf`](https://github.com/npm/npm-conf)
@@ -47,6 +99,9 @@ impl ConfigOverrides {
                 continue;
             }
             match classify(&arg) {
+                ConfigToken::WellFormed { key: "store-dir", value } => {
+                    remaining.push(OsString::from(format!("--store-dir={value}")));
+                }
                 ConfigToken::WellFormed { key, value } => overrides.set(key, value),
                 ConfigToken::Malformed => {}
                 ConfigToken::NotOurs => remaining.push(arg),
@@ -146,7 +201,13 @@ fn global_option_width(arg: &str) -> Option<usize> {
     let (name, has_value) = name.split_once('=').map_or((name, false), |(name, _)| (name, true));
     let consumes_value = matches!(
         name,
-        "dir" | "filter" | "filter-prod" | "npmrc-auth-file" | "reporter" | "userconfig",
+        "dir"
+            | "filter"
+            | "filter-prod"
+            | "npmrc-auth-file"
+            | "reporter"
+            | "store-dir"
+            | "userconfig",
     );
     Some(if consumes_value && !has_value { 2 } else { 1 })
 }

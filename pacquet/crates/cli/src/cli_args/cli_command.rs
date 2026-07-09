@@ -91,6 +91,18 @@ pub struct CliArgs {
     #[clap(short = 'C', long, default_value = ".")]
     pub dir: PathBuf,
 
+    /// Directory in which the package store is created. Relative paths
+    /// are resolved from the workspace root, or from `--dir` outside a
+    /// workspace. Overrides the configured `storeDir` for this invocation.
+    #[clap(
+        long = "store-dir",
+        value_name = "DIR",
+        global = true,
+        overrides_with = "store_dir",
+        value_parser = parse_store_dir
+    )]
+    pub store_dir: Option<PathBuf>,
+
     /// Path to a `.npmrc` to read auth settings from, overriding the
     /// default `~/.npmrc`. Mirrors pnpm's `--npmrc-auth-file` (and its
     /// `--userconfig` alias) and sets
@@ -154,6 +166,10 @@ pub struct CliArgs {
     /// Recursive only: keep going after a project fails.
     #[clap(long = "no-bail", global = true, hide = true)]
     pub no_bail: bool,
+}
+
+fn parse_store_dir(value: &str) -> Result<PathBuf, std::convert::Infallible> {
+    Ok(PathBuf::from(value))
 }
 
 impl CliArgs {

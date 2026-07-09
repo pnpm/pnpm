@@ -9,6 +9,7 @@ use super::{
 };
 use clap::Parser;
 use pacquet_default_reporter::SummaryScope;
+use std::path::Path;
 use tempfile::TempDir;
 
 fn install_args(argv: &[&str]) -> InstallArgs {
@@ -20,6 +21,24 @@ fn install_args(argv: &[&str]) -> InstallArgs {
 
 fn default_reporter_summary_scope(argv: &[&str]) -> SummaryScope {
     CliArgs::try_parse_from(argv).expect("parses").command.default_reporter_summary_scope()
+}
+
+#[test]
+fn store_dir_is_global_and_parses_on_either_side_of_the_subcommand() {
+    for argv in [
+        ["pacquet", "--store-dir", "custom-store", "install"].as_slice(),
+        ["pacquet", "install", "--store-dir=custom-store"].as_slice(),
+    ] {
+        let parsed = CliArgs::try_parse_from(argv).expect("parses global --store-dir");
+        assert_eq!(parsed.store_dir.as_deref(), Some(Path::new("custom-store")));
+    }
+}
+
+#[test]
+fn store_dir_accepts_an_explicit_empty_value() {
+    let parsed = CliArgs::try_parse_from(["pacquet", "store", "path", "--store-dir="])
+        .expect("parses empty global --store-dir");
+    assert_eq!(parsed.store_dir.as_deref(), Some(Path::new("")));
 }
 
 #[test]

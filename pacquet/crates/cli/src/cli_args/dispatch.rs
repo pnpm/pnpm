@@ -3,7 +3,10 @@ use super::{
     dispatch_install, dispatch_query, dispatch_script,
     reporter::{ReporterType, configure_default_reporter, reporter_emit},
 };
-use crate::{State, config_overrides::ConfigOverrides};
+use crate::{
+    State,
+    config_overrides::{ConfigOverrides, apply_store_dir_override},
+};
 use miette::{Context, IntoDiagnostic};
 use pacquet_config::{Config, Host, default_pnpm_home_dir};
 use pacquet_default_reporter::SummaryScope;
@@ -84,6 +87,11 @@ impl CliArgs {
             return false;
         };
         config_overrides.apply(&mut config);
+        if let Some(store_dir) = self.store_dir.as_deref()
+            && apply_store_dir_override::<Host>(&mut config, store_dir, &dir).is_err()
+        {
+            return false;
+        }
         configure_default_reporter(self.reporter, &dir, SummaryScope::CurrentPrefix);
         let emit = reporter_emit(self.reporter);
         let finished = install_args.finished_via_up_to_date_fast_path(&dir, &config, emit);
@@ -114,6 +122,7 @@ impl CliArgs {
         let CliArgs {
             command,
             dir,
+            store_dir,
             npmrc_auth_file,
             recursive,
             reporter,
@@ -182,8 +191,13 @@ impl CliArgs {
         let load_config = |anchor: &Path| -> miette::Result<&'static mut Config> {
             Config { npmrc_auth_file: npmrc_auth_file.clone(), ..Config::default() }
                 .current::<Host>(anchor)
-                .map(|mut cfg| {
+                .map_err(miette::Report::new)
+                .wrap_err("load configuration")
+                .and_then(|mut cfg| {
                     config_overrides.apply(&mut cfg);
+                    if let Some(store_dir) = store_dir.as_deref() {
+                        apply_store_dir_override::<Host>(&mut cfg, store_dir, anchor)?;
+                    }
                     // `--recursive` / `--filter` / `--filter-prod` are
                     // CLI-only upstream (not `.npmrc` / yaml keys), so the
                     // global flags are threaded in here. Mirrors pnpm's
@@ -195,10 +209,8 @@ impl CliArgs {
                         cfg.workspace_concurrency =
                             pacquet_config::resolve_child_concurrency(Some(workspace_concurrency));
                     }
-                    Config::leak(cfg)
+                    Ok(Config::leak(cfg))
                 })
-                .map_err(miette::Report::new)
-                .wrap_err("load configuration")
         };
         // Resolve `.npmrc` / `pnpm-workspace.yaml` from the canonicalized
         // `--dir` rather than the process cwd, matching pnpm 11 (which
