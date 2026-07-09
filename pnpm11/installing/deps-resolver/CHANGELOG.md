@@ -1,5 +1,17 @@
 # @pnpm/resolve-dependencies
 
+## 1100.2.7
+
+### Patch Changes
+
+- 51300fd: Fixed a path traversal vulnerability where a dependency whose manifest `name` was a scoped path traversal (e.g. `@x/../../../<path>`) could be written outside `node_modules` to an attacker-controlled location during `pnpm install`, even with `--ignore-scripts`. The isolated linker now validates the package name before using it as a directory name, matching the existing protection in the hoisted linker.
+- 14332f0: Fail instead of silently removing an optional dependency's locked entries from `pnpm-lock.yaml` when the registry cannot resolve it. Previously, when registry metadata lacked a version that the lockfile already pinned (for example, a mirror that had not synced a recent release yet), `pnpm install` and `pnpm dedupe` silently dropped the optional dependency's entries — emptying maps such as the platform binaries of `@napi-rs/canvas` — so the lockfile differed between machines and frozen installs on other hosts had nothing to link [#12853](https://github.com/pnpm/pnpm/issues/12853).
+- fecfe83: Fixed peer dependency resolution with `autoInstallPeers` when a workspace package depends on a version of a package that a transitive dependency's self-contained closure also provides for itself. The peer providers that are attached to the root project for reuse are no longer peer-resolved a second time in the root context, so packages inside such a closure no longer get their peers bound to the root project's incompatible version [#4993](https://github.com/pnpm/pnpm/issues/4993).
+- Updated dependencies [3067e4f]
+- Updated dependencies [51300fd]
+  - @pnpm/resolving.npm-resolver@1102.1.2
+  - @pnpm/deps.graph-hasher@1100.2.8
+
 ## 1100.2.6
 
 ### Patch Changes

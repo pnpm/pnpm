@@ -1,5 +1,11 @@
 # @pnpm/calc-dep-state
 
+## 1100.2.8
+
+### Patch Changes
+
+- 51300fd: Prevent a crafted `pnpm-lock.yaml` from writing package content outside the virtual store. A dependency path key whose name reconstructs to a path-traversal sequence (e.g. `../../../tmp/x@1.0.0`) is now rejected by the isolated (virtual-store) linker and the Plug'n'Play resolver map, matching the containment already applied to the hoisted linker. Under the global virtual store, a traversal in the version-derived path segment (e.g. a snapshot `version: "../../x"`) is now rejected at `formatGlobalVirtualStorePath`, the single point every global-virtual-store slot path funnels through — closing the same escape in the isolated linker, the resolver's dependency-graph builder, and the config-dependency installer.
+
 ## 1100.2.7
 
 ### Patch Changes

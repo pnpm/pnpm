@@ -1,5 +1,17 @@
 # @pnpm/global.commands
 
+## 1100.0.32
+
+### Patch Changes
+
+- 25bd5c3: Fixed standalone installer downgrades from pnpm v12 to v11.
+- Updated dependencies [9318a11]
+- Updated dependencies [5a4daec]
+  - @pnpm/config.reader@1101.11.1
+  - @pnpm/installing.deps-installer@1102.2.1
+  - @pnpm/deps.inspection.list@1100.0.22
+  - @pnpm/store.connection-manager@1100.3.4
+
 ## 1100.0.31
 
 ### Patch Changes

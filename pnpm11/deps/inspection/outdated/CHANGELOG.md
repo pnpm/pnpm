@@ -1,5 +1,15 @@
 # @pnpm/outdated
 
+## 1100.1.12
+
+### Patch Changes
+
+- Updated dependencies [3067e4f]
+- Updated dependencies [f8058eb]
+  - @pnpm/resolving.npm-resolver@1102.1.2
+  - @pnpm/lockfile.fs@1100.1.9
+  - @pnpm/installing.client@1100.2.12
+
 ## 1100.1.11
 
 ### Patch Changes

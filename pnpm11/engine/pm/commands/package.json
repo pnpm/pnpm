@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/engine.pm.commands",
-  "version": "1101.2.0",
+  "version": "1101.2.1",
   "description": "pnpm commands for self-updating and setting up pnpm",
   "keywords": [
     "pnpm",

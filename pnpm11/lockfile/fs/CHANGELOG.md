@@ -1,5 +1,11 @@
 # @pnpm/lockfile-file
 
+## 1100.1.9
+
+### Patch Changes
+
+- f8058eb: Reject symlinked `pnpm-lock.yaml` files when reading or writing the env lockfile document.
+
 ## 1100.1.8
 
 ### Patch Changes

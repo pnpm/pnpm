@@ -1,5 +1,29 @@
 # @pnpm/core
 
+## 1102.2.1
+
+### Patch Changes
+
+- Updated dependencies [c70e33e]
+- Updated dependencies [51300fd]
+- Updated dependencies [f8058eb]
+- Updated dependencies [51300fd]
+- Updated dependencies [14332f0]
+- Updated dependencies [fecfe83]
+  - @pnpm/building.policy@1100.0.12
+  - @pnpm/deps.graph-hasher@1100.2.8
+  - @pnpm/lockfile.to-pnp@1100.1.3
+  - @pnpm/lockfile.fs@1100.1.9
+  - @pnpm/installing.deps-resolver@1100.2.7
+  - @pnpm/building.after-install@1102.0.4
+  - @pnpm/installing.deps-restorer@1102.1.3
+  - @pnpm/building.during-install@1102.0.4
+  - @pnpm/installing.context@1100.0.22
+  - @pnpm/pnpr.client@1.3.1
+  - @pnpm/installing.package-requester@1102.1.1
+  - @pnpm/lockfile.verification@1100.0.22
+  - @pnpm/lockfile.settings-checker@1100.1.1
+
 ## 1102.2.0
 
 ### Minor Changes

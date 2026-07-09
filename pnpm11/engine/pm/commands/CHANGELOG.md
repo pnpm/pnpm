@@ -1,5 +1,30 @@
 # @pnpm/engine.pm.commands
 
+## 1101.2.1
+
+### Patch Changes
+
+- dcfc611: `pnpm self-update` now honors `trustPolicy=no-downgrade`. It resolves the target pnpm version against full registry metadata, so it refuses to switch to a version whose supply-chain trust evidence is weaker than an earlier-published one, the same way a regular install does.
+- Updated dependencies [c70e33e]
+- Updated dependencies [3067e4f]
+- Updated dependencies [51300fd]
+- Updated dependencies [f8058eb]
+- Updated dependencies [9318a11]
+- Updated dependencies [51300fd]
+- Updated dependencies [5a4daec]
+- Updated dependencies [25bd5c3]
+  - @pnpm/building.policy@1100.0.12
+  - @pnpm/resolving.npm-resolver@1102.1.2
+  - @pnpm/deps.graph-hasher@1100.2.8
+  - @pnpm/lockfile.fs@1100.1.9
+  - @pnpm/config.reader@1101.11.1
+  - @pnpm/installing.env-installer@1102.0.4
+  - @pnpm/global.commands@1100.0.32
+  - @pnpm/installing.deps-restorer@1102.1.3
+  - @pnpm/installing.client@1100.2.12
+  - @pnpm/store.connection-manager@1100.3.4
+  - @pnpm/store.controller@1102.0.3
+
 ## 1101.2.0
 
 ### Minor Changes

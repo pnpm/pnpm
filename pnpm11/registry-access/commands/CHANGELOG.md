@@ -1,5 +1,17 @@
 # @pnpm/registry-access.commands
 
+## 1100.4.0
+
+### Minor Changes
+
+- 508b8c2: Added the `pnpm access` command for managing package access and visibility on the registry, supporting listing packages and collaborators, getting and setting package status and MFA requirements, and granting or revoking team access.
+
+### Patch Changes
+
+- Updated dependencies [9318a11]
+- Updated dependencies [5a4daec]
+  - @pnpm/config.reader@1101.11.1
+
 ## 1100.3.7
 
 ### Patch Changes

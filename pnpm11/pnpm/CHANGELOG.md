@@ -1,5 +1,28 @@
 # pnpm
 
+## 11.11.0
+
+### Minor Changes
+
+- 508b8c2: Added the `pnpm access` command for managing package access and visibility on the registry, supporting listing packages and collaborators, getting and setting package status and MFA requirements, and granting or revoking team access.
+
+### Patch Changes
+
+- c70e33e: Allow `allowBuilds` entries for git-hosted packages to match by repository URL without pinning the resolved commit hash. This lets trusted git repositories keep running their build scripts after branch updates without approving each new commit, while package-name-only rules still do not approve git-hosted artifacts.
+- 3067e4f: Reduced peak memory usage during cold-cache dependency resolution. The metadata fetch is memoized for the whole resolution phase, and it was retaining each package's raw registry response body (used only to mirror the response to disk) for that entire time. The memoized cache now holds a body-less copy, so the raw body only lives as long as the call that writes the disk mirror. On large graphs that fetch full metadata (e.g. with `minimumReleaseAge` or `trustPolicy` enabled) this cuts peak RSS by roughly 30%, back in line with pnpm 10. The resolved lockfile is unchanged.
+- 51300fd: Prevent a crafted `pnpm-lock.yaml` from writing package content outside the virtual store. A dependency path key whose name reconstructs to a path-traversal sequence (e.g. `../../../tmp/x@1.0.0`) is now rejected by the isolated (virtual-store) linker and the Plug'n'Play resolver map, matching the containment already applied to the hoisted linker. Under the global virtual store, a traversal in the version-derived path segment (e.g. a snapshot `version: "../../x"`) is now rejected at `formatGlobalVirtualStorePath`, the single point every global-virtual-store slot path funnels through — closing the same escape in the isolated linker, the resolver's dependency-graph builder, and the config-dependency installer.
+- f8058eb: Reject symlinked `pnpm-lock.yaml` files when reading or writing the env lockfile document.
+- 9318a11: Allow `registries` and `namedRegistries` to be configured in the global `config.yaml` file.
+- 51300fd: Fixed a path traversal vulnerability where a dependency whose manifest `name` was a scoped path traversal (e.g. `@x/../../../<path>`) could be written outside `node_modules` to an attacker-controlled location during `pnpm install`, even with `--ignore-scripts`. The isolated linker now validates the package name before using it as a directory name, matching the existing protection in the hoisted linker.
+- 14332f0: Fail instead of silently removing an optional dependency's locked entries from `pnpm-lock.yaml` when the registry cannot resolve it. Previously, when registry metadata lacked a version that the lockfile already pinned (for example, a mirror that had not synced a recent release yet), `pnpm install` and `pnpm dedupe` silently dropped the optional dependency's entries — emptying maps such as the platform binaries of `@napi-rs/canvas` — so the lockfile differed between machines and frozen installs on other hosts had nothing to link [#12853](https://github.com/pnpm/pnpm/issues/12853).
+- fecfe83: Fixed peer dependency resolution with `autoInstallPeers` when a workspace package depends on a version of a package that a transitive dependency's self-contained closure also provides for itself. The peer providers that are attached to the root project for reuse are no longer peer-resolved a second time in the root context, so packages inside such a closure no longer get their peers bound to the root project's incompatible version [#4993](https://github.com/pnpm/pnpm/issues/4993).
+- 5a4daec: `${...}` environment-variable placeholders in the `httpProxy`, `httpsProxy`, `noProxy`, `proxy`, and `noproxy` settings are no longer expanded when these settings come from a project's `pnpm-workspace.yaml`. They now receive the same protection already applied to `registry`, `namedRegistries`, and `pnprServer`.
+- d1da02e: `pnpm publish` no longer prints credentials when the target registry is configured with inline `user:pass@` credentials (e.g. `registry=https://user:pass@example.com/`). They are now redacted both from the "publishing to registry" line and from the OIDC (trusted publishing) failure messages.
+- dcfc611: `pnpm self-update` now honors `trustPolicy=no-downgrade`. It resolves the target pnpm version against full registry metadata, so it refuses to switch to a version whose supply-chain trust evidence is weaker than an earlier-published one, the same way a regular install does.
+- a8ad82d: Register the `pn` alias in generated shell completion scripts.
+- 25bd5c3: Fixed standalone installer downgrades from pnpm v12 to v11.
+- 23996e9: `pnpm runtime set <name> <version>` now validates its arguments: the name must be `node`, `deno`, or `bun`, and the version must not contain a comma. Previously these were interpolated straight into a `pnpm add` selector, where an unsupported name or a comma (e.g. `node 22,is-positive`) could be misread as a list of packages or a local directory and install unintended packages or bins.
+
 ## 11.10.0
 
 ### Minor Changes
