@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
+import { depPathToFilename } from '@pnpm/deps.path'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 
 import { lockfileToDepGraph, type LockfileToDepGraphOptions } from '../src/lockfileToDepGraph.js'
@@ -77,9 +78,19 @@ test.each([
 
 test('lockfileToDepGraph does not create a directory outside the virtual store for a traversal name', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'graph-builder-'))
-  const escaped = path.join(dir, 'node_modules', '.pnpm', '..', '..', '..', 'escape')
+  const name = '../../../escape'
+  const opts = graphOpts(dir)
+  // Reconstruct the exact install directory the unguarded code would derive:
+  // `depPathToFilename` folds the depPath key into a single (contained) store
+  // subdir, but the separately-parsed `pkgName` is joined onto its
+  // `node_modules` raw — that raw join is what escapes.
+  const dirInVirtualStore = path.join(opts.virtualStoreDir, depPathToFilename(`${name}@1.0.0`, opts.virtualStoreDirMaxLength))
+  const escaped = path.join(dirInVirtualStore, 'node_modules', name)
+  // Guard against the test asserting on a non-escaping path: the derived
+  // directory must genuinely fall outside the virtual store.
+  expect(escaped.startsWith(opts.virtualStoreDir + path.sep)).toBe(false)
   await expect(
-    lockfileToDepGraph(craftedLockfile('../../../escape'), null, graphOpts(dir))
+    lockfileToDepGraph(craftedLockfile(name), null, opts)
   ).rejects.toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' }))
   expect(fs.existsSync(escaped)).toBe(false)
 })
