@@ -3622,6 +3622,37 @@ describe('global config.yaml', () => {
     expect(warnings.find((w) => w.includes('global config file'))).toBeUndefined()
   })
 
+  test('workspace manifest registries win over global config.yaml registries', async () => {
+    prepareEmpty()
+
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', {
+      registries: {
+        default: 'https://global.example.com/npm/',
+        '@scope': 'https://global.example.com/scope/',
+      },
+    })
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      registries: {
+        default: 'https://workspace.example.com/npm/',
+      },
+    })
+
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.registries.default).toBe('https://workspace.example.com/npm/')
+    expect(config.registries['@scope']).toBe('https://global.example.com/scope/')
+  })
+
   test('reads user-level preference settings from global config.yaml', async () => {
     prepareEmpty()
 
