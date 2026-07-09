@@ -263,7 +263,6 @@ catalog:
   p-filter: ^4.1.0
   p-limit: ^7.3.0
   p-map-values: ^0.1.0
-  p-memoize: 8.0.0
   p-queue: ^9.3.0
   parse-json: ^8.3.0
   parse-npm-tarball-url: ^5.0.0

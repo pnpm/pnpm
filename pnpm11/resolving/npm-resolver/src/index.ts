@@ -43,13 +43,13 @@ import {
 import { resolveWorkspaceRange } from '@pnpm/workspace.range-resolver'
 import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
-import pMemoize, { pMemoizeClear } from 'p-memoize'
 import { clone } from 'ramda'
 import semver from 'semver'
 import ssri from 'ssri'
 import versionSelectorType from 'version-selector-type'
 
 import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOptions, RegistryResponseError } from './fetch.js'
+import { memoizeFetchMetadata } from './memoizeFetchMetadata.js'
 import { normalizeRegistryUrl } from './normalizeRegistryUrl.js'
 import {
   BUILTIN_NAMED_REGISTRIES,
@@ -217,9 +217,7 @@ export function createNpmResolver (
     timeout: opts.timeout ?? 60000,
     fetchWarnTimeoutMs: opts.fetchWarnTimeoutMs ?? 10 * 1000, // 10 sec
   }
-  const fetch = pMemoize(fetchMetadataFromFromRegistry.bind(null, fetchOpts), {
-    cacheKey: (...args) => JSON.stringify(args),
-  })
+  const { fetch, clear: clearFetchCache } = memoizeFetchMetadata(fetchMetadataFromFromRegistry.bind(null, fetchOpts))
   // Track ownership so `clearCache()` below only wipes the in-memory
   // cache when this factory created it. A caller-supplied
   // `opts.metaCache` may be shared with another resolver instance (or
@@ -296,7 +294,7 @@ export function createNpmResolver (
       if (ownsMetaCache && 'clear' in metaCache && typeof metaCache.clear === 'function') {
         metaCache.clear()
       }
-      pMemoizeClear(fetch)
+      clearFetchCache()
     },
   }
 }

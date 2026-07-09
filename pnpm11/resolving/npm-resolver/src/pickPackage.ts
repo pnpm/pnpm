@@ -431,8 +431,8 @@ export async function pickPackage (
           `Metadata cache for ${spec.name} is unreadable after receiving 304 Not Modified`)
       }
 
-      let resultToSave = detachFetchResult(fetchResult)
-      let meta = resultToSave.meta
+      let meta = fetchResult.meta
+      let resultToSave: FetchMetadataResult = fetchResult
 
       // When minimumReleaseAge is active and we fetched abbreviated metadata,
       // check if the package was recently modified and needs full metadata
@@ -474,8 +474,8 @@ export async function pickPackage (
             registry: opts.registry,
           })
           if (!fullFetchResult.notModified) {
-            resultToSave = detachFetchResult(fullFetchResult)
-            meta = resultToSave.meta
+            resultToSave = fullFetchResult
+            meta = fullFetchResult.meta
           }
         }
       }
@@ -526,9 +526,8 @@ export async function pickPackage (
 // silently bypassing the minimumReleaseAge guarantee for affected packages.
 //
 // Returns the original meta when no upgrade is needed. When an upgrade
-// happens, returns both the upgraded meta and a detached snapshot of the
-// fetch (see detachFetchResult) so callers can persist it to disk and avoid
-// re-fetching on next install.
+// happens, returns both the upgraded meta and the underlying fetch result
+// so callers can persist it to disk and avoid re-fetching on next install.
 async function maybeUpgradeAbbreviatedMetaForReleaseAge (
   ctx: {
     fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
@@ -542,7 +541,7 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
     registry: string
   },
   meta: PackageMeta
-): Promise<{ meta: PackageMeta, upgradedFrom?: DetachedFetchResult }> {
+): Promise<{ meta: PackageMeta, upgradedFrom?: FetchMetadataResult }> {
   if (
     ctx.offline === true ||
     !opts.publishedBy ||
@@ -579,38 +578,7 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
     // `pickMatchingVersionFinal` will fall through to its warn-and-skip path.
     return { meta }
   }
-  return {
-    meta: fullFetchResult.meta,
-    upgradedFrom: detachFetchResult(fullFetchResult),
-  }
-}
-
-/**
- * Everything a disk-mirror write needs from a fetch, detached from the
- * memoized fetch result so it dies with the resolving call — even on the
- * dryRun paths that never persist. See {@link detachFetchResult}.
- */
-interface DetachedFetchResult {
-  meta: PackageMeta
-  etag?: string
-  jsonText?: string
-}
-
-/**
- * Snapshot a fetch result and strip the raw response body off the original.
- * The fetch is memoized for the whole resolution phase (see the resolver
- * factory in index.ts), so a body left on the result — up to tens of MB for a
- * popular package — would stay resident until resolution ends. Detaching at
- * acquisition bounds the body's lifetime to the call that writes the disk
- * mirror. A concurrent caller sharing the memoized result loses the race for
- * the body and falls back to `JSON.stringify(meta)` in
- * {@link prepareJsonForDisk}, which is equivalent on read: `loadMeta`
- * re-derives `etag` from the headers line.
- */
-function detachFetchResult (result: FetchMetadataResult): DetachedFetchResult {
-  const { meta, etag, jsonText } = result
-  result.jsonText = undefined
-  return { meta, etag, jsonText }
+  return { meta: fullFetchResult.meta, upgradedFrom: fullFetchResult }
 }
 
 // Persists upgraded full metadata to the on-disk cache mirror and returns
@@ -620,7 +588,7 @@ function detachFetchResult (result: FetchMetadataResult): DetachedFetchResult {
 function persistUpgradedMeta (
   ctx: { filterMetadata?: boolean },
   pkgMirror: string,
-  upgradedFrom: DetachedFetchResult
+  upgradedFrom: FetchMetadataResult
 ): PackageMeta {
   const metaForCache = ctx.filterMetadata ? clearMeta(upgradedFrom.meta) : upgradedFrom.meta
   const jsonForDisk = ctx.filterMetadata

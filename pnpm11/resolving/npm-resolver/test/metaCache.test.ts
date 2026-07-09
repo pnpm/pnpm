@@ -165,7 +165,7 @@ test('prefer-offline resolution promotes the disk-loaded packument into the in-m
   expect(second.pickedPackage?.version).toBe('1.0.0')
 })
 
-test('the raw response body is detached from the fetch result and still written verbatim to the disk mirror', async () => {
+test('the raw response body is written verbatim to the disk mirror', async () => {
   const meta = fooMeta()
   // A body distinct from the compact JSON.stringify(meta) so we can prove the
   // mirror is written from the raw response text, not re-serialized.
@@ -173,12 +173,8 @@ test('the raw response body is detached from the fetch result and still written 
   const cacheDir = temporaryDirectory()
   const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
 
-  let fetchResult: { meta: PackageMeta, jsonText: string | undefined, etag: string | undefined } | undefined
   const ctx = {
-    fetch: async () => {
-      fetchResult = { meta, jsonText: rawBody, etag: undefined }
-      return fetchResult
-    },
+    fetch: async () => ({ meta, jsonText: rawBody, etag: undefined }),
     metaCache: createMetaCache(),
     cacheDir,
   }
@@ -188,10 +184,6 @@ test('the raw response body is detached from the fetch result and still written 
 
   const res = await pickPackage(ctx, spec, { registry: REGISTRY, dryRun: false, preferredVersionSelectors: undefined })
   expect(res.pickedPackage?.version).toBe('1.0.0')
-
-  // The raw body is detached from the (memoized) fetch result before
-  // pickPackage returns, so it can't stay pinned for the resolution phase.
-  expect(fetchResult?.jsonText).toBeUndefined()
 
   // The mirror is written fire-and-forget, so retry until it appears.
   const mirror = await readMirrorWithRetry(pkgMirror, 100)
