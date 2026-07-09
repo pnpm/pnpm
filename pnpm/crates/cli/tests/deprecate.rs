@@ -88,10 +88,7 @@ fn fails_when_package_is_not_provided() {
     let output = run_deprecate(&workspace, &auth_file, None, &[]);
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_DEPRECATE_PACKAGE_REQUIRED"),
-        "stderr: {stderr}"
-    );
+    assert!(stderr.contains("ERR_PNPM_DEPRECATE_PACKAGE_REQUIRED"), "stderr: {stderr}");
 }
 
 #[test]
@@ -101,10 +98,7 @@ fn fails_when_message_is_not_provided() {
     let output = run_deprecate(&workspace, &auth_file, None, &["foo"]);
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_DEPRECATE_MESSAGE_REQUIRED"),
-        "stderr: {stderr}"
-    );
+    assert!(stderr.contains("ERR_PNPM_DEPRECATE_MESSAGE_REQUIRED"), "stderr: {stderr}");
 }
 
 #[test]
@@ -132,8 +126,5 @@ fn fails_on_unauthorized() {
     put_mock.assert();
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_UNAUTHORIZED"),
-        "stderr: {stderr}"
-    );
+    assert!(stderr.contains("ERR_PNPM_UNAUTHORIZED"), "stderr: {stderr}");
 }

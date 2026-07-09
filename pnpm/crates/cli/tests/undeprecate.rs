@@ -68,10 +68,7 @@ fn undeprecates_a_package_version_successfully() {
     put_mock.assert();
     assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("Successfully un-deprecated 1 version(s) of test"),
-        "stdout: {stdout}"
-    );
+    assert!(stdout.contains("Successfully un-deprecated 1 version(s) of test"), "stdout: {stdout}");
 }
 
 #[test]
@@ -81,10 +78,7 @@ fn fails_when_package_is_not_provided() {
     let output = run_undeprecate(&workspace, &auth_file, None, &[]);
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_DEPRECATE_PACKAGE_REQUIRED"),
-        "stderr: {stderr}"
-    );
+    assert!(stderr.contains("ERR_PNPM_DEPRECATE_PACKAGE_REQUIRED"), "stderr: {stderr}");
 }
 
 #[test]
@@ -105,8 +99,5 @@ fn fails_when_not_deprecated() {
     get_mock.assert();
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_NOT_DEPRECATED"),
-        "stderr: {stderr}"
-    );
+    assert!(stderr.contains("ERR_PNPM_NOT_DEPRECATED"), "stderr: {stderr}");
 }
