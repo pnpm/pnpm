@@ -433,6 +433,7 @@ export async function pickPackage (
 
       let meta = fetchResult.meta
       let resultToSave: FetchMetadataResult = fetchResult
+      let jsonTextForDisk = takeJsonText(fetchResult)
 
       // When minimumReleaseAge is active and we fetched abbreviated metadata,
       // check if the package was recently modified and needs full metadata
@@ -458,7 +459,7 @@ export async function pickPackage (
         if (!isModifiedValid || modifiedDate > opts.publishedBy) {
           // Save the abbreviated metadata to the abbreviated cache before re-fetching full.
           if (!opts.dryRun) {
-            const abbreviatedJson = prepareJsonForDisk(fetchResult.meta, fetchResult.etag, fetchResult.jsonText)
+            const abbreviatedJson = prepareJsonForDisk(fetchResult.meta, fetchResult.etag, jsonTextForDisk)
             // Fire-and-forget save to the abbreviated cache path (pkgMirror).
             runLimited(pkgMirror, (limit) => limit(async () => {
               try {
@@ -475,6 +476,7 @@ export async function pickPackage (
           })
           if (!fullFetchResult.notModified) {
             resultToSave = fullFetchResult
+            jsonTextForDisk = takeJsonText(fullFetchResult)
             meta = fullFetchResult.meta
           }
         }
@@ -487,7 +489,7 @@ export async function pickPackage (
         // Serialize before setting meta.etag so it only lives in the headers line, not the body.
         const jsonForDisk = ctx.filterMetadata
           ? prepareJsonForDisk(meta, resultToSave.etag)
-          : prepareJsonForDisk(resultToSave.meta, resultToSave.etag, resultToSave.jsonText)
+          : prepareJsonForDisk(resultToSave.meta, resultToSave.etag, jsonTextForDisk)
         runLimited(pkgMirror, (limit) => limit(async () => {
           try {
             await saveMeta(pkgMirror, jsonForDisk)
@@ -496,14 +498,6 @@ export async function pickPackage (
           }
         }))
       }
-      // The fetch is memoized (see index.ts), so its result is retained for the
-      // whole resolution phase. jsonText — the raw registry body, up to tens of
-      // MB for popular packages — is only needed for the disk-mirror write
-      // above, so release it here to keep the memo cache from pinning it.
-      // A concurrent caller sharing this memo entry that reads jsonText after
-      // this point just falls back to JSON.stringify(meta) in prepareJsonForDisk.
-      resultToSave.jsonText = undefined
-      fetchResult.jsonText = undefined
       meta.etag = resultToSave.etag
       // only save meta to cache, when it is fresh
       ctx.metaCache.set(cacheKey, meta)
@@ -534,7 +528,8 @@ export async function pickPackage (
 // silently bypassing the minimumReleaseAge guarantee for affected packages.
 //
 // Returns the original meta when no upgrade is needed. When an upgrade
-// happens, returns both the upgraded meta and the underlying fetch result
+// happens, returns both the upgraded meta and a snapshot of the fetch (with
+// the raw body already detached from the memoized result — see takeJsonText)
 // so callers can persist it to disk and avoid re-fetching on next install.
 async function maybeUpgradeAbbreviatedMetaForReleaseAge (
   ctx: {
@@ -549,7 +544,7 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
     registry: string
   },
   meta: PackageMeta
-): Promise<{ meta: PackageMeta, upgradedFrom?: FetchMetadataResult }> {
+): Promise<{ meta: PackageMeta, upgradedFrom?: UpgradedMetaFetch }> {
   if (
     ctx.offline === true ||
     !opts.publishedBy ||
@@ -586,7 +581,41 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
     // `pickMatchingVersionFinal` will fall through to its warn-and-skip path.
     return { meta }
   }
-  return { meta: fullFetchResult.meta, upgradedFrom: fullFetchResult }
+  return {
+    meta: fullFetchResult.meta,
+    upgradedFrom: {
+      meta: fullFetchResult.meta,
+      etag: fullFetchResult.etag,
+      jsonText: takeJsonText(fullFetchResult),
+    },
+  }
+}
+
+/**
+ * What {@link persistUpgradedMeta} needs from an upgrade fetch, detached from
+ * the memoized fetch result so it dies with the resolving call — even on the
+ * dryRun paths that never persist.
+ */
+interface UpgradedMetaFetch {
+  meta: PackageMeta
+  etag?: string
+  jsonText?: string
+}
+
+/**
+ * Detach the raw response body from a fetch result. The fetch is memoized for
+ * the whole resolution phase (see the resolver factory in index.ts), so a body
+ * left on the result — up to tens of MB for a popular package — would stay
+ * resident until resolution ends. Taking it at acquisition bounds its lifetime
+ * to the call that writes the disk mirror. A concurrent caller sharing the
+ * memoized result loses the race for the body and falls back to
+ * `JSON.stringify(meta)` in {@link prepareJsonForDisk}, which is equivalent on
+ * read: `loadMeta` re-derives `etag` from the headers line.
+ */
+function takeJsonText (result: FetchMetadataResult): string | undefined {
+  const { jsonText } = result
+  result.jsonText = undefined
+  return jsonText
 }
 
 // Persists upgraded full metadata to the on-disk cache mirror and returns
@@ -596,7 +625,7 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
 function persistUpgradedMeta (
   ctx: { filterMetadata?: boolean },
   pkgMirror: string,
-  upgradedFrom: FetchMetadataResult
+  upgradedFrom: UpgradedMetaFetch
 ): PackageMeta {
   const metaForCache = ctx.filterMetadata ? clearMeta(upgradedFrom.meta) : upgradedFrom.meta
   const jsonForDisk = ctx.filterMetadata
@@ -609,10 +638,6 @@ function persistUpgradedMeta (
       // We don't care if this file was not written to the cache
     }
   }))
-  // Release the raw body now that the mirror is written; `upgradedFrom` came
-  // from the memoized fetch and would otherwise keep jsonText resident for the
-  // whole resolution phase (see the main path in pickPackage).
-  upgradedFrom.jsonText = undefined
   return metaForCache
 }
 

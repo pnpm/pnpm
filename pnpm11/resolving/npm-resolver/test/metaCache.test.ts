@@ -165,7 +165,7 @@ test('prefer-offline resolution promotes the disk-loaded packument into the in-m
   expect(second.pickedPackage?.version).toBe('1.0.0')
 })
 
-test('the raw response body is written to the disk mirror and then released from the fetch result', async () => {
+test('the raw response body is detached from the fetch result and still written verbatim to the disk mirror', async () => {
   const meta = fooMeta()
   // A body distinct from the compact JSON.stringify(meta) so we can prove the
   // mirror is written from the raw response text, not re-serialized.
@@ -189,14 +189,14 @@ test('the raw response body is written to the disk mirror and then released from
   const res = await pickPackage(ctx, spec, { registry: REGISTRY, dryRun: false, preferredVersionSelectors: undefined })
   expect(res.pickedPackage?.version).toBe('1.0.0')
 
+  // The raw body is detached from the (memoized) fetch result before
+  // pickPackage returns, so it can't stay pinned for the resolution phase.
+  expect(fetchResult?.jsonText).toBeUndefined()
+
   // The mirror is written fire-and-forget, so retry until it appears.
   const mirror = await readMirrorWithRetry(pkgMirror, 100)
   // The body after the headers line is the raw response text, unchanged.
   expect(mirror?.slice(mirror.indexOf('\n') + 1)).toBe(rawBody)
-
-  // Once the mirror is written, the raw body must be released so the memoized
-  // fetch result stops pinning it for the rest of the resolution phase.
-  expect(fetchResult?.jsonText).toBeUndefined()
 })
 
 test('a disk-promoted cache entry that cannot satisfy the spec falls back to the registry under prefer-offline', async () => {

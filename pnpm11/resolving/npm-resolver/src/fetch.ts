@@ -38,11 +38,12 @@ interface RegistryResponse {
 
 export interface FetchMetadataResult {
   meta: PackageMeta
-  // The raw registry response body, used only to mirror the response to disk
-  // without re-serializing `meta`. A fresh fetch always sets it, but the
-  // resolver drops it once the mirror is written so the memoized fetch cache
-  // does not pin these (potentially tens-of-MB) strings for the whole
-  // resolution phase (see pickPackage.ts).
+  /**
+   * The raw registry response body, used only to mirror the response to disk
+   * without re-serializing `meta`. A fresh fetch always sets it; consumers of
+   * the memoized fetch detach it as soon as they receive the result (see
+   * `takeJsonText` in pickPackage.ts) so the memo cache never pins it.
+   */
   jsonText: string | undefined
   etag?: string
   notModified?: false
