@@ -534,3 +534,79 @@ async fn install_returns_unsupported_resolution_when_name_ver_missing() {
 
     drop((store_dir, modules_dir, virtual_store_dir));
 }
+
+/// A tarball/git/file dep whose manifest `name` is a path traversal
+/// must be refused before the import writes anything, so a malicious
+/// `package.json` can't escape the virtual store's `node_modules` and
+/// overwrite files at an attacker-chosen location. The guard fires
+/// before the tarball download, so no network access is needed.
+#[tokio::test]
+async fn install_rejects_traversal_manifest_name() {
+    let store_dir = tempdir().unwrap();
+    let modules_dir = tempdir().unwrap();
+    let virtual_store_dir = tempdir().unwrap();
+
+    let config = create_config(store_dir.path(), modules_dir.path(), virtual_store_dir.path());
+    let config: &'static Config = config.pipe(Box::new).pipe(Box::leak);
+
+    let http_client = Arc::new(ThrottledClient::new_for_installs());
+    let verified_files_cache = SharedVerifiedFilesCache::default();
+    let logged_methods = AtomicU8::new(0);
+
+    let traversal_name = "@x/../../../../../../OUTSIDE";
+    let resolution = ResolveResult {
+        id: "https://example.com/foo.tar.gz".into(),
+        name_ver: None,
+        latest: None,
+        published_at: None,
+        manifest: Some(Arc::new(serde_json::json!({
+            "name": traversal_name,
+            "version": "1.0.0",
+        }))),
+        resolution: LockfileResolution::Tarball(TarballResolution {
+            tarball: "https://example.com/foo.tar.gz".to_string(),
+            integrity: None,
+            git_hosted: Some(true),
+            path: None,
+        }),
+        resolved_via: "git-repository".to_string(),
+        normalized_bare_specifier: None,
+        alias: Some("bar".to_string()),
+        policy_violation: None,
+    };
+
+    let slot_dir = virtual_store_dir.path().join("bar@1.0.0");
+
+    let result = InstallPackageFromRegistry {
+        tarball_mem_cache: &Default::default(),
+        config,
+        http_client: &http_client,
+        store_index: None,
+        store_index_writer: None,
+        verified_files_cache: &verified_files_cache,
+        prefetched_cas_paths: None,
+        logged_methods: &logged_methods,
+        requester: "",
+        alias: "bar",
+        resolution: &resolution,
+        node_modules_dir: modules_dir.path(),
+        slot_dir: &slot_dir,
+        first_visit: true,
+    }
+    .run::<SilentReporter>()
+    .await;
+
+    match result {
+        Err(InstallPackageFromRegistryError::InvalidAlias(err)) => {
+            assert_eq!(err.alias, traversal_name);
+        }
+        other => panic!("expected InvalidAlias, got {other:?}"),
+    }
+
+    // The traversal must not have materialized anything outside the
+    // slot's `node_modules`.
+    assert!(!virtual_store_dir.path().join("OUTSIDE").exists());
+    assert!(!slot_dir.join("node_modules").join("OUTSIDE").exists());
+
+    drop((store_dir, modules_dir, virtual_store_dir));
+}
