@@ -28,6 +28,14 @@ export type CompletionGenerator = (_opts: unknown, params: string[]) => Promise<
 const PNPM_COMMAND = 'pnpm'
 const PNPM_SHORT_ALIAS = 'pn'
 
+export function createCompletionGenerator (ctx: Context): CompletionGenerator {
+  return async function handler (_opts: unknown, params: string[]): Promise<void> {
+    const shell = getShellFromParams(params)
+    const output = await getCompletionScript({ name: PNPM_COMMAND, completer: PNPM_COMMAND, shell })
+    ctx.log(registerShortAlias(output, shell))
+  }
+}
+
 function registerShortAlias (output: string, shell: SupportedShell): string {
   switch (shell) {
     case 'bash':
@@ -52,14 +60,6 @@ function registerShortAlias (output: string, shell: SupportedShell): string {
           `compdef _${PNPM_COMMAND}_completion ${PNPM_COMMAND}`,
           `compdef _${PNPM_COMMAND}_completion ${PNPM_COMMAND} ${PNPM_SHORT_ALIAS}`
         )
-  }
-}
-
-export function createCompletionGenerator (ctx: Context): CompletionGenerator {
-  return async function handler (_opts: unknown, params: string[]): Promise<void> {
-    const shell = getShellFromParams(params)
-    const output = await getCompletionScript({ name: PNPM_COMMAND, completer: PNPM_COMMAND, shell })
-    ctx.log(registerShortAlias(output, shell))
   }
 }
 
