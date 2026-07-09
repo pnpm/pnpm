@@ -114,6 +114,9 @@ fn empty_store_dir_override_restores_the_platform_default() {
         .args(["store", "path"])
         .output()
         .expect("read the default store path");
+    eprintln!("default status={}", default_output.status);
+    eprintln!("default stdout={}", String::from_utf8_lossy(&default_output.stdout));
+    eprintln!("default stderr={}", String::from_utf8_lossy(&default_output.stderr));
     assert!(default_output.status.success());
     let default_store = String::from_utf8_lossy(&default_output.stdout).trim_end().to_owned();
 

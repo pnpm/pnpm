@@ -466,14 +466,15 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     }
     if let Some(store_dir) = changed_store_dir {
         apply_store_dir_override::<Host>(config, Path::new(&store_dir), &base_dir)?;
+    } else {
+        let virtual_store_dir_explicit = config.explicit_settings.contains_key("virtualStoreDir");
+        let global_virtual_store_dir_explicit =
+            config.explicit_settings.contains_key("globalVirtualStoreDir");
+        config.apply_global_virtual_store_derivation(
+            virtual_store_dir_explicit,
+            global_virtual_store_dir_explicit,
+        );
     }
-    let virtual_store_dir_explicit = config.explicit_settings.contains_key("virtualStoreDir");
-    let global_virtual_store_dir_explicit =
-        config.explicit_settings.contains_key("globalVirtualStoreDir");
-    config.apply_global_virtual_store_derivation(
-        virtual_store_dir_explicit,
-        global_virtual_store_dir_explicit,
-    );
     Ok(())
 }
 

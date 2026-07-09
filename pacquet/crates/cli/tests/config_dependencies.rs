@@ -216,7 +216,9 @@ fn update_config_observes_and_can_replace_the_cli_store_dir() {
             .expect("canonicalize recorded virtual store"),
         hook_store.join("links"),
     );
-    assert!(hook_store.join("index.db").is_file());
+    let index_path = hook_store.join("index.db");
+    eprintln!("Checking for hook store index: {}", index_path.display());
+    assert!(index_path.is_file());
 
     drop((root, mock_instance));
 }

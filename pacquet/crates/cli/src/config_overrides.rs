@@ -1,6 +1,6 @@
 use crate::cli_args::CliArgs;
 use clap::CommandFactory;
-use pacquet_config::{Config, GetHomeDir, Host};
+use pacquet_config::{Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe};
 use pacquet_fs::lexical_normalize;
 use pacquet_store_dir::StoreDir;
 use std::{
@@ -9,14 +9,17 @@ use std::{
     path::Path,
 };
 
-pub(crate) fn apply_store_dir_override<Sys: GetHomeDir>(
+pub(crate) fn apply_store_dir_override<Sys>(
     config: &mut Config,
     store_dir: &Path,
     dir: &Path,
-) -> miette::Result<()> {
+) -> miette::Result<()>
+where
+    Sys: EnvVar + GetCurrentDir + GetHomeDir + LinkProbe,
+{
     let workspace_dir = config.workspace_dir.as_deref().unwrap_or(dir).to_path_buf();
     if store_dir.as_os_str().is_empty() {
-        config.reset_store_dir_to_default::<Host>(&workspace_dir);
+        config.reset_store_dir_to_default::<Sys>(&workspace_dir);
         config
             .explicit_settings
             .insert("storeDir".to_string(), serde_json::Value::String(String::new()));
