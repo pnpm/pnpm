@@ -13,6 +13,7 @@ import {
   type ProjectRootDir,
 } from '@pnpm/types'
 import { depPathToFilename, createPeerDepGraphHash, type PeerId } from '@pnpm/dependency-path'
+import { safeJoinModulesDir } from '@pnpm/symlink-dependency'
 import partition from 'ramda/src/partition'
 import pick from 'ramda/src/pick'
 import { type NodeId } from './nextNodeId.js'
@@ -597,7 +598,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     const peerDependencies = { ...resolvedPackage.peerDependencies }
     if (!ctx.depGraph[depPath] || ctx.depGraph[depPath].depth > node.depth) {
       const modules = path.join(ctx.virtualStoreDir, depPathToFilename(depPath, ctx.virtualStoreDirMaxLength), 'node_modules')
-      const dir = path.join(modules, resolvedPackage.name)
+      const dir = safeJoinModulesDir(modules, resolvedPackage.name)
 
       const transitivePeerDependencies = new Set<string>()
       for (const unknownPeer of allResolvedPeers.keys()) {

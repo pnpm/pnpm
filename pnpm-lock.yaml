@@ -2193,6 +2193,9 @@ importers:
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
+      '@pnpm/symlink-dependency':
+        specifier: workspace:*
+        version: link:../../fs/symlink-dependency
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -3860,6 +3863,9 @@ importers:
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: link:../utils
+      '@pnpm/symlink-dependency':
+        specifier: workspace:*
+        version: link:../../fs/symlink-dependency
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -6217,6 +6223,9 @@ importers:
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
+      '@pnpm/symlink-dependency':
+        specifier: workspace:*
+        version: link:../../fs/symlink-dependency
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types

@@ -22,6 +22,9 @@
       "path": "../../fetching/pick-fetcher"
     },
     {
+      "path": "../../fs/symlink-dependency"
+    },
+    {
       "path": "../../lockfile/preferred-versions"
     },
     {

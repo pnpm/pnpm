@@ -26,6 +26,7 @@ import {
   type FetchResponse,
   type StoreController,
 } from '@pnpm/store-controller-types'
+import { safeJoinModulesDir } from '@pnpm/symlink-dependency'
 import * as dp from '@pnpm/dependency-path'
 import pathExists from 'path-exists'
 import equals from 'ramda/src/equals'
@@ -227,7 +228,11 @@ async function buildGraphFromPackages (
       const depIntegrityIsUnchanged = isIntegrityEqual(pkgSnapshot.resolution, currentPackages[depPath]?.resolution)
 
       const modules = path.join(opts.virtualStoreDir, dirNameInVirtualStore, 'node_modules')
-      const dir = path.join(modules, pkgName)
+      // `pkgName` is reconstructed from the (attacker-controllable) lockfile
+      // depPath key via `dp.parse`, which does no validation. Contain it here so
+      // a traversal name (e.g. `../../../tmp/x`) can't make the package import
+      // escape the virtual store. Mirrors the guard on the hoisted linker.
+      const dir = safeJoinModulesDir(modules, pkgName)
       locationByDepPath[depPath] = dir
       // Track directory deps for injected workspace packages
       if (isDirectoryDep) {

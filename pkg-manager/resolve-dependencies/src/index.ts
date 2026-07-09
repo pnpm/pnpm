@@ -14,6 +14,7 @@ import {
 } from '@pnpm/manifest-utils'
 import { verifyPatches } from '@pnpm/patching.config'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
+import { safeJoinModulesDir } from '@pnpm/symlink-dependency'
 import {
   type DependenciesField,
   DEPENDENCIES_FIELDS,
@@ -483,7 +484,7 @@ function extendGraph (graph: DependenciesGraph, virtualStoreDir: string): Depend
     const node = graph[depPath]
     Object.assign(node, {
       modules,
-      dir: path.join(modules, node.name),
+      dir: safeJoinModulesDir(modules, node.name),
     })
   }
   return graph

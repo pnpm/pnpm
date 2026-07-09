@@ -24,8 +24,9 @@
     "!*.map"
   ],
   "scripts": {
-    "lint": "eslint \"src/**/*.ts\"",
-    "test": "pnpm run compile",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pnpm run compile && pnpm run _test",
+    "_test": "jest",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
@@ -41,6 +42,7 @@
     "@pnpm/patching.config": "workspace:*",
     "@pnpm/patching.types": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
+    "@pnpm/symlink-dependency": "workspace:*",
     "@pnpm/types": "workspace:*",
     "path-exists": "catalog:",
     "ramda": "catalog:"

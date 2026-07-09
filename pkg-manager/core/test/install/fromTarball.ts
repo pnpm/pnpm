@@ -1,7 +1,10 @@
 import { prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { fixtures } from '@pnpm/test-fixtures'
 import { addDependenciesToPackage } from '@pnpm/core'
 import { testDefaults } from '../utils/index.js'
+
+const f = fixtures(__dirname)
 
 test('tarball from npm registry', async () => {
   const project = prepareEmpty()
@@ -29,4 +32,15 @@ test('tarballs from GitHub (is-negative)', async () => {
   await addDependenciesToPackage({}, ['is-negative@https://github.com/kevva/is-negative/archive/1d7e288222b53a0cab90a331f1865220ec29560c.tar.gz'], testDefaults())
 
   project.has('is-negative')
+})
+
+// A tarball dependency's own manifest `name` is used as the directory name for
+// the package inside the virtual store. A traversal name such as
+// `@x/../../../<path>` must not escape the store and write outside node_modules.
+test('a tarball dependency whose manifest name is a path traversal is rejected', async () => {
+  prepareEmpty()
+
+  await expect(
+    addDependenciesToPackage({}, [`file:${f.find('pkg-with-path-traversal-name.tgz')}`], testDefaults())
+  ).rejects.toThrow('Refusing to place a dependency')
 })

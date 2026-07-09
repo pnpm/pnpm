@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../fs/symlink-dependency"
+    },
+    {
       "path": "../../packages/dependency-path"
     },
     {
