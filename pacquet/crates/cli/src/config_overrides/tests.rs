@@ -1,5 +1,6 @@
 use super::{ConfigOverrides, apply_store_dir_override};
 use pacquet_config::{Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe};
+use pacquet_store_dir::STORE_VERSION;
 use pretty_assertions::assert_eq;
 use std::{ffi::OsString, path::PathBuf};
 
@@ -191,7 +192,7 @@ fn store_dir_override_resolves_from_workspace_root() {
     )
     .expect("resolve relative store directory");
 
-    assert_eq!(config.store_dir.root(), workspace_dir.join("relative-store/v11"));
+    assert_eq!(config.store_dir.root(), workspace_dir.join("relative-store").join(STORE_VERSION));
 }
 
 #[test]
@@ -232,7 +233,7 @@ fn store_dir_override_expands_quoted_home_path() {
 
     assert_eq!(
         config.store_dir.root(),
-        std::env::temp_dir().join("pacquet-store-dir-home/quoted-store/v11"),
+        std::env::temp_dir().join("pacquet-store-dir-home/quoted-store").join(STORE_VERSION),
     );
     assert_eq!(
         config.explicit_settings.get("storeDir"),
@@ -274,7 +275,10 @@ fn empty_store_dir_override_uses_the_injected_default_provider() {
     apply_store_dir_override::<FakeDefault>(&mut config, std::path::Path::new(""), &workspace_dir)
         .expect("restore the default store directory");
 
-    assert_eq!(config.store_dir.root(), std::path::Path::new("/fake/pnpm-home/store/v11"));
+    assert_eq!(
+        config.store_dir.root(),
+        std::path::Path::new("/fake/pnpm-home/store").join(STORE_VERSION),
+    );
     assert_eq!(
         config.explicit_settings.get("storeDir"),
         Some(&serde_json::Value::String(String::new())),

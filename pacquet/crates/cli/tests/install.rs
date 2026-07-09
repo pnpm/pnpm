@@ -3,6 +3,7 @@ pub use _utils::*;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pacquet_store_dir::STORE_VERSION;
 use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fixtures::{BIG_LOCKFILE, BIG_MANIFEST},
@@ -74,12 +75,12 @@ fn store_dir_cli_option_overrides_config_and_resolves_from_dir() {
         .assert()
         .success();
 
-    let cli_store_dir = workspace.join("cli-store/v11");
+    let cli_store_dir = workspace.join("cli-store").join(STORE_VERSION);
     eprintln!("CLI store must be resolved from --dir and populated: {cli_store_dir:?}");
     assert!(cli_store_dir.join("index.db").is_file());
 
     eprintln!("Configured store must not be populated when the CLI overrides it");
-    assert!(!configured_store_dir.join("v11/index.db").exists());
+    assert!(!configured_store_dir.join(STORE_VERSION).join("index.db").exists());
 
     drop((root, mock_instance));
 }
@@ -107,7 +108,7 @@ fn frozen_install_honors_the_store_dir_cli_option() {
         .assert()
         .success();
 
-    let frozen_store = workspace.join("frozen-store/v11");
+    let frozen_store = workspace.join("frozen-store").join(STORE_VERSION);
     eprintln!("Frozen install must populate the CLI-selected store: {frozen_store:?}");
     assert!(frozen_store.join("index.db").is_file());
 
@@ -134,7 +135,7 @@ fn store_dir_cli_option_updates_derived_global_virtual_store() {
 
     let symlink_path = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent");
     let canonical = symlink_path.pipe(fs::canonicalize).expect("canonicalize symlink");
-    let cli_store_dir = workspace.join("cli-store/v11");
+    let cli_store_dir = workspace.join("cli-store").join(STORE_VERSION);
     let canonical_store = cli_store_dir.pipe(fs::canonicalize).expect("canonicalize CLI store");
     let gvs_root = canonical_store.join("links");
     eprintln!("Derived global virtual store must follow the CLI store: {gvs_root:?}");
