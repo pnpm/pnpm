@@ -2363,3 +2363,19 @@ pub fn npmrc_auth_file_relative_resolving_elsewhere_keeps_warning() {
         "expected the auth warning when the relative npmrcAuthFile does not resolve to the project .npmrc, got: {warnings:?}",
     );
 }
+
+// Port of `extraBinPaths` in `config/reader/test/index.ts` — empty outside
+// a workspace; exactly the workspace root's `node_modules/.bin` inside one.
+#[test]
+pub fn extra_bin_paths_lists_workspace_root_bin_only_inside_a_workspace() {
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[]);
+
+    let config = load_with_fake_env(project.path());
+    assert_eq!(config.extra_bin_paths, Vec::<PathBuf>::new());
+
+    fs::write(project.path().join("pnpm-workspace.yaml"), "packages:\n  - .\n")
+        .expect("write pnpm-workspace.yaml");
+    let config = load_with_fake_env(project.path());
+    assert_eq!(config.extra_bin_paths, vec![project.path().join("node_modules").join(".bin")]);
+}
