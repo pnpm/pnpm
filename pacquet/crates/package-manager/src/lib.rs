@@ -49,6 +49,7 @@ mod tarball_prefetch;
 mod update;
 mod update_project_manifest;
 mod update_project_manifest_object;
+mod validate_lockfile_paths;
 mod version_policy;
 mod virtual_store_layout;
 
@@ -96,6 +97,7 @@ pub use tarball_prefetch::*;
 pub use update::*;
 pub use update_project_manifest::*;
 pub use update_project_manifest_object::*;
+pub use validate_lockfile_paths::*;
 pub use version_policy::*;
 pub use virtual_store_layout::*;
 

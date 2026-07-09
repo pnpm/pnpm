@@ -67,6 +67,12 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     verifiers: &[Arc<dyn ResolutionVerifier>],
     opts: &VerifyLockfileResolutionsOptions<'_>,
 ) -> Result<(), VerifyError> {
+    // Offline structural gate first: reject invalid dependency names
+    // before the `packages`-absent short-circuit and the cache lookup,
+    // so a lockfile that carries a path-traversal alias but no
+    // `packages:` section (e.g. only `link:` deps) is still rejected.
+    verify_lockfile_dependency_names(lockfile)?;
+
     if lockfile.packages.is_none() {
         return Ok(());
     }
@@ -123,10 +129,7 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
         cache_precomputed = result.precomputed;
     }
 
-    let (candidates, shape_violations, invalid_aliases) = collect_candidates(lockfile);
-    if !invalid_aliases.is_empty() {
-        return Err(VerifyError::invalid_dependency_aliases(&invalid_aliases));
-    }
+    let (candidates, shape_violations) = collect_candidates(lockfile);
     if !shape_violations.is_empty() {
         return Err(build_verification_error(shape_violations));
     }
@@ -205,7 +208,7 @@ pub async fn collect_resolution_policy_violations(
     // Shape violations and invalid aliases are deliberately not
     // collected here: they are hard tampering failures, not policy
     // picks a caller may auto-exclude.
-    let (candidates, _shape_violations, _invalid_aliases) = collect_candidates(lockfile);
+    let (candidates, _shape_violations) = collect_candidates(lockfile);
     // `Err(message)` is a transport failure the caller must surface rather than
     // treat as "no violations" — see [`run_fan_out`].
     run_fan_out(candidates, verifiers, concurrency).await
@@ -326,6 +329,61 @@ fn push_invalid_aliases<'alias>(
     }
 }
 
+/// Collect every lockfile-controlled dependency name that isn't a valid
+/// npm package name. Three sources, each of which becomes a
+/// `node_modules/<name>` path component at install time:
+///
+/// - every importer's direct-dependency aliases,
+/// - every snapshot's own package name (the `snapshots:` map key), and
+/// - every snapshot's `dependencies` / `optionalDependencies` aliases.
+///
+/// A name carrying a `..` traversal, a `/`, or a reserved value such as
+/// `node_modules` / `.bin` / `.pnpm` could make an install write outside
+/// the intended directory or overwrite pnpm-owned layout.
+fn collect_invalid_dependency_names(lockfile: &Lockfile) -> std::collections::BTreeSet<String> {
+    let mut invalid = std::collections::BTreeSet::new();
+    for importer in lockfile.importers.values() {
+        for deps in
+            [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
+        {
+            push_invalid_aliases(deps.iter().flatten().map(|(alias, _)| alias), &mut invalid);
+        }
+    }
+    if let Some(snapshots) = lockfile.snapshots.as_ref() {
+        for (key, snapshot) in snapshots {
+            push_invalid_aliases(std::iter::once(&key.name), &mut invalid);
+            for deps in [&snapshot.dependencies, &snapshot.optional_dependencies] {
+                push_invalid_aliases(deps.iter().flatten().map(|(alias, _)| alias), &mut invalid);
+            }
+        }
+    }
+    invalid
+}
+
+/// Reject a lockfile whose dependency names or aliases are not valid npm
+/// package names.
+///
+/// This is an offline, network-free structural check — it does **not**
+/// depend on the resolution-policy verifiers, so it must run on every
+/// install, **including under `trustLockfile`**, which disables the
+/// policy fan-out. A crafted lockfile alias becomes a filesystem path
+/// (`node_modules/<alias>`, a virtual-store slot's inner
+/// `node_modules/<name>`, a bin, a hoisted link), and pacquet's
+/// [`PkgName`] parser does not validate against npm's package-name
+/// rules, so an unchecked `..`/`/`-bearing name escapes the intended
+/// directory.
+///
+/// Surfaces [`VerifyError::InvalidDependencyAlias`]
+/// (`ERR_PNPM_INVALID_DEPENDENCY_NAME`) listing every offender.
+pub fn verify_lockfile_dependency_names(lockfile: &Lockfile) -> Result<(), VerifyError> {
+    let invalid = collect_invalid_dependency_names(lockfile);
+    if invalid.is_empty() {
+        return Ok(());
+    }
+    let invalid: Vec<String> = invalid.into_iter().collect();
+    Err(VerifyError::invalid_dependency_aliases(&invalid))
+}
+
 /// One `(name, version, resolution)` tuple deduplicated from
 /// `lockfile.packages`.
 struct Candidate {
@@ -343,36 +401,10 @@ struct Candidate {
 /// `BTreeMap` over a serialized key gives deterministic iteration
 /// order for tests; the fan-out runs across the value iter so order
 /// doesn't affect correctness, only the reproducibility of failures.
-fn collect_candidates(
-    lockfile: &Lockfile,
-) -> (Vec<Candidate>, Vec<ResolutionPolicyViolation>, Vec<String>) {
+fn collect_candidates(lockfile: &Lockfile) -> (Vec<Candidate>, Vec<ResolutionPolicyViolation>) {
     let Some(packages) = lockfile.packages.as_ref() else {
-        return (Vec::new(), Vec::new(), Vec::new());
+        return (Vec::new(), Vec::new());
     };
-    // Pacquet keeps the alias-bearing maps in `importers` / `snapshots`,
-    // separate from the `packages` metadata the loop below walks, so
-    // they're scanned here in the same pass.
-    let mut invalid_aliases: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-    for importer in lockfile.importers.values() {
-        for deps in
-            [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
-        {
-            push_invalid_aliases(
-                deps.iter().flatten().map(|(alias, _)| alias),
-                &mut invalid_aliases,
-            );
-        }
-    }
-    if let Some(snapshots) = lockfile.snapshots.as_ref() {
-        for snapshot in snapshots.values() {
-            for deps in [&snapshot.dependencies, &snapshot.optional_dependencies] {
-                push_invalid_aliases(
-                    deps.iter().flatten().map(|(alias, _)| alias),
-                    &mut invalid_aliases,
-                );
-            }
-        }
-    }
     let mut deduped: BTreeMap<String, Candidate> = BTreeMap::new();
     let mut shape_violations = Vec::new();
     for (key, metadata) in packages {
@@ -412,7 +444,7 @@ fn collect_candidates(
             resolution: metadata.resolution.clone(),
         });
     }
-    (deduped.into_values().collect(), shape_violations, invalid_aliases.into_iter().collect())
+    (deduped.into_values().collect(), shape_violations)
 }
 
 /// Run every active verifier against every candidate with a
