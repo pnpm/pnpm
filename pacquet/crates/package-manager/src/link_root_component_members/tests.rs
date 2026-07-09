@@ -163,14 +163,14 @@ fn injected_members_link_declared_siblings() {
     // A member's own package dir stays a real directory, never a symlink.
     assert!(
         a_slot.join("@scope/a").is_dir()
-            && !is_symlink_or_junction(&a_slot.join("@scope/a")).unwrap()
+            && !is_symlink_or_junction(&a_slot.join("@scope/a")).unwrap(),
     );
 
     // `a` links its declared sibling `b`, but NOT `c` — it doesn't
     // declare `c` directly (that edge lives on `b`).
     assert!(
         is_symlink_or_junction(&a_slot.join("@scope/b")).unwrap(),
-        "a must link declared sibling b"
+        "a must link declared sibling b",
     );
     assert!(!a_slot.join("@scope/c").exists(), "a must not link c — not directly declared");
     assert_eq!(
@@ -182,7 +182,7 @@ fn injected_members_link_declared_siblings() {
     // `b` links its declared sibling `c`, but NOT `a`.
     assert!(
         is_symlink_or_junction(&b_slot.join("@scope/c")).unwrap(),
-        "b must link declared sibling c"
+        "b must link declared sibling c",
     );
     assert!(!b_slot.join("@scope/a").exists(), "b must not link a — not declared");
     assert_eq!(
