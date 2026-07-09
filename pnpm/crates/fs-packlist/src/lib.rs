@@ -115,7 +115,7 @@ pub fn packlist(pkg_dir: &Path, manifest: &Value) -> Result<Vec<String>, Packlis
     packlist_with_options(pkg_dir, manifest, PacklistOptions::default())
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct PacklistOptions<'a> {
     pub workspace_dir: Option<&'a Path>,
 }
