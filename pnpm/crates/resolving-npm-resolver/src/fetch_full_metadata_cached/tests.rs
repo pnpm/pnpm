@@ -171,6 +171,7 @@ async fn repeated_unsolicited_304_reports_missing_cache() {
     };
 
     let error = fetch_full_metadata_cached("acme", &opts).await.expect_err("304 needs a cache");
+    dbg!(&error);
     assert!(matches!(
         error,
         FetchMetadataError::NotModifiedWithoutCache { ref pkg_name } if pkg_name == "acme"

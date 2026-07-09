@@ -67,12 +67,12 @@ pub enum FetchMetadataError {
         error: serde_json::Error,
     },
 
-    /// `META_NOT_MODIFIED_WITHOUT_CACHE`. Surfaces when a registry
+    /// `ERR_PNPM_META_NOT_MODIFIED_WITHOUT_CACHE`. Surfaces when a registry
     /// repeats an unsolicited 304 after a cache-bypassing retry, or
     /// when a stale-but-removed mirror leaves no body to satisfy a
     /// valid conditional response.
     #[display("Registry returned 304 for {pkg_name} without an existing cache to refresh.")]
-    #[diagnostic(code(pacquet_resolving_npm_resolver::not_modified_without_cache))]
+    #[diagnostic(code(ERR_PNPM_META_NOT_MODIFIED_WITHOUT_CACHE))]
     NotModifiedWithoutCache {
         #[error(not(source))]
         pkg_name: String,
