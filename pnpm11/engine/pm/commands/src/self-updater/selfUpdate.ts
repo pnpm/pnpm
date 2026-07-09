@@ -227,7 +227,7 @@ export async function handler (
   }
   if (
     resolution.manifest.version === packageManager.version &&
-    isInstalledGlobally(opts.globalPkgDir, pnpmPackageNameToInstall(resolution.manifest.version), resolution.manifest.version)
+    await isInstalledGlobally(opts.globalPkgDir, pnpmPackageNameToInstall(resolution.manifest.version), resolution.manifest.version)
   ) {
     return `The currently active ${packageManager.name} v${packageManager.version} is already "${bareSpecifier}" and doesn't need an update`
   }
@@ -290,11 +290,11 @@ function hasLegacyHomeDirShim (pnpmHomeDir: string): boolean {
   return false
 }
 
-function isInstalledGlobally (globalPkgDir: string, pkgName: string, version: string): boolean {
+async function isInstalledGlobally (globalPkgDir: string, pkgName: string, version: string): Promise<boolean> {
   const existing = findGlobalPackage(globalPkgDir, pkgName)
   if (!existing) return false
   try {
-    const manifest = JSON.parse(fs.readFileSync(path.join(existing.installDir, 'node_modules', pkgName, 'package.json'), 'utf8'))
+    const manifest = JSON.parse(await fs.promises.readFile(path.join(existing.installDir, 'node_modules', pkgName, 'package.json'), 'utf8'))
     return manifest.version === version
   } catch {
     return false
