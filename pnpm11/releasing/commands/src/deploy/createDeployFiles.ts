@@ -76,8 +76,9 @@ export function createDeployFiles ({
       lockfileDir,
       projectRootDirRealPath: rootProjectManifestDir,
     })
+    const inputPackageName = dp.parse(inputDepPath).name
     const outputDepPath = resolveResult
-      ? createFileUrlDepPath(resolveResult, allProjects)
+      ? createFileUrlDepPath(resolveResult, allProjects, resolveResult.packageName ?? inputPackageName)
       : inputDepPath
     targetPackageSnapshots[outputDepPath] = convertPackageSnapshot(inputSnapshot, {
       allProjects,
@@ -120,7 +121,7 @@ export function createDeployFiles ({
       }
 
       targetSpecifiers[name] = targetDependencies[name] =
-        resolveResult.resolvedPath === deployedProjectRealPath ? 'link:.' : createFileUrlDepPath(resolveResult, allProjects)
+        resolveResult.resolvedPath === deployedProjectRealPath ? 'link:.' : createFileUrlDepPath(resolveResult, allProjects, resolveResult.packageName ?? name)
     }
   }
 
@@ -252,7 +253,7 @@ function convertResolvedDependencies (
       continue
     }
 
-    output[key] = createFileUrlDepPath(resolveResult, opts.allProjects)
+    output[key] = createFileUrlDepPath(resolveResult, opts.allProjects, resolveResult.packageName ?? key)
   }
 
   return output
@@ -262,6 +263,7 @@ interface ResolveLinkOrFileResult {
   scheme: 'link:' | 'file:'
   resolvedPath: string
   suffix?: string
+  packageName?: string
 }
 
 function resolveLinkOrFile (pkgVer: string, opts: Pick<ConvertOptions, 'lockfileDir' | 'projectRootDirRealPath'>): ResolveLinkOrFileResult | undefined {
@@ -277,7 +279,7 @@ function resolveLinkOrFile (pkgVer: string, opts: Pick<ConvertOptions, 'lockfile
   const resolveSchemeResult = resolveScheme('file:', lockfileDir) ?? resolveScheme('link:', projectRootDirRealPath)
   if (resolveSchemeResult) return resolveSchemeResult
 
-  const { nonSemverVersion, patchHash, peerDepGraphHash, version } = dp.parse(pkgVer)
+  const { name, nonSemverVersion, patchHash, peerDepGraphHash, version } = dp.parse(pkgVer)
   if (!nonSemverVersion) return undefined
 
   if (version) {
@@ -292,16 +294,18 @@ function resolveLinkOrFile (pkgVer: string, opts: Pick<ConvertOptions, 'lockfile
   }
 
   parseResult.suffix = `${patchHash ?? ''}${peerDepGraphHash ?? ''}`
+  parseResult.packageName = name
 
   return parseResult
 }
 
 function createFileUrlDepPath (
   { resolvedPath, suffix }: Pick<ResolveLinkOrFileResult, 'resolvedPath' | 'suffix'>,
-  allProjects: CreateDeployFilesOptions['allProjects']
+  allProjects: CreateDeployFilesOptions['allProjects'],
+  packageName?: string
 ): DepPath {
   const depFileUrl = url.pathToFileURL(resolvedPath).toString()
   const project = allProjects.find(project => project.rootDirRealPath === resolvedPath)
-  const name = project?.manifest.name ?? path.basename(resolvedPath)
+  const name = project?.manifest.name ?? packageName ?? path.basename(resolvedPath)
   return `${name}@${depFileUrl}${suffix ?? ''}` as DepPath
 }

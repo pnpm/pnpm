@@ -271,6 +271,62 @@ test('deploy with a shared lockfile after full install', async () => {
   }
 })
 
+test('deploy with a shared lockfile reuses local tarball package name from the warm store (#12792)', async () => {
+  const tarballPath = path.resolve('vendor/tar-pkg-1.0.0.tgz')
+
+  preparePackages([{
+    location: '.',
+    package: {
+      name: 'app',
+      version: '1.0.0',
+      private: true,
+      dependencies: {
+        'tar-pkg': 'file:vendor/tar-pkg-1.0.0.tgz',
+      },
+    },
+  }])
+  fs.mkdirSync('vendor')
+  f.copy('tar-pkg-1.0.0.tgz', tarballPath)
+
+  const {
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'app' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph: allProjectsGraph,
+    dir: process.cwd(),
+    recursive: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+
+  const deployOpts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    rootProjectManifest: allProjects[0].manifest,
+    rootProjectManifestDir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }
+  await deploy.handler(deployOpts, ['out1'])
+  await deploy.handler(deployOpts, ['out2'])
+
+  const project = assertProject(path.resolve('out2'))
+  project.has('tar-pkg')
+
+  const lockfilePackages = Object.keys(project.readLockfile().packages ?? {})
+  expect(lockfilePackages).toStrictEqual([expect.stringMatching(/^tar-pkg@file:/)])
+})
+
 test('the deploy manifest should inherit some fields from the pnpm object from the root manifest and the manifest of the selected project', async () => {
   const rootOverrides = {
     'is-positive': '2.0.0',
