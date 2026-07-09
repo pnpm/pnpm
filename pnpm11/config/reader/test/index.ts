@@ -3588,6 +3588,40 @@ describe('global config.yaml', () => {
     expect(config.registries.default).toBe('https://trusted.example.com/npm/')
   })
 
+  test('reads registries and named registries from global config.yaml', async () => {
+    prepareEmpty()
+
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', {
+      registries: {
+        default: 'https://${PNPM_TEST_HOST}/npm/',
+        '@scope': 'https://${PNPM_TEST_HOST}/scope/',
+      },
+      namedRegistries: {
+        work: 'https://${PNPM_TEST_HOST}/work/',
+      },
+    })
+
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+    process.env.PNPM_TEST_HOST = 'trusted.example.com'
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.registries.default).toBe('https://trusted.example.com/npm/')
+    expect(config.registries['@scope']).toBe('https://trusted.example.com/scope/')
+    expect(config.namedRegistries).toStrictEqual({
+      work: 'https://trusted.example.com/work/',
+    })
+    expect(warnings.find((w) => w.includes('global config file'))).toBeUndefined()
+  })
+
   test('reads user-level preference settings from global config.yaml', async () => {
     prepareEmpty()
 
