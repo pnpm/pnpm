@@ -102,6 +102,12 @@ pub struct WorkspaceResolveOptions {
     /// logging a no-op.
     pub read_package_log: Option<pacquet_hooks::LogFn>,
 
+    /// Sink for skipped-optional-dependency notifications, pre-bound to
+    /// the install's reporter (the install layer forwards each one as a
+    /// `pnpm:skipped-optional-dependency` `resolution_failure` debug
+    /// log). `None` keeps the skip behavior but drops the notification.
+    pub skipped_optional_log: Option<crate::SkippedOptionalLogFn>,
+
     /// The install's `autoInstallPeers` setting, threaded onto the
     /// shared [`WorkspaceTreeCtx`] so the tree walk drops
     /// peer-shadowed `dependencies` entries. Also overrides every
@@ -155,6 +161,7 @@ where
         manifest_hook,
         pnpmfile_hook,
         read_package_log,
+        skipped_optional_log,
         pick_lowest_direct,
         time_based,
         wanted_lockfile,
@@ -169,6 +176,7 @@ where
             .with_update_reuse_scope(update_reuse_scope)
             .with_pnpmfile_hook(pnpmfile_hook)
             .with_read_package_log(read_package_log)
+            .with_skipped_optional_log(skipped_optional_log)
             .with_auto_install_peers(auto_install_peers)
             .with_registries(registries),
     );

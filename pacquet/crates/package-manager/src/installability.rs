@@ -650,6 +650,7 @@ fn emit_skipped<Reporter: self::Reporter>(
         level: LogLevel::Debug,
         details: Some(details),
         package: SkippedOptionalPackage::Installed { id: pkg_id.to_string(), name, version },
+        parents: None,
         prefix: prefix.to_string(),
         reason: wire_reason,
     }));

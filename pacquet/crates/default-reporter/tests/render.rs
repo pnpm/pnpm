@@ -13,7 +13,8 @@ use pacquet_reporter::{
     LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, PackageImportMethod,
     PackageImportMethodLog, PackageManifestLog, PackageManifestMessage, PnpmLog, ProgressLog,
     ProgressMessage, RootLog, RootMessage, SkippedOptionalDependencyLog, SkippedOptionalPackage,
-    SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
+    SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage,
+    SummaryLog,
 };
 
 const CWD: &str = "/repo";
@@ -421,8 +422,8 @@ fn warnings_collapse_after_five() {
     assert_eq!(lines[5], "[WARN] 1 other warnings");
 }
 
-/// Upstream keeps the console silent for the skipped-optional emits pacquet
-/// produces (they carry no `parents`), so this channel must render nothing.
+/// Upstream keeps the console silent for skipped-optional emits without a
+/// `parents` chain (build/platform skips), so those must render nothing.
 #[test]
 fn skipped_optional_dependency_renders_nothing() {
     let mut reporter = state(false);
@@ -435,6 +436,7 @@ fn skipped_optional_dependency_renders_nothing() {
                 name: name.to_string(),
                 version: version.to_string(),
             },
+            parents: None,
             prefix: CWD.to_string(),
             reason,
         })
@@ -452,6 +454,48 @@ fn skipped_optional_dependency_renders_nothing() {
         ],
     );
     assert!(frame.is_empty(), "skipped-optional events must not render, got: {frame:?}");
+}
+
+/// A resolution-failure skip on a direct optional dependency
+/// (`parents: []`, prefix == cwd) renders the same info line as
+/// upstream's `reportSkippedOptionalDependencies`; a transitive skip
+/// (non-empty `parents`) stays silent.
+#[test]
+fn skipped_optional_resolution_failure_renders_only_top_level() {
+    let skipped = |parents: Vec<SkippedOptionalParent>, prefix: &str| {
+        LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
+            level: LogLevel::Debug,
+            details: Some("No matching version found for broken@^1.0.0".to_string()),
+            package: SkippedOptionalPackage::ResolutionFailure {
+                name: Some("broken".to_string()),
+                version: Some("^1.0.0".to_string()),
+                bare_specifier: "^1.0.0".to_string(),
+            },
+            parents: Some(parents),
+            prefix: prefix.to_string(),
+            reason: SkippedOptionalReason::ResolutionFailure,
+        })
+    };
+
+    let mut reporter = state(false);
+    let frame = render(&mut reporter, vec![skipped(Vec::new(), CWD)]);
+    assert_eq!(
+        frame,
+        "info: broken@^1.0.0 is an optional dependency and failed compatibility check. Excluding it from installation."
+    );
+
+    let mut reporter = state(false);
+    let parent = SkippedOptionalParent {
+        id: "parent@1.0.0".to_string(),
+        name: "parent".to_string(),
+        version: "1.0.0".to_string(),
+    };
+    let frame = render(&mut reporter, vec![skipped(vec![parent], CWD)]);
+    assert!(frame.is_empty(), "transitive skips must not render, got: {frame:?}");
+
+    let mut reporter = state(false);
+    let frame = render(&mut reporter, vec![skipped(Vec::new(), "/somewhere/else")]);
+    assert!(frame.is_empty(), "other prefixes must not render, got: {frame:?}");
 }
 
 #[test]

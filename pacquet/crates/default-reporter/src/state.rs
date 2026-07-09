@@ -14,7 +14,8 @@ use pacquet_reporter::{
     AddedRoot, ContextLog, DependencyType, ExecutionTimeLog, FetchingProgressMessage, HookLog,
     IgnoredScriptsLog, InstallingConfigDepsLog, InstallingConfigDepsStatus, LifecycleMessage,
     LifecycleStdio, LockfileVerificationMessage, LogEvent, LogLevel, PackageImportMethod,
-    PackageManifestMessage, ProgressMessage, RemovedRoot, RequestRetryLog, Stage, StatsMessage,
+    PackageManifestMessage, ProgressMessage, RemovedRoot, RequestRetryLog,
+    SkippedOptionalDependencyLog, SkippedOptionalPackage, Stage, StatsMessage,
 };
 use serde_json::Value;
 
@@ -323,11 +324,7 @@ impl ReporterState {
             LogEvent::Summary(_) => self.on_summary(),
             LogEvent::Lifecycle(log) => self.on_lifecycle(&log.message),
             LogEvent::IgnoredScripts(log) => self.on_ignored_scripts(log),
-            // Upstream's `reportSkippedOptionalDependencies` only prints top-level
-            // resolution failures (its filter needs a `parents: []`); the emits
-            // pacquet produces carry no `parents`, so upstream drops them from the
-            // console. Consume without rendering to match.
-            LogEvent::SkippedOptionalDependency(_) => {}
+            LogEvent::SkippedOptionalDependency(log) => self.on_skipped_optional(log),
             LogEvent::InstallingConfigDeps(log) => self.on_config_deps(log),
             LogEvent::LockfileVerification(log) => self.on_lockfile_verification(&log.message),
             LogEvent::RequestRetry(log) => self.on_request_retry(log),
@@ -1027,6 +1024,30 @@ impl ReporterState {
         let mut slot = std::mem::take(&mut self.exec_slot);
         self.frame.emit(&mut slot, msg, true);
         self.exec_slot = slot;
+    }
+
+    /// Mirrors pnpm's `reportSkippedOptionalDependencies`: only a skip
+    /// whose `parents` chain is present and empty (a direct optional
+    /// dependency of the current project) renders; transitive and
+    /// parent-less skips stay debug-only.
+    fn on_skipped_optional(&mut self, log: &SkippedOptionalDependencyLog) {
+        if log.prefix != self.cwd || !log.parents.as_ref().is_some_and(Vec::is_empty) {
+            return;
+        }
+        let pkg = match &log.package {
+            SkippedOptionalPackage::Installed { id, .. } => id.clone(),
+            SkippedOptionalPackage::ResolutionFailure {
+                name: Some(name),
+                version: Some(version),
+                ..
+            } => format!("{name}@{version}"),
+            SkippedOptionalPackage::ResolutionFailure { bare_specifier, .. } => {
+                bare_specifier.clone()
+            }
+        };
+        self.push_block(format!(
+            "info: {pkg} is an optional dependency and failed compatibility check. Excluding it from installation."
+        ));
     }
 
     /// Renders a `pnpm:hook` event as `hook: message`, matching pnpm's

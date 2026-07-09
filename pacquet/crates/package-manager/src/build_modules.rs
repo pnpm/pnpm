@@ -890,6 +890,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
                                             name,
                                             version,
                                         },
+                                        parents: None,
                                         prefix: lockfile_dir.to_string_lossy().into_owned(),
                                         reason: SkippedOptionalReason::BuildFailure,
                                     },
@@ -940,6 +941,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
                     name,
                     version,
                 },
+                parents: None,
                 prefix: lockfile_dir.to_string_lossy().into_owned(),
                 reason: SkippedOptionalReason::BuildFailure,
             }));
@@ -1017,6 +1019,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
                                 name,
                                 version,
                             },
+                            parents: None,
                             prefix: lockfile_dir.to_string_lossy().into_owned(),
                             reason: SkippedOptionalReason::BuildFailure,
                         },

@@ -570,15 +570,32 @@ pub struct IgnoredScriptsLog {
 /// real safety, so it's left to convention until a site actually
 /// pairs the wrong shapes.
 ///
-/// `parents` is a TODO and is omitted here.
+/// `parents` co-varies with `reason` the same way `package` does:
+/// only the resolver-side `resolution_failure` emit carries it
+/// (empty for a direct optional dependency of the importer); every
+/// other emit site omits it, matching pnpm's payloads.
 #[derive(Debug, Clone, Serialize)]
 pub struct SkippedOptionalDependencyLog {
     pub level: LogLevel,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub details: Option<String>,
     pub package: SkippedOptionalPackage,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parents: Option<Vec<SkippedOptionalParent>>,
     pub prefix: String,
     pub reason: SkippedOptionalReason,
+}
+
+/// One ancestor on a `resolution_failure` skip's `parents` chain: a
+/// resolved package between the importer and the failing optional
+/// edge. The default reporter renders only skips whose chain is empty
+/// (a direct optional dependency), matching pnpm's
+/// `reportSkippedOptionalDependencies`.
+#[derive(Debug, Clone, Serialize)]
+pub struct SkippedOptionalParent {
+    pub id: String,
+    pub name: String,
+    pub version: String,
 }
 
 /// Package identifier carried on a [`SkippedOptionalDependencyLog`].
@@ -591,9 +608,8 @@ pub struct SkippedOptionalDependencyLog {
 ///   `build_modules.rs`.
 /// - [`SkippedOptionalPackage::ResolutionFailure`] —
 ///   `{ name?, version?, bareSpecifier }` for `resolution_failure`.
-///   Defined for the resolver-side emit. Pacquet has no resolver yet
-///   so this variant is wire-shape-only in slice 4 — wired so a
-///   future resolver port can land without re-touching this type.
+///   Emitted by the deps resolver's skipped-optional sink when an
+///   optional dependency's resolution failure drops the edge.
 ///
 /// `#[serde(untagged)]` so each variant serializes as its own object
 /// shape — a union of two `package: { ... }` types.
@@ -604,8 +620,10 @@ pub enum SkippedOptionalPackage {
     /// emit (installability + build-failure).
     Installed { id: String, name: String, version: String },
     /// `{ name?, version?, bareSpecifier }` shape used by the
-    /// resolver-side `resolution_failure` emit. `name` and `version`
-    /// are optional and stay `None` when the resolver fails before it
+    /// resolver-side `resolution_failure` emit (the deps resolver's
+    /// skipped-optional sink wired in
+    /// `install_with_fresh_lockfile.rs`). `name` and `version` are
+    /// optional and stay `None` when the resolver fails before it
     /// could resolve those fields.
     ResolutionFailure {
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -617,10 +635,9 @@ pub enum SkippedOptionalPackage {
     },
 }
 
-/// Discriminator on a [`SkippedOptionalDependencyLog`]. Only
-/// `BuildFailure` lands at pacquet's current emit sites; the others
-/// are kept in the enum for forward compatibility so callers don't
-/// have to widen the type when more reasons are wired up.
+/// Discriminator on a [`SkippedOptionalDependencyLog`]. See
+/// [`SkippedOptionalPackage`] for which emit site pairs with which
+/// reason.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SkippedOptionalReason {

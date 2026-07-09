@@ -185,6 +185,7 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
         manifest_hook: None,
         pnpmfile_hook: None,
         read_package_log: None,
+        skipped_optional_log: None,
         pick_lowest_direct,
         time_based,
         wanted_lockfile: None,
@@ -640,4 +641,201 @@ async fn shared_subtree_miss_unsatisfied_by_first_importer_still_hoists() {
             "{importer} hoists the peer the first walk could not satisfy",
         );
     }
+}
+
+/// Resolver fed from a `(alias, range)` → `ResolveResult` table whose
+/// chain fails for the aliases in `failing`, mimicking a registry
+/// whose packument no longer serves any satisfying version.
+struct FailingAliasResolver {
+    table: HashMap<(String, String), ResolveResult>,
+    failing: std::collections::HashSet<String>,
+}
+
+impl Resolver for FailingAliasResolver {
+    fn resolve<'a>(
+        &'a self,
+        wanted: &'a WantedDependency,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveFuture<'a> {
+        let alias = wanted.alias.clone().unwrap_or_default();
+        let range = wanted.bare_specifier.clone().unwrap_or_default();
+        let failing = self.failing.contains(&alias);
+        let result = self.table.get(&(alias.clone(), range.clone())).cloned();
+        Box::pin(async move {
+            if failing {
+                return Err(format!("No matching version found for {alias}@{range}").into());
+            }
+            Ok::<_, ResolveError>(result)
+        })
+    }
+
+    fn resolve_latest<'a>(
+        &'a self,
+        _query: &'a LatestQuery,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveLatestFuture<'a> {
+        Box::pin(async { Ok(None) })
+    }
+}
+
+/// One importer whose manifest carries a resolvable regular dep
+/// (`kept`) and an optional dep (`broken`) whose resolution fails.
+fn optional_failure_fixture() -> (tempfile::TempDir, PackageManifest, FailingAliasResolver) {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let path = tmp.path().join("package.json");
+    let json = serde_json::json!({
+        "name": "root",
+        "version": "0.0.0",
+        "dependencies": { "kept": "^1.0.0" },
+        "optionalDependencies": { "broken": "^1.0.0" },
+    });
+    std::fs::write(&path, serde_json::to_string(&json).unwrap()).expect("write package.json");
+    let manifest = PackageManifest::from_path(path).expect("parse package.json");
+    let resolver = FailingAliasResolver {
+        table: HashMap::from([(
+            ("kept".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "kept",
+                "1.0.0",
+                None,
+                serde_json::json!({ "name": "kept", "version": "1.0.0" }),
+            ),
+        )]),
+        failing: std::collections::HashSet::from(["broken".to_string()]),
+    };
+    (tmp, manifest, resolver)
+}
+
+/// A wanted lockfile whose `packages:` map holds exactly one entry.
+fn lockfile_with_package(key: &str) -> pacquet_lockfile::Lockfile {
+    use pacquet_lockfile::{
+        ComVer, LockfileVersion, PackageMetadata, PkgNameVerPeer, TarballResolution,
+    };
+    let key: PkgNameVerPeer = key.parse().expect("parse package key");
+    let metadata = PackageMetadata {
+        resolution: LockfileResolution::Tarball(TarballResolution {
+            tarball: format!("https://registry.example/{key}.tgz"),
+            integrity: None,
+            git_hosted: None,
+            path: None,
+        }),
+        version: None,
+        engines: None,
+        cpu: None,
+        os: None,
+        libc: None,
+        deprecated: None,
+        has_bin: None,
+        prepare: None,
+        bundled_dependencies: None,
+        peer_dependencies: None,
+        peer_dependencies_meta: None,
+    };
+    pacquet_lockfile::Lockfile {
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).expect("lockfile v9"),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        importers: HashMap::new(),
+        packages: Some(HashMap::from([(key, metadata)])),
+        snapshots: None,
+    }
+}
+
+#[tokio::test]
+async fn skips_an_optional_dependency_whose_resolution_fails_with_no_locked_entry() {
+    let (_tmp, manifest, resolver) = optional_failure_fixture();
+    let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+    let skipped = std::sync::Arc::new(Mutex::new(Vec::new()));
+    let mut opts = workspace_opts(false, false);
+    opts.skipped_optional_log = Some(std::sync::Arc::new({
+        let skipped = std::sync::Arc::clone(&skipped);
+        move |notification| skipped.lock().unwrap().push(notification)
+    }));
+    let result = resolve_workspace(
+        &resolver,
+        &importers,
+        &[DependencyGroup::Prod, DependencyGroup::Optional],
+        opts,
+        |_| importer_opts(std::path::PathBuf::from("/repo"), None),
+    )
+    .await
+    .expect("resolution failure of an optional dependency is skipped");
+
+    let direct = &result.peers.direct_dependencies_by_importer["."];
+    assert!(direct.contains_key("kept"), "the regular dep resolves: {direct:?}");
+    assert!(!direct.contains_key("broken"), "the failing optional edge is dropped: {direct:?}");
+    let skipped = skipped.lock().unwrap();
+    assert_eq!(skipped.len(), 1);
+    assert_eq!(skipped[0].name.as_deref(), Some("broken"));
+    assert_eq!(skipped[0].version.as_deref(), Some("^1.0.0"));
+    assert_eq!(skipped[0].bare_specifier, "^1.0.0");
+    assert!(
+        skipped[0].parents.is_empty(),
+        "a direct optional dep has an empty parents chain: {:?}",
+        skipped[0].parents,
+    );
+    assert_eq!(skipped[0].prefix, "/repo");
+    assert!(
+        skipped[0].details.contains("No matching version found for broken@^1.0.0"),
+        "details carry the resolver error: {}",
+        skipped[0].details,
+    );
+}
+
+// Covers https://github.com/pnpm/pnpm/issues/12853: a wanted lockfile
+// that already resolved the optional dependency must fail the install
+// loudly instead of silently dropping the locked entries.
+#[tokio::test]
+async fn fails_on_an_optional_dependency_that_cannot_be_resolved_with_a_satisfying_locked_entry() {
+    let (_tmp, manifest, resolver) = optional_failure_fixture();
+    let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+    let mut opts = workspace_opts(false, false);
+    opts.wanted_lockfile = Some(std::sync::Arc::new(lockfile_with_package("broken@1.2.0")));
+    // Model `pacquet dedupe`: the prior lockfile rides along for the
+    // locked-entry check but nothing is reused from it.
+    opts.update_reuse_scope = crate::UpdateReuseScope::None;
+    let result = resolve_workspace(
+        &resolver,
+        &importers,
+        &[DependencyGroup::Prod, DependencyGroup::Optional],
+        opts,
+        |_| importer_opts(std::path::PathBuf::from("/repo"), None),
+    )
+    .await;
+
+    let Err(crate::ResolveImporterError::Resolve(err)) = result else {
+        panic!("a locked optional dependency must fail loudly");
+    };
+    let help = miette::Diagnostic::help(&err).expect("carries the lockfile hint").to_string();
+    assert!(help.contains("the lockfile contains a resolution for it"), "unexpected hint: {help}");
+    assert!(
+        matches!(err, crate::ResolveDependencyTreeError::LockedOptionalResolutionFailure(_)),
+        "unexpected error: {err}",
+    );
+}
+
+#[tokio::test]
+async fn skips_an_optional_dependency_when_the_locked_entry_does_not_satisfy_the_wanted_range() {
+    let (_tmp, manifest, resolver) = optional_failure_fixture();
+    let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+    let mut opts = workspace_opts(false, false);
+    opts.wanted_lockfile = Some(std::sync::Arc::new(lockfile_with_package("broken@0.9.0")));
+    opts.update_reuse_scope = crate::UpdateReuseScope::None;
+    let result = resolve_workspace(
+        &resolver,
+        &importers,
+        &[DependencyGroup::Prod, DependencyGroup::Optional],
+        opts,
+        |_| importer_opts(std::path::PathBuf::from("/repo"), None),
+    )
+    .await
+    .expect("an out-of-range locked entry keeps the skip behavior");
+
+    let direct = &result.peers.direct_dependencies_by_importer["."];
+    assert!(!direct.contains_key("broken"), "the failing optional edge is dropped: {direct:?}");
 }

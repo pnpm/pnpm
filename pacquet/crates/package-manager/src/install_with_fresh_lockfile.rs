@@ -21,7 +21,10 @@ use pacquet_hooks::finder;
 use pacquet_lockfile::{Lockfile, LockfileResolution, SaveLockfileError};
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_reporter::{HookLog, LogEvent, LogLevel, Reporter, Stage, StageLog};
+use pacquet_reporter::{
+    HookLog, LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
+    SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog,
+};
 use pacquet_resolving_default_resolver::DefaultResolver;
 use pacquet_resolving_deps_resolver::{
     ManifestHook, ResolveDependencyTreeError, ResolveImporterError, ResolveImporterOptions,
@@ -1098,6 +1101,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             manifest_hook: manifest_hook.clone(),
             pnpmfile_hook,
             read_package_log,
+            skipped_optional_log: Some(skipped_optional_log_fn::<Reporter>()),
             pick_lowest_direct,
             time_based,
             // Hand the resolver the prior lockfile so it can reuse
@@ -2070,6 +2074,38 @@ fn hook_log_fn<Reporter: self::Reporter>(
             hook: hook.to_string(),
             message,
             prefix: prefix.clone(),
+        }));
+    })
+}
+
+/// Build the resolver's skipped-optional-dependency sink: each
+/// notification emits a `pnpm:skipped-optional-dependency` debug event
+/// with `reason=resolution_failure` through the install's reporter,
+/// matching pnpm's `skippedOptionalDependencyLogger.debug` payload.
+fn skipped_optional_log_fn<Reporter: self::Reporter>()
+-> pacquet_resolving_deps_resolver::SkippedOptionalLogFn {
+    Arc::new(|skipped: pacquet_resolving_deps_resolver::SkippedOptionalDependency| {
+        Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
+            level: LogLevel::Debug,
+            details: Some(skipped.details),
+            package: SkippedOptionalPackage::ResolutionFailure {
+                name: skipped.name,
+                version: skipped.version,
+                bare_specifier: skipped.bare_specifier,
+            },
+            parents: Some(
+                skipped
+                    .parents
+                    .into_iter()
+                    .map(|parent| SkippedOptionalParent {
+                        id: parent.id,
+                        name: parent.name,
+                        version: parent.version,
+                    })
+                    .collect(),
+            ),
+            prefix: skipped.prefix,
+            reason: SkippedOptionalReason::ResolutionFailure,
         }));
     })
 }
