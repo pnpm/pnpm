@@ -14,12 +14,12 @@ importers:
       rimraf:
         specifier: 2.5.1
         version: 2.5.1
-    optionalDependencies:
-      is-negative:
-        specifier: 1.0.0
-        version: 1.0.0
     devDependencies:
       is-positive:
+        specifier: 1.0.0
+        version: 1.0.0
+    optionalDependencies:
+      is-negative:
         specifier: 1.0.0
         version: 1.0.0
 
