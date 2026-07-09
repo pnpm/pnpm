@@ -809,9 +809,6 @@ catalogs:
     p-map-values:
       specifier: ^0.1.0
       version: 0.1.0
-    p-memoize:
-      specifier: 8.0.0
-      version: 8.0.0
     p-queue:
       specifier: ^9.3.0
       version: 9.3.0
@@ -8816,9 +8813,6 @@ importers:
       p-limit:
         specifier: 'catalog:'
         version: 7.3.0
-      p-memoize:
-        specifier: 'catalog:'
-        version: 8.0.0
       parse-npm-tarball-url:
         specifier: 'catalog:'
         version: 5.0.0
@@ -15745,10 +15739,6 @@ packages:
   p-memoize@4.0.1:
     resolution: {integrity: sha512-km0sP12uE0dOZ5qP+s7kGVf07QngxyG0gS8sYFvFWhqlgzOsSy+m71aUejf/0akxj5W7gE//2G74qTv6b4iMog==}
     engines: {node: '>=10'}
-
-  p-memoize@8.0.0:
-    resolution: {integrity: sha512-jdZ10MCxavHoIHwJ5oweOtYy6ElPixEHaMkz0AuaEMovR1MRpVvYFzIEHRxgMEpXYzNpRVByFAniAzwmd1/uug==}
-    engines: {node: '>=20'}
 
   p-queue@6.6.2:
     resolution: {integrity: sha512-RwFpb72c/BhQLEXIZ5K2e+AhgNVmIejGlTgiB9MzZ0e93GRvqZ7uSi0dvRF7/XIXDeNkra2fNHBxTyPDGySpjQ==}
@@ -24014,11 +24004,6 @@ snapshots:
     dependencies:
       mem: 6.1.1
       mimic-fn: 3.1.0
-
-  p-memoize@8.0.0:
-    dependencies:
-      mimic-function: 5.0.1
-      type-fest: 4.41.0
 
   p-queue@6.6.2:
     dependencies:

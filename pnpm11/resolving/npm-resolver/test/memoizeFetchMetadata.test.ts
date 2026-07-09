@@ -1,0 +1,104 @@
+import { expect, test } from '@jest/globals'
+import type { PackageMeta } from '@pnpm/resolving.registry.types'
+
+import type { FetchMetadataResult } from '../src/fetch.js'
+import { memoizeFetchMetadata } from '../src/memoizeFetchMetadata.js'
+
+const REGISTRY = 'https://registry.npmjs.org/'
+
+function fooFetchResult (): FetchMetadataResult {
+  return {
+    meta: { name: 'foo' } as PackageMeta,
+    jsonText: '{"name":"foo"}',
+    etag: '"abc"',
+  }
+}
+
+test('the initiating caller receives the raw body; cache hits get a body-less clone sharing the same meta', async () => {
+  const result = fooFetchResult()
+  let calls = 0
+  const { fetch } = memoizeFetchMetadata(async () => {
+    calls++
+    return result
+  })
+
+  const first = await fetch('foo', { registry: REGISTRY })
+  expect(first).toBe(result)
+  if (first.notModified) throw new Error('expected a fresh fetch result')
+  expect(first.jsonText).toBe('{"name":"foo"}')
+
+  const second = await fetch('foo', { registry: REGISTRY })
+  expect(calls).toBe(1)
+  if (second.notModified) throw new Error('expected a cached fetch result')
+  expect(second.jsonText).toBeUndefined()
+  expect(second.meta).toBe(result.meta)
+  expect(second.etag).toBe(result.etag)
+  // The clone keeps the original intact for the initiating caller.
+  expect(result.jsonText).toBe('{"name":"foo"}')
+})
+
+test('a caller arriving while the fetch is in flight gets the body-less clone', async () => {
+  let release!: (result: FetchMetadataResult) => void
+  const { fetch } = memoizeFetchMetadata(async () => new Promise<FetchMetadataResult>((resolve) => {
+    release = resolve
+  }))
+
+  const firstPromise = fetch('foo', { registry: REGISTRY })
+  const secondPromise = fetch('foo', { registry: REGISTRY })
+  release(fooFetchResult())
+
+  const [first, second] = await Promise.all([firstPromise, secondPromise])
+  if (first.notModified || second.notModified) throw new Error('expected fresh fetch results')
+  expect(first.jsonText).toBe('{"name":"foo"}')
+  expect(second.jsonText).toBeUndefined()
+})
+
+test('requests with different options are cached separately', async () => {
+  const fetchedOpts: boolean[] = []
+  const { fetch } = memoizeFetchMetadata(async (pkgName, opts) => {
+    fetchedOpts.push(opts.fullMetadata === true)
+    return fooFetchResult()
+  })
+
+  await fetch('foo', { registry: REGISTRY })
+  await fetch('foo', { registry: REGISTRY, fullMetadata: true })
+  await fetch('foo', { registry: REGISTRY })
+  expect(fetchedOpts).toEqual([false, true])
+})
+
+test('a rejected fetch is evicted so the next request retries', async () => {
+  let calls = 0
+  const { fetch } = memoizeFetchMetadata(async () => {
+    calls++
+    if (calls === 1) throw new Error('network down')
+    return fooFetchResult()
+  })
+
+  await expect(fetch('foo', { registry: REGISTRY })).rejects.toThrow('network down')
+  const retried = await fetch('foo', { registry: REGISTRY })
+  if (retried.notModified) throw new Error('expected a fresh fetch result')
+  expect(retried.meta.name).toBe('foo')
+  expect(calls).toBe(2)
+})
+
+test('clear() empties the cache', async () => {
+  let calls = 0
+  const { fetch, clear } = memoizeFetchMetadata(async () => {
+    calls++
+    return fooFetchResult()
+  })
+
+  await fetch('foo', { registry: REGISTRY })
+  clear()
+  await fetch('foo', { registry: REGISTRY })
+  expect(calls).toBe(2)
+})
+
+test('notModified results pass through unchanged', async () => {
+  const { fetch } = memoizeFetchMetadata(async () => ({ notModified: true as const }))
+
+  const first = await fetch('foo', { registry: REGISTRY })
+  const second = await fetch('foo', { registry: REGISTRY })
+  expect(first.notModified).toBe(true)
+  expect(second).toBe(first)
+})

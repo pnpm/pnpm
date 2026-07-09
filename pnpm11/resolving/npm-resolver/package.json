@@ -55,7 +55,6 @@
     "lru-cache": "catalog:",
     "normalize-path": "catalog:",
     "p-limit": "catalog:",
-    "p-memoize": "catalog:",
     "parse-npm-tarball-url": "catalog:",
     "path-temp": "catalog:",
     "ramda": "catalog:",
