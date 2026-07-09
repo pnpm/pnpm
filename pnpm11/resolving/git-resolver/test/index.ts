@@ -4,11 +4,9 @@ import path from 'node:path'
 import { beforeEach, expect, jest, test } from '@jest/globals'
 import isWindows from 'is-windows'
 
-const { fetchWithDispatcher: fetchWithDispatcherOriginal } = await import('@pnpm/network.fetch')
 jest.unstable_mockModule('@pnpm/network.fetch', () => ({
   fetchWithDispatcher: jest.fn(),
 }))
-const { gracefulGit: gitOriginal } = await import('graceful-git')
 jest.unstable_mockModule('graceful-git', () => ({
   gracefulGit: jest.fn(),
 }))
@@ -19,15 +17,9 @@ const { createGitResolver } = await import('@pnpm/resolving.git-resolver')
 const resolveFromGit = createGitResolver({})
 
 beforeEach(() => {
-  jest.mocked(git).mockImplementation(gitOriginal)
-  jest.mocked(fetchWithDispatcher).mockImplementation(fetchWithDispatcherOriginal)
+  jest.mocked(git).mockImplementation(lsRemoteFromFixture)
+  mockFetchAsPublic()
 })
-
-function mockFetchAsPrivate (): void {
-  jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
-    return { ok: false } as any // eslint-disable-line @typescript-eslint/no-explicit-any
-  })
-}
 
 test('resolveFromGit() with commit', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'zkochan/is-negative#163360a8d3ae6bee9524541043197ff356f8ed99' })
@@ -544,6 +536,7 @@ test('resolve a private repository using the HTTPS protocol without auth token',
 })
 
 test('resolve a private repository using the HTTPS protocol with a commit hash', async () => {
+  mockFetchAsPrivate()
   jest.mocked(git).mockImplementation(async (args: string[]) => {
     expect(args).toContain('ls-remote')
     expect(args).toContain('https://github.com/foo/bar.git')
@@ -628,3 +621,57 @@ cba04669e621b85fbdb33371604de1a2898e68e9\trefs/tags/v0.0.39',
     resolvedVia: 'git-repository',
   })
 })
+
+function mockFetchAsPublic (): void {
+  jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
+    return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+  })
+}
+
+function mockFetchAsPrivate (): void {
+  jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
+    return { ok: false } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+  })
+}
+
+async function lsRemoteFromFixture (args: string[]): Promise<{ stdout: string }> {
+  const repo = args.find((arg) => REPO_REFS[arg] != null)
+  if (args[0] !== 'ls-remote' || repo == null) {
+    throw new Error(`No fixture for git command: git ${args.join(' ')}`)
+  }
+  return {
+    stdout: REPO_REFS[repo].map(([commit, ref]) => `${commit}\t${ref}`).join('\n'),
+  }
+}
+
+// Captured from `git ls-remote` against the real repositories (abridged for
+// cmd-shim). The commit hashes expected by the tests come from these refs.
+const REPO_REFS: Record<string, Array<[commit: string, ref: string]>> = {
+  'https://github.com/zkochan/is-negative.git': [
+    ['1d7e288222b53a0cab90a331f1865220ec29560c', 'HEAD'],
+    ['4c39fbc124cd4944ee51cb082ad49320fab58121', 'refs/heads/canary'],
+    ['1d7e288222b53a0cab90a331f1865220ec29560c', 'refs/heads/master'],
+    ['163360a8d3ae6bee9524541043197ff356f8ed99', 'refs/tags/1.0.0'],
+    ['9a89df745b2ec20ae7445d3d9853ceaeef5b0b72', 'refs/tags/1.0.1'],
+    ['f7dec4d66a5a56719e49b9f94a24d73f924ddeb3', 'refs/tags/1.0.1^{}'],
+    ['ec74951f0a5d3ba294e11a49230529e89f0ebac7', 'refs/tags/2.0.0'],
+    ['219c424611ff4a2af15f7deeff4f93c62558c43d', 'refs/tags/2.0.0^{}'],
+    ['2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5', 'refs/tags/2.0.1'],
+    ['6dcce91c268805d456b8a575b67d7febc7ae2933', 'refs/tags/2.0.1^{}'],
+    ['94cd32f6b993eebb3abe891efbec6656b4c56532', 'refs/tags/2.0.2'],
+    ['2a6169d91678bdf435503a35742ca12a1af85396', 'refs/tags/2.0.2^{}'],
+    ['54355c870aab5b671fc7abe261d004b326a2592d', 'refs/tags/2.1.0'],
+    ['a6c51a38c6c1753e8ea1b51dfb4e6f2f8fb55557', 'refs/tags/2.1.0^{}'],
+  ],
+  'https://github.com/zoli-forks/cmd-shim.git': [
+    ['a00a83a1593edb6e395d3ce41f2ef70edf7e2cf5', 'HEAD'],
+    ['884988ef307d9d6e5bc2b93ba013baed552d5091', 'refs/heads/fix/now-cli-issue'],
+    ['a00a83a1593edb6e395d3ce41f2ef70edf7e2cf5', 'refs/heads/main'],
+  ],
+  'https://github.com/pnpm-e2e/simple-pkg.git': [
+    ['2fce895ee534a38989bb67fdb8684f520827f614', 'HEAD'],
+    ['2fce895ee534a38989bb67fdb8684f520827f614', 'refs/heads/branch/with-slash'],
+    ['2fce895ee534a38989bb67fdb8684f520827f614', 'refs/heads/deadbeef'],
+    ['2fce895ee534a38989bb67fdb8684f520827f614', 'refs/heads/main'],
+  ],
+}
