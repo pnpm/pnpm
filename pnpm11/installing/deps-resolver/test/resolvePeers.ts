@@ -1717,3 +1717,147 @@ describe('dedupePeers', () => {
     expect(peerDependencyIssuesByProjects['']?.missing?.['real-pkg']).toBeUndefined()
   })
 })
+
+test('pruned hoisted peer providers that peer-depend on each other are resolved together', async () => {
+  // Hoisted peer providers whose tree position was never visited are resolved
+  // by a root-context fallback. Providers frequently peer-depend on each
+  // other, and each resolvePeersOfChildren call only detects peer cycles
+  // among its own children — so all pruned providers must be resolved in one
+  // call, or their dep path calculations await each other forever.
+  const libaPkg = {
+    name: 'liba',
+    pkgIdWithPatchHash: 'liba@1.0.0' as PkgIdWithPatchHash,
+    version: '1.0.0',
+    peerDependencies: {
+      libb: { version: '^1.0.0' },
+    },
+    id: '' as PkgResolutionId,
+  }
+  const libbPkg = {
+    name: 'libb',
+    pkgIdWithPatchHash: 'libb@1.0.0' as PkgIdWithPatchHash,
+    version: '1.0.0',
+    peerDependencies: {
+      liba: { version: '^1.0.0' },
+    },
+    id: '' as PkgResolutionId,
+  }
+  const consumerPkg = {
+    name: 'consumer',
+    pkgIdWithPatchHash: 'consumer@1.0.0' as PkgIdWithPatchHash,
+    version: '1.0.0',
+    peerDependencies: {
+      liba: { version: '^1.0.0' },
+      libb: { version: '^1.0.0' },
+    },
+    id: '' as PkgResolutionId,
+  }
+  const { dependenciesGraph, dependenciesByProjectId } = await resolvePeers({
+    allPeerDepNames: new Set(['liba', 'libb']),
+    projects: [
+      {
+        directNodeIdsByAlias: new Map([
+          ['consumer', '>consumer@1.0.0>' as NodeId],
+          ['liba', '>liba@1.0.0>' as NodeId],
+          ['libb', '>libb@1.0.0>' as NodeId],
+        ]),
+        hoistedPeerProviderNodeIds: new Set(['>liba@1.0.0>' as NodeId, '>libb@1.0.0>' as NodeId]),
+        topParents: [],
+        rootDir: '' as ProjectRootDir,
+        id: '.',
+      },
+    ],
+    resolvedImporters: {},
+    dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+      ['>consumer@1.0.0>' as NodeId, {
+        children: {},
+        installable: true,
+        resolvedPackage: consumerPkg,
+        depth: 0,
+      }],
+      ['>liba@1.0.0>' as NodeId, {
+        children: {},
+        installable: true,
+        resolvedPackage: libaPkg,
+        depth: 1,
+      }],
+      ['>libb@1.0.0>' as NodeId, {
+        children: {},
+        installable: true,
+        resolvedPackage: libbPkg,
+        depth: 1,
+      }],
+    ]),
+    virtualStoreDir: '',
+    lockfileDir: '',
+    virtualStoreDirMaxLength: 120,
+    peersSuffixMaxLength: 1000,
+    workspaceProjectIds: new Set(),
+  })
+  expect(Object.keys(dependenciesGraph).sort()).toStrictEqual([
+    'consumer@1.0.0(liba@1.0.0)(libb@1.0.0)',
+    'liba@1.0.0(libb@1.0.0)',
+    'libb@1.0.0(liba@1.0.0)',
+  ])
+  expect(dependenciesByProjectId['.'].get('liba')).toBe('liba@1.0.0(libb@1.0.0)')
+  expect(dependenciesByProjectId['.'].get('libb')).toBe('libb@1.0.0(liba@1.0.0)')
+})
+
+test('a pruned hoisted peer provider is resolved by the root-context fallback', async () => {
+  // Mirror of the pacquet test `pruned_hoisted_provider_falls_back_to_root_resolution`:
+  // a hoisted peer provider whose tree position was never visited must still
+  // get a dep path so the consumers that bound it can finish.
+  const provPkg = {
+    name: 'prov',
+    pkgIdWithPatchHash: 'prov@1.0.0' as PkgIdWithPatchHash,
+    version: '1.0.0',
+    peerDependencies: {} as PeerDependencies,
+    id: '' as PkgResolutionId,
+  }
+  const consumerPkg = {
+    name: 'consumer',
+    pkgIdWithPatchHash: 'consumer@1.0.0' as PkgIdWithPatchHash,
+    version: '1.0.0',
+    peerDependencies: {
+      prov: { version: '*' },
+    },
+    id: '' as PkgResolutionId,
+  }
+  const { dependenciesGraph, dependenciesByProjectId } = await resolvePeers({
+    allPeerDepNames: new Set(['prov']),
+    projects: [
+      {
+        directNodeIdsByAlias: new Map([
+          ['consumer', '>consumer@1.0.0>' as NodeId],
+          ['prov', '>prov@1.0.0>' as NodeId],
+        ]),
+        hoistedPeerProviderNodeIds: new Set(['>prov@1.0.0>' as NodeId]),
+        topParents: [],
+        rootDir: '' as ProjectRootDir,
+        id: '.',
+      },
+    ],
+    resolvedImporters: {},
+    dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+      ['>consumer@1.0.0>' as NodeId, {
+        children: {},
+        installable: true,
+        resolvedPackage: consumerPkg,
+        depth: 0,
+      }],
+      ['>prov@1.0.0>' as NodeId, {
+        children: {},
+        installable: true,
+        resolvedPackage: provPkg,
+        depth: 1,
+      }],
+    ]),
+    virtualStoreDir: '',
+    lockfileDir: '',
+    virtualStoreDirMaxLength: 120,
+    peersSuffixMaxLength: 1000,
+    workspaceProjectIds: new Set(),
+  })
+  expect(dependenciesByProjectId['.'].get('prov')).toBe('prov@1.0.0')
+  expect(Object.keys(dependenciesGraph)).toContain('consumer@1.0.0(prov@1.0.0)')
+})

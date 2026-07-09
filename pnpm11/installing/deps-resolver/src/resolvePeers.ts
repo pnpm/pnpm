@@ -195,10 +195,18 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     // hit peersCache, so its children were never visited) still has consumers
     // awaiting its dep path, so resolve it here as a last resort. Providers
     // visited by the traversal above are recorded in parentPkgsOfNode.
+    // All pruned providers go into a single resolvePeersOfChildren call:
+    // its cycle analysis only sees the children of one call, and providers
+    // frequently peer-depend on each other, so resolving them one by one
+    // would leave their dep path calculations awaiting each other forever.
+    const prunedProviderChildren: Record<string, NodeId> = {}
     for (const [alias, nodeId] of Object.entries(hoistedProviderChildren)) {
       if (parentPkgsOfNode.has(nodeId)) continue
+      prunedProviderChildren[alias] = nodeId
+    }
+    if (Object.keys(prunedProviderChildren).length > 0) {
       // eslint-disable-next-line no-await-in-loop
-      const { finishing } = await resolvePeersOfChildren({ [alias]: nodeId }, pkgsByName, projectPeersContext)
+      const { finishing } = await resolvePeersOfChildren(prunedProviderChildren, pkgsByName, projectPeersContext)
       if (finishing) {
         finishingList.push(finishing)
       }
