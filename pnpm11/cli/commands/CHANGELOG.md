@@ -1,5 +1,14 @@
 # @pnpm/cli.commands
 
+## 1100.0.25
+
+### Patch Changes
+
+- a8ad82d: Register the `pn` alias in generated shell completion scripts.
+- Updated dependencies [9318a11]
+- Updated dependencies [5a4daec]
+  - @pnpm/config.reader@1101.11.1
+
 ## 1100.0.24
 
 ### Patch Changes

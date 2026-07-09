@@ -1,5 +1,13 @@
 # @pnpm/auth.commands
 
+## 1100.2.8
+
+### Patch Changes
+
+- Updated dependencies [9318a11]
+- Updated dependencies [5a4daec]
+  - @pnpm/config.reader@1101.11.1
+
 ## 1100.2.7
 
 ### Patch Changes

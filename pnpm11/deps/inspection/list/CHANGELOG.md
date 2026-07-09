@@ -1,5 +1,13 @@
 # @pnpm/list
 
+## 1100.0.22
+
+### Patch Changes
+
+- Updated dependencies [f8058eb]
+  - @pnpm/lockfile.fs@1100.1.9
+  - @pnpm/deps.inspection.tree-builder@1100.0.19
+
 ## 1100.0.21
 
 ### Patch Changes

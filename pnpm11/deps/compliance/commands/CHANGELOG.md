@@ -1,5 +1,18 @@
 # @pnpm/deps.compliance.commands
 
+## 1101.5.2
+
+### Patch Changes
+
+- Updated dependencies [f8058eb]
+- Updated dependencies [9318a11]
+- Updated dependencies [5a4daec]
+  - @pnpm/lockfile.fs@1100.1.9
+  - @pnpm/config.reader@1101.11.1
+  - @pnpm/installing.commands@1100.10.3
+  - @pnpm/deps.compliance.audit@1101.0.20
+  - @pnpm/deps.compliance.license-scanner@1100.0.23
+
 ## 1101.5.1
 
 ### Patch Changes

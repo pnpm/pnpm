@@ -1,5 +1,12 @@
 # @pnpm/agent.client
 
+## 1.3.1
+
+### Patch Changes
+
+- Updated dependencies [f8058eb]
+  - @pnpm/lockfile.fs@1100.1.9
+
 ## 1.3.0
 
 ### Minor Changes

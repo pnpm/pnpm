@@ -1,5 +1,18 @@
 # @pnpm/building.commands
 
+## 1100.1.9
+
+### Patch Changes
+
+- Updated dependencies [c70e33e]
+- Updated dependencies [9318a11]
+- Updated dependencies [5a4daec]
+  - @pnpm/building.policy@1100.0.12
+  - @pnpm/config.reader@1101.11.1
+  - @pnpm/building.after-install@1102.0.4
+  - @pnpm/installing.commands@1100.10.3
+  - @pnpm/store.connection-manager@1100.3.4
+
 ## 1100.1.8
 
 ### Patch Changes

@@ -1,5 +1,19 @@
 # @pnpm/building.after-install
 
+## 1102.0.4
+
+### Patch Changes
+
+- Updated dependencies [c70e33e]
+- Updated dependencies [51300fd]
+- Updated dependencies [9318a11]
+- Updated dependencies [5a4daec]
+  - @pnpm/building.policy@1100.0.12
+  - @pnpm/deps.graph-hasher@1100.2.8
+  - @pnpm/config.reader@1101.11.1
+  - @pnpm/installing.context@1100.0.22
+  - @pnpm/store.connection-manager@1100.3.4
+
 ## 1102.0.3
 
 ### Patch Changes
