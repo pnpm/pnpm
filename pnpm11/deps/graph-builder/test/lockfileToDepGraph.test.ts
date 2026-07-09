@@ -94,3 +94,31 @@ test('lockfileToDepGraph does not create a directory outside the virtual store f
   ).rejects.toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' }))
   expect(fs.existsSync(escaped)).toBe(false)
 })
+
+test('lockfileToDepGraph rejects a global-virtual-store slot whose version escapes the store', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'graph-builder-'))
+  // A valid package name but a traversal *version*. The global-virtual-store
+  // slot path `@/<name>/<version>/<hash>` inserts the version as a raw path
+  // segment, so it escapes the store root even though `safeJoinModulesDir`
+  // accepts the (valid) inner package name — the name guard alone can't catch
+  // this, only the slot containment can.
+  const lockfile = {
+    lockfileVersion: '9.0',
+    importers: {
+      '.': {
+        dependencies: { 'legit-name': 'foo@1.0.0' },
+        specifiers: { 'legit-name': '1.0.0' },
+      },
+    },
+    packages: {
+      'foo@1.0.0': {
+        resolution: { integrity: 'sha512-deadbeef' },
+        version: '../../../../escape',
+      },
+    },
+  } as unknown as LockfileObject
+  const opts = { ...graphOpts(dir), enableGlobalVirtualStore: true } as unknown as LockfileToDepGraphOptions
+  await expect(
+    lockfileToDepGraph(lockfile, null, opts)
+  ).rejects.toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' }))
+})
