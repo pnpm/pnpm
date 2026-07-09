@@ -16,7 +16,7 @@ export interface MemoizedFetchMetadata {
  * `clear`, see `clearResolutionCache`), deduplicating concurrent and repeat
  * requests for the same package.
  *
- * Unlike a plain memoizer, the cache holds a body-less clone of each result:
+ * Unlike plain memoization, the cache holds a body-less clone of each result:
  * `jsonText` — the raw registry response body, up to tens of MB for a popular
  * package — reaches only the caller that initiated the fetch, which is the
  * caller that writes the disk mirror. A phase-long cache that kept the bodies
