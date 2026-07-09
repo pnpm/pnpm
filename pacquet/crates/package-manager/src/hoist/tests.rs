@@ -393,6 +393,56 @@ fn symlink_skips_dropped_nodes() {
     );
 }
 
+/// A hoisted node whose own (lockfile-derived) name is a path traversal
+/// would become the `<slot>/node_modules/<name>` symlink target and
+/// escape the store. `symlink_hoisted_dependencies` must reject it.
+#[test]
+fn symlink_rejects_traversal_node_name() {
+    use crate::VirtualStoreLayout;
+    use pacquet_lockfile::PkgName;
+    use tempfile::tempdir;
+
+    let dir = tempdir().unwrap();
+    let virtual_store_dir = dir.path().join("node_modules/.pacquet");
+    let private_hoisted = virtual_store_dir.join("node_modules");
+    let public_hoisted = dir.path().join("node_modules");
+    std::fs::create_dir_all(&virtual_store_dir).unwrap();
+
+    let node_key = key("evil", "1.0.0");
+    let mut hoisted: HashMap<PackageKey, HashMap<String, HoistKind>> = HashMap::new();
+    hoisted.insert(node_key.clone(), HashMap::from([("evil".to_string(), HoistKind::Private)]));
+
+    let mut graph: HashMap<PackageKey, HoistGraphNode> = HashMap::new();
+    graph.insert(
+        node_key,
+        HoistGraphNode {
+            name: PkgName::parse("../../escaped").unwrap(),
+            children: HashMap::new(),
+            has_bin: false,
+        },
+    );
+
+    let layout = VirtualStoreLayout::legacy(
+        &virtual_store_dir,
+        pacquet_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let skipped: HashSet<PackageKey> = HashSet::new();
+
+    let result = super::symlink_hoisted_dependencies(
+        &hoisted,
+        &graph,
+        &layout,
+        &private_hoisted,
+        &public_hoisted,
+        &skipped,
+    );
+    assert!(
+        matches!(result, Err(crate::SymlinkPackageError::InvalidAlias(_))),
+        "a traversal hoisted node name must be rejected; got {result:?}",
+    );
+    assert!(!dir.path().join("escaped").exists(), "no hoist link may be created outside the store");
+}
+
 #[test]
 fn private_hoist_with_bins_collected_for_bin_link() {
     let (snapshots, packages) = make_lockfile_data(&[

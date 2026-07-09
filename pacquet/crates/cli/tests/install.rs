@@ -52,6 +52,51 @@ fn should_install_dependencies() {
     drop((root, mock_instance));
 }
 
+/// A project manifest that declares a dependency under a path-traversal
+/// name is rejected by the resolver on a fresh install — before any
+/// resolution or fetch, and long before the name could become a
+/// `node_modules/<alias>` directory. This is the fresh-resolve
+/// counterpart to the frozen-lockfile name check. Surfaces
+/// `ERR_PNPM_INVALID_DEPENDENCY_NAME`.
+#[test]
+fn install_rejects_a_traversal_dependency_name_in_the_manifest() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": {
+            "../../escaped-link": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    let output = pacquet.with_arg("install").output().expect("spawn pacquet install");
+    assert!(
+        !output.status.success(),
+        "the resolver must reject a traversal dependency name (stderr: {})",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    // The fresh-resolve path wraps the resolver's
+    // `ERR_PNPM_INVALID_DEPENDENCY_NAME` in an outer `resolve_importer`
+    // diagnostic, so the rendered envelope carries the wrapper's code
+    // rather than the canonical one (the frozen path surfaces the
+    // canonical code — see `lockfile_verification.rs`). Assert on the
+    // stable rejection message and the offending name instead.
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(
+        stderr.contains("../../escaped-link") && stderr.contains("invalid name"),
+        "stderr must report the rejected traversal dependency name; got:\n{stderr}",
+    );
+    assert!(
+        !workspace.parent().is_some_and(|parent| parent.join("escaped-link").exists()),
+        "no link may be created outside the project",
+    );
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn should_install_exec_files() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
