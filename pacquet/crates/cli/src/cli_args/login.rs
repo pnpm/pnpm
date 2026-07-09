@@ -8,7 +8,7 @@ use std::{path::Path, time::Duration};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic};
-use pacquet_auth_commands::login::{Host as AuthHost, LoginOptions, login};
+use pacquet_auth_commands::login::{Host as AuthHost, LoginHost, LoginOptions, login};
 use pacquet_config::Config;
 use pacquet_network::{NetworkSettings, ThrottledClient};
 use pacquet_reporter::Reporter;
@@ -39,6 +39,22 @@ pub enum LoginCliError {
 
 impl LoginArgs {
     pub async fn run<Reporter: self::Reporter>(self, config: &Config) -> miette::Result<()> {
+        let message = self.execute::<AuthHost, Reporter>(config).await?;
+        println!("{message}");
+        Ok(())
+    }
+
+    /// The testable core of [`run`](Self::run): guard the config directory,
+    /// build the registry HTTP client from `config`, and perform the login,
+    /// returning the success message. Generic over the capability host `Sys` so
+    /// a test can drive it with a fake host over a mock registry and assert on
+    /// the returned message; [`run`](Self::run) binds the production
+    /// [`AuthHost`] and writes that message to stdout.
+    async fn execute<Sys, Reporter>(&self, config: &Config) -> miette::Result<String>
+    where
+        Sys: LoginHost,
+        Reporter: self::Reporter,
+    {
         let Some(config_dir) = config.config_dir.as_deref() else {
             return Err(LoginCliError::NoConfigDir.into());
         };
@@ -56,11 +72,8 @@ impl LoginArgs {
         .into_diagnostic()?;
 
         let message =
-            login::<AuthHost, Reporter>(&http_client, self.login_options(config, config_dir))
-                .await?;
-
-        println!("{message}");
-        Ok(())
+            login::<Sys, Reporter>(&http_client, self.login_options(config, config_dir)).await?;
+        Ok(message)
     }
 
     /// Resolve the `--registry` / `--scope` flags and `config` into

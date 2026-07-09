@@ -91,11 +91,14 @@ wax                  = { workspace = true }
 windows-sys = { workspace = true, features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 
 [dev-dependencies]
-pacquet-testing-utils = { workspace = true }
-pnpr                  = { workspace = true }
+pacquet-network-web-auth         = { workspace = true }
+pacquet-network-web-auth-testing = { workspace = true }
+pacquet-testing-utils            = { workspace = true }
+pnpr                             = { workspace = true }
 
 assert_cmd        = { workspace = true }
 command-extra     = { workspace = true }
+dialoguer         = { workspace = true }
 flate2            = { workspace = true }
 insta             = { workspace = true }
 mockito           = { workspace = true }

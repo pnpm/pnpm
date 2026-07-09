@@ -3932,6 +3932,8 @@ dependencies = [
  "pacquet-lockfile",
  "pacquet-modules-yaml",
  "pacquet-network",
+ "pacquet-network-web-auth",
+ "pacquet-network-web-auth-testing",
  "pacquet-pack",
  "pacquet-package-is-installable",
  "pacquet-package-manager",

@@ -210,18 +210,31 @@ pub struct LoginOptions<'a> {
     pub fetch_timeout: u64,
 }
 
-/// Log in to `registry`, persist the granted token in `auth.ini`, and return
-/// the `Logged in on <registry>` success line.
-///
-/// Tries web-based login first, falling back to classic
-/// username / password / email login when the registry answers the web-login
-/// probe with HTTP 404 or 405. Either path may satisfy a two-factor challenge
-/// before returning.
-pub async fn login<Sys, Reporter>(
-    http_client: &ThrottledClient,
-    opts: LoginOptions<'_>,
-) -> Result<String, LoginError>
-where
+/// The full capability set [`login`] requires from its host: the eight
+/// OTP / web-auth effects, the two credential prompts ([`PromptInput`] /
+/// [`PromptPassword`]), and `auth.ini` read / write ([`FsReadToString`] /
+/// [`FsWrite`]). The blanket impl covers every type that implements all of
+/// them, so the production [`Host`] and the test fakes satisfy it
+/// automatically. Bundling the bound lets a caller that re-dispatches into
+/// [`login`] — the CLI adapter — name one trait instead of restating the list.
+pub trait LoginHost:
+    Clock
+    + Sleep
+    + WebAuthFetch
+    + StdinIsTty
+    + StdoutIsTty
+    + EnterKeyListener
+    + OpenUrl
+    + PromptOtp
+    + PromptInput
+    + PromptPassword
+    + FsReadToString
+    + FsWrite
+    + 'static
+{
+}
+
+impl<Sys> LoginHost for Sys where
     Sys: Clock
         + Sleep
         + WebAuthFetch
@@ -234,7 +247,23 @@ where
         + PromptPassword
         + FsReadToString
         + FsWrite
-        + 'static,
+        + 'static
+{
+}
+
+/// Log in to `registry`, persist the granted token in `auth.ini`, and return
+/// the `Logged in on <registry>` success line.
+///
+/// Tries web-based login first, falling back to classic
+/// username / password / email login when the registry answers the web-login
+/// probe with HTTP 404 or 405. Either path may satisfy a two-factor challenge
+/// before returning.
+pub async fn login<Sys, Reporter>(
+    http_client: &ThrottledClient,
+    opts: LoginOptions<'_>,
+) -> Result<String, LoginError>
+where
+    Sys: LoginHost,
     Reporter: self::Reporter,
 {
     let registry = normalize_registry_url(opts.registry.unwrap_or(DEFAULT_REGISTRY));
