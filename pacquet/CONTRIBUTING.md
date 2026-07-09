@@ -57,7 +57,7 @@ If perfectionist flags code that is actually correct, or fails to flag code its 
 
 The same procedure applies when a perfectionist rule itself is wrong — for example, a rule that flags an idiom the rule's documentation says it should permit. Silence the site with `#[expect(..., reason = "...")]`, link the upstream issue from the `reason` if one already exists, and file the issue if it does not. Do not edit `dylint.toml` to globally disable a rule, and do not pin perfectionist to an older `tag` to dodge a finding.
 
-You can run the same check locally with `just dylint` (requires `cargo-dylint` and `dylint-link`; install with `cargo binstall cargo-dylint dylint-link`).
+You can run the same check locally with `just dylint`. It requires `cargo-dylint` and `dylint-link`, which `just init` does not install; install them from source as described under [Rust toolchain and git hooks](../CONTRIBUTING.md#rust-toolchain-and-git-hooks) in the root guide.
 
 ## Setup
 
@@ -72,6 +72,8 @@ Install these first:
 - [`pnpm`](https://pnpm.io)
 - `git`
 
+The repository root [`CONTRIBUTING.md`](../CONTRIBUTING.md#rust-toolchain-and-git-hooks) covers the Rust toolchain and the tools the git hooks need, including a note on why `cargo-dylint` must be installed from source and why `~/.cargo/bin` has to be on your `PATH`. Read it first, then use the pacquet-specific steps below.
+
 ### Install
 
 Install the project's task tools and the git pre-push hook:
@@ -81,6 +83,8 @@ just init
 ```
 
 `just init` invokes `cargo-binstall` to install `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov`. The repo-wide `pnpm install` wires up husky, whose `pre-push` hook runs `pacquet/scripts/pre-push-rust.sh` (format, doc, dylint) alongside the TypeScript compile and lint checks.
+
+`just init` does not install the dylint tools. To run the `Dylint` job's checks locally, install `cargo-dylint` and `dylint-link` as described under [Rust toolchain and git hooks](../CONTRIBUTING.md#rust-toolchain-and-git-hooks) in the root guide.
 
 Install the test dependencies:
 
