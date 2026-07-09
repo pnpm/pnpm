@@ -16,6 +16,9 @@ crate-type = ["cdylib"]
 [dependencies]
 pacquet-config                            = { workspace = true }
 pacquet-catalogs-types                    = { workspace = true }
+pacquet-engine-runtime-bun-resolver       = { workspace = true }
+pacquet-engine-runtime-deno-resolver      = { workspace = true }
+pacquet-engine-runtime-node-resolver      = { workspace = true }
 pacquet-hooks                             = { workspace = true }
 pacquet-lockfile                          = { workspace = true }
 pacquet-network                           = { workspace = true }
@@ -23,9 +26,13 @@ pacquet-pack                              = { workspace = true }
 pacquet-package-manager                   = { workspace = true }
 pacquet-package-manifest                  = { workspace = true }
 pacquet-reporter                          = { workspace = true }
+pacquet-resolving-default-resolver        = { workspace = true }
+pacquet-resolving-git-resolver            = { workspace = true }
+pacquet-resolving-local-resolver          = { workspace = true }
 pacquet-resolving-npm-resolver            = { workspace = true }
 pacquet-resolving-parse-wanted-dependency = { workspace = true }
 pacquet-resolving-resolver-base           = { workspace = true }
+pacquet-resolving-tarball-resolver        = { workspace = true }
 pacquet-store-dir                         = { workspace = true }
 pacquet-tarball                           = { workspace = true }
 pacquet-workspace                         = { workspace = true }

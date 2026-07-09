@@ -481,3 +481,28 @@ pub trait Resolver: Send + Sync {
         opts: &'a ResolveOptions,
     ) -> ResolveLatestFuture<'a>;
 }
+
+/// Lets a shared `Arc<dyn Resolver>` occupy a `Box<dyn Resolver>`
+/// chain slot. [`crate::Resolver`] chains (e.g. `DefaultResolver`) own
+/// each slot as `Box<dyn Resolver>`, but the npm resolver is also
+/// handed to the deno / bun runtime resolvers (which reuse it for
+/// version picking) via `Arc<dyn Resolver>`, so the same instance —
+/// and its metadata cache — backs both call paths.
+/// `Box::new(Arc::clone(&npm_resolver))` bridges the two.
+impl Resolver for Arc<dyn Resolver> {
+    fn resolve<'a>(
+        &'a self,
+        wanted_dependency: &'a WantedDependency,
+        opts: &'a ResolveOptions,
+    ) -> ResolveFuture<'a> {
+        (**self).resolve(wanted_dependency, opts)
+    }
+
+    fn resolve_latest<'a>(
+        &'a self,
+        query: &'a LatestQuery,
+        opts: &'a ResolveOptions,
+    ) -> ResolveLatestFuture<'a> {
+        (**self).resolve_latest(query, opts)
+    }
+}
