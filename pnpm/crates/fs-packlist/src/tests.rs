@@ -458,6 +458,35 @@ fn workspace_root_gitignore_excludes_workspace_package_files() {
 }
 
 #[test]
+fn workspace_root_npmignore_takes_precedence_over_gitignore() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join(".gitignore"), "src/\n").unwrap();
+    fs::write(dir.path().join(".npmignore"), "dist/\n").unwrap();
+    let root = dir.path().join("packages").join("pkg");
+    fs::create_dir_all(&root).unwrap();
+    touch(&root, "package.json");
+    touch(&root, "dist/generated.js");
+    touch(&root, "src/index.js");
+
+    let manifest = json!({ "name": "x", "version": "0.0.0" });
+    let out = packlist_with_options(
+        &root,
+        &manifest,
+        PacklistOptions { workspace_dir: Some(dir.path()) },
+    )
+    .unwrap();
+
+    assert!(
+        out.contains(&"src/index.js".to_string()),
+        "workspace-root .npmignore must take precedence over .gitignore; received {out:?}",
+    );
+    assert!(
+        !out.contains(&"dist/generated.js".to_string()),
+        "workspace-root .npmignore must exclude `dist/`; received {out:?}",
+    );
+}
+
+#[test]
 fn unrelated_workspace_dir_does_not_apply_workspace_gitignore() {
     let workspace = tempdir().unwrap();
     fs::write(workspace.path().join(".gitignore"), "dist/\n").unwrap();

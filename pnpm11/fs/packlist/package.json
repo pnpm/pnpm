@@ -30,6 +30,7 @@
     "test": "pn compile"
   },
   "dependencies": {
+    "is-subdir": "catalog:",
     "npm-packlist": "catalog:"
   },
   "devDependencies": {

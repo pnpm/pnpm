@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
+import { isSubdir } from 'is-subdir'
 import npmPacklist from 'npm-packlist'
 
 interface Edge {
@@ -27,19 +28,11 @@ export async function packlist (pkgDir: string, opts?: {
   const workspaceDir = opts?.workspaceDir == null ? undefined : path.resolve(opts.workspaceDir)
   const pkg = opts?.manifest ?? readPackageJson(resolvedPkgDir)
   const tree = buildRootTree(resolvedPkgDir, pkg)
-  const packlistOpts = workspaceDir != null && isSubdir(workspaceDir, resolvedPkgDir)
+  const packlistOpts = workspaceDir != null && workspaceDir !== resolvedPkgDir && isSubdir(workspaceDir, resolvedPkgDir)
     ? { prefix: workspaceDir, workspaces: [resolvedPkgDir] }
     : undefined
   const files = await npmPacklist(tree, packlistOpts)
   return files.map((file) => file.replace(/^\.[/\\]/, ''))
-}
-
-function isSubdir (parentDir: string, childDir: string): boolean {
-  const relative = path.relative(parentDir, childDir)
-  return relative !== '' &&
-    relative !== '..' &&
-    !relative.startsWith(`..${path.sep}`) &&
-    !path.isAbsolute(relative)
 }
 
 function buildRootTree (pkgDir: string, pkg: Record<string, unknown>): TreeNode {
