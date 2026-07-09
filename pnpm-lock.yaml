@@ -3285,6 +3285,9 @@ importers:
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../path
+      '@pnpm/fs.symlink-dependency':
+        specifier: workspace:*
+        version: link:../../fs/symlink-dependency
       '@pnpm/hooks.types':
         specifier: workspace:*
         version: link:../../hooks/types
@@ -5986,6 +5989,9 @@ importers:
       '@pnpm/fetching.pick-fetcher':
         specifier: workspace:*
         version: link:../../fetching/pick-fetcher
+      '@pnpm/fs.symlink-dependency':
+        specifier: workspace:*
+        version: link:../../fs/symlink-dependency
       '@pnpm/hooks.types':
         specifier: workspace:*
         version: link:../../hooks/types
@@ -6294,6 +6300,9 @@ importers:
       '@pnpm/fs.read-modules-dir':
         specifier: workspace:*
         version: link:../../fs/read-modules-dir
+      '@pnpm/fs.symlink-dependency':
+        specifier: workspace:*
+        version: link:../../fs/symlink-dependency
       '@pnpm/installing.deps-resolver':
         specifier: workspace:*
         version: link:../deps-resolver

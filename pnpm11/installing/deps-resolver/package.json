@@ -42,6 +42,7 @@
     "@pnpm/deps.peer-range": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching.pick-fetcher": "workspace:*",
+    "@pnpm/fs.symlink-dependency": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",
     "@pnpm/lockfile.preferred-versions": "workspace:*",
     "@pnpm/lockfile.pruner": "workspace:*",
