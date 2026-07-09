@@ -113,6 +113,7 @@ it('should allow git-hosted depPaths by repository key', () => {
     },
   })
   expect(allowBuild!(depPath('foo@git+ssh://git@example.com/org/foo.git#abc123'))).toBe(true)
+  expect(allowBuild!(depPath('foo@git+ssh://git@example.com/org/foo.git'))).toBe(true)
   expect(allowBuild!(depPath('foo@git+ssh://git@example.com/org/foo.git#def456(react@19.0.0)'))).toBe(true)
   expect(allowBuild!(depPath('foo@git+ssh://git@example.com/other/foo.git#abc123'))).toBeUndefined()
   expect(allowBuild!(depPath('foo@1.0.0'))).toBeUndefined()

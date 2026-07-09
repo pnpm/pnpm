@@ -124,7 +124,7 @@ function isGitRepoAllowBuildKey (pkg: string): boolean {
 function getGitRepoAllowBuildKeyFromDepPath (depPath: string): string | undefined {
   if (!isGitRepoDepPath(depPath)) return undefined
   const refStart = depPath.indexOf('#')
-  return refStart === -1 ? undefined : depPath.slice(0, refStart)
+  return refStart === -1 ? depPath : depPath.slice(0, refStart)
 }
 
 function isGitRepoDepPath (depPath: string): boolean {
