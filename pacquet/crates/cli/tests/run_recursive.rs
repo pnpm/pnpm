@@ -138,6 +138,37 @@ fn top_level_fallback_enters_recursive_run() {
     drop(root);
 }
 
+/// A member's script resolves binaries from the workspace root's
+/// `node_modules/.bin` — pnpm puts it on PATH via `extraBinPaths`, so
+/// root-level dev tools are callable from every workspace project.
+#[test]
+fn recursive_run_finds_workspace_root_bin_on_path() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[(
+            "project-1",
+            json!({
+                "name": "project-1",
+                "version": "1.0.0",
+                "scripts": { "build": "root-tool" },
+            }),
+        )],
+    );
+    let bin_dir = workspace.join("node_modules").join(".bin");
+    fs::create_dir_all(&bin_dir).expect("create workspace-root node_modules/.bin");
+    write_executable(&bin_dir.join("root-tool"), "#!/bin/sh\ntouch root-tool-ran.txt\n");
+
+    pacquet.with_arg("-r").with_arg("run").with_arg("build").assert().success();
+
+    assert!(
+        workspace.join("project-1").join("root-tool-ran.txt").exists(),
+        "the workspace root's node_modules/.bin should be on the script's PATH",
+    );
+
+    drop(root);
+}
+
 #[test]
 fn recursive_lifecycle_aliases_use_recursive_run_options() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();

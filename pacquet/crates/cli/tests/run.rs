@@ -332,6 +332,44 @@ fn run_finds_local_bin_on_path() {
     drop(root);
 }
 
+/// Running a script from a workspace member resolves binaries from the
+/// workspace root's `node_modules/.bin` — pnpm puts it on PATH via
+/// `extraBinPaths`, so root-level dev tools are callable from every
+/// workspace project.
+#[cfg(unix)]
+#[test]
+fn run_finds_workspace_root_bin_on_path() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - project\n")
+        .expect("write pnpm-workspace.yaml");
+    let bin_dir = workspace.join("node_modules").join(".bin");
+    fs::create_dir_all(&bin_dir).expect("create workspace-root node_modules/.bin");
+    write_executable(&bin_dir.join("root-tool"), "#!/bin/sh\ntouch root-tool-ran.txt\n");
+    let project = workspace.join("project");
+    fs::create_dir_all(&project).expect("create project dir");
+    let manifest = json!({
+        "name": "project",
+        "version": "0.0.0",
+        "scripts": { "build": "root-tool" },
+    })
+    .to_string();
+    fs::write(project.join("package.json"), manifest).expect("write package.json");
+
+    std::process::Command::cargo_bin("pacquet")
+        .expect("find pacquet binary")
+        .with_current_dir(&project)
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
+    assert!(
+        project.join("root-tool-ran.txt").exists(),
+        "the workspace root's node_modules/.bin should be on the script's PATH",
+    );
+
+    drop(root);
+}
+
 #[cfg(unix)]
 #[test]
 fn top_level_fallback_runs_script_before_local_bin() {
