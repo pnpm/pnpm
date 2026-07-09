@@ -1724,21 +1724,21 @@ test('pruned hoisted peer providers that peer-depend on each other are resolved 
   // other, and each resolvePeersOfChildren call only detects peer cycles
   // among its own children — so all pruned providers must be resolved in one
   // call, or their dep path calculations await each other forever.
-  const libaPkg = {
-    name: 'liba',
-    pkgIdWithPatchHash: 'liba@1.0.0' as PkgIdWithPatchHash,
+  const libAPkg = {
+    name: 'lib-a',
+    pkgIdWithPatchHash: 'lib-a@1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
     peerDependencies: {
-      libb: { version: '^1.0.0' },
+      'lib-b': { version: '^1.0.0' },
     },
     id: '' as PkgResolutionId,
   }
-  const libbPkg = {
-    name: 'libb',
-    pkgIdWithPatchHash: 'libb@1.0.0' as PkgIdWithPatchHash,
+  const libBPkg = {
+    name: 'lib-b',
+    pkgIdWithPatchHash: 'lib-b@1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
     peerDependencies: {
-      liba: { version: '^1.0.0' },
+      'lib-a': { version: '^1.0.0' },
     },
     id: '' as PkgResolutionId,
   }
@@ -1747,21 +1747,21 @@ test('pruned hoisted peer providers that peer-depend on each other are resolved 
     pkgIdWithPatchHash: 'consumer@1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
     peerDependencies: {
-      liba: { version: '^1.0.0' },
-      libb: { version: '^1.0.0' },
+      'lib-a': { version: '^1.0.0' },
+      'lib-b': { version: '^1.0.0' },
     },
     id: '' as PkgResolutionId,
   }
   const { dependenciesGraph, dependenciesByProjectId } = await resolvePeers({
-    allPeerDepNames: new Set(['liba', 'libb']),
+    allPeerDepNames: new Set(['lib-a', 'lib-b']),
     projects: [
       {
         directNodeIdsByAlias: new Map([
           ['consumer', '>consumer@1.0.0>' as NodeId],
-          ['liba', '>liba@1.0.0>' as NodeId],
-          ['libb', '>libb@1.0.0>' as NodeId],
+          ['lib-a', '>lib-a@1.0.0>' as NodeId],
+          ['lib-b', '>lib-b@1.0.0>' as NodeId],
         ]),
-        hoistedPeerProviderNodeIds: new Set(['>liba@1.0.0>' as NodeId, '>libb@1.0.0>' as NodeId]),
+        hoistedPeerProviderNodeIds: new Set(['>lib-a@1.0.0>' as NodeId, '>lib-b@1.0.0>' as NodeId]),
         topParents: [],
         rootDir: '' as ProjectRootDir,
         id: '.',
@@ -1775,16 +1775,16 @@ test('pruned hoisted peer providers that peer-depend on each other are resolved 
         resolvedPackage: consumerPkg,
         depth: 0,
       }],
-      ['>liba@1.0.0>' as NodeId, {
+      ['>lib-a@1.0.0>' as NodeId, {
         children: {},
         installable: true,
-        resolvedPackage: libaPkg,
+        resolvedPackage: libAPkg,
         depth: 1,
       }],
-      ['>libb@1.0.0>' as NodeId, {
+      ['>lib-b@1.0.0>' as NodeId, {
         children: {},
         installable: true,
-        resolvedPackage: libbPkg,
+        resolvedPackage: libBPkg,
         depth: 1,
       }],
     ]),
@@ -1795,12 +1795,12 @@ test('pruned hoisted peer providers that peer-depend on each other are resolved 
     workspaceProjectIds: new Set(),
   })
   expect(Object.keys(dependenciesGraph).sort()).toStrictEqual([
-    'consumer@1.0.0(liba@1.0.0)(libb@1.0.0)',
-    'liba@1.0.0(libb@1.0.0)',
-    'libb@1.0.0(liba@1.0.0)',
+    'consumer@1.0.0(lib-a@1.0.0)(lib-b@1.0.0)',
+    'lib-a@1.0.0(lib-b@1.0.0)',
+    'lib-b@1.0.0(lib-a@1.0.0)',
   ])
-  expect(dependenciesByProjectId['.'].get('liba')).toBe('liba@1.0.0(libb@1.0.0)')
-  expect(dependenciesByProjectId['.'].get('libb')).toBe('libb@1.0.0(liba@1.0.0)')
+  expect(dependenciesByProjectId['.'].get('lib-a')).toBe('lib-a@1.0.0(lib-b@1.0.0)')
+  expect(dependenciesByProjectId['.'].get('lib-b')).toBe('lib-b@1.0.0(lib-a@1.0.0)')
 })
 
 test('a pruned hoisted peer provider is resolved by the root-context fallback', async () => {

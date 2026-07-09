@@ -1333,8 +1333,8 @@ fn pruned_hoisted_provider_falls_back_in_workspace_pass() {
 /// to `name@version`, matching the in-place cycle handling.
 #[test]
 fn pruned_hoisted_providers_with_mutual_peers_resolve() {
-    let liba = NodeId::leaf("liba@1.0.0");
-    let libb = NodeId::leaf("libb@1.0.0");
+    let lib_a = NodeId::leaf("lib-a@1.0.0");
+    let lib_b = NodeId::leaf("lib-b@1.0.0");
     let consumer = NodeId::next();
 
     let mut tree = ResolvedTree {
@@ -1345,30 +1345,30 @@ fn pruned_hoisted_providers_with_mutual_peers_resolve() {
                 id: "consumer@1.0.0".to_string(),
             },
             DirectDep {
-                alias: "liba".to_string(),
-                node_id: liba.clone(),
-                id: "liba@1.0.0".to_string(),
+                alias: "lib-a".to_string(),
+                node_id: lib_a.clone(),
+                id: "lib-a@1.0.0".to_string(),
             },
             DirectDep {
-                alias: "libb".to_string(),
-                node_id: libb.clone(),
-                id: "libb@1.0.0".to_string(),
+                alias: "lib-b".to_string(),
+                node_id: lib_b.clone(),
+                id: "lib-b@1.0.0".to_string(),
             },
         ],
         packages: HashMap::from([
-            ("liba@1.0.0".to_string(), package("liba", "1.0.0", &[("libb", "^1.0.0")], true)),
-            ("libb@1.0.0".to_string(), package("libb", "1.0.0", &[("liba", "^1.0.0")], true)),
+            ("lib-a@1.0.0".to_string(), package("lib-a", "1.0.0", &[("lib-b", "^1.0.0")], true)),
+            ("lib-b@1.0.0".to_string(), package("lib-b", "1.0.0", &[("lib-a", "^1.0.0")], true)),
             (
                 "consumer@1.0.0".to_string(),
-                package("consumer", "1.0.0", &[("liba", "^1.0.0"), ("libb", "^1.0.0")], false),
+                package("consumer", "1.0.0", &[("lib-a", "^1.0.0"), ("lib-b", "^1.0.0")], false),
             ),
         ]),
         dependencies_tree: HashMap::from([
-            (liba.clone(), tree_node("liba@1.0.0", BTreeMap::new(), 1)),
-            (libb.clone(), tree_node("libb@1.0.0", BTreeMap::new(), 1)),
+            (lib_a.clone(), tree_node("lib-a@1.0.0", BTreeMap::new(), 1)),
+            (lib_b.clone(), tree_node("lib-b@1.0.0", BTreeMap::new(), 1)),
             (consumer, tree_node("consumer@1.0.0", BTreeMap::new(), 0)),
         ]),
-        all_peer_dep_names: HashSet::from(["liba".to_string(), "libb".to_string()]),
+        all_peer_dep_names: HashSet::from(["lib-a".to_string(), "lib-b".to_string()]),
         policy_violations: Vec::new(),
         applied_patches: HashSet::new(),
         children_by_id: HashMap::new(),
@@ -1377,25 +1377,25 @@ fn pruned_hoisted_providers_with_mutual_peers_resolve() {
     let result = resolve_peers(
         &mut tree,
         ResolvePeersOptions {
-            hoisted_peer_provider_node_ids: HashSet::from([liba, libb]),
+            hoisted_peer_provider_node_ids: HashSet::from([lib_a, lib_b]),
             ..ResolvePeersOptions::default()
         },
     );
 
     assert_eq!(
-        result.direct_dependencies_by_alias.get("liba"),
-        Some(&DepPath::from("liba@1.0.0(libb@1.0.0)")),
+        result.direct_dependencies_by_alias.get("lib-a"),
+        Some(&DepPath::from("lib-a@1.0.0(lib-b@1.0.0)")),
         "graph keys: {:#?}",
         result.graph.keys().collect::<Vec<_>>(),
     );
     assert_eq!(
-        result.direct_dependencies_by_alias.get("libb"),
-        Some(&DepPath::from("libb@1.0.0(liba@1.0.0)")),
+        result.direct_dependencies_by_alias.get("lib-b"),
+        Some(&DepPath::from("lib-b@1.0.0(lib-a@1.0.0)")),
         "graph keys: {:#?}",
         result.graph.keys().collect::<Vec<_>>(),
     );
     assert!(
-        result.graph.contains_key(&DepPath::from("consumer@1.0.0(liba@1.0.0)(libb@1.0.0)")),
+        result.graph.contains_key(&DepPath::from("consumer@1.0.0(lib-a@1.0.0)(lib-b@1.0.0)")),
         "the consumer must bind both fallback-resolved providers: {:#?}",
         result.graph.keys().collect::<Vec<_>>(),
     );
