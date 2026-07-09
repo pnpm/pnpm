@@ -34,11 +34,13 @@
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/resolving.parse-wanted-dependency": "workspace:*"
+    "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
+    "semver": "catalog:"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/config.parse-overrides": "workspace:*"
+    "@pnpm/config.parse-overrides": "workspace:*",
+    "@types/semver": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

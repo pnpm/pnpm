@@ -11,16 +11,30 @@ import { isIntersectingRange } from './isIntersectingRange.js'
 
 export type VersionOverrideWithoutRawSelector = Omit<VersionOverrideBase, 'selector'>
 
+export interface CreateVersionsOverriderOptions {
+  /**
+   * Populated with every declared semver range seen for packages that have a
+   * convergence override, whether or not the override's version satisfied it.
+   * Feeds the staleness check for convergence overrides after a full
+   * resolution. Edges claimed by an explicit override are not recorded — the
+   * convergence override never governs them.
+   */
+  convergeDeclaredRanges?: Map<string, Set<string>>
+}
+
 export function createVersionsOverrider (
   overrides: VersionOverrideWithoutRawSelector[],
-  rootDir: string
+  rootDir: string,
+  opts?: CreateVersionsOverriderOptions
 ): ReadPackageHook {
+  const [convergeOverrides, explicitOverrides] = partition(({ converge }) => converge === true, overrides)
   const [versionOverrides, genericVersionOverrides] = partition(({ parentPkg }) => parentPkg != null,
-    overrides.map((override) => ({
+    explicitOverrides.map((override) => ({
       ...override,
       localTarget: createLocalTarget(override, rootDir),
     }))
   ) as [VersionOverrideWithParent[], VersionOverride[]]
+  const convergeVersions = new Map(convergeOverrides.map((override) => [override.targetPkg.name, override.newBareSpecifier]))
   return ((manifest: PackageManifest, dir?: string) => {
     const versionOverridesWithParent = versionOverrides.filter(({ parentPkg }) => {
       return (
@@ -28,7 +42,10 @@ export function createVersionsOverrider (
         (!parentPkg.bareSpecifier || semver.satisfies(manifest.version, parentPkg.bareSpecifier))
       )
     })
-    overrideDepsOfPkg({ manifest, dir }, versionOverridesWithParent, genericVersionOverrides)
+    overrideDepsOfPkg({ manifest, dir }, versionOverridesWithParent, genericVersionOverrides, {
+      convergeVersions,
+      convergeDeclaredRanges: opts?.convergeDeclaredRanges,
+    })
 
     return manifest
   }) as ReadPackageHook
@@ -68,10 +85,11 @@ interface VersionOverrideWithParent extends VersionOverride {
 function overrideDepsOfPkg (
   { manifest, dir }: { manifest: PackageManifest, dir: string | undefined },
   versionOverrides: VersionOverrideWithParent[],
-  genericVersionOverrides: VersionOverride[]
+  genericVersionOverrides: VersionOverride[],
+  convergeOpts: ConvergeOptions
 ): void {
   const { dependencies, optionalDependencies, devDependencies, peerDependencies } = manifest
-  const _overrideDeps = overrideDeps.bind(null, { versionOverrides, genericVersionOverrides, dir })
+  const _overrideDeps = overrideDeps.bind(null, { versionOverrides, genericVersionOverrides, dir, convergeOpts })
   for (const deps of [dependencies, optionalDependencies, devDependencies]) {
     if (deps) {
       _overrideDeps(deps, undefined)
@@ -83,11 +101,17 @@ function overrideDepsOfPkg (
   }
 }
 
+interface ConvergeOptions {
+  convergeVersions: Map<string, string>
+  convergeDeclaredRanges?: Map<string, Set<string>>
+}
+
 function overrideDeps (
-  { versionOverrides, genericVersionOverrides, dir }: {
+  { versionOverrides, genericVersionOverrides, dir, convergeOpts }: {
     versionOverrides: VersionOverrideWithParent[]
     genericVersionOverrides: VersionOverride[]
     dir: string | undefined
+    convergeOpts: ConvergeOptions
   },
   deps: Dependencies,
   peerDeps: Dependencies | undefined
@@ -106,7 +130,10 @@ function overrideDeps (
           targetPkg.name === name && isIntersectingRange(targetPkg.bareSpecifier, bareSpecifier)
       )
     )
-    if (!versionOverride) continue
+    if (!versionOverride) {
+      convergeDep(convergeOpts, { deps, peerDeps }, name, bareSpecifier)
+      continue
+    }
 
     if (versionOverride.newBareSpecifier === '-') {
       if (peerDeps) {
@@ -125,6 +152,37 @@ function overrideDeps (
     } else if (isValidPeerRange(newBareSpecifier)) {
       peerDeps[versionOverride.targetPkg.name] = newBareSpecifier
     }
+  }
+}
+
+/**
+ * A convergence override (`"pkg@": "<version>"`) rewrites a dependency edge
+ * only when its version satisfies the edge's declared range, so incompatible
+ * consumers keep their own resolution. Only plain semver ranges participate:
+ * `workspace:`, `catalog:`, `npm:`, git/URL, and dist-tag specifiers have no
+ * defined "satisfies" relation and are left untouched.
+ */
+function convergeDep (
+  { convergeVersions, convergeDeclaredRanges }: ConvergeOptions,
+  { deps, peerDeps }: { deps: Dependencies, peerDeps: Dependencies | undefined },
+  name: string,
+  bareSpecifier: string
+): void {
+  const convergeVersion = convergeVersions.get(name)
+  if (convergeVersion == null || semver.validRange(bareSpecifier, true) == null) return
+  if (convergeDeclaredRanges != null) {
+    let ranges = convergeDeclaredRanges.get(name)
+    if (ranges == null) {
+      ranges = new Set()
+      convergeDeclaredRanges.set(name, ranges)
+    }
+    ranges.add(bareSpecifier)
+  }
+  if (!semver.satisfies(convergeVersion, bareSpecifier, true)) return
+  if (peerDeps == null) {
+    deps[name] = convergeVersion
+  } else {
+    peerDeps[name] = convergeVersion
   }
 }
 

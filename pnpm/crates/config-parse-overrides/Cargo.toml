@@ -13,6 +13,7 @@ repository.workspace  = true
 [dependencies]
 derive_more                               = { workspace = true }
 miette                                    = { workspace = true }
+node-semver                               = { workspace = true }
 pacquet-catalogs-resolver                 = { workspace = true }
 pacquet-catalogs-types                    = { workspace = true }
 pacquet-resolving-parse-wanted-dependency = { workspace = true }

@@ -106,6 +106,7 @@ import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { validateModules } from './validateModules.js'
 import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
+import { warnOnStaleConvergenceOverrides } from './warnOnStaleConvergenceOverrides.js'
 import { writeLockfilesAndRecordVerified } from './writeLockfilesAndRecordVerified.js'
 import { writeWantedLockfileAndRecordVerified } from './writeWantedLockfileAndRecordVerified.js'
 
@@ -1617,6 +1618,20 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       handleResolutionPolicyViolations: opts.handleResolutionPolicyViolations,
     }
   )
+  // Only a full resolution walks every manifest through the versions
+  // overrider, making the collected declared ranges complete enough for the
+  // staleness verdict; partial resolutions must stay silent to avoid false
+  // positives from unseen ranges.
+  if (opts.convergeDeclaredRanges != null && (forceFullResolution || opts.dedupe)) {
+    await warnOnStaleConvergenceOverrides({
+      convergeDeclaredRanges: opts.convergeDeclaredRanges,
+      parsedOverrides: opts.parsedOverrides,
+      requestPackage: opts.storeController.requestPackage,
+      lockfileDir: opts.lockfileDir,
+      minimumReleaseAge: opts.minimumReleaseAge,
+      minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
+    })
+  }
   if (!opts.include.optionalDependencies || !opts.include.devDependencies || !opts.include.dependencies) {
     linkedDependenciesByProjectId = mapValues(
       (linkedDeps) => linkedDeps.filter((linkedDep) =>

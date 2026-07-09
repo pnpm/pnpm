@@ -13,6 +13,7 @@
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use node_semver::Version;
 use pacquet_catalogs_resolver::{CatalogResolutionResult, WantedDependency, resolve_from_catalog};
 use pacquet_catalogs_types::Catalogs;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
@@ -38,6 +39,13 @@ pub struct VersionOverride {
     /// workspace's catalogs before this is stored, so downstream
     /// consumers never see the `catalog:` form here.
     pub new_bare_specifier: String,
+
+    /// `true` for empty-range selectors (`"pkg@"`): a convergence
+    /// override. It applies to a dependency edge only when
+    /// [`Self::new_bare_specifier`] (always an exact version) satisfies
+    /// the edge's declared range, so applying it can never violate a
+    /// consumer's range.
+    pub converge: bool,
 }
 
 /// A name (and optional version-range scope) used to identify either
@@ -69,6 +77,33 @@ pub enum ParseOverridesError {
     CatalogInOverrides {
         #[error(not(source))]
         message: String,
+    },
+
+    /// A `parent>child` selector uses an empty range on either side.
+    /// The empty-range form is reserved for standalone convergence
+    /// overrides (`ERR_PNPM_INVALID_CONVERGENCE_OVERRIDE`).
+    #[display(
+        r#"Cannot use an empty range in the "{selector}" selector: convergence overrides ("pkg@") cannot be combined with parent>child selectors"#
+    )]
+    #[diagnostic(code(ERR_PNPM_INVALID_CONVERGENCE_OVERRIDE))]
+    EmptyRangeInParentChildSelector {
+        #[error(not(source))]
+        selector: String,
+    },
+
+    /// A convergence override's (catalog-resolved) value is not an
+    /// exact semver version. Ranges, dist-tags, `-`, and protocol
+    /// specs have no defined "satisfies" relation against a declared
+    /// range (`ERR_PNPM_INVALID_CONVERGENCE_OVERRIDE`).
+    #[display(
+        r#"The value of the convergence override "{selector}" must be an exact version, but got "{value}""#
+    )]
+    #[diagnostic(code(ERR_PNPM_INVALID_CONVERGENCE_OVERRIDE))]
+    ConvergenceValueNotExactVersion {
+        #[error(not(source))]
+        selector: String,
+        #[error(not(source))]
+        value: String,
     },
 }
 
@@ -106,11 +141,14 @@ where
         let (parent_pkg, target_pkg) = parse_pkg_and_parent_selector(selector)?;
         let resolved_specifier =
             resolve_catalog_in_value(catalogs, &target_pkg.name, new_bare_specifier)?;
+        let converge =
+            check_converge(selector, parent_pkg.as_ref(), &target_pkg, &resolved_specifier)?;
         out.push(VersionOverride {
             selector: selector.clone(),
             parent_pkg,
             target_pkg,
             new_bare_specifier: resolved_specifier,
+            converge,
         });
     }
     Ok(out)
@@ -160,6 +198,38 @@ fn find_parent_delimiter(selector: &str) -> Option<usize> {
             None
         }
     })
+}
+
+/// Decide [`VersionOverride::converge`] for a parsed entry: a
+/// standalone selector with an empty-string range (`"pkg@"`) is a
+/// convergence override, and its (catalog-resolved) value must be an
+/// exact semver version. Runs after catalog resolution so a
+/// `catalog:` value is validated in its resolved form.
+fn check_converge(
+    selector: &str,
+    parent_pkg: Option<&PackageSelector>,
+    target_pkg: &PackageSelector,
+    new_bare_specifier: &str,
+) -> Result<bool, ParseOverridesError> {
+    let empty_range_in_parent_child_selector = parent_pkg.is_some_and(|parent| {
+        parent.bare_specifier.as_deref() == Some("")
+            || target_pkg.bare_specifier.as_deref() == Some("")
+    });
+    if empty_range_in_parent_child_selector {
+        return Err(ParseOverridesError::EmptyRangeInParentChildSelector {
+            selector: selector.to_string(),
+        });
+    }
+    if target_pkg.bare_specifier.as_deref() != Some("") {
+        return Ok(false);
+    }
+    if Version::parse(new_bare_specifier).is_err() {
+        return Err(ParseOverridesError::ConvergenceValueNotExactVersion {
+            selector: selector.to_string(),
+            value: new_bare_specifier.to_string(),
+        });
+    }
+    Ok(true)
 }
 
 fn parse_pkg_selector(selector: &str) -> Result<PackageSelector, ParseOverridesError> {

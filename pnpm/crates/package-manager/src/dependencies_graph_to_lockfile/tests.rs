@@ -255,6 +255,35 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
 }
 
 #[test]
+fn overrides_flow_into_lockfile_verbatim_including_convergence_selectors() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+    }));
+    let graph = DependenciesGraph::new();
+
+    let mut overrides = IndexMap::new();
+    overrides.insert("foo@^4.0.0".to_string(), "4.0.9".to_string());
+    overrides.insert("form-data@".to_string(), "4.0.6".to_string());
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest,
+        &graph,
+        BTreeMap::new(),
+        true,
+        false,
+        Some(overrides.clone()),
+        None,
+    ));
+    assert_eq!(lockfile.overrides.as_ref(), Some(&overrides));
+
+    let yaml = serde_saphyr::to_string(&lockfile).unwrap();
+    eprintln!("YAML:\n{yaml}\n");
+    let reparsed: pacquet_lockfile::Lockfile = serde_saphyr::from_str(&yaml).unwrap();
+    assert_eq!(reparsed.overrides, Some(overrides));
+}
+
+#[test]
 fn patched_dependencies_flow_into_lockfile_and_empty_is_omitted() {
     let (_tmp, manifest) = write_manifest(json!({
         "name": "fixture",

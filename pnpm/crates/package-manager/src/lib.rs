@@ -54,6 +54,7 @@ mod update_project_manifest_object;
 mod validate_lockfile_paths;
 mod version_policy;
 mod virtual_store_layout;
+mod warn_on_stale_convergence_overrides;
 
 pub use add::*;
 pub use build_modules::*;
