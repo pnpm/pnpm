@@ -25,6 +25,7 @@ use super::{
     reporter::ReporterType,
     root::RootArgs,
     sbom::SbomArgs,
+    search::SearchArgs,
     self_update::SelfUpdateArgs,
     setup::SetupArgs,
     store::StoreCommand,
@@ -415,4 +416,15 @@ pub(super) fn find_hash<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     args.run(|| (ctx.config)().map(|m| &*m))?;
     Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+pub(super) fn search<'a>(ctx: &RunCtx<'a>, args: SearchArgs) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.config)()?;
+    Ok(Box::pin(async move {
+        let output = args.run(cfg).await?;
+        if !output.is_empty() {
+            println!("{output}");
+        }
+        Ok(())
+    }))
 }

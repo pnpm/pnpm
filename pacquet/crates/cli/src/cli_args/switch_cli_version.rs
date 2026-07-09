@@ -465,6 +465,7 @@ fn command_name(command: &CliCommand) -> &'static str {
         CliCommand::Whoami => "whoami",
         CliCommand::DistTag(_) => "dist-tag",
         CliCommand::Ping(_) => "ping",
+        CliCommand::Search(_) => "search",
         CliCommand::Rebuild(_) => "rebuild",
         CliCommand::Pack(_) => "pack",
         CliCommand::Publish(_) => "publish",
