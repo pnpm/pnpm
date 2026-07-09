@@ -26,9 +26,9 @@ fn pkg(name: &str, current: &str, target: &str, group: DependencyGroup) -> Outda
 
 // Mirrors `outdated() skips dependencies resolved from local refs` in
 // `pnpm11/deps/inspection/outdated/test/outdated.spec.ts`: a dependency
-// resolved to a local `link:`/`file:` ref has no lockfile-pinned semver,
-// so `collect_outdated` drops it before any registry fetch even when its
-// manifest specifier is a plain semver range.
+// resolved to a local `link:`/`file:`/`workspace:` ref has no
+// lockfile-pinned semver, so `collect_outdated` drops it before any
+// registry fetch even when its manifest specifier is a plain semver range.
 #[test]
 fn current_versions_omit_local_refs() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -42,12 +42,16 @@ fn current_versions_omit_local_refs() {
         "      injected-pkg:"
         "        specifier: ^1.0.0"
         "        version: file:../injected-pkg"
+        "      workspace-pkg:"
+        "        specifier: ^1.0.0"
+        "        version: workspace:../workspace-pkg"
         "      is-positive:"
         "        specifier: ^1.0.0"
         "        version: 1.0.0"
     })
     .expect("parse fixture lockfile");
     let versions = current_versions_from_lockfile(Some(&lockfile), &[DependencyGroup::Dev]);
+    dbg!(&versions);
     assert_eq!(versions, HashMap::from([("is-positive".to_string(), v("1.0.0"))]));
 }
 
