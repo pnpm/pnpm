@@ -45,7 +45,7 @@ export function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
       nodeVersion,
     })) {
       yield {
-        dirInVirtualStore: containVirtualStoreDir(opts.globalVirtualStoreDir, path.join(opts.globalVirtualStoreDir, hash)),
+        dirInVirtualStore: path.join(opts.globalVirtualStoreDir, hash),
         pkgMeta,
       }
     }
@@ -73,9 +73,9 @@ export function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
           nodeVersion,
         }
         const hash = calcGraphNodeHash(graphNodeHashOpts, pkgMeta)
-        dirInVirtualStore = containVirtualStoreDir(opts.globalVirtualStoreDir, path.join(opts.globalVirtualStoreDir, hash))
+        dirInVirtualStore = path.join(opts.globalVirtualStoreDir, hash)
       } else {
-        dirInVirtualStore = containVirtualStoreDir(opts.virtualStoreDir, path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength)))
+        dirInVirtualStore = path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength))
       }
       yield {
         dirInVirtualStore,
@@ -83,26 +83,6 @@ export function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
       }
     }
   }
-}
-
-// Reject a virtual-store slot path that escapes its root. Under the global
-// virtual store the slot is built from the (attacker-controllable) lockfile
-// package name and version via `formatGlobalVirtualStorePath`, which inserts
-// them as raw `/`-separated segments — a traversal in either (e.g. a snapshot
-// `version: "../../x"`) would otherwise let `path.join` escape the store root.
-// The legacy slot name is already folded to a single segment by
-// `depPathToFilename`, but the check is applied uniformly as a final
-// guarantee. Surfaces the same `ERR_PNPM_INVALID_DEPENDENCY_NAME` the
-// sink-level `safeJoinModulesDir` throws for the inner package-name join.
-function containVirtualStoreDir (root: string, dir: string): string {
-  const resolvedRoot = path.resolve(root)
-  const resolvedDir = path.resolve(dir)
-  if (resolvedDir === resolvedRoot || !resolvedDir.startsWith(resolvedRoot + path.sep)) {
-    const error = new Error(`Refusing to place a package at ${JSON.stringify(dir)}, which is outside the virtual store ${JSON.stringify(root)}`) as Error & { code: string }
-    error.code = 'ERR_PNPM_INVALID_DEPENDENCY_NAME'
-    throw error
-  }
-  return dir
 }
 
 function hashDependencyPaths (

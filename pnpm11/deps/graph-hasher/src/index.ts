@@ -281,8 +281,24 @@ export function calcGlobalVirtualStorePathWithSubdeps (
 // Scoped: @scope/pkg/version/hash
 // Unscoped: @/pkg/version/hash
 function formatGlobalVirtualStorePath (name: string, version: string, hexDigest: string): string {
+  // `version` is lockfile-controlled (`pkgSnapshot.version ?? parsed depPath`)
+  // and is inserted below as a raw path segment. Every global-virtual-store
+  // slot path funnels through here, and callers join the result onto
+  // `globalVirtualStoreDir` before passing it to `importPackage`, so a `..`
+  // segment in the version would let the slot escape the store root — even
+  // when the package name itself is valid (the name's own traversal is caught
+  // downstream by `safeJoinModulesDir`). Reject it at this single choke point.
+  assertNoPathTraversal(version)
   const prefix = name.startsWith('@') ? '' : '@/'
   return `${prefix}${name}/${version}/${hexDigest}`
+}
+
+function assertNoPathTraversal (version: string): void {
+  if (version.split(/[/\\]/).includes('..')) {
+    const error = new Error(`Refusing to build a virtual-store path with the traversal version segment ${JSON.stringify(version)}`) as Error & { code: string }
+    error.code = 'ERR_PNPM_INVALID_DEPENDENCY_NAME'
+    throw error
+  }
 }
 
 export interface PkgMetaAndSnapshot extends PkgMeta {
