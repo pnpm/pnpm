@@ -39,7 +39,7 @@ fn copy_dir_recursive(src: &Path, dest: &Path) {
 }
 
 fn pacquet(workspace: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Command {
-    Command::cargo_bin("pacquet")
+    Command::cargo_bin("pnpm")
         .expect("find the pacquet binary")
         .with_current_dir(workspace)
         .with_args(args)
@@ -192,7 +192,7 @@ fn sbom_has_tools() {
     let tmp = copy_fixture("simple-sbom");
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &[]);
     let tools = parsed["metadata"]["tools"]["components"].as_array().expect("tools");
-    assert!(tools.iter().any(|tool| tool["name"] == "pacquet"));
+    assert!(tools.iter().any(|tool| tool["name"] == "pnpm"));
 }
 
 #[test]
@@ -231,7 +231,7 @@ fn sbom_spdx_creation_info() {
     let parsed = run_sbom_json(tmp.path(), "spdx", &[]);
     assert!(parsed["creationInfo"]["created"].is_string());
     let creators = parsed["creationInfo"]["creators"].as_array().expect("creators");
-    assert!(creators.iter().any(|creator| creator.as_str().unwrap().contains("pacquet")));
+    assert!(creators.iter().any(|creator| creator.as_str().unwrap().contains("pnpm")));
 }
 
 #[test]

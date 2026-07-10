@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use std::{fs, path::Path, process::Command};
 
 fn pacquet_at(workspace: &Path) -> Command {
-    Command::cargo_bin("pacquet").expect("find the pacquet binary").with_current_dir(workspace)
+    Command::cargo_bin("pnpm").expect("find the pacquet binary").with_current_dir(workspace)
 }
 
 fn write_manifest(workspace: &Path, value: &Value) {

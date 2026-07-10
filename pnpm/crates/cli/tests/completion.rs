@@ -3,7 +3,7 @@ use std::process::Command;
 use tempfile::TempDir;
 
 fn pacquet() -> Command {
-    Command::cargo_bin("pacquet").expect("find the pacquet binary")
+    Command::cargo_bin("pnpm").expect("find the pacquet binary")
 }
 
 fn stdout(output: std::process::Output) -> String {
@@ -19,10 +19,10 @@ fn stderr(output: std::process::Output) -> String {
 #[test]
 fn completion_scripts_are_lightweight_shims_for_pnpm_supported_shells() {
     let cases = [
-        ("bash", "_pacquet_completion"),
-        ("fish", "complete -c pacquet"),
-        ("pwsh", "Register-ArgumentCompleter -Native -CommandName pacquet"),
-        ("zsh", "#compdef pacquet"),
+        ("bash", "_pnpm_completion"),
+        ("fish", "complete -c pnpm"),
+        ("pwsh", "Register-ArgumentCompleter -Native -CommandName pnpm"),
+        ("zsh", "#compdef pnpm"),
     ];
 
     for (shell, marker) in cases {
@@ -31,7 +31,7 @@ fn completion_scripts_are_lightweight_shims_for_pnpm_supported_shells() {
         let script = stdout(output);
         assert!(script.contains(marker), "{shell} script should contain {marker:?}: {script}");
         assert!(
-            script.contains("pacquet completion-server"),
+            script.contains("pnpm completion-server"),
             "{shell} script should call completion-server: {script}",
         );
         assert!(script.lines().count() < 80, "{shell} script should be lightweight: {script}");
@@ -71,9 +71,9 @@ fn completion_scripts_preserve_current_token_for_fish_and_pwsh() {
 #[test]
 fn completion_server_lists_top_level_commands() {
     let output = pacquet()
-        .args(["completion-server", "--", "pacquet", ""])
+        .args(["completion-server", "--", "pnpm", ""])
         .output()
-        .expect("run pacquet completion-server");
+        .expect("run pnpm completion-server");
     let reply = stdout(output);
 
     assert!(reply.lines().any(|line| line == "install"), "{reply}");
@@ -84,9 +84,9 @@ fn completion_server_lists_top_level_commands() {
 #[test]
 fn completion_server_lists_options_for_current_command() {
     let output = pacquet()
-        .args(["completion-server", "--", "pacquet", "install", "--"])
+        .args(["completion-server", "--", "pnpm", "install", "--"])
         .output()
-        .expect("run pacquet completion-server");
+        .expect("run pnpm completion-server");
     let reply = stdout(output);
 
     assert!(reply.lines().any(|line| line == "--filter"), "{reply}");
@@ -97,9 +97,9 @@ fn completion_server_lists_options_for_current_command() {
 #[test]
 fn completion_server_lists_option_values() {
     let output = pacquet()
-        .args(["completion-server", "--", "pacquet", "--reporter", ""])
+        .args(["completion-server", "--", "pnpm", "--reporter", ""])
         .output()
-        .expect("run pacquet completion-server");
+        .expect("run pnpm completion-server");
     let reply = stdout(output);
 
     assert!(reply.lines().any(|line| line == "default"), "{reply}");
@@ -111,9 +111,9 @@ fn completion_server_lists_option_values() {
 #[test]
 fn completion_server_lists_option_values_only_after_option_name() {
     let output = pacquet()
-        .args(["completion-server", "--", "pacquet", "--reporter", "default", ""])
+        .args(["completion-server", "--", "pnpm", "--reporter", "default", ""])
         .output()
-        .expect("run pacquet completion-server");
+        .expect("run pnpm completion-server");
     let reply = stdout(output);
 
     assert!(reply.lines().any(|line| line == "install"), "{reply}");
@@ -123,9 +123,9 @@ fn completion_server_lists_option_values_only_after_option_name() {
 #[test]
 fn completion_server_does_not_treat_option_values_as_commands() {
     let output = pacquet()
-        .args(["completion-server", "--", "pacquet", "--filter", "install", ""])
+        .args(["completion-server", "--", "pnpm", "--filter", "install", ""])
         .output()
-        .expect("run pacquet completion-server");
+        .expect("run pnpm completion-server");
     let reply = stdout(output);
 
     assert!(reply.lines().any(|line| line == "add"), "{reply}");
@@ -135,9 +135,9 @@ fn completion_server_does_not_treat_option_values_as_commands() {
 #[test]
 fn completion_server_stops_after_double_dash_separator() {
     let output = pacquet()
-        .args(["completion-server", "--", "pacquet", "--", "--rep"])
+        .args(["completion-server", "--", "pnpm", "--", "--rep"])
         .output()
-        .expect("run pacquet completion-server");
+        .expect("run pnpm completion-server");
     let reply = stdout(output);
 
     assert_eq!(reply, "");
@@ -146,9 +146,9 @@ fn completion_server_stops_after_double_dash_separator() {
 #[test]
 fn completion_server_lists_nested_subcommands() {
     let output = pacquet()
-        .args(["completion-server", "--", "pacquet", "store", ""])
+        .args(["completion-server", "--", "pnpm", "store", ""])
         .output()
-        .expect("run pacquet completion-server");
+        .expect("run pnpm completion-server");
     let reply = stdout(output);
 
     assert!(reply.lines().any(|line| line == "prune"), "{reply}");
@@ -158,9 +158,9 @@ fn completion_server_lists_nested_subcommands() {
 #[test]
 fn completion_server_filters_command_prefixes() {
     let output = pacquet()
-        .args(["completion-server", "--", "pacquet", "inst"])
+        .args(["completion-server", "--", "pnpm", "inst"])
         .output()
-        .expect("run pacquet completion-server");
+        .expect("run pnpm completion-server");
     let reply = stdout(output);
 
     assert_eq!(reply.lines().collect::<Vec<_>>(), ["install"]);
@@ -169,9 +169,9 @@ fn completion_server_filters_command_prefixes() {
 #[test]
 fn completion_server_filters_option_prefixes() {
     let output = pacquet()
-        .args(["completion-server", "--", "pacquet", "--rep"])
+        .args(["completion-server", "--", "pnpm", "--rep"])
         .output()
-        .expect("run pacquet completion-server");
+        .expect("run pnpm completion-server");
     let reply = stdout(output);
 
     assert_eq!(reply.lines().collect::<Vec<_>>(), ["--reporter"]);
@@ -180,9 +180,9 @@ fn completion_server_filters_option_prefixes() {
 #[test]
 fn completion_server_filters_option_value_prefixes() {
     let output = pacquet()
-        .args(["completion-server", "--", "pacquet", "--reporter", "a"])
+        .args(["completion-server", "--", "pnpm", "--reporter", "a"])
         .output()
-        .expect("run pacquet completion-server");
+        .expect("run pnpm completion-server");
     let reply = stdout(output);
 
     assert_eq!(reply.lines().collect::<Vec<_>>(), ["append-only"]);
@@ -191,9 +191,9 @@ fn completion_server_filters_option_value_prefixes() {
 #[test]
 fn completion_server_completes_equals_option_values() {
     let output = pacquet()
-        .args(["completion-server", "--", "pacquet", "--reporter=de"])
+        .args(["completion-server", "--", "pnpm", "--reporter=de"])
         .output()
-        .expect("run pacquet completion-server");
+        .expect("run pnpm completion-server");
     let reply = stdout(output);
 
     assert_eq!(reply.lines().collect::<Vec<_>>(), ["--reporter=default"]);
@@ -202,9 +202,9 @@ fn completion_server_completes_equals_option_values() {
 #[test]
 fn completion_server_lists_completion_shells() {
     let output = pacquet()
-        .args(["completion-server", "--", "pacquet", "completion", ""])
+        .args(["completion-server", "--", "pnpm", "completion", ""])
         .output()
-        .expect("run pacquet completion-server");
+        .expect("run pnpm completion-server");
     let reply = stdout(output);
 
     assert_eq!(reply.lines().collect::<Vec<_>>(), ["bash", "fish", "pwsh", "zsh"]);
@@ -217,9 +217,9 @@ fn completion_server_does_not_require_a_project_or_existing_dir_argument() {
     let output = pacquet()
         .args(["--dir"])
         .arg(&missing_dir)
-        .args(["completion-server", "--", "pacquet", "completion", ""])
+        .args(["completion-server", "--", "pnpm", "completion", ""])
         .output()
-        .expect("run pacquet completion-server");
+        .expect("run pnpm completion-server");
     let reply = stdout(output);
 
     assert_eq!(reply.lines().collect::<Vec<_>>(), ["bash", "fish", "pwsh", "zsh"]);
@@ -229,7 +229,7 @@ fn completion_server_does_not_require_a_project_or_existing_dir_argument() {
 fn completion_missing_shell_errors_like_pnpm() {
     let output = pacquet().arg("completion").output().expect("run pacquet completion");
     let err = stderr(output);
-    assert!(err.contains("`pacquet completion` requires a shell name"), "{err}");
+    assert!(err.contains("`pnpm completion` requires a shell name"), "{err}");
 }
 
 #[test]
@@ -261,5 +261,5 @@ fn completion_does_not_require_a_project_or_existing_dir_argument() {
         .output()
         .expect("run pacquet completion");
     let script = stdout(output);
-    assert!(script.contains("#compdef pacquet"), "{script}");
+    assert!(script.contains("#compdef pnpm"), "{script}");
 }

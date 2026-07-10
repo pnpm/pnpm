@@ -37,7 +37,7 @@ fn find_hash_works() {
     let (valid_hash, expected_name, expected_version) = find_hash_fixture(&store_index);
 
     // 2. Run find-hash with the valid hash
-    let mut pacquet2 = std::process::Command::cargo_bin("pacquet").unwrap();
+    let mut pacquet2 = std::process::Command::cargo_bin("pnpm").unwrap();
     pacquet2.current_dir(&workspace);
     let output = pacquet2.arg("find-hash").arg(&valid_hash).assert().success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
@@ -60,7 +60,7 @@ fn should_fail_on_missing_hash() {
     pacquet.arg("add").arg("is-odd@3.0.1").assert().success();
     // Use a valid-length hex string that no file matches. Create a fresh
     // command so the args from `add` don't carry over.
-    let mut pacquet2 = std::process::Command::cargo_bin("pacquet").unwrap();
+    let mut pacquet2 = std::process::Command::cargo_bin("pnpm").unwrap();
     pacquet2.current_dir(&workspace);
     let output = pacquet2.arg("find-hash").arg("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff").assert().failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
@@ -105,7 +105,7 @@ fn find_hash_works_with_base64() {
         .collect::<Vec<u8>>();
     let base64_hash = format!("sha512-{}", BASE64.encode(&bytes));
 
-    let mut pacquet2 = std::process::Command::cargo_bin("pacquet").unwrap();
+    let mut pacquet2 = std::process::Command::cargo_bin("pnpm").unwrap();
     pacquet2.current_dir(&workspace);
     let output = pacquet2.arg("find-hash").arg(&base64_hash).assert().success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);

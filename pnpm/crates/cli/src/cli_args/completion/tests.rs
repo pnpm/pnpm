@@ -21,14 +21,14 @@ fn supported_shells_are_pnpm_compatible() {
 #[test]
 fn missing_shell_errors_like_pnpm() {
     let err = shell_from_args(None, &[]).expect_err("missing shell rejected");
-    assert_eq!(err.to_string(), "`pacquet completion` requires a shell name");
+    assert_eq!(err.to_string(), "`pnpm completion` requires a shell name");
     assert_eq!(diagnostic_code(&err), Some("ERR_PNPM_MISSING_SHELL_NAME".to_string()));
 }
 
 #[test]
 fn empty_shell_errors_like_pnpm() {
     let err = shell_from_args(Some(" \n"), &[]).expect_err("blank shell rejected");
-    assert_eq!(err.to_string(), "`pacquet completion` requires a shell name");
+    assert_eq!(err.to_string(), "`pnpm completion` requires a shell name");
     assert_eq!(diagnostic_code(&err), Some("ERR_PNPM_MISSING_SHELL_NAME".to_string()));
 }
 
@@ -68,14 +68,13 @@ fn generated_scripts_call_completion_server() {
         let mut output = Vec::new();
         super::generate_completion(shell, &mut output).expect("generate completion");
         let script = String::from_utf8(output).expect("script is utf8");
-        assert!(script.contains("pacquet completion-server"), "{script}");
+        assert!(script.contains("pnpm completion-server"), "{script}");
     }
 }
 
 #[test]
 fn completion_can_run_before_async_runtime_setup() {
-    let args =
-        CliArgs::parse_from(["pacquet", "completion-server", "--", "pacquet", "completion", ""]);
+    let args = CliArgs::parse_from(["pnpm", "completion-server", "--", "pnpm", "completion", ""]);
 
     assert!(args.run_completion_if_requested().expect("completion dispatch succeeds"));
 }

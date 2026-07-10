@@ -35,7 +35,7 @@ use std::{
 };
 
 pub use crate::defaults::{
-    GLOBAL_LAYOUT_VERSION, PACQUET_VERSION, available_parallelism, default_config_dir,
+    GLOBAL_LAYOUT_VERSION, PNPM_VERSION, available_parallelism, default_config_dir,
     default_git_shallow_hosts, default_peers_suffix_max_length, default_pnpm_home_dir,
     default_unsafe_perm, default_virtual_store_dir_max_length, default_workspace_concurrency,
     is_unsafe_perm_posix, resolve_child_concurrency,
@@ -762,7 +762,7 @@ pub struct Config {
     /// metadata-fetch path yet (no resolver until Stage 2), so the same
     /// flag instead gates pacquet's tarball-fetch fall-through: when both
     /// the warm prefetch and the `SQLite` `index.db` lookup miss, the
-    /// tarball fetcher fails fast with `ERR_PACQUET_NO_OFFLINE_TARBALL`
+    /// tarball fetcher fails fast with `ERR_PNPM_NO_OFFLINE_TARBALL`
     /// rather than hitting the registry. The frozen-lockfile install
     /// path needs no metadata, so the surface area collapses to
     /// "every snapshot must already be in the local store".

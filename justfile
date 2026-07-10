@@ -111,4 +111,4 @@ integrated-benchmark +args:
   cargo run --bin=integrated-benchmark -- {{args}}
 
 cli +args:
-  cargo run --bin pacquet -- {{args}}
+  cargo run --bin pnpm -- {{args}}

@@ -64,7 +64,7 @@ fn store_path_resolves_global_and_dotted_overrides_from_workspace_root() {
         ("--store-dir=global-store", "global-store"),
         ("--config.store-dir=dotted-store", "dotted-store"),
     ] {
-        let output = Command::cargo_bin("pacquet")
+        let output = Command::cargo_bin("pnpm")
             .expect("find the pacquet binary")
             .with_current_dir(root.path())
             .arg("--dir")
@@ -111,7 +111,7 @@ fn store_path_expands_a_quoted_home_override() {
 #[test]
 fn empty_store_dir_override_restores_the_platform_default() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-    let default_output = Command::cargo_bin("pacquet")
+    let default_output = Command::cargo_bin("pnpm")
         .expect("find the pacquet binary")
         .with_current_dir(&workspace)
         .args(["store", "path"])
@@ -126,7 +126,7 @@ fn empty_store_dir_override_restores_the_platform_default() {
     fs::write(workspace.join("pnpm-workspace.yaml"), "storeDir: yaml-store\n")
         .expect("write configured store directory");
     for store_arg in ["--store-dir=", "--config.store-dir="] {
-        let output = Command::cargo_bin("pacquet")
+        let output = Command::cargo_bin("pnpm")
             .expect("find the pacquet binary")
             .with_current_dir(&workspace)
             .args(["store", "path", store_arg])

@@ -238,8 +238,8 @@ pub enum TarballError {
     /// facing message; the underlying [`std::io::Error`] is
     /// exposed as `source` for miette / `Error::source` walkers.
     /// Kept separate from [`TarballError::ReadTarballEntries`] so
-    /// the retry-classification path emits `ERR_PACQUET_ZIP`
-    /// rather than the tar-specific `ERR_PACQUET_TARBALL_TAR`.
+    /// the retry-classification path emits `ERR_PNPM_ZIP`
+    /// rather than the tar-specific `ERR_PNPM_TARBALL_TAR`.
     #[from(ignore)]
     #[display("Failed to read zip entry {entry_path:?} from {url}: {source}")]
     #[diagnostic(code(pacquet_tarball::read_zip_entry))]
@@ -258,7 +258,7 @@ pub enum TarballError {
     /// clear "the snapshot isn't cached" error rather than letting
     /// the underlying network refusal propagate.
     ///
-    /// `ERR_PACQUET_NO_OFFLINE_TARBALL` is a pacquet-specific code;
+    /// `ERR_PNPM_NO_OFFLINE_TARBALL` is a pacquet-specific code;
     /// the message shape follows pnpm's `ERR_PNPM_NO_OFFLINE_META`
     /// — "Failed to resolve `<pkg>` in package mirror `<dir>`".
     #[from(ignore)]
@@ -266,7 +266,7 @@ pub enum TarballError {
         "Failed to fetch tarball for {package_id} from {url} in offline mode: snapshot not present in local store"
     )]
     #[diagnostic(
-        code(ERR_PACQUET_NO_OFFLINE_TARBALL),
+        code(ERR_PNPM_NO_OFFLINE_TARBALL),
         help(
             "Drop `--offline` (or `offline=true` in pnpm-workspace.yaml) or run an online install first to populate the store."
         )
@@ -1527,7 +1527,7 @@ pub struct DownloadTarballToStore<'a> {
 ///
 /// Today pacquet populates `http_status_code` for the
 /// [`TarballError::HttpStatus`] variant and a curated
-/// `ERR_PACQUET_*` constant in `code` for every other variant —
+/// `ERR_PNPM_*` constant in `code` for every other variant —
 /// the mapping is hand-maintained per match arm rather than
 /// reflectively derived, so renaming a [`TarballError`] variant
 /// won't silently change the emitted `code`. `errno` and `status`
@@ -1546,37 +1546,37 @@ fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetryError {
             out.http_status_code = Some(http.status.to_string());
         }
         TarballError::FetchTarball(_) => {
-            out.code = Some("ERR_PACQUET_FETCH".to_string());
+            out.code = Some("ERR_PNPM_FETCH".to_string());
         }
         TarballError::Checksum(_) => {
-            out.code = Some("ERR_PACQUET_TARBALL_INTEGRITY".to_string());
+            out.code = Some("ERR_PNPM_TARBALL_INTEGRITY".to_string());
         }
         TarballError::DecodeGzip(_) => {
-            out.code = Some("ERR_PACQUET_TARBALL_GZIP".to_string());
+            out.code = Some("ERR_PNPM_TARBALL_GZIP".to_string());
         }
         TarballError::ReadTarballEntries(_) => {
-            out.code = Some("ERR_PACQUET_TARBALL_TAR".to_string());
+            out.code = Some("ERR_PNPM_TARBALL_TAR".to_string());
         }
         TarballError::ReadLocalTarball { .. } => {
-            out.code = Some("ERR_PACQUET_TARBALL_FILE".to_string());
+            out.code = Some("ERR_PNPM_TARBALL_FILE".to_string());
         }
         TarballError::WriteCasFile(_) | TarballError::WriteStoreIndex(_) => {
-            out.code = Some("ERR_PACQUET_TARBALL_STORE".to_string());
+            out.code = Some("ERR_PNPM_TARBALL_STORE".to_string());
         }
         TarballError::TaskJoin(_) => {
-            out.code = Some("ERR_PACQUET_TASK_JOIN".to_string());
+            out.code = Some("ERR_PNPM_TASK_JOIN".to_string());
         }
         TarballError::TarballTooLarge { .. } => {
-            out.code = Some("ERR_PACQUET_TARBALL_TOO_LARGE".to_string());
+            out.code = Some("ERR_PNPM_TARBALL_TOO_LARGE".to_string());
         }
         TarballError::SiblingFetchFailed { .. } => {
-            out.code = Some("ERR_PACQUET_SIBLING_FETCH".to_string());
+            out.code = Some("ERR_PNPM_SIBLING_FETCH".to_string());
         }
         TarballError::PathTraversal { .. } => {
-            out.code = Some("ERR_PACQUET_PATH_TRAVERSAL".to_string());
+            out.code = Some("ERR_PNPM_PATH_TRAVERSAL".to_string());
         }
         TarballError::ReadZipArchive { .. } | TarballError::ReadZipEntries { .. } => {
-            out.code = Some("ERR_PACQUET_ZIP".to_string());
+            out.code = Some("ERR_PNPM_ZIP".to_string());
         }
         TarballError::NoOfflineTarball { .. } => {
             // The retry classifier sees this only if the offline gate
@@ -1586,7 +1586,7 @@ fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetryError {
             // exhaustiveness; the `code` field is set so a future
             // surface that does run this error through the retry
             // logger renders the right code.
-            out.code = Some("ERR_PACQUET_NO_OFFLINE_TARBALL".to_string());
+            out.code = Some("ERR_PNPM_NO_OFFLINE_TARBALL".to_string());
         }
     }
     out

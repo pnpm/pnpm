@@ -37,7 +37,7 @@ fn prefix_walks_up_to_find_package_json() {
     let member = workspace.join("sub/dir/deep");
     fs::create_dir_all(&member).expect("create member dir");
 
-    let pacquet_out = Command::cargo_bin("pacquet")
+    let pacquet_out = Command::cargo_bin("pnpm")
         .expect("find the pacquet binary")
         .with_current_dir(&member)
         .with_args(["prefix"])
@@ -60,7 +60,7 @@ fn prefix_walks_up_from_node_modules() {
     let nm_dir = workspace.join("node_modules/some-pkg");
     fs::create_dir_all(&nm_dir).expect("create node_modules/some-pkg dir");
 
-    let pacquet_out = Command::cargo_bin("pacquet")
+    let pacquet_out = Command::cargo_bin("pnpm")
         .expect("find the pacquet binary")
         .with_current_dir(&nm_dir)
         .with_args(["prefix"])
@@ -102,7 +102,7 @@ fn prefix_resolves_from_a_workspace_subdir() {
     let sub_member = member.join("src/utils");
     fs::create_dir_all(&sub_member).expect("create sub_member dir");
 
-    let pacquet_out = Command::cargo_bin("pacquet")
+    let pacquet_out = Command::cargo_bin("pnpm")
         .expect("find the pacquet binary")
         .with_current_dir(&sub_member)
         .with_args(["prefix"])

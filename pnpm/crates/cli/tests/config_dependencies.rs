@@ -8,7 +8,7 @@ use pacquet_testing_utils::fs::is_symlink_or_junction;
 use std::{fs, path::Path, process::Command};
 
 fn pacquet_at(workspace: &Path) -> Command {
-    Command::cargo_bin("pacquet").expect("find the pacquet binary").with_current_dir(workspace)
+    Command::cargo_bin("pnpm").expect("find the pacquet binary").with_current_dir(workspace)
 }
 
 /// `pacquet install` resolves the `configDependencies` declared in

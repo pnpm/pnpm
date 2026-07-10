@@ -101,7 +101,7 @@ fn frozen_install_honors_the_store_dir_cli_option() {
     pacquet.with_arg("install").assert().success();
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
 
-    std::process::Command::cargo_bin("pacquet")
+    std::process::Command::cargo_bin("pnpm")
         .expect("find the pacquet binary")
         .with_current_dir(&workspace)
         .with_args(["install", "--frozen-lockfile", "--store-dir=frozen-store"])
@@ -927,9 +927,8 @@ fn install_regenerates_lockfile_from_node_modules_when_wanted_is_missing() {
         .expect("remove .pnpm-workspace-state-v1.json");
 
     eprintln!("Re-running install with --reporter=ndjson...");
-    let pacquet_rerun = Command::cargo_bin("pacquet")
-        .expect("find the pacquet binary")
-        .with_current_dir(&workspace);
+    let pacquet_rerun =
+        Command::cargo_bin("pnpm").expect("find the pacquet binary").with_current_dir(&workspace);
     let output = pacquet_rerun
         .with_args(["--reporter=ndjson", "install"])
         .output()
@@ -990,9 +989,8 @@ fn frozen_install_short_circuits_when_node_modules_is_up_to_date() {
     pacquet.with_arg("install").assert().success();
 
     eprintln!("Re-running with --frozen-lockfile + --reporter=ndjson...");
-    let pacquet_rerun = Command::cargo_bin("pacquet")
-        .expect("find the pacquet binary")
-        .with_current_dir(&workspace);
+    let pacquet_rerun =
+        Command::cargo_bin("pnpm").expect("find the pacquet binary").with_current_dir(&workspace);
     let output = pacquet_rerun
         .with_args(["--reporter=ndjson", "install", "--frozen-lockfile"])
         .output()
@@ -1341,7 +1339,7 @@ fn install_with_peer_alias_deps(dependencies: serde_json::Value) -> String {
 /// A fresh `pacquet` command rooted at `workspace`, for tests that run the
 /// binary more than once (the builder is consumed on `assert()`).
 fn new_pacquet_command(workspace: &std::path::Path) -> std::process::Command {
-    std::process::Command::cargo_bin("pacquet")
+    std::process::Command::cargo_bin("pnpm")
         .expect("find the pacquet binary")
         .with_current_dir(workspace)
 }

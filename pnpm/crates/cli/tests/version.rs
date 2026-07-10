@@ -12,7 +12,7 @@ fn version_flag_prints_the_bare_version() {
     assert!(output.status.success(), "pacquet --version should succeed");
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        format!("{}\n", pacquet_config::PACQUET_VERSION),
+        format!("{}\n", pacquet_config::PNPM_VERSION),
     );
 
     drop(root);
@@ -27,7 +27,7 @@ fn short_version_flag_prints_the_bare_version() {
     assert!(output.status.success(), "pacquet -v should succeed");
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        format!("{}\n", pacquet_config::PACQUET_VERSION),
+        format!("{}\n", pacquet_config::PNPM_VERSION),
     );
 
     drop(root);

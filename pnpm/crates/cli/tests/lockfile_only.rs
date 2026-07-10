@@ -18,7 +18,7 @@ use std::{fs, path::Path, process::Command};
 /// isn't `Clone` and each invocation consumes the builder, so tests that
 /// run pacquet more than once rebuild it here.
 fn pacquet_at(workspace: &Path) -> Command {
-    Command::cargo_bin("pacquet").expect("find the pacquet binary").with_current_dir(workspace)
+    Command::cargo_bin("pnpm").expect("find the pacquet binary").with_current_dir(workspace)
 }
 
 /// Content-addressable tarball blobs under the store (`v11/files/...`).

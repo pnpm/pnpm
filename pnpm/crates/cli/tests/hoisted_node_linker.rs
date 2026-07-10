@@ -64,7 +64,7 @@ fn is_real_dir(workspace: &Path, relative: &str) -> bool {
 /// `pnpm-workspace.yaml`, so a command that merely runs in `workspace`
 /// inherits it without extra env.
 fn pacquet_at(workspace: &Path) -> Command {
-    Command::cargo_bin("pacquet").expect("find the pacquet binary").with_current_dir(workspace)
+    Command::cargo_bin("pnpm").expect("find the pacquet binary").with_current_dir(workspace)
 }
 
 /// `rm -rf` that tolerates an already-absent path.

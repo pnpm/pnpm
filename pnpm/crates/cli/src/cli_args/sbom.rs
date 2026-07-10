@@ -1047,8 +1047,8 @@ fn serialize_cyclonedx(opts: &CycloneDxOpts<'_>) -> String {
         "lifecycles": [{ "phase": phase }],
         "tools": { "components": [{
             "type": "application",
-            "name": "pacquet",
-            "version": pacquet_config::PACQUET_VERSION,
+            "name": "pnpm",
+            "version": pacquet_config::PNPM_VERSION,
         }] },
         "component": root_component,
     });
@@ -1210,7 +1210,7 @@ fn serialize_spdx(result: &SbomResult, compact: bool) -> String {
         "documentNamespace": doc_namespace,
         "creationInfo": {
             "created": timestamp,
-            "creators": ["Tool: pacquet"],
+            "creators": ["Tool: pnpm"],
         },
         "packages": spdx_packages,
         "relationships": spdx_relationships,

@@ -197,6 +197,7 @@ jobs:
         with:
           key: integrated-benchmark-bin-${{ matrix.os }}-${{ steps.revs.outputs.main_sha }}-${{ hashFiles('rust-toolchain.toml') }}
           path: |
+            bench-work-env/pnpr@main/pacquet/target/release/pnpm
             bench-work-env/pnpr@main/pacquet/target/release/pacquet
             bench-work-env/pnpr@main/pacquet/target/release/pnpr
         timeout-minutes: 2
@@ -207,6 +208,7 @@ jobs:
         with:
           key: integrated-benchmark-bin-${{ matrix.os }}-${{ steps.revs.outputs.head_sha }}-${{ hashFiles('rust-toolchain.toml') }}
           path: |
+            bench-work-env/pnpr@HEAD/pacquet/target/release/pnpm
             bench-work-env/pnpr@HEAD/pacquet/target/release/pacquet
             bench-work-env/pnpr@HEAD/pacquet/target/release/pnpr
         timeout-minutes: 2

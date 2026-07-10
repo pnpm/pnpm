@@ -16,7 +16,7 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_cmd_shim::{Host as CmdShimHost, link_bins_of_packages_with_excludes};
-use pacquet_config::{Config, PACQUET_VERSION};
+use pacquet_config::{Config, PNPM_VERSION};
 use pacquet_fs::force_symlink_dir;
 use pacquet_global::{
     create_global_cache_key, find_global_package, get_hash_link, read_installed_packages,
@@ -159,7 +159,7 @@ async fn handler<Reporter: self::Reporter + 'static>(
             read_project_pinned_pnpm_version(lockfile_dir, pm.version.as_deref())
                 .filter(|version| version != &target_version)
         }
-        _ if PACQUET_VERSION != target_version => Some(PACQUET_VERSION.to_string()),
+        _ if PNPM_VERSION != target_version => Some(PNPM_VERSION.to_string()),
         _ => None,
     };
     if let Some(previous) = &previous_version
@@ -190,22 +190,22 @@ async fn handler<Reporter: self::Reporter + 'static>(
     // Global switch. Version equality with the running binary alone must
     // not skip the update: a removed global install can be recovered by
     // running a local pnpm of the same version (see pnpm/pnpm#12877).
-    if target_version == PACQUET_VERSION
+    if target_version == PNPM_VERSION
         && is_installed_globally(config.global_pkg_dir.as_deref(), &target_version)?
     {
         return Ok(Some(format!(
-            r#"The currently active pnpm v{PACQUET_VERSION} is already "{bare_specifier}" and doesn't need an update"#,
+            r#"The currently active pnpm v{PNPM_VERSION} is already "{bare_specifier}" and doesn't need an update"#,
         )));
     }
-    if is_implicit_latest && version_lt(&target_version, PACQUET_VERSION) {
+    if is_implicit_latest && version_lt(&target_version, PNPM_VERSION) {
         return Ok(Some(format!(
-            r#"The currently active pnpm v{PACQUET_VERSION} is newer than the "latest" version on the registry (v{target_version}). No update performed. Run "pnpm self-update latest" to downgrade."#,
+            r#"The currently active pnpm v{PNPM_VERSION} is newer than the "latest" version on the registry (v{target_version}). No update performed. Run "pnpm self-update latest" to downgrade."#,
         )));
     }
 
     info::<Reporter>(
         &prefix,
-        &format!("Switching pnpm from v{PACQUET_VERSION} to v{target_version}..."),
+        &format!("Switching pnpm from v{PNPM_VERSION} to v{target_version}..."),
     );
 
     let env_root = config.global_pkg_dir.clone().ok_or(SelfUpdateError::NoGlobalDir)?;

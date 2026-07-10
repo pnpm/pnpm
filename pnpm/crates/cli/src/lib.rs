@@ -33,7 +33,7 @@ pub fn main() -> miette::Result<()> {
     let argv = with_current::rewrite(argv)?;
     // The default reporter's `Done in ... using pacquet v<version>` footer needs
     // the version before the first event (including the fast path's).
-    pacquet_default_reporter::set_package_version(pacquet_config::PACQUET_VERSION);
+    pacquet_default_reporter::set_package_version(pacquet_config::PNPM_VERSION);
     // Parse through a command augmented with a `--no-<flag>` negation for
     // every boolean flag, so pnpm's forwarded negations (`--no-frozen-lockfile`,
     // etc.) parse the same way nopt accepts them upstream. See `boolean_negations`.
@@ -53,7 +53,7 @@ pub fn main() -> miette::Result<()> {
             )? {
                 return Ok(());
             }
-            println!("{}", pacquet_config::PACQUET_VERSION);
+            println!("{}", pacquet_config::PNPM_VERSION);
             return Ok(());
         }
         Err(err) => err.exit(),

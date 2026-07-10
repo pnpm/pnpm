@@ -11,7 +11,7 @@ license.workspace     = true
 repository.workspace  = true
 
 [[bin]]
-name = "pacquet"
+name = "pnpm"
 path = "src/bin/main.rs"
 
 [dependencies]

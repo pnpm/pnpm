@@ -53,7 +53,7 @@ pub enum BuildModulesError {
     /// rather than a panic so the install path can return cleanly.
     #[display("Failed to build the per-install rayon thread pool: {source}")]
     #[diagnostic(
-        code(ERR_PACQUET_BUILD_THREAD_POOL),
+        code(ERR_PNPM_BUILD_THREAD_POOL),
         help(
             "Lower childConcurrency in pnpm-workspace.yaml, or raise the process's RLIMIT_NPROC."
         )

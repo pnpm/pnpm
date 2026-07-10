@@ -51,7 +51,7 @@ impl CompletionShell {
 #[derive(Debug, Display, Error, Diagnostic, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum CompletionError {
-    #[display("`pacquet completion` requires a shell name")]
+    #[display("`pnpm completion` requires a shell name")]
     #[diagnostic(code(ERR_PNPM_MISSING_SHELL_NAME))]
     MissingShellName,
 
@@ -188,7 +188,7 @@ fn words_without_binary(words: &[String]) -> Vec<String> {
     if Path::new(first)
         .file_stem()
         .and_then(|name| name.to_str())
-        .is_some_and(|name| name == "pacquet")
+        .is_some_and(|name| name == "pnpm" || name == "pacquet")
     {
         rest.to_vec()
     } else {
@@ -328,17 +328,17 @@ fn option_has_separate_value(option: &str) -> bool {
     !option.contains('=')
 }
 
-const BASH_COMPLETION: &str = r#"###-begin-pacquet-completion-###
-_pacquet_completion() {
+const BASH_COMPLETION: &str = r#"###-begin-pnpm-completion-###
+_pnpm_completion() {
   local IFS=$'\n'
-  COMPREPLY=($(COMP_LINE="$COMP_LINE" COMP_POINT="$COMP_POINT" SHELL=bash pacquet completion-server -- "${COMP_WORDS[@]}"))
+  COMPREPLY=($(COMP_LINE="$COMP_LINE" COMP_POINT="$COMP_POINT" SHELL=bash pnpm completion-server -- "${COMP_WORDS[@]}"))
 }
-complete -F _pacquet_completion pacquet
-###-end-pacquet-completion-###
+complete -F _pnpm_completion pnpm
+###-end-pnpm-completion-###
 "#;
 
-const FISH_COMPLETION: &str = r#"###-begin-pacquet-completion-###
-function __pacquet_completion
+const FISH_COMPLETION: &str = r#"###-begin-pnpm-completion-###
+function __pnpm_completion
   set -lx SHELL fish
   set -lx COMP_LINE (commandline -cp)
   set -lx COMP_POINT (string length -- $COMP_LINE)
@@ -349,14 +349,14 @@ function __pacquet_completion
   else if test "$tokens[-1]" != "$current"
     set -a tokens "$current"
   end
-  pacquet completion-server -- $tokens
+  pnpm completion-server -- $tokens
 end
-complete -c pacquet -f -a "(__pacquet_completion)"
-###-end-pacquet-completion-###
+complete -c pnpm -f -a "(__pnpm_completion)"
+###-end-pnpm-completion-###
 "#;
 
-const PWSH_COMPLETION: &str = r#"###-begin-pacquet-completion-###
-Register-ArgumentCompleter -Native -CommandName pacquet -ScriptBlock {
+const PWSH_COMPLETION: &str = r#"###-begin-pnpm-completion-###
+Register-ArgumentCompleter -Native -CommandName pnpm -ScriptBlock {
   param($wordToComplete, $commandAst, $cursorPosition)
   $env:SHELL = "pwsh"
   $env:COMP_LINE = $commandAst.ToString()
@@ -365,20 +365,20 @@ Register-ArgumentCompleter -Native -CommandName pacquet -ScriptBlock {
   if ($elements.Count -eq 0 -or $elements[-1] -ne $wordToComplete) {
     $elements += $wordToComplete
   }
-  pacquet completion-server -- @elements
+  pnpm completion-server -- @elements
 }
-###-end-pacquet-completion-###
+###-end-pnpm-completion-###
 "#;
 
-const ZSH_COMPLETION: &str = r#"#compdef pacquet
-###-begin-pacquet-completion-###
-_pacquet_completion() {
+const ZSH_COMPLETION: &str = r#"#compdef pnpm
+###-begin-pnpm-completion-###
+_pnpm_completion() {
   local reply
-  reply=("${(@f)$(COMP_CWORD=$((CURRENT-1)) COMP_LINE="$BUFFER" COMP_POINT="$CURSOR" SHELL=zsh pacquet completion-server -- "${words[@]}")}")
+  reply=("${(@f)$(COMP_CWORD=$((CURRENT-1)) COMP_LINE="$BUFFER" COMP_POINT="$CURSOR" SHELL=zsh pnpm completion-server -- "${words[@]}")}")
   _describe 'values' reply
 }
-compdef _pacquet_completion pacquet
-###-end-pacquet-completion-###
+compdef _pnpm_completion pnpm
+###-end-pnpm-completion-###
 "#;
 
 #[cfg(test)]

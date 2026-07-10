@@ -11,7 +11,7 @@ use std::{collections::HashMap, path::PathBuf};
 
 use napi_derive::napi;
 use pacquet_catalogs_types::Catalogs;
-use pacquet_config::{NodeLinker, PACQUET_VERSION};
+use pacquet_config::{NodeLinker, PNPM_VERSION};
 
 use crate::{
     error::to_napi_error,
@@ -65,7 +65,7 @@ pub async fn pack(options: PackOptions, on_log: Option<LogSink>) -> napi::Result
         pack_gzip_level: options.pack_gzip_level,
         node_linker: NodeLinker::default(),
         skip_manifest_obfuscation: false,
-        user_agent: format!("pnpm/{PACQUET_VERSION} napi"),
+        user_agent: format!("pnpm/{PNPM_VERSION} napi"),
         extra_bin_paths: options
             .extra_bin_paths
             .unwrap_or_default()

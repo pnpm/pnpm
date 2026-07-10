@@ -24,7 +24,7 @@ fn setup() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
 /// `assert_cmd` `Command` is single-shot, so each install/update step
 /// needs its own.
 fn pacquet(workspace: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Command {
-    Command::cargo_bin("pacquet")
+    Command::cargo_bin("pnpm")
         .expect("find the pacquet binary")
         .with_current_dir(workspace)
         .with_args(args)

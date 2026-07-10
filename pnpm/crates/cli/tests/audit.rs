@@ -815,7 +815,7 @@ fn audit_ignore_unfixable_ignores_advisories_without_a_fix() {
 /// multi-step tests (install, then audit) that can't reuse the one-shot
 /// command from [`CommandTempCwd`].
 fn pacquet_cmd(workspace: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Command {
-    Command::cargo_bin("pacquet")
+    Command::cargo_bin("pnpm")
         .expect("find the pacquet binary")
         .with_current_dir(workspace)
         .with_args(args)

@@ -2945,7 +2945,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
     .expect_err("offline + cache miss must error before reaching the network");
 
     // Variant shape + diagnostic code together. The `code` check
-    // pins the user-facing surface — `ERR_PACQUET_NO_OFFLINE_TARBALL`
+    // pins the user-facing surface — `ERR_PNPM_NO_OFFLINE_TARBALL`
     // is part of the CLI contract, like pnpm's
     // `ERR_PNPM_NO_OFFLINE_META`.
     let TarballError::NoOfflineTarball { package_id, url: errored_url } = &err else {
@@ -2955,7 +2955,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
     assert_eq!(errored_url, &url);
     let code = err.code().map(|c| c.to_string()).unwrap_or_default();
     assert_eq!(
-        code, "ERR_PACQUET_NO_OFFLINE_TARBALL",
+        code, "ERR_PNPM_NO_OFFLINE_TARBALL",
         "diagnostic code is part of the user-facing surface; must stay stable",
     );
 

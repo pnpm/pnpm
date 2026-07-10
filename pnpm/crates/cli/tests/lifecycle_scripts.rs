@@ -847,7 +847,7 @@ mod project_scripts {
         assert!(workspace.join("pnpm-lock.yaml").exists(), "first install should write a lockfile");
         fs::remove_file(workspace.join("order.txt")).expect("clear order.txt between installs");
 
-        Command::cargo_bin("pacquet")
+        Command::cargo_bin("pnpm")
             .expect("find the pacquet binary")
             .with_current_dir(&workspace)
             .with_arg("install")

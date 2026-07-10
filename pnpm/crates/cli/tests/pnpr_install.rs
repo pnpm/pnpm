@@ -92,7 +92,7 @@ fn wait_until_ready(addr: SocketAddr) {
 }
 
 fn pacquet_at(workspace: &Path) -> Command {
-    Command::cargo_bin("pacquet").expect("find the pacquet binary").with_current_dir(workspace)
+    Command::cargo_bin("pnpm").expect("find the pacquet binary").with_current_dir(workspace)
 }
 
 #[test]

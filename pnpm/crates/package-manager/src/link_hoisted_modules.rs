@@ -85,7 +85,7 @@ pub enum LinkHoistedModulesError {
     /// Indicates a bug in the caller (pre-fetch incomplete) — the
     /// linker can't conjure files it wasn't given.
     #[display("Missing CAS paths for required package {pkg_id_with_patch_hash:?} at {dir:?}")]
-    #[diagnostic(code(ERR_PACQUET_LINK_HOISTED_MISSING_CAS))]
+    #[diagnostic(code(ERR_PNPM_LINK_HOISTED_MISSING_CAS))]
     MissingCasPaths { pkg_id_with_patch_hash: PkgIdWithPatchHash, dir: PathBuf },
 
     /// A hierarchy entry referenced a directory that has no
@@ -95,7 +95,7 @@ pub enum LinkHoistedModulesError {
     /// surfacing the inconsistency fails the install fast rather
     /// than producing a partial layout.
     #[display("Hierarchy references {dir:?} but no matching graph node exists")]
-    #[diagnostic(code(ERR_PACQUET_LINK_HOISTED_MISSING_GRAPH_NODE))]
+    #[diagnostic(code(ERR_PNPM_LINK_HOISTED_MISSING_GRAPH_NODE))]
     MissingGraphNode { dir: PathBuf },
 
     #[diagnostic(transparent)]

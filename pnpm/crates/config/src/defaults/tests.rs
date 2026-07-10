@@ -1,5 +1,5 @@
 use super::{
-    PACQUET_VERSION, default_cache_dir, default_child_concurrency,
+    PNPM_VERSION, default_cache_dir, default_child_concurrency,
     default_child_concurrency_with_parallelism, default_config_dir, default_fetch_timeout,
     default_store_dir, default_unsafe_perm, default_user_agent, default_workspace_concurrency,
     is_unsafe_perm_posix, resolve_child_concurrency, resolve_child_concurrency_with_parallelism,
@@ -360,7 +360,7 @@ fn fetch_timeout_default_matches_pnpm() {
 #[test]
 fn user_agent_default_matches_pnpm_format() {
     let ua = default_user_agent();
-    let prefix = format!("pnpm/{PACQUET_VERSION} npm/? node/? ");
+    let prefix = format!("pnpm/{PNPM_VERSION} npm/? node/? ");
     assert!(ua.starts_with(&prefix), "user-agent {ua:?} must start with {prefix:?}");
     let tail: Vec<&str> = ua[prefix.len()..].split(' ').collect();
     assert_eq!(tail.len(), 2, "expected `<platform> <arch>` tail, got {ua:?}");

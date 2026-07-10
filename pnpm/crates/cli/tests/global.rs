@@ -44,7 +44,7 @@ fn global_command(workspace: &Path, pnpm_home: &Path) -> Command {
     let global_bin = pnpm_home.join("bin");
     let existing_path = std::env::var("PATH").unwrap_or_default();
     let path = format!("{}:{existing_path}", global_bin.display());
-    Command::cargo_bin("pacquet")
+    Command::cargo_bin("pnpm")
         .expect("find the pacquet binary")
         .with_current_dir(workspace)
         .with_env("PNPM_HOME", pnpm_home)
@@ -299,7 +299,7 @@ fn global_list_empty() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let pnpm_home = root.path().join("pnpm-home");
 
-    let output = Command::cargo_bin("pacquet")
+    let output = Command::cargo_bin("pnpm")
         .expect("find the pacquet binary")
         .with_current_dir(&workspace)
         .with_env("PNPM_HOME", &pnpm_home)
@@ -325,7 +325,7 @@ fn global_add_pnpm_is_rejected() {
     let pnpm_home = root.path().join("pnpm-home");
     fs::create_dir_all(pnpm_home.join("bin")).expect("create global bin dir");
 
-    let output = Command::cargo_bin("pacquet")
+    let output = Command::cargo_bin("pnpm")
         .expect("find the pacquet binary")
         .with_current_dir(&workspace)
         .with_env("PNPM_HOME", &pnpm_home)

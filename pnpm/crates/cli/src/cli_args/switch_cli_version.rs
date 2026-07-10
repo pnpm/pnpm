@@ -13,7 +13,7 @@ use super::{
 };
 use crate::{config_deps, config_overrides::ConfigOverrides};
 use miette::{Context, IntoDiagnostic};
-use pacquet_config::{Config, Host, PACQUET_VERSION, PmOnFail};
+use pacquet_config::{Config, Host, PNPM_VERSION, PmOnFail};
 use pacquet_lockfile::{EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, VersionPart};
 use pacquet_reporter::SilentReporter;
 use std::{
@@ -58,7 +58,7 @@ pub(crate) async fn execute_switch(
     let config = Config::leak(config);
     let (version, bin_dir) = match source {
         SwitchSource::LockedEnv { env, version } => {
-            if version == PACQUET_VERSION {
+            if version == PNPM_VERSION {
                 return Ok(false);
             }
             let bin_dir =
@@ -69,7 +69,7 @@ pub(crate) async fn execute_switch(
             let resolved = config_deps::resolve_pnpm_version(config, &spec)
                 .await?
                 .ok_or_else(|| miette::miette!(r#"Cannot resolve pnpm version for "{}""#, spec))?;
-            if resolved.version == PACQUET_VERSION {
+            if resolved.version == PNPM_VERSION {
                 return Ok(false);
             }
             let bin_dir = Box::pin(install_pnpm_to_store::<SilentReporter>(
@@ -115,7 +115,7 @@ fn switch_plan_from_input(
     let Some(target) = switch_target(&config, &root_dir)? else {
         return Ok(None);
     };
-    if version_satisfies(PACQUET_VERSION, &target.spec) {
+    if version_satisfies(PNPM_VERSION, &target.spec) {
         return Ok(None);
     }
     Ok(Some(SwitchPlan { config, target }))

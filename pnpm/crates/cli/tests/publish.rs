@@ -16,7 +16,7 @@ use serde_json::{Value, json};
 use std::{fs, path::Path, process::Command};
 
 fn pacquet(workspace: &Path) -> Command {
-    Command::cargo_bin("pacquet")
+    Command::cargo_bin("pnpm")
         .expect("find the pacquet binary")
         .with_current_dir(workspace)
         .without_env("GITHUB_ACTIONS")

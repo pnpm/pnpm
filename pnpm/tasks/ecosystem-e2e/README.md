@@ -44,8 +44,8 @@ Each cell runs four stages, stopping at the first failure:
 From the repo root:
 
 ```sh
-# Whole grid, every stack (pacquet must be built: cargo build --release --bin pacquet)
-cargo run -p pacquet-ecosystem-e2e -- --pacquet ./target/release/pacquet
+# Whole grid, every stack (pacquet must be built: cargo build --release --bin pnpm)
+cargo run -p pacquet-ecosystem-e2e -- --pacquet ./target/release/pnpm
 
 # Just pnpm, one stack, both layouts
 cargo run -p pacquet-ecosystem-e2e -- --binary pnpm --stack vite-react
