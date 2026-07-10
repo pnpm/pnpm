@@ -181,10 +181,12 @@ impl ConfigOverrides {
     }
 }
 
+/// Presence-only, like pnpm's `!= null` check: an empty value still
+/// overrides (it disables the gate on the env-overlay side).
 fn verify_deps_env_is_set() -> bool {
     ["PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN", pacquet_executor::VERIFY_DEPS_BEFORE_RUN_ENV]
         .iter()
-        .any(|name| std::env::var(name).is_ok_and(|value| !value.is_empty()))
+        .any(|name| std::env::var(name).is_ok())
 }
 
 fn external_command_index(argv: &[OsString]) -> Option<usize> {

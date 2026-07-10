@@ -230,6 +230,27 @@ fn env_var_outranks_the_cli_config_override() {
     drop(root);
 }
 
+/// A present-but-empty env var disables the gate outright, still
+/// overriding the CLI: pnpm applies the variable on presence alone, and
+/// the empty string is falsy there.
+#[cfg(unix)]
+#[test]
+fn empty_env_value_disables_the_gate() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let marker = workspace.join("marker.txt");
+    write_manifest(&workspace, &marker);
+
+    pacquet
+        .with_env("pnpm_config_verify_deps_before_run", "")
+        .with_args(["--config.verify-deps-before-run=error", "run", "hello"])
+        .assert()
+        .success();
+    assert!(marker.exists(), "the script must run with the gate disabled by the empty env var");
+    assert!(!workspace.join("node_modules").exists(), "no check or install may run");
+
+    drop(root);
+}
+
 /// The exec path stamps the same recursion guard as the lifecycle env
 /// builder.
 #[cfg(unix)]

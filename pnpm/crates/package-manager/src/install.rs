@@ -2398,9 +2398,10 @@ pub fn check_deps_status_before_run_at(
     // state, before any project discovery — a fresh project (the common
     // out-of-sync case) must not pay for the workspace-projects walk
     // only to reach the same verdict inside the check.
-    if !matches!(pacquet_workspace_state::load_workspace_state(&workspace_root), Ok(Some(_))) {
+    let Ok(Some(workspace_state)) = pacquet_workspace_state::load_workspace_state(&workspace_root)
+    else {
         return cannot_check();
-    }
+    };
     let catalogs = match config.catalogs.clone() {
         Some(catalogs) => catalogs,
         None => match get_catalogs_from_workspace_manifest(workspace_manifest.as_ref()) {
@@ -2423,23 +2424,26 @@ pub fn check_deps_status_before_run_at(
     } else {
         LazyLockfile::disabled()
     };
-    Some(crate::check_deps_status_before_run(&OptimisticRepeatInstallCheck {
-        workspace_root: &workspace_root,
-        config,
-        node_linker: config.node_linker,
-        // The gate ignores dependency-group drift, so the groups only
-        // shape the settings snapshot written back after a passing
-        // content check — where the recorded values win anyway.
-        included: IncludedDependencies {
-            dependencies: true,
-            dev_dependencies: true,
-            optional_dependencies: true,
+    Some(crate::check_deps_status_before_run(
+        &OptimisticRepeatInstallCheck {
+            workspace_root: &workspace_root,
+            config,
+            node_linker: config.node_linker,
+            // The gate ignores dependency-group drift, so the groups only
+            // shape the settings snapshot written back after a passing
+            // content check — where the recorded values win anyway.
+            included: IncludedDependencies {
+                dependencies: true,
+                dev_dependencies: true,
+                optional_dependencies: true,
+            },
+            project_manifests: &project_manifests,
+            is_workspace_install: workspace_manifest.is_some(),
+            lockfile: MaybeLazyLockfile::Lazy(&lockfile),
+            catalogs: &catalogs,
         },
-        project_manifests: &project_manifests,
-        is_workspace_install: workspace_manifest.is_some(),
-        lockfile: MaybeLazyLockfile::Lazy(&lockfile),
-        catalogs: &catalogs,
-    }))
+        &workspace_state,
+    ))
 }
 
 fn build_project_manifests_list<'a>(

@@ -202,16 +202,21 @@ impl WorkspaceSettings {
         json_field!(trust_lockfile, "TRUST_LOCKFILE");
         enum_field!(trust_policy, "TRUST_POLICY", TrustPolicy);
         enum_field!(pm_on_fail, "PM_ON_FAIL", PmOnFail);
-        // pnpm assigns this env var verbatim without validation, so an
-        // unrecognized value is truthy there: the check runs but matches
-        // no action. `True` reproduces that, and keeps a present-but-
-        // invalid value overriding the other config layers the way a
-        // valid one does.
-        if let Some(s) = read_env::<Sys>("VERIFY_DEPS_BEFORE_RUN") {
-            settings.verify_deps_before_run = Some(
-                parse_json_or_string::<VerifyDepsBeforeRun>(&s)
-                    .unwrap_or(VerifyDepsBeforeRun::True),
-            );
+        // pnpm applies this env var on presence alone (`!= null`) and
+        // assigns the raw value without validation, so presence always
+        // overrides the other config layers: an empty value assigns an
+        // empty string — falsy there, the gate is off — and an
+        // unrecognized value is truthy — the check runs but matches no
+        // action. `read_env` filters empty values, so read the var
+        // directly.
+        if let Some(s) = Sys::var("PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN")
+            .or_else(|| Sys::var("pnpm_config_verify_deps_before_run"))
+        {
+            settings.verify_deps_before_run = Some(if s.is_empty() {
+                VerifyDepsBeforeRun::False
+            } else {
+                parse_json_or_string::<VerifyDepsBeforeRun>(&s).unwrap_or(VerifyDepsBeforeRun::True)
+            });
         }
         enum_field!(audit_level, "AUDIT_LEVEL", AuditLevel);
         json_field!(audit_config, "AUDIT_CONFIG");

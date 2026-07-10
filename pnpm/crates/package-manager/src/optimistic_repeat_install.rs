@@ -1386,7 +1386,13 @@ pub enum RunDepsStatus {
 /// drift (scripts always run with the default groups), compares
 /// configuration dependencies, and reports drift with pnpm's
 /// user-facing issue wording instead of a diagnostic-only reason.
-pub fn check_deps_status_before_run(check: &OptimisticRepeatInstallCheck<'_>) -> RunDepsStatus {
+/// `state` arrives from the caller, which already had to load it to
+/// decide whether a check is possible at all (a missing state is
+/// "Cannot check whether dependencies are outdated").
+pub fn check_deps_status_before_run(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+) -> RunDepsStatus {
     let &OptimisticRepeatInstallCheck {
         workspace_root,
         config,
@@ -1398,13 +1404,7 @@ pub fn check_deps_status_before_run(check: &OptimisticRepeatInstallCheck<'_>) ->
         ..
     } = check;
 
-    let Ok(Some(state)) = load_workspace_state(workspace_root) else {
-        return RunDepsStatus::Outdated {
-            issue: "Cannot check whether dependencies are outdated".to_string(),
-            install_args: Vec::new(),
-        };
-    };
-    let install_args = install_args_from_state(&state);
+    let install_args = install_args_from_state(state);
     let outdated =
         |issue: String| RunDepsStatus::Outdated { issue, install_args: install_args.clone() };
 
@@ -1412,16 +1412,16 @@ pub fn check_deps_status_before_run(check: &OptimisticRepeatInstallCheck<'_>) ->
         return RunDepsStatus::SkippedPnp;
     }
 
-    if let Some(setting) = first_setting_drift(&state, config, node_linker, included, true) {
+    if let Some(setting) = first_setting_drift(state, config, node_linker, included, true) {
         return outdated(format!("The value of the {setting} setting has changed"));
     }
-    if config_dependencies_drifted(config, &state) {
+    if config_dependencies_drifted(config, state) {
         return outdated("Configuration dependencies are not up to date".to_string());
     }
     if !catalogs_cache_matches(state.settings.catalogs.as_ref(), catalogs) {
         return outdated("Catalogs cache outdated".to_string());
     }
-    if !project_structure_matches(&state, project_manifests) {
+    if !project_structure_matches(state, project_manifests) {
         return outdated("The workspace structure has changed since last install".to_string());
     }
     // A filtered install legitimately leaves unselected projects
@@ -1477,7 +1477,7 @@ pub fn check_deps_status_before_run(check: &OptimisticRepeatInstallCheck<'_>) ->
 
     let projects_to_check: Vec<&ManifestStat<'_>> =
         if lockfile_modified { manifest_stats.iter().collect() } else { modified };
-    match modified_manifests_match_lockfile(check, &state, &projects_to_check) {
+    match modified_manifests_match_lockfile(check, state, &projects_to_check) {
         Ok(_) => {
             if let Err(reason) = missing_wanted_lockfile_stand_in_ok(check) {
                 return outdated(reason);
@@ -1525,9 +1525,8 @@ fn missing_wanted_lockfile_stand_in_ok(
     }
     match Lockfile::load_current_from_virtual_store_dir(&check.config.virtual_store_dir) {
         Ok(Some(_)) => Ok(()),
-        Ok(None) | Err(_) => {
-            Err(format!("Cannot find a lockfile in {}", check.workspace_root.display()))
-        }
+        Ok(None) => Err(format!("Cannot find a lockfile in {}", check.workspace_root.display())),
+        Err(_) => Err("the current lockfile cannot be loaded".to_string()),
     }
 }
 
