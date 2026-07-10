@@ -12,12 +12,6 @@ import { temporaryDirectory } from 'tempy'
 
 import { DEFAULT_OPTS } from './publish/utils/index.js'
 
-const CONFIG_BY_URI = {
-  [`//localhost:${REGISTRY_MOCK_PORT}/`]: {
-    '@': { authToken: getRegistryMockToken() },
-  },
-}
-
 const STAGE_ID = '1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f'
 
 interface RegistryRequest {
@@ -45,7 +39,7 @@ describe('stage command against the registry mock', () => {
     prepare({ name: pkgName, version: '1.0.0' })
     const opts = {
       ...stageOpts(REGISTRY_URL),
-      configByUri: CONFIG_BY_URI,
+      configByUri: configByUri(),
     }
 
     const publishResult = await stage.handler({
@@ -118,7 +112,7 @@ describe('stage command against the registry mock', () => {
     prepare({ name: pkgName, version: '1.0.0' })
     const opts = {
       ...stageOpts(REGISTRY_URL),
-      configByUri: CONFIG_BY_URI,
+      configByUri: configByUri(),
     }
 
     const publishResult = await stage.handler({
@@ -408,8 +402,16 @@ describe('stage command against the registry mock', () => {
   })
 })
 
+function configByUri (): Record<string, Record<string, { authToken: string }>> {
+  return {
+    [`//localhost:${REGISTRY_MOCK_PORT}/`]: {
+      '@': { authToken: getRegistryMockToken() },
+    },
+  }
+}
+
 async function fetchPackument (pkgName: string): Promise<Response> {
-  return fetch(`${REGISTRY_URL}/${pkgName.replace('/', '%2f')}`, {
+  return fetch(`${REGISTRY_URL}/${pkgName.replaceAll('/', '%2F')}`, {
     headers: { authorization: `Bearer ${getRegistryMockToken()}` },
   })
 }

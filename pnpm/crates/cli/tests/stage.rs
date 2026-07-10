@@ -436,6 +436,15 @@ fn block_on<Output>(future: impl std::future::Future<Output = Output>) -> Output
         .block_on(future)
 }
 
+/// An HTTP client whose requests time out instead of hanging the test run
+/// if the hosted registry stops responding.
+fn http_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_mins(1))
+        .build()
+        .expect("build the test HTTP client")
+}
+
 /// Register a user against the e2e registry and return their bearer token.
 fn add_user(registry: &str) -> String {
     let url = format!("{registry}-/user/org.couchdb.user:alice");
@@ -448,7 +457,7 @@ fn add_user(registry: &str) -> String {
         "roles": [],
     });
     block_on(async {
-        let response = reqwest::Client::new()
+        let response = http_client()
             .put(&url)
             .json(&body)
             .send()
@@ -464,7 +473,7 @@ fn add_user(registry: &str) -> String {
 fn packument_status(registry: &str, token: &str, name: &str) -> u16 {
     let url = format!("{registry}{name}");
     block_on(async {
-        reqwest::Client::new()
+        http_client()
             .get(&url)
             .bearer_auth(token)
             .send()
@@ -636,7 +645,7 @@ fn stage_list_paginates_against_pnpr() {
     // Seed 101 staged records directly over HTTP; the client under test is
     // the list loop, not the publisher.
     block_on(async {
-        let client = reqwest::Client::new();
+        let client = http_client();
         for index in 0..101 {
             let name = format!("stage-e2e-paginated-{index:03}");
             let doc = json!({
