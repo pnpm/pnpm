@@ -41,8 +41,9 @@ impl PublishArgs {
         &self,
         dir: &Path,
         config: &Config,
+        stage: bool,
     ) -> miette::Result<Vec<PublishSummary>> {
-        if self.batch {
+        if self.flags.batch {
             return Err(miette::miette!(
                 help = "Publish without --batch; batched publishing is not yet ported to pacquet.",
                 "Batch publishing (--batch) is not yet supported by pacquet",
@@ -68,8 +69,8 @@ impl PublishArgs {
 
         let http_client = build_registry_client(config)?;
         let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
-        let otp = resolve_otp_from_env::<Host>(self.otp.clone());
-        let opts = self.publish_options(config, otp);
+        let otp = resolve_otp_from_env::<Host>(self.flags.otp.clone());
+        let opts = self.publish_options(config, otp, stage);
         let retry_opts = retry_opts_from_config(config);
 
         // Filter the selected graph: keep only packages that have a name and
@@ -82,7 +83,7 @@ impl PublishArgs {
             let manifest = node.package.project.manifest.value();
             let (name, version) = publish_eligible(manifest)?;
             Some(async move {
-                let already = !self.force
+                let already = !self.flags.force
                     && is_already_published(
                         name,
                         version,
@@ -104,7 +105,7 @@ impl PublishArgs {
 
         if to_publish.is_empty() {
             emit_info::<Reporter>("There are no new packages that should be published", dir);
-            if self.report_summary {
+            if self.flags.report_summary {
                 write_publish_summary(workspace_root, &[])?;
             }
             return Ok(Vec::new());
@@ -130,7 +131,7 @@ impl PublishArgs {
             }
         }
 
-        if self.report_summary {
+        if self.flags.report_summary {
             write_publish_summary(workspace_root, &published)?;
         }
         Ok(published)

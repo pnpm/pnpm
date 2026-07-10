@@ -37,6 +37,15 @@ pub struct PublishArgs {
     /// Tarball or directory to publish. Defaults to the current directory.
     pub package: Option<String>,
 
+    #[clap(flatten)]
+    pub flags: PublishFlags,
+}
+
+/// The flag half of [`PublishArgs`], split out so `pacquet stage publish`
+/// (which accepts every publish option) can reuse it alongside its own
+/// positional subcommand parameters.
+#[derive(Debug, Args)]
+pub struct PublishFlags {
     /// Do everything `publish` would do except uploading to the registry.
     #[clap(long)]
     pub dry_run: bool,
@@ -92,6 +101,25 @@ pub struct PublishArgs {
     pub report_summary: bool,
 }
 
+/// What one `publish` / `stage publish` invocation published: the single
+/// package summary, or the recursive path's per-package summaries (possibly
+/// empty). The two arms serialize differently under `--json` — an object vs.
+/// an array — so the split is kept rather than flattened to a `Vec`.
+pub(super) enum PublishedPackages {
+    Single(Box<PublishSummary>),
+    Recursive(Vec<PublishSummary>),
+}
+
+impl PublishedPackages {
+    /// The summaries in publish order, without the single/recursive split.
+    pub(super) fn summaries(&self) -> &[PublishSummary] {
+        match self {
+            PublishedPackages::Single(summary) => std::slice::from_ref(summary),
+            PublishedPackages::Recursive(published) => published,
+        }
+    }
+}
+
 impl PublishArgs {
     /// Publish the package at `dir` (or the given tarball/directory),
     /// returning nothing — output is printed here. Handles the single-package
@@ -102,7 +130,36 @@ impl PublishArgs {
         config: &Config,
         recursive: bool,
     ) -> miette::Result<()> {
-        if self.batch && !recursive {
+        let published =
+            self.publish_packages::<Reporter>(dir, config, recursive, /* stage */ false).await?;
+        // Mirror `pnpm publish --json`: serialize only when asked. The
+        // recursive path emits the array of per-package summaries (an empty
+        // array when nothing was published).
+        if self.flags.json {
+            match &published {
+                PublishedPackages::Single(summary) => {
+                    println!("{}", summary.pipe(serde_json::to_string_pretty).into_diagnostic()?);
+                }
+                PublishedPackages::Recursive(published) => {
+                    println!("{}", published.pipe(serde_json::to_string_pretty).into_diagnostic()?);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Run the whole publish pipeline — git checks, packing, lifecycle
+    /// scripts, the registry request — and return the summaries instead of
+    /// printing, so `publish` and `stage publish` can render them differently.
+    /// `stage` sends the upload to the registry's staging endpoint.
+    pub(super) async fn publish_packages<Reporter: self::Reporter>(
+        &self,
+        dir: &Path,
+        config: &Config,
+        recursive: bool,
+        stage: bool,
+    ) -> miette::Result<PublishedPackages> {
+        if self.flags.batch && !recursive {
             return Err(miette::miette!(
                 code = "ERR_PNPM_BATCH_PUBLISH_REQUIRES_RECURSIVE",
                 help = r#"Run "pnpm publish -r --batch" to publish all workspace packages in a single request."#,
@@ -112,22 +169,17 @@ impl PublishArgs {
 
         // Upstream gates on `opts.gitChecks !== false`, which folds together
         // the `git-checks` config setting and the `--no-git-checks` flag.
-        let publish_branch = self.publish_branch.as_deref();
-        let git_checks = config.git_checks && !self.no_git_checks;
+        let publish_branch = self.flags.publish_branch.as_deref();
+        let git_checks = config.git_checks && !self.flags.no_git_checks;
         run_git_checks::<Host>(dir, git_checks, publish_branch)?;
 
         if recursive {
-            let published = self.run_recursive::<Reporter>(dir, config).await?;
-            // Mirror `pnpm publish --json`: the recursive path emits the array of
-            // per-package summaries (an empty array when nothing was published).
-            if self.json {
-                println!("{}", published.pipe_ref(serde_json::to_string_pretty).into_diagnostic()?);
-            }
-            return Ok(());
+            let published = self.run_recursive::<Reporter>(dir, config, stage).await?;
+            return Ok(PublishedPackages::Recursive(published));
         }
 
-        let otp = resolve_otp_from_env::<Host>(self.otp.clone());
-        let opts = self.publish_options(config, otp);
+        let otp = resolve_otp_from_env::<Host>(self.flags.otp.clone());
+        let opts = self.publish_options(config, otp, stage);
         let http_client = build_registry_client(config)?;
         let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
 
@@ -138,12 +190,7 @@ impl PublishArgs {
                 let project_dir = self.package.as_deref().map_or(dir, Path::new);
                 self.publish_directory::<Reporter>(project_dir, config, &opts, &network).await?
             };
-
-        // Mirror `pnpm publish --json`: serialize only when asked.
-        if self.json {
-            println!("{}", summary.pipe_ref(serde_json::to_string_pretty).into_diagnostic()?);
-        }
-        Ok(())
+        Ok(PublishedPackages::Single(Box::new(summary)))
     }
 
     /// Publish a pre-built tarball: extract its manifest and hand the bytes
@@ -240,7 +287,7 @@ impl PublishArgs {
     /// suppress packing and publish scripts, matching pnpm's single
     /// `opts.ignoreScripts`.
     fn should_ignore_scripts(&self, config: &Config) -> bool {
-        self.ignore_scripts || config.ignore_scripts
+        self.flags.ignore_scripts || config.ignore_scripts
     }
 
     /// Pack the project into `pack_destination` for publishing (never a dry
@@ -259,7 +306,7 @@ impl PublishArgs {
             embed_readme: false,
             pack_gzip_level: None,
             node_linker: config.node_linker,
-            skip_manifest_obfuscation: self.skip_manifest_obfuscation,
+            skip_manifest_obfuscation: self.flags.skip_manifest_obfuscation,
             user_agent: config.user_agent.clone(),
             extra_bin_paths: config.extra_bin_paths.clone(),
             extra_env: HashMap::new(),
@@ -274,17 +321,22 @@ impl PublishArgs {
     }
 
     /// Map the CLI flags and resolved [`Config`] onto the publish options.
-    fn publish_options(&self, config: &Config, otp: Option<String>) -> PublishPackedPkgOptions {
+    fn publish_options(
+        &self,
+        config: &Config,
+        otp: Option<String>,
+        stage: bool,
+    ) -> PublishPackedPkgOptions {
         PublishPackedPkgOptions {
             default_registry: config.registry.clone(),
             scoped_registries: config.registries.clone(),
-            access: self.access.as_deref().and_then(Access::parse),
-            tag: self.tag.clone().unwrap_or_else(|| "latest".to_owned()),
+            access: self.flags.access.as_deref().and_then(Access::parse),
+            tag: self.flags.tag.clone().unwrap_or_else(|| "latest".to_owned()),
             otp,
             // An absent `--provenance` leaves the decision to the OIDC flow.
-            provenance: self.provenance.then_some(true),
-            dry_run: self.dry_run,
-            stage: false,
+            provenance: self.flags.provenance.then_some(true),
+            dry_run: self.flags.dry_run,
+            stage,
             http: OidcHttpOptions {
                 fetch_retries: Some(config.fetch_retries),
                 fetch_retry_factor: Some(f64::from(config.fetch_retry_factor)),

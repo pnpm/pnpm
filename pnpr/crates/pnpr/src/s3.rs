@@ -13,7 +13,11 @@
 //! resolver `SQLite` stores stay on local disk regardless —
 //! only the hosted store is pluggable.
 
-use crate::{error::Result, package_name::PackageName};
+use crate::{
+    error::Result,
+    package_name::PackageName,
+    storage::{STAGED_DIR, staged_id_of_meta_object},
+};
 use axum::body::Body;
 use futures_util::StreamExt;
 use object_store::{
@@ -266,6 +270,50 @@ impl S3Store {
 
     fn tarball_key(&self, name: &PackageName, filename: &str) -> ObjectPath {
         ObjectPath::from(format!("{}{}/{filename}", self.prefix, name.as_str()))
+    }
+
+    // Staged-publish records (see `storage::Storage`'s staged section for
+    // the layout contract shared with the fs backend).
+
+    pub async fn read_staged(&self, object: &str) -> Result<Option<Vec<u8>>> {
+        match self.store.get(&self.staged_key(object)).await {
+            Ok(result) => Ok(Some(result.bytes().await?.to_vec())),
+            Err(object_store::Error::NotFound { .. }) => Ok(None),
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    pub async fn write_staged(&self, object: &str, bytes: &[u8]) -> Result<()> {
+        self.store.put(&self.staged_key(object), PutPayload::from(bytes.to_vec())).await?;
+        Ok(())
+    }
+
+    pub async fn remove_staged(&self, object: &str) -> Result<bool> {
+        match self.store.delete(&self.staged_key(object)).await {
+            Ok(()) => Ok(true),
+            Err(object_store::Error::NotFound { .. }) => Ok(false),
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    pub async fn list_staged_ids(&self) -> Result<Vec<String>> {
+        let scope = ObjectPath::from(format!("{}{STAGED_DIR}", self.prefix));
+        let mut listing = self.store.list(Some(&scope));
+        let mut ids = Vec::new();
+        while let Some(meta) = listing.next().await {
+            let meta = meta?;
+            let Some(object) = meta.location.as_ref().rsplit('/').next() else {
+                continue;
+            };
+            if let Some(id) = staged_id_of_meta_object(object) {
+                ids.push(id.to_string());
+            }
+        }
+        Ok(ids)
+    }
+
+    fn staged_key(&self, object: &str) -> ObjectPath {
+        ObjectPath::from(format!("{}{STAGED_DIR}/{object}", self.prefix))
     }
 }
 

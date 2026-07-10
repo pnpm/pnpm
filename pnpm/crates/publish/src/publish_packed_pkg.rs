@@ -139,7 +139,13 @@ where
     let body =
         bytes::Bytes::from(serde_json::to_vec(&document).expect("serialize publish document"));
 
-    let put_url = join_registry(&registry, &escaped_package_name(&name))?;
+    // A staged publish goes to the registry's staging endpoint (a `POST` in
+    // `put_publish`); a regular publish PUTs the package document directly.
+    let put_url = if is_stage {
+        join_registry(&registry, &format!("-/stage/package/{}", escaped_package_name(&name)))?
+    } else {
+        join_registry(&registry, &escaped_package_name(&name))?
+    };
     let authorization = resolved
         .auth_token_override
         .as_ref()
@@ -286,8 +292,10 @@ async fn put_publish(
     is_stage: bool,
 ) -> Result<PublishResponse, PublishHttpError> {
     let guard = client.acquire_for_url(put_url).await;
-    let mut request = guard
-        .put(put_url)
+    // A staged publish POSTs to `-/stage/package/:pkg` (libnpmpublish's stage
+    // route); a regular publish PUTs to `/:pkg`.
+    let builder = if is_stage { guard.post(put_url) } else { guard.put(put_url) };
+    let mut request = builder
         .header("content-type", "application/json")
         .header("npm-auth-type", "web")
         .header("npm-command", npm_command)
