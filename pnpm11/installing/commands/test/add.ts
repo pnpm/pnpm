@@ -4,6 +4,7 @@ import path from 'node:path'
 import { describe, expect, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import { add, remove } from '@pnpm/installing.commands'
+import { type LogBase, streamParser } from '@pnpm/logger'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { Project, ProjectManifest, ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
@@ -448,6 +449,33 @@ describeOnLinuxOnly('filters optional dependencies based on pnpm.supportedArchit
   })
 })
 
+// Captures `warn`-level messages emitted via `@pnpm/logger`'s `globalWarn`
+// (and any other warn-level logger call) while `fn` runs. The license
+// checker has no dedicated reporter hook, so this is the same
+// streamParser-subscription mechanism `@pnpm/logger`'s own tests use to
+// observe log output (see core/logger/test/index.test.ts): `globalWarn`
+// writes through bole's shared output pipeline, which the singleton
+// `streamParser` is already subscribed to, so no module mocking is needed.
+async function captureWarnings<T> (fn: () => Promise<T>): Promise<{ result: T, warnings: string[] }> {
+  const warnings: string[] = []
+  const handleLog = (msg: LogBase): void => {
+    if (msg.level === 'warn') {
+      warnings.push(msg.message)
+    }
+  }
+  streamParser.on('data', handleLog)
+  try {
+    const result = await fn()
+    // bole writes synchronously, but the ndjson transform stream that feeds
+    // streamParser flows its 'data' events on a later tick; give any
+    // already-queued log line a chance to arrive before reading `warnings`.
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    return { result, warnings }
+  } finally {
+    streamParser.removeListener('data', handleLog)
+  }
+}
+
 describe('license compliance after add', () => {
   test('pnpm add fails when a disallowed license is present in strict mode', async () => {
     prepare()
@@ -463,6 +491,96 @@ describe('license compliance after add', () => {
         },
       }, ['is-positive@1.0.0'])
     ).rejects.toThrow('license violation')
+  })
+
+  // Regression test for #1: shallow-mode used to derive direct deps from the
+  // (possibly stale) in-memory root manifest. For a plain, non-workspace
+  // `pnpm add`, no rootProjectManifest is even passed in, so the shallow
+  // filter treated the project as having zero direct deps and silently
+  // dropped every scanned package — including the package that was *just
+  // added* by this very command. The fix derives direct-dep identities from
+  // the lockfile written to disk moments earlier by this same add, so the
+  // just-added package is caught.
+  test('pnpm add fails on the just-added package under a shallow-mode disallowed-license policy (regression #1)', async () => {
+    prepare()
+
+    let err!: PnpmError
+    try {
+      await add.handler({
+        ...DEFAULT_OPTIONS,
+        dir: process.cwd(),
+        linkWorkspacePackages: false,
+        licenses: {
+          disallowed: ['MIT'],
+          mode: 'strict',
+          depth: 'shallow',
+        },
+      }, ['is-positive@1.0.0'])
+    } catch (_err: any) { // eslint-disable-line
+      err = _err
+    }
+    expect(err.code).toBe('ERR_PNPM_LICENSE_VIOLATION')
+  })
+
+  // Regression test for #5: a missing lockfile (e.g. `useLockfile: false`)
+  // used to make the post-install license check return silently, so a
+  // configured policy was skipped with no indication to the user. The fix
+  // surfaces this via a visible `globalWarn` instead of a silent no-op; the
+  // add itself must still succeed (fail-open, but no longer fail-silent).
+  test('pnpm add succeeds and warns when useLockfile is false, skipping the license check (regression #5)', async () => {
+    const project = prepare()
+
+    const { warnings } = await captureWarnings(() =>
+      add.handler({
+        ...DEFAULT_OPTIONS,
+        dir: process.cwd(),
+        linkWorkspacePackages: false,
+        useLockfile: false,
+        licenses: {
+          disallowed: ['MIT'],
+          mode: 'strict',
+        },
+      }, ['is-positive@1.0.0'])
+    )
+
+    project.has('is-positive')
+    expect(warnings.some((message) => message.includes('License check skipped'))).toBe(true)
+  })
+
+  // Regression test for #7: the fix (commit 242853781e) routes
+  // `checkAfterInstall` through `scanAndCheckLicenses` and reports any
+  // non-empty `result.warnings` via `globalWarn` instead of silently
+  // discarding it, while letting the add succeed either way.
+  //
+  // NOTE on coverage: under the *current* `matchLicenseAgainstPolicy`
+  // semantics (verified empirically — see task-12-report.md), loose mode's
+  // "license missing from the allowed list" / "unknown license" cases both
+  // resolve to `allowed: true` unconditionally, so `checkLicenseCompliance`
+  // never actually returns a non-empty `warnings` array for this (or any
+  // other known) policy shape — the same is true all the way back to the
+  // feature's initial commit, and is called out as an accepted MINOR/cosmetic
+  // gap in this branch's own SDD review notes (Task 7). The `globalWarn`
+  // call this test targets is therefore not currently reachable through any
+  // real policy, so — per this task's guidance not to fabricate a brittle
+  // assertion — this test only asserts the OBSERVABLE outcome that a
+  // loose-mode policy miss does not fail the add (fail-open, matching the
+  // documented "loose mode never blocks on an allow-list miss" behavior).
+  // The #5 test above already proves the `streamParser`-based warning
+  // capture mechanism itself works end-to-end.
+  test('pnpm add succeeds when a loose-mode policy does not allow-list the installed license (regression #7)', async () => {
+    const project = prepare()
+
+    await add.handler({
+      ...DEFAULT_OPTIONS,
+      dir: process.cwd(),
+      linkWorkspacePackages: false,
+      licenses: {
+        allowed: ['MIT'],
+        mode: 'loose',
+      },
+    }, ['@pnpm.e2e/has-different-licenses@2.0.0'])
+
+    project.has('@pnpm.e2e/has-different-licenses')
   })
 
   test('pnpm add succeeds when licenses.mode is none', async () => {

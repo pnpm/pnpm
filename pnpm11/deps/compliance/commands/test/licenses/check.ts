@@ -296,4 +296,36 @@ describe('pnpm licenses check', () => {
     // Shallow should still check the direct deps from both workspace projects
     expect(shallowResult.checkedCount).toBeGreaterThan(0)
   })
+
+  // Regression test for #4: shallow mode used to derive direct deps from the
+  // manifest's dependency KEYS ('positive', the alias), which never matched
+  // the scanner-reported package name ('is-positive'), so aliased direct
+  // deps silently escaped the shallow filter. `collectDirectDepKeys` now
+  // resolves `npm:` aliases through the lockfile to the real package name,
+  // so the aliased dep is evaluated under its actual license.
+  test('depth shallow evaluates an aliased dependency under its real package name (regression #4)', async () => {
+    // with-aliased-dep declares `dependencies: { positive: "npm:is-positive@1.0.0" }`
+    const { dir, storeDir } = await setupProject('with-aliased-dep')
+
+    const { output, exitCode } = await licenses.handler({
+      ...DEFAULT_OPTS,
+      dir,
+      pnpmHomeDir: '',
+      json: true,
+      storeDir,
+      licenses: {
+        disallowed: ['MIT'],
+        mode: 'strict',
+        depth: 'shallow',
+      },
+    }, ['check'])
+
+    expect(exitCode).toBe(1)
+    const parsed = JSON.parse(output)
+    // The violation is reported under the real package name ('is-positive'),
+    // not the manifest's alias key ('positive') — proving the shallow filter
+    // matched via the lockfile-resolved identity, not the raw dependency key.
+    expect(parsed.violations).toHaveLength(1)
+    expect(parsed.violations[0].packageName).toBe('is-positive')
+  })
 })
