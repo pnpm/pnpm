@@ -31,10 +31,7 @@ export {
   type MatchPolicyOptions,
 } from './spdxMatcher.js'
 export {
-  collectDirectDeps,
-  type IncludeFlags,
   type NormalizedLicenseArgs,
   normalizeLicenseArgs,
-  resolveInclude,
   shouldRunLicenseCheck,
 } from './utils.js'

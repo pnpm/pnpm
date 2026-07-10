@@ -40,8 +40,10 @@ describe('pnpm licenses check', () => {
       storeDir,
     }, ['check'])
 
+    // No allowed/disallowed/overrides configured means there is no policy to
+    // check against, so the command short-circuits without scanning.
     expect(exitCode).toBe(0)
-    expect(output).toContain('passed the license check')
+    expect(output).toContain('No license policy configured')
   })
 
   test('passes when all licenses are in the allowed list', async () => {
@@ -250,6 +252,9 @@ describe('pnpm licenses check', () => {
       selectedProjectsGraph,
     })
 
+    // A policy (allowed list) must be configured for `licenses check` to scan
+    // at all; loose mode downgrades any non-MIT license to a warning rather
+    // than a violation, so this doesn't affect checkedCount or exitCode.
     // First, run check without shallow to get total count
     const { output: deepOutput } = await licenses.handler({
       ...DEFAULT_OPTS,
@@ -261,6 +266,7 @@ describe('pnpm licenses check', () => {
       selectedProjectsGraph,
       licenses: {
         mode: 'loose',
+        allowed: ['MIT'],
       },
     }, ['check'])
 
@@ -278,6 +284,7 @@ describe('pnpm licenses check', () => {
       licenses: {
         mode: 'loose',
         depth: 'shallow',
+        allowed: ['MIT'],
       },
     }, ['check'])
 

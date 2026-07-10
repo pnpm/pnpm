@@ -1,64 +1,26 @@
-import path from 'node:path'
-
-import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
-  checkLicenseCompliance,
-  collectDirectDeps,
   type LicenseViolation,
-  resolveInclude,
+  resolveLicensePolicy,
+  scanAndCheckLicenses,
 } from '@pnpm/deps.compliance.license-checker'
-import { findDependencyLicenses } from '@pnpm/deps.compliance.license-scanner'
 import { PnpmError } from '@pnpm/error'
-import { getLockfileImporterId, readWantedLockfile } from '@pnpm/lockfile.fs'
-import { getStorePath } from '@pnpm/store.path'
 import type { LicensesConfig } from '@pnpm/types'
 
 import type { LicensesCommandResult } from './LicensesCommandResult.js'
+import type { LicensesCommandOptions } from './licensesList.js'
 import { renderCheckTable } from './render.js'
 
-export type LicensesCheckOptions = Pick<
-  Config,
-| 'dev'
-| 'dir'
-| 'licenses'
-| 'lockfileDir'
-| 'registries'
-| 'optional'
-| 'production'
-| 'storeDir'
-| 'virtualStoreDir'
-| 'modulesDir'
-| 'pnpmHomeDir'
-| 'supportedArchitectures'
-| 'virtualStoreDirMaxLength'
-| 'workspaceDir'
-> & Pick<ConfigContext,
-| 'selectedProjectsGraph'
-| 'rootProjectManifest'
-| 'rootProjectManifestDir'
-> &
-Partial<Pick<Config, 'userConfig'>> & {
-  json?: boolean
-}
-
 export async function licensesCheck (
-  opts: LicensesCheckOptions,
+  opts: LicensesCommandOptions,
   params: string[]
 ): Promise<LicensesCommandResult> {
-  const lockfile = await readWantedLockfile(opts.lockfileDir ?? opts.dir, {
-    ignoreIncompatible: true,
-  })
-  if (lockfile == null) {
-    throw new PnpmError(
-      'LICENSES_NO_LOCKFILE',
-      `No ${WANTED_LOCKFILE} found: Cannot check a project without a lockfile`
-    )
-  }
-
   const config = resolveConfig(opts.licenses, params)
 
-  const include = resolveInclude(config.environment ?? 'all', opts)
+  const policy = resolveLicensePolicy(config)
+  if (policy == null) {
+    return { output: 'No license policy configured. Set licenses.allowed or licenses.disallowed in pnpm-workspace.yaml.', exitCode: 0 }
+  }
 
   // Rootless workspaces have no manifest at the workspace root; the scanner
   // walks the lockfile + store and only uses the root manifest for shallow
@@ -66,37 +28,27 @@ export async function licensesCheck (
   // already cover direct deps.
   const manifest = opts.rootProjectManifest ?? {}
 
-  const includedImporterIds = opts.selectedProjectsGraph
-    ? Object.keys(opts.selectedProjectsGraph)
-      .map((projectPath) => getLockfileImporterId(opts.lockfileDir ?? opts.dir, projectPath))
-    : undefined
-
-  const storeDir = await getStorePath({
-    pkgRoot: opts.dir,
-    storePath: opts.storeDir,
-    pnpmHomeDir: opts.pnpmHomeDir,
-  })
-
-  let licensePackages = await findDependencyLicenses({
-    include,
-    lockfileDir: opts.lockfileDir ?? opts.dir,
-    storeDir,
-    virtualStoreDir: opts.virtualStoreDir ?? path.join(opts.modulesDir ?? 'node_modules', '.pnpm'),
+  const { result, lockfileMissing } = await scanAndCheckLicenses({
+    policy,
+    dir: opts.dir,
+    lockfileDir: opts.lockfileDir,
+    storeDir: opts.storeDir,
+    virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     modulesDir: opts.modulesDir,
+    pnpmHomeDir: opts.pnpmHomeDir,
     registries: opts.registries,
-    wantedLockfile: lockfile,
     manifest,
-    includedImporterIds,
     supportedArchitectures: opts.supportedArchitectures,
+    selectedProjectsGraph: opts.selectedProjectsGraph,
   })
 
-  if (config.depth === 'shallow') {
-    const directDeps = collectDirectDeps(manifest, opts.selectedProjectsGraph)
-    licensePackages = licensePackages.filter((pkg) => directDeps.has(pkg.name))
+  if (lockfileMissing) {
+    throw new PnpmError(
+      'LICENSES_NO_LOCKFILE',
+      `No ${WANTED_LOCKFILE} found: Cannot check a project without a lockfile`
+    )
   }
-
-  const result = checkLicenseCompliance(licensePackages, config)
 
   if (opts.json) {
     return renderCheckJson(result.violations, result.warnings, result.checkedCount)
