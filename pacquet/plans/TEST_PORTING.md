@@ -255,6 +255,11 @@ Rust port notes:
 - Start with single root workspace lockfile and direct workspace links.
 - Add subset/partial install tests only after Rust has project selection semantics.
 
+## Workspace Script `PATH` (`extraBinPaths`)
+
+- [x] `TypeScript repo: pnpm/test/recursive/run.ts:8` `pnpm recursive run finds bins from the root of the workspace` — the run-related assertions are ported as `recursive_run_finds_workspace_root_bin_on_path` and `recursive_run_prefers_project_bin_over_workspace_root_bin` (`crates/cli/tests/run_recursive.rs`) plus `run_finds_workspace_root_bin_on_path` for the member-dir `pnpm run` step (`crates/cli/tests/run.rs`). The upstream test's `-r install` postinstall and `recursive rebuild` steps are install/rebuild coverage, tracked with those features.
+- [x] `TypeScript repo: config/reader/test/index.ts:2421` `extraBinPaths` — ported as `extra_bin_paths_lists_workspace_root_bin_only_inside_a_workspace` (`crates/config/src/tests.rs`).
+
 ## Workspace Project Filtering (`--filter`)
 
 Ported into the new `pacquet-workspace-projects-filter` and

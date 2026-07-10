@@ -1120,10 +1120,10 @@ pub struct Config {
 
     /// `extraBinPaths`: directories prepended to `PATH` (after the
     /// project's own `node_modules/.bin`) when running scripts and
-    /// `pnpm exec`. pnpm computes this as the workspace root's
-    /// `node_modules/.bin` inside a workspace and leaves it empty
-    /// otherwise. pacquet defaults it empty until workspace support
-    /// lands.
+    /// `pnpm exec`. Computed as the workspace root's
+    /// `node_modules/.bin` inside a workspace and left empty
+    /// otherwise, so workspace-root dev tools are callable from every
+    /// member's scripts.
     pub extra_bin_paths: Vec<PathBuf>,
 
     /// `unsafePerm` from `pnpm-workspace.yaml`. When `false`,
@@ -2183,6 +2183,15 @@ impl Config {
             .global_bin_dir
             .clone()
             .or_else(|| pnpm_home_dir.as_ref().map(|home| home.join("bin")));
+
+        // Inside a workspace, scripts and `pnpm exec` also get the
+        // workspace root's `node_modules/.bin` on PATH — pnpm's
+        // `extraBinPaths = [join(workspaceDir, 'node_modules', '.bin')]`.
+        self.extra_bin_paths = self
+            .workspace_dir
+            .as_deref()
+            .map(|dir| vec![dir.join("node_modules").join(".bin")])
+            .unwrap_or_default();
 
         Ok(self)
     }

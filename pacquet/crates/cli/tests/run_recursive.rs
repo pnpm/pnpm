@@ -138,6 +138,70 @@ fn top_level_fallback_enters_recursive_run() {
     drop(root);
 }
 
+/// A member's script resolves binaries from the workspace root's
+/// `node_modules/.bin` — pnpm puts it on PATH via `extraBinPaths`, so
+/// root-level dev tools are callable from every workspace project.
+#[test]
+fn recursive_run_finds_workspace_root_bin_on_path() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[(
+            "project-1",
+            json!({
+                "name": "project-1",
+                "version": "1.0.0",
+                "scripts": { "build": "root-tool" },
+            }),
+        )],
+    );
+    let bin_dir = workspace.join("node_modules").join(".bin");
+    fs::create_dir_all(&bin_dir).expect("create workspace-root node_modules/.bin");
+    write_executable(&bin_dir.join("root-tool"), "#!/bin/sh\ntouch root-tool-ran.txt\n");
+
+    pacquet.with_arg("-r").with_arg("run").with_arg("build").assert().success();
+
+    assert!(
+        workspace.join("project-1").join("root-tool-ran.txt").exists(),
+        "the workspace root's node_modules/.bin should be on the script's PATH",
+    );
+
+    drop(root);
+}
+
+/// The project's own `node_modules/.bin` outranks the workspace root's:
+/// when both provide the same tool, the member's copy runs. Ports the
+/// `testBinPriority` step of `pnpm recursive run finds bins from the root
+/// of the workspace` (`pnpm/test/recursive/run.ts`).
+#[test]
+fn recursive_run_prefers_project_bin_over_workspace_root_bin() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[(
+            "project-1",
+            json!({
+                "name": "project-1",
+                "version": "1.0.0",
+                "scripts": { "build": "print-version > version.txt" },
+            }),
+        )],
+    );
+    for (dir, version) in [(workspace.clone(), "2.0.0"), (workspace.join("project-1"), "1.0.0")] {
+        let bin_dir = dir.join("node_modules").join(".bin");
+        fs::create_dir_all(&bin_dir).expect("create node_modules/.bin");
+        write_executable(&bin_dir.join("print-version"), &format!("#!/bin/sh\necho {version}\n"));
+    }
+
+    pacquet.with_arg("-r").with_arg("run").with_arg("build").assert().success();
+
+    let version = fs::read_to_string(workspace.join("project-1").join("version.txt"))
+        .expect("read version.txt");
+    assert_eq!(version.trim(), "1.0.0", "the project's own bin must win over the root's");
+
+    drop(root);
+}
+
 #[test]
 fn recursive_lifecycle_aliases_use_recursive_run_options() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
