@@ -83,6 +83,14 @@ fn map_frozen_lockfile_error(error: InstallFrozenLockfileError) -> InstallError 
     }
 }
 
+/// Shared out-map for [`Install::peer_issues_sink`]: importer id →
+/// that importer's peer-dependency issues from the fresh resolve.
+pub type PeerIssuesSink = Arc<
+    std::sync::Mutex<
+        std::collections::BTreeMap<String, pacquet_resolving_deps_resolver::PeerDependencyIssues>,
+    >,
+>;
+
 /// This subroutine does everything `pacquet install` is supposed to do.
 #[must_use]
 pub struct Install<'a, DependencyGroupList>
@@ -236,6 +244,14 @@ where
     /// tarball downloads overlap server-side resolution.
     /// Ignored on the frozen path (no tree walk to observe).
     pub resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
+    /// Out-channel for the fresh resolve's per-importer peer-dependency
+    /// issues. `None` for every CLI install (issues are only logged).
+    /// The napi `getPeerDependencyIssues` runs a `dry_run` install with
+    /// a sink to collect them — and a sink-driven dry run suppresses
+    /// the CLI's stdout diff report, since it is a programmatic query
+    /// rather than an `--dry-run` preview. Only the fresh path fills
+    /// it (the frozen path resolves nothing).
+    pub peer_issues_sink: Option<crate::PeerIssuesSink>,
     /// In-memory catalogs to resolve against instead of reading
     /// `pnpm-workspace.yaml` from disk. `None` (every plain install) reads
     /// the workspace manifest. `pacquet update` sets this so a `--latest`
@@ -530,11 +546,14 @@ where
             update_seed_policy,
             auth_override,
             resolution_observer,
+            peer_issues_sink,
             catalogs_override,
             disable_optimistic_repeat_install,
             pnpmfile_hook_override,
             workspace_projects_override,
         } = self;
+        // Read before the sink is moved into the fresh-path inputs.
+        let peer_issues_sink_is_none = peer_issues_sink.is_none();
 
         // `--dry-run` resolves but never materializes, so it borrows the
         // lockfile-only plumbing (skip node_modules / `.modules.yaml` /
@@ -1414,6 +1433,7 @@ where
                 update_seed_policy,
                 auth_override,
                 resolution_observer,
+                peer_issues_sink: peer_issues_sink.clone(),
                 pnpmfile_hook_override,
             }
             .run::<Reporter>()
@@ -1457,8 +1477,10 @@ where
         if resolve_only {
             // `--dry-run` resolved a fresh lockfile but wrote nothing. Diff
             // it against the existing on-disk lockfile and print a report,
-            // then exit 0 — npm-style preview semantics.
-            if dry_run {
+            // then exit 0 — npm-style preview semantics. A sink-driven dry
+            // run (napi `getPeerDependencyIssues`) is a programmatic query,
+            // not a preview — no report.
+            if dry_run && peer_issues_sink_is_none {
                 use std::io::Write as _;
                 let report =
                     crate::dry_run::render_dry_run_report(&crate::dry_run::diff_lockfiles(

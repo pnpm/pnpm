@@ -294,7 +294,12 @@ impl VirtualStoreLayout {
 /// into each copy via this map and silently links nothing when the
 /// field is missing.
 ///
-/// Skipped snapshots have no slot on disk, so they are left out.
+/// Skipped snapshots have no slot on disk, so they are left out. Only
+/// **directory**-resolution `file:` snapshots participate: v11's map
+/// came from `projectsWithTargetDirs` (injected workspace projects),
+/// so a `file:` *tarball* dep — whose extracted copy is not a mirror
+/// of any source directory — is excluded to keep the field's meaning
+/// identical.
 ///
 /// Under `nodeLinker: hoisted` there is no virtual store — the
 /// injected copies live wherever the hoisted walker placed them.
@@ -306,6 +311,7 @@ pub fn collect_injected_deps(
     layout: &VirtualStoreLayout,
     lockfile_dir: &Path,
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
     skipped: &crate::SkippedSnapshots,
     hoisted_locations: Option<&std::collections::BTreeMap<String, Vec<String>>>,
 ) -> std::collections::BTreeMap<String, Vec<String>> {
@@ -315,6 +321,14 @@ pub fn collect_injected_deps(
     for key in snapshots.keys() {
         let VersionPart::File(path) = key.suffix.version() else { continue };
         if skipped.contains(key) {
+            continue;
+        }
+        // `packages:` keys are peer-stripped; require a directory
+        // resolution (an injected project copy, not a file: tarball).
+        let is_directory = packages
+            .and_then(|packages| packages.get(&key.without_peer()))
+            .is_some_and(|meta| matches!(meta.resolution, LockfileResolution::Directory(_)));
+        if !is_directory {
             continue;
         }
         let source = path.strip_prefix("./").unwrap_or(path);

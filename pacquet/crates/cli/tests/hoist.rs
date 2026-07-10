@@ -13,18 +13,15 @@
 //!
 //! Tests that depend on features pacquet hasn't built yet (partial
 //! install / re-hoist — pnpm/pacquet#433, GVS — pnpm/pacquet#432,
-//! peer-dep details, hoisted node-linker, `hoistWorkspacePackages`,
+//! peer-dep details, hoisted node-linker,
 //! `extendNodePath`) live in [`known_failures`] below with
 //! [`pacquet_testing_utils::allow_known_failure`] gating the assertion
 //! against the not-yet-implemented subject under test.
 //!
 //! Workspace install (pnpm/pacquet#431) landed in [#443]. The
 //! [`workspace_hoist_walks_every_importer`] test below covers the
-//! basic multi-importer case directly; the upstream
-//! `hoistWorkspacePackages` test still lives under [`known_failures`]
-//! because pacquet doesn't yet model the
-//! `hoistedWorkspacePackages` shape itself (linking workspace
-//! projects into the hoist target tree).
+//! basic multi-importer case; `hoistWorkspacePackages` name-links are
+//! covered by [`hoist_workspace_packages_links_projects_by_name`].
 //!
 //! [#443]: https://github.com/pnpm/pacquet/pull/443
 
@@ -454,6 +451,75 @@ fn workspace_hoist_walks_every_importer() {
     drop((root, mock_instance));
 }
 
+/// `hoistWorkspacePackages` (default on): every named workspace
+/// project is linked by name into the private hoisted modules dir,
+/// pointing at the project directory itself — so anything resolving
+/// from the hoisted tree can `require` workspace packages by name.
+/// With `hoistWorkspacePackages: false` the name-links are absent
+/// while ordinary transitive hoisting is untouched.
+#[test]
+fn hoist_workspace_packages_links_projects_by_name() {
+    for enabled in [true, false] {
+        let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        fs::write(
+            workspace.join("package.json"),
+            serde_json::json!({ "name": "root", "private": true }).to_string(),
+        )
+        .expect("write root package.json");
+
+        let toggle =
+            if enabled { String::new() } else { "hoistWorkspacePackages: false\n".to_string() };
+        write_workspace_yaml(&workspace, &format!("packages:\n  - 'packages/*'\n{toggle}"));
+
+        let pkg_dir = workspace.join("packages/foo");
+        fs::create_dir_all(&pkg_dir).expect("mkdir packages/foo");
+        fs::write(
+            pkg_dir.join("package.json"),
+            serde_json::json!({
+                "name": "@local/foo",
+                "version": "1.0.0",
+                "private": true,
+                "dependencies": { "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" },
+            })
+            .to_string(),
+        )
+        .expect("write packages/foo/package.json");
+
+        generate_lockfile(pnpm);
+        pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
+
+        let name_link = workspace.join("node_modules/.pnpm/node_modules/@local/foo");
+        if enabled {
+            assert!(
+                is_symlink_or_junction(&name_link).unwrap(),
+                "workspace project must be linked by name at {name_link:?}",
+            );
+            assert_eq!(
+                fs::canonicalize(&name_link).unwrap(),
+                fs::canonicalize(&pkg_dir).unwrap(),
+                "the name-link must point at the project directory",
+            );
+        } else {
+            assert!(
+                !name_link.exists(),
+                "hoistWorkspacePackages: false must not create {name_link:?}",
+            );
+        }
+        // Ordinary transitive hoisting is independent of the knob.
+        let private_hoist =
+            workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/hello-world-js-bin");
+        assert!(
+            is_symlink_or_junction(&private_hoist).unwrap(),
+            "transitive hoisting must be unaffected (enabled={enabled})",
+        );
+
+        drop((root, mock_instance));
+    }
+}
+
 /// `nodeLinker: hoisted` on the fresh-lockfile path (no checked-in
 /// lockfile, no `--frozen-lockfile`) must lay every dependency out as
 /// a **real directory** flat under the project's `node_modules/`, not
@@ -583,16 +649,6 @@ mod known_failures {
              #443 but only as the unfiltered \"install all importers\" \
              flow; selecting a subset of workspace projects is a \
              follow-up.",
-        ))
-    }
-
-    fn hoist_workspace_packages_unsupported() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "Pacquet doesn't yet model the `hoistedWorkspacePackages` \
-             shape. Workspace install lays out per-importer node_modules \
-             dirs, but linking workspace projects themselves into the \
-             hoist tree (the `hoistWorkspacePackages` config) requires \
-             additional plumbing in `symlink_hoisted_dependencies`.",
         ))
     }
 
@@ -779,15 +835,6 @@ mod known_failures {
     #[test]
     fn should_not_add_extra_node_paths_when_extend_node_path_false() {
         allow_known_failure!(extend_node_path_in_shims());
-    }
-
-    /// Tests the `hoistWorkspacePackages: true` config which links
-    /// workspace projects themselves into the hoist tree (separate
-    /// from snapshot hoisting). Needs the
-    /// `hoistedWorkspacePackages` shape pacquet doesn't model yet.
-    #[test]
-    fn hoist_workspace_packages_hoists_all_workspace_projects() {
-        allow_known_failure!(hoist_workspace_packages_unsupported());
     }
 
     /// Combined-pattern shape — public for some, private for others.

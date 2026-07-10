@@ -105,6 +105,7 @@ impl UnlinkArgs {
             update_seed_policy: UpdateSeedPolicy::KeepAll,
             auth_override: None,
             resolution_observer: None,
+            peer_issues_sink: None,
             catalogs_override: None,
         }
         .run::<Reporter>()

@@ -1,8 +1,8 @@
 use super::VirtualStoreLayout;
 use pacquet_config::Config;
 use pacquet_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, PkgName, RegistryResolution, SnapshotDepRef,
-    SnapshotEntry,
+    DirectoryResolution, LockfileResolution, PackageKey, PackageMetadata, PkgName,
+    RegistryResolution, SnapshotDepRef, SnapshotEntry,
 };
 use pretty_assertions::{assert_eq, assert_ne};
 use std::{
@@ -450,11 +450,42 @@ fn collect_injected_deps_maps_file_snapshots_to_slots() {
     for key in [&variant_a, &variant_b, &other, &registry, &skipped_key] {
         snapshots.insert(key.clone(), SnapshotEntry::default());
     }
+    // A `file:` tarball snapshot: present in `snapshots` but with a
+    // tarball resolution — must NOT be treated as an injected project.
+    let tarball_key: PackageKey = "tar-dep@file:vendor/dep.tgz".parse().unwrap();
+    snapshots.insert(tarball_key, SnapshotEntry::default());
+    let mut packages = HashMap::new();
+    for key in [&variant_a, &variant_b, &other, &skipped_key] {
+        packages.insert(
+            key.without_peer(),
+            PackageMetadata {
+                resolution: DirectoryResolution { directory: key.suffix.version().to_string() }
+                    .into(),
+                version: None,
+                engines: None,
+                cpu: None,
+                os: None,
+                libc: None,
+                deprecated: None,
+                has_bin: None,
+                prepare: None,
+                bundled_dependencies: None,
+                peer_dependencies: None,
+                peer_dependencies_meta: None,
+            },
+        );
+    }
     let mut skipped = crate::SkippedSnapshots::new();
     skipped.insert_installability(skipped_key);
 
-    let injected =
-        super::collect_injected_deps(&layout, lockfile_dir, Some(&snapshots), &skipped, None);
+    let injected = super::collect_injected_deps(
+        &layout,
+        lockfile_dir,
+        Some(&snapshots),
+        Some(&packages),
+        &skipped,
+        None,
+    );
 
     assert_eq!(injected.len(), 2, "registry + skipped snapshots must not appear: {injected:?}");
     let comp2 = &injected["comp2"];
@@ -470,7 +501,10 @@ fn collect_injected_deps_maps_file_snapshots_to_slots() {
     assert_eq!(injected["comp3"].len(), 1);
 
     // No snapshots section → empty map.
-    assert!(super::collect_injected_deps(&layout, lockfile_dir, None, &skipped, None).is_empty());
+    assert!(
+        super::collect_injected_deps(&layout, lockfile_dir, None, Some(&packages), &skipped, None)
+            .is_empty(),
+    );
 
     // Hoisted mode: targets come from the walker's hoisted locations
     // (keyed by full depPath), not from virtual-store slots; entries
@@ -481,6 +515,7 @@ fn collect_injected_deps_maps_file_snapshots_to_slots() {
         &layout,
         lockfile_dir,
         Some(&snapshots),
+        Some(&packages),
         &skipped,
         Some(&hoisted),
     );

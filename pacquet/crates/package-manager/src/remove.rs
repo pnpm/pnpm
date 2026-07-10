@@ -137,6 +137,7 @@ impl Remove<'_> {
             update_seed_policy: UpdateSeedPolicy::KeepAll,
             auth_override: None,
             resolution_observer: None,
+            peer_issues_sink: None,
             catalogs_override: None,
             disable_optimistic_repeat_install: false,
             pnpmfile_hook_override: None,

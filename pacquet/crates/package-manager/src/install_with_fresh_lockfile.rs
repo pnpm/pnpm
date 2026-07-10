@@ -180,6 +180,9 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// yields it. `None` for every local install; the pnpr server sets
     /// one. See [`crate::Install::resolution_observer`].
     pub resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
+    /// Out-channel for the resolve's per-importer peer-dependency
+    /// issues. See [`crate::Install::peer_issues_sink`].
+    pub peer_issues_sink: Option<crate::PeerIssuesSink>,
     /// In-process `readPackage`/`afterAllResolved` hooks supplied by an
     /// embedder instead of a `.pnpmfile.cjs` on disk. `Some` replaces the
     /// disk lookup entirely; `None` (every CLI install) falls back to
@@ -498,6 +501,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             update_seed_policy,
             auth_override,
             resolution_observer,
+            peer_issues_sink,
             pnpmfile_hook_override,
         } = self;
 
@@ -1200,6 +1204,12 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             InstallWithFreshLockfileError::ResolveDependencyTree(err)
         })?;
         let total_nodes = workspace_result.peers.graph.len();
+        // Hand the per-importer issues to the programmatic caller
+        // before the graph is consumed below.
+        if let Some(sink) = &peer_issues_sink {
+            *sink.lock().expect("peer-issues sink lock poisoned") =
+                workspace_result.peers.peer_dependency_issues_by_importer.clone();
+        }
         for (importer_id, issues) in &workspace_result.peers.peer_dependency_issues_by_importer {
             tracing::warn!(
                 target: "pacquet::install",
@@ -1708,6 +1718,23 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             // aliases into root's target map — same shape as the
             // frozen-lockfile path. The `HoistResult` is reused for
             // the on-disk hoist phase below, so the BFS runs once.
+            // `hoist-workspace-packages`: named non-root projects
+            // become hoist candidates whose links point at the
+            // project dirs (`importer_manifests` is keyed by
+            // importer id).
+            let hoisted_workspace_packages = config.hoist_workspace_packages.then(|| {
+                importer_manifests
+                    .iter()
+                    .filter(|(id, _)| id.as_str() != ".")
+                    .filter_map(|(id, manifest)| {
+                        let name = manifest.value().get("name")?.as_str()?;
+                        Some((
+                            name.to_string(),
+                            crate::symlink_direct_dependencies::importer_root_dir(lockfile_dir, id),
+                        ))
+                    })
+                    .collect::<std::collections::BTreeMap<_, _>>()
+            });
             let pre_hoist = crate::install_frozen_lockfile::compute_hoist_plan(
                 config,
                 built_lockfile.snapshots.as_ref(),
@@ -1716,6 +1743,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 &dependency_groups,
                 &skipped,
                 false,
+                hoisted_workspace_packages.as_ref(),
             );
             let public_hoist_targets: Option<
                 std::collections::BTreeMap<String, std::path::PathBuf>,
@@ -1790,6 +1818,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 let public_dir = config.modules_dir.clone();
                 crate::symlink_hoisted_dependencies(
                     &result.hoisted_dependencies_by_node_id,
+                    &result.hoisted_workspace_aliases,
                     &graph,
                     &layout,
                     &private_dir,
@@ -2008,6 +2037,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             &layout,
             lockfile_dir,
             built_lockfile.snapshots.as_ref(),
+            built_lockfile.packages.as_ref(),
             &skipped,
             is_hoisted.then_some(&hoisted_locations),
         );

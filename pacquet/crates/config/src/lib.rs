@@ -762,18 +762,17 @@ pub struct Config {
     /// `autoInstallPeersFromHighestMatch` setting.
     pub auto_install_peers_from_highest_match: bool,
 
-    /// Under `nodeLinker: hoisted`, controls whether non-root
-    /// workspace importers are added as children of the virtual
-    /// `.` root in the hoist tree. Default `true` matches pnpm —
-    /// the whole workspace shares one hoist plan so conflicting
-    /// versions across projects dedupe.
+    /// The `hoistWorkspacePackages` setting. When `true` (the
+    /// default, matching pnpm), each named workspace project is
+    /// itself considered for hoisting: its name becomes a
+    /// lowest-precedence root-level alias, and where a hoist pattern
+    /// matches, `<hoisted modules dir>/<name>` symlinks straight to
+    /// the project directory — so tooling resolving from the hoisted
+    /// tree can `require` workspace packages by name.
     ///
-    /// Setting this to `false` opts each project into independent
-    /// hoisting (its own subtree, no cross-project dedupe). Niche;
-    /// pnpm exposes this knob for the Bit CLI (which lays out its
-    /// own root) and for tests. The `hoistWorkspacePackages` setting.
-    /// No effect under `nodeLinker: isolated` — that linker keeps
-    /// per-importer subtrees by construction.
+    /// This knob never affects hoister-tree *membership*: non-root
+    /// importers always participate in the shared hoist plan (v11
+    /// semantics), so cross-project version dedupe is unconditional.
     #[default = true]
     pub hoist_workspace_packages: bool,
 

@@ -16,7 +16,10 @@
 use pacquet_config::matcher::Matcher;
 use pacquet_lockfile::{PackageKey, PackageMetadata, PkgName, ProjectSnapshot, SnapshotEntry};
 use pacquet_modules_yaml::HoistKind;
-use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::{
+    collections::{BTreeMap, HashMap, HashSet, VecDeque},
+    path::PathBuf,
+};
 
 /// On-disk shape persisted as `hoistedDependencies` in `.modules.yaml`.
 /// Keys are snapshot keys (v9 dep paths), values map alias → public/private.
@@ -182,6 +185,14 @@ pub struct HoistInputs<'a> {
     pub private_pattern: Matcher,
     /// Boolean matcher built from `Config.public_hoist_pattern`.
     pub public_pattern: Matcher,
+    /// `hoist-workspace-packages`: workspace project name → absolute
+    /// project dir, for every named non-root project. When present,
+    /// each name is considered for hoisting like a root-level alias
+    /// (v11 merges them into the root importer's children with
+    /// direct deps taking precedence) and, when a pattern matches,
+    /// the hoisted-modules entry symlinks straight to the project
+    /// dir. `None` when the config knob is off.
+    pub hoisted_workspace_packages: Option<&'a std::collections::BTreeMap<String, PathBuf>>,
 }
 
 /// Output of [`get_hoisted_dependencies`].
@@ -208,6 +219,14 @@ pub struct HoistResult {
     /// additional `link_direct_dep_bins` pass over this list after
     /// the hoist symlinks land.
     pub publicly_hoisted_aliases_with_bins: Vec<String>,
+    /// `hoist-workspace-packages` placements: (alias, kind, absolute
+    /// project dir) for every workspace project name a hoist pattern
+    /// matched. Symlinked by [`symlink_hoisted_dependencies`] straight
+    /// to the project dir. Deliberately NOT part of
+    /// [`Self::hoisted_dependencies`] — v11 leaves workspace packages
+    /// out of `.modules.yaml`'s `hoistedDependencies` too (its graph
+    /// lookup misses for a `ProjectId` before the record is written).
+    pub hoisted_workspace_aliases: Vec<(String, HoistKind, PathBuf)>,
 }
 
 /// Walk the dep graph BFS and decide which aliases should be hoisted.
@@ -319,7 +338,38 @@ pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistR
     let mut private_bins_seen: HashSet<String> = HashSet::new();
     let mut public_bins_seen: HashSet<String> = HashSet::new();
 
+    // `hoist-workspace-packages`: consider each named workspace
+    // project for hoisting after every importer's direct deps (v11
+    // merges the names into the root children as the LOWEST-precedence
+    // entries — any direct dep wins the alias) but before depth-0
+    // transitives. One deliberate divergence from v11: a placed
+    // workspace name claims its alias, so an equally-named transitive
+    // can't also hoist and clobber the link nondeterministically
+    // (v11's graph-miss `continue` skips the claim by accident).
+    let mut hoisted_workspace_aliases: Vec<(String, HoistKind, PathBuf)> = Vec::new();
+    let hoist_workspace_packages =
+        |hoisted_aliases: &mut HashSet<String>, out: &mut Vec<(String, HoistKind, PathBuf)>| {
+            for (name, dir) in input.hoisted_workspace_packages.into_iter().flatten() {
+                let hoist_kind = if input.public_pattern.matches(name) {
+                    HoistKind::Public
+                } else if input.private_pattern.matches(name) {
+                    HoistKind::Private
+                } else {
+                    continue;
+                };
+                if !hoisted_aliases.insert(name.to_lowercase()) {
+                    continue;
+                }
+                out.push((name.clone(), hoist_kind, dir.clone()));
+            }
+        };
+
+    let mut workspace_packages_done = false;
     for entry in &entries {
+        if !workspace_packages_done && entry.depth >= 0 {
+            hoist_workspace_packages(&mut hoisted_aliases, &mut hoisted_workspace_aliases);
+            workspace_packages_done = true;
+        }
         // Within a single entry's children there are no alias
         // collisions (children is a `HashMap<alias, _>`), so the
         // matcher's per-alias decision is independent of iteration
@@ -379,11 +429,18 @@ pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistR
         }
     }
 
+    // A graph whose entries are all depth −1 (no transitives) never
+    // crossed the depth boundary above.
+    if !workspace_packages_done {
+        hoist_workspace_packages(&mut hoisted_aliases, &mut hoisted_workspace_aliases);
+    }
+
     Some(HoistResult {
         hoisted_dependencies,
         hoisted_dependencies_by_node_id,
         hoisted_aliases_with_bins,
         publicly_hoisted_aliases_with_bins,
+        hoisted_workspace_aliases,
     })
 }
 
@@ -435,6 +492,7 @@ struct BfsEntry<'a> {
 ///    the syscall latency itself on macOS APFS / Linux ext4.
 pub fn symlink_hoisted_dependencies(
     hoisted_by_node_id: &HashMap<PackageKey, HashMap<String, HoistKind>>,
+    hoisted_workspace_aliases: &[(String, HoistKind, PathBuf)],
     graph: &HashMap<PackageKey, HoistGraphNode>,
     layout: &crate::VirtualStoreLayout,
     private_hoisted_modules_dir: &std::path::Path,
@@ -443,12 +501,7 @@ pub fn symlink_hoisted_dependencies(
 ) -> Result<(), crate::SymlinkPackageError> {
     use crate::safe_join_modules_dir::safe_join_modules_dir;
     use rayon::prelude::*;
-    use std::{
-        collections::HashSet,
-        io::ErrorKind,
-        path::{Path, PathBuf},
-        sync::Arc,
-    };
+    use std::{collections::HashSet, io::ErrorKind, path::Path, sync::Arc};
 
     // Phase 1: collect symlink work as `(Arc<dep_dir>, kind, alias)`
     // tuples. Sharing `dep_dir` via `Arc` avoids cloning the PathBuf
@@ -503,6 +556,24 @@ pub fn symlink_hoisted_dependencies(
             }
             work.push((Arc::clone(&dep_dir), *kind, alias));
         }
+    }
+
+    // `hoist-workspace-packages` placements: same (target, kind,
+    // alias) shape, with the target being the workspace project dir
+    // itself instead of a virtual-store slot. The alias is a
+    // package-manifest `name`, so the scope-dir prep below applies
+    // to these too.
+    for (alias, kind, project_dir) in hoisted_workspace_aliases {
+        if alias.starts_with('@')
+            && let Some(slash) = alias.find('/')
+        {
+            let target_dir_root: &Path = match kind {
+                HoistKind::Public => public_hoisted_modules_dir,
+                HoistKind::Private => private_hoisted_modules_dir,
+            };
+            scope_dirs.insert(target_dir_root.join(&alias[..slash]));
+        }
+        work.push((Arc::new(project_dir.clone()), *kind, alias));
     }
 
     if work.is_empty() {

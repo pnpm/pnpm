@@ -574,6 +574,7 @@ impl Update<'_> {
             update_seed_policy: seed_policy,
             auth_override: None,
             resolution_observer,
+            peer_issues_sink: None,
             catalogs_override,
             disable_optimistic_repeat_install: false,
             pnpmfile_hook_override: None,

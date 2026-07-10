@@ -194,6 +194,7 @@ pub async fn resolve(
         // overlaps this server-side resolution. `None` falls back to a
         // single terminal `done` frame carrying the whole lockfile.
         resolution_observer: observer,
+        peer_issues_sink: None,
         catalogs_override: None,
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,

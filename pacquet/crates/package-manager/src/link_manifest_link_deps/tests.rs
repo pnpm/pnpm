@@ -274,3 +274,53 @@ fn non_normal_modules_dir_name_is_rejected_without_writes() {
 
     drop(dir);
 }
+
+/// A manifest-linked dep that declares a `bin` gets its shim in
+/// `<modules_dir>/.bin`, matching v11's `linkDirectDeps`. A linked
+/// target without a `package.json` (Bit's manifest-less component
+/// links) is silently skipped by the bin sweep.
+#[test]
+fn bins_of_manifest_linked_deps_are_linked() {
+    let dir = tempdir().unwrap();
+    let project_dir = dir.path().join("project");
+    let tool = dir.path().join("tool");
+    let bare = dir.path().join("bare");
+    fs::create_dir_all(&project_dir).unwrap();
+    fs::create_dir_all(&tool).unwrap();
+    fs::create_dir_all(&bare).unwrap();
+    fs::write(
+        tool.join("package.json"),
+        serde_json::json!({ "name": "tool", "version": "1.0.0", "bin": { "tool": "cli.js" } })
+            .to_string(),
+    )
+    .unwrap();
+    fs::write(tool.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+
+    let manifest = manifest_at(
+        &project_dir,
+        serde_json::json!({
+            "name": "project",
+            "dependencies": {
+                "tool": format!("link:{}", tool.display()),
+                "bare": format!("link:{}", bare.display()),
+            },
+        }),
+    );
+    link_manifest_link_deps::<SilentReporter>(
+        dir.path(),
+        &[(project_dir.clone(), &manifest)],
+        None,
+        std::ffi::OsStr::new("node_modules"),
+    )
+    .expect("linking succeeds");
+
+    let bin_dir = project_dir.join("node_modules/.bin");
+    assert!(
+        bin_dir.join("tool").exists() || bin_dir.join("tool.exe").exists(),
+        "the linked dep's declared bin must land in .bin",
+    );
+    // The manifest-less link is placed but contributes no bins.
+    assert!(project_dir.join("node_modules/bare").exists());
+
+    drop(dir);
+}

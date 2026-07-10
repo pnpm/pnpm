@@ -69,6 +69,9 @@ pub fn link_manifest_link_deps<Reporter: pacquet_reporter::Reporter>(
         // `modulesDir: custom_modules` config doesn't grow a stray
         // `node_modules/` next to the intended tree.
         let modules_dir = project_dir.join(modules_dir_name);
+        // Aliases this pass placed (created or already-correct), for
+        // the bin-linking sweep below.
+        let mut linked_aliases: Vec<String> = Vec::new();
         // Per-group iteration (instead of one flattened
         // `manifest.dependencies([...])` pass) so the `pnpm:root added`
         // event below carries the dependency's real group.
@@ -92,6 +95,10 @@ pub fn link_manifest_link_deps<Reporter: pacquet_reporter::Reporter>(
                 let outcome = symlink_package(&target_path, &symlink_path).map_err(|source| {
                     LinkManifestLinkDepsError::Symlink { alias: alias.to_string(), source }
                 })?;
+                // Bins are (re-)linked for reused symlinks too — the
+                // `.bin` entry may be missing even when the package
+                // link itself is already correct.
+                linked_aliases.push(alias.to_string());
                 if outcome.reused {
                     continue;
                 }
@@ -123,6 +130,16 @@ pub fn link_manifest_link_deps<Reporter: pacquet_reporter::Reporter>(
                     },
                 }));
             }
+        }
+        // Link the placed deps' declared bins into
+        // `<modules_dir>/.bin`, matching v11's `linkDirectDeps` which
+        // bin-linked every direct dep including `link:` ones. The
+        // helper reads each manifest through the symlink and skips
+        // targets without a `package.json` (Bit's manifest-less
+        // component links), so a bin-less link is a no-op.
+        if !linked_aliases.is_empty() {
+            crate::link_direct_dep_bins(&modules_dir, &linked_aliases)
+                .map_err(LinkManifestLinkDepsError::LinkBins)?;
         }
     }
     Ok(())
@@ -176,6 +193,10 @@ pub enum LinkManifestLinkDepsError {
         #[error(source)]
         source: SymlinkPackageError,
     },
+
+    /// Linking the placed deps' bins into `<modules_dir>/.bin` failed.
+    #[diagnostic(transparent)]
+    LinkBins(#[error(source)] pacquet_cmd_shim::LinkBinsError),
 }
 
 #[cfg(test)]
