@@ -182,6 +182,15 @@ pub struct CliArgs {
     /// Recursive only: keep going after a project fails.
     #[clap(long = "no-bail", global = true, hide = true)]
     pub no_bail: bool,
+
+    /// Avoid exiting with a non-zero exit code when the script is
+    /// undefined, accepted ahead of the script name
+    /// (`pnpm --if-present test`) the way pnpm's option parser does.
+    /// Deliberately not `global = true`: `run` / `stop` / `restart`
+    /// declare their own `--if-present`, and a propagated global flag
+    /// would collide with theirs.
+    #[clap(long = "if-present", hide = true)]
+    pub if_present: bool,
 }
 
 fn parse_store_dir(value: &str) -> Result<PathBuf, std::convert::Infallible> {
@@ -199,6 +208,9 @@ impl CliArgs {
         if self.no_bail {
             self.validate_run_scoped_global_option("--no-bail")?;
         }
+        if self.if_present {
+            self.validate_if_present_top_level_option()?;
+        }
         Ok(())
     }
 
@@ -214,6 +226,16 @@ impl CliArgs {
         if !self.filter.is_empty() || !self.filter_prod.is_empty() {
             self.recursive = true;
         }
+    }
+
+    /// `restart` also runs scripts and accepts its own `--if-present`,
+    /// so the top-level spelling is valid for it too — unlike the
+    /// recursive-only flags, which `restart` rejects.
+    fn validate_if_present_top_level_option(&self) -> Result<(), clap::Error> {
+        if matches!(self.command, CliCommand::Restart(_)) {
+            return Ok(());
+        }
+        self.validate_run_scoped_global_option("--if-present")
     }
 
     fn validate_run_scoped_global_option(&self, option: &str) -> Result<(), clap::Error> {

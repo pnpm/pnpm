@@ -177,6 +177,26 @@ fn run_with_if_present_is_a_noop_for_missing_script() {
     drop(root);
 }
 
+/// pnpm also accepts `--if-present` ahead of the script name
+/// (`pnpm --if-present <script>`), where the script dispatches through
+/// the shorthand fallback instead of an explicit `run`. The missing
+/// script must be the same clean no-op — not an exec fallback error.
+#[test]
+fn top_level_if_present_is_a_noop_for_missing_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "build": "echo built" },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    pacquet.with_arg("--if-present").with_arg("nonexistent").assert().success();
+
+    drop(root);
+}
+
 /// `pnpm run` with no script name lists the available scripts, grouped
 /// into lifecycle scripts and others. Mirrors pnpm's `printProjectCommands`.
 #[test]
