@@ -101,7 +101,7 @@ async fn execute_performs_web_login_and_returns_the_success_message() {
     server
         .mock("POST", "/-/v1/login")
         .with_status(200)
-        .with_body(r#"{"loginUrl":"https://example.org/auth/login","doneUrl":"https://example.org/auth/done"}"#)
+        .with_body(serde_json::json!({"loginUrl": "https://example.org/auth/login", "doneUrl": "https://example.org/auth/done"}).to_string())
         .create_async()
         .await;
     let registry = server.url();

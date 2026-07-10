@@ -39,7 +39,7 @@ async fn should_fall_back_to_classic_login_when_web_login_returns_404() {
     let add_user_mock = server
         .mock("PUT", "/-/user/org.couchdb.user:john")
         .with_status(201)
-        .with_body(r#"{"ok":true,"token":"classic-token-456"}"#)
+        .with_body(serde_json::json!({"ok": true, "token": "classic-token-456"}).to_string())
         .create_async()
         .await;
     let registry = server.url();
@@ -80,7 +80,7 @@ async fn should_fall_back_to_classic_login_when_web_login_returns_405() {
     server
         .mock("PUT", "/-/user/org.couchdb.user:jane")
         .with_status(201)
-        .with_body(r#"{"ok":true,"token":"token-405"}"#)
+        .with_body(serde_json::json!({"ok": true, "token": "token-405"}).to_string())
         .create_async()
         .await;
     let registry = server.url();
@@ -122,7 +122,7 @@ async fn should_handle_classic_otp_challenge_during_login() {
         .mock("PUT", "/-/user/org.couchdb.user:alice")
         .match_header("npm-otp", "999999")
         .with_status(201)
-        .with_body(r#"{"ok":true,"token":"otp-token-789"}"#)
+        .with_body(serde_json::json!({"ok": true, "token": "otp-token-789"}).to_string())
         .expect(1)
         .create_async()
         .await;
@@ -156,7 +156,7 @@ async fn should_handle_webauth_otp_challenge_during_login() {
         .match_header("npm-otp", mockito::Matcher::Missing)
         .with_status(401)
         .with_header("www-authenticate", "OTP otp")
-        .with_body(r#"{"authUrl":"https://example.org/auth/web","doneUrl":"https://example.org/auth/web/done"}"#)
+        .with_body(serde_json::json!({"authUrl": "https://example.org/auth/web", "doneUrl": "https://example.org/auth/web/done"}).to_string())
         .expect(1)
         .create_async()
         .await;
@@ -164,7 +164,7 @@ async fn should_handle_webauth_otp_challenge_during_login() {
         .mock("PUT", "/-/user/org.couchdb.user:bob")
         .match_header("npm-otp", "web-tok")
         .with_status(201)
-        .with_body(r#"{"ok":true,"token":"final-token"}"#)
+        .with_body(serde_json::json!({"ok": true, "token": "final-token"}).to_string())
         .expect(1)
         .create_async()
         .await;
