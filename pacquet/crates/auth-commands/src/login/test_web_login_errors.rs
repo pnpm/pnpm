@@ -12,6 +12,7 @@ use std::{
 use pacquet_network_web_auth_testing::{SleepBehavior, ok_202, ok_token, web_auth_fake};
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
+use serde_json::json;
 
 use super::{
     LoginError, login,
@@ -29,7 +30,7 @@ async fn should_throw_when_web_login_returns_invalid_response() {
     server
         .mock("POST", "/-/v1/login")
         .with_status(200)
-        .with_body(serde_json::json!({"loginUrl": "https://example.org/auth"}).to_string())
+        .with_body(json!({"loginUrl": "https://example.org/auth"}).to_string())
         .create_async()
         .await;
     let registry = server.url();
@@ -60,7 +61,7 @@ async fn should_propagate_non_enoent_errors_from_reading_auth_ini() {
     server
         .mock("POST", "/-/v1/login")
         .with_status(200)
-        .with_body(serde_json::json!({"loginUrl": "https://example.org/auth/login", "doneUrl": "https://example.org/auth/done"}).to_string())
+        .with_body(json!({"loginUrl": "https://example.org/auth/login", "doneUrl": "https://example.org/auth/done"}).to_string())
         .create_async()
         .await;
     let registry = server.url();
@@ -155,7 +156,7 @@ async fn should_fail_when_the_login_url_cannot_be_rendered_as_a_qr_code() {
     reset_login();
 
     let long_login_url = format!("https://example.org/auth/{}", "a".repeat(4000));
-    let body = serde_json::json!({
+    let body = json!({
         "loginUrl": long_login_url,
         "doneUrl": "https://example.org/auth/done",
     })
@@ -197,7 +198,7 @@ async fn should_time_out_when_the_web_auth_poll_never_completes() {
     server
         .mock("POST", "/-/v1/login")
         .with_status(200)
-        .with_body(serde_json::json!({"loginUrl": "https://example.org/auth/login", "doneUrl": "https://example.org/auth/done"}).to_string())
+        .with_body(json!({"loginUrl": "https://example.org/auth/login", "doneUrl": "https://example.org/auth/done"}).to_string())
         .create_async()
         .await;
     let registry = server.url();
@@ -225,7 +226,7 @@ async fn rejects_a_login_url_containing_control_characters() {
     reset();
     reset_login();
 
-    let body = serde_json::json!({
+    let body = json!({
         "loginUrl": "https://example.org/auth/\u{1b}[31mlogin",
         "doneUrl": "https://example.org/auth/done",
     })

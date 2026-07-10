@@ -12,6 +12,7 @@ use pacquet_network::nerf_dart;
 use pacquet_network_web_auth_testing::{InputResponse, ok_token, web_auth_fake};
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
+use serde_json::json;
 
 use super::{
     LoginError, login,
@@ -39,7 +40,7 @@ async fn should_fall_back_to_classic_login_when_web_login_returns_404() {
     let add_user_mock = server
         .mock("PUT", "/-/user/org.couchdb.user:john")
         .with_status(201)
-        .with_body(serde_json::json!({"ok": true, "token": "classic-token-456"}).to_string())
+        .with_body(json!({"ok": true, "token": "classic-token-456"}).to_string())
         .create_async()
         .await;
     let registry = server.url();
@@ -80,7 +81,7 @@ async fn should_fall_back_to_classic_login_when_web_login_returns_405() {
     server
         .mock("PUT", "/-/user/org.couchdb.user:jane")
         .with_status(201)
-        .with_body(serde_json::json!({"ok": true, "token": "token-405"}).to_string())
+        .with_body(json!({"ok": true, "token": "token-405"}).to_string())
         .create_async()
         .await;
     let registry = server.url();
@@ -114,7 +115,7 @@ async fn should_handle_classic_otp_challenge_during_login() {
         .match_header("npm-otp", mockito::Matcher::Missing)
         .with_status(401)
         .with_header("www-authenticate", "OTP otp")
-        .with_body(r#"{"error":"otp required"}"#)
+        .with_body(json!({"error": "otp required"}).to_string())
         .expect(1)
         .create_async()
         .await;
@@ -122,7 +123,7 @@ async fn should_handle_classic_otp_challenge_during_login() {
         .mock("PUT", "/-/user/org.couchdb.user:alice")
         .match_header("npm-otp", "999999")
         .with_status(201)
-        .with_body(serde_json::json!({"ok": true, "token": "otp-token-789"}).to_string())
+        .with_body(json!({"ok": true, "token": "otp-token-789"}).to_string())
         .expect(1)
         .create_async()
         .await;
@@ -156,7 +157,7 @@ async fn should_handle_webauth_otp_challenge_during_login() {
         .match_header("npm-otp", mockito::Matcher::Missing)
         .with_status(401)
         .with_header("www-authenticate", "OTP otp")
-        .with_body(serde_json::json!({"authUrl": "https://example.org/auth/web", "doneUrl": "https://example.org/auth/web/done"}).to_string())
+        .with_body(json!({"authUrl": "https://example.org/auth/web", "doneUrl": "https://example.org/auth/web/done"}).to_string())
         .expect(1)
         .create_async()
         .await;
@@ -164,7 +165,7 @@ async fn should_handle_webauth_otp_challenge_during_login() {
         .mock("PUT", "/-/user/org.couchdb.user:bob")
         .match_header("npm-otp", "web-tok")
         .with_status(201)
-        .with_body(serde_json::json!({"ok": true, "token": "final-token"}).to_string())
+        .with_body(json!({"ok": true, "token": "final-token"}).to_string())
         .expect(1)
         .create_async()
         .await;
@@ -323,7 +324,7 @@ async fn should_throw_when_classic_login_returns_no_token() {
     server
         .mock("PUT", "/-/user/org.couchdb.user:alice")
         .with_status(201)
-        .with_body(r#"{"ok":true}"#)
+        .with_body(json!({"ok": true}).to_string())
         .create_async()
         .await;
     let registry = server.url();

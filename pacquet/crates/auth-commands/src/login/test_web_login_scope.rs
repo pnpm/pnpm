@@ -11,6 +11,7 @@ use std::{
 use pacquet_network::nerf_dart;
 use pacquet_network_web_auth_testing::{ok_token, web_auth_fake};
 use pretty_assertions::assert_eq;
+use serde_json::json;
 
 use super::{
     login,
@@ -29,7 +30,7 @@ async fn should_persist_a_scoped_auth_token_and_scope_registry_mapping() {
     server
         .mock("POST", "/-/v1/login")
         .with_status(200)
-        .with_body(serde_json::json!({"loginUrl": "https://my-org.example/auth/login", "doneUrl": "https://my-org.example/auth/done"}).to_string())
+        .with_body(json!({"loginUrl": "https://my-org.example/auth/login", "doneUrl": "https://my-org.example/auth/done"}).to_string())
         .create_async()
         .await;
     let registry = server.url();
@@ -61,7 +62,7 @@ async fn should_persist_scoped_auth_tokens_under_path_registries() {
     server
         .mock("POST", "/npm/-/v1/login")
         .with_status(200)
-        .with_body(serde_json::json!({"loginUrl": "https://example.com/auth/login", "doneUrl": "https://example.com/auth/done"}).to_string())
+        .with_body(json!({"loginUrl": "https://example.com/auth/login", "doneUrl": "https://example.com/auth/done"}).to_string())
         .create_async()
         .await;
     let registry = format!("{}/npm/", server.url());
@@ -93,7 +94,7 @@ async fn should_accept_scope_with_a_leading_at_and_not_double_prefix() {
     server
         .mock("POST", "/-/v1/login")
         .with_status(200)
-        .with_body(serde_json::json!({"loginUrl": "https://my-org.example/auth/login", "doneUrl": "https://my-org.example/auth/done"}).to_string())
+        .with_body(json!({"loginUrl": "https://my-org.example/auth/login", "doneUrl": "https://my-org.example/auth/done"}).to_string())
         .create_async()
         .await;
     let registry = server.url();
@@ -123,7 +124,7 @@ async fn should_not_write_a_scope_mapping_when_scope_is_omitted() {
     server
         .mock("POST", "/-/v1/login")
         .with_status(200)
-        .with_body(serde_json::json!({"loginUrl": "https://example.com/auth/login", "doneUrl": "https://example.com/auth/done"}).to_string())
+        .with_body(json!({"loginUrl": "https://example.com/auth/login", "doneUrl": "https://example.com/auth/done"}).to_string())
         .create_async()
         .await;
     let registry = server.url();
@@ -155,7 +156,7 @@ async fn should_treat_a_bare_at_scope_as_no_scope() {
     server
         .mock("POST", "/-/v1/login")
         .with_status(200)
-        .with_body(serde_json::json!({"loginUrl": "https://example.org/auth/login", "doneUrl": "https://example.org/auth/done"}).to_string())
+        .with_body(json!({"loginUrl": "https://example.org/auth/login", "doneUrl": "https://example.org/auth/done"}).to_string())
         .create_async()
         .await;
     let registry = server.url();

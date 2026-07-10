@@ -13,6 +13,7 @@ use std::{
 use pacquet_network::nerf_dart;
 use pacquet_network_web_auth_testing::{ok_token, web_auth_fake};
 use pretty_assertions::assert_eq;
+use serde_json::json;
 
 use super::{
     login,
@@ -31,7 +32,7 @@ async fn should_use_web_login_when_registry_supports_it() {
     let login_mock = server
         .mock("POST", "/-/v1/login")
         .with_status(200)
-        .with_body(serde_json::json!({"loginUrl": "https://example.com/auth/login", "doneUrl": "https://example.com/auth/done"}).to_string())
+        .with_body(json!({"loginUrl": "https://example.com/auth/login", "doneUrl": "https://example.com/auth/done"}).to_string())
         .create_async()
         .await;
     let registry = server.url();
@@ -69,7 +70,7 @@ async fn should_succeed_when_config_file_does_not_exist() {
     server
         .mock("POST", "/-/v1/login")
         .with_status(200)
-        .with_body(serde_json::json!({"loginUrl": "https://example.org/auth/login", "doneUrl": "https://example.org/auth/done"}).to_string())
+        .with_body(json!({"loginUrl": "https://example.org/auth/login", "doneUrl": "https://example.org/auth/done"}).to_string())
         .create_async()
         .await;
     let registry = server.url();
