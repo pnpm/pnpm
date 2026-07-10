@@ -16,6 +16,9 @@ export {
   resolveLicensePolicy,
 } from './policy.js'
 export {
+  sanitizeForTerminal,
+} from './sanitize.js'
+export {
   extractLicenseIds,
   type LicenseMatchResult,
   matchLicenseAgainstPolicy,
