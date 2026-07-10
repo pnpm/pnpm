@@ -1430,7 +1430,7 @@ pub fn check_deps_status_before_run(check: &OptimisticRepeatInstallCheck<'_>) ->
         && let Some(id) = first_project_missing_modules_dir(config, project_manifests)
     {
         return outdated(format!(
-            "Workspace package {id} has dependencies but does not have a modules directory"
+            "Workspace package {id} has dependencies but does not have a modules directory",
         ));
     }
     if !is_workspace_install
