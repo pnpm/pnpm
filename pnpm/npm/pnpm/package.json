@@ -1,0 +1,37 @@
+{
+  "name": "pnpm",
+  "description": "Fast, disk space efficient package manager — the Rust port of pnpm (alpha, not production-ready)",
+  "keywords": [
+    "pnpm",
+    "package manager",
+    "rust"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm",
+  "bugs": "https://github.com/pnpm/pnpm/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pnpm/pnpm",
+    "directory": "pnpm/npm/pnpm"
+  },
+  "bin": {
+    "pnpm": "pnpm",
+    "pn": "pn",
+    "pnpx": "pnpx",
+    "pnx": "pnx"
+  },
+  "type": "module",
+  "scripts": {
+    "preinstall": "node install.js"
+  },
+  "engines": {
+    "node": ">=18.*"
+  },
+  "files": [
+    "pnpm",
+    "pn",
+    "pnpx",
+    "pnx",
+    "install.js"
+  ]
+}

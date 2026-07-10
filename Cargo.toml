@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members  = ["pacquet/crates/*", "pacquet/tasks/*", "pnpr/crates/*"]
+members  = ["pnpm/crates/*", "pnpm/tasks/*", "pnpr/crates/*"]
 
 [workspace.package]
 authors     = ["Yagiz Nizipli <yagiz@nizipli.com"]
@@ -13,76 +13,76 @@ repository  = "https://github.com/pnpm/pacquet"
 
 [workspace.dependencies]
 # Crates
-pacquet-pnpr-client                       = { path = "pacquet/crates/pnpr-client" }
-pacquet-auth-commands                     = { path = "pacquet/crates/auth-commands" }
-pacquet-catalogs-config                   = { path = "pacquet/crates/catalogs-config" }
-pacquet-catalogs-protocol-parser          = { path = "pacquet/crates/catalogs-protocol-parser" }
-pacquet-catalogs-resolver                 = { path = "pacquet/crates/catalogs-resolver" }
-pacquet-catalogs-types                    = { path = "pacquet/crates/catalogs-types" }
-pacquet-cli                               = { path = "pacquet/crates/cli" }
-pacquet-cmd-shim                          = { path = "pacquet/crates/cmd-shim" }
-pacquet-crypto-hash                       = { path = "pacquet/crates/crypto-hash" }
-pacquet-crypto-shasums-file               = { path = "pacquet/crates/crypto-shasums-file" }
-pacquet-engine-runtime-bun-resolver       = { path = "pacquet/crates/engine-runtime-bun-resolver" }
-pacquet-engine-runtime-deno-resolver      = { path = "pacquet/crates/engine-runtime-deno-resolver" }
-pacquet-engine-runtime-node-resolver      = { path = "pacquet/crates/engine-runtime-node-resolver" }
-pacquet-env-installer                     = { path = "pacquet/crates/env-installer" }
-pacquet-env-replace                       = { path = "pacquet/crates/env-replace" }
-pacquet-fs                                = { path = "pacquet/crates/fs" }
-pacquet-fs-packlist                       = { path = "pacquet/crates/fs-packlist" }
-pacquet-registry                          = { path = "pacquet/crates/registry" }
-pacquet-tarball                           = { path = "pacquet/crates/tarball" }
-pacquet-testing-utils                     = { path = "pacquet/crates/testing-utils" }
-pacquet-pack                              = { path = "pacquet/crates/pack" }
-pacquet-publish                           = { path = "pacquet/crates/publish" }
-pacquet-package-manifest                  = { path = "pacquet/crates/package-manifest" }
-pacquet-package-manager                   = { path = "pacquet/crates/package-manager" }
-pacquet-package-is-installable            = { path = "pacquet/crates/package-is-installable" }
-pacquet-lockfile                          = { path = "pacquet/crates/lockfile" }
-pacquet-lockfile-preferred-versions       = { path = "pacquet/crates/lockfile-preferred-versions" }
-pacquet-lockfile-verification             = { path = "pacquet/crates/lockfile-verification" }
-pacquet-modules-yaml                      = { path = "pacquet/crates/modules-yaml" }
-pacquet-network                           = { path = "pacquet/crates/network" }
-pacquet-napi                              = { path = "pacquet/crates/napi" }
-pacquet-network-web-auth                  = { path = "pacquet/crates/network-web-auth" }
-pacquet-network-web-auth-testing          = { path = "pacquet/crates/network-web-auth-testing" }
-pacquet-config                            = { path = "pacquet/crates/config" }
-pacquet-config-dir                        = { path = "pacquet/crates/config-dir" }
-pacquet-config-parse-overrides            = { path = "pacquet/crates/config-parse-overrides" }
-pacquet-default-reporter                  = { path = "pacquet/crates/default-reporter" }
-pacquet-executor                          = { path = "pacquet/crates/executor" }
-pacquet-exportable-manifest               = { path = "pacquet/crates/exportable-manifest" }
-pacquet-directory-fetcher                 = { path = "pacquet/crates/directory-fetcher" }
-pacquet-git-fetcher                       = { path = "pacquet/crates/git-fetcher" }
-pacquet-global                            = { path = "pacquet/crates/global" }
-pacquet-deps-path                         = { path = "pacquet/crates/deps-path" }
-pacquet-detect-libc                       = { path = "pacquet/crates/detect-libc" }
-pacquet-diagnostics                       = { path = "pacquet/crates/diagnostics" }
-pacquet-graph-hasher                      = { path = "pacquet/crates/graph-hasher" }
-pacquet-hooks                             = { path = "pacquet/crates/hooks" }
-pacquet-store-dir                         = { path = "pacquet/crates/store-dir" }
-pacquet-reporter                          = { path = "pacquet/crates/reporter" }
-pacquet-patching                          = { path = "pacquet/crates/patching" }
-pacquet-real-hoist                        = { path = "pacquet/crates/real-hoist" }
-pacquet-resolving-default-resolver        = { path = "pacquet/crates/resolving-default-resolver" }
-pacquet-resolving-deps-resolver           = { path = "pacquet/crates/resolving-deps-resolver" }
-pacquet-resolving-git-resolver            = { path = "pacquet/crates/resolving-git-resolver" }
-pacquet-resolving-jsr-specifier-parser    = { path = "pacquet/crates/resolving-jsr-specifier-parser" }
-pacquet-resolving-local-resolver          = { path = "pacquet/crates/resolving-local-resolver" }
-pacquet-resolving-npm-resolver            = { path = "pacquet/crates/resolving-npm-resolver" }
-pacquet-resolving-parse-wanted-dependency = { path = "pacquet/crates/resolving-parse-wanted-dependency" }
-pacquet-resolving-resolver-base           = { path = "pacquet/crates/resolving-resolver-base" }
-pacquet-resolving-tarball-resolver        = { path = "pacquet/crates/resolving-tarball-resolver" }
-pacquet-workspace                         = { path = "pacquet/crates/workspace" }
-pacquet-workspace-manifest-writer         = { path = "pacquet/crates/workspace-manifest-writer" }
-pacquet-workspace-projects-filter         = { path = "pacquet/crates/workspace-projects-filter" }
-pacquet-workspace-projects-graph          = { path = "pacquet/crates/workspace-projects-graph" }
-pacquet-workspace-range-resolver          = { path = "pacquet/crates/workspace-range-resolver" }
-pacquet-workspace-spec                    = { path = "pacquet/crates/workspace-spec" }
-pacquet-workspace-state                   = { path = "pacquet/crates/workspace-state" }
+pacquet-pnpr-client                       = { path = "pnpm/crates/pnpr-client" }
+pacquet-auth-commands                     = { path = "pnpm/crates/auth-commands" }
+pacquet-catalogs-config                   = { path = "pnpm/crates/catalogs-config" }
+pacquet-catalogs-protocol-parser          = { path = "pnpm/crates/catalogs-protocol-parser" }
+pacquet-catalogs-resolver                 = { path = "pnpm/crates/catalogs-resolver" }
+pacquet-catalogs-types                    = { path = "pnpm/crates/catalogs-types" }
+pacquet-cli                               = { path = "pnpm/crates/cli" }
+pacquet-cmd-shim                          = { path = "pnpm/crates/cmd-shim" }
+pacquet-crypto-hash                       = { path = "pnpm/crates/crypto-hash" }
+pacquet-crypto-shasums-file               = { path = "pnpm/crates/crypto-shasums-file" }
+pacquet-engine-runtime-bun-resolver       = { path = "pnpm/crates/engine-runtime-bun-resolver" }
+pacquet-engine-runtime-deno-resolver      = { path = "pnpm/crates/engine-runtime-deno-resolver" }
+pacquet-engine-runtime-node-resolver      = { path = "pnpm/crates/engine-runtime-node-resolver" }
+pacquet-env-installer                     = { path = "pnpm/crates/env-installer" }
+pacquet-env-replace                       = { path = "pnpm/crates/env-replace" }
+pacquet-fs                                = { path = "pnpm/crates/fs" }
+pacquet-fs-packlist                       = { path = "pnpm/crates/fs-packlist" }
+pacquet-registry                          = { path = "pnpm/crates/registry" }
+pacquet-tarball                           = { path = "pnpm/crates/tarball" }
+pacquet-testing-utils                     = { path = "pnpm/crates/testing-utils" }
+pacquet-pack                              = { path = "pnpm/crates/pack" }
+pacquet-publish                           = { path = "pnpm/crates/publish" }
+pacquet-package-manifest                  = { path = "pnpm/crates/package-manifest" }
+pacquet-package-manager                   = { path = "pnpm/crates/package-manager" }
+pacquet-package-is-installable            = { path = "pnpm/crates/package-is-installable" }
+pacquet-lockfile                          = { path = "pnpm/crates/lockfile" }
+pacquet-lockfile-preferred-versions       = { path = "pnpm/crates/lockfile-preferred-versions" }
+pacquet-lockfile-verification             = { path = "pnpm/crates/lockfile-verification" }
+pacquet-modules-yaml                      = { path = "pnpm/crates/modules-yaml" }
+pacquet-network                           = { path = "pnpm/crates/network" }
+pacquet-napi                              = { path = "pnpm/crates/napi" }
+pacquet-network-web-auth                  = { path = "pnpm/crates/network-web-auth" }
+pacquet-network-web-auth-testing          = { path = "pnpm/crates/network-web-auth-testing" }
+pacquet-config                            = { path = "pnpm/crates/config" }
+pacquet-config-dir                        = { path = "pnpm/crates/config-dir" }
+pacquet-config-parse-overrides            = { path = "pnpm/crates/config-parse-overrides" }
+pacquet-default-reporter                  = { path = "pnpm/crates/default-reporter" }
+pacquet-executor                          = { path = "pnpm/crates/executor" }
+pacquet-exportable-manifest               = { path = "pnpm/crates/exportable-manifest" }
+pacquet-directory-fetcher                 = { path = "pnpm/crates/directory-fetcher" }
+pacquet-git-fetcher                       = { path = "pnpm/crates/git-fetcher" }
+pacquet-global                            = { path = "pnpm/crates/global" }
+pacquet-deps-path                         = { path = "pnpm/crates/deps-path" }
+pacquet-detect-libc                       = { path = "pnpm/crates/detect-libc" }
+pacquet-diagnostics                       = { path = "pnpm/crates/diagnostics" }
+pacquet-graph-hasher                      = { path = "pnpm/crates/graph-hasher" }
+pacquet-hooks                             = { path = "pnpm/crates/hooks" }
+pacquet-store-dir                         = { path = "pnpm/crates/store-dir" }
+pacquet-reporter                          = { path = "pnpm/crates/reporter" }
+pacquet-patching                          = { path = "pnpm/crates/patching" }
+pacquet-real-hoist                        = { path = "pnpm/crates/real-hoist" }
+pacquet-resolving-default-resolver        = { path = "pnpm/crates/resolving-default-resolver" }
+pacquet-resolving-deps-resolver           = { path = "pnpm/crates/resolving-deps-resolver" }
+pacquet-resolving-git-resolver            = { path = "pnpm/crates/resolving-git-resolver" }
+pacquet-resolving-jsr-specifier-parser    = { path = "pnpm/crates/resolving-jsr-specifier-parser" }
+pacquet-resolving-local-resolver          = { path = "pnpm/crates/resolving-local-resolver" }
+pacquet-resolving-npm-resolver            = { path = "pnpm/crates/resolving-npm-resolver" }
+pacquet-resolving-parse-wanted-dependency = { path = "pnpm/crates/resolving-parse-wanted-dependency" }
+pacquet-resolving-resolver-base           = { path = "pnpm/crates/resolving-resolver-base" }
+pacquet-resolving-tarball-resolver        = { path = "pnpm/crates/resolving-tarball-resolver" }
+pacquet-workspace                         = { path = "pnpm/crates/workspace" }
+pacquet-workspace-manifest-writer         = { path = "pnpm/crates/workspace-manifest-writer" }
+pacquet-workspace-projects-filter         = { path = "pnpm/crates/workspace-projects-filter" }
+pacquet-workspace-projects-graph          = { path = "pnpm/crates/workspace-projects-graph" }
+pacquet-workspace-range-resolver          = { path = "pnpm/crates/workspace-range-resolver" }
+pacquet-workspace-spec                    = { path = "pnpm/crates/workspace-spec" }
+pacquet-workspace-state                   = { path = "pnpm/crates/workspace-state" }
 
 # Tasks
-pacquet-registry-mock = { path = "pacquet/tasks/registry-mock" }
+pacquet-registry-mock = { path = "pnpm/tasks/registry-mock" }
 
 # Registry (sibling project — pnpm-compatible registry server)
 pnpr          = { path = "pnpr/crates/pnpr" }

@@ -5,12 +5,12 @@ on:
   pull_request:
     types: [opened, synchronize]
     paths:
-      - 'pacquet/**/*.rs'
-      - 'pacquet/**/Cargo.toml'
+      - 'pnpm/**/*.rs'
+      - 'pnpm/**/Cargo.toml'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
-      - 'pacquet/tasks/micro-benchmark/fixtures/**'
+      - 'pnpm/tasks/micro-benchmark/fixtures/**'
       - '.github/actions/rustup/**'
       - '.github/actions/binstall/**'
       - '.github/workflows/pacquet-micro-benchmark.yml'

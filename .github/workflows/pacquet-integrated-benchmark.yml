@@ -8,39 +8,39 @@ on:
     # `pacquet` (the direct install) and `pnpr` (the same client through
     # the pnpr install accelerator). The pnpr server is built from the
     # `pacquet-*` resolver/store/tarball crates, so a pacquet change can
-    # move both — hence one shared trigger surface (`pacquet/**` + the
+    # move both — hence one shared trigger surface (`pnpm/**` + the
     # workspace infra) plus `pnpr/**` for the server itself. Paths mirror
     # the pull_request filter below.
     branches: [main]
     paths:
-      - 'pacquet/**/*.rs'
-      - 'pacquet/**/Cargo.toml'
+      - 'pnpm/**/*.rs'
+      - 'pnpm/**/Cargo.toml'
       - 'pnpr/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
       - 'justfile'
-      - 'pacquet/tasks/registry-mock/package.json'
+      - 'pnpm/tasks/registry-mock/package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
-      - 'pacquet/tasks/integrated-benchmark/src/fixtures/**'
+      - 'pnpm/tasks/integrated-benchmark/src/fixtures/**'
       - '.github/actions/rustup/**'
       - '.github/actions/binstall/**'
       - '.github/workflows/pacquet-integrated-benchmark.yml'
   pull_request:
     types: [opened, synchronize]
     paths:
-      - 'pacquet/**/*.rs'
-      - 'pacquet/**/Cargo.toml'
+      - 'pnpm/**/*.rs'
+      - 'pnpm/**/Cargo.toml'
       - 'pnpr/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
       - 'justfile'
-      - 'pacquet/tasks/registry-mock/package.json'
+      - 'pnpm/tasks/registry-mock/package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
-      - 'pacquet/tasks/integrated-benchmark/src/fixtures/**'
+      - 'pnpm/tasks/integrated-benchmark/src/fixtures/**'
       - '.github/actions/rustup/**'
       - '.github/actions/binstall/**'
       - '.github/workflows/pacquet-integrated-benchmark.yml'
@@ -149,7 +149,7 @@ jobs:
         # packages from npmjs on every run. Replaces the older
         # `~/.local/share/verdaccio/storage` cache from when the mock
         # was Node + Verdaccio. Path matches `runtime_storage()` in
-        # `pacquet/tasks/registry-mock/src/dirs.rs` (defaults to
+        # `pnpm/tasks/registry-mock/src/dirs.rs` (defaults to
         # `$HOME/.cache/pnpm-registry/storage`).
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -157,7 +157,7 @@ jobs:
           # goes internally inconsistent — e.g. a cached packument declaring
           # a version whose tarball was never cached, which 404s every
           # fresh-install run. Bump it to repopulate from a clean slate.
-          key: integrated-benchmark-pnpm-registry-v2-${{ hashFiles('pacquet/tasks/integrated-benchmark/src/fixtures/pnpm-lock.yaml') }}
+          key: integrated-benchmark-pnpm-registry-v2-${{ hashFiles('pnpm/tasks/integrated-benchmark/src/fixtures/pnpm-lock.yaml') }}
           restore-keys: |
             integrated-benchmark-pnpm-registry-v2-
           path: |

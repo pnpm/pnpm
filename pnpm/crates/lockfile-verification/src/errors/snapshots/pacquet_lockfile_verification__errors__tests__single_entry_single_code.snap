@@ -1,0 +1,7 @@
+---
+source: pnpm/crates/lockfile-verification/src/errors/tests.rs
+assertion_line: 128
+expression: err.to_string()
+---
+1 lockfile entries failed verification:
+  acme@1.0.0 was published at 2025-11-30T22:00:00.000Z, within the minimumReleaseAge cutoff (2025-11-30T00:00:00.000Z)

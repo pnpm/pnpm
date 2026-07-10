@@ -16,7 +16,7 @@ Submit your findings here: https://github.com/pnpm/pnpm/security/advisories
 
 ### pacquet and pnpr
 
-The Rust port (`pacquet/`) and the resolver server (`pnpr/`) are **not
+The Rust port (`pnpm/`) and the resolver server (`pnpr/`) are **not
 production ready** and are under active development. Do not report security
 issues in them through the security advisory process — open a
 [regular issue](https://github.com/pnpm/pnpm/issues) in this repository instead.

@@ -16,7 +16,7 @@ init:
 
 # When ready, run the same CI commands
 ready:
-  typos pacquet pnpr
+  typos pnpm pnpr
   cargo fmt
   just check
   just test
@@ -29,7 +29,7 @@ update:
   git submodule update --init
 
 # Install necessary dependencies.
-# `pacquet/tasks/registry-mock` is a member of the root pnpm workspace,
+# `pnpm/tasks/registry-mock` is a member of the root pnpm workspace,
 # so the root install populates its node_modules.
 install:
   pnpm install --frozen-lockfile --prefer-offline
