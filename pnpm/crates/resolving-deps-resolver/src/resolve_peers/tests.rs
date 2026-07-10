@@ -1401,6 +1401,145 @@ fn pruned_hoisted_providers_with_mutual_peers_resolve() {
     );
 }
 
+/// Mirror of the TS test "an own direct dependency and a pruned hoisted peer
+/// provider that peer-depend on each other are resolved together"
+/// (`deps-resolver/test/resolvePeers.ts`) — the shape behind
+/// <https://github.com/pnpm/pnpm/issues/12921>, where the peer cycle spans an
+/// own direct dependency and a pruned provider. Both sides of the cycle must
+/// collapse to `name@version` suffixes.
+#[test]
+fn own_direct_dep_and_pruned_provider_with_mutual_peers_resolve() {
+    let plugin = NodeId::leaf("plugin@1.0.0");
+    let main = NodeId::next();
+
+    let mut tree = ResolvedTree {
+        direct: vec![
+            DirectDep {
+                alias: "main".to_string(),
+                node_id: main.clone(),
+                id: "main@1.0.0".to_string(),
+            },
+            DirectDep {
+                alias: "plugin".to_string(),
+                node_id: plugin.clone(),
+                id: "plugin@1.0.0".to_string(),
+            },
+        ],
+        packages: HashMap::from([
+            ("main@1.0.0".to_string(), package("main", "1.0.0", &[("plugin", "^1.0.0")], false)),
+            ("plugin@1.0.0".to_string(), package("plugin", "1.0.0", &[("main", "^1.0.0")], true)),
+        ]),
+        dependencies_tree: HashMap::from([
+            (main, tree_node("main@1.0.0", BTreeMap::new(), 0)),
+            (plugin.clone(), tree_node("plugin@1.0.0", BTreeMap::new(), 1)),
+        ]),
+        all_peer_dep_names: HashSet::from(["main".to_string(), "plugin".to_string()]),
+        policy_violations: Vec::new(),
+        applied_patches: HashSet::new(),
+        children_by_id: HashMap::new(),
+    };
+
+    let result = resolve_peers(
+        &mut tree,
+        ResolvePeersOptions {
+            hoisted_peer_provider_node_ids: HashSet::from([plugin]),
+            ..ResolvePeersOptions::default()
+        },
+    );
+
+    assert_eq!(
+        result.direct_dependencies_by_alias.get("main"),
+        Some(&DepPath::from("main@1.0.0(plugin@1.0.0)")),
+        "graph keys: {:#?}",
+        result.graph.keys().collect::<Vec<_>>(),
+    );
+    assert_eq!(
+        result.direct_dependencies_by_alias.get("plugin"),
+        Some(&DepPath::from("plugin@1.0.0(main@1.0.0)")),
+        "graph keys: {:#?}",
+        result.graph.keys().collect::<Vec<_>>(),
+    );
+}
+
+/// Mirror of the TS test "a peer cycle between an own direct dependency and a
+/// hoisted peer provider resolved at its tree position does not deadlock":
+/// the provider is walked at its true position inside host's subtree, so the
+/// peer cycle spans two traversal levels instead of two root-level passes.
+#[test]
+fn peer_cycle_between_own_dep_and_provider_at_tree_position_resolves() {
+    let host = NodeId::next();
+    let main = NodeId::next();
+    let plugin = NodeId::next();
+
+    let mut tree = ResolvedTree {
+        direct: vec![
+            DirectDep {
+                alias: "host".to_string(),
+                node_id: host.clone(),
+                id: "host@1.0.0".to_string(),
+            },
+            DirectDep {
+                alias: "main".to_string(),
+                node_id: main.clone(),
+                id: "main@1.0.0".to_string(),
+            },
+            DirectDep {
+                alias: "plugin".to_string(),
+                node_id: plugin.clone(),
+                id: "plugin@1.0.0".to_string(),
+            },
+        ],
+        packages: HashMap::from([
+            ("host@1.0.0".to_string(), package("host", "1.0.0", &[], false)),
+            ("main@1.0.0".to_string(), package("main", "1.0.0", &[("plugin", "^1.0.0")], false)),
+            ("plugin@1.0.0".to_string(), package("plugin", "1.0.0", &[("main", "^1.0.0")], false)),
+        ]),
+        dependencies_tree: HashMap::from([
+            (
+                host,
+                tree_node(
+                    "host@1.0.0",
+                    BTreeMap::from([("plugin".to_string(), plugin.clone())]),
+                    0,
+                ),
+            ),
+            (main, tree_node("main@1.0.0", BTreeMap::new(), 0)),
+            (plugin.clone(), tree_node("plugin@1.0.0", BTreeMap::new(), 1)),
+        ]),
+        all_peer_dep_names: HashSet::from(["main".to_string(), "plugin".to_string()]),
+        policy_violations: Vec::new(),
+        applied_patches: HashSet::new(),
+        children_by_id: HashMap::new(),
+    };
+
+    let result = resolve_peers(
+        &mut tree,
+        ResolvePeersOptions {
+            hoisted_peer_provider_node_ids: HashSet::from([plugin]),
+            ..ResolvePeersOptions::default()
+        },
+    );
+
+    assert_eq!(
+        result.direct_dependencies_by_alias.get("host"),
+        Some(&DepPath::from("host@1.0.0(main@1.0.0)")),
+        "graph keys: {:#?}",
+        result.graph.keys().collect::<Vec<_>>(),
+    );
+    assert_eq!(
+        result.direct_dependencies_by_alias.get("main"),
+        Some(&DepPath::from("main@1.0.0(plugin@1.0.0)")),
+        "graph keys: {:#?}",
+        result.graph.keys().collect::<Vec<_>>(),
+    );
+    assert_eq!(
+        result.direct_dependencies_by_alias.get("plugin"),
+        Some(&DepPath::from("plugin@1.0.0(main@1.0.0)")),
+        "graph keys: {:#?}",
+        result.graph.keys().collect::<Vec<_>>(),
+    );
+}
+
 fn tree_node(pkg_id: &str, children: BTreeMap<String, NodeId>, depth: i32) -> DependenciesTreeNode {
     DependenciesTreeNode {
         resolved_package_id: pkg_id.to_string(),
