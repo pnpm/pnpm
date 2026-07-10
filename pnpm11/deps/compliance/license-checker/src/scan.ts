@@ -47,14 +47,15 @@ export interface ScanResult {
 
 export async function scanAndCheckLicenses (opts: ScanOptions): Promise<ScanResult> {
   const lockfileDir = opts.lockfileDir ?? opts.dir
-  const [lockfile, storeDir] = await Promise.all([
-    readWantedLockfile(lockfileDir, { ignoreIncompatible: true }),
-    getStorePath({ pkgRoot: opts.dir, storePath: opts.storeDir, pnpmHomeDir: opts.pnpmHomeDir }),
-  ])
-
+  const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
   if (lockfile == null) {
     return { result: { violations: [], warnings: [], checkedCount: 0 }, lockfileMissing: true }
   }
+  const storeDir = await getStorePath({
+    pkgRoot: opts.dir,
+    storePath: opts.storeDir,
+    pnpmHomeDir: opts.pnpmHomeDir,
+  })
 
   const includedImporterIds = opts.selectedProjectsGraph
     ? Object.keys(opts.selectedProjectsGraph).map((p) => getLockfileImporterId(lockfileDir, p))
