@@ -267,7 +267,7 @@ async function loadConfigSources (opts: GetConfigOptions, cliOptions: CliOptions
 
 async function readGlobalYamlConfig (configDir: string, opts: GetConfigOptions): Promise<WorkspaceManifest | undefined> {
   try {
-    return await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
+    return await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME, { validatePnpmSettings: false })
   } catch (err: unknown) {
     if (!opts.skipUnreadableSettings) throw err
     try {
