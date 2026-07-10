@@ -1,4 +1,5 @@
 import spdxParse from 'spdx-expression-parse'
+import satisfies from 'spdx-satisfies'
 
 export interface LicenseMatchResult {
   allowed: boolean
@@ -17,144 +18,121 @@ export function matchLicenseAgainstPolicy (
   license: string,
   opts: MatchPolicyOptions
 ): LicenseMatchResult {
-  // In strict mode, we only reject as unknown-license when an allowed list is
-  // actually configured. Strict + disallowed-only is a valid configuration
-  // (block specific licenses, allow everything else) and must not flip
-  // unrecognized licenses into violations on its own — see evaluateLicenseNode
-  // where the same rule applies to the SPDX-parsable path.
   const hasAllowedList = !!(opts.allowed && opts.allowed.size > 0)
 
   if (!license || license === 'Unknown') {
-    return opts.mode === 'strict' && hasAllowedList
-      ? { allowed: false, reason: 'unknown-license' }
-      : { allowed: true, reason: 'allowed-by-default' }
+    return unknown(opts, hasAllowedList)
   }
 
   let tree: SpdxNode
   try {
     tree = spdxParse(license)
   } catch {
-    // Non-SPDX license string — check raw string against policy before giving up
-    const rawResult = evaluateId(license, opts)
-    if (rawResult.reason !== 'allowed-by-default') {
-      return rawResult
-    }
-    return opts.mode === 'strict' && hasAllowedList
-      ? { allowed: false, reason: 'unknown-license' }
-      : { allowed: true, reason: 'allowed-by-default' }
+    // Not a valid SPDX expression. Do NOT fall back to literal matching — that
+    // was case-sensitive and let mis-cased ids bypass the policy. Treat the
+    // whole string as a single opaque id and evaluate it directly.
+    return evaluateOpaqueId(license, opts, hasAllowedList)
   }
 
-  return evaluateNode(tree, opts)
-}
-
-export function extractLicenseIds (license: string): string[] {
-  try {
-    const tree = spdxParse(license)
-    return collectIds(tree)
-  } catch {
-    return []
-  }
-}
-
-// -- Policy evaluation --
-
-function evaluateNode (node: SpdxNode, opts: MatchPolicyOptions): LicenseMatchResult {
-  if ('conjunction' in node) {
-    return node.conjunction === 'or'
-      ? evaluateOr(node.left, node.right, opts)
-      : evaluateAnd(node.left, node.right, opts)
-  }
-  return evaluateLicenseNode(node, opts)
-}
-
-function evaluateLicenseNode (node: spdxParse.SpdxLicense, opts: MatchPolicyOptions): LicenseMatchResult {
-  // Build the full literal form for WITH/plus variants so policy entries
-  // written as exact strings (e.g. "Apache-2.0 WITH LLVM-exception" or
-  // "GPL-2.0+") can match.
-  const candidates: string[] = []
-  if (node.exception) {
-    candidates.push(`${node.license} WITH ${node.exception}`)
-  }
-  if (node.plus) {
-    candidates.push(`${node.license}+`)
-  }
-  candidates.push(node.license)
-
-  // Check disallowed — any candidate match is a disallow
-  if (opts.disallowed && opts.disallowed.size > 0) {
-    for (const id of candidates) {
-      if (opts.disallowed.has(id)) {
-        return { allowed: false, reason: 'explicitly-disallowed' }
-      }
-    }
-  }
-
-  // Check allowed — any candidate match is an allow.
-  // When no allowed list is configured, the check is skipped entirely
-  // (even in strict mode). This lets users use strict mode with only a
-  // disallowed list to block specific licenses without enumerating every
-  // permitted license.
-  if (opts.allowed && opts.allowed.size > 0) {
-    for (const id of candidates) {
-      if (opts.allowed.has(id)) {
-        return { allowed: true, reason: 'explicitly-allowed' }
-      }
-    }
-    if (opts.mode === 'strict') {
-      return { allowed: false, reason: 'not-in-allowed-list' }
-    }
-  }
-
-  return { allowed: true, reason: 'allowed-by-default' }
-}
-
-function evaluateId (id: string, opts: MatchPolicyOptions): LicenseMatchResult {
-  if (opts.disallowed && opts.disallowed.has(id)) {
+  // Disallow first: a package violates the disallow policy only if it cannot be
+  // used WITHOUT a disallowed license (see isBlockedByDisallowed). An OR escape
+  // branch counts only when it is itself known-acceptable.
+  if (opts.disallowed && opts.disallowed.size > 0 && isBlockedByDisallowed(tree, opts)) {
     return { allowed: false, reason: 'explicitly-disallowed' }
   }
-  if (opts.allowed && opts.allowed.size > 0) {
-    if (opts.allowed.has(id)) {
+
+  if (hasAllowedList) {
+    if (satisfies(license, [...opts.allowed!])) {
       return { allowed: true, reason: 'explicitly-allowed' }
     }
     if (opts.mode === 'strict') {
       return { allowed: false, reason: 'not-in-allowed-list' }
     }
+    // loose + not in allowed list ⇒ warning-level (allowed-by-default so
+    // checkLicenses downgrades it to a warning)
+    return { allowed: true, reason: 'not-in-allowed-list' }
   }
+
   return { allowed: true, reason: 'allowed-by-default' }
 }
 
-function evaluateOr (left: SpdxNode, right: SpdxNode, opts: MatchPolicyOptions): LicenseMatchResult {
-  const leftResult = evaluateNode(left, opts)
-  const rightResult = evaluateNode(right, opts)
-
-  // If either side is explicitly allowed, the OR passes
-  if (leftResult.allowed && leftResult.reason === 'explicitly-allowed') return leftResult
-  if (rightResult.allowed && rightResult.reason === 'explicitly-allowed') return rightResult
-
-  // If either side passes (even by default), the OR passes
-  if (leftResult.allowed) return leftResult
-  if (rightResult.allowed) return rightResult
-
-  // Both sides failed — prefer the more specific reason
-  if (leftResult.reason === 'explicitly-disallowed' && rightResult.reason === 'explicitly-disallowed') {
-    return { allowed: false, reason: 'explicitly-disallowed' }
+export function extractLicenseIds (license: string): string[] {
+  try {
+    return collectIds(spdxParse(license))
+  } catch {
+    return []
   }
-  return leftResult
 }
 
-function evaluateAnd (left: SpdxNode, right: SpdxNode, opts: MatchPolicyOptions): LicenseMatchResult {
-  const leftResult = evaluateNode(left, opts)
-  const rightResult = evaluateNode(right, opts)
+// -- helpers --
 
-  // Both sides must pass for AND
-  if (!leftResult.allowed) return leftResult
-  if (!rightResult.allowed) return rightResult
+function unknown (opts: MatchPolicyOptions, hasAllowedList: boolean): LicenseMatchResult {
+  return opts.mode === 'strict' && hasAllowedList
+    ? { allowed: false, reason: 'unknown-license' }
+    : { allowed: true, reason: 'allowed-by-default' }
+}
 
-  // Both passed — prefer the more specific reason
-  if (leftResult.reason === 'explicitly-allowed' || rightResult.reason === 'explicitly-allowed') {
-    return { allowed: true, reason: 'explicitly-allowed' }
+// A single non-SPDX token: match case-insensitively against the policy sets.
+function evaluateOpaqueId (id: string, opts: MatchPolicyOptions, hasAllowedList: boolean): LicenseMatchResult {
+  if (opts.disallowed && setHasCaseInsensitive(opts.disallowed, id)) {
+    return { allowed: false, reason: 'explicitly-disallowed' }
   }
-  return leftResult
+  if (hasAllowedList) {
+    if (setHasCaseInsensitive(opts.allowed!, id)) {
+      return { allowed: true, reason: 'explicitly-allowed' }
+    }
+    return opts.mode === 'strict'
+      ? { allowed: false, reason: 'not-in-allowed-list' }
+      : { allowed: true, reason: 'not-in-allowed-list' }
+  }
+  return unknown(opts, hasAllowedList)
+}
+
+// A package is blocked by the disallow policy iff EVERY way to satisfy its
+// license expression requires a disallowed license. For an OR, the package is
+// blocked only if BOTH branches are blocked; an escape branch is valid only if
+// it is known-acceptable (satisfies the allowed list, or — with no allowed list
+// — is a recognised leaf that is not itself disallowed). This prevents an
+// opaque LicenseRef from laundering a disallowed license.
+function isBlockedByDisallowed (node: SpdxNode, opts: MatchPolicyOptions): boolean {
+  if ('conjunction' in node) {
+    return node.conjunction === 'or'
+      ? isBlockedByDisallowed(node.left, opts) && isBlockedByDisallowed(node.right, opts)
+      : isBlockedByDisallowed(node.left, opts) || isBlockedByDisallowed(node.right, opts)
+  }
+  return leafIsBlocked(node, opts)
+}
+
+function leafIsBlocked (node: spdxParse.SpdxLicense, opts: MatchPolicyOptions): boolean {
+  const candidates = leafCandidates(node)
+  if (candidates.some((c) => setHasCaseInsensitive(opts.disallowed!, c))) {
+    return true
+  }
+  // Not itself disallowed. As an OR escape it is only "safe" when known-
+  // acceptable: in the allowed list, or (no allowed list) a recognised id.
+  const hasAllowedList = !!(opts.allowed && opts.allowed.size > 0)
+  if (hasAllowedList) {
+    return !candidates.some((c) => setHasCaseInsensitive(opts.allowed!, c))
+  }
+  // No allowed list: a recognised SPDX id is a valid escape; an opaque
+  // LicenseRef (license starts with "LicenseRef-") is NOT.
+  return node.license.startsWith('LicenseRef-')
+}
+
+function leafCandidates (node: spdxParse.SpdxLicense): string[] {
+  const candidates: string[] = []
+  if (node.exception) candidates.push(`${node.license} WITH ${node.exception}`)
+  if (node.plus) candidates.push(`${node.license}+`)
+  candidates.push(node.license)
+  return candidates
+}
+
+function setHasCaseInsensitive (set: Set<string>, value: string): boolean {
+  const lower = value.toLowerCase()
+  for (const entry of set) {
+    if (entry.toLowerCase() === lower) return true
+  }
+  return false
 }
 
 function collectIds (node: SpdxNode): string[] {
