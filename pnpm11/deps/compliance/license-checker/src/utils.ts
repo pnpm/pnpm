@@ -1,5 +1,6 @@
 import type { LicensesConfig, ProjectManifest } from '@pnpm/types'
 
+import { resolveLicensePolicy } from './policy.js'
 import { extractLicenseIds } from './spdxMatcher.js'
 
 export interface IncludeFlags {
@@ -59,8 +60,7 @@ export function collectDirectDeps (
 }
 
 export function shouldRunLicenseCheck (licenses?: LicensesConfig | null): boolean {
-  const mode = licenses?.mode
-  return mode === 'strict' || mode === 'loose'
+  return resolveLicensePolicy(licenses) != null
 }
 
 export interface NormalizedLicenseArgs {

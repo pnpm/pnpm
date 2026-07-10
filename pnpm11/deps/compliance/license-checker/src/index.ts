@@ -9,6 +9,10 @@ export {
   type LicenseViolation,
 } from './checkLicenses.js'
 export {
+  type NormalizedPolicy,
+  resolveLicensePolicy,
+} from './policy.js'
+export {
   extractLicenseIds,
   type LicenseMatchResult,
   matchLicenseAgainstPolicy,
