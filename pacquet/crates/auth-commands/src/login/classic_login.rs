@@ -223,3 +223,6 @@ impl OtpError for ClassicLoginOpError {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
