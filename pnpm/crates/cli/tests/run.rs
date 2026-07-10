@@ -492,6 +492,39 @@ fn top_level_fallback_forwards_dotted_config_args_to_local_bin() {
     drop(root);
 }
 
+/// A mistyped top-level command falling back to `run` in a directory
+/// without a manifest must surface the fallback's own missing-command
+/// error and must not attempt an install, even with
+/// `verify-deps-before-run=install` set. Mirrors the TypeScript
+/// regression tests in `pnpm11/deps/status/test/checkDepsStatus.test.ts`
+/// ("missing workspace state"), where reporting the deps as outdated
+/// made the gate spawn a `pnpm install` that could only crash with
+/// `NO_PKG_MANIFEST`. pacquet has not ported the `verify-deps-before-run`
+/// gate yet (see `NOT_PORTED` in `pnpm_default_parity.rs`), so this pins
+/// the required behavior for when it lands.
+#[test]
+fn top_level_fallback_without_manifest_does_not_attempt_an_install() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join(".npmrc"), "verify-deps-before-run=install\n").expect("write .npmrc");
+
+    let output = pacquet
+        .with_args(["witch-definitely-not-a-binary", "10", "login"])
+        .output()
+        .expect("spawn pacquet");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "a mistyped command must fail");
+    assert!(
+        stderr.contains("witch-definitely-not-a-binary") && stderr.contains("not found"),
+        "the failure must name the missing command, not come from a spawned install:\n{stderr}",
+    );
+    assert!(
+        !workspace.join("node_modules").exists() && !workspace.join("pnpm-lock.yaml").exists(),
+        "no install may run in a directory without a manifest",
+    );
+
+    drop(root);
+}
+
 /// With a non-silent reporter (the default, or e.g. `--reporter=ndjson`),
 /// `pacquet run` echoes `$ <script>` to stderr before spawning the script —
 /// matching pnpm's `runLifecycleHook.ts:110`
