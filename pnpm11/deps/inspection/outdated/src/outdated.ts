@@ -114,6 +114,7 @@ export async function outdated (
         pkgs.map(async (alias) => {
           if (!allDeps[alias]) return
           const wantedRef = opts.wantedLockfile!.importers[importerId][depType]![alias]
+          if (isLocalRef(wantedRef)) return
           if (ignoreDependenciesMatcher?.(alias)) return
 
           const currentRef = (currentLockfile.importers[importerId] as ProjectSnapshot)?.[depType]?.[alias]
@@ -194,6 +195,15 @@ function packageHasNoDeps (manifest: ProjectManifest): boolean {
 
 function isEmpty (obj: object): boolean {
   return Object.keys(obj).length === 0
+}
+
+// A dependency whose wanted ref is local resolves to a directory on disk
+// even when its manifest specifier is a plain semver range (e.g. a
+// workspace package matched by `link-workspace-packages`). Such a package
+// may not be published at all, so there is no registry "latest" to compare
+// against.
+function isLocalRef (ref: string): boolean {
+  return ref.startsWith('link:') || ref.startsWith('file:') || ref.startsWith('workspace:')
 }
 
 // Pick a clean display string for a lockfile ref.

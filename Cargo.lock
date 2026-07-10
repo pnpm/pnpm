@@ -3958,6 +3958,7 @@ dependencies = [
  "tabled",
  "tar",
  "tempfile",
+ "text-block-macros",
  "tokio",
  "tracing",
  "url",

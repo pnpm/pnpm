@@ -1,4 +1,4 @@
-import { expect, test } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import type { ResolveLatestDispatcher } from '@pnpm/installing.client'
 import type { DepPath, PackageManifest, ProjectId } from '@pnpm/types'
@@ -61,6 +61,117 @@ async function getLatestManifest (packageName: string): Promise<PackageManifest 
 }
 
 const resolveLatest = makeResolveLatest(getLatestManifest)
+
+test('outdated() skips dependencies resolved from local refs', async () => {
+  const resolveLatest = jest.fn<ResolveLatestDispatcher>(async () => {
+    throw new Error('local dependency should not resolve latest from the registry')
+  })
+
+  const outdatedPkgs = await outdated({
+    currentLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          devDependencies: {
+            'private-workspace-pkg': 'link:../private-workspace-pkg',
+          },
+          specifiers: {
+            'private-workspace-pkg': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+    resolveLatest,
+    lockfileDir: 'project',
+    manifest: {
+      name: 'wanted-shrinkwrap',
+      version: '1.0.0',
+      devDependencies: {
+        'private-workspace-pkg': '^1.0.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          devDependencies: {
+            'private-workspace-pkg': 'link:../private-workspace-pkg',
+          },
+          specifiers: {
+            'private-workspace-pkg': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+  })
+
+  expect(outdatedPkgs).toStrictEqual([])
+  expect(resolveLatest).not.toHaveBeenCalled()
+})
+
+test('outdated() still checks the registry when only the current ref is local', async () => {
+  const outdatedPkgs = await outdated({
+    currentLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          devDependencies: {
+            'is-positive': 'link:../is-positive',
+          },
+          specifiers: {
+            'is-positive': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+    resolveLatest,
+    lockfileDir: 'project',
+    manifest: {
+      name: 'wanted-shrinkwrap',
+      version: '1.0.0',
+      devDependencies: {
+        'is-positive': '^1.0.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          devDependencies: {
+            'is-positive': '1.0.0',
+          },
+          specifiers: {
+            'is-positive': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['is-positive@1.0.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+          },
+        },
+      },
+    },
+  })
+
+  expect(outdatedPkgs).toStrictEqual([
+    {
+      alias: 'is-positive',
+      belongsTo: 'devDependencies',
+      current: 'link:../is-positive',
+      latestManifest: {
+        name: 'is-positive',
+        version: '3.1.0',
+      },
+      packageName: 'is-positive',
+      wanted: '1.0.0',
+      workspace: 'wanted-shrinkwrap',
+    },
+  ])
+})
 
 test('outdated()', async () => {
   const outdatedPkgs = await outdated({

@@ -102,6 +102,7 @@ mockito           = { workspace = true }
 pretty_assertions = { workspace = true }
 serde-saphyr      = { workspace = true }
 tar               = { workspace = true }
+text-block-macros = { workspace = true }
 walkdir           = { workspace = true }
 
 [lints]
