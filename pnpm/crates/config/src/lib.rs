@@ -139,6 +139,98 @@ pub enum PmOnFail {
     Ignore,
 }
 
+/// What `pnpm run` / `pnpm exec` do when `node_modules` is out of sync
+/// with the lockfile before running a script.
+///
+/// The setting is `'install' | 'warn' | 'error' | 'prompt' | false`
+/// (default `'install'`, pnpm's `'verify-deps-before-run': 'install'`).
+/// pnpm's rc type also admits a bare boolean: `true` runs the check but
+/// takes none of the four actions on an out-of-sync verdict, so it is
+/// modeled explicitly rather than mapped to an action.
+///
+/// Every script pnpm spawns gets `pnpm_config_verify_deps_before_run=false`
+/// in its env, and that env var overrides every other source of this
+/// setting — otherwise a script invoking `pnpm run` would re-enter the
+/// check and, under `install`, recurse through the spawned install's own
+/// lifecycle scripts (pnpm/pnpm#10060).
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum VerifyDepsBeforeRun {
+    Install,
+    Warn,
+    Error,
+    Prompt,
+    True,
+    #[default]
+    False,
+}
+
+impl VerifyDepsBeforeRun {
+    /// Whether the deps-status check runs at all before a script.
+    #[must_use]
+    pub fn is_enabled(self) -> bool {
+        self != VerifyDepsBeforeRun::False
+    }
+}
+
+impl std::str::FromStr for VerifyDepsBeforeRun {
+    type Err = ();
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "install" => Ok(VerifyDepsBeforeRun::Install),
+            "warn" => Ok(VerifyDepsBeforeRun::Warn),
+            "error" => Ok(VerifyDepsBeforeRun::Error),
+            "prompt" => Ok(VerifyDepsBeforeRun::Prompt),
+            "true" => Ok(VerifyDepsBeforeRun::True),
+            "false" => Ok(VerifyDepsBeforeRun::False),
+            _ => Err(()),
+        }
+    }
+}
+
+impl serde::Serialize for VerifyDepsBeforeRun {
+    fn serialize<Ser: serde::Serializer>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error> {
+        match self {
+            VerifyDepsBeforeRun::Install => serializer.serialize_str("install"),
+            VerifyDepsBeforeRun::Warn => serializer.serialize_str("warn"),
+            VerifyDepsBeforeRun::Error => serializer.serialize_str("error"),
+            VerifyDepsBeforeRun::Prompt => serializer.serialize_str("prompt"),
+            VerifyDepsBeforeRun::True => serializer.serialize_bool(true),
+            VerifyDepsBeforeRun::False => serializer.serialize_bool(false),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for VerifyDepsBeforeRun {
+    fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
+    where
+        De: serde::Deserializer<'de>,
+    {
+        use serde::de::{self, Visitor};
+        use std::fmt;
+
+        struct V;
+        impl Visitor<'_> for V {
+            type Value = VerifyDepsBeforeRun;
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str(r#"a boolean or one of "install", "warn", "error", "prompt""#)
+            }
+            fn visit_bool<DeError: de::Error>(self, value: bool) -> Result<Self::Value, DeError> {
+                Ok(if value { VerifyDepsBeforeRun::True } else { VerifyDepsBeforeRun::False })
+            }
+            fn visit_str<DeError: de::Error>(self, value: &str) -> Result<Self::Value, DeError> {
+                value.parse().map_err(|()| {
+                    DeError::invalid_value(
+                        de::Unexpected::Str(value),
+                        &r#"true, false, "install", "warn", "error", or "prompt""#,
+                    )
+                })
+            }
+        }
+        deserializer.deserialize_any(V)
+    }
+}
+
 /// Minimum advisory severity shown by `pnpm audit`.
 ///
 /// The command-level default is `low`, so [`Config::audit_level`] stays
@@ -1362,6 +1454,13 @@ pub struct Config {
     /// package-manager check applies the documented `download` default
     /// when unset.
     pub pm_on_fail: Option<PmOnFail>,
+
+    /// `verify-deps-before-run` / `verifyDepsBeforeRun` config: what
+    /// `pnpm run` / `pnpm exec` do when `node_modules` is out of sync
+    /// with the lockfile. See [`VerifyDepsBeforeRun`]. Default
+    /// `'install'` (`'verify-deps-before-run': 'install'`).
+    #[default(VerifyDepsBeforeRun::Install)]
+    pub verify_deps_before_run: VerifyDepsBeforeRun,
 
     /// `audit-level` / `auditLevel` config for `pnpm audit`.
     pub audit_level: Option<AuditLevel>,

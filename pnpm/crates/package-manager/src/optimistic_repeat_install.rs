@@ -35,10 +35,12 @@
 //! ## Why a separate module
 //!
 //! Lives in `pacquet-package-manager` rather than a new
-//! `pacquet-deps-status` crate because the only call site today is
-//! `Install::run`. When a second consumer of the deps-status check
-//! lands (the verify-deps-before-run gate), extract this into
-//! its own crate.
+//! `pacquet-deps-status` crate because both consumers — `Install::run`
+//! and the verify-deps-before-run gate ([`check_deps_status_before_run`])
+//! — lean on install internals (`check_lockfile_settings_drift`,
+//! `check_importer_satisfies`, `build_workspace_state`) that a separate
+//! crate would have to re-export wholesale. Extract it only if a
+//! consumer outside this crate's dependents appears.
 
 use std::{
     fs,
@@ -909,41 +911,110 @@ fn settings_match(
     node_linker: NodeLinker,
     included: IncludedDependencies,
 ) -> bool {
+    first_setting_drift(state, config, node_linker, included, false).is_none()
+}
+
+/// The camelCase name (pnpm's workspace-state setting key) of the first
+/// recorded setting that differs from today's config, or `None` when
+/// they all match. `ignore_included_groups` skips `dev` / `optional` /
+/// `production`: `pnpm run` / `pnpm exec` always execute with the
+/// default dependency groups, so those never match the state written by
+/// a `--production` / `--no-optional` install (pnpm's
+/// `ignoredWorkspaceStateSettings`).
+fn first_setting_drift(
+    state: &WorkspaceState,
+    config: &Config,
+    node_linker: NodeLinker,
+    included: IncludedDependencies,
+    ignore_included_groups: bool,
+) -> Option<&'static str> {
     let current = current_settings(config, node_linker, included);
     let recorded = &state.settings;
     let live = &current;
-    allow_builds_match(recorded.allow_builds.as_ref(), live.allow_builds.as_ref())
-        && recorded.auto_install_peers == live.auto_install_peers
-        && recorded.dedupe_direct_deps == live.dedupe_direct_deps
-        && recorded.dedupe_injected_deps == live.dedupe_injected_deps
-        && recorded.dedupe_peer_dependents == live.dedupe_peer_dependents
-        && recorded.dedupe_peers == live.dedupe_peers
-        && recorded.dev == live.dev
-        && enable_global_virtual_store_match(
-            recorded.enable_global_virtual_store,
-            live.enable_global_virtual_store,
-        )
-        && recorded.exclude_links_from_lockfile == live.exclude_links_from_lockfile
-        && recorded.hoist_pattern == live.hoist_pattern
-        && recorded.hoist_workspace_packages == live.hoist_workspace_packages
-        && recorded.ignored_optional_dependencies == live.ignored_optional_dependencies
-        && recorded.inject_workspace_packages == live.inject_workspace_packages
-        && recorded.link_workspace_packages == live.link_workspace_packages
-        && recorded.minimum_release_age == live.minimum_release_age
-        && recorded.minimum_release_age_ignore_missing_time
-            == live.minimum_release_age_ignore_missing_time
-        && recorded.node_linker == live.node_linker
-        && recorded.optional == live.optional
-        && recorded.overrides == live.overrides
-        && package_extensions_match(
-            recorded.package_extensions.as_ref(),
-            live.package_extensions.as_ref(),
-        )
-        && recorded.patched_dependencies == live.patched_dependencies
-        && recorded.peers_suffix_max_length == live.peers_suffix_max_length
-        && recorded.prefer_workspace_packages == live.prefer_workspace_packages
-        && recorded.production == live.production
-        && recorded.public_hoist_pattern == live.public_hoist_pattern
+    if !allow_builds_match(recorded.allow_builds.as_ref(), live.allow_builds.as_ref()) {
+        return Some("allowBuilds");
+    }
+    if recorded.auto_install_peers != live.auto_install_peers {
+        return Some("autoInstallPeers");
+    }
+    if recorded.dedupe_direct_deps != live.dedupe_direct_deps {
+        return Some("dedupeDirectDeps");
+    }
+    if recorded.dedupe_injected_deps != live.dedupe_injected_deps {
+        return Some("dedupeInjectedDeps");
+    }
+    if recorded.dedupe_peer_dependents != live.dedupe_peer_dependents {
+        return Some("dedupePeerDependents");
+    }
+    if recorded.dedupe_peers != live.dedupe_peers {
+        return Some("dedupePeers");
+    }
+    if !ignore_included_groups && recorded.dev != live.dev {
+        return Some("dev");
+    }
+    if !enable_global_virtual_store_match(
+        recorded.enable_global_virtual_store,
+        live.enable_global_virtual_store,
+    ) {
+        return Some("enableGlobalVirtualStore");
+    }
+    if recorded.exclude_links_from_lockfile != live.exclude_links_from_lockfile {
+        return Some("excludeLinksFromLockfile");
+    }
+    if recorded.hoist_pattern != live.hoist_pattern {
+        return Some("hoistPattern");
+    }
+    if recorded.hoist_workspace_packages != live.hoist_workspace_packages {
+        return Some("hoistWorkspacePackages");
+    }
+    if recorded.ignored_optional_dependencies != live.ignored_optional_dependencies {
+        return Some("ignoredOptionalDependencies");
+    }
+    if recorded.inject_workspace_packages != live.inject_workspace_packages {
+        return Some("injectWorkspacePackages");
+    }
+    if recorded.link_workspace_packages != live.link_workspace_packages {
+        return Some("linkWorkspacePackages");
+    }
+    if recorded.minimum_release_age != live.minimum_release_age {
+        return Some("minimumReleaseAge");
+    }
+    if recorded.minimum_release_age_ignore_missing_time
+        != live.minimum_release_age_ignore_missing_time
+    {
+        return Some("minimumReleaseAgeIgnoreMissingTime");
+    }
+    if recorded.node_linker != live.node_linker {
+        return Some("nodeLinker");
+    }
+    if !ignore_included_groups && recorded.optional != live.optional {
+        return Some("optional");
+    }
+    if recorded.overrides != live.overrides {
+        return Some("overrides");
+    }
+    if !package_extensions_match(
+        recorded.package_extensions.as_ref(),
+        live.package_extensions.as_ref(),
+    ) {
+        return Some("packageExtensions");
+    }
+    if recorded.patched_dependencies != live.patched_dependencies {
+        return Some("patchedDependencies");
+    }
+    if recorded.peers_suffix_max_length != live.peers_suffix_max_length {
+        return Some("peersSuffixMaxLength");
+    }
+    if recorded.prefer_workspace_packages != live.prefer_workspace_packages {
+        return Some("preferWorkspacePackages");
+    }
+    if !ignore_included_groups && recorded.production != live.production {
+        return Some("production");
+    }
+    if recorded.public_hoist_pattern != live.public_hoist_pattern {
+        return Some("publicHoistPattern");
+    }
+    None
     // Deliberately *not* compared in this generic settings loop:
     // `catalogs` is ignored here and checked separately in
     // `check_optimistic_repeat_install` so catalogs from either
@@ -1149,9 +1220,19 @@ fn modules_dirs_present(
     config: &Config,
     project_manifests: &[(PathBuf, &PackageManifest)],
 ) -> bool {
-    project_manifests.iter().all(|(root_dir, manifest)| {
+    first_project_missing_modules_dir(config, project_manifests).is_none()
+}
+
+/// The id (`name` field, falling back to the root dir) of the first
+/// project that declares dependencies but has no modules directory, or
+/// `None` when every project with dependencies has one.
+fn first_project_missing_modules_dir(
+    config: &Config,
+    project_manifests: &[(PathBuf, &PackageManifest)],
+) -> Option<String> {
+    project_manifests.iter().find_map(|(root_dir, manifest)| {
         if !manifest_has_runtime_deps(manifest) {
-            return true;
+            return None;
         }
         // The root importer uses `config.modules_dir`; siblings use
         // their own `<root>/node_modules`. Matches the isolated-linker
@@ -1162,7 +1243,13 @@ fn modules_dirs_present(
         } else {
             root_dir.join("node_modules")
         };
-        modules_dir.exists()
+        if modules_dir.exists() {
+            return None;
+        }
+        Some(
+            manifest_string_field(manifest, "name")
+                .unwrap_or_else(|| root_dir.to_string_lossy().into_owned()),
+        )
     })
 }
 
@@ -1232,19 +1319,26 @@ pub(crate) fn current_pnpmfiles(workspace_root: &Path) -> Vec<String> {
 /// pnpmfile must still exist, and none may be newer than the last
 /// validation.
 fn pnpmfiles_modified_since(workspace_root: &Path, previous: &[String], cutoff_ms: i64) -> bool {
+    pnpmfiles_drift(workspace_root, previous, cutoff_ms).is_some()
+}
+
+/// [`pnpmfiles_modified_since`] with the drift spelled out in pnpm's
+/// issue wording, for the verify-deps-before-run gate's user-facing
+/// messages.
+fn pnpmfiles_drift(workspace_root: &Path, previous: &[String], cutoff_ms: i64) -> Option<String> {
     let current = current_pnpmfiles(workspace_root);
     if current != previous {
-        return true;
+        return Some("The list of pnpmfiles changed.".to_string());
     }
-    current.iter().any(|path| {
+    current.iter().find_map(|path| {
         let Ok(modified) = fs::metadata(path).and_then(|metadata| metadata.modified()) else {
-            return true;
+            return Some(format!(r#"pnpmfile at "{path}" was removed"#));
         };
         let Ok(elapsed) = modified.duration_since(SystemTime::UNIX_EPOCH) else {
-            return true;
+            return Some(format!(r#"pnpmfile at "{path}" was modified"#));
         };
         let modified_ms = i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX);
-        modified_ms > cutoff_ms
+        (modified_ms > cutoff_ms).then(|| format!(r#"pnpmfile at "{path}" was modified"#))
     })
 }
 
@@ -1263,6 +1357,210 @@ fn stat_manifests<'a>(
             })
         })
         .collect()
+}
+
+/// Outcome of [`check_deps_status_before_run`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RunDepsStatus {
+    UpToDate,
+    /// `node-linker: pnp` installs cannot be inspected. The caller
+    /// warns ("verify-deps-before-run does not work with
+    /// node-linker=pnp") and runs the script.
+    SkippedPnp,
+    Outdated {
+        /// pnpm's issue wording for the detected drift, shown by the
+        /// `warn` and `error` actions.
+        issue: String,
+        /// `pnpm install` arguments reproducing the dependency groups
+        /// the workspace state recorded (`--production` / `--dev` /
+        /// `--no-optional`), for the `install` and `prompt` actions.
+        install_args: Vec<String>,
+    },
+}
+
+/// The verify-deps-before-run twin of
+/// [`check_optimistic_repeat_install`]: the same freshness checks, with
+/// the differences pnpm's run gate carries over its install fast path —
+/// it runs regardless of `optimisticRepeatInstall`, never treats local
+/// file dependencies as outdated, ignores `dev`/`optional`/`production`
+/// drift (scripts always run with the default groups), compares
+/// configuration dependencies, and reports drift with pnpm's
+/// user-facing issue wording instead of a diagnostic-only reason.
+/// `state` arrives from the caller, which already had to load it to
+/// decide whether a check is possible at all (a missing state is
+/// "Cannot check whether dependencies are outdated").
+pub fn check_deps_status_before_run(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+) -> RunDepsStatus {
+    let &OptimisticRepeatInstallCheck {
+        workspace_root,
+        config,
+        node_linker,
+        included,
+        project_manifests,
+        is_workspace_install,
+        catalogs,
+        ..
+    } = check;
+
+    let install_args = install_args_from_state(state);
+    let outdated =
+        |issue: String| RunDepsStatus::Outdated { issue, install_args: install_args.clone() };
+
+    if node_linker == NodeLinker::Pnp {
+        return RunDepsStatus::SkippedPnp;
+    }
+
+    if let Some(setting) = first_setting_drift(state, config, node_linker, included, true) {
+        return outdated(format!("The value of the {setting} setting has changed"));
+    }
+    if config_dependencies_drifted(config, state) {
+        return outdated("Configuration dependencies are not up to date".to_string());
+    }
+    if !catalogs_cache_matches(state.settings.catalogs.as_ref(), catalogs) {
+        return outdated("Catalogs cache outdated".to_string());
+    }
+    if !project_structure_matches(state, project_manifests) {
+        return outdated("The workspace structure has changed since last install".to_string());
+    }
+    // A filtered install legitimately leaves unselected projects
+    // without a modules directory.
+    if !state.filtered_install
+        && let Some(id) = first_project_missing_modules_dir(config, project_manifests)
+    {
+        return outdated(format!(
+            "Workspace package {id} has dependencies but does not have a modules directory",
+        ));
+    }
+    if !is_workspace_install
+        && !workspace_root.join(Lockfile::FILE_NAME).exists()
+        && !current_lockfile_file_has_content(&config.virtual_store_dir)
+    {
+        return outdated(format!("Cannot find a lockfile in {}", workspace_root.display()));
+    }
+    if patches_modified_since(workspace_root, config, state.last_validated_timestamp) {
+        return outdated("Patches were modified".to_string());
+    }
+    if let Some(issue) =
+        pnpmfiles_drift(workspace_root, &state.pnpmfiles, state.last_validated_timestamp)
+    {
+        return outdated(issue);
+    }
+
+    let Some(manifest_stats) = stat_manifests(project_manifests) else {
+        return outdated("Cannot check whether dependencies are outdated".to_string());
+    };
+    let modified: Vec<&ManifestStat<'_>> = manifest_stats
+        .iter()
+        .filter(|stat| stat.mtime_ms > state.last_validated_timestamp)
+        .collect();
+    let lockfile_modified =
+        wanted_lockfile_modified(workspace_root, state.last_validated_timestamp);
+
+    match current_lockfile_unusable_with_non_empty_wanted(check) {
+        Ok(true) => {
+            return outdated(
+                "The lockfile requires dependencies but none were installed".to_string(),
+            );
+        }
+        Ok(false) => {}
+        Err(reason) => return outdated(reason.to_string()),
+    }
+
+    if modified.is_empty() && !lockfile_modified {
+        return match missing_wanted_lockfile_stand_in_ok(check) {
+            Ok(()) => RunDepsStatus::UpToDate,
+            Err(reason) => outdated(reason),
+        };
+    }
+
+    let projects_to_check: Vec<&ManifestStat<'_>> =
+        if lockfile_modified { manifest_stats.iter().collect() } else { modified };
+    match modified_manifests_match_lockfile(check, state, &projects_to_check) {
+        Ok(_) => {
+            if let Err(reason) = missing_wanted_lockfile_stand_in_ok(check) {
+                return outdated(reason);
+            }
+            if is_workspace_install {
+                let mut new_state = crate::install::build_workspace_state(
+                    workspace_root,
+                    config,
+                    node_linker,
+                    included,
+                    catalogs,
+                    project_manifests,
+                );
+                // The gate ignored `dev`/`optional`/`production` drift
+                // above; writing today's (default-group) values here
+                // would clobber what the last real install recorded and
+                // flip its next repeat-install check into "drift".
+                new_state.settings.dev = state.settings.dev;
+                new_state.settings.optional = state.settings.optional;
+                new_state.settings.production = state.settings.production;
+                if let Err(error) = update_workspace_state(workspace_root, &new_state) {
+                    tracing::warn!(
+                        target: "pacquet::run",
+                        ?error,
+                        "Failed to refresh the workspace state after the verify-deps-before-run content check",
+                    );
+                }
+            }
+            RunDepsStatus::UpToDate
+        }
+        Err(reason) => outdated(reason.to_string()),
+    }
+}
+
+/// Read-only twin of [`regenerate_wanted_lockfile_if_missing`] for the
+/// run gate: pnpm's run-path check never writes `pnpm-lock.yaml` (only
+/// the install command restores it from the current lockfile), so a
+/// missing wanted lockfile passes exactly when the current lockfile can
+/// stand in for it, and the check leaves the workspace untouched.
+fn missing_wanted_lockfile_stand_in_ok(
+    check: &OptimisticRepeatInstallCheck<'_>,
+) -> Result<(), String> {
+    if check.lockfile.is_loaded_or_on_disk() || !check.config.lockfile {
+        return Ok(());
+    }
+    match Lockfile::load_current_from_virtual_store_dir(&check.config.virtual_store_dir) {
+        Ok(Some(_)) => Ok(()),
+        Ok(None) => Err(format!("Cannot find a lockfile in {}", check.workspace_root.display())),
+        Err(_) => Err("the current lockfile cannot be loaded".to_string()),
+    }
+}
+
+/// The `pnpm install` arguments reproducing the dependency groups the
+/// workspace state recorded, so the `install` / `prompt` actions rerun
+/// the same kind of install the project last had (pnpm's
+/// `createInstallArgs`).
+fn install_args_from_state(state: &WorkspaceState) -> Vec<String> {
+    let settings = &state.settings;
+    let mut args = Vec::new();
+    let dev = settings.dev.unwrap_or(false);
+    let production = settings.production.unwrap_or(false);
+    if production && !dev {
+        args.push("--production".to_string());
+    } else if dev && !production {
+        args.push("--dev".to_string());
+    }
+    if !settings.optional.unwrap_or(false) {
+        args.push("--no-optional".to_string());
+    }
+    args
+}
+
+/// Whether the configuration dependencies recorded by the last install
+/// differ from today's config. Both sides read an absent map as empty
+/// (pnpm compares `opts.configDependencies ?? {}` against
+/// `workspaceState.configDependencies ?? {}`).
+fn config_dependencies_drifted(config: &Config, state: &WorkspaceState) -> bool {
+    if config.config_dependencies.is_none() && state.config_dependencies.is_none() {
+        return false;
+    }
+    let empty = std::collections::BTreeMap::new();
+    config.config_dependencies.as_ref().unwrap_or(&empty)
+        != state.config_dependencies.as_ref().unwrap_or(&empty)
 }
 
 #[cfg(test)]

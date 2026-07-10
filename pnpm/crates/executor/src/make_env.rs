@@ -5,6 +5,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// Env var pnpm stamps as `false` into every spawned script and exec
+/// child so a nested `pnpm run` / `pnpm exec` skips the
+/// verify-deps-before-run check; the config layer reads it back with
+/// priority over every other source of that setting (pnpm/pnpm#10060).
+pub const VERIFY_DEPS_BEFORE_RUN_ENV: &str = "pnpm_config_verify_deps_before_run";
+
 /// Inputs needed to build the env for a single lifecycle hook spawn:
 /// the package context, the per-call stamps the hook runner adds, and
 /// the caller-supplied `extra_env` overrides.
@@ -93,6 +99,10 @@ pub fn build_env(
     if let Some(ua) = opts.user_agent {
         env.insert("npm_config_user_agent".into(), ua.to_string());
     }
+
+    // Breaks the recursion a spawned install's lifecycle scripts would
+    // otherwise enter (pnpm stamps the same value via `config.extraEnv`).
+    env.insert(VERIFY_DEPS_BEFORE_RUN_ENV.into(), "false".into());
 
     // 4. `extra_env` is applied last among the base env writes, so it
     //    overrides anything stamped above.

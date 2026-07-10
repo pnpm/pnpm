@@ -1598,3 +1598,51 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
     expect(result.upToDate).toBe(true)
   })
 })
+
+describe('checkDepsStatus - missing workspace state', () => {
+  beforeEach(() => {
+    jest.resetModules()
+    jest.clearAllMocks()
+    jest.mocked(loadWorkspaceState).mockReturnValue(undefined)
+  })
+
+  const settings = {
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: true,
+    preferWorkspacePackages: true,
+  }
+
+  it('returns upToDate: undefined when there is no project manifest and no workspace', async () => {
+    const result = await checkDepsStatus({
+      rootProjectManifestDir: '/no-project-here',
+      pnpmfile: [],
+      ...settings,
+    })
+
+    expect(result.upToDate).toBeUndefined()
+  })
+
+  it('returns upToDate: false when a project manifest exists', async () => {
+    const result = await checkDepsStatus({
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...settings,
+    })
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('Cannot check whether dependencies are outdated')
+  })
+
+  it('returns upToDate: false when a workspace exists without a root manifest', async () => {
+    const result = await checkDepsStatus({
+      workspaceDir: '/workspace',
+      rootProjectManifestDir: '/workspace',
+      pnpmfile: [],
+      ...settings,
+    })
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('Cannot check whether dependencies are outdated')
+  })
+})

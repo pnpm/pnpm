@@ -44,6 +44,9 @@ pub enum InitStateError {
     Manifest(#[error(source)] PackageManifestError),
 
     #[diagnostic(transparent)]
+    ManifestRead(#[error(source)] pacquet_workspace::ReadProjectManifestOnlyError),
+
+    #[diagnostic(transparent)]
     Network(#[error(source)] ForInstallsError),
 }
 
@@ -73,9 +76,7 @@ impl State {
         };
         Ok(State {
             config,
-            manifest: manifest_path
-                .pipe(PackageManifest::create_if_needed)
-                .map_err(InitStateError::Manifest)?,
+            manifest: load_or_create_manifest(manifest_path)?,
             lockfile,
             http_client: std::sync::Arc::new(
                 ThrottledClient::for_installs(
@@ -95,4 +96,22 @@ impl State {
             resolved_packages: ResolvedPackages::new(),
         })
     }
+}
+
+/// `package.json` loads (or is scaffolded) as usual, but when it is
+/// absent an existing alternate manifest base name (`package.yaml`)
+/// must be loaded rather than shadowed by a scaffolded `package.json`
+/// — pnpm reads every manifest base name. Alternate manifests stay
+/// read-only (see `pacquet_workspace::project_manifest`); commands
+/// that write the manifest back still require `package.json`.
+fn load_or_create_manifest(manifest_path: PathBuf) -> Result<PackageManifest, InitStateError> {
+    if !manifest_path.exists() {
+        let project_dir = manifest_path.parent().expect("manifest path always has a parent dir");
+        if let Some((_, manifest)) = pacquet_workspace::try_read_project_manifest(project_dir)
+            .map_err(InitStateError::ManifestRead)?
+        {
+            return Ok(manifest);
+        }
+    }
+    manifest_path.pipe(PackageManifest::create_if_needed).map_err(InitStateError::Manifest)
 }

@@ -2347,6 +2347,105 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<P
         .then_some(workspace_root)
 }
 
+/// Discovery twin of [`install_already_up_to_date`] for the
+/// verify-deps-before-run gate: assemble the same
+/// [`OptimisticRepeatInstallCheck`] inputs from a bare directory and run
+/// [`crate::check_deps_status_before_run`].
+///
+/// Returns `None` when `dir` has no manifest and no enclosing workspace:
+/// the run/exec command is about to fail with its own missing-manifest
+/// error, and reporting "outdated" would only trigger an install that
+/// can do nothing but crash with `NO_PKG_MANIFEST` (the same guard
+/// pnpm's `checkDepsStatus` applies when it finds neither a root
+/// manifest nor a workspace).
+///
+/// Any other discovery failure conservatively reports the dependencies
+/// as unverifiable ("Cannot check whether dependencies are outdated"),
+/// matching pnpm's catch-all: in the worst case the configured action
+/// runs a redundant install.
+#[must_use]
+pub fn check_deps_status_before_run_at(
+    dir: &Path,
+    config: &Config,
+) -> Option<crate::RunDepsStatus> {
+    let cannot_check = || {
+        Some(crate::RunDepsStatus::Outdated {
+            issue: "Cannot check whether dependencies are outdated".to_string(),
+            install_args: Vec::new(),
+        })
+    };
+    let Ok(workspace_dir_opt) = configured_or_discovered_workspace_dir(config, dir) else {
+        return cannot_check();
+    };
+    let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| dir.to_path_buf());
+    let root_manifest = match pacquet_workspace::read_project_manifest_only(&workspace_root) {
+        Ok(manifest) => manifest,
+        Err(pacquet_workspace::ReadProjectManifestOnlyError::NoImporterManifestFound {
+            ..
+        }) if workspace_dir_opt.is_none() => {
+            return None;
+        }
+        Err(_) => return cannot_check(),
+    };
+    let workspace_manifest = match workspace_dir_opt.as_deref() {
+        Some(dir) => match pacquet_workspace::read_workspace_manifest(dir) {
+            Ok(manifest) => manifest,
+            Err(_) => return cannot_check(),
+        },
+        None => None,
+    };
+    // pnpm reports "cannot check" straight from the missing workspace
+    // state, before any project discovery — a fresh project (the common
+    // out-of-sync case) must not pay for the workspace-projects walk
+    // only to reach the same verdict inside the check.
+    let Ok(Some(workspace_state)) = pacquet_workspace_state::load_workspace_state(&workspace_root)
+    else {
+        return cannot_check();
+    };
+    let catalogs = match config.catalogs.clone() {
+        Some(catalogs) => catalogs,
+        None => match get_catalogs_from_workspace_manifest(workspace_manifest.as_ref()) {
+            Ok(catalogs) => catalogs,
+            Err(_) => return cannot_check(),
+        },
+    };
+    let Ok(workspace_projects) =
+        load_workspace_projects(&workspace_root, workspace_manifest.as_ref())
+    else {
+        return cannot_check();
+    };
+    let project_manifests = build_project_manifests_list(
+        &workspace_root,
+        &root_manifest,
+        workspace_projects.as_deref(),
+    );
+    let lockfile = if config.lockfile {
+        LazyLockfile::deferred(workspace_root.clone())
+    } else {
+        LazyLockfile::disabled()
+    };
+    Some(crate::check_deps_status_before_run(
+        &OptimisticRepeatInstallCheck {
+            workspace_root: &workspace_root,
+            config,
+            node_linker: config.node_linker,
+            // The gate ignores dependency-group drift, so the groups only
+            // shape the settings snapshot written back after a passing
+            // content check — where the recorded values win anyway.
+            included: IncludedDependencies {
+                dependencies: true,
+                dev_dependencies: true,
+                optional_dependencies: true,
+            },
+            project_manifests: &project_manifests,
+            is_workspace_install: workspace_manifest.is_some(),
+            lockfile: MaybeLazyLockfile::Lazy(&lockfile),
+            catalogs: &catalogs,
+        },
+        &workspace_state,
+    ))
+}
+
 fn build_project_manifests_list<'a>(
     workspace_root: &std::path::Path,
     root_manifest: &'a PackageManifest,

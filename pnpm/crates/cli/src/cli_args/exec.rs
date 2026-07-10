@@ -87,6 +87,7 @@ impl ExecArgs {
     /// returns `{ exitCode }` and lets the CLI exit with it.
     pub fn run(self, dir: &Path, config: &Config) -> miette::Result<()> {
         let command = prepare_command(self.command)?;
+        super::verify_deps::verify_deps_before_run(dir, config, false)?;
         let status = spawn_in_dir(&command, dir, config, self.shell_mode)?;
         if !status.success() {
             // Propagate the child's exit code. A signal-terminated child
@@ -100,6 +101,7 @@ impl ExecArgs {
     /// projects, in topological order. The recursive counterpart of
     /// [`Self::run`], selected when the global `-r` / `--recursive` flag is set.
     pub fn run_recursive(&self, config: &Config, dir: &Path) -> miette::Result<()> {
+        super::verify_deps::verify_deps_before_run(dir, config, false)?;
         recursive::exec_recursive(self, config, dir)
     }
 }
@@ -176,6 +178,8 @@ pub(super) fn spawn_in_dir(
     // when no `userAgent` is configured (makeEnv.ts:30). pacquet has
     // no `userAgent` setting yet, so it always takes that default.
     cmd.env("npm_config_user_agent", "pnpm");
+    // Same recursion-guard stamp as the lifecycle env builder.
+    cmd.env(pacquet_executor::VERIFY_DEPS_BEFORE_RUN_ENV, "false");
     if let Some(name) = read_package_name(dir) {
         cmd.env("PNPM_PACKAGE_NAME", name);
     }

@@ -1,7 +1,8 @@
 use crate::{
     AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, LinkWorkspacePackages,
     NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode,
-    ScriptsPrependNodePath, TrustPolicy, api::EnvVar, resolve_child_concurrency,
+    ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun, api::EnvVar,
+    resolve_child_concurrency,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -394,6 +395,10 @@ pub struct WorkspaceSettings {
     /// `pmOnFail` from `pnpm-workspace.yaml`. See [`PmOnFail`].
     pub pm_on_fail: Option<PmOnFail>,
 
+    /// `verifyDepsBeforeRun` from `pnpm-workspace.yaml` /
+    /// `~/.config/pnpm/config.yaml`. See [`VerifyDepsBeforeRun`].
+    pub verify_deps_before_run: Option<VerifyDepsBeforeRun>,
+
     /// `auditLevel` from `pnpm-workspace.yaml`.
     pub audit_level: Option<AuditLevel>,
 
@@ -736,6 +741,7 @@ impl WorkspaceSettings {
             dedupe_peer_dependents, dedupe_peers, dedupe_direct_deps, dedupe_injected_deps,
             strict_peer_dependencies, ignore_compatibility_db,
             resolve_peers_from_workspace_root, verify_store_integrity, frozen_store,
+            verify_deps_before_run,
             block_exotic_subdeps,
             link_workspace_packages,
             inject_workspace_packages,
