@@ -274,6 +274,9 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     WithFreshLockfile(#[error(source)] InstallWithFreshLockfileError),
 
+    #[diagnostic(transparent)]
+    LinkManifestLinkDeps(#[error(source)] crate::LinkManifestLinkDepsError),
+
     /// pnpm's `ERR_PNPM_IGNORED_BUILDS`: with `strictDepBuilds` on (the
     /// default), an install that blocked any dependency build script
     /// fails so the user explicitly approves the builds. The package
@@ -1239,9 +1242,14 @@ where
 
         // Sorted `name@version` keys whose builds were blocked; assigned
         // by whichever path runs and consumed by the `strictDepBuilds`
-        // gate at the tail. Kept out of the tuple below to avoid a
-        // `clippy::type_complexity` annotation.
+        // gate at the tail. Kept out of the tuple below (along with the
+        // injected-deps map) to avoid a `clippy::type_complexity`
+        // annotation.
         let ignored_builds: Vec<String>;
+        // Per-source-project virtual-store copies of injected `file:`
+        // deps, for `.modules.yaml`'s `injectedDeps`; assigned by
+        // whichever path runs. See [`crate::collect_injected_deps`].
+        let injected_deps: BTreeMap<String, Vec<String>>;
         let (hoisted_dependencies, hoisted_locations, install_skipped, fresh_lockfile): (
             HoistedDependencies,
             BTreeMap<String, Vec<String>>,
@@ -1290,6 +1298,7 @@ where
             .map_err(map_frozen_lockfile_error)?;
 
             ignored_builds = frozen_result.ignored_builds;
+            injected_deps = frozen_result.injected_deps;
             (
                 frozen_result.hoisted_dependencies,
                 frozen_result.hoisted_locations,
@@ -1428,6 +1437,7 @@ where
             }
 
             ignored_builds = fresh_result.ignored_builds;
+            injected_deps = fresh_result.injected_deps;
             (
                 fresh_result.hoisted_dependencies,
                 fresh_result.hoisted_locations,
@@ -1462,6 +1472,23 @@ where
             Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
             return Ok(());
         }
+
+        // Materialize `link:` direct deps straight from the in-memory
+        // project manifests. `excludeLinksFromLockfile` keeps them out
+        // of the lockfile importers, so the lockfile-driven symlink
+        // passes inside the frozen/fresh paths never see them; pnpm
+        // v11's `linkDirectDeps` linked them from the projects
+        // regardless. Aliases the wanted lockfile *does* track are
+        // skipped — those belong to the lockfile passes (and their
+        // dedupe decisions). See [`crate::link_manifest_link_deps`].
+        crate::link_manifest_link_deps(
+            &workspace_root,
+            &project_manifests,
+            fresh_lockfile.as_ref().or(lockfile).and_then(|lockfile| {
+                (!lockfile.importers.is_empty()).then_some(&lockfile.importers)
+            }),
+        )
+        .map_err(InstallError::LinkManifestLinkDeps)?;
 
         // `Stage::ImportingDone` is emitted inside the install paths
         // (`InstallFrozenLockfile` between symlink and build, and
@@ -1558,6 +1585,7 @@ where
                 included,
                 hoisted_dependencies,
                 hoisted_locations,
+                injected_deps,
                 &install_skipped,
                 &ignored_builds,
                 pruned_at,
@@ -2017,7 +2045,7 @@ fn unapproved_recorded_ignored_builds(
 /// Assemble the [`Modules`] payload for [`write_modules_manifest`].
 ///
 /// Fields pacquet does not populate yet (`pendingBuilds`,
-/// `injectedDeps`, `allowBuilds`) default to empty / unset.
+/// `allowBuilds`) default to empty / unset.
 ///
 /// `hoistedDependencies` is produced by the isolated-linker hoist
 /// pass in [`crate::InstallFrozenLockfile::run`] and threaded in
@@ -2057,6 +2085,7 @@ fn build_modules_manifest(
     included: IncludedDependencies,
     hoisted_dependencies: HoistedDependencies,
     hoisted_locations: BTreeMap<String, Vec<String>>,
+    injected_deps: BTreeMap<String, Vec<String>>,
     skipped: &crate::SkippedSnapshots,
     ignored_builds: &[String],
     pruned_at: String,
@@ -2076,6 +2105,10 @@ fn build_modules_manifest(
         // when empty so an isolated install doesn't produce a
         // hoisted-only key.
         hoisted_locations: (!hoisted_locations.is_empty()).then_some(hoisted_locations),
+        // Per-source-project virtual-store copies of injected `file:`
+        // deps (see [`crate::collect_injected_deps`]). Omitted when
+        // empty, matching pnpm's omit-when-empty encoding.
+        injected_deps: (!injected_deps.is_empty()).then_some(injected_deps),
         included,
         layout_version: Some(LayoutVersion),
         node_linker: Some(map_node_linker(node_linker)),

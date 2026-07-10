@@ -93,6 +93,17 @@ where
     /// hoist plan ([`crate::get_hoisted_dependencies`]) and threads
     /// the public-side targets in here.
     pub public_hoist_targets: Option<&'a BTreeMap<String, PathBuf>>,
+
+    /// Importer ids whose project directories the caller *knows* —
+    /// they came from the install's own project list (the programmatic
+    /// API's in-memory projects, or `pnpm-workspace.yaml` discovery),
+    /// not from parsed lockfile input. These bypass
+    /// `validate_importer_id`: a declared project may legitimately
+    /// live outside the lockfile dir (importer id `..` or `../foo`) —
+    /// Bit's capsule installs do exactly that, and pnpm v11 linked
+    /// such importers without complaint. Ids *not* in this set keep
+    /// the strict malformed-lockfile rejection.
+    pub trusted_importer_ids: Option<&'a HashSet<String>>,
 }
 
 /// Error type of [`SymlinkDirectDependencies`].
@@ -149,6 +160,7 @@ where
             skipped,
             link_only,
             public_hoist_targets,
+            trusted_importer_ids,
         } = self;
 
         // Collect once so the same group order can drive every importer.
@@ -212,8 +224,13 @@ where
             // make `Path::join` create `node_modules` outside the
             // workspace — `Path::join` discards the base when the
             // RHS is absolute, and `..` components are otherwise
-            // permitted.
-            validate_importer_id(importer_id)?;
+            // permitted. Importer ids the caller declared as projects
+            // (see [`Self::trusted_importer_ids`]) skip the check —
+            // an explicitly-configured project may live outside the
+            // lockfile dir.
+            if !trusted_importer_ids.is_some_and(|trusted| trusted.contains(importer_id)) {
+                validate_importer_id(importer_id)?;
+            }
             // Safe: we just iterated `importers.keys()`.
             let project_snapshot = &importers[importer_id];
             let project_dir = importer_root_dir(workspace_root, importer_id);

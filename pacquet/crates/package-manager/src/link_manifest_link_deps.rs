@@ -1,0 +1,100 @@
+use crate::{SymlinkPackageError, symlink_package};
+use derive_more::{Display, Error};
+use miette::Diagnostic;
+use pacquet_lockfile::ProjectSnapshot;
+use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
+
+/// Symlink each project's lockfile-excluded `link:`-spec dependencies
+/// into its `node_modules/`, sourced from the in-memory project
+/// manifests.
+///
+/// `excludeLinksFromLockfile` strips non-`workspace:` `link:` direct
+/// deps from the lockfile importers, so the lockfile-driven
+/// [`crate::SymlinkDirectDependencies`] pass never sees them. pnpm
+/// v11's `linkDirectDeps` worked from the projects' own manifests and
+/// materialized them regardless of the lockfile shape; without this
+/// pass a project whose runtime is provided through `link:` specs —
+/// Bit's capsule installs link the running binary's `@teambit/*`
+/// aspects this way, and its `nmSelfReferences` adds a `link:.`
+/// self-reference — ends up with those entries silently missing.
+///
+/// An alias the project's lockfile importer *does* carry is skipped
+/// entirely: the lockfile pass owns it, including its
+/// `dedupeDirectDeps` decision (re-linking it here would undo a
+/// dedupe). Only aliases absent from the importer snapshot — the
+/// excluded links — are filled in from the manifest.
+///
+/// Idempotent: an existing symlink at the alias path is force-replaced
+/// (matching v11's re-link semantics), and `force_symlink_dir` creates
+/// missing parent directories on demand. Specs that don't start with
+/// `link:` are ignored — everything else is the lockfile passes' job.
+pub fn link_manifest_link_deps(
+    workspace_root: &Path,
+    project_manifests: &[(PathBuf, &PackageManifest)],
+    importers: Option<&HashMap<String, ProjectSnapshot>>,
+) -> Result<(), LinkManifestLinkDepsError> {
+    for (project_dir, manifest) in project_manifests {
+        let importer_snapshot = importers.and_then(|importers| {
+            importers
+                .get(&pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir))
+        });
+        for (alias, spec) in manifest.dependencies([
+            DependencyGroup::Prod,
+            DependencyGroup::Dev,
+            DependencyGroup::Optional,
+        ]) {
+            let Some(target) = spec.strip_prefix("link:") else {
+                continue;
+            };
+            if importer_snapshot.is_some_and(|snapshot| snapshot_has_alias(snapshot, alias)) {
+                continue;
+            }
+            let target_path = resolve_link_target(project_dir, target);
+            let symlink_path = project_dir.join("node_modules").join(alias);
+            symlink_package(&target_path, &symlink_path).map_err(|source| {
+                LinkManifestLinkDepsError::Symlink { alias: alias.to_string(), source }
+            })?;
+        }
+    }
+    Ok(())
+}
+
+/// `true` when the importer snapshot resolves `alias` in any of the
+/// non-peer dependency groups — i.e. the lockfile knows the dep and
+/// the lockfile-driven passes own its materialization.
+fn snapshot_has_alias(snapshot: &ProjectSnapshot, alias: &str) -> bool {
+    [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]
+        .into_iter()
+        .filter_map(|group| snapshot.get_map_by_group(group))
+        .any(|deps| deps.keys().any(|name| name.to_string() == alias))
+}
+
+/// Resolve a `link:` payload against the project directory. An
+/// absolute payload is used as-is; a relative one (including the
+/// self-reference `link:.`) is anchored at the project dir — the same
+/// semantics pnpm applies to `link:` specifiers in a manifest.
+fn resolve_link_target(project_dir: &Path, target: &str) -> PathBuf {
+    let path = Path::new(target);
+    if path.is_absolute() { path.to_path_buf() } else { project_dir.join(path) }
+}
+
+/// Error type of [`link_manifest_link_deps`].
+#[derive(Debug, Display, Error, Diagnostic)]
+pub enum LinkManifestLinkDepsError {
+    /// Creating one `link:` dep's symlink failed (permission denied,
+    /// a real directory squatting the alias path, disk full, ...).
+    #[display("Failed to link manifest `link:` dependency {alias:?}: {source}")]
+    #[diagnostic(code(pacquet_package_manager::link_manifest_link_dep_failed))]
+    Symlink {
+        alias: String,
+        #[error(source)]
+        source: SymlinkPackageError,
+    },
+}
+
+#[cfg(test)]
+mod tests;

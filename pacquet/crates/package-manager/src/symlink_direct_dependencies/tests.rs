@@ -90,6 +90,7 @@ fn emits_pnpm_root_added_per_direct_dependency() {
         skipped: &SkippedSnapshots::default(),
         link_only: false,
         public_hoist_targets: None,
+        trusted_importer_ids: None,
     }
     .run::<RecordingReporter>()
     .expect("symlink should succeed");
@@ -218,6 +219,7 @@ fn duplicate_dep_across_groups_collapses_to_one_entry() {
         skipped: &SkippedSnapshots::default(),
         link_only: false,
         public_hoist_targets: None,
+        trusted_importer_ids: None,
     }
     .run::<RecordingReporter>()
     .expect("symlink should succeed");
@@ -300,6 +302,7 @@ fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
         skipped: &SkippedSnapshots::default(),
         link_only: false,
         public_hoist_targets: None,
+        trusted_importer_ids: None,
     }
     .run::<RecordingReporter>()
     .expect("symlink should succeed");
@@ -361,6 +364,7 @@ fn empty_importers_is_a_no_op() {
         skipped: &SkippedSnapshots::default(),
         link_only: false,
         public_hoist_targets: None,
+        trusted_importer_ids: None,
     }
     .run::<SilentReporter>();
 
@@ -424,6 +428,7 @@ fn reused_symlinks_do_not_emit_pnpm_root_added() {
             skipped: &SkippedSnapshots::default(),
             link_only: false,
             public_hoist_targets: None,
+            trusted_importer_ids: None,
         }
         .run::<RecordingReporter>()
         .expect("symlink should succeed");
@@ -522,6 +527,7 @@ fn per_importer_prefix_in_pnpm_root_events() {
         skipped: &SkippedSnapshots::default(),
         link_only: false,
         public_hoist_targets: None,
+        trusted_importer_ids: None,
     }
     .run::<RecordingReporter>()
     .unwrap();
@@ -591,6 +597,7 @@ fn unsafe_importer_keys_error_before_filesystem_writes() {
             skipped: &SkippedSnapshots::default(),
             link_only: false,
             public_hoist_targets: None,
+            trusted_importer_ids: None,
         }
         .run::<SilentReporter>();
 
@@ -669,6 +676,7 @@ fn custom_modules_dir_propagates_to_each_importer() {
         skipped: &SkippedSnapshots::default(),
         link_only: false,
         public_hoist_targets: None,
+        trusted_importer_ids: None,
     }
     .run::<SilentReporter>()
     .expect("symlink should succeed");
