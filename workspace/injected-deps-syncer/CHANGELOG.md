@@ -1,5 +1,11 @@
 # @pnpm/workspace.injected-deps-syncer
 
+## 1000.0.45
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.71
+
 ## 1000.0.44
 
 ### Patch Changes
