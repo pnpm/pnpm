@@ -77,7 +77,7 @@ fn deprecates_a_package_version_successfully() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
         stdout.contains("Successfully deprecated 1 version(s) of @scope/test"),
-        "stdout: {stdout}"
+        "stdout: {stdout}",
     );
 }
 
