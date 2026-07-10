@@ -2,8 +2,9 @@
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
+import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { dependenciesGraphToPackageMap, lockfileToPackageMap, lockfileToPackageRegistry } from '@pnpm/lockfile.to-pnp'
-import type { DepPath, ProjectId } from '@pnpm/types'
+import type { DepPath, ProjectId, Registries } from '@pnpm/types'
 
 test('lockfileToPackageRegistry', () => {
   const packageRegistry = lockfileToPackageRegistry({
@@ -700,4 +701,34 @@ test('lockfileToPackageRegistry packages that have peer deps', () => {
       ],
     ],
   ])
+})
+
+// A `packages` depPath *key* whose name portion is a path-traversal makes the
+// PnP `packageLocation` (built by joining that name onto the virtual store)
+// point outside the store. The name must be rejected so a tampered lockfile
+// can't aim the `.pnp.cjs` resolver map at arbitrary paths (GHSA-c59q-g84q-2gj5).
+test('lockfileToPackageRegistry rejects a package name with path-traversal', () => {
+  const lockfile = {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { 'legit-name': '../../../escape@1.0.0' },
+        specifiers: { 'legit-name': '1.0.0' },
+      },
+    },
+    packages: {
+      ['../../../escape@1.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-deadbeef' },
+      },
+    },
+  } as unknown as LockfileObject
+  expect(() =>
+    lockfileToPackageRegistry(lockfile, {
+      importerNames: {},
+      lockfileDir: '/home/user/project',
+      virtualStoreDir: '/home/user/project/node_modules/.pnpm',
+      virtualStoreDirMaxLength: 120,
+      registries: { default: 'https://registry.npmjs.org/' } as Registries,
+    })
+  ).toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' }))
 })

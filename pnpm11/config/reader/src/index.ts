@@ -303,6 +303,7 @@ export async function getConfig (opts: {
     ?? `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
   pnpmConfig.authConfig = pickIniConfig(npmrcResult.rawConfig)
 
+  let globalYamlRegistries: Record<string, string> | undefined
   // Reuse the global config.yaml already read for npmrcAuthFile
   const globalYamlConfig = globalYamlConfigForNpmrcAuthFile
   if (globalYamlConfig) {
@@ -326,6 +327,7 @@ export async function getConfig (opts: {
       workspaceDir: undefined,
       workspaceManifest: globalYamlConfig,
     })
+    globalYamlRegistries = pnpmConfig.registries as Record<string, string> | undefined
   }
   const networkConfigs = getNetworkConfigs(pnpmConfig.authConfig)
   const registriesFromNpmrc = {
@@ -435,6 +437,7 @@ export async function getConfig (opts: {
   pnpmConfig.packageManager = packageManager
 
   pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
+  let workspaceManifestRegistries: Record<string, string> | undefined
   if (!opts.ignoreLocalSettings) {
     pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.rootProjectManifestDir) ?? undefined
     if (pnpmConfig.rootProjectManifest != null) {
@@ -466,6 +469,9 @@ export async function getConfig (opts: {
           workspaceDir: pnpmConfig.workspaceDir,
           workspaceManifest,
         })
+        if (workspaceManifest.registries != null) {
+          workspaceManifestRegistries = pnpmConfig.registries as Record<string, string> | undefined
+        }
       }
     } else if (cliOptions['global']) {
       // For global installs, read settings from pnpm-workspace.yaml in the global package directory
@@ -477,6 +483,9 @@ export async function getConfig (opts: {
           workspaceDir: pnpmConfig.globalPkgDir,
           workspaceManifest,
         })
+        if (workspaceManifest.registries != null) {
+          workspaceManifestRegistries = pnpmConfig.registries as Record<string, string> | undefined
+        }
       }
     }
   }
@@ -486,10 +495,10 @@ export async function getConfig (opts: {
   // via `authConfig`, so they're re-applied last here to avoid being buried
   // by yaml. `cliScopedRegistries` iterates raw `cliOptions` because
   // `explicitlySetKeys` is camelCased, which mangles `@org-a:registry`.
-  const workspaceRegistries = pnpmConfig.registries as Record<string, string> | undefined
   pnpmConfig.registries = {
     ...registriesFromNpmrc,
-    ...workspaceRegistries,
+    ...globalYamlRegistries,
+    ...workspaceManifestRegistries,
     // `_auth` routes win over repo-controlled yaml on conflicting scopes.
     ...npmrcResult.jsonAuth.registries,
     // CLI per-scope registries last, so `--@scope:registry=...` wins over

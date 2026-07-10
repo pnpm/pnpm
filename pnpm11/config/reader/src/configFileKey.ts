@@ -79,6 +79,16 @@ export const pnpmConfigFileKeys = [
 export type PnpmConfigFileKey = typeof pnpmConfigFileKeys[number]
 
 /**
+ * Structured YAML settings that are parsed from pnpm-workspace.yaml but don't
+ * have scalar CLI config types.
+ */
+export const structuredConfigFileKeys = [
+  'named-registries',
+  'registries',
+] as const
+export type StructuredConfigFileKey = typeof structuredConfigFileKeys[number]
+
+/**
  * Keys that present in {@link pnpmTypes} but are excluded from {@link ConfigFileKey}.
  * They are usually CLI flags or workspace-only settings.
  */
@@ -184,11 +194,12 @@ export const _proofNoContradiction = (carrier: PnpmConfigFileKey & ExcludedPnpmK
 export type NpmConfigFileKey = Exclude<NpmKey, ExcludedPnpmKey>
 
 /** Key that is valid in a global config file. */
-export type ConfigFileKey = NpmConfigFileKey | PnpmConfigFileKey
+export type ConfigFileKey = NpmConfigFileKey | PnpmConfigFileKey | StructuredConfigFileKey
 
 const setOfPnpmConfigFilesKeys: ReadonlySet<string> = new Set(pnpmConfigFileKeys)
+const setOfStructuredConfigFilesKeys: ReadonlySet<string> = new Set(structuredConfigFileKeys)
 const setOfExcludedPnpmKeys: ReadonlySet<string> = new Set(excludedPnpmKeys)
 
 /** Whether the key (in kebab-case) is a valid key in a global config file. */
 export const isConfigFileKey = (kebabKey: string): kebabKey is ConfigFileKey =>
-  setOfPnpmConfigFilesKeys.has(kebabKey) || (kebabKey in npmConfigTypes && !setOfExcludedPnpmKeys.has(kebabKey))
+  setOfPnpmConfigFilesKeys.has(kebabKey) || setOfStructuredConfigFilesKeys.has(kebabKey) || (kebabKey in npmConfigTypes && !setOfExcludedPnpmKeys.has(kebabKey))

@@ -38,7 +38,7 @@ if command -v cargo >/dev/null 2>&1; then
             failed=1
         fi
     else
-        yellow '! cargo-dylint not found on PATH — skipping dylint check (install with `cargo binstall cargo-dylint dylint-link`).'
+        yellow '! cargo-dylint not found on PATH — skipping dylint check (install from source with `cargo install cargo-dylint dylint-link`).'
     fi
 else
     yellow '! cargo not found on PATH — skipping Rust format, doc, and dylint checks.'

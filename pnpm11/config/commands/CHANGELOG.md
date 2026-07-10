@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-config
 
+## 1100.0.26
+
+### Patch Changes
+
+- 9318a11: Allow `registries` and `namedRegistries` to be configured in the global `config.yaml` file.
+- Updated dependencies [9318a11]
+- Updated dependencies [5a4daec]
+  - @pnpm/config.reader@1101.11.1
+
 ## 1100.0.25
 
 ### Patch Changes

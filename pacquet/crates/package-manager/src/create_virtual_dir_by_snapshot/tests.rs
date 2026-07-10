@@ -177,6 +177,45 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
     );
 }
 
+/// A snapshot key whose package name is a path traversal would become
+/// the `<slot>/node_modules/<name>` extraction directory, escaping the
+/// store. The guard rejects it before any package content is imported.
+#[test]
+fn run_rejects_traversal_package_name() {
+    let dir = tempdir().expect("tempdir");
+    let virtual_store_dir = dir.path().to_path_buf();
+    let cas_paths: HashMap<String, std::path::PathBuf> = HashMap::new();
+    let logged_methods = AtomicU8::new(0);
+    let snapshot = SnapshotEntry::default();
+    let package_key: PackageKey =
+        "../../escaped@1.0.0".parse().expect("parse traversal snapshot key");
+
+    let layout = crate::VirtualStoreLayout::legacy(
+        virtual_store_dir,
+        pacquet_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let skipped = crate::SkippedSnapshots::default();
+    let result = CreateVirtualDirBySnapshot {
+        layout: &layout,
+        cas_paths: &cas_paths,
+        import_method: PackageImportMethod::Hardlink,
+        logged_methods: &logged_methods,
+        requester: "/proj",
+        package_id: "../../escaped@1.0.0",
+        package_key: &package_key,
+        snapshot: &snapshot,
+        skipped: &skipped,
+        removed_aliases: &[],
+        link_concurrency_probe: None,
+    }
+    .run::<pacquet_reporter::SilentReporter>();
+
+    assert!(
+        matches!(result, Err(crate::CreateVirtualDirError::InvalidAlias(_))),
+        "a traversal package name must be rejected before extraction; got {result:?}",
+    );
+}
+
 /// A warm reinstall that drops a child dependency unlinks the stale
 /// symlink (and its now-empty `@scope` directory) while leaving the
 /// children it still depends on in place.

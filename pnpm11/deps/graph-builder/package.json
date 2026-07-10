@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.graph-builder",
-  "version": "1100.0.19",
+  "version": "1100.0.20",
   "description": "A package for building a dependency graph from a lockfile",
   "keywords": [
     "pnpm",
@@ -24,10 +24,11 @@
     "!*.map"
   ],
   "scripts": {
-    "lint": "eslint \"src/**/*.ts\"",
-    "test": "pn compile",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pn compile && pn .test",
     "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix"
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/config.package-is-installable": "workspace:*",
@@ -35,6 +36,7 @@
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/deps.graph-hasher": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
+    "@pnpm/fs.symlink-dependency": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",
     "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
@@ -50,6 +52,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/deps.graph-builder": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@types/ramda": "catalog:"

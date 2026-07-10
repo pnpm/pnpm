@@ -1,5 +1,22 @@
 # @pnpm/config.deps-installer
 
+## 1102.0.4
+
+### Patch Changes
+
+- 51300fd: Fixed a path traversal vulnerability where a dependency whose manifest `name` was a scoped path traversal (e.g. `@x/../../../<path>`) could be written outside `node_modules` to an attacker-controlled location during `pnpm install`, even with `--ignore-scripts`. The isolated linker now validates the package name before using it as a directory name, matching the existing protection in the hoisted linker.
+- Updated dependencies [3067e4f]
+- Updated dependencies [51300fd]
+- Updated dependencies [f8058eb]
+- Updated dependencies [51300fd]
+- Updated dependencies [14332f0]
+- Updated dependencies [fecfe83]
+  - @pnpm/resolving.npm-resolver@1102.1.2
+  - @pnpm/deps.graph-hasher@1100.2.8
+  - @pnpm/lockfile.fs@1100.1.9
+  - @pnpm/installing.deps-resolver@1100.2.7
+  - @pnpm/store.controller@1102.0.3
+
 ## 1102.0.3
 
 ### Patch Changes

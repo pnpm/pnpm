@@ -1,5 +1,12 @@
 # @pnpm/config
 
+## 1101.11.1
+
+### Patch Changes
+
+- 9318a11: Allow `registries` and `namedRegistries` to be configured in the global `config.yaml` file.
+- 5a4daec: `${...}` environment-variable placeholders in the `httpProxy`, `httpsProxy`, `noProxy`, `proxy`, and `noproxy` settings are no longer expanded when these settings come from a project's `pnpm-workspace.yaml`. They now receive the same protection already applied to `registry`, `namedRegistries`, and `pnprServer`.
+
 ## 1101.11.0
 
 ### Minor Changes

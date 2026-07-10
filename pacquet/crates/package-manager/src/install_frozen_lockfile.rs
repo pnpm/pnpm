@@ -1,14 +1,15 @@
 use crate::{
     AllowBuildPolicy, BuildModules, BuildModulesError, CreateVirtualStore, CreateVirtualStoreError,
     CreateVirtualStoreOutput, HoistedDepGraphError, HoistedDependencies, InstallabilityHost,
-    LinkHoistedModulesError, LinkHoistedModulesOpts, LinkVirtualStoreBins,
-    LinkVirtualStoreBinsError, LockfileToHoistedDepGraphOptions, SkippedSnapshots,
-    SymlinkDirectDependencies, SymlinkDirectDependenciesError, SymlinkPackageError,
-    VersionPolicyError, VirtualStoreLayout, any_installability_constraint,
+    LinkHoistedModulesError, LinkHoistedModulesOpts, LinkRootComponentMembersError,
+    LinkVirtualStoreBins, LinkVirtualStoreBinsError, LockfileToHoistedDepGraphOptions,
+    SkippedSnapshots, SymlinkDirectDependencies, SymlinkDirectDependenciesError,
+    SymlinkPackageError, VersionPolicyError, VirtualStoreLayout, any_installability_constraint,
     build_direct_deps_by_importer, build_hoist_graph, compute_skipped_snapshots,
     direct_dep_names_for_importer, get_hoisted_dependencies, link_direct_dep_bins,
-    link_hoisted_modules, link_top_level_bins, lockfile_to_hoisted_dep_graph,
-    symlink_direct_dependencies::importer_root_dir, symlink_hoisted_dependencies,
+    link_hoisted_modules, link_root_component_members, link_top_level_bins,
+    lockfile_to_hoisted_dep_graph, symlink_direct_dependencies::importer_root_dir,
+    symlink_hoisted_dependencies,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -196,6 +197,13 @@ pub enum InstallFrozenLockfileError {
 
     #[diagnostic(transparent)]
     SymlinkDirectDependencies(#[error(source)] SymlinkDirectDependenciesError),
+
+    /// Surfaces a failure to cross-link a Bit root component's injected
+    /// members into one another's virtual-store slot. Only reachable
+    /// when a project manifest declares
+    /// `installConfig.hoistingLimits: "workspaces"`.
+    #[diagnostic(transparent)]
+    LinkRootComponentMembers(#[error(source)] LinkRootComponentMembersError),
 
     #[diagnostic(transparent)]
     LinkVirtualStoreBins(#[error(source)] LinkVirtualStoreBinsError),
@@ -882,6 +890,19 @@ where
             Some(&allow_build_policy),
         );
 
+        // Reject a lockfile whose dependency names, aliases, or
+        // virtual-store slots would escape the project or the store once
+        // joined into a filesystem path. Runs before any materialization
+        // and before the warm-install skip filter, and unconditionally —
+        // so it is not bypassed by `trustLockfile`, which disables the
+        // resolution-verification fan-out where the offline name check
+        // would otherwise run. The slot-containment half needs the
+        // install-time `layout`, so it can't live in the verifier crate.
+        pacquet_lockfile_verification::verify_lockfile_dependency_names(lockfile)
+            .map_err(InstallFrozenLockfileError::LockfileVerification)?;
+        crate::validate_virtual_store_slot_containment(snapshots, &layout)
+            .map_err(InstallFrozenLockfileError::LockfileVerification)?;
+
         // The frozen path runs no resolve-time prefetcher, so the warm
         // batch owns package-status progress for store hits. An empty set
         // leaves every warm package reported as `found_in_store`.
@@ -1020,6 +1041,32 @@ where
             }
             .run::<Reporter>()
             .map_err(InstallFrozenLockfileError::SymlinkDirectDependencies)?;
+
+            // Bit "root components": make each root's injected members
+            // mutually reachable. Gated on
+            // `installConfig.hoistingLimits: "workspaces"`, so it is a
+            // no-op for every non-Bit install. See
+            // [`link_root_component_members`]. `project_manifests` keys
+            // are project directories; map each back to its lockfile
+            // importer id so the set lines up with `importers`.
+            let root_component_importers: std::collections::HashSet<String> = project_manifests
+                .iter()
+                .filter(|(_, manifest)| {
+                    manifest.install_config_hoisting_limits()
+                        == Some(crate::HOISTING_LIMITS_WORKSPACES)
+                })
+                .map(|(project_dir, _)| {
+                    pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir)
+                })
+                .collect();
+            link_root_component_members(
+                &layout,
+                importers,
+                &root_component_importers,
+                &dependency_groups,
+                &skipped,
+            )
+            .map_err(InstallFrozenLockfileError::LinkRootComponentMembers)?;
 
             // Link the bins of each virtual-store slot's children into the
             // slot's own `node_modules/.bin`.

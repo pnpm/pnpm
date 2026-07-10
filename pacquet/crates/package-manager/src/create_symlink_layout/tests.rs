@@ -1,4 +1,4 @@
-use crate::{SkippedSnapshots, VirtualStoreLayout, create_symlink_layout};
+use crate::{SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout, create_symlink_layout};
 use pacquet_lockfile::{PackageKey, PkgName, SnapshotDepRef};
 use pretty_assertions::assert_eq;
 use std::{collections::HashMap, fs, path::PathBuf};
@@ -235,4 +235,43 @@ fn alias_dep_links_under_alias_but_resolves_via_target() {
     let expected = pathdiff::diff_paths(&target_path, &virtual_node_modules_dir)
         .expect("compute relative target");
     assert_eq!(read, expected);
+}
+
+/// A dependency alias that is a scoped path traversal
+/// (`@x/../../.../OUTSIDE`) must be rejected before any symlink is
+/// created, rather than escaping the slot's `node_modules`.
+/// `PkgName::parse` accepts such a name (its `bare` field keeps the
+/// `../` segments), so the guard has to live at the join.
+#[test]
+fn rejects_traversal_dependency_alias() {
+    let tmp = tempdir().expect("tempdir");
+    let virtual_store_dir = tmp.path().to_path_buf();
+    let layout = VirtualStoreLayout::legacy(
+        virtual_store_dir,
+        pacquet_config::default_virtual_store_dir_max_length() as usize,
+    );
+
+    let traversal = format!("@x/{}OUTSIDE", "../".repeat(20));
+    let mut deps: HashMap<PkgName, SnapshotDepRef> = HashMap::new();
+    deps.insert(pkg_name(&traversal), dep_ref("1.0.0"));
+
+    let skipped = SkippedSnapshots::default();
+    let virtual_node_modules_dir = tmp.path().join("self/node_modules");
+    fs::create_dir_all(&virtual_node_modules_dir).unwrap();
+
+    let error = create_symlink_layout(
+        Some(&deps),
+        None,
+        &pkg_name("self"),
+        &skipped,
+        &layout,
+        &virtual_node_modules_dir,
+    )
+    .expect_err("traversal alias must be rejected");
+    assert!(matches!(error, SymlinkPackageError::InvalidAlias(_)), "got {error:?}");
+
+    // The guard fires before any symlink is created, so nothing was
+    // linked into (or out of) the slot's node_modules.
+    let linked = fs::read_dir(&virtual_node_modules_dir).unwrap().count();
+    assert_eq!(linked, 0);
 }

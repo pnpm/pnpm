@@ -1,5 +1,22 @@
 # @pnpm/headless
 
+## 1102.1.3
+
+### Patch Changes
+
+- Updated dependencies [c70e33e]
+- Updated dependencies [51300fd]
+- Updated dependencies [f8058eb]
+- Updated dependencies [51300fd]
+  - @pnpm/building.policy@1100.0.12
+  - @pnpm/deps.graph-builder@1100.0.20
+  - @pnpm/deps.graph-hasher@1100.2.8
+  - @pnpm/lockfile.to-pnp@1100.1.3
+  - @pnpm/lockfile.fs@1100.1.9
+  - @pnpm/building.during-install@1102.0.4
+  - @pnpm/installing.linking.real-hoist@1100.1.5
+  - @pnpm/installing.package-requester@1102.1.1
+
 ## 1102.1.2
 
 ### Patch Changes

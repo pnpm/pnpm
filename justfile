@@ -74,8 +74,9 @@ lint:
   cargo clippy --locked --workspace --all-targets -- --deny warnings
 
 # Run perfectionist dylint rules. Requires `cargo-dylint` and `dylint-link`
-# (install with `cargo binstall cargo-dylint dylint-link`). The lint library
-# is pinned in `dylint.toml`.
+# (install from source with `cargo install cargo-dylint dylint-link`; the
+# prebuilt binstall binaries fail to build the driver locally). The lint
+# library is pinned in `dylint.toml`.
 dylint:
   env RUSTFLAGS="-D warnings" cargo dylint --all -- --all-targets --workspace
 

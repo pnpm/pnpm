@@ -1,5 +1,15 @@
 # @pnpm/building.during-install
 
+## 1102.0.4
+
+### Patch Changes
+
+- Updated dependencies [51300fd]
+- Updated dependencies [9318a11]
+- Updated dependencies [5a4daec]
+  - @pnpm/deps.graph-hasher@1100.2.8
+  - @pnpm/config.reader@1101.11.1
+
 ## 1102.0.3
 
 ### Patch Changes

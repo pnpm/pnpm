@@ -1,5 +1,14 @@
 # @pnpm/client
 
+## 1100.2.12
+
+### Patch Changes
+
+- Updated dependencies [3067e4f]
+  - @pnpm/resolving.npm-resolver@1102.1.2
+  - @pnpm/resolving.default-resolver@1100.3.12
+  - @pnpm/engine.runtime.node-resolver@1101.1.11
+
 ## 1100.2.11
 
 ### Patch Changes

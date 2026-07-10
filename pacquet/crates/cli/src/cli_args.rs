@@ -1,3 +1,4 @@
+pub mod access;
 pub mod add;
 pub mod approve_builds;
 pub mod audit;
@@ -50,6 +51,7 @@ pub mod run;
 pub mod runtime;
 pub mod sanitize;
 pub mod sbom;
+pub mod search;
 pub mod self_update;
 pub mod set_script;
 pub mod setup;

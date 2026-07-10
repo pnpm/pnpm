@@ -11,8 +11,8 @@ use crate::{
     LockfileVerificationMessage, LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog,
     PackageManifestLog, PackageManifestMessage, PnpmLog, ProgressLog, ProgressMessage, RemovedRoot,
     Reporter, RequestRetryError, RequestRetryLog, RootLog, RootMessage, SilentReporter,
-    SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason, Stage, StageLog,
-    StatsLog, StatsMessage, SummaryLog,
+    SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalParent,
+    SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
 };
 
 /// Context log serializes with the camelCase field names
@@ -675,6 +675,7 @@ fn skipped_optional_dependency_event_matches_pnpm_wire_shape() {
             name: "foo".to_string(),
             version: "1.0.0".to_string(),
         },
+        parents: None,
         prefix: "/projects/x".to_string(),
         reason: SkippedOptionalReason::BuildFailure,
     });
@@ -693,6 +694,7 @@ fn skipped_optional_dependency_event_matches_pnpm_wire_shape() {
     assert_eq!(json["package"]["id"], "/foo/1.0.0");
     assert_eq!(json["package"]["name"], "foo");
     assert_eq!(json["package"]["version"], "1.0.0");
+    assert!(json.get("parents").is_none(), "non-resolver emits carry no parents, got {json:?}");
 }
 
 /// `details` is optional upstream and must be omitted from the wire
@@ -707,6 +709,7 @@ fn skipped_optional_omits_absent_details() {
             name: "bar".to_string(),
             version: "2.0.0".to_string(),
         },
+        parents: None,
         prefix: "/projects/y".to_string(),
         reason: SkippedOptionalReason::BuildFailure,
     });
@@ -755,6 +758,11 @@ fn skipped_optional_resolution_failure_event_matches_pnpm_wire_shape() {
             version: Some("1.2.3".to_string()),
             bare_specifier: "^1.2.0".to_string(),
         },
+        parents: Some(vec![SkippedOptionalParent {
+            id: "parent@2.0.0".to_string(),
+            name: "parent".to_string(),
+            version: "2.0.0".to_string(),
+        }]),
         prefix: "/projects/x".to_string(),
         reason: SkippedOptionalReason::ResolutionFailure,
     });
@@ -771,6 +779,10 @@ fn skipped_optional_resolution_failure_event_matches_pnpm_wire_shape() {
     assert_eq!(json["package"]["name"], "foo");
     assert_eq!(json["package"]["version"], "1.2.3");
     assert_eq!(json["package"]["bareSpecifier"], "^1.2.0");
+    assert_eq!(
+        json["parents"],
+        serde_json::json!([{ "id": "parent@2.0.0", "name": "parent", "version": "2.0.0" }]),
+    );
 }
 
 /// `name` and `version` are upstream-optional on the
@@ -786,6 +798,7 @@ fn skipped_optional_resolution_failure_omits_absent_name_and_version() {
             version: None,
             bare_specifier: "git+ssh://broken-url".to_string(),
         },
+        parents: Some(Vec::new()),
         prefix: "/projects/y".to_string(),
         reason: SkippedOptionalReason::ResolutionFailure,
     });
@@ -799,6 +812,7 @@ fn skipped_optional_resolution_failure_omits_absent_name_and_version() {
     assert!(json["package"].get("name").is_none(), "name omitted when absent, got {json:?}");
     assert!(json["package"].get("version").is_none(), "version omitted when absent, got {json:?}");
     assert_eq!(json["package"]["bareSpecifier"], "git+ssh://broken-url");
+    assert_eq!(json["parents"], serde_json::json!([]), "an empty chain serializes as []");
 }
 
 /// All four reason variants serialize as the `snake_case` strings

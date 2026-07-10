@@ -3,6 +3,8 @@
 ## Table of contents
 
 - [Setting Up the Environment](#setting-up-the-environment)
+  - [JavaScript and TypeScript CLI](#javascript-and-typescript-cli)
+  - [Rust toolchain and git hooks](#rust-toolchain-and-git-hooks)
 - [Working with Git Worktrees](#working-with-git-worktrees)
 - [Running Tests](#running-tests)
 - [Submitting a Pull Request (PR)](#submitting-a-pull-request-pr)
@@ -19,6 +21,10 @@
 
 ## Setting Up the Environment
 
+The repository holds two implementations of the same package manager: the TypeScript pnpm CLI and the Rust `pacquet` port (plus the Rust `pnpr` registry server). Most contributions touch Rust, but the two stacks share one workspace, so set up both.
+
+### JavaScript and TypeScript CLI
+
 1. Run `pnpm install` in the root of the repository to install all dependencies.
 1. Run `pnpm add ./pnpm/dev -g` to make pnpm from the repository available in the command line via the `pd` command.
 1. Run `pnpm run compile` to create an initial build of pnpm from the source in the repository.
@@ -31,6 +37,32 @@ Some of the e2e tests run node-gyp, so you might need to install some build-esse
 ```shell
 sudo dnf install make automake gcc gcc-c++ kernel-devel
 ```
+
+### Rust toolchain and git hooks
+
+Rust is now the primary language in this repository, so most contributions need a working Rust toolchain and the Rust developer tools. The Rust workspace (`Cargo.toml`, `rust-toolchain.toml`, `justfile`) lives at the repository root; run `cargo` and `just` from there.
+
+1. Install [`rustup`](https://rustup.rs). You do not need to select a toolchain by hand. `rust-toolchain.toml` pins the version the project builds with, and `rustup` installs it, together with `rustfmt` and `clippy` from the pinned `default` profile, the first time you run `cargo` inside the repository.
+
+2. Install [`just`](https://just.systems) (the task runner) and [`cargo-binstall`](https://github.com/cargo-bins/cargo-binstall), then install the task tools from the repository root:
+
+   ```shell
+   just init
+   ```
+
+   `just init` installs `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov`.
+
+3. Install the dylint tools, which `just init` does not cover, **from source**:
+
+   ```shell
+   cargo install cargo-dylint dylint-link
+   ```
+
+   Install these from source rather than with `cargo binstall`. The prebuilt `cargo-dylint` binaries reference the `dylint_driver` crate at the path where they were built, so building the per-toolchain driver fails locally with an error that points at a nonexistent `.../dylint/driver` directory. A `cargo install` build resolves the driver against your local cargo registry and works.
+
+Make sure `~/.cargo/bin` is on your `PATH`, ahead of any system-wide Rust in `/usr/bin`. `rustup`'s installer adds this entry through `~/.cargo/env`; ensure your shell sources it. This matters for the git hooks. The `pnpm install` step above wires up husky, and its `pre-push` hook runs the Rust checks in `pacquet/scripts/pre-push-rust.sh` (format, doc, dylint) alongside the TypeScript compile and lint. That script locates `cargo`, `rustup`, `taplo`, and `cargo-dylint` through `PATH`, and it **skips** a check when the tool is not found rather than failing. A push that appears to pass locally with the tools off `PATH` has silently skipped the format, doc, and dylint checks, so those problems surface only in CI.
+
+For the full Rust development workflow (checks, tests, benchmarks, and the code style guide), see [`pacquet/CONTRIBUTING.md`](./pacquet/CONTRIBUTING.md).
 
 ## Working with Git Worktrees
 

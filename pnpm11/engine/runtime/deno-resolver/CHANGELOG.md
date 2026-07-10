@@ -1,5 +1,12 @@
 # @pnpm/resolving.deno-resolver
 
+## 1102.0.4
+
+### Patch Changes
+
+- Updated dependencies [3067e4f]
+  - @pnpm/resolving.npm-resolver@1102.1.2
+
 ## 1102.0.3
 
 ### Patch Changes

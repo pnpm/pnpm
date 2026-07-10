@@ -339,6 +339,28 @@ test('run prepare script for git-hosted dependencies', async () => {
   ])
 })
 
+test('run prepare script for git-hosted dependencies allowed by repository', async () => {
+  const project = prepareEmpty()
+  const gitDependency = await createGitPreparePackage()
+  const repoAllowBuildKey = `test-git-fetch@${gitDependency.replace(/#[^#]+$/, '')}`
+
+  await addDependenciesToPackage({}, [gitDependency], testDefaults({
+    fastUnpack: false,
+    allowBuilds: { [repoAllowBuildKey]: true },
+  }))
+
+  const scripts = project.requireModule('test-git-fetch/output.json')
+  expect(scripts).toStrictEqual([
+    'preinstall',
+    'install',
+    'postinstall',
+    'prepare',
+    'preinstall',
+    'install',
+    'postinstall',
+  ])
+})
+
 async function createGitPreparePackage (): Promise<string> {
   const repoDir = path.resolve('test-git-fetch-src')
   fs.mkdirSync(repoDir)

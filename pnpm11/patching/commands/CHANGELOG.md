@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-patching
 
+## 1100.1.9
+
+### Patch Changes
+
+- Updated dependencies [f8058eb]
+- Updated dependencies [9318a11]
+- Updated dependencies [5a4daec]
+  - @pnpm/lockfile.fs@1100.1.9
+  - @pnpm/config.reader@1101.11.1
+  - @pnpm/installing.commands@1100.10.3
+  - @pnpm/store.connection-manager@1100.3.4
+
 ## 1100.1.8
 
 ### Patch Changes

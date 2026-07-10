@@ -1,4 +1,7 @@
-use crate::{SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout, symlink_package};
+use crate::{
+    SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout,
+    safe_join_modules_dir::safe_join_modules_dir, symlink_package,
+};
 use pacquet_lockfile::{PkgName, SnapshotDepRef};
 use std::{collections::HashMap, path::Path};
 
@@ -48,13 +51,19 @@ pub fn create_symlink_layout(
         if skipped.contains(&target) {
             return Ok(());
         }
-        let target_name_str = target.name.to_string();
-        let alias_name_str = alias_name.to_string();
-        symlink_package(
-            &layout.slot_dir(&target).join("node_modules").join(&target_name_str),
-            &virtual_node_modules_dir.join(&alias_name_str),
+        // Both names are lockfile-derived and untrusted: `target.name`
+        // is the resolved package's own name and `alias_name` is the
+        // dependency key. A traversal-shaped name (`@x/../../...`) would
+        // otherwise let the symlink target or the symlink itself escape
+        // the slot's `node_modules`, so guard each join.
+        let symlink_target = safe_join_modules_dir(
+            &layout.slot_dir(&target).join("node_modules"),
+            &target.name.to_string(),
         )
-        .map(drop)
+        .map_err(SymlinkPackageError::InvalidAlias)?;
+        let symlink_path = safe_join_modules_dir(virtual_node_modules_dir, &alias_name.to_string())
+            .map_err(SymlinkPackageError::InvalidAlias)?;
+        symlink_package(&symlink_target, &symlink_path).map(drop)
     })
 }
 

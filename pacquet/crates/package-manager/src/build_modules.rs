@@ -103,6 +103,8 @@ pub struct AllowBuildPolicy {
     expanded_disallowed: HashSet<String>,
     allowed_dep_paths: HashSet<String>,
     disallowed_dep_paths: HashSet<String>,
+    allowed_git_repos: HashSet<String>,
+    disallowed_git_repos: HashSet<String>,
     dangerously_allow_all: bool,
 }
 
@@ -122,6 +124,8 @@ impl AllowBuildPolicy {
             expanded_disallowed,
             allowed_dep_paths: HashSet::new(),
             disallowed_dep_paths: HashSet::new(),
+            allowed_git_repos: HashSet::new(),
+            disallowed_git_repos: HashSet::new(),
             dangerously_allow_all,
         }
     }
@@ -139,6 +143,8 @@ impl AllowBuildPolicy {
             expanded_disallowed,
             allowed_dep_paths,
             disallowed_dep_paths,
+            allowed_git_repos: HashSet::new(),
+            disallowed_git_repos: HashSet::new(),
             dangerously_allow_all,
         }
     }
@@ -153,8 +159,16 @@ impl AllowBuildPolicy {
         let mut disallowed_specs: Vec<&str> = Vec::new();
         let mut allowed_dep_paths = HashSet::new();
         let mut disallowed_dep_paths = HashSet::new();
+        let mut allowed_git_repos = HashSet::new();
+        let mut disallowed_git_repos = HashSet::new();
         for (spec, &value) in &config.allow_builds {
-            if is_dep_path_allow_build_key(spec) {
+            if is_git_repo_allow_build_key(spec) {
+                if value {
+                    allowed_git_repos.insert(spec.clone());
+                } else {
+                    disallowed_git_repos.insert(spec.clone());
+                }
+            } else if is_dep_path_allow_build_key(spec) {
                 if value {
                     allowed_dep_paths.insert(normalize_build_dep_path(spec));
                 } else {
@@ -176,7 +190,19 @@ impl AllowBuildPolicy {
             allowed_dep_paths,
             disallowed_dep_paths,
             config.dangerously_allow_all_builds,
-        ))
+        )
+        .with_git_repo_rules(allowed_git_repos, disallowed_git_repos))
+    }
+
+    #[must_use]
+    fn with_git_repo_rules(
+        mut self,
+        allowed_git_repos: HashSet<String>,
+        disallowed_git_repos: HashSet<String>,
+    ) -> Self {
+        self.allowed_git_repos = allowed_git_repos;
+        self.disallowed_git_repos = disallowed_git_repos;
+        self
     }
 
     /// Check whether a package is allowed to run build scripts.
@@ -190,6 +216,12 @@ impl AllowBuildPolicy {
         if self.disallowed_dep_paths.contains(&normalized_dep_path) {
             return Some(false);
         }
+        let git_repo_key = git_repo_allow_build_key_from_dep_path(&normalized_dep_path);
+        if let Some(git_repo_key) = git_repo_key
+            && self.disallowed_git_repos.contains(git_repo_key)
+        {
+            return Some(false);
+        }
         let (name, version) = parse_name_version_from_key(&normalized_dep_path);
         let name_at_version = format!("{name}@{version}");
         if self.expanded_disallowed.contains(&name)
@@ -198,6 +230,11 @@ impl AllowBuildPolicy {
             return Some(false);
         }
         if self.allowed_dep_paths.contains(&normalized_dep_path) {
+            return Some(true);
+        }
+        if let Some(git_repo_key) = git_repo_key
+            && self.allowed_git_repos.contains(git_repo_key)
+        {
             return Some(true);
         }
         // Package-name rules require a trusted package identity. A
@@ -257,6 +294,24 @@ fn parse_dep_path_name_version(pkg_id: &str) -> Option<(&str, &str)> {
         version = &version[..idx];
     }
     Some((name, version))
+}
+
+fn is_git_repo_allow_build_key(spec: &str) -> bool {
+    !spec.contains('#') && is_git_repo_dep_path(spec)
+}
+
+fn git_repo_allow_build_key_from_dep_path(dep_path: &str) -> Option<&str> {
+    if !is_git_repo_dep_path(dep_path) {
+        return None;
+    }
+    Some(match dep_path.find('#') {
+        Some(ref_start) => &dep_path[..ref_start],
+        None => dep_path,
+    })
+}
+
+fn is_git_repo_dep_path(dep_path: &str) -> bool {
+    dep_path.starts_with("git+") || dep_path.contains("@git+")
 }
 
 fn is_dep_path_allow_build_key(spec: &str) -> bool {
@@ -890,6 +945,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
                                             name,
                                             version,
                                         },
+                                        parents: None,
                                         prefix: lockfile_dir.to_string_lossy().into_owned(),
                                         reason: SkippedOptionalReason::BuildFailure,
                                     },
@@ -940,6 +996,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
                     name,
                     version,
                 },
+                parents: None,
                 prefix: lockfile_dir.to_string_lossy().into_owned(),
                 reason: SkippedOptionalReason::BuildFailure,
             }));
@@ -1017,6 +1074,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
                                 name,
                                 version,
                             },
+                            parents: None,
                             prefix: lockfile_dir.to_string_lossy().into_owned(),
                             reason: SkippedOptionalReason::BuildFailure,
                         },

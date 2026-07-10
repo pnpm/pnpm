@@ -1,6 +1,7 @@
 use crate::{
     ImportIndexedDirError, ImportIndexedDirOpts, SkippedSnapshots, SymlinkPackageError,
     VirtualStoreLayout, create_symlink_layout, import_indexed_dir,
+    safe_join_modules_dir::{InvalidDependencyAliasError, safe_join_modules_dir},
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -86,6 +87,12 @@ pub enum CreateVirtualDirError {
     #[diagnostic(transparent)]
     SymlinkPackage(#[error(source)] SymlinkPackageError),
 
+    /// The snapshot's package name is not a valid npm package name, so
+    /// joining it under the slot's `node_modules` could escape the
+    /// directory. Surfaces pnpm's `ERR_PNPM_INVALID_DEPENDENCY_NAME`.
+    #[diagnostic(transparent)]
+    InvalidAlias(#[error(source)] InvalidDependencyAliasError),
+
     #[display("Failed to remove obsolete child link at {path:?}: {error}")]
     #[diagnostic(code(pacquet_package_manager::remove_obsolete_child))]
     RemoveObsoleteChild {
@@ -125,7 +132,9 @@ impl CreateVirtualDirBySnapshot<'_> {
             }
         })?;
 
-        let save_path = virtual_node_modules_dir.join(package_key.name.to_string());
+        let save_path =
+            safe_join_modules_dir(&virtual_node_modules_dir, &package_key.name.to_string())
+                .map_err(CreateVirtualDirError::InvalidAlias)?;
 
         // `rayon::join` runs both closures in parallel on rayon's pool,
         // returning only once both finish. `import_indexed_dir` is itself

@@ -936,6 +936,11 @@ test('pnpm-workspace.yaml request destinations do not expand env variables', asy
 
   writeYamlFileSync('pnpm-workspace.yaml', {
     pnprServer: 'https://${PNPM_TEST_TOKEN}.evil.example/',
+    httpsProxy: 'http://attacker.example/${PNPM_TEST_TOKEN}/',
+    httpProxy: 'http://attacker.example/${PNPM_TEST_TOKEN}/',
+    noProxy: '${PNPM_TEST_TOKEN}.example.com',
+    proxy: 'http://attacker.example/${PNPM_TEST_TOKEN}/',
+    noproxy: '${PNPM_TEST_TOKEN}.example.com',
     registries: {
       default: 'https://private.example.com/${PNPM_TEST_TOKEN}/',
       '@scope': 'https://scope.example.com/${PNPM_TEST_TOKEN}/',
@@ -956,6 +961,9 @@ test('pnpm-workspace.yaml request destinations do not expand env variables', asy
   expect(config.registries['@scope']).toBeUndefined()
   expect(config.namedRegistries).toStrictEqual({})
   expect(config.pnprServer).toBeUndefined()
+  expect(config.httpsProxy).toBeUndefined()
+  expect(config.httpProxy).toBeUndefined()
+  expect(config.noProxy).toBeUndefined()
   expect(JSON.stringify(config)).not.toContain('secret')
 })
 
@@ -1364,6 +1372,38 @@ test('repo registry config cannot redirect pnpm_config__auth tokens', async () =
 
   expect(config.authConfig['//attacker.example/:_authToken']).toBeUndefined()
   expect(config.authConfig['//attacker.example/:@victim-scope:_authToken']).toBeUndefined()
+  expect(config.authConfig['//registry.npmjs.org/:@victim-scope:_authToken']).toBe('secret-token')
+})
+
+test('global config.yaml registries cannot redirect pnpm_config__auth routes', async () => {
+  prepareEmpty()
+
+  fs.mkdirSync('.config/pnpm', { recursive: true })
+  writeYamlFileSync('.config/pnpm/config.yaml', {
+    registries: {
+      '@victim-scope': 'https://attacker.example/',
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      XDG_CONFIG_HOME: path.resolve('.config'),
+      pnpm_config__auth: JSON.stringify({
+        'https://registry.npmjs.org': {
+          '@victim-scope': { authToken: 'secret-token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  // `_auth` routes sit above global config.yaml in the registries merge, so a
+  // user's global registry alias cannot rebind an `_auth` token's host.
+  expect(config.registries['@victim-scope']).toBe('https://registry.npmjs.org/')
+  expect(config.authConfig['//attacker.example/:_authToken']).toBeUndefined()
   expect(config.authConfig['//registry.npmjs.org/:@victim-scope:_authToken']).toBe('secret-token')
 })
 
@@ -3578,6 +3618,71 @@ describe('global config.yaml', () => {
     expect(config.pnprServer).toBe('https://trusted.example.com/pnpr/')
     expect(config.registry).toBe('https://trusted.example.com/npm/')
     expect(config.registries.default).toBe('https://trusted.example.com/npm/')
+  })
+
+  test('reads registries and named registries from global config.yaml', async () => {
+    prepareEmpty()
+
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', {
+      registries: {
+        default: 'https://${PNPM_TEST_HOST}/npm/',
+        '@scope': 'https://${PNPM_TEST_HOST}/scope/',
+      },
+      namedRegistries: {
+        work: 'https://${PNPM_TEST_HOST}/work/',
+      },
+    })
+
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+    process.env.PNPM_TEST_HOST = 'trusted.example.com'
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.registries.default).toBe('https://trusted.example.com/npm/')
+    expect(config.registries['@scope']).toBe('https://trusted.example.com/scope/')
+    expect(config.namedRegistries).toStrictEqual({
+      work: 'https://trusted.example.com/work/',
+    })
+    expect(warnings.find((w) => w.includes('global config file'))).toBeUndefined()
+  })
+
+  test('workspace manifest registries win over global config.yaml registries', async () => {
+    prepareEmpty()
+
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', {
+      registries: {
+        default: 'https://global.example.com/npm/',
+        '@scope': 'https://global.example.com/scope/',
+      },
+    })
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      registries: {
+        default: 'https://workspace.example.com/npm/',
+      },
+    })
+
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.registries.default).toBe('https://workspace.example.com/npm/')
+    expect(config.registries['@scope']).toBe('https://global.example.com/scope/')
   })
 
   test('reads user-level preference settings from global config.yaml', async () => {

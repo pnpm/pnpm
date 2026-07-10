@@ -1,5 +1,11 @@
 # @pnpm/building.policy
 
+## 1100.0.12
+
+### Patch Changes
+
+- c70e33e: Allow `allowBuilds` entries for git-hosted packages to match by repository URL without pinning the resolved commit hash. This lets trusted git repositories keep running their build scripts after branch updates without approving each new commit, while package-name-only rules still do not approve git-hosted artifacts.
+
 ## 1100.0.11
 
 ### Patch Changes

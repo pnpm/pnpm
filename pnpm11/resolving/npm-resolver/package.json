@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolving.npm-resolver",
-  "version": "1102.1.1",
+  "version": "1102.1.2",
   "description": "Resolver for npm-hosted packages",
   "keywords": [
     "pnpm",
@@ -55,7 +55,6 @@
     "lru-cache": "catalog:",
     "normalize-path": "catalog:",
     "p-limit": "catalog:",
-    "p-memoize": "catalog:",
     "parse-npm-tarball-url": "catalog:",
     "path-temp": "catalog:",
     "ramda": "catalog:",

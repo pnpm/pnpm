@@ -67,6 +67,7 @@ import { nextNodeId, type NodeId } from './nextNodeId.js'
 import { parentIdsContainSequence } from './parentIdsContainSequence.js'
 import { replaceVersionInBareSpecifier } from './replaceVersionInBareSpecifier.js'
 import type { CatalogLookupMetadata } from './resolveDependencyTree.js'
+import { unwrapPackageName } from './unwrapPackageName.js'
 import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable.js'
 
 export type { WantedDependency }
@@ -280,6 +281,13 @@ export interface PkgAddress extends PkgAddressOrLinkBase {
   saveCatalogName?: string
   lockedPeerContext?: LockedPeerContext
   previousDepPath?: DepPath
+  /**
+   * A peer dependency provider attached to the root importer so that other
+   * subtrees can reuse it. Its `nodeId` keeps pointing at the provider's
+   * original position inside the dependency tree, so the node must be
+   * peer-resolved there — not in the root context.
+   */
+  hoistedPeerProvider?: boolean
 }
 
 export type PkgAddressOrLink = PkgAddress | LinkedDependency
@@ -430,7 +438,10 @@ export async function resolveRootDependencies (
           // even those peers should be hoisted that are not autoinstalled
           for (const [resolvedPeerName, resolvedPeerAddress] of Object.entries(importerResolutionResult.resolvedPeers ?? {})) {
             if (!parentPkgAliases[resolvedPeerName]) {
-              importerResolutionResult.pkgAddresses.push(resolvedPeerAddress)
+              importerResolutionResult.pkgAddresses.push({
+                ...resolvedPeerAddress,
+                hoistedPeerProvider: true,
+              })
             }
           }
         }
@@ -1848,14 +1859,21 @@ async function resolveDependency (
         version: wantedDependency.alias ? wantedDependency.bareSpecifier : undefined,
       }
       if (wantedDependency.optional && err.code !== 'ERR_PNPM_TRUST_DOWNGRADE') {
-        skippedOptionalDependencyLogger.debug({
-          details: err.toString(),
-          package: wantedDependencyDetails,
-          parents: getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById),
-          prefix: options.prefix,
-          reason: 'resolution_failure',
-        })
-        return null
+        if (!wantedLockfileContainsSatisfyingEntry(ctx.wantedLockfile, wantedDependency)) {
+          skippedOptionalDependencyLogger.debug({
+            details: err.toString(),
+            package: wantedDependencyDetails,
+            parents: getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById),
+            prefix: options.prefix,
+            reason: 'resolution_failure',
+          })
+          return null
+        }
+        if (err.hint == null) {
+          err.hint = 'This optional dependency is not skipped, because the lockfile contains a resolution for it. ' +
+            'Skipping it would remove the locked entries, making the lockfile differ depending on which machine ran the install. ' +
+            'If the version was intentionally removed from the registry, update the dependent package or remove the entries from the lockfile.'
+        }
       }
       err.package = wantedDependencyDetails
       err.prefix = options.prefix
@@ -2156,6 +2174,38 @@ async function resolveDependency (
   } finally {
     finishPackageResolution()
   }
+}
+
+/**
+ * Whether the wanted lockfile already holds a package entry that satisfies the
+ * wanted dependency. An optional dependency that fails to resolve is normally
+ * skipped, but when a locked resolution exists the failure is environmental
+ * (e.g. a registry mirror that hasn't synced the release yet) rather than a
+ * genuinely uninstallable package. Silently skipping in that case would erase
+ * the locked entries, making the lockfile differ across machines from
+ * identical inputs and leaving frozen installs on other hosts with nothing to
+ * link (https://github.com/pnpm/pnpm/issues/12853).
+ *
+ * Only plain semver specifiers are checked; exotic specifiers (git, catalogs,
+ * tags, URLs) keep the skip-on-failure behavior.
+ *
+ * The check is deliberately by package name and range rather than by the
+ * current edge's locked dep path. `pnpm dedupe` — the flow where the erasure
+ * bites — clears every per-snapshot dependency map before resolving
+ * (`forgetResolutionsOfAllPrevWantedDeps`), so on this code path no edge-level
+ * lockfile linkage exists to key on; only the package entries survive. A
+ * satisfying entry locked via any edge also means the registry served this
+ * package in-range before, so failing loudly instead of skipping is the right
+ * outcome even when the failing edge itself was never locked.
+ */
+function wantedLockfileContainsSatisfyingEntry (lockfile: LockfileObject, wantedDependency: WantedDependency): boolean {
+  if (!wantedDependency.alias) return false
+  const { pkgName, bareSpecifier } = unwrapPackageName(wantedDependency.alias, wantedDependency.bareSpecifier)
+  if (semver.validRange(bareSpecifier) == null) return false
+  return Object.keys(lockfile.packages ?? {}).some((depPath) => {
+    const parsed = dp.parse(depPath)
+    return parsed.name === pkgName && parsed.version != null && semver.satisfies(parsed.version, bareSpecifier)
+  })
 }
 
 export function getManifestFromResponse (

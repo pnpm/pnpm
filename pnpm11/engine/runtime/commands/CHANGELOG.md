@@ -1,5 +1,15 @@
 # @pnpm/engine.runtime.commands
 
+## 1100.1.9
+
+### Patch Changes
+
+- 23996e9: `pnpm runtime set <name> <version>` now validates its arguments: the name must be `node`, `deno`, or `bun`, and the version must not contain a comma. Previously these were interpolated straight into a `pnpm add` selector, where an unsupported name or a comma (e.g. `node 22,is-positive`) could be misread as a list of packages or a local directory and install unintended packages or bins.
+- Updated dependencies [9318a11]
+- Updated dependencies [5a4daec]
+  - @pnpm/config.reader@1101.11.1
+  - @pnpm/engine.runtime.node-resolver@1101.1.11
+
 ## 1100.1.8
 
 ### Patch Changes

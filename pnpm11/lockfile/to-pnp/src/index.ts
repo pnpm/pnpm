@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
 import { depPathToFilename, refToRelative } from '@pnpm/deps.path'
+import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
@@ -101,13 +102,16 @@ export function lockfileToPackageRegistry (
       packageRegistry.set(name, packageStore)
     }
 
-    // Seems like this field should always contain a relative path
-    let packageLocation = normalizePath(path.relative(opts.lockfileDir, path.join(
+    // Seems like this field should always contain a relative path.
+    // `name` is reconstructed from the (attacker-controllable) lockfile depPath
+    // key via `dp.parse`, which does no validation, so contain it here to keep
+    // the PnP resolver map from pointing outside the virtual store.
+    const pkgModulesDir = path.join(
       opts.virtualStoreDir,
       depPathToFilename(relDepPath, opts.virtualStoreDirMaxLength),
-      'node_modules',
-      name
-    )))
+      'node_modules'
+    )
+    let packageLocation = normalizePath(path.relative(opts.lockfileDir, safeJoinModulesDir(pkgModulesDir, name)))
     if (!packageLocation.startsWith('../')) {
       packageLocation = `./${packageLocation}`
     }

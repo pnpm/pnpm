@@ -1,4 +1,5 @@
 use super::{
+    access::AccessArgs,
     audit::{AuditArgs, AuditOutcome},
     bin::BinArgs,
     bugs::BugsArgs,
@@ -25,6 +26,7 @@ use super::{
     reporter::ReporterType,
     root::RootArgs,
     sbom::SbomArgs,
+    search::SearchArgs,
     self_update::SelfUpdateArgs,
     setup::SetupArgs,
     store::StoreCommand,
@@ -136,6 +138,20 @@ pub(super) fn whoami<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> 
     Ok(Box::pin(async move {
         let username = super::whoami::whoami(cfg).await?;
         println!("{}", super::sanitize::sanitize(&username));
+        Ok(())
+    }))
+}
+
+pub(super) fn access<'a>(ctx: &RunCtx<'a>, args: AccessArgs) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.config)()?;
+    Ok(Box::pin(async move {
+        if let Some(output) = args.run(cfg).await? {
+            let output = super::sanitize::sanitize(&output);
+            if output.is_empty() {
+                return Ok(());
+            }
+            println!("{output}");
+        }
         Ok(())
     }))
 }
@@ -420,4 +436,15 @@ pub(super) fn find_hash<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     args.run(|| (ctx.config)().map(|m| &*m))?;
     Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+pub(super) fn search<'a>(ctx: &RunCtx<'a>, args: SearchArgs) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.config)()?;
+    Ok(Box::pin(async move {
+        let output = args.run(cfg).await?;
+        if !output.is_empty() {
+            println!("{output}");
+        }
+        Ok(())
+    }))
 }

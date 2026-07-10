@@ -50,6 +50,7 @@
     "codenames",
     "codesign",
     "colorterm",
+    "compdef",
     "comver",
     "copyfiles",
     "corejs",

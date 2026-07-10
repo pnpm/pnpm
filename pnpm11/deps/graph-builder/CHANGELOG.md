@@ -1,5 +1,16 @@
 # @pnpm/deps.graph-builder
 
+## 1100.0.20
+
+### Patch Changes
+
+- 51300fd: Prevent a crafted `pnpm-lock.yaml` from writing package content outside the virtual store. A dependency path key whose name reconstructs to a path-traversal sequence (e.g. `../../../tmp/x@1.0.0`) is now rejected by the isolated (virtual-store) linker and the Plug'n'Play resolver map, matching the containment already applied to the hoisted linker. Under the global virtual store, a traversal in the version-derived path segment (e.g. a snapshot `version: "../../x"`) is now rejected at `formatGlobalVirtualStorePath`, the single point every global-virtual-store slot path funnels through — closing the same escape in the isolated linker, the resolver's dependency-graph builder, and the config-dependency installer.
+- 51300fd: Fixed a path traversal vulnerability where a dependency whose manifest `name` was a scoped path traversal (e.g. `@x/../../../<path>`) could be written outside `node_modules` to an attacker-controlled location during `pnpm install`, even with `--ignore-scripts`. The isolated linker now validates the package name before using it as a directory name, matching the existing protection in the hoisted linker.
+- Updated dependencies [51300fd]
+- Updated dependencies [f8058eb]
+  - @pnpm/deps.graph-hasher@1100.2.8
+  - @pnpm/lockfile.fs@1100.1.9
+
 ## 1100.0.19
 
 ### Patch Changes

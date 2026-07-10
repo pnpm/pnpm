@@ -458,7 +458,7 @@ export async function pickPackage (
         if (!isModifiedValid || modifiedDate > opts.publishedBy) {
           // Save the abbreviated metadata to the abbreviated cache before re-fetching full.
           if (!opts.dryRun) {
-            const abbreviatedJson = prepareJsonForDisk(fetchResult.meta, fetchResult.etag, fetchResult.jsonText)
+            const abbreviatedJson = prepareJsonForDisk(resultToSave.meta, resultToSave.etag, resultToSave.jsonText)
             // Fire-and-forget save to the abbreviated cache path (pkgMirror).
             runLimited(pkgMirror, (limit) => limit(async () => {
               try {

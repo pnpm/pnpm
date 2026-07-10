@@ -1,5 +1,21 @@
 # @pnpm/releasing.commands
 
+## 1100.5.4
+
+### Patch Changes
+
+- d1da02e: `pnpm publish` no longer prints credentials when the target registry is configured with inline `user:pass@` credentials (e.g. `registry=https://user:pass@example.com/`). They are now redacted both from the "publishing to registry" line and from the OIDC (trusted publishing) failure messages.
+- Updated dependencies [f8058eb]
+- Updated dependencies [9318a11]
+- Updated dependencies [5a4daec]
+- Updated dependencies [23996e9]
+  - @pnpm/lockfile.fs@1100.1.9
+  - @pnpm/config.reader@1101.11.1
+  - @pnpm/engine.runtime.commands@1100.1.9
+  - @pnpm/installing.commands@1100.10.3
+  - @pnpm/installing.client@1100.2.12
+  - @pnpm/engine.runtime.node-resolver@1101.1.11
+
 ## 1100.5.3
 
 ### Patch Changes

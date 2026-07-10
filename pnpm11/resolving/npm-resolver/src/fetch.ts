@@ -38,7 +38,14 @@ interface RegistryResponse {
 
 export interface FetchMetadataResult {
   meta: PackageMeta
-  jsonText: string
+  /**
+   * The raw registry response body, used only to mirror the response to disk
+   * without re-serializing `meta`. A fresh fetch always sets it, but it
+   * reaches only the caller that initiated the request: the phase-long memo
+   * cache holds a body-less clone (see memoizeFetchMetadata.ts), so cache
+   * hits see `undefined` and the cache never pins the body.
+   */
+  jsonText: string | undefined
   etag?: string
   notModified?: false
 }

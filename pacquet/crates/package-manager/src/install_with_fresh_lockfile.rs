@@ -1,10 +1,11 @@
 use crate::{
     AllowBuildPolicy, CreateVirtualStore, CreateVirtualStoreError, CreateVirtualStoreOutput,
     GraphToLockfileOptions, HoistedDependencies, ImporterLockfileInput,
-    InstallPackageFromRegistryError, LinkVirtualStoreBins, LinkVirtualStoreBinsError,
-    PrefetchContext, PrefetchingResolver, SkippedSnapshots, SymlinkDirectDependencies,
-    SymlinkDirectDependenciesError, VersionPolicyError, VersionsOverrider, VirtualStoreLayout,
-    dependencies_graph_to_lockfile, store_init::init_store_dir_best_effort,
+    InstallPackageFromRegistryError, LinkRootComponentMembersError, LinkVirtualStoreBins,
+    LinkVirtualStoreBinsError, PrefetchContext, PrefetchingResolver, SkippedSnapshots,
+    SymlinkDirectDependencies, SymlinkDirectDependenciesError, VersionPolicyError,
+    VersionsOverrider, VirtualStoreLayout, dependencies_graph_to_lockfile,
+    link_root_component_members, store_init::init_store_dir_best_effort,
 };
 use dashmap::DashMap;
 use derive_more::{Display, Error};
@@ -20,7 +21,10 @@ use pacquet_hooks::finder;
 use pacquet_lockfile::{Lockfile, LockfileResolution, SaveLockfileError};
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_reporter::{HookLog, LogEvent, LogLevel, Reporter, Stage, StageLog};
+use pacquet_reporter::{
+    HookLog, LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
+    SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog,
+};
 use pacquet_resolving_default_resolver::DefaultResolver;
 use pacquet_resolving_deps_resolver::{
     ManifestHook, ResolveDependencyTreeError, ResolveImporterError, ResolveImporterOptions,
@@ -33,9 +37,7 @@ use pacquet_resolving_npm_resolver::{
     InMemoryPackageMetaCache, MergeNamedRegistriesError, NamedRegistryResolver, NpmResolver,
     merge_named_registries, shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
-use pacquet_resolving_resolver_base::{
-    LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, Resolver, WantedDependency,
-};
+use pacquet_resolving_resolver_base::{ResolveOptions, Resolver};
 use pacquet_resolving_tarball_resolver::{TarballFetchContext, TarballResolver};
 use pacquet_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, store_index_key};
 use pacquet_tarball::{MemCache, SharedReportedProgressKeys};
@@ -224,6 +226,13 @@ pub enum InstallWithFreshLockfileError {
     #[diagnostic(transparent)]
     SymlinkDirectDependencies(#[error(source)] SymlinkDirectDependenciesError),
 
+    /// Surfaces a failure to cross-link a Bit root component's injected
+    /// members into one another's virtual-store slot. Only reachable
+    /// when an importer manifest declares
+    /// `installConfig.hoistingLimits: "workspaces"`.
+    #[diagnostic(transparent)]
+    LinkRootComponentMembers(#[error(source)] LinkRootComponentMembersError),
+
     /// Surfaces failures from [`crate::lockfile_to_hoisted_dep_graph`]
     /// when a fresh install runs under `nodeLinker: hoisted`. Same
     /// shape the frozen-lockfile path surfaces — see
@@ -262,17 +271,15 @@ pub enum InstallWithFreshLockfileError {
     LinkVirtualStoreBins(#[error(source)] LinkVirtualStoreBinsError),
 
     /// The resolver chain failed for at least one dependency. The
-    /// inner message carries the boxed error's `Display`.
+    /// diagnostic is forwarded transparently so a canonical inner code
+    /// (e.g. a traversal name's `ERR_PNPM_INVALID_DEPENDENCY_NAME`)
+    /// reaches the CLI unchanged. The `Display` still interpolates the
+    /// inner error so consumers that stringify the top-level error
+    /// (e.g. pnpr's `resolve.rs`, which forwards `err.to_string()` over
+    /// the wire) keep the detail.
     #[display("Failed to resolve dependency tree: {_0}")]
-    #[diagnostic(code(pacquet_package_manager::resolve_dependency_tree))]
-    ResolveDependencyTree(#[error(not(source))] ResolveDependencyTreeError),
-
-    /// The hoist-loop orchestrator failed. Wraps the tree-walk error
-    /// (the only failure source today) plus any future orchestrator-
-    /// specific failures.
-    #[display("Failed to resolve importer: {_0}")]
-    #[diagnostic(code(pacquet_package_manager::resolve_importer))]
-    ResolveImporter(#[error(not(source))] ResolveImporterError),
+    #[diagnostic(transparent)]
+    ResolveDependencyTree(#[error(source)] ResolveDependencyTreeError),
 
     /// `minimumReleaseAgeExclude` patterns rejected at compile time.
     /// Surfaced as `ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE`.
@@ -762,7 +769,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 }),
         );
         chain.extend([
-            Box::new(ArcResolver(Arc::clone(&npm_resolver))) as Box<dyn Resolver>,
+            Box::new(Arc::clone(&npm_resolver)) as Box<dyn Resolver>,
             Box::new(git_resolver),
             Box::new(tarball_resolver),
             Box::new(local_scheme_resolver),
@@ -1094,6 +1101,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             manifest_hook: manifest_hook.clone(),
             pnpmfile_hook,
             read_package_log,
+            skipped_optional_log: Some(skipped_optional_log_fn::<Reporter>()),
             pick_lowest_direct,
             time_based,
             // Hand the resolver the prior lockfile so it can reuse
@@ -1182,7 +1190,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             },
         )
         .await
-        .map_err(InstallWithFreshLockfileError::ResolveImporter)?;
+        .map_err(|ResolveImporterError::Resolve(err)| {
+            InstallWithFreshLockfileError::ResolveDependencyTree(err)
+        })?;
         let total_nodes = workspace_result.peers.graph.len();
         for (importer_id, issues) in &workspace_result.peers.peer_dependency_issues_by_importer {
             tracing::warn!(
@@ -1207,7 +1217,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // Drop the resolver (and its packument cache) before the
         // install pass. Dropping `resolver` releases the
         // [`PrefetchingResolver`]'s wrapped inner chain, which in
-        // turn releases the `ArcResolver`'s strong reference to
+        // turn releases the shared npm resolver's strong reference to
         // `npm_resolver`; the standalone `npm_resolver` binding
         // holds a second strong reference because the deno- and
         // bun-resolvers were handed a clone of the same `Arc` for
@@ -1724,6 +1734,28 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             .run::<Reporter>()
             .map_err(InstallWithFreshLockfileError::SymlinkDirectDependencies)?;
 
+            // Bit "root components": make each root's injected members
+            // mutually reachable. Gated on
+            // `installConfig.hoistingLimits: "workspaces"`, so it is a
+            // no-op for every non-Bit install. See
+            // [`link_root_component_members`].
+            let root_component_importers: std::collections::HashSet<String> = importer_manifests
+                .iter()
+                .filter(|(_, manifest)| {
+                    manifest.install_config_hoisting_limits()
+                        == Some(crate::HOISTING_LIMITS_WORKSPACES)
+                })
+                .map(|(id, _)| id.clone())
+                .collect();
+            link_root_component_members(
+                &layout,
+                &built_lockfile.importers,
+                &root_component_importers,
+                &dependency_groups,
+                &skipped,
+            )
+            .map_err(InstallWithFreshLockfileError::LinkRootComponentMembers)?;
+
             // On-disk hoist phase. Mirrors the frozen-install block at
             // `install_frozen_lockfile.rs`: symlink the publicly +
             // privately hoisted aliases into their target dirs, then
@@ -2046,6 +2078,38 @@ fn hook_log_fn<Reporter: self::Reporter>(
     })
 }
 
+/// Build the resolver's skipped-optional-dependency sink: each
+/// notification emits a `pnpm:skipped-optional-dependency` debug event
+/// with `reason=resolution_failure` through the install's reporter,
+/// matching pnpm's `skippedOptionalDependencyLogger.debug` payload.
+fn skipped_optional_log_fn<Reporter: self::Reporter>()
+-> pacquet_resolving_deps_resolver::SkippedOptionalLogFn {
+    Arc::new(|skipped: pacquet_resolving_deps_resolver::SkippedOptionalDependency| {
+        Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
+            level: LogLevel::Debug,
+            details: Some(skipped.details),
+            package: SkippedOptionalPackage::ResolutionFailure {
+                name: skipped.name,
+                version: skipped.version,
+                bare_specifier: skipped.bare_specifier,
+            },
+            parents: Some(
+                skipped
+                    .parents
+                    .into_iter()
+                    .map(|parent| SkippedOptionalParent {
+                        id: parent.id,
+                        name: parent.name,
+                        version: parent.version,
+                    })
+                    .collect(),
+            ),
+            prefix: skipped.prefix,
+            reason: SkippedOptionalReason::ResolutionFailure,
+        }));
+    })
+}
+
 /// Build one side of the `preResolution` hook's `logger`: each
 /// `logger.info(...)` / `logger.warn(...)` call emits a `pnpm:hook` event at
 /// the given level. `from` is the literal `"pnpmfile"` — pnpm's
@@ -2222,35 +2286,6 @@ pub(crate) fn compute_package_extensions_checksum(config: &Config) -> Option<Str
         config.package_extensions.as_ref().filter(|extensions| !extensions.is_empty())?;
     let value = serde_json::to_value(extensions).ok()?;
     pacquet_graph_hasher::hash_object_nullable_with_prefix(&value)
-}
-
-/// [`Resolver`] adapter that delegates to a shared `Arc<dyn Resolver>`.
-///
-/// [`DefaultResolver::new`] takes `Vec<Box<dyn Resolver>>` — one owner
-/// per chain slot. The npm resolver, however, is also handed to the
-/// runtime resolvers (`Node` / `Deno` / `Bun` reuse it for version
-/// picking) via `Arc<dyn Resolver>`, so the same instance owns its
-/// metadata cache across both call paths. This wrapper bridges
-/// the two by implementing [`Resolver`] on a `Box<ArcResolver>`,
-/// forwarding every call to the shared backing resolver.
-struct ArcResolver(Arc<dyn Resolver>);
-
-impl Resolver for ArcResolver {
-    fn resolve<'a>(
-        &'a self,
-        wanted_dependency: &'a WantedDependency,
-        opts: &'a ResolveOptions,
-    ) -> ResolveFuture<'a> {
-        self.0.resolve(wanted_dependency, opts)
-    }
-
-    fn resolve_latest<'a>(
-        &'a self,
-        query: &'a LatestQuery,
-        opts: &'a ResolveOptions,
-    ) -> ResolveLatestFuture<'a> {
-        self.0.resolve_latest(query, opts)
-    }
 }
 
 #[cfg(test)]

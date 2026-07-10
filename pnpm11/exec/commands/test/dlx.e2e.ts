@@ -108,8 +108,14 @@ test('dlx install from git', async () => {
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
     // A git-hosted artifact has an untrusted package identity, so it has to
-    // be approved by its depPath, not by package name.
-    allowBuild: ['shx@https://codeload.github.com/shelljs/shx/tar.gz/0dcbb9d1022037268959f8b706e0f06a6fd43fde'],
+    // be approved by its depPath, not by package name. Both resolution shapes
+    // are approved because the resolver degrades from the hosted tarball to a
+    // git clone when the repository visibility probe fails (e.g. GitHub rate
+    // limiting on CI).
+    allowBuild: [
+      'shx@https://codeload.github.com/shelljs/shx/tar.gz/0dcbb9d1022037268959f8b706e0f06a6fd43fde',
+      'shx@git+https://github.com/shelljs/shx.git#0dcbb9d1022037268959f8b706e0f06a6fd43fde',
+    ],
   }, ['shelljs/shx#0dcbb9d1022037268959f8b706e0f06a6fd43fde', 'touch', 'foo'])
 
   expect(fs.existsSync('foo')).toBeTruthy()
