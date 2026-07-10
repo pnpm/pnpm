@@ -127,8 +127,10 @@ fn inject_workspace_packages_writes_file_resolutions_and_lockfile_setting() {
     // The `file:` paths are rendered relative to the *lockfile root*
     // (the workspace dir), not relative to each consumer project. So
     // `project-2`'s recorded dep on project-1 reads
-    // `project-1@file:project-1(...)` even though project-2 lives a
-    // directory away.
+    // `file:project-1(...)` even though project-2 lives a directory
+    // away. The ref is the plain `file:` form — the `<name>@<ref>`
+    // alias form is reserved for renamed deps, and here the alias
+    // equals the package name.
     let parsed: pacquet_lockfile::Lockfile = serde_saphyr::from_str(&lockfile)
         .map_err(|err| {
             format!(
@@ -159,7 +161,7 @@ fn inject_workspace_packages_writes_file_resolutions_and_lockfile_setting() {
 
     let p2_dep_on_p1 = importer_version("project-2", "project-1");
     assert!(
-        p2_dep_on_p1.starts_with("project-1@file:project-1"),
+        p2_dep_on_p1.starts_with("file:project-1"),
         "project-2 importer must record project-1 as `file:project-1(...)` (inject on), not `link:`; \
          got version={p2_dep_on_p1:?}",
     );
@@ -171,7 +173,7 @@ fn inject_workspace_packages_writes_file_resolutions_and_lockfile_setting() {
 
     let p3_dep_on_p2 = importer_version("project-3", "project-2");
     assert!(
-        p3_dep_on_p2.starts_with("project-2@file:project-2"),
+        p3_dep_on_p2.starts_with("file:project-2"),
         "project-3 importer must record project-2 as `file:project-2(...)` (inject on), not `link:`; \
          got version={p3_dep_on_p2:?}",
     );
@@ -307,7 +309,7 @@ fn dependencies_meta_injected_per_dep_overrides_global_off() {
         .unwrap_or_else(|| panic!("missing project-1 in project-2 deps:\n{lockfile}"));
     let version = spec.version.to_string();
     assert!(
-        version.starts_with("project-1@file:project-1"),
+        version.starts_with("file:project-1"),
         "per-dep `dependenciesMeta.project-1.injected = true` must produce a `file:` resolution \
          even with the global `injectWorkspacePackages` off; got version={version:?}",
     );
