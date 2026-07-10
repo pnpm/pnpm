@@ -92,13 +92,14 @@ fn get_changed_dirs_since_commit(
         .output()
         .map_err(|err| FilterError::FilterChanged { stderr: err.to_string() })?;
     if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(FilterError::FilterChanged {
-            stderr: String::from_utf8_lossy(&output.stderr).trim_end().to_string(),
+            stderr: strip_final_newline(&stderr).to_string(),
         });
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let diff = stdout.trim_end_matches('\n');
+    let diff = strip_final_newline(&stdout);
     if diff.is_empty() {
         return Ok(IndexMap::new());
     }
@@ -126,6 +127,14 @@ fn get_changed_dirs_since_commit(
         changed_dirs.insert(dir, change_type);
     }
     Ok(changed_dirs)
+}
+
+/// Strip one final `\n` (and a preceding `\r`, if any) — execa's
+/// `stripFinalNewline` behavior, which upstream's process output goes
+/// through before it is parsed or embedded in an error message.
+fn strip_final_newline(text: &str) -> &str {
+    let text = text.strip_suffix('\n').unwrap_or(text);
+    text.strip_suffix('\r').unwrap_or(text)
 }
 
 fn compile_globs(patterns: &[String]) -> Result<Vec<Glob<'_>>, FilterError> {
