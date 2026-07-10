@@ -112,6 +112,23 @@ describe('stage command', () => {
     }
   })
 
+  test('stage list stops paginating at the fail-safe page cap', async () => {
+    const fullPage = Array.from({ length: 100 }, () => ({ packageName: 'pkg', version: '1.0.0' }))
+    const registry = await createRegistry(() => ({ body: { items: fullPage, total: 10_000_000 } }))
+    try {
+      const result = await stage.handler({
+        ...stageOpts(registry.url),
+        argv: { original: ['stage', 'list', '--json'] },
+        json: true,
+      }, ['list'])
+
+      expect(registry.requests).toHaveLength(1000)
+      expect(JSON.parse(result as string)).toHaveLength(100_000)
+    } finally {
+      await registry.close()
+    }
+  }, 60_000)
+
   test('stage list rejects version specifiers', async () => {
     await expect(stage.handler(stageOpts('http://localhost:4873/'), ['list', 'pkg@1.0.0']))
       .rejects.toThrow('Version specifiers are not supported for listing staged packages')

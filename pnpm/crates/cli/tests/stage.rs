@@ -243,6 +243,32 @@ fn list_paginates_until_the_total_is_reached() {
     assert_eq!(listed.as_array().map(Vec::len), Some(101));
 }
 
+/// A registry that keeps answering full pages with an inflated `total` must
+/// not drive the pagination loop forever: it stops at the fail-safe cap of
+/// 1000 pages.
+#[test]
+fn list_stops_paginating_at_the_fail_safe_page_cap() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_registry_config(dir.path(), &registry);
+    let full_page: Vec<Value> = (0..100).map(|_| staged_item()).collect();
+    let mock = server
+        .mock("GET", "/-/stage")
+        .match_query(Matcher::Any)
+        .with_body(json!({ "items": full_page, "total": 10_000_000 }).to_string())
+        .expect(1000)
+        .create();
+
+    let output = stage(dir.path(), &["list", "--json", "--reporter=silent"]);
+
+    mock.assert();
+    assert_success(&output);
+    let listed: Value =
+        serde_json::from_str(&String::from_utf8_lossy(&output.stdout)).expect("list JSON output");
+    assert_eq!(listed.as_array().map(Vec::len), Some(100_000));
+}
+
 #[test]
 fn list_uses_package_scoped_auth_for_package_filters() {
     let dir = tempfile::tempdir().expect("workspace");
