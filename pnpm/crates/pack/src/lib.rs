@@ -673,8 +673,8 @@ fn packed_contents(files_map: &indexmap::IndexMap<String, PathBuf>) -> Vec<Strin
 }
 
 /// Sort path strings the way pnpm's `localeCompare(b, 'en')` orders a
-/// tarball's file listing: case-insensitively, with
-/// [`case_precedence_tiebreak`] deciding ties.
+/// tarball's file listing: case-insensitively, with lowercase given
+/// precedence over uppercase on case-only ties.
 pub fn sort_paths_en_locale(paths: &mut Vec<String>) {
     // Decorate each path with its lowercase form once, rather than
     // recomputing `to_lowercase` for both sides on every comparison.
