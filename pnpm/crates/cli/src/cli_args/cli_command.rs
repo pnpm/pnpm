@@ -230,12 +230,16 @@ impl CliArgs {
 
     /// `restart` also runs scripts and accepts its own `--if-present`,
     /// so the top-level spelling is valid for it too — unlike the
-    /// recursive-only flags, which `restart` rejects.
+    /// recursive-only flags, which `restart` rejects. `exec` is the
+    /// reverse: it takes the recursive-only flags but runs arbitrary
+    /// commands rather than scripts, so pnpm rejects `--if-present`
+    /// for it and pacquet must too.
     fn validate_if_present_top_level_option(&self) -> Result<(), clap::Error> {
-        if matches!(self.command, CliCommand::Restart(_)) {
-            return Ok(());
+        match self.command {
+            CliCommand::Restart(_) => Ok(()),
+            CliCommand::Exec(_) => Err(Self::unexpected_argument_error("--if-present")),
+            _ => self.validate_run_scoped_global_option("--if-present"),
         }
-        self.validate_run_scoped_global_option("--if-present")
     }
 
     fn validate_run_scoped_global_option(&self, option: &str) -> Result<(), clap::Error> {
@@ -250,8 +254,12 @@ impl CliArgs {
         ) {
             return Ok(());
         }
-        Err(Self::command()
-            .error(ErrorKind::UnknownArgument, format!("unexpected argument '{option}' found")))
+        Err(Self::unexpected_argument_error(option))
+    }
+
+    fn unexpected_argument_error(option: &str) -> clap::Error {
+        Self::command()
+            .error(ErrorKind::UnknownArgument, format!("unexpected argument '{option}' found"))
     }
 
     fn validate_report_summary_global_option(&self) -> Result<(), clap::Error> {

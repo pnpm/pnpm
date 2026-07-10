@@ -168,6 +168,9 @@ fn if_present_flag_rejects_non_script_commands() {
     for argv in [
         ["pacquet", "--if-present", "install"].as_slice(),
         ["pacquet", "--if-present", "publish"].as_slice(),
+        // `exec` accepts the other run-scoped flags but runs arbitrary
+        // commands, not scripts — pnpm rejects `--if-present` for it.
+        ["pacquet", "--if-present", "exec", "ls"].as_slice(),
     ] {
         let parsed =
             CliArgs::try_parse_from(argv).expect("global parser accepts compatibility flag");
