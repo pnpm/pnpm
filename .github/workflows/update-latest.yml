@@ -7,7 +7,7 @@ on:
         description: Version
         required: true
       tag:
-        description: Tag
+        description: Tag (use latest-<major> when tagging an older release line)
         default: latest
         required: true
 
@@ -23,16 +23,48 @@ jobs:
         api_token: ${{ secrets.GARNET_API_TOKEN }}
     - name: Setup Node
       uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+    # The latest-<major> tag is derived from the version instead of being
+    # hardcoded per release branch, so dispatching this workflow from the wrong
+    # branch cannot point a newer line's tag at an older release
+    # (https://github.com/pnpm/pnpm/issues/12906).
+    - name: Validate version and tag
+      env:
+        VERSION: ${{ github.event.inputs.version }}
+        TAG: ${{ github.event.inputs.tag }}
+      run: |
+        if ! printf '%s\n' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[.0-9A-Za-z-]+)?$'; then
+          echo "::error::Version must be an exact semver version like 11.2.0. Got: ${VERSION}"
+          exit 1
+        fi
+        MAJOR="${VERSION%%.*}"
+        case "$TAG" in
+          latest-*)
+            if [ "$TAG" != "latest-${MAJOR}" ]; then
+              echo "::error::Tag ${TAG} does not match the major version of ${VERSION}. Expected latest-${MAJOR}."
+              exit 1
+            fi
+            ;;
+          latest)
+            CURRENT_LATEST_MAJOR="$(npm view pnpm dist-tags.latest | cut -d . -f 1)"
+            if [ "$MAJOR" -lt "$CURRENT_LATEST_MAJOR" ]; then
+              echo "::error::Refusing to move the latest tag back from v${CURRENT_LATEST_MAJOR} to ${VERSION}. Use latest-${MAJOR} to tag an older release line."
+              exit 1
+            fi
+            ;;
+        esac
     - name: Update tag
       env:
         "npm_config_//registry.npmjs.org/:_authToken": ${{ secrets.NPM_TOKEN }}
         VERSION: ${{ github.event.inputs.version }}
         TAG: ${{ github.event.inputs.tag }}
       run: |
-        npm dist-tag add "pnpm@${VERSION}" latest-11
-        npm dist-tag add "pnpm@${VERSION}" "${TAG}"
-        npm dist-tag add "@pnpm/exe@${VERSION}" latest-11
-        npm dist-tag add "@pnpm/exe@${VERSION}" "${TAG}"
+        MAJOR="${VERSION%%.*}"
+        npm dist-tag add "pnpm@${VERSION}" "latest-${MAJOR}"
+        npm dist-tag add "@pnpm/exe@${VERSION}" "latest-${MAJOR}"
+        if [ "$TAG" != "latest-${MAJOR}" ]; then
+          npm dist-tag add "pnpm@${VERSION}" "${TAG}"
+          npm dist-tag add "@pnpm/exe@${VERSION}" "${TAG}"
+        fi
 
   publish-to-winget:
     runs-on: ubuntu-latest
