@@ -1,6 +1,9 @@
-//! `pacquet stage` integration tests: drive the real binary against a
-//! `mockito` registry, mirroring pnpm's `releasing/commands/test/stage.test.ts`
-//! scenarios that don't need an interactive terminal.
+//! `pacquet stage` integration tests: drive the real binary end-to-end
+//! against a hosted in-process pnpr for the staging lifecycle, and against a
+//! `mockito` registry only for the faults a well-behaved registry cannot
+//! produce (OTP challenges, hostile tarball manifests, a misbehaving
+//! pagination `total`, exact header/no-upload assertions). Mirrors pnpm's
+//! `releasing/commands/test/stage.test.ts`.
 //!
 //! CI env is cleared on every spawn so the binary's OIDC id-token probe stays
 //! offline and deterministic (outside a supported CI it resolves to "no token"
@@ -59,61 +62,6 @@ fn assert_failure_with_code(output: &std::process::Output, code: &str) {
 }
 
 #[test]
-fn publish_posts_to_the_staging_endpoint_and_returns_keyed_json_with_stage_id() {
-    let dir = tempfile::tempdir().expect("workspace");
-    let mut server = mockito::Server::new();
-    let registry = format!("{}/", server.url());
-    write_project(
-        dir.path(),
-        &registry,
-        &json!({ "name": "@scope/stage-publish-json", "version": "1.0.0" }),
-    );
-    let mock = server
-        .mock("POST", "/-/stage/package/@scope%2fstage-publish-json")
-        .match_header("npm-command", "stage")
-        .with_status(201)
-        .with_body(format!(r#"{{"stageId":"{STAGE_ID}"}}"#))
-        .expect(1)
-        .create();
-
-    let output = stage(dir.path(), &["publish", "--json", "--no-git-checks", "--reporter=silent"]);
-
-    mock.assert();
-    assert_success(&output);
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let keyed: Value = serde_json::from_str(&stdout).expect("keyed JSON output");
-    let summary = &keyed["@scope/stage-publish-json"];
-    assert_eq!(summary["name"], "@scope/stage-publish-json");
-    assert_eq!(summary["version"], "1.0.0");
-    assert_eq!(summary["stageId"], STAGE_ID);
-}
-
-#[test]
-fn publish_prints_the_staged_line_with_the_stage_id() {
-    let dir = tempfile::tempdir().expect("workspace");
-    let mut server = mockito::Server::new();
-    let registry = format!("{}/", server.url());
-    write_project(
-        dir.path(),
-        &registry,
-        &json!({ "name": "stage-publish-line", "version": "1.0.0" }),
-    );
-    server
-        .mock("POST", "/-/stage/package/stage-publish-line")
-        .with_status(201)
-        .with_body(format!(r#"{{"stageId":"{STAGE_ID}"}}"#))
-        .create();
-
-    let output = stage(dir.path(), &["publish", "--no-git-checks", "--reporter=silent"]);
-
-    assert_success(&output);
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        format!("+ stage-publish-line@1.0.0 (staged with id {STAGE_ID})\n"),
-    );
-}
-
-#[test]
 fn publish_dry_run_reports_that_the_package_would_be_staged() {
     let dir = tempfile::tempdir().expect("workspace");
     let mut server = mockito::Server::new();
@@ -147,100 +95,6 @@ fn staged_item() -> Value {
         "actorType": "user",
         "shasum": "4f7f5f1d5bcf2f72f6e4d6c4f3b2812d8a2f6c19",
     })
-}
-
-#[test]
-fn list_and_view_fetch_staged_package_metadata() {
-    let dir = tempfile::tempdir().expect("workspace");
-    let mut server = mockito::Server::new();
-    let registry = format!("{}/", server.url());
-    write_registry_config(dir.path(), &registry);
-    let item = staged_item();
-    let list_mock = server
-        .mock("GET", "/-/stage")
-        .match_query(Matcher::AllOf(vec![
-            Matcher::UrlEncoded("page".into(), "0".into()),
-            Matcher::UrlEncoded("perPage".into(), "100".into()),
-        ]))
-        .with_body(json!({ "items": [item], "page": 0, "perPage": 100, "total": 1 }).to_string())
-        .expect(1)
-        .create();
-    let view_mock = server
-        .mock("GET", format!("/-/stage/{STAGE_ID}").as_str())
-        .with_body(item.to_string())
-        .expect(1)
-        .create();
-
-    let list_output = stage(dir.path(), &["list", "--json", "--reporter=silent"]);
-    list_mock.assert();
-    assert_success(&list_output);
-    let listed: Value = serde_json::from_str(&String::from_utf8_lossy(&list_output.stdout))
-        .expect("list JSON output");
-    assert_eq!(listed, json!([staged_item()]));
-
-    let view_output = stage(dir.path(), &["view", STAGE_ID]);
-    view_mock.assert();
-    assert_success(&view_output);
-    let stdout = String::from_utf8_lossy(&view_output.stdout);
-    assert!(stdout.contains("package name: @scope/example-package"), "stdout: {stdout}");
-    assert!(stdout.contains("staged by: user (user)"), "stdout: {stdout}");
-}
-
-#[test]
-fn list_passes_the_package_filter_and_reports_an_empty_result() {
-    let dir = tempfile::tempdir().expect("workspace");
-    let mut server = mockito::Server::new();
-    let registry = format!("{}/", server.url());
-    write_registry_config(dir.path(), &registry);
-    let mock = server
-        .mock("GET", "/-/stage")
-        .match_query(Matcher::AllOf(vec![
-            Matcher::UrlEncoded("page".into(), "0".into()),
-            Matcher::UrlEncoded("perPage".into(), "100".into()),
-            Matcher::UrlEncoded("package".into(), "@scope/example-package".into()),
-        ]))
-        .with_body(json!({ "items": [], "page": 0, "perPage": 100, "total": 0 }).to_string())
-        .expect(1)
-        .create();
-
-    let output = stage(dir.path(), &["list", "@scope/example-package"]);
-
-    mock.assert();
-    assert_success(&output);
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        "No staged versions of package name \"@scope/example-package\".\n",
-    );
-}
-
-#[test]
-fn list_paginates_until_the_total_is_reached() {
-    let dir = tempfile::tempdir().expect("workspace");
-    let mut server = mockito::Server::new();
-    let registry = format!("{}/", server.url());
-    write_registry_config(dir.path(), &registry);
-    let full_page: Vec<Value> = (0..100).map(|_| staged_item()).collect();
-    let first = server
-        .mock("GET", "/-/stage")
-        .match_query(Matcher::UrlEncoded("page".into(), "0".into()))
-        .with_body(json!({ "items": full_page, "total": 101 }).to_string())
-        .expect(1)
-        .create();
-    let second = server
-        .mock("GET", "/-/stage")
-        .match_query(Matcher::UrlEncoded("page".into(), "1".into()))
-        .with_body(json!({ "items": [staged_item()], "total": 101 }).to_string())
-        .expect(1)
-        .create();
-
-    let output = stage(dir.path(), &["list", "--json", "--reporter=silent"]);
-
-    first.assert();
-    second.assert();
-    assert_success(&output);
-    let listed: Value =
-        serde_json::from_str(&String::from_utf8_lossy(&output.stdout)).expect("list JSON output");
-    assert_eq!(listed.as_array().map(Vec::len), Some(101));
 }
 
 /// A registry that keeps answering full pages with an inflated `total` must
@@ -410,36 +264,6 @@ fn approve_surfaces_a_plain_401_as_a_stage_registry_error() {
 }
 
 #[test]
-fn download_writes_the_staged_tarball_and_prints_keyed_json() {
-    let dir = tempfile::tempdir().expect("workspace");
-    let mut server = mockito::Server::new();
-    let registry = format!("{}/", server.url());
-    write_registry_config(dir.path(), &registry);
-    let tarball = gzipped_tarball(&[(
-        "package/package.json",
-        r#"{"name":"@scope/stage-download-json","version":"1.0.0"}"#,
-    )]);
-    server
-        .mock("GET", format!("/-/stage/{STAGE_ID}/tarball").as_str())
-        .with_header("content-type", "application/octet-stream")
-        .with_body(&tarball)
-        .create();
-
-    let output = stage(dir.path(), &["download", STAGE_ID, "--json", "--reporter=silent"]);
-
-    assert_success(&output);
-    let keyed: Value =
-        serde_json::from_str(&String::from_utf8_lossy(&output.stdout)).expect("keyed JSON output");
-    let expected_filename = format!("scope-stage-download-json-1.0.0-{STAGE_ID}.tgz");
-    let summary = &keyed["@scope/stage-download-json"];
-    assert_eq!(summary["name"], "@scope/stage-download-json");
-    assert_eq!(summary["version"], "1.0.0");
-    assert_eq!(summary["filename"], Value::String(expected_filename.clone()));
-    let written = fs::read(dir.path().join(&expected_filename)).expect("the tarball is written");
-    assert_eq!(written, tarball);
-}
-
-#[test]
 fn download_rejects_traversal_through_the_tarball_manifest_version() {
     let dir = tempfile::tempdir().expect("workspace");
     let outside_base = "stage-download-outside-version";
@@ -566,4 +390,278 @@ fn gzipped_tarball(entries: &[(&str, &str)]) -> Vec<u8> {
     let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
     encoder.write_all(&tar).expect("gzip the tarball");
     encoder.finish().expect("finish the gzip stream")
+}
+
+// --------------------------------------------------------------------
+// End-to-end lifecycle against a hosted in-process pnpr. The shared
+// `pacquet_testing_utils` registry runs in proxy mode and rejects
+// publishes, so these tests serve their own static-mode instance.
+// --------------------------------------------------------------------
+
+/// A hosted pnpr on an ephemeral localhost port, backed by a fresh
+/// storage tempdir (returned so it outlives the test).
+fn spawn_hosted_registry() -> (String, tempfile::TempDir) {
+    let storage = tempfile::tempdir().expect("registry storage");
+    let listener = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
+        .expect("bind the stage e2e registry to an unused localhost port");
+    listener.set_nonblocking(true).expect("set the registry listener to nonblocking");
+    let listen = listener.local_addr().expect("read the registry listener address");
+    let url = format!("http://{listen}/");
+    let mut config = pnpr::Config::static_serve(listen, storage.path().to_path_buf());
+    config.public_url = url.trim_end_matches('/').to_string();
+    config.auth.htpasswd.max_users = pnpr::MaxUsers::Unlimited;
+    std::thread::Builder::new()
+        .name("stage-e2e-registry".to_string())
+        .spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("create the registry runtime");
+            runtime.block_on(async move {
+                let listener = tokio::net::TcpListener::from_std(listener)
+                    .expect("create the registry tokio listener");
+                pnpr::serve_listener(config, listener).await.expect("serve the stage e2e registry");
+            });
+        })
+        .expect("spawn the registry thread");
+    (url, storage)
+}
+
+/// Run one async request against the e2e registry from this synchronous test.
+fn block_on<Output>(future: impl std::future::Future<Output = Output>) -> Output {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("create the request runtime")
+        .block_on(future)
+}
+
+/// Register a user against the e2e registry and return their bearer token.
+fn add_user(registry: &str) -> String {
+    let url = format!("{registry}-/user/org.couchdb.user:alice");
+    let body = json!({
+        "_id": "org.couchdb.user:alice",
+        "name": "alice",
+        "password": "secret",
+        "email": "alice@example.com",
+        "type": "user",
+        "roles": [],
+    });
+    block_on(async {
+        let response = reqwest::Client::new()
+            .put(&url)
+            .json(&body)
+            .send()
+            .await
+            .expect("send the adduser request");
+        assert_eq!(response.status().as_u16(), 201, "adduser must succeed");
+        let payload: Value = response.json().await.expect("parse the adduser response");
+        payload["token"].as_str().expect("token in the adduser response").to_owned()
+    })
+}
+
+/// The HTTP status of a plain packument read, bypassing the CLI.
+fn packument_status(registry: &str, token: &str, name: &str) -> u16 {
+    let url = format!("{registry}{name}");
+    block_on(async {
+        reqwest::Client::new()
+            .get(&url)
+            .bearer_auth(token)
+            .send()
+            .await
+            .expect("send the packument request")
+            .status()
+            .as_u16()
+    })
+}
+
+/// A workspace whose `.npmrc` points at the e2e registry, plus an auth file
+/// carrying the registered user's token.
+fn e2e_workspace(dir: &Path, registry: &str, token: &str, manifest: &Value) -> PathBuf {
+    write_project(dir, registry, manifest);
+    let host = registry.strip_prefix("http://").unwrap_or(registry);
+    let auth_file = dir.join("auth-npmrc");
+    fs::write(&auth_file, format!("//{host}:_authToken={token}\n")).expect("write auth .npmrc");
+    auth_file
+}
+
+fn stage_with_auth(workspace: &Path, auth_file: &Path, args: &[&str]) -> std::process::Output {
+    pacquet(workspace)
+        .with_arg("--npmrc-auth-file")
+        .with_arg(auth_file)
+        .with_arg("stage")
+        .with_args(args)
+        .output()
+        .expect("spawn pacquet stage")
+}
+
+/// The whole staged-publishing happy path against a real registry: stage a
+/// scoped package, observe it held back, inspect and download it, approve
+/// it, and see it become installable with the staged record gone.
+#[test]
+fn stage_lifecycle_against_pnpr_publishes_only_on_approval() {
+    let (registry, _storage) = spawn_hosted_registry();
+    let token = add_user(&registry);
+    let dir = tempfile::tempdir().expect("workspace");
+    let auth_file = e2e_workspace(
+        dir.path(),
+        &registry,
+        &token,
+        &json!({ "name": "@stage-e2e/lifecycle", "version": "1.0.0" }),
+    );
+
+    let publish = stage_with_auth(
+        dir.path(),
+        &auth_file,
+        &["publish", "--json", "--no-git-checks", "--reporter=silent"],
+    );
+    assert_success(&publish);
+    let keyed: Value =
+        serde_json::from_str(&String::from_utf8_lossy(&publish.stdout)).expect("keyed JSON output");
+    let summary = &keyed["@stage-e2e/lifecycle"];
+    assert_eq!(summary["version"], "1.0.0");
+    let stage_id = summary["stageId"].as_str().expect("a stage id").to_owned();
+
+    // Held back: not installable until approved.
+    assert_eq!(packument_status(&registry, &token, "@stage-e2e/lifecycle"), 404);
+
+    let list = stage_with_auth(dir.path(), &auth_file, &["list", "--json", "--reporter=silent"]);
+    assert_success(&list);
+    let listed: Value =
+        serde_json::from_str(&String::from_utf8_lossy(&list.stdout)).expect("list JSON output");
+    assert_eq!(listed[0]["id"], Value::String(stage_id.clone()));
+    assert_eq!(listed[0]["packageName"], "@stage-e2e/lifecycle");
+    assert_eq!(listed[0]["tag"], "latest");
+    assert_eq!(listed[0]["actor"], "alice");
+
+    let view = stage_with_auth(dir.path(), &auth_file, &["view", &stage_id]);
+    assert_success(&view);
+    let stdout = String::from_utf8_lossy(&view.stdout);
+    assert!(stdout.contains("package name: @stage-e2e/lifecycle"), "stdout: {stdout}");
+    assert!(stdout.contains("staged by: alice (user)"), "stdout: {stdout}");
+
+    let download = stage_with_auth(
+        dir.path(),
+        &auth_file,
+        &["download", &stage_id, "--json", "--reporter=silent"],
+    );
+    assert_success(&download);
+    let downloaded: Value = serde_json::from_str(&String::from_utf8_lossy(&download.stdout))
+        .expect("download JSON output");
+    let expected_filename = format!("stage-e2e-lifecycle-1.0.0-{stage_id}.tgz");
+    assert_eq!(
+        downloaded["@stage-e2e/lifecycle"]["filename"],
+        Value::String(expected_filename.clone()),
+    );
+    assert!(dir.path().join(&expected_filename).exists(), "the tarball must be written");
+
+    let approve = stage_with_auth(dir.path(), &auth_file, &["approve", &stage_id]);
+    assert_success(&approve);
+    assert_eq!(
+        String::from_utf8_lossy(&approve.stdout),
+        format!("Staged package {stage_id} approved and published successfully.\n"),
+    );
+
+    assert_eq!(packument_status(&registry, &token, "@stage-e2e/lifecycle"), 200);
+    let list = stage_with_auth(dir.path(), &auth_file, &["list"]);
+    assert_success(&list);
+    assert_eq!(
+        String::from_utf8_lossy(&list.stdout),
+        "No staged packages found.\n",
+        "an approved stage leaves no record behind",
+    );
+}
+
+/// Rejecting a staged publish deletes it without ever publishing, and the
+/// non-JSON `stage publish` output carries the stage id to act on.
+#[test]
+fn stage_reject_against_pnpr_deletes_the_staged_publish() {
+    let (registry, _storage) = spawn_hosted_registry();
+    let token = add_user(&registry);
+    let dir = tempfile::tempdir().expect("workspace");
+    let auth_file = e2e_workspace(
+        dir.path(),
+        &registry,
+        &token,
+        &json!({ "name": "stage-e2e-rejected", "version": "1.0.0" }),
+    );
+
+    let publish = stage_with_auth(
+        dir.path(),
+        &auth_file,
+        &["publish", "--no-git-checks", "--reporter=silent"],
+    );
+    assert_success(&publish);
+    let stdout = String::from_utf8_lossy(&publish.stdout);
+    let stage_id = stdout
+        .trim()
+        .strip_prefix("+ stage-e2e-rejected@1.0.0 (staged with id ")
+        .and_then(|rest| rest.strip_suffix(')'))
+        .unwrap_or_else(|| panic!("staged line must carry the id; stdout: {stdout}"))
+        .to_owned();
+
+    let reject = stage_with_auth(dir.path(), &auth_file, &["reject", &stage_id]);
+    assert_success(&reject);
+    let stdout = String::from_utf8_lossy(&reject.stdout);
+    assert!(
+        stdout.contains(&format!("Staged package {stage_id} has been rejected.")),
+        "stdout: {stdout}",
+    );
+
+    assert_eq!(packument_status(&registry, &token, "stage-e2e-rejected"), 404);
+    let view = stage_with_auth(dir.path(), &auth_file, &["view", &stage_id]);
+    assert_failure_with_code(&view, "ERR_PNPM_STAGE_REGISTRY_ERROR");
+    let list = stage_with_auth(dir.path(), &auth_file, &["list", "stage-e2e-rejected"]);
+    assert_success(&list);
+    assert_eq!(
+        String::from_utf8_lossy(&list.stdout),
+        "No staged versions of package name \"stage-e2e-rejected\".\n",
+    );
+}
+
+/// The client's pagination loop crosses page boundaries against the real
+/// registry: 101 staged records arrive in one 100-item page plus one more.
+#[test]
+fn stage_list_paginates_against_pnpr() {
+    let (registry, _storage) = spawn_hosted_registry();
+    let token = add_user(&registry);
+    let dir = tempfile::tempdir().expect("workspace");
+    let auth_file = e2e_workspace(
+        dir.path(),
+        &registry,
+        &token,
+        &json!({ "name": "stage-e2e-paginated", "version": "1.0.0" }),
+    );
+
+    // Seed 101 staged records directly over HTTP; the client under test is
+    // the list loop, not the publisher.
+    block_on(async {
+        let client = reqwest::Client::new();
+        for index in 0..101 {
+            let name = format!("stage-e2e-paginated-{index:03}");
+            let doc = json!({
+                "_id": name,
+                "name": name,
+                "dist-tags": { "latest": "1.0.0" },
+                "versions": { "1.0.0": { "name": name, "version": "1.0.0" } },
+                "_attachments": {
+                    format!("{name}-1.0.0.tgz"): { "data": "dGFyYmFsbA==", "length": 7 }
+                },
+            });
+            let response = client
+                .post(format!("{registry}-/stage/package/{name}"))
+                .bearer_auth(&token)
+                .json(&doc)
+                .send()
+                .await
+                .expect("send the stage request");
+            assert_eq!(response.status().as_u16(), 201, "staging {name} must succeed");
+        }
+    });
+
+    let list = stage_with_auth(dir.path(), &auth_file, &["list", "--json", "--reporter=silent"]);
+    assert_success(&list);
+    let listed: Value =
+        serde_json::from_str(&String::from_utf8_lossy(&list.stdout)).expect("list JSON output");
+    assert_eq!(listed.as_array().map(Vec::len), Some(101));
 }

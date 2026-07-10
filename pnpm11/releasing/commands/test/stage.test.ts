@@ -5,10 +5,18 @@ import path from 'node:path'
 import { describe, expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import { pack, stage } from '@pnpm/releasing.commands'
+import { REGISTRY_URL } from '@pnpm/testing.command-defaults'
+import { getRegistryMockToken, REGISTRY_MOCK_CREDENTIALS, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import tar from 'tar-stream'
 import { temporaryDirectory } from 'tempy'
 
 import { DEFAULT_OPTS } from './publish/utils/index.js'
+
+const CONFIG_BY_URI = {
+  [`//localhost:${REGISTRY_MOCK_PORT}/`]: {
+    '@': { authToken: getRegistryMockToken() },
+  },
+}
 
 const STAGE_ID = '1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f'
 
@@ -27,89 +35,117 @@ interface RegistryResponse {
 
 type RegistryHandler = (request: RegistryRequest) => Promise<RegistryResponse> | RegistryResponse
 
-describe('stage command', () => {
-  test('stage publish posts to the staging endpoint and returns keyed JSON with stageId', async () => {
-    const pkgName = '@scope/stage-publish-json'
-    const stageId = 'f8e7a45b-7a5f-4f31-8e6d-9dd1c6ef38c0'
+describe('stage command against the registry mock', () => {
+  // These tests run the staging lifecycle end-to-end against the pnpr
+  // instance the with-registry jest preset boots; the ad-hoc mock registry
+  // below is kept only for faults a well-behaved registry cannot produce.
+
+  test('stage publish holds the package back until it is approved', async () => {
+    const pkgName = '@pnpmtest/stage-e2e-lifecycle'
     prepare({ name: pkgName, version: '1.0.0' })
-
-    const registry = await createRegistry(async (request) => {
-      if (request.method === 'POST' && decodeURIComponent(request.url.pathname) === `/-/stage/package/${pkgName}`) {
-        return { status: 201, body: { stageId } }
-      }
-      return { status: 404, body: { error: 'not found' } }
-    })
-    try {
-      const result = await stage.handler({
-        ...stageOpts(registry.url),
-        argv: { original: ['stage', 'publish', '--json'] },
-        dir: process.cwd(),
-        json: true,
-      }, ['publish'])
-
-      expect(typeof result).toBe('object')
-      const output = JSON.parse((result as { output: string }).output)
-      expect(output[pkgName]).toMatchObject({
-        name: pkgName,
-        version: '1.0.0',
-        stageId,
-      })
-      expect(registry.requests.some((request) => request.method === 'POST' && decodeURIComponent(request.url.pathname) === `/-/stage/package/${pkgName}`)).toBe(true)
-    } finally {
-      await registry.close()
+    const opts = {
+      ...stageOpts(REGISTRY_URL),
+      configByUri: CONFIG_BY_URI,
     }
+
+    const publishResult = await stage.handler({
+      ...opts,
+      argv: { original: ['stage', 'publish', '--json'] },
+      dir: process.cwd(),
+      json: true,
+    }, ['publish'])
+    const published = JSON.parse((publishResult as { output: string }).output)
+    expect(published[pkgName]).toMatchObject({ name: pkgName, version: '1.0.0' })
+    const stageId = published[pkgName].stageId as string
+    expect(typeof stageId).toBe('string')
+
+    // Held back: the package is not installable before approval.
+    expect((await fetchPackument(pkgName)).status).toBe(404)
+
+    const listResult = await stage.handler({
+      ...opts,
+      argv: { original: ['stage', 'list', '--json'] },
+      json: true,
+    }, ['list', pkgName])
+    const listed = JSON.parse(listResult as string)
+    expect(listed).toHaveLength(1)
+    expect(listed[0]).toMatchObject({
+      id: stageId,
+      packageName: pkgName,
+      version: '1.0.0',
+      tag: 'latest',
+      actor: REGISTRY_MOCK_CREDENTIALS.username,
+      actorType: 'user',
+    })
+
+    const viewResult = await stage.handler({
+      ...opts,
+      argv: { original: ['stage', 'view'] },
+    }, ['view', stageId])
+    expect(viewResult).toContain(`package name: ${pkgName}`)
+    expect(viewResult).toContain(`staged by: ${REGISTRY_MOCK_CREDENTIALS.username} (user)`)
+
+    const downloadDir = temporaryDirectory()
+    const downloadResult = await stage.handler({
+      ...opts,
+      argv: { original: ['stage', 'download', '--json'] },
+      dir: downloadDir,
+      json: true,
+    }, ['download', stageId])
+    const downloaded = JSON.parse(downloadResult as string)
+    const expectedFilename = `pnpmtest-stage-e2e-lifecycle-1.0.0-${stageId}.tgz`
+    expect(downloaded[pkgName]).toMatchObject({ name: pkgName, version: '1.0.0', filename: expectedFilename })
+    expect(fs.existsSync(path.join(downloadDir, expectedFilename))).toBe(true)
+
+    await expect(stage.handler({
+      ...opts,
+      argv: { original: ['stage', 'approve'] },
+    }, ['approve', stageId]))
+      .resolves.toBe(`Staged package ${stageId} approved and published successfully.`)
+
+    const packument = await fetchPackument(pkgName)
+    expect(packument.status).toBe(200)
+    expect((await packument.json() as { versions: Record<string, unknown> }).versions['1.0.0']).toBeTruthy()
+    await expect(stage.handler({
+      ...opts,
+      argv: { original: ['stage', 'list'] },
+    }, ['list', pkgName]))
+      .resolves.toBe(`No staged versions of package name "${pkgName}".`)
   })
 
-  test('stage list and view fetch staged package metadata', async () => {
-    const item = {
-      id: STAGE_ID,
-      packageName: '@scope/example-package',
-      version: '1.2.3',
-      tag: 'latest',
-      createdAt: '2026-03-16T09:00:00.000Z',
-      actor: 'user',
-      actorType: 'user',
-      shasum: '4f7f5f1d5bcf2f72f6e4d6c4f3b2812d8a2f6c19',
+  test('stage reject deletes the staged publish without publishing it', async () => {
+    const pkgName = '@pnpmtest/stage-e2e-rejected'
+    prepare({ name: pkgName, version: '1.0.0' })
+    const opts = {
+      ...stageOpts(REGISTRY_URL),
+      configByUri: CONFIG_BY_URI,
     }
-    const registry = await createRegistry((request) => {
-      if (request.method === 'GET' && request.url.pathname === '/-/stage') {
-        expect(request.url.searchParams.get('page')).toBe('0')
-        expect(request.url.searchParams.get('perPage')).toBe('100')
-        const packageFilter = request.url.searchParams.get('package')
-        if (packageFilter != null) {
-          expect(packageFilter).toBe('@scope/example-package')
-        }
-        return { body: { items: [item], page: 0, perPage: 100, total: 1 } }
-      }
-      if (request.method === 'GET' && request.url.pathname === `/-/stage/${STAGE_ID}`) {
-        return { body: item }
-      }
-      return { status: 404, body: { error: 'not found' } }
-    })
-    try {
-      const listResult = await stage.handler({
-        ...stageOpts(registry.url),
-        argv: { original: ['stage', 'list', '--json'] },
-        json: true,
-      }, ['list'])
-      expect(JSON.parse(listResult as string)).toStrictEqual([item])
 
-      const filteredListResult = await stage.handler({
-        ...stageOpts(registry.url),
-        argv: { original: ['stage', 'list', '--json'] },
-        json: true,
-      }, ['list', '@scope/example-package'])
-      expect(JSON.parse(filteredListResult as string)).toStrictEqual([item])
+    const publishResult = await stage.handler({
+      ...opts,
+      argv: { original: ['stage', 'publish'] },
+      dir: process.cwd(),
+    }, ['publish'])
+    const output = (publishResult as { output: string }).output
+    const stageId = /\(staged with id ([0-9a-f-]{36})\)/.exec(output)?.[1]
+    if (!stageId) throw new Error(`staged line must carry the id: ${output}`)
 
-      const viewResult = await stage.handler({
-        ...stageOpts(registry.url),
-        argv: { original: ['stage', 'view'] },
-      }, ['view', STAGE_ID])
-      expect(viewResult).toContain('package name: @scope/example-package')
-      expect(viewResult).toContain('staged by: user (user)')
-    } finally {
-      await registry.close()
-    }
+    await expect(stage.handler({
+      ...opts,
+      argv: { original: ['stage', 'reject'] },
+    }, ['reject', stageId]))
+      .resolves.toBe(`Staged package ${stageId} has been rejected.`)
+
+    expect((await fetchPackument(pkgName)).status).toBe(404)
+    await expect(stage.handler({
+      ...opts,
+      argv: { original: ['stage', 'view'] },
+    }, ['view', stageId])).rejects.toMatchObject({ code: 'ERR_PNPM_STAGE_REGISTRY_ERROR' })
+    await expect(stage.handler({
+      ...opts,
+      argv: { original: ['stage', 'list'] },
+    }, ['list', pkgName]))
+      .resolves.toBe(`No staged versions of package name "${pkgName}".`)
   })
 
   test('stage list stops paginating at the fail-safe page cap', async () => {
@@ -278,49 +314,6 @@ describe('stage command', () => {
     }
   })
 
-  test('stage download --json is keyed by package name and writes the staged tarball', async () => {
-    const pkgName = '@scope/stage-download-json'
-    prepare({ name: pkgName, version: '1.0.0' })
-    const packDir = temporaryDirectory()
-    const packResult = await pack.api({
-      ...DEFAULT_OPTS,
-      argv: { original: ['pack'] },
-      dir: process.cwd(),
-      packDestination: packDir,
-    })
-    const tarballData = fs.readFileSync(packResult.tarballPath)
-
-    const registry = await createRegistry((request) => {
-      if (request.method === 'GET' && request.url.pathname === `/-/stage/${STAGE_ID}/tarball`) {
-        return {
-          body: tarballData,
-          headers: { 'content-type': 'application/octet-stream' },
-        }
-      }
-      return { status: 404, body: { error: 'not found' } }
-    })
-    const downloadDir = temporaryDirectory()
-    try {
-      const result = await stage.handler({
-        ...stageOpts(registry.url),
-        argv: { original: ['stage', 'download', '--json'] },
-        dir: downloadDir,
-        json: true,
-      }, ['download', STAGE_ID])
-
-      const output = JSON.parse(result as string)
-      expect(output[pkgName]).toMatchObject({
-        name: pkgName,
-        version: '1.0.0',
-        filename: `scope-stage-download-json-1.0.0-${STAGE_ID}.tgz`,
-      })
-      expect(output.undefined).toBeUndefined()
-      expect(fs.existsSync(path.join(downloadDir, `scope-stage-download-json-1.0.0-${STAGE_ID}.tgz`))).toBe(true)
-    } finally {
-      await registry.close()
-    }
-  })
-
   test('stage download rejects traversal through tarball manifest version', async () => {
     const outsideBase = `stage-download-outside-version-${process.pid}-${Date.now()}`
     const tarballData = await createPackageTarball({
@@ -414,6 +407,12 @@ describe('stage command', () => {
     }
   })
 })
+
+async function fetchPackument (pkgName: string): Promise<Response> {
+  return fetch(`${REGISTRY_URL}/${pkgName.replace('/', '%2f')}`, {
+    headers: { authorization: `Bearer ${getRegistryMockToken()}` },
+  })
+}
 
 function stageOpts (registry: string): Parameters<typeof stage.handler>[0] {
   return {
