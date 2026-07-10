@@ -49,9 +49,7 @@ where
         return Err(LoginError::MissingCredentials);
     }
 
-    let username_ref = username.as_str();
-    let password_ref = password.as_str();
-    let email_ref = email.as_str();
+    let credentials = Credentials { username: &username, password: &password, email: &email };
     let token = with_otp_handling::<Sys, Reporter, String, ClassicLoginOpError, _, _>(
         fetch_options,
         // A plain `FnMut` returning an `async move` block: the future is a
@@ -59,7 +57,7 @@ where
         // it borrows nothing from the closure — see `with_otp_handling`'s
         // `Operation` bound.
         move |otp: Option<String>| async move {
-            add_user(http_client, registry, username_ref, password_ref, email_ref, otp.as_deref())
+            add_user(http_client, registry, credentials, otp.as_deref())
                 .await
                 .map_err(add_user_error_to_op::<Reporter>)
         },
@@ -84,16 +82,25 @@ async fn read_credential(
     }
 }
 
+/// The user-supplied login credentials that [`add_user`] submits. Bundling the
+/// three same-typed `&str` values behind named fields keeps them from being
+/// transposed at the call site.
+#[derive(Clone, Copy)]
+struct Credentials<'a> {
+    username: &'a str,
+    password: &'a str,
+    email: &'a str,
+}
+
 /// Register a user via `PUT -/user/org.couchdb.user:<name>`, returning the
 /// granted token. `otp` populates the `npm-otp` header on the retry pass.
 async fn add_user(
     http_client: &ThrottledClient,
     registry: &str,
-    username: &str,
-    password: &str,
-    email: &str,
+    credentials: Credentials<'_>,
     otp: Option<&str>,
 ) -> Result<String, AddUserError> {
+    let Credentials { username, password, email } = credentials;
     let url = registry_join(
         registry,
         &format!("-/user/org.couchdb.user:{}", encode_uri_component(username)),
