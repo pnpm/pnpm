@@ -33,9 +33,12 @@ use super::{
     self_update::SelfUpdateArgs,
     setup::SetupArgs,
     stage::StageArgs,
+    star::StarArgs,
+    stars::StarsArgs,
     store::StoreCommand,
     team::TeamArgs,
     undeprecate::UndeprecateArgs,
+    unstar::UnstarArgs,
     version::VersionArgs,
     why::WhyArgs,
     with::WithArgs,
@@ -145,6 +148,28 @@ pub(super) fn whoami<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> 
     Ok(Box::pin(async move {
         let username = super::whoami::whoami(cfg).await?;
         println!("{}", super::sanitize::sanitize(&username));
+        Ok(())
+    }))
+}
+
+pub(super) fn star<'a>(ctx: &RunCtx<'a>, args: StarArgs) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.config)()?;
+    Ok(Box::pin(async move { args.run(cfg).await }))
+}
+
+pub(super) fn unstar<'a>(ctx: &RunCtx<'a>, args: UnstarArgs) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.config)()?;
+    Ok(Box::pin(async move { args.run(cfg).await }))
+}
+
+pub(super) fn stars<'a>(ctx: &RunCtx<'a>, args: StarsArgs) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.config)()?;
+    Ok(Box::pin(async move {
+        if let Some(output) = args.run(cfg).await?
+            && !output.is_empty()
+        {
+            println!("{output}");
+        }
         Ok(())
     }))
 }
