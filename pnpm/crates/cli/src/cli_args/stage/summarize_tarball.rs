@@ -136,7 +136,7 @@ fn maybe_gunzip(data: &[u8]) -> Result<Vec<u8>, StageError> {
             Err(StageError::RequestFailed {
                 operation: "read the staged tarball".to_owned(),
                 reason: format!(
-                    "tarball exceeded {MAX_DECOMPRESSED_TARBALL_BYTES} bytes when decompressed"
+                    "tarball exceeded {MAX_DECOMPRESSED_TARBALL_BYTES} bytes when decompressed",
                 ),
             })
         }
