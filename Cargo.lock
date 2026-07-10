@@ -3848,6 +3848,7 @@ dependencies = [
  "pacquet-network-web-auth",
  "pacquet-network-web-auth-testing",
  "pacquet-reporter",
+ "pipe-trait",
  "pretty_assertions",
  "reqwest 0.13.4",
  "serde_json",

@@ -10,6 +10,7 @@ use std::{
 
 use pacquet_network::nerf_dart;
 use pacquet_network_web_auth_testing::{InputResponse, ok_token, web_auth_fake};
+use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 
 use super::{
@@ -209,7 +210,7 @@ async fn should_not_trigger_otp_for_non_401_errors() {
         .unwrap_err();
 
     assert_eq!(
-        miette::Diagnostic::code(&err).map(|code| code.to_string()).as_deref(),
+        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
         Some("ERR_PNPM_LOGIN_FAILED"),
     );
     assert_eq!(err.to_string(), "Login failed (HTTP 403): Forbidden");
@@ -240,7 +241,7 @@ async fn should_not_trigger_otp_for_401_without_www_authenticate_otp_header() {
         .unwrap_err();
 
     assert_eq!(
-        miette::Diagnostic::code(&err).map(|code| code.to_string()).as_deref(),
+        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
         Some("ERR_PNPM_LOGIN_FAILED"),
     );
     assert_eq!(err.to_string(), "Login failed (HTTP 401): Unauthorized");
@@ -270,7 +271,7 @@ async fn should_throw_when_username_is_empty_in_classic_login() {
 
     assert!(matches!(err, LoginError::MissingCredentials), "got {err:?}");
     assert_eq!(
-        miette::Diagnostic::code(&err).map(|code| code.to_string()).as_deref(),
+        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
         Some("ERR_PNPM_LOGIN_MISSING_CREDENTIALS"),
     );
     assert_eq!(err.to_string(), "Username, password, and email are all required");
@@ -288,7 +289,7 @@ async fn should_cancel_the_login_when_a_credential_prompt_is_interrupted() {
     // login. The fake returns the raw `dialoguer::Error`, so this exercises the
     // wrapper rather than short-circuiting it with a pre-mapped `PromptError`.
     set_prompt_password(Box::new(|_| {
-        Err(dialoguer::Error::IO(io::Error::from(io::ErrorKind::Interrupted)))
+        io::ErrorKind::Interrupted.pipe(io::Error::from).pipe(dialoguer::Error::IO).pipe(Err)
     }));
 
     let mut server = mockito::Server::new_async().await;
@@ -302,7 +303,7 @@ async fn should_cancel_the_login_when_a_credential_prompt_is_interrupted() {
 
     assert!(matches!(err, LoginError::Canceled), "got {err:?}");
     assert_eq!(
-        miette::Diagnostic::code(&err).map(|code| code.to_string()).as_deref(),
+        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
         Some("ERR_PNPM_LOGIN_CANCELED"),
     );
     assert_eq!(err.to_string(), "Login canceled");
@@ -333,7 +334,7 @@ async fn should_throw_when_classic_login_returns_no_token() {
         .unwrap_err();
 
     assert_eq!(
-        miette::Diagnostic::code(&err).map(|code| code.to_string()).as_deref(),
+        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
         Some("ERR_PNPM_LOGIN_NO_TOKEN"),
     );
     assert_eq!(err.to_string(), "The registry did not return an authentication token");
@@ -349,7 +350,7 @@ async fn should_surface_a_non_interrupt_prompt_failure_as_a_prompt_error() {
     reset();
     reset_login();
     set_prompt_input(Box::new(|_| {
-        Err(dialoguer::Error::IO(io::Error::from(io::ErrorKind::BrokenPipe)))
+        io::ErrorKind::BrokenPipe.pipe(io::Error::from).pipe(dialoguer::Error::IO).pipe(Err)
     }));
 
     let mut server = mockito::Server::new_async().await;
@@ -363,7 +364,7 @@ async fn should_surface_a_non_interrupt_prompt_failure_as_a_prompt_error() {
 
     assert!(matches!(err, LoginError::Prompt { .. }), "got {err:?}");
     assert_eq!(
-        miette::Diagnostic::code(&err).map(|code| code.to_string()).as_deref(),
+        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
         Some("pacquet_auth_commands::login_prompt_failed"),
     );
     assert!(

@@ -8,6 +8,7 @@ use std::{
 };
 
 use pacquet_network_web_auth_testing::web_auth_fake;
+use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 
 use super::{
@@ -32,7 +33,7 @@ async fn should_throw_in_non_interactive_terminal() {
     assert!(matches!(err, LoginError::NonInteractive), "got {err:?}");
     assert_eq!(err.to_string(), "The login command requires an interactive terminal");
     assert_eq!(
-        miette::Diagnostic::code(&err).map(|code| code.to_string()).as_deref(),
+        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
         Some("ERR_PNPM_LOGIN_NON_INTERACTIVE"),
     );
 }

@@ -28,6 +28,7 @@ url         = { workspace = true }
 pacquet-network-web-auth-testing = { workspace = true }
 
 mockito            = { workspace = true }
+pipe-trait         = { workspace = true }
 pretty_assertions  = { workspace = true }
 tempfile           = { workspace = true }
 tokio              = { workspace = true }

@@ -10,6 +10,7 @@ use std::{
 
 use pacquet_network::nerf_dart;
 use pacquet_network_web_auth_testing::{SleepBehavior, ok_202, ok_token, web_auth_fake};
+use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 
 use super::{
@@ -200,7 +201,7 @@ async fn should_throw_when_web_login_returns_invalid_response() {
 
     assert!(matches!(err, LoginError::InvalidResponse), "got {err:?}");
     assert_eq!(
-        miette::Diagnostic::code(&err).map(|code| code.to_string()).as_deref(),
+        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
         Some("ERR_PNPM_LOGIN_INVALID_RESPONSE"),
     );
     assert_eq!(err.to_string(), "The registry returned an invalid response for web-based login");
@@ -301,7 +302,7 @@ async fn should_surface_a_non_404_web_login_http_error_as_web_login_failed() {
     login_mock.assert_async().await;
     assert!(matches!(err, LoginError::WebLoginFailed { status: 500, .. }), "got {err:?}");
     assert_eq!(
-        miette::Diagnostic::code(&err).map(|code| code.to_string()).as_deref(),
+        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
         Some("ERR_PNPM_WEB_LOGIN_FAILED"),
     );
     assert_eq!(err.to_string(), "Web-based login failed (HTTP 500): Internal Server Error");
@@ -331,7 +332,7 @@ async fn should_surface_a_web_login_transport_failure_as_a_request_error() {
 
     assert!(matches!(err, LoginError::Request { .. }), "got {err:?}");
     assert_eq!(
-        miette::Diagnostic::code(&err).map(|code| code.to_string()).as_deref(),
+        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
         Some("pacquet_auth_commands::login_request_failed"),
     );
     assert!(err.to_string().starts_with("The login request failed:"), "unexpected message: {err}");
@@ -364,7 +365,7 @@ async fn should_fail_when_the_login_url_cannot_be_rendered_as_a_qr_code() {
 
     assert!(matches!(err, LoginError::QrCode(_)), "got {err:?}");
     assert_eq!(
-        miette::Diagnostic::code(&err).map(|code| code.to_string()).as_deref(),
+        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
         Some("pacquet_auth_commands::login_qr_code"),
     );
     assert!(
@@ -402,7 +403,7 @@ async fn should_time_out_when_the_web_auth_poll_never_completes() {
 
     assert!(matches!(err, LoginError::WebAuthTimeout(_)), "got {err:?}");
     assert_eq!(
-        miette::Diagnostic::code(&err).map(|code| code.to_string()).as_deref(),
+        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
         Some("ERR_PNPM_WEBAUTH_TIMEOUT"),
     );
     assert_eq!(err.to_string(), "Web-based authentication timed out before it could be completed");
@@ -470,7 +471,7 @@ async fn rejects_a_login_url_containing_control_characters() {
 
     assert!(matches!(err, LoginError::UnsafeLoginUrl), "got {err:?}");
     assert_eq!(
-        miette::Diagnostic::code(&err).map(|code| code.to_string()).as_deref(),
+        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
         Some("pacquet_auth_commands::login_unsafe_url"),
     );
     assert!(infos().iter().all(|message| !message.contains('\u{1b}')), "got {:?}", infos());
