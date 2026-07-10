@@ -50,9 +50,11 @@ impl UnstarArgs {
             Err(err) => {
                 if let Some(star_err) = err.downcast_ref::<StarError>() {
                     match star_err {
-                        StarError::Failed { status, status_text } => {
-                            Err(UnstarError::Failed { status: *status, status_text: status_text.clone() }.into())
+                        StarError::Failed { status, status_text } => Err(UnstarError::Failed {
+                            status: *status,
+                            status_text: status_text.clone(),
                         }
+                        .into()),
                         StarError::Unauthorized => Err(UnstarError::Unauthorized.into()),
                     }
                 } else {
