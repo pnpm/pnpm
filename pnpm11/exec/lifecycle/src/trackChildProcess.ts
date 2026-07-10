@@ -42,7 +42,9 @@ export async function killTrackedProcessTrees (): Promise<void> {
 async function killProcessTree (pid: number): Promise<void> {
   if (process.platform === 'win32') {
     await new Promise<void>((resolve) => {
-      const taskkill = spawn('taskkill', ['/pid', pid.toString(), '/T', '/F'], { stdio: 'ignore', windowsHide: true })
+      // The timeout bounds the wait in case taskkill itself hangs; the kill
+      // is best-effort either way, and pnpm is exiting on an error already.
+      const taskkill = spawn('taskkill', ['/pid', pid.toString(), '/T', '/F'], { stdio: 'ignore', windowsHide: true, timeout: 10_000 })
       // A non-zero exit code (128 when the process is already gone, 1 when
       // access is denied) is deliberately ignored.
       taskkill.once('error', () => {

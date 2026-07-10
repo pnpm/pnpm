@@ -110,29 +110,34 @@ test('should print json format error when add dependency on workspace root', asy
 
 test('should clean up the process trees of running commands when a recursive exec fails', async () => {
   const fooPort = await getPort()
+  const cwdBefore = process.cwd()
   process.chdir(execErrorExit)
-  // Remove the wmic and powershell directories from PATH to emulate a
-  // Windows installation where enumerating descendant processes is not
-  // possible (wmic is removed on modern Windows, and the PowerShell
-  // fallback regularly exceeds its 500 ms budget on real machines - the
-  // scenario of https://github.com/pnpm/pnpm/issues/12406). The cleanup
-  // then has to go through the tracked child PIDs instead. taskkill lives
-  // in System32 itself and stays reachable.
-  const pathKey = Object.keys(process.env).find((key) => key.toLowerCase() === 'path') ?? 'PATH'
-  const pathWithoutProcessEnumerators = (process.env[pathKey] ?? '')
-    .split(path.delimiter)
-    .filter((dir) => !/wbem|windowspowershell/i.test(dir))
-    .join(path.delimiter)
-  const { status, stdout } = execPnpmSync(['--recursive', 'exec', 'node', 'script.js'], {
-    stdio: 'pipe',
-    env: {
-      FOO_PORT: fooPort.toString(),
-      ...(isWindows() ? { [pathKey]: pathWithoutProcessEnumerators } : {}),
-    },
-  })
-  expect(status).toBe(1)
-  expect(stdout.toString()).toContain('ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL')
-  expect(await isPortInUse(fooPort)).toBe(false)
+  try {
+    // Remove the wmic and powershell directories from PATH to emulate a
+    // Windows installation where enumerating descendant processes is not
+    // possible (wmic is removed on modern Windows, and the PowerShell
+    // fallback regularly exceeds its 500 ms budget on real machines - the
+    // scenario of https://github.com/pnpm/pnpm/issues/12406). The cleanup
+    // then has to go through the tracked child PIDs instead. taskkill lives
+    // in System32 itself and stays reachable.
+    const pathKey = Object.keys(process.env).find((key) => key.toLowerCase() === 'path') ?? 'PATH'
+    const pathWithoutProcessEnumerators = (process.env[pathKey] ?? '')
+      .split(path.delimiter)
+      .filter((dir) => !/wbem|windowspowershell/i.test(dir))
+      .join(path.delimiter)
+    const { status, stdout } = execPnpmSync(['--recursive', 'exec', 'node', 'script.js'], {
+      stdio: 'pipe',
+      env: {
+        FOO_PORT: fooPort.toString(),
+        ...(isWindows() ? { [pathKey]: pathWithoutProcessEnumerators } : {}),
+      },
+    })
+    expect(status).toBe(1)
+    expect(stdout.toString()).toContain('ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL')
+    expect(await isPortInUse(fooPort)).toBe(false)
+  } finally {
+    process.chdir(cwdBefore)
+  }
 })
 
 // This test started to fail on Windows for unknown reason.
