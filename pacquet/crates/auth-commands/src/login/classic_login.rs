@@ -151,12 +151,12 @@ async fn add_user(
         return Err(AddUserError::Http { status, text, www_authenticate });
     }
 
-    match serde_json::from_str::<Value>(&text)
-        .ok()
-        .and_then(|json| json.get("token").and_then(Value::as_str).map(str::to_owned))
-    {
-        Some(token) if !token.is_empty() => Ok(token),
-        _ => Err(AddUserError::NoToken),
+    match serde_json::from_str::<Value>(&text) {
+        Ok(parsed) => match parsed.get("token").and_then(Value::as_str) {
+            Some(token) if !token.is_empty() => Ok(token.to_owned()),
+            _ => Err(AddUserError::NoToken),
+        },
+        Err(_) => Err(AddUserError::NoToken),
     }
 }
 
