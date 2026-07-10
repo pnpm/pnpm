@@ -238,6 +238,7 @@ export async function handler (
       storeDir: store.dir,
       rootDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
     })
+    await runLicenseCheck(opts)
     return
   }
   if (

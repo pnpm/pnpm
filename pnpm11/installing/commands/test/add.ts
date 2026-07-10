@@ -526,4 +526,39 @@ describe('license compliance after add', () => {
     projects['project-1'].has('is-positive')
     projects['project-2'].has('is-positive')
   })
+
+  // Regression test: `add --config` used to `return` before ever reaching
+  // `runLicenseCheck`, so it silently bypassed the license policy entirely.
+  // It doesn't scan the configDependency itself (configDependencies live in
+  // a separate env-lockfile document, outside the manifest.dependencies
+  // graph the scanner walks), but it must still enforce the policy against
+  // the project's existing regular dependencies instead of skipping the
+  // check outright.
+  test('pnpm add --config still runs the post-install license check', async () => {
+    const project = prepare()
+
+    // Install a disallowed-license dependency first, with no license policy
+    // configured, so a violation already exists in the project.
+    await add.handler({
+      ...DEFAULT_OPTIONS,
+      dir: process.cwd(),
+      linkWorkspacePackages: false,
+    }, ['is-positive@1.0.0'])
+
+    project.has('is-positive')
+
+    await expect(
+      add.handler({
+        ...DEFAULT_OPTIONS,
+        dir: process.cwd(),
+        rootProjectManifestDir: process.cwd(),
+        linkWorkspacePackages: false,
+        config: true,
+        licenses: {
+          disallowed: ['MIT'],
+          mode: 'strict',
+        },
+      }, ['@pnpm.e2e/foo@100.0.0'])
+    ).rejects.toThrow('license violation')
+  })
 })
