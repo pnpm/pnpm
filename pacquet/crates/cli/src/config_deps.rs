@@ -7,9 +7,10 @@
 //! lockfile. Plugin-hook loading (the `updateConfig` half) is wired in
 //! separately.
 
+use crate::config_overrides::apply_store_dir_override;
 use miette::{IntoDiagnostic, Result, WrapErr};
 use pacquet_catalogs_config::get_catalogs_from_workspace_manifest;
-use pacquet_config::{Config, WorkspaceSettings};
+use pacquet_config::{Config, Host, WorkspaceSettings};
 use pacquet_env_installer::{
     ConfigDepsInstallOptions, resolve_and_install_config_deps, resolve_package_manager_integrities,
 };
@@ -401,6 +402,9 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
         .into_diagnostic()
         .wrap_err("reading catalogs for updateConfig hooks")?;
     if let Some(object) = input.as_object_mut() {
+        if let Some(store_dir) = config.explicit_settings.get("storeDir") {
+            object.insert("storeDir".to_string(), store_dir.clone());
+        }
         object.insert(
             "catalogs".to_string(),
             serde_json::to_value(&yaml_catalogs).into_diagnostic()?,
@@ -445,10 +449,42 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     if delta.as_object().is_none_or(serde_json::Map::is_empty) {
         return Ok(());
     }
+    let changed_store_dir = delta.get("storeDir").and_then(Value::as_str).map(str::to_owned);
+    let changed_virtual_store_dir = delta.get("virtualStoreDir").cloned();
+    let changed_global_virtual_store_dir = delta.get("globalVirtualStoreDir").cloned();
+    let virtual_store_dir_cleared = changed_virtual_store_dir.as_ref().is_some_and(Value::is_null);
     let delta_settings: WorkspaceSettings = serde_json::from_value(delta)
         .into_diagnostic()
         .wrap_err("deserialize the updateConfig hook result")?;
     delta_settings.apply_to(config, &base_dir);
+    if virtual_store_dir_cleared {
+        config.virtual_store_dir = base_dir.join("node_modules/.pnpm");
+    }
+    for (key, value) in [
+        ("virtualStoreDir", changed_virtual_store_dir),
+        ("globalVirtualStoreDir", changed_global_virtual_store_dir),
+    ] {
+        match value {
+            Some(Value::Null) => {
+                config.explicit_settings.remove(key);
+            }
+            Some(value) => {
+                config.explicit_settings.insert(key.to_string(), value);
+            }
+            None => {}
+        }
+    }
+    if let Some(store_dir) = changed_store_dir {
+        apply_store_dir_override::<Host>(config, Path::new(&store_dir), &base_dir)?;
+    } else {
+        let virtual_store_dir_explicit = config.explicit_settings.contains_key("virtualStoreDir");
+        let global_virtual_store_dir_explicit =
+            config.explicit_settings.contains_key("globalVirtualStoreDir");
+        config.apply_global_virtual_store_derivation(
+            virtual_store_dir_explicit,
+            global_virtual_store_dir_explicit,
+        );
+    }
     Ok(())
 }
 

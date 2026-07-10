@@ -1,7 +1,8 @@
-use super::ConfigOverrides;
-use pacquet_config::Config;
+use super::{ConfigOverrides, apply_store_dir_override};
+use pacquet_config::{Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe};
+use pacquet_store_dir::STORE_VERSION;
 use pretty_assertions::assert_eq;
-use std::ffi::OsString;
+use std::{ffi::OsString, path::PathBuf};
 
 fn argv<Items: IntoIterator<Item = &'static str>>(items: Items) -> Vec<OsString> {
     items.into_iter().map(OsString::from).collect()
@@ -142,4 +143,144 @@ fn apply_is_a_noop_when_no_overrides_set() {
     let mut config = Config::default();
     overrides.apply(&mut config);
     assert_eq!(config.registry, default_registry);
+}
+
+#[test]
+fn dotted_store_dir_is_rewritten_for_the_global_parser() {
+    let (_, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "install", "--config.store-dir=dotted-store"]));
+    assert_eq!(remaining, argv(["pacquet", "install", "--store-dir=dotted-store"]));
+}
+
+#[test]
+fn store_dir_override_resolves_from_workspace_root() {
+    struct FakeHome;
+
+    impl GetHomeDir for FakeHome {
+        fn home_dir() -> Option<PathBuf> {
+            unreachable!("relative store directory does not consult the home directory")
+        }
+    }
+
+    impl EnvVar for FakeHome {
+        fn var(_: &str) -> Option<String> {
+            unreachable!("relative store directory does not consult environment variables")
+        }
+    }
+
+    impl GetCurrentDir for FakeHome {
+        fn current_dir() -> std::io::Result<PathBuf> {
+            unreachable!("relative store directory does not consult the current directory")
+        }
+    }
+
+    impl LinkProbe for FakeHome {
+        fn can_link_between_dirs(_: &std::path::Path, _: &std::path::Path) -> bool {
+            unreachable!("relative store directory does not probe filesystem linkability")
+        }
+    }
+
+    let temp_dir = std::env::temp_dir();
+    let workspace_dir = temp_dir.join("pacquet-store-dir-workspace");
+    let package_dir = workspace_dir.join("packages/app");
+    let mut config = Config { workspace_dir: Some(workspace_dir.clone()), ..Config::default() };
+
+    apply_store_dir_override::<FakeHome>(
+        &mut config,
+        std::path::Path::new("relative-store"),
+        &package_dir,
+    )
+    .expect("resolve relative store directory");
+
+    assert_eq!(config.store_dir.root(), workspace_dir.join("relative-store").join(STORE_VERSION));
+}
+
+#[test]
+fn store_dir_override_expands_quoted_home_path() {
+    struct FakeHome;
+
+    impl GetHomeDir for FakeHome {
+        fn home_dir() -> Option<PathBuf> {
+            Some(std::env::temp_dir().join("pacquet-store-dir-home"))
+        }
+    }
+
+    impl EnvVar for FakeHome {
+        fn var(_: &str) -> Option<String> {
+            unreachable!("home-relative store directory does not consult environment variables")
+        }
+    }
+
+    impl GetCurrentDir for FakeHome {
+        fn current_dir() -> std::io::Result<PathBuf> {
+            unreachable!("home-relative store directory does not consult the current directory")
+        }
+    }
+
+    impl LinkProbe for FakeHome {
+        fn can_link_between_dirs(_: &std::path::Path, _: &std::path::Path) -> bool {
+            unreachable!("home-relative store directory does not probe filesystem linkability")
+        }
+    }
+
+    let mut config = Config::default();
+    apply_store_dir_override::<FakeHome>(
+        &mut config,
+        std::path::Path::new("~/quoted-store"),
+        std::path::Path::new("ignored-package-dir"),
+    )
+    .expect("expand home-relative store directory");
+
+    assert_eq!(
+        config.store_dir.root(),
+        std::env::temp_dir().join("pacquet-store-dir-home/quoted-store").join(STORE_VERSION),
+    );
+    assert_eq!(
+        config.explicit_settings.get("storeDir"),
+        Some(&serde_json::Value::String("~/quoted-store".to_string())),
+    );
+}
+
+#[test]
+fn empty_store_dir_override_uses_the_injected_default_provider() {
+    struct FakeDefault;
+
+    impl EnvVar for FakeDefault {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_HOME").then(|| "/fake/pnpm-home".to_string())
+        }
+    }
+
+    impl GetCurrentDir for FakeDefault {
+        fn current_dir() -> std::io::Result<PathBuf> {
+            unreachable!("PNPM_HOME determines the default before the current directory is needed")
+        }
+    }
+
+    impl GetHomeDir for FakeDefault {
+        fn home_dir() -> Option<PathBuf> {
+            Some(PathBuf::from("/fake/home"))
+        }
+    }
+
+    impl LinkProbe for FakeDefault {
+        fn can_link_between_dirs(_: &std::path::Path, _: &std::path::Path) -> bool {
+            true
+        }
+    }
+
+    let workspace_dir = std::env::temp_dir();
+    let mut config = Config { workspace_dir: Some(workspace_dir.clone()), ..Config::default() };
+
+    apply_store_dir_override::<FakeDefault>(&mut config, std::path::Path::new(""), &workspace_dir)
+        .expect("restore the default store directory");
+
+    assert_eq!(
+        config.store_dir.root(),
+        std::path::Path::new("/fake/pnpm-home/store").join(STORE_VERSION),
+    );
+    assert_eq!(
+        config.explicit_settings.get("storeDir"),
+        Some(&serde_json::Value::String(String::new())),
+    );
 }

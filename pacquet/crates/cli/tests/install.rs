@@ -3,6 +3,7 @@ pub use _utils::*;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pacquet_store_dir::STORE_VERSION;
 use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fixtures::{BIG_LOCKFILE, BIG_MANIFEST},
@@ -48,6 +49,100 @@ fn should_install_dependencies() {
     let workspace_folders = get_all_folders(&workspace);
     let store_files = get_all_files(&store_dir);
     insta::assert_debug_snapshot!((workspace_folders, store_files));
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn store_dir_cli_option_overrides_config_and_resolves_from_dir() {
+    let CommandTempCwd { mut pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir: configured_store_dir, mock_instance, .. } = npmrc_info;
+
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    pacquet
+        .current_dir(root.path())
+        .arg("--dir")
+        .arg(&workspace)
+        .args(["install", "--store-dir", "cli-store"])
+        .assert()
+        .success();
+
+    let cli_store_dir = workspace.join("cli-store").join(STORE_VERSION);
+    eprintln!("CLI store must be resolved from --dir and populated: {cli_store_dir:?}");
+    assert!(cli_store_dir.join("index.db").is_file());
+
+    eprintln!("Configured store must not be populated when the CLI overrides it");
+    assert!(!configured_store_dir.join(STORE_VERSION).join("index.db").exists());
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn frozen_install_honors_the_store_dir_cli_option() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+    pacquet.with_arg("install").assert().success();
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+
+    std::process::Command::cargo_bin("pacquet")
+        .expect("find the pacquet binary")
+        .with_current_dir(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--store-dir=frozen-store"])
+        .assert()
+        .success();
+
+    let frozen_store = workspace.join("frozen-store").join(STORE_VERSION);
+    eprintln!("Frozen install must populate the CLI-selected store: {frozen_store:?}");
+    assert!(frozen_store.join("index.db").is_file());
+
+    drop((root, mock_instance));
+}
+
+#[cfg(unix)]
+#[test]
+fn store_dir_cli_option_updates_derived_global_virtual_store() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    enable_gvs_in_workspace_yaml(&workspace, "");
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    pacquet.with_args(["install", "--store-dir=cli-store"]).assert().success();
+
+    let symlink_path = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent");
+    let canonical = symlink_path.pipe(fs::canonicalize).expect("canonicalize symlink");
+    let cli_store_dir = workspace.join("cli-store").join(STORE_VERSION);
+    let canonical_store = cli_store_dir.pipe(fs::canonicalize).expect("canonicalize CLI store");
+    let gvs_root = canonical_store.join("links");
+    eprintln!("Derived global virtual store must follow the CLI store: {gvs_root:?}");
+    assert!(
+        canonical.starts_with(&gvs_root),
+        "expected the package directory under {gvs_root:?}, got {canonical:?}",
+    );
 
     drop((root, mock_instance));
 }
