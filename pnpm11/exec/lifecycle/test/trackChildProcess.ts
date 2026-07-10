@@ -66,7 +66,7 @@ async function exited (pid: number, timeoutMs: number = 10_000): Promise<boolean
     } catch {
       return true
     }
-    await new Promise<void>((resolve) => setTimeout(resolve, 100))
+    await new Promise<void>((resolve) => setTimeout(resolve, 100)) // eslint-disable-line no-await-in-loop
   }
   return false
 }
