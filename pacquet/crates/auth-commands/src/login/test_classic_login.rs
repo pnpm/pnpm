@@ -16,7 +16,7 @@ use serde_json::json;
 
 use super::{
     LoginError, login,
-    test_support::{
+    support::{
         PromptScript, ReadScript, client, credential_prompts, login_fake, opts, written_settings,
     },
 };

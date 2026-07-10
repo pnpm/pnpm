@@ -210,11 +210,11 @@ fn global_info<Reporter: self::Reporter>(message: &str) {
 }
 
 #[cfg(test)]
+mod support;
+#[cfg(test)]
 mod test_classic_login;
 #[cfg(test)]
 mod test_non_interactive;
-#[cfg(test)]
-mod test_support;
 #[cfg(test)]
 mod test_web_login;
 #[cfg(test)]

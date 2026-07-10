@@ -13,7 +13,7 @@ use pretty_assertions::assert_eq;
 
 use super::{
     LoginError, login,
-    test_support::{PromptScript, ReadScript, client, login_fake, opts},
+    support::{PromptScript, ReadScript, client, login_fake, opts},
 };
 
 #[tokio::test]

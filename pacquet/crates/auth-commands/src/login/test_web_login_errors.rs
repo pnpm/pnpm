@@ -16,7 +16,7 @@ use serde_json::json;
 
 use super::{
     LoginError, login,
-    test_support::{PromptScript, ReadScript, client, login_fake, opts},
+    support::{PromptScript, ReadScript, client, login_fake, opts},
 };
 
 #[tokio::test]
