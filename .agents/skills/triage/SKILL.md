@@ -29,7 +29,7 @@ If a maintainer has already applied a `state:` label, **do not silently remove i
 
 ### Repository context that affects readiness
 
-- The repo holds three products: the **TypeScript pnpm CLI** (workspaces outside `pacquet/` and `pnpr/`, frozen at v11 and relocating under `pnpm11/`), the **Rust pacquet port** (`pacquet/`, which becomes pnpm v12), and the **Rust pnpr registry** (`pnpr/`). See `AGENTS.md` / `CLAUDE.md`.
+- The repo holds three products: the **TypeScript pnpm CLI** (workspaces outside `pnpm/` and `pnpr/`, frozen at v11 and relocating under `pnpm11/`), the **Rust pacquet port** (`pnpm/`, which becomes pnpm v12), and the **Rust pnpr registry** (`pnpr/`). See `AGENTS.md` / `CLAUDE.md`.
 - **pnpm↔pacquet parity:** any user-visible change to the dependency-management commands (`install`, `add`, `update`, `remove`) must land in both the TypeScript and Rust stacks. An issue that requires parity work across both stacks is broader than a single-stack fix — weigh that when deciding between `Ready to implement` and `Ready to spec`.
 - Changes to published TypeScript packages require a changeset; behavior changes generally require tests. An issue whose fix is bounded but well-understood (clear repro, obvious area, single stack) is a strong `Ready to implement` candidate.
 

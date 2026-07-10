@@ -157,7 +157,7 @@
 
   5. **The lockfile verifier now also covers `trustPolicy: 'no-downgrade'`.** The same post-resolution gate that re-checks `minimumReleaseAge` on lockfile entries now re-runs `failIfTrustDowngraded` for every npm-registry entry whose name isn't on `trustPolicyExclude`. The two checks share a single full-metadata fetch per package, so the extra coverage doesn't cost an extra round trip when both policies are active. Resolver-time trust checks still run as before — this just closes the gap when an entry bypasses resolution (peek path, `--frozen-lockfile`, restored CI cache).
 
-  Pacquet parity: not ported — pacquet's `minimumReleaseAge` policy is itself only stubbed today (see `pacquet/crates/package-manager/src/version_policy.rs`). The auto-exclude, loose-mode verifier, prompt, and the new trust-policy verifier check will travel with the broader policy port whenever that happens.
+  Pacquet parity: not ported — pacquet's `minimumReleaseAge` policy is itself only stubbed today (see `pnpm/crates/package-manager/src/version_policy.rs`). The auto-exclude, loose-mode verifier, prompt, and the new trust-policy verifier check will travel with the broader policy port whenever that happens.
 
 - Updated dependencies [020ac45]
 - Updated dependencies [d3f8408]

@@ -4,7 +4,7 @@
 
 [files]
 extend-exclude = [
-  "pacquet/crates/crypto-shasums-file/src/node_release_keys.rs",
+  "pnpm/crates/crypto-shasums-file/src/node_release_keys.rs",
 ]
 
 [default.extend-words]

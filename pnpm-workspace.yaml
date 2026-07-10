@@ -49,7 +49,7 @@ packages:
   - pnpm11/text/*
   - pnpm11/workspace/*
   - pnpm11/yaml/*
-  - pacquet/tasks/registry-mock
+  - pnpm/tasks/registry-mock
   - '!**/example/**'
   - '!**/test/**'
   - '!pnpm11/resolving/local-resolver/example-package/**'

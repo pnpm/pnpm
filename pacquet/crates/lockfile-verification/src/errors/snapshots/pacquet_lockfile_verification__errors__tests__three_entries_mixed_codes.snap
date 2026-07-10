@@ -1,9 +1,0 @@
----
-source: pacquet/crates/lockfile-verification/src/errors/tests.rs
-assertion_line: 186
-expression: err.to_string()
----
-3 lockfile entries failed verification:
-  acme@1.0.0 [MINIMUM_RELEASE_AGE_VIOLATION] was published at 2025-11-30T22:00:00.000Z, within the minimumReleaseAge cutoff (2025-11-30T00:00:00.000Z)
-  bravo@2.0.0 [TRUST_DOWNGRADE] High-risk trust downgrade for "bravo@2.0.0" (possible package takeover)
-  charlie@3.0.0 [MINIMUM_RELEASE_AGE_VIOLATION] could not be checked against minimumReleaseAge (version not present in registry manifest)

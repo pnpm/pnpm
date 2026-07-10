@@ -4,11 +4,11 @@ This document provides context and instructions for AI agents working on the pnp
 
 The repository contains three products:
 
-- The **TypeScript pnpm CLI** — the main TypeScript workspaces outside `pacquet/` and `pnpr/`.
-- The **Rust pacquet port** — `pacquet/`. See [`pacquet/AGENTS.md`](./pacquet/AGENTS.md) for pacquet-specific rules; it adds to (and never contradicts) the conventions below.
+- The **TypeScript pnpm CLI** — the main TypeScript workspaces outside `pnpm/` and `pnpr/`.
+- The **Rust pacquet port** — `pnpm/`. See [`pnpm/AGENTS.md`](./pnpm/AGENTS.md) for pacquet-specific rules; it adds to (and never contradicts) the conventions below.
 - The **Rust pnpr registry server** — `pnpr/`. See [`pnpr/AGENTS.md`](./pnpr/AGENTS.md) for pnpr-specific rules; it adds to (and never contradicts) the conventions below.
 
-Sections below marked "(TypeScript only)" apply to TypeScript code only; they do not apply to Rust code in `pacquet/` or `pnpr/`. Everything else applies repo-wide unless a nested `AGENTS.md` specializes it.
+Sections below marked "(TypeScript only)" apply to TypeScript code only; they do not apply to Rust code in `pnpm/` or `pnpr/`. Everything else applies repo-wide unless a nested `AGENTS.md` specializes it.
 
 ## Keep pnpm and pacquet in sync
 
@@ -20,7 +20,7 @@ When you change one side, do the equivalent change on the other in the same PR i
 
 **Any user-visible change to either stack must be replicated in the other.**
 
-The pacquet-side conventions for keeping the two stacks aligned are in [`pacquet/AGENTS.md`](./pacquet/AGENTS.md#the-cardinal-rule).
+The pacquet-side conventions for keeping the two stacks aligned are in [`pnpm/AGENTS.md`](./pnpm/AGENTS.md#the-cardinal-rule).
 
 ## Repository Structure
 
@@ -62,7 +62,7 @@ The pnpm codebase is a monorepo managed by pnpm itself. The root contains functi
 
 ### Rust Projects
 
--   `pacquet/`: The pnpm CLI ported to Rust. Self-contained sub-project with its own crates, tests, and tooling — see [`pacquet/AGENTS.md`](./pacquet/AGENTS.md).
+-   `pnpm/`: The pnpm CLI ported to Rust. Self-contained sub-project with its own crates, tests, and tooling — see [`pnpm/AGENTS.md`](./pnpm/AGENTS.md).
 -   `pnpr/`: The pnpm-compatible npm registry server. Self-contained sub-project with its own crates, tests, and tooling — see [`pnpr/AGENTS.md`](./pnpr/AGENTS.md).
 
 ## Setup & Build (TypeScript only)

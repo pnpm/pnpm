@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Thin wrapper around `pacquet/tasks/integrated-benchmark`. Builds two
+# Thin wrapper around `pnpm/tasks/integrated-benchmark`. Builds two
 # pnpm revisions (the current branch and `main`) and runs hyperfine for
 # each scenario in the list below.
 #

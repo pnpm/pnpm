@@ -106,7 +106,7 @@ jobs:
             exit 1
           fi
 
-      - name: Inject version into pacquet/crates/config/src/defaults.rs
+      - name: Inject version into pnpm/crates/config/src/defaults.rs
         # `pacquet --version` and the default User-Agent both read the
         # PACQUET_VERSION constant. Patch it here so the binary built for the
         # matrix leg reports the version we're about to publish.
@@ -114,7 +114,7 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          file=pacquet/crates/config/src/defaults.rs
+          file=pnpm/crates/config/src/defaults.rs
           perl -i -pe 's/(pub const PACQUET_VERSION: &str = )"[^"]*";/${1}"'"$VERSION"'";/' "$file"
           grep -F "PACQUET_VERSION: &str = \"$VERSION\"" "$file"
 
@@ -210,23 +210,23 @@ jobs:
             exit 1
           fi
 
-      - name: Inject version into pacquet/npm/pnpm/package.json
+      - name: Inject version into pnpm/npm/pnpm/package.json
         # The committed package.json has no `version`; patch it from the input so
         # generate-packages.mjs and `pnpm publish` both pick it up.
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          jq --arg v "$VERSION" '.version = $v' pacquet/npm/pnpm/package.json > pacquet/npm/pnpm/package.json.tmp
-          mv pacquet/npm/pnpm/package.json.tmp pacquet/npm/pnpm/package.json
-          cat pacquet/npm/pnpm/package.json
+          jq --arg v "$VERSION" '.version = $v' pnpm/npm/pnpm/package.json > pnpm/npm/pnpm/package.json.tmp
+          mv pnpm/npm/pnpm/package.json.tmp pnpm/npm/pnpm/package.json
+          cat pnpm/npm/pnpm/package.json
 
-      - name: Inject version into pacquet/npm/napi/package.json
+      - name: Inject version into pnpm/npm/napi/package.json
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          jq --arg v "$VERSION" '.version = $v' pacquet/npm/napi/package.json > pacquet/npm/napi/package.json.tmp
-          mv pacquet/npm/napi/package.json.tmp pacquet/npm/napi/package.json
-          cat pacquet/npm/napi/package.json
+          jq --arg v "$VERSION" '.version = $v' pnpm/npm/napi/package.json > pnpm/npm/napi/package.json.tmp
+          mv pnpm/npm/napi/package.json.tmp pnpm/npm/napi/package.json
+          cat pnpm/npm/napi/package.json
 
       - name: Install pnpm and Node
         uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
@@ -260,11 +260,11 @@ jobs:
 
       - name: Generate npm packages
         run: |
-          node pacquet/npm/pnpm/scripts/generate-packages.mjs
-          node pacquet/npm/napi/scripts/generate-packages.mjs
-          cat pacquet/npm/pnpm/package.json
-          cat pacquet/npm/napi/package.json
-          for package in pacquet/npm/pacquet-* pacquet/npm/napi.* pacquet/npm/pnpm*; do cat $package/package.json ; echo ; done
+          node pnpm/npm/pnpm/scripts/generate-packages.mjs
+          node pnpm/npm/napi/scripts/generate-packages.mjs
+          cat pnpm/npm/pnpm/package.json
+          cat pnpm/npm/napi/package.json
+          for package in pnpm/npm/pacquet-* pnpm/npm/napi.* pnpm/npm/pnpm*; do cat $package/package.json ; echo ; done
 
       # The publish is split into two steps because npm allows a single trusted
       # publisher per package, and `pnpm` / `@pnpm/exe` have theirs bound to
@@ -286,7 +286,7 @@ jobs:
         env:
           TAG: ${{ inputs.tag }}
         run: |
-          for package in pacquet/npm/pacquet-* pacquet/npm/napi.*; do
+          for package in pnpm/npm/pacquet-* pnpm/npm/napi.*; do
             pnpm publish "$package/" --tag "$TAG" --access public --provenance --no-git-checks
           done
 
@@ -298,7 +298,7 @@ jobs:
           set -o pipefail
           trap 'pnpm config delete "//registry.npmjs.org/:_authToken" || true' EXIT
           pnpm config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
-          for package in pacquet/npm/pnpm* pacquet/npm/napi; do
+          for package in pnpm/npm/pnpm* pnpm/npm/napi; do
             # tee the output (which includes the stage id) into the job summary
             # so the approver doesn't have to dig through the raw log.
             pnpm stage publish "$package/" --tag "$TAG" --access public --provenance --no-git-checks | tee -a "$GITHUB_STEP_SUMMARY"

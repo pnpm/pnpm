@@ -10,13 +10,13 @@ on:
   pull_request:
     types: [opened, synchronize]
     paths:
-      - 'pacquet/**/*.rs'
+      - 'pnpm/**/*.rs'
       - 'pnpr/**/*.rs'
   push:
     branches:
       - main
     paths:
-      - 'pacquet/**/*.rs'
+      - 'pnpm/**/*.rs'
       - 'pnpr/**/*.rs'
 
 concurrency:

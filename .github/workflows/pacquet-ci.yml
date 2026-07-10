@@ -51,7 +51,7 @@ jobs:
         with:
           filters: |
             rust:
-              - 'pacquet/**'
+              - 'pnpm/**'
               - 'pnpr/**'
               - 'Cargo.toml'
               - 'Cargo.lock'
@@ -273,7 +273,7 @@ jobs:
 
       - uses: crate-ci/typos@37bb98842b0d8c4ffebdb75301a13db0267cef89 # v1.47.2
         with:
-          files: pacquet pnpr
+          files: pnpm pnpr
 
   deny:
     name: Rust CI / Cargo Deny

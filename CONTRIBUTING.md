@@ -60,9 +60,9 @@ Rust is now the primary language in this repository, so most contributions need 
 
    Install these from source rather than with `cargo binstall`. The prebuilt `cargo-dylint` binaries reference the `dylint_driver` crate at the path where they were built, so building the per-toolchain driver fails locally with an error that points at a nonexistent `.../dylint/driver` directory. A `cargo install` build resolves the driver against your local cargo registry and works.
 
-Make sure `~/.cargo/bin` is on your `PATH`, ahead of any system-wide Rust in `/usr/bin`. `rustup`'s installer adds this entry through `~/.cargo/env`; ensure your shell sources it. This matters for the git hooks. The `pnpm install` step above wires up husky, and its `pre-push` hook runs the Rust checks in `pacquet/scripts/pre-push-rust.sh` (format, doc, dylint) alongside the TypeScript compile and lint. That script locates `cargo`, `rustup`, `taplo`, and `cargo-dylint` through `PATH`, and it **skips** a check when the tool is not found rather than failing. A push that appears to pass locally with the tools off `PATH` has silently skipped the format, doc, and dylint checks, so those problems surface only in CI.
+Make sure `~/.cargo/bin` is on your `PATH`, ahead of any system-wide Rust in `/usr/bin`. `rustup`'s installer adds this entry through `~/.cargo/env`; ensure your shell sources it. This matters for the git hooks. The `pnpm install` step above wires up husky, and its `pre-push` hook runs the Rust checks in `pnpm/scripts/pre-push-rust.sh` (format, doc, dylint) alongside the TypeScript compile and lint. That script locates `cargo`, `rustup`, `taplo`, and `cargo-dylint` through `PATH`, and it **skips** a check when the tool is not found rather than failing. A push that appears to pass locally with the tools off `PATH` has silently skipped the format, doc, and dylint checks, so those problems surface only in CI.
 
-For the full Rust development workflow (checks, tests, benchmarks, and the code style guide), see [`pacquet/CONTRIBUTING.md`](./pacquet/CONTRIBUTING.md).
+For the full Rust development workflow (checks, tests, benchmarks, and the code style guide), see [`pnpm/CONTRIBUTING.md`](./pnpm/CONTRIBUTING.md).
 
 ## Working with Git Worktrees
 
