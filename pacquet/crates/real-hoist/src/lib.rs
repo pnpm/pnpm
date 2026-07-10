@@ -285,41 +285,41 @@ pub fn hoist(lockfile: &Lockfile, opts: &HoistOpts) -> Result<HoisterResult, Hoi
     }
 
     // Non-root importers (workspace projects) become children of
-    // the virtual `.` root when `hoist_workspace_packages` is on
-    // (the default). The hoister sees the whole workspace as one
-    // tree, which is what enables cross-project dedupe of
-    // conflicting versions and gives the layout `node_modules/<dep>`
-    // → `<lockfile_dir>/<importer>/node_modules/<dep>` shape the
-    // hoisted linker expects.
-    //
-    // When the knob is `false`, non-root importers don't enter the
-    // shared tree — each project hoists independently in the walk
-    // phase.
-    if opts.hoist_workspace_packages {
-        let mut non_root: Vec<(&String, &ProjectSnapshot)> = lockfile
-            .importers
-            .iter()
-            .filter(|(id, _)| id.as_str() != Lockfile::ROOT_IMPORTER_KEY)
-            .collect();
-        // HashMap iteration order is non-deterministic; sort so the
-        // output tree is stable across runs (matters for snapshot
-        // tests).
-        non_root.sort_by(|a, b| a.0.cmp(b.0));
+    // the virtual `.` root — unconditionally, matching pnpm v11's
+    // `hoist()`, which attaches every importer regardless of any
+    // knob. The hoister sees the whole workspace as one tree, which
+    // is what enables cross-project dedupe of conflicting versions
+    // and gives the layout `node_modules/<dep>` →
+    // `<lockfile_dir>/<importer>/node_modules/<dep>` shape the
+    // hoisted linker expects. In pnpm, `hoist-workspace-packages`
+    // only controls whether the workspace *packages themselves* get
+    // name-links in the root's hoisted modules dir (v11's
+    // `hoistedWorkspacePackages` in the headless linker) — it never
+    // decides tree membership; gating membership on it silently
+    // dropped every importer-only dependency from the install.
+    let mut non_root: Vec<(&String, &ProjectSnapshot)> = lockfile
+        .importers
+        .iter()
+        .filter(|(id, _)| id.as_str() != Lockfile::ROOT_IMPORTER_KEY)
+        .collect();
+    // HashMap iteration order is non-deterministic; sort so the
+    // output tree is stable across runs (matters for snapshot
+    // tests).
+    non_root.sort_by(|a, b| a.0.cmp(b.0));
 
-        for (importer_id, importer) in non_root {
-            let mut importer_children: IndexSet<RcByPtr<HoisterTree>> = IndexSet::new();
-            collect_importer_deps(importer, lockfile, opts, &mut nodes, &mut importer_children)?;
-            let importer_node = Rc::new(HoisterTree {
-                name: percent_encode_path(importer_id),
-                ident_name: percent_encode_path(importer_id),
-                reference: format!("workspace:{importer_id}"),
-                peer_names: BTreeSet::new(),
-                dependency_kind: HoisterDependencyKind::Workspace,
-                hoist_priority: 0,
-                dependencies: RefCell::new(importer_children),
-            });
-            root_children.insert(RcByPtr(importer_node));
-        }
+    for (importer_id, importer) in non_root {
+        let mut importer_children: IndexSet<RcByPtr<HoisterTree>> = IndexSet::new();
+        collect_importer_deps(importer, lockfile, opts, &mut nodes, &mut importer_children)?;
+        let importer_node = Rc::new(HoisterTree {
+            name: percent_encode_path(importer_id),
+            ident_name: percent_encode_path(importer_id),
+            reference: format!("workspace:{importer_id}"),
+            peer_names: BTreeSet::new(),
+            dependency_kind: HoisterDependencyKind::Workspace,
+            hoist_priority: 0,
+            dependencies: RefCell::new(importer_children),
+        });
+        root_children.insert(RcByPtr(importer_node));
     }
 
     let root_node = Rc::new(HoisterTree {

@@ -696,7 +696,20 @@ fn lookup_package_metadata<'a>(
     lockfile: &'a Lockfile,
     key: &PackageKey,
 ) -> Option<&'a pacquet_lockfile::PackageMetadata> {
-    lockfile.packages.as_ref()?.get(key)
+    let packages = lockfile.packages.as_ref()?;
+    // `packages:` keys are peer-stripped (`react-dom@19.2.7`), while a
+    // hoister reference carries the full peer suffix
+    // (`react-dom@19.2.7(react@19.2.7)`). Try the exact key first
+    // (peerless references — the common case — hit immediately), then
+    // fall back to the stripped key so peered snapshots resolve their
+    // metadata instead of being silently dropped from the graph along
+    // with their whole subtree.
+    packages.get(key).or_else(|| {
+        if key.suffix.peer().is_empty() {
+            return None;
+        }
+        packages.get(&key.without_peer())
+    })
 }
 
 /// Project the platform / engines axes from a `PackageMetadata`

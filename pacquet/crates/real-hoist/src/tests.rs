@@ -1026,8 +1026,13 @@ fn multi_importer_lockfile_emits_workspace_children() {
     );
 }
 
+/// Tree membership does not depend on `hoist_workspace_packages` —
+/// pnpm v11's `hoist()` attaches every importer unconditionally, and
+/// the knob only controls root-level name links for the workspace
+/// packages themselves. Gating membership on it silently dropped
+/// every importer-only dependency from the hoisted install.
 #[test]
-fn hoist_workspace_packages_false_omits_workspace_children() {
+fn hoist_workspace_packages_false_keeps_workspace_children() {
     let mut importers = HashMap::new();
     importers.insert(Lockfile::ROOT_IMPORTER_KEY.to_string(), ProjectSnapshot::default());
     importers.insert("packages/foo".to_string(), ProjectSnapshot::default());
@@ -1048,10 +1053,12 @@ fn hoist_workspace_packages_false_omits_workspace_children() {
 
     let opts = HoistOpts { hoist_workspace_packages: false, ..HoistOpts::default() };
     let result = hoist(&lockfile, &opts).expect("hoist succeeds");
-    assert!(
-        result.dependencies.borrow().is_empty(),
-        "non-root importers omitted: {:?}",
-        result.dependencies.borrow().iter().map(|child| child.0.name.clone()).collect::<Vec<_>>(),
+    let children: Vec<String> =
+        result.dependencies.borrow().iter().map(|child| child.0.name.clone()).collect();
+    assert_eq!(
+        children,
+        vec!["packages%2Ffoo".to_string()],
+        "non-root importers stay in the tree regardless of the knob",
     );
 }
 

@@ -854,15 +854,13 @@ fn walker_multi_importer_emits_per_importer_hierarchy() {
     );
 }
 
-/// `hoist_workspace_packages: false` opts non-root importers
-/// out of the shared hoister tree. The walker then sees no
-/// `Workspace`-kind children to fan out into, so only the
-/// root importer's direct deps + hierarchy are emitted.
-/// Non-root importers stay absent from
-/// `direct_dependencies_by_importer_id` (per-project independent
-/// hoist mode).
+/// `hoist_workspace_packages: false` must NOT drop non-root
+/// importers from the shared hoister tree — pnpm v11 attaches every
+/// importer unconditionally and uses the knob only for root-level
+/// name links of the workspace packages themselves. The walker
+/// therefore still fans out into `packages/foo` and emits its deps.
 #[test]
-fn walker_hoist_workspace_packages_false_emits_root_only() {
+fn walker_hoist_workspace_packages_false_keeps_importer_deps() {
     let mut root_deps = ResolvedDependencyMap::new();
     root_deps.insert(pkg_name("a"), resolved_dep("1.0.0"));
 
@@ -891,11 +889,11 @@ fn walker_hoist_workspace_packages_false_emits_root_only() {
     let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
 
     assert!(result.graph.contains_key(&lockfile_dir.join("node_modules").join("a")));
-    assert!(!result.graph.contains_key(&lockfile_dir.join("node_modules").join("b")));
-    assert_eq!(result.direct_dependencies_by_importer_id.len(), 1);
+    // `b` is only used by `packages/foo`; with no conflict it hoists
+    // to the root — the importer's subtree participates in the walk.
+    assert!(result.graph.contains_key(&lockfile_dir.join("node_modules").join("b")));
     assert!(result.direct_dependencies_by_importer_id.contains_key(Lockfile::ROOT_IMPORTER_KEY));
-    assert!(!result.direct_dependencies_by_importer_id.contains_key("packages/foo"));
-    assert_eq!(result.hierarchy.len(), 1);
+    assert!(result.direct_dependencies_by_importer_id.contains_key("packages/foo"));
     assert!(result.hierarchy.contains_key(&lockfile_dir));
 }
 
@@ -1052,4 +1050,54 @@ fn walker_rejects_invalid_hoisted_alias() {
             other => panic!("expected InvalidDependencyAlias error for {alias:?}, got {other:?}"),
         }
     }
+}
+
+/// A peer-suffixed reference (`b@1.0.0(peer@2.0.0)`) must resolve its
+/// metadata through the peer-stripped `packages:` key (`b@1.0.0`) —
+/// lockfile `packages:` keys never carry peer suffixes. Before the
+/// fallback in `lookup_package_metadata`, the walker silently dropped
+/// every peered node and its whole subtree from the graph, so the
+/// hoisted linker never materialized them.
+#[test]
+fn walker_resolves_peered_reference_via_peerless_packages_key() {
+    let mut root_deps = ResolvedDependencyMap::new();
+    root_deps.insert(pkg_name("b"), resolved_dep("1.0.0(peer@2.0.0)"));
+    root_deps.insert(pkg_name("peer"), resolved_dep("2.0.0"));
+
+    // `packages:` keys are peer-stripped.
+    let mut packages = HashMap::new();
+    packages.insert(dep_key("b", "1.0.0"), metadata_stub());
+    packages.insert(dep_key("peer", "2.0.0"), metadata_stub());
+
+    // `snapshots:` keys carry the peer suffix.
+    let mut b_deps = HashMap::new();
+    b_deps.insert(pkg_name("peer"), SnapshotDepRef::Plain(ver_peer("2.0.0")));
+    let mut snapshots = HashMap::new();
+    snapshots.insert(
+        dep_key("b", "1.0.0(peer@2.0.0)"),
+        SnapshotEntry { dependencies: Some(b_deps), ..SnapshotEntry::default() },
+    );
+    snapshots.insert(dep_key("peer", "2.0.0"), SnapshotEntry::default());
+
+    let lockfile = lockfile_with(root_deps, packages, snapshots);
+    let lockfile_dir = PathBuf::from("/repo");
+    let opts = LockfileToHoistedDepGraphOptions {
+        lockfile_dir: lockfile_dir.clone(),
+        ..LockfileToHoistedDepGraphOptions::default()
+    };
+    let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
+
+    let b_dir = lockfile_dir.join("node_modules").join("b");
+    assert!(
+        result.graph.contains_key(&b_dir),
+        "peered node must be in the graph: {:?}",
+        result.graph.keys().collect::<Vec<_>>(),
+    );
+    assert_eq!(
+        result.hoisted_locations["b@1.0.0(peer@2.0.0)"],
+        vec!["node_modules/b".to_string()],
+        "the peered depPath must keep its full-suffix key in hoistedLocations",
+    );
+    // The peer itself is a plain dep of the root and must be there too.
+    assert!(result.graph.contains_key(&lockfile_dir.join("node_modules").join("peer")));
 }
