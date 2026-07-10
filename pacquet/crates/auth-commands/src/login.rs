@@ -719,4 +719,10 @@ pub enum LoginError {
 }
 
 #[cfg(test)]
-mod tests;
+mod test_classic_login;
+#[cfg(test)]
+mod test_non_interactive;
+#[cfg(test)]
+mod test_support;
+#[cfg(test)]
+mod test_web_login;
