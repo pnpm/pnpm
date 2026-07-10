@@ -692,3 +692,66 @@ fn custom_modules_dir_propagates_to_each_importer() {
     );
     drop(dir);
 }
+
+/// An importer id the caller declared as one of the install's own
+/// projects bypasses the unsafe-path rejection — Bit's nested capsule
+/// installs pass a project at `..`, whose `node_modules` lives outside
+/// the lockfile dir by design. Ids NOT in the trusted set must still
+/// be rejected.
+#[test]
+fn trusted_importer_id_outside_workspace_root_is_linked() {
+    let dir = tempdir().unwrap();
+    // The install root is a subdirectory; the trusted importer `..`
+    // resolves to `dir` itself, above the workspace root.
+    let workspace_root: PathBuf = dir.path().join("nested-install-root");
+    std::fs::create_dir_all(&workspace_root).unwrap();
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = workspace_root.join("node_modules");
+    config.virtual_store_dir = workspace_root.join("node_modules/.pacquet");
+    let config = config.leak();
+
+    let mut importers = HashMap::new();
+    importers.insert("..".to_string(), ProjectSnapshot::default());
+
+    let trusted: std::collections::HashSet<String> = [".."].map(String::from).into();
+    SymlinkDirectDependencies {
+        config,
+        layout: &crate::VirtualStoreLayout::legacy(
+            config.virtual_store_dir.clone(),
+            config.virtual_store_dir_max_length as usize,
+        ),
+        importers: &importers,
+        dependency_groups: [DependencyGroup::Prod],
+        workspace_root: &workspace_root,
+        skipped: &SkippedSnapshots::default(),
+        link_only: false,
+        public_hoist_targets: None,
+        trusted_importer_ids: Some(&trusted),
+    }
+    .run::<SilentReporter>()
+    .expect("a declared project at `..` must be allowed");
+
+    // An id missing from the trusted set keeps the strict rejection.
+    let result = SymlinkDirectDependencies {
+        config,
+        layout: &crate::VirtualStoreLayout::legacy(
+            config.virtual_store_dir.clone(),
+            config.virtual_store_dir_max_length as usize,
+        ),
+        importers: &importers,
+        dependency_groups: [DependencyGroup::Prod],
+        workspace_root: &workspace_root,
+        skipped: &SkippedSnapshots::default(),
+        link_only: false,
+        public_hoist_targets: None,
+        trusted_importer_ids: Some(&std::collections::HashSet::new()),
+    }
+    .run::<SilentReporter>();
+    assert!(
+        matches!(result, Err(SymlinkDirectDependenciesError::UnsafeImporterPath { .. })),
+        "an untrusted `..` id must still be rejected",
+    );
+
+    drop(dir);
+}
