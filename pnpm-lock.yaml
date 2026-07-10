@@ -325,6 +325,10 @@ snapshots:
 				},
 				"@types/semver": "7.8.0",
 				"@types/spdx-expression-parse": "4.0.0",
+				"@types/spdx-satisfies": {
+					"specifier": "^6.0.0",
+					"version": "6.0.0",
+				},
 				"@types/ssri": {
 					"specifier": "^7.1.5",
 					"version": "7.1.5",
@@ -858,6 +862,10 @@ snapshots:
 					"version": "6.0.1",
 				},
 				"spdx-expression-parse": "5.0.0",
+				"spdx-satisfies": {
+					"specifier": "^6.0.0",
+					"version": "6.0.0",
+				},
 				"split-cmd": {
 					"specifier": "^1.1.0",
 					"version": "1.1.0",
@@ -2425,6 +2433,7 @@ snapshots:
 				"@pnpm/store.path": "workspace:*",
 				"@pnpm/types": "workspace:*",
 				"spdx-expression-parse": "catalog:",
+				"spdx-satisfies": "catalog:",
 			},
 			"devDependencies": {
 				"@jest/globals": "catalog:",
@@ -2433,6 +2442,7 @@ snapshots:
 					"version": "link:",
 				},
 				"@pnpm/logger": "workspace:*",
+				"@types/spdx-satisfies": "catalog:",
 			},
 		},
 
@@ -11734,6 +11744,10 @@ snapshots:
 			"integrity": "sha512-odQzy87phelGS4inXOzjmusx4hoCVD0IbxUANxHzVkmTzMRTNnUPoq1urIl7S1qf09KcDWKLFIftPmLtgbsAHA==",
 		},
 
+		"@types/spdx-satisfies@6.0.0": {
+			"integrity": "sha512-kOngOQzzhQrj4axuWWSWGzOO6MAe5eQ5qG3Zepe4LE/7lQJf7oYW8gAlNOywOhCpVY6oPs/YuJD463VdTk16ZQ==",
+		},
+
 		"@types/ssri@7.1.5": {
 			"integrity": "sha512-odD/56S3B51liILSk5aXJlnYt99S6Rt9EFDDqGtJM26rKHApHcwyU/UoYHrzKkdkHMAIquGWCuHtQTbes+FRQw==",
 			"dependencies": {
@@ -20099,6 +20113,15 @@ snapshots:
 			},
 		},
 
+		"spdx-compare@1.0.0": {
+			"integrity": "sha512-C1mDZOX0hnu0ep9dfmuoi03+eOdDoz2yvK79RxbcrVEG1NO1Ph35yW102DHWKN4pk80nwCgeMmSY5L25VE4D9A==",
+			"dependencies": {
+				"array-find-index": "1.0.2",
+				"spdx-expression-parse": "3.0.1",
+				"spdx-ranges": "2.1.1",
+			},
+		},
+
 		"spdx-correct@3.2.0": {
 			"integrity": "sha512-kN9dJbvnySHULIluDHy32WHRUu3Og7B9sbY7tsFLctQkIqnMh3hErYgdMjTYuqmcXX+lK5T1lnUt3G7zNswmZA==",
 			"dependencies": {
@@ -20137,6 +20160,19 @@ snapshots:
 
 		"spdx-license-ids@3.0.24": {
 			"integrity": "sha512-cLS9TtWkIQFyLkJ3/5aFQAOHOSKTlOs/7WDut/XPSdjom1fJhUdkepeJAKXa9Y05+FabHd0sti+Et559vDtkpQ==",
+		},
+
+		"spdx-ranges@2.1.1": {
+			"integrity": "sha512-mcdpQFV7UDAgLpXEE/jOMqvK4LBoO0uTQg0uvXUewmEFhpiZx5yJSZITHB8w1ZahKdhfZqP5GPEOKLyEq5p8XA==",
+		},
+
+		"spdx-satisfies@6.0.0": {
+			"integrity": "sha512-oOWQocnRbFVtBnBITfFgzjhnOklHossTvI+6C1hB2slvp3HgTsfru5wuo8HY2rQpwSm5JuIhNzIuqOfR5IuojQ==",
+			"dependencies": {
+				"spdx-compare": "1.0.0",
+				"spdx-expression-parse": "3.0.1",
+				"spdx-ranges": "2.1.1",
+			},
 		},
 
 		"split-cmd@1.1.0": {
