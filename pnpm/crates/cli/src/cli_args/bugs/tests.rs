@@ -329,9 +329,11 @@ async fn run_bugs_in_project(manifest: &str) -> miette::Result<()> {
 
 #[tokio::test]
 async fn run_opens_bugs_url_from_local_manifest_bugs_object() {
-    run_bugs_in_project(r#"{"name":"test-pkg","bugs":{"url":"https://github.com/test/pkg/issues"}}"#)
-        .await
-        .expect("bugs must succeed");
+    run_bugs_in_project(
+        r#"{"name":"test-pkg","bugs":{"url":"https://github.com/test/pkg/issues"}}"#,
+    )
+    .await
+    .expect("bugs must succeed");
     assert_eq!(opened_urls(), ["https://github.com/test/pkg/issues"]);
 }
 
@@ -370,15 +372,14 @@ fn version_response(name: &str, extra_fields: serde_json::Value) -> String {
         },
     });
     let fields = version.as_object_mut().expect("version response is an object");
-    let extra = extra_fields.as_object().expect("extra fields are an object");
-    fields.extend(extra.clone());
+    let serde_json::Value::Object(extra) = extra_fields else {
+        panic!("extra fields must be an object");
+    };
+    fields.extend(extra);
     version.to_string()
 }
 
-async fn run_bugs_against_registry(
-    registry: String,
-    package: &str,
-) -> miette::Result<()> {
+async fn run_bugs_against_registry(registry: String, package: &str) -> miette::Result<()> {
     let config = Config { registry, ..Config::default() };
     let args = BugsArgs { registry: None, packages: vec![package.to_owned()] };
     args.run::<RecordingBrowser>(&config, Path::new(".")).await
