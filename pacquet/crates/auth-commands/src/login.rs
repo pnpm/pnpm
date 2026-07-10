@@ -217,3 +217,7 @@ mod test_non_interactive;
 mod test_support;
 #[cfg(test)]
 mod test_web_login;
+#[cfg(test)]
+mod test_web_login_errors;
+#[cfg(test)]
+mod test_web_login_scope;
