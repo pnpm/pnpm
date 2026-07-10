@@ -430,3 +430,30 @@ describe('matchLicenseAgainstPolicy — hardened semantics', () => {
     expect(r.allowed).toBe(true) // loose + no allowed list ⇒ allowed-by-default, documented
   })
 })
+
+describe('matchLicenseAgainstPolicy — regression fixes', () => {
+  test('does not throw when an allowed entry is not valid SPDX', () => {
+    expect(() => matchLicenseAgainstPolicy('MIT', { allowed: new Set(['Apache 2.0', 'MIT']), mode: 'strict' })).not.toThrow()
+    expect(matchLicenseAgainstPolicy('MIT', { allowed: new Set(['Apache 2.0', 'MIT']), mode: 'strict' }).allowed).toBe(true)
+    const r = matchLicenseAgainstPolicy('GPL-3.0-only', { allowed: new Set(['Apache 2.0']), mode: 'strict' })
+    expect(r.allowed).toBe(false)
+    expect(r.reason).toBe('not-in-allowed-list')
+  })
+
+  test('a standalone LicenseRef is not falsely reported as disallowed', () => {
+    const r = matchLicenseAgainstPolicy('LicenseRef-proprietary', { disallowed: new Set(['GPL-3.0-only']), mode: 'loose' })
+    expect(r.allowed).toBe(true)
+    expect(r.reason).not.toBe('explicitly-disallowed')
+  })
+
+  test('LicenseRef in an AND with a non-disallowed license is not blocked', () => {
+    const r = matchLicenseAgainstPolicy('MIT AND LicenseRef-x', { disallowed: new Set(['GPL-3.0-only']), mode: 'loose' })
+    expect(r.allowed).toBe(true)
+  })
+
+  test('a non-disallowed real license is a valid OR escape from a disallowed sibling', () => {
+    // GPL OR BSD with only GPL disallowed: BSD is a real escape, disallow passes
+    const r = matchLicenseAgainstPolicy('GPL-3.0-only OR BSD-3-Clause', { disallowed: new Set(['GPL-3.0-only']), mode: 'loose' })
+    expect(r.allowed).toBe(true)
+  })
+})
