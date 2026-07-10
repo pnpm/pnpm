@@ -38,7 +38,8 @@
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/store.path": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "spdx-expression-parse": "catalog:"
+    "spdx-expression-parse": "catalog:",
+    "spdx-satisfies": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -46,7 +47,8 @@
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/deps.compliance.license-checker": "workspace:*",
-    "@pnpm/logger": "workspace:*"
+    "@pnpm/logger": "workspace:*",
+    "@types/spdx-satisfies": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

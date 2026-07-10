@@ -137,6 +137,7 @@ catalog:
   '@types/ramda': 0.31.1
   '@types/retry': ^0.12.5
   '@types/semver': 7.7.1
+  '@types/spdx-satisfies': ^6.0.0
   '@types/ssri': ^7.1.5
   '@types/tar-stream': ^3.1.4
   '@types/touch': ^3.1.5
@@ -304,6 +305,7 @@ catalog:
   socks: ^2.8.9
   sort-keys: ^6.0.0
   spdx-expression-parse: ^4.0.0
+  spdx-satisfies: ^6.0.0
   split-cmd: ^1.1.0
   split2: ^4.2.0
   # ssri 14.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0, above pnpm's
