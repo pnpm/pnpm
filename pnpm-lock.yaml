@@ -2428,6 +2428,7 @@ snapshots:
 			"name": "@pnpm/deps.compliance.license-checker",
 			"dependencies": {
 				"@pnpm/deps.compliance.license-scanner": "workspace:*",
+				"@pnpm/deps.path": "workspace:*",
 				"@pnpm/error": "workspace:*",
 				"@pnpm/lockfile.fs": "workspace:*",
 				"@pnpm/store.path": "workspace:*",

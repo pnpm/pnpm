@@ -25,6 +25,9 @@
       "path": "../../../store/path"
     },
     {
+      "path": "../../path"
+    },
+    {
       "path": "../license-scanner"
     }
   ]

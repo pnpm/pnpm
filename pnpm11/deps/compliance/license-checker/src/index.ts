@@ -9,6 +9,9 @@ export {
   type LicenseViolation,
 } from './checkLicenses.js'
 export {
+  collectDirectDepKeys,
+} from './directDeps.js'
+export {
   type NormalizedPolicy,
   resolveLicensePolicy,
 } from './policy.js'
