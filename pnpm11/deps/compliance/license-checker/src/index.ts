@@ -19,6 +19,12 @@ export {
   sanitizeForTerminal,
 } from './sanitize.js'
 export {
+  includeForEnvironment,
+  scanAndCheckLicenses,
+  type ScanOptions,
+  type ScanResult,
+} from './scan.js'
+export {
   extractLicenseIds,
   type LicenseMatchResult,
   matchLicenseAgainstPolicy,

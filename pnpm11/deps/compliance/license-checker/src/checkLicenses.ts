@@ -43,6 +43,7 @@ export function checkLicenseCompliance (
   const allowed = config.allowed ? new Set(config.allowed) : undefined
   const disallowed = config.disallowed ? new Set(config.disallowed) : undefined
   const overrides = config.overrides ?? {}
+  const matchCache = new Map<string, ReturnType<typeof matchLicenseAgainstPolicy>>()
 
   for (const pkg of filtered) {
     result.checkedCount++
@@ -56,11 +57,15 @@ export function checkLicenseCompliance (
       ? overrideResult
       : pkg.license
 
-    const match = matchLicenseAgainstPolicy(effectiveLicense, {
-      allowed,
-      disallowed,
-      mode,
-    })
+    let match = matchCache.get(effectiveLicense)
+    if (match == null) {
+      match = matchLicenseAgainstPolicy(effectiveLicense, {
+        allowed,
+        disallowed,
+        mode,
+      })
+      matchCache.set(effectiveLicense, match)
+    }
 
     if (!match.allowed) {
       const violation: LicenseViolation = {
