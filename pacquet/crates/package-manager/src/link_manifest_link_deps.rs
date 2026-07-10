@@ -41,13 +41,19 @@ pub fn link_manifest_link_deps<Reporter: pacquet_reporter::Reporter>(
     workspace_root: &Path,
     project_manifests: &[(PathBuf, &PackageManifest)],
     importers: Option<&HashMap<String, ProjectSnapshot>>,
+    modules_dir_name: &std::ffi::OsStr,
 ) -> Result<(), LinkManifestLinkDepsError> {
     for (project_dir, manifest) in project_manifests {
         let importer_snapshot = importers.and_then(|importers| {
             importers
                 .get(&pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir))
         });
-        let modules_dir = project_dir.join("node_modules");
+        // The per-project modules dir honors a `modulesDir` override
+        // the same way `SymlinkDirectDependencies` does — the caller
+        // passes `config.modules_dir`'s basename, so a
+        // `modulesDir: custom_modules` config doesn't grow a stray
+        // `node_modules/` next to the intended tree.
+        let modules_dir = project_dir.join(modules_dir_name);
         // Per-group iteration (instead of one flattened
         // `manifest.dependencies([...])` pass) so the `pnpm:root added`
         // event below carries the dependency's real group.

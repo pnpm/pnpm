@@ -1487,6 +1487,9 @@ where
             fresh_lockfile.as_ref().or(lockfile).and_then(|lockfile| {
                 (!lockfile.importers.is_empty()).then_some(&lockfile.importers)
             }),
+            // Honor a `modulesDir` override the same way the
+            // lockfile-driven symlink pass does.
+            config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules")),
         )
         .map_err(InstallError::LinkManifestLinkDeps)?;
 

@@ -42,6 +42,7 @@ fn links_absolute_relative_and_self_reference_specs() {
         dir.path(),
         &[(project_dir.clone(), &manifest)],
         None,
+        std::ffi::OsStr::new("node_modules"),
     )
     .expect("linking succeeds");
 
@@ -95,6 +96,7 @@ fn relink_replaces_stale_symlink() {
         dir.path(),
         &[(project_dir.clone(), &manifest)],
         None,
+        std::ffi::OsStr::new("node_modules"),
     )
     .expect("relink succeeds");
     assert_eq!(
@@ -145,6 +147,7 @@ fn lockfile_tracked_alias_is_skipped() {
         dir.path(),
         &[(project_dir.clone(), &manifest)],
         Some(&importers),
+        std::ffi::OsStr::new("node_modules"),
     )
     .expect("pass succeeds");
     assert!(
@@ -179,6 +182,7 @@ fn traversal_alias_is_rejected_without_writes() {
             dir.path(),
             &[(project_dir.clone(), &manifest)],
             None,
+            std::ffi::OsStr::new("node_modules"),
         );
         assert!(
             matches!(result, Err(super::LinkManifestLinkDepsError::InvalidAlias(_))),
@@ -188,6 +192,41 @@ fn traversal_alias_is_rejected_without_writes() {
     // Nothing was written anywhere.
     assert!(!project_dir.join("node_modules").exists());
     assert!(victim.exists() && fs::read_dir(&victim).unwrap().next().is_none());
+
+    drop(dir);
+}
+
+/// A `modulesDir` override changes where the links land — the pass
+/// must follow the configured basename instead of growing a stray
+/// `node_modules/` next to the intended tree.
+#[test]
+fn custom_modules_dir_name_is_honored() {
+    let dir = tempdir().unwrap();
+    let project_dir = dir.path().join("project");
+    let external = dir.path().join("external-pkg");
+    fs::create_dir_all(&project_dir).unwrap();
+    fs::create_dir_all(&external).unwrap();
+
+    let manifest = manifest_at(
+        &project_dir,
+        serde_json::json!({
+            "name": "project",
+            "dependencies": { "dep": format!("link:{}", external.display()) },
+        }),
+    );
+    link_manifest_link_deps::<SilentReporter>(
+        dir.path(),
+        &[(project_dir.clone(), &manifest)],
+        None,
+        std::ffi::OsStr::new("custom_modules"),
+    )
+    .expect("linking succeeds");
+
+    assert_eq!(
+        fs::canonicalize(project_dir.join("custom_modules/dep")).unwrap(),
+        external.canonicalize().unwrap(),
+    );
+    assert!(!project_dir.join("node_modules").exists(), "no stray node_modules");
 
     drop(dir);
 }
