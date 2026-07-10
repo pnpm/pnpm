@@ -6,7 +6,7 @@ import { type Config, type ConfigContext, getWorkspaceConcurrency, types } from 
 import { lifecycleLogger, type LifecycleMessage } from '@pnpm/core-loggers'
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
-import { makeNodePackageMapOption, makeNodeRequireOption } from '@pnpm/exec.lifecycle'
+import { makeNodePackageMapOption, makeNodeRequireOption, trackChildProcess } from '@pnpm/exec.lifecycle'
 import { logger } from '@pnpm/logger'
 import { prependDirsToPath } from '@pnpm/shell.path'
 import type { Project, ProjectRootDir, ProjectRootDirRealPath, ProjectsGraph } from '@pnpm/types'
@@ -268,6 +268,7 @@ export async function handler (
               stdio: 'pipe',
               shell: opts.shellMode ?? false,
             })
+            trackChildProcess(child)
             const lifecycleOpts = {
               wd: prefix,
               depPath: manifest.name ?? path.relative(opts.dir, prefix),
@@ -296,12 +297,14 @@ export async function handler (
             })
             await child
           } else {
-            await execa(cmd, args, {
+            const child = execa(cmd, args, {
               cwd: prefix,
               env,
               stdio: 'inherit',
               shell: opts.shellMode ?? false,
             })
+            trackChildProcess(child)
+            await child
           }
           result[prefix].status = 'passed'
           result[prefix].duration = getExecutionDuration(startTime)

@@ -13,6 +13,7 @@ import { isPortInUse } from './utils/isPortInUse.js'
 
 const f = fixtures(import.meta.dirname)
 const multipleScriptsErrorExit = f.find('multiple-scripts-error-exit')
+const execErrorExit = f.find('exec-error-exit')
 const testOnPosix = isWindows() ? test.skip : test
 
 test('should print json format error when publish --json failed', async () => {
@@ -104,6 +105,18 @@ test('should print json format error when add dependency on workspace root', asy
   expect(status).toBe(1)
   const { error } = JSON.parse(stdout.toString())
   expect(error?.code).toBe('ERR_PNPM_ADDING_TO_ROOT')
+})
+
+test('should clean up the process trees of running commands when a recursive exec fails', async () => {
+  const fooPort = await getPort()
+  process.chdir(execErrorExit)
+  execPnpmSync(['--recursive', 'exec', 'node', 'script.js'], {
+    stdio: 'pipe',
+    env: {
+      FOO_PORT: fooPort.toString(),
+    },
+  })
+  expect(await isPortInUse(fooPort)).toBe(false)
 })
 
 // This test started to fail on Windows for unknown reason.

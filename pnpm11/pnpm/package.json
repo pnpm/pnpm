@@ -103,6 +103,7 @@
     "@pnpm/engine.runtime.system-version": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.commands": "workspace:*",
+    "@pnpm/exec.lifecycle": "workspace:*",
     "@pnpm/hooks.pnpmfile": "workspace:*",
     "@pnpm/installing.client": "workspace:*",
     "@pnpm/installing.commands": "workspace:*",

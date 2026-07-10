@@ -2,6 +2,7 @@ import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 
 import { runLifecycleHook, type RunLifecycleHookOptions } from './runLifecycleHook.js'
 import { runLifecycleHooksConcurrently, type RunLifecycleHooksConcurrentlyOptions } from './runLifecycleHooksConcurrently.js'
+import { killTrackedProcessTrees, type TrackableChildProcess, trackChildProcess } from './trackChildProcess.js'
 
 export function makeNodeRequireOption (modulePath: string, env?: Record<string, string | undefined>): { NODE_OPTIONS: string } {
   let { NODE_OPTIONS } = env ?? process.env
@@ -36,10 +37,13 @@ function removeNodePackageMapOption (nodeOptions: string): string {
 }
 
 export {
+  killTrackedProcessTrees,
   runLifecycleHook,
   type RunLifecycleHookOptions,
   runLifecycleHooksConcurrently,
   type RunLifecycleHooksConcurrentlyOptions,
+  type TrackableChildProcess,
+  trackChildProcess,
 }
 
 export async function runPostinstallHooks (
