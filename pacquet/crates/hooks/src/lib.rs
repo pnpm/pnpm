@@ -3,6 +3,7 @@ use derive_more::Display;
 use serde_json::Value;
 use std::sync::Arc;
 
+pub mod custom_fetcher_adapter;
 pub mod custom_resolver_adapter;
 pub mod finder;
 pub mod node_runtime;
@@ -118,6 +119,52 @@ pub trait PnpmfileHooks: Send + Sync {
     async fn get_custom_resolvers(&self) -> Result<Vec<Arc<dyn CustomResolver>>, HookError> {
         Ok(vec![])
     }
+
+    /// Get custom fetchers exported from the pnpmfile's top-level
+    /// `fetchers` array.
+    async fn get_custom_fetchers(&self) -> Result<Vec<Arc<dyn CustomFetcher>>, HookError> {
+        Ok(vec![])
+    }
+}
+
+/// A custom fetcher exported from a pnpmfile's `fetchers` array.
+///
+/// Custom fetchers are consulted before the built-in fetchers. If `can_fetch`
+/// returns `true`, `fetch` is called. Currently only delegation is supported:
+/// the fetcher returns `{ "delegate": <LockfileResolution> }` to rewrite the
+/// resolution and fall through to the built-in fetch path.
+///
+/// The pnpmfile hook is invoked with the same positional arguments as the
+/// TypeScript CLI's `CustomFetcher.fetch(cafs, resolution, opts, fetchers)`
+/// (`pnpm11/hooks/types/src/index.ts`); `cafs` and `fetchers` are `null`
+/// placeholders because they cannot cross the worker IPC boundary, which is
+/// how a portable fetcher knows to delegate instead of fetching directly.
+#[async_trait]
+pub trait CustomFetcher: Send + Sync {
+    fn has_can_fetch(&self) -> bool {
+        true
+    }
+
+    fn has_fetch(&self) -> bool {
+        true
+    }
+
+    /// Determines whether this fetcher handles the given package.
+    async fn can_fetch(&self, pkg_id: &str, resolution: Value) -> Result<bool, HookError>;
+
+    /// Calls the fetcher hook. The returned JSON envelope is interpreted by the
+    /// installer:
+    ///
+    /// - `{ "delegate": <resolution> }` — rewrites the lockfile resolution and
+    ///   falls through to the built-in fetch path for the rewritten value.
+    /// - Any other shape fails the install (`custom_fetcher_failed`): a fetcher
+    ///   that claims a package via [`CustomFetcher::can_fetch`] must delegate,
+    ///   because direct content fetch isn't supported yet.
+    ///
+    /// The built-in fetch path runs with the original resolution unchanged
+    /// only when no fetcher claims the package.
+    async fn fetch(&self, pkg_id: &str, resolution: Value, opts: Value)
+    -> Result<Value, HookError>;
 }
 
 /// A custom resolver exported from a pnpmfile. The pnpmfile interface's

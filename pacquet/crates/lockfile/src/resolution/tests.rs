@@ -710,3 +710,73 @@ fn to_lockfile_form_keeps_tarball_with_trailing_scheme_separator() {
         }),
     );
 }
+
+// --- Custom resolutions ---
+
+fn custom_cdn_resolution() -> LockfileResolution {
+    let mut extra = serde_json::Map::new();
+    extra.insert(
+        "url".to_string(),
+        serde_json::Value::String("https://cdn.example.com/pkg.tgz".to_string()),
+    );
+    extra.insert("integrity".to_string(), serde_json::Value::String(SHA512.to_string()));
+    LockfileResolution::Custom(super::CustomResolution {
+        resolution_type: "custom:cdn".to_string().try_into().expect("custom type tag"),
+        extra,
+    })
+}
+
+#[test]
+fn deserialize_custom_resolution_preserves_unknown_fields() {
+    let yaml = text_block! {
+        "type: custom:cdn"
+        "url: https://cdn.example.com/pkg.tgz"
+        "region: eu-west-1"
+    };
+    let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
+    dbg!(&received);
+    let LockfileResolution::Custom(custom) = &received else {
+        panic!("expected a custom resolution, got {received:?}");
+    };
+    assert_eq!(custom.resolution_type.as_str(), "custom:cdn");
+    assert_eq!(custom.extra["url"], "https://cdn.example.com/pkg.tgz");
+    assert_eq!(custom.extra["region"], "eu-west-1");
+}
+
+#[test]
+fn serialize_custom_resolution() {
+    let received = render_resolution(&custom_cdn_resolution());
+    eprintln!("RECEIVED:\n{received}");
+    let expected = format!(
+        "resolution: {{integrity: {SHA512}, type: custom:cdn, url: https://cdn.example.com/pkg.tgz}}",
+    );
+    assert_eq!(received, expected);
+}
+
+/// Custom resolutions enter pacquet as `serde_json::Value`s from a
+/// pnpmfile custom resolver, so the JSON path must round-trip them
+/// exactly (field set and `type` tag included).
+#[test]
+fn custom_resolution_round_trips_through_json() {
+    let resolution = custom_cdn_resolution();
+    let value = serde_json::to_value(&resolution).unwrap();
+    dbg!(&value);
+    assert_eq!(value["type"], "custom:cdn");
+    let parsed: LockfileResolution = serde_json::from_value(value).unwrap();
+    assert_eq!(parsed, resolution);
+}
+
+/// A malformed built-in resolution must stay a parse error: the custom
+/// passthrough accepts only non-built-in `type` tags, so a `git` entry
+/// missing its `commit` cannot silently reclassify as custom and dodge
+/// the strict built-in shape checks.
+#[test]
+fn deserialize_rejects_malformed_builtin_resolution() {
+    let yaml = text_block! {
+        "type: git"
+        "repo: https://github.com/user/repo.git"
+    };
+    let received = serde_saphyr::from_str::<LockfileResolution>(yaml);
+    dbg!(&received);
+    assert!(received.is_err(), "a git resolution without a commit must not parse");
+}

@@ -162,11 +162,14 @@ pub(crate) fn synthesize_reused_result(
         LockfileResolution::Registry(_) => {}
         LockfileResolution::Tarball(tarball)
             if tarball.integrity.is_some() && tarball.git_hosted != Some(true) => {}
+        // Custom resolutions fall through with the rest: reuse would
+        // bypass the pnpmfile custom resolver that owns them.
         LockfileResolution::Tarball(_)
         | LockfileResolution::Directory(_)
         | LockfileResolution::Git(_)
         | LockfileResolution::Binary(_)
-        | LockfileResolution::Variations(_) => return None,
+        | LockfileResolution::Variations(_)
+        | LockfileResolution::Custom(_) => return None,
     }
     let name_ver = PkgNameVer::new(metadata_key.name.clone(), version);
     let manifest = synthesize_manifest(&name_ver, metadata);

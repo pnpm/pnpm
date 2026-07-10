@@ -409,6 +409,7 @@ fn resolution_kind(resolution: &LockfileResolution) -> &'static str {
         LockfileResolution::Git(_) => "git",
         LockfileResolution::Binary(_) => "binary",
         LockfileResolution::Variations(_) => "variations",
+        LockfileResolution::Custom(_) => "custom",
     }
 }
 

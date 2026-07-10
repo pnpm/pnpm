@@ -264,7 +264,8 @@ pub(crate) fn extract_tarball(
         | LockfileResolution::Directory(_)
         | LockfileResolution::Git(_)
         | LockfileResolution::Binary(_)
-        | LockfileResolution::Variations(_) => {
+        | LockfileResolution::Variations(_)
+        | LockfileResolution::Custom(_) => {
             Err(InstallPackageFromRegistryError::UnsupportedResolution {
                 detail: format!("{resolution:?}"),
             })

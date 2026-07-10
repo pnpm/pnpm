@@ -177,7 +177,12 @@ fn metadata_store_index_keys(pkg_id: &str, metadata: &PackageMetadata) -> Vec<St
         LockfileResolution::Binary(resolution) => {
             vec![store_index_key(&resolution.integrity.to_string(), pkg_id)]
         }
-        LockfileResolution::Directory(_) | LockfileResolution::Variations(_) => Vec::new(),
+        // Custom resolutions delegate to a rewritten resolution at
+        // install time; the store-index key belongs to that rewritten
+        // shape, which isn't recoverable from the lockfile entry.
+        LockfileResolution::Directory(_)
+        | LockfileResolution::Variations(_)
+        | LockfileResolution::Custom(_) => Vec::new(),
     }
 }
 

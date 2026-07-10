@@ -1042,9 +1042,12 @@ fn rewrite_resolution_registry(
                 rewrite_resolution_registry(&mut variant.resolution, rewrite);
             }
         }
+        // Custom resolutions are opaque — the benchmark rewrite can't
+        // know which of their fields (if any) is a registry URL.
         LockfileResolution::Directory(_)
         | LockfileResolution::Git(_)
-        | LockfileResolution::Registry(_) => {}
+        | LockfileResolution::Registry(_)
+        | LockfileResolution::Custom(_) => {}
     }
 }
 

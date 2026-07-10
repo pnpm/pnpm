@@ -48,6 +48,15 @@ pub struct ResolverCapabilities {
     pub should_refresh_resolution: bool,
 }
 
+/// Which optional methods one custom fetcher in the pnpmfile's
+/// `fetchers` array implements.
+#[derive(Debug, Clone, Copy, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FetcherCapabilities {
+    pub can_fetch: bool,
+    pub fetch: bool,
+}
+
 struct Pending {
     log: LogFn,
     done: oneshot::Sender<Result<Value, String>>,
@@ -190,6 +199,37 @@ impl NodeWorker {
         serde_json::from_value(value).map_err(|err| self.exec_err(err.to_string()))
     }
 
+    /// Call `method` on the custom fetcher at `index` in the pnpmfile's
+    /// `fetchers` array, forwarding any `context.log(...)` to `log`.
+    pub async fn call_fetcher(
+        &self,
+        index: usize,
+        method: &str,
+        payload: Value,
+        log: LogFn,
+    ) -> Result<Value, HookError> {
+        self.request(
+            method,
+            serde_json::json!({
+                "target": "fetcher",
+                "index": index,
+                "method": method,
+                "payload": payload,
+            }),
+            log,
+        )
+        .await
+    }
+
+    /// Get the capabilities of every custom fetcher exported by the
+    /// pnpmfile's `fetchers` array, in array order.
+    pub async fn get_fetcher_capabilities(&self) -> Result<Vec<FetcherCapabilities>, HookError> {
+        let value = self
+            .request("fetchers", serde_json::json!({ "target": "fetchers" }), Arc::new(|_| {}))
+            .await?;
+        serde_json::from_value(value).map_err(|err| self.exec_err(err.to_string()))
+    }
+
     /// Send one request `body` (an object the worker dispatches on) and
     /// await its reply, stamping in the request id and routing any
     /// `context.log(...)` lines to `log`. `label` names the request in a
@@ -290,6 +330,26 @@ async function handle(line) {{
       }}
       const args = req.payload || [];
       const res = await resolver[req.method](...args);
+      send({{ ok: res === undefined ? null : res }});
+      return;
+    }}
+    if (req.target === 'fetchers') {{
+      const fetchers = mod && mod.fetchers;
+      send({{ ok: (Array.isArray(fetchers) ? fetchers.map((f) => ({{
+        canFetch: f != null && typeof f.canFetch === 'function',
+        fetch: f != null && typeof f.fetch === 'function',
+      }})) : []) }});
+      return;
+    }}
+    if (req.target === 'fetcher') {{
+      const fetchers = mod && mod.fetchers;
+      const fetcher = Array.isArray(fetchers) ? fetchers[req.index] : null;
+      if (!fetcher || typeof fetcher[req.method] !== 'function') {{
+        send({{ ok: null }});
+        return;
+      }}
+      const args = req.payload || [];
+      const res = await fetcher[req.method](...args);
       send({{ ok: res === undefined ? null : res }});
       return;
     }}

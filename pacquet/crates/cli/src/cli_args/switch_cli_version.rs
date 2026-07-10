@@ -284,7 +284,8 @@ fn assert_integrity_only_resolution(
         | LockfileResolution::Directory(_)
         | LockfileResolution::Git(_)
         | LockfileResolution::Binary(_)
-        | LockfileResolution::Variations(_) => Err(invalid_package_manager_lockfile(key)),
+        | LockfileResolution::Variations(_)
+        | LockfileResolution::Custom(_) => Err(invalid_package_manager_lockfile(key)),
     }
 }
 

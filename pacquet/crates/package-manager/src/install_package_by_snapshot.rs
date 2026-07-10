@@ -10,6 +10,7 @@ use pacquet_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
 use pacquet_fs::lexical_normalize;
 use pacquet_git_fetcher::{GitFetchOutput, GitFetcher, GitFetcherError, GitHostedTarballFetcher};
 use pacquet_graph_hasher::{host_arch, host_libc, host_platform};
+use pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker;
 use pacquet_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, LockfileResolution,
     PackageKey, PackageMetadata, PlatformSelector, SnapshotEntry, select_platform_variant,
@@ -112,6 +113,10 @@ pub struct InstallPackageBySnapshot<'a> {
     /// land in the store, so this is purely about whether the
     /// virtual-store slot gets materialized.
     pub node_linker: NodeLinker,
+    /// Custom fetchers from the pnpmfile's `fetchers` export.
+    /// Consulted before the built-in resolution-type dispatch; `None`
+    /// when no pnpmfile exports fetchers.
+    pub custom_fetcher_picker: Option<&'a Arc<CustomFetcherPicker>>,
     /// When `true`, return the fetched CAS paths without populating the
     /// virtual-store slot ([`CreateVirtualDirBySnapshot`]) — the caller
     /// links them itself in a separate parallel pass. The cold batch in
@@ -165,6 +170,21 @@ pub enum InstallPackageBySnapshotError {
     /// `includeOnlyPackageFiles` mode.
     #[diagnostic(transparent)]
     DirectoryFetch(#[error(source)] DirectoryFetcherError),
+
+    /// A custom fetcher from the pnpmfile threw or returned an error.
+    #[display("Custom fetcher failed: {_0}")]
+    #[diagnostic(code(pacquet_package_manager::custom_fetcher_failed))]
+    CustomFetcher(#[error(not(source))] String),
+
+    /// A custom-typed resolution reached the built-in dispatch — no
+    /// pnpmfile custom fetcher claimed it. Message and code mirror the
+    /// TypeScript `pickFetcher` in
+    /// `pnpm11/fetching/pick-fetcher/src/index.ts`.
+    #[display(
+        "Cannot fetch dependency with custom resolution type \"{resolution_type}\". Custom resolutions must be handled by custom fetchers."
+    )]
+    #[diagnostic(code(UNSUPPORTED_RESOLUTION_TYPE))]
+    UnsupportedResolutionType { resolution_type: String },
 
     /// No variant in a [`LockfileResolution::Variations`] matches the
     /// host triple `(os, cpu, libc?)`. Surfaces with the host triple
@@ -257,6 +277,7 @@ impl InstallPackageBySnapshot<'_> {
             skipped,
             workspace_root,
             node_linker,
+            custom_fetcher_picker,
             defer_link,
             #[cfg(test)]
             link_concurrency_probe,
@@ -285,10 +306,56 @@ impl InstallPackageBySnapshot<'_> {
             }
         };
 
-        let cas_paths: HashMap<String, PathBuf> = match &metadata.resolution {
+        let effective_resolution: Option<LockfileResolution> = if let Some(picker) =
+            custom_fetcher_picker
+        {
+            let resolution_value = serde_json::to_value(&metadata.resolution).map_err(|err| {
+                InstallPackageBySnapshotError::CustomFetcher(format!(
+                    "failed to serialize resolution for {package_id}: {err}",
+                ))
+            })?;
+            // Shaped like the TypeScript `FetchOptions` subset a
+            // delegating fetcher can use (`pkg`, `lockfileDir`), so one
+            // pnpmfile works on both stacks.
+            let opts_value = serde_json::json!({
+                "pkg": {
+                    "name": package_key.name.to_string(),
+                    "version": metadata
+                        .version
+                        .clone()
+                        .unwrap_or_else(|| package_key.suffix.version().to_string()),
+                },
+                "lockfileDir": workspace_root,
+            });
+            match picker.try_fetch(&package_id, &resolution_value, &opts_value).await {
+                Ok(Some(result)) => {
+                    if let Some(delegate) = result.get("delegate") {
+                        Some(serde_json::from_value(delegate.clone()).map_err(|err| {
+                            InstallPackageBySnapshotError::CustomFetcher(format!(
+                                "invalid delegate resolution for {package_id}: {err}",
+                            ))
+                        })?)
+                    } else {
+                        return Err(InstallPackageBySnapshotError::CustomFetcher(format!(
+                            "custom fetcher claimed {package_id} but returned an unhandled \
+                             response (expected {{ \"delegate\": ... }})",
+                        )));
+                    }
+                }
+                Ok(None) => None,
+                Err(err) => {
+                    return Err(InstallPackageBySnapshotError::CustomFetcher(err.to_string()));
+                }
+            }
+        } else {
+            None
+        };
+        let resolution = effective_resolution.as_ref().unwrap_or(&metadata.resolution);
+
+        let cas_paths: HashMap<String, PathBuf> = match resolution {
             LockfileResolution::Tarball(_) | LockfileResolution::Registry(_) => {
                 let (tarball_url, integrity) =
-                    tarball_url_and_integrity(&metadata.resolution, package_key, config)?;
+                    tarball_url_and_integrity(resolution, package_key, config)?;
                 let tarball_url = local_file_tarball_install_url(tarball_url, self.workspace_root);
                 let download = DownloadTarballToStore {
                     http_client,
@@ -332,9 +399,7 @@ impl InstallPackageBySnapshot<'_> {
                 // warm store, so remote tarballs must take the standalone
                 // path.
                 let raw_cas_paths = match tarball_mem_cache {
-                    Some(mem_cache)
-                        if matches!(&metadata.resolution, LockfileResolution::Registry(_)) =>
-                    {
+                    Some(mem_cache) if matches!(resolution, LockfileResolution::Registry(_)) => {
                         // `clone()` is cheap (refs + `Arc`s) and lets us
                         // retry through `run_without_mem_cache` below if
                         // the shared download failed.
@@ -357,7 +422,7 @@ impl InstallPackageBySnapshot<'_> {
                 // `remoteTarballFetcher`, because the host's archive
                 // endpoint doesn't run `prepare`/`prepublish*` and
                 // the file set typically needs packlist filtering.
-                if let LockfileResolution::Tarball(t) = &metadata.resolution
+                if let LockfileResolution::Tarball(t) = resolution
                     && t.git_hosted == Some(true)
                 {
                     // `built` tracks `!ignore_scripts`, in lock-step
@@ -472,6 +537,7 @@ impl InstallPackageBySnapshot<'_> {
                             LockfileResolution::Directory(_) => "directory",
                             LockfileResolution::Git(_) => "git",
                             LockfileResolution::Variations(_) => "variations",
+                            LockfileResolution::Custom(_) => "custom",
                             // Already matched above; reach is unreachable.
                             LockfileResolution::Binary(_) => "binary",
                         },
@@ -521,6 +587,14 @@ impl InstallPackageBySnapshot<'_> {
                 .await
                 .map_err(InstallPackageBySnapshotError::GitFetch)?;
                 cas_paths
+            }
+            // A custom fetcher had its chance above (`try_fetch`) and
+            // either declined or wasn't loaded; without one there is
+            // no way to materialize a custom-typed resolution.
+            LockfileResolution::Custom(custom) => {
+                return Err(InstallPackageBySnapshotError::UnsupportedResolutionType {
+                    resolution_type: custom.resolution_type.to_string(),
+                });
             }
         };
 
@@ -624,14 +698,15 @@ pub fn tarball_url_and_integrity<'a>(
             Ok((Cow::Owned(tarball_url), &registry_resolution.integrity))
         }
         // Caller (`run`) only invokes this helper for the tarball /
-        // registry arms; git, directory, binary, and variations
-        // resolutions never reach here. Return an unreachable-style
-        // error so a future caller that forgets to gate gets a
-        // clear panic in debug.
+        // registry arms; git, directory, binary, variations, and
+        // custom resolutions never reach here. Return an
+        // unreachable-style error so a future caller that forgets to
+        // gate gets a clear panic in debug.
         LockfileResolution::Directory(_)
         | LockfileResolution::Git(_)
         | LockfileResolution::Binary(_)
-        | LockfileResolution::Variations(_) => {
+        | LockfileResolution::Variations(_)
+        | LockfileResolution::Custom(_) => {
             unreachable!("tarball_url_and_integrity called with non-tarball resolution");
         }
     }
