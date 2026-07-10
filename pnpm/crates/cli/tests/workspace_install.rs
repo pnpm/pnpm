@@ -234,3 +234,39 @@ fn shared_workspace_dep_link_is_relative_to_each_importer() {
 
     drop((root, mock_instance));
 }
+
+/// A workspace root defined by `pnpm-workspace.yaml` alone is legal without a
+/// root `package.json`, and installing must not scaffold one — pnpm never
+/// does, and a scaffolded root manifest (with the init template's failing
+/// `test` script) would become a selectable project for recursive commands.
+#[test]
+fn install_does_not_scaffold_a_root_manifest_in_a_workspace() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("packages:\n  - project\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+    let project_dir = workspace.join("project");
+    fs::create_dir_all(&project_dir).expect("create project dir");
+    fs::write(
+        project_dir.join("package.json"),
+        serde_json::json!({ "name": "project", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write project package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    assert!(
+        !workspace.join("package.json").exists(),
+        "installing a workspace without a root manifest must not scaffold one",
+    );
+
+    drop((root, mock_instance));
+}
