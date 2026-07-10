@@ -332,7 +332,10 @@ pub fn collect_injected_deps(
                 Ok(relative) => relative.to_path_buf(),
                 Err(_) => target,
             };
-            targets.push(target.to_string_lossy().into_owned());
+            // POSIX separators on every platform, matching the
+            // `hoistedLocations` entries the hoisted branch reuses
+            // (see `path_relative_to_lockfile_dir`).
+            targets.push(target.to_string_lossy().replace('\\', "/"));
         }
     }
     // A source project whose every snapshot contributed no target
