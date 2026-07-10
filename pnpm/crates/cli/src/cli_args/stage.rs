@@ -126,8 +126,8 @@ pub enum StageError {
 }
 
 /// A failed `-/stage` registry response
-/// (`ERR_PNPM_STAGE_REGISTRY_ERROR`), mirroring pnpm's `StageRegistryError`
-/// message shape.
+/// (`ERR_PNPM_STAGE_REGISTRY_ERROR`), with the same message shape as the
+/// TypeScript CLI's stage registry error.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display("{message}")]
 #[diagnostic(code(ERR_PNPM_STAGE_REGISTRY_ERROR))]
@@ -688,7 +688,10 @@ fn render_stage_item(item: &Value) -> String {
     push("version", object.get("version"));
     push("tag", object.get("tag"));
     push("date staged", object.get("createdAt"));
-    let staged_by = match object.get("actorType").and_then(Value::as_str).filter(|t| !t.is_empty())
+    let staged_by = match object
+        .get("actorType")
+        .and_then(Value::as_str)
+        .filter(|actor_type| !actor_type.is_empty())
     {
         Some(actor_type) => {
             let actor = object
