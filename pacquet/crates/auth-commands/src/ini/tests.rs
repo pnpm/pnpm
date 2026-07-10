@@ -30,3 +30,74 @@ fn serialize_round_trips_remaining_entries_in_order() {
     settings.remove("//registry.npmjs.org/:_authToken");
     assert_eq!(settings.serialize(), "other=value\n");
 }
+
+// A registry-controlled token with an embedded newline must not be able to
+// plant extra `auth.ini` entries. It is quoted (JSON) so it stays on one
+// physical line and round-trips to the exact value.
+#[test]
+fn quotes_values_with_newlines_to_prevent_auth_ini_injection() {
+    let injected = "x\n//registry.npmjs.org/:_authToken=attacker-token";
+    let mut settings = IniSettings::default();
+    settings.set("//evil.example/:_authToken", injected);
+
+    let text = settings.serialize();
+    assert_eq!(text.lines().count(), 1, "the value must stay on one line: {text:?}");
+
+    let reparsed = IniSettings::parse(&text);
+    assert_eq!(reparsed.get("//evil.example/:_authToken"), Some(injected));
+    assert_eq!(
+        reparsed.get("//registry.npmjs.org/:_authToken"),
+        None,
+        "no auth entry was injected",
+    );
+}
+
+// `encode_value` and `decode_value` must be inverses for every value shape
+// the `ini` package quotes — `=`, an already-`"`-wrapped value (else the
+// quotes are stripped on read), leading/trailing whitespace (else trimmed),
+// and a leading `[` — not just newlines.
+#[test]
+fn quotes_every_ambiguous_value_shape_for_a_faithful_round_trip() {
+    for value in [
+        "a=b=c",
+        r#""already-quoted""#,
+        r#""""#,
+        " leading-space",
+        "trailing-space ",
+        "[bracketed",
+        "plain-token",
+    ] {
+        let mut settings = IniSettings::default();
+        settings.set("k", value);
+        let reparsed = IniSettings::parse(&settings.serialize());
+        assert_eq!(reparsed.get("k"), Some(value), "round-trip failed for {value:?}");
+    }
+}
+
+// Keys are quoted like values: a registry whose path contains `=` (or, as an
+// injection guard, CR/LF) must key its token faithfully rather than split at
+// the wrong `=`, and an ordinary key stays unquoted.
+#[test]
+fn quotes_and_round_trips_keys_with_a_separator_or_newline() {
+    for key in [
+        "//npm.example.com/foo=bar/:_authToken",
+        "//npm.example.com/a\nb/:_authToken",
+        "//registry.npmjs.org/:_authToken",
+    ] {
+        let mut settings = IniSettings::default();
+        settings.set(key, "the-token");
+        let text = settings.serialize();
+        assert_eq!(text.lines().count(), 1, "one physical line for {key:?}: {text:?}");
+        let reparsed = IniSettings::parse(&text);
+        assert_eq!(reparsed.get(key), Some("the-token"), "key round-trip failed for {key:?}");
+    }
+}
+
+// `set` collapses pre-existing duplicate keys to a single value, matching
+// `remove`'s all-duplicates handling and the `ini` object model.
+#[test]
+fn set_collapses_pre_existing_duplicate_keys() {
+    let mut settings = IniSettings::parse("//reg/:_authToken=old1\n//reg/:_authToken=old2\n");
+    settings.set("//reg/:_authToken", "new");
+    assert_eq!(settings.serialize(), "//reg/:_authToken=new\n");
+}

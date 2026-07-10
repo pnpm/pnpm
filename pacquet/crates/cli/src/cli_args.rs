@@ -24,6 +24,7 @@ pub mod import;
 pub mod install;
 pub mod link;
 pub mod list;
+pub mod login;
 pub mod logout;
 pub mod outdated;
 pub mod pack;

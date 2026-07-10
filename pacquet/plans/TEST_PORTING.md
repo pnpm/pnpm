@@ -916,3 +916,27 @@ Pacquet's port lives in `pacquet-auth-commands` (`logout` module) with the CLI a
 - [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:322` `should URL-encode the token when revoking` — `logout::tests::url_encodes_the_token_when_revoking`.
 - [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:349` `should normalize the registry URL` — `logout::tests::normalizes_the_registry_url`.
 - [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:377` `should handle registry with a path` — `logout::tests::handles_registry_with_a_path`.
+
+## `pnpm login` / `pnpm adduser` (`@pnpm/auth.commands`)
+
+Pacquet's port lives in `pacquet-auth-commands` (`login` module) with the CLI adapter in `pacquet-cli`'s `cli_args::login`. Upstream injects its side effects through a `LoginContext` object of functions (`Date`, `setTimeout`, `createReadlineInterface`, `enquirer`, `fetch`, `globalInfo`/`globalWarn`, `process`, `readIniFile`/`writeIniFile`); the Rust port threads them through the project's seams instead. The interactive OTP / web-auth effects reuse `pacquet-network-web-auth`'s eight capability traits, the credential prompts are the crate-local `PromptInput` / `PromptPassword` capabilities, `auth.ini` I/O reuses logout's `FsReadToString` / `FsWrite`, and the two `global*` channels flow through `R: Reporter`. The web-login `POST` and classic `PUT` go over the shared `ThrottledClient` against a `mockito` server (the real-fixture route), so only the effects a fixture can't stage portably sit behind the `Sys` seam. The whole upstream suite translates.
+
+### Ported
+
+- [x] `TypeScript repo: pnpm11/auth/commands/test/login.test.ts:86` `should throw in non-interactive terminal` — `login::tests::should_throw_in_non_interactive_terminal`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/login.test.ts:98` `should use web login when registry supports it` — `login::tests::should_use_web_login_when_registry_supports_it`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/login.test.ts:146` `should persist a scoped auth token and scope registry mapping when --scope is provided` — `login::tests::should_persist_a_scoped_auth_token_and_scope_registry_mapping`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/login.test.ts:185` `should persist scoped auth tokens under path registries` — `login::tests::should_persist_scoped_auth_tokens_under_path_registries`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/login.test.ts:224` `should accept --scope with a leading @ and not double-prefix` — `login::tests::should_accept_scope_with_a_leading_at_and_not_double_prefix`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/login.test.ts:254` `should not write a scope mapping when --scope is omitted` — `login::tests::should_not_write_a_scope_mapping_when_scope_is_omitted`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/login.test.ts:284` `should fall back to classic login when web login returns 404` — `login::tests::should_fall_back_to_classic_login_when_web_login_returns_404`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/login.test.ts:338` `should handle classic OTP challenge during login` — `login::tests::should_handle_classic_otp_challenge_during_login`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/login.test.ts:393` `should handle webauth OTP challenge during login` — `login::tests::should_handle_webauth_otp_challenge_during_login`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/login.test.ts:459` `should not trigger OTP for non-401 errors` — `login::tests::should_not_trigger_otp_for_non_401_errors`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/login.test.ts:496` `should throw when username is empty in classic login` — `login::tests::should_throw_when_username_is_empty_in_classic_login`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/login.test.ts:528` `should throw when classic login returns no token` — `login::tests::should_throw_when_classic_login_returns_no_token`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/login.test.ts:567` `should throw when web login returns invalid response (missing loginUrl/doneUrl)` — `login::tests::should_throw_when_web_login_returns_invalid_response`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/login.test.ts:588` `should fall back to classic login when web login returns 405` — `login::tests::should_fall_back_to_classic_login_when_web_login_returns_405`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/login.test.ts:635` `should not trigger OTP for 401 without www-authenticate otp header` — `login::tests::should_not_trigger_otp_for_401_without_www_authenticate_otp_header`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/login.test.ts:673` `should succeed when config file does not exist (ENOENT)` — `login::tests::should_succeed_when_config_file_does_not_exist`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/login.test.ts:711` `should propagate non-ENOENT errors from readIniFile` — `login::tests::should_propagate_non_enoent_errors_from_reading_auth_ini`.
