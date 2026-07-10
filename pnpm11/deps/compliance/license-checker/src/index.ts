@@ -31,7 +31,5 @@ export {
   type MatchPolicyOptions,
 } from './spdxMatcher.js'
 export {
-  type NormalizedLicenseArgs,
-  normalizeLicenseArgs,
   shouldRunLicenseCheck,
 } from './utils.js'

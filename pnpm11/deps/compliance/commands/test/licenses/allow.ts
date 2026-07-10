@@ -1,12 +1,14 @@
 /// <reference path="../../../../../__typings__/index.d.ts" />
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { describe, expect, test } from '@jest/globals'
 import { licenses } from '@pnpm/deps.compliance.commands'
-import { tempDir } from '@pnpm/prepare'
+import { prepare, tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { readYamlFileSync } from 'read-yaml-file'
 
+import { licensesAllow } from '../../src/licenses/licensesAllow.js'
 import { DEFAULT_OPTS } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
@@ -88,5 +90,34 @@ describe('pnpm licenses allow', () => {
         pnpmHomeDir: '',
       }, ['allow'])
     ).rejects.toThrow('Please specify at least one license')
+  })
+
+  test('bootstraps pnpm-workspace.yaml in a standalone project', async () => {
+    prepare({ name: 'solo', version: '1.0.0' })
+
+    const result = await licensesAllow({
+      rootProjectManifestDir: process.cwd(),
+      rootProjectManifest: { name: 'solo', version: '1.0.0' },
+      // no workspaceDir — standalone project
+      licenses: undefined,
+    } as any, ['MIT']) // eslint-disable-line
+
+    expect(result.exitCode).toBe(0)
+
+    const ws = fs.readFileSync('pnpm-workspace.yaml', 'utf8')
+    expect(ws).toContain('MIT')
+  })
+
+  test('stores a compound expression verbatim, not flattened', async () => {
+    prepare({ name: 'solo', version: '1.0.0' })
+
+    await licensesAllow({
+      rootProjectManifestDir: process.cwd(),
+      workspaceDir: process.cwd(),
+      licenses: undefined,
+    } as any, ['MIT AND Apache-2.0']) // eslint-disable-line
+
+    const ws = fs.readFileSync('pnpm-workspace.yaml', 'utf8')
+    expect(ws).toContain('MIT AND Apache-2.0')
   })
 })
