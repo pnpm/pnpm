@@ -120,7 +120,7 @@ export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: P
 // root manifest are repository-controlled, so expanding ${...} placeholders
 // in these values would let a repository exfiltrate environment variables
 // through the URLs pnpm sends requests to.
-const REQUEST_DESTINATION_SCALAR_KEYS = new Set(['registry'])
+const REQUEST_DESTINATION_SCALAR_KEYS = new Set(['registry', 'httpProxy', 'httpsProxy', 'noProxy', 'proxy', 'noproxy'])
 
 function replaceEnvInSettings (settings: PnpmSettings): PnpmSettings {
   const newSettings: PnpmSettings = {}
