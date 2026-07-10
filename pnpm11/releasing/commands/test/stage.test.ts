@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { describe, expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
-import { pack, stage } from '@pnpm/releasing.commands'
+import { stage } from '@pnpm/releasing.commands'
 import { REGISTRY_URL } from '@pnpm/testing.command-defaults'
 import { getRegistryMockToken, REGISTRY_MOCK_CREDENTIALS, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import tar from 'tar-stream'
