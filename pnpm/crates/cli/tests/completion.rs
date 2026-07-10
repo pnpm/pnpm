@@ -3,7 +3,7 @@ use std::process::Command;
 use tempfile::TempDir;
 
 fn pacquet() -> Command {
-    Command::cargo_bin("pnpm").expect("find the pacquet binary")
+    Command::cargo_bin("pnpm").expect("find the pnpm binary")
 }
 
 fn stdout(output: std::process::Output) -> String {

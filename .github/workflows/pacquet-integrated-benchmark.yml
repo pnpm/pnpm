@@ -185,10 +185,11 @@ jobs:
         continue-on-error: true
 
       # Prebuilt revision binaries, keyed on the resolved commit. A
-      # `pnpr@<rev>` build also produces the `pacquet` client binary, and
-      # the orchestrator's `--reuse-prebuilt-binaries` copies it to the
-      # same-revision `pacquet@<rev>` target — so caching the two pnpr
-      # binaries covers all four targets. `main` is a near-certain hit on
+      # `pnpr@<rev>` build also produces the client binary (named `pnpm`,
+      # or `pacquet` in revisions that predate the bin rename — both paths
+      # are listed), and the orchestrator's `--reuse-prebuilt-binaries`
+      # copies it to the same-revision `pacquet@<rev>` target — so caching
+      # the pnpr binaries covers all four targets. `main` is a near-certain hit on
       # PRs (stable SHA), and a same-HEAD re-run hits HEAD too; a fresh HEAD
       # is the only thing that compiles. Restored into the paths the
       # orchestrator builds into, so it skips the clone + `cargo build`.

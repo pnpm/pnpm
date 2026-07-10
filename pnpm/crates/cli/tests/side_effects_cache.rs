@@ -77,7 +77,7 @@ fn side_effects_materialized_on_warm_frozen_reinstall() {
 /// command — no extra `CommandTempCwd` / registry.
 fn run_frozen_install(workspace: &Path) {
     Command::cargo_bin("pnpm")
-        .expect("find the pacquet binary")
+        .expect("find the pnpm binary")
         .with_current_dir(workspace)
         .with_args(["install", "--frozen-lockfile"])
         .assert()

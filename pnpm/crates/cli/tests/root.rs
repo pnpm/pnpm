@@ -93,7 +93,7 @@ fn root_matches_pnpm_from_a_workspace_subdir() {
         .expect("write member package.json");
 
     let pacquet_out = Command::cargo_bin("pnpm")
-        .expect("find the pacquet binary")
+        .expect("find the pnpm binary")
         .with_current_dir(&member)
         .with_args(["root"])
         .output()

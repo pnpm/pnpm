@@ -12,7 +12,7 @@ use std::{fs, path::Path, process::Command};
 
 /// A fresh `pacquet` command rooted at `workspace`.
 fn pacquet_at(workspace: &Path) -> Command {
-    Command::cargo_bin("pnpm").expect("find the pacquet binary").with_current_dir(workspace)
+    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
 }
 
 /// On a fresh project (no lockfile), `--dry-run` reports the dependencies a

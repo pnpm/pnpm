@@ -28,9 +28,8 @@ impl CommandTempCwd<()> {
         let root = tempdir().expect("create temporary directory");
         let workspace = root.path().join("workspace");
         fs::create_dir(&workspace).expect("create temporary workspace for the commands");
-        let pacquet = Command::cargo_bin("pnpm")
-            .expect("find the pacquet binary")
-            .with_current_dir(&workspace);
+        let pacquet =
+            Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(&workspace);
         let pnpm = Command::new("pnpm").with_current_dir(&workspace);
         CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info: () }
     }

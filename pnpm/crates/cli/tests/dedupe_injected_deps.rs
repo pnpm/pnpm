@@ -164,7 +164,7 @@ fn injected_workspace_dep_with_children_stays_link_after_remove() {
     // Removing an unrelated root dependency re-resolves the whole
     // workspace; the injected-with-children dedupe must hold across it.
     Command::cargo_bin("pnpm")
-        .expect("find the pacquet binary")
+        .expect("find the pnpm binary")
         .with_current_dir(&workspace)
         .with_arg("remove")
         .with_arg("@pnpm.e2e/bar")
@@ -264,7 +264,7 @@ fn injected_peer_suffixed_workspace_dep_stays_file_after_remove() {
     // Removing an unrelated root dependency re-resolves the whole
     // workspace; the peer-suffixed file: entry must survive intact.
     Command::cargo_bin("pnpm")
-        .expect("find the pacquet binary")
+        .expect("find the pnpm binary")
         .with_current_dir(&workspace)
         .with_arg("remove")
         .with_arg("@pnpm.e2e/bar")

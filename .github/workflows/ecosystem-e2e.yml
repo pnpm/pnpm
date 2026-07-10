@@ -41,7 +41,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/rustup
 
-      - name: Build pacquet and the harness
+      - name: Build pnpm and the harness
         run: cargo build --release --bin pnpm --bin ecosystem-e2e
 
       - name: Build the pnpm CLI bundle

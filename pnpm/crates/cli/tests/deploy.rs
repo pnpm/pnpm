@@ -244,7 +244,7 @@ fn legacy_deploy_installs_selected_project() {
 }
 
 fn pacquet_cmd(workspace: &Path) -> Command {
-    Command::cargo_bin("pnpm").expect("find the pacquet binary").with_current_dir(workspace)
+    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
 }
 
 fn write_workspace(workspace: &Path, inject_workspace_packages: bool) {

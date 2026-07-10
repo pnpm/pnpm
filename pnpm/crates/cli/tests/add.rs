@@ -182,7 +182,7 @@ fn add_lockfile_only_from_workspace_subdir_prints_manifest_summary() {
     .expect("write packages/b/package.json");
 
     let output = Command::cargo_bin("pnpm")
-        .expect("find the pacquet binary")
+        .expect("find the pnpm binary")
         .with_current_dir(&workspace)
         .with_args([
             "--dir",

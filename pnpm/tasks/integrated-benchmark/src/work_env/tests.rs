@@ -1,5 +1,5 @@
 use super::{
-    BenchId, BenchmarkScenario, HyperfineCommand, PhaseEvent, collect_pnpr_direct_ratios,
+    BenchId, BenchmarkScenario, HyperfineCommand, PhaseEvent, WorkEnv, collect_pnpr_direct_ratios,
     create_install_script, non_trivial_cold_batch, pnpr_auth_config_key,
     pnpr_benchmark_config_yaml, read_phase_events, render_diagnostics_markdown,
     requires_fresh_pnpr_cold_batch_metrics, summarize_phase_events,
@@ -283,4 +283,58 @@ fn diagnostics_markdown_omits_baseline_note_after_pnpr_main_is_instrumented() {
     );
 
     assert!(!markdown.contains("tarball URL rewrite"));
+}
+
+#[test]
+fn cli_bin_name_reads_the_declared_bin_from_either_layout() {
+    let root = std::env::temp_dir()
+        .join(format!("pacquet-integrated-benchmark-cli-bin-name-{}", std::process::id()));
+
+    // Current layout, `pnpm` bin, with taplo-style key padding.
+    let current = root.join("current");
+    let manifest_dir = current.join("pnpm").join("crates").join("cli");
+    fs::create_dir_all(&manifest_dir).expect("create current-layout manifest dir");
+    fs::write(
+        manifest_dir.join("Cargo.toml"),
+        "[package]\nname       = \"pacquet-cli\"\n\n[[bin]]\nname = \"pnpm\"\n",
+    )
+    .expect("write current-layout manifest");
+    assert_eq!(WorkEnv::cli_bin_name(&current), "pnpm");
+
+    // Old layout, `pacquet` bin.
+    let old = root.join("old");
+    let manifest_dir = old.join("pacquet").join("crates").join("cli");
+    fs::create_dir_all(&manifest_dir).expect("create old-layout manifest dir");
+    fs::write(
+        manifest_dir.join("Cargo.toml"),
+        "[package]\nname = \"pacquet-cli\"\n\n[[bin]]\nname = \"pacquet\"\n",
+    )
+    .expect("write old-layout manifest");
+    assert_eq!(WorkEnv::cli_bin_name(&old), "pacquet");
+
+    // No manifest at all: default to the current name.
+    assert_eq!(WorkEnv::cli_bin_name(&root.join("missing")), "pnpm");
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn client_binary_in_prefers_the_existing_binary() {
+    let root = std::env::temp_dir()
+        .join(format!("pacquet-integrated-benchmark-client-binary-{}", std::process::id()));
+    let release = root.join("target").join("release");
+    fs::create_dir_all(&release).expect("create release dir");
+
+    // Nothing built yet: default to the `pnpm` path.
+    assert_eq!(WorkEnv::client_binary_in(&root), release.join("pnpm"));
+
+    // Only the old name exists (an older revision's build).
+    fs::write(release.join("pacquet"), "old").expect("write pacquet binary");
+    assert_eq!(WorkEnv::client_binary_in(&root), release.join("pacquet"));
+
+    // Both exist: the current name wins.
+    fs::write(release.join("pnpm"), "new").expect("write pnpm binary");
+    assert_eq!(WorkEnv::client_binary_in(&root), release.join("pnpm"));
+
+    let _ = fs::remove_dir_all(&root);
 }

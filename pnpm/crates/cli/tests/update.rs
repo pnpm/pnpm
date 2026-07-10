@@ -25,7 +25,7 @@ fn setup() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
 /// needs its own.
 fn pacquet(workspace: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Command {
     Command::cargo_bin("pnpm")
-        .expect("find the pacquet binary")
+        .expect("find the pnpm binary")
         .with_current_dir(workspace)
         .with_args(args)
 }

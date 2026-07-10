@@ -816,7 +816,7 @@ fn audit_ignore_unfixable_ignores_advisories_without_a_fix() {
 /// command from [`CommandTempCwd`].
 fn pacquet_cmd(workspace: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Command {
     Command::cargo_bin("pnpm")
-        .expect("find the pacquet binary")
+        .expect("find the pnpm binary")
         .with_current_dir(workspace)
         .with_args(args)
 }

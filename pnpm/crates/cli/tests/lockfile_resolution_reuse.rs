@@ -13,7 +13,7 @@ use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{fs, net::TcpListener, path::Path, process::Command};
 
 fn pacquet_at(workspace: &Path) -> Command {
-    Command::cargo_bin("pnpm").expect("find the pacquet binary").with_current_dir(workspace)
+    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
 }
 
 /// A `registry=` URL on a localhost port with nothing listening, so any
