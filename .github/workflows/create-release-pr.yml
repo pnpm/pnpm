@@ -48,7 +48,7 @@ jobs:
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git fetch origin "$TARGET"
+        git fetch origin -- "$TARGET"
         git checkout -B "release-pr/$TARGET" FETCH_HEAD
 
     # Refresh the npm registry signing keys embedded in
