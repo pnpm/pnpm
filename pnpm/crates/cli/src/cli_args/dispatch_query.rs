@@ -239,10 +239,14 @@ pub(super) fn publish<'a>(
 /// before the boxed future so it captures only owned/concrete values (see
 /// [`publish`]), and the subcommand's output is printed here, sanitized,
 /// mirroring pnpm's `handler` → CLI print split.
-pub(super) fn stage<'a>(ctx: &RunCtx<'a>, args: StageArgs) -> miette::Result<CommandFuture<'a>> {
+pub(super) fn stage<'a>(
+    ctx: &RunCtx<'a>,
+    mut args: StageArgs,
+) -> miette::Result<CommandFuture<'a>> {
     let config = (ctx.config)()?;
     let dir = ctx.dir;
     let recursive = ctx.recursive;
+    args.flags.report_summary |= ctx.recursive_report_summary;
     async fn print_output<Reporter: pacquet_reporter::Reporter>(
         args: StageArgs,
         dir: &std::path::Path,

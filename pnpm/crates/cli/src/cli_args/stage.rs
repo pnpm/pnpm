@@ -37,8 +37,15 @@ use summarize_tarball::{create_tarball_filename, summarize_tarball};
 
 /// The staged-list page size; matches pnpm's paginated `-/stage` reads.
 const PER_PAGE: usize = 100;
+/// Fail-safe bound on the staged-list pagination loop, so a registry that
+/// keeps answering full pages with an inflated `total` cannot drive it
+/// forever.
+const STAGE_LIST_MAX_PAGES: usize = 1000;
 const STAGE_BODY_LIMIT: usize = 1024 * 1024;
 const STAGE_ERROR_BODY_LIMIT: usize = 64 * 1024;
+/// Cap on a staged tarball download; a registry response is
+/// attacker-controlled input and must not exhaust memory.
+const STAGE_TARBALL_BODY_LIMIT: usize = 512 * 1024 * 1024;
 const STAGE_SUBCOMMANDS: &str = "publish, list, view, approve, reject, download";
 
 #[derive(Debug, Args)]
@@ -235,6 +242,9 @@ impl StageArgs {
                 break;
             }
             page += 1;
+            if page >= STAGE_LIST_MAX_PAGES {
+                break;
+            }
         }
 
         if self.flags.json {
@@ -318,8 +328,17 @@ impl StageArgs {
         if !response.status().is_success() {
             return Err(registry_error_from_response(response, &action).await.into());
         }
-        let tarball_data =
-            response.bytes().await.map_err(|source| request_failed(&action, source))?;
+        let tarball_data = read_limited_body(response, STAGE_TARBALL_BODY_LIMIT)
+            .await
+            .map_err(|source| request_failed(&action, source))?;
+        if tarball_data.truncated {
+            return Err(StageError::RequestFailed {
+                operation: action,
+                reason: format!("registry response exceeded {STAGE_TARBALL_BODY_LIMIT} bytes"),
+            }
+            .into());
+        }
+        let tarball_data = tarball_data.bytes;
 
         let mut summary = summarize_tarball(&tarball_data)?;
         let filename = create_tarball_filename(&summary.name, &summary.version, Some(stage_id))?;

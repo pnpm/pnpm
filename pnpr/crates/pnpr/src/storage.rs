@@ -524,10 +524,15 @@ impl Storage {
 
     /// Remove a staged record — the metadata first, so a concurrent list
     /// never surfaces a record whose body is already gone. `Ok(false)` when
-    /// no metadata existed.
+    /// no metadata existed. A body-removal failure is logged rather than
+    /// propagated: once the metadata is gone the record is deleted for every
+    /// reader, and an error here would misreport that while leaving nothing
+    /// for a retry to find (bodies are only discovered through metadata).
     pub async fn remove_staged(&self, stage_id: &str) -> Result<bool> {
         let removed = self.hosted.remove_staged(&staged_meta_object(stage_id)?).await?;
-        self.hosted.remove_staged(&staged_body_object(stage_id)?).await?;
+        if let Err(err) = self.hosted.remove_staged(&staged_body_object(stage_id)?).await {
+            tracing::warn!(error = %err, stage_id, "staged body cleanup failed after removing its metadata");
+        }
         Ok(removed)
     }
 

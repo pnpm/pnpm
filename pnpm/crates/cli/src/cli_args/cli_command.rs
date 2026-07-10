@@ -233,7 +233,7 @@ impl CliArgs {
     }
 
     fn validate_report_summary_global_option(&self) -> Result<(), clap::Error> {
-        if matches!(self.command, CliCommand::Publish(_)) {
+        if matches!(self.command, CliCommand::Publish(_) | CliCommand::Stage(_)) {
             return Ok(());
         }
         self.validate_run_scoped_global_option("--report-summary")

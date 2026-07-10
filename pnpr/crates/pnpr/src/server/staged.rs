@@ -329,8 +329,8 @@ async fn serve_staged_publish(
 }
 
 /// `GET /-/stage?page=&perPage=&package=` — the staged records visible to
-/// the caller through this registry address, newest-first-insensitive
-/// (sorted by staging time, then id, for stable pagination).
+/// the caller through this registry address, sorted oldest-first by staging
+/// time (then id) so pagination stays stable as new records arrive.
 async fn serve_staged_list(
     state: &AppState,
     identity: &Identity,

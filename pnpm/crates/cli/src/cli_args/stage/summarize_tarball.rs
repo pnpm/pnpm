@@ -17,7 +17,7 @@ use super::StageError;
 /// [`PublishSummary`]. The tarball must contain a parseable
 /// `package/package.json` with a name and version.
 pub(super) fn summarize_tarball(tarball_data: &[u8]) -> miette::Result<PublishSummary> {
-    let tar_bytes = maybe_gunzip(tarball_data);
+    let tar_bytes = maybe_gunzip(tarball_data)?;
     let mut archive = tar::Archive::new(tar_bytes.as_slice());
     let mut files: Vec<String> = Vec::new();
     let mut bundled: BTreeSet<String> = BTreeSet::new();
@@ -122,13 +122,26 @@ fn bundled_dependency_name(path: &str) -> Option<String> {
     Some(first.to_owned())
 }
 
+/// Cap on the decompressed tarball; the bytes come from the registry, so a
+/// gzip bomb must not inflate past this into memory.
+const MAX_DECOMPRESSED_TARBALL_BYTES: u64 = 512 * 1024 * 1024;
+
 /// Gunzip `data`, falling back to the raw bytes when it is not gzipped.
-fn maybe_gunzip(data: &[u8]) -> Vec<u8> {
-    let mut decoder = GzDecoder::new(data);
+/// Decompression past [`MAX_DECOMPRESSED_TARBALL_BYTES`] is an error.
+fn maybe_gunzip(data: &[u8]) -> Result<Vec<u8>, StageError> {
+    let mut decoder = GzDecoder::new(data).take(MAX_DECOMPRESSED_TARBALL_BYTES + 1);
     let mut decompressed = Vec::new();
     match decoder.read_to_end(&mut decompressed) {
-        Ok(_) => decompressed,
-        Err(_) => data.to_vec(),
+        Ok(_) if decompressed.len() as u64 > MAX_DECOMPRESSED_TARBALL_BYTES => {
+            Err(StageError::RequestFailed {
+                operation: "read the staged tarball".to_owned(),
+                reason: format!(
+                    "tarball exceeded {MAX_DECOMPRESSED_TARBALL_BYTES} bytes when decompressed"
+                ),
+            })
+        }
+        Ok(_) => Ok(decompressed),
+        Err(_) => Ok(data.to_vec()),
     }
 }
 
