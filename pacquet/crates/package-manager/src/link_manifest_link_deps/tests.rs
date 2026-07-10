@@ -1,5 +1,6 @@
 use super::link_manifest_link_deps;
 use pacquet_package_manifest::PackageManifest;
+use pacquet_reporter::SilentReporter;
 use pacquet_testing_utils::fs::is_symlink_or_junction;
 use std::fs;
 use tempfile::tempdir;
@@ -37,8 +38,12 @@ fn links_absolute_relative_and_self_reference_specs() {
         }),
     );
 
-    link_manifest_link_deps(dir.path(), &[(project_dir.clone(), &manifest)], None)
-        .expect("linking succeeds");
+    link_manifest_link_deps::<SilentReporter>(
+        dir.path(),
+        &[(project_dir.clone(), &manifest)],
+        None,
+    )
+    .expect("linking succeeds");
 
     let modules = project_dir.join("node_modules");
     assert!(is_symlink_or_junction(&modules.join("abs-linked")).unwrap());
@@ -86,8 +91,12 @@ fn relink_replaces_stale_symlink() {
             "dependencies": { "dep": format!("link:{}", new_target.display()) },
         }),
     );
-    link_manifest_link_deps(dir.path(), &[(project_dir.clone(), &manifest)], None)
-        .expect("relink succeeds");
+    link_manifest_link_deps::<SilentReporter>(
+        dir.path(),
+        &[(project_dir.clone(), &manifest)],
+        None,
+    )
+    .expect("relink succeeds");
     assert_eq!(
         fs::canonicalize(project_dir.join("node_modules/dep")).unwrap(),
         new_target.canonicalize().unwrap(),
@@ -132,12 +141,53 @@ fn lockfile_tracked_alias_is_skipped() {
         ProjectSnapshot { dependencies: Some(deps), ..ProjectSnapshot::default() },
     );
 
-    link_manifest_link_deps(dir.path(), &[(project_dir.clone(), &manifest)], Some(&importers))
-        .expect("pass succeeds");
+    link_manifest_link_deps::<SilentReporter>(
+        dir.path(),
+        &[(project_dir.clone(), &manifest)],
+        Some(&importers),
+    )
+    .expect("pass succeeds");
     assert!(
         !project_dir.join("node_modules/shared").exists(),
         "a lockfile-tracked link alias must be left to the lockfile passes",
     );
+
+    drop(dir);
+}
+
+/// A dependency key that is not a valid npm package name (path
+/// traversal, absolute path) is rejected before any filesystem write —
+/// manifest keys are raw JSON strings and must not escape
+/// `node_modules/`.
+#[test]
+fn traversal_alias_is_rejected_without_writes() {
+    let dir = tempdir().unwrap();
+    let project_dir = dir.path().join("project");
+    let victim = dir.path().join("victim");
+    fs::create_dir_all(&project_dir).unwrap();
+    fs::create_dir_all(&victim).unwrap();
+
+    for alias in ["../victim", "/abs", "..", r"a\b"] {
+        let manifest = manifest_at(
+            &project_dir,
+            serde_json::json!({
+                "name": "project",
+                "dependencies": { alias: format!("link:{}", victim.display()) },
+            }),
+        );
+        let result = link_manifest_link_deps::<SilentReporter>(
+            dir.path(),
+            &[(project_dir.clone(), &manifest)],
+            None,
+        );
+        assert!(
+            matches!(result, Err(super::LinkManifestLinkDepsError::InvalidAlias(_))),
+            "alias {alias:?} must be rejected",
+        );
+    }
+    // Nothing was written anywhere.
+    assert!(!project_dir.join("node_modules").exists());
+    assert!(victim.exists() && fs::read_dir(&victim).unwrap().next().is_none());
 
     drop(dir);
 }

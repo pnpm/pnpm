@@ -1481,7 +1481,7 @@ where
         // regardless. Aliases the wanted lockfile *does* track are
         // skipped — those belong to the lockfile passes (and their
         // dedupe decisions). See [`crate::link_manifest_link_deps`].
-        crate::link_manifest_link_deps(
+        crate::link_manifest_link_deps::<Reporter>(
             &workspace_root,
             &project_manifests,
             fresh_lockfile.as_ref().or(lockfile).and_then(|lockfile| {

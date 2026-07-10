@@ -1,8 +1,13 @@
-use crate::{SymlinkPackageError, symlink_package};
+use crate::{
+    SymlinkPackageError,
+    safe_join_modules_dir::{InvalidDependencyAliasError, safe_join_modules_dir},
+    symlink_package,
+};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_lockfile::ProjectSnapshot;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use pacquet_reporter::{AddedRoot, DependencyType, LogEvent, LogLevel, RootLog, RootMessage};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -32,7 +37,7 @@ use std::{
 /// (matching v11's re-link semantics), and `force_symlink_dir` creates
 /// missing parent directories on demand. Specs that don't start with
 /// `link:` are ignored — everything else is the lockfile passes' job.
-pub fn link_manifest_link_deps(
+pub fn link_manifest_link_deps<Reporter: pacquet_reporter::Reporter>(
     workspace_root: &Path,
     project_manifests: &[(PathBuf, &PackageManifest)],
     importers: Option<&HashMap<String, ProjectSnapshot>>,
@@ -42,22 +47,61 @@ pub fn link_manifest_link_deps(
             importers
                 .get(&pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir))
         });
-        for (alias, spec) in manifest.dependencies([
-            DependencyGroup::Prod,
-            DependencyGroup::Dev,
-            DependencyGroup::Optional,
-        ]) {
-            let Some(target) = spec.strip_prefix("link:") else {
-                continue;
-            };
-            if importer_snapshot.is_some_and(|snapshot| snapshot_has_alias(snapshot, alias)) {
-                continue;
+        let modules_dir = project_dir.join("node_modules");
+        // Per-group iteration (instead of one flattened
+        // `manifest.dependencies([...])` pass) so the `pnpm:root added`
+        // event below carries the dependency's real group.
+        for group in [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional] {
+            for (alias, spec) in manifest.dependencies([group]) {
+                let Some(target) = spec.strip_prefix("link:") else {
+                    continue;
+                };
+                if importer_snapshot.is_some_and(|snapshot| snapshot_has_alias(snapshot, alias)) {
+                    continue;
+                }
+                // The alias is a raw `package.json` object key — an
+                // unvalidated string. Route the join through the same
+                // package-name validity check the lockfile-driven
+                // passes apply, so a crafted alias (`../.git`, an
+                // absolute path, a backslash) cannot escape
+                // `node_modules/`.
+                let symlink_path = safe_join_modules_dir(&modules_dir, alias)
+                    .map_err(LinkManifestLinkDepsError::InvalidAlias)?;
+                let target_path = resolve_link_target(project_dir, target);
+                let outcome = symlink_package(&target_path, &symlink_path).map_err(|source| {
+                    LinkManifestLinkDepsError::Symlink { alias: alias.to_string(), source }
+                })?;
+                if outcome.reused {
+                    continue;
+                }
+                // `pnpm:root added`: mirror the lockfile-driven pass's
+                // per-dependency emit so manifest-linked deps show up
+                // in the `+N` summary and NDJSON output like
+                // pnpm v11's `linkDirectDeps` reported them.
+                Reporter::emit(&LogEvent::Root(RootLog {
+                    level: LogLevel::Debug,
+                    message: RootMessage::Added {
+                        prefix: project_dir.display().to_string(),
+                        added: AddedRoot {
+                            name: alias.to_string(),
+                            real_name: alias.to_string(),
+                            version: Some(spec.to_string()),
+                            dependency_type: Some(match group {
+                                DependencyGroup::Prod => DependencyType::Prod,
+                                DependencyGroup::Dev => DependencyType::Dev,
+                                DependencyGroup::Optional => DependencyType::Optional,
+                                // The group list above is peer-free.
+                                DependencyGroup::Peer => {
+                                    unreachable!("peers are not iterated by this pass")
+                                }
+                            }),
+                            id: None,
+                            latest: None,
+                            linked_from: None,
+                        },
+                    },
+                }));
             }
-            let target_path = resolve_link_target(project_dir, target);
-            let symlink_path = project_dir.join("node_modules").join(alias);
-            symlink_package(&target_path, &symlink_path).map_err(|source| {
-                LinkManifestLinkDepsError::Symlink { alias: alias.to_string(), source }
-            })?;
         }
     }
     Ok(())
@@ -85,6 +129,12 @@ fn resolve_link_target(project_dir: &Path, target: &str) -> PathBuf {
 /// Error type of [`link_manifest_link_deps`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum LinkManifestLinkDepsError {
+    /// A dependency key that is not a valid npm package name — it
+    /// would escape `node_modules/` (or collide with pnpm's layout)
+    /// when joined as a directory name.
+    #[diagnostic(transparent)]
+    InvalidAlias(#[error(source)] InvalidDependencyAliasError),
+
     /// Creating one `link:` dep's symlink failed (permission denied,
     /// a real directory squatting the alias path, disk full, ...).
     #[display("Failed to link manifest `link:` dependency {alias:?}: {source}")]
