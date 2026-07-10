@@ -2,7 +2,7 @@ use std::future::Future;
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_network::{ThrottledClient, encode_uri_component};
+use pacquet_network::{ThrottledClient, encode_uri_component, redact_and_sanitize};
 use pacquet_network_web_auth::{
     Clock, EnterKeyListener, OpenUrl, OtpChallenge, OtpError, PromptError, PromptOtp, Sleep,
     StdinIsTty, StdoutIsTty, SyntheticOtpError, WebAuthFetch, WebAuthFetchOptions,
@@ -169,7 +169,9 @@ fn add_user_error_to_op<Reporter: self::Reporter>(error: AddUserError) -> Classi
                 .expect("SyntheticOtpError is always an OTP challenge");
             ClassicLoginOpError::Otp { challenge }
         }
-        AddUserError::Http { status, text, .. } => ClassicLoginOpError::Failed { status, text },
+        AddUserError::Http { status, text, .. } => {
+            ClassicLoginOpError::Failed { status, text: redact_and_sanitize(&text) }
+        }
         AddUserError::NoToken => ClassicLoginOpError::NoToken,
         AddUserError::Transport { reason } => ClassicLoginOpError::Transport { reason },
     }

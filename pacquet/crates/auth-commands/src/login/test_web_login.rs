@@ -443,3 +443,35 @@ async fn should_treat_a_bare_at_scope_as_no_scope() {
         }
     }
 }
+
+/// A registry-controlled `loginUrl` carrying a control character is never a
+/// valid URL; the login is rejected as a possible terminal-spoofing attempt
+/// (rather than sanitized and used), and nothing reaches the terminal raw.
+#[tokio::test]
+async fn rejects_a_login_url_containing_control_characters() {
+    web_auth_fake!();
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+
+    let body = serde_json::json!({
+        "loginUrl": "https://example.org/auth/\u{1b}[31mlogin",
+        "doneUrl": "https://example.org/auth/done",
+    })
+    .to_string();
+    let mut server = mockito::Server::new_async().await;
+    server.mock("POST", "/-/v1/login").with_status(200).with_body(body).create_async().await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, LoginError::UnsafeLoginUrl), "got {err:?}");
+    assert_eq!(
+        miette::Diagnostic::code(&err).map(|code| code.to_string()).as_deref(),
+        Some("pacquet_auth_commands::login_unsafe_url"),
+    );
+    assert!(infos().iter().all(|message| !message.contains('\u{1b}')), "got {:?}", infos());
+}

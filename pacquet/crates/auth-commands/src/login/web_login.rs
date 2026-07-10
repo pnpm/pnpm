@@ -1,4 +1,4 @@
-use pacquet_network::ThrottledClient;
+use pacquet_network::{ThrottledClient, redact_and_sanitize};
 use pacquet_network_web_auth::{
     Clock, EnterKeyListener, GenerateQrCodeError, OpenUrl, Sleep, StdinIsTty, WebAuthFetch,
     WebAuthFetchOptions, WebAuthTimeoutError, WebAuthTokenPollParams, generate_qr_code,
@@ -25,7 +25,8 @@ where
         .map_err(|error| WebLoginFlowError::Transport { reason: error.to_string() })?;
     let response = web_login_post(http_client, &login_url).await?;
     if !response.ok {
-        return Err(WebLoginFlowError::Http { status: response.status, text: response.body });
+        let text = redact_and_sanitize(&response.body);
+        return Err(WebLoginFlowError::Http { status: response.status, text });
     }
 
     let json = serde_json::from_str::<Value>(&response.body).unwrap_or(Value::Null);
@@ -35,6 +36,15 @@ where
     let (Some(auth_url), Some(done_url)) = (read("loginUrl"), read("doneUrl")) else {
         return Err(WebLoginFlowError::InvalidResponse);
     };
+
+    // A legitimate login / done URL is a plain URL; a control character (a
+    // terminal escape, CR, or LF) is never valid in one and signals a malicious
+    // or compromised registry trying to spoof the terminal. Reject the login so
+    // the user learns the registry misbehaved, rather than sanitizing the URL and
+    // authenticating against it anyway.
+    if auth_url.contains(char::is_control) || done_url.contains(char::is_control) {
+        return Err(WebLoginFlowError::UnsafeUrl);
+    }
 
     let qr_code = generate_qr_code(&auth_url).map_err(WebLoginFlowError::QrCode)?;
     global_info::<Reporter>(&format!("Authenticate your account at:\n{auth_url}\n\n{qr_code}"));
@@ -86,6 +96,9 @@ pub(super) enum WebLoginFlowError {
     Http { status: u16, text: String },
     /// The probe succeeded but the body lacked a usable `loginUrl` / `doneUrl`.
     InvalidResponse,
+    /// A `loginUrl` / `doneUrl` carried control characters — a terminal-spoofing
+    /// attempt — so the login is rejected rather than used.
+    UnsafeUrl,
     /// The token poll exceeded its budget.
     Timeout(WebAuthTimeoutError),
     /// The login URL could not be rendered as a QR code.
@@ -99,6 +112,7 @@ impl From<WebLoginFlowError> for LoginError {
         match error {
             WebLoginFlowError::Http { status, text } => LoginError::WebLoginFailed { status, text },
             WebLoginFlowError::InvalidResponse => LoginError::InvalidResponse,
+            WebLoginFlowError::UnsafeUrl => LoginError::UnsafeLoginUrl,
             WebLoginFlowError::Timeout(timeout) => LoginError::WebAuthTimeout(timeout),
             WebLoginFlowError::QrCode(qr) => LoginError::QrCode(qr),
             WebLoginFlowError::Transport { reason } => LoginError::Request { reason },

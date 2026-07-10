@@ -19,6 +19,13 @@ pub enum LoginError {
     #[diagnostic(code(ERR_PNPM_LOGIN_INVALID_RESPONSE))]
     InvalidResponse,
 
+    #[display(
+        "The registry returned a login URL containing control characters and was rejected as a \
+         possible terminal-spoofing attempt"
+    )]
+    #[diagnostic(code(pacquet_auth_commands::login_unsafe_url))]
+    UnsafeLoginUrl,
+
     #[display("Username, password, and email are all required")]
     #[diagnostic(code(ERR_PNPM_LOGIN_MISSING_CREDENTIALS))]
     MissingCredentials,
