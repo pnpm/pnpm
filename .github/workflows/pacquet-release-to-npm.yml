@@ -151,28 +151,30 @@ jobs:
           esac
           cp "$source" "pnpm-napi.${{ matrix.code-target }}.node"
 
-      # The binary is zipped to fix permission loss https://github.com/actions/upload-artifact#permission-loss
+      # The binary is archived to fix permission loss
+      # (https://github.com/actions/upload-artifact#permission-loss) and ships
+      # under its final name: `pnpm-<target>` archives with a plain `pnpm`
+      # binary at the root — the layout the v11 releases use and get.pnpm.io's
+      # install scripts expect — so the github-release job can upload them to
+      # the GitHub release byte-for-byte as attested here.
       - name: Archive Binary
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          BIN_NAME=pacquet-${{ matrix.code-target }}
-          mv target/${{ matrix.target }}/release/pacquet.exe $BIN_NAME.exe
-          7z a $BIN_NAME.zip $BIN_NAME.exe
+          mv target/${{ matrix.target }}/release/pacquet.exe pnpm.exe
+          7z a pnpm-${{ matrix.code-target }}.zip pnpm.exe
 
-      # The binary is zipped to fix permission loss https://github.com/actions/upload-artifact#permission-loss
       - name: Archive Binary
         if: runner.os != 'Windows'
         run: |
-          BIN_NAME=pacquet-${{ matrix.code-target }}
-          mv target/${{ matrix.target }}/release/pacquet $BIN_NAME
-          tar czf $BIN_NAME.tar.gz $BIN_NAME
+          mv target/${{ matrix.target }}/release/pacquet pnpm
+          tar czf pnpm-${{ matrix.code-target }}.tar.gz pnpm
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-path: |
-            pacquet-${{ matrix.code-target }}*
+            pnpm-${{ matrix.code-target }}.*
             pnpm-napi.${{ matrix.code-target }}.node
 
       - name: Upload Binary
@@ -238,13 +240,23 @@ jobs:
           pattern: binaries-*
           merge-multiple: true
 
-      - name: Unzip
-        uses: montudor/action-zip@0852c26906e00f8a315c704958823928d8018b28 # v1.0.0
-        with:
-          args: unzip -qq *.zip -d .
-
-      - name: Extract tarballs
-        run: ls *.gz | xargs -i tar xf {}
+      - name: Extract archives
+        # Every archive holds a binary named `pnpm` / `pnpm.exe` at its root
+        # (see the Archive Binary steps), so extracting them all into the same
+        # directory would clobber one target with another. Extract each into a
+        # scratch dir and move the binary out under its target-qualified name,
+        # which is what generate-packages.mjs reads.
+        run: |
+          for archive in pnpm-*.zip; do
+            rm -rf extract && mkdir extract
+            unzip -q "$archive" -d extract
+            mv extract/pnpm.exe "${archive%.zip}.exe"
+          done
+          for archive in pnpm-*.tar.gz; do
+            rm -rf extract && mkdir extract
+            tar -xzf "$archive" -C extract
+            mv extract/pnpm "${archive%.tar.gz}"
+          done
 
       - name: Generate npm packages
         run: |
@@ -297,8 +309,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # create the draft release and its tag
-      id-token: write # needed for actions/attest-build-provenance
-      attestations: write
     needs:
       - build
       - publish
@@ -309,44 +319,16 @@ jobs:
           pattern: binaries-*
           merge-multiple: true
 
-      - name: Repackage archives for the install scripts
-        # get.pnpm.io's install.sh / install.ps1 download
-        # `pnpm-<platform>-<arch>[-musl].tar.gz` (`.zip` on Windows) from the
-        # GitHub release and expect a binary named `pnpm` / `pnpm.exe` at the
-        # archive root — the layout the v11 releases ship. The build job's
-        # archives carry the Cargo bin name (`pacquet-<target>`) inside, so
-        # rename while repacking. A missing or misnamed binary makes `tar`/`mv`
-        # fail and the job abort, which is what we want.
-        run: |
-          mkdir -p release-assets work
-          for archive in pacquet-*.tar.gz; do
-            target="${archive%.tar.gz}"; target="${target#pacquet-}"
-            rm -rf work && mkdir work
-            tar -xzf "$archive" -C work
-            mv "work/pacquet-$target" work/pnpm
-            chmod 755 work/pnpm
-            tar -czf "release-assets/pnpm-$target.tar.gz" -C work pnpm
-          done
-          for archive in pacquet-*.zip; do
-            target="${archive%.zip}"; target="${target#pacquet-}"
-            rm -rf work && mkdir work
-            unzip -q "$archive" -d work
-            mv "work/pacquet-$target.exe" work/pnpm.exe
-            (cd work && zip -q "../release-assets/pnpm-$target.zip" pnpm.exe)
-          done
-          ls -l release-assets
-
-      - name: Attest build provenance
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
-        with:
-          subject-path: 'release-assets/*'
-
       - name: Release
-        # Same battle-tested action as the v11 release pipeline (release.yml).
-        # Draft so a maintainer publishes it deliberately — the same
-        # proof-of-presence gate the staged npm wrappers get. `make_latest:
-        # false` keeps a published v12 prerelease from stealing the "Latest"
-        # badge from the stable v11 line.
+        # The build job's archives already carry the release layout (a `pnpm`
+        # binary at the root of `pnpm-<target>.tar.gz` / `.zip`), so they're
+        # uploaded byte-for-byte as attested there — get.pnpm.io's install
+        # scripts fetch them by these exact names. Same battle-tested action
+        # as the v11 release pipeline (release.yml). Draft so a maintainer
+        # publishes it deliberately — the same proof-of-presence gate the
+        # staged npm wrappers get. `make_latest: false` keeps a published v12
+        # prerelease from stealing the "Latest" badge from the stable v11
+        # line.
         uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.0 # zizmor: ignore[superfluous-actions]
         with:
           draft: true
@@ -355,4 +337,6 @@ jobs:
           tag_name: v${{ inputs.version }}
           target_commitish: ${{ github.sha }}
           name: pnpm ${{ inputs.version }}
-          files: release-assets/*
+          files: |
+            pnpm-*.tar.gz
+            pnpm-*.zip
