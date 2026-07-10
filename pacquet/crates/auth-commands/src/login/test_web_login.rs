@@ -12,8 +12,10 @@ use pacquet_network::nerf_dart;
 use pacquet_network_web_auth_testing::{SleepBehavior, ok_202, ok_token, web_auth_fake};
 use pretty_assertions::assert_eq;
 
-use super::test_support::{PromptScript, ReadScript, client, login_fake, opts, written_settings};
-use super::{LoginError, login};
+use super::{
+    LoginError, login,
+    test_support::{PromptScript, ReadScript, client, login_fake, opts, written_settings},
+};
 
 #[tokio::test]
 async fn should_use_web_login_when_registry_supports_it() {

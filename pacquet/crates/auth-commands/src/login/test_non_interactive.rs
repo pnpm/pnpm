@@ -10,8 +10,10 @@ use std::{
 use pacquet_network_web_auth_testing::web_auth_fake;
 use pretty_assertions::assert_eq;
 
-use super::test_support::{PromptScript, ReadScript, client, login_fake, opts};
-use super::{LoginError, login};
+use super::{
+    LoginError, login,
+    test_support::{PromptScript, ReadScript, client, login_fake, opts},
+};
 
 #[tokio::test]
 async fn should_throw_in_non_interactive_terminal() {

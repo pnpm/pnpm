@@ -12,10 +12,12 @@ use pacquet_network::nerf_dart;
 use pacquet_network_web_auth_testing::{InputResponse, ok_token, web_auth_fake};
 use pretty_assertions::assert_eq;
 
-use super::test_support::{
-    PromptScript, ReadScript, client, credential_prompts, login_fake, opts, written_settings,
+use super::{
+    LoginError, login,
+    test_support::{
+        PromptScript, ReadScript, client, credential_prompts, login_fake, opts, written_settings,
+    },
 };
-use super::{LoginError, login};
 
 #[tokio::test]
 async fn should_fall_back_to_classic_login_when_web_login_returns_404() {
