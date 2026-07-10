@@ -9,8 +9,10 @@
 //! result over a oneshot channel — so the borrows never have to cross the FFI
 //! boundary or become `'static`.
 //!
-//! `rebuild` and `getPeerDependencyIssues` remain stubbed; see the
-//! `ERR_PNPM_NAPI_UNIMPLEMENTED` returns.
+//! [`rebuild`] takes the frozen path against the already-materialized
+//! `node_modules`; [`get_peer_dependency_issues`] runs a sink-driven
+//! `dry_run` resolve that writes nothing and returns the per-importer
+//! peer-dependency issues.
 
 use std::{
     collections::{BTreeSet, HashMap},
@@ -30,7 +32,7 @@ use tokio::sync::Mutex;
 
 use crate::{
     config::{ConfigOverlay, resolve_config},
-    error::{invalid_manifest_error, to_napi_error, unimplemented_error, unsupported_option_error},
+    error::{invalid_manifest_error, to_napi_error, unsupported_option_error},
     hooks::{HookSink, JsReadPackageHook},
     reporter_bridge::{EngineCallGuard, LogSink, NodeBridgeReporter, begin_stats, take_stats},
 };
@@ -46,6 +48,7 @@ pub struct NodeApiProject {
 /// fields the engine consumes today are read, the rest are accepted and
 /// ignored so the contract stays forward-compatible.
 #[napi(object)]
+#[derive(Default)]
 pub struct InstallOptions {
     pub dir: String,
     pub projects: Vec<NodeApiProject>,
@@ -230,6 +233,11 @@ fn run_install_blocking(
 enum EngineMode {
     Install,
     Rebuild(RebuildOptions),
+    /// Peer-issue query: a `dry_run` fresh resolve that writes nothing
+    /// and collects the per-importer peer-dependency issues into the
+    /// sink. Mirrors v11's `getPeerDependencyIssues` (`dryRun: true`,
+    /// `forceFullResolution: true`).
+    PeerIssues(pacquet_package_manager::PeerIssuesSink),
 }
 
 fn run_install_inner(
@@ -325,9 +333,14 @@ fn run_install_inner(
     let frozen_lockfile = match &mode {
         EngineMode::Install => !update_requested && options.frozen_lockfile.unwrap_or(false),
         EngineMode::Rebuild(_) => true,
+        // Peer issues need a full fresh resolve — never frozen.
+        EngineMode::PeerIssues(_) => false,
     };
-    let prefer_frozen_lockfile =
-        if update_requested { Some(false) } else { options.prefer_frozen_lockfile };
+    let prefer_frozen_lockfile = if update_requested || matches!(mode, EngineMode::PeerIssues(_)) {
+        Some(false)
+    } else {
+        options.prefer_frozen_lockfile
+    };
     let update_seed_policy =
         if update_requested { UpdateSeedPolicy::DropAll } else { UpdateSeedPolicy::KeepAll };
     let is_full_install = matches!(mode, EngineMode::Install);
@@ -360,17 +373,28 @@ fn run_install_inner(
                 supported_architectures: None,
                 node_linker: config.node_linker,
                 lockfile_only,
-                dry_run: false,
+                // A peer-issue query resolves without writing anything;
+                // the sink presence suppresses the CLI dry-run report.
+                dry_run: matches!(mode, EngineMode::PeerIssues(_)),
                 update_seed_policy,
                 auth_override: None,
                 resolution_observer: None,
+                peer_issues_sink: match &mode {
+                    EngineMode::PeerIssues(sink) => Some(Arc::clone(sink)),
+                    EngineMode::Install | EngineMode::Rebuild(_) => None,
+                },
                 catalogs_override: None,
-                disable_optimistic_repeat_install: false,
+                // The optimistic repeat-install fast path skips
+                // resolution entirely — a peer-issue query must never
+                // short-circuit that way.
+                disable_optimistic_repeat_install: matches!(mode, EngineMode::PeerIssues(_)),
                 pnpmfile_hook_override: pnpmfile_hook,
                 workspace_projects_override,
             };
             match mode {
-                EngineMode::Install => install.run::<NodeBridgeReporter>().await,
+                EngineMode::Install | EngineMode::PeerIssues(_) => {
+                    install.run::<NodeBridgeReporter>().await
+                }
                 EngineMode::Rebuild(rebuild) => {
                     install.run_rebuild::<NodeBridgeReporter>(rebuild).await
                 }
@@ -677,9 +701,200 @@ fn run_rebuild_blocking(
 
 #[napi(js_name = "getPeerDependencyIssues")]
 pub async fn get_peer_dependency_issues(
-    _options: serde_json::Value,
+    options: serde_json::Value,
 ) -> napi::Result<serde_json::Value> {
-    Err(unimplemented_error("getPeerDependencyIssues"))
+    let _guard = engine_call_lock().lock().await;
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    std::thread::Builder::new()
+        .name("pnpm-napi-peer-issues".to_string())
+        .stack_size(32 * 1024 * 1024)
+        .spawn(move || {
+            let _ = tx.send(run_peer_issues_blocking(&options));
+        })
+        .map_err(|error| {
+            napi::Error::from_reason(format!("failed to spawn peer-issues thread: {error}"))
+        })?;
+    rx.await.map_err(|_| napi::Error::from_reason("peer-issues worker thread panicked"))?
+}
+
+/// Map the `PeerIssuesOptions` JSON (a subset of [`InstallOptions`] — see
+/// `index.d.ts`) onto the install options struct, run a sink-driven
+/// `dry_run` resolve, and serialize the per-importer issues into the
+/// `PeerDependencyIssuesByProjects` wire shape, including the
+/// `conflicts` / `intersections` derivation v11's `mergePeers` does.
+fn run_peer_issues_blocking(options: &serde_json::Value) -> napi::Result<serde_json::Value> {
+    // No log sink for this query — engine events would interleave with
+    // the caller's own reporting for what is a silent resolution.
+    let _sink_guard = EngineCallGuard::new(None);
+    let obj = options.as_object().ok_or_else(|| {
+        napi::Error::from_reason("getPeerDependencyIssues: options must be an object")
+    })?;
+    let str_field =
+        |key: &str| obj.get(key).and_then(serde_json::Value::as_str).map(ToString::to_string);
+    let string_map = |key: &str| {
+        obj.get(key).and_then(serde_json::Value::as_object).map(|map| {
+            map.iter()
+                .filter_map(|(key, value)| {
+                    value.as_str().map(|value| (key.clone(), value.to_string()))
+                })
+                .collect::<HashMap<String, String>>()
+        })
+    };
+    let dir = str_field("dir")
+        .ok_or_else(|| napi::Error::from_reason("getPeerDependencyIssues: `dir` is required"))?;
+    let projects: Vec<NodeApiProject> = obj
+        .get("projects")
+        .and_then(serde_json::Value::as_array)
+        .map(|entries| {
+            entries
+                .iter()
+                .filter_map(|entry| {
+                    let entry = entry.as_object()?;
+                    Some(NodeApiProject {
+                        root_dir: entry.get("rootDir")?.as_str()?.to_string(),
+                        manifest: entry
+                            .get("manifest")
+                            .cloned()
+                            .unwrap_or_else(|| serde_json::json!({})),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let install_options = InstallOptions {
+        dir,
+        projects,
+        store_dir: str_field("storeDir"),
+        cache_dir: str_field("cacheDir"),
+        registries: string_map("registries"),
+        auth_header_by_uri: string_map("authHeaderByUri"),
+        overrides: string_map("overrides"),
+        // Report every missing peer: with pnpm's default
+        // `autoInstallPeers: true` the resolver satisfies the peer
+        // itself and the issue never surfaces, but this query's whole
+        // point is the report (Bit derives the `intersections` it
+        // auto-adds from it). Callers can still opt back in.
+        auto_install_peers: Some(
+            obj.get("autoInstallPeers").and_then(serde_json::Value::as_bool).unwrap_or(false),
+        ),
+        peers_suffix_max_length: obj
+            .get("peersSuffixMaxLength")
+            .and_then(serde_json::Value::as_u64)
+            .map(|value| value as u32),
+        virtual_store_dir_max_length: obj
+            .get("virtualStoreDirMaxLength")
+            .and_then(serde_json::Value::as_u64)
+            .map(|value| value as u32),
+        ..InstallOptions::default()
+    };
+
+    let sink: pacquet_package_manager::PeerIssuesSink = Arc::default();
+    run_install_inner(&install_options, None, EngineMode::PeerIssues(Arc::clone(&sink)))?;
+    let issues_by_importer =
+        std::mem::take(&mut *sink.lock().expect("peer-issues sink lock poisoned"));
+
+    let mut result = serde_json::Map::new();
+    for (importer_id, issues) in issues_by_importer {
+        result.insert(importer_id, peer_issues_to_json(&issues));
+    }
+    Ok(serde_json::Value::Object(result))
+}
+
+/// Serialize one importer's issues into v11's `PeerDependencyIssues`
+/// wire shape, deriving `conflicts` / `intersections` from the missing
+/// peers the way v11's `mergePeers` does: all-optional names are
+/// skipped, a single range passes through verbatim, and multiple
+/// ranges intersect via semver bound-set intersection (`null`
+/// intersection → conflict).
+fn peer_issues_to_json(
+    issues: &pacquet_resolving_deps_resolver::PeerDependencyIssues,
+) -> serde_json::Value {
+    let parents_json = |parents: &[pacquet_resolving_deps_resolver::ParentPackageRef]| {
+        parents
+            .iter()
+            .map(|parent| serde_json::json!({ "name": parent.name, "version": parent.version }))
+            .collect::<Vec<_>>()
+    };
+
+    let mut missing = serde_json::Map::new();
+    for (peer_name, entries) in &issues.missing {
+        missing.insert(
+            peer_name.clone(),
+            entries
+                .iter()
+                .map(|entry| {
+                    serde_json::json!({
+                        "parents": parents_json(&entry.parents),
+                        "optional": entry.optional,
+                        "wantedRange": entry.wanted_range,
+                    })
+                })
+                .collect(),
+        );
+    }
+
+    let mut bad = serde_json::Map::new();
+    for (peer_name, entries) in &issues.bad {
+        bad.insert(
+            peer_name.clone(),
+            entries
+                .iter()
+                .map(|entry| {
+                    serde_json::json!({
+                        "parents": parents_json(&entry.parents),
+                        "foundVersion": entry.found_version,
+                        "resolvedFrom": parents_json(&entry.resolved_from),
+                        "optional": entry.optional,
+                        "wantedRange": entry.wanted_range,
+                    })
+                })
+                .collect(),
+        );
+    }
+
+    let mut conflicts: Vec<String> = Vec::new();
+    let mut intersections = serde_json::Map::new();
+    for (peer_name, entries) in &issues.missing {
+        if entries.iter().all(|entry| entry.optional) {
+            continue;
+        }
+        if let [entry] = entries.as_slice() {
+            intersections
+                .insert(peer_name.clone(), serde_json::Value::String(entry.wanted_range.clone()));
+            continue;
+        }
+        match safe_intersect(entries.iter().map(|entry| entry.wanted_range.as_str())) {
+            Some(intersection) => {
+                intersections.insert(peer_name.clone(), serde_json::Value::String(intersection));
+            }
+            None => conflicts.push(peer_name.clone()),
+        }
+    }
+    conflicts.sort_unstable();
+
+    serde_json::json!({
+        "missing": missing,
+        "bad": bad,
+        "conflicts": conflicts,
+        "intersections": intersections,
+    })
+}
+
+/// Intersect semver ranges pairwise. `None` when any range fails to
+/// parse or the intersection is empty — the caller records a conflict,
+/// matching v11's `safeIntersect` (which swallows
+/// `semver-range-intersect` errors the same way).
+fn safe_intersect<'a>(ranges: impl Iterator<Item = &'a str>) -> Option<String> {
+    let mut acc: Option<node_semver::Range> = None;
+    for range in ranges {
+        let parsed: node_semver::Range = range.parse().ok()?;
+        acc = Some(match acc {
+            None => parsed,
+            Some(current) => current.intersect(&parsed)?,
+        });
+    }
+    acc.map(|range| range.to_string())
 }
 
 #[cfg(test)]

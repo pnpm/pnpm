@@ -75,7 +75,7 @@ mod resolved_tree;
 mod validate_dependency_alias;
 
 pub use dependencies_graph::{
-    DependenciesGraph, DependenciesGraphNode, MissingPeer, PeerDependencyIssue,
+    DependenciesGraph, DependenciesGraphNode, MissingPeer, ParentPackageRef, PeerDependencyIssue,
     PeerDependencyIssues,
 };
 pub use hoist_peers::{

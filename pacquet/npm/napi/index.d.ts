@@ -219,6 +219,12 @@ export interface PeerIssuesOptions extends SharedEngineOptions {
   overrides?: Record<string, string>
   peersSuffixMaxLength?: number
   virtualStoreDirMaxLength?: number
+  /**
+   * Defaults to `false` for this query (unlike `install`): with peers
+   * auto-installed the resolver satisfies them itself and nothing is
+   * reported, defeating the report's purpose.
+   */
+  autoInstallPeers?: boolean
 }
 
 export interface PeerDependencyIssues {
