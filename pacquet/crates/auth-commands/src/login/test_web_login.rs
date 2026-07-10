@@ -20,7 +20,7 @@ use super::{
 #[tokio::test]
 async fn should_use_web_login_when_registry_supports_it() {
     web_auth_fake!();
-    login_fake!(FakeHost);
+    login_fake!(FakeHost, login_writes);
     reset();
     reset_login();
     set_fetch(Box::new(|| Ok(ok_token("web-auth-token-123"))));
@@ -57,7 +57,7 @@ async fn should_use_web_login_when_registry_supports_it() {
 #[tokio::test]
 async fn should_persist_a_scoped_auth_token_and_scope_registry_mapping() {
     web_auth_fake!();
-    login_fake!(FakeHost);
+    login_fake!(FakeHost, login_writes);
     reset();
     reset_login();
     set_fetch(Box::new(|| Ok(ok_token("scoped-token"))));
@@ -89,7 +89,7 @@ async fn should_persist_a_scoped_auth_token_and_scope_registry_mapping() {
 #[tokio::test]
 async fn should_persist_scoped_auth_tokens_under_path_registries() {
     web_auth_fake!();
-    login_fake!(FakeHost);
+    login_fake!(FakeHost, login_writes);
     reset();
     reset_login();
     set_fetch(Box::new(|| Ok(ok_token("path-scoped-token"))));
@@ -121,7 +121,7 @@ async fn should_persist_scoped_auth_tokens_under_path_registries() {
 #[tokio::test]
 async fn should_accept_scope_with_a_leading_at_and_not_double_prefix() {
     web_auth_fake!();
-    login_fake!(FakeHost);
+    login_fake!(FakeHost, login_writes);
     reset();
     reset_login();
     set_fetch(Box::new(|| Ok(ok_token("tok"))));
@@ -151,7 +151,7 @@ async fn should_accept_scope_with_a_leading_at_and_not_double_prefix() {
 #[tokio::test]
 async fn should_not_write_a_scope_mapping_when_scope_is_omitted() {
     web_auth_fake!();
-    login_fake!(FakeHost);
+    login_fake!(FakeHost, login_writes);
     reset();
     reset_login();
     set_fetch(Box::new(|| Ok(ok_token("tok"))));
@@ -209,7 +209,7 @@ async fn should_throw_when_web_login_returns_invalid_response() {
 #[tokio::test]
 async fn should_succeed_when_config_file_does_not_exist() {
     web_auth_fake!();
-    login_fake!(FakeHost);
+    login_fake!(FakeHost, set_ini_read, login_writes);
     reset();
     reset_login();
     set_fetch(Box::new(|| Ok(ok_token("new-token"))));
@@ -243,7 +243,7 @@ async fn should_succeed_when_config_file_does_not_exist() {
 #[tokio::test]
 async fn should_propagate_non_enoent_errors_from_reading_auth_ini() {
     web_auth_fake!();
-    login_fake!(FakeHost);
+    login_fake!(FakeHost, set_ini_read);
     reset();
     reset_login();
     set_fetch(Box::new(|| Ok(ok_token("tok"))));
@@ -414,7 +414,7 @@ async fn should_time_out_when_the_web_auth_poll_never_completes() {
 #[tokio::test]
 async fn should_treat_a_bare_at_scope_as_no_scope() {
     web_auth_fake!();
-    login_fake!(FakeHost);
+    login_fake!(FakeHost, login_writes);
     reset();
     reset_login();
     set_fetch(Box::new(|| Ok(ok_token("tok"))));

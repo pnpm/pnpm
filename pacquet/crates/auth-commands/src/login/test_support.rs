@@ -27,7 +27,10 @@ pub(crate) type ReadScript = Box<dyn FnMut(&Path) -> io::Result<String>>;
 /// Expand the login-specific half of the `Sys` fake at the top of a test,
 /// after [`web_auth_fake`]. `$fake` is the unit struct `web_auth_fake!`
 /// generated (`FakeHost`); this adds the login capabilities to it over fn-local
-/// state, plus the `set_*` / `login_writes` / `reset_login` helpers.
+/// state, always emitting `reset_login`, plus each `set_prompt_input` /
+/// `set_prompt_password` / `set_ini_read` / `login_writes` helper named as an
+/// extra argument. Naming only the helpers a scenario drives keeps every
+/// emitted function used, so no `dead_code` suppression is needed.
 ///
 /// The prompt scripts live in a fn-local `static` [`Mutex`], not `thread_local!`:
 /// `prompt_line` runs `prompt_input` / `prompt_password` inside `spawn_blocking`,
@@ -35,7 +38,7 @@ pub(crate) type ReadScript = Box<dyn FnMut(&Path) -> io::Result<String>>;
 /// invisible. Each test's expansion has its own `static`, so tests stay
 /// isolated. `auth.ini` I/O runs on the test thread and stays `thread_local!`.
 macro_rules! login_fake {
-    ($fake:ident) => {
+    ($fake:ident $(, $helper:ident)* $(,)?) => {
         static PROMPT_INPUT: Mutex<Option<PromptScript>> = Mutex::new(None);
         static PROMPT_PASSWORD: Mutex<Option<PromptScript>> = Mutex::new(None);
         thread_local! {
@@ -74,47 +77,38 @@ macro_rules! login_fake {
             }
         }
 
-        #[allow(
-            dead_code,
-            reason = "the macro emits the full fake surface; a given test drives only the helpers its scenario needs"
-        )]
-        fn set_prompt_input(script: PromptScript) {
-            *PROMPT_INPUT.lock().expect("input script mutex") = Some(script);
-        }
-
-        #[allow(
-            dead_code,
-            reason = "the macro emits the full fake surface; a given test drives only the helpers its scenario needs"
-        )]
-        fn set_prompt_password(script: PromptScript) {
-            *PROMPT_PASSWORD.lock().expect("password script mutex") = Some(script);
-        }
-
-        #[allow(
-            dead_code,
-            reason = "the macro emits the full fake surface; a given test drives only the helpers its scenario needs"
-        )]
-        fn set_ini_read(script: ReadScript) {
-            INI_READ.with(|cell| *cell.borrow_mut() = Some(script));
-        }
-
-        #[allow(
-            dead_code,
-            reason = "the macro emits the full fake surface; a given test drives only the helpers its scenario needs"
-        )]
-        fn login_writes() -> Vec<(PathBuf, String)> {
-            INI_WRITES.with(|writes| writes.borrow().clone())
-        }
-
-        #[allow(
-            dead_code,
-            reason = "the macro emits the full fake surface; a given test drives only the helpers its scenario needs"
-        )]
         fn reset_login() {
             *PROMPT_INPUT.lock().expect("input script mutex") = None;
             *PROMPT_PASSWORD.lock().expect("password script mutex") = None;
             INI_READ.with(|cell| *cell.borrow_mut() = None);
             INI_WRITES.with(|writes| writes.borrow_mut().clear());
+        }
+
+        $( login_fake!(@helper $helper); )*
+    };
+
+    // Emit one optional helper. A test names only the helpers its scenario
+    // drives, so every emitted function is used and no `dead_code` suppression
+    // is needed. `reset_login` and the capability impls are always emitted
+    // above because every test relies on them.
+    (@helper set_prompt_input) => {
+        fn set_prompt_input(script: PromptScript) {
+            *PROMPT_INPUT.lock().expect("input script mutex") = Some(script);
+        }
+    };
+    (@helper set_prompt_password) => {
+        fn set_prompt_password(script: PromptScript) {
+            *PROMPT_PASSWORD.lock().expect("password script mutex") = Some(script);
+        }
+    };
+    (@helper set_ini_read) => {
+        fn set_ini_read(script: ReadScript) {
+            INI_READ.with(|cell| *cell.borrow_mut() = Some(script));
+        }
+    };
+    (@helper login_writes) => {
+        fn login_writes() -> Vec<(PathBuf, String)> {
+            INI_WRITES.with(|writes| writes.borrow().clone())
         }
     };
 }
