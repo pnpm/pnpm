@@ -1,5 +1,17 @@
 # @pnpm/headless
 
+## 1010.1.17
+
+### Patch Changes
+
+- Updated dependencies [78e29fe]
+- Updated dependencies [78e29fe]
+  - @pnpm/deps.graph-builder@1002.3.17
+  - @pnpm/calc-dep-state@1003.0.7
+  - @pnpm/lockfile-to-pnp@1001.0.38
+  - @pnpm/build-modules@1007.0.18
+  - @pnpm/package-requester@1011.2.6
+
 ## 1010.1.16
 
 ### Patch Changes

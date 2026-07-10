@@ -1,5 +1,14 @@
 # pnpm
 
+## 10.34.5
+
+### Patch Changes
+
+- 78e29fe: Prevent a crafted `pnpm-lock.yaml` from writing package content outside the virtual store. A dependency path key whose name reconstructs to a path-traversal sequence (e.g. `../../../tmp/x@1.0.0`) is now rejected by the isolated (virtual-store) linker and the Plug'n'Play resolver map, matching the containment already applied to the hoisted linker. Under the global virtual store, a traversal in the version-derived path segment (e.g. a snapshot `version: "../../x"`) is now rejected at `iterateHashedGraphNodes`, the single point every global-virtual-store slot path funnels through.
+- 78e29fe: Fixed a path traversal vulnerability where a dependency whose manifest `name` was a scoped path traversal (e.g. `@x/../../../<path>`) could be written outside `node_modules` to an attacker-controlled location during `pnpm install`, even with `--ignore-scripts`. The isolated linker now validates the package name before using it as a directory name, matching the existing protection in the hoisted linker.
+- 47ef6f0: Fixed switching to and self-updating to pnpm v12. pnpm v12 (the Rust port) ships as the `pnpm` and `@pnpm/exe` npm packages whose bins are placeholders replaced at install time by the host's native binary from a `@pnpm/exe.<platform>-<arch>[-musl]` optional dependency. Because pnpm installs its own engine with `--ignore-scripts`, that relinking never ran, leaving a non-executable placeholder. pnpm now relinks the native binary itself for v12 (recognizing the new platform-package naming scheme and the native `pnpm` package), and verifies the native binary's npm registry signature before running it.
+- 36928be: `${...}` environment-variable placeholders in the `httpProxy`, `httpsProxy`, `noProxy`, `proxy`, and `noproxy` settings are no longer expanded when these settings come from a project's `pnpm-workspace.yaml`. They now receive the same protection already applied to `registry`.
+
 ## 10.34.4
 
 ### Patch Changes

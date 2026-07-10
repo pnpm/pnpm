@@ -1,5 +1,19 @@
 # @pnpm/core
 
+## 1016.4.5
+
+### Patch Changes
+
+- Updated dependencies [78e29fe]
+- Updated dependencies [78e29fe]
+  - @pnpm/calc-dep-state@1003.0.7
+  - @pnpm/lockfile-to-pnp@1001.0.38
+  - @pnpm/resolve-dependencies@1008.8.5
+  - @pnpm/headless@1010.1.17
+  - @pnpm/build-modules@1007.0.18
+  - @pnpm/plugin-commands-rebuild@1008.0.20
+  - @pnpm/package-requester@1011.2.6
+
 ## 1016.4.4
 
 ### Patch Changes

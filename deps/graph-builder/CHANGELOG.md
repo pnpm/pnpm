@@ -1,5 +1,14 @@
 # @pnpm/deps.graph-builder
 
+## 1002.3.17
+
+### Patch Changes
+
+- 78e29fe: Prevent a crafted `pnpm-lock.yaml` from writing package content outside the virtual store. A dependency path key whose name reconstructs to a path-traversal sequence (e.g. `../../../tmp/x@1.0.0`) is now rejected by the isolated (virtual-store) linker and the Plug'n'Play resolver map, matching the containment already applied to the hoisted linker. Under the global virtual store, a traversal in the version-derived path segment (e.g. a snapshot `version: "../../x"`) is now rejected at `iterateHashedGraphNodes`, the single point every global-virtual-store slot path funnels through.
+- 78e29fe: Fixed a path traversal vulnerability where a dependency whose manifest `name` was a scoped path traversal (e.g. `@x/../../../<path>`) could be written outside `node_modules` to an attacker-controlled location during `pnpm install`, even with `--ignore-scripts`. The isolated linker now validates the package name before using it as a directory name, matching the existing protection in the hoisted linker.
+- Updated dependencies [78e29fe]
+  - @pnpm/calc-dep-state@1003.0.7
+
 ## 1002.3.16
 
 ### Patch Changes

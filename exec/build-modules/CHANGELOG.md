@@ -1,5 +1,14 @@
 # @pnpm/build-modules
 
+## 1007.0.18
+
+### Patch Changes
+
+- Updated dependencies [78e29fe]
+- Updated dependencies [36928be]
+  - @pnpm/calc-dep-state@1003.0.7
+  - @pnpm/config@1004.11.6
+
 ## 1007.0.17
 
 ### Patch Changes
