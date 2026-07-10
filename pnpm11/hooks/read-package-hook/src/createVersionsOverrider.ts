@@ -1,13 +1,11 @@
 import path from 'node:path'
 
-import type { PackageSelector, VersionOverride as VersionOverrideBase } from '@pnpm/config.parse-overrides'
+import { isIntersectingRange, type PackageSelector, type VersionOverride as VersionOverrideBase } from '@pnpm/config.parse-overrides'
 import { isValidPeerRange } from '@pnpm/deps.peer-range'
 import type { Dependencies, PackageManifest, ReadPackageHook } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 import { partition } from 'ramda'
 import semver from 'semver'
-
-import { isIntersectingRange } from './isIntersectingRange.js'
 
 export type VersionOverrideWithoutRawSelector = Omit<VersionOverrideBase, 'selector'>
 

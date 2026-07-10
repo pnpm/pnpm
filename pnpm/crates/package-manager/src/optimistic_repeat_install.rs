@@ -25,7 +25,10 @@
 //! covers the *contents* of a local file dependency (a `file:` specifier
 //! or a bare local path/tarball spec, declared directly or through a
 //! `pnpm.overrides` entry), so projects declaring one always take the
-//! full install path, which refetches those dependencies. The
+//! full install path, which refetches those dependencies — unless a
+//! generic override replaces the declared local file spec with a
+//! non-local target, in which case the local contents are never
+//! installed and the fast path stays available. The
 //! local-file-dependency freshness branch of linked-package verification
 //! is NOT ported here. When this function returns `Decision::Skipped` the
 //! caller proceeds with the full install path, which still has its own
@@ -51,6 +54,7 @@ use std::{
 use pacquet_catalogs_resolver::{CatalogResolutionResult, WantedDependency, resolve_from_catalog};
 use pacquet_catalogs_types::Catalogs;
 use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker};
+use pacquet_config_parse_overrides::VersionOverride;
 use pacquet_lockfile::{ImporterDepVersion, Lockfile, MaybeLazyLockfile, ProjectSnapshot};
 use pacquet_modules_yaml::IncludedDependencies;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
@@ -141,21 +145,25 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
 
     // Unconditional here because the only caller is the install
     // command, which always treats local file deps as outdated.
-    if has_local_file_dep(project_manifests, included, catalogs) {
+    // Overrides are parsed up front: the dependency scan needs them to
+    // skip dependencies an override replaces. A parse failure returns
+    // its own distinct reason — not the local-file reason, which would
+    // misattribute the cause.
+    let Ok(parsed_overrides) = crate::install::parse_config_overrides(config, catalogs) else {
+        return Decision::Skipped { reason: "pnpm.overrides cannot be parsed" };
+    };
+    let overrides = parsed_overrides.as_deref().unwrap_or(&[]);
+    if has_local_file_dep(project_manifests, included, catalogs, overrides) {
         return Decision::Skipped {
             reason: "a dependency is a local file dependency and its contents may have changed",
         };
     }
-    match has_local_file_override(config, catalogs) {
-        Ok(true) => {
-            return Decision::Skipped {
-                reason: "an override maps to a local file dependency and its contents may have changed",
-            };
-        }
-        Err(reason) => return Decision::Skipped { reason },
-        Ok(false) => {}
+    if has_local_file_override(overrides) {
+        return Decision::Skipped {
+            reason: "an override maps to a local file dependency and its contents may have changed",
+        };
     }
-    if has_local_file_package_extension(config, included, catalogs) {
+    if has_local_file_package_extension(config, included, catalogs, overrides) {
         return Decision::Skipped {
             reason: "a package extension injects a local file dependency and its contents may have changed",
         };
@@ -307,11 +315,15 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
 /// specifier in `dependencies`, `devDependencies`, or
 /// `optionalDependencies`. Groups excluded from the current install
 /// (per `included`) are skipped. `catalog:` specs are dereferenced
-/// through the workspace catalogs.
+/// through the workspace catalogs. Dependencies replaced by an
+/// override are skipped: the override's target is what gets
+/// installed, and [`has_local_file_override`] flags local file
+/// override targets separately.
 fn has_local_file_dep(
     project_manifests: &[(PathBuf, &PackageManifest)],
     included: IncludedDependencies,
     catalogs: &Catalogs,
+    overrides: &[VersionOverride],
 ) -> bool {
     let fields: [(&str, bool); 3] = [
         ("dependencies", included.dependencies),
@@ -325,14 +337,34 @@ fn has_local_file_dep(
                     |deps| {
                         deps.iter().any(|(alias, spec)| {
                             spec.as_str().is_some_and(|spec| {
-                                is_local_file_spec(spec)
-                                    || catalog_resolves_to_local_file(catalogs, alias, spec)
+                                is_effective_local_file_dep(catalogs, overrides, alias, spec)
                             })
                         })
                     },
                 )
         })
     })
+}
+
+/// Whether the dependency's specifier is (or resolves through a
+/// catalog to) a local file specifier and no generic (parentless)
+/// override replaces it. Override matching uses the same rule as
+/// [`crate::overrides::VersionsOverrider`]. Parent-scoped overrides
+/// (`parent>dep`) never suppress the bail-out: whether they apply
+/// depends on which package the dependency belongs to, so a local
+/// file dependency covered only by a parent-scoped override
+/// conservatively stays treated as a local file dependency.
+fn is_effective_local_file_dep(
+    catalogs: &Catalogs,
+    overrides: &[VersionOverride],
+    alias: &str,
+    spec: &str,
+) -> bool {
+    (is_local_file_spec(spec) || catalog_resolves_to_local_file(catalogs, alias, spec))
+        && !overrides.iter().any(|entry| {
+            entry.parent_pkg.is_none()
+                && crate::overrides::matches_target(&entry.target_pkg, alias, spec)
+        })
 }
 
 /// Whether a `catalog:` spec dereferences (through the workspace
@@ -359,16 +391,11 @@ fn catalog_resolves_to_local_file(catalogs: &Catalogs, alias: &str, spec: &str) 
 /// An override redirects every matching dependency in the graph to its
 /// specifier, so a local file override makes the installed contents
 /// depend on that directory or tarball the same way a direct local file
-/// dependency does. A parse failure returns its own distinct reason —
-/// not the local-file reason, which would misattribute the cause.
-fn has_local_file_override(config: &Config, catalogs: &Catalogs) -> Result<bool, &'static str> {
-    match crate::install::parse_config_overrides(config, catalogs) {
-        Ok(Some(overrides)) => {
-            Ok(overrides.iter().any(|entry| is_local_file_spec(&entry.new_bare_specifier)))
-        }
-        Ok(None) => Ok(false),
-        Err(_) => Err("pnpm.overrides cannot be parsed"),
-    }
+/// dependency does. The overrides come from
+/// [`crate::install::parse_config_overrides`], so `catalog:` specs are
+/// already dereferenced.
+fn has_local_file_override(overrides: &[VersionOverride]) -> bool {
+    overrides.iter().any(|entry| is_local_file_spec(&entry.new_bare_specifier))
 }
 
 /// Whether any `packageExtensions` entry injects a dependency with a
@@ -384,6 +411,7 @@ fn has_local_file_package_extension(
     config: &Config,
     included: IncludedDependencies,
     catalogs: &Catalogs,
+    overrides: &[VersionOverride],
 ) -> bool {
     let Some(extensions) = config.package_extensions.as_ref() else {
         return false;
@@ -394,9 +422,8 @@ fn has_local_file_package_extension(
             .then_some(extension.optional_dependencies.as_ref())
             .flatten();
         [extension.dependencies.as_ref(), optional].into_iter().flatten().any(|deps| {
-            deps.iter().any(|(alias, spec)| {
-                is_local_file_spec(spec) || catalog_resolves_to_local_file(catalogs, alias, spec)
-            })
+            deps.iter()
+                .any(|(alias, spec)| is_effective_local_file_dep(catalogs, overrides, alias, spec))
         })
     })
 }
