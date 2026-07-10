@@ -51,6 +51,7 @@ use super::{
     self_update::SelfUpdateArgs,
     set_script::SetScriptArgs,
     setup::SetupArgs,
+    stage::StageArgs,
     stop::StopArgs,
     store::StoreCommand,
     unlink::UnlinkArgs,
@@ -287,6 +288,9 @@ pub enum CliCommand {
     Pack(PackArgs),
     /// Publish a package to the registry
     Publish(PublishArgs),
+    /// Stage packages for publishing, deferring proof-of-presence (2FA) to a
+    /// later point in time.
+    Stage(StageArgs),
     /// Removes packages from `node_modules` and from the project's `package.json`.
     // Unlike npm, pnpm does not treat "r" as an alias of "remove" to avoid
     // confusion with "run" and "recursive".

@@ -31,6 +31,7 @@ pacquet-hooks                             = { workspace = true }
 pacquet-lockfile                          = { workspace = true }
 pacquet-modules-yaml                      = { workspace = true }
 pacquet-network                           = { workspace = true }
+pacquet-network-web-auth                  = { workspace = true }
 pacquet-config                            = { workspace = true }
 pacquet-config-parse-overrides            = { workspace = true }
 pacquet-default-reporter                  = { workspace = true }
@@ -61,6 +62,7 @@ clap                 = { workspace = true }
 derive_more          = { workspace = true }
 dialoguer            = { workspace = true }
 dunce                = { workspace = true }
+flate2               = { workspace = true }
 futures-util         = { workspace = true }
 home                 = { workspace = true }
 indexmap             = { workspace = true }
@@ -76,6 +78,7 @@ rmp-serde            = { workspace = true }
 serde                = { workspace = true }
 serde_json           = { workspace = true }
 tabled               = { workspace = true }
+tar                  = { workspace = true }
 tempfile             = { workspace = true }
 tokio                = { workspace = true }
 tracing              = { workspace = true }
@@ -91,7 +94,6 @@ wax                  = { workspace = true }
 windows-sys = { workspace = true, features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 
 [dev-dependencies]
-pacquet-network-web-auth         = { workspace = true }
 pacquet-network-web-auth-testing = { workspace = true }
 pacquet-testing-utils            = { workspace = true }
 pnpr                             = { workspace = true }
@@ -99,12 +101,10 @@ pnpr                             = { workspace = true }
 assert_cmd        = { workspace = true }
 command-extra     = { workspace = true }
 dialoguer         = { workspace = true }
-flate2            = { workspace = true }
 insta             = { workspace = true }
 mockito           = { workspace = true }
 pretty_assertions = { workspace = true }
 serde-saphyr      = { workspace = true }
-tar               = { workspace = true }
 text-block-macros = { workspace = true }
 walkdir           = { workspace = true }
 

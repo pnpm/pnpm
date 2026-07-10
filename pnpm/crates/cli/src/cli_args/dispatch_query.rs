@@ -29,6 +29,7 @@ use super::{
     search::SearchArgs,
     self_update::SelfUpdateArgs,
     setup::SetupArgs,
+    stage::StageArgs,
     store::StoreCommand,
     why::WhyArgs,
     with::WithArgs,
@@ -224,13 +225,48 @@ pub(super) fn publish<'a>(
     let config = (ctx.config)()?;
     let dir = ctx.dir;
     let recursive = ctx.recursive;
-    args.report_summary |= ctx.recursive_report_summary;
+    args.flags.report_summary |= ctx.recursive_report_summary;
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => {
             Box::pin(args.run::<DefaultReporter>(dir, config, recursive))
         }
         ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(dir, config, recursive)),
         ReporterType::Silent => Box::pin(args.run::<SilentReporter>(dir, config, recursive)),
+    })
+}
+
+/// `stage` shares `publish`'s dispatch shape: the values are read off `ctx`
+/// before the boxed future so it captures only owned/concrete values (see
+/// [`publish`]), and the subcommand's output is printed here, sanitized,
+/// mirroring pnpm's `handler` → CLI print split.
+pub(super) fn stage<'a>(ctx: &RunCtx<'a>, args: StageArgs) -> miette::Result<CommandFuture<'a>> {
+    let config = (ctx.config)()?;
+    let dir = ctx.dir;
+    let recursive = ctx.recursive;
+    async fn print_output<Reporter: pacquet_reporter::Reporter>(
+        args: StageArgs,
+        dir: &std::path::Path,
+        config: &Config,
+        recursive: bool,
+    ) -> miette::Result<()> {
+        if let Some(output) = args.run::<Reporter>(dir, config, recursive).await? {
+            let output = super::sanitize::sanitize(&output);
+            if !output.is_empty() {
+                println!("{output}");
+            }
+        }
+        Ok(())
+    }
+    Ok(match ctx.reporter {
+        ReporterType::Default | ReporterType::AppendOnly => {
+            Box::pin(print_output::<DefaultReporter>(args, dir, config, recursive))
+        }
+        ReporterType::Ndjson => {
+            Box::pin(print_output::<NdjsonReporter>(args, dir, config, recursive))
+        }
+        ReporterType::Silent => {
+            Box::pin(print_output::<SilentReporter>(args, dir, config, recursive))
+        }
     })
 }
 
