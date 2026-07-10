@@ -27,7 +27,7 @@
 
 use crate::{
     CatalogMode, Config, LinkWorkspacePackages, NodeLinker, NodePackageMapType, ResolutionMode,
-    ScriptsPrependNodePath,
+    ScriptsPrependNodePath, VerifyDepsBeforeRun,
 };
 use std::collections::BTreeSet;
 
@@ -91,7 +91,6 @@ const NOT_PORTED: &[&str] = &[
     "sort",
     "strict-store-pkg-content-check",
     "use-beta-cli",
-    "verify-deps-before-run",
     "virtual-store-only",
     "workspace-prefix",
 ];
@@ -134,6 +133,9 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("verify-store-integrity", Bool(cfg.verify_store_integrity)),
         // `boolean | 'deep'` upstream; the default is `false`.
         ("link-workspace-packages", link_workspace_packages_scalar(cfg.link_workspace_packages)),
+        // `boolean | 'install' | 'warn' | 'error' | 'prompt'` upstream;
+        // the default is `'install'`.
+        ("verify-deps-before-run", verify_deps_before_run_scalar(cfg.verify_deps_before_run)),
         // `boolean | 'warn-only'` upstream; the default is `false`.
         (
             "scripts-prepend-node-path",
@@ -206,6 +208,17 @@ fn save_catalog_name_scalar(value: Option<&str>) -> Scalar {
     match value {
         Some(name) => s(name),
         None => Scalar::Undefined,
+    }
+}
+
+fn verify_deps_before_run_scalar(value: VerifyDepsBeforeRun) -> Scalar {
+    match value {
+        VerifyDepsBeforeRun::Install => s("install"),
+        VerifyDepsBeforeRun::Warn => s("warn"),
+        VerifyDepsBeforeRun::Error => s("error"),
+        VerifyDepsBeforeRun::Prompt => s("prompt"),
+        VerifyDepsBeforeRun::True => Scalar::Bool(true),
+        VerifyDepsBeforeRun::False => Scalar::Bool(false),
     }
 }
 

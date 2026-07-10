@@ -94,6 +94,13 @@ pub fn build_env(
         env.insert("npm_config_user_agent".into(), ua.to_string());
     }
 
+    // A nested `pnpm run` / `pnpm exec` inside a script must skip the
+    // verify-deps-before-run check — this env var outranks every other
+    // source of that setting on the config side, breaking the recursion
+    // a spawned install's lifecycle scripts would otherwise enter
+    // (pnpm stamps the same value via `config.extraEnv`).
+    env.insert("pnpm_config_verify_deps_before_run".into(), "false".into());
+
     // 4. `extra_env` is applied last among the base env writes, so it
     //    overrides anything stamped above.
     for (k, v) in opts.extra_env {

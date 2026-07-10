@@ -74,6 +74,7 @@ mod package_manager;
 mod pipelines;
 mod reporter;
 pub(crate) mod switch_cli_version;
+mod verify_deps;
 
 pub(crate) use cli_command::CliArgs;
 

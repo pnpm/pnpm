@@ -1,6 +1,6 @@
 use crate::cli_args::CliArgs;
 use clap::CommandFactory;
-use pacquet_config::{Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe};
+use pacquet_config::{Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, VerifyDepsBeforeRun};
 use pacquet_fs::lexical_normalize;
 use pacquet_store_dir::StoreDir;
 use std::{
@@ -82,6 +82,7 @@ pub struct ConfigOverrides {
     deploy_all_files: Option<bool>,
     force_legacy_deploy: Option<bool>,
     shared_workspace_lockfile: Option<bool>,
+    verify_deps_before_run: Option<VerifyDepsBeforeRun>,
 }
 
 impl ConfigOverrides {
@@ -130,6 +131,10 @@ impl ConfigOverrides {
             self.shared_workspace_lockfile = parse_bool(value);
             return;
         }
+        if key == "verify-deps-before-run" {
+            self.verify_deps_before_run = value.parse().ok();
+            return;
+        }
         if let Some(scope) = scoped_registry_key(key) {
             self.registries.insert(scope.to_owned(), normalize_registry_url(value));
         }
@@ -161,7 +166,25 @@ impl ConfigOverrides {
         if let Some(value) = self.shared_workspace_lockfile {
             config.shared_workspace_lockfile = value;
         }
+        // The `pnpm_config_verify_deps_before_run` env var outranks even
+        // the CLI for this one key (pnpm's config reader applies it after
+        // every other layer): pnpm stamps `false` into every spawned
+        // script's env, and a nested `pnpm run` inside a script must see
+        // the check disabled no matter what flags the outer invocation
+        // carried, or the spawned install's lifecycle scripts would
+        // re-enter the check (pnpm/pnpm#10060).
+        if let Some(value) = self.verify_deps_before_run
+            && !verify_deps_env_is_set()
+        {
+            config.verify_deps_before_run = value;
+        }
     }
+}
+
+fn verify_deps_env_is_set() -> bool {
+    ["PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN", "pnpm_config_verify_deps_before_run"]
+        .iter()
+        .any(|name| std::env::var(name).is_ok_and(|value| !value.is_empty()))
 }
 
 fn external_command_index(argv: &[OsString]) -> Option<usize> {

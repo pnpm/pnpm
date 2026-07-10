@@ -112,6 +112,10 @@ impl RunArgs {
         silent: bool,
         fallback_to_exec: bool,
     ) -> miette::Result<()> {
+        // Before the manifest is read, so a mistyped command in a
+        // directory without a project skips the check instead of
+        // spawning a doomed install (see check_deps_status_before_run_at).
+        super::verify_deps::verify_deps_before_run(dir, config, silent)?;
         let RunArgs { command, args, if_present, .. } = self;
         let Some(script_name) = command else {
             let manifest = read_project_manifest_only(dir).map_err(RunError::Manifest)?;
@@ -196,6 +200,7 @@ impl RunArgs {
     /// projects, in topological order. The recursive counterpart of
     /// [`Self::run`], selected when the global `-r` / `--recursive` flag is set.
     pub fn run_recursive(&self, config: &Config, dir: &Path) -> miette::Result<()> {
+        super::verify_deps::verify_deps_before_run(dir, config, false)?;
         recursive::run_recursive(self, config, dir)
     }
 }

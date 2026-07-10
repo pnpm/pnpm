@@ -494,20 +494,19 @@ fn top_level_fallback_forwards_dotted_config_args_to_local_bin() {
 
 /// A mistyped top-level command falling back to `run` in a directory
 /// without a manifest must surface the fallback's own missing-command
-/// error and must not attempt an install, even with
-/// `verify-deps-before-run=install` set. Mirrors the TypeScript
-/// regression tests in `pnpm11/deps/status/test/checkDepsStatus.test.ts`
-/// ("missing workspace state"), where reporting the deps as outdated
-/// made the gate spawn a `pnpm install` that could only crash with
-/// `NO_PKG_MANIFEST`. pacquet has not ported the `verify-deps-before-run`
-/// gate yet (see `NOT_PORTED` in `pnpm_default_parity.rs`), so this pins
-/// the required behavior for when it lands.
+/// error and must not attempt an install, even with the
+/// verify-deps-before-run gate on its `install` default. Mirrors the
+/// TypeScript regression tests in
+/// `pnpm11/deps/status/test/checkDepsStatus.test.ts` ("missing
+/// workspace state"), where reporting the deps as outdated made the
+/// gate spawn a `pnpm install` that could only crash with
+/// `NO_PKG_MANIFEST`.
 #[test]
 fn top_level_fallback_without_manifest_does_not_attempt_an_install() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    fs::write(workspace.join(".npmrc"), "verify-deps-before-run=install\n").expect("write .npmrc");
 
     let output = pacquet
+        .with_env("pnpm_config_verify_deps_before_run", "install")
         .with_args(["witch-definitely-not-a-binary", "10", "login"])
         .output()
         .expect("spawn pacquet");
