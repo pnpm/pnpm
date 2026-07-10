@@ -230,3 +230,47 @@ fn custom_modules_dir_name_is_honored() {
 
     drop(dir);
 }
+
+/// A modules-dir name that is not a single normal component (`.`,
+/// `..`, absolute, separator-bearing, empty) is rejected before any
+/// filesystem write — joined under a project dir it would drop
+/// force-replacing symlinks outside the intended modules directory.
+/// The install call site derives the name from
+/// `Path::file_name()` (which never yields these), so this pins the
+/// helper's own contract for other callers.
+#[test]
+fn non_normal_modules_dir_name_is_rejected_without_writes() {
+    let dir = tempdir().unwrap();
+    let project_dir = dir.path().join("project");
+    let external = dir.path().join("external-pkg");
+    fs::create_dir_all(&project_dir).unwrap();
+    fs::create_dir_all(&external).unwrap();
+
+    let manifest = manifest_at(
+        &project_dir,
+        serde_json::json!({
+            "name": "project",
+            "dependencies": { "dep": format!("link:{}", external.display()) },
+        }),
+    );
+
+    for name in [".", "..", "", "a/b", "/abs"] {
+        let result = link_manifest_link_deps::<SilentReporter>(
+            dir.path(),
+            &[(project_dir.clone(), &manifest)],
+            None,
+            std::ffi::OsStr::new(name),
+        );
+        assert!(
+            matches!(result, Err(super::LinkManifestLinkDepsError::InvalidModulesDirName { .. })),
+            "modules dir name {name:?} must be rejected",
+        );
+    }
+    // Nothing was written: no symlink in the project dir, its parent,
+    // or any would-be modules dir.
+    assert!(!project_dir.join("dep").exists());
+    assert!(!dir.path().join("dep").exists());
+    assert!(!project_dir.join("node_modules").exists());
+
+    drop(dir);
+}

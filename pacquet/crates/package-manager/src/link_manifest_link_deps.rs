@@ -43,6 +43,21 @@ pub fn link_manifest_link_deps<Reporter: pacquet_reporter::Reporter>(
     importers: Option<&HashMap<String, ProjectSnapshot>>,
     modules_dir_name: &std::ffi::OsStr,
 ) -> Result<(), LinkManifestLinkDepsError> {
+    // The name must be a single normal path component. The install
+    // call site derives it from `config.modules_dir.file_name()`,
+    // which by construction never yields `.`, `..`, or a separator —
+    // but this helper is public, and joined below it decides where
+    // symlinks (which force-replace squatters) land, so it enforces
+    // the contract itself rather than trusting every caller.
+    let valid_name = matches!(
+        Path::new(modules_dir_name).components().collect::<Vec<_>>().as_slice(),
+        [std::path::Component::Normal(_)],
+    );
+    if !valid_name {
+        return Err(LinkManifestLinkDepsError::InvalidModulesDirName {
+            modules_dir_name: modules_dir_name.to_string_lossy().into_owned(),
+        });
+    }
     for (project_dir, manifest) in project_manifests {
         let importer_snapshot = importers.and_then(|importers| {
             importers
@@ -135,6 +150,17 @@ fn resolve_link_target(project_dir: &Path, target: &str) -> PathBuf {
 /// Error type of [`link_manifest_link_deps`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum LinkManifestLinkDepsError {
+    /// The modules-dir name is not a single normal path component
+    /// (`.`, `..`, empty, absolute, or contains a separator) — joined
+    /// under a project dir it would place symlinks outside the
+    /// intended modules directory.
+    #[display("Refusing to link into invalid modules directory name {modules_dir_name:?}")]
+    #[diagnostic(code(pacquet_package_manager::invalid_modules_dir_name))]
+    InvalidModulesDirName {
+        #[error(not(source))]
+        modules_dir_name: String,
+    },
+
     /// A dependency key that is not a valid npm package name — it
     /// would escape `node_modules/` (or collide with pnpm's layout)
     /// when joined as a directory name.
