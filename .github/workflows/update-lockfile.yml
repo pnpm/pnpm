@@ -48,12 +48,9 @@ jobs:
         git fetch origin main
         git checkout -B chore/update-lockfile FETCH_HEAD
 
-    - name: Update dependencies, Node.js, pnpm, and pacquet versions
+    - name: Update dependencies, Node.js, and pnpm versions
       timeout-minutes: 20
       run: |
-        # Bump the pacquet config dependency to the latest release.
-        pnpm add --config @pnpm/pacquet
-
         # Bump Node.js to the latest 26.x and record it in devEngines.runtime.
         pnpm runtime set node 26
 
@@ -70,8 +67,10 @@ jobs:
 
         # Bump pnpm itself last: this rewrites the `packageManager` and
         # `devEngines.packageManager` pins, so doing it after the install steps
-        # keeps them running on the action-provided pnpm.
-        pnpm self-update latest
+        # keeps them running on the action-provided pnpm. The repo is on the v12
+        # prereleases, which are published under the next-12 dist-tag; `latest`
+        # would downgrade back to v11.
+        pnpm self-update next-12
 
     - name: Check for changes
       id: changes
@@ -88,7 +87,7 @@ jobs:
         GH_TOKEN: ${{ secrets.UPDATE_LOCKFILE_TOKEN }}
       run: |
         git add -A
-        git commit -m "chore: update lockfile, Node.js, pnpm, and pacquet versions"
+        git commit -m "chore: update lockfile, Node.js, and pnpm versions"
         git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" chore/update-lockfile
 
     - name: Create PR if needed
@@ -104,13 +103,12 @@ jobs:
           echo "PR already exists; today's changes were force-pushed to it"
         else
           gh pr create \
-            --title "chore: update lockfile, Node.js, pnpm, and pacquet versions" \
+            --title "chore: update lockfile, Node.js, and pnpm versions" \
             --body "This automated PR refreshes the project's pinned versions:
 
         - Updates the lockfile to the latest compatible versions of dependencies.
         - Bumps Node.js to the latest 26.x release, propagated into the CI, release, and benchmark workflows via the meta-updater.
-        - Bumps pnpm to the latest release (\`packageManager\` and \`devEngines.packageManager\`).
-        - Bumps the \`@pnpm/pacquet\` config dependency to its latest release.
+        - Bumps pnpm to the latest \`next-12\` release (\`packageManager\` and \`devEngines.packageManager\`).
 
         Created by the update-lockfile workflow." \
             --base main \
