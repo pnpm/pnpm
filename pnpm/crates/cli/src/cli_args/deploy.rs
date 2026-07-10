@@ -458,6 +458,9 @@ fn select_project(config: &Config, workspace_dir: &Path) -> miette::Result<Selec
             prefix: workspace_dir.to_path_buf(),
             link_workspace_packages,
             use_glob_dir_filtering: false,
+            workspace_dir: workspace_dir.to_path_buf(),
+            test_pattern: config.test_pattern.clone(),
+            changed_files_ignore_pattern: config.changed_files_ignore_pattern.clone(),
         },
     )
     .map_err(miette::Report::new)

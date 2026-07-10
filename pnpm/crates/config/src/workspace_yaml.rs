@@ -306,6 +306,14 @@ pub struct WorkspaceSettings {
     /// than merging.
     pub git_shallow_hosts: Option<Vec<String>>,
 
+    /// `testPattern` from `pnpm-workspace.yaml` — see
+    /// [`Config::test_pattern`].
+    pub test_pattern: Option<Vec<String>>,
+
+    /// `changedFilesIgnorePattern` from `pnpm-workspace.yaml` — see
+    /// [`Config::changed_files_ignore_pattern`].
+    pub changed_files_ignore_pattern: Option<Vec<String>>,
+
     /// `supportedArchitectures` from `pnpm-workspace.yaml`. Drives the
     /// optional-dependency platform check at install time: a
     /// `name: ['darwin'], cpu: ['arm64']` setting tells pacquet to
@@ -605,6 +613,8 @@ impl WorkspaceSettings {
         self.ignored_optional_dependencies = None;
         self.overrides = None;
         self.package_extensions = None;
+        self.test_pattern = None;
+        self.changed_files_ignore_pattern = None;
     }
 
     /// Walk up from `start_dir` looking for a readable `pnpm-workspace.yaml`.
@@ -736,6 +746,7 @@ impl WorkspaceSettings {
             network_concurrency, fetch_timeout, user_agent,
             enable_global_virtual_store,
             git_shallow_hosts,
+            test_pattern, changed_files_ignore_pattern,
             resolution_mode, catalog_mode, registry_supports_time_field,
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,

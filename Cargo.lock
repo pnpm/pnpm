@@ -5087,6 +5087,8 @@ dependencies = [
  "pacquet-testing-utils",
  "pacquet-workspace-projects-graph",
  "pathdiff",
+ "tempfile",
+ "wax",
 ]
 
 [[package]]

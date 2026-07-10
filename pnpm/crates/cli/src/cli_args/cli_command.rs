@@ -144,6 +144,20 @@ pub struct CliArgs {
     #[clap(long = "filter-prod", global = true)]
     pub filter_prod: Vec<String>,
 
+    /// `--test-pattern` glob patterns naming test files, consumed by
+    /// the `[<since>]` changed-packages `--filter` selector. Overrides
+    /// [`pacquet_config::Config::test_pattern`] when given.
+    #[clap(long = "test-pattern", global = true)]
+    pub test_pattern: Vec<String>,
+
+    /// `--changed-files-ignore-pattern` glob patterns of changed files
+    /// the `[<since>]` changed-packages `--filter` selector ignores.
+    /// Overrides
+    /// [`pacquet_config::Config::changed_files_ignore_pattern`] when
+    /// given.
+    #[clap(long = "changed-files-ignore-pattern", global = true)]
+    pub changed_files_ignore_pattern: Vec<String>,
+
     /// Keep recursive workspace projects sorted topologically.
     #[clap(long = "sort", global = true, overrides_with = "no_sort")]
     pub sort: bool,

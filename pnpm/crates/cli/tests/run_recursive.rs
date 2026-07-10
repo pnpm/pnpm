@@ -640,32 +640,55 @@ fn recursive_run_filter_prod_follows_production_deps_only() {
     drop(root);
 }
 
-/// A `[<since>]` changed-packages selector is not supported by pacquet's
-/// filter engine yet, so a recursive `run` surfaces the
-/// `UnsupportedDiffSelector` error instead of swallowing it. This
-/// exercises the error-propagation (`?`) out of `select_recursive_projects`.
+/// A `[<since>]` changed-packages selector scopes a recursive `run` to
+/// the projects the git diff touches.
 #[test]
-fn recursive_run_diff_selector_is_unsupported() {
+fn recursive_run_diff_selector_selects_changed_projects() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_workspace(&workspace, &[("project-1", build_writes_marker("project-1"))]);
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", build_writes_marker("project-1")),
+            ("project-2", build_writes_marker("project-2")),
+        ],
+    );
+    let git = |args: &[&str]| {
+        let output = std::process::Command::new("git")
+            .args(args)
+            .current_dir(&workspace)
+            .output()
+            .expect("spawn git");
+        assert!(
+            output.status.success(),
+            "git {args:?} failed: {}",
+            String::from_utf8_lossy(&output.stderr),
+        );
+    };
+    git(&["init", "--initial-branch=main"]);
+    git(&["config", "user.email", "x@y.z"]);
+    git(&["config", "user.name", "xyz"]);
+    git(&["add", "."]);
+    git(&["commit", "-m", "base", "--no-gpg-sign"]);
+    fs::write(workspace.join("project-1").join("changed.js"), "").expect("write changed file");
+    git(&["add", "."]);
+    git(&["commit", "-m", "change project-1", "--no-gpg-sign"]);
 
-    let output = pacquet
+    pacquet
         .with_arg("-r")
         .with_arg("--filter")
-        .with_arg("[main]")
+        .with_arg("[HEAD~1]")
         .with_arg("run")
         .with_arg("build")
-        .output()
-        .expect("spawn pacquet");
-    assert!(!output.status.success(), "a [<since>] diff selector is unsupported and must fail");
-    let stderr = String::from_utf8_lossy(&output.stderr);
+        .assert()
+        .success();
+
     assert!(
-        stderr.contains("Changed-package filter selectors"),
-        "stderr should explain the diff selector is unsupported, got: {stderr}",
+        workspace.join("project-1").join("ran.txt").exists(),
+        "the changed project-1 should run the build script",
     );
     assert!(
-        !workspace.join("project-1").join("ran.txt").exists(),
-        "run must reject the selector before invoking the build script, so no marker is written",
+        !workspace.join("project-2").join("ran.txt").exists(),
+        "the unchanged project-2 must stay outside the selection",
     );
 
     drop(root);
@@ -1250,6 +1273,89 @@ fn recursive_run_without_script_name_errors_with_script_name_is_required() {
         stderr.contains("ERR_PNPM_SCRIPT_NAME_IS_REQUIRED"),
         "stderr should carry the script-name-required code, got: {stderr}",
     );
+
+    drop(root);
+}
+
+/// Port of upstream's `testPattern is respected by the test script`
+/// (`pnpm/test/monorepo/index.ts`): with `testPattern` in
+/// `pnpm-workspace.yaml`, a `...[<since>]` filter selects a project
+/// whose only changes match the pattern (project-2) without its
+/// dependents (project-1, project-3), while a source-changed project
+/// (project-4) is selected normally.
+#[test]
+fn test_pattern_from_workspace_yaml_is_respected_by_the_test_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let test_writes_marker = |name: &str, dependencies: Value| {
+        json!({
+            "name": name,
+            "version": "1.0.0",
+            "dependencies": dependencies,
+            "scripts": { "test": "touch tested.txt" },
+        })
+    };
+    write_workspace(
+        &workspace,
+        &[
+            (
+                "project-1",
+                test_writes_marker(
+                    "project-1",
+                    json!({ "project-2": "workspace:*", "project-3": "workspace:*" }),
+                ),
+            ),
+            ("project-2", test_writes_marker("project-2", json!({}))),
+            ("project-3", test_writes_marker("project-3", json!({ "project-2": "workspace:*" }))),
+            ("project-4", test_writes_marker("project-4", json!({}))),
+        ],
+    );
+
+    let git = |args: &[&str]| {
+        let output = std::process::Command::new("git")
+            .args(args)
+            .current_dir(&workspace)
+            .output()
+            .expect("spawn git");
+        assert!(
+            output.status.success(),
+            "git {args:?} failed: {}",
+            String::from_utf8_lossy(&output.stderr),
+        );
+    };
+    let remote = root.path().join("remote");
+    fs::create_dir_all(&remote).expect("create remote dir");
+    git(&["init", "--initial-branch=main"]);
+    git(&["config", "user.email", "x@y.z"]);
+    git(&["config", "user.name", "xyz"]);
+    git(&["init", "--bare", &remote.to_string_lossy()]);
+    git(&["add", "."]);
+    git(&["commit", "-m", "init", "--no-gpg-sign"]);
+    git(&["remote", "add", "origin", &remote.to_string_lossy()]);
+    git(&["push", "-u", "origin", "main"]);
+
+    fs::write(workspace.join("project-2").join("file.js"), "").expect("write changed file");
+    fs::write(workspace.join("project-4").join("different-pattern.js"), "")
+        .expect("write changed file");
+    let workspace_yaml = "packages:\n  - project-1\n  - project-2\n  - project-3\n  - project-4\ntestPattern:\n  - '*/file.js'\n";
+    fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml)
+        .expect("write pnpm-workspace.yaml");
+    git(&["add", "."]);
+    git(&["commit", "-m", "changes", "--no-gpg-sign"]);
+
+    pacquet.with_arg("--filter").with_arg("...[origin/main]").with_arg("test").assert().success();
+
+    for name in ["project-2", "project-4"] {
+        assert!(
+            workspace.join(name).join("tested.txt").exists(),
+            "{name} changed, so its test script should run",
+        );
+    }
+    for name in ["project-1", "project-3"] {
+        assert!(
+            !workspace.join(name).join("tested.txt").exists(),
+            "{name} depends on project-2 whose only change matches testPattern, so it must not run",
+        );
+    }
 
     drop(root);
 }

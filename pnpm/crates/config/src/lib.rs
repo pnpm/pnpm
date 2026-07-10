@@ -1199,6 +1199,20 @@ pub struct Config {
     /// dependency walk runs. A CLI-only array.
     pub filter_prod: Vec<String>,
 
+    /// `testPattern` from `pnpm-workspace.yaml` /
+    /// `PNPM_CONFIG_TEST_PATTERN`, overridable by the `--test-pattern`
+    /// CLI flag. Glob patterns naming test files: when a `[<since>]`
+    /// changed-packages filter selects a project whose changed files
+    /// all match, the project is selected without its dependents.
+    pub test_pattern: Vec<String>,
+
+    /// `changedFilesIgnorePattern` from `pnpm-workspace.yaml` /
+    /// `PNPM_CONFIG_CHANGED_FILES_IGNORE_PATTERN`, overridable by the
+    /// `--changed-files-ignore-pattern` CLI flag. Glob patterns of
+    /// changed files a `[<since>]` changed-packages filter ignores
+    /// when mapping the git diff to changed projects.
+    pub changed_files_ignore_pattern: Vec<String>,
+
     /// Git host names where pacquet should clone via `git init` +
     /// `git remote add` + `git fetch --depth 1 origin <commit>` instead
     /// of a full `git clone`. Saves bandwidth and disk when the remote

@@ -297,16 +297,16 @@ unfiltered, so the two `known_failures` hoist stubs below stay).
 - [x] `TypeScript repo: workspace/projects-filter/test/index.ts:591` `select by parentDir and exclude one package by pattern`.
 - [x] `TypeScript repo: workspace/projects-filter/test/index.ts:608` `select by parentDir with glob and exclude one package by pattern`.
 
-Changed-packages (`[<since>]`) selectors — stubbed in
-`filter::tests::known_failures` (the selector parses but
-`filter_workspace_projects` rejects it with
-`FilterError::UnsupportedDiffSelector`; the rejection path is covered by
-`filter::tests::diff_selector_is_unsupported`). These need git-diff
-project selection (`getChangedProjects`), not yet ported:
+Changed-packages (`[<since>]`) selectors — git-diff project selection
+(`getChangedProjects`) is ported as `get_changed_projects`, and the
+tests live in `filter::tests::changed_packages`:
 
-- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:348` `select changed packages`. Stubbed (`git_diff_selection_unimplemented`).
-- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:480` `select changed packages when operating under a git worktree`. Stubbed.
-- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:553` `selection should fail when diffing to a branch that does not exist`. Stubbed.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:348` `select changed packages`. Ported as `changed_packages::select_changed_packages`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:480` `select changed packages when operating under a git worktree`. Ported as `changed_packages::select_changed_packages_under_git_worktree`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:553` `selection should fail when diffing to a branch that does not exist`. Ported as `changed_packages::selection_fails_for_nonexistent_diff_branch`.
+- [x] `TypeScript repo: pnpm/test/monorepo/index.ts:336` `testPattern is respected by the test script`. Ported as `run_recursive::test_pattern_from_workspace_yaml_is_respected_by_the_test_script`.
+- [x] `TypeScript repo: pnpm/test/monorepo/index.ts:404` `changedFilesIgnorePattern is respected`. Ported as `list::changed_files_ignore_pattern_is_respected`.
+- [x] `TypeScript repo: config/reader/test/index.ts:2686` `respects testPattern` and `config/reader/test/index.ts:2729` `respects changedFilesIgnorePattern`. Ported as `workspace_yaml::tests::parses_test_pattern_and_changed_files_ignore_pattern_from_yaml_and_applies` (plus the global-config exclusion in `test_pattern_and_changed_files_ignore_pattern_cleared_as_workspace_only_fields`); the upstream `.npmrc`-is-ignored case has no pacquet counterpart because pacquet reads no settings from `.npmrc`.
 
 `createProjectsGraph` has no upstream unit tests (it is exercised only
 through `filterProjectsFromDir`'s fixtures upstream); pacquet covers it

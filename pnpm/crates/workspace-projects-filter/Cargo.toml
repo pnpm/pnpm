@@ -18,9 +18,11 @@ derive_more = { workspace = true }
 indexmap    = { workspace = true }
 miette      = { workspace = true }
 pathdiff    = { workspace = true }
+wax         = { workspace = true }
 
 [dev-dependencies]
 pacquet-testing-utils = { workspace = true }
+tempfile              = { workspace = true }
 
 [lints]
 workspace = true

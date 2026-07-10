@@ -128,6 +128,8 @@ impl CliArgs {
             reporter,
             filter,
             filter_prod,
+            test_pattern,
+            changed_files_ignore_pattern,
             version: _,
             color: _,
             yes: _,
@@ -205,6 +207,15 @@ impl CliArgs {
                     cfg.recursive = recursive;
                     cfg.filter.clone_from(&filter);
                     cfg.filter_prod.clone_from(&filter_prod);
+                    // Unlike the CLI-only selectors above, these two are
+                    // genuine config keys — the flag overrides yaml / env
+                    // only when actually given.
+                    if !test_pattern.is_empty() {
+                        cfg.test_pattern.clone_from(&test_pattern);
+                    }
+                    if !changed_files_ignore_pattern.is_empty() {
+                        cfg.changed_files_ignore_pattern.clone_from(&changed_files_ignore_pattern);
+                    }
                     if let Some(workspace_concurrency) = workspace_concurrency {
                         cfg.workspace_concurrency =
                             pacquet_config::resolve_child_concurrency(Some(workspace_concurrency));
