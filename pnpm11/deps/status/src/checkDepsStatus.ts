@@ -125,6 +125,14 @@ export interface CheckDepsStatusResult {
 export async function checkDepsStatus (opts: CheckDepsStatusOptions): Promise<CheckDepsStatusResult> {
   const workspaceState = loadWorkspaceState(opts.workspaceDir ?? opts.rootProjectManifestDir)
   if (!workspaceState) {
+    if (opts.allProjects == null && opts.workspaceDir == null && opts.rootProjectManifest == null) {
+      // There is no project here at all (for example, a mistyped command fell
+      // back to `pnpm run` in a directory without a manifest). Reporting
+      // "outdated" would make verify-deps-before-run spawn a `pnpm install`
+      // that can only fail with NO_PKG_MANIFEST — report "unknown" instead so
+      // the caller skips the check and the command fails with its own error.
+      return { upToDate: undefined, workspaceState }
+    }
     return {
       upToDate: false,
       issue: 'Cannot check whether dependencies are outdated',
