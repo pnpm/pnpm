@@ -5,3 +5,4 @@ pub mod login;
 pub mod logout;
 
 mod ini;
+mod registry_url;

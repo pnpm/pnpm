@@ -19,7 +19,7 @@ use pacquet_network::{
 };
 use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 
-use crate::ini::IniSettings;
+use crate::{ini::IniSettings, registry_url::normalize_registry_url};
 
 /// The registry `pnpm logout` targets when neither `--registry` nor a
 /// configured registry is given.
@@ -205,12 +205,6 @@ fn safe_read_ini<Sys: FsReadToString>(path: &std::path::Path) -> Result<IniSetti
 
 fn global<Reporter: self::Reporter>(prefix: &str, level: LogLevel, message: String) {
     Reporter::emit(&LogEvent::Pnpm(PnpmLog { level, message, prefix: prefix.to_string() }));
-}
-
-/// Append a trailing slash if the registry URL lacks one. Mirrors npm's
-/// `normalize-registry-url`.
-pub(crate) fn normalize_registry_url(registry: &str) -> String {
-    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
 }
 
 /// The token-free prefix of a `…/-/user/token/<token>` revoke URL — the

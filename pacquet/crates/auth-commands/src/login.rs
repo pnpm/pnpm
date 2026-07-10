@@ -37,7 +37,8 @@ use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 
 use crate::{
     ini::IniSettings,
-    logout::{DEFAULT_REGISTRY, FsReadToString, FsWrite, normalize_registry_url},
+    logout::{DEFAULT_REGISTRY, FsReadToString, FsWrite},
+    registry_url::normalize_registry_url,
 };
 
 mod classic_login;
