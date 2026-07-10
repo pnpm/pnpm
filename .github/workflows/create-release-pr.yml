@@ -1,0 +1,176 @@
+name: Create Release PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Branch to release (the PR base; e.g. release/10).
+        default: release/10
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# Serialize per target so two dispatches for the same branch can't race on the
+# force-pushed release-pr/<target> branch.
+concurrency:
+  group: create-release-pr-${{ github.event.inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  create-release-pr:
+    if: github.repository == 'pnpm/pnpm' # Only run on the main repository, not forks
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      with:
+        # Don't persist the write-scoped token in .git/config; the install below
+        # runs third-party lifecycle scripts. Pushing is done with an explicit,
+        # single-use remote URL in the "Commit and push" step.
+        persist-credentials: false
+
+    - name: Install pnpm
+      uses: pnpm/action-setup@903f9c1a6ebcba6cf41d87230be49611ac97822e # v6.0.3
+
+    - name: Setup Node
+      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      with:
+        node-version: 20
+
+    # Base the release on the tip of the target branch, fetched explicitly so the
+    # run is correct even when dispatched from another ref. A force-push reuses
+    # an already-open release PR for the same target rather than opening a second.
+    - name: Prepare release branch
+      env:
+        TARGET: ${{ github.event.inputs.target }}
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git fetch origin "$TARGET"
+        git checkout -B "release-pr/$TARGET" FETCH_HEAD
+
+    # Refresh the npm registry signing keys embedded in
+    # @pnpm/tools.plugin-commands-self-updater from what npm advertises. pnpm
+    # verifies the version-switch pnpm binary against these keys, so a stale
+    # set could break verification after a key rotation. Any drift is committed
+    # below along with the version bumps, so the new trust roots are reviewed
+    # as part of the release PR diff.
+    - name: Update embedded npm signing keys
+      run: node tools/plugin-commands-self-updater/scripts/update-npm-signing-keys.mjs --update
+
+    # Refresh the embedded Node.js release keys (used to verify the signature of
+    # a downloaded runtime's SHASUMS256.txt) from the canonical
+    # nodejs/release-keys list, so a new release signer cannot break Node.js
+    # runtime verification. Reviewed in the release PR diff like the npm keys.
+    - name: Update embedded Node.js release keys
+      run: node crypto/shasums-file/scripts/update-node-release-keys.mjs --update
+
+    # A refreshed trust root must show up in the changelogs, so synthesize a
+    # changeset for whichever key sets drifted before `pnpm bump` consumes the
+    # pending changesets. The `drifted` output drives an explicit review signal
+    # on the PR, so a trust-root change cannot hide in a large version-bump diff.
+    - name: Add changesets for refreshed keys
+      id: keys
+      run: |
+        drifted=""
+        if ! git diff --quiet -- tools/plugin-commands-self-updater/src/npmSigningKeys.ts; then
+          drifted="npm registry signing keys"
+          cat > .changeset/release-refresh-npm-signing-keys.md <<'EOF'
+        ---
+        "@pnpm/tools.plugin-commands-self-updater": patch
+        "pnpm": patch
+        ---
+
+        Updated the embedded npm registry signing keys to the set currently advertised by npm.
+        EOF
+        fi
+        if ! git diff --quiet -- crypto/shasums-file/src/nodeReleaseKeys.ts; then
+          drifted="${drifted:+$drifted and }Node.js release keys"
+          cat > .changeset/release-refresh-node-release-keys.md <<'EOF'
+        ---
+        "@pnpm/crypto.shasums-file": patch
+        "pnpm": patch
+        ---
+
+        Updated the embedded Node.js release keys to the current canonical `nodejs/release-keys` list.
+        EOF
+        fi
+        echo "drifted=$drifted" >> "$GITHUB_OUTPUT"
+
+    # `pnpm bump` (changeset version + update-manifests) needs the workspace's
+    # dev dependencies installed.
+    - name: pnpm install
+      run: pnpm install
+
+    # Consumes the pending changesets: bumps versions, writes changelogs, and
+    # syncs manifests. A no-op (no pending changesets) leaves the tree clean
+    # and the steps below skip. The nested `pnpm install` run by
+    # update-manifests must refresh the lockfile after the version bumps, so
+    # disable CI's frozen-lockfile default for it.
+    - name: Bump versions
+      env:
+        npm_config_frozen_lockfile: 'false'
+      run: pnpm bump
+
+    - name: Check for changes
+      id: changes
+      run: |
+        if [ -z "$(git status --porcelain)" ]; then
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Read new pnpm version
+      id: version
+      if: steps.changes.outputs.changed == 'true'
+      run: echo "version=$(node -p "require('./pnpm/package.json').version")" >> "$GITHUB_OUTPUT"
+
+    - name: Commit and push
+      if: steps.changes.outputs.changed == 'true'
+      env:
+        GH_TOKEN: ${{ secrets.UPDATE_LOCKFILE_TOKEN }}
+        TARGET: ${{ github.event.inputs.target }}
+        VERSION: ${{ steps.version.outputs.version }}
+      run: |
+        git add -A
+        git commit -m "chore(release): ${VERSION}"
+        git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "release-pr/$TARGET"
+
+    - name: Create PR if needed
+      if: steps.changes.outputs.changed == 'true'
+      env:
+        GH_TOKEN: ${{ secrets.UPDATE_LOCKFILE_TOKEN }}
+        TARGET: ${{ github.event.inputs.target }}
+        VERSION: ${{ steps.version.outputs.version }}
+      run: |
+        BRANCH="release-pr/$TARGET"
+
+        # An already-open PR now points at the freshly force-pushed branch, so
+        # there is nothing more to do.
+        if [ -n "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number')" ]; then
+          echo "PR already exists; the new versions were force-pushed to it"
+        else
+          gh pr create \
+            --title "chore(release): ${VERSION}" \
+            --body "Automated release PR created by the create-release-pr workflow.
+
+        Releasing \`${TARGET}\` as pnpm v${VERSION}. Merging this PR consumes the pending changesets." \
+            --base "$TARGET" \
+            --head "$BRANCH"
+        fi
+
+    # Embedded trust roots changed in this release, so leave a hard-to-miss
+    # comment: the refreshed keys need deliberate review, not a scroll-past
+    # among the version bumps and changelogs.
+    - name: Flag refreshed trust roots on the PR
+      if: steps.changes.outputs.changed == 'true' && steps.keys.outputs.drifted != ''
+      env:
+        GH_TOKEN: ${{ secrets.UPDATE_LOCKFILE_TOKEN }}
+        TARGET: ${{ github.event.inputs.target }}
+        DRIFTED: ${{ steps.keys.outputs.drifted }}
+      run: |
+        PR=$(gh pr list --head "release-pr/$TARGET" --state open --json number --jq '.[0].number')
+        gh pr comment "$PR" --body "⚠️ This release refreshes embedded trust roots: **${DRIFTED}**. Review those key diffs deliberately before merging — they gate signature verification of Node.js runtimes and package-manager binaries."
