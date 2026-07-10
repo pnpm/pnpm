@@ -146,7 +146,11 @@ async fn fetch_stars(
 
         let body: Value = response2.json().await.into_diagnostic()?;
         drop(client2);
-        if let Some(obj) = body.as_object() {
+        if let Some(arr) = body.as_array() {
+            let res: Vec<String> =
+                arr.iter().filter_map(|v| v.as_str().map(String::from)).collect();
+            return Ok(Some(res.join("\n")));
+        } else if let Some(obj) = body.as_object() {
             let res: Vec<String> = obj.keys().cloned().collect();
             return Ok(Some(res.join("\n")));
         }
@@ -155,7 +159,11 @@ async fn fetch_stars(
 
     let body: Value = response.json().await.into_diagnostic()?;
     drop(client);
-    if let Some(obj) = body.as_object() {
+    if let Some(arr) = body.as_array() {
+        let res: Vec<String> =
+            arr.iter().filter_map(|v| v.as_str().map(String::from)).collect();
+        return Ok(Some(res.join("\n")));
+    } else if let Some(obj) = body.as_object() {
         let res: Vec<String> = obj.keys().cloned().collect();
         return Ok(Some(res.join("\n")));
     }

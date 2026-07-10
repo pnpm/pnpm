@@ -72,7 +72,13 @@ pub(crate) async fn fetch_star(
 
     if !response.status().is_success() {
         drop(client);
-        let escaped_name = package_name.replace('/', "%2f");
+        let escaped_name = package_name
+            .chars()
+            .map(|c| match c {
+                'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.' | '~' | '@' => c.to_string(),
+                _ => format!("%{:02X}", c as u8),
+            })
+            .collect::<String>();
         let alt_star_url = format!("{registry_url}-/user/package/{escaped_name}/star");
 
         let (client2, response2) =
