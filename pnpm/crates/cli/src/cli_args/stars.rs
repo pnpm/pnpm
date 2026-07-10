@@ -85,7 +85,7 @@ async fn fetch_stars(
             drop(client);
             if let Some(arr) = body.as_array() {
                 let res: Vec<String> =
-                    arr.iter().filter_map(|v| v.as_str().map(String::from)).collect();
+                    arr.iter().filter_map(|val| val.as_str().map(String::from)).collect();
                 return Ok(Some(res.join("\n")));
             } else if let Some(obj) = body.as_object() {
                 let res: Vec<String> = obj.keys().cloned().collect();
@@ -98,9 +98,9 @@ async fn fetch_stars(
 
     let encoded_username = username
         .chars()
-        .map(|c| match c {
-            'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.' | '~' => c.to_string(),
-            _ => format!("%{:02X}", c as u8),
+        .map(|ch| match ch {
+            'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.' | '~' => ch.to_string(),
+            _ => format!("%{:02X}", ch as u8),
         })
         .collect::<String>();
 
@@ -148,7 +148,7 @@ async fn fetch_stars(
         drop(client2);
         if let Some(arr) = body.as_array() {
             let res: Vec<String> =
-                arr.iter().filter_map(|v| v.as_str().map(String::from)).collect();
+                arr.iter().filter_map(|val| val.as_str().map(String::from)).collect();
             return Ok(Some(res.join("\n")));
         } else if let Some(obj) = body.as_object() {
             let res: Vec<String> = obj.keys().cloned().collect();
@@ -160,7 +160,8 @@ async fn fetch_stars(
     let body: Value = response.json().await.into_diagnostic()?;
     drop(client);
     if let Some(arr) = body.as_array() {
-        let res: Vec<String> = arr.iter().filter_map(|v| v.as_str().map(String::from)).collect();
+        let res: Vec<String> =
+            arr.iter().filter_map(|val| val.as_str().map(String::from)).collect();
         return Ok(Some(res.join("\n")));
     } else if let Some(obj) = body.as_object() {
         let res: Vec<String> = obj.keys().cloned().collect();

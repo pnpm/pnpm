@@ -1,12 +1,13 @@
-use crate::cli_args::registry_client::build_registry_client;
+use crate::cli_args::{
+    registry_client::build_registry_client,
+    star::{StarError, fetch_star},
+};
 use clap::Parser;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::Config;
 use pacquet_network::RetryOpts;
 use std::time::Duration;
-
-use crate::cli_args::star::{StarError, fetch_star};
 
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]

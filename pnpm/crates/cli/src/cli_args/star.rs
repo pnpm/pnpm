@@ -74,9 +74,9 @@ pub(crate) async fn fetch_star(
         drop(client);
         let escaped_name = package_name
             .chars()
-            .map(|c| match c {
-                'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.' | '~' | '@' => c.to_string(),
-                _ => format!("%{:02X}", c as u8),
+            .map(|ch| match ch {
+                'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.' | '~' | '@' => ch.to_string(),
+                _ => format!("%{:02X}", ch as u8),
             })
             .collect::<String>();
         let alt_star_url = format!("{registry_url}-/user/package/{escaped_name}/star");
