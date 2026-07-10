@@ -113,6 +113,8 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         recursive: false,
         filter: Vec::new(),
         filter_prod: Vec::new(),
+        test_pattern: Vec::new(),
+        changed_files_ignore_pattern: Vec::new(),
         git_shallow_hosts: pacquet_config::default_git_shallow_hosts(),
         supported_architectures: None,
         ignored_optional_dependencies: None,

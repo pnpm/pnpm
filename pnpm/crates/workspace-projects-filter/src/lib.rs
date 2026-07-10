@@ -10,11 +10,12 @@
 //!   the graph (via `pacquet-workspace-projects-graph`) and run the
 //!   filter, handling the `--filter-prod` production-only graph.
 //!
-//! Not yet ported: the `[<since>]` changed-packages selector, which
-//! needs git-diff project selection. It parses, but evaluating it
-//! returns [`FilterError::UnsupportedDiffSelector`].
+//! A `[<since>]` changed-packages selector selects the projects whose
+//! files changed since the given git ref (`git diff --name-only`),
+//! honoring `testPattern` / `changedFilesIgnorePattern`.
 
 mod filter;
+mod get_changed_projects;
 mod glob;
 mod parse_project_selector;
 mod path_util;

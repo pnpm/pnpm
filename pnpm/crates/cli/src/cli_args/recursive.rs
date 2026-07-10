@@ -306,12 +306,26 @@ pub fn select_recursive_projects<'a>(
     };
 
     let root_in_prod = !config.filter_prod.is_empty();
+    let walk_opts = FilterWorkspaceProjectsOptions {
+        // Glob dir filtering (the default, the inverse of
+        // `legacyDirFiltering`) is load-bearing for the
+        // `!{<workspace-root>}` augmentation: glob matching excludes only
+        // the project whose dir equals the workspace root, whereas the
+        // legacy subtree match would also drop every nested package.
+        // `legacyDirFiltering` is not surfaced by `Config` yet, so this
+        // stays at the default.
+        use_glob_dir_filtering: true,
+        workspace_dir: config.workspace_dir.as_deref().unwrap_or(prefix).to_path_buf(),
+        test_pattern: config.test_pattern.clone(),
+        changed_files_ignore_pattern: config.changed_files_ignore_pattern.clone(),
+    };
     let regular_selected = filter_against(
         &all,
         &config.filter,
         root_exclusion.as_deref().filter(|_| !root_in_prod),
         false,
         prefix,
+        &walk_opts,
     )?;
     let prod_selected = match &prod_all {
         Some(prod_all) => filter_against(
@@ -320,6 +334,7 @@ pub fn select_recursive_projects<'a>(
             root_exclusion.as_deref().filter(|_| root_in_prod),
             true,
             prefix,
+            &walk_opts,
         )?,
         None => Vec::new(),
     };
@@ -375,6 +390,7 @@ fn filter_against<Pkg: BaseProject>(
     root_exclusion: Option<&str>,
     follow_prod_deps_only: bool,
     prefix: &Path,
+    walk_opts: &FilterWorkspaceProjectsOptions,
 ) -> miette::Result<Vec<PathBuf>> {
     if filters.is_empty() && root_exclusion.is_none() {
         return Ok(Vec::new());
@@ -389,19 +405,9 @@ fn filter_against<Pkg: BaseProject>(
             selector
         })
         .collect();
-    // Glob dir filtering (the default, the inverse of `legacyDirFiltering`) is
-    // load-bearing for the `!{<workspace-root>}` augmentation: glob matching
-    // excludes only the project whose dir equals the workspace root, whereas
-    // the legacy subtree match would also drop every nested package.
-    // `legacyDirFiltering` is not surfaced by `Config` yet, so this stays at
-    // the default.
-    let selected = filter_workspace_projects(
-        graph,
-        &selectors,
-        &FilterWorkspaceProjectsOptions { use_glob_dir_filtering: true },
-    )
-    .map_err(miette::Report::new)
-    .wrap_err("filtering workspace projects")?;
+    let selected = filter_workspace_projects(graph, &selectors, walk_opts)
+        .map_err(miette::Report::new)
+        .wrap_err("filtering workspace projects")?;
     Ok(selected.selected_projects)
 }
 

@@ -1,4 +1,5 @@
 use crate::{
+    get_changed_projects::{GetChangedProjectsOptions, get_changed_projects},
     glob,
     parse_project_selector::{ProjectSelector, parse_project_selector},
 };
@@ -33,11 +34,21 @@ pub struct FilteredProjects {
 }
 
 /// Options for [`filter_workspace_projects`].
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone)]
 pub struct FilterWorkspaceProjectsOptions {
     /// Match directory selectors with glob semantics (`{packages/*}`)
     /// rather than the default subdirectory check.
     pub use_glob_dir_filtering: bool,
+    /// Directory a `[<since>]` selector's git diff runs in when the
+    /// selector has no `{dir}` part — normally the workspace root.
+    pub workspace_dir: PathBuf,
+    /// `testPattern`: glob patterns naming test files. A `[<since>]`
+    /// selector selects a project whose changed files all match these
+    /// patterns without the project's dependents.
+    pub test_pattern: Vec<String>,
+    /// `changedFilesIgnorePattern`: glob patterns of changed files a
+    /// `[<since>]` selector ignores.
+    pub changed_files_ignore_pattern: Vec<String>,
 }
 
 /// Options for [`filter_projects`] / [`filter_projects_by_selector_objects`].
@@ -49,21 +60,34 @@ pub struct FilterProjectsOptions {
     /// [`create_projects_graph()`].
     pub link_workspace_packages: Option<bool>,
     pub use_glob_dir_filtering: bool,
+    /// See [`FilterWorkspaceProjectsOptions::workspace_dir`].
+    pub workspace_dir: PathBuf,
+    /// See [`FilterWorkspaceProjectsOptions::test_pattern`].
+    pub test_pattern: Vec<String>,
+    /// See [`FilterWorkspaceProjectsOptions::changed_files_ignore_pattern`].
+    pub changed_files_ignore_pattern: Vec<String>,
 }
 
 /// Error type of the filter functions.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum FilterError {
-    /// A `[<since>]` changed-packages selector was supplied. Resolving
-    /// it needs the git-diff project infrastructure pacquet has not
-    /// ported yet; the selector parses (so `parse_project_selector`
-    /// fills [`ProjectSelector::diff`]) but cannot be evaluated.
-    #[display(
-        "Changed-package filter selectors (`[<since>]`) are not supported yet: pacquet has not ported the git-diff project selection."
-    )]
-    #[diagnostic(code(pacquet_workspace_projects_filter::unsupported_diff_selector))]
-    UnsupportedDiffSelector,
+    /// The `git diff` behind a `[<since>]` changed-packages selector
+    /// failed — unknown revision, not a git repository, or git could
+    /// not be spawned. Carries git's stderr under pnpm's
+    /// `ERR_PNPM_FILTER_CHANGED` code.
+    #[display("Filtering by changed packages failed. {stderr}")]
+    #[diagnostic(code(ERR_PNPM_FILTER_CHANGED))]
+    FilterChanged {
+        #[error(not(source))]
+        stderr: String,
+    },
+
+    /// A `testPattern` / `changedFilesIgnorePattern` glob did not
+    /// compile.
+    #[display("Invalid pattern {pattern:?}: {message}")]
+    #[diagnostic(code(pacquet_workspace_projects_filter::invalid_pattern))]
+    InvalidPattern { pattern: String, message: String },
 
     /// A selector resolved to neither a name pattern, a directory, nor a
     /// diff. The message includes the offending selector so CLI input is
@@ -97,13 +121,19 @@ where
             unmatched_filters: Vec::new(),
         }
     } else {
-        filter_graph(projects_graph, *opts, &include_selectors)?
+        filter_graph(projects_graph, opts, &include_selectors)?
     };
-    let exclude = filter_graph(projects_graph, *opts, &exclude_selectors)?;
+    let exclude = filter_graph(projects_graph, opts, &exclude_selectors)?;
 
     let excluded: IndexSet<&PathBuf> = exclude.selected.iter().collect();
-    let selected_projects: Vec<PathBuf> =
-        include.selected.into_iter().filter(|dir| !excluded.contains(dir)).collect();
+    // Keep graph members only: a `[<since>]` selector can surface a
+    // changed directory that no workspace project contains (upstream
+    // drops those the same way, via its final `pick`).
+    let selected_projects: Vec<PathBuf> = include
+        .selected
+        .into_iter()
+        .filter(|dir| !excluded.contains(dir) && projects_graph.contains_key(dir))
+        .collect();
     let mut unmatched_filters = include.unmatched_filters;
     unmatched_filters.extend(exclude.unmatched_filters);
 
@@ -117,16 +147,13 @@ struct FilterGraphResult {
 
 fn filter_graph<Pkg>(
     projects_graph: &ProjectGraph<Pkg>,
-    opts: FilterWorkspaceProjectsOptions,
+    opts: &FilterWorkspaceProjectsOptions,
     selectors: &[&ProjectSelector],
 ) -> Result<FilterGraphResult, FilterError>
 where
     Pkg: BaseProject,
 {
-    let mut cherry_picked: Vec<PathBuf> = Vec::new();
-    let mut walked_dependencies: IndexSet<PathBuf> = IndexSet::new();
-    let mut walked_dependents: IndexSet<PathBuf> = IndexSet::new();
-    let mut walked_dependents_dependencies: IndexSet<PathBuf> = IndexSet::new();
+    let mut walk = WalkState::default();
     let mut unmatched_filters: Vec<String> = Vec::new();
 
     let forward = |id: &Path| projects_graph.get(id).map(|node| node.dependencies.clone());
@@ -137,14 +164,31 @@ where
     let reverse = |id: &Path| reversed_graph.as_ref().and_then(|graph| graph.get(id).cloned());
 
     for selector in selectors {
-        if selector.diff.is_some() {
-            return Err(FilterError::UnsupportedDiffSelector);
+        let mut entry_projects: Option<Vec<PathBuf>> = None;
+        if let Some(diff) = &selector.diff {
+            let changed = get_changed_projects(
+                projects_graph.keys().cloned().collect(),
+                diff,
+                &GetChangedProjectsOptions {
+                    workspace_dir: selector.parent_dir.as_deref().unwrap_or(&opts.workspace_dir),
+                    test_pattern: &opts.test_pattern,
+                    changed_files_ignore_pattern: &opts.changed_files_ignore_pattern,
+                },
+            )?;
+            entry_projects = Some(changed.changed_projects);
+            walk.select_entries(
+                WalkFlags { include_dependents: false, ..WalkFlags::of(selector) },
+                &changed.ignore_dependent_for_projects,
+                &forward,
+                &reverse,
+            );
+        } else if let Some(parent_dir) = selector.parent_dir.as_deref() {
+            entry_projects = Some(match_projects_by_path(
+                projects_graph,
+                parent_dir,
+                opts.use_glob_dir_filtering,
+            ));
         }
-
-        let mut entry_projects: Option<Vec<PathBuf>> =
-            selector.parent_dir.as_deref().map(|parent_dir| {
-                match_projects_by_path(projects_graph, parent_dir, opts.use_glob_dir_filtering)
-            });
 
         if let Some(name_pattern) = &selector.name_pattern {
             let candidates: Vec<(PathBuf, Option<String>)> = match &entry_projects {
@@ -180,31 +224,79 @@ where
             }
         }
 
-        let include_root = !selector.exclude_self;
-        if selector.include_dependencies {
-            pick_subgraph(&forward, &entry_projects, &mut walked_dependencies, include_root);
+        walk.select_entries(WalkFlags::of(selector), &entry_projects, &forward, &reverse);
+    }
+
+    Ok(FilterGraphResult { selected: walk.into_selected(), unmatched_filters })
+}
+
+/// The selector modifiers that drive [`WalkState::select_entries`]. A
+/// `[<since>]` selector selects its test-only-changed projects through
+/// a copy with `include_dependents` suppressed.
+#[derive(Clone, Copy)]
+struct WalkFlags {
+    include_dependencies: bool,
+    include_dependents: bool,
+    exclude_self: bool,
+}
+
+impl WalkFlags {
+    fn of(selector: &ProjectSelector) -> Self {
+        WalkFlags {
+            include_dependencies: selector.include_dependencies,
+            include_dependents: selector.include_dependents,
+            exclude_self: selector.exclude_self,
         }
-        if selector.include_dependents {
-            pick_subgraph(&reverse, &entry_projects, &mut walked_dependents, include_root);
+    }
+}
+
+/// Accumulates the projects the selectors of one [`filter_graph`] run
+/// pick, in the buckets whose union (dependencies, dependents,
+/// dependents' dependencies, then cherry-picks) fixes the selection
+/// order.
+#[derive(Default)]
+struct WalkState {
+    cherry_picked: Vec<PathBuf>,
+    walked_dependencies: IndexSet<PathBuf>,
+    walked_dependents: IndexSet<PathBuf>,
+    walked_dependents_dependencies: IndexSet<PathBuf>,
+}
+
+impl WalkState {
+    fn select_entries<Forward, Reverse>(
+        &mut self,
+        flags: WalkFlags,
+        entry_projects: &[PathBuf],
+        forward: &Forward,
+        reverse: &Reverse,
+    ) where
+        Forward: Fn(&Path) -> Option<Vec<PathBuf>>,
+        Reverse: Fn(&Path) -> Option<Vec<PathBuf>>,
+    {
+        let include_root = !flags.exclude_self;
+        if flags.include_dependencies {
+            pick_subgraph(forward, entry_projects, &mut self.walked_dependencies, include_root);
         }
-        if selector.include_dependencies && selector.include_dependents {
-            let dependents: Vec<PathBuf> = walked_dependents.iter().cloned().collect();
-            pick_subgraph(&forward, &dependents, &mut walked_dependents_dependencies, false);
+        if flags.include_dependents {
+            pick_subgraph(reverse, entry_projects, &mut self.walked_dependents, include_root);
         }
-        if !selector.include_dependencies && !selector.include_dependents {
-            cherry_picked.extend(entry_projects);
+        if flags.include_dependencies && flags.include_dependents {
+            let dependents: Vec<PathBuf> = self.walked_dependents.iter().cloned().collect();
+            pick_subgraph(forward, &dependents, &mut self.walked_dependents_dependencies, false);
+        }
+        if !flags.include_dependencies && !flags.include_dependents {
+            self.cherry_picked.extend(entry_projects.iter().cloned());
         }
     }
 
-    let mut walked: IndexSet<PathBuf> = IndexSet::new();
-    walked.extend(walked_dependencies);
-    walked.extend(walked_dependents);
-    walked.extend(walked_dependents_dependencies);
-    for project in cherry_picked {
-        walked.insert(project);
+    fn into_selected(self) -> Vec<PathBuf> {
+        let mut walked: IndexSet<PathBuf> = IndexSet::new();
+        walked.extend(self.walked_dependencies);
+        walked.extend(self.walked_dependents);
+        walked.extend(self.walked_dependents_dependencies);
+        walked.extend(self.cherry_picked);
+        walked.into_iter().collect()
     }
-
-    Ok(FilterGraphResult { selected: walked.into_iter().collect(), unmatched_filters })
 }
 
 /// Walk the subgraph reachable from `next_node_ids`.
@@ -324,8 +416,12 @@ where
 {
     let (prod_selectors, all_selectors): (Vec<ProjectSelector>, Vec<ProjectSelector>) =
         selectors.iter().cloned().partition(|selector| selector.follow_prod_deps_only);
-    let walk_opts =
-        FilterWorkspaceProjectsOptions { use_glob_dir_filtering: opts.use_glob_dir_filtering };
+    let walk_opts = FilterWorkspaceProjectsOptions {
+        use_glob_dir_filtering: opts.use_glob_dir_filtering,
+        workspace_dir: opts.workspace_dir.clone(),
+        test_pattern: opts.test_pattern.clone(),
+        changed_files_ignore_pattern: opts.changed_files_ignore_pattern.clone(),
+    };
 
     if all_selectors.is_empty() && prod_selectors.is_empty() {
         let result = create_projects_graph(

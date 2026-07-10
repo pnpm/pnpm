@@ -297,16 +297,13 @@ unfiltered, so the two `known_failures` hoist stubs below stay).
 - [x] `TypeScript repo: workspace/projects-filter/test/index.ts:591` `select by parentDir and exclude one package by pattern`.
 - [x] `TypeScript repo: workspace/projects-filter/test/index.ts:608` `select by parentDir with glob and exclude one package by pattern`.
 
-Changed-packages (`[<since>]`) selectors — stubbed in
-`filter::tests::known_failures` (the selector parses but
-`filter_workspace_projects` rejects it with
-`FilterError::UnsupportedDiffSelector`; the rejection path is covered by
-`filter::tests::diff_selector_is_unsupported`). These need git-diff
-project selection (`getChangedProjects`), not yet ported:
+Changed-packages (`[<since>]`) selectors — git-diff project selection
+(`getChangedProjects`) is ported as `get_changed_projects`, and the
+tests live in `filter::tests::changed_packages`:
 
-- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:348` `select changed packages`. Stubbed (`git_diff_selection_unimplemented`).
-- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:480` `select changed packages when operating under a git worktree`. Stubbed.
-- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:553` `selection should fail when diffing to a branch that does not exist`. Stubbed.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:348` `select changed packages`. Ported as `changed_packages::select_changed_packages`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:480` `select changed packages when operating under a git worktree`. Ported as `changed_packages::select_changed_packages_under_git_worktree`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:553` `selection should fail when diffing to a branch that does not exist`. Ported as `changed_packages::selection_fails_for_nonexistent_diff_branch`.
 
 `createProjectsGraph` has no upstream unit tests (it is exercised only
 through `filterProjectsFromDir`'s fixtures upstream); pacquet covers it

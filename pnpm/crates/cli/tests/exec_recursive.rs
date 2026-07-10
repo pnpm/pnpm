@@ -133,33 +133,50 @@ fn filter_without_recursive_flag_enters_recursive_exec() {
     drop(root);
 }
 
-/// A `[<since>]` changed-packages selector is not supported by pacquet's
-/// filter engine yet, so a recursive `exec` surfaces the
-/// `UnsupportedDiffSelector` error instead of swallowing it. This
-/// exercises the error-propagation (`?`) out of `select_recursive_projects`.
+/// A `[<since>]` changed-packages selector scopes a recursive `exec` to
+/// the projects the git diff touches.
 #[test]
-fn recursive_exec_diff_selector_is_unsupported() {
+fn recursive_exec_diff_selector_selects_changed_projects() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_workspace(&workspace, &["project-1"]);
+    write_workspace(&workspace, &["project-1", "project-2"]);
+    let git = |args: &[&str]| {
+        let output = std::process::Command::new("git")
+            .args(args)
+            .current_dir(&workspace)
+            .output()
+            .expect("spawn git");
+        assert!(
+            output.status.success(),
+            "git {args:?} failed: {}",
+            String::from_utf8_lossy(&output.stderr),
+        );
+    };
+    git(&["init", "--initial-branch=main"]);
+    git(&["config", "user.email", "x@y.z"]);
+    git(&["config", "user.name", "xyz"]);
+    git(&["add", "."]);
+    git(&["commit", "-m", "base", "--no-gpg-sign"]);
+    fs::write(workspace.join("project-1").join("changed.js"), "").expect("write changed file");
+    git(&["add", "."]);
+    git(&["commit", "-m", "change project-1", "--no-gpg-sign"]);
 
-    let output = pacquet
+    pacquet
         .with_arg("-r")
         .with_arg("--filter")
-        .with_arg("[main]")
+        .with_arg("[HEAD~1]")
         .with_arg("exec")
         .with_arg("touch")
         .with_arg("ran.txt")
-        .output()
-        .expect("spawn pacquet");
-    assert!(!output.status.success(), "a [<since>] diff selector is unsupported and must fail");
-    let stderr = String::from_utf8_lossy(&output.stderr);
+        .assert()
+        .success();
+
     assert!(
-        stderr.contains("Changed-package filter selectors"),
-        "stderr should explain the diff selector is unsupported, got: {stderr}",
+        workspace.join("project-1").join("ran.txt").exists(),
+        "the changed project-1 should run the command",
     );
     assert!(
-        !workspace.join("project-1").join("ran.txt").exists(),
-        "exec must reject the selector before dispatching the command, so no marker is written",
+        !workspace.join("project-2").join("ran.txt").exists(),
+        "the unchanged project-2 must stay outside the selection",
     );
 
     drop(root);
