@@ -1,4 +1,5 @@
 import { docsUrl } from '@pnpm/cli.utils'
+import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type FetchFromRegistry } from '@pnpm/network.fetch'
@@ -147,10 +148,21 @@ function parseScopeTeam (spec: string): { scope: string, team?: string } {
 
 function getAuthHeaderForRegistry (
   configByUri: Record<string, RegistryConfig> | undefined,
-  registryUrl: string
+  registryUrl: string,
+  packageName: string
 ): string | undefined {
   const getAuthHeader = createGetAuthHeaderByURI(configByUri ?? {})
-  return getAuthHeader(registryUrl)
+  return getAuthHeader(registryUrl, { pkgName: packageName })
+}
+
+function getRegistryAndAuthForOrg (
+  opts: TeamOptions,
+  scope: string
+): { registryUrl: string, authHeader: string | undefined } {
+  const pkgName = `@${scope}/__pnpm_team__`
+  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, pkgName)
+  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, pkgName)
+  return { registryUrl, authHeader }
 }
 
 function getTeamUrl (registryUrl: string, scope: string, team?: string): string {
@@ -206,8 +218,7 @@ async function teamCreate (
       'Team name is required (e.g., pnpm team create @org:newteam)')
   }
 
-  const registryUrl = opts.registries?.default ?? 'https://registry.npmjs.org/'
-  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
+  const { registryUrl, authHeader } = getRegistryAndAuthForOrg(opts, scope)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp
 
@@ -245,8 +256,7 @@ async function teamDestroy (
       'Team name is required (e.g., pnpm team destroy @org:newteam)')
   }
 
-  const registryUrl = opts.registries?.default ?? 'https://registry.npmjs.org/'
-  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
+  const { registryUrl, authHeader } = getRegistryAndAuthForOrg(opts, scope)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp
 
@@ -282,8 +292,7 @@ async function teamAdd (
   }
 
   const username = params[1]
-  const registryUrl = opts.registries?.default ?? 'https://registry.npmjs.org/'
-  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
+  const { registryUrl, authHeader } = getRegistryAndAuthForOrg(opts, scope)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp
 
@@ -321,8 +330,7 @@ async function teamRm (
   }
 
   const username = params[1]
-  const registryUrl = opts.registries?.default ?? 'https://registry.npmjs.org/'
-  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
+  const { registryUrl, authHeader } = getRegistryAndAuthForOrg(opts, scope)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp
 
@@ -353,13 +361,12 @@ async function teamLs (
       'Organization scope is required (e.g., pnpm team ls @org or pnpm team ls @org:team)')
   }
 
-  const registryUrl = opts.registries?.default ?? 'https://registry.npmjs.org/'
-  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
+  const { scope, team } = parseScopeTeam(params[0])
+  const { registryUrl, authHeader } = getRegistryAndAuthForOrg(opts, scope)
+
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const parseable = opts.cliOptions?.parseable ?? false
   const json = opts.cliOptions?.json ?? false
-
-  const { scope, team } = parseScopeTeam(params[0])
 
   if (team) {
     return teamListMembers(scope, team, registryUrl, fetchFromRegistry, authHeader, parseable, json)

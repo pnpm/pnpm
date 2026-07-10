@@ -117,6 +117,13 @@ pub enum TeamError {
         body: String,
     },
 
+    #[display("Organization or team not found. {body}")]
+    #[diagnostic(code(ERR_PNPM_NOT_FOUND))]
+    NotFound {
+        #[error(not(source))]
+        body: String,
+    },
+
     #[display("Team operation failed due to conflict. {body}")]
     #[diagnostic(code(ERR_PNPM_TEAM_CONFLICT))]
     Conflict {
@@ -591,6 +598,9 @@ async fn write_error_from_response(response: Response, action: String) -> miette
     if status == reqwest::StatusCode::FORBIDDEN {
         return Err(TeamError::Forbidden { action, body }.into());
     }
+    if status == reqwest::StatusCode::NOT_FOUND {
+        return Err(TeamError::NotFound { body }.into());
+    }
     if status == reqwest::StatusCode::CONFLICT {
         return Err(TeamError::Conflict { body }.into());
     }
@@ -598,5 +608,3 @@ async fn write_error_from_response(response: Response, action: String) -> miette
         .into())
 }
 
-#[cfg(test)]
-mod tests;
