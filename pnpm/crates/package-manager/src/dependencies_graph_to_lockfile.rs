@@ -363,15 +363,15 @@ fn importer_dep_version(alias: &str, node: &DependenciesGraphNode) -> ImporterDe
     let parsed = dep_path_str
         .parse::<PkgNameVerPeer>()
         .expect("dep paths produced by the resolver always parse as PkgNameVerPeer");
-    // An injected workspace dep's dep path is `<name>@file:<path>(peers)`
-    // — with `real_name` unset (directory resolutions learn their name
-    // from the manifest), the peered shape misses the bare `file:` strip
-    // above and would fall through to the `<name>@<ref>` alias form.
-    // pnpm v11 reserves that form for *renamed* deps and writes the
-    // plain `file:<path>(peers)` ref when the alias equals the package
-    // name; the aliased form double-prefixes every consumer that
-    // composes `alias@version` into a snapshot key (v11 readers, Bit's
-    // graph converter).
+    // An injected workspace dep reaches this point as its full peered
+    // dep path, `<name>@file:<path>(peers)` — the bare `file:` strip
+    // above only matches peerless dep paths, and `real_name` is unset
+    // for directory resolutions (they learn their name from the
+    // manifest). pnpm v11 reserves the `<name>@<ref>` alias form for
+    // *renamed* deps and writes the plain `file:<path>(peers)` ref when
+    // the alias equals the package name; a self-aliased ref would
+    // double-prefix every consumer that composes `alias@version` into a
+    // snapshot key (v11 readers, Bit's graph converter).
     if parsed.name.to_string() == alias && matches!(parsed.suffix.version(), VersionPart::File(_)) {
         let suffix = parsed.suffix.to_string();
         let payload = suffix

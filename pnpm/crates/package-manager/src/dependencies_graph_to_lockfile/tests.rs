@@ -1508,11 +1508,9 @@ fn workspace_link_direct_dep_kept_when_exclude_links_from_lockfile_true() {
 
 /// An injected workspace dep whose alias equals its package name must
 /// serialize as the plain `file:<path>(peers)` ref, matching pnpm v11 —
-/// the `<name>@<ref>` alias form is reserved for renamed deps. The
-/// peered dep path misses the bare `file:` strip and, with `name_ver`
-/// unset (directory resolutions learn their name from the manifest),
-/// used to fall through to the self-aliased form, which double-prefixes
-/// consumers composing `alias@version` into a snapshot key.
+/// the `<name>@<ref>` alias form is reserved for renamed deps, and
+/// consumers compose `alias@version` into a snapshot key, so a
+/// self-aliased ref would double-prefix that key.
 #[test]
 fn same_name_injected_dep_serializes_as_plain_file_ref() {
     use pacquet_lockfile::ImporterDepVersion;
