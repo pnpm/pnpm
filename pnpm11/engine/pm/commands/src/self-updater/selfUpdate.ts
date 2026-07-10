@@ -19,7 +19,7 @@ import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
 
-import { installPnpm } from './installPnpm.js'
+import { findGlobalPnpmInstallDir, installPnpm, pnpmPackageNameToInstall } from './installPnpm.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
@@ -224,7 +224,13 @@ export async function handler (
       return `The current project is already set to use pnpm v${resolution.manifest.version}`
     }
   }
-  if (resolution.manifest.version === packageManager.version) {
+  // Version equality with the running binary alone must not skip the
+  // update: a removed global install can be recovered by running a local
+  // pnpm of the same version (see pnpm/pnpm#12877).
+  if (
+    resolution.manifest.version === packageManager.version &&
+    await findGlobalPnpmInstallDir(opts.globalPkgDir, pnpmPackageNameToInstall(resolution.manifest.version), resolution.manifest.version) != null
+  ) {
     return `The currently active ${packageManager.name} v${packageManager.version} is already "${bareSpecifier}" and doesn't need an update`
   }
 
@@ -343,4 +349,3 @@ async function readProjectPinnedPnpmVersion (rootProjectManifestDir: string, spe
   }
   return lockfilePinned ?? specMin
 }
-

@@ -192,17 +192,9 @@ async function installPnpmToGlobalDir (
   const globalDir = opts.globalPkgDir!
   cleanOrphanedInstallDirs(globalDir)
 
-  // Check if already installed globally
-  const existing = findGlobalPackage(globalDir, pkgName)
-  if (existing) {
-    const pkgJsonPath = path.join(existing.installDir, 'node_modules', pkgName, 'package.json')
-    try {
-      const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
-      if (pkgJson.version === version) {
-        const binDir = path.join(existing.installDir, 'bin')
-        return { alreadyExisted: true, installDir: existing.installDir, binDir }
-      }
-    } catch {}
+  const existingInstallDir = await findGlobalPnpmInstallDir(globalDir, pkgName, version)
+  if (existingInstallDir != null) {
+    return { alreadyExisted: true, installDir: existingInstallDir, binDir: path.join(existingInstallDir, 'bin') }
   }
 
   const installDir = createInstallDir(globalDir)
@@ -250,6 +242,21 @@ async function installPnpmToGlobalDir (
     } catch {}
     throw err
   }
+}
+
+/**
+ * The install dir under `globalDir` that already holds `pkgName` at exactly
+ * `version`, or `undefined` when the global install is missing, at a
+ * different version, or unreadable.
+ */
+export async function findGlobalPnpmInstallDir (globalDir: string, pkgName: string, version: string): Promise<string | undefined> {
+  const existing = findGlobalPackage(globalDir, pkgName)
+  if (!existing) return undefined
+  try {
+    const pkgJson = JSON.parse(await fs.promises.readFile(path.join(existing.installDir, 'node_modules', pkgName, 'package.json'), 'utf8'))
+    if (pkgJson.version === version) return existing.installDir
+  } catch {}
+  return undefined
 }
 
 async function installFromLockfile (

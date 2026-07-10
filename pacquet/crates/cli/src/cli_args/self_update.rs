@@ -18,7 +18,9 @@ use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_cmd_shim::{Host as CmdShimHost, link_bins_of_packages_with_excludes};
 use pacquet_config::{Config, PACQUET_VERSION};
 use pacquet_fs::force_symlink_dir;
-use pacquet_global::{create_global_cache_key, get_hash_link, read_installed_packages};
+use pacquet_global::{
+    create_global_cache_key, find_global_package, get_hash_link, read_installed_packages,
+};
 use pacquet_lockfile::EnvLockfile;
 use pacquet_package_manifest::PackageManifest;
 use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
@@ -185,8 +187,12 @@ async fn handler<Reporter: self::Reporter + 'static>(
         .await;
     }
 
-    // Global switch.
-    if target_version == PACQUET_VERSION {
+    // Global switch. Version equality with the running binary alone must
+    // not skip the update: a removed global install can be recovered by
+    // running a local pnpm of the same version (see pnpm/pnpm#12877).
+    if target_version == PACQUET_VERSION
+        && is_installed_globally(config.global_pkg_dir.as_deref(), &target_version)?
+    {
         return Ok(Some(format!(
             r#"The currently active pnpm v{PACQUET_VERSION} is already "{bare_specifier}" and doesn't need an update"#,
         )));
@@ -439,6 +445,22 @@ fn registries_for_cache_key(config: &Config) -> Vec<(String, String)> {
     let mut registries = vec![("default".to_string(), bootstrap.registry.clone())];
     registries.extend(bootstrap.registries.iter().map(|(key, value)| (key.clone(), value.clone())));
     registries
+}
+
+/// Whether the global packages directory already holds the engine that a
+/// switch to `version` would install, at exactly that version.
+fn is_installed_globally(global_pkg_dir: Option<&Path>, version: &str) -> miette::Result<bool> {
+    let Some(global_pkg_dir) = global_pkg_dir else {
+        return Ok(false);
+    };
+    let package = install_pnpm::pnpm_package_to_install(version);
+    let existing = find_global_package(global_pkg_dir, package.name)
+        .into_diagnostic()
+        .wrap_err("scan global packages")?;
+    Ok(existing.is_some_and(|existing| {
+        install_pnpm::installed_version(&existing.install_dir, package.name).as_deref()
+            == Some(version)
+    }))
 }
 
 /// `true` when pnpm is running under corepack, which manages its own
