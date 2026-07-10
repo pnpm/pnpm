@@ -14,8 +14,9 @@ pub struct RestartArgs {
     #[clap(trailing_var_arg = true, allow_hyphen_values = true)]
     pub args: Vec<String>,
 
-    /// Avoid exiting with a non-zero exit code when a script is undefined.
-    #[clap(long)]
+    /// Avoid exiting with a non-zero exit code when a script is
+    /// undefined (the top-level `--if-present` flag).
+    #[clap(skip)]
     pub if_present: bool,
 }
 

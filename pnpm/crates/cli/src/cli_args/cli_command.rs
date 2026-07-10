@@ -167,6 +167,14 @@ pub struct CliArgs {
     /// Recursive only: keep going after a project fails.
     #[clap(long = "no-bail", global = true, hide = true)]
     pub no_bail: bool,
+
+    /// Avoid exiting with a non-zero exit code when the script is
+    /// undefined. Top-level like in pnpm, where every run option is
+    /// accepted before the command (`pnpm --if-present <script>` is how
+    /// the repo's own `test-pkgs-branch` script invokes the fallback);
+    /// threaded into `run` / `restart` / `stop` like the flags above.
+    #[clap(long = "if-present", global = true, hide = true)]
+    pub if_present: bool,
 }
 
 fn parse_store_dir(value: &str) -> Result<PathBuf, std::convert::Infallible> {

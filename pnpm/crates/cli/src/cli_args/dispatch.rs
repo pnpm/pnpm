@@ -36,6 +36,7 @@ pub(crate) struct RunCtx<'a> {
     pub(crate) recursive_report_summary: bool,
     pub(crate) recursive_no_bail: bool,
     pub(crate) recursive_sort: bool,
+    pub(crate) if_present: bool,
     pub(crate) config: &'a (dyn Fn() -> miette::Result<&'static mut Config> + Sync),
     /// Like [`Self::config`] but anchored at the pnpm home dir instead of
     /// `--dir`, so a `-g` install can't inherit the caller project's
@@ -137,6 +138,7 @@ impl CliArgs {
             resume_from,
             report_summary,
             no_bail,
+            if_present,
         } = self;
 
         // Canonicalize `--dir` so the bunyan-envelope `prefix` emitted by
@@ -248,6 +250,7 @@ impl CliArgs {
             recursive_report_summary: report_summary,
             recursive_no_bail: no_bail,
             recursive_sort: !no_sort,
+            if_present,
             config: &config,
             global_config: &global_config,
             state: &state,

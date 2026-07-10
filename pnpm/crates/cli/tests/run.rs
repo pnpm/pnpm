@@ -492,6 +492,35 @@ fn top_level_fallback_forwards_dotted_config_args_to_local_bin() {
     drop(root);
 }
 
+/// pnpm accepts run options before the command, so the fallback parses
+/// `pnpm --if-present <script>` — the shape the repo's own
+/// `test-pkgs-branch` script uses to drive `.test` across packages —
+/// and a missing script exits zero.
+#[test]
+fn top_level_fallback_accepts_if_present() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "build": "echo built" },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    pacquet
+        .with_args([
+            "--config.verify-deps-before-run=false",
+            "--workspace-concurrency=1",
+            "--no-sort",
+            "--if-present",
+            "definitely-missing-script",
+        ])
+        .assert()
+        .success();
+
+    drop(root);
+}
+
 /// A mistyped top-level command falling back to `run` in a directory
 /// without a manifest must surface the fallback's own missing-command
 /// error, and the verify-deps-before-run gate (here on its `install`

@@ -88,6 +88,7 @@ fn with_recursive_run_options(ctx: &RunCtx<'_>, mut args: RunArgs) -> RunArgs {
     args.report_summary = ctx.recursive_report_summary;
     args.no_bail = ctx.recursive_no_bail;
     args.sort = ctx.recursive_sort;
+    args.if_present = args.if_present || ctx.if_present;
     args
 }
 
@@ -103,7 +104,8 @@ pub(super) fn start<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
     run(ctx, run_args_for_script("start", false))
 }
 
-pub(super) fn stop<'a>(ctx: &RunCtx<'a>, args: StopArgs) -> miette::Result<CommandFuture<'a>> {
+pub(super) fn stop<'a>(ctx: &RunCtx<'a>, mut args: StopArgs) -> miette::Result<CommandFuture<'a>> {
+    args.if_present = args.if_present || ctx.if_present;
     if ctx.recursive {
         run(ctx, args.into_run_args())
     } else {
@@ -114,8 +116,9 @@ pub(super) fn stop<'a>(ctx: &RunCtx<'a>, args: StopArgs) -> miette::Result<Comma
 
 pub(super) fn restart<'a>(
     ctx: &RunCtx<'a>,
-    args: RestartArgs,
+    mut args: RestartArgs,
 ) -> miette::Result<CommandFuture<'a>> {
+    args.if_present = args.if_present || ctx.if_present;
     args.run(ctx.dir, (ctx.config)()?, matches!(ctx.reporter, ReporterType::Silent))?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
