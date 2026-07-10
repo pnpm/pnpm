@@ -623,10 +623,80 @@ mod changed_packages {
         )
         .unwrap_err();
 
+        dbg!(&error);
         assert!(matches!(error, FilterError::FilterChanged { .. }));
         assert_eq!(
             error.to_string(),
             "Filtering by changed packages failed. fatal: bad revision 'branch-does-no-exist'",
+        );
+    }
+
+    /// An option-like `<since>` must not be parsed as a git option:
+    /// without `--end-of-options`, `[--output=<path>]` would make
+    /// `git diff` write its output to an arbitrary file and exit 0.
+    #[test]
+    fn option_like_diff_ref_is_rejected_as_bad_revision() {
+        let workspace = TempDir::new().expect("create tempdir");
+        init_repo(workspace.path());
+        touch(&workspace.path().join("package-a").join("file.js"));
+        commit_all(workspace.path());
+        let graph = graph_of(&[&workspace.path().join("package-a")]);
+
+        let evil_output = workspace.path().join("evil.txt");
+        let error = filter_workspace_projects(
+            &graph,
+            &[diff_selector(&format!("--output={}", evil_output.to_string_lossy()))],
+            &FilterWorkspaceProjectsOptions {
+                workspace_dir: workspace.path().to_path_buf(),
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+
+        dbg!(&error);
+        assert!(matches!(error, FilterError::FilterChanged { .. }));
+        assert!(
+            error.to_string().contains("bad revision"),
+            "git must treat the option-like ref as a revision, got: {error}",
+        );
+        assert!(!evil_output.exists(), "the ref must not be honored as a git option");
+    }
+
+    /// A worktree checked out *inside* another repository's tree still
+    /// resolves diff paths against the worktree root: the nearest
+    /// `.git` entry is the worktree's `.git` file, even though an
+    /// ancestor has a `.git` directory.
+    #[test]
+    fn select_changed_packages_under_git_worktree_nested_in_main_repo() {
+        let main_repo = TempDir::new().expect("create tempdir");
+        let main_repo_dir = main_repo.path();
+        init_repo(main_repo_dir);
+        touch(&main_repo_dir.join("package-a").join("file.js"));
+        touch(&main_repo_dir.join("package-b").join("file.js"));
+        commit_all(main_repo_dir);
+
+        let worktree_dir = main_repo_dir.join("worktrees").join("feature");
+        git(
+            main_repo_dir,
+            &["worktree", "add", "-b", "feature", &worktree_dir.to_string_lossy(), "main"],
+        );
+
+        let pkg_a_dir = worktree_dir.join("package-a");
+        touch(&pkg_a_dir.join("new-file.js"));
+        commit_all(&worktree_dir);
+
+        let graph = graph_of(&[&worktree_dir, &pkg_a_dir, &worktree_dir.join("package-b")]);
+
+        assert_eq!(
+            selected(
+                &graph,
+                &[diff_selector("HEAD~1")],
+                &FilterWorkspaceProjectsOptions {
+                    workspace_dir: worktree_dir,
+                    ..Default::default()
+                },
+            ),
+            [pkg_a_dir.to_string_lossy().into_owned()],
         );
     }
 }

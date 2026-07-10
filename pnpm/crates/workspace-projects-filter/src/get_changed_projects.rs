@@ -85,8 +85,11 @@ fn get_changed_dirs_since_commit(
     commit: &str,
     opts: &GetChangedProjectsOptions<'_>,
 ) -> Result<IndexMap<PathBuf, ChangeType>, FilterError> {
+    // `--end-of-options` keeps an option-like `<since>` (`--output=...`)
+    // from being parsed as a git option — git rejects it as a bad
+    // revision instead.
     let output = Command::new("git")
-        .args(["diff", "--name-only", commit, "--"])
+        .args(["diff", "--name-only", "--end-of-options", commit, "--"])
         .arg(opts.workspace_dir)
         .current_dir(opts.workspace_dir)
         .output()
@@ -151,18 +154,16 @@ fn compile_globs(patterns: &[String]) -> Result<Vec<Glob<'_>>, FilterError> {
 }
 
 /// The directory git-diff paths are relative to: the parent of the
-/// nearest `.git` *directory* up from `workspace_dir` (regular repos),
-/// else the parent of the nearest `.git` *file* (worktrees), else the
-/// parent of `workspace_dir` itself.
+/// nearest `.git` entry up from `workspace_dir` — a directory in
+/// regular repositories, a file in worktrees — else the parent of
+/// `workspace_dir` itself. The nearest entry of *either* kind wins, so
+/// a worktree checked out inside another repository's tree resolves to
+/// the worktree root, matching where git anchors its diff paths.
 fn find_repo_root(workspace_dir: &Path) -> PathBuf {
-    let git_path = find_git_entry_up(workspace_dir, Path::is_dir)
-        .or_else(|| find_git_entry_up(workspace_dir, Path::is_file));
+    let git_path =
+        workspace_dir.ancestors().map(|dir| dir.join(".git")).find(|candidate| candidate.exists());
     match git_path {
         Some(git_path) => git_path.parent().expect("a `.git` path has a parent").to_path_buf(),
         None => workspace_dir.parent().unwrap_or(workspace_dir).to_path_buf(),
     }
-}
-
-fn find_git_entry_up(start: &Path, is_wanted_kind: impl Fn(&Path) -> bool) -> Option<PathBuf> {
-    start.ancestors().map(|dir| dir.join(".git")).find(|candidate| is_wanted_kind(candidate))
 }
