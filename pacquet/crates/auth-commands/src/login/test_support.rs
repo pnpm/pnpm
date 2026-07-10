@@ -107,6 +107,13 @@ macro_rules! login_fake {
             INI_WRITES.with(|writes| writes.borrow().clone())
         }
     };
+    (@helper $unknown:ident) => {
+        compile_error!(concat!(
+            "unknown `login_fake!` helper `",
+            stringify!($unknown),
+            "`; expected one of: set_prompt_input, set_prompt_password, set_ini_read, login_writes",
+        ));
+    };
 }
 
 pub(crate) use login_fake;
