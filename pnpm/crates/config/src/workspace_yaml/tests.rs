@@ -538,6 +538,46 @@ configDependencies:
     );
 }
 
+/// Port of upstream's `respects testPattern` / `respects
+/// changedFilesIgnorePattern` config tests: both settings come from
+/// `pnpm-workspace.yaml` and default to unset (pacquet: an empty list).
+#[test]
+fn parses_test_pattern_and_changed_files_ignore_pattern_from_yaml_and_applies() {
+    let yaml = r"
+testPattern:
+  - '*.spec.js'
+  - '*.spec.ts'
+changedFilesIgnorePattern:
+  - .github/**
+  - '**/README.md'
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    assert!(config.test_pattern.is_empty());
+    assert!(config.changed_files_ignore_pattern.is_empty());
+
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+
+    assert_eq!(config.test_pattern, ["*.spec.js", "*.spec.ts"]);
+    assert_eq!(config.changed_files_ignore_pattern, [".github/**", "**/README.md"]);
+}
+
+/// `testPattern` / `changedFilesIgnorePattern` cannot be set from the
+/// global `config.yaml` — pnpm lists both in its excluded keys.
+#[test]
+fn test_pattern_and_changed_files_ignore_pattern_cleared_as_workspace_only_fields() {
+    let yaml = r"
+testPattern:
+  - '*.spec.js'
+changedFilesIgnorePattern:
+  - '**/README.md'
+";
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    settings.clear_workspace_only_fields();
+    assert!(settings.test_pattern.is_none());
+    assert!(settings.changed_files_ignore_pattern.is_none());
+}
+
 /// `configDependencies` is workspace-only: it must not be honored from
 /// the global `config.yaml`, matching pnpm's `isConfigFileKey` filter.
 #[test]
