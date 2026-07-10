@@ -178,10 +178,8 @@ pub(super) fn spawn_in_dir(
     // when no `userAgent` is configured (makeEnv.ts:30). pacquet has
     // no `userAgent` setting yet, so it always takes that default.
     cmd.env("npm_config_user_agent", "pnpm");
-    // A nested `pnpm run` / `pnpm exec` inside the command must skip
-    // the verify-deps-before-run check (same stamp as the lifecycle
-    // env builder; the env var outranks every other config source).
-    cmd.env("pnpm_config_verify_deps_before_run", "false");
+    // Same recursion-guard stamp as the lifecycle env builder.
+    cmd.env(pacquet_executor::VERIFY_DEPS_BEFORE_RUN_ENV, "false");
     if let Some(name) = read_package_name(dir) {
         cmd.env("PNPM_PACKAGE_NAME", name);
     }

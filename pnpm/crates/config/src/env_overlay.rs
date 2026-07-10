@@ -202,7 +202,17 @@ impl WorkspaceSettings {
         json_field!(trust_lockfile, "TRUST_LOCKFILE");
         enum_field!(trust_policy, "TRUST_POLICY", TrustPolicy);
         enum_field!(pm_on_fail, "PM_ON_FAIL", PmOnFail);
-        enum_field!(verify_deps_before_run, "VERIFY_DEPS_BEFORE_RUN", VerifyDepsBeforeRun);
+        // pnpm assigns this env var verbatim without validation, so an
+        // unrecognized value is truthy there: the check runs but matches
+        // no action. `True` reproduces that, and keeps a present-but-
+        // invalid value overriding the other config layers the way a
+        // valid one does.
+        if let Some(s) = read_env::<Sys>("VERIFY_DEPS_BEFORE_RUN") {
+            settings.verify_deps_before_run = Some(
+                parse_json_or_string::<VerifyDepsBeforeRun>(&s)
+                    .unwrap_or(VerifyDepsBeforeRun::True),
+            );
+        }
         enum_field!(audit_level, "AUDIT_LEVEL", AuditLevel);
         json_field!(audit_config, "AUDIT_CONFIG");
         json_field!(trust_policy_exclude, "TRUST_POLICY_EXCLUDE");

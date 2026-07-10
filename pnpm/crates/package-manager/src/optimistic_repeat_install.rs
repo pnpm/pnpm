@@ -1469,18 +1469,18 @@ pub fn check_deps_status_before_run(check: &OptimisticRepeatInstallCheck<'_>) ->
     }
 
     if modified.is_empty() && !lockfile_modified {
-        return match regenerate_wanted_lockfile_if_missing(check, None) {
+        return match missing_wanted_lockfile_stand_in_ok(check) {
             Ok(()) => RunDepsStatus::UpToDate,
-            Err(reason) => outdated(reason.to_string()),
+            Err(reason) => outdated(reason),
         };
     }
 
     let projects_to_check: Vec<&ManifestStat<'_>> =
         if lockfile_modified { manifest_stats.iter().collect() } else { modified };
     match modified_manifests_match_lockfile(check, &state, &projects_to_check) {
-        Ok(loaded_current) => {
-            if let Err(reason) = regenerate_wanted_lockfile_if_missing(check, loaded_current) {
-                return outdated(reason.to_string());
+        Ok(_) => {
+            if let Err(reason) = missing_wanted_lockfile_stand_in_ok(check) {
+                return outdated(reason);
             }
             if is_workspace_install {
                 let mut new_state = crate::install::build_workspace_state(
@@ -1509,6 +1509,25 @@ pub fn check_deps_status_before_run(check: &OptimisticRepeatInstallCheck<'_>) ->
             RunDepsStatus::UpToDate
         }
         Err(reason) => outdated(reason.to_string()),
+    }
+}
+
+/// Read-only twin of [`regenerate_wanted_lockfile_if_missing`] for the
+/// run gate: pnpm's run-path check never writes `pnpm-lock.yaml` (only
+/// the install command restores it from the current lockfile), so a
+/// missing wanted lockfile passes exactly when the current lockfile can
+/// stand in for it, and the check leaves the workspace untouched.
+fn missing_wanted_lockfile_stand_in_ok(
+    check: &OptimisticRepeatInstallCheck<'_>,
+) -> Result<(), String> {
+    if check.lockfile.is_loaded_or_on_disk() || !check.config.lockfile {
+        return Ok(());
+    }
+    match Lockfile::load_current_from_virtual_store_dir(&check.config.virtual_store_dir) {
+        Ok(Some(_)) => Ok(()),
+        Ok(None) | Err(_) => {
+            Err(format!("Cannot find a lockfile in {}", check.workspace_root.display()))
+        }
     }
 }
 

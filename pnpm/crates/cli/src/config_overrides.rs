@@ -182,7 +182,7 @@ impl ConfigOverrides {
 }
 
 fn verify_deps_env_is_set() -> bool {
-    ["PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN", "pnpm_config_verify_deps_before_run"]
+    ["PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN", pacquet_executor::VERIFY_DEPS_BEFORE_RUN_ENV]
         .iter()
         .any(|name| std::env::var(name).is_ok_and(|value| !value.is_empty()))
 }

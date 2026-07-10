@@ -2394,6 +2394,13 @@ pub fn check_deps_status_before_run_at(
         },
         None => None,
     };
+    // pnpm reports "cannot check" straight from the missing workspace
+    // state, before any project discovery — a fresh project (the common
+    // out-of-sync case) must not pay for the workspace-projects walk
+    // only to reach the same verdict inside the check.
+    if !matches!(pacquet_workspace_state::load_workspace_state(&workspace_root), Ok(Some(_))) {
+        return cannot_check();
+    }
     let catalogs = match config.catalogs.clone() {
         Some(catalogs) => catalogs,
         None => match get_catalogs_from_workspace_manifest(workspace_manifest.as_ref()) {

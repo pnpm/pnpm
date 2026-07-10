@@ -42,10 +42,6 @@ fn default_install_action_installs_before_running_the_script() {
     drop(root);
 }
 
-/// `error` fails a fresh project ("Cannot check whether dependencies
-/// are outdated"), passes after an install, still passes after an
-/// mtime-only manifest rewrite, and fails again once the manifest no
-/// longer matches the lockfile.
 #[cfg(unix)]
 #[test]
 fn error_action_follows_the_dependency_state() {
@@ -83,6 +79,27 @@ fn error_action_follows_the_dependency_state() {
         .with_args(["--config.verify-deps-before-run=error", "run", "hello"])
         .assert()
         .success();
+
+    // Deleting pnpm-lock.yaml in a dependency-less project leaves no
+    // current lockfile to stand in for it, so the check fails like
+    // pnpm's RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND — and the pre-run check
+    // must not recreate the file (pnpm's run path never restores the
+    // lockfile; only the install command does).
+    fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove pnpm-lock.yaml");
+    let output = pacquet_in(&workspace)
+        .with_args(["--config.verify-deps-before-run=error", "run", "hello"])
+        .output()
+        .expect("spawn pacquet run");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDERR:\n{stderr}\n");
+    assert!(!output.status.success(), "a missing lockfile must fail");
+    assert!(stderr.contains("Cannot find a lockfile in"), "expected the lockfile error:\n{stderr}");
+    assert!(
+        !workspace.join("pnpm-lock.yaml").exists(),
+        "the pre-run check must not write pnpm-lock.yaml",
+    );
+    pacquet_in(&workspace).with_arg("install").assert().success();
+    assert!(workspace.join("pnpm-lock.yaml").exists(), "install must restore the lockfile");
 
     // A manifest that no longer matches the lockfile must fail again.
     let mut manifest: serde_json::Value = serde_json::from_str(
@@ -209,6 +226,49 @@ fn env_var_outranks_the_cli_config_override() {
         .assert()
         .success();
     assert!(marker.exists(), "the script must run with the check disabled by env");
+
+    drop(root);
+}
+
+/// The exec path stamps the same recursion guard as the lifecycle env
+/// builder.
+#[cfg(unix)]
+#[test]
+fn exec_children_get_the_check_disabled_through_their_env() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, &workspace.join("marker.txt"));
+
+    pacquet
+        .with_args([
+            "--config.verify-deps-before-run=false",
+            "exec",
+            "sh",
+            "-c",
+            r#"[ "$pnpm_config_verify_deps_before_run" = "false" ]"#,
+        ])
+        .assert()
+        .success();
+
+    drop(root);
+}
+
+/// pnpm assigns the `pnpm_config_verify_deps_before_run` env var
+/// verbatim, so an unrecognized value is truthy there: the check runs
+/// but matches no action, and the script proceeds.
+#[cfg(unix)]
+#[test]
+fn unrecognized_env_value_checks_without_acting() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let marker = workspace.join("marker.txt");
+    write_manifest(&workspace, &marker);
+
+    pacquet
+        .with_env("pnpm_config_verify_deps_before_run", "definitely-not-an-action")
+        .with_args(["--config.verify-deps-before-run=error", "run", "hello"])
+        .assert()
+        .success();
+    assert!(marker.exists(), "the script must run");
+    assert!(!workspace.join("node_modules").exists(), "no action may fire");
 
     drop(root);
 }
