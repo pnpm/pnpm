@@ -1,13 +1,10 @@
-import path from 'node:path'
-
-import { findDependencyLicenses } from '@pnpm/deps.compliance.license-scanner'
 import { PnpmError } from '@pnpm/error'
-import { getLockfileImporterId, readWantedLockfile } from '@pnpm/lockfile.fs'
-import { getStorePath } from '@pnpm/store.path'
+import { globalWarn } from '@pnpm/logger'
 import type { LicensesConfig, ProjectManifest, Registries, SupportedArchitectures } from '@pnpm/types'
 
-import { checkLicenseCompliance } from './checkLicenses.js'
-import { collectDirectDeps, resolveInclude, shouldRunLicenseCheck } from './utils.js'
+import { resolveLicensePolicy } from './policy.js'
+import { sanitizeForTerminal } from './sanitize.js'
+import { scanAndCheckLicenses } from './scan.js'
 
 export interface CheckAfterInstallOptions {
   licenses?: LicensesConfig
@@ -22,60 +19,44 @@ export interface CheckAfterInstallOptions {
   manifest: ProjectManifest
   supportedArchitectures?: SupportedArchitectures
   selectedProjectsGraph?: Record<string, { package: { manifest: ProjectManifest } }>
-  /** CLI include flags (--prod, --dev, --no-optional) to scope the scan */
-  dev?: boolean
-  production?: boolean
-  optional?: boolean
 }
 
 export async function checkLicensesAfterInstall (opts: CheckAfterInstallOptions): Promise<void> {
-  if (!shouldRunLicenseCheck(opts.licenses)) {
+  const policy = resolveLicensePolicy(opts.licenses)
+  if (policy == null) {
     return
   }
 
-  const lockfileDir = opts.lockfileDir ?? opts.dir
-  const lockfile = await readWantedLockfile(lockfileDir, {
-    ignoreIncompatible: true,
-  })
-  if (lockfile == null) {
-    return
-  }
-
-  const storeDir = await getStorePath({
-    pkgRoot: opts.dir,
-    storePath: opts.storeDir,
-    pnpmHomeDir: opts.pnpmHomeDir,
-  })
-
-  const includedImporterIds = opts.selectedProjectsGraph
-    ? Object.keys(opts.selectedProjectsGraph)
-      .map((projectPath) => getLockfileImporterId(lockfileDir, projectPath))
-    : undefined
-
-  let licensePackages = await findDependencyLicenses({
-    include: resolveInclude(opts.licenses!.environment ?? 'all', opts),
-    lockfileDir,
-    storeDir,
-    virtualStoreDir: opts.virtualStoreDir ?? path.join(opts.modulesDir ?? 'node_modules', '.pnpm'),
+  const { result, lockfileMissing } = await scanAndCheckLicenses({
+    policy,
+    dir: opts.dir,
+    lockfileDir: opts.lockfileDir,
+    storeDir: opts.storeDir,
+    virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     modulesDir: opts.modulesDir,
+    pnpmHomeDir: opts.pnpmHomeDir,
     registries: opts.registries,
-    wantedLockfile: lockfile,
     manifest: opts.manifest,
-    includedImporterIds,
     supportedArchitectures: opts.supportedArchitectures,
+    selectedProjectsGraph: opts.selectedProjectsGraph,
   })
 
-  if (opts.licenses!.depth === 'shallow') {
-    const directDeps = collectDirectDeps(opts.manifest, opts.selectedProjectsGraph)
-    licensePackages = licensePackages.filter((pkg) => directDeps.has(pkg.name))
+  if (lockfileMissing) {
+    globalWarn('License check skipped: no lockfile was found to scan. Run `pnpm install` to generate one.')
+    return
   }
 
-  const result = checkLicenseCompliance(licensePackages, opts.licenses!)
+  if (result.warnings.length > 0) {
+    const details = result.warnings
+      .map((w) => `  ${sanitizeForTerminal(w.packageName)}@${w.packageVersion} - ${sanitizeForTerminal(w.license)} - ${sanitizeForTerminal(w.reason)}`)
+      .join('\n')
+    globalWarn(`${result.warnings.length} license warning(s):\n${details}`)
+  }
 
   if (result.violations.length > 0) {
     const details = result.violations
-      .map((v) => `  ${v.packageName}@${v.packageVersion} - ${v.license} - ${v.reason}`)
+      .map((v) => `  ${sanitizeForTerminal(v.packageName)}@${v.packageVersion} - ${sanitizeForTerminal(v.license)} - ${sanitizeForTerminal(v.reason)}`)
       .join('\n')
     throw new PnpmError(
       'LICENSE_VIOLATION',
