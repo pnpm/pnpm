@@ -108,11 +108,8 @@ impl State {
 /// Inside a workspace, a missing root manifest is tolerated rather
 /// than scaffolded: pnpm installs such a workspace with no root
 /// importer and never creates a `package.json` there, so the stand-in
-/// manifest stays in memory only. (Scaffolding it broke recursive
-/// runs too: the created manifest carries the default failing `test`
-/// script, and the root then joined the workspace graph as a
-/// selectable project.) Commands that save the manifest (`add`)
-/// still persist it through their explicit save.
+/// manifest stays in memory only. Commands that save the manifest
+/// (`add`) still persist it through their explicit save.
 fn load_or_create_manifest(
     manifest_path: PathBuf,
     config: &Config,
