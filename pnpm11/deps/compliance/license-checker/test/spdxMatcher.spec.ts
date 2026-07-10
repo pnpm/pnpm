@@ -131,13 +131,18 @@ describe('matchLicenseAgainstPolicy', () => {
   })
 
   describe('WITH expressions', () => {
-    it('checks the base license ID, not the exception', () => {
+    it('does not treat an allowed base license as covering an exception variant', () => {
+      // spdx-satisfies treats "Apache-2.0 WITH LLVM-exception" as a distinct
+      // license term from plain "Apache-2.0" (per its own README: exceptions
+      // must be listed explicitly, e.g. "Apache-2.0 WITH LLVM"). Allowing the
+      // base license must not implicitly widen the policy to cover every
+      // exception variant of it.
       const result = matchLicenseAgainstPolicy('Apache-2.0 WITH LLVM-exception', {
         allowed: new Set(['Apache-2.0']),
         mode: 'strict',
       })
-      expect(result.allowed).toBe(true)
-      expect(result.reason).toBe('explicitly-allowed')
+      expect(result.allowed).toBe(false)
+      expect(result.reason).toBe('not-in-allowed-list')
     })
 
     it('rejects when the base license is not allowed', () => {
@@ -380,5 +385,48 @@ describe('matchLicenseAgainstPolicy', () => {
       expect(result.allowed).toBe(false)
       expect(result.reason).toBe('explicitly-disallowed')
     })
+  })
+})
+
+describe('matchLicenseAgainstPolicy — hardened semantics', () => {
+  test('case-insensitive: lowercase "mit" is caught by disallowed MIT', () => {
+    const r = matchLicenseAgainstPolicy('mit', { disallowed: new Set(['MIT']), mode: 'loose' })
+    expect(r.allowed).toBe(false)
+    expect(r.reason).toBe('explicitly-disallowed')
+  })
+
+  test('plus-range: GPL-3.0-only satisfies allowed GPL-2.0+', () => {
+    const r = matchLicenseAgainstPolicy('GPL-3.0-only', { allowed: new Set(['GPL-2.0+']), mode: 'strict' })
+    expect(r.allowed).toBe(true)
+  })
+
+  test('OR-launder: disallowed GPL cannot be escaped via an unknown LicenseRef', () => {
+    const r = matchLicenseAgainstPolicy('GPL-3.0-only OR LicenseRef-proprietary', {
+      allowed: new Set(['MIT']),
+      disallowed: new Set(['GPL-3.0-only']),
+      mode: 'strict',
+    })
+    expect(r.allowed).toBe(false)
+  })
+
+  test('legitimate dual-license: MIT OR GPL-3.0 passes when MIT is allowed', () => {
+    const r = matchLicenseAgainstPolicy('MIT OR GPL-3.0-only', {
+      allowed: new Set(['MIT']),
+      disallowed: new Set(['GPL-3.0-only']),
+      mode: 'strict',
+    })
+    expect(r.allowed).toBe(true)
+  })
+
+  test('AND: MIT AND GPL-3.0 is rejected in strict mode when only MIT is allowed', () => {
+    const r = matchLicenseAgainstPolicy('MIT AND GPL-3.0-only', { allowed: new Set(['MIT']), mode: 'strict' })
+    expect(r.allowed).toBe(false)
+  })
+
+  test('unparseable license is not silently allowed against a disallow list of a different case', () => {
+    const r = matchLicenseAgainstPolicy('Apache 2.0', { disallowed: new Set(['Apache-2.0']), mode: 'loose' })
+    // "Apache 2.0" (space) is not the SPDX id; it is treated as unknown, not a bypass of Apache-2.0
+    expect(r.reason).not.toBe('explicitly-disallowed')
+    expect(r.allowed).toBe(true) // loose + no allowed list ⇒ allowed-by-default, documented
   })
 })
