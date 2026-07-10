@@ -1,4 +1,5 @@
 import { TABLE_OPTIONS } from '@pnpm/cli.utils'
+import { sanitizeForTerminal } from '@pnpm/deps.compliance.license-checker'
 import type { LicensePackage } from '@pnpm/deps.compliance.license-scanner'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
@@ -18,19 +19,20 @@ function sortLicensesPackages (licensePackages: readonly LicensePackage[]): Lice
 }
 
 function renderPackageName ({ belongsTo, name: packageName }: LicensePackage): string {
+  const sanitizedName = sanitizeForTerminal(packageName as string)
   switch (belongsTo) {
     case 'devDependencies':
-      return `${packageName} ${chalk.dim('(dev)')}`
+      return `${sanitizedName} ${chalk.dim('(dev)')}`
     case 'optionalDependencies':
-      return `${packageName} ${chalk.dim('(optional)')}`
+      return `${sanitizedName} ${chalk.dim('(optional)')}`
     default:
-      return packageName as string
+      return sanitizedName
   }
 }
 
 function renderPackageLicense ({ license }: LicensePackage): string {
   const output = license ?? 'Unknown'
-  return output as string
+  return sanitizeForTerminal(output as string)
 }
 
 function renderDetails (licensePackage: LicensePackage): string {

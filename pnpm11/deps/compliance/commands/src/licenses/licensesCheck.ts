@@ -13,9 +13,9 @@ import { PnpmError } from '@pnpm/error'
 import { getLockfileImporterId, readWantedLockfile } from '@pnpm/lockfile.fs'
 import { getStorePath } from '@pnpm/store.path'
 import type { LicensesConfig } from '@pnpm/types'
-import chalk from 'chalk'
 
 import type { LicensesCommandResult } from './LicensesCommandResult.js'
+import { renderCheckTable } from './render.js'
 
 export type LicensesCheckOptions = Pick<
   Config,
@@ -154,39 +154,6 @@ function renderCheckJson (
   }, null, 2)
   return {
     output,
-    exitCode: violations.length > 0 ? 1 : 0,
-  }
-}
-
-function renderCheckTable (
-  violations: LicenseViolation[],
-  warnings: LicenseViolation[],
-  checkedCount: number
-): LicensesCommandResult {
-  const lines: string[] = []
-
-  if (violations.length > 0) {
-    lines.push(chalk.red(`${violations.length} license violation(s) found:`))
-    lines.push('')
-    for (const v of violations) {
-      lines.push(`  ${chalk.red('x')} ${v.packageName}@${v.packageVersion} - ${v.license} - ${v.reason}`)
-    }
-  }
-
-  if (warnings.length > 0) {
-    if (lines.length > 0) lines.push('')
-    lines.push(chalk.yellow(`${warnings.length} license warning(s):`))
-    lines.push('')
-    for (const w of warnings) {
-      lines.push(`  ${chalk.yellow('!')} ${w.packageName}@${w.packageVersion} - ${w.license} - ${w.reason}`)
-    }
-  }
-
-  lines.push('')
-  lines.push(`Checked ${checkedCount} ${checkedCount === 1 ? 'package' : 'packages'}`)
-
-  return {
-    output: lines.join('\n'),
     exitCode: violations.length > 0 ? 1 : 0,
   }
 }
