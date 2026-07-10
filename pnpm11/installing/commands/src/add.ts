@@ -254,6 +254,7 @@ export async function handler (
   assertAddParams(opts, params)
   if (opts.config) {
     await addConfigDependencies(opts, params)
+    await runLicenseCheck(opts)
     return
   }
   assertNotAddingToWorkspaceRoot(opts)
