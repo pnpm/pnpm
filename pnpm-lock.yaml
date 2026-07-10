@@ -2978,6 +2978,9 @@ importers:
       '@pnpm/deps.compliance.license-scanner':
         specifier: workspace:*
         version: link:../license-scanner
+      '@pnpm/deps.path':
+        specifier: workspace:*
+        version: link:../../path
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../../core/error
