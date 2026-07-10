@@ -506,6 +506,7 @@ trustPolicy: no-downgrade
 trustPolicyExclude:
   - '@pnpm/*'
   - '@yarnpkg/libzip@3.2.2'
+  - pnpm
   - rxjs@7.8.2
   - tinyexec@1.2.2
   - undici-types@6.21.0
