@@ -7,6 +7,9 @@ import { stageJsonRequest } from './request.js'
 import type { StageItem, StageListResponse, StageOptions } from './types.js'
 
 const PER_PAGE = 100
+// Fail-safe bound on the pagination loop, so a registry that keeps answering
+// full pages with an inflated `total` cannot drive it forever.
+const MAX_PAGES = 1000
 
 export async function stageList (opts: StageOptions, params: string[]): Promise<string> {
   const packageFilter = parsePackageFilter(params[0])
@@ -26,6 +29,7 @@ export async function stageList (opts: StageOptions, params: string[]): Promise<
     items.push(...res.items)
     if (items.length >= res.total || res.items.length < PER_PAGE) break
     page++
+    if (page >= MAX_PAGES) break
   }
 
   if (opts.json) return JSON.stringify(items, null, 2)

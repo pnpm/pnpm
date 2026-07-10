@@ -86,15 +86,22 @@ impl PackageManifest {
     }
 
     fn write_to_file(path: &Path) -> Result<(Value, String), PackageManifestError> {
+        let manifest = PackageManifest::init_value_for(path);
+        let contents = serde_json::to_string_pretty(&manifest)?;
+        fs::write(path, &contents)?; // TODO: forbid overwriting existing files
+        Ok((manifest, contents))
+    }
+
+    /// The scaffold manifest `pnpm init` (and [`Self::create_if_needed`])
+    /// produces for `path`, named after the containing directory.
+    #[must_use]
+    pub fn init_value_for(path: &Path) -> Value {
         let name = path
             .parent()
             .and_then(|folder| folder.file_name())
             .and_then(|file_name| file_name.to_str())
             .unwrap_or("");
-        let manifest = PackageManifest::create_init_package_json(name);
-        let contents = serde_json::to_string_pretty(&manifest)?;
-        fs::write(path, &contents)?; // TODO: forbid overwriting existing files
-        Ok((manifest, contents))
+        PackageManifest::create_init_package_json(name)
     }
 
     /// Write `contents` to `path` atomically: a sibling temp file is written

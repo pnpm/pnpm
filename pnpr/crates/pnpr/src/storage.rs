@@ -275,6 +275,34 @@ impl HostedStore {
             HostedStore::S3(store) => HostedStore::S3(store.namespaced(segment)),
         }
     }
+
+    async fn read_staged(&self, object: &str) -> Result<Option<Vec<u8>>> {
+        match self {
+            HostedStore::Fs(store) => store.read_staged(object).await,
+            HostedStore::S3(store) => store.read_staged(object).await,
+        }
+    }
+
+    async fn write_staged(&self, object: &str, bytes: &[u8]) -> Result<()> {
+        match self {
+            HostedStore::Fs(store) => store.write_staged(object, bytes).await,
+            HostedStore::S3(store) => store.write_staged(object, bytes).await,
+        }
+    }
+
+    async fn remove_staged(&self, object: &str) -> Result<bool> {
+        match self {
+            HostedStore::Fs(store) => store.remove_staged(object).await,
+            HostedStore::S3(store) => store.remove_staged(object).await,
+        }
+    }
+
+    async fn list_staged_ids(&self) -> Result<Vec<String>> {
+        match self {
+            HostedStore::Fs(store) => store.list_staged_ids().await,
+            HostedStore::S3(store) => store.list_staged_ids().await,
+        }
+    }
 }
 
 impl Storage {
@@ -464,6 +492,82 @@ impl Storage {
             HostedStore::S3(_) => &self.cached.root,
         };
         crate::journal::PublishJournal::new(root.join(crate::journal::JOURNAL_DIR))
+    }
+
+    // --- Staged publishes (`-/stage`) -------------------------------------
+    //
+    // A staged publish is a publish document held back until it is approved
+    // (`POST /-/stage/:id/approve`) or rejected (`DELETE /-/stage/:id`). Each
+    // record is two objects in the hosted backend, keyed by the stage id:
+    // a small metadata JSON (listed and served as-is) and the full original
+    // publish body (replayed through the regular publish flow on approval).
+    // Records live under the reserved `.staged/` namespace of the *root*
+    // hosted store — never a per-org view — because the stage id is the only
+    // thing a later `view`/`approve`/`reject` request carries; the record's
+    // metadata remembers which registry the stage was addressed through.
+
+    pub async fn read_staged_meta(&self, stage_id: &str) -> Result<Option<Vec<u8>>> {
+        self.hosted.read_staged(&staged_meta_object(stage_id)?).await
+    }
+
+    pub async fn write_staged_meta(&self, stage_id: &str, bytes: &[u8]) -> Result<()> {
+        self.hosted.write_staged(&staged_meta_object(stage_id)?, bytes).await
+    }
+
+    pub async fn read_staged_body(&self, stage_id: &str) -> Result<Option<Vec<u8>>> {
+        self.hosted.read_staged(&staged_body_object(stage_id)?).await
+    }
+
+    pub async fn write_staged_body(&self, stage_id: &str, bytes: &[u8]) -> Result<()> {
+        self.hosted.write_staged(&staged_body_object(stage_id)?, bytes).await
+    }
+
+    /// Remove a staged record — the metadata first, so a concurrent list
+    /// never surfaces a record whose body is already gone. `Ok(false)` when
+    /// no metadata existed. A body-removal failure is logged rather than
+    /// propagated: once the metadata is gone the record is deleted for every
+    /// reader, and an error here would misreport that while leaving nothing
+    /// for a retry to find (bodies are only discovered through metadata).
+    pub async fn remove_staged(&self, stage_id: &str) -> Result<bool> {
+        let removed = self.hosted.remove_staged(&staged_meta_object(stage_id)?).await?;
+        if let Err(err) = self.hosted.remove_staged(&staged_body_object(stage_id)?).await {
+            tracing::warn!(error = %err, stage_id, "staged body cleanup failed after removing its metadata");
+        }
+        Ok(removed)
+    }
+
+    /// Every staged record's id, in unspecified order (the listing endpoint
+    /// sorts by staging time).
+    pub async fn list_staged_ids(&self) -> Result<Vec<String>> {
+        self.hosted.list_staged_ids().await
+    }
+}
+
+/// Reserved directory (fs) / key segment (S3) holding staged publishes.
+/// The leading dot keeps it out of the package namespace: a package name
+/// can never start with `.`.
+pub(crate) const STAGED_DIR: &str = ".staged";
+const STAGED_META_SUFFIX: &str = ".json";
+const STAGED_BODY_SUFFIX: &str = ".body.json";
+
+fn staged_meta_object(stage_id: &str) -> Result<String> {
+    Ok(format!("{}{STAGED_META_SUFFIX}", validated_stage_id(stage_id)?))
+}
+
+fn staged_body_object(stage_id: &str) -> Result<String> {
+    Ok(format!("{}{STAGED_BODY_SUFFIX}", validated_stage_id(stage_id)?))
+}
+
+/// Reject any stage id that could smuggle a path segment before it reaches a
+/// filesystem path or object key. Handlers validate the UUID shape already;
+/// this is the storage layer's own guard.
+fn validated_stage_id(stage_id: &str) -> Result<&str> {
+    let valid = !stage_id.is_empty()
+        && stage_id.chars().all(|char| char.is_ascii_hexdigit() || char == '-');
+    if valid {
+        Ok(stage_id)
+    } else {
+        Err(RegistryError::BadRequest { reason: format!("invalid stage id {stage_id:?}") })
     }
 }
 
@@ -667,6 +771,51 @@ impl Store {
     fn tarball_path(&self, name: &PackageName, filename: &str) -> PathBuf {
         self.package_dir(name).join(filename)
     }
+
+    async fn read_staged(&self, object: &str) -> Result<Option<Vec<u8>>> {
+        match fs::read(self.root.join(STAGED_DIR).join(object)).await {
+            Ok(bytes) => Ok(Some(bytes)),
+            Err(err) if err.kind() == ErrorKind::NotFound => Ok(None),
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    async fn write_staged(&self, object: &str, bytes: &[u8]) -> Result<()> {
+        write_atomic(&self.root.join(STAGED_DIR).join(object), bytes).await
+    }
+
+    async fn remove_staged(&self, object: &str) -> Result<bool> {
+        match fs::remove_file(self.root.join(STAGED_DIR).join(object)).await {
+            Ok(()) => Ok(true),
+            Err(err) if err.kind() == ErrorKind::NotFound => Ok(false),
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    async fn list_staged_ids(&self) -> Result<Vec<String>> {
+        let mut entries = match fs::read_dir(self.root.join(STAGED_DIR)).await {
+            Ok(entries) => entries,
+            Err(err) if err.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(err) => return Err(err.into()),
+        };
+        let mut ids = Vec::new();
+        while let Some(entry) = entries.next_entry().await? {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if let Some(id) = staged_id_of_meta_object(&name) {
+                ids.push(id.to_string());
+            }
+        }
+        Ok(ids)
+    }
+}
+
+/// The stage id of a metadata object name, or `None` for anything else in
+/// the staged namespace (bodies, tmp files from interrupted writes).
+pub(crate) fn staged_id_of_meta_object(object: &str) -> Option<&str> {
+    if object.ends_with(STAGED_BODY_SUFFIX) {
+        return None;
+    }
+    object.strip_suffix(STAGED_META_SUFFIX)
 }
 
 async fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {

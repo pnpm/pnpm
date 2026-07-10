@@ -112,6 +112,16 @@ fn load_or_create_manifest(manifest_path: PathBuf) -> Result<PackageManifest, In
         {
             return Ok(manifest);
         }
+        // A workspace root defined by `pnpm-workspace.yaml` alone is legal
+        // without a root manifest, and pnpm never scaffolds one there. A
+        // scaffolded root `package.json` would turn the root into a project —
+        // with the init template's failing `test` script — that recursive
+        // selection (e.g. a `[<since>]` filter picking up a root-level change)
+        // would then run. Use the scaffold in memory without persisting it.
+        if project_dir.join("pnpm-workspace.yaml").exists() {
+            let value = PackageManifest::init_value_for(&manifest_path);
+            return Ok(PackageManifest::from_value(manifest_path, value));
+        }
     }
     manifest_path.pipe(PackageManifest::create_if_needed).map_err(InitStateError::Manifest)
 }

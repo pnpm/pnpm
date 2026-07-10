@@ -308,6 +308,7 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
         CliCommand::Rebuild(args) => dispatch_install::rebuild(ctx, args),
         CliCommand::Pack(args) => dispatch_query::pack(ctx, &args),
         CliCommand::Publish(args) => dispatch_query::publish(ctx, args),
+        CliCommand::Stage(args) => dispatch_query::stage(ctx, args),
         CliCommand::Remove(args) => dispatch_install::remove(ctx, args),
         CliCommand::Patch(args) => dispatch_install::patch(ctx, args),
         CliCommand::PatchCommit(args) => dispatch_install::patch_commit(ctx, args),

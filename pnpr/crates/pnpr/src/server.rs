@@ -363,6 +363,24 @@ fn router_with_auth_and_osv(
             // documents. Not part of the standard npm registry API —
             // `pnpm publish --batch` opts into it explicitly.
             .route("/-/pnpm/v1/publish", put(serve_batch_publish))
+            // Staged (two-phase) publishing — the `pnpm stage` surface.
+            // Static `-`/`stage` segments take priority over the generic
+            // segment-count routes below, so these never shadow package
+            // reads. Each route has a `/~<name>/`-prefixed twin so a client
+            // whose registry URL is a registry endpoint can stage through it.
+            .route("/-/stage", get(staged::list_staged))
+            .route("/-/stage/package/{name}", post(staged::post_staged_publish))
+            .route("/-/stage/{id}", get(staged::get_staged).delete(staged::reject_staged))
+            .route("/-/stage/{id}/approve", post(staged::approve_staged))
+            .route("/-/stage/{id}/tarball", get(staged::get_staged_tarball))
+            .route("/{prefix}/-/stage", get(staged::list_staged_prefixed))
+            .route("/{prefix}/-/stage/package/{name}", post(staged::post_staged_publish_prefixed))
+            .route(
+                "/{prefix}/-/stage/{id}",
+                get(staged::get_staged_prefixed).delete(staged::reject_staged_prefixed),
+            )
+            .route("/{prefix}/-/stage/{id}/approve", post(staged::approve_staged_prefixed))
+            .route("/{prefix}/-/stage/{id}/tarball", get(staged::get_staged_tarball_prefixed))
             .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
             .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
             .route(
@@ -2339,6 +2357,8 @@ fn token_timestamp_millis(seconds: u64) -> i64 {
     let max_seconds = i64::MAX as u64 / MILLIS_PER_SECOND;
     (seconds.min(max_seconds) * MILLIS_PER_SECOND) as i64
 }
+
+mod staged;
 
 #[cfg(test)]
 mod tests;

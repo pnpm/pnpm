@@ -1,4 +1,4 @@
-use super::{PublishArgs, run_publish_scripts};
+use super::{PublishArgs, PublishFlags, run_publish_scripts};
 use pacquet_config::Config;
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_publish::{Access, PublishNetwork};
@@ -9,8 +9,15 @@ use serde_json::json;
 /// A `PublishArgs` with every flag at its default; a test overrides only the
 /// field it exercises.
 fn publish_args() -> PublishArgs {
-    PublishArgs {
-        package: None,
+    PublishArgs { package: None, flags: publish_flags() }
+}
+
+fn publish_args_with(flags: PublishFlags) -> PublishArgs {
+    PublishArgs { package: None, flags }
+}
+
+fn publish_flags() -> PublishFlags {
+    PublishFlags {
         dry_run: false,
         json: false,
         tag: None,
@@ -33,14 +40,16 @@ fn should_ignore_scripts_ors_the_flag_with_the_config() {
     let config_on = Config { ignore_scripts: true, ..Default::default() };
     assert!(!publish_args().should_ignore_scripts(&config_off));
     assert!(
-        PublishArgs { ignore_scripts: true, ..publish_args() }.should_ignore_scripts(&config_off),
+        publish_args_with(PublishFlags { ignore_scripts: true, ..publish_flags() })
+            .should_ignore_scripts(&config_off),
     );
     assert!(publish_args().should_ignore_scripts(&config_on));
 }
 
 #[test]
 fn publish_options_defaults_the_tag_to_latest_and_carries_the_otp() {
-    let options = publish_args().publish_options(&Config::default(), Some("246810".to_owned()));
+    let options =
+        publish_args().publish_options(&Config::default(), Some("246810".to_owned()), false);
     assert_eq!(options.tag, "latest");
     assert_eq!(options.otp, Some("246810".to_owned()));
     assert_eq!(options.provenance, None);
@@ -51,14 +60,14 @@ fn publish_options_defaults_the_tag_to_latest_and_carries_the_otp() {
 
 #[test]
 fn publish_options_applies_tag_access_provenance_and_dry_run() {
-    let args = PublishArgs {
+    let args = publish_args_with(PublishFlags {
         tag: Some("next".to_owned()),
         access: Some("restricted".to_owned()),
         provenance: true,
         dry_run: true,
-        ..publish_args()
-    };
-    let options = args.publish_options(&Config::default(), None);
+        ..publish_flags()
+    });
+    let options = args.publish_options(&Config::default(), None, false);
     assert_eq!(options.tag, "next");
     assert_eq!(options.access, Some(Access::Restricted));
     assert_eq!(options.provenance, Some(true));
@@ -73,7 +82,7 @@ fn pack_for_publish_writes_a_tarball_and_returns_the_manifest() {
         .expect("write the manifest");
     let dest = tempfile::tempdir().expect("a destination dir");
 
-    let args = PublishArgs { ignore_scripts: true, ..publish_args() };
+    let args = publish_args_with(PublishFlags { ignore_scripts: true, ..publish_flags() });
     let result = args
         .pack_for_publish::<SilentReporter>(dir.path(), &Config::default(), dest.path())
         .expect("packing succeeds");
@@ -131,7 +140,7 @@ async fn publish_directory_errors_when_no_manifest_is_present() {
     let dir = tempfile::tempdir().expect("an empty project dir");
     let config = Config::default();
     let args = publish_args();
-    let opts = args.publish_options(&config, None);
+    let opts = args.publish_options(&config, None, false);
     let client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let network = PublishNetwork { client: &client, auth_headers: &auth_headers };
@@ -151,7 +160,7 @@ async fn publish_directory_errors_when_no_manifest_is_present() {
 /// publish is rejected before any git check or network work.
 #[tokio::test]
 async fn run_rejects_batch_without_recursive() {
-    let args = PublishArgs { batch: true, ..publish_args() };
+    let args = publish_args_with(PublishFlags { batch: true, ..publish_flags() });
     let err = args
         .run::<SilentReporter>(std::path::Path::new("."), &Config::default(), false)
         .await

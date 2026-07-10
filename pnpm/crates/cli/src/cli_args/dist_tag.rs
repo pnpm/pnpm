@@ -1,13 +1,12 @@
 use super::sanitize;
 use clap::Args;
 use derive_more::{Display, Error};
-use futures_util::StreamExt as _;
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use node_semver::Version;
 use pacquet_config::Config;
 use pacquet_network::{
-    NetworkSettings, RetryOpts, ThrottledClient, encode_uri_component, redact_url_credentials,
-    retry_async, send_with_retry,
+    LimitedBody, NetworkSettings, RetryOpts, ThrottledClient, encode_uri_component,
+    read_limited_body, redact_url_credentials, retry_async, send_with_retry,
 };
 use pacquet_resolving_npm_resolver::pick_registry_for_package;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
@@ -428,7 +427,7 @@ async fn write_error_from_response(response: Response, action: String) -> miette
     })?;
     let web_otp_challenge =
         if body.truncated { None } else { parse_web_otp_challenge(&body.bytes) };
-    let body = body.into_display_string();
+    let body = body_display_string(&body);
     if status == StatusCode::UNAUTHORIZED {
         if let Some(challenge) = web_otp_challenge {
             return Err(DistTagError::WebOtpRequired {
@@ -501,45 +500,18 @@ where
     .into()
 }
 
-struct LimitedBody {
-    bytes: Vec<u8>,
-    truncated: bool,
-}
-
-impl LimitedBody {
-    fn into_display_string(self) -> String {
-        let body = String::from_utf8_lossy(&self.bytes);
-        let mut body = sanitize::sanitize(&body).into_owned();
-        if self.truncated {
-            if !body.is_empty() && !body.chars().next_back().is_some_and(char::is_whitespace) {
-                body.push(' ');
-            }
-            body.push_str("(response body truncated)");
+/// Render a capped response body for an error message: lossy UTF-8,
+/// sanitized, with a truncation note when the cap was hit.
+pub(super) fn body_display_string(body: &LimitedBody) -> String {
+    let text = String::from_utf8_lossy(&body.bytes);
+    let mut text = sanitize::sanitize(&text).into_owned();
+    if body.truncated {
+        if !text.is_empty() && !text.chars().next_back().is_some_and(char::is_whitespace) {
+            text.push(' ');
         }
-        body
+        text.push_str("(response body truncated)");
     }
-}
-
-async fn read_limited_body(
-    response: Response,
-    limit: usize,
-) -> Result<LimitedBody, reqwest::Error> {
-    let header_exceeds_limit =
-        response.content_length().is_some_and(|length| length > limit as u64);
-    let mut bytes = Vec::new();
-    let mut truncated = header_exceeds_limit;
-    let mut stream = response.bytes_stream();
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk?;
-        let remaining = limit.saturating_sub(bytes.len());
-        if chunk.len() > remaining {
-            bytes.extend_from_slice(&chunk[..remaining]);
-            truncated = true;
-            break;
-        }
-        bytes.extend_from_slice(&chunk);
-    }
-    Ok(LimitedBody { bytes, truncated })
+    text
 }
 
 #[derive(Deserialize)]

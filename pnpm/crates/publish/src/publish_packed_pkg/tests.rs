@@ -224,19 +224,27 @@ async fn put_publish_maps_a_one_time_pass_body_to_a_web_auth_challenge() {
 #[tokio::test]
 async fn put_publish_extracts_a_stage_id_only_for_a_staged_publish() {
     let mut server = mockito::Server::new_async().await;
+    // A staged publish POSTs; a regular publish PUTs the same path.
+    server
+        .mock("POST", "/pkg")
+        .with_status(200)
+        .with_body(r#"{"stageId":"stage-1"}"#)
+        .expect(1)
+        .create_async()
+        .await;
     server
         .mock("PUT", "/pkg")
         .with_status(200)
         .with_body(r#"{"stageId":"stage-1"}"#)
-        .expect(2)
+        .expect(1)
         .create_async()
         .await;
     let client = ThrottledClient::default();
     let url = format!("{}/pkg", server.url());
 
-    let staged = put_publish(&client, &url, None, "publish", body(), None, true)
+    let staged = put_publish(&client, &url, None, "stage", body(), None, true)
         .await
-        .expect("the PUT completes");
+        .expect("the POST completes");
     assert_eq!(staged.stage_id.as_deref(), Some("stage-1"));
 
     // Without `is_stage` the same body must not yield a stage id.
