@@ -457,12 +457,8 @@ fn add_user(registry: &str) -> String {
         "roles": [],
     });
     block_on(async {
-        let response = http_client()
-            .put(&url)
-            .json(&body)
-            .send()
-            .await
-            .expect("send the adduser request");
+        let response =
+            http_client().put(&url).json(&body).send().await.expect("send the adduser request");
         assert_eq!(response.status().as_u16(), 201, "adduser must succeed");
         let payload: Value = response.json().await.expect("parse the adduser response");
         payload["token"].as_str().expect("token in the adduser response").to_owned()
