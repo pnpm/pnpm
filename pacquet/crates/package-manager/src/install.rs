@@ -83,6 +83,14 @@ fn map_frozen_lockfile_error(error: InstallFrozenLockfileError) -> InstallError 
     }
 }
 
+/// Shared out-map for [`Install::peer_issues_sink`]: importer id →
+/// that importer's peer-dependency issues from the fresh resolve.
+pub type PeerIssuesSink = Arc<
+    std::sync::Mutex<
+        std::collections::BTreeMap<String, pacquet_resolving_deps_resolver::PeerDependencyIssues>,
+    >,
+>;
+
 /// This subroutine does everything `pacquet install` is supposed to do.
 #[must_use]
 pub struct Install<'a, DependencyGroupList>
@@ -236,6 +244,14 @@ where
     /// tarball downloads overlap server-side resolution.
     /// Ignored on the frozen path (no tree walk to observe).
     pub resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
+    /// Out-channel for the fresh resolve's per-importer peer-dependency
+    /// issues. `None` for every CLI install (issues are only logged).
+    /// The napi `getPeerDependencyIssues` runs a `dry_run` install with
+    /// a sink to collect them — and a sink-driven dry run suppresses
+    /// the CLI's stdout diff report, since it is a programmatic query
+    /// rather than an `--dry-run` preview. Only the fresh path fills
+    /// it (the frozen path resolves nothing).
+    pub peer_issues_sink: Option<crate::PeerIssuesSink>,
     /// In-memory catalogs to resolve against instead of reading
     /// `pnpm-workspace.yaml` from disk. `None` (every plain install) reads
     /// the workspace manifest. `pacquet update` sets this so a `--latest`
@@ -273,6 +289,9 @@ pub enum InstallError {
 
     #[diagnostic(transparent)]
     WithFreshLockfile(#[error(source)] InstallWithFreshLockfileError),
+
+    #[diagnostic(transparent)]
+    LinkManifestLinkDeps(#[error(source)] crate::LinkManifestLinkDepsError),
 
     /// pnpm's `ERR_PNPM_IGNORED_BUILDS`: with `strictDepBuilds` on (the
     /// default), an install that blocked any dependency build script
@@ -527,11 +546,14 @@ where
             update_seed_policy,
             auth_override,
             resolution_observer,
+            peer_issues_sink,
             catalogs_override,
             disable_optimistic_repeat_install,
             pnpmfile_hook_override,
             workspace_projects_override,
         } = self;
+        // Read before the sink is moved into the fresh-path inputs.
+        let peer_issues_sink_is_none = peer_issues_sink.is_none();
 
         // `--dry-run` resolves but never materializes, so it borrows the
         // lockfile-only plumbing (skip node_modules / `.modules.yaml` /
@@ -1239,9 +1261,14 @@ where
 
         // Sorted `name@version` keys whose builds were blocked; assigned
         // by whichever path runs and consumed by the `strictDepBuilds`
-        // gate at the tail. Kept out of the tuple below to avoid a
-        // `clippy::type_complexity` annotation.
+        // gate at the tail. Kept out of the tuple below (along with the
+        // injected-deps map) to avoid a `clippy::type_complexity`
+        // annotation.
         let ignored_builds: Vec<String>;
+        // Per-source-project virtual-store copies of injected `file:`
+        // deps, for `.modules.yaml`'s `injectedDeps`; assigned by
+        // whichever path runs. See [`crate::collect_injected_deps`].
+        let injected_deps: BTreeMap<String, Vec<String>>;
         let (hoisted_dependencies, hoisted_locations, install_skipped, fresh_lockfile): (
             HoistedDependencies,
             BTreeMap<String, Vec<String>>,
@@ -1290,6 +1317,7 @@ where
             .map_err(map_frozen_lockfile_error)?;
 
             ignored_builds = frozen_result.ignored_builds;
+            injected_deps = frozen_result.injected_deps;
             (
                 frozen_result.hoisted_dependencies,
                 frozen_result.hoisted_locations,
@@ -1405,6 +1433,7 @@ where
                 update_seed_policy,
                 auth_override,
                 resolution_observer,
+                peer_issues_sink: peer_issues_sink.clone(),
                 pnpmfile_hook_override,
             }
             .run::<Reporter>()
@@ -1428,6 +1457,7 @@ where
             }
 
             ignored_builds = fresh_result.ignored_builds;
+            injected_deps = fresh_result.injected_deps;
             (
                 fresh_result.hoisted_dependencies,
                 fresh_result.hoisted_locations,
@@ -1447,8 +1477,10 @@ where
         if resolve_only {
             // `--dry-run` resolved a fresh lockfile but wrote nothing. Diff
             // it against the existing on-disk lockfile and print a report,
-            // then exit 0 — npm-style preview semantics.
-            if dry_run {
+            // then exit 0 — npm-style preview semantics. A sink-driven dry
+            // run (napi `getPeerDependencyIssues`) is a programmatic query,
+            // not a preview — no report.
+            if dry_run && peer_issues_sink_is_none {
                 use std::io::Write as _;
                 let report =
                     crate::dry_run::render_dry_run_report(&crate::dry_run::diff_lockfiles(
@@ -1462,6 +1494,26 @@ where
             Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
             return Ok(());
         }
+
+        // Materialize `link:` direct deps straight from the in-memory
+        // project manifests. `excludeLinksFromLockfile` keeps them out
+        // of the lockfile importers, so the lockfile-driven symlink
+        // passes inside the frozen/fresh paths never see them; pnpm
+        // v11's `linkDirectDeps` linked them from the projects
+        // regardless. Aliases the wanted lockfile *does* track are
+        // skipped — those belong to the lockfile passes (and their
+        // dedupe decisions). See [`crate::link_manifest_link_deps`].
+        crate::link_manifest_link_deps::<Reporter>(
+            &workspace_root,
+            &project_manifests,
+            fresh_lockfile.as_ref().or(lockfile).and_then(|lockfile| {
+                (!lockfile.importers.is_empty()).then_some(&lockfile.importers)
+            }),
+            // Honor a `modulesDir` override the same way the
+            // lockfile-driven symlink pass does.
+            config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules")),
+        )
+        .map_err(InstallError::LinkManifestLinkDeps)?;
 
         // `Stage::ImportingDone` is emitted inside the install paths
         // (`InstallFrozenLockfile` between symlink and build, and
@@ -1558,6 +1610,7 @@ where
                 included,
                 hoisted_dependencies,
                 hoisted_locations,
+                injected_deps,
                 &install_skipped,
                 &ignored_builds,
                 pruned_at,
@@ -2017,7 +2070,7 @@ fn unapproved_recorded_ignored_builds(
 /// Assemble the [`Modules`] payload for [`write_modules_manifest`].
 ///
 /// Fields pacquet does not populate yet (`pendingBuilds`,
-/// `injectedDeps`, `allowBuilds`) default to empty / unset.
+/// `allowBuilds`) default to empty / unset.
 ///
 /// `hoistedDependencies` is produced by the isolated-linker hoist
 /// pass in [`crate::InstallFrozenLockfile::run`] and threaded in
@@ -2057,6 +2110,7 @@ fn build_modules_manifest(
     included: IncludedDependencies,
     hoisted_dependencies: HoistedDependencies,
     hoisted_locations: BTreeMap<String, Vec<String>>,
+    injected_deps: BTreeMap<String, Vec<String>>,
     skipped: &crate::SkippedSnapshots,
     ignored_builds: &[String],
     pruned_at: String,
@@ -2076,6 +2130,10 @@ fn build_modules_manifest(
         // when empty so an isolated install doesn't produce a
         // hoisted-only key.
         hoisted_locations: (!hoisted_locations.is_empty()).then_some(hoisted_locations),
+        // Per-source-project virtual-store copies of injected `file:`
+        // deps (see [`crate::collect_injected_deps`]). Omitted when
+        // empty, matching pnpm's omit-when-empty encoding.
+        injected_deps: (!injected_deps.is_empty()).then_some(injected_deps),
         included,
         layout_version: Some(LayoutVersion),
         node_linker: Some(map_node_linker(node_linker)),

@@ -1014,6 +1014,11 @@ where
         // direct dep that would land at root via public-hoist stays
         // un-deduped. The full `HoistResult` is also threaded to the
         // on-disk hoist pass below so the BFS isn't run twice.
+        // `hoist-workspace-packages`: named non-root projects become
+        // hoist candidates whose links point at the project dirs.
+        let hoisted_workspace_packages = config
+            .hoist_workspace_packages
+            .then(|| workspace_packages_for_hoist(workspace_root, project_manifests));
         let pre_hoist = compute_hoist_plan(
             config,
             snapshots,
@@ -1022,6 +1027,7 @@ where
             &dependency_groups,
             &skipped,
             is_hoisted,
+            hoisted_workspace_packages.as_ref(),
         );
         let public_hoist_targets: Option<BTreeMap<String, PathBuf>> =
             pre_hoist.as_ref().map(|plan| {
@@ -1029,6 +1035,17 @@ where
             });
 
         if !is_hoisted {
+            // Importer ids backed by the install's own declared
+            // projects. These may legitimately live outside the
+            // lockfile dir (Bit's capsule installs pass such
+            // projects), so they bypass the malformed-lockfile
+            // importer-key rejection.
+            let trusted_importer_ids: std::collections::HashSet<String> = project_manifests
+                .iter()
+                .map(|(project_dir, _)| {
+                    pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir)
+                })
+                .collect();
             SymlinkDirectDependencies {
                 config,
                 layout: &layout,
@@ -1038,6 +1055,7 @@ where
                 skipped: &skipped,
                 link_only: false,
                 public_hoist_targets: public_hoist_targets.as_ref(),
+                trusted_importer_ids: Some(&trusted_importer_ids),
             }
             .run::<Reporter>()
             .map_err(InstallFrozenLockfileError::SymlinkDirectDependencies)?;
@@ -1198,6 +1216,7 @@ where
             let public_dir = config.modules_dir.clone();
             symlink_hoisted_dependencies(
                 &result.hoisted_dependencies_by_node_id,
+                &result.hoisted_workspace_aliases,
                 &graph,
                 &layout,
                 &private_dir,
@@ -1333,9 +1352,25 @@ where
             ),
         }
 
+        // The injectedDeps payload for `.modules.yaml`: every `file:`
+        // snapshot is a materialized copy of an injected workspace
+        // project; record the copies per source project so post-install
+        // tooling (Bit's build-artifact linker) can reach all of them.
+        // Under the hoisted linker the copies live at the walker's
+        // hoisted locations rather than in a virtual store.
+        let injected_deps = crate::collect_injected_deps(
+            &layout,
+            workspace_root,
+            snapshots,
+            packages,
+            &skipped,
+            is_hoisted.then_some(&hoisted_locations),
+        );
+
         Ok(InstallFrozenLockfileOutput {
             hoisted_dependencies,
             hoisted_locations,
+            injected_deps,
             skipped,
             ignored_builds,
         })
@@ -1362,6 +1397,11 @@ pub struct InstallFrozenLockfileOutput {
     /// so a follow-up install (or rebuild) can locate every
     /// package without re-running the walker.
     pub hoisted_locations: BTreeMap<String, Vec<String>>,
+    /// Per-source-project list of virtual-store package directories
+    /// its injected `file:` copies were materialized at. Round-trips
+    /// through [`pacquet_modules_yaml::Modules::injected_deps`] —
+    /// see [`crate::collect_injected_deps`].
+    pub injected_deps: BTreeMap<String, Vec<String>>,
     /// Install-time skip set produced by `compute_skipped_snapshots`,
     /// seeded from the previous install's `.modules.yaml.skipped`
     /// and augmented with snapshots that newly failed the
@@ -1582,6 +1622,16 @@ pub(crate) fn run_hoisted_linker<Reporter: self::Reporter>(
     // filters every other dep out so the call doesn't try to re-create
     // symlinks for packages that the hoisted linker already wrote as
     // real dirs.
+    // Importer ids backed by the install's own declared projects —
+    // allowed outside the lockfile dir (see the isolated-path use).
+    // Ids are lockfile-dir-relative, so derive them against
+    // `walker_lockfile_dir`.
+    let trusted_importer_ids: std::collections::HashSet<String> = project_manifests
+        .iter()
+        .map(|(project_dir, _)| {
+            pacquet_workspace::importer_id_from_root_dir(walker_lockfile_dir, project_dir)
+        })
+        .collect();
     SymlinkDirectDependencies {
         config,
         layout,
@@ -1593,6 +1643,7 @@ pub(crate) fn run_hoisted_linker<Reporter: self::Reporter>(
         // Hoisted-linker path has no public-hoist virtual store to
         // dedupe against; the real-directory tree is the hoist layout.
         public_hoist_targets: None,
+        trusted_importer_ids: Some(&trusted_importer_ids),
     }
     .run::<Reporter>()
     .map_err(HoistedLinkerError::SymlinkDirectDependencies)?;
@@ -1632,6 +1683,29 @@ pub(crate) struct HoistPlan {
 /// install is going through the hoisted linker). Side-effect-free:
 /// the on-disk symlinks happen later in the pipeline. Same input
 /// gating as the legacy in-place block in [`InstallFrozenLockfile::run`].
+/// `hoist-workspace-packages` input: every named non-root project's
+/// `name → absolute project dir`, the shape v11 builds from
+/// `allProjects` for its `hoistedWorkspacePackages` map. The root
+/// project itself is excluded — its dir *is* where the hoisted
+/// modules live.
+pub(crate) fn workspace_packages_for_hoist(
+    workspace_root: &Path,
+    project_manifests: &[(PathBuf, &pacquet_package_manifest::PackageManifest)],
+) -> std::collections::BTreeMap<String, PathBuf> {
+    project_manifests
+        .iter()
+        .filter(|(project_dir, _)| project_dir != workspace_root)
+        .filter_map(|(project_dir, manifest)| {
+            let name = manifest.value().get("name")?.as_str()?;
+            Some((name.to_string(), project_dir.clone()))
+        })
+        .collect()
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "bundles every lockfile/config axis one hoist plan needs; both call sites pass the same shapes"
+)]
 pub(crate) fn compute_hoist_plan(
     config: &Config,
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
@@ -1640,6 +1714,7 @@ pub(crate) fn compute_hoist_plan(
     dependency_groups: &[pacquet_package_manifest::DependencyGroup],
     skipped: &SkippedSnapshots,
     is_hoisted: bool,
+    hoisted_workspace_packages: Option<&std::collections::BTreeMap<String, PathBuf>>,
 ) -> Option<HoistPlan> {
     if is_hoisted {
         return None;
@@ -1675,6 +1750,7 @@ pub(crate) fn compute_hoist_plan(
         skipped: &hoist_skipped,
         private_pattern,
         public_pattern,
+        hoisted_workspace_packages,
     })?;
     Some(HoistPlan { graph, result, skipped: hoist_skipped })
 }
@@ -1700,6 +1776,14 @@ pub(crate) fn collect_public_hoist_targets(
     hoist_skipped: &HashSet<PackageKey>,
 ) -> BTreeMap<String, PathBuf> {
     let mut targets = BTreeMap::new();
+    // Publicly-hoisted workspace packages land in root's
+    // `node_modules/` too; their dedupe target is the project dir
+    // the hoist symlink points at.
+    for (alias, kind, project_dir) in &result.hoisted_workspace_aliases {
+        if matches!(kind, pacquet_modules_yaml::HoistKind::Public) {
+            targets.entry(alias.clone()).or_insert_with(|| project_dir.clone());
+        }
+    }
     for (node_id, alias_map) in &result.hoisted_dependencies_by_node_id {
         if hoist_skipped.contains(node_id) {
             continue;

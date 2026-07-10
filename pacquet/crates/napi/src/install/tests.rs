@@ -236,3 +236,53 @@ fn network_config() -> NetworkConfigInput {
         user_agent: None,
     }
 }
+
+/// `safe_intersect` mirrors v11's `mergePeers` helper: pairwise semver
+/// range intersection, `None` on an empty intersection or unparsable
+/// range (→ recorded as a conflict by the caller).
+#[test]
+fn safe_intersect_matches_merge_peers_semantics() {
+    use super::safe_intersect;
+
+    // Overlapping ranges intersect to a non-empty range.
+    let merged = safe_intersect(["^16.8.0", "16 || 17"].into_iter()).expect("ranges overlap");
+    let range: node_semver::Range = merged.parse().expect("intersection parses");
+    assert!(range.satisfies(&"16.9.1".parse().unwrap()));
+    assert!(!range.satisfies(&"17.0.0".parse().unwrap()));
+
+    // Disjoint ranges → None (conflict).
+    assert_eq!(safe_intersect(["^16.0.0", "^17.0.0"].into_iter()), None);
+    // Unparsable range → None, matching v11's swallow-errors behavior.
+    assert_eq!(safe_intersect(["^16.0.0", "not-a-range"].into_iter()), None);
+}
+
+/// The wire shape mirrors v11's `PeerDependencyIssues`: `missing` /
+/// `bad` entries verbatim, `intersections` from the non-optional
+/// missing ranges, and disjoint ranges surfacing under `conflicts`.
+#[test]
+fn peer_issues_to_json_derives_conflicts_and_intersections() {
+    use pacquet_resolving_deps_resolver::{MissingPeer, ParentPackageRef, PeerDependencyIssues};
+
+    let parent = ParentPackageRef { name: "comp1".to_string(), version: "1.0.0".to_string() };
+    let missing_entry = |range: &str, optional: bool| MissingPeer {
+        wanted_range: range.to_string(),
+        optional,
+        meta_only: false,
+        parents: vec![parent.clone()],
+    };
+    let mut issues = PeerDependencyIssues::default();
+    issues.missing.insert("react".to_string(), vec![missing_entry("^16.8.0", false)]);
+    issues.missing.insert(
+        "conflicted".to_string(),
+        vec![missing_entry("^1.0.0", false), missing_entry("^2.0.0", false)],
+    );
+    issues.missing.insert("optional-only".to_string(), vec![missing_entry("*", true)]);
+
+    let json = super::peer_issues_to_json(&issues);
+    assert_eq!(json["intersections"]["react"], "^16.8.0");
+    assert_eq!(json["conflicts"], serde_json::json!(["conflicted"]));
+    assert!(json["intersections"].get("optional-only").is_none());
+    assert_eq!(json["missing"]["react"][0]["wantedRange"], "^16.8.0");
+    assert_eq!(json["missing"]["react"][0]["parents"][0]["name"], "comp1");
+    assert_eq!(json["bad"], serde_json::json!({}));
+}

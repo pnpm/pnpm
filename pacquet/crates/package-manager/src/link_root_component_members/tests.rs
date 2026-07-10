@@ -210,6 +210,111 @@ fn injected_members_link_declared_siblings() {
     drop(dir);
 }
 
+/// A member whose slot has no `package.json` — a Bit workspace
+/// component, whose manifest exists only in memory on the Bit side —
+/// falls back to linking every other member of the root into its slot.
+/// Members that DO have a manifest keep the declared-only behavior.
+#[test]
+fn member_without_manifest_links_all_root_siblings() {
+    let dir = tempdir().unwrap();
+    let layout = VirtualStoreLayout::legacy(dir.path().join("vs"), 120);
+
+    // `a` has no package.json in its slot (Bit workspace shape);
+    // `b` and `c` have manifests: b declares c, c declares nothing.
+    let a_slot = member_slot_modules_dir(&layout, "@scope/a", "a");
+    fs::create_dir_all(a_slot.join("@scope/a")).unwrap();
+    fs::write(a_slot.join("@scope/a/index.js"), "").unwrap();
+    let b_slot = member_slot_modules_dir(&layout, "@scope/b", "b");
+    create_member_slot(&b_slot, "@scope/b", &["@scope/c"]);
+    let c_slot = member_slot_modules_dir(&layout, "@scope/c", "c");
+    create_member_slot(&c_slot, "@scope/c", &[]);
+
+    let mut deps = ResolvedDependencyMap::new();
+    for (name, payload) in [("@scope/a", "a"), ("@scope/b", "b"), ("@scope/c", "c")] {
+        deps.insert(name.parse().unwrap(), file_member(name, payload));
+    }
+
+    let importer_id = "node_modules/.bit_roots/root".to_string();
+    let mut importers = HashMap::new();
+    importers.insert(
+        importer_id.clone(),
+        ProjectSnapshot { dependencies: Some(deps), ..ProjectSnapshot::default() },
+    );
+
+    link_root_component_members(
+        &layout,
+        &importers,
+        &id_set(&[importer_id.as_str()]),
+        &[DependencyGroup::Prod],
+        &SkippedSnapshots::default(),
+    )
+    .expect("missing member manifest must not fail the pass");
+
+    // `a` (no manifest) gains the full clique: both b and c.
+    for (sibling, sibling_slot) in [("@scope/b", &b_slot), ("@scope/c", &c_slot)] {
+        assert!(
+            is_symlink_or_junction(&a_slot.join(sibling)).unwrap(),
+            "manifest-less member must link all root siblings",
+        );
+        assert_eq!(
+            fs::canonicalize(a_slot.join(sibling)).unwrap(),
+            fs::canonicalize(sibling_slot.join(sibling)).unwrap(),
+        );
+    }
+    // `a`'s own package dir stays a real directory.
+    assert!(!is_symlink_or_junction(&a_slot.join("@scope/a")).unwrap());
+
+    // `b` (has a manifest) keeps declared-only: links c, not a.
+    assert!(is_symlink_or_junction(&b_slot.join("@scope/c")).unwrap());
+    assert!(!b_slot.join("@scope/a").exists(), "declared-only member must not gain the clique");
+
+    // `c` declares no siblings and gains none.
+    assert!(!c_slot.join("@scope/a").exists());
+    assert!(!c_slot.join("@scope/b").exists());
+
+    drop(dir);
+}
+
+/// A slot `package.json` that exists but cannot be parsed is still a
+/// hard error — only a *missing* manifest triggers the clique fallback.
+#[test]
+fn malformed_member_manifest_still_errors() {
+    let dir = tempdir().unwrap();
+    let layout = VirtualStoreLayout::legacy(dir.path().join("vs"), 120);
+
+    let a_slot = member_slot_modules_dir(&layout, "@scope/a", "a");
+    fs::create_dir_all(a_slot.join("@scope/a")).unwrap();
+    fs::write(a_slot.join("@scope/a/package.json"), "{ not json").unwrap();
+
+    let mut deps = ResolvedDependencyMap::new();
+    deps.insert("@scope/a".parse().unwrap(), file_member("@scope/a", "a"));
+
+    let importer_id = "node_modules/.bit_roots/root".to_string();
+    let mut importers = HashMap::new();
+    importers.insert(
+        importer_id.clone(),
+        ProjectSnapshot { dependencies: Some(deps), ..ProjectSnapshot::default() },
+    );
+
+    let result = link_root_component_members(
+        &layout,
+        &importers,
+        &id_set(&[importer_id.as_str()]),
+        &[DependencyGroup::Prod],
+        &SkippedSnapshots::default(),
+    );
+    assert!(
+        matches!(
+            result,
+            Err(super::LinkRootComponentMembersError::ReadManifest { ref member, .. })
+                if member == "@scope/a"
+        ),
+        "a malformed manifest must surface, not silently clique-link",
+    );
+
+    drop(dir);
+}
+
 /// An importer that is NOT flagged as a root component keeps its
 /// injected members isolated — the pass never fires for ordinary
 /// installs.

@@ -24,6 +24,8 @@ pacquet-lockfile                          = { workspace = true }
 pacquet-network                           = { workspace = true }
 pacquet-pack                              = { workspace = true }
 pacquet-package-manager                   = { workspace = true }
+pacquet-resolving-deps-resolver           = { workspace = true }
+node-semver                               = { workspace = true }
 pacquet-package-manifest                  = { workspace = true }
 pacquet-reporter                          = { workspace = true }
 pacquet-resolving-default-resolver        = { workspace = true }

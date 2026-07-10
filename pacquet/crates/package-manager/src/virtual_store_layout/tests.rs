@@ -1,8 +1,8 @@
 use super::VirtualStoreLayout;
 use pacquet_config::Config;
 use pacquet_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, PkgName, RegistryResolution, SnapshotDepRef,
-    SnapshotEntry,
+    DirectoryResolution, LockfileResolution, PackageKey, PackageMetadata, PkgName,
+    RegistryResolution, SnapshotDepRef, SnapshotEntry,
 };
 use pretty_assertions::{assert_eq, assert_ne};
 use std::{
@@ -429,4 +429,96 @@ fn gvs_version_segment_renders_file_deps_as_undefined() {
 
     let file_dep: PackageKey = "b@file:packages/b".parse().unwrap();
     assert_eq!(super::gvs_version_segment(&file_dep.suffix), "undefined");
+}
+
+/// `collect_injected_deps` maps each `file:` snapshot's source path to
+/// its slot package dir (lockfile-relative), skipping registry
+/// snapshots and skipped `file:` snapshots, and aggregating all peer
+/// variants of one source project under one key.
+#[test]
+fn collect_injected_deps_maps_file_snapshots_to_slots() {
+    let lockfile_dir = std::path::Path::new("/ws");
+    let layout = super::VirtualStoreLayout::legacy("/ws/node_modules/.pnpm", 120);
+
+    let variant_a: PackageKey = "@scope/comp2@file:comp2(react@16.14.0)".parse().unwrap();
+    let variant_b: PackageKey = "@scope/comp2@file:comp2(react@17.0.2)".parse().unwrap();
+    let other: PackageKey = "@scope/comp3@file:./comp3".parse().unwrap();
+    let registry: PackageKey = "react@16.14.0".parse().unwrap();
+    let skipped_key: PackageKey = "@scope/skipped@file:skipped".parse().unwrap();
+
+    let mut snapshots = HashMap::new();
+    for key in [&variant_a, &variant_b, &other, &registry, &skipped_key] {
+        snapshots.insert(key.clone(), SnapshotEntry::default());
+    }
+    // A `file:` tarball snapshot: present in `snapshots` but with a
+    // tarball resolution — must NOT be treated as an injected project.
+    let tarball_key: PackageKey = "tar-dep@file:vendor/dep.tgz".parse().unwrap();
+    snapshots.insert(tarball_key, SnapshotEntry::default());
+    let mut packages = HashMap::new();
+    for key in [&variant_a, &variant_b, &other, &skipped_key] {
+        packages.insert(
+            key.without_peer(),
+            PackageMetadata {
+                resolution: DirectoryResolution { directory: key.suffix.version().to_string() }
+                    .into(),
+                version: None,
+                engines: None,
+                cpu: None,
+                os: None,
+                libc: None,
+                deprecated: None,
+                has_bin: None,
+                prepare: None,
+                bundled_dependencies: None,
+                peer_dependencies: None,
+                peer_dependencies_meta: None,
+            },
+        );
+    }
+    let mut skipped = crate::SkippedSnapshots::new();
+    skipped.insert_installability(skipped_key);
+
+    let injected = super::collect_injected_deps(
+        &layout,
+        lockfile_dir,
+        Some(&snapshots),
+        Some(&packages),
+        &skipped,
+        None,
+    );
+
+    assert_eq!(injected.len(), 2, "registry + skipped snapshots must not appear: {injected:?}");
+    let comp2 = &injected["comp2"];
+    assert_eq!(comp2.len(), 2, "both peer variants of comp2 must be present");
+    for target in comp2 {
+        assert!(
+            target.starts_with("node_modules/.pnpm/")
+                && target.ends_with("/node_modules/@scope/comp2"),
+            "target must be a lockfile-relative slot package dir; got {target:?}",
+        );
+    }
+    // A `file:./comp3` source normalizes to the importer id `comp3`.
+    assert_eq!(injected["comp3"].len(), 1);
+
+    // No snapshots section → empty map.
+    assert!(
+        super::collect_injected_deps(&layout, lockfile_dir, None, Some(&packages), &skipped, None)
+            .is_empty(),
+    );
+
+    // Hoisted mode: targets come from the walker's hoisted locations
+    // (keyed by full depPath), not from virtual-store slots; entries
+    // the walker never placed are dropped.
+    let mut hoisted = std::collections::BTreeMap::new();
+    hoisted.insert(variant_a.to_string(), vec!["node_modules/@scope/comp2".to_string()]);
+    let injected_hoisted = super::collect_injected_deps(
+        &layout,
+        lockfile_dir,
+        Some(&snapshots),
+        Some(&packages),
+        &skipped,
+        Some(&hoisted),
+    );
+    assert_eq!(injected_hoisted.len(), 1, "unplaced sources dropped: {injected_hoisted:?}");
+    assert_eq!(injected_hoisted["comp2"], vec!["node_modules/@scope/comp2".to_string()]);
 }

@@ -180,6 +180,9 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// yields it. `None` for every local install; the pnpr server sets
     /// one. See [`crate::Install::resolution_observer`].
     pub resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
+    /// Out-channel for the resolve's per-importer peer-dependency
+    /// issues. See [`crate::Install::peer_issues_sink`].
+    pub peer_issues_sink: Option<crate::PeerIssuesSink>,
     /// In-process `readPackage`/`afterAllResolved` hooks supplied by an
     /// embedder instead of a `.pnpmfile.cjs` on disk. `Some` replaces the
     /// disk lookup entirely; `None` (every CLI install) falls back to
@@ -430,6 +433,12 @@ pub struct InstallWithFreshLockfileResult {
     /// follow-up install or rebuild can locate every package without
     /// re-running the walker.
     pub hoisted_locations: BTreeMap<String, Vec<String>>,
+    /// Per-source-project list of virtual-store package directories
+    /// its injected `file:` copies were materialized at. Round-trips
+    /// through [`pacquet_modules_yaml::Modules::injected_deps`] —
+    /// see [`crate::collect_injected_deps`]. Empty on the
+    /// `lockfile_only` path, which never materializes.
+    pub injected_deps: BTreeMap<String, Vec<String>>,
     /// `Some` when the install resolved a graph that was written to
     /// `pnpm-lock.yaml`; `None` when the write was skipped (today: only
     /// `config.lockfile=false`). The caller mirrors the same gate when
@@ -492,6 +501,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             update_seed_policy,
             auth_override,
             resolution_observer,
+            peer_issues_sink,
             pnpmfile_hook_override,
         } = self;
 
@@ -1194,6 +1204,12 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             InstallWithFreshLockfileError::ResolveDependencyTree(err)
         })?;
         let total_nodes = workspace_result.peers.graph.len();
+        // Hand the per-importer issues to the programmatic caller
+        // before the graph is consumed below.
+        if let Some(sink) = &peer_issues_sink {
+            *sink.lock().expect("peer-issues sink lock poisoned") =
+                workspace_result.peers.peer_dependency_issues_by_importer.clone();
+        }
         for (importer_id, issues) in &workspace_result.peers.peer_dependency_issues_by_importer {
             tracing::warn!(
                 target: "pacquet::install",
@@ -1307,6 +1323,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             return Ok(InstallWithFreshLockfileResult {
                 hoisted_dependencies: HoistedDependencies::new(),
                 hoisted_locations: BTreeMap::new(),
+                injected_deps: BTreeMap::new(),
                 wanted_lockfile,
                 can_record_lockfile_verification,
                 // `lockfile_only` never materializes node_modules, so no
@@ -1701,6 +1718,23 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             // aliases into root's target map — same shape as the
             // frozen-lockfile path. The `HoistResult` is reused for
             // the on-disk hoist phase below, so the BFS runs once.
+            // `hoist-workspace-packages`: named non-root projects
+            // become hoist candidates whose links point at the
+            // project dirs (`importer_manifests` is keyed by
+            // importer id).
+            let hoisted_workspace_packages = config.hoist_workspace_packages.then(|| {
+                importer_manifests
+                    .iter()
+                    .filter(|(id, _)| id.as_str() != ".")
+                    .filter_map(|(id, manifest)| {
+                        let name = manifest.value().get("name")?.as_str()?;
+                        Some((
+                            name.to_string(),
+                            crate::symlink_direct_dependencies::importer_root_dir(lockfile_dir, id),
+                        ))
+                    })
+                    .collect::<std::collections::BTreeMap<_, _>>()
+            });
             let pre_hoist = crate::install_frozen_lockfile::compute_hoist_plan(
                 config,
                 built_lockfile.snapshots.as_ref(),
@@ -1709,6 +1743,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 &dependency_groups,
                 &skipped,
                 false,
+                hoisted_workspace_packages.as_ref(),
             );
             let public_hoist_targets: Option<
                 std::collections::BTreeMap<String, std::path::PathBuf>,
@@ -1721,6 +1756,13 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 )
             });
 
+            // Importer ids backed by the install's own declared
+            // projects (`importer_manifests` is keyed by importer id).
+            // These may legitimately live outside the lockfile dir
+            // (Bit's capsule installs pass such projects), so they
+            // bypass the malformed-lockfile importer-key rejection.
+            let trusted_importer_ids: std::collections::HashSet<String> =
+                importer_manifests.keys().cloned().collect();
             SymlinkDirectDependencies {
                 config,
                 layout: &layout,
@@ -1730,6 +1772,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 skipped: &skipped,
                 link_only: false,
                 public_hoist_targets: public_hoist_targets.as_ref(),
+                trusted_importer_ids: Some(&trusted_importer_ids),
             }
             .run::<Reporter>()
             .map_err(InstallWithFreshLockfileError::SymlinkDirectDependencies)?;
@@ -1775,6 +1818,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 let public_dir = config.modules_dir.clone();
                 crate::symlink_hoisted_dependencies(
                     &result.hoisted_dependencies_by_node_id,
+                    &result.hoisted_workspace_aliases,
                     &graph,
                     &layout,
                     &private_dir,
@@ -1982,6 +2026,22 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // safety property — a manifest-write failure must not leave a
         // current-lockfile pointing at an incomplete install — needs
         // `.modules.yaml` to land first.
+        // The injectedDeps payload for `.modules.yaml`: every `file:`
+        // snapshot is a materialized copy of an injected workspace
+        // project; record the copies per source project so post-install
+        // tooling (Bit's build-artifact linker) can reach all of them.
+        // Under the hoisted linker the copies live at the walker's
+        // hoisted locations rather than in a virtual store.
+        // Computed before `built_lockfile` is moved into the result.
+        let injected_deps = crate::collect_injected_deps(
+            &layout,
+            lockfile_dir,
+            built_lockfile.snapshots.as_ref(),
+            built_lockfile.packages.as_ref(),
+            &skipped,
+            is_hoisted.then_some(&hoisted_locations),
+        );
+
         let (wanted_lockfile, can_record_lockfile_verification) = if config.lockfile {
             let target = lockfile_dir.join(Lockfile::FILE_NAME);
             let can_record_lockfile_verification = save_wanted_lockfile(
@@ -1999,6 +2059,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         Ok(InstallWithFreshLockfileResult {
             hoisted_dependencies,
             hoisted_locations,
+            injected_deps,
             wanted_lockfile,
             can_record_lockfile_verification,
             ignored_builds,

@@ -277,6 +277,94 @@ impl VirtualStoreLayout {
     }
 }
 
+/// Map each injected `file:` project to the virtual-store package
+/// directories its copies were materialized at.
+///
+/// Key: the `file:` path from the snapshot key — lockfile-relative,
+/// which for an injected workspace project is exactly its importer id
+/// (`comp2`, `packages/foo`, ...). Value: every peer-variant slot's
+/// package directory (`node_modules/.pnpm/<slot>/node_modules/<name>`),
+/// relative to `lockfile_dir` when the slot lives under it (a
+/// global-virtual-store slot outside the project stays absolute).
+///
+/// This is the `.modules.yaml` `injectedDeps` payload pnpm v11 wrote
+/// from `projectsWithTargetDirs`. Consumers use it to propagate
+/// post-install changes of an injected project into every materialized
+/// copy — Bit's build task, for one, hard-links compiled artifacts
+/// into each copy via this map and silently links nothing when the
+/// field is missing.
+///
+/// Skipped snapshots have no slot on disk, so they are left out. Only
+/// **directory**-resolution `file:` snapshots participate: v11's map
+/// came from `projectsWithTargetDirs` (injected workspace projects),
+/// so a `file:` *tarball* dep — whose extracted copy is not a mirror
+/// of any source directory — is excluded to keep the field's meaning
+/// identical.
+///
+/// Under `nodeLinker: hoisted` there is no virtual store — the
+/// injected copies live wherever the hoisted walker placed them.
+/// Pass the walker's `hoisted_locations` (depPath → lockfile-relative
+/// package dirs) as `hoisted_locations` and the targets are read from
+/// it instead of the slot layout.
+#[must_use]
+pub fn collect_injected_deps(
+    layout: &VirtualStoreLayout,
+    lockfile_dir: &Path,
+    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+    skipped: &crate::SkippedSnapshots,
+    hoisted_locations: Option<&std::collections::BTreeMap<String, Vec<String>>>,
+) -> std::collections::BTreeMap<String, Vec<String>> {
+    let mut injected: std::collections::BTreeMap<String, Vec<String>> =
+        std::collections::BTreeMap::new();
+    let Some(snapshots) = snapshots else { return injected };
+    for key in snapshots.keys() {
+        let VersionPart::File(path) = key.suffix.version() else { continue };
+        if skipped.contains(key) {
+            continue;
+        }
+        // `packages:` keys are peer-stripped; require a directory
+        // resolution (an injected project copy, not a file: tarball).
+        let is_directory = packages
+            .and_then(|packages| packages.get(&key.without_peer()))
+            .is_some_and(|meta| matches!(meta.resolution, LockfileResolution::Directory(_)));
+        if !is_directory {
+            continue;
+        }
+        let source = path.strip_prefix("./").unwrap_or(path);
+        let targets = injected.entry(source.to_string()).or_default();
+        if let Some(locations) = hoisted_locations {
+            // Hoisted linker: the walker already recorded every
+            // lockfile-relative dir this depPath was placed at.
+            if let Some(dirs) = locations.get(&key.to_string()) {
+                targets.extend(dirs.iter().cloned());
+            }
+        } else {
+            // Isolated linker: one virtual-store slot per snapshot.
+            let target = layout.slot_dir(key).join("node_modules").join(key.name.to_string());
+            let target = match target.strip_prefix(lockfile_dir) {
+                Ok(relative) => relative.to_path_buf(),
+                Err(_) => target,
+            };
+            // POSIX separators on every platform, matching the
+            // `hoistedLocations` entries the hoisted branch reuses
+            // (see `path_relative_to_lockfile_dir`).
+            targets.push(target.to_string_lossy().replace('\\', "/"));
+        }
+    }
+    // A source project whose every snapshot contributed no target
+    // (e.g. hoisted entries the walker never placed) would round-trip
+    // as an empty list; drop those.
+    injected.retain(|_, targets| !targets.is_empty());
+    // Sort each target list — `snapshots` is a `HashMap`, so insertion
+    // order is nondeterministic and the manifest must be byte-stable
+    // across installs.
+    for targets in injected.values_mut() {
+        targets.sort_unstable();
+    }
+    injected
+}
+
 /// Version segment of a snapshot's global-virtual-store path. Derives
 /// the version as `pkgSnapshot.version ?? pkgInfo.version`, then feeds
 /// it into the global-virtual-store path format.

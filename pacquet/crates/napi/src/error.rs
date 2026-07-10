@@ -48,25 +48,6 @@ pub fn to_napi_error<Diag: Diagnostic>(error: &Diag) -> napi::Error {
     napi::Error::from_reason(reason)
 }
 
-/// Build a structured [`napi::Error`] for an engine operation that the Rust
-/// binding does not implement yet, carrying the `code`
-/// `ERR_PNPM_NAPI_UNIMPLEMENTED` so a consumer's `PnpmError` translation
-/// surfaces it like any other pnpm error rather than as an opaque crash.
-pub fn unimplemented_error(operation: &str) -> napi::Error {
-    let envelope = ErrorEnvelope {
-        code: Some("ERR_PNPM_NAPI_UNIMPLEMENTED".to_string()),
-        message: format!(
-            "`{operation}` is not yet implemented in the pnpm Rust engine binding. \
-             See pacquet/plans/NAPI.md.",
-        ),
-        hint: None,
-    };
-    match serde_json::to_string(&envelope) {
-        Ok(json) => napi::Error::from_reason(format!("{ENVELOPE_PREFIX}{json}")),
-        Err(_) => napi::Error::from_reason(envelope.message),
-    }
-}
-
 /// Build a structured [`napi::Error`] for a project whose `manifest` is not a
 /// JSON object. Rejecting it at the boundary surfaces the invalid input instead
 /// of silently coercing it to `{}` and driving the install off empty data.

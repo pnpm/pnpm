@@ -237,7 +237,11 @@ fn run_resolve_blocking(
 
     let wanted_dependency = WantedDependency {
         alias: wanted.alias,
-        bare_specifier: wanted.bare_specifier,
+        // An empty bareSpecifier means "no range given" — pnpm v11's
+        // resolver treated it like an absent pref (resolve the latest
+        // matching version); passing it through verbatim would fall off
+        // the resolver chain as SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER.
+        bare_specifier: wanted.bare_specifier.filter(|spec| !spec.trim().is_empty()),
         injected: None,
         prev_specifier: None,
         optional: None,

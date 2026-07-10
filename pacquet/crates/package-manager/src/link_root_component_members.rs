@@ -168,7 +168,7 @@ fn injected_member_key(
     }
 }
 
-/// Symlink each member's declared sibling dependencies into its slot
+/// Symlink each member's sibling dependencies into its slot
 /// `node_modules/`.
 ///
 /// A member's manifest is the source of truth for which siblings it
@@ -178,6 +178,19 @@ fn injected_member_key(
 /// member declares are linked, and only when the named package is
 /// itself a member of this same root (its peer-resolved slot), matching
 /// the isolated linker's per-package child linking.
+///
+/// A Bit workspace component carries no `package.json` in its source
+/// directory (its manifest lives only in memory on the Bit side, and
+/// Bit's read-package hooks strip sibling edges from it before it ever
+/// reaches the engine), so the materialized slot has no manifest to
+/// read. For such a member the declared-edge information is simply
+/// unavailable — fall back to linking **every** other member of this
+/// root into its slot. The clique is safe: member names are unique
+/// within one root's peer context, the links are additive (an entry the
+/// member already resolves for itself is never overwritten), and a
+/// member only ever `require`s what it actually depends on, so surplus
+/// links are inert. A manifest that exists but cannot be parsed is
+/// still a hard error.
 fn link_declared_siblings(members: &[Member]) -> Result<(), LinkRootComponentMembersError> {
     // Within one root importer each member name is unique (one peer
     // context per root), so a declared name identifies at most one
@@ -187,21 +200,33 @@ fn link_declared_siblings(members: &[Member]) -> Result<(), LinkRootComponentMem
 
     for host in members {
         let manifest_path = host.package_dir.join("package.json");
-        let manifest = PackageManifest::from_path(manifest_path.clone()).map_err(|source| {
-            LinkRootComponentMembersError::ReadManifest {
-                member: host.name.clone(),
-                path: manifest_path,
-                source,
+        let manifest = match PackageManifest::from_path(manifest_path.clone()) {
+            Ok(manifest) => Some(manifest),
+            // No manifest on disk — the Bit-workspace shape. Link the
+            // whole root clique instead (see the doc comment above).
+            Err(PackageManifestError::NoImporterManifestFound(_)) => None,
+            Err(source) => {
+                return Err(LinkRootComponentMembersError::ReadManifest {
+                    member: host.name.clone(),
+                    path: manifest_path,
+                    source,
+                });
             }
-        })?;
-        for (dep_name, _) in manifest.dependencies([
-            DependencyGroup::Prod,
-            DependencyGroup::Optional,
-            DependencyGroup::Peer,
-        ]) {
-            // Only siblings that belong to this root; a member's own
-            // package dir already lives in its slot.
-            let Some(&sibling) = by_name.get(dep_name) else { continue };
+        };
+        let siblings: Vec<&Member> = match &manifest {
+            Some(manifest) => manifest
+                .dependencies([
+                    DependencyGroup::Prod,
+                    DependencyGroup::Optional,
+                    DependencyGroup::Peer,
+                ])
+                // Only siblings that belong to this root; a member's own
+                // package dir already lives in its slot.
+                .filter_map(|(dep_name, _)| by_name.get(dep_name).copied())
+                .collect(),
+            None => members.iter().collect(),
+        };
+        for sibling in siblings {
             if sibling.name == host.name {
                 continue;
             }
@@ -209,8 +234,8 @@ fn link_declared_siblings(members: &[Member]) -> Result<(), LinkRootComponentMem
             // Additive. `symlink_metadata` doesn't follow the final
             // component, so an existing symlink — dangling or not —
             // counts as present and is left untouched; only a genuinely
-            // missing declared sibling is filled in. This never clobbers
-            // a dependency the member already resolves for itself.
+            // missing sibling is filled in. This never clobbers a
+            // dependency the member already resolves for itself.
             if std::fs::symlink_metadata(&symlink_path).is_ok() {
                 continue;
             }

@@ -117,6 +117,7 @@ fn empty_graph_returns_none() {
         skipped: &skipped,
         private_pattern: create_matcher(&pats(["*"])),
         public_pattern: create_matcher(&[]),
+        hoisted_workspace_packages: None,
     };
     assert!(get_hoisted_dependencies(&input).is_none());
 }
@@ -136,6 +137,7 @@ fn star_pattern_hoists_all_transitives_privately() {
         skipped: &skipped,
         private_pattern: create_matcher(&pats(["*"])),
         public_pattern: create_matcher(&[]),
+        hoisted_workspace_packages: None,
     })
     .expect("non-empty graph");
 
@@ -165,6 +167,7 @@ fn star_public_pattern_hoists_all_publicly() {
         skipped: &skipped,
         private_pattern: create_matcher(&[]),
         public_pattern: create_matcher(&pats(["*"])),
+        hoisted_workspace_packages: None,
     })
     .expect("non-empty graph");
 
@@ -189,6 +192,7 @@ fn public_pattern_wins_ties() {
         skipped: &skipped,
         private_pattern: create_matcher(&pats(["*"])),
         public_pattern: create_matcher(&pats(["*eslint*"])),
+        hoisted_workspace_packages: None,
     })
     .expect("non-empty graph");
 
@@ -214,6 +218,7 @@ fn negation_pattern_excludes_alias() {
         skipped: &skipped,
         private_pattern: create_matcher(&pats(["*", "!banned"])),
         public_pattern: create_matcher(&[]),
+        hoisted_workspace_packages: None,
     })
     .expect("non-empty graph");
 
@@ -241,6 +246,7 @@ fn first_seen_wins_per_alias() {
         skipped: &skipped,
         private_pattern: create_matcher(&pats(["*"])),
         public_pattern: create_matcher(&[]),
+        hoisted_workspace_packages: None,
     })
     .expect("non-empty graph");
 
@@ -268,6 +274,7 @@ fn direct_dep_blocks_same_alias_transitive() {
         skipped: &skipped,
         private_pattern: create_matcher(&pats(["*"])),
         public_pattern: create_matcher(&[]),
+        hoisted_workspace_packages: None,
     })
     .expect("non-empty graph");
 
@@ -293,6 +300,7 @@ fn skipped_snapshot_is_excluded() {
         skipped: &skipped,
         private_pattern: create_matcher(&pats(["*"])),
         public_pattern: create_matcher(&[]),
+        hoisted_workspace_packages: None,
     })
     .expect("non-empty graph");
 
@@ -371,6 +379,7 @@ fn symlink_skips_dropped_nodes() {
 
     super::symlink_hoisted_dependencies(
         &hoisted,
+        &[],
         &graph,
         &layout,
         &private_hoisted,
@@ -430,6 +439,7 @@ fn symlink_rejects_traversal_node_name() {
 
     let result = super::symlink_hoisted_dependencies(
         &hoisted,
+        &[],
         &graph,
         &layout,
         &private_hoisted,
@@ -459,6 +469,7 @@ fn private_hoist_with_bins_collected_for_bin_link() {
         skipped: &skipped,
         private_pattern: create_matcher(&pats(["*"])),
         public_pattern: create_matcher(&[]),
+        hoisted_workspace_packages: None,
     })
     .expect("non-empty graph");
 
@@ -481,6 +492,7 @@ fn public_hoist_does_not_contribute_to_bin_aliases() {
         skipped: &skipped,
         private_pattern: create_matcher(&[]),
         public_pattern: create_matcher(&pats(["*eslint*"])),
+        hoisted_workspace_packages: None,
     })
     .expect("non-empty graph");
 
@@ -680,4 +692,73 @@ fn kinds_for(map: &HoistedDependencies, key: &str) -> Vec<(String, HoistKind)> {
         .unwrap_or_default();
     pairs.sort_by(|a, b| a.0.cmp(&b.0));
     pairs
+}
+
+/// `hoist-workspace-packages`: a named workspace project is placed
+/// like a root-level alias — pattern-matched, symlinked to the
+/// project dir — but with the lowest precedence (any direct dep wins
+/// the name) and without touching `.modules.yaml`'s
+/// `hoistedDependencies` (v11 leaves workspace packages out of it
+/// too). A placed name claims its alias so an equally-named
+/// transitive can't clobber the link.
+#[test]
+fn workspace_packages_hoist_privately_with_lowest_precedence() {
+    let (snapshots, packages) = make_lockfile_data(&[
+        ("a", "1.0.0", &[("shadowed", "shadowed", "1.0.0"), ("pkg-b", "pkg-b", "9.9.9")], false),
+        ("shadowed", "1.0.0", &[], false),
+        ("pkg-b", "9.9.9", &[], false),
+    ]);
+    let graph = build_hoist_graph(&snapshots, &packages);
+    // Root directly depends on `a` and on the name `taken`.
+    let direct = root_direct_deps(&[("a", "a", "1.0.0"), ("taken", "a", "1.0.0")]);
+    let skipped = HashSet::new();
+    let workspace_packages = std::collections::BTreeMap::from([
+        // Free name → hoisted to the project dir.
+        ("pkg-a".to_string(), std::path::PathBuf::from("/ws/packages/pkg-a")),
+        // Name held by a root direct dep → never hoisted.
+        ("taken".to_string(), std::path::PathBuf::from("/ws/packages/taken")),
+        // Same name as a transitive: the workspace package is placed
+        // first (depth −1 beats depth 0) and claims the alias.
+        ("pkg-b".to_string(), std::path::PathBuf::from("/ws/packages/pkg-b")),
+    ]);
+    let result = get_hoisted_dependencies(&HoistInputs {
+        graph: &graph,
+        direct_deps_by_importer: &direct,
+        skipped: &skipped,
+        private_pattern: create_matcher(&pats(["*"])),
+        public_pattern: create_matcher(&[]),
+        hoisted_workspace_packages: Some(&workspace_packages),
+    })
+    .expect("non-empty graph");
+
+    let mut placed: Vec<(&str, HoistKind, &str)> = result
+        .hoisted_workspace_aliases
+        .iter()
+        .map(|(alias, kind, dir)| (alias.as_str(), *kind, dir.to_str().unwrap()))
+        .collect();
+    placed.sort_by_key(|(alias, _, _)| *alias);
+    assert_eq!(
+        placed,
+        vec![
+            ("pkg-a", HoistKind::Private, "/ws/packages/pkg-a"),
+            ("pkg-b", HoistKind::Private, "/ws/packages/pkg-b"),
+        ],
+        "free names hoist to project dirs; a root direct dep's name never does",
+    );
+    // The claimed alias blocks the transitive `pkg-b@9.9.9`, and no
+    // workspace package leaks into `.modules.yaml`'s map.
+    assert!(
+        !result.hoisted_dependencies.contains_key("pkg-b@9.9.9"),
+        "workspace-claimed alias must block the transitive: {:?}",
+        result.hoisted_dependencies.get("pkg-b@9.9.9"),
+    );
+    for alias_map in result.hoisted_dependencies.values() {
+        assert!(!alias_map.contains_key("pkg-a") && !alias_map.contains_key("taken"));
+    }
+    // The transitive `shadowed@1.0.0` (a's child) still hoists — the
+    // workspace pass doesn't disturb ordinary hoisting.
+    assert_eq!(
+        kinds_for(&result.hoisted_dependencies, "shadowed@1.0.0"),
+        vec![("shadowed".to_string(), HoistKind::Private)],
+    );
 }
