@@ -101,6 +101,23 @@ test('update does not install the package if it is not present in package.json',
   project.hasNot('is-positive')
 })
 
+test('update of an absent package preserves transitive dependencies when peer deduplication is disabled', async () => {
+  const project = prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, [
+    '@pnpm.e2e/pkg-with-1-dep@100.0.0',
+  ], testDefaults({ dedupePeerDependents: false }))
+  const lockfileBeforeUpdate = project.readLockfile()
+
+  await addDependenciesToPackage(manifest, ['is-negative'], testDefaults({
+    allowNew: false,
+    dedupePeerDependents: false,
+    update: true,
+  }))
+
+  expect(project.readLockfile()).toStrictEqual(lockfileBeforeUpdate)
+})
+
 test('update dependency when external lockfile directory is used', async () => {
   prepareEmpty()
 
