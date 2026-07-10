@@ -35,9 +35,23 @@ export interface WorkspaceManifest extends PnpmSettings {
   catalogs?: WorkspaceNamedCatalogs
 }
 
-export async function readWorkspaceManifest (dir: string, cfgFileName: ConfigFileName = WORKSPACE_MANIFEST_FILENAME): Promise<WorkspaceManifest | undefined> {
+export interface ReadWorkspaceManifestOptions {
+  /**
+   * Whether to validate pnpm-settings fields (currently just `licenses`).
+   * Defaults to `true`. Set to `false` when reading a manifest that isn't a
+   * real workspace manifest (e.g. the machine-global `config.yaml`), where
+   * such settings aren't supported.
+   */
+  validatePnpmSettings?: boolean
+}
+
+export async function readWorkspaceManifest (
+  dir: string,
+  cfgFileName: ConfigFileName = WORKSPACE_MANIFEST_FILENAME,
+  opts?: ReadWorkspaceManifestOptions
+): Promise<WorkspaceManifest | undefined> {
   const manifest = await readManifestRaw(dir, cfgFileName)
-  validateWorkspaceManifest(manifest)
+  validateWorkspaceManifest(manifest, opts)
   return manifest
 }
 
@@ -55,7 +69,10 @@ async function readManifestRaw (dir: string, cfgFileName: ConfigFileName): Promi
   }
 }
 
-export function validateWorkspaceManifest (manifest: unknown): asserts manifest is WorkspaceManifest | undefined {
+export function validateWorkspaceManifest (
+  manifest: unknown,
+  opts?: ReadWorkspaceManifestOptions
+): asserts manifest is WorkspaceManifest | undefined {
   if (manifest === undefined || manifest === null) {
     // Empty or null manifest is ok
     return
@@ -78,7 +95,9 @@ export function validateWorkspaceManifest (manifest: unknown): asserts manifest 
   assertValidWorkspaceManifestCatalog(manifest)
   assertValidWorkspaceManifestCatalogs(manifest)
   assertValidWorkspaceManifestVersioning(manifest)
-  assertValidWorkspaceManifestLicenses(manifest)
+  if (opts?.validatePnpmSettings !== false) {
+    assertValidWorkspaceManifestLicenses(manifest)
+  }
 
   checkWorkspaceManifestAssignability(manifest)
 }

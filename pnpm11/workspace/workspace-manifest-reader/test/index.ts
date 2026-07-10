@@ -236,3 +236,17 @@ describe('validateWorkspaceManifest() licenses field', () => {
     })).toThrow('licenses.overrides must be an object')
   })
 })
+
+describe('validateWorkspaceManifest() validatePnpmSettings option', () => {
+  test('licenses validation is skipped when validatePnpmSettings is false (global config path)', () => {
+    expect(() => validateWorkspaceManifest({ licenses: { allowed: 'MIT' } }, { validatePnpmSettings: false })).not.toThrow()
+  })
+
+  test('licenses validation still fires for a workspace manifest by default', () => {
+    expect(() => validateWorkspaceManifest({ licenses: { allowed: 'MIT' } })).toThrow(/licenses\.allowed must be an array/)
+  })
+
+  test('packages validation still fires when validatePnpmSettings is false', () => {
+    expect(() => validateWorkspaceManifest({ packages: 'not-an-array' }, { validatePnpmSettings: false })).toThrow('packages field is not an array')
+  })
+})
