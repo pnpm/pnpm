@@ -193,7 +193,7 @@ fn parse_scope_team(spec: &str) -> Result<ScopeTeam, TeamError> {
     }
 }
 
-fn team_members_url(registry_url: &str, scope: &str, team: &str) -> String {
+fn team_url(registry_url: &str, scope: &str, team: &str) -> String {
     format!(
         "{}-/team/{}/{}",
         normalize_registry_url(registry_url),
@@ -282,15 +282,9 @@ async fn team_create(context: &TeamContext<'_>, params: &[String]) -> miette::Re
 
     let (_guard, response) =
         send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let mut builder =
+            let builder =
                 client.put(&url).header("content-type", "application/json").body(body.clone());
-            if let Some(ref auth) = auth_header {
-                builder = builder.header("authorization", auth);
-            }
-            if let Some(ref otp) = context.otp {
-                builder = builder.header("npm-otp", otp);
-            }
-            builder
+            apply_auth_and_otp(builder, auth_header.as_deref(), context.otp.as_deref())
         })
         .await
         .map_err(|source| registry_operation_error("creating team", source))?;
@@ -307,18 +301,12 @@ async fn team_destroy(context: &TeamContext<'_>, params: &[String]) -> miette::R
     let team = st.team.as_deref().ok_or(TeamError::DestroyNameRequired)?;
 
     let auth_header = auth_header_for_registry(context, &context.registry_url);
-    let url = team_members_url(&context.registry_url, &st.scope, team);
+    let url = team_url(&context.registry_url, &st.scope, team);
 
     let (_guard, response) =
         send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let mut builder = client.delete(&url);
-            if let Some(ref auth) = auth_header {
-                builder = builder.header("authorization", auth);
-            }
-            if let Some(ref otp) = context.otp {
-                builder = builder.header("npm-otp", otp);
-            }
-            builder
+            let builder = client.delete(&url);
+            apply_auth_and_otp(builder, auth_header.as_deref(), context.otp.as_deref())
         })
         .await
         .map_err(|source| registry_operation_error("destroying team", source))?;
@@ -343,15 +331,9 @@ async fn team_add(context: &TeamContext<'_>, params: &[String]) -> miette::Resul
 
     let (_guard, response) =
         send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let mut builder =
+            let builder =
                 client.put(&url).header("content-type", "application/json").body(body.clone());
-            if let Some(ref auth) = auth_header {
-                builder = builder.header("authorization", auth);
-            }
-            if let Some(ref otp) = context.otp {
-                builder = builder.header("npm-otp", otp);
-            }
-            builder
+            apply_auth_and_otp(builder, auth_header.as_deref(), context.otp.as_deref())
         })
         .await
         .map_err(|source| registry_operation_error("adding user to team", source))?;
@@ -380,15 +362,9 @@ async fn team_rm(context: &TeamContext<'_>, params: &[String]) -> miette::Result
 
     let (_guard, response) =
         send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let mut builder =
+            let builder =
                 client.delete(&url).header("content-type", "application/json").body(body.clone());
-            if let Some(ref auth) = auth_header {
-                builder = builder.header("authorization", auth);
-            }
-            if let Some(ref otp) = context.otp {
-                builder = builder.header("npm-otp", otp);
-            }
-            builder
+            apply_auth_and_otp(builder, auth_header.as_deref(), context.otp.as_deref())
         })
         .await
         .map_err(|source| registry_operation_error("removing user from team", source))?;
@@ -554,6 +530,20 @@ fn render_members(
 
 fn auth_header_for_registry(context: &TeamContext<'_>, registry_url: &str) -> Option<String> {
     context.config.auth_headers.for_url(registry_url)
+}
+
+fn apply_auth_and_otp(
+    mut builder: reqwest::RequestBuilder,
+    auth_header: Option<&str>,
+    otp: Option<&str>,
+) -> reqwest::RequestBuilder {
+    if let Some(auth) = auth_header {
+        builder = builder.header("authorization", auth);
+    }
+    if let Some(otp) = otp {
+        builder = builder.header("npm-otp", otp);
+    }
+    builder
 }
 
 fn build_http_client(config: &Config) -> miette::Result<ThrottledClient> {
