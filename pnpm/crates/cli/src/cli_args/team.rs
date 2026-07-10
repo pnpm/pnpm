@@ -607,4 +607,3 @@ async fn write_error_from_response(response: Response, action: String) -> miette
     Err(TeamError::RegistryWriteFailed { action, status: status.as_u16(), status_text, body }
         .into())
 }
-
