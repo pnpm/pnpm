@@ -1505,3 +1505,58 @@ fn workspace_link_direct_dep_kept_when_exclude_links_from_lockfile_true() {
         other => panic!("expected Link(..), got {other:?}"),
     }
 }
+
+/// An injected workspace dep whose alias equals its package name must
+/// serialize as the plain `file:<path>(peers)` ref, matching pnpm v11 —
+/// the `<name>@<ref>` alias form is reserved for renamed deps. The
+/// peered dep path misses the bare `file:` strip and, with `name_ver`
+/// unset (directory resolutions learn their name from the manifest),
+/// used to fall through to the self-aliased form, which double-prefixes
+/// consumers composing `alias@version` into a snapshot key.
+#[test]
+fn same_name_injected_dep_serializes_as_plain_file_ref() {
+    use pacquet_lockfile::ImporterDepVersion;
+
+    let node = DependenciesGraphNode {
+        dep_path: DepPath::from("@scope/comp1@file:comp1(react@16.0.0)".to_string()),
+        resolved_package_id: "file:comp1".to_string(),
+        resolve_result: std::sync::Arc::new(ResolveResult {
+            id: "file:comp1".into(),
+            // Directory resolutions carry no structured name.
+            name_ver: None,
+            latest: None,
+            published_at: None,
+            manifest: Some(std::sync::Arc::new(
+                serde_json::json!({ "name": "@scope/comp1", "version": "1.0.0" }),
+            )),
+            resolution: pacquet_lockfile::DirectoryResolution { directory: "comp1".to_string() }
+                .into(),
+            resolved_via: "local-filesystem".to_string(),
+            normalized_bare_specifier: None,
+            alias: Some("@scope/comp1".to_string()),
+            policy_violation: None,
+        }),
+        children: BTreeMap::new(),
+        optional_children: HashSet::new(),
+        peer_dependencies: BTreeMap::new(),
+        transitive_peer_dependencies: HashSet::new(),
+        resolved_peer_names: HashSet::new(),
+        depth: 0,
+        installable: true,
+        is_pure: false,
+        optional: false,
+    };
+
+    let version = super::importer_dep_version("@scope/comp1", &node);
+    assert_eq!(
+        version,
+        ImporterDepVersion::File("comp1(react@16.0.0)".to_string()),
+        "same-name injected deps must use the plain file: ref",
+    );
+    // A genuinely renamed alias keeps the alias form.
+    let renamed = super::importer_dep_version("renamed", &node);
+    assert!(
+        matches!(renamed, ImporterDepVersion::Alias(_)),
+        "renamed aliases must keep the <name>@<ref> form: {renamed:?}",
+    );
+}
