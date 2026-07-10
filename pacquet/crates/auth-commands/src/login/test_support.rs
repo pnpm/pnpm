@@ -87,10 +87,6 @@ macro_rules! login_fake {
         $( login_fake!(@helper $helper); )*
     };
 
-    // Emit one optional helper. A test names only the helpers its scenario
-    // drives, so every emitted function is used and no `dead_code` suppression
-    // is needed. `reset_login` and the capability impls are always emitted
-    // above because every test relies on them.
     (@helper set_prompt_input) => {
         fn set_prompt_input(script: PromptScript) {
             *PROMPT_INPUT.lock().expect("input script mutex") = Some(script);
