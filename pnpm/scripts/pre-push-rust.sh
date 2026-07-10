@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Catch formatter, rustdoc, and dylint violations before they hit CI.
+# Catch formatter, rustdoc, dylint, and spelling violations before they hit CI.
 # Invoked from .husky/pre-push.
 set -euo pipefail
 
@@ -42,6 +42,17 @@ if command -v cargo >/dev/null 2>&1; then
     fi
 else
     yellow '! cargo not found on PATH — skipping Rust format, doc, and dylint checks.'
+fi
+
+if command -v typos >/dev/null 2>&1; then
+    # Same target dirs as the "Rust CI / Spell Check" job in pacquet-ci.yml.
+    yellow '▸ typos pnpm pnpr'
+    if ! typos pnpm pnpr; then
+        red '✗ typos found spelling errors — fix them (accepted words live in .typos.toml) and commit.'
+        failed=1
+    fi
+else
+    yellow '! typos not found on PATH — skipping spell check (install with `cargo binstall typos-cli` or via `just init`).'
 fi
 
 if command -v taplo >/dev/null 2>&1; then
