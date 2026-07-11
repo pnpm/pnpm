@@ -3,7 +3,7 @@ use clap::Parser;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_config::Config;
-use pacquet_network::{RetryOpts, ThrottledClient, send_with_retry};
+use pacquet_network::{RetryOpts, ThrottledClient, encode_uri_component, send_with_retry};
 use serde_json::json;
 use std::time::Duration;
 
@@ -72,13 +72,11 @@ pub(crate) async fn fetch_star(
 
     if !response.status().is_success() {
         drop(client);
-        let escaped_name = package_name
-            .chars()
-            .map(|ch| match ch {
-                'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.' | '~' | '@' => ch.to_string(),
-                _ => format!("%{:02X}", ch as u8),
-            })
-            .collect::<String>();
+        let status = response.status();
+        if status == 401 {
+            return Err(StarError::Unauthorized.into());
+        }
+        let escaped_name = encode_uri_component(package_name);
         let alt_star_url = format!("{registry_url}-/user/package/{escaped_name}/star");
 
         let (client2, response2) =

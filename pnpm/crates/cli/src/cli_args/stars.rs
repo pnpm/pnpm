@@ -3,9 +3,22 @@ use clap::Parser;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_config::Config;
-use pacquet_network::{RetryOpts, ThrottledClient, send_with_retry};
+use pacquet_network::{RetryOpts, ThrottledClient, encode_uri_component, send_with_retry};
 use serde_json::Value;
 use std::time::Duration;
+
+fn parse_stars_response(body: &Value) -> Option<String> {
+    if let Some(arr) = body.as_array() {
+        let res: Vec<String> =
+            arr.iter().filter_map(|val| val.as_str().map(String::from)).collect();
+        Some(res.join("\n"))
+    } else if let Some(obj) = body.as_object() {
+        let res: Vec<String> = obj.keys().cloned().collect();
+        Some(res.join("\n"))
+    } else {
+        Some(String::new())
+    }
+}
 
 #[derive(Debug, Parser)]
 pub struct StarsArgs {
@@ -83,26 +96,12 @@ async fn fetch_stars(
         if response.status().is_success() {
             let body: Value = response.json().await.into_diagnostic()?;
             drop(client);
-            if let Some(arr) = body.as_array() {
-                let res: Vec<String> =
-                    arr.iter().filter_map(|val| val.as_str().map(String::from)).collect();
-                return Ok(Some(res.join("\n")));
-            } else if let Some(obj) = body.as_object() {
-                let res: Vec<String> = obj.keys().cloned().collect();
-                return Ok(Some(res.join("\n")));
-            }
-            return Ok(Some(String::new()));
+            return Ok(parse_stars_response(&body));
         }
         drop(client);
     }
 
-    let encoded_username = username
-        .chars()
-        .map(|ch| match ch {
-            'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.' | '~' => ch.to_string(),
-            _ => format!("%{:02X}", ch as u8),
-        })
-        .collect::<String>();
+    let encoded_username = encode_uri_component(username);
 
     let stars_url = format!("{registry_url}-/user/{encoded_username}/stars");
 
@@ -146,26 +145,10 @@ async fn fetch_stars(
 
         let body: Value = response2.json().await.into_diagnostic()?;
         drop(client2);
-        if let Some(arr) = body.as_array() {
-            let res: Vec<String> =
-                arr.iter().filter_map(|val| val.as_str().map(String::from)).collect();
-            return Ok(Some(res.join("\n")));
-        } else if let Some(obj) = body.as_object() {
-            let res: Vec<String> = obj.keys().cloned().collect();
-            return Ok(Some(res.join("\n")));
-        }
-        return Ok(Some(String::new()));
+        return Ok(parse_stars_response(&body));
     }
 
     let body: Value = response.json().await.into_diagnostic()?;
     drop(client);
-    if let Some(arr) = body.as_array() {
-        let res: Vec<String> =
-            arr.iter().filter_map(|val| val.as_str().map(String::from)).collect();
-        return Ok(Some(res.join("\n")));
-    } else if let Some(obj) = body.as_object() {
-        let res: Vec<String> = obj.keys().cloned().collect();
-        return Ok(Some(res.join("\n")));
-    }
-    Ok(Some(String::new()))
+    Ok(parse_stars_response(&body))
 }
