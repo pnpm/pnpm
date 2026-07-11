@@ -21,6 +21,53 @@ import url from 'node:url'
 
 import glob from 'fast-glob'
 
+// The module-level consts are still in their temporal dead zone while this
+// file's statements run, so the actual `main()` call sits at the bottom.
+function main (): void {
+  const repoRoot = findRepoRoot(import.meta.dirname)
+  const changesetDir = path.join(repoRoot, '.changeset')
+  const releasedDir = path.join(repoRoot, '.changeset-released')
+  const branch = detectReleaseBranch(repoRoot)
+
+  console.log(`Branch: ${branch}`)
+  const released = readReleased(releasedDir)
+  console.log(`Already-released changeset IDs: ${released.size}`)
+
+  const hidden = hideReleased(changesetDir, released)
+  if (hidden.length > 0) {
+    console.log(
+      `Hiding ${hidden.length} stale changeset(s) already released elsewhere: ${hidden.map(h => h.id).join(', ')}`
+    )
+  }
+
+  const prereleases = snapshotPrereleases(repoRoot, PRERELEASE_CONTINUATION_MANIFESTS)
+
+  const before = listChangesetIds(changesetDir)
+  let success = false
+  try {
+    execSync('changeset version', { cwd: repoRoot, stdio: 'inherit' })
+    success = true
+  } finally {
+    if (!success) restoreHidden(hidden)
+  }
+
+  try {
+    const after = new Set(listChangesetIds(changesetDir))
+    const newlyConsumed = before.filter(id => !after.has(id))
+    if (newlyConsumed.length > 0) {
+      console.log(`Recording newly-released: ${newlyConsumed.join(', ')}`)
+      appendReleased(releasedDir, branch, newlyConsumed)
+    }
+  } finally {
+    // Stale (cherry-picked, already released elsewhere) changesets get dropped
+    // from the working tree — the released-list already prevents re-application.
+    deleteHidden(hidden)
+  }
+
+  continuePrereleases(repoRoot, prereleases)
+  syncRustVersions(repoRoot)
+}
+
 export interface HiddenFile {
   id: string
   from: string
@@ -138,8 +185,9 @@ export interface PrereleaseLine {
 }
 
 // Matches `<X.Y.Z>-<tag>.<N>` prerelease versions with a named tag (`alpha`,
-// `beta`, `rc.`..). Deliberately does not match all-numeric suffixes like the
-// retired date-based `0.0.0-<date>` scheme — those have no line to continue.
+// `beta`, `rc`, …). The tag must start with a letter, so all-numeric suffixes
+// (e.g. date-based `0.0.0-<date>` snapshot versions) don't match — they have
+// no prerelease line to continue.
 const PRERELEASE_VERSION_RE = /^(\d+\.\d+\.\d+)-([A-Z][0-9A-Z-]*)\.(\d+)$/i
 
 export function snapshotPrereleases (
@@ -250,51 +298,6 @@ function detectReleaseBranch (cwd: string): string {
     )
   }
   return releaseBranchToTarget(out)
-}
-
-function main (): void {
-  const repoRoot = findRepoRoot(import.meta.dirname)
-  const changesetDir = path.join(repoRoot, '.changeset')
-  const releasedDir = path.join(repoRoot, '.changeset-released')
-  const branch = detectReleaseBranch(repoRoot)
-
-  console.log(`Branch: ${branch}`)
-  const released = readReleased(releasedDir)
-  console.log(`Already-released changeset IDs: ${released.size}`)
-
-  const hidden = hideReleased(changesetDir, released)
-  if (hidden.length > 0) {
-    console.log(
-      `Hiding ${hidden.length} stale changeset(s) already released elsewhere: ${hidden.map(h => h.id).join(', ')}`
-    )
-  }
-
-  const prereleases = snapshotPrereleases(repoRoot, PRERELEASE_CONTINUATION_MANIFESTS)
-
-  const before = listChangesetIds(changesetDir)
-  let success = false
-  try {
-    execSync('changeset version', { cwd: repoRoot, stdio: 'inherit' })
-    success = true
-  } finally {
-    if (!success) restoreHidden(hidden)
-  }
-
-  try {
-    const after = new Set(listChangesetIds(changesetDir))
-    const newlyConsumed = before.filter(id => !after.has(id))
-    if (newlyConsumed.length > 0) {
-      console.log(`Recording newly-released: ${newlyConsumed.join(', ')}`)
-      appendReleased(releasedDir, branch, newlyConsumed)
-    }
-  } finally {
-    // Stale (cherry-picked, already released elsewhere) changesets get dropped
-    // from the working tree — the released-list already prevents re-application.
-    deleteHidden(hidden)
-  }
-
-  continuePrereleases(repoRoot, prereleases)
-  syncRustVersions(repoRoot)
 }
 
 function isDirectInvocation (): boolean {
