@@ -73,6 +73,7 @@ test('injected dependency dedupes to link: even when an unrelated shared depende
         } as Opts['resolvedImporters'][string]['directDependencies'][number],
       ],
       directNodeIdsByAlias,
+      hoistedPeerProviderNodeIds: new Set<NodeId>(),
       linkedDependencies: [],
     },
   }
@@ -148,6 +149,7 @@ test('injected dependency is NOT deduped when a shared dependency resolves to a 
         } as Opts['resolvedImporters'][string]['directDependencies'][number],
       ],
       directNodeIdsByAlias,
+      hoistedPeerProviderNodeIds: new Set<NodeId>(),
       linkedDependencies: [],
     },
   }
