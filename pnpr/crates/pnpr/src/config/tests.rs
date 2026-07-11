@@ -1938,10 +1938,21 @@ fn team_declarations_are_validated() {
     // grammar cannot express is rejected at declaration.
     let sigil_name = "    teams:\n      $all: [alice]\n";
     let colon_name = "    teams:\n      'a:b': [alice]\n";
+    // A member is a plain username: a built-in group — in any spelling —
+    // would silently become a user nobody is named after, and a `team:`
+    // reference would be an unsupported nested team.
+    let builtin_member = "    teams:\n      platform: [$all]\n";
+    let alias_member = "    teams:\n      platform: [authenticated]\n";
+    let at_alias_member = "    teams:\n      platform: ['@all']\n";
+    let nested_team_member = "    teams:\n      platform: ['team:release']\n";
     for (teams, needle) in [
         (split_members, r#""alice bob""#),
         (sigil_name, "cannot contain `:` or start with `$`"),
         (colon_name, "cannot contain `:` or start with `$`"),
+        (builtin_member, "built-in groups belong in the access lists"),
+        (alias_member, "built-in groups belong in the access lists"),
+        (at_alias_member, "built-in groups belong in the access lists"),
+        (nested_team_member, "cannot include another team"),
     ] {
         let yaml = format!("storage: ./s\nregistries:\n  local:\n    type: hosted\n{teams}");
         let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None).unwrap_err();
@@ -1963,6 +1974,7 @@ fn typed_token_grammar_is_validated() {
         ("group:platform", r#"did you mean "team:platform""#),
         ("org:corp", "the only typed token is `team:<name>`"),
         ("'team:'", "names no team"),
+        ("team:a:b", "a team name cannot contain `:`"),
     ] {
         let err = hosted_rules_err(&format!("      '@team/*':\n        access: {token}\n"));
         assert!(

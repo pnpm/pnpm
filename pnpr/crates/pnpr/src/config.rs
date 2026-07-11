@@ -909,12 +909,13 @@ impl AccessSpec {
         Ok(AccessList::new(tokens))
     }
 
-    /// The `teams:` membership reading: each entry is one username, in
-    /// declared order. Unlike [`Self::to_access_list`] the entries are not
-    /// access tokens — usernames get shape validation only.
+    /// The `teams:` membership reading: each entry is one username
+    /// ([`validate_member_name`]), in declared order. Unlike
+    /// [`Self::to_access_list`] the entries are not access tokens — a
+    /// built-in group or `team:` reference among the members is an error.
     fn member_names(&self) -> Result<&[String], String> {
         for member in self.entries() {
-            validate_single_token(member)?;
+            validate_member_name(member)?;
         }
         Ok(self.entries())
     }
@@ -971,6 +972,29 @@ fn validate_team_name(team: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// A team member is one plain username. The built-in groups — in any
+/// spelling — and typed tokens are rejected: `[$authenticated]` in a member
+/// list would otherwise silently become a user literally named
+/// `$authenticated`, narrowing the team to a name nobody holds, the same
+/// trap [`validate_access_token`] closes for access lists.
+fn validate_member_name(member: &str) -> Result<(), String> {
+    validate_single_token(member)?;
+    let bare = member.strip_prefix('@').unwrap_or(member);
+    if member.starts_with('$') || matches!(bare, "all" | "authenticated" | "anonymous") {
+        return Err(format!(
+            "team member {member:?} is not a username; the built-in groups belong in the \
+             access lists themselves (e.g. `access: [$authenticated]`)",
+        ));
+    }
+    if member.contains(':') {
+        return Err(format!(
+            "team member {member:?} is not a username; a team cannot include another team — \
+             list its users, or share one roster with a YAML anchor",
+        ));
+    }
+    Ok(())
+}
+
 /// Reject an access-list entry that is not exactly one recognized token: an
 /// unknown `$...` built-in, an unknown `<type>:` prefix (only `team:` exists;
 /// htpasswd forbids `:` in usernames, so the character is free to reserve),
@@ -991,6 +1015,9 @@ fn validate_access_token(token: &str) -> Result<(), String> {
     }
     if let Some((kind, name)) = token.split_once(':') {
         return match kind {
+            "team" if name.contains(':') => {
+                Err(format!("access token {token:?} is malformed; a team name cannot contain `:`",))
+            }
             "team" if !name.is_empty() => Ok(()),
             "team" => Err(format!("access token {token:?} names no team; write `team:<name>`")),
             "group" | "groups" => Err(format!(
