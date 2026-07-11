@@ -1,3 +1,5 @@
+import util from 'node:util'
+
 import { beforeEach, expect, jest, test } from '@jest/globals'
 import type { PackageResponse, RequestPackageFunction } from '@pnpm/store.controller-types'
 
@@ -16,7 +18,7 @@ function fakeRequestPackage (versionByRange: Record<string, string | Error>): Re
   return (async (wantedDependency: { alias?: string, bareSpecifier?: string }) => {
     const version = versionByRange[wantedDependency.bareSpecifier!]
     if (version == null) throw new Error(`Unexpected range ${wantedDependency.bareSpecifier!}`)
-    if (version instanceof Error) throw version
+    if (util.types.isNativeError(version)) throw version
     return {
       body: {
         manifest: { name: wantedDependency.alias, version },
