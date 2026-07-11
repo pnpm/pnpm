@@ -37,20 +37,23 @@ export function hoistPeers (
           nonVersions.push(spec)
         }
       }
-      // When the range is an exact version (e.g. pinned by an override like "4.3.0"),
-      // try to find a preferred version that satisfies it. This prevents a stale
-      // higher version from the lockfile being picked over the overridden version.
-      // For regular semver ranges (e.g. "^1.0.0"), use the highest preferred
-      // version for deduplication.
-      const isExactVersion = semver.valid(range) != null
-      const satisfyingVersion = isExactVersion
+      // Dedupe onto a preferred version only when it actually satisfies the
+      // wanted peer range. Picking the highest preferred version regardless of
+      // the range lets a version resolved for one importer be auto-installed as
+      // another importer's peer even though nothing in that importer's closure
+      // accepts it, silently producing a peer graph that mixes incompatible
+      // majors. Ranges that are not semver (workspace:, npm: aliases, dist-tags)
+      // cannot be checked, so they keep the dedupe-to-highest behavior.
+      const isSemverRange = semver.validRange(range, { includePrerelease: true }) != null
+      const satisfyingVersion = isSemverRange
         ? semver.maxSatisfying(versions, range, { includePrerelease: true })
         : null
       if (satisfyingVersion) {
         dependencies[peerName] = [satisfyingVersion, ...nonVersions].join(' || ')
-      } else if (isExactVersion && opts.autoInstallPeers) {
-        // No preferred version satisfies the exact override version.
-        // Use the range directly so pnpm resolves it from the registry.
+      } else if (isSemverRange && versions.length > 0 && opts.autoInstallPeers) {
+        // Preferred versions exist but none satisfies the wanted range.
+        // Use the range directly so pnpm resolves it from the registry rather
+        // than installing a version the peer explicitly rejects.
         dependencies[peerName] = range
       } else {
         dependencies[peerName] = [semver.maxSatisfying(versions, '*', { includePrerelease: true }), ...nonVersions]

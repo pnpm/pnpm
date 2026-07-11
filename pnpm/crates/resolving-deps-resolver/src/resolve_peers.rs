@@ -889,13 +889,19 @@ impl Walker<'_> {
         let mut child_parent_refs = parent_parent_refs.clone();
         let mut new_parent_refs = ParentRefs::new();
         for (alias, child_node_id) in &children_map {
-            if !self.tree.all_peer_dep_names.contains(alias) {
-                continue;
-            }
             let Some(child_tree) = self.tree.dependencies_tree.get(child_node_id) else { continue };
             let Some(child_pkg) = self.tree.packages.get(&child_tree.resolved_package_id) else {
                 continue;
             };
+            // Match by the install alias and by the real package name, so
+            // an npm-alias child (`peer-c1@npm:@pnpm.e2e/peer-c@2.0.0`) can
+            // provide the peer declared under its real name.
+            let (child_real_name, _) = pkg_name_version(&child_pkg.result);
+            if !self.tree.all_peer_dep_names.contains(alias)
+                && !self.tree.all_peer_dep_names.contains(&child_real_name)
+            {
+                continue;
+            }
             insert_parent_ref(
                 &mut new_parent_refs,
                 alias,

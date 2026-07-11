@@ -623,9 +623,15 @@ test('auto install hoisted peer dependency', async () => {
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['@pnpm.e2e/has-peer-c-in-deps@1.0.0', '@pnpm.e2e/abc'], testDefaults({ autoInstallPeers: true }))
   const lockfile = project.readLockfile()
+  // @pnpm.e2e/abc declares @pnpm.e2e/peer-c@^1.0.0, so the peer-c@2.0.0
+  // brought in by @pnpm.e2e/has-peer-c-in-deps must not be reused for it.
   expect(Object.keys(lockfile.snapshots).filter((depPath) => depPath.startsWith('@pnpm.e2e/peer-c@'))).toStrictEqual([
+    '@pnpm.e2e/peer-c@1.0.0',
     '@pnpm.e2e/peer-c@2.0.0',
   ])
+  const abcSnapshots = Object.keys(lockfile.snapshots).filter((depPath) => depPath.startsWith('@pnpm.e2e/abc@'))
+  expect(abcSnapshots).toHaveLength(1)
+  expect(abcSnapshots[0]).toContain('@pnpm.e2e/peer-c@1.0.0')
 })
 
 test('auto install peer of optional peer', async () => {
