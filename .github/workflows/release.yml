@@ -244,11 +244,9 @@ jobs:
         with:
           tool: cross
 
-      - name: Cache
-        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
-        with:
-          shared-key: release-${{ matrix.target }}
-
+      # No build cache: GitHub Actions caches are writable by any workflow on
+      # the default branch, so restoring one here would let a poisoned cache
+      # entry inject code into the published, attested release binaries.
       - name: Add Rust Target
         run: rustup target add ${{ matrix.target }}
 
@@ -499,11 +497,9 @@ jobs:
         with:
           tool: cross
 
-      - name: Cache
-        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
-        with:
-          shared-key: release-${{ matrix.target }}
-
+      # No build cache: GitHub Actions caches are writable by any workflow on
+      # the default branch, so restoring one here would let a poisoned cache
+      # entry inject code into the published, attested release binaries.
       - name: Add Rust Target
         run: rustup target add ${{ matrix.target }}
 
