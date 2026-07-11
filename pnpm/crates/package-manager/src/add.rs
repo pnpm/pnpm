@@ -10,6 +10,7 @@ use pacquet_catalogs_config::{
 };
 use pacquet_catalogs_types::Catalogs;
 use pacquet_config::Config;
+use pacquet_engine_runtime_node_resolver::{NodeResolver, NodeResolverError};
 use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests;
 use pacquet_network::ThrottledClient;
@@ -111,6 +112,11 @@ pub enum AddError {
     #[diagnostic(transparent)]
     ResolveSpec(#[error(source)] Box<PickPackageError>),
 
+    /// Resolving a `node@runtime:<spec>` selector against the Node.js
+    /// release index (to pin the manifest to the picked version) failed.
+    #[diagnostic(transparent)]
+    ResolveRuntimeSpec(#[error(source)] NodeResolverError),
+
     /// `minimumReleaseAgeExclude` contained an invalid rule.
     #[diagnostic(transparent)]
     MinimumReleaseAgeExclude(#[error(source)] pacquet_config::version_policy::VersionPolicyError),
@@ -176,45 +182,59 @@ where
         //   pins — `pnpm add foo@^7` records `^7.8.4`, not
         //   `^7`. Specifiers that aren't a plain registry range/tag/version
         //   for this package (protocols, `npm:` aliases) stay verbatim;
+        // - an explicit `node@runtime:<spec>` is likewise pinned to the
+        //   picked Node.js version, so the `devEngines.runtime` entry the
+        //   saved dependency folds into records e.g. `26.5.0`, not the
+        //   requested `26`;
         // - a re-add with no version keeps the dependency's current
         //   specifier verbatim (a `catalog:` reference, a range, or an
         //   exact pin) — `pnpm add <existing>` without a
         //   version leaves the declared range untouched;
         // - a brand-new dependency fetches and pins the `latest` range.
-        let bare_specifier = match (explicit_spec, prev_specifier.as_deref()) {
-            (Some(spec), prev) => resolve_explicit_registry_spec(
-                package_name,
-                spec,
-                prev,
-                config,
-                http_client,
-                pinned_version,
-                lockfile_only,
-                lockfile,
-                manifest,
-            )
-            .await?
-            .unwrap_or_else(|| normalized_save_specifier(spec)),
-            (None, Some(prev)) => prev.to_string(),
-            (None, None) => {
-                let registries: std::collections::HashMap<String, String> =
-                    config.resolved_registries().into_iter().collect();
-                let registry = pick_registry_for_package(&registries, package_name, None);
-                let latest = PackageVersion::fetch_from_registry(
-                    package_name,
-                    PackageTag::Latest,
-                    http_client,
-                    &registry,
-                    &config.auth_headers,
-                )
-                .await
-                .map_err(|error| AddError::ResolveLatest {
-                    name: package_name.to_string(),
-                    error,
-                })?;
-                latest.serialize(pinned_version)
-            }
-        };
+        let bare_specifier =
+            if let Some(version_spec) = node_runtime_version_spec(package_name, explicit_spec) {
+                let mut node_resolver = NodeResolver::new(std::sync::Arc::clone(&http_client_arc));
+                node_resolver.offline = config.offline;
+                node_resolver
+                    .resolve_save_specifier(version_spec, prev_specifier.as_deref())
+                    .await
+                    .map_err(AddError::ResolveRuntimeSpec)?
+            } else {
+                match (explicit_spec, prev_specifier.as_deref()) {
+                    (Some(spec), prev) => resolve_explicit_registry_spec(
+                        package_name,
+                        spec,
+                        prev,
+                        config,
+                        http_client,
+                        pinned_version,
+                        lockfile_only,
+                        lockfile,
+                        manifest,
+                    )
+                    .await?
+                    .unwrap_or_else(|| normalized_save_specifier(spec)),
+                    (None, Some(prev)) => prev.to_string(),
+                    (None, None) => {
+                        let registries: std::collections::HashMap<String, String> =
+                            config.resolved_registries().into_iter().collect();
+                        let registry = pick_registry_for_package(&registries, package_name, None);
+                        let latest = PackageVersion::fetch_from_registry(
+                            package_name,
+                            PackageTag::Latest,
+                            http_client,
+                            &registry,
+                            &config.auth_headers,
+                        )
+                        .await
+                        .map_err(|error| AddError::ResolveLatest {
+                            name: package_name.to_string(),
+                            error,
+                        })?;
+                        latest.serialize(pinned_version)
+                    }
+                }
+            };
 
         let mut updated_catalogs = Catalogs::new();
         let dep = CatalogModeDep {
@@ -483,6 +503,20 @@ fn normalized_save_specifier(spec: &str) -> String {
         Some(hosted) if hosted.auth.is_none() => hosted.shortcut(HostedOpts::default()),
         _ => spec.to_string(),
     }
+}
+
+/// The `<spec>` half of an explicit `node@runtime:<spec>` request, when that
+/// is what's being added. Only the node resolver pins the saved specifier to
+/// the picked version; deno and bun normalize to the requested spec, so they
+/// stay on the verbatim save path.
+fn node_runtime_version_spec<'a>(
+    package_name: &str,
+    explicit_spec: Option<&'a str>,
+) -> Option<&'a str> {
+    if package_name != "node" {
+        return None;
+    }
+    explicit_spec?.strip_prefix("runtime:")
 }
 
 #[cfg(test)]

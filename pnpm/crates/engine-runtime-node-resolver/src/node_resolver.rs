@@ -138,23 +138,11 @@ impl NodeResolver {
         // resolve re-fetches the asset list. Add the fast path once the
         // seam carries it.
 
-        if self.offline {
-            return Err(Box::new(NodeResolverError::Offline) as ResolveError);
-        }
-
-        let parsed = parse_node_specifier(version_spec).map_err(|err| {
-            Box::new(NodeResolverError::InvalidReleaseChannel(err)) as ResolveError
-        })?;
-        let mirror = get_node_mirror(Some(&self.node_download_mirrors), &parsed.release_channel);
-        let version =
-            resolve_node_version(&self.http_client, &parsed.version_specifier, Some(&mirror))
-                .await
-                .map_err(|err| Box::new(NodeResolverError::FetchReleaseIndex(err)) as ResolveError)?
-                .ok_or_else(|| {
-                    Box::new(NodeResolverError::VersionNotFound { spec: version_spec.to_string() })
-                        as ResolveError
-                })?;
-        let variants = self.read_node_assets(&mirror, &version, &parsed.release_channel).await?;
+        let PickedNodeVersion { version, mirror, release_channel } = self
+            .pick_node_version(version_spec)
+            .await
+            .map_err(|err| Box::new(err) as ResolveError)?;
+        let variants = self.read_node_assets(&mirror, &version, &release_channel).await?;
         let range = normalize_node_runtime_version_specifier(
             version_spec,
             &version,
@@ -178,6 +166,45 @@ impl NodeResolver {
             alias: wanted_dependency.alias.clone(),
             policy_violation: None,
         }))
+    }
+
+    /// Parse a `runtime:` version spec, pick the mirror for its release
+    /// channel, and resolve the spec to a concrete version.
+    async fn pick_node_version(
+        &self,
+        version_spec: &str,
+    ) -> Result<PickedNodeVersion, NodeResolverError> {
+        if self.offline {
+            return Err(NodeResolverError::Offline);
+        }
+        let parsed =
+            parse_node_specifier(version_spec).map_err(NodeResolverError::InvalidReleaseChannel)?;
+        let mirror = get_node_mirror(Some(&self.node_download_mirrors), &parsed.release_channel);
+        let version =
+            resolve_node_version(&self.http_client, &parsed.version_specifier, Some(&mirror))
+                .await
+                .map_err(NodeResolverError::FetchReleaseIndex)?
+                .ok_or_else(|| NodeResolverError::VersionNotFound {
+                    spec: version_spec.to_string(),
+                })?;
+        Ok(PickedNodeVersion { version, mirror, release_channel: parsed.release_channel })
+    }
+
+    /// The specifier an `add node@runtime:<spec>` request saves to the
+    /// manifest: `runtime:` plus the picked version, pinned exactly unless
+    /// the previous specifier (or the requested spec) carries a `^`/`~`
+    /// operator. This is the same normalization [`Resolver::resolve`]
+    /// reports through `normalized_bare_specifier`, computed without
+    /// fetching the platform asset list.
+    pub async fn resolve_save_specifier(
+        &self,
+        version_spec: &str,
+        prev_specifier: Option<&str>,
+    ) -> Result<String, NodeResolverError> {
+        let picked = self.pick_node_version(version_spec).await?;
+        let range =
+            normalize_node_runtime_version_specifier(version_spec, &picked.version, prev_specifier);
+        Ok(format!("{BARE_SPEC_PREFIX}{range}"))
     }
 
     async fn resolve_latest_impl(
@@ -252,6 +279,14 @@ impl NodeResolver {
         }
         Ok(assets)
     }
+}
+
+/// A concrete Node.js version picked for a `runtime:` version spec, plus
+/// the mirror and release channel it was picked from.
+struct PickedNodeVersion {
+    version: String,
+    mirror: String,
+    release_channel: String,
 }
 
 /// Strip `runtime:` from a `(alias, bareSpecifier)` pair when both
