@@ -121,6 +121,24 @@ describe('team command', () => {
         }, ['create', '@myorg:'])
       }).rejects.toThrow('Team spec must start with @scope')
     })
+
+    it('should throw on bare @ scope', async () => {
+      await expect(async () => {
+        await team.handler({
+          cliOptions: {},
+          registries: { default: REGISTRY_URL },
+        }, ['create', '@'])
+      }).rejects.toThrow('Team spec must start with @scope')
+    })
+
+    it('should throw on @:team with empty scope', async () => {
+      await expect(async () => {
+        await team.handler({
+          cliOptions: {},
+          registries: { default: REGISTRY_URL },
+        }, ['create', '@:newteam'])
+      }).rejects.toThrow('Team spec must start with @scope')
+    })
   })
 
   describe('destroy', () => {

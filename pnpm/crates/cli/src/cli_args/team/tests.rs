@@ -1,6 +1,6 @@
 use super::{
     TeamError, TeamInfo, UserInfo, normalize_registry_url, org_team_url, parse_scope_team,
-    render_members, render_teams, team_members_url, team_user_url,
+    render_members, render_teams, team_url, team_user_url,
 };
 
 #[test]
@@ -37,6 +37,18 @@ fn parse_scope_team_rejects_empty_team_name() {
 }
 
 #[test]
+fn parse_scope_team_rejects_empty_scope() {
+    let err = parse_scope_team("@").unwrap_err();
+    assert!(matches!(err, TeamError::InvalidScope { .. }));
+}
+
+#[test]
+fn parse_scope_team_rejects_empty_scope_with_team() {
+    let err = parse_scope_team("@:team").unwrap_err();
+    assert!(matches!(err, TeamError::InvalidScope { .. }));
+}
+
+#[test]
 fn render_teams_empty_returns_no_teams_message() {
     let result = render_teams("myorg", &[], false, false).expect("should render");
     assert_eq!(result, "@myorg has no teams");
@@ -47,9 +59,7 @@ fn render_teams_returns_formatted_list() {
     let teams =
         [TeamInfo { name: "developers".to_string() }, TeamInfo { name: "admins".to_string() }];
     let result = render_teams("myorg", &teams, false, false).expect("should render");
-    assert!(result.contains("@myorg has the following teams:"));
-    assert!(result.contains("  @myorg:developers"));
-    assert!(result.contains("  @myorg:admins"));
+    assert_eq!(result, "@myorg has the following teams:\n  @myorg:developers\n  @myorg:admins");
 }
 
 #[test]
@@ -65,8 +75,7 @@ fn render_teams_json_format() {
     let teams =
         [TeamInfo { name: "developers".to_string() }, TeamInfo { name: "admins".to_string() }];
     let result = render_teams("myorg", &teams, false, true).expect("should render");
-    assert!(result.contains(r#""developers""#));
-    assert!(result.contains(r#""admins""#));
+    assert_eq!(result, "[\n  \"developers\",\n  \"admins\"\n]");
 }
 
 #[test]
@@ -79,9 +88,7 @@ fn render_members_empty_returns_no_members_message() {
 fn render_members_returns_formatted_list() {
     let members = [UserInfo { name: "alice".to_string() }, UserInfo { name: "bob".to_string() }];
     let result = render_members("myorg", "team1", &members, false, false).expect("should render");
-    assert!(result.contains("@myorg:team1 has the following members:"));
-    assert!(result.contains("  alice"));
-    assert!(result.contains("  bob"));
+    assert_eq!(result, "@myorg:team1 has the following members:\n  alice\n  bob");
 }
 
 #[test]
@@ -95,8 +102,7 @@ fn render_members_parseable_format() {
 fn render_members_json_format() {
     let members = [UserInfo { name: "alice".to_string() }, UserInfo { name: "bob".to_string() }];
     let result = render_members("myorg", "team1", &members, false, true).expect("should render");
-    assert!(result.contains(r#""alice""#));
-    assert!(result.contains(r#""bob""#));
+    assert_eq!(result, "[\n  \"alice\",\n  \"bob\"\n]");
 }
 
 #[test]
@@ -124,8 +130,8 @@ fn team_user_url_constructs_correctly() {
 }
 
 #[test]
-fn team_members_url_constructs_correctly() {
-    let url = team_members_url("https://registry.example.com/", "myorg", "developers");
+fn team_url_constructs_correctly() {
+    let url = team_url("https://registry.example.com/", "myorg", "developers");
     assert_eq!(url, "https://registry.example.com/-/team/myorg/developers");
 }
 

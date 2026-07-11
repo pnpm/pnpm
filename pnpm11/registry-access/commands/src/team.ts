@@ -131,19 +131,23 @@ function parseScopeTeam (spec: string): { scope: string, team?: string } {
       `Team spec must start with @scope, got "${spec}". Use @scope or @scope:team format.`)
   }
 
-  const colonIndex = spec.indexOf(':')
-  if (colonIndex === -1) {
-    return { scope: spec.slice(1) }
-  }
-  const team = spec.slice(colonIndex + 1)
-  if (!team) {
+  const inner = spec.slice(1)
+  if (!inner) {
     throw new PnpmError('TEAM_INVALID_SCOPE',
       `Team spec must start with @scope, got "${spec}". Use @scope or @scope:team format.`)
   }
-  return {
-    scope: spec.slice(1, colonIndex),
-    team,
+
+  const colonIndex = inner.indexOf(':')
+  if (colonIndex === -1) {
+    return { scope: inner }
   }
+  const scope = inner.slice(0, colonIndex)
+  const team = inner.slice(colonIndex + 1)
+  if (!scope || !team) {
+    throw new PnpmError('TEAM_INVALID_SCOPE',
+      `Team spec must start with @scope, got "${spec}". Use @scope or @scope:team format.`)
+  }
+  return { scope, team }
 }
 
 function getAuthHeaderForRegistry (
@@ -179,19 +183,23 @@ function getTeamMembersUrl (registryUrl: string, scope: string, team: string): s
 
 async function throwRegistryError (response: Response, action: string): Promise<never> {
   const errorBody = await response.text()
+  const safeErrorBody = [...errorBody]
+    .filter(c => c.charCodeAt(0) > 0x1f && c.charCodeAt(0) !== 0x7f)
+    .join('')
+    .slice(0, 500)
   if (response.status === 401) {
-    throw new PnpmError('UNAUTHORIZED', `You must be logged in to ${action}. ${errorBody}`)
+    throw new PnpmError('UNAUTHORIZED', `You must be logged in to ${action}. ${safeErrorBody}`)
   }
   if (response.status === 403) {
-    throw new PnpmError('FORBIDDEN', `You do not have permission to ${action}. ${errorBody}`)
+    throw new PnpmError('FORBIDDEN', `You do not have permission to ${action}. ${safeErrorBody}`)
   }
   if (response.status === 404) {
-    throw new PnpmError('NOT_FOUND', `Organization or team not found. ${errorBody}`)
+    throw new PnpmError('NOT_FOUND', `Organization or team not found. ${safeErrorBody}`)
   }
   if (response.status === 409) {
-    throw new PnpmError('TEAM_CONFLICT', `Team operation failed due to conflict. ${errorBody}`)
+    throw new PnpmError('TEAM_CONFLICT', `Team operation failed due to conflict. ${safeErrorBody}`)
   }
-  throw new PnpmError('REGISTRY_ERROR', `Failed to ${action}: ${response.status} ${response.statusText}. ${errorBody}`)
+  throw new PnpmError('REGISTRY_ERROR', `Failed to ${action}: ${response.status} ${response.statusText}. ${safeErrorBody}`)
 }
 
 interface TeamInfo {
@@ -260,7 +268,7 @@ async function teamDestroy (
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp
 
-  const teamUrl = new URL(`-/team/${encodeURIComponent(scope)}/${encodeURIComponent(team)}`, normalizeRegistryUrl(registryUrl)).href
+  const teamUrl = getTeamUrl(registryUrl, scope, team)
   const response = await fetchFromRegistry(teamUrl, {
     authHeaderValue: authHeader,
     method: 'DELETE',
@@ -369,19 +377,22 @@ async function teamLs (
   const json = opts.cliOptions?.json ?? false
 
   if (team) {
-    return teamListMembers(scope, team, registryUrl, fetchFromRegistry, authHeader, parseable, json)
+    return teamListMembers({ scope, team, registryUrl, fetchFromRegistry, authHeader, parseable, json })
   }
-  return teamListTeams(scope, registryUrl, fetchFromRegistry, authHeader, parseable, json)
+  return teamListTeams({ scope, registryUrl, fetchFromRegistry, authHeader, parseable, json })
 }
 
-async function teamListTeams (
-  scope: string,
-  registryUrl: string,
-  fetchFromRegistry: FetchFromRegistry,
-  authHeader: string | undefined,
-  parseable: boolean,
+interface TeamListOptions {
+  scope: string
+  registryUrl: string
+  fetchFromRegistry: FetchFromRegistry
+  authHeader: string | undefined
+  parseable: boolean
   json: boolean
-): Promise<string> {
+}
+
+async function teamListTeams (options: TeamListOptions): Promise<string> {
+  const { scope, registryUrl, fetchFromRegistry, authHeader, parseable, json } = options
   const teamsUrl = new URL(`-/org/${encodeURIComponent(scope)}/team`, normalizeRegistryUrl(registryUrl)).href
   const response = await fetchFromRegistry(teamsUrl, {
     authHeaderValue: authHeader,
@@ -391,7 +402,7 @@ async function teamListTeams (
     if (response.status === 404) {
       throw new PnpmError('ORG_NOT_FOUND', `Organization "@${scope}" not found in registry`)
     }
-    throw new PnpmError('REGISTRY_ERROR', `Failed to fetch teams: ${response.status} ${response.statusText}`)
+    await throwRegistryError(response, `fetch teams for "@${scope}"`)
   }
 
   const teams = await response.json() as TeamInfo[]
@@ -415,15 +426,8 @@ async function teamListTeams (
   return lines.join('\n')
 }
 
-async function teamListMembers (
-  scope: string,
-  team: string,
-  registryUrl: string,
-  fetchFromRegistry: FetchFromRegistry,
-  authHeader: string | undefined,
-  parseable: boolean,
-  json: boolean
-): Promise<string> {
+async function teamListMembers (options: TeamListOptions & { team: string }): Promise<string> {
+  const { scope, team, registryUrl, fetchFromRegistry, authHeader, parseable, json } = options
   const membersUrl = getTeamMembersUrl(registryUrl, scope, team)
   const response = await fetchFromRegistry(membersUrl, {
     authHeaderValue: authHeader,
@@ -433,7 +437,7 @@ async function teamListMembers (
     if (response.status === 404) {
       throw new PnpmError('TEAM_NOT_FOUND', `Team "@${scope}:${team}" not found in registry`)
     }
-    throw new PnpmError('REGISTRY_ERROR', `Failed to fetch team members: ${response.status} ${response.statusText}`)
+    await throwRegistryError(response, `fetch team members for "@${scope}:${team}"`)
   }
 
   const members = await response.json() as TeamMember[]

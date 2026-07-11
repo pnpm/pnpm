@@ -1,15 +1,20 @@
 use super::sanitize;
 use clap::Args;
 use derive_more::{Display, Error};
+use futures_util::StreamExt as _;
 use miette::{Diagnostic, IntoDiagnostic, WrapErr};
 use pacquet_config::Config;
 use pacquet_network::{
     NetworkSettings, RetryOpts, ThrottledClient, encode_uri_component, redact_url_credentials,
     send_with_retry,
 };
+use pacquet_resolving_npm_resolver::pick_registry_for_package;
 use reqwest::Response;
 use serde::Deserialize;
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
+
+const TEAM_BODY_LIMIT: usize = 1024 * 1024;
+const TEAM_ERROR_BODY_LIMIT: usize = 64 * 1024;
 
 #[derive(Debug, Args)]
 pub struct TeamArgs {
@@ -36,7 +41,9 @@ pub struct TeamArgs {
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum TeamError {
-    #[display("Subcommand is required (create, destroy, add, rm, ls)")]
+    #[display(
+        "Subcommand is required (create, destroy, add, rm, ls). Use `pnpm team ls <scope>` to list teams."
+    )]
     #[diagnostic(code(ERR_PNPM_TEAM_SUBCOMMAND_REQUIRED))]
     SubcommandRequired,
 
@@ -165,7 +172,7 @@ struct TeamContext<'a> {
     config: &'a Config,
     http_client: ThrottledClient,
     retry_opts: RetryOpts,
-    registry_url: String,
+    registries: HashMap<String, String>,
     otp: Option<String>,
     parseable: bool,
     json: bool,
@@ -182,12 +189,16 @@ fn parse_scope_team(spec: &str) -> Result<ScopeTeam, TeamError> {
         return Err(TeamError::InvalidScope { spec: spec.to_string() });
     }
     let inner = &spec[1..];
+    if inner.is_empty() {
+        return Err(TeamError::InvalidScope { spec: spec.to_string() });
+    }
     if let Some(colon) = inner.find(':') {
-        let team = inner[colon + 1..].to_string();
-        if team.is_empty() {
+        let scope = &inner[..colon];
+        let team = &inner[colon + 1..];
+        if scope.is_empty() || team.is_empty() {
             return Err(TeamError::InvalidScope { spec: spec.to_string() });
         }
-        Ok(ScopeTeam { scope: inner[..colon].to_string(), team: Some(team) })
+        Ok(ScopeTeam { scope: scope.to_string(), team: Some(team.to_string()) })
     } else {
         Ok(ScopeTeam { scope: inner.to_string(), team: None })
     }
@@ -250,10 +261,11 @@ impl TeamArgs {
     }
 
     fn context<'a>(&self, config: &'a Config) -> miette::Result<TeamContext<'a>> {
-        let registry_url = self
-            .registry
-            .as_deref()
-            .map_or_else(|| config.registry.clone(), normalize_registry_url);
+        let mut registries: HashMap<String, String> =
+            config.resolved_registries().into_iter().collect();
+        if let Some(registry) = &self.registry {
+            registries.insert("default".to_string(), normalize_registry_url(registry));
+        }
         Ok(TeamContext {
             config,
             http_client: build_http_client(config)?,
@@ -263,7 +275,7 @@ impl TeamArgs {
                 min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
                 max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
             },
-            registry_url,
+            registries,
             otp: self.otp.clone(),
             parseable: self.parseable,
             json: self.json,
@@ -276,8 +288,9 @@ async fn team_create(context: &TeamContext<'_>, params: &[String]) -> miette::Re
     let st = parse_scope_team(spec)?;
     let team = st.team.as_deref().ok_or(TeamError::CreateNameRequired)?;
 
-    let auth_header = auth_header_for_registry(context, &context.registry_url);
-    let url = org_team_url(&context.registry_url, &st.scope);
+    let registry_url = registry_for_scope(context, &st.scope);
+    let auth_header = auth_header_for_registry(context, &st.scope);
+    let url = org_team_url(&registry_url, &st.scope);
     let body = serde_json::json!({ "name": team }).to_string();
 
     let (_guard, response) =
@@ -300,8 +313,9 @@ async fn team_destroy(context: &TeamContext<'_>, params: &[String]) -> miette::R
     let st = parse_scope_team(spec)?;
     let team = st.team.as_deref().ok_or(TeamError::DestroyNameRequired)?;
 
-    let auth_header = auth_header_for_registry(context, &context.registry_url);
-    let url = team_url(&context.registry_url, &st.scope, team);
+    let registry_url = registry_for_scope(context, &st.scope);
+    let auth_header = auth_header_for_registry(context, &st.scope);
+    let url = team_url(&registry_url, &st.scope, team);
 
     let (_guard, response) =
         send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
@@ -325,8 +339,9 @@ async fn team_add(context: &TeamContext<'_>, params: &[String]) -> miette::Resul
     let team = st.team.as_deref().ok_or(TeamError::AddNameRequired)?;
     let username = &params[1];
 
-    let auth_header = auth_header_for_registry(context, &context.registry_url);
-    let url = team_user_url(&context.registry_url, &st.scope, team);
+    let registry_url = registry_for_scope(context, &st.scope);
+    let auth_header = auth_header_for_registry(context, &st.scope);
+    let url = team_user_url(&registry_url, &st.scope, team);
     let body = serde_json::json!({ "user": username }).to_string();
 
     let (_guard, response) =
@@ -356,8 +371,9 @@ async fn team_rm(context: &TeamContext<'_>, params: &[String]) -> miette::Result
     let team = st.team.as_deref().ok_or(TeamError::RmNameRequired)?;
     let username = &params[1];
 
-    let auth_header = auth_header_for_registry(context, &context.registry_url);
-    let url = team_user_url(&context.registry_url, &st.scope, team);
+    let registry_url = registry_for_scope(context, &st.scope);
+    let auth_header = auth_header_for_registry(context, &st.scope);
+    let url = team_user_url(&registry_url, &st.scope, team);
     let body = serde_json::json!({ "user": username }).to_string();
 
     let (_guard, response) =
@@ -383,7 +399,7 @@ async fn team_ls(context: &TeamContext<'_>, params: &[String]) -> miette::Result
     let spec = params.first().ok_or(TeamError::LsScopeRequired)?;
     let st = parse_scope_team(spec)?;
 
-    let auth_header = auth_header_for_registry(context, &context.registry_url);
+    let auth_header = auth_header_for_registry(context, &st.scope);
 
     if let Some(team) = &st.team {
         let members = fetch_team_members(context, &st.scope, team, auth_header.as_deref()).await?;
@@ -399,7 +415,8 @@ async fn fetch_teams(
     scope: &str,
     auth_header: Option<&str>,
 ) -> miette::Result<Vec<TeamInfo>> {
-    let url = org_team_url(&context.registry_url, scope);
+    let registry_url = registry_for_scope(context, scope);
+    let url = org_team_url(&registry_url, scope);
     let (_guard, response) =
         send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
             let mut builder = client.get(&url);
@@ -423,9 +440,10 @@ async fn fetch_teams(
         .into());
     }
 
-    response
-        .json::<Vec<TeamInfo>>()
+    let body = read_limited_body(response, TEAM_BODY_LIMIT)
         .await
+        .map_err(|source| registry_operation_error("reading teams response", source))?;
+    serde_json::from_slice(&body.bytes)
         .into_diagnostic()
         .map_err(|source| registry_operation_error("parsing teams response", source))
 }
@@ -436,7 +454,8 @@ async fn fetch_team_members(
     team: &str,
     auth_header: Option<&str>,
 ) -> miette::Result<Vec<UserInfo>> {
-    let url = team_user_url(&context.registry_url, scope, team);
+    let registry_url = registry_for_scope(context, scope);
+    let url = team_user_url(&registry_url, scope, team);
     let (_guard, response) =
         send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
             let mut builder = client.get(&url);
@@ -462,9 +481,10 @@ async fn fetch_team_members(
         .into());
     }
 
-    response
-        .json::<Vec<UserInfo>>()
+    let body = read_limited_body(response, TEAM_BODY_LIMIT)
         .await
+        .map_err(|source| registry_operation_error("reading team members response", source))?;
+    serde_json::from_slice(&body.bytes)
         .into_diagnostic()
         .map_err(|source| registry_operation_error("parsing team members response", source))
 }
@@ -528,8 +548,15 @@ fn render_members(
     Ok(lines.join("\n"))
 }
 
-fn auth_header_for_registry(context: &TeamContext<'_>, registry_url: &str) -> Option<String> {
-    context.config.auth_headers.for_url(registry_url)
+fn registry_for_scope(context: &TeamContext<'_>, scope: &str) -> String {
+    let pkg_name = format!("@{scope}/_");
+    pick_registry_for_package(&context.registries, &pkg_name, None)
+}
+
+fn auth_header_for_registry(context: &TeamContext<'_>, scope: &str) -> Option<String> {
+    let registry_url = registry_for_scope(context, scope);
+    let pkg_name = format!("@{scope}/_");
+    context.config.auth_headers.for_url_with_package(&registry_url, Some(&pkg_name))
 }
 
 fn apply_auth_and_otp(
@@ -565,6 +592,49 @@ fn normalize_registry_url(registry_url: &str) -> String {
     if registry_url.ends_with('/') { registry_url.to_string() } else { format!("{registry_url}/") }
 }
 
+struct LimitedBody {
+    bytes: Vec<u8>,
+}
+
+impl LimitedBody {
+    fn into_display_string(self) -> String {
+        let body = String::from_utf8_lossy(&self.bytes);
+        sanitize::sanitize(&body).into_owned()
+    }
+}
+
+async fn read_limited_body(
+    response: Response,
+    limit: usize,
+) -> Result<LimitedBody, reqwest::Error> {
+    let header_exceeds_limit =
+        response.content_length().is_some_and(|length| length > limit as u64);
+    let mut bytes = Vec::new();
+    let mut truncated = header_exceeds_limit;
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        let remaining = limit.saturating_sub(bytes.len());
+        if chunk.len() > remaining {
+            bytes.extend_from_slice(&chunk[..remaining]);
+            truncated = true;
+            break;
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    if truncated {
+        let body = String::from_utf8_lossy(&bytes);
+        let mut body = sanitize::sanitize(&body).into_owned();
+        if !body.is_empty() && !body.chars().next_back().is_some_and(char::is_whitespace) {
+            body.push(' ');
+        }
+        body.push_str("(response body truncated)");
+        Ok(LimitedBody { bytes: body.into_bytes() })
+    } else {
+        Ok(LimitedBody { bytes })
+    }
+}
+
 fn registry_operation_error<ErrorType>(operation: &'static str, error: ErrorType) -> miette::Report
 where
     ErrorType: std::fmt::Display,
@@ -579,8 +649,10 @@ where
 async fn write_error_from_response(response: Response, action: String) -> miette::Result<String> {
     let status = response.status();
     let status_text = status.canonical_reason().unwrap_or_default().to_string();
-    let body = response.text().await.unwrap_or_else(|_| String::new());
-    let body = sanitize::sanitize(&body).into_owned();
+    let body = match read_limited_body(response, TEAM_ERROR_BODY_LIMIT).await {
+        Ok(body) => body.into_display_string(),
+        Err(_) => String::new(),
+    };
 
     if status == reqwest::StatusCode::UNAUTHORIZED {
         return Err(TeamError::Unauthorized { action, body }.into());
