@@ -1,5 +1,6 @@
 use super::{
-    EnvOptions, build_env, escape_newlines, is_stamping_key, sanitize_env_key, stamp_package,
+    EnvOptions, VERIFY_DEPS_BEFORE_RUN_ENV, build_env, escape_newlines, is_stamping_key,
+    sanitize_env_key, stamp_package,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -173,11 +174,17 @@ fn make_env_tmpdir_gating_mirrors_unsafe_perm() {
     assert_eq!(built.env.get("TMPDIR"), Some(&expected_tmpdir.to_string_lossy().into_owned()));
 }
 
+/// pnpm's reserved per-call stamps override a user `extraEnv` that
+/// tries to set the same key (matching TS `runLifecycleHook`, which
+/// spreads `extraEnv` before its own `INIT_CWD` / user-agent / etc.),
+/// while a non-reserved `extraEnv` key still takes effect.
 #[test]
-fn extra_env_overrides_writes_except_lifecycle_script() {
+fn reserved_stamps_win_over_extra_env_but_custom_keys_apply() {
     let pkg_root = Path::new("/tmp/w");
     let mut extra = HashMap::new();
     extra.insert("INIT_CWD".into(), "/overridden".into());
+    extra.insert("npm_config_user_agent".into(), "evil".into());
+    extra.insert(VERIFY_DEPS_BEFORE_RUN_ENV.into(), "true".into());
     extra.insert("npm_lifecycle_script".into(), "FAKE".into());
     extra.insert("CUSTOM".into(), "hello".into());
 
@@ -190,15 +197,19 @@ fn extra_env_overrides_writes_except_lifecycle_script() {
         node_execpath: None,
         npm_execpath: None,
         node_gyp_path: None,
-        user_agent: None,
+        user_agent: Some("pnpm"),
         unsafe_perm: true,
         extra_env: &extra,
     };
 
     let built = build_env(&opts, &json!({"name":"w","version":"0"}), HashMap::new());
 
-    assert_eq!(built.env.get("INIT_CWD").map(String::as_str), Some("/overridden"));
+    // Reserved pnpm keys win over the user's `extraEnv`.
+    assert_eq!(built.env.get("INIT_CWD").map(String::as_str), Some("/original"));
+    assert_eq!(built.env.get("npm_config_user_agent").map(String::as_str), Some("pnpm"));
+    assert_eq!(built.env.get(VERIFY_DEPS_BEFORE_RUN_ENV).map(String::as_str), Some("false"));
     assert_eq!(built.env.get("npm_lifecycle_script").map(String::as_str), Some("REAL"));
+    // A non-reserved key from `extraEnv` still applies.
     assert_eq!(built.env.get("CUSTOM").map(String::as_str), Some("hello"));
 }
 

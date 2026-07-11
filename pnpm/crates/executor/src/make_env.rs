@@ -13,7 +13,9 @@ pub const VERIFY_DEPS_BEFORE_RUN_ENV: &str = "pnpm_config_verify_deps_before_run
 
 /// Inputs needed to build the env for a single lifecycle hook spawn:
 /// the package context, the per-call stamps the hook runner adds, and
-/// the caller-supplied `extra_env` overrides.
+/// the caller-supplied `extra_env` (the user's `updateConfig`
+/// `extraEnv`), which pnpm's reserved stamps override — see
+/// [`build_env`].
 pub struct EnvOptions<'a> {
     pub stage: &'a str,
     pub script: &'a str,
@@ -40,9 +42,11 @@ pub struct EnvBuild {
 /// process env to inherit from.
 ///
 /// Two layers of work: the base env build (parent-env filter,
-/// `npm_package_*` recursion, multi-line escaping) and the per-call
-/// stamping that follows it, then the caller-supplied `extra_env`
-/// overrides applied last.
+/// `npm_package_*` recursion, multi-line escaping), then the
+/// caller-supplied `extra_env`, then the reserved per-call stamps
+/// (`INIT_CWD`, `PNPM_SCRIPT_SRC_DIR`, `npm_config_user_agent`, the
+/// verify-deps guard, `npm_lifecycle_script`) applied last so they win
+/// over anything `extra_env` set — matching TS `runLifecycleHook`.
 ///
 /// `parent_env` is taken by value so the production caller can pass
 /// `env::vars().collect()` and tests can pass a controlled fixture
@@ -90,6 +94,17 @@ pub fn build_env(
         env.insert("npm_execpath".into(), p.to_string_lossy().into_owned());
     }
 
+    // 4. `extra_env` (which now carries the user's `updateConfig`
+    //    `extraEnv`) is applied BEFORE the reserved per-call stamps
+    //    below, so pnpm's own stamps win on conflict. This mirrors TS
+    //    `runLifecycleHook`, which spreads `{ ...extraEnv, INIT_CWD,
+    //    PNPM_SCRIPT_SRC_DIR, npm_config_user_agent }` — the reserved
+    //    keys overwrite anything `extraEnv` set. A user `extraEnv`
+    //    entry for a non-reserved key still takes effect.
+    for (k, v) in opts.extra_env {
+        env.insert(k.clone(), v.clone());
+    }
+
     env.insert("INIT_CWD".into(), opts.init_cwd.to_string_lossy().into_owned());
     env.insert("PNPM_SCRIPT_SRC_DIR".into(), opts.script_src_dir.to_string_lossy().into_owned());
 
@@ -101,14 +116,9 @@ pub fn build_env(
     }
 
     // Breaks the recursion a spawned install's lifecycle scripts would
-    // otherwise enter (pnpm stamps the same value via `config.extraEnv`).
+    // otherwise enter. Stamped after `extra_env` so a user `extraEnv`
+    // can't disable the guard (pnpm keeps this key authoritative).
     env.insert(VERIFY_DEPS_BEFORE_RUN_ENV.into(), "false".into());
-
-    // 4. `extra_env` is applied last among the base env writes, so it
-    //    overrides anything stamped above.
-    for (k, v) in opts.extra_env {
-        env.insert(k.clone(), v.clone());
-    }
 
     // 5. TMPDIR under <wd>/node_modules/.tmp when !unsafe_perm.
     //    The caller creates the dir; we only record the path and pass
@@ -121,8 +131,8 @@ pub fn build_env(
         Some(dir)
     };
 
-    // 6. `npm_lifecycle_script` is set after the `extra_env` overwrite,
-    //    so the caller can never clobber it.
+    // 6. `npm_lifecycle_script` is set after `extra_env`, so the
+    //    caller can never clobber it.
     env.insert("npm_lifecycle_script".into(), opts.script.to_string());
 
     EnvBuild { env, tmpdir }

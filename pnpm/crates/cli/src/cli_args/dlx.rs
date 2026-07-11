@@ -370,8 +370,10 @@ fn run_bin(
 
     cmd.current_dir(cwd);
     // `updateConfig`-provided env, applied first so pnpm's own keys win
-    // on conflict (matching `exec`'s spawn and TS `makeEnv`). Empty
-    // unless the dlx install populated it.
+    // on conflict (matching `exec`'s spawn and TS `makeEnv`). dlx does
+    // not run the `updateConfig` hook, so this is currently always
+    // empty; wired for uniformity with the other spawn sites and so it
+    // works if that changes.
     cmd.envs(extra_env);
     cmd.env_remove("PATH");
     cmd.env_remove("Path");

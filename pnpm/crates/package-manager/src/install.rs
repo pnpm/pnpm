@@ -2251,7 +2251,7 @@ fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
             pkg_root: project_dir,
             root_modules_dir: &root_modules_dir,
             init_cwd: workspace_root,
-            extra_bin_paths: &[],
+            extra_bin_paths: &config.extra_bin_paths,
             extra_env: &extra_env,
             node_execpath: None,
             npm_execpath: None,
