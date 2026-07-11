@@ -1861,3 +1861,150 @@ test('a pruned hoisted peer provider is resolved by the root-context fallback', 
   expect(dependenciesByProjectId['.'].get('prov')).toBe('prov@1.0.0')
   expect(Object.keys(dependenciesGraph)).toContain('consumer@1.0.0(prov@1.0.0)')
 })
+
+test('an own direct dependency and a pruned hoisted peer provider that peer-depend on each other are resolved together', async () => {
+  // Regression test for https://github.com/pnpm/pnpm/issues/12921: the peer
+  // cycle spans two resolvePeersOfChildren calls (the own direct children and
+  // the pruned-provider fallback), so neither call's cycle analysis sees it —
+  // the dep path calculations awaited each other forever.
+  const mainPkg = {
+    name: 'main',
+    pkgIdWithPatchHash: 'main@1.0.0' as PkgIdWithPatchHash,
+    version: '1.0.0',
+    peerDependencies: {
+      plugin: { version: '^1.0.0' },
+    },
+    id: '' as PkgResolutionId,
+  }
+  const pluginPkg = {
+    name: 'plugin',
+    pkgIdWithPatchHash: 'plugin@1.0.0' as PkgIdWithPatchHash,
+    version: '1.0.0',
+    peerDependencies: {
+      main: { version: '^1.0.0' },
+    },
+    id: '' as PkgResolutionId,
+  }
+  const { dependenciesGraph, dependenciesByProjectId } = await resolvePeers({
+    allPeerDepNames: new Set(['main', 'plugin']),
+    projects: [
+      {
+        directNodeIdsByAlias: new Map([
+          ['main', '>main@1.0.0>' as NodeId],
+          ['plugin', '>plugin@1.0.0>' as NodeId],
+        ]),
+        hoistedPeerProviderNodeIds: new Set(['>plugin@1.0.0>' as NodeId]),
+        topParents: [],
+        rootDir: '' as ProjectRootDir,
+        id: '.',
+      },
+    ],
+    resolvedImporters: {},
+    dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+      ['>main@1.0.0>' as NodeId, {
+        children: {},
+        installable: true,
+        resolvedPackage: mainPkg,
+        depth: 0,
+      }],
+      ['>plugin@1.0.0>' as NodeId, {
+        children: {},
+        installable: true,
+        resolvedPackage: pluginPkg,
+        depth: 1,
+      }],
+    ]),
+    virtualStoreDir: '',
+    lockfileDir: '',
+    virtualStoreDirMaxLength: 120,
+    peersSuffixMaxLength: 1000,
+    workspaceProjectIds: new Set(),
+  })
+  expect(Object.keys(dependenciesGraph).sort()).toStrictEqual([
+    'main@1.0.0(plugin@1.0.0)',
+    'plugin@1.0.0(main@1.0.0)',
+  ])
+  expect(dependenciesByProjectId['.'].get('main')).toBe('main@1.0.0(plugin@1.0.0)')
+  expect(dependenciesByProjectId['.'].get('plugin')).toBe('plugin@1.0.0(main@1.0.0)')
+})
+
+test('a peer cycle between an own direct dependency and a hoisted peer provider resolved at its tree position does not deadlock', async () => {
+  // Same await cycle as in https://github.com/pnpm/pnpm/issues/12921, but the
+  // provider is visited at its true tree position (inside host's subtree), so
+  // the cycle spans two traversal levels instead of two root-level calls.
+  const hostPkg = {
+    name: 'host',
+    pkgIdWithPatchHash: 'host@1.0.0' as PkgIdWithPatchHash,
+    version: '1.0.0',
+    peerDependencies: {} as PeerDependencies,
+    id: '' as PkgResolutionId,
+  }
+  const mainPkg = {
+    name: 'main',
+    pkgIdWithPatchHash: 'main@1.0.0' as PkgIdWithPatchHash,
+    version: '1.0.0',
+    peerDependencies: {
+      plugin: { version: '^1.0.0' },
+    },
+    id: '' as PkgResolutionId,
+  }
+  const pluginPkg = {
+    name: 'plugin',
+    pkgIdWithPatchHash: 'plugin@1.0.0' as PkgIdWithPatchHash,
+    version: '1.0.0',
+    peerDependencies: {
+      main: { version: '^1.0.0' },
+    },
+    id: '' as PkgResolutionId,
+  }
+  const { dependenciesGraph, dependenciesByProjectId } = await resolvePeers({
+    allPeerDepNames: new Set(['main', 'plugin']),
+    projects: [
+      {
+        directNodeIdsByAlias: new Map([
+          ['host', '>host@1.0.0>' as NodeId],
+          ['main', '>main@1.0.0>' as NodeId],
+          ['plugin', '>host@1.0.0>plugin@1.0.0>' as NodeId],
+        ]),
+        hoistedPeerProviderNodeIds: new Set(['>host@1.0.0>plugin@1.0.0>' as NodeId]),
+        topParents: [],
+        rootDir: '' as ProjectRootDir,
+        id: '.',
+      },
+    ],
+    resolvedImporters: {},
+    dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+      ['>host@1.0.0>' as NodeId, {
+        children: { plugin: '>host@1.0.0>plugin@1.0.0>' as NodeId },
+        installable: true,
+        resolvedPackage: hostPkg,
+        depth: 0,
+      }],
+      ['>main@1.0.0>' as NodeId, {
+        children: {},
+        installable: true,
+        resolvedPackage: mainPkg,
+        depth: 0,
+      }],
+      ['>host@1.0.0>plugin@1.0.0>' as NodeId, {
+        children: {},
+        installable: true,
+        resolvedPackage: pluginPkg,
+        depth: 1,
+      }],
+    ]),
+    virtualStoreDir: '',
+    lockfileDir: '',
+    virtualStoreDirMaxLength: 120,
+    peersSuffixMaxLength: 1000,
+    workspaceProjectIds: new Set(),
+  })
+  expect(Object.keys(dependenciesGraph).sort()).toStrictEqual([
+    'host@1.0.0(main@1.0.0)',
+    'main@1.0.0(plugin@1.0.0)',
+    'plugin@1.0.0(main@1.0.0)',
+  ])
+  expect(dependenciesByProjectId['.'].get('host')).toBe('host@1.0.0(main@1.0.0)')
+  expect(dependenciesByProjectId['.'].get('main')).toBe('main@1.0.0(plugin@1.0.0)')
+  expect(dependenciesByProjectId['.'].get('plugin')).toBe('plugin@1.0.0(main@1.0.0)')
+})
