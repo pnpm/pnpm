@@ -1825,14 +1825,14 @@ registries:
       release: [carol]
     packages:
       '@team/*':
-        access: team:platfrom
+        access: team:platfrm
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
     assert!(
         matches!(
             &err,
             RegistryError::InvalidConfig { reason }
-                if reason.contains("team:platfrom")
+                if reason.contains("team:platfrm")
                     && reason.contains(r#""platform", "release""#),
         ),
         "unexpected error: {err}",
