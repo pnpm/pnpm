@@ -6,9 +6,10 @@ import type {
   PartialResolvedPackage,
 } from './resolvePeers.js'
 
-// Extracted from resolvePeers.ts so that both resolvePeers (dedupePeerDependents)
-// and dedupeInjectedDeps can share it without forming a runtime import cycle.
-// The type imports above are erased at build time, so no cycle remains.
+// Shared helpers used by both resolvePeers (dedupePeerDependents) and
+// dedupeInjectedDeps. Lives in its own module so neither consumer has to import
+// the other, which would create a runtime cycle. The type imports above are
+// erased at build time, so no cycle exists at runtime.
 
 export function nodeDepsCount (node: GenericDependenciesGraphNodeWithResolvedChildren): number {
   return Object.keys(node.children!).length + node.resolvedPeerNames.size
