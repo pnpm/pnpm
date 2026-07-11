@@ -7,6 +7,13 @@
 //! host-supplied JS callback: `read_package` forwards each manifest to the
 //! callback over a [`ThreadsafeFunction`] and awaits the transformed result.
 //!
+//! The callback receives `(manifest, resolvedDir?)` — `resolvedDir` is the
+//! lockfile-root-relative directory when the manifest came from a directory
+//! resolution (an injected workspace project or a `file:` dependency), so the
+//! host can substitute a workspace project's raw manifest for its dependency
+//! instances. The `.pnpmfile.cjs` bridge does not receive it, matching pnpm's
+//! pnpmfile contract.
+//!
 //! The callback must be **synchronous** (return the manifest, not a promise) —
 //! [`ThreadsafeFunction::call_async`] resolves the JS return value directly and
 //! does not await a returned promise. Bit's composed `readPackage` hook is
@@ -19,17 +26,25 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use napi::{Status, threadsafe_function::ThreadsafeFunction};
+use napi::{Status, bindgen_prelude::FnArgs, threadsafe_function::ThreadsafeFunction};
 use pacquet_hooks::{
     HookContext, HookError, PnpmfileHooks, PreResolutionHookContext, PreResolutionHookLogger,
     ReadPackageResult,
 };
 use serde_json::Value;
 
-/// A synchronous JS `(manifest) => manifest` callback. `CalleeHandled = false`
-/// (no leading error arg); the JS return value is deserialized back to a
+/// A synchronous JS `(manifest, resolvedDir?) => manifest` callback.
+/// `CalleeHandled = false` (no leading error arg); the [`FnArgs`] wrapper
+/// spreads the tuple into two JS arguments (a bare tuple would serialize into
+/// a single JSON array) and the JS return value is deserialized back to a
 /// manifest.
-pub type HookSink = ThreadsafeFunction<Value, Value, Value, Status, false>;
+pub type HookSink = ThreadsafeFunction<
+    FnArgs<(Value, Option<String>)>,
+    Value,
+    FnArgs<(Value, Option<String>)>,
+    Status,
+    false,
+>;
 
 /// [`PnpmfileHooks`] implementation that runs `readPackage` through a JS
 /// callback.
@@ -48,9 +63,9 @@ impl PnpmfileHooks for JsReadPackageHook {
     async fn read_package(
         &self,
         pkg: Value,
-        _ctx: HookContext,
+        ctx: HookContext,
     ) -> Result<ReadPackageResult, HookError> {
-        match self.read_package.call_async(pkg).await {
+        match self.read_package.call_async(FnArgs::from((pkg, ctx.dir))).await {
             Ok(transformed) => Ok(Arc::new(transformed)),
             Err(error) => Err(HookError::Execution {
                 pnpmfile: "<napi readPackage>".to_string(),

@@ -2244,7 +2244,7 @@ async fn save_wanted_lockfile(
 
     let value = serde_json::to_value(built_lockfile)
         .map_err(InstallWithFreshLockfileError::AfterAllResolvedSerialize)?;
-    let ctx = pacquet_hooks::HookContext { log: log.unwrap_or_else(|| Arc::new(|_| {})) };
+    let ctx = pacquet_hooks::HookContext { log: log.unwrap_or_else(|| Arc::new(|_| {})), dir: None };
     let result = hook
         .after_all_resolved(value, ctx)
         .await

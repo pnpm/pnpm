@@ -59,8 +59,16 @@ export interface NetworkConfig {
   userAgent?: string
 }
 
-/** A synchronous `readPackage` hook applied to resolved dependency manifests. */
-export type ReadPackageHook = (manifest: PackageManifest) => PackageManifest
+/**
+ * A synchronous `readPackage` hook applied to resolved dependency manifests.
+ *
+ * `resolvedDir` is set when the manifest came from a directory resolution (an
+ * injected workspace project or a `file:` dependency); it is the directory
+ * recorded in the lockfile, relative to the lockfile root. Hosts use it to
+ * recognize a workspace project's dependency instance and substitute the
+ * project's raw manifest.
+ */
+export type ReadPackageHook = (manifest: PackageManifest, resolvedDir?: string) => PackageManifest
 
 /**
  * Receives engine log events. The event stream is wire-compatible with
@@ -190,9 +198,9 @@ export interface InstallResult {
 
 /**
  * @param onLog receives wire-compatible pnpm log events.
- * @param readPackageHook a **synchronous** `(manifest) => manifest` transform
- *   applied to every resolved dependency manifest during resolution (the
- *   `readPackage` hook). Must return the manifest object, not a promise.
+ * @param readPackageHook a **synchronous** `(manifest, resolvedDir?) => manifest`
+ *   transform applied to every resolved dependency manifest during resolution
+ *   (the `readPackage` hook). Must return the manifest object, not a promise.
  */
 export function install(
   options: InstallOptions,
