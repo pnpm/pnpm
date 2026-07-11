@@ -948,6 +948,42 @@ mod project_scripts {
         drop((root, mock_instance));
     }
 
+    /// An `updateConfig` pnpmfile hook that sets `extraEnv` exports those
+    /// variables into the project's lifecycle-script environment. Mirrors
+    /// the TypeScript CLI, where `config.extraEnv` is forwarded to
+    /// lifecycle scripts; here the `PnpmBuild` use case
+    /// (`npm_config_nodedir`) stands in.
+    #[test]
+    fn update_config_extra_env_reaches_lifecycle_scripts() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "name": "project-reads-extra-env",
+            "version": "1.0.0",
+            "scripts": {
+                "postinstall":
+                    r#"node -e "require('fs').writeFileSync('extra-env.txt', process.env.PNPM_BUILD_MARKER || '')""#,
+            },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+        fs::write(
+            workspace.join(".pnpmfile.cjs"),
+            "module.exports = { hooks: { updateConfig (config) { config.extraEnv = { ...config.extraEnv, PNPM_BUILD_MARKER: 'from-hook' }; return config } } }",
+        )
+        .expect("write pnpmfile");
+
+        pacquet.with_arg("install").assert().success();
+
+        let value =
+            fs::read_to_string(workspace.join("extra-env.txt")).expect("read extra-env.txt");
+        assert_eq!(value.trim(), "from-hook");
+
+        drop((root, mock_instance));
+    }
+
     /// `pacquet add <pkg>` is a partial install, so the project's own
     /// lifecycle scripts must not run: `postinstall`/`prepare` are not
     /// executed after a named install.

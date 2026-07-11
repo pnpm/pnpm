@@ -431,6 +431,20 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
             "catalogs".to_string(),
             serde_json::to_value(&yaml_catalogs).into_diagnostic()?,
         );
+        // Seed the live `extraBinPaths` / `extraEnv` so a hook can read
+        // and extend them (PnpmBuild's `updateConfig` appends its bin
+        // dir and sets `npm_config_nodedir`). Neither is a
+        // `WorkspaceSettings` key, so like `storeDir`/`catalogs` they are
+        // injected here and re-read from the delta below rather than
+        // going through `apply_to`.
+        object.insert(
+            "extraBinPaths".to_string(),
+            serde_json::to_value(&config.extra_bin_paths).into_diagnostic()?,
+        );
+        object.insert(
+            "extraEnv".to_string(),
+            serde_json::to_value(&config.extra_env).into_diagnostic()?,
+        );
     }
 
     let prefix = root_dir.to_string_lossy().into_owned();
@@ -475,10 +489,31 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     let changed_virtual_store_dir = delta.get("virtualStoreDir").cloned();
     let changed_global_virtual_store_dir = delta.get("globalVirtualStoreDir").cloned();
     let virtual_store_dir_cleared = changed_virtual_store_dir.as_ref().is_some_and(Value::is_null);
+    // `extraBinPaths` / `extraEnv` aren't `WorkspaceSettings` fields, so
+    // `from_value(delta)` below ignores them. Pull the hook's values out
+    // first and assign them directly.
+    let changed_extra_bin_paths = delta
+        .get("extraBinPaths")
+        .map(|value| serde_json::from_value::<Vec<PathBuf>>(value.clone()))
+        .transpose()
+        .into_diagnostic()
+        .wrap_err("the updateConfig hook produced an invalid extraBinPaths value")?;
+    let changed_extra_env = delta
+        .get("extraEnv")
+        .map(|value| serde_json::from_value::<HashMap<String, String>>(value.clone()))
+        .transpose()
+        .into_diagnostic()
+        .wrap_err("the updateConfig hook produced an invalid extraEnv value")?;
     let delta_settings: WorkspaceSettings = serde_json::from_value(delta)
         .into_diagnostic()
         .wrap_err("deserialize the updateConfig hook result")?;
     delta_settings.apply_to(config, &base_dir);
+    if let Some(extra_bin_paths) = changed_extra_bin_paths {
+        config.extra_bin_paths = extra_bin_paths;
+    }
+    if let Some(extra_env) = changed_extra_env {
+        config.extra_env = extra_env;
+    }
     if virtual_store_dir_cleared {
         config.virtual_store_dir = base_dir.join("node_modules/.pnpm");
     }

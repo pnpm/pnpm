@@ -119,7 +119,7 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
     // `script_shell`, and the user-agent. Compute the bits that don't
     // vary per project once; the per-project `RunContext` reuses them.
     let init_cwd = env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
-    let mut extra_env: HashMap<String, String> = HashMap::new();
+    let mut extra_env: HashMap<String, String> = config.extra_env.clone();
     if let Some(node_options) = &config.node_options {
         extra_env.insert("NODE_OPTIONS".to_string(), node_options.clone());
     }

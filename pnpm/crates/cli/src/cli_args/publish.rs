@@ -312,7 +312,7 @@ impl PublishArgs {
             skip_manifest_obfuscation: self.flags.skip_manifest_obfuscation,
             user_agent: config.user_agent.clone(),
             extra_bin_paths: config.extra_bin_paths.clone(),
-            extra_env: HashMap::new(),
+            extra_env: config.extra_env.clone(),
             workspace_dir: config.workspace_dir.clone(),
             dry_run: false,
             out: None,

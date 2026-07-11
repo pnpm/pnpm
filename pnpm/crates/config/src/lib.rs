@@ -1232,6 +1232,14 @@ pub struct Config {
     /// member's scripts.
     pub extra_bin_paths: Vec<PathBuf>,
 
+    /// `extraEnv`: extra environment variables exported to lifecycle
+    /// scripts and `pnpm exec`/`pnpm run` child processes. Empty by
+    /// default. Not a `pnpm-workspace.yaml` key — the only way to
+    /// populate it is an `updateConfig` pnpmfile hook that returns an
+    /// `extraEnv` object, wired up in `pacquet_cli`'s
+    /// `run_update_config_hooks`.
+    pub extra_env: HashMap<String, String>,
+
     /// `unsafePerm` from `pnpm-workspace.yaml`. When `false`,
     /// lifecycle scripts run under a TMPDIR isolated to
     /// `node_modules/.tmp` and uid/gid drops to a non-root user.

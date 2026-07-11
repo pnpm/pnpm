@@ -109,6 +109,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         script_shell: None,
         node_options: None,
         extra_bin_paths: Default::default(),
+        extra_env: Default::default(),
         unsafe_perm: true,
         child_concurrency: 1,
         workspace_concurrency: 1,
