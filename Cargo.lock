@@ -4430,6 +4430,7 @@ dependencies = [
  "criterion",
  "mockito",
  "node-semver",
+ "pacquet-lockfile",
  "pacquet-network",
  "pacquet-registry",
  "pacquet-reporter",
@@ -4437,9 +4438,11 @@ dependencies = [
  "pacquet-tarball",
  "pipe-trait",
  "project-root",
+ "serde_json",
  "ssri",
  "tempfile",
  "tokio",
+ "zune-inflate",
 ]
 
 [[package]]
