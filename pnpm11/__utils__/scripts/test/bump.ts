@@ -7,12 +7,16 @@ import { afterEach, beforeEach, describe, expect, test } from '@jest/globals'
 import {
   appendReleased,
   branchToFilename,
+  continuePrereleases,
   deleteHidden,
+  findRepoRoot,
   hideReleased,
   listChangesetIds,
   readReleased,
   releaseBranchToTarget,
   restoreHidden,
+  snapshotPrereleases,
+  syncRustVersions,
 } from '../src/bump.js'
 
 describe('releaseBranchToTarget', () => {
@@ -174,5 +178,143 @@ describe('listChangesetIds', () => {
     fs.writeFileSync(path.join(dir, 'README.md'), '')
     fs.writeFileSync(path.join(dir, 'config.json'), '{}')
     expect(listChangesetIds(dir)).toEqual(['bar', 'foo'])
+  })
+})
+
+describe('findRepoRoot', () => {
+  let dir: string
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bump-root-'))
+  })
+  afterEach(() => fs.rmSync(dir, { recursive: true, force: true }))
+
+  test('walks up to the directory containing .changeset', () => {
+    fs.mkdirSync(path.join(dir, '.changeset'))
+    const nested = path.join(dir, 'pnpm11', '__utils__', 'scripts', 'src')
+    fs.mkdirSync(nested, { recursive: true })
+    expect(findRepoRoot(nested)).toBe(dir)
+  })
+
+  test('throws when no .changeset directory exists above', () => {
+    expect(() => findRepoRoot(dir)).toThrow(/No \.changeset directory/)
+  })
+})
+
+function writeManifest (repoRoot: string, manifestPath: string, manifest: object): void {
+  const abs = path.join(repoRoot, manifestPath)
+  fs.mkdirSync(path.dirname(abs), { recursive: true })
+  fs.writeFileSync(abs, `${JSON.stringify(manifest, null, 2)}\n`)
+}
+
+function readManifest (repoRoot: string, manifestPath: string): { name: string, version: string } {
+  return JSON.parse(fs.readFileSync(path.join(repoRoot, manifestPath), 'utf8'))
+}
+
+describe('snapshotPrereleases', () => {
+  let dir: string
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bump-snapshot-'))
+  })
+  afterEach(() => fs.rmSync(dir, { recursive: true, force: true }))
+
+  test('captures tagged prerelease versions', () => {
+    writeManifest(dir, 'a/package.json', { name: 'a', version: '12.0.0-alpha.8' })
+    expect(snapshotPrereleases(dir, ['a/package.json'])).toEqual(
+      new Map([['a/package.json', { base: '12.0.0', tag: 'alpha', n: 8 }]])
+    )
+  })
+
+  test('skips stable versions', () => {
+    writeManifest(dir, 'a/package.json', { name: 'a', version: '0.1.0' })
+    expect(snapshotPrereleases(dir, ['a/package.json']).size).toBe(0)
+  })
+
+  test('skips all-numeric prerelease suffixes (the date-based scheme)', () => {
+    writeManifest(dir, 'a/package.json', { name: 'a', version: '0.0.0-26070301' })
+    expect(snapshotPrereleases(dir, ['a/package.json']).size).toBe(0)
+  })
+})
+
+describe('continuePrereleases', () => {
+  let dir: string
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bump-continue-'))
+  })
+  afterEach(() => fs.rmSync(dir, { recursive: true, force: true }))
+
+  test('rewrites a version bumped to the prerelease base, including the changelog heading', () => {
+    writeManifest(dir, 'a/package.json', { name: 'a', version: '12.0.0-alpha.8' })
+    const snapshot = snapshotPrereleases(dir, ['a/package.json'])
+    writeManifest(dir, 'a/package.json', { name: 'a', version: '12.0.0' })
+    fs.writeFileSync(path.join(dir, 'a/CHANGELOG.md'), '# a\n\n## 12.0.0\n\n### Patch Changes\n\n- fix\n\n## 12.0.0-alpha.8\n')
+
+    continuePrereleases(dir, snapshot)
+
+    expect(readManifest(dir, 'a/package.json').version).toBe('12.0.0-alpha.9')
+    const changelog = fs.readFileSync(path.join(dir, 'a/CHANGELOG.md'), 'utf8')
+    expect(changelog).toContain('## 12.0.0-alpha.9')
+    expect(changelog).toContain('## 12.0.0-alpha.8')
+    expect(changelog).not.toContain('## 12.0.0\n')
+  })
+
+  test('leaves a package that was not bumped alone', () => {
+    writeManifest(dir, 'a/package.json', { name: 'a', version: '12.0.0-alpha.8' })
+    const snapshot = snapshotPrereleases(dir, ['a/package.json'])
+
+    continuePrereleases(dir, snapshot)
+
+    expect(readManifest(dir, 'a/package.json').version).toBe('12.0.0-alpha.8')
+  })
+
+  test('does not require a changelog to exist', () => {
+    writeManifest(dir, 'a/package.json', { name: 'a', version: '1.2.3-rc.0' })
+    const snapshot = snapshotPrereleases(dir, ['a/package.json'])
+    writeManifest(dir, 'a/package.json', { name: 'a', version: '1.2.3' })
+
+    continuePrereleases(dir, snapshot)
+
+    expect(readManifest(dir, 'a/package.json').version).toBe('1.2.3-rc.1')
+  })
+})
+
+describe('syncRustVersions', () => {
+  let dir: string
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bump-sync-'))
+    writeManifest(dir, 'pnpm/npm/pnpm/package.json', { name: 'pacquet', version: '12.0.0-alpha.9' })
+    writeManifest(dir, 'pnpr/npm/pnpr/package.json', { name: '@pnpm/pnpr', version: '0.2.0' })
+    fs.mkdirSync(path.join(dir, 'pnpm/crates/config/src'), { recursive: true })
+    fs.writeFileSync(
+      path.join(dir, 'pnpm/crates/config/src/defaults.rs'),
+      'pub const PNPM_VERSION: &str = "12.0.0-alpha.8";\n'
+    )
+    fs.mkdirSync(path.join(dir, 'pnpr/crates/pnpr'), { recursive: true })
+    fs.writeFileSync(
+      path.join(dir, 'pnpr/crates/pnpr/Cargo.toml'),
+      '[package]\nname              = "pnpr"\nversion           = "0.1.0"\n'
+    )
+    fs.writeFileSync(
+      path.join(dir, 'Cargo.lock'),
+      '[[package]]\nname = "pnpr"\nversion = "0.1.0"\ndependencies = [\n "clap",\n]\n\n[[package]]\nname = "other"\nversion = "0.1.0"\n'
+    )
+  })
+  afterEach(() => fs.rmSync(dir, { recursive: true, force: true }))
+
+  test('copies the wrapper versions into the Rust sources', () => {
+    syncRustVersions(dir)
+
+    expect(fs.readFileSync(path.join(dir, 'pnpm/crates/config/src/defaults.rs'), 'utf8'))
+      .toContain('pub const PNPM_VERSION: &str = "12.0.0-alpha.9";')
+    expect(fs.readFileSync(path.join(dir, 'pnpr/crates/pnpr/Cargo.toml'), 'utf8'))
+      .toContain('version           = "0.2.0"')
+    const lock = fs.readFileSync(path.join(dir, 'Cargo.lock'), 'utf8')
+    expect(lock).toContain('name = "pnpr"\nversion = "0.2.0"')
+    // Only the pnpr package entry is touched, not other packages at the same version.
+    expect(lock).toContain('name = "other"\nversion = "0.1.0"')
+  })
+
+  test('throws when an expected version site is missing', () => {
+    fs.writeFileSync(path.join(dir, 'pnpm/crates/config/src/defaults.rs'), '// gone\n')
+    expect(() => syncRustVersions(dir)).toThrow(/not found in .*defaults\.rs/)
   })
 })

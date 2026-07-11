@@ -8,6 +8,11 @@
 // The ledger lives outside `.changeset/` because `@changesets/read` treats
 // every directory inside `.changeset/` as a legacy v1 changeset and tries to
 // read `changes.md` from it.
+//
+// After `changeset version` it also keeps the Rust products' prerelease
+// version lines going (`continuePrereleases`) and copies the bumped wrapper
+// versions into the Rust sources the release builds from
+// (`syncRustVersions`).
 
 import { execSync } from 'node:child_process'
 import fs from 'node:fs'
@@ -113,6 +118,128 @@ export function deleteHidden (hidden: readonly HiddenFile[]): void {
   }
 }
 
+// The npm wrapper manifests of the Rust products. These are the packages that
+// may sit on a prerelease line (see continuePrereleases) and whose versions
+// are mirrored into Rust sources (see syncRustVersions).
+export const RUST_CLI_WRAPPER_MANIFEST = 'pnpm/npm/pnpm/package.json'
+export const NAPI_WRAPPER_MANIFEST = 'pnpm/npm/napi/package.json'
+export const PNPR_WRAPPER_MANIFEST = 'pnpr/npm/pnpr/package.json'
+
+export const PRERELEASE_CONTINUATION_MANIFESTS = [
+  RUST_CLI_WRAPPER_MANIFEST,
+  NAPI_WRAPPER_MANIFEST,
+  PNPR_WRAPPER_MANIFEST,
+]
+
+export interface PrereleaseLine {
+  base: string
+  tag: string
+  n: number
+}
+
+// Matches `<X.Y.Z>-<tag>.<N>` prerelease versions with a named tag (`alpha`,
+// `beta`, `rc.`..). Deliberately does not match all-numeric suffixes like the
+// retired date-based `0.0.0-<date>` scheme — those have no line to continue.
+const PRERELEASE_VERSION_RE = /^(\d+\.\d+\.\d+)-([A-Z][0-9A-Z-]*)\.(\d+)$/i
+
+export function snapshotPrereleases (
+  repoRoot: string,
+  manifestPaths: readonly string[]
+): Map<string, PrereleaseLine> {
+  const snapshot = new Map<string, PrereleaseLine>()
+  for (const manifestPath of manifestPaths) {
+    const version = readManifestVersion(path.join(repoRoot, manifestPath))
+    const match = PRERELEASE_VERSION_RE.exec(version)
+    if (match === null) continue
+    snapshot.set(manifestPath, { base: match[1], tag: match[2], n: Number(match[3]) })
+  }
+  return snapshot
+}
+
+// Outside changesets' pre mode, `changeset version` turns `X.Y.Z-tag.N` plus
+// any bump type into plain `X.Y.Z`. Pre mode is global to the workspace, so it
+// cannot be used while the TypeScript packages release stable versions from
+// the same branch. Instead, a package that sat on `X.Y.Z-tag.N` before the
+// bump and landed on exactly `X.Y.Z` is rewritten to `X.Y.Z-tag.N+1`
+// (manifest and changelog heading). Leaving the prerelease line — releasing
+// the stable `X.Y.Z` — is a deliberate manual version edit in a release PR.
+export function continuePrereleases (
+  repoRoot: string,
+  snapshot: ReadonlyMap<string, PrereleaseLine>
+): void {
+  for (const [manifestPath, line] of snapshot) {
+    const absManifestPath = path.join(repoRoot, manifestPath)
+    const manifest = JSON.parse(fs.readFileSync(absManifestPath, 'utf8'))
+    if (manifest.version !== line.base) continue
+    const continued = `${line.base}-${line.tag}.${line.n + 1}`
+    console.log(`Continuing prerelease line of ${manifest.name}: ${continued}`)
+    manifest.version = continued
+    fs.writeFileSync(absManifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+    continueChangelogHeading(path.join(path.dirname(absManifestPath), 'CHANGELOG.md'), line.base, continued)
+  }
+}
+
+// The Rust sources embed the versions their release builds report; the npm
+// wrapper manifests bumped by changesets are the source of truth. The release
+// workflow verifies the copies match, so a missed sync fails the release
+// instead of shipping a binary with a stale --version.
+export function syncRustVersions (repoRoot: string): void {
+  const pacquetVersion = readManifestVersion(path.join(repoRoot, RUST_CLI_WRAPPER_MANIFEST))
+  replaceInFile(
+    path.join(repoRoot, 'pnpm/crates/config/src/defaults.rs'),
+    /(pub const PNPM_VERSION: &str = )"[^"]*"/,
+    `$1"${pacquetVersion}"`
+  )
+  const pnprVersion = readManifestVersion(path.join(repoRoot, PNPR_WRAPPER_MANIFEST))
+  replaceInFile(
+    path.join(repoRoot, 'pnpr/crates/pnpr/Cargo.toml'),
+    /^(version\s*=\s*)"[^"]*"/m,
+    `$1"${pnprVersion}"`
+  )
+  replaceInFile(
+    path.join(repoRoot, 'Cargo.lock'),
+    /(\[\[package\]\]\nname = "pnpr"\nversion = )"[^"]*"/,
+    `$1"${pnprVersion}"`
+  )
+}
+
+function readManifestVersion (absManifestPath: string): string {
+  const manifest = JSON.parse(fs.readFileSync(absManifestPath, 'utf8'))
+  if (typeof manifest.version !== 'string') {
+    throw new Error(`No version field in ${absManifestPath}`)
+  }
+  return manifest.version
+}
+
+function continueChangelogHeading (changelogPath: string, base: string, continued: string): void {
+  if (!fs.existsSync(changelogPath)) return
+  const lines = fs.readFileSync(changelogPath, 'utf8').split('\n')
+  const headingIndex = lines.indexOf(`## ${base}`)
+  if (headingIndex === -1) return
+  lines[headingIndex] = `## ${continued}`
+  fs.writeFileSync(changelogPath, lines.join('\n'))
+}
+
+function replaceInFile (file: string, pattern: RegExp, replacement: string): void {
+  const content = fs.readFileSync(file, 'utf8')
+  if (!pattern.test(content)) {
+    throw new Error(`Pattern ${pattern} not found in ${file}`)
+  }
+  fs.writeFileSync(file, content.replace(pattern, replacement))
+}
+
+export function findRepoRoot (startDir: string): string {
+  let dir = startDir
+  while (!fs.existsSync(path.join(dir, '.changeset'))) {
+    const parent = path.dirname(dir)
+    if (parent === dir) {
+      throw new Error(`No .changeset directory found above ${startDir}`)
+    }
+    dir = parent
+  }
+  return dir
+}
+
 function detectReleaseBranch (cwd: string): string {
   const override = process.env.RELEASE_BRANCH?.trim()
   if (override !== undefined && override !== '') return releaseBranchToTarget(override)
@@ -126,7 +253,7 @@ function detectReleaseBranch (cwd: string): string {
 }
 
 function main (): void {
-  const repoRoot = path.resolve(import.meta.dirname, '../../..')
+  const repoRoot = findRepoRoot(import.meta.dirname)
   const changesetDir = path.join(repoRoot, '.changeset')
   const releasedDir = path.join(repoRoot, '.changeset-released')
   const branch = detectReleaseBranch(repoRoot)
@@ -141,6 +268,8 @@ function main (): void {
       `Hiding ${hidden.length} stale changeset(s) already released elsewhere: ${hidden.map(h => h.id).join(', ')}`
     )
   }
+
+  const prereleases = snapshotPrereleases(repoRoot, PRERELEASE_CONTINUATION_MANIFESTS)
 
   const before = listChangesetIds(changesetDir)
   let success = false
@@ -163,6 +292,9 @@ function main (): void {
     // from the working tree — the released-list already prevents re-application.
     deleteHidden(hidden)
   }
+
+  continuePrereleases(repoRoot, prereleases)
+  syncRustVersions(repoRoot)
 }
 
 function isDirectInvocation (): boolean {
