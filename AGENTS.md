@@ -190,7 +190,7 @@ GitHub turns any `@name` into a mention of that user/org/team, which is wrong ei
 
 **Fix:** wrap the reference in backticks so GitHub renders it as code and sends no notification — e.g. `` `@pnpm/core` `` or `` `@foo` `` — or remove it if it is not needed. Never bypass the check with `git commit --no-verify`, by editing or deleting the hook, or with any suppression file.
 
-## Changesets (TypeScript only)
+## Changesets
 
 If your changes affect published packages, you MUST create a changeset file in the `.changeset` directory. The changeset file should describe the change and specify the packages that are affected with the pending version bump types: patch, minor, or major. Write the description for pnpm users and keep it concise — it becomes a release note. Implementation rationale belongs in the commit message, not the changeset.
 
@@ -211,6 +211,16 @@ Added a new setting `blockExoticSubdeps` that prevents the resolution of exotic 
 - **patch**: Bug fixes, internal refactors, and changes that don't require documentation updates
 - **minor**: New features, settings, or commands that should be documented (anything users should know about)
 - **major**: Breaking changes
+
+### Changesets for the Rust products
+
+The Rust products are released through the same changesets flow. Their npm wrapper packages are workspace packages with committed versions, so a user-visible change to a Rust product needs a changeset too, targeting:
+
+- `pacquet` — the Rust pnpm CLI (published to npm as `pnpm` and `@pnpm/exe` under its `next-<major>` dist-tag). `@pnpm/napi` is in a changesets fixed group with `pacquet` and bumps with it automatically.
+- `@pnpm/napi` — the Node.js addon bindings for the Rust engine.
+- `@pnpm/pnpr` — the pnpr registry server (published as `@pnpm/pnpr` and its platform packages, plus the `ghcr.io/pnpm/pnpr` Docker image).
+
+Do not add `"pnpm"` to a Rust-only changeset: in changesets, `pnpm` always means the TypeScript CLI package. A parity change that lands in both stacks carries one changeset naming both the affected TypeScript packages (plus `"pnpm"`) and the Rust wrapper(s).
 
 ## Comments
 
