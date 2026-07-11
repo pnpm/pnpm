@@ -86,6 +86,8 @@ function patchWrapperOptionalDependencies(generatedTargets) {
   // Replace rather than merge so a rerun with a smaller target set can't leave
   // stale optionalDependencies entries pointing at packages we no longer build.
   rootManifest.optionalDependencies = optionalDependencies
+  // The committed wrapper is a private workspace package; the published one is not.
+  delete rootManifest.private
   fs.writeFileSync(MANIFEST_PATH, `${JSON.stringify(rootManifest, null, 2)}\n`)
   console.log('Patched @pnpm/napi optionalDependencies')
 }

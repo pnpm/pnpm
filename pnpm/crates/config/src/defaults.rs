@@ -248,10 +248,10 @@ pub fn default_fetch_retry_maxtimeout() -> u64 {
 /// The CLI's user-facing release version — the same value
 /// `pnpm --version` prints. Single source of truth so the CLI
 /// version string and the default `User-Agent` (`default_user_agent`)
-/// can't drift apart. The release workflow patches this constant to the
-/// version being published; the committed value tracks the current
-/// pre-release line.
-pub const PNPM_VERSION: &str = "12.0.0-alpha.0";
+/// can't drift apart. `pnpm bump` keeps this constant in sync with the
+/// version of the npm wrapper package (`pnpm/npm/pnpm/package.json`);
+/// the release workflow verifies the two match before building.
+pub const PNPM_VERSION: &str = "12.0.0-alpha.8";
 
 pub fn default_fetch_timeout() -> u64 {
     pacquet_network::DEFAULT_FETCH_TIMEOUT_MS

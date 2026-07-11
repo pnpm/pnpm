@@ -1,7 +1,12 @@
 // Adapted from Rome (https://github.com/rome/tools/blob/392d188a49/npm/rome/scripts/generate-packages.mjs).
 //
 // Generates the per-platform `@pnpm/exe.<target>` native packages and the
-// `@pnpm/exe` wrapper (an equal-content copy of the committed `pnpm` wrapper).
+// `@pnpm/exe` wrapper (an equal-content copy of the committed wrapper).
+//
+// The committed wrapper is the private workspace package `pacquet` (so its
+// name can't collide with the TypeScript CLI package `pnpm`, which changesets
+// and the meta-updater resolve by name); this script rewrites it into the
+// publishable `pnpm` manifest.
 
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -79,15 +84,17 @@ function generateNativePackage(target) {
   fs.chmodSync(binaryTarget, 0o755);
 }
 
-// Patch the committed `pnpm` manifest with the release version + the full set of
-// `@pnpm/exe.<target>` optional dependencies, preserving its other fields.
+// Rewrite the committed `pacquet` manifest into the publishable `pnpm` one:
+// the published name, no `private` flag, and the full set of
+// `@pnpm/exe.<target>` optional dependencies. Other fields are preserved.
 function patchPnpmWrapperManifest() {
   const nativePackages = TARGETS.map((target) => [
     nativePackageName(target),
     rootManifest.version,
   ]);
 
-  rootManifest["version"] = rootManifest.version;
+  rootManifest["name"] = "pnpm";
+  delete rootManifest["private"];
   rootManifest["optionalDependencies"] = Object.fromEntries(nativePackages);
 
   console.log(`Update manifest ${MANIFEST_PATH}`);

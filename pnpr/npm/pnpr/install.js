@@ -44,6 +44,13 @@ const PLATFORMS = {
 setup()
 
 function setup () {
+  // The committed manifest has no `optionalDependencies`; generate-packages.mjs
+  // adds them at release time. Without them this is the monorepo checkout, where
+  // the wrapper is a workspace package and there is no native binary to link.
+  if (readOwnManifest().optionalDependencies == null) {
+    return
+  }
+
   const candidates = getBinCandidates()
   if (candidates.length === 0) {
     fail(`@pnpm/pnpr does not ship a prebuilt binary for ${platform}-${arch}.`)
@@ -140,6 +147,14 @@ function rewriteBin (binValue) {
 function fail (message) {
   console.error(message)
   process.exit(1)
+}
+
+function readOwnManifest () {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(ownDir, 'package.json'), 'utf8'))
+  } catch {
+    return {}
+  }
 }
 
 /**

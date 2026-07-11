@@ -21,6 +21,16 @@ const EXPERIMENTAL_PKGS = new Set([
   '@pnpm/pnpr.client',
 ])
 
+// The Rust products' npm wrapper packages. Their manifests are release
+// artifacts owned by the respective generate-packages.mjs scripts and are
+// versioned by changesets independently of the TypeScript packages, so none
+// of the normalizations below may touch them.
+const RUST_WRAPPER_PKGS = new Set([
+  'pacquet',
+  '@pnpm/napi',
+  '@pnpm/pnpr',
+])
+
 // Files that must be packed with mode 0755 in both `pnpm` and `@pnpm/exe`.
 // `@pnpm/exe` ships the same `dist/` tree as `pnpm`, so the two manifests'
 // `publishConfig.executableFiles` lists must stay identical — otherwise the
@@ -66,6 +76,9 @@ export default async (workspaceDir: string) => { // eslint-disable-line
     files: {
       'package.json': (manifest: ProjectManifest & { keywords?: string[] } | null, { dir }: { dir: string }) => {
         if (!manifest) {
+          return manifest
+        }
+        if (manifest.name && RUST_WRAPPER_PKGS.has(manifest.name)) {
           return manifest
         }
         if (manifest.name === 'monorepo-root') {

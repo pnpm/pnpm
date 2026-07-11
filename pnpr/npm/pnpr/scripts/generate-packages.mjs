@@ -79,6 +79,8 @@ function writeManifest() {
 
   manifestData["version"] = rootManifest.version;
   manifestData["optionalDependencies"] = Object.fromEntries(nativePackages);
+  // The committed wrapper is a private workspace package; the published one is not.
+  delete manifestData["private"];
 
   console.log(`Update manifest ${manifestPath}`);
   const content = JSON.stringify(manifestData);
