@@ -316,8 +316,10 @@ impl OpenUrl for RecordingBrowser {
     }
 }
 
+/// Drain the recorded URLs so state cannot leak between tests that
+/// libtest runs on the same thread (e.g. `--test-threads=1`).
 fn opened_urls() -> Vec<String> {
-    OPENED_URLS.with(|urls| urls.borrow().clone())
+    OPENED_URLS.with(RefCell::take)
 }
 
 async fn run_bugs_in_project(manifest: &str) -> miette::Result<()> {
