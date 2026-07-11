@@ -3,6 +3,7 @@ import path from 'node:path'
 import type { DepPath, PkgResolutionId } from '@pnpm/types'
 import normalize from 'normalize-path'
 
+import { isCompatibleAndHasMoreDeps } from './depPathCompatibility.js'
 import type { NodeId } from './nextNodeId.js'
 import type { LinkedDependency } from './resolveDependencies.js'
 import type { ResolvedDirectDependency, ResolvedImporters } from './resolveDependencyTree.js'
@@ -80,7 +81,32 @@ function getDedupeMap<T extends PartialResolvedPackage> (
       // The injected project in the workspace may have dev deps
       const children = Object.entries(node.children)
       const isSubset = children
-        .every(([alias, depPath]) => targetProjectDeps.get(alias) === depPath)
+        .every(([alias, depPath]) => {
+          const targetDepPath = targetProjectDeps.get(alias)
+          if (targetDepPath === depPath) return true
+          if (targetDepPath == null) return false
+          // An ordinary (non-workspace) shared dependency of the injected
+          // package can resolve to a peer-suffixed variant on one side and a
+          // peer-free variant on the other -- e.g. when reconciling against an
+          // existing lockfile pins an optional peer (debug's supports-color)
+          // for the target project's own resolution but not for the injected
+          // occurrence. Both are valid resolutions of the same package; what
+          // matters is whether the target project's own copy is at least as
+          // complete as what the injected occurrence needed, not that the two
+          // depPath strings are byte-identical. See pnpm/pnpm#10433.
+          //
+          // Only tolerate this when both sides are the *same package identity*
+          // (same `pkgIdWithPatchHash`, i.e. differing only by peer suffix).
+          // `isCompatibleAndHasMoreDeps` compares dependency/peer sets, not
+          // identity, so without this guard two different versions of a shared
+          // dep -- leaf packages especially, whose sets are both empty -- would
+          // be treated as interchangeable and wrongly deduped.
+          const targetNode = opts.depGraph[targetDepPath]
+          const injectedChildNode = opts.depGraph[depPath]
+          if (targetNode == null || injectedChildNode == null) return false
+          if (targetNode.pkgIdWithPatchHash !== injectedChildNode.pkgIdWithPatchHash) return false
+          return isCompatibleAndHasMoreDeps(opts.depGraph, targetDepPath, depPath)
+        })
       if (isSubset) {
         dedupedInjectedDeps.set(alias, dep.id)
       }

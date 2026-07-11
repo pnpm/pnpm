@@ -17,6 +17,7 @@ import { partition, pick } from 'ramda'
 import semver from 'semver'
 
 import { dedupeInjectedDeps } from './dedupeInjectedDeps.js'
+import { isCompatibleAndHasMoreDeps, nodeDepsCount } from './depPathCompatibility.js'
 import { linkPathToPeerVersion } from './linkPathToPeerVersion.js'
 import { mergePeers } from './mergePeers.js'
 import type { NodeId } from './nextNodeId.js'
@@ -349,10 +350,6 @@ function breakDepPathAwaitCycles<T extends PartialResolvedPackage> (
   }
 }
 
-function nodeDepsCount (node: GenericDependenciesGraphNodeWithResolvedChildren): number {
-  return Object.keys(node.children!).length + node.resolvedPeerNames.size
-}
-
 function deduplicateAll<T extends PartialResolvedPackage> (
   depGraph: GenericDependenciesGraphWithResolvedChildren<T>,
   duplicates: Array<Set<DepPath>>
@@ -430,24 +427,6 @@ function deduplicateDepPaths<T extends PartialResolvedPackage> (
   }
 }
 
-function isCompatibleAndHasMoreDeps<T extends PartialResolvedPackage> (
-  depGraph: GenericDependenciesGraphWithResolvedChildren<T>,
-  depPath1: DepPath,
-  depPath2: DepPath
-): boolean {
-  const node1 = depGraph[depPath1]
-  const node2 = depGraph[depPath2]
-  if (nodeDepsCount(node1) < nodeDepsCount(node2)) return false
-
-  const node1DepPathsSet = new Set(Object.values(node1.children!))
-  const node2DepPaths = Object.values(node2.children!)
-  if (!node2DepPaths.every((depPath) => node1DepPathsSet.has(depPath))) return false
-
-  for (const depPath of node2.resolvedPeerNames) {
-    if (!node1.resolvedPeerNames.has(depPath)) return false
-  }
-  return true
-}
 
 function createPkgsByName<T extends PartialResolvedPackage> (
   dependenciesTree: DependenciesTree<T>,
