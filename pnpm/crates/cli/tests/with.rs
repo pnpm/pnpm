@@ -211,7 +211,7 @@ fn assert_success(output: &Output) {
 }
 
 fn assert_current_version(output: &Output) {
-    assert_eq!(stdout(output).trim(), pacquet_config::PACQUET_VERSION);
+    assert_eq!(stdout(output).trim(), pacquet_config::PNPM_VERSION);
 }
 
 fn assert_semver_like(value: &str) {

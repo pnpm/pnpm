@@ -9,7 +9,7 @@ mod path_extender;
 
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
-use pacquet_config::{Host, PACQUET_VERSION, default_pnpm_home_dir};
+use pacquet_config::{Host, PNPM_VERSION, default_pnpm_home_dir};
 use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use path_extender::{
     AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, ConfigReport, PathExtenderReport,
@@ -94,7 +94,7 @@ fn install_cli_globally<Reporter: self::Reporter + 'static>(
     if created_pkg_json {
         let pkg = serde_json::json!({
             "name": "@pnpm/exe",
-            "version": PACQUET_VERSION,
+            "version": PNPM_VERSION,
             "bin": { "pnpm": exec_name, "pn": exec_name },
         });
         fs::write(&pkg_json_path, pkg.to_string())

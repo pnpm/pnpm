@@ -67,7 +67,7 @@ use std::path::PathBuf;
 #[derive(Debug, Parser)]
 #[clap(name = "pnpm")]
 #[clap(bin_name = "pnpm")]
-#[clap(version = pacquet_config::PACQUET_VERSION)]
+#[clap(version = pacquet_config::PNPM_VERSION)]
 #[clap(disable_version_flag = true)]
 #[clap(about = "Experimental package manager for node.js")]
 pub struct CliArgs {

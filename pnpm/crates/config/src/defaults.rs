@@ -251,7 +251,7 @@ pub fn default_fetch_retry_maxtimeout() -> u64 {
 /// can't drift apart. The release workflow patches this constant to the
 /// version being published; the committed value tracks the current
 /// pre-release line.
-pub const PACQUET_VERSION: &str = "12.0.0-alpha.0";
+pub const PNPM_VERSION: &str = "12.0.0-alpha.0";
 
 pub fn default_fetch_timeout() -> u64 {
     pacquet_network::DEFAULT_FETCH_TIMEOUT_MS
@@ -265,7 +265,7 @@ pub fn default_fetch_timeout() -> u64 {
 /// [`pacquet_detect_libc::host_platform`] / [`pacquet_detect_libc::host_arch`].
 pub fn default_user_agent() -> String {
     format!(
-        "pnpm/{PACQUET_VERSION} npm/? node/? {} {}",
+        "pnpm/{PNPM_VERSION} npm/? node/? {} {}",
         pacquet_detect_libc::host_platform(),
         pacquet_detect_libc::host_arch(),
     )

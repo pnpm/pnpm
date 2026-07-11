@@ -41,8 +41,8 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/rustup
 
-      - name: Build pacquet and the harness
-        run: cargo build --release --bin pacquet --bin ecosystem-e2e
+      - name: Build pnpm and the harness
+        run: cargo build --release --bin pnpm --bin ecosystem-e2e
 
       - name: Build the pnpm CLI bundle
         run: |
@@ -54,7 +54,7 @@ jobs:
         with:
           name: ecosystem-e2e-build
           path: |
-            target/release/pacquet
+            target/release/pnpm
             target/release/ecosystem-e2e
             pnpm11/pnpm/dist
           retention-days: 1
@@ -90,7 +90,7 @@ jobs:
 
       - name: Restore executable bits
         # Artifacts don't preserve the executable bit.
-        run: chmod +x target/release/pacquet target/release/ecosystem-e2e
+        run: chmod +x target/release/pnpm target/release/ecosystem-e2e
 
       - name: Wrap the built pnpm bundle as an executable
         # The harness takes a single executable for --pnpm; the launcher is a
@@ -104,7 +104,7 @@ jobs:
         run: |
           ./target/release/ecosystem-e2e \
             --pnpm "$PWD/pnpm-built" \
-            --pacquet "$PWD/target/release/pacquet" \
+            --pacquet "$PWD/target/release/pnpm" \
             --binary both \
             --layout both \
             --stack ${{ matrix.stack }} \

@@ -128,8 +128,8 @@ fn setup_patch_remove_project(
 }
 
 fn pacquet(workspace: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Command {
-    Command::cargo_bin("pacquet")
-        .expect("find the pacquet binary")
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
         .with_current_dir(workspace)
         .with_args(args)
 }

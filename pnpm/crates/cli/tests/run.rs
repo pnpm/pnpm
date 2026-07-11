@@ -355,7 +355,7 @@ fn run_finds_workspace_root_bin_on_path() {
     .to_string();
     fs::write(project.join("package.json"), manifest).expect("write package.json");
 
-    std::process::Command::cargo_bin("pacquet")
+    std::process::Command::cargo_bin("pnpm")
         .expect("find pacquet binary")
         .with_current_dir(&project)
         .with_arg("run")
@@ -626,7 +626,7 @@ fn run_start_fallback_uses_dir_for_server_js_probe() {
 
     let existing_path = std::env::var("PATH").unwrap_or_default();
     let new_path = format!("{}:{}", shim_dir.display(), existing_path);
-    std::process::Command::cargo_bin("pacquet")
+    std::process::Command::cargo_bin("pnpm")
         .expect("find pacquet binary")
         .with_current_dir(&workspace)
         .with_env("PATH", new_path)

@@ -228,7 +228,7 @@ fn recursive_lifecycle_aliases_use_recursive_run_options() {
         [("test", "test-ran.txt"), ("start", "start-ran.txt"), ("stop", "stop-ran.txt")]
     {
         let _ = fs::remove_file(workspace.join("pnpm-exec-summary.json"));
-        std::process::Command::cargo_bin("pacquet")
+        std::process::Command::cargo_bin("pnpm")
             .expect("find pacquet binary")
             .with_current_dir(&workspace)
             .with_arg("-r")

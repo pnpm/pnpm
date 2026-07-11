@@ -33,7 +33,7 @@ fn disable_strict_dep_builds(workspace: &Path) {
 /// A fresh `pacquet` command rooted at `workspace` (each `assert_cmd`
 /// `Command` is single-use, so sequential steps build their own).
 fn pacquet(workspace: &Path) -> Command {
-    Command::cargo_bin("pacquet").expect("find the pacquet binary").with_current_dir(workspace)
+    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
 }
 
 /// Set up a workspace that depends on `@pnpm.e2e/install-script-example`

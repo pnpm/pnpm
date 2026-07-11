@@ -271,7 +271,7 @@ pub enum HoistedDepGraphError {
     /// already validated — but the conversion is fallible at the
     /// type level, so a typed error is the honest surface.
     #[display("Unparsable snapshot reference {reference:?} on hoisted node")]
-    #[diagnostic(code(ERR_PACQUET_HOISTED_GRAPH_BAD_REFERENCE))]
+    #[diagnostic(code(ERR_PNPM_HOISTED_GRAPH_BAD_REFERENCE))]
     BadReference {
         reference: String,
         #[error(source)]

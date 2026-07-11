@@ -170,9 +170,8 @@ fn changed_files_ignore_pattern_is_respected() {
     );
 
     let changed_project_names = |extra_args: &[&str]| {
-        let pacquet = Command::cargo_bin("pacquet")
-            .expect("find the pacquet binary")
-            .with_current_dir(&workspace);
+        let pacquet =
+            Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(&workspace);
         recursive_project_names(pacquet, &[&["--filter", "[origin/main]"], extra_args].concat())
     };
 

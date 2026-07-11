@@ -205,7 +205,7 @@ fn unlink_restores_registry_package_in_lockfile() {
         "the link override should make node_modules/{PKG} a symlink before unlink",
     );
 
-    let mut unlink = std::process::Command::cargo_bin("pacquet").expect("locate pacquet binary");
+    let mut unlink = std::process::Command::cargo_bin("pnpm").expect("locate pacquet binary");
     unlink.current_dir(&workspace);
     unlink.with_args(["unlink", PKG]).assert().success();
 

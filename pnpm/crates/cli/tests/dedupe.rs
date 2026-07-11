@@ -56,9 +56,8 @@ fn dedupe_check_does_not_materialize_nor_write_lockfile() {
     pacquet.with_arg("dedupe").assert().success();
 
     // Recreate a pacquet command for the --check invocation
-    let pacquet_check = Command::cargo_bin("pacquet")
-        .expect("find the pacquet binary")
-        .with_current_dir(&workspace);
+    let pacquet_check =
+        Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(&workspace);
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     assert!(lockfile_path.exists(), "dedupe must create pnpm-lock.yaml");

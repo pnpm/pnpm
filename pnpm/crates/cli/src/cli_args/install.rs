@@ -176,7 +176,7 @@ pub struct InstallArgs {
     /// Refuse network tarball / zip-archive fetches on a cache miss.
     /// When the warm prefetch and the `index.db` lookup both miss
     /// for a package, pacquet fails with
-    /// `ERR_PACQUET_NO_OFFLINE_TARBALL` rather than hitting the
+    /// `ERR_PNPM_NO_OFFLINE_TARBALL` rather than hitting the
     /// registry. The `--offline` flag also gates the metadata-fetch
     /// path (`ERR_PNPM_NO_OFFLINE_META`), which pacquet doesn't have
     /// on the frozen-install flow (the lockfile pins every

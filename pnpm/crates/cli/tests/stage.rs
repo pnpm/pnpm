@@ -23,8 +23,8 @@ use std::{
 const STAGE_ID: &str = "1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f";
 
 fn pacquet(workspace: &Path) -> Command {
-    Command::cargo_bin("pacquet")
-        .expect("find the pacquet binary")
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
         .with_current_dir(workspace)
         .without_env("GITHUB_ACTIONS")
         .without_env("GITLAB_CI")

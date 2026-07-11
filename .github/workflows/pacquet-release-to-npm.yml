@@ -108,18 +108,18 @@ jobs:
 
       - name: Inject version into pnpm/crates/config/src/defaults.rs
         # `pacquet --version` and the default User-Agent both read the
-        # PACQUET_VERSION constant. Patch it here so the binary built for the
+        # PNPM_VERSION constant. Patch it here so the binary built for the
         # matrix leg reports the version we're about to publish.
         shell: bash
         env:
           VERSION: ${{ inputs.version }}
         run: |
           file=pnpm/crates/config/src/defaults.rs
-          perl -i -pe 's/(pub const PACQUET_VERSION: &str = )"[^"]*";/${1}"'"$VERSION"'";/' "$file"
-          grep -F "PACQUET_VERSION: &str = \"$VERSION\"" "$file"
+          perl -i -pe 's/(pub const PNPM_VERSION: &str = )"[^"]*";/${1}"'"$VERSION"'";/' "$file"
+          grep -F "PNPM_VERSION: &str = \"$VERSION\"" "$file"
 
       - name: Build with cross
-        run: cross build -p pacquet-cli --bin pacquet --release --target=${{ matrix.target }}
+        run: cross build -p pacquet-cli --bin pnpm --release --target=${{ matrix.target }}
 
       - name: Build NAPI addon with cross
         # musl targets enable `crt-static` by default, but a `cdylib` (the
@@ -161,7 +161,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          mv target/${{ matrix.target }}/release/pacquet.exe pnpm.exe
+          mv target/${{ matrix.target }}/release/pnpm.exe pnpm.exe
           7z a pnpm-${{ matrix.code-target }}.zip pnpm.exe
 
       - name: Archive Binary
@@ -172,7 +172,7 @@ jobs:
         # up the whole source tree instead.
         run: |
           mkdir stage
-          mv target/${{ matrix.target }}/release/pacquet stage/pnpm
+          mv target/${{ matrix.target }}/release/pnpm stage/pnpm
           tar czf pnpm-${{ matrix.code-target }}.tar.gz -C stage pnpm
 
       - name: Attest build provenance

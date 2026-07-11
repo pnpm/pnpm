@@ -216,7 +216,16 @@ impl WorkEnv {
             // time and reached via the `PNPM_CONFIG_PNPR_SERVER` env var
             // that `install.bash` sources from `.pnpr-env`.
             BenchId::PacquetRevision(_) | BenchId::PnprRevision(_) => {
-                "./pacquet/target/release/pacquet".to_string()
+                // Revisions disagree on the client bin name (`pnpm` on
+                // current checkouts, `pacquet` on older ones); resolve
+                // whichever this revision's build produced at script
+                // runtime, the same way the pnpm branch below resolves
+                // its bundle path.
+                let candidates =
+                    ["./pacquet/target/release/pnpm", "./pacquet/target/release/pacquet"].join(" ");
+                format!(
+                    r#""$(for f in {candidates}; do if [ -f "$f" ]; then echo "$f"; break; fi; done)""#,
+                )
             }
             BenchId::PnpmRevision(_) => {
                 // Take the first bundle that exists: `pnpm.mjs` over
@@ -278,20 +287,70 @@ impl WorkEnv {
         }
     }
 
-    /// Output binary a `pacquet@<rev>` target runs.
+    /// Output binary a `pacquet@<rev>` target runs. Revisions disagree
+    /// on the client bin name, so prefer whichever exists (`pnpm` when
+    /// neither does yet).
     fn pacquet_binary(&self, revision: &str) -> PathBuf {
-        self.pacquet_source_dir(revision).join("target").join("release").join("pacquet")
+        WorkEnv::client_binary_in(&self.pacquet_source_dir(revision))
     }
 
-    /// The `pacquet` client binary a `pnpr@<rev>` build produces (the pnpr
-    /// target builds `--bin=pacquet --bin=pnpr`).
+    /// The client binary a `pnpr@<rev>` build produces (the pnpr
+    /// target builds the client and `pnpr` bins together).
     fn pnpr_pacquet_binary(&self, revision: &str) -> PathBuf {
-        self.pnpr_source_dir(revision).join("target").join("release").join("pacquet")
+        WorkEnv::client_binary_in(&self.pnpr_source_dir(revision))
+    }
+
+    /// `<source_dir>/target/release/<client bin>` under either bin name:
+    /// the existing one wins so prebuilt caches and older revisions keep
+    /// working; `pnpm` is the default. The build fns delete the sibling
+    /// name after every build, so at most one candidate exists.
+    fn client_binary_in(source_dir: &Path) -> PathBuf {
+        let release = source_dir.join("target").join("release");
+        let pnpm = release.join("pnpm");
+        if pnpm.is_file() {
+            return pnpm;
+        }
+        let pacquet = release.join("pacquet");
+        if pacquet.is_file() { pacquet } else { pnpm }
+    }
+
+    /// CLI bin name the revision's checkout declares — `pnpm` on current
+    /// revisions, `pacquet` on older ones. Read from the clone's CLI
+    /// crate manifest (under either directory layout) so any revision
+    /// builds with the right `--bin` flag. The probe is a line scan, not
+    /// a TOML parse: the workspace has no TOML-parser dependency, and
+    /// pulling one in for a single boolean probe isn't worth it.
+    fn cli_bin_name(revision_repo: &Path) -> &'static str {
+        for dir in ["pnpm", "pacquet"] {
+            let manifest = revision_repo.join(dir).join("crates").join("cli").join("Cargo.toml");
+            if let Ok(content) = fs::read_to_string(&manifest) {
+                // Whitespace-tolerant match: taplo pads `name` keys for
+                // alignment in some tables.
+                let has_pnpm_bin = content.lines().any(|line| {
+                    let mut parts = line.split_whitespace();
+                    parts.next() == Some("name")
+                        && parts.next() == Some("=")
+                        && parts.next() == Some(r#""pnpm""#)
+                });
+                return if has_pnpm_bin { "pnpm" } else { "pacquet" };
+            }
+        }
+        "pnpm"
     }
 
     /// The `pnpr` server binary a `pnpr@<rev>` build produces.
     fn pnpr_server_binary(&self, revision: &str) -> PathBuf {
         self.pnpr_source_dir(revision).join("target").join("release").join("pnpr")
+    }
+
+    /// Delete the client binary under the name `built_bin` does NOT use.
+    /// A bench dir is keyed by the revision *label* (e.g. `pnpr@main`),
+    /// so a moving label can leave the other name's binary from an
+    /// earlier run in `target/release`; without this cleanup,
+    /// existence-based resolution could pick that stale executable.
+    fn remove_sibling_client_binary(source_dir: &Path, built_bin: &str) {
+        let sibling = if built_bin == "pnpm" { "pacquet" } else { "pnpm" };
+        let _ = fs::remove_file(source_dir.join("target").join("release").join(sibling));
     }
 
     pub fn build(&self) {
@@ -336,10 +395,17 @@ impl WorkEnv {
                 eprintln!(
                     "Revision: {revision:?} (pacquet) — reusing the binary from the pnpr@{revision} build",
                 );
+                // Name the copy after the source so the copied binary keeps
+                // the bin name its revision declares.
+                let bin_name = from_pnpr.file_name().expect("client binary path has a file name");
+                let dest =
+                    self.pacquet_source_dir(revision).join("target").join("release").join(bin_name);
                 if let Some(parent) = dest.parent() {
                     fs::create_dir_all(parent).expect("create pacquet target/release dir");
                 }
-                fs::copy(&from_pnpr, &dest).expect("copy pacquet binary from the pnpr build");
+                fs::copy(&from_pnpr, &dest).expect("copy the client binary from the pnpr build");
+                let built = bin_name.to_str().expect("client bin name is UTF-8");
+                WorkEnv::remove_sibling_client_binary(&self.pacquet_source_dir(revision), built);
                 return;
             }
         }
@@ -364,12 +430,14 @@ impl WorkEnv {
         sync_bench_repo(repository, &revision_repo, &commit);
 
         eprintln!("Building {revision:?}...");
+        let bin = WorkEnv::cli_bin_name(&revision_repo);
         Command::new("cargo")
             .current_dir(&revision_repo)
             .arg("build")
             .arg("--release")
-            .arg("--bin=pacquet")
+            .arg(format!("--bin={bin}"))
             .pipe(executor("cargo build"));
+        WorkEnv::remove_sibling_client_binary(&revision_repo, bin);
     }
 
     /// Build a pnpr target: both the `pacquet` client and the `pnpr`
@@ -396,14 +464,16 @@ impl WorkEnv {
 
         sync_bench_repo(repository, &revision_repo, &commit);
 
-        eprintln!("Building {revision:?} (pacquet + pnpr)...");
+        eprintln!("Building {revision:?} (client + pnpr)...");
+        let bin = WorkEnv::cli_bin_name(&revision_repo);
         Command::new("cargo")
             .current_dir(&revision_repo)
             .arg("build")
             .arg("--release")
-            .arg("--bin=pacquet")
+            .arg(format!("--bin={bin}"))
             .arg("--bin=pnpr")
             .pipe(executor("cargo build"));
+        WorkEnv::remove_sibling_client_binary(&revision_repo, bin);
     }
 
     fn build_pnpm(&self, revision: &str) {
@@ -1900,7 +1970,7 @@ fn may_create_lockfile(dst_dir: &Path, scenario: BenchmarkScenario, src_dir: Opt
 }
 
 /// Write `install.bash` that invokes `command` (the resolved binary,
-/// e.g. `./pacquet/target/release/pacquet` or `node .../pnpm.mjs`)
+/// e.g. `./pacquet/target/release/pnpm` or `node .../pnpm.mjs`)
 /// with the scenario's install arguments.
 ///
 /// When `needs_pnpr_env` is set, the script sources `.pnpr-env` (written

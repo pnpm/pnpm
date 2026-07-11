@@ -76,8 +76,8 @@ fn side_effects_materialized_on_warm_frozen_reinstall() {
 /// singleton kept alive by the caller, so this only needs its own
 /// command — no extra `CommandTempCwd` / registry.
 fn run_frozen_install(workspace: &Path) {
-    Command::cargo_bin("pacquet")
-        .expect("find the pacquet binary")
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
         .with_current_dir(workspace)
         .with_args(["install", "--frozen-lockfile"])
         .assert()

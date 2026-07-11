@@ -39,7 +39,7 @@
 | Done | Command                     | Notes |
 | ---- | --------------------------- | ----- |
 |      | --force                     |       |
-| ✅   | --offline                   | Frozen-install only: refuses network fetches; errors with `ERR_PACQUET_NO_OFFLINE_TARBALL` when a snapshot isn't cached. Stage 2 resolver will additionally gate metadata fetches. |
+| ✅   | --offline                   | Frozen-install only: refuses network fetches; errors with `ERR_PNPM_NO_OFFLINE_TARBALL` when a snapshot isn't cached. Stage 2 resolver will additionally gate metadata fetches. |
 | ✅   | --prefer-offline            | No-op on frozen-install (warm prefetch already prefers the local store). Reserved for Stage 2's resolver. |
 |      | --prod                      |       |
 | ✅   | --dev                       |       |

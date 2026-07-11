@@ -9,7 +9,7 @@ use tempfile::TempDir;
 
 #[test]
 fn launched_as_pnpx_injects_the_dlx_subcommand() {
-    let pacquet = env!("CARGO_BIN_EXE_pacquet");
+    let pacquet = env!("CARGO_BIN_EXE_pnpm");
 
     let dir = TempDir::new().expect("create temp dir");
     let pnpx = dir.path().join("pnpx");

@@ -45,7 +45,7 @@ pub use specifier::{ParsedBareSpecifier, parse_bare_specifier};
 #[napi(js_name = "engineVersion")]
 #[must_use]
 pub fn engine_version() -> &'static str {
-    pacquet_config::PACQUET_VERSION
+    pacquet_config::PNPM_VERSION
 }
 
 /// No-op stubs for the napi runtime symbols the `#[napi]` trampolines

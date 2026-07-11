@@ -20,7 +20,7 @@
     "test-pkgs-branch": "pn remove-temp-dir && pn --workspace-concurrency=1 --filter=...[origin/main] --no-sort --if-present .test",
     "compile-only": "tsgo --build pnpm11/workspace/workspace-manifest-reader pnpm11/workspace/projects-reader && pnx node@runtime:26.4.0 pnpm11/__utils__/scripts/src/typecheck-only.ts && pn -F=pnpm compile",
     "compile": "pn compile-only && pn update-manifests",
-    "build:pacquet": "cargo build --release --bin pacquet",
+    "build:pnpm": "cargo build --release --bin pnpm",
     "make-lcov": "shx mkdir -p coverage && lcov-result-merger 'pnpm11/**/coverage/lcov.info' 'coverage/lcov.info'",
     "update-manifests": "pn meta-updater && pn install",
     "meta-updater": "pn --filter=@pnpm-private/updater compile && pn exec meta-updater",

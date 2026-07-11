@@ -352,7 +352,7 @@ fn fs_remove_dir_all(path: &Path) {
 /// drive a second invocation in the same workspace because
 /// [`assert_cmd::Command::assert`] consumes the wrapped command.
 fn pacquet_at(workspace: &Path) -> Command {
-    Command::cargo_bin("pacquet").expect("find the pacquet binary").with_current_dir(workspace)
+    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
 }
 
 /// Partial dedupe: a sibling with one shared dep and one unique

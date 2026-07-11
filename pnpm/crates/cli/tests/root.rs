@@ -92,8 +92,8 @@ fn root_matches_pnpm_from_a_workspace_subdir() {
     fs::write(member.join("package.json"), r#"{ "name": "foo", "version": "1.0.0" }"#)
         .expect("write member package.json");
 
-    let pacquet_out = Command::cargo_bin("pacquet")
-        .expect("find the pacquet binary")
+    let pacquet_out = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
         .with_current_dir(&member)
         .with_args(["root"])
         .output()
