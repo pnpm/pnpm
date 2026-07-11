@@ -1,7 +1,11 @@
 //! `resolutionMode: time-based` cutoff tests for
 //! [`fn@super::resolve_workspace`].
 
-use std::{collections::HashMap, str::FromStr, sync::Mutex};
+use std::{
+    collections::{BTreeMap, HashMap},
+    str::FromStr,
+    sync::Mutex,
+};
 
 use chrono::{DateTime, TimeZone, Utc};
 use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
@@ -235,6 +239,82 @@ async fn workspace_link_results_are_cached_per_importer_project_dir() {
         result.peers.direct_dependencies_by_importer["apps/b"]["shared"].as_str(),
         "link:../../packages/shared",
     );
+}
+
+#[tokio::test]
+async fn catalogs_work_in_injected_workspace_packages() {
+    let (_project1_tmp, project1) = fake_manifest(serde_json::json!({ "project2": "workspace:*" }));
+    let (_project2_tmp, project2) = fake_manifest(serde_json::json!({ "is-positive": "catalog:" }));
+    let resolver = RecordingResolver {
+        table: HashMap::from([
+            (
+                ("project2".to_string(), "workspace:*".to_string()),
+                ResolveResult {
+                    id: PkgResolutionId::from("file:packages/project2".to_string()),
+                    name_ver: None,
+                    latest: None,
+                    published_at: None,
+                    manifest: Some(std::sync::Arc::new(serde_json::json!({
+                        "name": "project2",
+                        "version": "0.0.0",
+                        "dependencies": { "is-positive": "catalog:" },
+                    }))),
+                    resolution: LockfileResolution::Directory(DirectoryResolution {
+                        directory: "packages/project2".to_string(),
+                    }),
+                    resolved_via: "workspace".to_string(),
+                    normalized_bare_specifier: None,
+                    alias: Some("project2".to_string()),
+                    policy_violation: None,
+                },
+            ),
+            (
+                ("is-positive".to_string(), "1.0.0".to_string()),
+                fake_result(
+                    "is-positive",
+                    "1.0.0",
+                    None,
+                    serde_json::json!({ "name": "is-positive", "version": "1.0.0" }),
+                ),
+            ),
+        ]),
+        seen: Mutex::new(HashMap::new()),
+    };
+    let importers = [
+        WorkspaceImporter { id: "packages/project1".to_string(), manifest: &project1 },
+        WorkspaceImporter { id: "packages/project2".to_string(), manifest: &project2 },
+    ];
+    let catalogs = BTreeMap::from([(
+        "default".to_string(),
+        BTreeMap::from([("is-positive".to_string(), "1.0.0".to_string())]),
+    )]);
+
+    let result = resolve_workspace(
+        &resolver,
+        &importers,
+        &[DependencyGroup::Prod],
+        workspace_opts(false, false),
+        |importer| {
+            let mut opts =
+                importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None);
+            opts.catalogs = catalogs.clone();
+            opts
+        },
+    )
+    .await
+    .expect("resolve catalog dependency of injected workspace package");
+
+    assert!(result.merged_tree.packages.contains_key("project2@file:packages/project2"));
+    assert!(result.merged_tree.packages.contains_key("is-positive@1.0.0"));
+    let children = result
+        .merged_tree
+        .children_by_id
+        .get("project2@file:packages/project2")
+        .expect("injected workspace package children");
+    assert_eq!(children.len(), 1);
+    assert_eq!(children[0].alias, "is-positive");
+    assert_eq!(children[0].pkg_id, "is-positive@1.0.0");
+    assert!(!children[0].optional);
 }
 
 #[tokio::test]

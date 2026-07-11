@@ -112,10 +112,8 @@ pub struct ResolveImporterOptions {
     /// `base_opts.published_by`, never this value.
     pub subdep_published_by: Option<DateTime<Utc>>,
 
-    /// Catalogs parsed from `pnpm-workspace.yaml`. Applied only to the
-    /// importer's direct dependencies; transitive `catalog:` entries
-    /// are not resolved through the catalog, keeping the catalog scope
-    /// importer-only.
+    /// Catalogs parsed from `pnpm-workspace.yaml`. Applied to importer
+    /// dependencies and to children of injected workspace packages.
     pub catalogs: Catalogs,
 
     /// When `true`, `link:` direct deps whose target lives outside
@@ -344,18 +342,18 @@ impl ImporterHoistState {
             pnpmfile_hook: _,
         } = opts;
 
-        let ctx = TreeCtx::with_workspace(workspace, base_opts)
-            .with_importer_id(importer_id)
-            .with_importer_order(importer_order)
-            .with_patched_dependencies(patched_dependencies)
-            .with_resolution_mode(pick_lowest_direct, subdep_published_by);
-
         let initial_wanted = importer_direct_wanted_specs(
             manifest,
             dependency_groups,
             auto_install_peers,
             &catalogs,
         )?;
+        let ctx = TreeCtx::with_workspace(workspace, base_opts)
+            .with_importer_id(importer_id)
+            .with_importer_order(importer_order)
+            .with_patched_dependencies(patched_dependencies)
+            .with_resolution_mode(pick_lowest_direct, subdep_published_by)
+            .with_catalogs(catalogs);
         let direct = extend_tree(&ctx, resolver, initial_wanted, importer_id).await?;
         let parent_pkg_aliases: HashSet<String> =
             direct.iter().map(|dep| dep.alias.clone()).collect();
