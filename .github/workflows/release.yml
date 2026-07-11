@@ -46,6 +46,7 @@ jobs:
       rust_tag: ${{ steps.decide.outputs.rust_tag }}
       pnpr: ${{ steps.decide.outputs.pnpr }}
       pnpr_version: ${{ steps.decide.outputs.pnpr_version }}
+      pnpr_tag: ${{ steps.decide.outputs.pnpr_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -92,6 +93,13 @@ jobs:
           # next-<major> the way the TypeScript packages' publishConfig does.
           RUST_TAG="next-${RUST_VERSION%%.*}"
 
+          # A pnpr prerelease must not move the mutable `latest` dist-tag,
+          # mirroring the docker-pnpr job's image-tag handling.
+          case "$PNPR_VERSION" in
+            *-*) PNPR_TAG="next" ;;
+            *) PNPR_TAG="latest" ;;
+          esac
+
           {
             echo "ts=$(needs_release "pnpm@$TS_VERSION")"
             echo "ts_version=$TS_VERSION"
@@ -100,6 +108,7 @@ jobs:
             echo "rust_tag=$RUST_TAG"
             echo "pnpr=$(needs_release "@pnpm/pnpr@$PNPR_VERSION")"
             echo "pnpr_version=$PNPR_VERSION"
+            echo "pnpr_tag=$PNPR_TAG"
           } | tee -a "$GITHUB_OUTPUT"
 
   release:
@@ -591,7 +600,7 @@ jobs:
           cat pnpr/npm/pnpr/package.json
           for package in pnpr/npm/pnpr*; do cat $package/package.json ; echo ; done
 
-      - name: Publish npm packages as latest
+      - name: Publish npm packages
         # Auth is via npm's trusted publishing: `id-token: write` above grants
         # this job an OIDC token that pnpm/npm exchange with the registry,
         # so no NPM_TOKEN is needed. `--provenance` attaches the same OIDC
@@ -600,9 +609,11 @@ jobs:
         # optionalDependencies are installable the moment it goes live; the
         # wrapper goes last because the plan job uses it as the "release
         # completed" gate. The trailing slash publishes the directory.
+        env:
+          TAG: ${{ needs.plan.outputs.pnpr_tag }}
         run: |
           for package in pnpr/npm/pnpr-* pnpr/npm/pnpr; do
-            pnpm publish "$package/" --tag latest --access public --provenance --no-git-checks
+            pnpm publish "$package/" --tag "$TAG" --access public --provenance --no-git-checks
           done
 
   docker-pnpr:
