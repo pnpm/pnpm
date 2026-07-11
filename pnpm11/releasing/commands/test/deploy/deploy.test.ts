@@ -561,6 +561,13 @@ test('deploy with dedupePeerDependents=true ignores the value of dedupePeerDepen
 test('deploy works when workspace packages use catalog protocol', async () => {
   preparePackages([
     {
+      location: '.',
+      package: {
+        name: 'root',
+        private: true,
+      },
+    },
+    {
       name: 'project-1',
       dependencies: {
         'project-2': 'workspace:*',
@@ -584,15 +591,29 @@ test('deploy works when workspace packages use catalog protocol', async () => {
   ])
 
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const catalogs = {
+    default: {
+      'is-positive': '1.0.0',
+    },
+  }
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    catalogs,
+    dir: process.cwd(),
+    dev: true,
+    production: true,
+    lockfileOnly: true,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
 
   await deploy.handler({
     ...DEFAULT_OPTS,
     allProjects,
-    catalogs: {
-      default: {
-        'is-positive': '1.0.0',
-      },
-    },
+    catalogs,
     dir: process.cwd(),
     dev: false,
     production: true,
@@ -604,7 +625,8 @@ test('deploy works when workspace packages use catalog protocol', async () => {
   }, ['deploy'])
 
   // Make sure the is-positive cataloged dependency was actually installed.
-  expect(fs.existsSync('deploy/node_modules/.pnpm/project-3@file+project-3/node_modules/is-positive')).toBeTruthy()
+  expect(fs.existsSync('deploy/node_modules/is-positive')).toBeTruthy()
+  expect(assertProject(path.resolve('deploy')).readLockfile()).not.toHaveProperty('catalogs')
 })
 
 test('deploy does not preserve the inject workspace packages settings in the lockfile', async () => {
