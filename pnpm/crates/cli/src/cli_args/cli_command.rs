@@ -182,6 +182,15 @@ pub struct CliArgs {
     /// Recursive only: keep going after a project fails.
     #[clap(long = "no-bail", global = true, hide = true)]
     pub no_bail: bool,
+
+    /// Avoid exiting with a non-zero exit code when the script is
+    /// undefined, accepted ahead of the script name
+    /// (`pnpm --if-present test`) the way pnpm's option parser does.
+    /// Deliberately not `global = true`: `run` / `stop` / `restart`
+    /// declare their own `--if-present`, and a propagated global flag
+    /// would collide with theirs.
+    #[clap(long = "if-present", hide = true)]
+    pub if_present: bool,
 }
 
 fn parse_store_dir(value: &str) -> Result<PathBuf, std::convert::Infallible> {
@@ -198,6 +207,9 @@ impl CliArgs {
         }
         if self.no_bail {
             self.validate_run_scoped_global_option("--no-bail")?;
+        }
+        if self.if_present {
+            self.validate_if_present_top_level_option()?;
         }
         Ok(())
     }
@@ -216,6 +228,20 @@ impl CliArgs {
         }
     }
 
+    /// `restart` also runs scripts and accepts its own `--if-present`,
+    /// so the top-level spelling is valid for it too — unlike the
+    /// recursive-only flags, which `restart` rejects. `exec` is the
+    /// reverse: it takes the recursive-only flags but runs arbitrary
+    /// commands rather than scripts, so pnpm rejects `--if-present`
+    /// for it and pacquet must too.
+    fn validate_if_present_top_level_option(&self) -> Result<(), clap::Error> {
+        match self.command {
+            CliCommand::Restart(_) => Ok(()),
+            CliCommand::Exec(_) => Err(Self::unexpected_argument_error("--if-present")),
+            _ => self.validate_run_scoped_global_option("--if-present"),
+        }
+    }
+
     fn validate_run_scoped_global_option(&self, option: &str) -> Result<(), clap::Error> {
         if matches!(
             self.command,
@@ -228,8 +254,12 @@ impl CliArgs {
         ) {
             return Ok(());
         }
-        Err(Self::command()
-            .error(ErrorKind::UnknownArgument, format!("unexpected argument '{option}' found")))
+        Err(Self::unexpected_argument_error(option))
+    }
+
+    fn unexpected_argument_error(option: &str) -> clap::Error {
+        Self::command()
+            .error(ErrorKind::UnknownArgument, format!("unexpected argument '{option}' found"))
     }
 
     fn validate_report_summary_global_option(&self) -> Result<(), clap::Error> {

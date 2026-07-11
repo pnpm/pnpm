@@ -1041,6 +1041,27 @@ fn recursive_run_if_present_is_a_noop_when_no_package_has_the_script() {
     drop(root);
 }
 
+/// The top-level `--if-present` spelling with a shorthand script — the
+/// shape the repo's own `test-pkgs-branch` script uses
+/// (`pnpm --workspace-concurrency=1 --no-sort --if-present <script>`) —
+/// is the same clean no-op when no package defines the script.
+#[test]
+fn recursive_top_level_if_present_is_a_noop_when_no_package_has_the_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &[("project-1", build_writes_marker("project-1"))]);
+
+    pacquet
+        .with_arg("--workspace-concurrency=1")
+        .with_arg("--no-sort")
+        .with_arg("--if-present")
+        .with_arg("-r")
+        .with_arg("lint")
+        .assert()
+        .success();
+
+    drop(root);
+}
+
 /// Recursive `run` must resolve each package's `node_modules/.bin` on
 /// PATH so locally-installed bins (e.g. `tsc`, `eslint`) work, for every
 /// project. Without it, `pacquet -r run build` would fail with

@@ -130,6 +130,61 @@ fn script_scoped_global_flags_parse_before_script_commands() {
 }
 
 #[test]
+fn if_present_flag_parses_before_script_commands() {
+    for argv in [
+        ["pacquet", "--if-present", "run", "build"].as_slice(),
+        ["pacquet", "--if-present", "test"].as_slice(),
+        ["pacquet", "--if-present", "start"].as_slice(),
+        ["pacquet", "--if-present", "stop"].as_slice(),
+        ["pacquet", "--if-present", "restart"].as_slice(),
+    ] {
+        let parsed = CliArgs::try_parse_from(argv).expect("parses top-level --if-present");
+        assert!(parsed.if_present);
+        parsed.validate_command_scoped_global_options().expect("script command accepts flag");
+    }
+}
+
+/// The exact shape of the repo's own `test-pkgs-branch` script.
+#[test]
+fn if_present_flag_parses_before_fallback_command() {
+    let parsed = CliArgs::try_parse_from([
+        "pacquet",
+        "--workspace-concurrency=1",
+        "--filter=...[origin/main]",
+        "--no-sort",
+        "--if-present",
+        ".test",
+    ])
+    .expect("parses top-level --if-present with a fallback script");
+    assert!(parsed.if_present);
+    assert!(
+        matches!(&parsed.command, CliCommand::External(command) if command.as_slice() == [".test"]),
+    );
+    parsed.validate_command_scoped_global_options().expect("fallback command accepts flag");
+}
+
+#[test]
+fn if_present_flag_rejects_non_script_commands() {
+    for argv in [
+        ["pacquet", "--if-present", "install"].as_slice(),
+        ["pacquet", "--if-present", "publish"].as_slice(),
+        ["pacquet", "--if-present", "exec", "ls"].as_slice(),
+    ] {
+        let parsed =
+            CliArgs::try_parse_from(argv).expect("global parser accepts compatibility flag");
+        let err = parsed
+            .validate_command_scoped_global_options()
+            .expect_err("non-script command rejects flag");
+        assert_eq!(err.kind(), clap::error::ErrorKind::UnknownArgument);
+    }
+    // Not `global = true` (the script subcommands declare their own
+    // `--if-present`), so after a non-script subcommand it fails at
+    // parse time instead of validation.
+    CliArgs::try_parse_from(["pacquet", "install", "--if-present"])
+        .expect_err("install rejects --if-present at parse time");
+}
+
+#[test]
 fn report_summary_global_flag_parses_for_publish() {
     for argv in [
         ["pacquet", "--report-summary", "publish"].as_slice(),
