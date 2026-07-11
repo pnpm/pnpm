@@ -1,5 +1,15 @@
 # @pnpm/store.commands
 
+## 1100.0.31
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.2.13
+- @pnpm/lockfile.utils@1100.1.2
+- @pnpm/config.reader@1101.11.2
+- @pnpm/store.connection-manager@1100.3.5
+- @pnpm/installing.context@1100.0.23
+
 ## 1100.0.30
 
 ### Patch Changes

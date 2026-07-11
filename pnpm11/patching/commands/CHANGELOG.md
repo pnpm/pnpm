@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-patching
 
+## 1100.1.10
+
+### Patch Changes
+
+- @pnpm/installing.commands@1100.10.4
+- @pnpm/lockfile.utils@1100.1.2
+- @pnpm/config.reader@1101.11.2
+- @pnpm/store.connection-manager@1100.3.5
+- @pnpm/lockfile.fs@1100.1.10
+
 ## 1100.1.9
 
 ### Patch Changes

@@ -1,5 +1,21 @@
 # @pnpm/resolve-dependencies
 
+## 1100.2.8
+
+### Patch Changes
+
+- 3c6718b: Fixed a deadlock in peer dependency resolution: `pnpm install` hung forever when a peer dependency cycle spanned a project's own dependencies and auto-installed peer providers, for example when installing `electron-builder@26.15.3` [#12921](https://github.com/pnpm/pnpm/issues/12921).
+- 252f15e: Fixed peer dependency auto-install picking a version the peer range rejects. In a workspace with several projects, a package declaring a peer dependency with a semver range (for example `^1.0.0`) could get the highest version found anywhere in the workspace (for example a `2.0.0` resolved for another project) instead of a version that satisfies the range. Peers are now deduplicated onto the highest preferred version that satisfies the declared range, and when none does, the range is resolved from the registry.
+
+  Also fixed re-resolving with an existing lockfile hoisting a different peer version than a fresh install of the same manifest: root dependencies reused from the lockfile were invisible to peer hoisting, so a peer that a root dependency provides could be bound to another version.
+
+- Updated dependencies [a897ef7]
+  - @pnpm/hooks.types@1100.2.0
+  - @pnpm/fetching.pick-fetcher@1100.1.0
+  - @pnpm/lockfile.utils@1100.1.2
+  - @pnpm/deps.graph-hasher@1100.2.9
+  - @pnpm/lockfile.preferred-versions@1100.0.19
+
 ## 1100.2.7
 
 ### Patch Changes

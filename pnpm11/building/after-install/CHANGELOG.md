@@ -1,5 +1,15 @@
 # @pnpm/building.after-install
 
+## 1102.0.5
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1100.1.2
+- @pnpm/config.reader@1101.11.2
+- @pnpm/store.connection-manager@1100.3.5
+- @pnpm/deps.graph-hasher@1100.2.9
+- @pnpm/installing.context@1100.0.23
+
 ## 1102.0.4
 
 ### Patch Changes

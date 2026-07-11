@@ -1,5 +1,17 @@
 # @pnpm/deps.compliance.commands
 
+## 1101.5.3
+
+### Patch Changes
+
+- @pnpm/installing.commands@1100.10.4
+- @pnpm/lockfile.utils@1100.1.2
+- @pnpm/config.reader@1101.11.2
+- @pnpm/deps.compliance.audit@1101.0.21
+- @pnpm/deps.compliance.license-scanner@1100.0.24
+- @pnpm/deps.compliance.sbom@1100.3.2
+- @pnpm/lockfile.fs@1100.1.10
+
 ## 1101.5.2
 
 ### Patch Changes

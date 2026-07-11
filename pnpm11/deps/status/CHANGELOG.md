@@ -1,5 +1,17 @@
 # @pnpm/deps.status
 
+## 1100.1.6
+
+### Patch Changes
+
+- eee7c9a: `verify-deps-before-run` no longer spawns a `pnpm install` when pnpm is executed in a directory that has no `package.json`. A mistyped command run outside a project (for example `pnpm witch 10 login`) used to crash with a confusing error from the spawned install; now it fails with the regular "no package.json found" error.
+  - @pnpm/config.reader@1101.11.2
+  - @pnpm/lockfile.fs@1100.1.10
+  - @pnpm/lockfile.verification@1100.0.23
+  - @pnpm/installing.context@1100.0.23
+  - @pnpm/workspace.state@1100.0.27
+  - @pnpm/lockfile.settings-checker@1100.1.2
+
 ## 1100.1.5
 
 ### Patch Changes

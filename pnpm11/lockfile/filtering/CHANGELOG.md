@@ -1,5 +1,11 @@
 # @pnpm/filter-lockfile
 
+## 1100.1.10
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1100.1.2
+
 ## 1100.1.9
 
 ### Patch Changes

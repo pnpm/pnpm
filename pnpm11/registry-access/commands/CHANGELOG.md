@@ -1,5 +1,11 @@
 # @pnpm/registry-access.commands
 
+## 1100.4.1
+
+### Patch Changes
+
+- @pnpm/config.reader@1101.11.2
+
 ## 1100.4.0
 
 ### Minor Changes

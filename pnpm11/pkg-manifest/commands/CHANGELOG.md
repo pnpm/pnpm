@@ -1,5 +1,11 @@
 # @pnpm/pkg-manifest.commands
 
+## 1100.1.11
+
+### Patch Changes
+
+- @pnpm/config.reader@1101.11.2
+
 ## 1100.1.10
 
 ### Patch Changes

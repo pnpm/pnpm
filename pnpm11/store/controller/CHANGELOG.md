@@ -1,5 +1,13 @@
 # @pnpm/package-store
 
+## 1102.0.4
+
+### Patch Changes
+
+- Updated dependencies [a897ef7]
+  - @pnpm/hooks.types@1100.2.0
+  - @pnpm/installing.package-requester@1102.1.2
+
 ## 1102.0.3
 
 ### Patch Changes

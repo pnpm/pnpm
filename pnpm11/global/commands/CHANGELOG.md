@@ -1,5 +1,14 @@
 # @pnpm/global.commands
 
+## 1100.0.33
+
+### Patch Changes
+
+- @pnpm/installing.deps-installer@1102.2.2
+- @pnpm/config.reader@1101.11.2
+- @pnpm/store.connection-manager@1100.3.5
+- @pnpm/deps.inspection.list@1100.0.23
+
 ## 1100.0.32
 
 ### Patch Changes

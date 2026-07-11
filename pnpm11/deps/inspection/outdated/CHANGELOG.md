@@ -1,5 +1,14 @@
 # @pnpm/outdated
 
+## 1100.1.13
+
+### Patch Changes
+
+- 43711ce: `pnpm outdated` no longer checks the registry for dependencies that are resolved from local `link:`, `file:`, or `workspace:` references in the lockfile [#12827](https://github.com/pnpm/pnpm/issues/12827).
+  - @pnpm/installing.client@1100.2.13
+  - @pnpm/lockfile.utils@1100.1.2
+  - @pnpm/lockfile.fs@1100.1.10
+
 ## 1100.1.12
 
 ### Patch Changes

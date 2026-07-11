@@ -1,5 +1,15 @@
 # @pnpm/deps.graph-builder
 
+## 1100.0.21
+
+### Patch Changes
+
+- Updated dependencies [a897ef7]
+  - @pnpm/hooks.types@1100.2.0
+  - @pnpm/lockfile.utils@1100.1.2
+  - @pnpm/deps.graph-hasher@1100.2.9
+  - @pnpm/lockfile.fs@1100.1.10
+
 ## 1100.0.20
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/package-requester
 
+## 1102.1.2
+
+### Patch Changes
+
+- Updated dependencies [a897ef7]
+  - @pnpm/hooks.types@1100.2.0
+  - @pnpm/fetching.pick-fetcher@1100.1.0
+
 ## 1102.1.1
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/default-reporter
 
+## 1100.3.6
+
+### Patch Changes
+
+- @pnpm/config.reader@1101.11.2
+
 ## 1100.3.5
 
 ### Patch Changes

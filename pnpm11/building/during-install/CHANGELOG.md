@@ -1,5 +1,12 @@
 # @pnpm/building.during-install
 
+## 1102.0.5
+
+### Patch Changes
+
+- @pnpm/config.reader@1101.11.2
+- @pnpm/deps.graph-hasher@1100.2.9
+
 ## 1102.0.4
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/default-resolver
 
+## 1100.3.13
+
+### Patch Changes
+
+- Updated dependencies [a897ef7]
+  - @pnpm/hooks.types@1100.2.0
+  - @pnpm/engine.runtime.node-resolver@1101.1.12
+
 ## 1100.3.12
 
 ### Patch Changes

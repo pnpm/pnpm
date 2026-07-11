@@ -1,5 +1,13 @@
 # @pnpm/store-connection-manager
 
+## 1100.3.5
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.2.13
+- @pnpm/store.controller@1102.0.4
+- @pnpm/config.reader@1101.11.2
+
 ## 1100.3.4
 
 ### Patch Changes
