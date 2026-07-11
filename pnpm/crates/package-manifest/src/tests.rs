@@ -903,6 +903,24 @@ fn save_preserves_the_source_indentation() {
     );
 }
 
+/// The preserved indentation unit is capped at 10 characters on write,
+/// like `JSON.stringify`'s `space` argument.
+#[test]
+fn save_caps_the_indentation_unit_at_ten_characters() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    let twelve_spaces = " ".repeat(12);
+    std::fs::write(&path, format!("{{\n{twelve_spaces}\"name\": \"foo\"\n}}\n")).unwrap();
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.add_dependency("fastify", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+
+    let saved = read_to_string(&path).unwrap();
+    eprintln!("SAVED:\n{saved}");
+    assert!(saved.contains(&format!("\n{}\"name\"", " ".repeat(10))));
+    assert!(!saved.contains(&format!("\n{twelve_spaces}\"name\"")));
+}
+
 /// A write sorts each dependency field by name and drops a dependency
 /// field that ended up empty, like pnpm's on-write manifest normalization.
 #[test]

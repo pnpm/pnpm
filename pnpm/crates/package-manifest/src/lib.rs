@@ -106,11 +106,11 @@ impl PackageManifest {
         })
     }
 
-    fn write_to_file(path: &Path) -> Result<(Value, String), PackageManifestError> {
+    fn write_to_file(path: &Path) -> Result<String, PackageManifestError> {
         let manifest = PackageManifest::init_value_for(path);
-        let contents = serde_json::to_string_pretty(&manifest)?;
+        let contents = serialize_with_indent(&manifest, DEFAULT_INDENT)?;
         fs::write(path, format!("{contents}\n"))?; // TODO: forbid overwriting existing files
-        Ok((manifest, contents))
+        Ok(contents)
     }
 
     /// The scaffold manifest `pnpm init` (and [`Self::create_if_needed`])
@@ -167,7 +167,7 @@ impl PackageManifest {
         if path.exists() {
             return Err(PackageManifestError::AlreadyExist);
         }
-        let (_, contents) = PackageManifest::write_to_file(path)?;
+        let contents = PackageManifest::write_to_file(path)?;
         println!("Wrote to {path}\n\n{contents}", path = path.display());
         Ok(())
     }
@@ -181,17 +181,13 @@ impl PackageManifest {
     }
 
     pub fn create_if_needed(path: PathBuf) -> Result<PackageManifest, PackageManifestError> {
-        if path.exists() {
-            return PackageManifest::read_from_file(path);
+        if !path.exists() {
+            PackageManifest::write_to_file(&path)?;
         }
-        let (value, _) = PackageManifest::write_to_file(&path)?;
-        Ok(PackageManifest {
-            path,
-            on_disk: Some(value.clone()),
-            value,
-            insert_final_newline: true,
-            indent: DEFAULT_INDENT.to_string(),
-        })
+        // Read the scaffold back rather than assembling the manifest by
+        // hand, so its formatting and no-op-save baseline are derived from
+        // the file the same way as for a pre-existing manifest.
+        PackageManifest::read_from_file(path)
     }
 
     /// Build a manifest from an in-memory JSON value paired with the path it
@@ -545,11 +541,18 @@ fn detect_indent(contents: &str) -> &str {
 }
 
 /// Serialize with the manifest's own indentation unit; an empty unit
-/// produces a compact single-line document.
+/// produces a compact single-line document. At most the first 10
+/// characters of the unit are used — the cap `JSON.stringify` applies to
+/// its `space` argument, which pnpm writes manifests through — so a
+/// pathologically indented source file can't amplify the output.
 fn serialize_with_indent(value: &Value, indent: &str) -> Result<String, serde_json::Error> {
     if indent.is_empty() {
         return serde_json::to_string(value);
     }
+    let indent = match indent.char_indices().nth(10) {
+        Some((cap, _)) => &indent[..cap],
+        None => indent,
+    };
     let mut out = Vec::new();
     let formatter = serde_json::ser::PrettyFormatter::with_indent(indent.as_bytes());
     let mut serializer = serde_json::Serializer::with_formatter(&mut out, formatter);
