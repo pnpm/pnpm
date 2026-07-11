@@ -1,6 +1,6 @@
 use crate::{
     error::RegistryError,
-    policy::{AccessGroups, AccessList, Identity, PackageRule, PackageRules},
+    policy::{AccessList, AccessToken, PackageRule, PackageRules},
     registry::{PackagePattern, Registries, Registry, RegistryConfigError},
     s3::{S3Settings, build_s3_store},
 };
@@ -10,6 +10,7 @@ use pacquet_env_replace::{EnvVar, SystemEnv, env_replace_lossy};
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderName, HeaderValue};
 use serde::Deserialize;
 use std::{
+    collections::BTreeSet,
     fmt,
     net::SocketAddr,
     path::{Path, PathBuf},
@@ -75,9 +76,6 @@ pub struct Config {
     /// `upstream` entries and consumed by the `/~<name>/` serving and route
     /// classification.
     pub upstreams: IndexMap<String, UpstreamConfig>,
-    /// Optional static group memberships used by named access tokens in
-    /// package policies and upstream aliases.
-    pub groups: AccessGroups,
     /// How long a cached packument is considered fresh before it is
     /// re-fetched from the resolved upstream. Ignored when no upstream
     /// matches.
@@ -703,6 +701,7 @@ impl TokenEnv {
 fn resolve_upstream_config<Sys: EnvVar>(
     name: &str,
     file: UpstreamConfigFile,
+    teams: &Teams,
 ) -> Result<UpstreamConfig, RegistryError> {
     let mut headers = HeaderMap::new();
     if let Some(auth) = &file.auth {
@@ -753,6 +752,11 @@ fn resolve_upstream_config<Sys: EnvVar>(
     let timeout = parse_field("timeout", &file.timeout)?.unwrap_or(UpstreamConfig::DEFAULT_TIMEOUT);
     let fail_timeout = parse_field("fail_timeout", &file.fail_timeout)?
         .unwrap_or(UpstreamConfig::DEFAULT_FAIL_TIMEOUT);
+    let access = file.access.as_ref().map(|spec| spec.to_access_list(teams)).transpose().map_err(
+        |reason| RegistryError::InvalidConfig {
+            reason: format!("upstream {name:?} has an invalid `access` list: {reason}"),
+        },
+    )?;
 
     Ok(UpstreamConfig {
         url: file.url,
@@ -762,7 +766,7 @@ fn resolve_upstream_config<Sys: EnvVar>(
         max_fails: file.max_fails.unwrap_or(UpstreamConfig::DEFAULT_MAX_FAILS),
         fail_timeout,
         cache: file.cache.unwrap_or(true),
-        access: file.access.as_ref().map(AccessSpec::to_access_list),
+        access,
         // The `packages:` rules are attached by the caller
         // (`build_registries`) — this resolver only handles the serving
         // knobs shared with programmatic construction.
@@ -840,12 +844,13 @@ fn non_empty_token(token: &str) -> Option<String> {
     (!token.trim().is_empty()).then(|| token.to_string())
 }
 
-/// One `packages:` map value: `access` / `publish` / `unpublish` are verdaccio
-/// permission lists (built-in groups like `$all` / `$authenticated` /
-/// `$anonymous`, plus usernames / group names), compiled into the owning
-/// registry's [`PackageRules`]. An omitted field falls back to the
-/// registry-level default. The map key set doubles as the registry's declared
-/// namespace, so one declaration routes, filters, and authorizes.
+/// One `packages:` map value: `access` / `publish` / `unpublish` are
+/// permission lists (the built-in `$all` / `$authenticated` / `$anonymous`
+/// pseudo-groups, bare usernames, and `team:<name>` references to the owning
+/// registry's declared teams), compiled into the owning registry's
+/// [`PackageRules`]. An omitted field falls back to the registry-level
+/// default. The map key set doubles as the registry's declared namespace, so
+/// one declaration routes, filters, and authorizes.
 #[derive(Debug, Default, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PackageAccess {
@@ -854,10 +859,12 @@ pub struct PackageAccess {
     pub unpublish: Option<AccessSpec>,
 }
 
-/// A YAML string-or-list value. Verdaccio accepts either a single
-/// space-separated string (`access: $authenticated admin`) or a sequence
-/// (`access: [$authenticated, admin]`); both normalize to the same ordered
-/// token list.
+/// A YAML permission value: a sequence of tokens, or a scalar naming exactly
+/// one token. Every entry is taken verbatim — there is no whitespace
+/// splitting inside a scalar or a sequence element, so a multi-token list
+/// must be a YAML sequence (`access: [$authenticated, admin]`). Verdaccio's
+/// space-separated form (`access: $authenticated admin`) is rejected with a
+/// pointer at the sequence syntax rather than silently misread as one token.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum AccessSpec {
@@ -866,30 +873,188 @@ pub enum AccessSpec {
 }
 
 impl AccessSpec {
-    fn to_access_list(&self) -> AccessList {
+    /// The declared entries: the scalar form is one entry, the sequence
+    /// form one per element.
+    fn entries(&self) -> &[String] {
         match self {
-            AccessSpec::One(spec) => AccessList::parse(spec),
-            // Each element may itself be space-separated; flatten so
-            // `[a b, c]` and `[a, b, c]` agree.
-            AccessSpec::Many(items) => {
-                AccessList::from_tokens(items.iter().flat_map(|item| item.split_whitespace()))
-            }
+            AccessSpec::One(entry) => std::slice::from_ref(entry),
+            AccessSpec::Many(entries) => entries,
         }
     }
 
-    /// The tokens in declared order, each element flattened on whitespace
-    /// (so `[a b, c]` and `[a, b, c]` agree). Unlike [`Self::to_access_list`]
-    /// — which builds an unordered permission *set* — this preserves order,
-    /// for consumers (the `groups:` membership lists) where the declared
-    /// sequence is meaningful.
-    fn to_ordered_tokens(&self) -> Vec<&str> {
-        match self {
-            AccessSpec::One(spec) => spec.split_whitespace().collect(),
-            AccessSpec::Many(items) => {
-                items.iter().flat_map(|item| item.split_whitespace()).collect()
-            }
+    /// Compile into an [`AccessList`], rejecting any entry that is not a
+    /// single well-formed token ([`validate_access_token`]) and resolving
+    /// `team:` references against the owning registry's declared `teams` —
+    /// an undeclared team is an error, so a typo cannot silently become a
+    /// grant to nobody. The returned error is the reason only; the caller
+    /// prefixes the registry/field context it alone knows.
+    fn to_access_list(&self, teams: &Teams) -> Result<AccessList, String> {
+        let mut tokens = Vec::with_capacity(self.entries().len());
+        for entry in self.entries() {
+            validate_access_token(entry)?;
+            tokens.push(match entry.strip_prefix("team:") {
+                Some(team) => {
+                    let members = teams.get(team).ok_or_else(|| {
+                        format!(
+                            "access token {entry:?} references a team this registry does not \
+                             declare{}",
+                            declared_teams(teams),
+                        )
+                    })?;
+                    AccessToken::Team { name: team.to_string(), members: members.clone() }
+                }
+                None => AccessToken::from(entry.as_str()),
+            });
         }
+        Ok(AccessList::new(tokens))
     }
+
+    /// The `teams:` membership reading: each entry is one username
+    /// ([`validate_member_name`]), in declared order. Unlike
+    /// [`Self::to_access_list`] the entries are not access tokens — a
+    /// built-in group or `team:` reference among the members is an error.
+    fn member_names(&self) -> Result<&[String], String> {
+        for member in self.entries() {
+            validate_member_name(member)?;
+        }
+        Ok(self.entries())
+    }
+}
+
+/// A registry's declared teams — its `teams:` map compiled to name →
+/// member-set. Only alive while that registry's access lists are compiled:
+/// a `team:` token captures the member set, so nothing at runtime consults
+/// the map (see [`AccessToken::Team`]).
+type Teams = IndexMap<String, BTreeSet<String>>;
+
+/// The declared team names for an undeclared-reference error, so a typo'd
+/// `team:` token points at what exists.
+fn declared_teams(teams: &Teams) -> String {
+    if teams.is_empty() {
+        return " (it declares no `teams:`)".to_string();
+    }
+    let names = teams.keys().map(|name| format!("{name:?}")).collect::<Vec<_>>().join(", ");
+    format!("; its declared teams are {names}")
+}
+
+/// Compile one registry's `teams:` map, validating team names (they must be
+/// writable after `team:` in a token) and member lists.
+fn build_teams(
+    registry: &str,
+    file: &IndexMap<String, AccessSpec>,
+) -> Result<Teams, RegistryError> {
+    let mut teams = Teams::default();
+    for (team, members) in file {
+        validate_team_name(team).map_err(|reason| RegistryError::InvalidConfig {
+            reason: format!("registry {registry:?} has an invalid team name: {reason}"),
+        })?;
+        let members = members.member_names().map_err(|reason| RegistryError::InvalidConfig {
+            reason: format!(
+                "registry {registry:?} team {team:?} has an invalid member list: {reason}",
+            ),
+        })?;
+        teams.insert(team.clone(), members.iter().cloned().collect());
+    }
+    Ok(teams)
+}
+
+/// A team name is only useful spliced into a `team:<name>` token, so it must
+/// survive that grammar: one token, no `:` (which would read as another
+/// prefix), no `$` sigil (reserved for the built-in groups).
+fn validate_team_name(team: &str) -> Result<(), String> {
+    validate_single_token(team)?;
+    if team.contains(':') || team.starts_with('$') {
+        return Err(format!(
+            "team name {team:?} cannot contain `:` or start with `$`; it is referenced from \
+             access lists as `team:{team}`",
+        ));
+    }
+    Ok(())
+}
+
+/// A team member is one plain username. The built-in groups — in any
+/// spelling — and typed tokens are rejected: `[$authenticated]` in a member
+/// list would otherwise silently become a user literally named
+/// `$authenticated`, narrowing the team to a name nobody holds, the same
+/// trap [`validate_access_token`] closes for access lists.
+fn validate_member_name(member: &str) -> Result<(), String> {
+    validate_single_token(member)?;
+    let bare = member.strip_prefix('@').unwrap_or(member);
+    if member.starts_with('$') || matches!(bare, "all" | "authenticated" | "anonymous") {
+        return Err(format!(
+            "team member {member:?} is not a username; the built-in groups belong in the \
+             access lists themselves (e.g. `access: [$authenticated]`)",
+        ));
+    }
+    if member.contains(':') {
+        return Err(format!(
+            "team member {member:?} is not a username; a team cannot include another team — \
+             list its users, or share one roster with a YAML anchor",
+        ));
+    }
+    Ok(())
+}
+
+/// Reject an access-list entry that is not exactly one recognized token: an
+/// unknown `$...` built-in, an unknown `<type>:` prefix (only `team:` exists;
+/// htpasswd forbids `:` in usernames, so the character is free to reserve),
+/// or one of verdaccio's alias spellings of the built-ins (`@all`, bare
+/// `all`, ...), which must not silently become a username that admits nobody.
+/// This loud rejection at the YAML boundary is what lets `AccessToken`
+/// parsing stay infallible.
+fn validate_access_token(token: &str) -> Result<(), String> {
+    validate_single_token(token)?;
+    if let Some(builtin) = token.strip_prefix('$') {
+        if !matches!(builtin, "all" | "authenticated" | "anonymous") {
+            return Err(format!(
+                "unknown built-in access token {token:?}; the built-in groups are `$all`, \
+                 `$authenticated`, and `$anonymous`",
+            ));
+        }
+        return Ok(());
+    }
+    if let Some((kind, name)) = token.split_once(':') {
+        return match kind {
+            "team" if name.contains(':') => {
+                Err(format!("access token {token:?} is malformed; a team name cannot contain `:`"))
+            }
+            "team" if !name.is_empty() => Ok(()),
+            "team" => Err(format!("access token {token:?} names no team; write `team:<name>`")),
+            "group" | "groups" => Err(format!(
+                "unknown access token type {kind:?} in {token:?}; teams are declared per \
+                 registry — did you mean \"team:{name}\"?",
+            )),
+            _ => Err(format!(
+                "unknown access token type {kind:?} in {token:?}; the only typed token is \
+                 `team:<name>` (a bare token is a username)",
+            )),
+        };
+    }
+    let bare = token.strip_prefix('@').unwrap_or(token);
+    if matches!(bare, "all" | "authenticated" | "anonymous") {
+        return Err(format!(r#"unknown access token {token:?}; did you mean "${bare}"?"#));
+    }
+    Ok(())
+}
+
+/// Reject a value that is not exactly one token: the empty string, or a
+/// string containing whitespace (a space-separated list must be a YAML
+/// sequence instead).
+fn validate_single_token(token: &str) -> Result<(), String> {
+    if token.is_empty() {
+        return Err(
+            "an empty string is not a token; use `[]` to admit no one, or omit the field for \
+             the default"
+                .to_string(),
+        );
+    }
+    if token.contains(char::is_whitespace) {
+        return Err(format!(
+            "{token:?} contains whitespace; write one token per YAML sequence item \
+             (e.g. `[alice, bob]`)",
+        ));
+    }
+    Ok(())
 }
 
 /// Disk shape of the `routes:` block.
@@ -934,6 +1099,12 @@ struct HostedFile {
     /// no `packages:` entry refines it. Omitted ⇒ `$all`.
     #[serde(default)]
     access: Option<AccessSpec>,
+    /// This registry's teams: each key is a team name, each value the list
+    /// of member usernames. Referenced from this registry's access lists as
+    /// `team:<name>` — teams are registry-scoped, never shared across
+    /// registries (YAML anchors cover a shared roster in one file).
+    #[serde(default)]
+    teams: IndexMap<String, AccessSpec>,
     /// The names this registry serves and accepts publishes for — its
     /// namespace — with optional per-package `access`/`publish`/`unpublish`
     /// rules as values (`{}` or null ⇒ the registry defaults). The most
@@ -972,6 +1143,10 @@ struct UpstreamFile {
     /// non-`public` upstream (otherwise no one could be authorized to use it).
     #[serde(default)]
     access: Option<AccessSpec>,
+    /// This registry's teams, exactly as on a hosted registry — referenced
+    /// from `access` and the per-package refinements as `team:<name>`.
+    #[serde(default)]
+    teams: IndexMap<String, AccessSpec>,
     /// The names that may be requested through this registry — its namespace —
     /// with optional per-package `access` refinements as values (`{}` or null
     /// ⇒ the registry default; a `publish`/`unpublish` value is a config
@@ -1042,12 +1217,15 @@ struct ConfigFile {
     /// quietly open up on upgrade. Presence-detected through a custom
     /// deserializer because a plain `Option` maps a *bare* `packages:`
     /// (YAML null) to `None`, which would slip past the rejection.
-    #[serde(default, deserialize_with = "detect_removed_packages_block")]
+    #[serde(default, deserialize_with = "detect_removed_block")]
     packages: Option<RemovedPackagesBlock>,
-    /// pnpr-only static groups: each key is a group/team name and each
-    /// value is the list of pnpr usernames in that group.
-    #[serde(default)]
-    groups: IndexMap<String, AccessSpec>,
+    /// The removed top-level `groups:` block, kept only to *reject* it
+    /// loudly. Teams are declared per registry (`registries.<name>.teams`)
+    /// and referenced as `team:<name>`; a config still carrying the global
+    /// block previously granted access through its group names, so it must
+    /// be migrated, not silently dropped.
+    #[serde(default, deserialize_with = "detect_removed_block")]
+    groups: Option<RemovedGroupsBlock>,
     /// pnpr-only: which fetch routes the resolution cache treats as
     /// public. Absent on a stock verdaccio config (built-in defaults
     /// apply).
@@ -1068,21 +1246,24 @@ struct ConfigFile {
 }
 
 /// Marker for a present top-level `packages:` key, whatever its value.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct RemovedPackagesBlock;
 
-/// `Some` whenever the `packages:` key is present — including `packages:`
-/// with no value (YAML null), which `Option<IgnoredAny>` would map to
-/// `None` and let slip past the loud rejection. The value itself is
-/// consumed and discarded; only presence matters.
-fn detect_removed_packages_block<'de, De>(
-    deserializer: De,
-) -> Result<Option<RemovedPackagesBlock>, De::Error>
+/// Marker for a present top-level `groups:` key, whatever its value.
+#[derive(Debug, Default)]
+struct RemovedGroupsBlock;
+
+/// `Some` whenever the key is present — including a key with no value
+/// (YAML null), which `Option<IgnoredAny>` would map to `None` and let
+/// slip past the loud rejection. The value itself is consumed and
+/// discarded; only presence matters.
+fn detect_removed_block<'de, De, Marker>(deserializer: De) -> Result<Option<Marker>, De::Error>
 where
     De: serde::Deserializer<'de>,
+    Marker: Default,
 {
     serde::de::IgnoredAny::deserialize(deserializer)?;
-    Ok(Some(RemovedPackagesBlock))
+    Ok(Some(Marker::default()))
 }
 
 /// The YAML `log:` object. Mirrors verdaccio 6's logger config.
@@ -1223,7 +1404,7 @@ const REGISTRY_MOCK_LOCAL_PATTERNS: &[&str] = &[
 /// `@pnpm.e2e/needs-auth` key wins over the `@pnpm.e2e/*` scope key by
 /// specificity.
 fn registry_mock_rules() -> PackageRules {
-    let authenticated = || Some(AccessList::parse("$authenticated"));
+    let authenticated = || Some(AccessList::from_tokens(["$authenticated"]));
     let mut rules: Vec<PackageRule> = REGISTRY_MOCK_LOCAL_PATTERNS
         .iter()
         .map(|pattern| PackageRule {
@@ -1241,7 +1422,8 @@ fn registry_mock_rules() -> PackageRules {
         publish: authenticated(),
         unpublish: authenticated(),
     });
-    PackageRules::new(rules, None).with_default_unpublish(AccessList::parse("$authenticated"))
+    PackageRules::new(rules, None)
+        .with_default_unpublish(AccessList::from_tokens(["$authenticated"]))
 }
 
 impl Config {
@@ -1291,7 +1473,6 @@ impl Config {
             cache_storage: default_cache_dir(&storage),
             storage,
             upstreams,
-            groups: AccessGroups::default(),
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
             auth: AuthConfig::default(),
             logs: LogConfig::default(),
@@ -1336,7 +1517,6 @@ impl Config {
             cache_storage: default_cache_dir(&storage),
             storage,
             upstreams: IndexMap::new(),
-            groups: AccessGroups::default(),
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
             auth: AuthConfig::default(),
             logs: LogConfig::default(),
@@ -1554,16 +1734,24 @@ impl Config {
         let public_url = public_url.unwrap_or_else(|| format!("http://{listen}"));
         let auth = build_auth_config(&file.auth, base_dir);
         let logs = build_log_config(file.log.as_ref());
-        let groups = build_groups(&file.groups);
-        // The global ACL block is gone, not ignorable: it used to *enforce*
-        // access, so dropping it like an unknown verdaccio key would silently
-        // open previously-gated packages on upgrade. Fail loudly instead,
-        // naming the replacement.
+        // The global ACL and group blocks are gone, not ignorable: they used
+        // to *enforce* and *grant* access, so dropping either like an unknown
+        // verdaccio key would silently change who may reach what on upgrade.
+        // Fail loudly instead, naming the replacement.
         if file.packages.is_some() {
             return Err(RegistryError::InvalidConfig {
                 reason: "the top-level `packages:` block was removed: declare per-package rules \
                          on the registry that serves them, as `registries.<name>.packages` \
                          (pattern keys, `access`/`publish`/`unpublish` values)"
+                    .to_string(),
+            });
+        }
+        if file.groups.is_some() {
+            return Err(RegistryError::InvalidConfig {
+                reason: "the top-level `groups:` block was removed: declare teams on the \
+                         registry that uses them, as `registries.<name>.teams` (team-name keys, \
+                         member-list values), and reference them from that registry's access \
+                         lists as `team:<name>`"
                     .to_string(),
             });
         }
@@ -1601,7 +1789,6 @@ impl Config {
             storage,
             cache_storage,
             upstreams,
-            groups,
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
             auth,
             logs,
@@ -1736,13 +1923,6 @@ impl Config {
         }
         self.registries.validate().map_err(|err| registry_err(&err))
     }
-
-    /// Build the caller identity used by access policies after a bearer
-    /// token has authenticated `username`.
-    #[must_use]
-    pub fn identity_for_user(&self, username: impl Into<String>) -> Identity {
-        self.groups.identity_for(username.into())
-    }
 }
 
 /// Build the runtime [`AuthConfig`] from the YAML `auth:` block.
@@ -1831,8 +2011,9 @@ fn build_registries(
                 {
                     return Err(org_collision_error(&name, &registry.org, other));
                 }
-                let access = registry.access.as_ref().map(AccessSpec::to_access_list);
-                let rules = build_rules(&name, &registry.packages, access)?;
+                let teams = build_teams(&name, &registry.teams)?;
+                let access = registry_access_list(&name, registry.access.as_ref(), &teams)?;
+                let rules = build_rules(&name, &registry.packages, access, &teams)?;
                 let patterns = rules.patterns();
                 hosted.insert(name.clone(), HostedConfig { org: registry.org, rules });
                 graph.insert(name, Registry::Hosted { patterns });
@@ -1844,8 +2025,9 @@ fn build_registries(
                 // carries the namespace on every tier, and so a
                 // `publish`/`unpublish` value — a write rule on a registry no
                 // write can land on — fails startup on every tier too.
-                let access = upstream.access.as_ref().map(AccessSpec::to_access_list);
-                let rules = build_rules(&name, &upstream.packages, access)?;
+                let teams = build_teams(&name, &upstream.teams)?;
+                let access = registry_access_list(&name, upstream.access.as_ref(), &teams)?;
+                let rules = build_rules(&name, &upstream.packages, access, &teams)?;
                 if rules.refines_writes() {
                     return Err(RegistryError::InvalidConfig {
                         reason: format!(
@@ -1856,7 +2038,8 @@ fn build_registries(
                 }
                 let patterns = rules.patterns();
                 if resolve_upstreams {
-                    let mut resolved = resolve_upstream_registry::<SystemEnv>(&name, *upstream)?;
+                    let mut resolved =
+                        resolve_upstream_registry::<SystemEnv>(&name, *upstream, &teams)?;
                     resolved.rules = rules;
                     upstreams.insert(name.clone(), resolved);
                 }
@@ -1883,6 +2066,20 @@ fn org_collision_error(name: &str, org: &str, other: &str) -> RegistryError {
              registry {other:?}; two hosted registries cannot share a namespace",
         ),
     }
+}
+
+/// Compile a `registries:` entry's registry-level `access:` value, naming the
+/// registry in the error.
+fn registry_access_list(
+    name: &str,
+    spec: Option<&AccessSpec>,
+    teams: &Teams,
+) -> Result<Option<AccessList>, RegistryError> {
+    spec.map(|spec| spec.to_access_list(teams)).transpose().map_err(|reason| {
+        RegistryError::InvalidConfig {
+            reason: format!("registry {name:?} has an invalid `access` list: {reason}"),
+        }
+    })
 }
 
 /// A registry's name is addressed as the single URL path segment `/~<name>/` and
@@ -1941,25 +2138,29 @@ fn build_rules(
     registry: &str,
     packages: &IndexMap<String, Option<PackageAccess>>,
     default_access: Option<AccessList>,
+    teams: &Teams,
 ) -> Result<PackageRules, RegistryError> {
     let rules = packages
         .iter()
-        .map(|(pattern, rule)| {
-            let pattern = PackagePattern::parse(pattern).map_err(|err| {
+        .map(|(key, rule)| {
+            let pattern = PackagePattern::parse(key).map_err(|err| {
                 RegistryError::InvalidConfig { reason: format!("registry {registry:?}: {err}") }
             })?;
             let fields = rule.as_ref();
+            let list = |field: &str, spec: Option<&AccessSpec>| {
+                spec.map(|spec| spec.to_access_list(teams)).transpose().map_err(|reason| {
+                    RegistryError::InvalidConfig {
+                        reason: format!(
+                            "registry {registry:?}: {key:?} has an invalid `{field}` list: {reason}",
+                        ),
+                    }
+                })
+            };
             Ok(PackageRule {
                 pattern,
-                access: fields
-                    .and_then(|fields| fields.access.as_ref())
-                    .map(AccessSpec::to_access_list),
-                publish: fields
-                    .and_then(|fields| fields.publish.as_ref())
-                    .map(AccessSpec::to_access_list),
-                unpublish: fields
-                    .and_then(|fields| fields.unpublish.as_ref())
-                    .map(AccessSpec::to_access_list),
+                access: list("access", fields.and_then(|fields| fields.access.as_ref()))?,
+                publish: list("publish", fields.and_then(|fields| fields.publish.as_ref()))?,
+                unpublish: list("unpublish", fields.and_then(|fields| fields.unpublish.as_ref()))?,
             })
         })
         .collect::<Result<Vec<_>, RegistryError>>()?;
@@ -1974,6 +2175,7 @@ fn build_rules(
 fn resolve_upstream_registry<Sys: EnvVar>(
     name: &str,
     file: UpstreamFile,
+    teams: &Teams,
 ) -> Result<UpstreamConfig, RegistryError> {
     // A public origin is anonymous and shared, so every credential-bearing or
     // access-gating knob contradicts `public: true` and must fail closed rather
@@ -2027,17 +2229,7 @@ fn resolve_upstream_registry<Sys: EnvVar>(
         cache: file.cache,
         access,
     };
-    resolve_upstream_config::<Sys>(name, upstream_config_file)
-}
-
-fn build_groups(file: &IndexMap<String, AccessSpec>) -> AccessGroups {
-    let mut groups = AccessGroups::default();
-    for (group, members) in file {
-        for username in members.to_ordered_tokens() {
-            groups.add_user_to_group(username, group);
-        }
-    }
-    groups
+    resolve_upstream_config::<Sys>(name, upstream_config_file, teams)
 }
 
 /// Minimum length for an operator-configured `secret:`. A shorter value makes

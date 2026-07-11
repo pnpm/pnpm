@@ -1,7 +1,8 @@
 use super::{
     BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, FeatureOverrides, HostedStoreConfig,
-    Interval, LogFormat, LogLevel, TokenEnv, UpstreamAuthFile, UpstreamAuthType, UpstreamConfig,
-    UpstreamConfigFile, config_file_in, parse_interval, resolve_relative, resolve_upstream_config,
+    Interval, LogFormat, LogLevel, Teams, TokenEnv, UpstreamAuthFile, UpstreamAuthType,
+    UpstreamConfig, UpstreamConfigFile, config_file_in, parse_interval, resolve_relative,
+    resolve_upstream_config,
 };
 use crate::{error::RegistryError, policy::Identity};
 use indexmap::IndexMap;
@@ -50,6 +51,12 @@ fn auth_header(upstream: &super::UpstreamConfig) -> Option<&str> {
     upstream.headers.get(AUTHORIZATION).map(|value| value.to_str().unwrap())
 }
 
+/// [`resolve_upstream_config`] with no declared teams, as every serving-knob
+/// case here has.
+fn resolve_upstream(name: &str, file: UpstreamConfigFile) -> Result<UpstreamConfig, RegistryError> {
+    resolve_upstream_config::<FakeEnv>(name, file, &Teams::default())
+}
+
 #[test]
 fn upstream_bearer_token_becomes_bearer_authorization() {
     let auth = UpstreamAuthFile {
@@ -57,11 +64,8 @@ fn upstream_bearer_token_becomes_bearer_authorization() {
         token: Some("abc123".to_string()),
         token_env: None,
     };
-    let upstream = resolve_upstream_config::<FakeEnv>(
-        "npmjs",
-        upstream_config_file(Some(auth), IndexMap::new()),
-    )
-    .expect("bearer token resolves");
+    let upstream = resolve_upstream("npmjs", upstream_config_file(Some(auth), IndexMap::new()))
+        .expect("bearer token resolves");
     assert_eq!(auth_header(&upstream), Some("Bearer abc123"));
 }
 
@@ -72,11 +76,8 @@ fn upstream_basic_token_becomes_basic_authorization_verbatim() {
         token: Some("dXNlcjpwYXNz".to_string()),
         token_env: None,
     };
-    let upstream = resolve_upstream_config::<FakeEnv>(
-        "priv",
-        upstream_config_file(Some(auth), IndexMap::new()),
-    )
-    .expect("basic token resolves");
+    let upstream = resolve_upstream("priv", upstream_config_file(Some(auth), IndexMap::new()))
+        .expect("basic token resolves");
     assert_eq!(auth_header(&upstream), Some("Basic dXNlcjpwYXNz"));
 }
 
@@ -87,11 +88,8 @@ fn upstream_token_env_true_reads_npm_token() {
         token: None,
         token_env: Some(TokenEnv::Flag(true)),
     };
-    let upstream = resolve_upstream_config::<FakeEnv>(
-        "npmjs",
-        upstream_config_file(Some(auth), IndexMap::new()),
-    )
-    .expect("token_env: true reads NPM_TOKEN");
+    let upstream = resolve_upstream("npmjs", upstream_config_file(Some(auth), IndexMap::new()))
+        .expect("token_env: true reads NPM_TOKEN");
     assert_eq!(auth_header(&upstream), Some("Bearer default-env-token"));
 }
 
@@ -102,11 +100,8 @@ fn upstream_token_env_named_reads_that_var() {
         token: None,
         token_env: Some(TokenEnv::Named("CUSTOM_TOKEN".to_string())),
     };
-    let upstream = resolve_upstream_config::<FakeEnv>(
-        "npmjs",
-        upstream_config_file(Some(auth), IndexMap::new()),
-    )
-    .expect("named token_env reads that var");
+    let upstream = resolve_upstream("npmjs", upstream_config_file(Some(auth), IndexMap::new()))
+        .expect("named token_env reads that var");
     assert_eq!(auth_header(&upstream), Some("Bearer custom-env-token"));
 }
 
@@ -117,18 +112,15 @@ fn upstream_literal_token_beats_token_env() {
         token: Some("literal".to_string()),
         token_env: Some(TokenEnv::Named("CUSTOM_TOKEN".to_string())),
     };
-    let upstream = resolve_upstream_config::<FakeEnv>(
-        "npmjs",
-        upstream_config_file(Some(auth), IndexMap::new()),
-    )
-    .expect("literal token wins");
+    let upstream = resolve_upstream("npmjs", upstream_config_file(Some(auth), IndexMap::new()))
+        .expect("literal token wins");
     assert_eq!(auth_header(&upstream), Some("Bearer literal"));
 }
 
 #[test]
 fn upstream_custom_headers_are_forwarded() {
     let headers = IndexMap::from_iter([("x-custom".to_string(), "value".to_string())]);
-    let upstream = resolve_upstream_config::<FakeEnv>("npmjs", upstream_config_file(None, headers))
+    let upstream = resolve_upstream("npmjs", upstream_config_file(None, headers))
         .expect("custom headers resolve");
     assert_eq!(upstream.headers.get("x-custom").unwrap().to_str().unwrap(), "value");
     assert!(auth_header(&upstream).is_none());
@@ -143,9 +135,8 @@ fn upstream_custom_authorization_header_overrides_auth_block() {
     };
     let headers =
         IndexMap::from_iter([("authorization".to_string(), "Basic override".to_string())]);
-    let upstream =
-        resolve_upstream_config::<FakeEnv>("npmjs", upstream_config_file(Some(auth), headers))
-            .expect("custom header overrides auth-derived one");
+    let upstream = resolve_upstream("npmjs", upstream_config_file(Some(auth), headers))
+        .expect("custom header overrides auth-derived one");
     assert_eq!(auth_header(&upstream), Some("Basic override"));
 }
 
@@ -156,11 +147,8 @@ fn upstream_auth_without_resolvable_token_is_a_config_error() {
         token: None,
         token_env: Some(TokenEnv::Named("UNSET_VAR".to_string())),
     };
-    let err = resolve_upstream_config::<FakeEnv>(
-        "npmjs",
-        upstream_config_file(Some(auth), IndexMap::new()),
-    )
-    .expect_err("missing token must error");
+    let err = resolve_upstream("npmjs", upstream_config_file(Some(auth), IndexMap::new()))
+        .expect_err("missing token must error");
     assert!(matches!(err, RegistryError::InvalidConfig { .. }));
 }
 
@@ -171,11 +159,8 @@ fn upstream_auth_with_empty_literal_token_is_a_config_error() {
         token: Some(String::new()),
         token_env: None,
     };
-    let err = resolve_upstream_config::<FakeEnv>(
-        "npmjs",
-        upstream_config_file(Some(auth), IndexMap::new()),
-    )
-    .expect_err("an empty token must error");
+    let err = resolve_upstream("npmjs", upstream_config_file(Some(auth), IndexMap::new()))
+        .expect_err("an empty token must error");
     assert!(matches!(err, RegistryError::InvalidConfig { .. }));
 }
 
@@ -186,11 +171,8 @@ fn upstream_auth_with_empty_env_token_is_a_config_error() {
         token: None,
         token_env: Some(TokenEnv::Named("EMPTY_TOKEN".to_string())),
     };
-    let err = resolve_upstream_config::<FakeEnv>(
-        "npmjs",
-        upstream_config_file(Some(auth), IndexMap::new()),
-    )
-    .expect_err("an empty env token must error");
+    let err = resolve_upstream("npmjs", upstream_config_file(Some(auth), IndexMap::new()))
+        .expect_err("an empty env token must error");
     assert!(matches!(err, RegistryError::InvalidConfig { .. }));
 }
 
@@ -201,11 +183,8 @@ fn upstream_token_env_false_resolves_no_token_and_is_a_config_error() {
         token: None,
         token_env: Some(TokenEnv::Flag(false)),
     };
-    let err = resolve_upstream_config::<FakeEnv>(
-        "npmjs",
-        upstream_config_file(Some(auth), IndexMap::new()),
-    )
-    .expect_err("token_env: false reads nothing, so an auth block must error");
+    let err = resolve_upstream("npmjs", upstream_config_file(Some(auth), IndexMap::new()))
+        .expect_err("token_env: false reads nothing, so an auth block must error");
     assert!(matches!(err, RegistryError::InvalidConfig { .. }));
 }
 
@@ -216,18 +195,15 @@ fn upstream_auth_token_with_control_char_is_a_config_error() {
         token: Some("bad\ntoken".to_string()),
         token_env: None,
     };
-    let err = resolve_upstream_config::<FakeEnv>(
-        "npmjs",
-        upstream_config_file(Some(auth), IndexMap::new()),
-    )
-    .expect_err("a token that is not a valid header value must error");
+    let err = resolve_upstream("npmjs", upstream_config_file(Some(auth), IndexMap::new()))
+        .expect_err("a token that is not a valid header value must error");
     assert!(matches!(err, RegistryError::InvalidConfig { .. }));
 }
 
 #[test]
 fn upstream_invalid_custom_header_name_is_a_config_error() {
     let headers = IndexMap::from_iter([("bad header".to_string(), "value".to_string())]);
-    let err = resolve_upstream_config::<FakeEnv>("npmjs", upstream_config_file(None, headers))
+    let err = resolve_upstream("npmjs", upstream_config_file(None, headers))
         .expect_err("a header name with a space must error");
     assert!(matches!(err, RegistryError::InvalidConfig { .. }));
 }
@@ -235,7 +211,7 @@ fn upstream_invalid_custom_header_name_is_a_config_error() {
 #[test]
 fn upstream_invalid_custom_header_value_is_a_config_error() {
     let headers = IndexMap::from_iter([("x-custom".to_string(), "bad\nvalue".to_string())]);
-    let err = resolve_upstream_config::<FakeEnv>("npmjs", upstream_config_file(None, headers))
+    let err = resolve_upstream("npmjs", upstream_config_file(None, headers))
         .expect_err("a header value with a control char must error");
     assert!(matches!(err, RegistryError::InvalidConfig { .. }));
 }
@@ -1605,6 +1581,15 @@ fn hosted_rules_config(packages: &str) -> Config {
     Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None).unwrap()
 }
 
+/// The same one-hosted-registry config as [`hosted_rules_config`], for
+/// the `packages:` fragments that must fail to load.
+fn hosted_rules_err(packages: &str) -> RegistryError {
+    let yaml = format!(
+        "storage: ./s\nregistries:\n  local:\n    type: hosted\n    packages:\n{packages}",
+    );
+    Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None).unwrap_err()
+}
+
 #[test]
 fn rules_are_derived_from_the_registry_packages_map() {
     // The `access` / `publish` tokens in each entry drive the runtime
@@ -1688,17 +1673,30 @@ fn rule_missing_unpublish_denies_destructive_writes() {
 #[test]
 fn rule_empty_unpublish_denies_destructive_writes() {
     let as_null = "      '@team/*':\n        publish: $authenticated\n        unpublish:\n";
-    let as_empty_string =
-        "      '@team/*':\n        publish: $authenticated\n        unpublish: ''\n";
     let as_empty_sequence =
         "      '@team/*':\n        publish: $authenticated\n        unpublish: []\n";
-    for packages in [as_null, as_empty_string, as_empty_sequence] {
+    for packages in [as_null, as_empty_sequence] {
         let config = hosted_rules_config(packages);
         let team = config.hosted["local"].rules.for_package("@team/x");
         assert!(team.publish.allows(&user("alice")), "{packages}");
         assert!(!team.unpublish.allows(&Identity::Anonymous), "{packages}");
         assert!(!team.unpublish.allows(&user("alice")), "{packages}");
     }
+}
+
+#[test]
+fn rule_empty_string_value_is_a_config_error() {
+    // `''` is neither a token nor an unambiguous empty list; the error
+    // names both spellings the author could have meant.
+    let err = hosted_rules_err("      '@team/*':\n        unpublish: ''\n");
+    assert!(
+        matches!(
+            &err,
+            RegistryError::InvalidConfig { reason }
+                if reason.contains("`unpublish`") && reason.contains("use `[]`"),
+        ),
+        "unexpected error: {err}",
+    );
 }
 
 #[test]
@@ -1711,10 +1709,9 @@ fn rule_anonymous_token_is_wired() {
 
 #[test]
 fn rule_usernames_grant_per_user_access() {
-    // Bare names are usernames/groups (verdaccio-style), no longer
-    // a config error.
+    // Bare names are usernames/groups, not a config error.
     let config = hosted_rules_config(
-        "      '@team/*':\n        access: alice bob\n        publish: alice\n",
+        "      '@team/*':\n        access: [alice, bob]\n        publish: alice\n",
     );
     let team = config.hosted["local"].rules.for_package("@team/x");
     assert!(team.access.allows(&user("alice")));
@@ -1726,30 +1723,30 @@ fn rule_usernames_grant_per_user_access() {
 }
 
 #[test]
-fn groups_grant_package_and_alias_access() {
+fn teams_grant_package_and_upstream_access() {
     let yaml = r"
-groups:
-  platform: alice bob
-  release:
-    - carol
 registries:
   local:
     type: hosted
+    teams:
+      platform: [alice, bob]
     packages:
       '@team/*':
-        access: platform
+        access: team:platform
   corp:
     type: upstream
     url: https://npm.corp.example/
-    access: platform
+    teams:
+      partners: [alice]
+    access: team:partners
     auth:
       type: bearer
       token: corp-token
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    let alice = config.identity_for_user("alice");
-    let bob = config.identity_for_user("bob");
-    let carol = config.identity_for_user("carol");
+    let alice = Identity::user("alice");
+    let bob = Identity::user("bob");
+    let carol = Identity::user("carol");
 
     let rules = &config.hosted["local"].rules;
     let team = rules.for_package("@team/widget");
@@ -1760,22 +1757,254 @@ registries:
 
     let access = config.upstreams["corp"].access.as_ref().expect("upstream declares access");
     assert!(access.allows(&alice));
-    assert!(access.allows(&bob));
-    assert!(!access.allows(&carol));
+    assert!(!access.allows(&bob));
 }
 
 #[test]
-fn rule_access_list_accepts_string_and_sequence_forms() {
-    // verdaccio accepts both a space-separated string and a YAML
-    // sequence; they must compile to the same token list.
-    let as_string = "      '@team/*':\n        access: alice bob\n";
-    let as_sequence = "      '@team/*':\n        access: [alice, bob]\n";
-    for packages in [as_string, as_sequence] {
-        let config = hosted_rules_config(packages);
-        let access = config.hosted["local"].rules.for_package("@team/x").access;
-        assert!(access.allows(&user("alice")), "{packages}");
-        assert!(access.allows(&user("bob")), "{packages}");
-        assert!(!access.allows(&user("carol")), "{packages}");
+fn teams_are_scoped_to_their_registry() {
+    // `corp` cannot reference `local`'s team: an access list resolves only
+    // against the owning registry's `teams:` map, so cross-registry reuse
+    // is a loud config error (share a roster with a YAML anchor instead).
+    let yaml = r"
+registries:
+  local:
+    type: hosted
+    teams:
+      platform: [alice]
+    packages:
+      '@team/*':
+        access: team:platform
+  corp:
+    type: hosted
+    org: corp
+    packages:
+      '@corp/*':
+        access: team:platform
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(
+        matches!(
+            &err,
+            RegistryError::InvalidConfig { reason }
+                if reason.contains(r#"registry "corp""#)
+                    && reason.contains("does not declare")
+                    && reason.contains("no `teams:`"),
+        ),
+        "unexpected error: {err}",
+    );
+}
+
+#[test]
+fn bare_token_matching_a_team_name_stays_a_username() {
+    // A bare token is a username even when a team of the same name exists;
+    // only the explicit `team:` form reaches the member set.
+    let yaml = r"
+registries:
+  local:
+    type: hosted
+    teams:
+      platform: [alice]
+    packages:
+      '@team/*':
+        access: platform
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let access = config.hosted["local"].rules.for_package("@team/x").access;
+    assert!(access.allows(&Identity::user("platform")));
+    assert!(!access.allows(&Identity::user("alice")));
+}
+
+#[test]
+fn undeclared_team_reference_names_the_declared_teams() {
+    let yaml = r"
+registries:
+  local:
+    type: hosted
+    teams:
+      platform: [alice]
+      release: [carol]
+    packages:
+      '@team/*':
+        access: team:platfrm
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(
+        matches!(
+            &err,
+            RegistryError::InvalidConfig { reason }
+                if reason.contains("team:platfrm")
+                    && reason.contains(r#""platform", "release""#),
+        ),
+        "unexpected error: {err}",
+    );
+}
+
+#[test]
+fn rule_scalar_access_value_is_one_token() {
+    let config = hosted_rules_config("      '@team/*':\n        access: alice\n");
+    let access = config.hosted["local"].rules.for_package("@team/x").access;
+    assert!(access.allows(&user("alice")));
+    assert!(!access.allows(&user("bob")));
+}
+
+#[test]
+fn rule_space_separated_access_list_is_a_config_error() {
+    // Verdaccio's space-separated form must not be silently misread as a
+    // single token that admits nobody; the error points at the YAML
+    // sequence spelling.
+    for packages in [
+        "      '@team/*':\n        access: alice bob\n",
+        "      '@team/*':\n        access: [alice bob]\n",
+    ] {
+        let err = hosted_rules_err(packages);
+        assert!(
+            matches!(
+                &err,
+                RegistryError::InvalidConfig { reason }
+                    if reason.contains(r#""alice bob""#) && reason.contains("[alice, bob]"),
+            ),
+            "unexpected error for {packages:?}: {err}",
+        );
+    }
+}
+
+#[test]
+fn rule_alias_spellings_of_builtins_are_config_errors() {
+    // Verdaccio also accepted `@`-prefixed and bare spellings of the
+    // built-in groups. Treating them as user/group names would silently
+    // flip `access: all` from world-readable to deny-everyone, so they
+    // are rejected with the `$` spelling instead.
+    for (token, suggestion) in [
+        ("all", "$all"),
+        ("'@all'", "$all"),
+        ("authenticated", "$authenticated"),
+        ("'@authenticated'", "$authenticated"),
+        ("anonymous", "$anonymous"),
+        ("'@anonymous'", "$anonymous"),
+    ] {
+        let err = hosted_rules_err(&format!("      '@team/*':\n        access: {token}\n"));
+        assert!(
+            matches!(
+                &err,
+                RegistryError::InvalidConfig { reason }
+                    if reason.contains("did you mean") && reason.contains(suggestion),
+            ),
+            "unexpected error for {token:?}: {err}",
+        );
+    }
+}
+
+#[test]
+fn rule_unknown_builtin_token_is_a_config_error() {
+    // The `$` namespace is reserved for the built-in groups, so a typo'd
+    // built-in cannot silently become a name that admits nobody.
+    let err = hosted_rules_err("      '@team/*':\n        access: $team\n");
+    assert!(
+        matches!(
+            &err,
+            RegistryError::InvalidConfig { reason }
+                if reason.contains(r#"unknown built-in access token "$team""#),
+        ),
+        "unexpected error: {err}",
+    );
+}
+
+#[test]
+fn registry_level_access_list_is_validated_too() {
+    let yaml = "\
+storage: ./s
+registries:
+  local:
+    type: hosted
+    access: all
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(
+        matches!(
+            &err,
+            RegistryError::InvalidConfig { reason }
+                if reason.contains(r#"registry "local""#) && reason.contains("$all"),
+        ),
+        "unexpected error: {err}",
+    );
+}
+
+#[test]
+fn team_declarations_are_validated() {
+    // A team member list is one username per entry — never a
+    // space-separated string.
+    let split_members = "    teams:\n      platform: alice bob\n";
+    // A team name is spliced into `team:<name>` tokens, so a name the
+    // grammar cannot express is rejected at declaration.
+    let sigil_name = "    teams:\n      $all: [alice]\n";
+    let colon_name = "    teams:\n      'a:b': [alice]\n";
+    // A member is a plain username: a built-in group — in any spelling —
+    // would silently become a user nobody is named after, and a `team:`
+    // reference would be an unsupported nested team.
+    let builtin_member = "    teams:\n      platform: [$all]\n";
+    let alias_member = "    teams:\n      platform: [authenticated]\n";
+    let at_alias_member = "    teams:\n      platform: ['@all']\n";
+    let nested_team_member = "    teams:\n      platform: ['team:release']\n";
+    for (teams, needle) in [
+        (split_members, r#""alice bob""#),
+        (sigil_name, "cannot contain `:` or start with `$`"),
+        (colon_name, "cannot contain `:` or start with `$`"),
+        (builtin_member, "built-in groups belong in the access lists"),
+        (alias_member, "built-in groups belong in the access lists"),
+        (at_alias_member, "built-in groups belong in the access lists"),
+        (nested_team_member, "cannot include another team"),
+    ] {
+        let yaml = format!("storage: ./s\nregistries:\n  local:\n    type: hosted\n{teams}");
+        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None).unwrap_err();
+        assert!(
+            matches!(
+                &err,
+                RegistryError::InvalidConfig { reason } if reason.contains(needle),
+            ),
+            "unexpected error for {yaml:?}: {err}",
+        );
+    }
+}
+
+#[test]
+fn typed_token_grammar_is_validated() {
+    // Only `team:` exists as a token type; `group:` gets a pointer at it,
+    // and an empty team reference is named as such.
+    for (token, needle) in [
+        ("group:platform", r#"did you mean "team:platform""#),
+        ("org:corp", "the only typed token is `team:<name>`"),
+        ("'team:'", "names no team"),
+        ("team:a:b", "a team name cannot contain `:`"),
+    ] {
+        let err = hosted_rules_err(&format!("      '@team/*':\n        access: {token}\n"));
+        assert!(
+            matches!(
+                &err,
+                RegistryError::InvalidConfig { reason } if reason.contains(needle),
+            ),
+            "unexpected error for {token:?}: {err}",
+        );
+    }
+}
+
+#[test]
+fn top_level_groups_block_is_a_startup_error() {
+    // The removed global block must not be silently dropped: its group
+    // names used to grant access, so a stale config must be migrated to
+    // per-registry `teams:`, not booted with silently changed grants.
+    for stub in ["groups:\n  platform: [alice]\n", "groups:\n", "groups: {}\n"] {
+        let yaml = format!("storage: ./s\nregistries:\n  local:\n    type: hosted\n{stub}");
+        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
+            .expect_err("a present top-level groups: key must be rejected");
+        assert!(
+            matches!(
+                &err,
+                RegistryError::InvalidConfig { reason }
+                    if reason.contains("top-level `groups:`")
+                        && reason.contains("registries.<name>.teams"),
+            ),
+            "unexpected error for {stub:?}: {err}",
+        );
     }
 }
 
@@ -1923,9 +2152,7 @@ fn parse_interval_rejects_garbage() {
 
 #[test]
 fn resolve_upstream_config_defaults_knobs_to_verdaccio_values() {
-    let upstream =
-        resolve_upstream_config::<FakeEnv>("npmjs", upstream_config_file(None, IndexMap::new()))
-            .unwrap();
+    let upstream = resolve_upstream("npmjs", upstream_config_file(None, IndexMap::new())).unwrap();
     // An unset `maxage` defers to the global packument TTL (`None` here),
     // while the rest fall back to verdaccio's documented defaults.
     assert_eq!(upstream.maxage, None);
@@ -1944,7 +2171,7 @@ fn resolve_upstream_config_parses_explicit_knobs() {
     file.max_fails = Some(5);
     file.fail_timeout = Some(Interval("1m".to_string()));
     file.cache = Some(false);
-    let upstream = resolve_upstream_config::<FakeEnv>("npmjs", file).unwrap();
+    let upstream = resolve_upstream("npmjs", file).unwrap();
     assert_eq!(upstream.maxage, Some(Duration::from_mins(10)));
     assert_eq!(upstream.timeout, Duration::from_secs(45));
     assert_eq!(upstream.max_fails, 5);
@@ -1956,7 +2183,7 @@ fn resolve_upstream_config_parses_explicit_knobs() {
 fn resolve_upstream_config_rejects_an_unparsable_interval() {
     let mut file = upstream_config_file(None, IndexMap::new());
     file.maxage = Some(Interval("whenever".to_string()));
-    let err = resolve_upstream_config::<FakeEnv>("npmjs", file).unwrap_err();
+    let err = resolve_upstream("npmjs", file).unwrap_err();
     assert!(
         matches!(err, RegistryError::InvalidConfig { reason } if reason.contains("maxage")),
         "expected an InvalidConfig naming the offending field",
@@ -2022,7 +2249,7 @@ registries:
   corp:
     type: upstream
     url: https://npm.corp.example/
-    access: $authenticated alice
+    access: [$authenticated, alice]
     auth:
       type: bearer
       token: corp-token
