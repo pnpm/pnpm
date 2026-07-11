@@ -348,8 +348,12 @@ fn workspace_specs_do_not_resolve_a_non_string_version_as_zero() {
         .expect("run install with malformed workspace version");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(!output.status.success(), "malformed workspace version unexpectedly resolved");
+    // miette wraps error output at terminal width (where the wrap point depends
+    // on the temp dir path length), so flatten the decorated lines before
+    // matching the message text.
+    let stderr_flat = stderr.replace('│', " ").split_whitespace().collect::<Vec<_>>().join(" ");
     assert!(
-        stderr.contains("no package named \"bad\" is present in the workspace"),
+        stderr_flat.contains(r#"no package named "bad" is present in the workspace"#),
         "unexpected error for malformed workspace version:\n{stderr}",
     );
 
