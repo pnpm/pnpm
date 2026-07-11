@@ -14,16 +14,39 @@ use crate::cli_args::recursive::{
     AutoExcludeRoot, discover_workspace_projects, select_recursive_projects, sort_filtered_projects,
 };
 use clap::Args;
-use miette::Context;
+use miette::{Context, IntoDiagnostic};
+use pacquet_catalogs_config::get_catalogs_from_workspace_manifest;
+use pacquet_catalogs_types::Catalogs;
 use pacquet_config::Config;
 use pacquet_pack::{
     Host, PackError, PackOptions, PackResultJson, api, format_pack_output, to_pack_result_json,
 };
 use pacquet_reporter::Reporter;
+use pacquet_workspace::read_workspace_manifest;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
 };
+
+/// The catalogs `catalog:` specifiers resolve against when packing a
+/// package for `pack` / `publish`: the hook-injected set when an
+/// `updateConfig` pnpmfile provided one ([`Config::catalogs`] is `Some`),
+/// otherwise the `catalog:` / `catalogs:` tables of the workspace
+/// manifest — the same fallback the install performs.
+pub(crate) fn pack_catalogs(config: &Config) -> miette::Result<Catalogs> {
+    if let Some(catalogs) = &config.catalogs {
+        return Ok(catalogs.clone());
+    }
+    let Some(workspace_dir) = config.workspace_dir.as_deref() else {
+        return Ok(Catalogs::default());
+    };
+    let workspace_manifest = read_workspace_manifest(workspace_dir)
+        .into_diagnostic()
+        .wrap_err("read the workspace manifest for catalogs")?;
+    get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
+        .into_diagnostic()
+        .wrap_err("read the workspace catalogs")
+}
 
 /// `pacquet pack` arguments. The `-r` / `--recursive` and `--filter`
 /// selectors are global flags on [`crate::CliArgs`]; `--recursive` is
@@ -79,6 +102,7 @@ impl PackArgs {
             let options = self.pack_options(
                 dir.to_path_buf(),
                 config,
+                pack_catalogs(config)?,
                 self.out.clone(),
                 self.pack_destination.clone(),
             );
@@ -123,6 +147,7 @@ impl PackArgs {
         // to the CLI dir), so every tarball lands in one place regardless
         // of each project's own root.
         let (out, pack_destination) = self.resolve_recursive_destination(dir);
+        let catalogs = pack_catalogs(config)?;
 
         let mut packed: Vec<PackResultJson> = Vec::new();
         for chunk in &chunks {
@@ -143,6 +168,7 @@ impl PackArgs {
                 let options = self.pack_options(
                     project.root_dir.clone(),
                     config,
+                    catalogs.clone(),
                     out.clone(),
                     pack_destination.clone(),
                 );
@@ -181,12 +207,13 @@ impl PackArgs {
         &self,
         dir: PathBuf,
         config: &Config,
+        catalogs: Catalogs,
         out: Option<String>,
         pack_destination: Option<String>,
     ) -> PackOptions {
         PackOptions {
             dir,
-            catalogs: config.catalogs.clone().unwrap_or_default(),
+            catalogs,
             ignore_scripts: config.ignore_scripts,
             unsafe_perm: config.unsafe_perm,
             embed_readme: false,

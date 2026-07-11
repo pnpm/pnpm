@@ -135,3 +135,67 @@ fn recursive_pack_includes_workspace_root() {
 
     drop(root);
 }
+
+/// `catalog:` specifiers resolve against the workspace manifest's
+/// `catalog:` table even when no pnpmfile hook injected catalogs into
+/// the config (`Config::catalogs` stays `None` on that path). This is
+/// the shape pnpm's own release drives: `pn --filter=<pkg> publish`
+/// packs workspace packages whose dependencies use `catalog:`.
+#[test]
+fn recursive_pack_resolves_catalog_specifiers_from_the_workspace_manifest() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1"]);
+    let mut workspace_yaml =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace yaml");
+    workspace_yaml.push_str("catalog:\n  lodash: 4.17.21\n");
+    fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml)
+        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("project-1/package.json"),
+        json!({
+            "name": "project-1",
+            "version": "1.0.0",
+            "dependencies": { "lodash": "catalog:" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let out = workspace.join("tarballs");
+    fs::create_dir_all(&out).expect("create out dir");
+
+    pacquet
+        .with_arg("--filter")
+        .with_arg("project-1")
+        .with_arg("pack")
+        .with_arg("--pack-destination")
+        .with_arg(out.to_str().expect("utf8 out dir"))
+        .assert()
+        .success();
+
+    let tarball = out.join("project-1-1.0.0.tgz");
+    let manifest = read_manifest_from_tarball(&tarball);
+    assert_eq!(
+        manifest["dependencies"]["lodash"], "4.17.21",
+        "the packed manifest must carry the catalog-resolved version",
+    );
+
+    drop(root);
+}
+
+/// Extract `package/package.json` from a packed tarball.
+fn read_manifest_from_tarball(tarball: &Path) -> serde_json::Value {
+    use std::io::Read as _;
+
+    let bytes = fs::read(tarball).expect("read tarball");
+    let decoder = flate2::read::GzDecoder::new(bytes.as_slice());
+    let mut archive = tar::Archive::new(decoder);
+    for entry in archive.entries().expect("iterate tarball entries") {
+        let mut entry = entry.expect("read tarball entry");
+        if entry.path().expect("entry path") == Path::new("package/package.json") {
+            let mut contents = String::new();
+            entry.read_to_string(&mut contents).expect("read manifest");
+            return serde_json::from_str(&contents).expect("parse manifest");
+        }
+    }
+    panic!("package/package.json not found in {}", tarball.display());
+}

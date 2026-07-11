@@ -300,7 +300,7 @@ impl PublishArgs {
     ) -> miette::Result<PackResult> {
         let options = PackOptions {
             dir: dir.to_path_buf(),
-            catalogs: config.catalogs.clone().unwrap_or_default(),
+            catalogs: crate::cli_args::pack::pack_catalogs(config)?,
             ignore_scripts: self.should_ignore_scripts(config),
             unsafe_perm: config.unsafe_perm,
             embed_readme: false,

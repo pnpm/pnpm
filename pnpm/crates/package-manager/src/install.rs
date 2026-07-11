@@ -478,6 +478,16 @@ pub enum InstallError {
     #[display("Cannot generate a pnpm-lock.yaml because lockfile is set to false")]
     #[diagnostic(code(ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE))]
     ConfigConflictLockfileOnlyWithNoLockfile,
+
+    /// `--force` was requested together with `frozenStore`. Force
+    /// re-imports packages into the store, which `frozenStore` opens
+    /// read-only, so the combination cannot proceed. Mirrors pnpm's
+    /// `ERR_PNPM_CONFIG_CONFLICT_FROZEN_STORE_WITH_FORCE`.
+    #[display(
+        "Cannot use force together with frozenStore: --force re-imports packages into the store, which is opened read-only when frozenStore is enabled"
+    )]
+    #[diagnostic(code(ERR_PNPM_CONFIG_CONFLICT_FROZEN_STORE_WITH_FORCE))]
+    ConfigConflictFrozenStoreWithForce,
 }
 
 impl<'a, DependencyGroupList> Install<'a, DependencyGroupList>
@@ -566,6 +576,10 @@ where
         // Fail fast rather than run a resolve that writes nothing.
         if lockfile_only && !config.lockfile {
             return Err(InstallError::ConfigConflictLockfileOnlyWithNoLockfile);
+        }
+
+        if config.frozen_store && config.force {
+            return Err(InstallError::ConfigConflictFrozenStoreWithForce);
         }
 
         // Resolve the effective `preferFrozenLockfile` for the

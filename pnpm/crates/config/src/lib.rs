@@ -995,11 +995,26 @@ pub struct Config {
     ///
     /// pnpm rejects `frozenStore` combined with `force` (force re-imports
     /// packages into the store, which a read-only store cannot accept).
-    /// pacquet has no `force` flow yet, so there is no conflict to guard;
-    /// the guard ports alongside `force`.
+    /// The guard lives in the install pipeline's entry
+    /// (`ERR_PNPM_CONFIG_CONFLICT_FROZEN_STORE_WITH_FORCE`); see
+    /// [`Config::force`].
     ///
     /// The `frozenStore` / `--frozen-store` setting (default `false`).
     pub frozen_store: bool,
+
+    /// pnpm's `--force`. Install every package the lockfile names, even
+    /// ones whose `cpu` / `os` / `libc` / `engines` don't match the host
+    /// — the per-snapshot installability check is bypassed entirely, so
+    /// optional dependencies for foreign platforms are materialized
+    /// instead of skipped, mirroring pnpm's `!opts.force &&
+    /// packageIsInstallable(...)` gate in its dep-graph builders.
+    ///
+    /// CLI-only (merged from `pnpm deploy --force` at the dispatch, like
+    /// `ignoreScripts`); not a `pnpm-workspace.yaml` / `.npmrc` setting.
+    /// pnpm's `--force` additionally re-imports packages from the store;
+    /// pacquet's store import is content-addressed and self-healing, so
+    /// only the installability bypass is modeled here.
+    pub force: bool,
 
     /// Whether to consult the side-effects cache
     /// (`PackageFilesIndex.sideEffects`) when importing a package

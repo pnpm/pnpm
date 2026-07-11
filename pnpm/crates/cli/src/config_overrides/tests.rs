@@ -1,5 +1,5 @@
 use super::{ConfigOverrides, apply_store_dir_override};
-use pacquet_config::{Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe};
+use pacquet_config::{Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker};
 use pacquet_store_dir::STORE_VERSION;
 use pretty_assertions::assert_eq;
 use std::{ffi::OsString, path::PathBuf};
@@ -78,6 +78,24 @@ fn unknown_keys_are_dropped_silently() {
     let mut config = Config::default();
     overrides.apply(&mut config);
     assert_eq!(config.registry, default_registry, "no known key set ⇒ registry untouched");
+}
+
+#[test]
+fn extract_applies_inject_workspace_packages_and_node_linker_overrides() {
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "--config.inject-workspace-packages=true",
+        "--config.node-linker=hoisted",
+        "deploy",
+        "target",
+    ]));
+    assert_eq!(remaining, argv(["pacquet", "deploy", "target"]));
+    let mut config = Config::default();
+    assert!(!config.inject_workspace_packages);
+    assert_eq!(config.node_linker, NodeLinker::Isolated);
+    overrides.apply(&mut config);
+    assert!(config.inject_workspace_packages);
+    assert_eq!(config.node_linker, NodeLinker::Hoisted);
 }
 
 #[test]

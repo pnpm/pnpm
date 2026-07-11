@@ -17,6 +17,7 @@ path = "src/bin/main.rs"
 [dependencies]
 pacquet-auth-commands                     = { workspace = true }
 pacquet-catalogs-config                   = { workspace = true }
+pacquet-catalogs-types                    = { workspace = true }
 pacquet-cmd-shim                          = { workspace = true }
 pacquet-crypto-hash                       = { workspace = true }
 pacquet-detect-libc                       = { workspace = true }

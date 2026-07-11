@@ -3914,6 +3914,7 @@ dependencies = [
  "p256",
  "pacquet-auth-commands",
  "pacquet-catalogs-config",
+ "pacquet-catalogs-types",
  "pacquet-cmd-shim",
  "pacquet-config",
  "pacquet-config-parse-overrides",
