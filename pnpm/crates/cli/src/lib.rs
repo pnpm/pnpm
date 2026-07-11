@@ -2,6 +2,7 @@ mod boolean_negations;
 mod cli_args;
 mod config_deps;
 mod config_overrides;
+mod flag_relocation;
 mod job_control;
 mod state;
 mod with_current;
@@ -10,6 +11,7 @@ use boolean_negations::with_boolean_negations;
 use clap::{CommandFactory, FromArgMatches};
 use cli_args::CliArgs;
 use config_overrides::ConfigOverrides;
+use flag_relocation::relocate_pre_subcommand_flags;
 use miette::set_panic_hook;
 use pacquet_diagnostics::enable_tracing_by_env;
 use state::State;
@@ -37,7 +39,12 @@ pub fn main() -> miette::Result<()> {
     // Parse through a command augmented with a `--no-<flag>` negation for
     // every boolean flag, so pnpm's forwarded negations (`--no-frozen-lockfile`,
     // etc.) parse the same way nopt accepts them upstream. See `boolean_negations`.
-    let mut args = match with_boolean_negations(CliArgs::command())
+    let command = with_boolean_negations(CliArgs::command());
+    // pnpm's option parser is position-independent; move subcommand
+    // options written before the subcommand to after it so clap agrees.
+    // See `flag_relocation`.
+    let argv = relocate_pre_subcommand_flags(&command, argv);
+    let mut args = match command
         .try_get_matches_from(argv.clone())
         .and_then(|matches| CliArgs::from_arg_matches(&matches))
     {

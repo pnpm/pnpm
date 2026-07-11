@@ -78,6 +78,8 @@ pub(crate) mod switch_cli_version;
 mod verify_deps;
 
 pub(crate) use cli_command::CliArgs;
+#[cfg(test)]
+pub(crate) use cli_command::CliCommand;
 
 #[cfg(test)]
 mod tests;

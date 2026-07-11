@@ -1455,13 +1455,17 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             elapsed_ms = phase_start.elapsed().as_millis() as u64,
             "phase complete",
         );
-        let needs_optional_installability_check =
-            built_lockfile.packages.as_ref().is_some_and(|packages| {
+        // `--force` bypasses the installability checks outright (see
+        // `Config::force`): no skip set is computed and the hoisted
+        // walker emits every dep, so no host detection is needed either.
+        let needs_optional_installability_check = !config.force
+            && built_lockfile.packages.as_ref().is_some_and(|packages| {
                 built_lockfile.snapshots.as_ref().is_some_and(|snapshots| {
                     crate::any_optional_installability_constraint(snapshots, packages)
                 })
             });
-        let needs_hoisted_installability_host = is_hoisted
+        let needs_hoisted_installability_host = !config.force
+            && is_hoisted
             && built_lockfile.packages.as_ref().is_some_and(|packages| {
                 built_lockfile.snapshots.as_ref().is_some_and(|snapshots| {
                     crate::any_installability_constraint(snapshots, packages)

@@ -640,12 +640,17 @@ where
         // When constraints DO exist, the host is needed before
         // extraction (so `CreateVirtualStore` can suppress slots for
         // skipped snapshots), and the spawn cost is unavoidable.
-        let needs_installability_check = match (snapshots, packages) {
-            (Some(snaps), Some(pkgs)) if !snaps.is_empty() => {
-                any_installability_constraint(snaps, pkgs)
-            }
-            _ => false,
-        };
+        // `--force` bypasses the check outright: every snapshot in the
+        // lockfile is materialized regardless of platform / engine
+        // constraints, mirroring pnpm's `!opts.force &&
+        // packageIsInstallable(...)` gate.
+        let needs_installability_check = !config.force
+            && match (snapshots, packages) {
+                (Some(snaps), Some(pkgs)) if !snaps.is_empty() => {
+                    any_installability_constraint(snaps, pkgs)
+                }
+                _ => false,
+            };
 
         // Seed the skip set from the previous install's
         // `.modules.yaml.skipped`. Each entry there is a depPath
@@ -658,7 +663,11 @@ where
         // A read error (corrupt yaml, permissions) is degraded to
         // an empty seed — `.modules.yaml` is a cache artifact, not
         // an authoritative source. Missing file → empty seed.
-        let seed = if let Some(skipped) = seed_skipped {
+        let seed = if config.force {
+            // `--force` installs previously-skipped snapshots too, so the
+            // recorded skip set must not survive into this install.
+            SkippedSnapshots::new()
+        } else if let Some(skipped) = seed_skipped {
             SkippedSnapshots::from_strings(&skipped)
         } else {
             match read_modules_manifest::<Host>(&config.modules_dir) {
@@ -1552,6 +1561,25 @@ pub(crate) fn run_hoisted_linker<Reporter: self::Reporter>(
         requester,
     } = inputs;
 
+    // The hoist tree seeds from every importer dep map, so groups the
+    // user excluded (`--prod`, `--dev`, `--no-optional`) must be cleared
+    // from the lockfile before the walk — otherwise their whole subgraph
+    // materializes as real directories. Mirrors pnpm, which hands its
+    // hoisted walker an include-filtered lockfile.
+    let included = IncludedDependencies {
+        dependencies: dependency_groups.contains(&DependencyGroup::Prod),
+        dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
+        optional_dependencies: dependency_groups.contains(&DependencyGroup::Optional),
+    };
+    let filtered_lockfile;
+    let lockfile =
+        if included.dependencies && included.dev_dependencies && included.optional_dependencies {
+            lockfile
+        } else {
+            filtered_lockfile = exclude_importer_groups(lockfile, included);
+            &filtered_lockfile
+        };
+
     // Walker installability inputs come straight from the optional
     // `host_node` the caller built for the `compute_skipped_snapshots`
     // pass. When `host_node` is `None` no per-snapshot constraint
@@ -1563,7 +1591,7 @@ pub(crate) fn run_hoisted_linker<Reporter: self::Reporter>(
         lockfile_dir: walker_lockfile_dir.to_path_buf(),
         auto_install_peers: config.auto_install_peers,
         skipped: walker_skipped.clone(),
-        force: false,
+        force: config.force,
         // Matches the `engineStrict` policy `compute_skipped_snapshots`
         // used upthread (both read `config.engine_strict`): an engine
         // mismatch on a required package is a hard error under strict,
@@ -1673,6 +1701,26 @@ pub(crate) fn run_hoisted_linker<Reporter: self::Reporter>(
         hoisted_locations: walker_result.hoisted_locations,
         hoisted_pkg_root_by_key: Some(pkg_root_by_key),
     })
+}
+
+/// Clone the lockfile with every importer's excluded dep groups
+/// cleared, so seeds for the hoist tree come only from the included
+/// groups. Snapshots that thereby become unreachable are simply never
+/// visited by the hoister, so the snapshot/package maps stay as-is.
+fn exclude_importer_groups(lockfile: &Lockfile, included: IncludedDependencies) -> Lockfile {
+    let mut filtered = lockfile.clone();
+    for importer in filtered.importers.values_mut() {
+        if !included.dependencies {
+            importer.dependencies = None;
+        }
+        if !included.dev_dependencies {
+            importer.dev_dependencies = None;
+        }
+        if !included.optional_dependencies {
+            importer.optional_dependencies = None;
+        }
+    }
+    filtered
 }
 
 /// Pre-computed hoist plan threaded across the install pipeline so

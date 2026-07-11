@@ -313,6 +313,10 @@ impl DeployArgs {
             .map_or(base_config.node_linker, NodeLinkerArg::into_config);
         let mut deploy_config = create_deploy_install_config(base_config, deploy_dir, node_linker);
         deploy_config.prefer_frozen_lockfile = frozen_lockfile;
+        // pnpm's deploy forwards `--force` into the install, where it
+        // bypasses the installability check so optional dependencies of
+        // every platform are materialized (see `Config::force`).
+        deploy_config.force = self.force;
 
         match mode {
             DeployInstallMode::Legacy => {}

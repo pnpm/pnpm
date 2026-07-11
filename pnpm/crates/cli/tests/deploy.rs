@@ -222,6 +222,85 @@ fn deploy_rejects_linked_target_parent() {
     drop((root, mock_instance));
 }
 
+/// The invocation pnpm's release tooling (`bundle-deps.ts`) forwards: every
+/// option ahead of the `deploy` subcommand, `--config.*` overrides for
+/// settings the workspace yaml doesn't enable, and `--force` so optional
+/// dependencies of every platform are materialized into the deploy dir.
+#[test]
+fn release_style_deploy_accepts_pre_subcommand_flags_and_forces_foreign_platform_optionals() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, false);
+    write_project(
+        &workspace,
+        "app",
+        &serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "dependencies": { "lib": "workspace:*" },
+            "devDependencies": { "dev-only": "workspace:*" },
+            "optionalDependencies": { "@pnpm.e2e/not-compatible-with-any-os": "1.0.0" },
+        }),
+    );
+
+    pacquet.with_arg("install").assert().success();
+
+    let incompatible = "node_modules/@pnpm.e2e/not-compatible-with-any-os";
+    pacquet_cmd(&workspace)
+        .with_args([
+            "--config.inject-workspace-packages=true",
+            "--config.node-linker=hoisted",
+            "--ignore-scripts",
+            "--filter=app",
+            "--prod",
+            "deploy",
+            "plain-deploy",
+        ])
+        .assert()
+        .success();
+    assert!(
+        !workspace.join("plain-deploy").join(incompatible).exists(),
+        "without --force the platform-incompatible optional dependency stays skipped",
+    );
+    assert!(
+        !workspace.join("plain-deploy/node_modules/dev-only").exists(),
+        "the hoisted deploy install must not materialize dev dependencies with --prod",
+    );
+
+    pacquet_cmd(&workspace)
+        .with_args([
+            "--config.inject-workspace-packages=true",
+            "--config.node-linker=hoisted",
+            "--ignore-scripts",
+            "--force",
+            "--filter=app",
+            "--prod",
+            "deploy",
+            "release-deploy",
+        ])
+        .assert()
+        .success();
+
+    let deploy_dir = workspace.join("release-deploy");
+    assert!(deploy_dir.join("index.js").exists());
+    assert!(
+        deploy_dir.join(incompatible).exists(),
+        "--force must install optional dependencies regardless of platform",
+    );
+    assert!(
+        !deploy_dir.join("node_modules/dev-only").exists(),
+        "dev-only workspace dependency should not be linked with --prod",
+    );
+    assert!(
+        deploy_dir.join("node_modules/.modules.yaml").exists(),
+        "the hoisted deploy install should write the modules state file",
+    );
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn legacy_deploy_installs_selected_project() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =

@@ -1,6 +1,8 @@
 use crate::cli_args::CliArgs;
 use clap::CommandFactory;
-use pacquet_config::{Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, VerifyDepsBeforeRun};
+use pacquet_config::{
+    Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker, VerifyDepsBeforeRun,
+};
 use pacquet_fs::lexical_normalize;
 use pacquet_store_dir::StoreDir;
 use std::{
@@ -81,6 +83,8 @@ pub struct ConfigOverrides {
     registries: BTreeMap<String, String>,
     deploy_all_files: Option<bool>,
     force_legacy_deploy: Option<bool>,
+    inject_workspace_packages: Option<bool>,
+    node_linker: Option<NodeLinker>,
     shared_workspace_lockfile: Option<bool>,
     verify_deps_before_run: Option<VerifyDepsBeforeRun>,
 }
@@ -127,6 +131,15 @@ impl ConfigOverrides {
             self.force_legacy_deploy = parse_bool(value);
             return;
         }
+        if key == "inject-workspace-packages" {
+            self.inject_workspace_packages = parse_bool(value);
+            return;
+        }
+        if key == "node-linker" {
+            self.node_linker =
+                serde_json::from_value(serde_json::Value::String(value.to_string())).ok();
+            return;
+        }
         if key == "shared-workspace-lockfile" {
             self.shared_workspace_lockfile = parse_bool(value);
             return;
@@ -162,6 +175,12 @@ impl ConfigOverrides {
         }
         if let Some(value) = self.force_legacy_deploy {
             config.force_legacy_deploy = value;
+        }
+        if let Some(value) = self.inject_workspace_packages {
+            config.inject_workspace_packages = value;
+        }
+        if let Some(value) = self.node_linker {
+            config.node_linker = value;
         }
         if let Some(value) = self.shared_workspace_lockfile {
             config.shared_workspace_lockfile = value;
