@@ -66,7 +66,7 @@ pub mod whoami;
 pub mod why;
 pub mod with;
 
-mod cli_command;
+pub(crate) mod cli_command;
 mod dispatch;
 mod dispatch_install;
 mod dispatch_query;
@@ -78,8 +78,6 @@ pub(crate) mod switch_cli_version;
 mod verify_deps;
 
 pub(crate) use cli_command::CliArgs;
-#[cfg(test)]
-pub(crate) use cli_command::CliCommand;
 
 #[cfg(test)]
 mod tests;
