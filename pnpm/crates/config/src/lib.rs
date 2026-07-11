@@ -1232,12 +1232,15 @@ pub struct Config {
     /// member's scripts.
     pub extra_bin_paths: Vec<PathBuf>,
 
-    /// `extraEnv`: extra environment variables exported to lifecycle
-    /// scripts and `pnpm exec`/`pnpm run` child processes. Empty by
+    /// `extraEnv`: extra environment variables exported to the lifecycle
+    /// scripts and spawned child processes of a command. Empty by
     /// default. Not a `pnpm-workspace.yaml` key — the only way to
     /// populate it is an `updateConfig` pnpmfile hook that returns an
     /// `extraEnv` object, wired up in `pacquet_cli`'s
-    /// `run_update_config_hooks`.
+    /// `run_update_config_hooks`. That hook runs only for the
+    /// install-family commands (install, deploy, dedupe, prune), so this
+    /// is non-empty only under those; other commands' spawn sites read it
+    /// too, but see an empty map until the hook broadens.
     pub extra_env: HashMap<String, String>,
 
     /// `unsafePerm` from `pnpm-workspace.yaml`. When `false`,

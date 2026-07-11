@@ -380,7 +380,7 @@ fn run_publish_scripts<Reporter: self::Reporter>(
         root_modules_dir: &root_modules_dir,
         init_cwd: dir,
         extra_bin_paths: &config.extra_bin_paths,
-        extra_env: &HashMap::new(),
+        extra_env: &config.extra_env,
         node_execpath: None,
         npm_execpath: None,
         node_gyp_path: None,
