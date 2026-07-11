@@ -206,7 +206,6 @@ function isFileNotFoundError (err: unknown): boolean {
 
 function writeGitHubActionsEnvironmentFiles (pnpmHomeDir: string, binDir: string): void {
   if (!shouldPersistGitHubActionsEnvironmentFiles()) return
-  validateGitHubActionsEnvironmentFileValues(pnpmHomeDir, binDir)
   const githubEnv = process.env.GITHUB_ENV
   const githubPath = process.env.GITHUB_PATH
   if (githubEnv != null) {
