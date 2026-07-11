@@ -1,5 +1,6 @@
 use super::{
-    ImporterPeerInput, NodeRecord, ResolvePeersOptions, Walker, resolve_peers,
+    ImporterPeerInput, NodeRecord, ResolvePeersOptions, Walker,
+    dep_path_with_allowed_peer_segments, peer_segment_names, resolve_peers,
     resolve_peers_workspace, satisfies_with_prereleases,
 };
 use crate::{
@@ -17,6 +18,34 @@ use std::{
     str::FromStr,
     sync::Arc,
 };
+
+const PATCHED_WORKFLOWS_SDK: &str = concat!(
+    "@medusajs/workflows-sdk@2.13.3",
+    "(patch_hash=248195172cff27c28650c005b6aa0aa3b2f2976f9739544b360b81668f2d8b59)",
+    "(@types/node@20.19.17)",
+    "(better-sqlite3@12.8.0)",
+    "(express@4.21.2)",
+);
+
+#[test]
+fn parses_peer_suffix_after_patch_hash() {
+    let dep_path = DepPath::from(PATCHED_WORKFLOWS_SDK);
+    assert_eq!(
+        peer_segment_names(&dep_path),
+        Some(vec!["@types/node".to_string(), "better-sqlite3".to_string(), "express".to_string(),]),
+    );
+
+    let allowed = HashSet::from(["@types/node".to_string(), "express".to_string()]);
+    assert_eq!(
+        dep_path_with_allowed_peer_segments(&dep_path, &allowed),
+        Some(DepPath::from(concat!(
+            "@medusajs/workflows-sdk@2.13.3",
+            "(patch_hash=248195172cff27c28650c005b6aa0aa3b2f2976f9739544b360b81668f2d8b59)",
+            "(@types/node@20.19.17)",
+            "(express@4.21.2)",
+        ))),
+    );
+}
 
 #[test]
 fn satisfies_handles_basic_ranges() {

@@ -2450,8 +2450,7 @@ fn dep_path_with_allowed_peer_segments(
     let raw = dep_path.as_str();
     let suffix = index_of_dep_path_suffix(raw);
     let peers_index = suffix.peers_index?;
-    let peers_end = suffix.patch_hash_index.unwrap_or(raw.len());
-    let segments = split_peer_suffix_segments(&raw[peers_index..peers_end])?;
+    let segments = split_peer_suffix_segments(&raw[peers_index..])?;
     let mut kept = Vec::new();
     for segment in &segments {
         let name = peer_segment_name(segment)?;
@@ -2468,9 +2467,6 @@ fn dep_path_with_allowed_peer_segments(
         out.push_str(segment);
         out.push(')');
     }
-    if peers_end < raw.len() {
-        out.push_str(&raw[peers_end..]);
-    }
     Some(DepPath::from(out))
 }
 
@@ -2486,8 +2482,7 @@ fn peer_segment_names(dep_path: &DepPath) -> Option<Vec<String>> {
     let raw = dep_path.as_str();
     let suffix = index_of_dep_path_suffix(raw);
     let peers_index = suffix.peers_index?;
-    let peers_end = suffix.patch_hash_index.unwrap_or(raw.len());
-    let segments = split_peer_suffix_segments(&raw[peers_index..peers_end])?;
+    let segments = split_peer_suffix_segments(&raw[peers_index..])?;
     segments.iter().map(|segment| peer_segment_name(segment).map(str::to_string)).collect()
 }
 
