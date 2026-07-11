@@ -1016,7 +1016,7 @@ fn validate_access_token(token: &str) -> Result<(), String> {
     if let Some((kind, name)) = token.split_once(':') {
         return match kind {
             "team" if name.contains(':') => {
-                Err(format!("access token {token:?} is malformed; a team name cannot contain `:`",))
+                Err(format!("access token {token:?} is malformed; a team name cannot contain `:`"))
             }
             "team" if !name.is_empty() => Ok(()),
             "team" => Err(format!("access token {token:?} names no team; write `team:<name>`")),
