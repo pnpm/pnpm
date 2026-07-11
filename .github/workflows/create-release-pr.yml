@@ -113,10 +113,34 @@ jobs:
           echo "changed=true" >> "$GITHUB_OUTPUT"
         fi
 
-    - name: Read new pnpm version
+    # One release PR covers every product; the commit subject lists the ones
+    # whose version actually changed against the target branch, e.g.
+    # "chore(release): 11.13.0, pacquet 12.0.0-alpha.9, pnpr 0.2.0". When only
+    # the TypeScript CLI bumped, the subject stays the historical bare version.
+    # `@pnpm/napi` is not listed separately: it is a changesets fixed group
+    # with pacquet, so it always carries pacquet's version.
+    - name: Compose release summary
       id: version
       if: steps.changes.outputs.changed == 'true'
-      run: echo "version=$(node -p "require('./pnpm11/pnpm/package.json').version")" >> "$GITHUB_OUTPUT"
+      run: |
+        summary=""
+        add() {
+          local label="$1" manifest="$2" new old
+          new=$(jq -r .version "$manifest")
+          old=$(git show "FETCH_HEAD:$manifest" 2>/dev/null | jq -r .version || echo "")
+          if [ "$new" != "$old" ]; then
+            summary="${summary:+$summary, }${label:+$label }$new"
+          fi
+        }
+        add "" pnpm11/pnpm/package.json
+        add "pacquet" pnpm/npm/pnpm/package.json
+        add "pnpr" pnpr/npm/pnpr/package.json
+        # Changes without a version bump (e.g. refreshed trust-root changesets
+        # consumed into changelogs only) still need a commit subject.
+        if [ -z "$summary" ]; then
+          summary=$(jq -r .version pnpm11/pnpm/package.json)
+        fi
+        echo "version=$summary" >> "$GITHUB_OUTPUT"
 
     - name: Commit and push
       if: steps.changes.outputs.changed == 'true'
@@ -147,7 +171,7 @@ jobs:
             --title "chore(release): ${VERSION}" \
             --body "Automated release PR created by the create-release-pr workflow.
 
-        Releasing \`${TARGET}\` as pnpm v${VERSION}. Merging this PR consumes the pending changesets and records them in the \`.changeset-released\` ledger under \`${TARGET}\`." \
+        Releasing \`${TARGET}\`: ${VERSION}. Merging this PR consumes the pending changesets and records them in the \`.changeset-released\` ledger under \`${TARGET}\`. After merging, push the version tag of a released product to run the release workflow." \
             --base "$TARGET" \
             --head "$BRANCH"
         fi
