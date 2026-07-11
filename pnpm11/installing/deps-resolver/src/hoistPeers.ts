@@ -2,13 +2,18 @@ import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import semver from 'semver'
 
-import type { PkgAddressOrLink } from './resolveDependencies.js'
+/** One workspace-root dependency that a missing peer can be satisfied with. */
+export interface HoistableRootDep {
+  alias: string
+  pkgName: string
+  normalizedBareSpecifier?: string
+}
 
 export function hoistPeers (
   opts: {
     autoInstallPeers: boolean
     allPreferredVersions?: PreferredVersions
-    workspaceRootDeps: PkgAddressOrLink[]
+    workspaceRootDeps: HoistableRootDep[]
   },
   missingRequiredPeers: Array<[string, { range: string }]>
 ): Record<string, string> {
@@ -20,7 +25,7 @@ export function hoistPeers (
       continue
     }
     const rootDep = opts.workspaceRootDeps
-      .filter((rootDep) => rootDep.pkg.name === peerName)
+      .filter((rootDep) => rootDep.pkgName === peerName)
       .sort((rootDep1, rootDep2) => lexCompare(rootDep1.alias, rootDep2.alias))[0]
     if (rootDep?.normalizedBareSpecifier) {
       dependencies[peerName] = rootDep.normalizedBareSpecifier
@@ -37,21 +42,27 @@ export function hoistPeers (
           nonVersions.push(spec)
         }
       }
-      // When the range is an exact version (e.g. pinned by an override like "4.3.0"),
-      // try to find a preferred version that satisfies it. This prevents a stale
-      // higher version from the lockfile being picked over the overridden version.
-      // For regular semver ranges (e.g. "^1.0.0"), use the highest preferred
-      // version for deduplication.
-      const isExactVersion = semver.valid(range) != null
-      const satisfyingVersion = isExactVersion
+      // Dedupe onto a preferred version only when it actually satisfies the
+      // wanted peer range. Picking the highest preferred version regardless of
+      // the range lets a version resolved for one importer be auto-installed as
+      // another importer's peer even though nothing in that importer's closure
+      // accepts it, silently producing a peer graph that mixes incompatible
+      // majors. Ranges that are not semver (workspace:, npm: aliases, dist-tags)
+      // cannot be checked, so they keep the dedupe-to-highest behavior.
+      const isSemverRange = semver.validRange(range, { includePrerelease: true }) != null
+      const satisfyingVersion = isSemverRange
         ? semver.maxSatisfying(versions, range, { includePrerelease: true })
         : null
       if (satisfyingVersion) {
         dependencies[peerName] = [satisfyingVersion, ...nonVersions].join(' || ')
-      } else if (isExactVersion && opts.autoInstallPeers) {
-        // No preferred version satisfies the exact override version.
-        // Use the range directly so pnpm resolves it from the registry.
-        dependencies[peerName] = range
+      } else if (isSemverRange && versions.length > 0) {
+        // Preferred versions exist but none satisfies the wanted range.
+        // Use the range directly so pnpm resolves it from the registry rather
+        // than installing a version the peer explicitly rejects. Without
+        // autoInstallPeers, hoist nothing and leave the peer missing.
+        if (opts.autoInstallPeers) {
+          dependencies[peerName] = range
+        }
       } else {
         dependencies[peerName] = [semver.maxSatisfying(versions, '*', { includePrerelease: true }), ...nonVersions]
           .filter(spec => spec != null)

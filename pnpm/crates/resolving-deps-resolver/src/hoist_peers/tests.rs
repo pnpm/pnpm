@@ -71,7 +71,7 @@ fn falls_back_to_range_when_no_preferred_version_satisfies_it() {
 }
 
 #[test]
-fn picks_highest_preferred_version_for_deduplication_when_range_is_not_exact() {
+fn picks_highest_preferred_version_satisfying_range_for_deduplication() {
     let preferred = preferred(&[(
         "foo",
         &[
@@ -82,17 +82,65 @@ fn picks_highest_preferred_version_for_deduplication_when_range_is_not_exact() {
     )]);
     let result = hoist_peers(&opts(true, &preferred), &[missing("foo", "^2.0.0")]);
     let mut expected = BTreeMap::new();
-    expected.insert("foo".to_string(), "3.0.0".to_string());
+    expected.insert("foo".to_string(), "2.1.0".to_string());
     assert_eq!(result, expected);
 }
 
 #[test]
-fn reuses_higher_preferred_version_when_range_is_not_exact() {
+fn does_not_reuse_preferred_version_that_the_peer_range_rejects() {
     let preferred = preferred(&[("foo", &[("2.0.0", plain(VersionSelectorType::Version))])]);
     let result = hoist_peers(&opts(true, &preferred), &[missing("foo", "1")]);
     let mut expected = BTreeMap::new();
-    expected.insert("foo".to_string(), "2.0.0".to_string());
+    expected.insert("foo".to_string(), "1".to_string());
     assert_eq!(result, expected);
+}
+
+/// A peer declared as `^1.0.0` must not be handed a foreign `2.x`
+/// contributed by another importer when a satisfying `1.x` exists.
+#[test]
+fn prefers_preferred_version_satisfying_non_exact_range() {
+    let preferred = preferred(&[(
+        "foo",
+        &[
+            ("1.0.0", plain(VersionSelectorType::Version)),
+            ("2.0.0", plain(VersionSelectorType::Version)),
+        ],
+    )]);
+    let result = hoist_peers(&opts(true, &preferred), &[missing("foo", "^1.0.0")]);
+    let mut expected = BTreeMap::new();
+    expected.insert("foo".to_string(), "1.0.0".to_string());
+    assert_eq!(result, expected);
+}
+
+#[test]
+fn does_not_treat_prerelease_of_next_major_as_satisfying_caret_range() {
+    let preferred = preferred(&[(
+        "foo",
+        &[
+            ("1.0.0", plain(VersionSelectorType::Version)),
+            ("2.0.0-beta.1", plain(VersionSelectorType::Version)),
+        ],
+    )]);
+    let result = hoist_peers(&opts(true, &preferred), &[missing("foo", "^1.0.0")]);
+    let mut expected = BTreeMap::new();
+    expected.insert("foo".to_string(), "1.0.0".to_string());
+    assert_eq!(result, expected);
+}
+
+#[test]
+fn falls_back_to_range_when_no_preferred_version_satisfies_non_exact_range() {
+    let preferred = preferred(&[("foo", &[("2.0.0", plain(VersionSelectorType::Version))])]);
+    let result = hoist_peers(&opts(true, &preferred), &[missing("foo", "^1.0.0")]);
+    let mut expected = BTreeMap::new();
+    expected.insert("foo".to_string(), "^1.0.0".to_string());
+    assert_eq!(result, expected);
+}
+
+#[test]
+fn hoists_nothing_when_no_preferred_version_satisfies_range_without_auto_install() {
+    let preferred = preferred(&[("foo", &[("2.0.0", plain(VersionSelectorType::Version))])]);
+    let result = hoist_peers(&opts(false, &preferred), &[missing("foo", "^1.0.0")]);
+    assert_eq!(result, BTreeMap::new());
 }
 
 /// Regression for <https://github.com/pnpm/pnpm/pull/11049>.

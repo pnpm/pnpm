@@ -747,6 +747,18 @@ impl Walker<'_> {
         self.build_importer_parents_from(&self.tree.direct)
     }
 
+    /// Whether a dependency installed under `alias` can provide a peer:
+    /// its alias or its real package name (the two differ for npm-alias
+    /// deps like `peer-c1@npm:@pnpm.e2e/peer-c@2.0.0`) is declared as a
+    /// peer somewhere in the tree.
+    fn is_peer_relevant(&self, alias: &str, pkg: &ResolvedPackage) -> bool {
+        if self.tree.all_peer_dep_names.contains(alias) {
+            return true;
+        }
+        let (real_name, _) = pkg_name_version(&pkg.result);
+        self.tree.all_peer_dep_names.contains(&real_name)
+    }
+
     /// Same as [`Self::build_importer_parents`] but seeds from an
     /// externally-supplied direct-deps slice — used by the multi-importer
     /// [`fn@resolve_peers_workspace`] where each importer's `direct`
@@ -760,10 +772,7 @@ impl Walker<'_> {
             let Some(pkg) = self.tree.packages.get(&tree_node.resolved_package_id) else {
                 continue;
             };
-            let (real_name, _) = pkg_name_version(&pkg.result);
-            if !self.tree.all_peer_dep_names.contains(&direct.alias)
-                && !self.tree.all_peer_dep_names.contains(&real_name)
-            {
+            if !self.is_peer_relevant(&direct.alias, pkg) {
                 continue;
             }
             let parent_node_id = remap_link_node_id(&self.opts, &direct.alias, &pkg.result)
@@ -889,13 +898,13 @@ impl Walker<'_> {
         let mut child_parent_refs = parent_parent_refs.clone();
         let mut new_parent_refs = ParentRefs::new();
         for (alias, child_node_id) in &children_map {
-            if !self.tree.all_peer_dep_names.contains(alias) {
-                continue;
-            }
             let Some(child_tree) = self.tree.dependencies_tree.get(child_node_id) else { continue };
             let Some(child_pkg) = self.tree.packages.get(&child_tree.resolved_package_id) else {
                 continue;
             };
+            if !self.is_peer_relevant(alias, child_pkg) {
+                continue;
+            }
             insert_parent_ref(
                 &mut new_parent_refs,
                 alias,

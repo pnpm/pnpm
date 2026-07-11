@@ -61,7 +61,7 @@ import semver from 'semver'
 
 import { getExactSinglePreferredVersions } from './getExactSinglePreferredVersions.js'
 import { getNonDevWantedDependencies, type WantedDependency } from './getNonDevWantedDependencies.js'
-import { getHoistableOptionalPeers, hoistPeers } from './hoistPeers.js'
+import { getHoistableOptionalPeers, type HoistableRootDep, hoistPeers } from './hoistPeers.js'
 import { safeIntersect } from './mergePeers.js'
 import { nextNodeId, type NodeId } from './nextNodeId.js'
 import { parentIdsContainSequence } from './parentIdsContainSequence.js'
@@ -401,10 +401,13 @@ export async function resolveRootDependencies (
       time,
     }
   }
-  let workspaceRootDeps!: PkgAddressOrLink[]
+  let workspaceRootDeps: HoistableRootDep[]
   if (ctx.resolvePeersFromWorkspaceRoot) {
     const rootImporterIndex = importers.findIndex(({ options }) => options.parentIds[0] === '.')
-    workspaceRootDeps = pkgAddressesByImportersWithoutPeers[rootImporterIndex]?.pkgAddresses ?? []
+    workspaceRootDeps = getHoistableRootDeps(
+      importers[rootImporterIndex],
+      pkgAddressesByImportersWithoutPeers[rootImporterIndex]?.pkgAddresses ?? []
+    )
   } else {
     workspaceRootDeps = []
   }
@@ -498,6 +501,41 @@ export async function resolveRootDependencies (
     pkgAddressesByImporters: pkgAddressesByImportersWithoutPeers.map(({ pkgAddresses }) => pkgAddresses),
     time,
   }
+}
+
+/**
+ * Lists the workspace-root dependencies that `hoistPeers` may satisfy a
+ * missing peer with. A root dependency reused from the lockfile skips full
+ * resolution, so it has no address (or an address without a
+ * normalizedBareSpecifier); its wanted specifier is used instead, so that
+ * re-resolving with a lockfile hoists the same version as a fresh install of
+ * the same manifest.
+ */
+function getHoistableRootDeps (
+  rootImporter: ImporterToResolve | undefined,
+  rootPkgAddresses: PkgAddressOrLink[]
+): HoistableRootDep[] {
+  const wantedSpecifierByAlias = new Map<string, string>()
+  for (const wantedDep of rootImporter?.wantedDependencies ?? []) {
+    if (wantedDep.alias && wantedDep.bareSpecifier) {
+      wantedSpecifierByAlias.set(wantedDep.alias, wantedDep.bareSpecifier)
+    }
+  }
+  const rootDeps: HoistableRootDep[] = rootPkgAddresses.map((pkgAddress) => ({
+    alias: pkgAddress.alias,
+    pkgName: pkgAddress.pkg.name,
+    normalizedBareSpecifier: pkgAddress.normalizedBareSpecifier ?? wantedSpecifierByAlias.get(pkgAddress.alias),
+  }))
+  const coveredAliases = new Set(rootDeps.map(({ alias }) => alias))
+  for (const [alias, bareSpecifier] of wantedSpecifierByAlias) {
+    if (coveredAliases.has(alias)) continue
+    rootDeps.push({
+      alias,
+      pkgName: unwrapPackageName(alias, bareSpecifier).pkgName,
+      normalizedBareSpecifier: bareSpecifier,
+    })
+  }
+  return rootDeps
 }
 
 interface ResolvedDependenciesResult {

@@ -737,6 +737,61 @@ fn peer_dependency_prefers_non_aliased_provider_over_alias() {
     );
 }
 
+/// Adding a dependent to a manifest whose aliased peer providers are
+/// already in the lockfile must bind the peer the same way a fresh
+/// install of the full manifest does.
+#[test]
+fn peer_dependency_binds_the_same_when_added_to_an_existing_lockfile() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("autoInstallPeers: false\n");
+    workspace_yaml.push_str("strictPeerDependencies: false\n");
+    workspace_yaml.push_str("peersSuffixMaxLength: 1000\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": {
+            "peer-c3": "npm:@pnpm.e2e/peer-c@1.0.0",
+            "peer-c2": "npm:@pnpm.e2e/peer-c@1.0.1",
+            "peer-c1": "npm:@pnpm.e2e/peer-c@2.0.0",
+        } })
+        .to_string(),
+    )
+    .expect("write package.json");
+    pacquet.with_arg("install").assert().success();
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": {
+            "peer-c3": "npm:@pnpm.e2e/peer-c@1.0.0",
+            "peer-c2": "npm:@pnpm.e2e/peer-c@1.0.1",
+            "peer-c1": "npm:@pnpm.e2e/peer-c@2.0.0",
+            "@pnpm.e2e/abc": "1.0.0",
+        } })
+        .to_string(),
+    )
+    .expect("rewrite package.json");
+    new_pacquet_command(&workspace).with_arg("install").assert().success();
+
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(
+        lockfile.contains("@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-c@2.0.0)"),
+        "re-resolving with a lockfile must bind the same provider as a fresh install; lockfile:\n{lockfile}",
+    );
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn peer_dependency_prefers_highest_aliased_subdependency_version() {
     let lockfile = install_with_peer_alias_deps(serde_json::json!({

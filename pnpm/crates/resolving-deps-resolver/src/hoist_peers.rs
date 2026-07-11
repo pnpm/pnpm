@@ -84,15 +84,30 @@ pub fn hoist_peers(
                     _ => non_versions.push(spec.as_str()),
                 }
             }
-            let is_exact_version = range.parse::<Version>().is_ok();
+            // Dedupe onto a preferred version only when it actually satisfies
+            // the wanted peer range. Picking the highest preferred version
+            // regardless of the range lets a version resolved for one importer
+            // be auto-installed as another importer's peer even though nothing
+            // in that importer's closure accepts it, silently producing a peer
+            // graph that mixes incompatible majors. Ranges that are not semver
+            // (workspace:, npm: aliases, dist-tags) cannot be checked, so they
+            // keep the dedupe-to-highest behavior.
+            let is_semver_range = range.parse::<Range>().is_ok();
             let satisfying_version =
-                if is_exact_version { max_satisfying(&versions, range) } else { None };
+                if is_semver_range { max_satisfying(&versions, range) } else { None };
             if let Some(satisfying) = satisfying_version {
                 let mut parts: Vec<&str> = vec![satisfying];
                 parts.extend(non_versions.iter().copied());
                 dependencies.insert(peer_name.clone(), parts.join(" || "));
-            } else if is_exact_version && opts.auto_install_peers {
-                dependencies.insert(peer_name.clone(), range.clone());
+            } else if is_semver_range && !versions.is_empty() {
+                // Preferred versions exist but none satisfies the wanted
+                // range. Use the range directly so it resolves from the
+                // registry rather than installing a version the peer
+                // explicitly rejects. Without auto-install-peers, hoist
+                // nothing and leave the peer missing.
+                if opts.auto_install_peers {
+                    dependencies.insert(peer_name.clone(), range.clone());
+                }
             } else {
                 let mut parts: Vec<String> = Vec::new();
                 if let Some(highest) = max_satisfying_any(&versions) {

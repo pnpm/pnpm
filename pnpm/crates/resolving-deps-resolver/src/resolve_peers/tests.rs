@@ -142,7 +142,7 @@ fn own_peer_is_resolved_from_peer_relevant_child() {
 }
 
 #[test]
-fn non_peer_alias_child_does_not_resolve_by_real_package_name() {
+fn alias_child_resolves_peer_by_real_package_name() {
     let provider = NodeId::leaf("peer@1.0.0");
     let plugin = NodeId::next();
     let consumer = NodeId::next();
@@ -176,16 +176,16 @@ fn non_peer_alias_child_does_not_resolve_by_real_package_name() {
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
 
     assert!(
-        result.graph.contains_key(&DepPath::from("plugin@1.0.0")),
-        "plugin should not resolve peer by provider's real package name: {:#?}",
+        result.graph.contains_key(&DepPath::from("plugin@1.0.0(peer@1.0.0)")),
+        "alias `not-peer` should satisfy peer `peer` by its real package name: {:#?}",
         result.graph.keys().collect::<Vec<_>>(),
     );
     assert!(
-        !result.graph.contains_key(&DepPath::from("plugin@1.0.0(peer@1.0.0)")),
-        "non-peer alias `not-peer` must not satisfy peer `peer`: {:#?}",
+        !result.graph.contains_key(&DepPath::from("plugin@1.0.0")),
+        "plugin must not stay peer-less when a sibling provides the peer: {:#?}",
         result.graph.keys().collect::<Vec<_>>(),
     );
-    assert!(result.peer_dependency_issues.missing.contains_key("peer"));
+    assert!(!result.peer_dependency_issues.missing.contains_key("peer"));
 }
 
 #[test]
@@ -412,7 +412,7 @@ fn missing_names_by_pkg_records_only_children_context_missing_peers() {
 }
 
 #[test]
-fn own_peer_is_not_resolved_from_aliased_child_real_name() {
+fn own_peer_is_resolved_from_aliased_sibling_real_name() {
     let peer_c = NodeId::leaf("peer-c@2.0.0");
     let consumer = NodeId::next();
     let parent = NodeId::next();
@@ -452,15 +452,18 @@ fn own_peer_is_not_resolved_from_aliased_child_real_name() {
     };
 
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
-    let dep_path = DepPath::from("consumer@1.0.0");
+    let dep_path = DepPath::from("consumer@1.0.0(peer-c@2.0.0)");
 
     assert!(
         result.graph.contains_key(&dep_path),
-        "consumer should not resolve peer-c from a child installed as peer-c1: {:#?}",
+        "consumer should resolve peer-c from the sibling installed as peer-c1: {:#?}",
         result.graph.keys().collect::<Vec<_>>(),
     );
-    assert!(!result.graph[&dep_path].children.contains_key("peer-c"));
-    assert!(result.peer_dependency_issues.missing.contains_key("peer-c"));
+    assert_eq!(
+        result.graph[&dep_path].children.get("peer-c"),
+        Some(&DepPath::from("peer-c@2.0.0")),
+    );
+    assert!(!result.peer_dependency_issues.missing.contains_key("peer-c"));
 }
 
 #[test]
