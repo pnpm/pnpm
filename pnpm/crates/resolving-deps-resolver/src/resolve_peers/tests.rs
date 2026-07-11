@@ -461,7 +461,7 @@ fn own_peer_is_resolved_from_aliased_sibling_real_name() {
     );
     assert_eq!(
         result.graph[&dep_path].children.get("peer-c"),
-        Some(&DepPath::from("peer-c@2.0.0"))
+        Some(&DepPath::from("peer-c@2.0.0")),
     );
     assert!(!result.peer_dependency_issues.missing.contains_key("peer-c"));
 }
