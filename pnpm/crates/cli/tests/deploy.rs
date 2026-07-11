@@ -1,5 +1,6 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pacquet_lockfile::Lockfile;
 use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::is_symlink_or_junction,
@@ -11,7 +12,7 @@ fn deploy_from_shared_lockfile_installs_selected_project() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    write_workspace(&workspace, true);
+    write_reachability_workspace(&workspace);
 
     pacquet.with_arg("install").assert().success();
     pacquet_cmd(&workspace)
@@ -50,6 +51,127 @@ fn deploy_from_shared_lockfile_installs_selected_project() {
     assert!(
         !deploy_dir.join("node_modules/dev-only").exists(),
         "dev-only workspace dependency should not be linked with --prod",
+    );
+
+    let graph_keys = deploy_graph_keys(&deploy_dir);
+    assert!(
+        graph_keys.iter().any(|key| key.contains("@pnpm.e2e/pkg-with-1-dep@100.0.0")),
+        "production dependency should remain in the deploy lock graph: {graph_keys:#?}",
+    );
+    assert!(
+        graph_keys.iter().any(|key| key.contains("@pnpm.e2e/dep-of-pkg-with-1-dep@")),
+        "transitive production dependency should remain in the deploy lock graph: {graph_keys:#?}",
+    );
+    for excluded in
+        ["dev-only@file:", "@pnpm.e2e/bar@100.0.0", "unused@file:", "@pnpm.e2e/qar@100.0.0"]
+    {
+        assert!(
+            !graph_keys.iter().any(|key| key.contains(excluded)),
+            "production deploy lock graph should exclude {excluded}: {graph_keys:#?}",
+        );
+    }
+
+    let virtual_store_entries = virtual_store_entries(&deploy_dir);
+    assert!(
+        virtual_store_entries
+            .iter()
+            .any(|entry| entry.contains("@pnpm.e2e+dep-of-pkg-with-1-dep@")),
+        "transitive production dependency should be materialized: {virtual_store_entries:#?}",
+    );
+    for excluded in
+        ["dev-only@file+", "@pnpm.e2e+bar@100.0.0", "unused@file+", "@pnpm.e2e+qar@100.0.0"]
+    {
+        assert!(
+            !virtual_store_entries.iter().any(|entry| entry.contains(excluded)),
+            "production deploy virtual store should exclude {excluded}: {virtual_store_entries:#?}",
+        );
+    }
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn production_deploy_does_not_require_dev_only_workspace_sources() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, true);
+
+    pacquet.with_arg("install").assert().success();
+    fs::remove_dir_all(workspace.join("packages/dev-only")).unwrap();
+
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod", "deploy"])
+        .assert()
+        .success();
+    assert!(workspace.join("deploy/node_modules/lib").exists());
+    assert!(!workspace.join("deploy/node_modules/dev-only").exists());
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn shared_lockfile_deploy_honors_no_optional_in_graph_and_virtual_store() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, true);
+    write_project(
+        &workspace,
+        "app",
+        &serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "dependencies": { "lib": "workspace:*" },
+            "devDependencies": { "dev-only": "workspace:*" },
+            "optionalDependencies": { "optional-only": "workspace:*" },
+        }),
+    );
+    write_project(
+        &workspace,
+        "optional-only",
+        &serde_json::json!({
+            "name": "optional-only",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "dependencies": { "@pnpm.e2e/qar": "100.0.0" },
+        }),
+    );
+
+    pacquet.with_arg("install").assert().success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod", "deploy-with-optional"])
+        .assert()
+        .success();
+    let with_optional = workspace.join("deploy-with-optional");
+    assert!(with_optional.join("node_modules/optional-only").exists());
+    assert!(
+        deploy_graph_keys(&with_optional).iter().any(|key| key.contains("@pnpm.e2e/qar@100.0.0")),
+    );
+
+    pacquet_cmd(&workspace)
+        .with_args([
+            "--filter",
+            "app",
+            "deploy",
+            "--prod",
+            "--no-optional",
+            "deploy-without-optional",
+        ])
+        .assert()
+        .success();
+    let without_optional = workspace.join("deploy-without-optional");
+    assert!(!without_optional.join("node_modules/optional-only").exists());
+    assert!(
+        !deploy_graph_keys(&without_optional)
+            .iter()
+            .any(|key| key.contains("optional-only@file:") || key.contains("@pnpm.e2e/qar@")),
+    );
+    assert!(
+        !virtual_store_entries(&without_optional)
+            .iter()
+            .any(|entry| entry.contains("optional-only@file+") || entry.contains("@pnpm.e2e+qar@")),
     );
 
     drop((root, mock_instance));
@@ -326,6 +448,24 @@ fn pacquet_cmd(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
 }
 
+fn deploy_graph_keys(deploy_dir: &Path) -> Vec<String> {
+    let deploy_lockfile = Lockfile::load_wanted_from_dir(deploy_dir).unwrap().unwrap();
+    deploy_lockfile
+        .packages
+        .iter()
+        .flatten()
+        .map(|(key, _)| key.to_string())
+        .chain(deploy_lockfile.snapshots.iter().flatten().map(|(key, _)| key.to_string()))
+        .collect()
+}
+
+fn virtual_store_entries(deploy_dir: &Path) -> Vec<String> {
+    fs::read_dir(deploy_dir.join("node_modules/.pnpm"))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect()
+}
+
 fn write_workspace(workspace: &Path, inject_workspace_packages: bool) {
     let mut workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
     workspace_yaml.push_str("packages:\n  - 'packages/*'\n");
@@ -369,6 +509,40 @@ fn write_workspace(workspace: &Path, inject_workspace_packages: bool) {
             "name": "dev-only",
             "version": "1.0.0",
             "files": ["index.js"],
+        }),
+    );
+}
+
+fn write_reachability_workspace(workspace: &Path) {
+    write_workspace(workspace, true);
+    write_project(
+        workspace,
+        "lib",
+        &serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" },
+        }),
+    );
+    write_project(
+        workspace,
+        "dev-only",
+        &serde_json::json!({
+            "name": "dev-only",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "dependencies": { "@pnpm.e2e/bar": "100.0.0" },
+        }),
+    );
+    write_project(
+        workspace,
+        "unused",
+        &serde_json::json!({
+            "name": "unused",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "dependencies": { "@pnpm.e2e/qar": "100.0.0" },
         }),
     );
 }

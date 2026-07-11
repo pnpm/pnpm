@@ -620,6 +620,19 @@ test('deploy does not preserve the inject workspace packages settings in the loc
     {
       name: 'project',
       version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+      devDependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+    {
+      name: 'unused',
+      version: '1.0.0',
+      dependencies: {
+        'is-odd': '1.0.0',
+      },
     },
   ])
 
@@ -651,6 +664,12 @@ test('deploy does not preserve the inject workspace packages settings in the loc
   }, ['dist'])
 
   const project = assertProject(path.resolve('dist'))
+  project.has('is-positive')
+  project.hasNot('is-negative')
   const lockfile = project.readLockfile()
+  const packageKeys = Object.keys(lockfile.packages)
+  expect(packageKeys.some((key) => key.startsWith('is-positive@'))).toBeTruthy()
+  expect(packageKeys.some((key) => key.startsWith('is-negative@'))).toBeFalsy()
+  expect(packageKeys.some((key) => key.startsWith('is-odd@'))).toBeFalsy()
   expect(lockfile.settings).not.toHaveProperty('injectWorkspacePackages')
 })

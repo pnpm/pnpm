@@ -27,7 +27,7 @@ use pacquet_workspace_projects_filter::{FilterProjectsOptions, WorkspaceFilter, 
 use pacquet_workspace_projects_graph::{BaseProject, GraphProject};
 use serde_json::{Map, Value, json};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet, VecDeque},
     fs,
     io::{self, Write},
     path::{Path, PathBuf},
@@ -283,6 +283,8 @@ impl DeployArgs {
         };
 
         let project_id = importer_id_from_root_dir(workspace_dir, &selected.project.root_dir);
+        let dependency_groups =
+            self.install_args.dependency_options.dependency_groups().collect::<Vec<_>>();
         let deploy_files = create_deploy_files(
             &lockfile,
             selected,
@@ -290,6 +292,7 @@ impl DeployArgs {
             workspace_dir,
             deploy_dir,
             config,
+            &dependency_groups,
         )?;
         write_deploy_files(deploy_dir, &deploy_files)?;
         // Boxed for the same large-future reason as the legacy path above.
@@ -762,6 +765,7 @@ fn create_deploy_files(
     lockfile_dir: &Path,
     deploy_dir: &Path,
     config: &Config,
+    dependency_groups: &[DependencyGroup],
 ) -> miette::Result<DeployFiles> {
     let input_snapshot = lockfile
         .importers
@@ -870,6 +874,7 @@ fn create_deploy_files(
         HashMap::from([(Lockfile::ROOT_IMPORTER_KEY.to_string(), target_snapshot.clone())]);
     deploy_lockfile.packages = (!packages.is_empty()).then_some(packages);
     deploy_lockfile.snapshots = (!snapshots.is_empty()).then_some(snapshots);
+    prune_deploy_lockfile_graph(&mut deploy_lockfile, dependency_groups);
 
     let mut manifest = selected.project.manifest.value().clone();
     set_manifest_dependencies(&mut manifest, "dependencies", target_snapshot.dependencies.as_ref());
@@ -923,6 +928,77 @@ fn create_deploy_files(
             .then_some(Value::Object(workspace_manifest)),
         workspace_config,
     })
+}
+
+/// Keep only the dependency graph that the deploy install will materialize.
+///
+/// The deploy importer and package manifest intentionally retain every direct
+/// dependency group so the generated frozen lockfile still satisfies the
+/// generated manifest. Only the package graph is mode-specific: for example,
+/// `deploy --prod` excludes dev-only and unrelated workspace snapshots from
+/// both the lockfile and the localized virtual store.
+fn prune_deploy_lockfile_graph(lockfile: &mut Lockfile, dependency_groups: &[DependencyGroup]) {
+    let Some(snapshots) = lockfile.snapshots.as_ref() else { return };
+    let Some(importer) = lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY) else { return };
+
+    let include_prod = dependency_groups.contains(&DependencyGroup::Prod);
+    let include_dev = dependency_groups.contains(&DependencyGroup::Dev);
+    let include_optional = dependency_groups.contains(&DependencyGroup::Optional);
+    let mut queue = VecDeque::new();
+
+    {
+        let mut enqueue_importer_map = |dependencies: Option<&ResolvedDependencyMap>| {
+            for (alias, dependency) in dependencies.into_iter().flatten() {
+                let Some(key) = dependency.version.resolved_key(alias) else { continue };
+                if snapshots.contains_key(&key) {
+                    queue.push_back(key);
+                }
+            }
+        };
+        if include_prod {
+            enqueue_importer_map(importer.dependencies.as_ref());
+        }
+        if include_dev {
+            enqueue_importer_map(importer.dev_dependencies.as_ref());
+        }
+        if include_optional {
+            enqueue_importer_map(importer.optional_dependencies.as_ref());
+        }
+    }
+
+    let mut reachable = HashSet::new();
+    while let Some(key) = queue.pop_front() {
+        if !reachable.insert(key.clone()) {
+            continue;
+        }
+        let Some(snapshot) = snapshots.get(&key) else { continue };
+        for dependencies in
+            snapshot.dependencies.as_ref().into_iter().chain(
+                include_optional.then_some(snapshot.optional_dependencies.as_ref()).flatten(),
+            )
+        {
+            for (alias, dependency) in dependencies {
+                let Some(child) = dependency.resolve(alias) else { continue };
+                if snapshots.contains_key(&child) {
+                    queue.push_back(child);
+                }
+            }
+        }
+    }
+
+    let reachable_metadata = reachable.iter().map(PackageKey::without_peer).collect::<HashSet<_>>();
+    if let Some(snapshots) = lockfile.snapshots.as_mut() {
+        snapshots.retain(|key, _| reachable.contains(key));
+        if snapshots.is_empty() {
+            lockfile.snapshots = None;
+        }
+    }
+    if let Some(packages) = lockfile.packages.as_mut() {
+        packages.retain(|key, _| reachable_metadata.contains(key));
+        if packages.is_empty() {
+            lockfile.packages = None;
+        }
+    }
 }
 
 fn fill_target_dependency_map(
