@@ -126,6 +126,18 @@ test('hoistPeers falls back to the range when no preferred version satisfies a n
   })
 })
 
+test('hoistPeers hoists nothing when no preferred version satisfies the range and peers are not auto-installed', () => {
+  expect(hoistPeers({
+    autoInstallPeers: false,
+    allPreferredVersions: {
+      foo: {
+        '2.0.0': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['foo', { range: '^1.0.0' }]])).toStrictEqual({})
+})
+
 // Regression test for https://github.com/pnpm/pnpm/pull/11049
 test('hoistPeers returns valid specifier when given only range preferred version selectors', () => {
   expect(hoistPeers({

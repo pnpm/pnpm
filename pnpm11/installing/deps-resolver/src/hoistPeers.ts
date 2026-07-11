@@ -55,11 +55,14 @@ export function hoistPeers (
         : null
       if (satisfyingVersion) {
         dependencies[peerName] = [satisfyingVersion, ...nonVersions].join(' || ')
-      } else if (isSemverRange && versions.length > 0 && opts.autoInstallPeers) {
+      } else if (isSemverRange && versions.length > 0) {
         // Preferred versions exist but none satisfies the wanted range.
         // Use the range directly so pnpm resolves it from the registry rather
-        // than installing a version the peer explicitly rejects.
-        dependencies[peerName] = range
+        // than installing a version the peer explicitly rejects. Without
+        // autoInstallPeers, hoist nothing and leave the peer missing.
+        if (opts.autoInstallPeers) {
+          dependencies[peerName] = range
+        }
       } else {
         dependencies[peerName] = [semver.maxSatisfying(versions, '*', { includePrerelease: true }), ...nonVersions]
           .filter(spec => spec != null)

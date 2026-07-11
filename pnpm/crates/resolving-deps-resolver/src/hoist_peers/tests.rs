@@ -136,6 +136,13 @@ fn falls_back_to_range_when_no_preferred_version_satisfies_non_exact_range() {
     assert_eq!(result, expected);
 }
 
+#[test]
+fn hoists_nothing_when_no_preferred_version_satisfies_range_without_auto_install() {
+    let preferred = preferred(&[("foo", &[("2.0.0", plain(VersionSelectorType::Version))])]);
+    let result = hoist_peers(&opts(false, &preferred), &[missing("foo", "^1.0.0")]);
+    assert_eq!(result, BTreeMap::new());
+}
+
 /// Regression for <https://github.com/pnpm/pnpm/pull/11049>.
 #[test]
 fn returns_valid_specifier_when_given_only_range_preferred_version_selectors() {

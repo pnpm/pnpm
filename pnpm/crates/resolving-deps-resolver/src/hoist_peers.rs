@@ -99,12 +99,15 @@ pub fn hoist_peers(
                 let mut parts: Vec<&str> = vec![satisfying];
                 parts.extend(non_versions.iter().copied());
                 dependencies.insert(peer_name.clone(), parts.join(" || "));
-            } else if is_semver_range && !versions.is_empty() && opts.auto_install_peers {
+            } else if is_semver_range && !versions.is_empty() {
                 // Preferred versions exist but none satisfies the wanted
                 // range. Use the range directly so it resolves from the
                 // registry rather than installing a version the peer
-                // explicitly rejects.
-                dependencies.insert(peer_name.clone(), range.clone());
+                // explicitly rejects. Without auto-install-peers, hoist
+                // nothing and leave the peer missing.
+                if opts.auto_install_peers {
+                    dependencies.insert(peer_name.clone(), range.clone());
+                }
             } else {
                 let mut parts: Vec<String> = Vec::new();
                 if let Some(highest) = max_satisfying_any(&versions) {
