@@ -747,6 +747,18 @@ impl Walker<'_> {
         self.build_importer_parents_from(&self.tree.direct)
     }
 
+    /// Whether a dependency installed under `alias` can provide a peer:
+    /// its alias or its real package name (the two differ for npm-alias
+    /// deps like `peer-c1@npm:@pnpm.e2e/peer-c@2.0.0`) is declared as a
+    /// peer somewhere in the tree.
+    fn is_peer_relevant(&self, alias: &str, pkg: &ResolvedPackage) -> bool {
+        if self.tree.all_peer_dep_names.contains(alias) {
+            return true;
+        }
+        let (real_name, _) = pkg_name_version(&pkg.result);
+        self.tree.all_peer_dep_names.contains(&real_name)
+    }
+
     /// Same as [`Self::build_importer_parents`] but seeds from an
     /// externally-supplied direct-deps slice — used by the multi-importer
     /// [`fn@resolve_peers_workspace`] where each importer's `direct`
@@ -760,10 +772,7 @@ impl Walker<'_> {
             let Some(pkg) = self.tree.packages.get(&tree_node.resolved_package_id) else {
                 continue;
             };
-            let (real_name, _) = pkg_name_version(&pkg.result);
-            if !self.tree.all_peer_dep_names.contains(&direct.alias)
-                && !self.tree.all_peer_dep_names.contains(&real_name)
-            {
+            if !self.is_peer_relevant(&direct.alias, pkg) {
                 continue;
             }
             let parent_node_id = remap_link_node_id(&self.opts, &direct.alias, &pkg.result)
@@ -893,13 +902,7 @@ impl Walker<'_> {
             let Some(child_pkg) = self.tree.packages.get(&child_tree.resolved_package_id) else {
                 continue;
             };
-            // Match by the install alias and by the real package name, so
-            // an npm-alias child (`peer-c1@npm:@pnpm.e2e/peer-c@2.0.0`) can
-            // provide the peer declared under its real name.
-            let (child_real_name, _) = pkg_name_version(&child_pkg.result);
-            if !self.tree.all_peer_dep_names.contains(alias)
-                && !self.tree.all_peer_dep_names.contains(&child_real_name)
-            {
+            if !self.is_peer_relevant(alias, child_pkg) {
                 continue;
             }
             insert_parent_ref(

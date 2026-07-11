@@ -401,35 +401,13 @@ export async function resolveRootDependencies (
       time,
     }
   }
-  let workspaceRootDeps!: HoistableRootDep[]
+  let workspaceRootDeps: HoistableRootDep[]
   if (ctx.resolvePeersFromWorkspaceRoot) {
     const rootImporterIndex = importers.findIndex(({ options }) => options.parentIds[0] === '.')
-    const rootPkgAddresses = pkgAddressesByImportersWithoutPeers[rootImporterIndex]?.pkgAddresses ?? []
-    // A root dependency reused from the lockfile skips full resolution, so its
-    // address (if any) carries no normalizedBareSpecifier. It still provides
-    // its package to missing peers; without falling back to the wanted
-    // specifier, re-resolving with a lockfile would hoist a different version
-    // than a fresh install of the same manifest.
-    const wantedSpecifierByAlias = new Map<string, string>()
-    for (const wantedDep of importers[rootImporterIndex]?.wantedDependencies ?? []) {
-      if (wantedDep.alias && wantedDep.bareSpecifier) {
-        wantedSpecifierByAlias.set(wantedDep.alias, wantedDep.bareSpecifier)
-      }
-    }
-    workspaceRootDeps = rootPkgAddresses.map((pkgAddress) => ({
-      alias: pkgAddress.alias,
-      pkgName: pkgAddress.pkg.name,
-      normalizedBareSpecifier: pkgAddress.normalizedBareSpecifier ?? wantedSpecifierByAlias.get(pkgAddress.alias),
-    }))
-    const coveredAliases = new Set(workspaceRootDeps.map(({ alias }) => alias))
-    for (const [alias, bareSpecifier] of wantedSpecifierByAlias) {
-      if (coveredAliases.has(alias)) continue
-      workspaceRootDeps.push({
-        alias,
-        pkgName: unwrapPackageName(alias, bareSpecifier).pkgName,
-        normalizedBareSpecifier: bareSpecifier,
-      })
-    }
+    workspaceRootDeps = getHoistableRootDeps(
+      importers[rootImporterIndex],
+      pkgAddressesByImportersWithoutPeers[rootImporterIndex]?.pkgAddresses ?? []
+    )
   } else {
     workspaceRootDeps = []
   }
@@ -523,6 +501,41 @@ export async function resolveRootDependencies (
     pkgAddressesByImporters: pkgAddressesByImportersWithoutPeers.map(({ pkgAddresses }) => pkgAddresses),
     time,
   }
+}
+
+/**
+ * Lists the workspace-root dependencies that `hoistPeers` may satisfy a
+ * missing peer with. A root dependency reused from the lockfile skips full
+ * resolution, so it has no address (or an address without a
+ * normalizedBareSpecifier); its wanted specifier is used instead, so that
+ * re-resolving with a lockfile hoists the same version as a fresh install of
+ * the same manifest.
+ */
+function getHoistableRootDeps (
+  rootImporter: ImporterToResolve | undefined,
+  rootPkgAddresses: PkgAddressOrLink[]
+): HoistableRootDep[] {
+  const wantedSpecifierByAlias = new Map<string, string>()
+  for (const wantedDep of rootImporter?.wantedDependencies ?? []) {
+    if (wantedDep.alias && wantedDep.bareSpecifier) {
+      wantedSpecifierByAlias.set(wantedDep.alias, wantedDep.bareSpecifier)
+    }
+  }
+  const rootDeps: HoistableRootDep[] = rootPkgAddresses.map((pkgAddress) => ({
+    alias: pkgAddress.alias,
+    pkgName: pkgAddress.pkg.name,
+    normalizedBareSpecifier: pkgAddress.normalizedBareSpecifier ?? wantedSpecifierByAlias.get(pkgAddress.alias),
+  }))
+  const coveredAliases = new Set(rootDeps.map(({ alias }) => alias))
+  for (const [alias, bareSpecifier] of wantedSpecifierByAlias) {
+    if (coveredAliases.has(alias)) continue
+    rootDeps.push({
+      alias,
+      pkgName: unwrapPackageName(alias, bareSpecifier).pkgName,
+      normalizedBareSpecifier: bareSpecifier,
+    })
+  }
+  return rootDeps
 }
 
 interface ResolvedDependenciesResult {
