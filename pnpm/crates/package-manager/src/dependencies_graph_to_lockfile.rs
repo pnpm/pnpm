@@ -15,7 +15,7 @@ use pacquet_lockfile::{
     CatalogSnapshots, ComVer, ImporterDepVersion, Lockfile, LockfileResolution, LockfileSettings,
     LockfileVersion, PackageKey, PackageMetadata, PeerDependencyMeta, PkgName, PkgNameVerPeer,
     PkgVerPeer, ProjectSnapshot, ResolvedCatalogEntry, ResolvedDependencyMap,
-    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry, VersionPart,
 };
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_deps_resolver::{DepPath, DependenciesGraph, DependenciesGraphNode};
@@ -360,10 +360,26 @@ fn importer_dep_version(alias: &str, node: &DependenciesGraphNode) -> ImporterDe
             return ImporterDepVersion::Regular(parsed);
         }
     }
-    dep_path_str
+    let parsed = dep_path_str
         .parse::<PkgNameVerPeer>()
-        .map(ImporterDepVersion::Alias)
-        .expect("dep paths produced by the resolver always parse as PkgNameVerPeer")
+        .expect("dep paths produced by the resolver always parse as PkgNameVerPeer");
+    // An injected workspace dep reaches this point as its full peered
+    // dep path, `<name>@file:<path>(peers)` — the bare `file:` strip
+    // above only matches peerless dep paths, and `real_name` is unset
+    // for directory resolutions (they learn their name from the
+    // manifest). pnpm v11 reserves the `<name>@<ref>` alias form for
+    // *renamed* deps and writes the plain `file:<path>(peers)` ref when
+    // the alias equals the package name; a self-aliased ref would
+    // double-prefix every consumer that composes `alias@version` into a
+    // snapshot key (v11 readers, Bit's graph converter).
+    if parsed.name.to_string() == alias && matches!(parsed.suffix.version(), VersionPart::File(_)) {
+        let suffix = parsed.suffix.to_string();
+        let payload = suffix
+            .strip_prefix("file:")
+            .expect("a File version part always displays with the file: scheme");
+        return ImporterDepVersion::File(payload.to_string());
+    }
+    ImporterDepVersion::Alias(parsed)
 }
 
 /// `Some(real_name)` when the resolver produced a structured name; `None`
