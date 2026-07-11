@@ -1,5 +1,11 @@
 # @pnpm/agent.client
 
+## 1.3.2
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1100.1.10
+
 ## 1.3.1
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.commands",
-  "version": "1100.10.3",
+  "version": "1100.10.4",
   "description": "Commands for installation",
   "keywords": [
     "pnpm",

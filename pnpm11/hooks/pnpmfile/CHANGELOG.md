@@ -1,5 +1,12 @@
 # @pnpm/pnpmfile
 
+## 1100.0.18
+
+### Patch Changes
+
+- Updated dependencies [a897ef7]
+  - @pnpm/hooks.types@1100.2.0
+
 ## 1100.0.17
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 1100.0.20
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1100.1.2
+- @pnpm/lockfile.fs@1100.1.10
+
 ## 1100.0.19
 
 ### Patch Changes

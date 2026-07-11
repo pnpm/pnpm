@@ -1,5 +1,12 @@
 # @pnpm/cache.commands
 
+## 1100.0.28
+
+### Patch Changes
+
+- @pnpm/config.reader@1101.11.2
+- @pnpm/cache.api@1100.0.27
+
 ## 1100.0.27
 
 ### Patch Changes

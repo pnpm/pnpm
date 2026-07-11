@@ -1,5 +1,17 @@
 # @pnpm/config.deps-installer
 
+## 1102.0.5
+
+### Patch Changes
+
+- Updated dependencies [3c6718b]
+- Updated dependencies [252f15e]
+  - @pnpm/installing.deps-resolver@1100.2.8
+  - @pnpm/lockfile.utils@1100.1.2
+  - @pnpm/store.controller@1102.0.4
+  - @pnpm/deps.graph-hasher@1100.2.9
+  - @pnpm/lockfile.fs@1100.1.10
+
 ## 1102.0.4
 
 ### Patch Changes

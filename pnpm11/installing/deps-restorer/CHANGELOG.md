@@ -1,5 +1,20 @@
 # @pnpm/headless
 
+## 1102.1.4
+
+### Patch Changes
+
+- @pnpm/deps.graph-builder@1100.0.21
+- @pnpm/installing.package-requester@1102.1.2
+- @pnpm/lockfile.utils@1100.1.2
+- @pnpm/deps.graph-hasher@1100.2.9
+- @pnpm/installing.linking.modules-cleaner@1100.1.11
+- @pnpm/installing.linking.real-hoist@1100.1.6
+- @pnpm/lockfile.filtering@1100.1.10
+- @pnpm/lockfile.fs@1100.1.10
+- @pnpm/lockfile.to-pnp@1100.1.4
+- @pnpm/building.during-install@1102.0.5
+
 ## 1102.1.3
 
 ### Patch Changes

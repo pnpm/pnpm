@@ -1,5 +1,12 @@
 # @pnpm/engine.runtime.commands
 
+## 1100.1.10
+
+### Patch Changes
+
+- @pnpm/config.reader@1101.11.2
+- @pnpm/engine.runtime.node-resolver@1101.1.12
+
 ## 1100.1.9
 
 ### Patch Changes

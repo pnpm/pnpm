@@ -1,5 +1,27 @@
 # @pnpm/plugin-commands-installation
 
+## 1100.10.4
+
+### Patch Changes
+
+- Updated dependencies [2b02764]
+- Updated dependencies [43711ce]
+- Updated dependencies [eee7c9a]
+  - @pnpm/workspace.projects-filter@1100.0.26
+  - @pnpm/deps.inspection.outdated@1100.1.13
+  - @pnpm/deps.status@1100.1.6
+  - @pnpm/hooks.pnpmfile@1100.0.18
+  - @pnpm/installing.deps-installer@1102.2.2
+  - @pnpm/store.controller@1102.0.4
+  - @pnpm/installing.env-installer@1102.0.5
+  - @pnpm/config.reader@1101.11.2
+  - @pnpm/store.connection-manager@1100.3.5
+  - @pnpm/global.commands@1100.0.33
+  - @pnpm/building.after-install@1102.0.5
+  - @pnpm/lockfile.fs@1100.1.10
+  - @pnpm/installing.context@1100.0.23
+  - @pnpm/workspace.state@1100.0.27
+
 ## 1100.10.3
 
 ### Patch Changes

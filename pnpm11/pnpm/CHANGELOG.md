@@ -1,5 +1,24 @@
 # pnpm
 
+## 11.12.0
+
+### Minor Changes
+
+- a897ef7: Custom fetchers exported from a pnpmfile can now delegate by returning a `{ delegate: <resolution> }` envelope: pnpm rewrites the package's resolution to the delegated shape and runs the built-in fetcher on it. This is the portable delegation form that also works in pacquet, where `cafs` and `fetchers` cannot be passed to the hook. Related to [pnpm/pnpm#11685](https://github.com/pnpm/pnpm/issues/11685).
+
+### Patch Changes
+
+- 2b02764: The changed-packages filter (`--filter "...[<since>]"`) no longer allows an option-like `<since>` value (such as `--output=<path>`) to be interpreted as a git option — git now rejects it as a bad revision. The repository root is also resolved to the nearest `.git` entry, so the filter works in a git worktree checked out inside another repository's tree.
+- 43711ce: `pnpm outdated` no longer checks the registry for dependencies that are resolved from local `link:`, `file:`, or `workspace:` references in the lockfile [#12827](https://github.com/pnpm/pnpm/issues/12827).
+- 3c6718b: Fixed a deadlock in peer dependency resolution: `pnpm install` hung forever when a peer dependency cycle spanned a project's own dependencies and auto-installed peer providers, for example when installing `electron-builder@26.15.3` [#12921](https://github.com/pnpm/pnpm/issues/12921).
+- 252f15e: Fixed peer dependency auto-install picking a version the peer range rejects. In a workspace with several projects, a package declaring a peer dependency with a semver range (for example `^1.0.0`) could get the highest version found anywhere in the workspace (for example a `2.0.0` resolved for another project) instead of a version that satisfies the range. Peers are now deduplicated onto the highest preferred version that satisfies the declared range, and when none does, the range is resolved from the registry.
+
+  Also fixed re-resolving with an existing lockfile hoisting a different peer version than a fresh install of the same manifest: root dependencies reused from the lockfile were invisible to peer hoisting, so a peer that a root dependency provides could be bound to another version.
+
+- a38adda: `pnpm self-update <version>` now installs the requested pnpm version when it matches the currently running version but is missing from the global self-update directory.
+- 6a85968: `pnpm stage list` now stops paginating after a fail-safe cap of 1000 pages, so a misbehaving registry cannot keep the command looping forever.
+- eee7c9a: `verify-deps-before-run` no longer spawns a `pnpm install` when pnpm is executed in a directory that has no `package.json`. A mistyped command run outside a project (for example `pnpm witch 10 login`) used to crash with a confusing error from the spawned install; now it fails with the regular "no package.json found" error.
+
 ## 11.11.0
 
 ### Minor Changes

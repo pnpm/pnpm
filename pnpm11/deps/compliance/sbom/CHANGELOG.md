@@ -1,5 +1,11 @@
 # @pnpm/deps.compliance.sbom
 
+## 1100.3.2
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1100.1.2
+
 ## 1100.3.1
 
 ### Patch Changes

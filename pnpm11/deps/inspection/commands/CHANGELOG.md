@@ -1,5 +1,18 @@
 # @pnpm/deps.inspection.commands
 
+## 1100.5.2
+
+### Patch Changes
+
+- Updated dependencies [43711ce]
+  - @pnpm/deps.inspection.outdated@1100.1.13
+  - @pnpm/resolving.default-resolver@1100.3.13
+  - @pnpm/config.reader@1101.11.2
+  - @pnpm/global.commands@1100.0.33
+  - @pnpm/lockfile.fs@1100.1.10
+  - @pnpm/deps.inspection.list@1100.0.23
+  - @pnpm/deps.inspection.peers-checker@1100.0.19
+
 ## 1100.5.1
 
 ### Patch Changes

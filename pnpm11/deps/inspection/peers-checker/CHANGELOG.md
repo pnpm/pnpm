@@ -1,5 +1,11 @@
 # @pnpm/deps.inspection.peers-checker
 
+## 1100.0.19
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1100.1.10
+
 ## 1100.0.18
 
 ### Patch Changes

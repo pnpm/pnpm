@@ -1,5 +1,18 @@
 # @pnpm/releasing.commands
 
+## 1100.5.5
+
+### Patch Changes
+
+- 6a85968: `pnpm stage list` now stops paginating after a fail-safe cap of 1000 pages, so a misbehaving registry cannot keep the command looping forever.
+  - @pnpm/installing.commands@1100.10.4
+  - @pnpm/installing.client@1100.2.13
+  - @pnpm/config.reader@1101.11.2
+  - @pnpm/releasing.exportable-manifest@1100.1.9
+  - @pnpm/lockfile.fs@1100.1.10
+  - @pnpm/engine.runtime.commands@1100.1.10
+  - @pnpm/engine.runtime.node-resolver@1101.1.12
+
 ## 1100.5.4
 
 ### Patch Changes

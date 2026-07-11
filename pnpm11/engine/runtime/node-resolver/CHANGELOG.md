@@ -1,5 +1,11 @@
 # @pnpm/node.resolver
 
+## 1101.1.12
+
+### Patch Changes
+
+- @pnpm/config.reader@1101.11.2
+
 ## 1101.1.11
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/cli.commands
 
+## 1100.0.26
+
+### Patch Changes
+
+- @pnpm/config.reader@1101.11.2
+
 ## 1100.0.25
 
 ### Patch Changes

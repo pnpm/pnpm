@@ -1,5 +1,12 @@
 # @pnpm/lockfile.verification
 
+## 1100.0.23
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1100.1.2
+- @pnpm/installing.context@1100.0.23
+
 ## 1100.0.22
 
 ### Patch Changes

@@ -1,5 +1,20 @@
 # @pnpm/engine.pm.commands
 
+## 1101.2.2
+
+### Patch Changes
+
+- a38adda: `pnpm self-update <version>` now installs the requested pnpm version when it matches the currently running version but is missing from the global self-update directory.
+  - @pnpm/installing.client@1100.2.13
+  - @pnpm/store.controller@1102.0.4
+  - @pnpm/installing.env-installer@1102.0.5
+  - @pnpm/installing.deps-restorer@1102.1.4
+  - @pnpm/config.reader@1101.11.2
+  - @pnpm/store.connection-manager@1100.3.5
+  - @pnpm/global.commands@1100.0.33
+  - @pnpm/deps.graph-hasher@1100.2.9
+  - @pnpm/lockfile.fs@1100.1.10
+
 ## 1101.2.1
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/lockfile-utils
 
+## 1100.1.2
+
+### Patch Changes
+
+- Updated dependencies [a897ef7]
+  - @pnpm/hooks.types@1100.2.0
+
 ## 1100.1.1
 
 ### Patch Changes
