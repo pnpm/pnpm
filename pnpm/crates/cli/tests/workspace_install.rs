@@ -235,6 +235,127 @@ fn shared_workspace_dep_link_is_relative_to_each_importer() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn workspace_specs_resolve_a_versionless_private_package() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    // Keep the injected resolution observable instead of deduping the empty
+    // package back to a link.
+    workspace_yaml.push_str(
+        "packages:\n  - 'packages/*'\ninjectWorkspacePackages: true\ndedupeInjectedDeps: false\n",
+    );
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::create_dir_all(workspace.join("packages/sa")).expect("mkdir packages/sa");
+    fs::write(
+        workspace.join("packages/sa/package.json"),
+        serde_json::json!({ "name": "sa", "private": true }).to_string(),
+    )
+    .expect("write packages/sa/package.json");
+
+    fs::create_dir_all(workspace.join("packages/web")).expect("mkdir packages/web");
+    fs::write(
+        workspace.join("packages/web/package.json"),
+        serde_json::json!({
+            "name": "web",
+            "private": true,
+            "dependencies": { "sa": "workspace:*" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/web/package.json");
+
+    fs::create_dir_all(workspace.join("packages/exact")).expect("mkdir packages/exact");
+    fs::write(
+        workspace.join("packages/exact/package.json"),
+        serde_json::json!({
+            "name": "exact",
+            "private": true,
+            "dependencies": { "sa": "workspace:0.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/exact/package.json");
+
+    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    let parsed: pacquet_lockfile::Lockfile = serde_saphyr::from_str(&lockfile)
+        .unwrap_or_else(|err| panic!("re-parse pnpm-lock.yaml: {err}\n{lockfile}"));
+    let sa_name: pacquet_lockfile::PkgName = "sa".parse().expect("parse package name");
+    let resolved = |importer_id: &str| {
+        parsed
+            .importers
+            .get(importer_id)
+            .and_then(|importer| importer.dependencies.as_ref())
+            .and_then(|dependencies| dependencies.get(&sa_name))
+            .unwrap_or_else(|| panic!("missing sa in {importer_id}:\n{lockfile}"))
+            .version
+            .to_string()
+    };
+    assert_eq!(resolved("packages/web"), "file:packages/sa");
+    assert_eq!(resolved("packages/exact"), "file:packages/sa");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn workspace_specs_do_not_resolve_a_non_string_version_as_zero() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("packages:\n  - 'packages/*'\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::create_dir_all(workspace.join("packages/bad")).expect("mkdir packages/bad");
+    fs::write(
+        workspace.join("packages/bad/package.json"),
+        serde_json::json!({ "name": "bad", "version": 42, "private": true }).to_string(),
+    )
+    .expect("write packages/bad/package.json");
+
+    fs::create_dir_all(workspace.join("packages/consumer")).expect("mkdir packages/consumer");
+    fs::write(
+        workspace.join("packages/consumer/package.json"),
+        serde_json::json!({
+            "name": "consumer",
+            "private": true,
+            "dependencies": { "bad": "workspace:*" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/consumer/package.json");
+
+    let output = pacquet
+        .with_args(["install", "--lockfile-only"])
+        .output()
+        .expect("run install with malformed workspace version");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "malformed workspace version unexpectedly resolved");
+    assert!(
+        stderr.contains("no package named \"bad\" is present in the workspace"),
+        "unexpected error for malformed workspace version:\n{stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// A workspace root defined by `pnpm-workspace.yaml` alone is legal without a
 /// root `package.json`, and installing must not scaffold one — pnpm never
 /// does, and a scaffolded root manifest (with the init template's failing
