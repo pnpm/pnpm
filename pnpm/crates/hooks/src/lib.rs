@@ -35,11 +35,10 @@ pub struct HookContext {
     /// manifest being transformed was resolved from a local directory (an
     /// injected workspace project or a `file:` dependency). A host-supplied
     /// `readPackage` callback uses it to recognize a workspace project's
-    /// dependency instance and substitute the project's raw manifest —
-    /// pnpm's TS engine reaches the same effect by keeping raw project
-    /// manifests and applying its hook chain contextually. Only the
-    /// node-API bridge forwards it to JS; the `.pnpmfile.cjs` contract
-    /// (`readPackage(pkg, context)`) has no directory, matching pnpm.
+    /// dependency instance and substitute the project's raw manifest.
+    /// Only the node-API bridge forwards it to JS; the `.pnpmfile.cjs`
+    /// contract (`readPackage(pkg, context)`) has no directory, matching
+    /// pnpm.
     pub dir: Option<String>,
 }
 

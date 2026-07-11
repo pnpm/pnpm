@@ -3077,10 +3077,13 @@ mod cycle_edges {
     }
 }
 
+/// The `(name, dir)` pairs recorded by [`RecordingHooks`].
+type RecordedReadPackageCalls = std::sync::Arc<Mutex<Vec<(String, Option<String>)>>>;
+
 /// [`pacquet_hooks::PnpmfileHooks`] stub that records the `(name, dir)` pair
 /// of every `read_package` call and returns the manifest unchanged.
 struct RecordingHooks {
-    calls: std::sync::Arc<Mutex<Vec<(String, Option<String>)>>>,
+    calls: RecordedReadPackageCalls,
 }
 
 #[async_trait::async_trait]
@@ -3110,19 +3113,13 @@ impl pacquet_hooks::PnpmfileHooks for RecordingHooks {
     ) {
     }
 
-    async fn filter_log(
-        &self,
-        _log: serde_json::Value,
-        _ctx: pacquet_hooks::HookContext,
-    ) -> bool {
+    async fn filter_log(&self, _log: serde_json::Value, _ctx: pacquet_hooks::HookContext) -> bool {
         true
     }
 }
 
-/// The `readPackage` hook context carries the lockfile-root-relative directory
-/// for directory resolutions (injected workspace projects, `file:` deps) and
-/// no directory for registry resolutions — the signal a host uses to
-/// substitute a workspace project's raw manifest for its dependency instances.
+/// A host needs the directory to tell a workspace project's dependency
+/// instance apart from registry packages and substitute its raw manifest.
 #[tokio::test]
 async fn read_package_hook_receives_the_directory_of_directory_resolutions() {
     use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
@@ -3139,7 +3136,11 @@ async fn read_package_hook_receives_the_directory_of_directory_resolutions() {
     table.insert(("injected".to_string(), "file:packages/injected".to_string()), injected);
     table.insert(
         ("regular".to_string(), "^2.0.0".to_string()),
-        fake_result("regular", "2.1.0", serde_json::json!({ "name": "regular", "version": "2.1.0" })),
+        fake_result(
+            "regular",
+            "2.1.0",
+            serde_json::json!({ "name": "regular", "version": "2.1.0" }),
+        ),
     );
     let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({

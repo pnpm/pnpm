@@ -88,7 +88,10 @@ function readPackage(pkg) {
     });
 
     let result = hooks
-        .read_package(manifest.clone(), pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None })
+        .read_package(
+            manifest.clone(),
+            pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
+        )
         .await;
 
     let updated = result.expect("readPackage should succeed");
@@ -121,7 +124,10 @@ function readPackage(pkg) {
     });
 
     let result = hooks
-        .read_package(manifest.clone(), pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None })
+        .read_package(
+            manifest.clone(),
+            pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
+        )
         .await;
 
     let updated = result.expect("readPackage should succeed");
@@ -154,7 +160,9 @@ function filterLog(log) {
     });
 
     assert!(
-        hooks.filter_log(debug_log, pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None }).await,
+        hooks
+            .filter_log(debug_log, pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None })
+            .await,
     );
 
     let warn_log = serde_json::json!({
@@ -163,7 +171,9 @@ function filterLog(log) {
     });
 
     assert!(
-        !hooks.filter_log(warn_log, pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None }).await,
+        !hooks
+            .filter_log(warn_log, pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None })
+            .await,
     );
 }
 
@@ -198,7 +208,10 @@ function readPackage(pkg) {
     });
 
     let result = hooks
-        .read_package(manifest.clone(), pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None })
+        .read_package(
+            manifest.clone(),
+            pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
+        )
         .await;
 
     let updated = result.unwrap_or_else(|err| {
