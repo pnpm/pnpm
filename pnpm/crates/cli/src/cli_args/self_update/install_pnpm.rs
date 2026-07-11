@@ -10,7 +10,7 @@ use crate::{State, cli_args::add::add_package};
 use miette::{Context, IntoDiagnostic};
 use pacquet_config::{Config, PackageManagerBootstrap};
 use pacquet_global::{clean_orphaned_install_dirs, create_install_dir, find_global_package};
-use pacquet_graph_hasher::{host_arch, host_libc, host_platform};
+use pacquet_graph_hasher::{format_global_virtual_store_path, host_arch, host_libc, host_platform};
 use pacquet_package_is_installable::SupportedArchitectures;
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_registry::PinnedVersion;
@@ -373,26 +373,23 @@ fn native_source_trust_root(install_real_dir: &Path, wrapper_pkg_name: &str) -> 
         .unwrap_or_else(|| install_real_dir.to_path_buf())
 }
 
+// Recognizes a slot by re-deriving its `links`-relative path with
+// [`format_global_virtual_store_path`] — the same formatter that laid the
+// slot out — so this walk can't drift from the layout (e.g. the `@`
+// placeholder scope segment unscoped packages sit under).
 fn global_virtual_store_root_from_slot(slot_dir: &Path, package_name: &str) -> Option<PathBuf> {
-    let mut cursor = slot_dir.parent()?;
-    let version = cursor.file_name()?.to_str()?;
+    let hash = slot_dir.file_name()?.to_str()?;
+    let version = slot_dir.parent()?.file_name()?.to_str()?;
     node_semver::Version::parse(version).ok()?;
 
-    cursor = cursor.parent()?;
-    let mut package_segments = package_name.split('/').rev();
-    let name = package_segments.next()?;
-    if cursor.file_name()?.to_str()? != name {
-        return None;
-    }
-    for segment in package_segments {
-        cursor = cursor.parent()?;
+    let mut cursor = slot_dir;
+    for segment in format_global_virtual_store_path(package_name, version, hash).split('/').rev() {
         if cursor.file_name()?.to_str()? != segment {
             return None;
         }
+        cursor = cursor.parent()?;
     }
-
-    let root = cursor.parent()?;
-    (root.file_name()?.to_str()? == "links").then(|| root.to_path_buf())
+    (cursor.file_name()?.to_str()? == "links").then(|| cursor.to_path_buf())
 }
 
 fn validate_native_binary_source(src: &Path, source_root: &Path) -> miette::Result<PathBuf> {
