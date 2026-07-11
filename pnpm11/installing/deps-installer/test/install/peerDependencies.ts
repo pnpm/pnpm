@@ -1575,7 +1575,7 @@ test('resolve peer dependency using the alias that differs from the real name of
   expect(lockfile.snapshots['@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-a@1.0.0)']?.dependencies['@pnpm.e2e/peer-b']).toBe('@pnpm.e2e/peer-a@1.0.0')
 })
 
-test('when there are several aliased dependencies of the same package, pick the one with the highest version that satisfies the peer range to resolve peers', async () => {
+test('when there are several aliased dependencies of the same package, pick the one with the highest version to resolve peers', async () => {
   prepareEmpty()
 
   const opts = testDefaults({ autoInstallPeers: false, strictPeerDependencies: false })
@@ -1586,11 +1586,8 @@ test('when there are several aliased dependencies of the same package, pick the 
   ], opts)
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/abc@1.0.0'], opts)
 
-  // Re-resolving with the aliases already in the lockfile hoists a
-  // real-named peer-c for abc; the hoist picks the highest version
-  // satisfying abc's peer range (^1.0.0), so peer-c@2.0.0 is not used.
   const lockfile = readYamlFileSync<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
-  expect(lockfile.snapshots['@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-c@1.0.1)']).toBeTruthy()
+  expect(lockfile.snapshots['@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-c@2.0.0)']).toBeTruthy()
 })
 
 test('when there is an aliases dependency and a non-aliased one, prefer the non-aliased dependency to resolve peers', async () => {

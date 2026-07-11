@@ -2,13 +2,18 @@ import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import semver from 'semver'
 
-import type { PkgAddressOrLink } from './resolveDependencies.js'
+/** One workspace-root dependency that a missing peer can be satisfied with. */
+export interface HoistableRootDep {
+  alias: string
+  pkgName: string
+  normalizedBareSpecifier?: string
+}
 
 export function hoistPeers (
   opts: {
     autoInstallPeers: boolean
     allPreferredVersions?: PreferredVersions
-    workspaceRootDeps: PkgAddressOrLink[]
+    workspaceRootDeps: HoistableRootDep[]
   },
   missingRequiredPeers: Array<[string, { range: string }]>
 ): Record<string, string> {
@@ -20,7 +25,7 @@ export function hoistPeers (
       continue
     }
     const rootDep = opts.workspaceRootDeps
-      .filter((rootDep) => rootDep.pkg.name === peerName)
+      .filter((rootDep) => rootDep.pkgName === peerName)
       .sort((rootDep1, rootDep2) => lexCompare(rootDep1.alias, rootDep2.alias))[0]
     if (rootDep?.normalizedBareSpecifier) {
       dependencies[peerName] = rootDep.normalizedBareSpecifier

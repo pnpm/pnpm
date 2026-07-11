@@ -61,7 +61,7 @@ import semver from 'semver'
 
 import { getExactSinglePreferredVersions } from './getExactSinglePreferredVersions.js'
 import { getNonDevWantedDependencies, type WantedDependency } from './getNonDevWantedDependencies.js'
-import { getHoistableOptionalPeers, hoistPeers } from './hoistPeers.js'
+import { getHoistableOptionalPeers, type HoistableRootDep, hoistPeers } from './hoistPeers.js'
 import { safeIntersect } from './mergePeers.js'
 import { nextNodeId, type NodeId } from './nextNodeId.js'
 import { parentIdsContainSequence } from './parentIdsContainSequence.js'
@@ -401,10 +401,35 @@ export async function resolveRootDependencies (
       time,
     }
   }
-  let workspaceRootDeps!: PkgAddressOrLink[]
+  let workspaceRootDeps!: HoistableRootDep[]
   if (ctx.resolvePeersFromWorkspaceRoot) {
     const rootImporterIndex = importers.findIndex(({ options }) => options.parentIds[0] === '.')
-    workspaceRootDeps = pkgAddressesByImportersWithoutPeers[rootImporterIndex]?.pkgAddresses ?? []
+    const rootPkgAddresses = pkgAddressesByImportersWithoutPeers[rootImporterIndex]?.pkgAddresses ?? []
+    // A root dependency reused from the lockfile skips full resolution, so its
+    // address (if any) carries no normalizedBareSpecifier. It still provides
+    // its package to missing peers; without falling back to the wanted
+    // specifier, re-resolving with a lockfile would hoist a different version
+    // than a fresh install of the same manifest.
+    const wantedSpecifierByAlias = new Map<string, string>()
+    for (const wantedDep of importers[rootImporterIndex]?.wantedDependencies ?? []) {
+      if (wantedDep.alias && wantedDep.bareSpecifier) {
+        wantedSpecifierByAlias.set(wantedDep.alias, wantedDep.bareSpecifier)
+      }
+    }
+    workspaceRootDeps = rootPkgAddresses.map((pkgAddress) => ({
+      alias: pkgAddress.alias,
+      pkgName: pkgAddress.pkg.name,
+      normalizedBareSpecifier: pkgAddress.normalizedBareSpecifier ?? wantedSpecifierByAlias.get(pkgAddress.alias),
+    }))
+    const coveredAliases = new Set(workspaceRootDeps.map(({ alias }) => alias))
+    for (const [alias, bareSpecifier] of wantedSpecifierByAlias) {
+      if (coveredAliases.has(alias)) continue
+      workspaceRootDeps.push({
+        alias,
+        pkgName: unwrapPackageName(alias, bareSpecifier).pkgName,
+        normalizedBareSpecifier: bareSpecifier,
+      })
+    }
   } else {
     workspaceRootDeps = []
   }
