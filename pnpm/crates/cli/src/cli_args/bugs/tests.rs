@@ -1,7 +1,11 @@
+use std::{cell::RefCell, fs, io, path::Path};
+
+use pacquet_config::Config;
+use pacquet_network_web_auth::OpenUrl;
 use serde_json::json;
 
 use super::{
-    is_http_url, parse_package_spec, pick_bugs_url, repository_to_issues_url,
+    BugsArgs, is_http_url, parse_package_spec, pick_bugs_url, repository_to_issues_url,
     try_hosted_git_shorthand,
 };
 
@@ -294,4 +298,151 @@ fn repo_url_strips_scp_fragment_and_query() {
         repository_to_issues_url("git@github.com:owner/repo.git#main"),
         Some("https://github.com/owner/repo/issues".to_string()),
     );
+}
+
+thread_local! {
+    static OPENED_URLS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+}
+
+/// [`OpenUrl`] fake standing in for the user's browser; mirrors the mocked
+/// `open` module in the TypeScript tests
+/// (`pnpm11/deps/inspection/commands/test/bugs.ts`).
+struct RecordingBrowser;
+
+impl OpenUrl for RecordingBrowser {
+    fn open_url(url: &str) -> io::Result<()> {
+        OPENED_URLS.with(|urls| urls.borrow_mut().push(url.to_owned()));
+        Ok(())
+    }
+}
+
+/// Drain the recorded URLs so state cannot leak between tests that
+/// libtest runs on the same thread (e.g. `--test-threads=1`).
+fn opened_urls() -> Vec<String> {
+    OPENED_URLS.with(RefCell::take)
+}
+
+async fn run_bugs_in_project(manifest: &str) -> miette::Result<()> {
+    let dir = tempfile::tempdir().expect("create temp project dir");
+    fs::write(dir.path().join("package.json"), manifest).expect("write package.json");
+    let args = BugsArgs { registry: None, packages: Vec::new() };
+    args.run::<RecordingBrowser>(&Config::default(), dir.path()).await
+}
+
+#[tokio::test]
+async fn run_opens_bugs_url_from_local_manifest_bugs_object() {
+    run_bugs_in_project(
+        r#"{"name":"test-pkg","bugs":{"url":"https://github.com/test/pkg/issues"}}"#,
+    )
+    .await
+    .expect("bugs must succeed");
+    assert_eq!(opened_urls(), ["https://github.com/test/pkg/issues"]);
+}
+
+#[tokio::test]
+async fn run_opens_bugs_url_from_local_manifest_bugs_string() {
+    run_bugs_in_project(r#"{"name":"test-pkg","bugs":"https://github.com/test/pkg/issues"}"#)
+        .await
+        .expect("bugs must succeed");
+    assert_eq!(opened_urls(), ["https://github.com/test/pkg/issues"]);
+}
+
+#[tokio::test]
+async fn run_opens_repository_issues_url_when_bugs_is_missing() {
+    run_bugs_in_project(r#"{"name":"test-pkg","repository":"https://github.com/test/pkg"}"#)
+        .await
+        .expect("bugs must succeed");
+    assert_eq!(opened_urls(), ["https://github.com/test/pkg/issues"]);
+}
+
+#[tokio::test]
+async fn run_normalizes_git_plus_https_repository_url_with_dot_git() {
+    run_bugs_in_project(
+        r#"{"name":"test-pkg","repository":{"url":"git+https://github.com/test/pkg.git"}}"#,
+    )
+    .await
+    .expect("bugs must succeed");
+    assert_eq!(opened_urls(), ["https://github.com/test/pkg/issues"]);
+}
+
+fn version_response(name: &str, extra_fields: serde_json::Value) -> String {
+    let mut version = json!({
+        "name": name,
+        "version": "1.0.0",
+        "dist": {
+            "tarball": "https://example.com/pkg.tgz",
+        },
+    });
+    let fields = version.as_object_mut().expect("version response is an object");
+    let serde_json::Value::Object(extra) = extra_fields else {
+        panic!("extra fields must be an object");
+    };
+    fields.extend(extra);
+    version.to_string()
+}
+
+async fn run_bugs_against_registry(registry: String, package: &str) -> miette::Result<()> {
+    let config = Config { registry, ..Config::default() };
+    let args = BugsArgs { registry: None, packages: vec![package.to_owned()] };
+    args.run::<RecordingBrowser>(&config, Path::new(".")).await
+}
+
+#[tokio::test]
+async fn run_opens_bugs_url_of_registry_package() {
+    let mut server = mockito::Server::new_async().await;
+    let body = version_response(
+        "is-negative",
+        json!({ "bugs": { "url": "https://github.com/kevva/is-negative/issues" } }),
+    );
+    let mock = server
+        .mock("GET", "/is-negative/latest")
+        .with_status(200)
+        .with_body(&body)
+        .create_async()
+        .await;
+
+    run_bugs_against_registry(server.url(), "is-negative").await.expect("bugs must succeed");
+
+    mock.assert_async().await;
+    assert_eq!(opened_urls(), ["https://github.com/kevva/is-negative/issues"]);
+}
+
+#[tokio::test]
+async fn run_opens_repository_issues_url_of_registry_package() {
+    let mut server = mockito::Server::new_async().await;
+    let body = version_response(
+        "test-pkg",
+        json!({ "repository": { "url": "git+https://github.com/test/pkg.git" } }),
+    );
+    let mock = server
+        .mock("GET", "/test-pkg/latest")
+        .with_status(200)
+        .with_body(&body)
+        .create_async()
+        .await;
+
+    run_bugs_against_registry(server.url(), "test-pkg").await.expect("bugs must succeed");
+
+    mock.assert_async().await;
+    assert_eq!(opened_urls(), ["https://github.com/test/pkg/issues"]);
+}
+
+#[tokio::test]
+async fn run_encodes_scoped_package_name_in_registry_request() {
+    let mut server = mockito::Server::new_async().await;
+    let body = version_response(
+        "@scope/pkg",
+        json!({ "bugs": { "url": "https://github.com/scope/pkg/issues" } }),
+    );
+    let mock = server
+        .mock("GET", "/@scope%2Fpkg/latest")
+        .with_status(200)
+        .with_body(&body)
+        .create_async()
+        .await;
+
+    run_bugs_against_registry(server.url(), "@scope/pkg").await.expect("bugs must succeed");
+
+    mock.assert_async().await;
+    assert_eq!(opened_urls(), ["https://github.com/scope/pkg/issues"]);
 }

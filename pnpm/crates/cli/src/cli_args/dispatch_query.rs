@@ -467,7 +467,7 @@ pub(super) fn ignored_builds<'a>(
 pub(super) fn bugs<'a>(ctx: &RunCtx<'a>, args: BugsArgs) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.config)()?;
     let dir = ctx.dir;
-    Ok(Box::pin(async move { args.run(cfg, dir).await }))
+    Ok(Box::pin(async move { args.run::<pacquet_network_web_auth::Host>(cfg, dir).await }))
 }
 
 pub(super) fn find_hash<'a>(

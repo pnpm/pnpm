@@ -3,6 +3,7 @@ use std::path::Path;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
 use pacquet_config::Config;
+use pacquet_network_web_auth::OpenUrl;
 use pacquet_package_manifest::safe_read_package_json_from_dir;
 use pacquet_registry::{PackageTag, PackageVersion};
 use serde_json::Value;
@@ -38,10 +39,10 @@ pub struct BugsArgs {
 }
 
 impl BugsArgs {
-    pub async fn run(&self, config: &Config, dir: &Path) -> miette::Result<()> {
+    pub async fn run<Sys: OpenUrl>(&self, config: &Config, dir: &Path) -> miette::Result<()> {
         if self.packages.is_empty() {
             let url = get_bugs_url_from_current_project(dir)?;
-            open_url(&url);
+            open_url::<Sys>(&url);
         } else {
             let http_client = build_registry_client(config)
                 .wrap_err("build the network client for registry requests")?;
@@ -75,7 +76,7 @@ impl BugsArgs {
                 futures_util::future::join_all(futures).await;
             for res in results {
                 let url = res?;
-                open_url(&url);
+                open_url::<Sys>(&url);
             }
         }
         Ok(())
@@ -299,12 +300,12 @@ fn normalize_registry_url(url: &str) -> String {
     if url.ends_with('/') { url.to_owned() } else { format!("{url}/") }
 }
 
-fn open_url(url: &str) {
+fn open_url<Sys: OpenUrl>(url: &str) {
     let sanitized = crate::cli_args::sanitize::sanitize(url);
     let redacted = pacquet_network::redact_url_credentials(&sanitized);
     println!("{redacted}");
 
-    // Clear username/password before passing to open_url_in_browser:
+    // Clear username/password before passing to the browser:
     let clean_url_for_browser = if let Ok(mut parsed) = Url::parse(url) {
         if !parsed.username().is_empty() || parsed.password().is_some() {
             let _ = parsed.set_username("");
@@ -319,62 +320,9 @@ fn open_url(url: &str) {
 
     let clean_url_for_browser = crate::cli_args::sanitize::sanitize(&clean_url_for_browser);
 
-    let result = open_url_in_browser(&clean_url_for_browser);
-    if let Err(err) = result {
+    if let Err(err) = Sys::open_url(&clean_url_for_browser) {
         tracing::debug!(target: "pacquet_cli", %err, "could not open browser");
     }
-}
-
-#[cfg(target_os = "linux")]
-fn open_url_in_browser(url: &str) -> std::io::Result<()> {
-    std::process::Command::new("xdg-open")
-        .arg(url)
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()?;
-    Ok(())
-}
-
-#[cfg(target_os = "macos")]
-fn open_url_in_browser(url: &str) -> std::io::Result<()> {
-    std::process::Command::new("open")
-        .arg(url)
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()?;
-    Ok(())
-}
-
-#[cfg(target_os = "windows")]
-fn open_url_in_browser(url: &str) -> std::io::Result<()> {
-    use std::ffi::OsStr;
-    use std::os::windows::ffi::OsStrExt;
-
-    let url_wide: Vec<u16> = OsStr::new(url).encode_wide().chain(std::iter::once(0)).collect();
-
-    // ShellExecuteW invokes the default handler for the URL protocol
-    // without shell metacharacter injection. The function takes a
-    // fully-qualified path (or registered protocol) so it does not
-    // depend on the executable search path or the SystemRoot env var,
-    // avoiding the hijack vector that rundll32.exe is subject to.
-    let result = unsafe {
-        windows_sys::Win32::UI::Shell::ShellExecuteW(
-            std::ptr::null_mut(), // hwnd
-            std::ptr::null(),     // lpOperation (null => "open")
-            url_wide.as_ptr(),    // lpFile
-            std::ptr::null(),     // lpParameters
-            std::ptr::null(),     // lpDirectory
-            windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
-        )
-    };
-    if (result as isize) > 32 { Ok(()) } else { Err(std::io::Error::last_os_error()) }
-}
-
-#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
-fn open_url_in_browser(_url: &str) -> std::io::Result<()> {
-    Ok(())
 }
 
 fn parse_package_spec(spec: &str) -> (&str, Option<&str>) {
