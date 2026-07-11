@@ -878,7 +878,7 @@ fn save_preserves_the_source_indentation() {
 
     let cases = [
         ("tabs.json", "{\n\t\"name\": \"foo\"\n}\n", "\t\"name\""),
-        ("wide.json", "{\n    \"name\": \"foo\"\n}\n", "    \"name\""),
+        ("wide.json", "{\n    \"name\": \"foo\"\n}\n", r#"    "name""#),
     ];
     for (file_name, source, expected_fragment) in cases {
         let path = dir.path().join(file_name);
@@ -893,7 +893,7 @@ fn save_preserves_the_source_indentation() {
     }
 
     let single_line = dir.path().join("single-line.json");
-    std::fs::write(&single_line, "{\"name\":\"foo\"}").unwrap();
+    std::fs::write(&single_line, r#"{"name":"foo"}"#).unwrap();
     let mut manifest = PackageManifest::from_path(single_line.clone()).unwrap();
     manifest.add_dependency("fastify", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
