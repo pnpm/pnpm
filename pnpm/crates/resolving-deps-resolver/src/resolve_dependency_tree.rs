@@ -1891,7 +1891,16 @@ where
         && let Some(manifest) = result_inner.manifest.take()
     {
         let log = ctx.workspace.read_package_log.clone().unwrap_or_else(|| Arc::new(|_| {}));
-        let hook_ctx = pacquet_hooks::HookContext { log };
+        // Directory resolutions carry their lockfile-root-relative dir so the
+        // hook can tell a workspace project's dependency instance apart from a
+        // registry manifest — see `HookContext::dir`.
+        let dir = match &result_inner.resolution {
+            pacquet_lockfile::LockfileResolution::Directory(directory_resolution) => {
+                Some(directory_resolution.directory.clone())
+            }
+            _ => None,
+        };
+        let hook_ctx = pacquet_hooks::HookContext { log, dir };
 
         let updated = pnpmfile_hook
             .read_package((*manifest).clone(), hook_ctx)

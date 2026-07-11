@@ -4830,6 +4830,7 @@ name = "pacquet-resolving-deps-resolver"
 version = "0.0.1"
 dependencies = [
  "async-recursion",
+ "async-trait",
  "chrono",
  "derive_more",
  "futures-util",

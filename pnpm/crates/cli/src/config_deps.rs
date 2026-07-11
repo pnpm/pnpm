@@ -415,7 +415,7 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     let mut current = input.clone();
     for pnpmfile in &pnpmfiles {
         let hooks = finder::load_pnpmfile_at(pnpmfile.clone());
-        let ctx = HookContext { log: hook_logger::<Reporter>(pnpmfile, &prefix) };
+        let ctx = HookContext { log: hook_logger::<Reporter>(pnpmfile, &prefix), dir: None };
         current = hooks
             .update_config(current, ctx)
             .await

@@ -88,7 +88,10 @@ function readPackage(pkg) {
     });
 
     let result = hooks
-        .read_package(manifest.clone(), pacquet_hooks::HookContext { log: Arc::new(|_| {}) })
+        .read_package(
+            manifest.clone(),
+            pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
+        )
         .await;
 
     let updated = result.expect("readPackage should succeed");
@@ -121,7 +124,10 @@ function readPackage(pkg) {
     });
 
     let result = hooks
-        .read_package(manifest.clone(), pacquet_hooks::HookContext { log: Arc::new(|_| {}) })
+        .read_package(
+            manifest.clone(),
+            pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
+        )
         .await;
 
     let updated = result.expect("readPackage should succeed");
@@ -154,7 +160,9 @@ function filterLog(log) {
     });
 
     assert!(
-        hooks.filter_log(debug_log, pacquet_hooks::HookContext { log: Arc::new(|_| {}) }).await,
+        hooks
+            .filter_log(debug_log, pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None })
+            .await,
     );
 
     let warn_log = serde_json::json!({
@@ -163,7 +171,9 @@ function filterLog(log) {
     });
 
     assert!(
-        !hooks.filter_log(warn_log, pacquet_hooks::HookContext { log: Arc::new(|_| {}) }).await,
+        !hooks
+            .filter_log(warn_log, pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None })
+            .await,
     );
 }
 
@@ -198,7 +208,10 @@ function readPackage(pkg) {
     });
 
     let result = hooks
-        .read_package(manifest.clone(), pacquet_hooks::HookContext { log: Arc::new(|_| {}) })
+        .read_package(
+            manifest.clone(),
+            pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
+        )
         .await;
 
     let updated = result.unwrap_or_else(|err| {
@@ -312,7 +325,7 @@ async fn read_package_err(source: &str) -> String {
     hooks
         .read_package(
             serde_json::json!({ "name": "foo", "version": "1.0.0" }),
-            pacquet_hooks::HookContext { log: Arc::new(|_| {}) },
+            pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
         )
         .await
         .expect_err("readPackage should fail")
@@ -374,7 +387,7 @@ async fn read_package_normalizes_missing_dependency_fields() {
     let updated = hooks
         .read_package(
             serde_json::json!({ "name": "x", "version": "1.0.0" }),
-            pacquet_hooks::HookContext { log: Arc::new(|_| {}) },
+            pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
         )
         .await
         .expect("readPackage should succeed after normalization");
@@ -417,7 +430,7 @@ async fn worker_multiplexes_concurrent_read_package_calls() {
             let updated = hooks
                 .read_package(
                     serde_json::json!({ "name": name, "version": "1.0.0" }),
-                    pacquet_hooks::HookContext { log: Arc::new(|_| {}) },
+                    pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
                 )
                 .await
                 .expect("readPackage should succeed");
@@ -449,6 +462,7 @@ async fn worker_forwards_read_package_context_log() {
             serde_json::json!({ "name": "foo", "version": "1.0.0" }),
             pacquet_hooks::HookContext {
                 log: Arc::new(move |message| sink.lock().unwrap().push(message)),
+                dir: None,
             },
         )
         .await
@@ -458,7 +472,7 @@ async fn worker_forwards_read_package_context_log() {
 }
 
 fn noop_context() -> pacquet_hooks::HookContext {
-    pacquet_hooks::HookContext { log: Arc::new(|_| {}) }
+    pacquet_hooks::HookContext { log: Arc::new(|_| {}), dir: None }
 }
 
 #[test]

@@ -3076,3 +3076,103 @@ mod cycle_edges {
         );
     }
 }
+
+/// The `(name, dir)` pairs recorded by [`RecordingHooks`].
+type RecordedReadPackageCalls = std::sync::Arc<Mutex<Vec<(String, Option<String>)>>>;
+
+/// [`pacquet_hooks::PnpmfileHooks`] stub that records the `(name, dir)` pair
+/// of every `read_package` call and returns the manifest unchanged.
+struct RecordingHooks {
+    calls: RecordedReadPackageCalls,
+}
+
+#[async_trait::async_trait]
+impl pacquet_hooks::PnpmfileHooks for RecordingHooks {
+    async fn read_package(
+        &self,
+        pkg: serde_json::Value,
+        ctx: pacquet_hooks::HookContext,
+    ) -> Result<pacquet_hooks::ReadPackageResult, pacquet_hooks::HookError> {
+        let name = pkg.get("name").and_then(|name| name.as_str()).unwrap_or_default().to_string();
+        self.calls.lock().unwrap().push((name, ctx.dir));
+        Ok(std::sync::Arc::new(pkg))
+    }
+
+    async fn after_all_resolved(
+        &self,
+        lockfile: serde_json::Value,
+        _ctx: pacquet_hooks::HookContext,
+    ) -> Result<serde_json::Value, pacquet_hooks::HookError> {
+        Ok(lockfile)
+    }
+
+    async fn pre_resolution(
+        &self,
+        _ctx: pacquet_hooks::PreResolutionHookContext,
+        _logger: pacquet_hooks::PreResolutionHookLogger,
+    ) {
+    }
+
+    async fn filter_log(&self, _log: serde_json::Value, _ctx: pacquet_hooks::HookContext) -> bool {
+        true
+    }
+}
+
+/// A host needs the directory to tell a workspace project's dependency
+/// instance apart from registry packages and substitute its raw manifest.
+#[tokio::test]
+async fn read_package_hook_receives_the_directory_of_directory_resolutions() {
+    use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
+
+    let mut injected = fake_result(
+        "injected",
+        "1.0.0",
+        serde_json::json!({ "name": "injected", "version": "1.0.0" }),
+    );
+    injected.resolution = LockfileResolution::Directory(DirectoryResolution {
+        directory: "packages/injected".to_string(),
+    });
+    let mut table = HashMap::new();
+    table.insert(("injected".to_string(), "file:packages/injected".to_string()), injected);
+    table.insert(
+        ("regular".to_string(), "^2.0.0".to_string()),
+        fake_result(
+            "regular",
+            "2.1.0",
+            serde_json::json!({ "name": "regular", "version": "2.1.0" }),
+        ),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({
+        "injected": "file:packages/injected",
+        "regular": "^2.0.0",
+    }));
+    let calls = std::sync::Arc::new(Mutex::new(Vec::new()));
+    let hooks = RecordingHooks { calls: std::sync::Arc::clone(&calls) };
+
+    resolve_dependency_tree(
+        &resolver,
+        &manifest,
+        [DependencyGroup::Prod],
+        ResolveDependencyTreeOptions {
+            base_opts: ResolveOptions::default(),
+            patched_dependencies: None,
+            manifest_hook: None,
+            pnpmfile_hook: Some(std::sync::Arc::new(hooks)),
+            read_package_log: None,
+            auto_install_peers: false,
+        },
+    )
+    .await
+    .unwrap();
+
+    let mut calls = calls.lock().unwrap().clone();
+    calls.sort();
+    assert_eq!(
+        calls,
+        vec![
+            ("injected".to_string(), Some("packages/injected".to_string())),
+            ("regular".to_string(), None),
+        ],
+    );
+}
