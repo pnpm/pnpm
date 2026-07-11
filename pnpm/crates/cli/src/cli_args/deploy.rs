@@ -859,6 +859,9 @@ fn create_deploy_files(
     }
 
     let mut deploy_lockfile = lockfile.clone();
+    // The deployed manifest contains concrete dependency versions, so catalog
+    // snapshots would refer to configuration that is not copied to the target.
+    deploy_lockfile.catalogs = None;
     deploy_lockfile.patched_dependencies = None;
     deploy_lockfile.overrides = None;
     deploy_lockfile.package_extensions_checksum = None;

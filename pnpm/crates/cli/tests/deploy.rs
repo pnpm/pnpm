@@ -56,6 +56,36 @@ fn deploy_from_shared_lockfile_installs_selected_project() {
 }
 
 #[test]
+fn deploy_from_shared_lockfile_supports_catalog_dependencies() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, true);
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml = fs::read_to_string(&workspace_yaml_path).unwrap();
+    workspace_yaml.push_str("catalog:\n  '@pnpm.e2e/foo': 100.0.0\n");
+    fs::write(workspace_yaml_path, workspace_yaml).unwrap();
+    let manifest_path = workspace.join("packages/app/package.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
+    manifest["dependencies"]["@pnpm.e2e/foo"] = serde_json::Value::String("catalog:".to_string());
+    fs::write(manifest_path, manifest.to_string()).unwrap();
+
+    pacquet.with_arg("install").assert().success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod", "deploy"])
+        .assert()
+        .success();
+
+    let deploy_dir = workspace.join("deploy");
+    assert!(deploy_dir.join("node_modules/@pnpm.e2e/foo").exists());
+    let lockfile = fs::read_to_string(deploy_dir.join("pnpm-lock.yaml")).unwrap();
+    assert!(!lockfile.contains("catalogs:"), "unexpected catalog snapshot:\n{lockfile}");
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn deploy_refuses_non_empty_target_without_force() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
