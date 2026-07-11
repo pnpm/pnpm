@@ -101,6 +101,114 @@ fn links_the_host_platform_binary_into_scoped_exe_wrapper() {
     assert_eq!(fs::read(&dest).expect("read linked binary"), b"#!/bin/sh\necho pnpm\n");
 }
 
+/// Lay out the wrapper slot of a fake global-virtual-store engine install
+/// (`links/<scope-or-@>/<name>/<version>/<hash>`) and return the slot
+/// directory. The platform package is left to each test: the real installer
+/// materializes it as a symlink to a sibling slot, which is exactly the
+/// resolution under test.
+#[cfg(unix)]
+fn fake_gvs_wrapper_slot(
+    links_dir: &std::path::Path,
+    wrapper_pkg_name: &str,
+) -> std::path::PathBuf {
+    let slot = match wrapper_pkg_name.split_once('/') {
+        Some((scope, name)) => links_dir.join(scope).join(name),
+        None => links_dir.join("@").join(wrapper_pkg_name),
+    }
+    .join("12.0.0-alpha.7")
+    .join("cafe0123");
+    fs::create_dir_all(package_dir(&slot, wrapper_pkg_name)).expect("create wrapper dir");
+    fs::create_dir_all(slot.join("node_modules").join("@pnpm")).expect("create scope dir");
+    slot
+}
+
+/// Materialize the native platform package in its own sibling slot under
+/// `links` and return the package directory the wrapper's platform symlink
+/// should point at.
+#[cfg(unix)]
+fn fake_gvs_native_slot(links_dir: &std::path::Path) -> std::path::PathBuf {
+    let platform_dir = exe_platform_pkg_dir_name_next(host_platform(), host_arch(), host_libc());
+    let native_pkg_dir = links_dir
+        .join("@pnpm")
+        .join(&platform_dir)
+        .join("12.0.0-alpha.7")
+        .join("beef4567")
+        .join("node_modules")
+        .join("@pnpm")
+        .join(&platform_dir);
+    fs::create_dir_all(&native_pkg_dir).expect("create native package dir");
+    fs::write(native_pkg_dir.join("pnpm"), b"#!/bin/sh\necho pnpm\n").expect("write native binary");
+    native_pkg_dir
+}
+
+/// `packageManager` delegation installs the engine into the global virtual
+/// store, where the unscoped `pnpm` wrapper sits under the `@` placeholder
+/// scope and its platform package legitimately resolves into a sibling slot
+/// — the trust root must widen to `links` instead of the wrapper's own slot.
+#[cfg(unix)]
+#[test]
+fn links_native_binary_from_a_sibling_global_virtual_store_slot() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let links_dir = temp.path().join("links");
+    let slot = fake_gvs_wrapper_slot(&links_dir, "pnpm");
+    let native_pkg_dir = fake_gvs_native_slot(&links_dir);
+    let platform_dir = exe_platform_pkg_dir_name_next(host_platform(), host_arch(), host_libc());
+    std::os::unix::fs::symlink(
+        &native_pkg_dir,
+        slot.join("node_modules").join("@pnpm").join(platform_dir),
+    )
+    .expect("symlink platform package to the sibling slot");
+
+    link_exe_platform_binary(&slot, "pnpm").expect("linking should succeed");
+
+    let dest = package_dir(&slot, "pnpm").join("pnpm");
+    assert!(dest.exists(), "the native binary is linked into the wrapper");
+    assert_eq!(fs::read(&dest).expect("read linked binary"), b"#!/bin/sh\necho pnpm\n");
+}
+
+#[cfg(unix)]
+#[test]
+fn links_native_binary_from_a_sibling_slot_into_the_scoped_wrapper() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let links_dir = temp.path().join("links");
+    let slot = fake_gvs_wrapper_slot(&links_dir, PNPM_EXE_PACKAGE_NAME);
+    let native_pkg_dir = fake_gvs_native_slot(&links_dir);
+    let platform_dir = exe_platform_pkg_dir_name_next(host_platform(), host_arch(), host_libc());
+    std::os::unix::fs::symlink(
+        &native_pkg_dir,
+        slot.join("node_modules").join("@pnpm").join(platform_dir),
+    )
+    .expect("symlink platform package to the sibling slot");
+
+    link_exe_platform_binary(&slot, PNPM_EXE_PACKAGE_NAME).expect("linking should succeed");
+
+    assert!(package_dir(&slot, PNPM_EXE_PACKAGE_NAME).join("pnpm").exists());
+}
+
+/// A platform-package symlink that leaves `links` entirely must still be
+/// rejected even when the wrapper sits in a global-virtual-store slot.
+#[cfg(unix)]
+#[test]
+fn rejects_native_binary_that_escapes_the_global_virtual_store() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let outside = tempfile::tempdir().expect("outside tempdir");
+    let links_dir = temp.path().join("links");
+    let slot = fake_gvs_wrapper_slot(&links_dir, "pnpm");
+    let platform_dir = exe_platform_pkg_dir_name_next(host_platform(), host_arch(), host_libc());
+    let outside_pkg_dir = outside.path().join(&platform_dir);
+    fs::create_dir_all(&outside_pkg_dir).expect("create outside package dir");
+    fs::write(outside_pkg_dir.join("pnpm"), b"outside").expect("write outside binary");
+    std::os::unix::fs::symlink(
+        &outside_pkg_dir,
+        slot.join("node_modules").join("@pnpm").join(platform_dir),
+    )
+    .expect("symlink platform package outside the store");
+
+    let err = link_exe_platform_binary(&slot, "pnpm").expect_err("escaped native source rejected");
+    assert!(err.to_string().contains("resolves outside"), "unexpected error: {err:?}");
+    assert!(!package_dir(&slot, "pnpm").join("pnpm").exists());
+}
+
 #[cfg(unix)]
 #[test]
 fn rejects_wrapper_symlink_that_escapes_the_install_dir() {
