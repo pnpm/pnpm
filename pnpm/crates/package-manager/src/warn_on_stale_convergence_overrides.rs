@@ -13,10 +13,12 @@
 //! install paths never run this check.
 
 use crate::overrides::parse_declared_range;
+use futures_util::future;
 use node_semver::Version;
 use pacquet_config_parse_overrides::VersionOverride;
 use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
+use pipe_trait::Pipe;
 use std::{
     collections::{HashMap, HashSet},
     future::Future,
@@ -64,12 +66,14 @@ where
         if parsed_ranges.is_empty() {
             continue;
         }
-        let mut candidates = Vec::new();
-        for range in ranges {
-            if let Some(version) = resolve_range(name.clone(), range.clone()).await {
-                candidates.push(version);
-            }
-        }
+        let mut candidates: Vec<Version> = ranges
+            .iter()
+            .map(|range| resolve_range(name.clone(), range.clone()))
+            .pipe(future::join_all)
+            .await
+            .into_iter()
+            .flatten()
+            .collect();
         candidates.retain(|candidate| *candidate > current);
         candidates.sort_unstable_by(|lhs, rhs| rhs.cmp(lhs));
         let best = candidates
