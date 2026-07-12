@@ -13,9 +13,11 @@ pub const VERIFY_DEPS_BEFORE_RUN_ENV: &str = "pnpm_config_verify_deps_before_run
 
 /// Inputs needed to build the env for a single lifecycle hook spawn:
 /// the package context, the per-call stamps the hook runner adds, and
-/// the caller-supplied `extra_env` (the user's `updateConfig`
-/// `extraEnv`), which pnpm's reserved stamps override — see
-/// [`build_env`].
+/// the caller-supplied `extra_env`. `extra_env` carries the user's
+/// `updateConfig` `extraEnv` plus any pnpm-controlled keys the caller
+/// merges in first (e.g. `NODE_OPTIONS` from `nodeOptions`); the
+/// reserved per-call stamps below override all of it regardless of
+/// origin — see [`build_env`].
 pub struct EnvOptions<'a> {
     pub stage: &'a str,
     pub script: &'a str,
@@ -94,13 +96,14 @@ pub fn build_env(
         env.insert("npm_execpath".into(), p.to_string_lossy().into_owned());
     }
 
-    // 4. `extra_env` (which now carries the user's `updateConfig`
-    //    `extraEnv`) is applied BEFORE the reserved per-call stamps
+    // 4. `extra_env` (the user's `updateConfig` `extraEnv` plus any
+    //    pnpm-controlled keys the caller merged in, such as
+    //    `NODE_OPTIONS`) is applied BEFORE the reserved per-call stamps
     //    below, so pnpm's own stamps win on conflict. This mirrors TS
     //    `runLifecycleHook`, which spreads `{ ...extraEnv, INIT_CWD,
     //    PNPM_SCRIPT_SRC_DIR, npm_config_user_agent }` — the reserved
-    //    keys overwrite anything `extraEnv` set. A user `extraEnv`
-    //    entry for a non-reserved key still takes effect.
+    //    keys overwrite anything `extra_env` set. A non-reserved key
+    //    still takes effect.
     for (k, v) in opts.extra_env {
         env.insert(k.clone(), v.clone());
     }
