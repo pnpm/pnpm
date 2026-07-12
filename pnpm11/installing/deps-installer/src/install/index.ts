@@ -1723,6 +1723,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         dedupeDirectDeps: opts.dedupeDirectDeps,
         dependenciesByProjectId,
         depsStateCache,
+        deferDependencyBuilds: opts.deferDependencyBuilds,
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
         extraNodePaths: ctx.extraNodePaths,

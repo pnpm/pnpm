@@ -465,6 +465,7 @@ export async function recursive (
             bin: path.join(rootDir, 'node_modules', '.bin'),
             dir: rootDir,
             hooks,
+            deferDependencyBuilds: !opts.lockfileOnly && !opts.ignoreScripts,
             ignoreScripts: true,
             pinnedVersion: getPinnedVersion({
               saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
