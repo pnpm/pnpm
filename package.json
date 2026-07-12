@@ -3,7 +3,6 @@
   "private": true,
   "scripts": {
     "bump": "node pnpm11/__utils__/scripts/src/bump.ts && pn update-manifests",
-    "changeset": "changeset",
     "prepare": "husky",
     "pretest": "pn compile-only && pn prepare-fixtures",
     "prepare-fixtures": "pn --dir=pnpm11/__fixtures__ prepareFixtures",
@@ -18,7 +17,7 @@
     "test-branch": "pn pretest && pn lint && git remote set-branches --add origin main && git fetch origin main && pn test-pkgs-branch",
     "ci:test-branch": "pn prepare-fixtures && pn test-pkgs-branch",
     "test-pkgs-branch": "pn remove-temp-dir && pn --workspace-concurrency=1 --filter=...[origin/main] --no-sort --if-present .test",
-    "compile-only": "tsgo --build pnpm11/workspace/workspace-manifest-reader pnpm11/workspace/projects-reader && pnx node@runtime:26.4.0 pnpm11/__utils__/scripts/src/typecheck-only.ts && pn -F=pnpm compile",
+    "compile-only": "tsgo --build pnpm11/workspace/workspace-manifest-reader pnpm11/workspace/projects-reader && pnx node@runtime:26.4.0 pnpm11/__utils__/scripts/src/typecheck-only.ts && pn -F=pnpm{pnpm11/pnpm} compile",
     "compile": "pn compile-only && pn update-manifests",
     "build:pnpm": "cargo build --release --bin pnpm",
     "make-lcov": "shx mkdir -p coverage && lcov-result-merger 'pnpm11/**/coverage/lcov.info' 'coverage/lcov.info'",
@@ -31,11 +30,10 @@
     "update:npm-signing-keys": "node pnpm11/deps/security/signatures/scripts/update-npm-signing-keys.mjs --update",
     "check:node-release-keys": "node pnpm11/crypto/shasums-file/scripts/update-node-release-keys.mjs",
     "update:node-release-keys": "node pnpm11/crypto/shasums-file/scripts/update-node-release-keys.mjs --update",
-    "release": "pn --filter=@pnpm/exe run build-artifacts && pn --filter=@pnpm/exe publish --tag=next-11 --access=public --provenance && pn publish --filter=!pnpm --filter=!@pnpm/exe --access=public --provenance && pn publish --filter=pnpm --tag=next-11 --access=public --provenance",
+    "release": "pn --filter=@pnpm/exe run build-artifacts && pn --filter=@pnpm/exe publish --tag=next-11 --access=public --provenance && pn publish --filter=!pnpm{pnpm11/pnpm} --filter=!@pnpm/exe --access=public --provenance && pn publish --filter=pnpm{pnpm11/pnpm} --tag=next-11 --access=public --provenance",
     "dev-setup": "pn -C=./pnpm11/pnpm/dev link -g"
   },
   "devDependencies": {
-    "@changesets/cli": "catalog:",
     "@commitlint/cli": "catalog:",
     "@commitlint/config-conventional": "catalog:",
     "@commitlint/prompt-cli": "catalog:",

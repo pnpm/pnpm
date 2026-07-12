@@ -3,10 +3,10 @@
 // Generates the per-platform `@pnpm/exe.<target>` native packages and the
 // `@pnpm/exe` wrapper (an equal-content copy of the committed wrapper).
 //
-// The committed wrapper is the private workspace package `pacquet` (so its
-// name can't collide with the TypeScript CLI package `pnpm`, which changesets
-// and the meta-updater resolve by name); this script rewrites it into the
-// publishable `pnpm` manifest.
+// The committed wrapper is a private workspace package already named `pnpm`
+// (the v12 line, distinguished from the TypeScript CLI at pnpm11/pnpm by its
+// directory); this script strips `private` and adds the platform packages to
+// turn it into the publishable manifest.
 
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -84,16 +84,15 @@ function generateNativePackage(target) {
   fs.chmodSync(binaryTarget, 0o755);
 }
 
-// Rewrite the committed `pacquet` manifest into the publishable `pnpm` one:
-// the published name, no `private` flag, and the full set of
-// `@pnpm/exe.<target>` optional dependencies. Other fields are preserved.
+// Make the committed `pnpm` wrapper manifest publishable: drop the `private`
+// flag and add the full set of `@pnpm/exe.<target>` optional dependencies.
+// Other fields are preserved.
 function patchPnpmWrapperManifest() {
   const nativePackages = TARGETS.map((target) => [
     nativePackageName(target),
     rootManifest.version,
   ]);
 
-  rootManifest["name"] = "pnpm";
   delete rootManifest["private"];
   rootManifest["optionalDependencies"] = Object.fromEntries(nativePackages);
 

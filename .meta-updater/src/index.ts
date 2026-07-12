@@ -21,14 +21,16 @@ const EXPERIMENTAL_PKGS = new Set([
   '@pnpm/pnpr.client',
 ])
 
-// The Rust products' npm wrapper packages. Their manifests are release
-// artifacts owned by the respective generate-packages.mjs scripts and are
-// versioned by changesets independently of the TypeScript packages, so none
-// of the normalizations below may touch them.
-const RUST_WRAPPER_PKGS = new Set([
-  'pacquet',
-  '@pnpm/napi',
-  '@pnpm/pnpr',
+// The Rust products' npm wrapper packages, keyed by workspace-relative
+// directory. Their manifests are release artifacts owned by the respective
+// generate-packages.mjs scripts and are versioned independently of the
+// TypeScript packages, so none of the normalizations below may touch them.
+// Keyed by directory, not name, because the Rust CLI wrapper publishes as
+// `pnpm` — the same name as the TypeScript CLI at pnpm11/pnpm.
+const RUST_WRAPPER_DIRS = new Set([
+  'pnpm/npm/pnpm',
+  'pnpm/npm/napi',
+  'pnpr/npm/pnpr',
 ])
 
 // Files that must be packed with mode 0755 in both `pnpm` and `@pnpm/exe`.
@@ -78,11 +80,11 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         if (!manifest) {
           return manifest
         }
-        if (manifest.name && RUST_WRAPPER_PKGS.has(manifest.name)) {
+        if (RUST_WRAPPER_DIRS.has(normalizePath(path.relative(workspaceDir, dir)))) {
           return manifest
         }
         if (manifest.name === 'monorepo-root') {
-          manifest.scripts!['release'] = `pn --filter=@pnpm/exe run build-artifacts && pn --filter=@pnpm/exe publish --tag=${nextTag} --access=public --provenance && pn publish --filter=!pnpm --filter=!@pnpm/exe --access=public --provenance && pn publish --filter=pnpm --tag=${nextTag} --access=public --provenance`
+          manifest.scripts!['release'] = `pn --filter=@pnpm/exe run build-artifacts && pn --filter=@pnpm/exe publish --tag=${nextTag} --access=public --provenance && pn publish --filter=!pnpm{pnpm11/pnpm} --filter=!@pnpm/exe --access=public --provenance && pn publish --filter=pnpm{pnpm11/pnpm} --tag=${nextTag} --access=public --provenance`
           syncNodeRuntimeInScripts(manifest, nodeRuntimeVersion)
           return sortKeysInManifest(manifest)
         }
@@ -417,7 +419,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       break
   }
   if (manifest.name && PKGS_NEEDING_CLI_COMPILE.has(manifest.name)) {
-    scripts.test = 'pn compile && pn --filter=pnpm compile && pn .test'
+    scripts.test = 'pn compile && pn --filter=pnpm{pnpm11/pnpm} compile && pn .test'
   }
   // Clean up old underscore-prefixed script names
   delete scripts._test

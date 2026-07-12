@@ -57,6 +57,30 @@ packages:
   - '!**/test/**'
   - '!pnpm11/resolving/local-resolver/example-package/**'
 
+# Native workspace release management (consumed by `pnpm change` / `pnpm version -r`).
+# The Rust CLI wrapper publishes as `pnpm` too (the v12 line), so it shares the
+# name of the TypeScript CLI at ./pnpm11/pnpm and must be referenced by directory.
+versioning:
+  # @pnpm/logger is a workspace package, but every consumer depends on the
+  # published one through the `^1100.0.0` catalog entry (a `catalog:` peer, kept
+  # deliberately so Jest loads the published CJS-bole logger — see the `bole`
+  # note in the catalog). The release engine would otherwise reject those
+  # catalog: peers as internal ranges that must use the workspace: protocol, so
+  # freeze @pnpm/logger from the automated release: it is bumped out of band.
+  ignore:
+    - '@pnpm/logger'
+  # The Rust CLI wrapper and its NAPI addon always release in lockstep at one
+  # shared version.
+  fixed:
+    - ['./pnpm/npm/pnpm', '@pnpm/napi']
+  # The Rust products release as `X.Y.Z-alpha.N` prereleases (published under the
+  # `next` dist-tag) while the TypeScript CLI keeps releasing stable versions on
+  # the main lane. `pnpm lane main --filter …` graduates a product to stable.
+  lanes:
+    './pnpm/npm/pnpm': alpha
+    '@pnpm/napi': alpha
+    '@pnpm/pnpr': alpha
+
 allowBuilds:
   core-js: false
   esbuild: true
@@ -80,7 +104,6 @@ auditConfig:
 catalog:
   '@babel/core': ^7.29.7
   '@babel/plugin-transform-explicit-resource-management': ^7.29.7
-  '@changesets/cli': ^2.31.0
   '@commitlint/cli': ^21.0.2
   '@commitlint/config-conventional': ^21.0.2
   '@commitlint/prompt-cli': ^21.0.2

@@ -82,8 +82,8 @@ jobs:
           NAPI_VERSION=$(jq -r .version pnpm/npm/napi/package.json)
           PNPR_VERSION=$(jq -r .version pnpr/npm/pnpr/package.json)
 
-          # pacquet and @pnpm/napi are a changesets fixed group; a drift means
-          # the versions were edited by hand inconsistently.
+          # The pnpm v12 wrapper and @pnpm/napi are a versioning.fixed group;
+          # a drift means the versions were edited by hand inconsistently.
           if [ "$RUST_VERSION" != "$NAPI_VERSION" ]; then
             echo "::error::pnpm/npm/pnpm ($RUST_VERSION) and pnpm/npm/napi ($NAPI_VERSION) versions differ"
             exit 1
@@ -168,11 +168,13 @@ jobs:
         run: |
           trap 'pn config delete "//registry.npmjs.org/:_authToken" || true' EXIT
           pn config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
-          pn publish --filter=!pnpm --filter=!@pnpm/exe --access=public --provenance
+          pn publish --filter='!pnpm{pnpm11/pnpm}' --filter=!@pnpm/exe --access=public --provenance
       - name: Publish pnpm CLI (trusted publishing)
         # No NPM_TOKEN — same rationale as the @pnpm/exe step above. This must come after
         # the previous step has cleared its NPM_TOKEN from pnpm's config.
-        run: pn publish --filter=pnpm --tag=next-11 --access=public --provenance
+        # The name filter is qualified by directory because the Rust CLI wrapper
+        # publishes as `pnpm` too; this selects only the TypeScript CLI.
+        run: pn publish --filter='pnpm{pnpm11/pnpm}' --tag=next-11 --access=public --provenance
       - name: Copy Artifacts
         run: pn copy-artifacts
       - name: Attest build provenance
@@ -381,8 +383,8 @@ jobs:
           done
 
       - name: Generate npm packages
-        # Rewrites the committed private `pacquet` wrapper into the publishable
-        # `pnpm` manifest and generates the per-platform packages.
+        # Strips `private` from the committed `pnpm` wrapper (the v12 line) to
+        # make it publishable and generates the per-platform packages.
         run: |
           node pnpm/npm/pnpm/scripts/generate-packages.mjs
           node pnpm/npm/napi/scripts/generate-packages.mjs
