@@ -59,8 +59,8 @@ export function help (): string {
       'pnpm version <newversion>',
       'pnpm version <major|minor|patch|premajor|preminor|prepatch|prerelease>',
       'pnpm version -r [--dry-run] [--snapshot [<tag>]]',
-      'pnpm version pre enter <tag> --filter <pattern>',
-      'pnpm version pre exit --filter <pattern>',
+      'pnpm version unstable <tag> --filter <pattern>',
+      'pnpm version stable --filter <pattern>',
     ],
     descriptionLists: [
       {
@@ -155,8 +155,8 @@ export async function handler (
 ): Promise<string | { output?: string, exitCode: number }> {
   const rawBump = params[0]
 
-  if (rawBump === 'pre') {
-    return handlePrereleaseLine(opts, params.slice(1))
+  if (rawBump === 'stable' || rawBump === 'unstable') {
+    return handlePrereleaseLine(opts, rawBump, params.slice(1))
   }
 
   if (!rawBump) {
@@ -278,16 +278,15 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
   return output
 }
 
-async function handlePrereleaseLine (opts: VersionHandlerOptions, params: string[]): Promise<string> {
+async function handlePrereleaseLine (opts: VersionHandlerOptions, action: 'stable' | 'unstable', params: string[]): Promise<string> {
   const workspaceDir = opts.workspaceDir
   if (!workspaceDir) {
-    throw new PnpmError('WORKSPACE_ONLY', '"pnpm version pre" manages per-package prerelease lines and is only supported in a workspace')
+    throw new PnpmError('WORKSPACE_ONLY', `"pnpm version ${action}" manages per-package prerelease lines and is only supported in a workspace`)
   }
   if ((opts.filter ?? []).length === 0) {
-    throw new PnpmError('VERSIONING_PRE_FILTER_REQUIRED', 'Select the packages to move with --filter, e.g. "pnpm version pre enter alpha --filter <pkg>..."')
+    throw new PnpmError('VERSIONING_PRE_FILTER_REQUIRED', `Select the packages to move with --filter, e.g. "pnpm version ${action === 'unstable' ? 'unstable alpha' : 'stable'} --filter <pkg>..."`)
   }
 
-  const action = params[0]
   const releasable = new Set(getReleasablePkgNames(opts.allProjects ?? [], opts.versioning))
   const selected = selectedPkgNames(opts.selectedProjectsGraph ?? {}).filter((name) => releasable.has(name))
   if (selected.length === 0) {
@@ -296,28 +295,26 @@ async function handlePrereleaseLine (opts: VersionHandlerOptions, params: string
 
   const prereleases = { ...opts.versioning?.prereleases }
   let output: string
-  if (action === 'enter') {
-    const tag = params[1]
+  if (action === 'unstable') {
+    const tag = params[0]
     // A purely numeric tag is rejected because semver parses an all-digit
     // prerelease identifier as a number, which changes sorting semantics.
     if (!tag || !/^[0-9A-Z-]+$/i.test(tag) || /^\d+$/.test(tag)) {
-      throw new PnpmError('VERSIONING_INVALID_PRERELEASE_TAG', 'A prerelease tag is required, e.g. "pnpm version pre enter alpha". Tags may contain only alphanumerics and hyphens, and cannot be purely numeric.')
+      throw new PnpmError('VERSIONING_INVALID_PRERELEASE_TAG', 'A prerelease tag is required, e.g. "pnpm version unstable alpha". Tags may contain only alphanumerics and hyphens, and cannot be purely numeric.')
     }
     for (const name of selected) {
       if (prereleases[name] != null && prereleases[name] !== tag) {
-        throw new PnpmError('VERSIONING_ALREADY_ON_LINE', `${name} is already on the "${prereleases[name]}" prerelease line. Exit it first with "pnpm version pre exit".`)
+        throw new PnpmError('VERSIONING_ALREADY_ON_LINE', `${name} is already on the "${prereleases[name]}" prerelease line. Move it back with "pnpm version stable" first.`)
       }
       prereleases[name] = tag
     }
     output = `Entered the "${tag}" prerelease line:\n${selected.map((name) => `  ${name}\n`).join('')}`
-  } else if (action === 'exit') {
+  } else {
     for (const name of selected) {
       delete prereleases[name]
     }
     output = `Exited the prerelease line:\n${selected.map((name) => `  ${name}\n`).join('')}` +
       'The accumulated stable versions release on the next "pnpm version -r" run.'
-  } else {
-    throw new PnpmError('INVALID_PRE_ACTION', 'Expected "pnpm version pre enter <tag>" or "pnpm version pre exit"')
   }
 
   const versioning: VersioningSettings = { ...opts.versioning }

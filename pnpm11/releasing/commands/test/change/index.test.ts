@@ -94,7 +94,7 @@ describe('change command and intent-consuming version -r', () => {
     expect(output).toContain('No pending changes')
   })
 
-  it('version pre enter and exit update versioning.prereleases in pnpm-workspace.yaml', async () => {
+  it('version unstable and stable update versioning.prereleases in pnpm-workspace.yaml', async () => {
     const cli = addPkg({ name: 'cli', version: '2.0.0' })
     const opts = {
       ...baseOpts([cli]),
@@ -104,17 +104,17 @@ describe('change command and intent-consuming version -r', () => {
       },
     }
 
-    await version.handler(opts as any, ['pre', 'enter', 'alpha']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    await version.handler(opts as any, ['unstable', 'alpha']) // eslint-disable-line @typescript-eslint/no-explicit-any
     expect(fs.readFileSync(path.join(tempDir, 'pnpm-workspace.yaml'), 'utf8')).toContain('cli: alpha')
 
-    await version.handler({ ...opts, versioning: { prereleases: { cli: 'alpha' } } } as any, ['pre', 'exit']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    await version.handler({ ...opts, versioning: { prereleases: { cli: 'alpha' } } } as any, ['stable']) // eslint-disable-line @typescript-eslint/no-explicit-any
     expect(fs.readFileSync(path.join(tempDir, 'pnpm-workspace.yaml'), 'utf8')).not.toContain('alpha')
   })
 
-  it('version pre requires a filter', async () => {
+  it('version unstable requires a filter', async () => {
     const cli = addPkg({ name: 'cli', version: '2.0.0' })
     await expect(
-      version.handler(baseOpts([cli]) as any, ['pre', 'enter', 'alpha']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      version.handler(baseOpts([cli]) as any, ['unstable', 'alpha']) // eslint-disable-line @typescript-eslint/no-explicit-any
     ).rejects.toMatchObject({ code: 'ERR_PNPM_VERSIONING_PRE_FILTER_REQUIRED' })
   })
 })
