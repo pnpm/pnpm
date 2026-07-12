@@ -1,4 +1,4 @@
-import { checkbox, input, select } from '@inquirer/prompts'
+import { checkbox, input, Separator } from '@inquirer/prompts'
 import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import {
@@ -15,6 +15,8 @@ import {
   writeChangeIntent,
 } from '@pnpm/releasing.versioning'
 import type { Project, VersioningSettings } from '@pnpm/types'
+import { getChangedProjects } from '@pnpm/workspace.projects-filter'
+import { safeExeca as execa } from 'execa'
 import { renderHelp } from 'render-help'
 import { valid } from 'semver'
 
@@ -58,7 +60,9 @@ export function help (): string {
 }
 
 export type ChangeCommandOptions = Pick<Config,
+| 'changedFilesIgnorePattern'
 | 'dir'
+| 'testPattern'
 | 'versioning'
 | 'workspaceDir'
 > & {
@@ -105,36 +109,127 @@ async function recordChange (workspaceDir: string, opts: ChangeCommandOptions, p
     throw new PnpmError('VERSIONING_INVALID_BUMP', `Invalid bump type: ${opts.bump}. Expected one of ${BUMP_TYPES.join(', ')}`)
   }
 
-  // For a name shared by several projects the interactive picker offers each
-  // project under its directory reference, so the written intent stays
-  // unambiguous without the contributor knowing the rule exists.
   const pkgRefs = params.length > 0
     ? params
-    : await checkbox({
-      message: 'Which packages does this change affect?',
-      choices: releasable.map((project) => ({
-        value: project.ref,
-        name: project.ref === project.name ? project.name : `${project.name} (./${project.dir})`,
-      })),
-      required: true,
-    })
+    : await promptForPackages(releasable, workspaceDir, opts)
 
-  const releases: Record<string, IntentBumpType> = {}
-  for (const ref of pkgRefs) {
-    releases[ref] = (opts.bump as IntentBumpType | undefined) ??
-      // eslint-disable-next-line no-await-in-loop
-      await select<IntentBumpType>({
-        message: `Bump type for ${ref}`,
-        choices: BUMP_TYPES.map((bumpType) => ({ value: bumpType })).reverse(),
-        default: 'patch',
-      })
-  }
+  const releases = opts.bump != null
+    ? Object.fromEntries(pkgRefs.map((ref) => [ref, opts.bump as IntentBumpType]))
+    : await promptBumpTypes(pkgRefs)
 
   const summary = opts.summary ??
     await input({ message: 'Summary of the change (becomes the changelog entry):', required: true })
 
   const id = await writeChangeIntent(workspaceDir, { releases, summary })
   return `Recorded change intent .changeset/${id}.md`
+}
+
+/**
+ * The affected-packages picker, changesets-style: the packages whose
+ * directories the branch touched are grouped first (under a "changed
+ * packages" heading) and preselected, the rest listed below under "unchanged
+ * packages". A name shared by several projects is offered under its directory
+ * reference so the written intent stays unambiguous. Change detection is
+ * best-effort — outside a git repo, or when no base branch can be found, the
+ * list falls back to a flat, unselected picker.
+ */
+async function promptForPackages (
+  releasable: ReleasableProject[],
+  workspaceDir: string,
+  opts: ChangeCommandOptions
+): Promise<string[]> {
+  const changedDirs = await detectChangedDirs(releasable, workspaceDir, opts)
+  const label = (project: ReleasableProject): string =>
+    project.ref === project.name ? project.name : `${project.name} (./${project.dir})`
+
+  let choices: Array<Separator | { value: string, name: string, checked?: boolean }>
+  if (changedDirs.size > 0) {
+    const changed = releasable.filter((project) => changedDirs.has(project.dir))
+    const unchanged = releasable.filter((project) => !changedDirs.has(project.dir))
+    choices = [
+      new Separator('changed packages'),
+      ...changed.map((project) => ({ value: project.ref, name: label(project), checked: true })),
+      ...(unchanged.length > 0 ? [new Separator('unchanged packages')] : []),
+      ...unchanged.map((project) => ({ value: project.ref, name: label(project) })),
+    ]
+  } else {
+    choices = releasable.map((project) => ({ value: project.ref, name: label(project) }))
+  }
+
+  return checkbox<string>({
+    message: 'Which packages does this change affect?',
+    choices,
+    required: true,
+  })
+}
+
+/**
+ * The workspace-relative directories the current branch changed, relative to
+ * the base branch, using the same detection behind `--filter="[<ref>]"`.
+ * Returns an empty set on any failure so the picker degrades to a flat list.
+ */
+async function detectChangedDirs (
+  releasable: ReleasableProject[],
+  workspaceDir: string,
+  opts: ChangeCommandOptions
+): Promise<Set<string>> {
+  const baseCommit = await detectBaseCommit(workspaceDir)
+  if (baseCommit == null) return new Set()
+  try {
+    const projectDirs = (opts.allProjects ?? []).map((project) => project.rootDir)
+    const [changedRootDirs] = await getChangedProjects(projectDirs, baseCommit, {
+      workspaceDir,
+      testPattern: opts.testPattern,
+      changedFilesIgnorePattern: opts.changedFilesIgnorePattern,
+    })
+    const releasableDirs = new Set(releasable.map((project) => project.dir))
+    return new Set(
+      changedRootDirs
+        .map((rootDir) => toProjectDir(workspaceDir, rootDir))
+        .filter((dir) => releasableDirs.has(dir))
+    )
+  } catch {
+    return new Set()
+  }
+}
+
+/** The merge-base of HEAD with the default branch, or `undefined`. */
+async function detectBaseCommit (cwd: string): Promise<string | undefined> {
+  for (const branch of ['main', 'master']) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const { stdout } = await execa('git', ['merge-base', 'HEAD', branch], { cwd })
+      const commit = String(stdout).trim()
+      if (commit !== '') return commit
+    } catch {
+      // Try the next candidate branch.
+    }
+  }
+  return undefined
+}
+
+/**
+ * The changesets-style bump picker: ask which packages get a major bump, then
+ * which of the rest get a minor, and default whatever remains to patch. One
+ * multiselect per level reads far better than a per-package prompt when many
+ * packages are affected.
+ */
+async function promptBumpTypes (pkgRefs: string[]): Promise<Record<string, IntentBumpType>> {
+  const bumpByRef = new Map<string, IntentBumpType>()
+  let remaining = [...pkgRefs]
+  for (const bumpType of ['major', 'minor'] as const) {
+    if (remaining.length === 0) break
+    // eslint-disable-next-line no-await-in-loop
+    const chosen = new Set(await checkbox<string>({
+      message: `Which packages should have a ${bumpType} bump?`,
+      choices: remaining.map((ref) => ({ value: ref })),
+    }))
+    for (const ref of chosen) bumpByRef.set(ref, bumpType)
+    remaining = remaining.filter((ref) => !chosen.has(ref))
+  }
+  for (const ref of remaining) bumpByRef.set(ref, 'patch')
+  // Emit in the original selection order rather than grouped by bump level.
+  return Object.fromEntries(pkgRefs.map((ref) => [ref, bumpByRef.get(ref)!]))
 }
 
 async function renderStatus (workspaceDir: string, opts: ChangeCommandOptions): Promise<string> {

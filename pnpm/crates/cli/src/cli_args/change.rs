@@ -1,6 +1,6 @@
 use clap::Args;
 use derive_more::{Display, Error};
-use dialoguer::{Input, MultiSelect, Select};
+use dialoguer::{Input, MultiSelect};
 use indexmap::IndexMap;
 use miette::{Diagnostic, IntoDiagnostic};
 use node_semver::Version;
@@ -12,7 +12,12 @@ use pacquet_versioning::{
     read_change_intents, read_ledger, to_project_dir, write_change_intent,
 };
 use pacquet_workspace::Project;
-use std::{collections::HashSet, path::Path};
+use pacquet_workspace_projects_filter::{GetChangedProjectsOptions, get_changed_projects};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 use crate::cli_args::recursive::discover_workspace_projects;
 
@@ -115,19 +120,17 @@ impl ChangeArgs {
         // each project under its directory reference, so the written intent
         // stays unambiguous without the contributor knowing the rule exists.
         let pkg_refs = if self.params.is_empty() {
-            prompt_for_packages(&releasable)?
+            let changed_dirs =
+                detect_changed_dirs(&releasable, &engine_projects, &workspace_dir, config);
+            prompt_for_packages(&releasable, &changed_dirs)?
         } else {
             self.params.clone()
         };
 
-        let mut releases: IndexMap<String, IntentBumpType> = IndexMap::new();
-        for reference in pkg_refs {
-            let bump_type = match bump {
-                Some(bump) => bump,
-                None => prompt_for_bump(&reference)?,
-            };
-            releases.insert(reference, bump_type);
-        }
+        let releases: IndexMap<String, IntentBumpType> = match bump {
+            Some(bump) => pkg_refs.into_iter().map(|reference| (reference, bump)).collect(),
+            None => prompt_bump_types(&pkg_refs)?,
+        };
 
         let summary = match &self.summary {
             Some(summary) => summary.clone(),
@@ -153,45 +156,133 @@ fn parse_bump(bump: &str) -> Option<IntentBumpType> {
     }
 }
 
-fn prompt_for_packages(releasable: &[ReleasableProject]) -> miette::Result<Vec<String>> {
-    let labels: Vec<String> = releasable
+/// The affected-packages picker. The packages whose directories the branch
+/// touched come first and are preselected; the rest follow. (dialoguer has no
+/// section headings, so the grouping is conveyed by order and preselection
+/// rather than the "changed packages" / "unchanged packages" separators the
+/// TypeScript CLI's inquirer prompt renders.) A name shared by several
+/// projects is offered under its directory reference so the written intent
+/// stays unambiguous.
+fn prompt_for_packages(
+    releasable: &[ReleasableProject],
+    changed_dirs: &HashSet<String>,
+) -> miette::Result<Vec<String>> {
+    let mut ordered: Vec<&ReleasableProject> =
+        releasable.iter().filter(|project| changed_dirs.contains(&project.dir)).collect();
+    ordered.extend(releasable.iter().filter(|project| !changed_dirs.contains(&project.dir)));
+
+    let items: Vec<(String, bool)> = ordered
         .iter()
         .map(|project| {
-            if project.reference == project.name {
+            let label = if project.reference == project.name {
                 project.name.clone()
             } else {
                 format!("{} (./{})", project.name, project.dir)
-            }
+            };
+            (label, changed_dirs.contains(&project.dir))
         })
         .collect();
+
     loop {
         let indices = MultiSelect::new()
             .with_prompt(
                 "Which packages does this change affect? (<space> to select, <enter> to confirm)",
             )
-            .items(&labels)
+            .items_checked(items.iter().cloned())
             .interact()
             .into_diagnostic()?;
         if !indices.is_empty() {
-            return Ok(indices
-                .into_iter()
-                .map(|index| releasable[index].reference.clone())
-                .collect());
+            return Ok(indices.into_iter().map(|index| ordered[index].reference.clone()).collect());
         }
         println!("Select at least one package.");
     }
 }
 
-fn prompt_for_bump(pkg_name: &str) -> miette::Result<IntentBumpType> {
-    const CHOICES: [IntentBumpType; 4] =
-        [IntentBumpType::Major, IntentBumpType::Minor, IntentBumpType::Patch, IntentBumpType::None];
-    let index = Select::new()
-        .with_prompt(format!("Bump type for {pkg_name}"))
-        .items(CHOICES.map(|choice| choice.to_string()))
-        .default(2)
-        .interact()
-        .into_diagnostic()?;
-    Ok(CHOICES[index])
+/// The workspace-relative directories the current branch changed, relative to
+/// the base branch, using the same detection behind `--filter="[<ref>]"`.
+/// Returns an empty set on any failure so the picker degrades to a flat list.
+fn detect_changed_dirs(
+    releasable: &[ReleasableProject],
+    engine_projects: &[WorkspaceProject],
+    workspace_dir: &Path,
+    config: &Config,
+) -> HashSet<String> {
+    let Some(base_commit) = detect_base_commit(workspace_dir) else {
+        return HashSet::new();
+    };
+    let project_dirs: Vec<PathBuf> =
+        engine_projects.iter().map(|project| project.root_dir.clone()).collect();
+    let opts = GetChangedProjectsOptions {
+        workspace_dir,
+        test_pattern: &config.test_pattern,
+        changed_files_ignore_pattern: &config.changed_files_ignore_pattern,
+    };
+    let Ok(changed) = get_changed_projects(project_dirs, &base_commit, &opts) else {
+        return HashSet::new();
+    };
+    let releasable_dirs: HashSet<&str> =
+        releasable.iter().map(|project| project.dir.as_str()).collect();
+    changed
+        .changed_projects
+        .iter()
+        .map(|root_dir| to_project_dir(workspace_dir, root_dir))
+        .filter(|dir| releasable_dirs.contains(dir.as_str()))
+        .collect()
+}
+
+/// The merge-base of HEAD with the default branch, or `None`.
+fn detect_base_commit(cwd: &Path) -> Option<String> {
+    for branch in ["main", "master"] {
+        let Ok(output) =
+            Command::new("git").args(["merge-base", "HEAD", branch]).current_dir(cwd).output()
+        else {
+            continue;
+        };
+        if output.status.success() {
+            let commit = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !commit.is_empty() {
+                return Some(commit);
+            }
+        }
+    }
+    None
+}
+
+/// The changesets-style bump picker: ask which packages get a major bump,
+/// then which of the rest get a minor, and default whatever remains to patch.
+/// One multiselect per level reads far better than a per-package prompt when
+/// many packages are affected. Bumps are returned in the original selection
+/// order rather than grouped by level.
+fn prompt_bump_types(pkg_refs: &[String]) -> miette::Result<IndexMap<String, IntentBumpType>> {
+    let mut bump_by_ref: IndexMap<String, IntentBumpType> = IndexMap::new();
+    let mut remaining: Vec<String> = pkg_refs.to_vec();
+    for (label, bump_type) in [("major", IntentBumpType::Major), ("minor", IntentBumpType::Minor)] {
+        if remaining.is_empty() {
+            break;
+        }
+        let chosen: HashSet<usize> = MultiSelect::new()
+            .with_prompt(format!(
+                "Which packages should have a {label} bump? (<space> to select, <enter> to confirm)",
+            ))
+            .items(&remaining)
+            .interact()
+            .into_diagnostic()?
+            .into_iter()
+            .collect();
+        let mut next_remaining = Vec::new();
+        for (index, reference) in remaining.into_iter().enumerate() {
+            if chosen.contains(&index) {
+                bump_by_ref.insert(reference, bump_type);
+            } else {
+                next_remaining.push(reference);
+            }
+        }
+        remaining = next_remaining;
+    }
+    for reference in remaining {
+        bump_by_ref.insert(reference, IntentBumpType::Patch);
+    }
+    Ok(pkg_refs.iter().map(|reference| (reference.clone(), bump_by_ref[reference])).collect())
 }
 
 fn render_status(

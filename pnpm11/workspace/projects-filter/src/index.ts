@@ -11,6 +11,7 @@ import { getChangedProjects } from './getChangedProjects.js'
 import { parseProjectSelector, type ProjectSelector } from './parseProjectSelector.js'
 
 export { filterProjectsBySelectorObjectsFromDir, parseProjectSelector, type ProjectSelector }
+export { getChangedProjects } from './getChangedProjects.js'
 
 export interface WorkspaceFilter {
   filter: string
