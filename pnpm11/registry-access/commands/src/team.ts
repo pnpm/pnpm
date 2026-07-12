@@ -6,7 +6,7 @@ import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type Fetc
 import type { Registries, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 
-import { normalizeRegistryUrl, rcOptionsTypes } from './common.js'
+import { normalizeRegistryUrl, rcOptionsTypes, readErrorBody } from './common.js'
 
 export { rcOptionsTypes }
 
@@ -119,90 +119,6 @@ export async function handler (
       throw new PnpmError('TEAM_SUBCOMMAND_REQUIRED',
         'Subcommand is required (create, destroy, add, rm, ls). Use `pnpm team ls <scope>` to list teams.')
   }
-}
-
-/**
- * Parse a scope:team string. Returns the scope (without @) and optional team name.
- * Format: @scope or @scope:team
- */
-function parseScopeTeam (spec: string): { scope: string, team?: string } {
-  if (!spec.startsWith('@')) {
-    throw new PnpmError('TEAM_INVALID_SCOPE',
-      `Team spec must start with @scope, got "${spec}". Use @scope or @scope:team format.`)
-  }
-
-  const inner = spec.slice(1)
-  if (!inner) {
-    throw new PnpmError('TEAM_INVALID_SCOPE',
-      `Team spec must start with @scope, got "${spec}". Use @scope or @scope:team format.`)
-  }
-
-  const colonIndex = inner.indexOf(':')
-  if (colonIndex === -1) {
-    return { scope: inner }
-  }
-  const scope = inner.slice(0, colonIndex)
-  const team = inner.slice(colonIndex + 1)
-  if (!scope || !team) {
-    throw new PnpmError('TEAM_INVALID_SCOPE',
-      `Team spec must start with @scope, got "${spec}". Use @scope or @scope:team format.`)
-  }
-  return { scope, team }
-}
-
-function getAuthHeaderForRegistry (
-  configByUri: Record<string, RegistryConfig> | undefined,
-  registryUrl: string,
-  packageName: string
-): string | undefined {
-  const getAuthHeader = createGetAuthHeaderByURI(configByUri ?? {})
-  return getAuthHeader(registryUrl, { pkgName: packageName })
-}
-
-function getRegistryAndAuthForOrg (
-  opts: TeamOptions,
-  scope: string
-): { registryUrl: string, authHeader: string | undefined } {
-  const pkgName = `@${scope}/__pnpm_team__`
-  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, pkgName)
-  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, pkgName)
-  return { registryUrl, authHeader }
-}
-
-function getOrgTeamsUrl (registryUrl: string, scope: string): string {
-  return new URL(`-/org/${encodeURIComponent(scope)}/team`, normalizeRegistryUrl(registryUrl)).href
-}
-
-function getTeamUrl (registryUrl: string, scope: string, team: string): string {
-  return new URL(`-/team/${encodeURIComponent(scope)}/${encodeURIComponent(team)}`, normalizeRegistryUrl(registryUrl)).href
-}
-
-function getTeamMembersUrl (registryUrl: string, scope: string, team: string): string {
-  return new URL(`-/team/${encodeURIComponent(scope)}/${encodeURIComponent(team)}/user`, normalizeRegistryUrl(registryUrl)).href
-}
-
-async function throwRegistryError (response: Response, action: string): Promise<never> {
-  const errorBody = await response.text()
-  const safeErrorBody = [...errorBody]
-    .filter(c => {
-      const code = c.charCodeAt(0)
-      return code > 0x1f && (code < 0x7f || code > 0x9f)
-    })
-    .join('')
-    .slice(0, 500)
-  if (response.status === 401) {
-    throw new PnpmError('UNAUTHORIZED', `You must be logged in to ${action}. ${safeErrorBody}`)
-  }
-  if (response.status === 403) {
-    throw new PnpmError('FORBIDDEN', `You do not have permission to ${action}. ${safeErrorBody}`)
-  }
-  if (response.status === 404) {
-    throw new PnpmError('NOT_FOUND', `Organization or team not found. ${safeErrorBody}`)
-  }
-  if (response.status === 409) {
-    throw new PnpmError('TEAM_CONFLICT', `Team operation failed due to conflict. ${safeErrorBody}`)
-  }
-  throw new PnpmError('REGISTRY_ERROR', `Failed to ${action}: ${response.status} ${response.statusText}. ${safeErrorBody}`)
 }
 
 interface TeamInfo {
@@ -462,4 +378,88 @@ async function teamListMembers (options: TeamListOptions & { team: string }): Pr
     lines.push(`  ${name}`)
   }
   return lines.join('\n')
+}
+
+/**
+ * Parse a scope:team string. Returns the scope (without @) and optional team name.
+ * Format: @scope or @scope:team
+ */
+function parseScopeTeam (spec: string): { scope: string, team?: string } {
+  if (!spec.startsWith('@')) {
+    throw new PnpmError('TEAM_INVALID_SCOPE',
+      `Team spec must start with @scope, got "${spec}". Use @scope or @scope:team format.`)
+  }
+
+  const inner = spec.slice(1)
+  if (!inner) {
+    throw new PnpmError('TEAM_INVALID_SCOPE',
+      `Team spec must start with @scope, got "${spec}". Use @scope or @scope:team format.`)
+  }
+
+  const colonIndex = inner.indexOf(':')
+  if (colonIndex === -1) {
+    return { scope: inner }
+  }
+  const scope = inner.slice(0, colonIndex)
+  const team = inner.slice(colonIndex + 1)
+  if (!scope || !team) {
+    throw new PnpmError('TEAM_INVALID_SCOPE',
+      `Team spec must start with @scope, got "${spec}". Use @scope or @scope:team format.`)
+  }
+  return { scope, team }
+}
+
+function getRegistryAndAuthForOrg (
+  opts: TeamOptions,
+  scope: string
+): { registryUrl: string, authHeader: string | undefined } {
+  const pkgName = `@${scope}/__pnpm_team__`
+  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, pkgName)
+  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, pkgName)
+  return { registryUrl, authHeader }
+}
+
+function getAuthHeaderForRegistry (
+  configByUri: Record<string, RegistryConfig> | undefined,
+  registryUrl: string,
+  packageName: string
+): string | undefined {
+  const getAuthHeader = createGetAuthHeaderByURI(configByUri ?? {})
+  return getAuthHeader(registryUrl, { pkgName: packageName })
+}
+
+function getOrgTeamsUrl (registryUrl: string, scope: string): string {
+  return new URL(`-/org/${encodeURIComponent(scope)}/team`, normalizeRegistryUrl(registryUrl)).href
+}
+
+function getTeamUrl (registryUrl: string, scope: string, team: string): string {
+  return new URL(`-/team/${encodeURIComponent(scope)}/${encodeURIComponent(team)}`, normalizeRegistryUrl(registryUrl)).href
+}
+
+function getTeamMembersUrl (registryUrl: string, scope: string, team: string): string {
+  return new URL(`-/team/${encodeURIComponent(scope)}/${encodeURIComponent(team)}/user`, normalizeRegistryUrl(registryUrl)).href
+}
+
+async function throwRegistryError (response: Response, action: string): Promise<never> {
+  const errorBody = await readErrorBody(response)
+  const safeErrorBody = [...errorBody]
+    .filter(c => {
+      const code = c.charCodeAt(0)
+      return code > 0x1f && (code < 0x7f || code > 0x9f)
+    })
+    .join('')
+    .slice(0, 500)
+  if (response.status === 401) {
+    throw new PnpmError('UNAUTHORIZED', `You must be logged in to ${action}. ${safeErrorBody}`)
+  }
+  if (response.status === 403) {
+    throw new PnpmError('FORBIDDEN', `You do not have permission to ${action}. ${safeErrorBody}`)
+  }
+  if (response.status === 404) {
+    throw new PnpmError('NOT_FOUND', `Organization or team not found. ${safeErrorBody}`)
+  }
+  if (response.status === 409) {
+    throw new PnpmError('TEAM_CONFLICT', `Team operation failed due to conflict. ${safeErrorBody}`)
+  }
+  throw new PnpmError('REGISTRY_ERROR', `Failed to ${action}: ${response.status} ${response.statusText}. ${safeErrorBody}`)
 }

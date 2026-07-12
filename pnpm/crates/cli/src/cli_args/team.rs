@@ -5,13 +5,13 @@ use futures_util::StreamExt as _;
 use miette::{Diagnostic, IntoDiagnostic, WrapErr};
 use pacquet_config::Config;
 use pacquet_network::{
-    NetworkSettings, RetryOpts, ThrottledClient, encode_uri_component, redact_url_credentials,
-    send_with_retry,
+    NetworkSettings, RedirectGuard, RetryOpts, ThrottledClient, encode_uri_component,
+    redact_url_credentials, send_with_retry,
 };
 use pacquet_resolving_npm_resolver::pick_registry_for_package;
 use reqwest::Response;
 use serde::Deserialize;
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 const TEAM_BODY_LIMIT: usize = 1024 * 1024;
 const TEAM_ERROR_BODY_LIMIT: usize = 64 * 1024;
@@ -260,9 +260,32 @@ impl TeamArgs {
         if let Some(registry) = &self.registry {
             registries.insert("default".to_string(), normalize_registry_url(registry));
         }
+        // When an OTP is in play, restrict redirects to the configured
+        // registry origins so a redirect cannot forward the `npm-otp` header
+        // to another host (reqwest only strips standard auth headers on
+        // cross-host redirects). Mirrors the `access` command's guard.
+        let redirect_guard = self.otp.as_ref().map(|_| {
+            let origins: Vec<(String, String, Option<u16>)> = registries
+                .values()
+                .filter_map(|registry| {
+                    reqwest::Url::parse(registry).ok().and_then(|url| {
+                        url.host_str()
+                            .map(|host| (url.scheme().to_string(), host.to_string(), url.port()))
+                    })
+                })
+                .collect();
+            let guard: RedirectGuard = Arc::new(move |target: &reqwest::Url| -> bool {
+                origins.iter().any(|(scheme, host, port)| {
+                    target.scheme() == scheme
+                        && target.host_str() == Some(host.as_str())
+                        && target.port() == *port
+                })
+            });
+            guard
+        });
         Ok(TeamContext {
             config,
-            http_client: build_http_client(config)?,
+            http_client: build_http_client(config, redirect_guard.as_ref())?,
             retry_opts: RetryOpts {
                 retries: config.fetch_retries,
                 factor: config.fetch_retry_factor,
@@ -567,8 +590,11 @@ fn apply_auth_and_otp(
     builder
 }
 
-fn build_http_client(config: &Config) -> miette::Result<ThrottledClient> {
-    ThrottledClient::for_installs(
+fn build_http_client(
+    config: &Config,
+    redirect_guard: Option<&RedirectGuard>,
+) -> miette::Result<ThrottledClient> {
+    ThrottledClient::for_installs_with_guard(
         &config.proxy,
         &config.tls,
         &config.tls_by_uri,
@@ -577,6 +603,7 @@ fn build_http_client(config: &Config) -> miette::Result<ThrottledClient> {
             fetch_timeout: Duration::from_millis(config.fetch_timeout),
             user_agent: config.user_agent.clone(),
         },
+        redirect_guard,
     )
     .into_diagnostic()
     .wrap_err("create the network client for team command")
