@@ -93,9 +93,13 @@ fn bench_packument(criterion: &mut Criterion, bytes: &[u8]) {
 /// per-iteration file read is page-cache-warm after the first pass, so the
 /// 12k-line YAML parse dominates the measurement.
 fn bench_lockfile(criterion: &mut Criterion, dir: &Path) {
-    let bytes = fs::read(dir.join("pnpm-lock.yaml")).unwrap().len();
+    assert!(
+        pacquet_lockfile::Lockfile::load_wanted_from_dir(dir).unwrap().is_some(),
+        "fixture lockfile must parse to Some, else the bench measures nothing",
+    );
+    let bytes = fs::metadata(dir.join(pacquet_lockfile::Lockfile::FILE_NAME)).unwrap().len();
     let mut group = criterion.benchmark_group("lockfile");
-    group.throughput(Throughput::Bytes(bytes as u64));
+    group.throughput(Throughput::Bytes(bytes));
     group.bench_function("parse_pnpm_lock", |bencher| {
         bencher.iter(|| {
             let lockfile =
@@ -122,7 +126,7 @@ pub fn main() -> Result<(), String> {
     // fetches during resolution. Refresh by saving
     // <https://registry.npmjs.org/lodash> requested with that `accept` header.
     let packument = fs::read(fixtures_folder.join("lodash.json")).unwrap();
-    // The integrated-benchmark's real 12k-line `pnpm-lock.yaml`.
+    // Reuse the integrated-benchmark's committed `pnpm-lock.yaml` fixture.
     let lockfile_dir = root.join("pnpm/tasks/integrated-benchmark/src/fixtures");
 
     bench_tarball(&mut criterion, &mut server, &fixtures_folder);
