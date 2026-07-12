@@ -24,9 +24,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use pacquet_deps_path::DepPath;
+use pacquet_deps_path::{DepPath, get_pkg_id_with_patch_hash};
 
-use crate::dependencies_graph::DependenciesGraph;
+use crate::{
+    dep_path_compatibility::is_compatible_and_has_more_deps, dependencies_graph::DependenciesGraph,
+};
 
 /// Per-importer direct deps map keyed by lockfile importer id (`"."`
 /// for the root, POSIX-relative path for siblings).
@@ -75,7 +77,7 @@ fn build_dedupe_map(
             };
             let target_direct = direct_by_importer.get(&target_project_id);
             let children_match = node.children.iter().all(|(child_alias, child_dep_path)| {
-                target_direct.and_then(|map| map.get(child_alias)) == Some(child_dep_path)
+                child_matches_target(graph, target_direct, child_alias, child_dep_path)
             });
             if !children_match {
                 continue;
@@ -87,6 +89,49 @@ fn build_dedupe_map(
         }
     }
     dedupe_map
+}
+
+/// Whether the injected snapshot's `child_alias → child_dep_path` edge is
+/// satisfied by the target project's own direct dep for that alias.
+///
+/// A byte-identical depPath is the common case. Beyond that, an ordinary
+/// (non-workspace) shared dependency of the injected package can resolve
+/// to a peer-suffixed variant on one side and a peer-free variant on the
+/// other — e.g. when reconciling against an existing lockfile pins an
+/// optional peer (debug's supports-color) for the target project's own
+/// resolution but not for the injected occurrence. Both are valid
+/// resolutions of the same package; what matters is whether the target
+/// project's own copy is at least as complete as what the injected
+/// occurrence needed, not that the two depPath strings match. See
+/// pnpm/pnpm#10433.
+///
+/// Only tolerate that when both sides are the *same package identity*
+/// (same `pkgIdWithPatchHash`, i.e. differing only by peer suffix).
+/// [`is_compatible_and_has_more_deps`] compares dependency/peer sets, not
+/// identity, so without this guard two different versions of a shared dep
+/// — leaf packages especially, whose sets are both empty — would be
+/// treated as interchangeable and wrongly deduped.
+fn child_matches_target(
+    graph: &DependenciesGraph,
+    target_direct: Option<&BTreeMap<String, DepPath>>,
+    child_alias: &str,
+    child_dep_path: &DepPath,
+) -> bool {
+    let Some(target_dep_path) = target_direct.and_then(|map| map.get(child_alias)) else {
+        return false;
+    };
+    if target_dep_path == child_dep_path {
+        return true;
+    }
+    if !graph.contains_key(target_dep_path) || !graph.contains_key(child_dep_path) {
+        return false;
+    }
+    if get_pkg_id_with_patch_hash(target_dep_path.as_str())
+        != get_pkg_id_with_patch_hash(child_dep_path.as_str())
+    {
+        return false;
+    }
+    is_compatible_and_has_more_deps(graph, target_dep_path, child_dep_path)
 }
 
 /// Return the workspace project id (lockfile importer key) this node

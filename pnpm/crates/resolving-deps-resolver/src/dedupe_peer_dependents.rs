@@ -24,6 +24,7 @@ use pacquet_deps_path::{DepPath, index_of_dep_path_suffix};
 
 use crate::{
     dedupe_injected_deps::{DirectByImporter, prune_unreachable},
+    dep_path_compatibility::{is_compatible_and_has_more_deps, node_deps_count},
     dependencies_graph::{DependenciesGraph, DependenciesGraphNode},
 };
 
@@ -163,38 +164,6 @@ fn deduplicate_dep_paths(
     }
 
     (dep_paths_map, remaining_duplicates)
-}
-
-/// Number of edges a variant carries: its child dependencies plus the
-/// peers it resolved against its ancestors.
-fn node_deps_count(node: &DependenciesGraphNode) -> usize {
-    node.children.len() + node.resolved_peer_names.len()
-}
-
-/// Whether `larger` can absorb `smaller`: it must have at least as many
-/// deps, every one of `smaller`'s child depPaths must appear among
-/// `larger`'s children, and every peer `smaller` resolved must also be
-/// resolved by `larger`.
-fn is_compatible_and_has_more_deps(
-    graph: &DependenciesGraph,
-    larger: &DepPath,
-    smaller: &DepPath,
-) -> bool {
-    let larger_node = &graph[larger];
-    let smaller_node = &graph[smaller];
-    if node_deps_count(larger_node) < node_deps_count(smaller_node) {
-        return false;
-    }
-
-    let larger_children: HashSet<&DepPath> = larger_node.children.values().collect();
-    if !smaller_node.children.values().all(|child| larger_children.contains(child)) {
-        return false;
-    }
-
-    smaller_node
-        .resolved_peer_names
-        .iter()
-        .all(|peer| larger_node.resolved_peer_names.contains(peer))
 }
 
 fn collapsed_target_matches_parent(

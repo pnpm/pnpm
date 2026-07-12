@@ -427,7 +427,6 @@ function deduplicateDepPaths<T extends PartialResolvedPackage> (
   }
 }
 
-
 function createPkgsByName<T extends PartialResolvedPackage> (
   dependenciesTree: DependenciesTree<T>,
   { directNodeIdsByAlias, topParents }: {
