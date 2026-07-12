@@ -25,7 +25,8 @@ fn save_leaves_the_original_intact_when_the_write_cannot_complete() {
     let original = r#"{"name":"intact","version":"1.0.0"}"#;
     std::fs::write(&path, original).unwrap();
 
-    let manifest = PackageManifest::from_path(path.clone()).unwrap();
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.add_dependency("fastify", "1.0.0", DependencyGroup::Prod).unwrap();
 
     // Make the directory read-only so a sibling temp file cannot be created.
     // An atomic temp-file-then-rename write fails up front and leaves the
@@ -50,7 +51,8 @@ fn save_preserves_the_existing_package_json_permissions() {
     std::fs::write(&path, r#"{"name":"perm","version":"1.0.0"}"#).unwrap();
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640)).unwrap();
 
-    let manifest = PackageManifest::from_path(path.clone()).unwrap();
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.add_dependency("fastify", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
     // The atomic temp-file-then-rename must keep the original mode, not leave
@@ -494,8 +496,8 @@ fn save_converts_runtime_dependencies_before_writing() {
             },
         })),
     );
-    assert_eq!(saved.get("devDependencies"), Some(&json!({})));
-    assert_eq!(saved.get("dependencies"), Some(&json!({})));
+    assert_eq!(saved.get("devDependencies"), None);
+    assert_eq!(saved.get("dependencies"), None);
 }
 
 #[test]
@@ -520,7 +522,10 @@ fn save_and_get_written_value_returns_saved_manifest() {
             },
         })),
     );
-    assert_eq!(saved.get("devDependencies"), Some(&json!({})));
+    // The reification-only `devDependencies` ends up empty after the fold
+    // and is dropped from the written file, while the in-memory manifest
+    // keeps the reified entry.
+    assert_eq!(saved.get("devDependencies"), None);
     assert_eq!(manifest.value().get("devDependencies"), Some(&json!({ "node": "runtime:22" })));
 }
 
@@ -547,7 +552,7 @@ fn save_prunes_removed_reified_runtime_entry() {
     let saved: serde_json::Value =
         serde_json::from_str(&read_to_string(path).unwrap()).expect("parse saved manifest");
     assert_eq!(saved.get("devEngines"), Some(&json!({})));
-    assert_eq!(saved.get("devDependencies"), Some(&json!({})));
+    assert_eq!(saved.get("devDependencies"), None);
 }
 
 #[test]
@@ -591,7 +596,7 @@ fn save_prunes_only_removed_reified_runtime_entry_from_array() {
             ],
         })),
     );
-    assert_eq!(saved.get("devDependencies"), Some(&json!({})));
+    assert_eq!(saved.get("devDependencies"), None);
 }
 
 #[test]
@@ -608,7 +613,7 @@ fn failed_save_preserves_existing_file_contents() {
     .unwrap();
     std::fs::write(&path, &raw).unwrap();
 
-    let manifest = PackageManifest::from_path(path.clone()).unwrap();
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
     assert!(matches!(manifest.save(), Err(PackageManifestError::InvalidAttribute(_))));
     assert_eq!(read_to_string(path).unwrap(), raw);
 }
@@ -829,4 +834,133 @@ fn from_value_coerces_non_object_input_to_an_empty_object() {
             .add_dependency("is-odd", "3.0.1", DependencyGroup::Prod)
             .expect("adding a dependency to a normalized manifest must not fail");
     }
+}
+
+/// A save round-trips the source file's final-newline state: a file that
+/// ends with a newline keeps it, a file that doesn't stays without one.
+#[test]
+fn save_preserves_the_final_newline_state_of_the_source_file() {
+    let dir = tempdir().unwrap();
+
+    let with_newline = dir.path().join("with-newline.json");
+    std::fs::write(&with_newline, "{\n  \"name\": \"foo\"\n}\n").unwrap();
+    let mut manifest = PackageManifest::from_path(with_newline.clone()).unwrap();
+    manifest.add_dependency("fastify", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+    assert!(read_to_string(with_newline).unwrap().ends_with('\n'));
+
+    let without_newline = dir.path().join("without-newline.json");
+    std::fs::write(&without_newline, "{\n  \"name\": \"foo\"\n}").unwrap();
+    let mut manifest = PackageManifest::from_path(without_newline.clone()).unwrap();
+    manifest.add_dependency("fastify", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+    assert!(!read_to_string(without_newline).unwrap().ends_with('\n'));
+}
+
+/// A manifest scaffolded for a project with no `package.json` ends with a
+/// newline, both as created and after a save.
+#[test]
+fn new_manifests_end_with_a_final_newline() {
+    let dir = tempdir().unwrap();
+    let tmp = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(tmp.clone()).unwrap();
+    assert!(read_to_string(&tmp).unwrap().ends_with('\n'));
+    manifest.save().unwrap();
+    assert!(read_to_string(&tmp).unwrap().ends_with('\n'));
+}
+
+/// A save re-serializes with the source file's own indentation unit: tabs
+/// stay tabs, wider space units stay wide, and a single-line document
+/// stays compact.
+#[test]
+fn save_preserves_the_source_indentation() {
+    let dir = tempdir().unwrap();
+
+    let cases = [
+        ("tabs.json", "{\n\t\"name\": \"foo\"\n}\n", "\t\"name\""),
+        ("wide.json", "{\n    \"name\": \"foo\"\n}\n", r#"    "name""#),
+    ];
+    for (file_name, source, expected_fragment) in cases {
+        let path = dir.path().join(file_name);
+        std::fs::write(&path, source).unwrap();
+        let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+        manifest.add_dependency("fastify", "1.0.0", DependencyGroup::Prod).unwrap();
+        manifest.save().unwrap();
+        let saved = read_to_string(&path).unwrap();
+        eprintln!("{file_name} SAVED:\n{saved}");
+        assert!(saved.contains(expected_fragment));
+        assert!(saved.contains("fastify"));
+    }
+
+    let single_line = dir.path().join("single-line.json");
+    std::fs::write(&single_line, r#"{"name":"foo"}"#).unwrap();
+    let mut manifest = PackageManifest::from_path(single_line.clone()).unwrap();
+    manifest.add_dependency("fastify", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+    assert_eq!(
+        read_to_string(&single_line).unwrap(),
+        r#"{"name":"foo","dependencies":{"fastify":"1.0.0"}}"#,
+    );
+}
+
+/// The preserved indentation unit is capped at 10 characters on write,
+/// like `JSON.stringify`'s `space` argument.
+#[test]
+fn save_caps_the_indentation_unit_at_ten_characters() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    let twelve_spaces = " ".repeat(12);
+    std::fs::write(&path, format!("{{\n{twelve_spaces}\"name\": \"foo\"\n}}\n")).unwrap();
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.add_dependency("fastify", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+
+    let saved = read_to_string(&path).unwrap();
+    eprintln!("SAVED:\n{saved}");
+    assert!(saved.contains(&format!("\n{}\"name\"", " ".repeat(10))));
+    assert!(!saved.contains(&format!("\n{twelve_spaces}\"name\"")));
+}
+
+/// A write sorts each dependency field by name and drops a dependency
+/// field that ended up empty, like pnpm's on-write manifest normalization.
+#[test]
+fn save_sorts_dependency_fields_and_drops_empty_ones() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    std::fs::write(
+        &path,
+        "{\n  \"name\": \"foo\",\n  \"dependencies\": {\n    \"zebra\": \"1.0.0\"\n  },\n  \"devDependencies\": {}\n}\n",
+    )
+    .unwrap();
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.add_dependency("aardvark", "2.0.0", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+
+    let saved = read_to_string(&path).unwrap();
+    eprintln!("SAVED:\n{saved}");
+    let aardvark = saved.find("aardvark").unwrap();
+    let zebra = saved.find("zebra").unwrap();
+    assert!(aardvark < zebra);
+    assert!(!saved.contains("devDependencies"));
+}
+
+/// A save that wouldn't change the manifest leaves the file byte-for-byte
+/// untouched — even a file in non-canonical form (unsorted dependencies)
+/// is only normalized when a real change triggers a write.
+#[test]
+fn noop_save_does_not_rewrite_the_file() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    let original = "{\n  \"name\": \"foo\",\n  \"dependencies\": {\n    \"zebra\": \"1.0.0\",\n    \"aardvark\": \"2.0.0\"\n  }\n}";
+    std::fs::write(&path, original).unwrap();
+
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.save().unwrap();
+    assert_eq!(read_to_string(&path).unwrap(), original);
+
+    // Re-adding an already-declared dependency at its existing version is
+    // also a no-op.
+    manifest.add_dependency("zebra", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+    assert_eq!(read_to_string(&path).unwrap(), original);
 }

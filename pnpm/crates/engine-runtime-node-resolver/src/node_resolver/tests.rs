@@ -115,6 +115,68 @@ fn normalized_runtime_spec_preserves_version_prefix() {
     assert_eq!(normalize_node_runtime_version_specifier("^22", "22.0.0-rc.0", None), "22.0.0-rc.0");
 }
 
+/// `add node@runtime:<spec>` saves the picked version, not the requested
+/// range — `runtime:26` must reach the manifest as `runtime:26.5.0`.
+#[tokio::test]
+async fn resolve_save_specifier_pins_the_picked_version() {
+    let mut server = mockito::Server::new_async().await;
+    let index = server
+        .mock("GET", "/download/release/index.json")
+        .with_status(200)
+        .with_body(
+            r#"[
+                {"version": "v26.5.0", "lts": false},
+                {"version": "v26.4.0", "lts": false},
+                {"version": "v24.13.0", "lts": "Krypton"}
+            ]"#,
+        )
+        .expect_at_least(1)
+        .create_async()
+        .await;
+    let mut resolver = resolver();
+    resolver
+        .node_download_mirrors
+        .insert("release".to_string(), format!("{}/download/release/", server.url()));
+
+    let cases = [
+        ("26", None, "runtime:26.5.0"),
+        ("^26", None, "runtime:^26.5.0"),
+        ("26", Some("runtime:~26.4.0"), "runtime:~26.5.0"),
+        ("", None, "runtime:26.5.0"),
+        ("lts", None, "runtime:24.13.0"),
+    ];
+    for (version_spec, prev_specifier, expected) in cases {
+        assert_eq!(
+            resolver.resolve_save_specifier(version_spec, prev_specifier).await.unwrap(),
+            expected,
+            "version_spec={version_spec:?}, prev_specifier={prev_specifier:?}",
+        );
+    }
+    index.assert_async().await;
+}
+
+#[tokio::test]
+async fn resolve_save_specifier_errors_when_no_version_satisfies() {
+    let mut server = mockito::Server::new_async().await;
+    let _index = server
+        .mock("GET", "/download/release/index.json")
+        .with_status(200)
+        .with_body(r#"[{"version": "v26.5.0", "lts": false}]"#)
+        .create_async()
+        .await;
+    let mut resolver = resolver();
+    resolver
+        .node_download_mirrors
+        .insert("release".to_string(), format!("{}/download/release/", server.url()));
+
+    let err = resolver.resolve_save_specifier("99", None).await.unwrap_err();
+    let code: &dyn miette::Diagnostic = &err;
+    assert_eq!(
+        code.code().map(|code| code.to_string()).as_deref(),
+        Some("NODEJS_VERSION_NOT_FOUND"),
+    );
+}
+
 #[tokio::test]
 async fn release_asset_reader_requires_signature_when_requested() {
     let mut server = mockito::Server::new_async().await;

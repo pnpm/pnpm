@@ -62,11 +62,32 @@ pub enum BundleDependencies {
     List(Vec<String>),
 }
 
+/// Indentation for manifests with no source file to detect it from
+/// (freshly scaffolded or in-memory).
+const DEFAULT_INDENT: &str = "  ";
+
 /// Content of the `package.json` files and its path.
+///
+/// Carries the source file's formatting (indentation unit, final-newline
+/// state) and its parsed value across the read/save round-trip, so
+/// [`Self::save`] preserves the file's style and skips the write entirely
+/// when nothing changed — the same contract as pnpm's project-manifest
+/// reader/writer pair.
 #[derive(Clone)]
 pub struct PackageManifest {
     path: PathBuf,
     value: Value, // TODO: convert this into a proper struct + an array of keys order
+    /// Whether a save ends the file with a newline. New and in-memory
+    /// manifests get one.
+    insert_final_newline: bool,
+    /// One indentation level. Empty for a single-line source document,
+    /// which then round-trips back to its compact form.
+    indent: String,
+    /// The manifest as the file currently encodes it (`devEngines` folded,
+    /// dependency fields normalized), used to skip a save that wouldn't
+    /// change the file. `None` when there is no file baseline (in-memory
+    /// manifests), so the first save always writes.
+    on_disk: Option<Value>,
 }
 
 impl PackageManifest {
@@ -85,11 +106,11 @@ impl PackageManifest {
         })
     }
 
-    fn write_to_file(path: &Path) -> Result<(Value, String), PackageManifestError> {
+    fn write_to_file(path: &Path) -> Result<String, PackageManifestError> {
         let manifest = PackageManifest::init_value_for(path);
-        let contents = serde_json::to_string_pretty(&manifest)?;
-        fs::write(path, &contents)?; // TODO: forbid overwriting existing files
-        Ok((manifest, contents))
+        let contents = serialize_with_indent(&manifest, DEFAULT_INDENT)?;
+        fs::write(path, format!("{contents}\n"))?; // TODO: forbid overwriting existing files
+        Ok(contents)
     }
 
     /// The scaffold manifest `pnpm init` (and [`Self::create_if_needed`])
@@ -126,19 +147,27 @@ impl PackageManifest {
         Ok(())
     }
 
-    fn read_from_file(path: &Path) -> Result<Value, PackageManifestError> {
-        let contents = fs::read_to_string(path)?;
+    fn read_from_file(path: PathBuf) -> Result<PackageManifest, PackageManifestError> {
+        let contents = fs::read_to_string(&path)?;
         let mut value: Value = serde_json::from_str(&contents)?;
+        let mut on_disk = value.clone();
+        normalize_dependency_fields(&mut on_disk);
         convert_engines_runtime_to_dependencies(&mut value, "devEngines", "devDependencies");
         convert_engines_runtime_to_dependencies(&mut value, "engines", "dependencies");
-        Ok(value)
+        Ok(PackageManifest {
+            path,
+            value,
+            insert_final_newline: contents.ends_with('\n'),
+            indent: detect_indent(&contents).to_string(),
+            on_disk: Some(on_disk),
+        })
     }
 
     pub fn init(path: &Path) -> Result<(), PackageManifestError> {
         if path.exists() {
             return Err(PackageManifestError::AlreadyExist);
         }
-        let (_, contents) = PackageManifest::write_to_file(path)?;
+        let contents = PackageManifest::write_to_file(path)?;
         println!("Wrote to {path}\n\n{contents}", path = path.display());
         Ok(())
     }
@@ -148,18 +177,17 @@ impl PackageManifest {
             return Err(PackageManifestError::NoImporterManifestFound(path.display().to_string()));
         }
 
-        let value = PackageManifest::read_from_file(&path)?;
-        Ok(PackageManifest { path, value })
+        PackageManifest::read_from_file(path)
     }
 
     pub fn create_if_needed(path: PathBuf) -> Result<PackageManifest, PackageManifestError> {
-        let value = if path.exists() {
-            PackageManifest::read_from_file(&path)?
-        } else {
-            PackageManifest::write_to_file(&path).map(|(value, _)| value)?
-        };
-
-        Ok(PackageManifest { path, value })
+        if !path.exists() {
+            PackageManifest::write_to_file(&path)?;
+        }
+        // Read the scaffold back rather than assembling the manifest by
+        // hand, so its formatting and no-op-save baseline are derived from
+        // the file the same way as for a pre-existing manifest.
+        PackageManifest::read_from_file(path)
     }
 
     /// Build a manifest from an in-memory JSON value paired with the path it
@@ -182,7 +210,13 @@ impl PackageManifest {
         }
         convert_engines_runtime_to_dependencies(&mut value, "devEngines", "devDependencies");
         convert_engines_runtime_to_dependencies(&mut value, "engines", "dependencies");
-        PackageManifest { path, value }
+        PackageManifest {
+            path,
+            value,
+            insert_final_newline: true,
+            indent: DEFAULT_INDENT.to_string(),
+            on_disk: None,
+        }
     }
 
     #[must_use]
@@ -206,16 +240,30 @@ impl PackageManifest {
         &mut self.value
     }
 
-    pub fn save_and_get_written_value(&self) -> Result<Value, PackageManifestError> {
+    /// Persist the manifest in its on-disk shape (`devEngines` folded back,
+    /// dependency fields normalized) and return that shape.
+    ///
+    /// The write preserves the source file's indentation and final-newline
+    /// state, and is skipped entirely when the file already encodes the
+    /// same manifest — so a no-op save never churns formatting or mtime.
+    pub fn save_and_get_written_value(&mut self) -> Result<Value, PackageManifestError> {
         let mut value = self.value.clone();
         convert_dependencies_to_engines_runtime(&mut value, "devDependencies", "devEngines")?;
         convert_dependencies_to_engines_runtime(&mut value, "dependencies", "engines")?;
-        let contents = serde_json::to_string_pretty(&value)?;
+        normalize_dependency_fields(&mut value);
+        if self.on_disk.as_ref() == Some(&value) {
+            return Ok(value);
+        }
+        let mut contents = serialize_with_indent(&value, &self.indent)?;
+        if self.insert_final_newline {
+            contents.push('\n');
+        }
         Self::write_atomic(&self.path, &contents)?;
+        self.on_disk = Some(value.clone());
         Ok(value)
     }
 
-    pub fn save(&self) -> Result<(), PackageManifestError> {
+    pub fn save(&mut self) -> Result<(), PackageManifestError> {
         self.save_and_get_written_value()?;
         Ok(())
     }
@@ -457,6 +505,59 @@ pub fn convert_engines_runtime_to_dependencies(
     for (name, spec) in to_insert {
         deps_obj.insert(name.to_string(), Value::String(spec));
     }
+}
+
+/// pnpm's on-write manifest normalization: within each dependency field,
+/// sort the entries by name, and drop the field entirely when it holds no
+/// entries.
+fn normalize_dependency_fields(manifest: &mut Value) {
+    let Some(manifest) = manifest.as_object_mut() else { return };
+    for field in ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"] {
+        let is_empty_object = match manifest.get_mut(field) {
+            Some(Value::Object(deps)) => {
+                deps.sort_keys();
+                deps.is_empty()
+            }
+            _ => continue,
+        };
+        if is_empty_object {
+            manifest.remove(field);
+        }
+    }
+}
+
+/// The indentation unit of a JSON document: the leading whitespace of its
+/// first indented line. Empty for a single-line (or unindented) document,
+/// which then round-trips back to its compact form.
+fn detect_indent(contents: &str) -> &str {
+    contents
+        .lines()
+        .find_map(|line| {
+            let trimmed = line.trim_start_matches([' ', '\t']);
+            (!trimmed.is_empty() && trimmed.len() < line.len())
+                .then(|| &line[..line.len() - trimmed.len()])
+        })
+        .unwrap_or("")
+}
+
+/// Serialize with the manifest's own indentation unit; an empty unit
+/// produces a compact single-line document. At most the first 10
+/// characters of the unit are used — the cap `JSON.stringify` applies to
+/// its `space` argument, which pnpm writes manifests through — so a
+/// pathologically indented source file can't amplify the output.
+fn serialize_with_indent(value: &Value, indent: &str) -> Result<String, serde_json::Error> {
+    if indent.is_empty() {
+        return serde_json::to_string(value);
+    }
+    let indent = match indent.char_indices().nth(10) {
+        Some((cap, _)) => &indent[..cap],
+        None => indent,
+    };
+    let mut out = Vec::new();
+    let formatter = serde_json::ser::PrettyFormatter::with_indent(indent.as_bytes());
+    let mut serializer = serde_json::Serializer::with_formatter(&mut out, formatter);
+    value.serialize(&mut serializer)?;
+    Ok(String::from_utf8(out).expect("serde_json emits UTF-8"))
 }
 
 /// Fold `runtime:<version>` dependency entries back into
