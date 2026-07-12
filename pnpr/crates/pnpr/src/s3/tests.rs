@@ -114,6 +114,36 @@ async fn deleted_packument_update_is_rejected() {
 }
 
 #[tokio::test]
+async fn concurrent_tarball_finalize_does_not_overwrite() {
+    use crate::storage::TarballFinalize;
+    let (store, _staging) = store_with_prefix("");
+    let name = pkg("racer");
+    let file = "racer-1.0.0.tgz";
+
+    let tmp = store.staging_tmp_path(&name, file).await.unwrap();
+    tokio::fs::write(&tmp, b"tarball A").await.unwrap();
+    assert_eq!(store.upload_tarball(&tmp, &name, file).await.unwrap(), TarballFinalize::Written);
+
+    // Re-promoting byte-identical content is a tolerated no-op, so idempotent
+    // journal roll-forward and concurrent identical publishes don't conflict.
+    let tmp = store.staging_tmp_path(&name, file).await.unwrap();
+    tokio::fs::write(&tmp, b"tarball A").await.unwrap();
+    assert_eq!(
+        store.upload_tarball(&tmp, &name, file).await.unwrap(),
+        TarballFinalize::AlreadyIdentical,
+    );
+
+    // Different bytes for the same version's key are rejected without
+    // overwriting the first writer's tarball.
+    let tmp = store.staging_tmp_path(&name, file).await.unwrap();
+    tokio::fs::write(&tmp, b"tarball B").await.unwrap();
+    assert_eq!(store.upload_tarball(&tmp, &name, file).await.unwrap(), TarballFinalize::Conflict);
+
+    let (body, _len) = store.open_tarball(&name, file).await.unwrap().unwrap();
+    assert_eq!(collect(body).await, b"tarball A");
+}
+
+#[tokio::test]
 async fn tarball_uploads_streams_and_reports_length() {
     let (store, _staging) = store_with_prefix("");
     let name = pkg("is-positive");

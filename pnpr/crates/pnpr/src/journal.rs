@@ -27,12 +27,11 @@
 
 use crate::{
     config::Config,
-    error::{RegistryError, Result},
+    error::Result,
     package_name::PackageName,
     publish::{merge_manifest, now_iso},
     storage::{
-        PackumentWrite, RECOVERY_PACKUMENT_WRITE_RETRIES, Storage, TarballSlot, unique_tmp_path,
-        wait_after_packument_write_conflict,
+        RECOVERY_PACKUMENT_WRITE_RETRIES, Storage, TarballFinalize, TarballSlot, unique_tmp_path,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -244,7 +243,13 @@ async fn roll_forward(storage: &Storage, dir: &Path) -> Result<()> {
                     name.clone(),
                     tarball.filename.clone(),
                 );
-                store.finalize_tarball_slot(slot).await?;
+                match store.finalize_tarball_slot(slot).await? {
+                    TarballFinalize::Written | TarballFinalize::AlreadyIdentical => {}
+                    // Another replica already promoted a different tarball for
+                    // this version. Don't overwrite it; the re-merge below keeps
+                    // that winner's immutable version, so ours is dropped.
+                    TarballFinalize::Conflict => {}
+                }
             }
         }
         let journaled: serde_json::Value =
@@ -260,29 +265,22 @@ async fn write_merged_packument(
     name: &PackageName,
     journaled: &serde_json::Value,
 ) -> Result<()> {
-    for attempt in 0..RECOVERY_PACKUMENT_WRITE_RETRIES {
-        let existing_packument = store.read_hosted_packument_for_update(name).await?;
-        let (existing_bytes, version) = match existing_packument {
-            Some(packument) => (Some(packument.bytes), Some(packument.version)),
-            None => (None, None),
-        };
-        let existing: Option<serde_json::Value> = match existing_bytes.as_deref() {
-            Some(bytes) => Some(serde_json::from_slice(bytes)?),
-            None => None,
-        };
-        let merged = merge_manifest(existing.as_ref(), journaled, existing.as_ref(), &now_iso());
-        let merged_bytes = serde_json::to_vec_pretty(&merged)?;
-        match store.write_hosted_packument_if_current(name, &merged_bytes, version.as_ref()).await?
-        {
-            PackumentWrite::Written => return Ok(()),
-            PackumentWrite::Conflict => {
-                if attempt + 1 < RECOVERY_PACKUMENT_WRITE_RETRIES {
-                    wait_after_packument_write_conflict(attempt).await;
-                }
-            }
-        }
-    }
-    Err(RegistryError::PackumentWriteConflict { package: name.as_str().to_string() })
+    store
+        .update_hosted_packument_with_retry(
+            name,
+            RECOVERY_PACKUMENT_WRITE_RETRIES,
+            |existing_bytes| {
+                let existing: Option<serde_json::Value> = match existing_bytes {
+                    Some(bytes) => Some(serde_json::from_slice(bytes)?),
+                    None => None,
+                };
+                let merged =
+                    merge_manifest(existing.as_ref(), journaled, existing.as_ref(), &now_iso());
+                Ok(Some(serde_json::to_vec_pretty(&merged)?))
+            },
+        )
+        .await?;
+    Ok(())
 }
 
 /// Discard an unsealed transaction: nothing of it ever became visible,

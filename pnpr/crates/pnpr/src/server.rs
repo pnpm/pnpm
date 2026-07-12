@@ -11,8 +11,8 @@ use crate::{
     },
     registry::{ConcreteKind, Registry, Resolved},
     storage::{
-        HostedPackumentVersion, PACKUMENT_WRITE_RETRIES, PackumentWrite, Storage,
-        wait_after_packument_write_conflict,
+        HostedPackumentVersion, PACKUMENT_WRITE_RETRIES, PackumentUpdate, PackumentWrite, Storage,
+        TarballFinalize,
     },
     streaming,
     upstream::{
@@ -3079,7 +3079,18 @@ async fn commit_publishes(
             // so an inline failure and a startup roll-forward land identically.
             let store = hosted_storage(state, stage.org.as_deref());
             for slot in stage.slots {
-                store.finalize_tarball_slot(slot).await?;
+                match store.finalize_tarball_slot(slot).await? {
+                    TarballFinalize::Written | TarballFinalize::AlreadyIdentical => {}
+                    // A concurrent replica already promoted a different tarball
+                    // for this version. Its bytes are immutable, so surface a
+                    // conflict instead of advertising our integrity against
+                    // them; the seal's roll-forward keeps the winner's version.
+                    TarballFinalize::Conflict => {
+                        return Err(RegistryError::PackumentWriteConflict {
+                            package: stage.name.as_str().to_string(),
+                        });
+                    }
+                }
             }
             match store
                 .write_hosted_packument_if_current(
@@ -3090,6 +3101,14 @@ async fn commit_publishes(
                 .await?
             {
                 PackumentWrite::Written => {}
+                // Tarballs are already promoted at this point. A conflict means
+                // another replica advanced the packument since staging, so the
+                // base version is stale. Surfacing it drops into the seal's
+                // roll-forward path (the caller), which re-reads the current
+                // packument and re-merges this transaction's journaled manifest —
+                // re-referencing the promoted tarballs — rather than leaving them
+                // orphaned. Only if roll-forward and startup recovery both never
+                // converge would a promoted tarball stay unreferenced.
                 PackumentWrite::Conflict => {
                     return Err(RegistryError::PackumentWriteConflict {
                         package: stage.name.as_str().to_string(),
@@ -3683,71 +3702,47 @@ where
     // on this instance (held until this function returns).
     let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
 
-    let mut written = false;
-    for attempt in 0..PACKUMENT_WRITE_RETRIES {
-        let hosted_packument = match storage.read_hosted_packument_for_update(&name).await {
-            Ok(Some(packument)) => packument,
-            Ok(None) => return not_found(),
-            Err(err) => return error_response(&err),
-        };
-        let mut packument: Value = match serde_json::from_slice(&hosted_packument.bytes) {
-            Ok(value) => value,
-            Err(err) => return error_response(&RegistryError::Json(err)),
-        };
-
-        let Some(packument_obj) = packument.as_object_mut() else {
-            return error_response(&RegistryError::BadRequest {
-                reason: "stored packument is not an object".to_string(),
-            });
-        };
-        let tags_entry = packument_obj
-            .entry("dist-tags".to_string())
-            .or_insert_with(|| Value::Object(serde_json::Map::new()));
-        let Some(tags) = tags_entry.as_object_mut() else {
-            return error_response(&RegistryError::BadRequest {
-                reason: "stored dist-tags is not an object".to_string(),
-            });
-        };
-        if let Err(err) = mutate(tags) {
-            return error_response(&err);
-        }
-        let _ = tag;
-        // Refresh `time.modified` so clients do not lag behind a
-        // dist-tag change when deciding packument freshness.
-        let time_entry = packument_obj
-            .entry("time".to_string())
-            .or_insert_with(|| Value::Object(serde_json::Map::new()));
-        let Some(time_obj) = time_entry.as_object_mut() else {
-            return error_response(&RegistryError::BadRequest {
-                reason: "stored time is not an object".to_string(),
-            });
-        };
-        time_obj.insert("modified".to_string(), Value::String(now_iso()));
-        let new_bytes = match serde_json::to_vec_pretty(&packument) {
-            Ok(b) => b,
-            Err(err) => return error_response(&RegistryError::Json(err)),
-        };
-        match storage
-            .write_hosted_packument_if_current(&name, &new_bytes, Some(&hosted_packument.version))
-            .await
-        {
-            Ok(PackumentWrite::Written) => {
-                written = true;
-                break;
-            }
-            Ok(PackumentWrite::Conflict) => {
-                if attempt + 1 < PACKUMENT_WRITE_RETRIES {
-                    wait_after_packument_write_conflict(attempt).await;
-                }
-                continue;
-            }
-            Err(err) => return error_response(&err),
-        }
-    }
-    if !written {
-        return error_response(&RegistryError::PackumentWriteConflict {
-            package: name.as_str().to_string(),
-        });
+    let _ = tag; // the tag name is captured by the `mutate` closure.
+    let outcome = storage
+        .update_hosted_packument_with_retry(&name, PACKUMENT_WRITE_RETRIES, |existing_bytes| {
+            // A hosted org has no upstream, so a dist-tag change starts from the
+            // org's own packument; a package it does not host can't be tagged.
+            let Some(bytes) = existing_bytes else {
+                return Ok(None);
+            };
+            let mut packument: Value = serde_json::from_slice(bytes)?;
+            let Some(packument_obj) = packument.as_object_mut() else {
+                return Err(RegistryError::BadRequest {
+                    reason: "stored packument is not an object".to_string(),
+                });
+            };
+            let tags_entry = packument_obj
+                .entry("dist-tags".to_string())
+                .or_insert_with(|| Value::Object(serde_json::Map::new()));
+            let Some(tags) = tags_entry.as_object_mut() else {
+                return Err(RegistryError::BadRequest {
+                    reason: "stored dist-tags is not an object".to_string(),
+                });
+            };
+            mutate(tags)?;
+            // Refresh `time.modified` so clients do not lag behind a
+            // dist-tag change when deciding packument freshness.
+            let time_entry = packument_obj
+                .entry("time".to_string())
+                .or_insert_with(|| Value::Object(serde_json::Map::new()));
+            let Some(time_obj) = time_entry.as_object_mut() else {
+                return Err(RegistryError::BadRequest {
+                    reason: "stored time is not an object".to_string(),
+                });
+            };
+            time_obj.insert("modified".to_string(), Value::String(now_iso()));
+            Ok(Some(serde_json::to_vec_pretty(&packument)?))
+        })
+        .await;
+    match outcome {
+        Ok(PackumentUpdate::Written) => {}
+        Ok(PackumentUpdate::NotFound) => return not_found(),
+        Err(err) => return error_response(&err),
     }
     let body = json!({ "ok": true });
     let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");

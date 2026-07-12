@@ -262,10 +262,39 @@ impl S3Store {
         tmp_path: &Path,
         name: &PackageName,
         filename: &str,
-    ) -> Result<()> {
+    ) -> Result<crate::storage::TarballFinalize> {
+        use crate::storage::TarballFinalize;
         let bytes = fs::read(tmp_path).await?;
-        self.store.put(&self.tarball_key(name, filename), PutPayload::from(bytes)).await?;
-        Ok(())
+        let key = self.tarball_key(name, filename);
+        // Create-only. A published version's tarball is immutable, so an object
+        // already at this key belongs to a concurrent publisher of the same
+        // version. Overwriting it would corrupt that artifact against the
+        // integrity its packument records, so tolerate only byte-identical
+        // content and otherwise report a conflict.
+        match self
+            .store
+            .put_opts(
+                &key,
+                PutPayload::from(bytes),
+                PutOptions { mode: PutMode::Create, ..PutOptions::default() },
+            )
+            .await
+        {
+            Ok(_) => Ok(TarballFinalize::Written),
+            Err(
+                object_store::Error::AlreadyExists { .. }
+                | object_store::Error::Precondition { .. },
+            ) => {
+                let ours = fs::read(tmp_path).await?;
+                let existing = self.store.get(&key).await?.bytes().await?;
+                if existing.as_ref() == ours.as_slice() {
+                    Ok(TarballFinalize::AlreadyIdentical)
+                } else {
+                    Ok(TarballFinalize::Conflict)
+                }
+            }
+            Err(err) => Err(err.into()),
+        }
     }
 
     pub async fn remove_tarball(&self, name: &PackageName, filename: &str) -> Result<bool> {

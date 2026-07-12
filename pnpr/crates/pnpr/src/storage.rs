@@ -226,6 +226,31 @@ pub(crate) enum PackumentWrite {
     Conflict,
 }
 
+/// Outcome of [`Storage::update_hosted_packument_with_retry`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PackumentUpdate {
+    Written,
+    /// The `build` closure reported that the packument does not exist
+    /// (returned `Ok(None)`), so there was nothing to update.
+    NotFound,
+}
+
+/// Outcome of promoting a staged tarball into the hosted store.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TarballFinalize {
+    /// The tarball was promoted: created on S3, or renamed into place on the
+    /// single-node FS backend, which owns its store exclusively.
+    Written,
+    /// An object with byte-identical content already occupied the key, so
+    /// promotion was a no-op. Safe — the published artifact is exactly ours.
+    AlreadyIdentical,
+    /// A *different* object already occupies the key: a concurrent publisher
+    /// won this version's tarball. A published version's tarball is immutable,
+    /// so the caller must not overwrite it and should surface a write conflict
+    /// rather than advertise an integrity that no longer matches the bytes.
+    Conflict,
+}
+
 impl HostedStore {
     async fn read_packument(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
         match self {
@@ -307,13 +332,19 @@ impl HostedStore {
         tmp_path: &Path,
         name: &PackageName,
         filename: &str,
-    ) -> Result<()> {
+    ) -> Result<TarballFinalize> {
         match self {
-            HostedStore::Fs(store) => store.finalize_tarball(tmp_path, name, filename).await,
+            HostedStore::Fs(store) => {
+                store.finalize_tarball(tmp_path, name, filename).await?;
+                Ok(TarballFinalize::Written)
+            }
             HostedStore::S3(store) => {
-                store.upload_tarball(tmp_path, name, filename).await?;
+                let outcome = store.upload_tarball(tmp_path, name, filename).await?;
+                // Consume the staged tmp whatever the outcome: a Conflict means
+                // another replica owns the object, so retrying our overwrite
+                // would be wrong, and there is nothing left to promote.
                 let _ = fs::remove_file(tmp_path).await;
-                Ok(())
+                Ok(outcome)
             }
         }
     }
@@ -434,6 +465,47 @@ impl Storage {
         version: Option<&HostedPackumentVersion>,
     ) -> Result<PackumentWrite> {
         self.hosted.write_packument_if_current(name, bytes, version).await
+    }
+
+    /// Read the hosted packument, transform it, and conditionally write it
+    /// back under compare-and-swap, retrying on conflict with capped backoff.
+    ///
+    /// `build` receives the current hosted bytes (`None` when the packument is
+    /// absent) and returns the bytes to write, or `Ok(None)` to abort as
+    /// [`PackumentUpdate::NotFound`]; a `build` error aborts without retrying.
+    /// After `retries` conflicts the write is surfaced as
+    /// [`RegistryError::PackumentWriteConflict`]. Both the dist-tag request
+    /// path and journal roll-forward go through here so their conflict handling
+    /// stays in one place.
+    pub(crate) async fn update_hosted_packument_with_retry<Build>(
+        &self,
+        name: &PackageName,
+        retries: usize,
+        mut build: Build,
+    ) -> Result<PackumentUpdate>
+    where
+        Build: FnMut(Option<&[u8]>) -> Result<Option<Vec<u8>>>,
+    {
+        for attempt in 0..retries {
+            let existing = self.read_hosted_packument_for_update(name).await?;
+            let (existing_bytes, version) = match existing {
+                Some(packument) => (Some(packument.bytes), Some(packument.version)),
+                None => (None, None),
+            };
+            let Some(new_bytes) = build(existing_bytes.as_deref())? else {
+                return Ok(PackumentUpdate::NotFound);
+            };
+            match self.write_hosted_packument_if_current(name, &new_bytes, version.as_ref()).await?
+            {
+                PackumentWrite::Written => return Ok(PackumentUpdate::Written),
+                PackumentWrite::Conflict => {
+                    if attempt + 1 < retries {
+                        wait_after_packument_write_conflict(attempt).await;
+                    }
+                }
+            }
+        }
+        Err(RegistryError::PackumentWriteConflict { package: name.as_str().to_string() })
     }
 
     /// Open a tarball from the authoritative hosted store. Hosted
@@ -563,7 +635,7 @@ impl Storage {
 
     /// Promote a tmp tarball written by the publish flow to its final
     /// home: a rename on the fs backend, an upload on the S3 backend.
-    pub async fn finalize_tarball_slot(&self, slot: TarballSlot) -> Result<()> {
+    pub async fn finalize_tarball_slot(&self, slot: TarballSlot) -> Result<TarballFinalize> {
         self.hosted.finalize_tarball(&slot.tmp_path, &slot.name, &slot.filename).await
     }
 
