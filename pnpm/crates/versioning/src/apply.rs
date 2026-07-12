@@ -1,11 +1,15 @@
-use std::{fs, path::Path};
+use std::{
+    collections::{BTreeMap, HashSet},
+    fs,
+    path::Path,
+};
 
 use crate::{
     changelog::{compose_changelog_section, prepend_changelog_section},
     error::VersioningError,
     intents::{ChangeIntent, IntentBumpType},
-    ledger::{Ledger, PackageConsumption, append_to_ledger, build_consumption_index},
-    plan::ReleasePlan,
+    ledger::{PackageConsumption, append_to_ledger, build_consumption_index},
+    plan::{ReleasePlan, WorkspaceProject, index_project_refs},
     settings::{ChangelogStorage, VersioningSettings},
 };
 
@@ -30,6 +34,7 @@ pub struct ApplyReleasePlanOptions {
 pub fn apply_release_plan(
     plan: &ReleasePlan,
     workspace_dir: &Path,
+    projects: &[WorkspaceProject],
     all_intents: &[ChangeIntent],
     versioning: Option<&VersioningSettings>,
     opts: ApplyReleasePlanOptions,
@@ -59,45 +64,47 @@ pub fn apply_release_plan(
         prepend_changelog_section(&release.root_dir, &release.name, &section)?;
     }
 
-    let mut new_entries = Ledger::new();
+    let mut new_entries = BTreeMap::new();
     for release in &plan.releases {
         if release.intents.is_empty() {
             continue;
         }
         let mut ids: Vec<String> = release.intents.iter().map(|intent| intent.id.clone()).collect();
         ids.sort();
-        new_entries.insert(format!("{}@{}", release.name, release.new_version), ids);
+        new_entries.insert(
+            format!("{}@{}", release.name, release.new_version),
+            (release.dir.clone(), ids),
+        );
     }
     let ledger = append_to_ledger(workspace_dir, &new_entries)?;
-    delete_consumed_intent_files(all_intents, &ledger, versioning).map(|()| applied)
-}
 
-/// An intent file is deletable once every package it names has a ledger entry
-/// for it, with one exemption: while a package is still on a lane,
-/// entries against prerelease versions alone keep the file alive — its prose
-/// is still needed to compose the stable changelog section at graduation.
-/// Declined (`none`) entries demand no release and never block deletion.
-fn delete_consumed_intent_files(
-    all_intents: &[ChangeIntent],
-    ledger: &Ledger,
-    versioning: Option<&VersioningSettings>,
-) -> Result<(), VersioningError> {
-    let consumption = build_consumption_index(ledger);
+    // An intent file is deletable once every project it names has a ledger
+    // entry for it, with one exemption: while a project is still on a lane,
+    // entries against prerelease versions alone keep the file alive — its
+    // prose is still needed to compose the stable changelog section at
+    // graduation. Declined (`none`) entries demand no release and never
+    // block deletion. References here were already validated by the plan
+    // assembly, so an unresolvable one just keeps its file around.
+    let refs = index_project_refs(projects, workspace_dir);
+    let consumption = build_consumption_index(&ledger, |name| refs.name_to_dirs(name))?;
     let empty = PackageConsumption::default();
-    let consumption_of =
-        |pkg_name: &str| -> &PackageConsumption { consumption.get(pkg_name).unwrap_or(&empty) };
-    let on_lane = |pkg_name: &str| -> bool {
-        versioning.is_some_and(|settings| settings.lanes.contains_key(pkg_name))
-    };
+    let mut lane_dirs: HashSet<String> = HashSet::new();
+    for reference in versioning.map(|settings| settings.lanes.keys()).into_iter().flatten() {
+        lane_dirs.extend(refs.ref_to_dirs(reference));
+    }
 
     for intent in all_intents {
-        let deletable = intent.releases.iter().all(|(pkg_name, bump_type)| {
+        let deletable = intent.releases.iter().all(|(reference, bump_type)| {
             if *bump_type == IntentBumpType::None {
                 return true;
             }
-            let consumed = consumption_of(pkg_name);
+            let dirs = refs.ref_to_dirs(reference);
+            let [dir] = dirs.as_slice() else {
+                return false;
+            };
+            let consumed = consumption.get(dir).unwrap_or(&empty);
             consumed.all_ids.contains(&intent.id)
-                && !(on_lane(pkg_name) && consumed.prerelease_only_ids.contains(&intent.id))
+                && !(lane_dirs.contains(dir) && consumed.prerelease_only_ids.contains(&intent.id))
         });
         if deletable {
             fs::remove_file(&intent.file_path).map_err(|source| VersioningError::Write {
@@ -106,7 +113,7 @@ fn delete_consumed_intent_files(
             })?;
         }
     }
-    Ok(())
+    Ok(applied)
 }
 
 fn assert_supported_changelog_storage(

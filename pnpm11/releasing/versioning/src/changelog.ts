@@ -2,8 +2,9 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import util from 'node:util'
 
-import type { PlannedRelease } from './assembleReleasePlan.js'
-import type { ReleaseBumpType } from './intents.js'
+import { isDirRef, type PlannedRelease } from './assembleReleasePlan.js'
+import type { IntentBumpType, ReleaseBumpType } from './intents.js'
+import { normalizeProjectDir } from './ledger.js'
 
 const SECTION_TITLES: Record<ReleaseBumpType, string> = {
   major: 'Major Changes',
@@ -14,8 +15,8 @@ const SECTION_TITLES: Record<ReleaseBumpType, string> = {
 export function composeChangelogSection (release: PlannedRelease): string {
   const entriesByBump: Record<ReleaseBumpType, string[]> = { major: [], minor: [], patch: [] }
   for (const intent of release.intents) {
-    const bumpType = intent.releases[release.name]
-    if (bumpType === 'none' || intent.summary === '') continue
+    const bumpType = releaseBumpFor(intent.releases, release)
+    if (bumpType == null || bumpType === 'none' || intent.summary === '') continue
     entriesByBump[bumpType].push(formatListItem(intent.summary))
   }
   if (release.dependencyUpdates.length > 0) {
@@ -30,6 +31,19 @@ export function composeChangelogSection (release: PlannedRelease): string {
     parts.push(entriesByBump[bumpType].join('\n\n'))
   }
   return `${parts.join('\n\n')}\n`
+}
+
+/**
+ * The bump an intent declares for this release, whichever way the intent
+ * references the project — by name (sound only when unambiguous, which plan
+ * assembly guarantees) or by directory.
+ */
+function releaseBumpFor (releases: Record<string, IntentBumpType>, release: PlannedRelease): IntentBumpType | undefined {
+  for (const [ref, bumpType] of Object.entries(releases)) {
+    if (ref === release.name) return bumpType
+    if (isDirRef(ref) && normalizeProjectDir(ref) === release.dir) return bumpType
+  }
+  return undefined
 }
 
 function formatListItem (summary: string): string {

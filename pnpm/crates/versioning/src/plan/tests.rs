@@ -10,7 +10,7 @@ use super::{
 };
 use crate::{
     intents::{ChangeIntent, IntentBumpType},
-    ledger::Ledger,
+    ledger::{Ledger, LedgerEntry},
     settings::{ReleaseBumpType, VersioningSettings},
 };
 
@@ -55,7 +55,9 @@ fn make_intent(id: &str, releases: &[(&str, &str)]) -> ChangeIntent {
 fn ledger(entries: &[(&str, &[&str])]) -> Ledger {
     entries
         .iter()
-        .map(|(key, ids)| ((*key).to_string(), ids.iter().map(|id| (*id).to_string()).collect()))
+        .map(|(key, ids)| {
+            ((*key).to_string(), LedgerEntry::Ids(ids.iter().map(|id| (*id).to_string()).collect()))
+        })
         .collect()
 }
 
@@ -67,6 +69,7 @@ fn assemble(
 ) -> ReleasePlan {
     assemble_release_plan(
         projects,
+        std::path::Path::new("/ws"),
         intents,
         consumed,
         versioning,
@@ -198,6 +201,7 @@ fn an_internal_dependency_without_the_workspace_protocol_fails_the_plan() {
         [make_project("lib", "1.0.0", &[]), make_project("cli", "1.0.0", &[("lib", "^1.0.0")])];
     let err = assemble_release_plan(
         &projects,
+        std::path::Path::new("/ws"),
         &[],
         &Ledger::new(),
         None,
@@ -226,6 +230,7 @@ fn an_intent_demanding_a_release_of_an_unreleasable_package_fails_the_plan() {
         VersioningSettings { ignore: vec!["frozen".to_string()], ..VersioningSettings::default() };
     let err = assemble_release_plan(
         &projects,
+        std::path::Path::new("/ws"),
         &intents,
         &Ledger::new(),
         Some(&versioning),
@@ -251,6 +256,7 @@ fn an_intent_naming_an_unknown_package_fails_the_plan() {
     let intents = [make_intent("one", &[("ghost", "patch")])];
     let err = assemble_release_plan(
         &projects,
+        std::path::Path::new("/ws"),
         &intents,
         &Ledger::new(),
         None,
@@ -270,6 +276,7 @@ fn max_bump_rejects_a_plan_whose_effective_bump_exceeds_the_cap() {
     };
     let err = assemble_release_plan(
         &projects,
+        std::path::Path::new("/ws"),
         &intents,
         &Ledger::new(),
         Some(&versioning),
@@ -290,6 +297,7 @@ fn max_bump_measures_the_real_version_distance_including_fixed_group_jumps() {
     };
     let err = assemble_release_plan(
         &projects,
+        std::path::Path::new("/ws"),
         &intents,
         &Ledger::new(),
         Some(&versioning),
@@ -379,8 +387,15 @@ fn snapshot_plans_release_the_same_set_under_snapshot_versions() {
         snapshot_suffix: Some("preview-20260712000000".to_string()),
         ..AssembleReleasePlanOptions::default()
     };
-    let plan = assemble_release_plan(&projects, &intents, &Ledger::new(), None, &opts)
-        .expect("plan assembles");
+    let plan = assemble_release_plan(
+        &projects,
+        std::path::Path::new("/ws"),
+        &intents,
+        &Ledger::new(),
+        None,
+        &opts,
+    )
+    .expect("plan assembles");
     let versions: Vec<&str> =
         plan.releases.iter().map(|release| release.new_version.as_str()).collect();
     assert_eq!(versions, ["0.0.0-preview-20260712000000", "0.0.0-preview-20260712000000"]);
@@ -399,9 +414,87 @@ fn filter_narrows_the_plan_to_the_selection_plus_companions_and_invalidated_depe
         filter: Some(HashSet::from(["lib".to_string()])),
         ..AssembleReleasePlanOptions::default()
     };
-    let plan = assemble_release_plan(&projects, &intents, &Ledger::new(), None, &opts)
-        .expect("plan assembles");
+    let plan = assemble_release_plan(
+        &projects,
+        std::path::Path::new("/ws"),
+        &intents,
+        &Ledger::new(),
+        None,
+        &opts,
+    )
+    .expect("plan assembles");
     assert_eq!(release_names(&plan), ["cli", "lib"]);
+}
+
+fn twins() -> [WorkspaceProject; 2] {
+    [
+        WorkspaceProject {
+            root_dir: PathBuf::from("/ws/pnpm11/pnpm"),
+            name: Some("pnpm".to_string()),
+            version: Some("11.0.0".to_string()),
+            prod_dependencies: Vec::new(),
+        },
+        WorkspaceProject {
+            root_dir: PathBuf::from("/ws/pnpm/npm/pnpm"),
+            name: Some("pnpm".to_string()),
+            version: Some("12.0.0".to_string()),
+            prod_dependencies: Vec::new(),
+        },
+    ]
+}
+
+#[test]
+fn a_name_shared_by_two_projects_is_ambiguous_and_must_be_referenced_by_directory() {
+    let intents = [make_intent("one", &[("pnpm", "patch")])];
+    let err = assemble_release_plan(
+        &twins(),
+        std::path::Path::new("/ws"),
+        &intents,
+        &Ledger::new(),
+        None,
+        &AssembleReleasePlanOptions::default(),
+    )
+    .expect_err("plan must fail");
+    assert!(err.to_string().contains("matches multiple workspace projects"), "unexpected: {err}");
+
+    let intents = [make_intent("one", &[("./pnpm/npm/pnpm", "patch")])];
+    let plan = assemble(&twins(), &intents, &Ledger::new(), None);
+    assert_eq!(plan.releases.len(), 1);
+    assert_eq!(plan.releases[0].dir, "pnpm/npm/pnpm");
+    assert_eq!(plan.releases[0].new_version, "12.0.1");
+}
+
+#[test]
+fn ledger_consumption_attributes_by_directory_when_names_collide() {
+    let intents = [make_intent("one", &[("./pnpm11/pnpm", "patch"), ("./pnpm/npm/pnpm", "patch")])];
+    let mut consumed = Ledger::new();
+    consumed.insert(
+        "pnpm@12.0.1".to_string(),
+        LedgerEntry::Attributed {
+            dir: "pnpm/npm/pnpm".to_string(),
+            intents: vec!["one".to_string()],
+        },
+    );
+    let plan = assemble(&twins(), &intents, &consumed, None);
+    // The Rust line already consumed the intent; only the TS line still
+    // releases.
+    assert_eq!(release_names(&plan), ["pnpm"]);
+    assert_eq!(plan.releases[0].dir, "pnpm11/pnpm");
+}
+
+#[test]
+fn lanes_keyed_by_directory_path_apply_to_the_right_twin() {
+    let intents = [make_intent("one", &[("./pnpm11/pnpm", "patch"), ("./pnpm/npm/pnpm", "minor")])];
+    let versioning = VersioningSettings {
+        lanes: IndexMap::from([("./pnpm/npm/pnpm".to_string(), "alpha".to_string())]),
+        ..VersioningSettings::default()
+    };
+    let plan = assemble(&twins(), &intents, &Ledger::new(), Some(&versioning));
+    let ts_line = plan.releases.iter().find(|release| release.dir == "pnpm11/pnpm").expect("ts");
+    let rust_line =
+        plan.releases.iter().find(|release| release.dir == "pnpm/npm/pnpm").expect("rust");
+    assert_eq!(ts_line.new_version, "11.0.1");
+    assert_eq!(rust_line.new_version, "12.1.0-alpha.0");
 }
 
 #[test]
@@ -410,6 +503,7 @@ fn a_lane_named_main_is_rejected_as_the_reserved_default_lane() {
     let versioning = on_lane("cli", "Main");
     let err = assemble_release_plan(
         &projects,
+        std::path::Path::new("/ws"),
         &[],
         &Ledger::new(),
         Some(&versioning),

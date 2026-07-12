@@ -26,6 +26,17 @@ pub enum VersioningError {
     #[diagnostic(code(ERR_PNPM_INVALID_VERSIONING_LEDGER))]
     InvalidLedger { ledger_path: PathBuf },
 
+    #[display(
+        "The ledger entry {key} names {pkg_name}, which matches multiple workspace projects ({}). Rewrite the entry with an explicit \"dir\".",
+        dirs.join(", ")
+    )]
+    #[diagnostic(code(ERR_PNPM_INVALID_VERSIONING_LEDGER))]
+    AmbiguousLedgerEntry { key: String, pkg_name: String, dirs: Vec<String> },
+
+    #[display("{context} names {reference}, which matches multiple workspace projects: {}. Reference the project by directory instead.", dirs.join(", "))]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_AMBIGUOUS_PACKAGE))]
+    AmbiguousPackage { context: String, reference: String, dirs: Vec<String> },
+
     #[display("Change intent file {} names {pkg_name}, which is not a package in this workspace", file_path.display())]
     #[diagnostic(code(ERR_PNPM_VERSIONING_UNKNOWN_PACKAGE))]
     UnknownPackage { file_path: PathBuf, pkg_name: String },

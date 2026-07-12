@@ -8,11 +8,11 @@ use pacquet_config::Config;
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_versioning::{
     AssembleReleasePlanOptions, IntentBumpType, ManifestDependency, ReleasePlan,
-    VersioningSettings, WorkspaceProject, assemble_release_plan, read_change_intents, read_ledger,
-    write_change_intent,
+    VersioningSettings, WorkspaceProject, assemble_release_plan, index_project_refs,
+    read_change_intents, read_ledger, to_project_dir, write_change_intent,
 };
 use pacquet_workspace::Project;
-use std::path::Path;
+use std::{collections::HashSet, path::Path};
 
 use crate::cli_args::recursive::discover_workspace_projects;
 
@@ -51,6 +51,13 @@ enum ChangeError {
     #[diagnostic(code(ERR_PNPM_VERSIONING_UNKNOWN_PACKAGE))]
     UnknownPackage { pkg_name: String },
 
+    #[display(
+        "{reference} matches multiple workspace projects: {}. Reference the project by directory instead.",
+        dirs.join(", ")
+    )]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_AMBIGUOUS_PACKAGE))]
+    AmbiguousPackage { reference: String, dirs: Vec<String> },
+
     #[display("Invalid bump type: {bump}. Expected one of none, patch, minor, major")]
     #[diagnostic(code(ERR_PNPM_VERSIONING_INVALID_BUMP))]
     InvalidBump { bump: String },
@@ -76,13 +83,24 @@ impl ChangeArgs {
             return Ok(());
         }
 
-        let releasable = releasable_pkg_names(&engine_projects, &config.versioning);
+        let releasable = releasable_projects(&engine_projects, &workspace_dir, &config.versioning);
         if releasable.is_empty() {
             return Err(ChangeError::NoPackages.into());
         }
-        for pkg_name in &self.params {
-            if !releasable.contains(pkg_name) {
-                return Err(ChangeError::UnknownPackage { pkg_name: pkg_name.clone() }.into());
+        let releasable_dirs: HashSet<&str> =
+            releasable.iter().map(|project| project.dir.as_str()).collect();
+        let refs = index_project_refs(&engine_projects, &workspace_dir);
+        for reference in &self.params {
+            let dirs = refs.ref_to_dirs(reference);
+            if dirs.len() > 1 {
+                return Err(ChangeError::AmbiguousPackage {
+                    reference: reference.clone(),
+                    dirs: dirs.into_iter().map(|dir| format!("./{dir}")).collect(),
+                }
+                .into());
+            }
+            if dirs.first().is_none_or(|dir| !releasable_dirs.contains(dir.as_str())) {
+                return Err(ChangeError::UnknownPackage { pkg_name: reference.clone() }.into());
             }
         }
         let bump = match &self.bump {
@@ -93,19 +111,22 @@ impl ChangeArgs {
             },
         };
 
-        let pkg_names = if self.params.is_empty() {
+        // For a name shared by several projects the interactive picker offers
+        // each project under its directory reference, so the written intent
+        // stays unambiguous without the contributor knowing the rule exists.
+        let pkg_refs = if self.params.is_empty() {
             prompt_for_packages(&releasable)?
         } else {
             self.params.clone()
         };
 
         let mut releases: IndexMap<String, IntentBumpType> = IndexMap::new();
-        for pkg_name in pkg_names {
+        for reference in pkg_refs {
             let bump_type = match bump {
                 Some(bump) => bump,
-                None => prompt_for_bump(&pkg_name)?,
+                None => prompt_for_bump(&reference)?,
             };
-            releases.insert(pkg_name, bump_type);
+            releases.insert(reference, bump_type);
         }
 
         let summary = match &self.summary {
@@ -132,17 +153,30 @@ fn parse_bump(bump: &str) -> Option<IntentBumpType> {
     }
 }
 
-fn prompt_for_packages(releasable: &[String]) -> miette::Result<Vec<String>> {
+fn prompt_for_packages(releasable: &[ReleasableProject]) -> miette::Result<Vec<String>> {
+    let labels: Vec<String> = releasable
+        .iter()
+        .map(|project| {
+            if project.reference == project.name {
+                project.name.clone()
+            } else {
+                format!("{} (./{})", project.name, project.dir)
+            }
+        })
+        .collect();
     loop {
         let indices = MultiSelect::new()
             .with_prompt(
                 "Which packages does this change affect? (<space> to select, <enter> to confirm)",
             )
-            .items(releasable)
+            .items(&labels)
             .interact()
             .into_diagnostic()?;
         if !indices.is_empty() {
-            return Ok(indices.into_iter().map(|index| releasable[index].clone()).collect());
+            return Ok(indices
+                .into_iter()
+                .map(|index| releasable[index].reference.clone())
+                .collect());
         }
         println!("Select at least one package.");
     }
@@ -169,6 +203,7 @@ fn render_status(
     let ledger = read_ledger(workspace_dir)?;
     let plan = assemble_release_plan(
         projects,
+        workspace_dir,
         &intents,
         &ledger,
         Some(&config.versioning),
@@ -213,25 +248,48 @@ pub fn render_release_plan(plan: &ReleasePlan) -> String {
     output
 }
 
-/// The packages `pnpm change` may record intents for: named, carrying a
+/// One project `pnpm change` may record an intent for, and how an intent
+/// file or versioning config should reference it: the bare name, or the
+/// `./`-prefixed directory when the name is shared by several workspace
+/// projects.
+pub struct ReleasableProject {
+    pub name: String,
+    /// Workspace-relative project directory.
+    pub dir: String,
+    pub reference: String,
+}
+
+/// The projects a change intent may demand a release from: named, carrying a
 /// valid semver version, and not frozen by `versioning.ignore`. Matches the
 /// participant set of the release-plan assembler.
-pub fn releasable_pkg_names(
+pub fn releasable_projects(
     projects: &[WorkspaceProject],
+    workspace_dir: &Path,
     versioning: &VersioningSettings,
-) -> Vec<String> {
-    let mut names: Vec<String> = projects
+) -> Vec<ReleasableProject> {
+    let refs = index_project_refs(projects, workspace_dir);
+    let ignored_dirs: HashSet<String> =
+        versioning.ignore.iter().flat_map(|reference| refs.ref_to_dirs(reference)).collect();
+    let mut releasable: Vec<ReleasableProject> = projects
         .iter()
-        .filter(|project| {
+        .filter_map(|project| {
             let (Some(name), Some(version)) = (&project.name, &project.version) else {
-                return false;
+                return None;
             };
-            Version::parse(version).is_ok() && !versioning.ignore.contains(name)
+            if Version::parse(version).is_err() {
+                return None;
+            }
+            let dir = to_project_dir(workspace_dir, &project.root_dir);
+            if ignored_dirs.contains(&dir) {
+                return None;
+            }
+            let reference =
+                if refs.name_to_dirs(name).len() > 1 { format!("./{dir}") } else { name.clone() };
+            Some(ReleasableProject { name: name.clone(), dir, reference })
         })
-        .filter_map(|project| project.name.clone())
         .collect();
-    names.sort();
-    names
+    releasable.sort_by(|left, right| left.reference.cmp(&right.reference));
+    releasable
 }
 
 /// Extracts the manifest fields the release-plan assembler consumes from the

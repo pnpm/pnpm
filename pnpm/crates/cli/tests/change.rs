@@ -218,3 +218,58 @@ fn lane_assignment_requires_a_filter() {
 
     drop(root);
 }
+
+/// Two workspace projects publishing the same npm name (pnpm's own TS and Rust
+/// CLIs) must be referenced by directory; the ledger attributes the release to
+/// the right one.
+#[test]
+fn a_name_shared_by_two_projects_must_be_referenced_by_directory() {
+    let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - ts/pnpm\n  - rust/pnpm\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("package.json"), "{\"name\": \"e2e-root\", \"private\": true}\n")
+        .expect("write root package.json");
+    for (dir, version) in [("ts/pnpm", "11.0.0"), ("rust/pnpm", "12.0.0")] {
+        let pkg_dir = workspace.join(dir);
+        fs::create_dir_all(&pkg_dir).expect("create package dir");
+        fs::write(
+            pkg_dir.join("package.json"),
+            format!("{{\"name\": \"pnpm\", \"version\": \"{version}\"}}\n"),
+        )
+        .expect("write package.json");
+    }
+
+    let output = pnpm(&workspace)
+        .with_args(["change", "--bump", "patch", "--summary", "x", "pnpm"])
+        .output()
+        .expect("run pnpm");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("matches multiple workspace projects"), "unexpected: {stderr}");
+
+    let recorded = stdout_of(pnpm(&workspace).with_args([
+        "change",
+        "--bump",
+        "patch",
+        "--summary",
+        "Rust-line fix.",
+        "./rust/pnpm",
+    ]));
+    assert!(recorded.contains("Recorded change intent"), "unexpected: {recorded}");
+
+    let applied = stdout_of(pnpm(&workspace).with_args(["version", "-r"]));
+    assert!(applied.contains("pnpm: 12.0.0 → 12.0.1"), "unexpected: {applied}");
+    assert!(!applied.contains("11.0.0"), "the TS line must not release: {applied}");
+
+    let rust_manifest: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(workspace.join("rust/pnpm/package.json")).expect("read"),
+    )
+    .expect("parse");
+    assert_eq!(rust_manifest["version"].as_str(), Some("12.0.1"));
+
+    let ledger = fs::read_to_string(workspace.join(".changeset/ledger.yaml")).expect("read ledger");
+    assert!(ledger.contains("pnpm@12.0.1:"), "unexpected ledger: {ledger}");
+    assert!(ledger.contains("dir: rust/pnpm"), "ledger must attribute by dir: {ledger}");
+
+    drop(root);
+}

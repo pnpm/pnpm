@@ -82,6 +82,7 @@ fn apply_bumps_manifests_writes_changelogs_records_the_ledger_and_deletes_consum
     let ledger = read_ledger(workspace.dir.path()).expect("ledger reads");
     let plan = assemble_release_plan(
         &workspace.projects,
+        workspace.dir.path(),
         &intents,
         &ledger,
         None,
@@ -92,6 +93,7 @@ fn apply_bumps_manifests_writes_changelogs_records_the_ledger_and_deletes_consum
     let applied = apply_release_plan(
         &plan,
         workspace.dir.path(),
+        &workspace.projects,
         &intents,
         None,
         ApplyReleasePlanOptions::default(),
@@ -140,6 +142,7 @@ fn intent_files_consumed_only_by_lane_prereleases_survive_until_graduation() {
     let ledger = read_ledger(workspace.dir.path()).expect("ledger reads");
     let prerelease_plan = assemble_release_plan(
         &workspace.projects,
+        workspace.dir.path(),
         &intents,
         &ledger,
         Some(&versioning),
@@ -150,6 +153,7 @@ fn intent_files_consumed_only_by_lane_prereleases_survive_until_graduation() {
     apply_release_plan(
         &prerelease_plan,
         workspace.dir.path(),
+        &workspace.projects,
         &intents,
         Some(&versioning),
         ApplyReleasePlanOptions::default(),
@@ -171,6 +175,7 @@ fn intent_files_consumed_only_by_lane_prereleases_survive_until_graduation() {
     let ledger = read_ledger(workspace.dir.path()).expect("ledger reads");
     let graduation_plan = assemble_release_plan(
         &graduated_projects,
+        workspace.dir.path(),
         &intents,
         &ledger,
         None,
@@ -181,6 +186,7 @@ fn intent_files_consumed_only_by_lane_prereleases_survive_until_graduation() {
     apply_release_plan(
         &graduation_plan,
         workspace.dir.path(),
+        &graduated_projects,
         &intents,
         None,
         ApplyReleasePlanOptions::default(),
@@ -206,6 +212,7 @@ fn snapshot_releases_rewrite_manifests_without_consuming_intents_or_writing_chan
     };
     let plan = assemble_release_plan(
         &workspace.projects,
+        workspace.dir.path(),
         &intents,
         &read_ledger(workspace.dir.path()).expect("ledger reads"),
         None,
@@ -215,6 +222,7 @@ fn snapshot_releases_rewrite_manifests_without_consuming_intents_or_writing_chan
     apply_release_plan(
         &plan,
         workspace.dir.path(),
+        &workspace.projects,
         &intents,
         None,
         ApplyReleasePlanOptions { snapshot: true },
@@ -236,6 +244,7 @@ fn a_none_only_intent_is_garbage_collected_by_a_run_with_an_empty_plan() {
     let intents = read_change_intents(workspace.dir.path()).expect("intents read");
     let plan = assemble_release_plan(
         &workspace.projects,
+        workspace.dir.path(),
         &intents,
         &read_ledger(workspace.dir.path()).expect("ledger reads"),
         None,
@@ -246,6 +255,7 @@ fn a_none_only_intent_is_garbage_collected_by_a_run_with_an_empty_plan() {
     apply_release_plan(
         &plan,
         workspace.dir.path(),
+        &workspace.projects,
         &intents,
         None,
         ApplyReleasePlanOptions::default(),

@@ -81,9 +81,9 @@ test('applyReleasePlan bumps manifests, writes changelogs, records the ledger, a
     summary: 'Added a feature.',
   })
   const intents = await readChangeIntents(workspaceDir)
-  const plan = assembleReleasePlan({ projects, intents, ledger: await readLedger(workspaceDir) })
+  const plan = assembleReleasePlan({ workspaceDir, projects, intents, ledger: await readLedger(workspaceDir) })
 
-  const applied = await applyReleasePlan(plan, { workspaceDir, allIntents: intents })
+  const applied = await applyReleasePlan(plan, { workspaceDir, projects, allIntents: intents })
   expect(applied.map((release) => `${release.name}@${release.newVersion}`).sort()).toStrictEqual(['cli@2.0.1', 'lib@1.1.0'])
 
   const libDir = projects.find((project) => project.manifest.name === 'lib')!.rootDir
@@ -119,9 +119,9 @@ test('intent files consumed only by lane prereleases survive until graduation', 
   const versioning = { lanes: { cli: 'alpha' } }
 
   let intents = await readChangeIntents(workspaceDir)
-  const prereleasePlan = assembleReleasePlan({ projects, intents, ledger: await readLedger(workspaceDir), versioning })
+  const prereleasePlan = assembleReleasePlan({ workspaceDir, projects, intents, ledger: await readLedger(workspaceDir), versioning })
   expect(prereleasePlan.releases[0].newVersion).toBe('2.1.0-alpha.0')
-  await applyReleasePlan(prereleasePlan, { workspaceDir, allIntents: intents, versioning })
+  await applyReleasePlan(prereleasePlan, { workspaceDir, projects, allIntents: intents, versioning })
 
   // The prose is still needed for the stable changelog at graduation.
   intents = await readChangeIntents(workspaceDir)
@@ -133,9 +133,9 @@ test('intent files consumed only by lane prereleases survive until graduation', 
     rootDir: projects[0].rootDir,
     manifest: { name: 'cli', version: '2.1.0-alpha.0' },
   }]
-  const graduationPlan = assembleReleasePlan({ projects: graduatedProjects, intents, ledger: await readLedger(workspaceDir), versioning: {} })
+  const graduationPlan = assembleReleasePlan({ workspaceDir, projects: graduatedProjects, intents, ledger: await readLedger(workspaceDir), versioning: {} })
   expect(graduationPlan.releases[0].newVersion).toBe('2.1.0')
-  await applyReleasePlan(graduationPlan, { workspaceDir, allIntents: intents, versioning: {} })
+  await applyReleasePlan(graduationPlan, { workspaceDir, projects: graduatedProjects, allIntents: intents, versioning: {} })
 
   const changelog = await fs.readFile(path.join(projects[0].rootDir, 'CHANGELOG.md'), 'utf8')
   expect(changelog).toContain('## 2.1.0-alpha.0')
@@ -149,8 +149,8 @@ test('snapshot releases rewrite manifests without consuming intents or writing c
   ])
   await writeChangeIntent(workspaceDir, { releases: { lib: 'patch' }, summary: 'A fix.' })
   const intents = await readChangeIntents(workspaceDir)
-  const plan = assembleReleasePlan({ projects, intents, ledger: {}, snapshotSuffix: 'preview-20260712000000' })
-  await applyReleasePlan(plan, { workspaceDir, allIntents: intents, snapshot: true })
+  const plan = assembleReleasePlan({ workspaceDir, projects, intents, ledger: {}, snapshotSuffix: 'preview-20260712000000' })
+  await applyReleasePlan(plan, { workspaceDir, projects, allIntents: intents, snapshot: true })
 
   expect(JSON.parse(await fs.readFile(path.join(projects[0].rootDir, 'package.json'), 'utf8')).version).toBe('0.0.0-preview-20260712000000')
   expect(await readChangeIntents(workspaceDir)).toHaveLength(1)
@@ -173,9 +173,9 @@ test('a none-only intent is garbage-collected by a run with an empty plan', asyn
   ])
   await writeChangeIntent(workspaceDir, { releases: { lib: 'none' }, summary: 'refactor, no release needed' })
   const intents = await readChangeIntents(workspaceDir)
-  const plan = assembleReleasePlan({ projects, intents, ledger: await readLedger(workspaceDir) })
+  const plan = assembleReleasePlan({ workspaceDir, projects, intents, ledger: await readLedger(workspaceDir) })
   expect(plan.releases).toHaveLength(0)
-  await applyReleasePlan(plan, { workspaceDir, allIntents: intents })
+  await applyReleasePlan(plan, { workspaceDir, projects, allIntents: intents })
   expect(await readChangeIntents(workspaceDir)).toHaveLength(0)
 })
 
@@ -187,6 +187,6 @@ test('a merge-resurrected intent whose id is already in the ledger stays inert a
   const intents = await readChangeIntents(workspaceDir)
   // Simulate the entry arriving from another line's release via a merge.
   const ledger = { ['lib@1.0.1']: [intents[0].id] }
-  const plan = assembleReleasePlan({ projects, intents, ledger })
+  const plan = assembleReleasePlan({ workspaceDir, projects, intents, ledger })
   expect(plan.releases).toHaveLength(0)
 })

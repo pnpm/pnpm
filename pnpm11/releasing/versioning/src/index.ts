@@ -7,10 +7,14 @@ export {
   assembleReleasePlan,
   type AssembleReleasePlanOptions,
   type DependencyUpdate,
+  indexProjectRefs,
+  isDirRef,
   materializeWorkspaceRange,
   type PlannedRelease,
+  type ProjectRefIndex,
   type ReleaseCause,
   type ReleasePlan,
+  toProjectDir,
   type WorkspaceProject,
 } from './assembleReleasePlan.js'
 export {
@@ -33,6 +37,9 @@ export {
   buildConsumptionIndex,
   type Ledger,
   LEDGER_FILENAME,
+  type LedgerEntry,
+  ledgerEntryIds,
+  normalizeProjectDir,
   type PackageConsumption,
   readLedger,
 } from './ledger.js'

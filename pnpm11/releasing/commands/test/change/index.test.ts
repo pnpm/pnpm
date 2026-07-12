@@ -146,6 +146,28 @@ describe('change command and intent-consuming version -r', () => {
     ).rejects.toMatchObject({ code: 'ERR_PNPM_VERSIONING_LANE_FILTER_REQUIRED' })
   })
 
+  it('a name shared by two projects must be referenced by directory', async () => {
+    const twinA = addPkg({ name: 'pnpm', version: '11.0.0' })
+    const twinB = { rootDir: path.join(tempDir, 'rust', 'pnpm'), manifest: { name: 'pnpm', version: '12.0.0' } }
+    fs.mkdirSync(twinB.rootDir, { recursive: true })
+    fs.writeFileSync(path.join(twinB.rootDir, 'package.json'), JSON.stringify(twinB.manifest, null, 2))
+    const opts = baseOpts([twinA, twinB])
+
+    await expect(
+      change.handler({ ...opts, bump: 'patch', summary: 'x' } as any, ['pnpm']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_VERSIONING_AMBIGUOUS_PACKAGE' })
+
+    const output = await change.handler({ ...opts, bump: 'patch', summary: 'Rust-line fix.' } as any, ['./rust/pnpm']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(output).toContain('Recorded change intent')
+
+    const applied = await version.handler(opts as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(applied).toContain('pnpm: 12.0.0 → 12.0.1')
+    expect(applied).not.toContain('11.0.0')
+    const ledger = fs.readFileSync(path.join(tempDir, '.changeset', 'ledger.yaml'), 'utf8')
+    expect(ledger).toContain('pnpm@12.0.1:')
+    expect(ledger).toContain('dir: rust/pnpm')
+  })
+
   it('bare lane reports when everything is on the main lane', async () => {
     const cli = addPkg({ name: 'cli', version: '2.0.0' })
     const output = await lane.handler(baseOpts([cli]) as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any

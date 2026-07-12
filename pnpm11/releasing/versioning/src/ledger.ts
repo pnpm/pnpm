@@ -10,14 +10,29 @@ import { CHANGES_DIR } from './intents.js'
 export const LEDGER_FILENAME = 'ledger.yaml'
 
 /**
- * The committed, append-only record of consumed change intents: maps
- * `<package name>@<released version>` to the ids of the intent files consumed
- * by that release. Consumption is scoped per package — an intent file is fully
- * consumed only once every package it names has an entry — which is what makes
- * cherry-picked releases on maintenance branches and merge-backs safe, and
- * what lets one intent be half-consumed by a package on a release lane.
+ * One consumed release: the workspace-relative directory of the project that
+ * released (the engine's unit of identity — package names may collide across
+ * workspace projects) and the ids of the intent files the release consumed.
+ * The bare id-list shape is accepted when read, for hand-written entries;
+ * its project is then resolved by the package name in the entry key, which
+ * must be unambiguous.
  */
-export type Ledger = Record<string, string[]>
+export type LedgerEntry = string[] | { dir: string, intents: string[] }
+
+/**
+ * The committed, append-only record of consumed change intents: maps
+ * `<package name>@<released version>` to the released project and the ids of
+ * the intent files consumed by that release. Consumption is scoped per
+ * project — an intent file is fully consumed only once every project it
+ * names has an entry — which is what makes cherry-picked releases on
+ * maintenance branches and merge-backs safe, and what lets one intent be
+ * half-consumed by a package on a release lane.
+ */
+export type Ledger = Record<string, LedgerEntry>
+
+export function ledgerEntryIds (entry: LedgerEntry): string[] {
+  return Array.isArray(entry) ? entry : entry.intents
+}
 
 export async function readLedger (workspaceDir: string): Promise<Ledger> {
   const ledgerPath = path.join(workspaceDir, CHANGES_DIR, LEDGER_FILENAME)
@@ -33,25 +48,41 @@ export async function readLedger (workspaceDir: string): Promise<Ledger> {
 
   const parsed: unknown = yaml.parse(content) ?? {}
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new PnpmError('INVALID_VERSIONING_LEDGER', `Expected ${ledgerPath} to be a mapping of package@version keys to intent id lists`)
+    throw new PnpmError('INVALID_VERSIONING_LEDGER', `Expected ${ledgerPath} to be a mapping of package@version keys to consumed-intent entries`)
   }
   // A null prototype so a key like "__proto__" lands as an own property
   // instead of mutating the prototype.
   const ledger: Ledger = Object.create(null) as Ledger
-  for (const [key, ids] of Object.entries(parsed)) {
-    if (!Array.isArray(ids) || ids.some((id) => typeof id !== 'string')) {
-      throw new PnpmError('INVALID_VERSIONING_LEDGER', `Invalid entry for ${key} in ${ledgerPath}. Expected a list of intent ids`)
+  for (const [key, entry] of Object.entries(parsed)) {
+    if (!isValidLedgerEntry(entry)) {
+      throw new PnpmError('INVALID_VERSIONING_LEDGER', `Invalid entry for ${key} in ${ledgerPath}. Expected a list of intent ids, or a mapping with "dir" and "intents"`)
     }
-    ledger[key] = ids
+    ledger[key] = entry as LedgerEntry
   }
   return ledger
 }
 
-export async function appendToLedger (workspaceDir: string, newEntries: Ledger): Promise<Ledger> {
+function isValidLedgerEntry (entry: unknown): boolean {
+  if (Array.isArray(entry)) {
+    return entry.every((id) => typeof id === 'string')
+  }
+  if (typeof entry !== 'object' || entry === null) return false
+  const { dir, intents } = entry as { dir?: unknown, intents?: unknown }
+  return typeof dir === 'string' && Array.isArray(intents) && intents.every((id) => typeof id === 'string')
+}
+
+export async function appendToLedger (
+  workspaceDir: string,
+  newEntries: Record<string, { dir: string, intents: string[] }>
+): Promise<Ledger> {
   const ledger = await readLedger(workspaceDir)
   if (Object.keys(newEntries).length === 0) return ledger
-  for (const [key, ids] of Object.entries(newEntries)) {
-    ledger[key] = Array.from(new Set([...(ledger[key] ?? []), ...ids])).sort()
+  for (const [key, entry] of Object.entries(newEntries)) {
+    const existingIds = ledger[key] != null ? ledgerEntryIds(ledger[key]) : []
+    ledger[key] = {
+      dir: entry.dir,
+      intents: Array.from(new Set([...existingIds, ...entry.intents])).sort(),
+    }
   }
   const sorted = Object.fromEntries(Object.entries(ledger).sort(([left], [right]) => left.localeCompare(right)))
   const changesDir = path.join(workspaceDir, CHANGES_DIR)
@@ -61,46 +92,80 @@ export async function appendToLedger (workspaceDir: string, newEntries: Ledger):
 }
 
 export interface PackageConsumption {
-  /** Intent ids the ledger records against any released version of the package. */
+  /** Intent ids the ledger records against any released version of the project. */
   allIds: Set<string>
-  /** Intent ids recorded only against prerelease versions of the package. */
+  /** Intent ids recorded only against prerelease versions of the project. */
   prereleaseOnlyIds: Set<string>
 }
 
 /**
- * Indexes the ledger by package name in a single pass. Packages without
- * entries map to an empty consumption, so lookups never miss.
+ * Indexes the ledger by workspace-relative project directory in a single
+ * pass. Bare id-list entries carry no directory, so their project is
+ * resolved from the entry key's package name via `resolveNameDirs`; a name
+ * matching several projects cannot be attributed and is an error — write
+ * such entries in the `dir`/`intents` shape instead. Entries whose name no
+ * longer exists in the workspace are inert. Projects without entries map to
+ * an empty consumption, so lookups never miss.
  */
-export function buildConsumptionIndex (ledger: Ledger): (pkgName: string) => PackageConsumption {
-  const stableIdsByPkg = new Map<string, Set<string>>()
-  const prereleaseIdsByPkg = new Map<string, Set<string>>()
-  for (const [key, ids] of Object.entries(ledger)) {
+export function buildConsumptionIndex (
+  ledger: Ledger,
+  resolveNameDirs: (pkgName: string) => string[]
+): (projectDir: string) => PackageConsumption {
+  const stableIdsByDir = new Map<string, Set<string>>()
+  const prereleaseIdsByDir = new Map<string, Set<string>>()
+  for (const [key, entry] of Object.entries(ledger)) {
     const atIndex = key.lastIndexOf('@')
     if (atIndex <= 0) continue
-    const pkgName = key.slice(0, atIndex)
     const version = key.slice(atIndex + 1)
+    let dir: string
+    if (Array.isArray(entry)) {
+      const pkgName = key.slice(0, atIndex)
+      const dirs = resolveNameDirs(pkgName)
+      if (dirs.length === 0) continue
+      if (dirs.length > 1) {
+        throw new PnpmError(
+          'INVALID_VERSIONING_LEDGER',
+          `The ledger entry ${key} names ${pkgName}, which matches multiple workspace projects (${dirs.join(', ')}). Rewrite the entry with an explicit "dir".`
+        )
+      }
+      dir = dirs[0]
+    } else {
+      dir = normalizeProjectDir(entry.dir)
+    }
     // Build metadata (after "+") may itself contain hyphens and never makes a
     // version a prerelease.
     const isPrerelease = version.split('+')[0].includes('-')
-    const byPkg = isPrerelease ? prereleaseIdsByPkg : stableIdsByPkg
-    let idSet = byPkg.get(pkgName)
+    const byDir = isPrerelease ? prereleaseIdsByDir : stableIdsByDir
+    let idSet = byDir.get(dir)
     if (idSet == null) {
       idSet = new Set()
-      byPkg.set(pkgName, idSet)
+      byDir.set(dir, idSet)
     }
-    for (const id of ids) {
+    for (const id of ledgerEntryIds(entry)) {
       idSet.add(id)
     }
   }
 
-  const consumptionByPkg = new Map<string, PackageConsumption>()
-  for (const pkgName of new Set([...stableIdsByPkg.keys(), ...prereleaseIdsByPkg.keys()])) {
-    const stableIds = stableIdsByPkg.get(pkgName) ?? new Set()
-    const prereleaseIds = prereleaseIdsByPkg.get(pkgName) ?? new Set()
-    consumptionByPkg.set(pkgName, {
+  const consumptionByDir = new Map<string, PackageConsumption>()
+  for (const dir of new Set([...stableIdsByDir.keys(), ...prereleaseIdsByDir.keys()])) {
+    const stableIds = stableIdsByDir.get(dir) ?? new Set()
+    const prereleaseIds = prereleaseIdsByDir.get(dir) ?? new Set()
+    consumptionByDir.set(dir, {
       allIds: new Set([...stableIds, ...prereleaseIds]),
       prereleaseOnlyIds: new Set([...prereleaseIds].filter((id) => !stableIds.has(id))),
     })
   }
-  return (pkgName) => consumptionByPkg.get(pkgName) ?? { allIds: new Set(), prereleaseOnlyIds: new Set() }
+  return (projectDir) => consumptionByDir.get(projectDir) ?? { allIds: new Set(), prereleaseOnlyIds: new Set() }
+}
+
+/**
+ * The canonical spelling of a workspace-relative project directory: forward
+ * slashes, no leading `./`, no trailing slash.
+ */
+export function normalizeProjectDir (dir: string): string {
+  let normalized = dir.replaceAll('\\', '/')
+  while (normalized.startsWith('./')) {
+    normalized = normalized.slice(2)
+  }
+  return normalized.replace(/\/+$/, '')
 }

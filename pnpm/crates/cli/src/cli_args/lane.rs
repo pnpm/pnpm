@@ -4,12 +4,12 @@ use miette::Diagnostic;
 use pacquet_config::Config;
 use pacquet_versioning::VersioningSettings;
 use pacquet_workspace_manifest_writer::update_manifest_field;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::cli_args::{
-    change::{releasable_pkg_names, to_engine_projects},
+    change::{releasable_projects, to_engine_projects},
     recursive::discover_workspace_projects,
-    version::selected_pkg_names,
+    version::selected_projects,
 };
 
 /// The reserved name of the default lane: every package is on it unless
@@ -80,25 +80,56 @@ impl LaneArgs {
         }
         let (projects, _) = discover_workspace_projects(&workspace_dir)?;
         let engine_projects = to_engine_projects(&projects);
-        let releasable: HashSet<String> =
-            releasable_pkg_names(&engine_projects, &config.versioning).into_iter().collect();
-        let selected: Vec<String> = selected_pkg_names(&projects, config, &workspace_dir)?
-            .into_iter()
-            .filter(|name| releasable.contains(name))
-            .collect();
+        let refs = pacquet_versioning::index_project_refs(&engine_projects, &workspace_dir);
+        let releasable_dirs: HashSet<String> =
+            releasable_projects(&engine_projects, &workspace_dir, &config.versioning)
+                .into_iter()
+                .map(|project| project.dir)
+                .collect();
+        // (name, dir) of every selected releasable project, with the
+        // reference an intent or lanes entry should use for it.
+        let selected: Vec<(String, String, String)> =
+            selected_projects(&projects, config, &workspace_dir)?
+                .into_iter()
+                .filter_map(|(name, dir)| {
+                    let name = name?;
+                    if !releasable_dirs.contains(&dir) {
+                        return None;
+                    }
+                    let reference = if refs.name_to_dirs(&name).len() > 1 {
+                        format!("./{dir}")
+                    } else {
+                        name.clone()
+                    };
+                    Some((name, dir, reference))
+                })
+                .collect();
         if selected.is_empty() {
             return Err(LaneError::NoPackagesSelected.into());
         }
 
+        // Existing entries may reference projects by name or by directory;
+        // resolve them so assignments and removals key on the project, not
+        // the spelling.
+        let mut lane_by_dir: HashMap<String, (String, String)> = HashMap::new();
+        for (key, lane) in &config.versioning.lanes {
+            for dir in refs.ref_to_dirs(key) {
+                lane_by_dir.insert(dir, (key.clone(), lane.clone()));
+            }
+        }
+
         let mut settings: VersioningSettings = config.versioning.clone();
-        let selected_lines: String = selected.iter().fold(String::new(), |mut lines, name| {
-            use std::fmt::Write as _;
-            writeln!(lines, "  {name}").expect("write to string");
-            lines
-        });
+        let selected_lines: String =
+            selected.iter().fold(String::new(), |mut lines, (_, _, reference)| {
+                use std::fmt::Write as _;
+                writeln!(lines, "  {reference}").expect("write to string");
+                lines
+            });
         let output = if lane_name == MAIN_LANE {
-            for name in &selected {
-                settings.lanes.shift_remove(name);
+            for (_, dir, _) in &selected {
+                if let Some((key, _)) = lane_by_dir.get(dir) {
+                    settings.lanes.shift_remove(key);
+                }
             }
             format!(
                 r#"Moved to the main lane:
@@ -118,17 +149,20 @@ impl LaneArgs {
             if !valid_name {
                 return Err(LaneError::InvalidLaneName { name: lane_name }.into());
             }
-            for name in &selected {
-                if let Some(existing) = settings.lanes.get(name)
-                    && existing != &lane_name
-                {
-                    return Err(LaneError::AlreadyOnLane {
-                        pkg_name: name.clone(),
-                        lane: existing.clone(),
+            for (_, dir, reference) in &selected {
+                match lane_by_dir.get(dir) {
+                    Some((_, existing)) if existing != &lane_name => {
+                        return Err(LaneError::AlreadyOnLane {
+                            pkg_name: reference.clone(),
+                            lane: existing.clone(),
+                        }
+                        .into());
                     }
-                    .into());
+                    Some(_) => {}
+                    None => {
+                        settings.lanes.insert(reference.clone(), lane_name.clone());
+                    }
                 }
-                settings.lanes.insert(name.clone(), lane_name.clone());
             }
             format!("Moved to the \"{lane_name}\" lane:\n{selected_lines}")
         };

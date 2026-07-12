@@ -5,10 +5,12 @@ import {
   assembleReleasePlan,
   BUMP_TYPES,
   type ChangeIntent,
+  indexProjectRefs,
   type IntentBumpType,
   readChangeIntents,
   readLedger,
   type ReleasePlan,
+  toProjectDir,
   type WorkspaceProject,
   writeChangeIntent,
 } from '@pnpm/releasing.versioning'
@@ -79,14 +81,23 @@ export async function handler (opts: ChangeCommandOptions, params: string[]): Pr
 }
 
 async function recordChange (workspaceDir: string, opts: ChangeCommandOptions, params: string[]): Promise<string> {
-  const releasablePkgNames = getReleasablePkgNames(opts.allProjects ?? [], opts.versioning)
-  if (releasablePkgNames.length === 0) {
+  const releasable = getReleasableProjects(opts.allProjects ?? [], workspaceDir, opts.versioning)
+  if (releasable.length === 0) {
     throw new PnpmError('VERSIONING_NO_PACKAGES', 'No releasable packages found in this workspace')
   }
+  const releasableDirs = new Set(releasable.map((project) => project.dir))
+  const refs = indexProjectRefs(opts.allProjects ?? [], workspaceDir)
 
-  for (const pkgName of params) {
-    if (!releasablePkgNames.includes(pkgName)) {
-      throw new PnpmError('VERSIONING_UNKNOWN_PACKAGE', `${pkgName} is not a releasable package of this workspace`)
+  for (const ref of params) {
+    const dirs = refs.refToDirs(ref)
+    if (dirs.length > 1) {
+      throw new PnpmError(
+        'VERSIONING_AMBIGUOUS_PACKAGE',
+        `${ref} matches multiple workspace projects: ${dirs.map((dir) => `./${dir}`).join(', ')}. Reference the project by directory instead.`
+      )
+    }
+    if (dirs.length === 0 || !releasableDirs.has(dirs[0])) {
+      throw new PnpmError('VERSIONING_UNKNOWN_PACKAGE', `${ref} is not a releasable package of this workspace`)
     }
   }
 
@@ -94,20 +105,26 @@ async function recordChange (workspaceDir: string, opts: ChangeCommandOptions, p
     throw new PnpmError('VERSIONING_INVALID_BUMP', `Invalid bump type: ${opts.bump}. Expected one of ${BUMP_TYPES.join(', ')}`)
   }
 
-  const pkgNames = params.length > 0
+  // For a name shared by several projects the interactive picker offers each
+  // project under its directory reference, so the written intent stays
+  // unambiguous without the contributor knowing the rule exists.
+  const pkgRefs = params.length > 0
     ? params
     : await checkbox({
       message: 'Which packages does this change affect?',
-      choices: releasablePkgNames.map((name) => ({ value: name })),
+      choices: releasable.map((project) => ({
+        value: project.ref,
+        name: project.ref === project.name ? project.name : `${project.name} (./${project.dir})`,
+      })),
       required: true,
     })
 
   const releases: Record<string, IntentBumpType> = {}
-  for (const pkgName of pkgNames) {
-    releases[pkgName] = (opts.bump as IntentBumpType | undefined) ??
+  for (const ref of pkgRefs) {
+    releases[ref] = (opts.bump as IntentBumpType | undefined) ??
       // eslint-disable-next-line no-await-in-loop
       await select<IntentBumpType>({
-        message: `Bump type for ${pkgName}`,
+        message: `Bump type for ${ref}`,
         choices: BUMP_TYPES.map((bumpType) => ({ value: bumpType })).reverse(),
         default: 'patch',
       })
@@ -124,6 +141,7 @@ async function renderStatus (workspaceDir: string, opts: ChangeCommandOptions): 
   const intents = await readChangeIntents(workspaceDir)
   const ledger = await readLedger(workspaceDir)
   const plan = assembleReleasePlan({
+    workspaceDir,
     projects: toWorkspaceProjects(opts.allProjects ?? []),
     intents,
     ledger,
@@ -150,16 +168,43 @@ export function renderReleasePlan (plan: ReleasePlan): string {
   return output
 }
 
-export function getReleasablePkgNames (allProjects: Array<Pick<Project, 'manifest'>>, versioning?: VersioningSettings): string[] {
-  const ignored = new Set(versioning?.ignore ?? [])
+export interface ReleasableProject {
+  name: string
+  /** Workspace-relative project directory. */
+  dir: string
+  /**
+   * How an intent file or versioning config should reference this project:
+   * the bare name, or the `./`-prefixed directory when the name is shared by
+   * several workspace projects.
+   */
+  ref: string
+}
+
+/**
+ * The projects a change intent may demand a release from: named, carrying a
+ * valid semver version, and not frozen by `versioning.ignore`. Matches the
+ * participant set of the release-plan assembler.
+ */
+export function getReleasableProjects (
+  allProjects: Array<Pick<Project, 'manifest' | 'rootDir'>>,
+  workspaceDir: string,
+  versioning?: VersioningSettings
+): ReleasableProject[] {
+  const refs = indexProjectRefs(allProjects, workspaceDir)
+  const ignoredDirs = new Set((versioning?.ignore ?? []).flatMap((ref) => refs.refToDirs(ref)))
   return allProjects
     .filter(({ manifest }) =>
       manifest.name != null &&
       manifest.version != null &&
-      valid(manifest.version) != null &&
-      !ignored.has(manifest.name))
-    .map((project) => project.manifest.name!)
-    .sort()
+      valid(manifest.version) != null)
+    .map((project) => ({ name: project.manifest.name!, dir: toProjectDir(workspaceDir, project.rootDir) }))
+    .filter(({ dir }) => !ignoredDirs.has(dir))
+    .map(({ name, dir }) => ({
+      name,
+      dir,
+      ref: refs.nameToDirs(name).length > 1 ? `./${dir}` : name,
+    }))
+    .sort((left, right) => left.ref.localeCompare(right.ref))
 }
 
 export function toWorkspaceProjects (allProjects: Array<Pick<Project, 'manifest' | 'rootDir'>>): WorkspaceProject[] {

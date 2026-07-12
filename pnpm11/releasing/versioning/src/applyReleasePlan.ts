@@ -4,13 +4,14 @@ import { PnpmError } from '@pnpm/error'
 import type { VersioningSettings } from '@pnpm/types'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 
-import type { ReleasePlan } from './assembleReleasePlan.js'
+import { indexProjectRefs, type ReleasePlan, type WorkspaceProject } from './assembleReleasePlan.js'
 import { composeChangelogSection, prependChangelogSection } from './changelog.js'
 import type { ChangeIntent } from './intents.js'
-import { appendToLedger, buildConsumptionIndex, type Ledger } from './ledger.js'
+import { appendToLedger, buildConsumptionIndex } from './ledger.js'
 
 export interface ApplyReleasePlanOptions {
   workspaceDir: string
+  projects: WorkspaceProject[]
   /**
    * All intent files currently in the workspace, used to decide which files
    * are fully consumed after this run and can be deleted.
@@ -53,35 +54,43 @@ export async function applyReleasePlan (plan: ReleasePlan, opts: ApplyReleasePla
     await prependChangelogSection(release.rootDir, release.name, section)
   }))
 
-  const newEntries: Ledger = {}
+  const newEntries: Record<string, { dir: string, intents: string[] }> = {}
   for (const release of plan.releases) {
     if (release.intents.length === 0) continue
-    newEntries[`${release.name}@${release.newVersion}`] = release.intents.map((intent) => intent.id).sort()
+    newEntries[`${release.name}@${release.newVersion}`] = {
+      dir: release.dir,
+      intents: release.intents.map((intent) => intent.id).sort(),
+    }
   }
   const ledger = await appendToLedger(opts.workspaceDir, newEntries)
-  await deleteConsumedIntentFiles(opts.allIntents, ledger, opts.versioning)
 
-  return applied
-}
-
-/**
- * An intent file is deletable once every package it names has a ledger entry
- * for it, with one exemption: while a package is still on a lane,
- * entries against prerelease versions alone keep the file alive — its prose
- * is still needed to compose the stable changelog section at graduation.
- * Declined (`none`) entries demand no release and never block deletion.
- */
-async function deleteConsumedIntentFiles (allIntents: ChangeIntent[], ledger: Ledger, versioning?: VersioningSettings): Promise<void> {
-  const lanes = versioning?.lanes ?? {}
-  const consumptionOf = buildConsumptionIndex(ledger)
-  const deletable = allIntents.filter((intent) =>
-    Object.entries(intent.releases).every(([pkgName, bumpType]) => {
+  // An intent file is deletable once every project it names has a ledger
+  // entry for it, with one exemption: while a project is still on a lane,
+  // entries against prerelease versions alone keep the file alive — its
+  // prose is still needed to compose the stable changelog section at
+  // graduation. Declined (`none`) entries demand no release and never block
+  // deletion. References here were already validated by the plan assembly,
+  // so an unresolvable one just keeps its file around.
+  const refs = indexProjectRefs(opts.projects, opts.workspaceDir)
+  const consumptionOf = buildConsumptionIndex(ledger, refs.nameToDirs)
+  const laneDirs = new Set<string>()
+  for (const ref of Object.keys(opts.versioning?.lanes ?? {})) {
+    for (const dir of refs.refToDirs(ref)) {
+      laneDirs.add(dir)
+    }
+  }
+  const deletable = opts.allIntents.filter((intent) =>
+    Object.entries(intent.releases).every(([ref, bumpType]) => {
       if (bumpType === 'none') return true
-      const consumption = consumptionOf(pkgName)
+      const dirs = refs.refToDirs(ref)
+      if (dirs.length !== 1) return false
+      const consumption = consumptionOf(dirs[0])
       return consumption.allIds.has(intent.id) &&
-        !(lanes[pkgName] != null && consumption.prereleaseOnlyIds.has(intent.id))
+        !(laneDirs.has(dirs[0]) && consumption.prereleaseOnlyIds.has(intent.id))
     }))
   await Promise.all(deletable.map(async (intent) => fs.rm(intent.filePath)))
+
+  return applied
 }
 
 function assertSupportedChangelogStorage (versioning?: VersioningSettings): void {

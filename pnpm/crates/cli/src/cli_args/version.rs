@@ -104,8 +104,9 @@ impl VersionArgs {
             None
         } else {
             Some(
-                selected_pkg_names(&projects, config, &workspace_dir)?
+                selected_projects(&projects, config, &workspace_dir)?
                     .into_iter()
+                    .map(|(_, dir)| dir)
                     .collect::<HashSet<String>>(),
             )
         };
@@ -114,6 +115,7 @@ impl VersionArgs {
 
         let plan = assemble_release_plan(
             &engine_projects,
+            &workspace_dir,
             &intents,
             &ledger,
             Some(&config.versioning),
@@ -129,6 +131,7 @@ impl VersionArgs {
                 apply_release_plan(
                     &plan,
                     &workspace_dir,
+                    &engine_projects,
                     &intents,
                     Some(&config.versioning),
                     ApplyReleasePlanOptions::default(),
@@ -145,6 +148,7 @@ impl VersionArgs {
         let applied = apply_release_plan(
             &plan,
             &workspace_dir,
+            &engine_projects,
             &intents,
             Some(&config.versioning),
             ApplyReleasePlanOptions { snapshot: snapshot_suffix.is_some() },
@@ -165,21 +169,29 @@ impl VersionArgs {
     }
 }
 
-/// The names of the projects the active `--filter` selectors pick, in graph
-/// order.
-pub(crate) fn selected_pkg_names(
+/// The projects the active `--filter` selectors pick, in graph order, as
+/// `(name, workspace-relative dir)` pairs.
+pub(crate) fn selected_projects(
     projects: &[pacquet_workspace::Project],
     config: &Config,
-    prefix: &Path,
-) -> miette::Result<Vec<String>> {
-    let selection = select_recursive_projects(projects, config, prefix, AutoExcludeRoot::Disabled)?;
+    workspace_dir: &Path,
+) -> miette::Result<Vec<(Option<String>, String)>> {
+    let selection =
+        select_recursive_projects(projects, config, workspace_dir, AutoExcludeRoot::Disabled)?;
     Ok(selection
         .selected
-        .values()
-        .filter_map(|node| {
-            node.package.project.manifest.value().get("name").and_then(|name| name.as_str())
+        .iter()
+        .map(|(root_dir, node)| {
+            let name = node
+                .package
+                .project
+                .manifest
+                .value()
+                .get("name")
+                .and_then(|name| name.as_str())
+                .map(ToString::to_string);
+            (name, pacquet_versioning::to_project_dir(workspace_dir, root_dir))
         })
-        .map(ToString::to_string)
         .collect())
 }
 

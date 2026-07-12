@@ -28,12 +28,13 @@ pub use intents::{
     write_change_intent,
 };
 pub use ledger::{
-    LEDGER_FILENAME, Ledger, PackageConsumption, append_to_ledger, build_consumption_index,
-    read_ledger,
+    LEDGER_FILENAME, Ledger, LedgerEntry, PackageConsumption, append_to_ledger,
+    build_consumption_index, normalize_project_dir, read_ledger,
 };
 pub use plan::{
     AssembleReleasePlanOptions, DependencyField, DependencyUpdate, ManifestDependency,
-    PlannedRelease, ReleaseCause, ReleasePlan, WorkspaceProject, assemble_release_plan,
-    materialize_workspace_range,
+    PlannedRelease, ProjectRefIndex, ReleaseCause, ReleasePlan, WorkspaceProject,
+    assemble_release_plan, index_project_refs, is_dir_ref, materialize_workspace_range,
+    to_project_dir,
 };
 pub use settings::{ChangelogSettings, ChangelogStorage, ReleaseBumpType, VersioningSettings};

@@ -1,7 +1,10 @@
 use std::{fs, io::ErrorKind, path::Path};
 
 use crate::{
-    error::VersioningError, intents::IntentBumpType, plan::PlannedRelease,
+    error::VersioningError,
+    intents::IntentBumpType,
+    ledger::normalize_project_dir,
+    plan::{PlannedRelease, is_dir_ref},
     settings::ReleaseBumpType,
 };
 
@@ -23,7 +26,7 @@ pub fn compose_changelog_section(release: &PlannedRelease) -> String {
         (ReleaseBumpType::Patch, Vec::new()),
     ];
     for intent in &release.intents {
-        let Some(bump_type) = release_bump(intent.releases.get(&release.name).copied()) else {
+        let Some(bump_type) = release_bump_for(&intent.releases, release) else {
             continue;
         };
         if intent.summary.is_empty() {
@@ -56,8 +59,21 @@ pub fn compose_changelog_section(release: &PlannedRelease) -> String {
     format!("{}\n", parts.join("\n\n"))
 }
 
-fn release_bump(bump_type: Option<IntentBumpType>) -> Option<ReleaseBumpType> {
-    bump_type.and_then(IntentBumpType::release)
+/// The bump an intent declares for this release, whichever way the intent
+/// references the project — by name (sound only when unambiguous, which plan
+/// assembly guarantees) or by directory.
+fn release_bump_for(
+    releases: &indexmap::IndexMap<String, IntentBumpType>,
+    release: &PlannedRelease,
+) -> Option<ReleaseBumpType> {
+    for (reference, bump_type) in releases {
+        if reference == &release.name
+            || (is_dir_ref(reference) && normalize_project_dir(reference) == release.dir)
+        {
+            return bump_type.release();
+        }
+    }
+    None
 }
 
 fn format_list_item(summary: &str) -> String {

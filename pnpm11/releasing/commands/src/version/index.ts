@@ -10,6 +10,7 @@ import {
   assembleReleasePlan,
   readChangeIntents,
   readLedger,
+  toProjectDir,
 } from '@pnpm/releasing.versioning'
 import type { Project, ProjectsGraph } from '@pnpm/types'
 import { safeExeca as execa } from 'execa'
@@ -231,13 +232,14 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
   const intents = await readChangeIntents(workspaceDir)
   const ledger = await readLedger(workspaceDir)
   const filter = (opts.filter ?? []).length > 0
-    ? new Set(selectedPkgNames(opts.selectedProjectsGraph ?? {}))
+    ? new Set(Object.keys(opts.selectedProjectsGraph ?? {}).map((rootDir) => toProjectDir(workspaceDir, rootDir)))
     : undefined
   const snapshotSuffix = opts.snapshot != null && opts.snapshot !== false
     ? makeSnapshotSuffix(opts.snapshot)
     : undefined
 
   const plan = assembleReleasePlan({
+    workspaceDir,
     projects: toWorkspaceProjects(opts.allProjects ?? []),
     intents,
     ledger,
@@ -251,7 +253,7 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     // declined ("none"-only) intents and files a merge resurrected after
     // every named package had already consumed them.
     if (!opts.dryRun && snapshotSuffix == null) {
-      await applyReleasePlan(plan, { workspaceDir, allIntents: intents, versioning: opts.versioning })
+      await applyReleasePlan(plan, { workspaceDir, projects: toWorkspaceProjects(opts.allProjects ?? []), allIntents: intents, versioning: opts.versioning })
     }
     return 'No pending changes. Record one with "pnpm change".'
   }
@@ -262,6 +264,7 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
 
   const applied = await applyReleasePlan(plan, {
     workspaceDir,
+    projects: toWorkspaceProjects(opts.allProjects ?? []),
     allIntents: intents,
     versioning: opts.versioning,
     snapshot: snapshotSuffix != null,
@@ -275,12 +278,6 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     output += `${release.name}: ${release.currentVersion} → ${release.newVersion}\n`
   }
   return output
-}
-
-function selectedPkgNames (selectedProjectsGraph: ProjectsGraph): string[] {
-  return Object.values(selectedProjectsGraph)
-    .map((node) => node.package.manifest.name)
-    .filter((name): name is string => name != null)
 }
 
 function makeSnapshotSuffix (snapshot: boolean | string): string {

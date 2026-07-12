@@ -1,10 +1,12 @@
+import path from 'node:path'
+
 import { PnpmError } from '@pnpm/error'
 import type { ProjectManifest, VersioningSettings } from '@pnpm/types'
 import { WorkspaceSpec } from '@pnpm/workspace.spec-parser'
 import { compare, diff, inc, prerelease as parsePrerelease, satisfies, valid, validRange } from 'semver'
 
-import type { ChangeIntent, ReleaseBumpType } from './intents.js'
-import { buildConsumptionIndex, type Ledger, type PackageConsumption } from './ledger.js'
+import type { ChangeIntent, IntentBumpType, ReleaseBumpType } from './intents.js'
+import { buildConsumptionIndex, type Ledger, normalizeProjectDir, type PackageConsumption } from './ledger.js'
 
 export interface WorkspaceProject {
   rootDir: string
@@ -20,6 +22,8 @@ export interface DependencyUpdate {
 
 export interface PlannedRelease {
   name: string
+  /** Workspace-relative project directory — the engine's unit of identity. */
+  dir: string
   rootDir: string
   currentVersion: string
   newVersion: string
@@ -39,14 +43,16 @@ export interface ReleasePlan {
 }
 
 export interface AssembleReleasePlanOptions {
+  workspaceDir: string
   projects: WorkspaceProject[]
   intents: ChangeIntent[]
   ledger: Ledger
   versioning?: VersioningSettings
   /**
-   * Package names selected with --filter. The plan is narrowed to the selected
-   * packages' portion of the pending work, expanded with their fixed-group
-   * companions and range-invalidated dependents.
+   * Workspace-relative directories of the projects selected with --filter.
+   * The plan is narrowed to the selected packages' portion of the pending
+   * work, expanded with their fixed-group companions and range-invalidated
+   * dependents.
    */
   filter?: Set<string>
   /**
@@ -60,20 +66,80 @@ const BUMP_ORDER: Record<ReleaseBumpType, number> = { patch: 1, minor: 2, major:
 
 const PROPAGATED_DEP_FIELDS = ['dependencies', 'optionalDependencies', 'peerDependencies'] as const
 
-export function assembleReleasePlan (opts: AssembleReleasePlanOptions): ReleasePlan {
-  const participants = collectParticipants(opts.projects, opts.versioning)
-  validateVersioningConfig(participants, opts.versioning)
-  validateIntents(opts.intents, opts.projects, participants)
-  assertInternalDepsUseWorkspaceProtocol(participants)
-  const consumptionOf = buildConsumptionIndex(opts.ledger)
+/**
+ * Whether a package reference is a workspace-relative directory path rather
+ * than a package name — the additive extension to the changesets format,
+ * needed only when workspace projects share a published name.
+ */
+export function isDirRef (ref: string): boolean {
+  return ref.startsWith('./')
+}
 
+/**
+ * Resolves package references — bare names, or `./`-prefixed
+ * workspace-relative directories — against the workspace. Names are aliases:
+ * one that matches several projects cannot identify any of them and callers
+ * must treat it as an error, never a silent pick.
+ */
+export interface ProjectRefIndex {
+  /** The directories a reference resolves to: `[]` unknown, 2+ ambiguous. */
+  refToDirs: (ref: string) => string[]
+  nameToDirs: (name: string) => string[]
+}
+
+export function indexProjectRefs (
+  projects: ReadonlyArray<{ rootDir: string, manifest: { name?: string } }>,
+  workspaceDir: string
+): ProjectRefIndex {
+  const dirs = new Set<string>()
+  const dirsByName = new Map<string, string[]>()
+  for (const project of projects) {
+    const dir = toProjectDir(workspaceDir, project.rootDir)
+    dirs.add(dir)
+    const name = project.manifest.name
+    if (name == null) continue
+    let named = dirsByName.get(name)
+    if (named == null) {
+      named = []
+      dirsByName.set(name, named)
+    }
+    named.push(dir)
+  }
+  return {
+    refToDirs: (ref) => {
+      if (isDirRef(ref)) {
+        const dir = normalizeProjectDir(ref)
+        return dirs.has(dir) ? [dir] : []
+      }
+      return dirsByName.get(ref) ?? []
+    },
+    nameToDirs: (name) => dirsByName.get(name) ?? [],
+  }
+}
+
+/** The workspace-relative directory of a project, in canonical spelling. */
+export function toProjectDir (workspaceDir: string, rootDir: string): string {
+  return normalizeProjectDir(path.relative(workspaceDir, rootDir))
+}
+
+export function assembleReleasePlan (opts: AssembleReleasePlanOptions): ReleasePlan {
+  const refs = indexProjectRefs(opts.projects, opts.workspaceDir)
+  const participants = collectParticipants(opts.projects, refs, opts)
+  const lanesByDir = resolveLanes(refs, participants, opts.versioning)
+  const fixedGroups = resolveFixedGroups(refs, participants, opts.versioning)
+  validateFixedGroupLanes(fixedGroups, lanesByDir, opts.versioning)
+  const intentBumps = resolveIntents(opts.intents, refs, participants)
+  assertInternalDepsUseWorkspaceProtocol(participants)
+  const consumptionOf = buildConsumptionIndex(opts.ledger, refs.nameToDirs)
+
+  const ctx: AssembleContext = { participants, lanesByDir, fixedGroups, intentBumps, consumptionOf, opts }
   let selection = opts.filter
   for (;;) {
-    const plan = assemble(participants, consumptionOf, selection, opts)
+    const plan = assemble(ctx, selection)
     if (selection == null) return plan
     const expanded = new Set(selection)
     for (const release of plan.releases) {
-      expanded.add(release.name)
+      expanded.add(release.dir)
     }
     if (expanded.size === selection.size) return plan
     selection = expanded
@@ -82,14 +148,16 @@ export function assembleReleasePlan (opts: AssembleReleasePlanOptions): ReleaseP
 
 interface Participant {
   name: string
+  dir: string
   rootDir: string
   currentVersion: string
   manifest: ProjectManifest
-  /** Workspace-internal production dependencies, by target package name. */
+  /** Workspace-internal production dependencies, by target project dir. */
   internalDeps: InternalDep[]
 }
 
 interface InternalDep {
+  targetDir: string
   targetName: string
   fieldName: typeof PROPAGATED_DEP_FIELDS[number]
   alias: string
@@ -102,21 +170,26 @@ interface BumpState {
   dependencyUpdates: Map<string, string>
 }
 
-function assemble (
-  participants: Map<string, Participant>,
-  consumptionOf: (pkgName: string) => PackageConsumption,
-  selection: Set<string> | undefined,
+interface AssembleContext {
+  participants: Map<string, Participant>
+  lanesByDir: Map<string, string>
+  fixedGroups: string[][]
+  /** Per intent id: the participant dirs it releases and their bump types. */
+  intentBumps: Map<string, Map<string, IntentBumpType>>
+  consumptionOf: (dir: string) => PackageConsumption
   opts: AssembleReleasePlanOptions
-): ReleasePlan {
-  const pendingByPkg = collectPendingIntents(participants, opts.intents, consumptionOf)
-  const laneConsumedByPkg = collectLaneConsumedIntents(participants, opts.intents, consumptionOf)
-  const lanes = opts.versioning?.lanes ?? {}
+}
+
+function assemble (ctx: AssembleContext, selection: Set<string> | undefined): ReleasePlan {
+  const { participants, lanesByDir, fixedGroups, opts } = ctx
+  const pendingByDir = collectPendingIntents(ctx)
+  const laneConsumedByDir = collectLaneConsumedIntents(ctx)
 
   const state = new Map<string, BumpState>()
-  const bumpAtLeast = (name: string, bumpType: ReleaseBumpType, cause: ReleaseCause): boolean => {
-    const existing = state.get(name)
+  const bumpAtLeast = (dir: string, bumpType: ReleaseBumpType, cause: ReleaseCause): boolean => {
+    const existing = state.get(dir)
     if (existing == null) {
-      state.set(name, { bumpType, causes: new Set([cause]), dependencyUpdates: new Map() })
+      state.set(dir, { bumpType, causes: new Set([cause]), dependencyUpdates: new Map() })
       return true
     }
     existing.causes.add(cause)
@@ -126,37 +199,44 @@ function assemble (
     }
     return false
   }
+  const intentBumpFor = (intent: ChangeIntent, dir: string): IntentBumpType | undefined =>
+    ctx.intentBumps.get(intent.id)?.get(dir)
 
-  for (const [name, pending] of pendingByPkg.entries()) {
-    if (selection != null && !selection.has(name)) continue
-    const direct = maxBumpType(pending.map((intent) => intent.releases[name]))
+  for (const [dir, pending] of pendingByDir.entries()) {
+    if (selection != null && !selection.has(dir)) continue
+    const direct = maxBumpType(pending.map((intent) => intentBumpFor(intent, dir)))
     if (direct != null) {
-      bumpAtLeast(name, direct, 'intent')
+      bumpAtLeast(dir, direct, 'intent')
     }
   }
 
   // A package that left its lane releases the accumulated stable
   // version even when no new intents are pending.
-  for (const [name, laneConsumed] of laneConsumedByPkg.entries()) {
-    if (selection != null && !selection.has(name)) continue
-    if (lanes[name] != null || laneConsumed.length === 0) continue
-    const graduated = maxBumpType(laneConsumed.map((intent) => intent.releases[name]))
+  for (const [dir, laneConsumed] of laneConsumedByDir.entries()) {
+    if (selection != null && !selection.has(dir)) continue
+    if (lanesByDir.has(dir) || laneConsumed.length === 0) continue
+    const graduated = maxBumpType(laneConsumed.map((intent) => intentBumpFor(intent, dir)))
     if (graduated != null) {
-      bumpAtLeast(name, graduated, 'intent')
+      bumpAtLeast(dir, graduated, 'intent')
     }
+  }
+
+  const cumulativeBump = (dir: string, planned: ReleaseBumpType): ReleaseBumpType => {
+    const laneConsumed = laneConsumedByDir.get(dir) ?? []
+    return maxBumpType([planned, ...laneConsumed.map((intent) => intentBumpFor(intent, dir))]) ?? planned
   }
 
   const newVersions = new Map<string, string>()
   const computeVersions = (): void => {
     newVersions.clear()
-    for (const [name, pkgState] of state.entries()) {
-      const participant = participants.get(name)!
-      newVersions.set(name, computeNewVersion(participant, pkgState.bumpType, {
-        laneTag: lanes[name],
-        cumulativeBump: cumulativeBumpType(name, pkgState.bumpType, laneConsumedByPkg),
+    for (const [dir, pkgState] of state.entries()) {
+      const participant = participants.get(dir)!
+      newVersions.set(dir, computeNewVersion(participant, pkgState.bumpType, {
+        laneTag: lanesByDir.get(dir),
+        cumulativeBump: cumulativeBump(dir, pkgState.bumpType),
       }))
     }
-    applyFixedGroupVersions({ participants, state, newVersions, laneConsumedByPkg, versioning: opts.versioning })
+    applyFixedGroupVersions({ participants, state, newVersions, cumulativeBump, fixedGroups, lanesByDir })
   }
 
   for (let changed = true; changed;) {
@@ -165,24 +245,23 @@ function assemble (
 
     for (const dependent of participants.values()) {
       for (const dep of dependent.internalDeps) {
-        const target = participants.get(dep.targetName)
-        const targetNewVersion = newVersions.get(dep.targetName)
+        const target = participants.get(dep.targetDir)
+        const targetNewVersion = newVersions.get(dep.targetDir)
         if (target == null || targetNewVersion == null) continue
         const materializedRange = materializeWorkspaceRange(dep.spec, target.currentVersion)
         if (materializedRange == null || satisfies(targetNewVersion, materializedRange)) continue
-        if (bumpAtLeast(dependent.name, 'patch', 'dependencies')) {
+        if (bumpAtLeast(dependent.dir, 'patch', 'dependencies')) {
           changed = true
         }
-        state.get(dependent.name)!.dependencyUpdates.set(dep.targetName, targetNewVersion)
+        state.get(dependent.dir)!.dependencyUpdates.set(dep.targetName, targetNewVersion)
       }
     }
 
-    for (const group of opts.versioning?.fixed ?? []) {
-      const members = group.filter((name) => participants.has(name))
-      const groupBump = maxBumpType(members.map((name) => state.get(name)?.bumpType))
+    for (const group of fixedGroups) {
+      const groupBump = maxBumpType(group.map((dir) => state.get(dir)?.bumpType))
       if (groupBump == null) continue
-      for (const name of members) {
-        if (bumpAtLeast(name, groupBump, 'fixed')) {
+      for (const dir of group) {
+        if (bumpAtLeast(dir, groupBump, 'fixed')) {
           changed = true
         }
       }
@@ -191,17 +270,18 @@ function assemble (
   computeVersions()
 
   const releases: PlannedRelease[] = []
-  for (const [name, pkgState] of state.entries()) {
-    const participant = participants.get(name)!
+  for (const [dir, pkgState] of state.entries()) {
+    const participant = participants.get(dir)!
     const consumedForChangelog = [
-      ...(pendingByPkg.get(name) ?? []),
-      ...(lanes[name] == null ? laneConsumedByPkg.get(name) ?? [] : []),
+      ...(pendingByDir.get(dir) ?? []),
+      ...(lanesByDir.has(dir) ? [] : laneConsumedByDir.get(dir) ?? []),
     ]
     releases.push({
-      name,
+      name: participant.name,
+      dir,
       rootDir: participant.rootDir,
       currentVersion: participant.currentVersion,
-      newVersion: opts.snapshotSuffix != null ? `0.0.0-${opts.snapshotSuffix}` : newVersions.get(name)!,
+      newVersion: opts.snapshotSuffix != null ? `0.0.0-${opts.snapshotSuffix}` : newVersions.get(dir)!,
       bumpType: pkgState.bumpType,
       intents: consumedForChangelog,
       dependencyUpdates: Array.from(pkgState.dependencyUpdates.entries())
@@ -210,7 +290,7 @@ function assemble (
       causes: Array.from(pkgState.causes).sort(),
     })
   }
-  releases.sort((left, right) => left.name.localeCompare(right.name))
+  releases.sort((left, right) => left.name.localeCompare(right.name) || left.dir.localeCompare(right.dir))
 
   if (opts.snapshotSuffix == null) {
     enforceMaxBump(releases, opts.versioning)
@@ -219,37 +299,54 @@ function assemble (
   return { releases }
 }
 
-function collectParticipants (projects: WorkspaceProject[], versioning?: VersioningSettings): Map<string, Participant> {
-  const ignored = new Set(versioning?.ignore ?? [])
-  const names = new Set<string>()
-  for (const project of projects) {
-    if (project.manifest.name != null) {
-      names.add(project.manifest.name)
+function collectParticipants (
+  projects: WorkspaceProject[],
+  refs: ProjectRefIndex,
+  opts: AssembleReleasePlanOptions
+): Map<string, Participant> {
+  const ignoredDirs = new Set<string>()
+  for (const ref of opts.versioning?.ignore ?? []) {
+    for (const dir of resolveConfigRef(refs, ref, 'versioning.ignore')) {
+      ignoredDirs.add(dir)
     }
   }
 
   const participants = new Map<string, Participant>()
   for (const project of projects) {
     const { name, version } = project.manifest
+    const dir = toProjectDir(opts.workspaceDir, project.rootDir)
     // What cannot release is excluded automatically: unnamed and versionless
     // (private) packages, packages with non-semver placeholder versions, and
     // the explicitly frozen ones.
-    if (name == null || version == null || valid(version) == null || ignored.has(name)) continue
-    const internalDeps: InternalDep[] = []
-    for (const fieldName of PROPAGATED_DEP_FIELDS) {
-      for (const [alias, spec] of Object.entries(project.manifest[fieldName] ?? {})) {
-        const targetName = resolveInternalDepTarget(alias, spec, names)
-        if (targetName == null || ignored.has(targetName)) continue
-        internalDeps.push({ targetName, fieldName, alias, spec })
-      }
-    }
-    participants.set(name, {
+    if (name == null || version == null || valid(version) == null || ignoredDirs.has(dir)) continue
+    participants.set(dir, {
       name,
+      dir,
       rootDir: project.rootDir,
       currentVersion: version,
       manifest: project.manifest,
-      internalDeps,
+      internalDeps: [],
     })
+  }
+
+  for (const participant of participants.values()) {
+    for (const fieldName of PROPAGATED_DEP_FIELDS) {
+      for (const [alias, spec] of Object.entries(participant.manifest[fieldName] ?? {})) {
+        const targetName = internalDepTargetName(alias, spec, refs)
+        if (targetName == null) continue
+        const targetDirs = refs.nameToDirs(targetName).filter((dir) => participants.has(dir))
+        if (targetDirs.length === 0) continue
+        // A workspace: range naming an ambiguous package cannot be linked at
+        // install time, so the release engine never legitimately sees one.
+        if (targetDirs.length > 1) {
+          throw new PnpmError(
+            'VERSIONING_AMBIGUOUS_PACKAGE',
+            `Package ${participant.name} (./${participant.dir}) depends on ${targetName}, which matches multiple workspace projects: ${targetDirs.map((dir) => `./${dir}`).join(', ')}`
+          )
+        }
+        participant.internalDeps.push({ targetDir: targetDirs[0], targetName, fieldName, alias, spec })
+      }
+    }
   }
   return participants
 }
@@ -261,64 +358,126 @@ function collectParticipants (projects: WorkspaceProject[], versioning?: Version
  * range or `catalog:` entry on a workspace name is internal — it is exactly
  * the declaration the workspace-protocol check must reject.
  */
-function resolveInternalDepTarget (alias: string, spec: string, workspaceNames: Set<string>): string | null {
+function internalDepTargetName (alias: string, spec: string, refs: ProjectRefIndex): string | null {
   if (spec.startsWith('workspace:')) {
     const targetName = WorkspaceSpec.parse(spec)?.alias ?? alias
-    return workspaceNames.has(targetName) ? targetName : null
+    return refs.nameToDirs(targetName).length > 0 ? targetName : null
   }
-  if (!workspaceNames.has(alias)) return null
+  if (refs.nameToDirs(alias).length === 0) return null
   if (spec.startsWith('catalog:') || validRange(spec) != null) return alias
   return null
 }
 
-function validateVersioningConfig (participants: Map<string, Participant>, versioning?: VersioningSettings): void {
-  if (versioning == null) return
-  const lanes = versioning.lanes ?? {}
-  for (const [pkgName, lane] of Object.entries(lanes)) {
+/**
+ * Resolves a package reference from `versioning` configuration. An unknown
+ * reference is skipped — configuration may outlive a removed project — but an
+ * ambiguous name is an error: it cannot be attributed, and silence here is
+ * exactly the name-keying flaw this engine exists to fix.
+ */
+function resolveConfigRef (refs: ProjectRefIndex, ref: string, settingName: string): string[] {
+  const dirs = refs.refToDirs(ref)
+  if (dirs.length > 1) {
+    throw new PnpmError(
+      'VERSIONING_AMBIGUOUS_PACKAGE',
+      `${settingName} references ${ref}, which matches multiple workspace projects: ${dirs.map((dir) => `./${dir}`).join(', ')}. Reference the project by directory instead.`
+    )
+  }
+  return dirs
+}
+
+function resolveLanes (
+  refs: ProjectRefIndex,
+  participants: Map<string, Participant>,
+  versioning?: VersioningSettings
+): Map<string, string> {
+  const lanesByDir = new Map<string, string>()
+  for (const [ref, lane] of Object.entries(versioning?.lanes ?? {})) {
     if (lane.toLowerCase() === 'main') {
       throw new PnpmError(
         'VERSIONING_INVALID_LANE_NAME',
-        `versioning.lanes assigns ${pkgName} to the "${lane}" lane, but "main" is the reserved default lane. Remove the entry instead.`
+        `versioning.lanes assigns ${ref} to the "${lane}" lane, but "main" is the reserved default lane. Remove the entry instead.`
       )
     }
+    for (const dir of resolveConfigRef(refs, ref, 'versioning.lanes')) {
+      if (participants.has(dir)) {
+        lanesByDir.set(dir, lane)
+      }
+    }
   }
-  for (const group of versioning.fixed ?? []) {
-    const members = group.filter((name) => participants.has(name))
-    const tags = new Set(members.map((name) => lanes[name]))
+  return lanesByDir
+}
+
+function resolveFixedGroups (
+  refs: ProjectRefIndex,
+  participants: Map<string, Participant>,
+  versioning?: VersioningSettings
+): string[][] {
+  return (versioning?.fixed ?? []).map((group) =>
+    group
+      .flatMap((ref) => resolveConfigRef(refs, ref, 'versioning.fixed'))
+      .filter((dir) => participants.has(dir)))
+}
+
+function validateFixedGroupLanes (
+  fixedGroups: string[][],
+  lanesByDir: Map<string, string>,
+  versioning?: VersioningSettings
+): void {
+  for (const [index, group] of fixedGroups.entries()) {
+    const tags = new Set(group.map((dir) => lanesByDir.get(dir)))
     if (tags.size > 1) {
       throw new PnpmError(
         'VERSIONING_CONFLICTING_CONFIG',
-        `The fixed group [${group.join(', ')}] mixes packages on different lanes. A fixed group must move between lanes together.`
+        `The fixed group [${(versioning?.fixed ?? [])[index].join(', ')}] mixes packages on different lanes. A fixed group must move between lanes together.`
       )
     }
   }
 }
 
-function validateIntents (intents: ChangeIntent[], projects: WorkspaceProject[], participants: Map<string, Participant>): void {
-  const workspaceNames = new Set<string>()
-  for (const project of projects) {
-    if (project.manifest.name != null) {
-      workspaceNames.add(project.manifest.name)
-    }
-  }
+/**
+ * Resolves every intent's package references to participant directories,
+ * validating along the way: unknown references and names matching several
+ * projects are hard errors, and a release can only be demanded from a
+ * participant — otherwise the intent could never be consumed and the file
+ * would linger forever. A `none` decline is fine for any workspace package.
+ */
+function resolveIntents (
+  intents: ChangeIntent[],
+  refs: ProjectRefIndex,
+  participants: Map<string, Participant>
+): Map<string, Map<string, IntentBumpType>> {
+  const intentBumps = new Map<string, Map<string, IntentBumpType>>()
   for (const intent of intents) {
-    for (const [pkgName, bumpType] of Object.entries(intent.releases)) {
-      if (!workspaceNames.has(pkgName)) {
-        throw new PnpmError('VERSIONING_UNKNOWN_PACKAGE', `Change intent file ${intent.filePath} names ${pkgName}, which is not a package in this workspace`)
+    const byDir = new Map<string, IntentBumpType>()
+    for (const [ref, bumpType] of Object.entries(intent.releases)) {
+      const dirs = refs.refToDirs(ref)
+      if (dirs.length === 0) {
+        throw new PnpmError('VERSIONING_UNKNOWN_PACKAGE', `Change intent file ${intent.filePath} names ${ref}, which is not a package in this workspace`)
       }
-      // A "none" decline is fine for any workspace package, but a release can
-      // only be demanded from a participant — otherwise the intent could never
-      // be consumed and the file would linger forever.
-      if (bumpType !== 'none' && !participants.has(pkgName)) {
+      if (dirs.length > 1) {
+        throw new PnpmError(
+          'VERSIONING_AMBIGUOUS_PACKAGE',
+          `Change intent file ${intent.filePath} names ${ref}, which matches multiple workspace projects: ${dirs.map((dir) => `./${dir}`).join(', ')}. ` +
+          'Reference the project by directory instead, e.g. "./' + dirs[0] + '": ' + bumpType
+        )
+      }
+      const dir = dirs[0]
+      if (bumpType !== 'none' && !participants.has(dir)) {
         throw new PnpmError(
           'VERSIONING_UNRELEASABLE_PACKAGE',
-          `Change intent file ${intent.filePath} requests a ${bumpType} release of ${pkgName}, which cannot release ` +
+          `Change intent file ${intent.filePath} requests a ${bumpType} release of ${ref}, which cannot release ` +
           '(it is listed in versioning.ignore, has no version field, or has a non-semver version). ' +
           'Remove the entry or change it to "none".'
         )
       }
+      const existing = byDir.get(dir)
+      if (existing == null || (bumpType !== 'none' && BUMP_ORDER[bumpType] > (existing === 'none' ? 0 : BUMP_ORDER[existing]))) {
+        byDir.set(dir, bumpType)
+      }
     }
+    intentBumps.set(intent.id, byDir)
   }
+  return intentBumps
 }
 
 function assertInternalDepsUseWorkspaceProtocol (participants: Map<string, Participant>): void {
@@ -335,20 +494,16 @@ function assertInternalDepsUseWorkspaceProtocol (participants: Map<string, Parti
   }
 }
 
-function collectPendingIntents (
-  participants: Map<string, Participant>,
-  intents: ChangeIntent[],
-  consumptionOf: (pkgName: string) => PackageConsumption
-): Map<string, ChangeIntent[]> {
+function collectPendingIntents (ctx: AssembleContext): Map<string, ChangeIntent[]> {
   const pending = new Map<string, ChangeIntent[]>()
-  for (const name of participants.keys()) {
-    const consumed = consumptionOf(name)
-    const pkgIntents = intents.filter((intent) =>
-      intent.releases[name] != null &&
-      intent.releases[name] !== 'none' &&
-      !consumed.allIds.has(intent.id))
+  for (const dir of ctx.participants.keys()) {
+    const consumed = ctx.consumptionOf(dir)
+    const pkgIntents = ctx.opts.intents.filter((intent) => {
+      const bump = ctx.intentBumps.get(intent.id)?.get(dir)
+      return bump != null && bump !== 'none' && !consumed.allIds.has(intent.id)
+    })
     if (pkgIntents.length > 0) {
-      pending.set(name, pkgIntents)
+      pending.set(dir, pkgIntents)
     }
   }
   return pending
@@ -360,29 +515,20 @@ function collectPendingIntents (
  * of the package's lane and compose the stable changelog section at
  * graduation.
  */
-function collectLaneConsumedIntents (
-  participants: Map<string, Participant>,
-  intents: ChangeIntent[],
-  consumptionOf: (pkgName: string) => PackageConsumption
-): Map<string, ChangeIntent[]> {
+function collectLaneConsumedIntents (ctx: AssembleContext): Map<string, ChangeIntent[]> {
   const laneConsumed = new Map<string, ChangeIntent[]>()
-  for (const name of participants.keys()) {
-    const consumed = consumptionOf(name)
+  for (const dir of ctx.participants.keys()) {
+    const consumed = ctx.consumptionOf(dir)
     if (consumed.prereleaseOnlyIds.size === 0) continue
-    const pkgIntents = intents.filter((intent) =>
-      intent.releases[name] != null &&
-      intent.releases[name] !== 'none' &&
-      consumed.prereleaseOnlyIds.has(intent.id))
+    const pkgIntents = ctx.opts.intents.filter((intent) => {
+      const bump = ctx.intentBumps.get(intent.id)?.get(dir)
+      return bump != null && bump !== 'none' && consumed.prereleaseOnlyIds.has(intent.id)
+    })
     if (pkgIntents.length > 0) {
-      laneConsumed.set(name, pkgIntents)
+      laneConsumed.set(dir, pkgIntents)
     }
   }
   return laneConsumed
-}
-
-function cumulativeBumpType (name: string, planned: ReleaseBumpType, laneConsumedByPkg: Map<string, ChangeIntent[]>): ReleaseBumpType {
-  const laneConsumed = laneConsumedByPkg.get(name) ?? []
-  return maxBumpType([planned, ...laneConsumed.map((intent) => intent.releases[name])]) ?? planned
 }
 
 function maxBumpType (types: Array<string | undefined>): ReleaseBumpType | null {
@@ -458,35 +604,34 @@ interface ApplyFixedGroupVersionsOptions {
   participants: Map<string, Participant>
   state: Map<string, BumpState>
   newVersions: Map<string, string>
-  laneConsumedByPkg: Map<string, ChangeIntent[]>
-  versioning?: VersioningSettings
+  cumulativeBump: (dir: string, planned: ReleaseBumpType) => ReleaseBumpType
+  fixedGroups: string[][]
+  lanesByDir: Map<string, string>
 }
 
-function applyFixedGroupVersions ({ participants, state, newVersions, laneConsumedByPkg, versioning }: ApplyFixedGroupVersionsOptions): void {
-  const lanes = versioning?.lanes ?? {}
-  for (const group of versioning?.fixed ?? []) {
-    const members = group.filter((name) => participants.has(name))
-    const bumpedMembers = members.filter((name) => state.has(name))
+function applyFixedGroupVersions ({ participants, state, newVersions, cumulativeBump, fixedGroups, lanesByDir }: ApplyFixedGroupVersionsOptions): void {
+  for (const group of fixedGroups) {
+    const bumpedMembers = group.filter((dir) => state.has(dir))
     if (bumpedMembers.length === 0) continue
 
-    const groupBump = maxBumpType(bumpedMembers.map((name) => cumulativeBumpType(name, state.get(name)!.bumpType, laneConsumedByPkg)))!
-    const highestCurrent = members
-      .map((name) => participants.get(name)!.currentVersion)
+    const groupBump = maxBumpType(bumpedMembers.map((dir) => cumulativeBump(dir, state.get(dir)!.bumpType)))!
+    const highestCurrent = group
+      .map((dir) => participants.get(dir)!.currentVersion)
       .sort(compare)
       .at(-1)!
     const target = parsePrerelease(highestCurrent) == null
       ? inc(highestCurrent, groupBump)!
       : escalateStableTarget(stablePart(highestCurrent), groupBump)
 
-    const laneTag = lanes[members[0]]
+    const laneTag = lanesByDir.get(group[0])
     let sharedVersion = target
     if (laneTag != null) {
-      const nextN = Math.max(...members.map((name) => nextPrereleaseNumber(participants.get(name)!.currentVersion, target, laneTag)))
+      const nextN = Math.max(...group.map((dir) => nextPrereleaseNumber(participants.get(dir)!.currentVersion, target, laneTag)))
       sharedVersion = `${target}-${laneTag}.${nextN}`
     }
-    for (const name of members) {
-      if (state.has(name)) {
-        newVersions.set(name, sharedVersion)
+    for (const dir of group) {
+      if (state.has(dir)) {
+        newVersions.set(dir, sharedVersion)
       }
     }
   }
@@ -521,7 +666,7 @@ function enforceMaxBump (releases: PlannedRelease[], versioning?: VersioningSett
     const effectiveBump = effectiveBumpClass(release)
     if (BUMP_ORDER[effectiveBump] <= BUMP_ORDER[maxBump]) continue
     const intentFiles = release.intents
-      .filter((intent) => intent.releases[release.name] === effectiveBump)
+      .filter((intent) => Object.values(intent.releases).includes(effectiveBump))
       .map((intent) => intent.filePath)
     const raisedBy = intentFiles.length > 0 ? `intent file(s) ${intentFiles.join(', ')}` : `constraint chain: ${release.causes.join(', ')}`
     throw new PnpmError(

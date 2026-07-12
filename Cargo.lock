@@ -5056,6 +5056,7 @@ dependencies = [
  "miette 7.6.0",
  "node-semver",
  "pacquet-package-manifest",
+ "pathdiff",
  "pretty_assertions",
  "serde",
  "serde-saphyr",
