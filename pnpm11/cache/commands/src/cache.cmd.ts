@@ -8,7 +8,7 @@ import {
 } from '@pnpm/cache.api'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
-import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR } from '@pnpm/constants'
+import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { getStorePath } from '@pnpm/store.path'
 import { pick } from 'ramda'
@@ -78,12 +78,20 @@ export async function handler (opts: CacheCommandOptions, params: string[]): Pro
         cacheDir,
         registry: opts.cliOptions['registry'],
       }, params.slice(1))
-    case 'delete':
-      return cacheDelete({
-        ...opts,
-        cacheDir,
-        registry: opts.cliOptions['registry'],
-      }, params.slice(1))
+    case 'delete': {
+      // A package's metadata can be cached under any of the metadata directories
+      // depending on the resolution mode used when it was fetched.
+      const deleted = await Promise.all(
+        [ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR].map((metaDir) =>
+          cacheDelete({
+            ...opts,
+            cacheDir: path.join(opts.cacheDir, metaDir),
+            registry: opts.cliOptions['registry'],
+          }, params.slice(1))
+        )
+      )
+      return [...new Set(deleted.flatMap((result) => result.split('\n')).filter(Boolean))].sort().join('\n')
+    }
     case 'view': {
       if (!params[1]) {
         throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm cache view` requires the package name')
