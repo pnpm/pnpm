@@ -20,7 +20,7 @@ mod ledger;
 mod plan;
 mod settings;
 
-pub use apply::{AppliedRelease, ApplyReleasePlanOptions, apply_release_plan};
+pub use apply::{AppliedRelease, apply_release_plan};
 pub use changelog::{compose_changelog_section, prepend_changelog_section};
 pub use error::VersioningError;
 pub use intents::{

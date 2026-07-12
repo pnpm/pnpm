@@ -20,13 +20,6 @@ pub struct AppliedRelease {
     pub new_version: String,
 }
 
-#[derive(Debug, Default, Clone, Copy)]
-pub struct ApplyReleasePlanOptions {
-    /// Snapshot releases only rewrite manifest versions: they consume no
-    /// intent files, write no changelogs, and leave the ledger untouched.
-    pub snapshot: bool,
-}
-
 /// Applies an assembled release plan: manifest version updates, changelog
 /// sections, the consumed-intents ledger, and intent-file cleanup.
 /// `all_intents` is every intent file currently in the workspace, used to
@@ -37,7 +30,6 @@ pub fn apply_release_plan(
     projects: &[WorkspaceProject],
     all_intents: &[ChangeIntent],
     versioning: Option<&VersioningSettings>,
-    opts: ApplyReleasePlanOptions,
 ) -> Result<Vec<AppliedRelease>, VersioningError> {
     assert_supported_changelog_storage(versioning)?;
 
@@ -53,10 +45,6 @@ pub fn apply_release_plan(
             current_version: release.current_version.clone(),
             new_version: release.new_version.clone(),
         });
-    }
-
-    if opts.snapshot {
-        return Ok(applied);
     }
 
     for release in &plan.releases {

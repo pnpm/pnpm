@@ -39,7 +39,6 @@ export function cliOptionsTypes (): Record<string, unknown> {
     json: Boolean,
     preid: String,
     recursive: Boolean,
-    snapshot: [Boolean, String],
   }
 }
 
@@ -58,7 +57,7 @@ export function help (): string {
     usages: [
       'pnpm version <newversion>',
       'pnpm version <major|minor|patch|premajor|preminor|prepatch|prerelease>',
-      'pnpm version -r [--dry-run] [--snapshot [<tag>]]',
+      'pnpm version -r [--dry-run]',
     ],
     descriptionLists: [
       {
@@ -112,10 +111,6 @@ export function help (): string {
             description: 'Print the release plan the pending change intents produce without applying it',
             name: '--dry-run',
           },
-          {
-            description: 'Release one-off snapshot versions (0.0.0-<timestamp>, or 0.0.0-<tag>-<timestamp> when a tag is given) without consuming change intents. Intended for CI preview publishing: publish, then discard the manifest changes',
-            name: '--snapshot [<tag>]',
-          },
         ],
       },
     ],
@@ -143,7 +138,6 @@ interface VersionHandlerOptions extends Config {
   recursive?: boolean
   selectedProjectsGraph?: ProjectsGraph
   signGitTag?: boolean
-  snapshot?: boolean | string
   tagVersionPrefix?: string
 }
 
@@ -231,29 +225,26 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
 
   const intents = await readChangeIntents(workspaceDir)
   const ledger = await readLedger(workspaceDir)
+  const projects = toWorkspaceProjects(opts.allProjects ?? [])
   const filter = (opts.filter ?? []).length > 0
     ? new Set(Object.keys(opts.selectedProjectsGraph ?? {}).map((rootDir) => toProjectDir(workspaceDir, rootDir)))
-    : undefined
-  const snapshotSuffix = opts.snapshot != null && opts.snapshot !== false
-    ? makeSnapshotSuffix(opts.snapshot)
     : undefined
 
   const plan = assembleReleasePlan({
     workspaceDir,
-    projects: toWorkspaceProjects(opts.allProjects ?? []),
+    projects,
     intents,
     ledger,
     versioning: opts.versioning,
     filter,
-    snapshotSuffix,
   })
 
   if (plan.releases.length === 0) {
     // Even an empty plan can leave garbage-collectable intent files behind:
     // declined ("none"-only) intents and files a merge resurrected after
     // every named package had already consumed them.
-    if (!opts.dryRun && snapshotSuffix == null) {
-      await applyReleasePlan(plan, { workspaceDir, projects: toWorkspaceProjects(opts.allProjects ?? []), allIntents: intents, versioning: opts.versioning })
+    if (!opts.dryRun) {
+      await applyReleasePlan(plan, { workspaceDir, projects, allIntents: intents, versioning: opts.versioning })
     }
     return 'No pending changes. Record one with "pnpm change".'
   }
@@ -264,10 +255,9 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
 
   const applied = await applyReleasePlan(plan, {
     workspaceDir,
-    projects: toWorkspaceProjects(opts.allProjects ?? []),
+    projects,
     allIntents: intents,
     versioning: opts.versioning,
-    snapshot: snapshotSuffix != null,
   })
 
   if (opts.json) {
@@ -278,15 +268,6 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     output += `${release.name}: ${release.currentVersion} → ${release.newVersion}\n`
   }
   return output
-}
-
-function makeSnapshotSuffix (snapshot: boolean | string): string {
-  const timestamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)
-  const suffix = typeof snapshot === 'string' && snapshot !== '' ? `${snapshot}-${timestamp}` : timestamp
-  if (valid(`0.0.0-${suffix}`) == null) {
-    throw new PnpmError('INVALID_SNAPSHOT_TAG', `Invalid snapshot tag: ${String(snapshot)}. The tag must form a valid semver prerelease identifier.`)
-  }
-  return suffix
 }
 
 async function bumpPackageVersion (

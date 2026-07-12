@@ -18,11 +18,6 @@ export interface ApplyReleasePlanOptions {
    */
   allIntents: ChangeIntent[]
   versioning?: VersioningSettings
-  /**
-   * Snapshot releases only rewrite manifest versions: they consume no intent
-   * files, write no changelogs, and leave the ledger untouched.
-   */
-  snapshot?: boolean
 }
 
 export interface AppliedRelease {
@@ -44,10 +39,6 @@ export async function applyReleasePlan (plan: ReleasePlan, opts: ApplyReleasePla
       newVersion: release.newVersion,
     }
   }))
-
-  if (opts.snapshot) {
-    return applied
-  }
 
   await Promise.all(plan.releases.map(async (release) => {
     const section = composeChangelogSection(release)

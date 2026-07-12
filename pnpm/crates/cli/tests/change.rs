@@ -1,7 +1,7 @@
 //! Integration tests for `pnpm change` and the intent-consuming
 //! `pnpm version`: recording an intent, printing the pending release plan,
 //! applying it (manifest bumps, changelogs, the consumed-intents ledger,
-//! intent-file cleanup), snapshot releases, and release-lane management via
+//! intent-file cleanup) and release-lane management via
 //! `pnpm lane`. Mirrors the
 //! TypeScript CLI's `pnpm11/releasing/commands/test/change/index.test.ts`.
 
@@ -159,34 +159,6 @@ fn lanes_are_entered_released_and_graduated() {
 
     let manifest = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml");
     assert!(!manifest.contains("alpha"), "the versioning key must be cleaned up: {manifest}");
-
-    drop(root);
-}
-
-#[test]
-fn snapshot_releases_do_not_consume_intents() {
-    let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
-    write_workspace(&workspace);
-    add_pkg(&workspace, "lib", "1.0.0", "{}");
-
-    stdout_of(pnpm(&workspace).with_args([
-        "change",
-        "--bump",
-        "patch",
-        "--summary",
-        "A fix.",
-        "lib",
-    ]));
-    let applied = stdout_of(pnpm(&workspace).with_args(["version", "-r", "--snapshot", "preview"]));
-    assert!(applied.contains("lib: 1.0.0 → 0.0.0-preview-"), "unexpected: {applied}");
-
-    let intents: Vec<_> = fs::read_dir(workspace.join(".changeset"))
-        .expect("read .changeset")
-        .filter_map(Result::ok)
-        .filter(|entry| entry.file_name().to_string_lossy().ends_with(".md"))
-        .collect();
-    assert_eq!(intents.len(), 1, "snapshot releases must not consume intents");
-    assert!(!workspace.join("packages/lib/CHANGELOG.md").exists());
 
     drop(root);
 }

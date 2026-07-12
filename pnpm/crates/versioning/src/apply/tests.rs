@@ -3,7 +3,7 @@ use std::{fs, path::Path};
 use indexmap::IndexMap;
 use pretty_assertions::assert_eq;
 
-use super::{ApplyReleasePlanOptions, apply_release_plan};
+use super::apply_release_plan;
 use crate::{
     changelog::prepend_changelog_section,
     intents::{IntentBumpType, read_change_intents, write_change_intent},
@@ -90,15 +90,9 @@ fn apply_bumps_manifests_writes_changelogs_records_the_ledger_and_deletes_consum
     )
     .expect("plan assembles");
 
-    let applied = apply_release_plan(
-        &plan,
-        workspace.dir.path(),
-        &workspace.projects,
-        &intents,
-        None,
-        ApplyReleasePlanOptions::default(),
-    )
-    .expect("plan applies");
+    let applied =
+        apply_release_plan(&plan, workspace.dir.path(), &workspace.projects, &intents, None)
+            .expect("plan applies");
     let mut applied_names: Vec<String> =
         applied.iter().map(|release| format!("{}@{}", release.name, release.new_version)).collect();
     applied_names.sort();
@@ -156,7 +150,6 @@ fn intent_files_consumed_only_by_lane_prereleases_survive_until_graduation() {
         &workspace.projects,
         &intents,
         Some(&versioning),
-        ApplyReleasePlanOptions::default(),
     )
     .expect("plan applies");
 
@@ -183,56 +176,14 @@ fn intent_files_consumed_only_by_lane_prereleases_survive_until_graduation() {
     )
     .expect("plan assembles");
     assert_eq!(graduation_plan.releases[0].new_version, "2.1.0");
-    apply_release_plan(
-        &graduation_plan,
-        workspace.dir.path(),
-        &graduated_projects,
-        &intents,
-        None,
-        ApplyReleasePlanOptions::default(),
-    )
-    .expect("plan applies");
+    apply_release_plan(&graduation_plan, workspace.dir.path(), &graduated_projects, &intents, None)
+        .expect("plan applies");
 
     let changelog =
         fs::read_to_string(workspace.projects[0].root_dir.join("CHANGELOG.md")).expect("read");
     assert!(changelog.contains("## 2.1.0-alpha.0"));
     assert!(changelog.contains("## 2.1.0"));
     assert_eq!(read_change_intents(workspace.dir.path()).expect("intents read").len(), 0);
-}
-
-#[test]
-fn snapshot_releases_rewrite_manifests_without_consuming_intents_or_writing_changelogs() {
-    let workspace = make_workspace(&[("lib", "1.0.0", &[])]);
-    let releases = IndexMap::from([("lib".to_string(), IntentBumpType::Patch)]);
-    write_change_intent(workspace.dir.path(), &releases, "A fix.").expect("intent writes");
-    let intents = read_change_intents(workspace.dir.path()).expect("intents read");
-    let opts = AssembleReleasePlanOptions {
-        snapshot_suffix: Some("preview-20260712000000".to_string()),
-        ..AssembleReleasePlanOptions::default()
-    };
-    let plan = assemble_release_plan(
-        &workspace.projects,
-        workspace.dir.path(),
-        &intents,
-        &read_ledger(workspace.dir.path()).expect("ledger reads"),
-        None,
-        &opts,
-    )
-    .expect("plan assembles");
-    apply_release_plan(
-        &plan,
-        workspace.dir.path(),
-        &workspace.projects,
-        &intents,
-        None,
-        ApplyReleasePlanOptions { snapshot: true },
-    )
-    .expect("plan applies");
-
-    assert_eq!(manifest_version(&workspace.projects[0].root_dir), "0.0.0-preview-20260712000000");
-    assert_eq!(read_change_intents(workspace.dir.path()).expect("intents read").len(), 1);
-    assert!(read_ledger(workspace.dir.path()).expect("ledger reads").is_empty());
-    assert!(!workspace.projects[0].root_dir.join("CHANGELOG.md").exists());
 }
 
 #[test]
@@ -252,15 +203,8 @@ fn a_none_only_intent_is_garbage_collected_by_a_run_with_an_empty_plan() {
     )
     .expect("plan assembles");
     assert!(plan.releases.is_empty());
-    apply_release_plan(
-        &plan,
-        workspace.dir.path(),
-        &workspace.projects,
-        &intents,
-        None,
-        ApplyReleasePlanOptions::default(),
-    )
-    .expect("plan applies");
+    apply_release_plan(&plan, workspace.dir.path(), &workspace.projects, &intents, None)
+        .expect("plan applies");
     assert_eq!(read_change_intents(workspace.dir.path()).expect("intents read").len(), 0);
 }
 

@@ -143,21 +143,6 @@ test('intent files consumed only by lane prereleases survive until graduation', 
   expect(await readChangeIntents(workspaceDir)).toHaveLength(0)
 })
 
-test('snapshot releases rewrite manifests without consuming intents or writing changelogs', async () => {
-  const { workspaceDir, projects } = await makeWorkspace([
-    { name: 'lib', version: '1.0.0' },
-  ])
-  await writeChangeIntent(workspaceDir, { releases: { lib: 'patch' }, summary: 'A fix.' })
-  const intents = await readChangeIntents(workspaceDir)
-  const plan = assembleReleasePlan({ workspaceDir, projects, intents, ledger: {}, snapshotSuffix: 'preview-20260712000000' })
-  await applyReleasePlan(plan, { workspaceDir, projects, allIntents: intents, snapshot: true })
-
-  expect(JSON.parse(await fs.readFile(path.join(projects[0].rootDir, 'package.json'), 'utf8')).version).toBe('0.0.0-preview-20260712000000')
-  expect(await readChangeIntents(workspaceDir)).toHaveLength(1)
-  expect(await readLedger(workspaceDir)).toStrictEqual({})
-  await expect(fs.access(path.join(projects[0].rootDir, 'CHANGELOG.md'))).rejects.toThrow()
-})
-
 test('a ledger entry named __proto__ stays an own key and cannot pollute the prototype', async () => {
   const workspaceDir = temporaryDirectory()
   await fs.mkdir(path.join(workspaceDir, '.changeset'))
