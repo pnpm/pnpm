@@ -121,12 +121,7 @@ pub fn main() -> Result<(), String> {
         criterion = criterion.save_baseline(baseline);
     }
 
-    // A committed snapshot of lodash's abbreviated packument
-    // (`application/vnd.npm.install-v1+json`) — the metadata format pacquet
-    // fetches during resolution. Refresh by saving
-    // <https://registry.npmjs.org/lodash> requested with that `accept` header.
     let packument = fs::read(fixtures_folder.join("lodash.json")).unwrap();
-    // Reuse the integrated-benchmark's committed `pnpm-lock.yaml` fixture.
     let lockfile_dir = root.join("pnpm/tasks/integrated-benchmark/src/fixtures");
 
     bench_tarball(&mut criterion, &mut server, &fixtures_folder);

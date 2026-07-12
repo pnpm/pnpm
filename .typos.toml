@@ -5,8 +5,6 @@
 [files]
 extend-exclude = [
   "pnpm/crates/crypto-shasums-file/src/node_release_keys.rs",
-  # Verbatim registry packument snapshot; its base64 signature blobs trip
-  # typos' dictionary.
   "pnpm/tasks/micro-benchmark/fixtures/lodash.json",
 ]
 
