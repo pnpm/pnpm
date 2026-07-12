@@ -3082,9 +3082,10 @@ async fn commit_publishes(
                 match store.finalize_tarball_slot(slot).await? {
                     TarballFinalize::Written | TarballFinalize::AlreadyIdentical => {}
                     // A concurrent replica already promoted a different tarball
-                    // for this version. Its bytes are immutable, so surface a
-                    // conflict instead of advertising our integrity against
-                    // them; the seal's roll-forward keeps the winner's version.
+                    // for this version. Its bytes are immutable, so abort the
+                    // apply rather than advertise our integrity against them.
+                    // The seal's roll-forward re-runs from the journal, where it
+                    // drops the version we lost and re-merges the rest.
                     TarballFinalize::Conflict => {
                         return Err(RegistryError::PackumentWriteConflict {
                             package: stage.name.as_str().to_string(),

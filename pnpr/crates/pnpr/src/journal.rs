@@ -36,6 +36,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::HashSet,
     io::ErrorKind,
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
@@ -230,6 +231,7 @@ async fn roll_forward(storage: &Storage, dir: &Path) -> Result<()> {
             Some(org) => storage.for_hosted(org),
             None => storage.clone(),
         };
+        let mut conflicted: HashSet<&str> = HashSet::new();
         for tarball in &package.tarballs {
             // A missing tmp file was already promoted before the crash, so
             // skip it. But never read an I/O error as "missing": that would
@@ -245,15 +247,23 @@ async fn roll_forward(storage: &Storage, dir: &Path) -> Result<()> {
                 );
                 match store.finalize_tarball_slot(slot).await? {
                     TarballFinalize::Written | TarballFinalize::AlreadyIdentical => {}
-                    // Another replica already promoted a different tarball for
-                    // this version. Don't overwrite it; the re-merge below keeps
-                    // that winner's immutable version, so ours is dropped.
-                    TarballFinalize::Conflict => {}
+                    // Another replica already promoted a *different* tarball for
+                    // this version. Its bytes are immutable, so we must not
+                    // overwrite them — and we must not advertise our integrity
+                    // against them either. Drop our staged copy and record the
+                    // filename so the merge below excludes the version we lost.
+                    TarballFinalize::Conflict => {
+                        let _ = fs::remove_file(&tarball.tmp_path).await;
+                        conflicted.insert(tarball.filename.as_str());
+                    }
                 }
             }
         }
-        let journaled: serde_json::Value =
+        let mut journaled: serde_json::Value =
             serde_json::from_slice(&fs::read(dir.join(&package.packument_file)).await?)?;
+        if !conflicted.is_empty() {
+            drop_conflicted_versions(&mut journaled, &conflicted);
+        }
         write_merged_packument(&store, &name, &journaled).await?;
     }
     fs::remove_dir_all(dir).await?;
@@ -281,6 +291,36 @@ async fn write_merged_packument(
         )
         .await?;
     Ok(())
+}
+
+/// Drop from a journaled manifest every version whose staged tarball lost a
+/// compare-and-swap to another replica. The bytes at that (immutable) version
+/// key belong to the winner, so re-merging our `dist`/integrity for the version
+/// would advertise metadata that no longer matches the hosted tarball. Versions
+/// are matched to `conflicted` staged filenames by their `dist.tarball`
+/// basename; a version we cannot match is left in place.
+fn drop_conflicted_versions(journaled: &mut serde_json::Value, conflicted: &HashSet<&str>) {
+    let Some(versions) = journaled.get_mut("versions").and_then(serde_json::Value::as_object_mut)
+    else {
+        return;
+    };
+    versions.retain(|_version, manifest| {
+        let filename = manifest
+            .get("dist")
+            .and_then(|dist| dist.get("tarball"))
+            .and_then(serde_json::Value::as_str)
+            .map(tarball_basename);
+        match filename {
+            Some(filename) => !conflicted.contains(filename),
+            None => true,
+        }
+    });
+}
+
+/// The final path segment of a `dist.tarball` URL — the on-disk tarball
+/// filename that a staged slot is keyed by.
+fn tarball_basename(tarball_url: &str) -> &str {
+    tarball_url.rsplit('/').next().unwrap_or(tarball_url)
 }
 
 /// Discard an unsealed transaction: nothing of it ever became visible,
@@ -325,5 +365,40 @@ async fn sync_dir(dir: &Path) {
         && let Ok(file) = fs::File::open(dir).await
     {
         let _ = file.sync_all().await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::drop_conflicted_versions;
+    use serde_json::json;
+    use std::collections::HashSet;
+
+    #[test]
+    fn drop_conflicted_versions_removes_only_the_lost_versions() {
+        let mut journaled = json!({
+            "versions": {
+                "1.0.0": { "dist": { "tarball": "http://host/pkg/-/pkg-1.0.0.tgz" } },
+                "2.0.0": { "dist": { "tarball": "http://host/pkg/-/pkg-2.0.0.tgz" } },
+                // A version with no resolvable tarball basename is kept as-is.
+                "3.0.0": { "dist": {} },
+            }
+        });
+        let conflicted: HashSet<&str> = std::iter::once("pkg-1.0.0.tgz").collect();
+
+        drop_conflicted_versions(&mut journaled, &conflicted);
+
+        let versions = journaled["versions"].as_object().unwrap();
+        assert!(!versions.contains_key("1.0.0"));
+        assert!(versions.contains_key("2.0.0"));
+        assert!(versions.contains_key("3.0.0"));
+    }
+
+    #[test]
+    fn drop_conflicted_versions_tolerates_a_missing_versions_map() {
+        let mut journaled = json!({ "name": "pkg" });
+        let conflicted: HashSet<&str> = std::iter::once("pkg-1.0.0.tgz").collect();
+        drop_conflicted_versions(&mut journaled, &conflicted);
+        assert_eq!(journaled, json!({ "name": "pkg" }));
     }
 }

@@ -340,10 +340,12 @@ impl HostedStore {
             }
             HostedStore::S3(store) => {
                 let outcome = store.upload_tarball(tmp_path, name, filename).await?;
-                // Consume the staged tmp whatever the outcome: a Conflict means
-                // another replica owns the object, so retrying our overwrite
-                // would be wrong, and there is nothing left to promote.
-                let _ = fs::remove_file(tmp_path).await;
+                // Keep the staged tmp on a Conflict so journal roll-forward can
+                // re-detect it and exclude the version whose bytes we don't own;
+                // once the object is ours there is nothing left to promote.
+                if outcome != TarballFinalize::Conflict {
+                    let _ = fs::remove_file(tmp_path).await;
+                }
                 Ok(outcome)
             }
         }
