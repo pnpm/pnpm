@@ -541,6 +541,7 @@ export async function recursive (
             bin: binDirOf(rootDir, localConfig.modulesDir ?? opts.modulesDir),
             dir: rootDir,
             hooks,
+            deferDependencyBuilds: !opts.lockfileOnly && !opts.ignoreScripts,
             ignoreScripts: true,
             rangeSpecStyle: getRangeSpecStyle({
               saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
