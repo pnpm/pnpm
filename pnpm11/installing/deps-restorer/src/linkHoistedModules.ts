@@ -34,6 +34,7 @@ export async function linkHoistedModules (
   hierarchy: DepHierarchy,
   opts: {
     allowBuild?: AllowBuild
+    deferDependencyBuilds: boolean
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean
     force: boolean
@@ -159,6 +160,7 @@ async function linkAllPkgsInOrder (
   parentDir: string,
   opts: {
     allowBuild?: AllowBuild
+    deferDependencyBuilds: boolean
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean
     force: boolean
@@ -210,7 +212,7 @@ async function linkAllPkgsInOrder (
         if (sideEffectsCacheKey == null && opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
           if (opts.allowBuild?.(depNode.depPath) === true) {
             const localCacheKey = calcDepState(graph, opts.depsStateCache, dir, {
-              includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild === true,
+              includeDepGraphHash: (!opts.ignoreScripts || opts.deferDependencyBuilds) && depNode.requiresBuild === true,
               patchFileHash: depNode.patch?.hash,
               supportedArchitectures: opts.supportedArchitectures,
               nodeVersion: opts.nodeVersion,

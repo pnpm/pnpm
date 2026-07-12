@@ -151,6 +151,7 @@ export interface HeadlessOptions extends RegistryContext {
   hoistingLimits?: HoistingLimits
   externalDependencies?: Set<string>
   ignoreScripts: boolean
+  deferDependencyBuilds?: boolean
   ignorePackageManifest?: boolean
   /**
    * When true, skip fetching local dependencies (file: protocol pointing to directories).
@@ -509,6 +510,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       }
       heldBackBinsDirs = await linkHoistedModules(opts.storeController, graph, prevGraph, hierarchy, {
         allowBuild,
+        deferDependencyBuilds: opts.deferDependencyBuilds === true,
         depsStateCache,
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         force: opts.force,
@@ -591,6 +593,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           }),
         linkAllPkgs(opts.storeController, depNodes, {
           allowBuild,
+          deferDependencyBuilds: opts.deferDependencyBuilds === true,
           force: opts.force,
           disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
           depGraph: graph,
@@ -1302,6 +1305,7 @@ async function linkAllPkgs (
     allowBuild?: AllowBuild
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
+    deferDependencyBuilds: boolean
     disableRelinkLocalDirDeps?: boolean
     enableGlobalVirtualStore?: boolean
     force: boolean
@@ -1369,7 +1373,7 @@ async function linkAllPkgs (
       if (sideEffectsCacheKey == null && opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
         if (opts.allowBuild?.(depNode.depPath) === true) {
           const localCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
-            includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild === true,
+            includeDepGraphHash: (!opts.ignoreScripts || opts.deferDependencyBuilds) && depNode.requiresBuild === true,
             patchFileHash: depNode.patch?.hash,
             supportedArchitectures: opts.supportedArchitectures,
             nodeVersion,
