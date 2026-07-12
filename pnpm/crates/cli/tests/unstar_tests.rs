@@ -9,7 +9,8 @@ use std::{
 
 fn pacquet_at(workspace: &Path) -> Command {
     let mut cmd = Command::cargo_bin("pnpm").expect("find the pnpm binary");
-    cmd.with_current_dir(workspace).env("PNPM_CONFIG_FETCH_RETRIES", "0");
+    cmd = cmd.with_current_dir(workspace);
+    cmd.env("PNPM_CONFIG_FETCH_RETRIES", "0");
     cmd
 }
 
