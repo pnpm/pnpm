@@ -124,7 +124,13 @@
       "path": "../../workspace/projects-sorter"
     },
     {
+      "path": "../../workspace/workspace-manifest-writer"
+    },
+    {
       "path": "../exportable-manifest"
+    },
+    {
+      "path": "../versioning"
     }
   ]
 }

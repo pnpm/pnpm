@@ -3959,6 +3959,7 @@ dependencies = [
  "pacquet-store-dir",
  "pacquet-tarball",
  "pacquet-testing-utils",
+ "pacquet-versioning",
  "pacquet-workspace",
  "pacquet-workspace-manifest-writer",
  "pacquet-workspace-projects-filter",
@@ -4021,6 +4022,7 @@ dependencies = [
  "pacquet-patching",
  "pacquet-store-dir",
  "pacquet-testing-utils",
+ "pacquet-versioning",
  "pacquet-workspace-state",
  "pipe-trait",
  "pretty_assertions",
@@ -5050,6 +5052,24 @@ dependencies = [
  "text-block-macros",
  "tokio",
  "walkdir",
+]
+
+[[package]]
+name = "pacquet-versioning"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "getrandom 0.4.3",
+ "indexmap 2.14.0",
+ "miette 7.6.0",
+ "node-semver",
+ "pacquet-package-manifest",
+ "pathdiff",
+ "pretty_assertions",
+ "serde",
+ "serde-saphyr",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]

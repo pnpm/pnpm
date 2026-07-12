@@ -5,11 +5,20 @@ import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/exec.lifecycle'
 import { isGitRepo, isWorkingTreeClean } from '@pnpm/network.git-utils'
-import type { ProjectsGraph } from '@pnpm/types'
+import {
+  applyReleasePlan,
+  assembleReleasePlan,
+  readChangeIntents,
+  readLedger,
+  toProjectDir,
+} from '@pnpm/releasing.versioning'
+import type { Project, ProjectsGraph } from '@pnpm/types'
 import { safeExeca as execa } from 'execa'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import { inc, valid } from 'semver'
+
+import { renderReleasePlan, toWorkspaceProjects } from '../change/index.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
@@ -26,6 +35,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...rcOptionsTypes(),
+    'dry-run': Boolean,
     json: Boolean,
     preid: String,
     recursive: Boolean,
@@ -47,6 +57,7 @@ export function help (): string {
     usages: [
       'pnpm version <newversion>',
       'pnpm version <major|minor|patch|premajor|preminor|prepatch|prerelease>',
+      'pnpm version -r [--dry-run]',
     ],
     descriptionLists: [
       {
@@ -93,8 +104,12 @@ export function help (): string {
             name: '--json',
           },
           {
-            description: 'Apply command to all packages in workspace',
+            description: 'Apply command to all packages in workspace. Without a version argument, consumes the pending change intents from .changeset/ and applies the resulting release plan',
             name: '--recursive',
+          },
+          {
+            description: 'Print the release plan the pending change intents produce without applying it',
+            name: '--dry-run',
           },
         ],
       },
@@ -111,8 +126,10 @@ interface VersionChange {
 }
 
 interface VersionHandlerOptions extends Config {
+  allProjects?: Project[]
   allowSameVersion?: boolean
   commitHooks?: boolean
+  dryRun?: boolean
   gitChecks?: boolean
   gitTagVersion?: boolean
   json?: boolean
@@ -131,6 +148,9 @@ export async function handler (
   const rawBump = params[0]
 
   if (!rawBump) {
+    if (opts.recursive) {
+      return releaseFromIntents(opts)
+    }
     throw new PnpmError('INVALID_VERSION_BUMP', 'A version argument is required. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease')
   }
 
@@ -188,6 +208,68 @@ export async function handler (
     output += `${change.name}: ${change.currentVersion} → ${change.newVersion}\n`
   }
 
+  return output
+}
+
+async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string> {
+  const workspaceDir = opts.workspaceDir
+  if (!workspaceDir) {
+    throw new PnpmError('WORKSPACE_ONLY', 'The bare "pnpm version -r" form consumes change intents and is only supported in a workspace')
+  }
+
+  if (!opts.dryRun && opts.gitChecks !== false && await isGitRepo({ cwd: workspaceDir })) {
+    if (!await isWorkingTreeClean({ cwd: workspaceDir })) {
+      throw new PnpmError('UNCLEAN_WORKING_TREE', 'Working tree is not clean. Commit or stash your changes.')
+    }
+  }
+
+  const intents = await readChangeIntents(workspaceDir)
+  const ledger = await readLedger(workspaceDir)
+  const projects = toWorkspaceProjects(opts.allProjects ?? [])
+  const filter = (opts.filter ?? []).length > 0
+    ? new Set(Object.keys(opts.selectedProjectsGraph ?? {}).map((rootDir) => toProjectDir(workspaceDir, rootDir)))
+    : undefined
+
+  const plan = assembleReleasePlan({
+    workspaceDir,
+    projects,
+    intents,
+    ledger,
+    versioning: opts.versioning,
+    filter,
+    enforceWorkspaceProtocol: true,
+  })
+
+  if (plan.releases.length === 0) {
+    // A full (unfiltered) run garbage-collects the intent files an empty plan
+    // leaves behind: declined ("none"-only) intents and files a merge
+    // resurrected after every named package had already consumed them. A
+    // filtered run must not — "nothing pending in this scope" is no reason to
+    // delete prose belonging to packages outside the filter.
+    if (!opts.dryRun && filter == null) {
+      await applyReleasePlan(plan, { workspaceDir, projects, allIntents: intents, versioning: opts.versioning })
+    }
+    return 'No pending changes. Record one with "pnpm change".'
+  }
+
+  if (opts.dryRun) {
+    return renderReleasePlan(plan)
+  }
+
+  const applied = await applyReleasePlan(plan, {
+    workspaceDir,
+    projects,
+    allIntents: intents,
+    versioning: opts.versioning,
+  })
+
+  if (opts.json) {
+    return JSON.stringify(applied, null, 2)
+  }
+  let output = 'Versions applied:\n'
+  for (const release of applied) {
+    output += `${release.name}: ${release.currentVersion} → ${release.newVersion}\n`
+  }
   return output
 }
 

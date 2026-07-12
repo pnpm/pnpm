@@ -6,12 +6,14 @@ use super::{
     cache::CacheCommand,
     cat_file::CatFileArgs,
     cat_index::CatIndexArgs,
+    change::ChangeArgs,
     config::ConfigArgs,
     dispatch::{CommandFuture, RunCtx},
     dist_tag::DistTagArgs,
     docs::DocsArgs,
     find_hash::FindHashArgs,
     ignored_builds::IgnoredBuildsArgs,
+    lane::LaneArgs,
     list::ListArgs,
     login::LoginArgs,
     logout::LogoutArgs,
@@ -32,6 +34,7 @@ use super::{
     stage::StageArgs,
     store::StoreCommand,
     team::TeamArgs,
+    version::VersionArgs,
     why::WhyArgs,
     with::WithArgs,
 };
@@ -173,6 +176,29 @@ pub(super) fn dist_tag<'a>(
         }
         Ok(())
     }))
+}
+
+/// `change` and `version` are synchronous file-and-prompt commands; the
+/// returned future only carries their already-computed result.
+pub(super) fn change<'a>(ctx: &RunCtx<'a>, args: ChangeArgs) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.config)()?;
+    let result = args.run(cfg);
+    Ok(Box::pin(std::future::ready(result)))
+}
+
+pub(super) fn lane<'a>(ctx: &RunCtx<'a>, args: LaneArgs) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.config)()?;
+    let result = args.run(cfg);
+    Ok(Box::pin(std::future::ready(result)))
+}
+
+pub(super) fn version<'a>(
+    ctx: &RunCtx<'a>,
+    args: VersionArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.config)()?;
+    let result = args.run(cfg, ctx.recursive);
+    Ok(Box::pin(std::future::ready(result)))
 }
 
 pub(super) fn team<'a>(ctx: &RunCtx<'a>, args: TeamArgs) -> miette::Result<CommandFuture<'a>> {

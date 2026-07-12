@@ -10,7 +10,7 @@ use std::{
 use wax::{Glob, Program};
 
 /// Options for [`get_changed_projects`].
-pub(crate) struct GetChangedProjectsOptions<'a> {
+pub struct GetChangedProjectsOptions<'a> {
     /// Directory the `git diff` runs in and is path-restricted to: the
     /// selector's `{dir}` part when present, else the workspace root.
     pub workspace_dir: &'a Path,
@@ -19,7 +19,7 @@ pub(crate) struct GetChangedProjectsOptions<'a> {
 }
 
 /// The two selection groups a `[<since>]` diff produces.
-pub(crate) struct ChangedProjects {
+pub struct ChangedProjects {
     /// Projects with at least one changed file outside `test_pattern`;
     /// selected with the selector's full dependency/dependent walk.
     pub changed_projects: Vec<PathBuf>,
@@ -33,7 +33,7 @@ pub(crate) struct ChangedProjects {
 /// `project_dirs` order. A changed file belongs to the nearest
 /// enclosing project directory; a project's change type is `source` as
 /// soon as any of its changed files is a source change.
-pub(crate) fn get_changed_projects(
+pub fn get_changed_projects(
     project_dirs: Vec<PathBuf>,
     commit: &str,
     opts: &GetChangedProjectsOptions<'_>,

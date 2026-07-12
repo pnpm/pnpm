@@ -16,6 +16,7 @@
 
 mod filter;
 mod get_changed_projects;
+pub use get_changed_projects::{ChangedProjects, GetChangedProjectsOptions, get_changed_projects};
 mod glob;
 mod parse_project_selector;
 mod path_util;

@@ -525,6 +525,9 @@ catalogs:
     https-proxy-server-express:
       specifier: 0.1.2
       version: 0.1.2
+    human-id:
+      specifier: ^4.2.0
+      version: 4.2.0
     husky:
       specifier: ^9.1.7
       version: 9.1.7
@@ -8196,15 +8199,24 @@ importers:
       '@pnpm/releasing.exportable-manifest':
         specifier: workspace:*
         version: link:../exportable-manifest
+      '@pnpm/releasing.versioning':
+        specifier: workspace:*
+        version: link:../versioning
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
+      '@pnpm/workspace.projects-filter':
+        specifier: workspace:*
+        version: link:../../workspace/projects-filter
       '@pnpm/workspace.projects-sorter':
         specifier: workspace:*
         version: link:../../workspace/projects-sorter
+      '@pnpm/workspace.workspace-manifest-writer':
+        specifier: workspace:*
+        version: link:../../workspace/workspace-manifest-writer
       '@types/normalize-path':
         specifier: 'catalog:'
         version: 3.0.2
@@ -8308,9 +8320,6 @@ importers:
       '@pnpm/testing.registry-mock':
         specifier: workspace:*
         version: link:../../testing/registry-mock
-      '@pnpm/workspace.projects-filter':
-        specifier: workspace:*
-        version: link:../../workspace/projects-filter
       '@types/cross-spawn':
         specifier: 'catalog:'
         version: 6.0.6
@@ -8414,6 +8423,43 @@ importers:
       write-yaml-file:
         specifier: 'catalog:'
         version: 6.0.0
+
+  pnpm11/releasing/versioning:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../core/types
+      '@pnpm/workspace.project-manifest-reader':
+        specifier: workspace:*
+        version: link:../../workspace/project-manifest-reader
+      '@pnpm/workspace.spec-parser':
+        specifier: workspace:*
+        version: link:../../workspace/spec-parser
+      human-id:
+        specifier: 'catalog:'
+        version: 4.2.0
+      semver:
+        specifier: 'catalog:'
+        version: 7.8.5
+      yaml:
+        specifier: 'catalog:'
+        version: 2.9.0
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1
+      '@pnpm/releasing.versioning':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.7.1
+      tempy:
+        specifier: 'catalog:'
+        version: 3.0.0
 
   pnpm11/resolving/default-resolver:
     dependencies:

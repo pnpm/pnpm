@@ -313,7 +313,10 @@ export async function main (inputArgv: string[]): Promise<void> {
         process.exitCode = 1
         return
       }
-      if (cmd !== 'list') {
+      // "change" operates on the whole workspace through allProjects, so an
+      // empty selection (e.g. run from a directory without packages beneath
+      // it) must not skip the command.
+      if (cmd !== 'list' && cmd !== 'change') {
         process.exitCode = 0
         return
       }

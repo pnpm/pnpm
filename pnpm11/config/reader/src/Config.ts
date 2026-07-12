@@ -10,6 +10,7 @@ import type {
   Registries,
   RegistryConfig,
   TrustPolicy,
+  VersioningSettings,
 } from '@pnpm/types'
 
 import type { OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
@@ -259,6 +260,7 @@ export interface Config extends OptionsFromRootManifest {
 
   testPattern?: string[]
   changedFilesIgnorePattern?: string[]
+  versioning?: VersioningSettings
   userConfig: Record<string, string>
 
   hoist: boolean
