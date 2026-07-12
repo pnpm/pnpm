@@ -262,7 +262,7 @@ pub(crate) async fn update_deprecation(
             return Err(DeprecateError::NotDeprecated {
                 package_name: package_name.to_string(),
                 version_range_suffix: version_range
-                    .map(|vr| format!(" matching \"{vr}\""))
+                    .map(|vr| format!(r#" matching "{vr}""#))
                     .unwrap_or_default(),
             }
             .into());
