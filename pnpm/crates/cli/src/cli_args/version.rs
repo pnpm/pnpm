@@ -28,10 +28,10 @@ pub struct VersionArgs {
     #[clap(long = "dry-run")]
     pub dry_run: bool,
 
-    /// Release one-off snapshot versions (0.0.0-<timestamp>, or
-    /// 0.0.0-<tag>-<timestamp> when a tag is given) without consuming change
-    /// intents. Intended for CI preview publishing: publish, then discard
-    /// the manifest changes.
+    /// Release one-off snapshot versions (`0.0.0-<timestamp>`, or
+    /// `0.0.0-<tag>-<timestamp>` when a tag is given) without consuming
+    /// change intents. Intended for CI preview publishing: publish, then
+    /// discard the manifest changes.
     #[clap(long, num_args = 0..=1, default_missing_value = "")]
     pub snapshot: Option<String>,
 
