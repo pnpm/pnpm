@@ -125,6 +125,36 @@ describe('change command and intent-consuming version -r', () => {
     expect(remaining).toHaveLength(0)
   })
 
+  it('a filtered version -r with an empty plan leaves out-of-scope intents untouched', async () => {
+    const lib = addPkg({ name: 'lib', version: '1.0.0' })
+    const cli = addPkg({ name: 'cli', version: '2.0.0' })
+    const opts = baseOpts([lib, cli])
+    await change.handler({ ...opts, bump: 'none', summary: 'refactor, no release needed' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+    // Filter to cli (nothing pending there); lib's none-only intent must survive.
+    const filtered = {
+      ...opts,
+      filter: ['cli'],
+      selectedProjectsGraph: {
+        [cli.rootDir]: { dependencies: [], package: { rootDir: cli.rootDir, manifest: cli.manifest } },
+      },
+    }
+    const output = await version.handler(filtered as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(output).toContain('No pending changes')
+    expect(fs.readdirSync(path.join(tempDir, '.changeset')).filter((fileName) => fileName.endsWith('.md'))).toHaveLength(1)
+  })
+
+  it('change status stays read-only when an internal dependency is not on the workspace protocol', async () => {
+    const lib = addPkg({ name: 'lib', version: '1.0.0' })
+    const cli = addPkg({ name: 'cli', version: '2.0.0', dependencies: { lib: '^1.0.0' } })
+    const opts = baseOpts([lib, cli])
+    // A read-only diagnostic must not throw the release-time prerequisite error.
+    await expect(change.handler(opts as any, ['status'])).resolves.toBeDefined() // eslint-disable-line @typescript-eslint/no-explicit-any
+    // The release path does enforce it.
+    await change.handler({ ...opts, bump: 'patch', summary: 'A fix.' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    await expect(version.handler(opts as any, [])).rejects.toMatchObject({ code: 'ERR_PNPM_VERSIONING_INTERNAL_RANGE' }) // eslint-disable-line @typescript-eslint/no-explicit-any
+  })
+
   it('rejects differently-cased spellings of the reserved main lane', async () => {
     const cli = addPkg({ name: 'cli', version: '2.0.0' })
     const opts = {

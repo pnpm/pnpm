@@ -136,15 +136,21 @@ test('ignored packages neither release nor propagate', () => {
   expect(plan.releases.map((release) => release.name)).toStrictEqual(['lib'])
 })
 
-test('an internal dependency without the workspace protocol fails the plan', () => {
+test('an internal dependency without the workspace protocol fails a release, but not a read-only assemble', () => {
+  const projects = [
+    makeProject('lib', '1.0.0'),
+    makeProject('cli', '1.0.0', { lib: '^1.0.0' }),
+  ]
+  // enforceWorkspaceProtocol off (the default, used by `pnpm change status`):
+  // a read-only assemble never fails on an unmigrated dependency.
+  expect(assembleReleasePlan({ workspaceDir: '/ws', projects, intents: [], ledger: NO_LEDGER }).releases).toHaveLength(0)
+  // The release path enforces the prerequisite.
   expect(() => assembleReleasePlan({
     workspaceDir: '/ws',
-    projects: [
-      makeProject('lib', '1.0.0'),
-      makeProject('cli', '1.0.0', { lib: '^1.0.0' }),
-    ],
+    projects,
     intents: [],
     ledger: NO_LEDGER,
+    enforceWorkspaceProtocol: true,
   })).toThrow(/workspace: protocol/)
 })
 
@@ -209,6 +215,19 @@ test('maxBump rejects a plan whose effective bump exceeds the cap', () => {
     ledger: NO_LEDGER,
     versioning: { maxBump: 'patch' },
   })).toThrow(/maxBump/)
+})
+
+test('two same-named projects releasing to the same version is a hard error', () => {
+  const twins = [
+    { rootDir: '/ws/a/util', manifest: { name: '@scope/util', version: '1.0.0' } },
+    { rootDir: '/ws/b/util', manifest: { name: '@scope/util', version: '1.0.0' } },
+  ]
+  expect(() => assembleReleasePlan({
+    workspaceDir: '/ws',
+    projects: twins,
+    intents: [makeIntent('one', { './a/util': 'patch', './b/util': 'patch' })],
+    ledger: NO_LEDGER,
+  })).toThrow(/Two projects both release @scope\/util@1\.0\.1/)
 })
 
 test('a package on a lane emits tagged versions with an incrementing counter', () => {

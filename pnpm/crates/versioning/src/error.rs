@@ -68,6 +68,12 @@ pub enum VersioningError {
     ConflictingConfig { group: Vec<String> },
 
     #[display(
+        "Two projects both release {identity}: ./{first_dir} and ./{second_dir}. A package name and version identify one published artifact, so same-named projects must release on different version lines (e.g. different lanes or majors)."
+    )]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_DUPLICATE_RELEASE))]
+    DuplicateRelease { identity: String, first_dir: String, second_dir: String },
+
+    #[display(
         "The release plan bumps {pkg_name} by {bump_type}, but versioning.maxBump caps releases from this branch at {max_bump}. Raised by {raised_by}."
     )]
     #[diagnostic(code(ERR_PNPM_VERSIONING_MAX_BUMP_EXCEEDED))]

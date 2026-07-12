@@ -60,6 +60,13 @@ export interface AssembleReleasePlanOptions {
    * of the computed one, matching snapshot releases.
    */
   snapshotSuffix?: string
+  /**
+   * Enforce that every internal production dependency uses the `workspace:`
+   * protocol — a prerequisite for actually releasing. The release path
+   * (`pnpm version -r`) sets this; read-only callers (`pnpm change status`)
+   * leave it off so a diagnostic never fails on an unmigrated dependency.
+   */
+  enforceWorkspaceProtocol?: boolean
 }
 
 const BUMP_ORDER: Record<ReleaseBumpType, number> = { patch: 1, minor: 2, major: 3 }
@@ -129,7 +136,9 @@ export function assembleReleasePlan (opts: AssembleReleasePlanOptions): ReleaseP
   const fixedGroups = resolveFixedGroups(refs, participants, opts.versioning)
   validateFixedGroupLanes(fixedGroups, lanesByDir, opts.versioning)
   const intentBumps = resolveIntents(opts.intents, refs, participants)
-  assertInternalDepsUseWorkspaceProtocol(participants)
+  if (opts.enforceWorkspaceProtocol) {
+    assertInternalDepsUseWorkspaceProtocol(participants)
+  }
   const consumptionOf = buildConsumptionIndex(opts.ledger, refs.nameToDirs)
 
   const ctx: AssembleContext = { participants, lanesByDir, fixedGroups, intentBumps, consumptionOf, opts }
@@ -292,11 +301,35 @@ function assemble (ctx: AssembleContext, selection: Set<string> | undefined): Re
   }
   releases.sort((left, right) => left.name.localeCompare(right.name) || left.dir.localeCompare(right.dir))
 
+  assertNoDuplicateReleaseIdentity(releases)
   if (opts.snapshotSuffix == null) {
     enforceMaxBump(releases, opts.versioning)
   }
 
   return { releases }
+}
+
+/**
+ * A published `package@version` identifies exactly one artifact, so two
+ * projects that share a name cannot both release the same version — the
+ * registry would reject the second publish, and the name-keyed ledger entry
+ * would collide. Caught here, before any manifest is written, naming both
+ * directories.
+ */
+function assertNoDuplicateReleaseIdentity (releases: PlannedRelease[]): void {
+  const byIdentity = new Map<string, string>()
+  for (const release of releases) {
+    const identity = `${release.name}@${release.newVersion}`
+    const other = byIdentity.get(identity)
+    if (other != null) {
+      throw new PnpmError(
+        'VERSIONING_DUPLICATE_RELEASE',
+        `Two projects both release ${identity}: ./${other} and ./${release.dir}. ` +
+        'A package name and version identify one published artifact, so same-named projects must release on different version lines (e.g. different lanes or majors).'
+      )
+    }
+    byIdentity.set(identity, release.dir)
+  }
 }
 
 function collectParticipants (

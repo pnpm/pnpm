@@ -94,6 +94,12 @@ pub struct AssembleReleasePlanOptions {
     /// When set, every planned release gets the version `0.0.0-<suffix>`
     /// instead of the computed one, matching snapshot releases.
     pub snapshot_suffix: Option<String>,
+    /// Enforce that every internal production dependency uses the
+    /// `workspace:` protocol — a prerequisite for actually releasing. The
+    /// release path (`pnpm version -r`) sets this; read-only callers
+    /// (`pnpm change status`) leave it off so a diagnostic never fails on an
+    /// unmigrated dependency.
+    pub enforce_workspace_protocol: bool,
 }
 
 /// Whether a package reference is a workspace-relative directory path rather
@@ -167,7 +173,9 @@ pub fn assemble_release_plan(
     let fixed_groups = resolve_fixed_groups(&refs, &participants, versioning)?;
     validate_fixed_group_lanes(&fixed_groups, &lanes_by_dir, versioning)?;
     let intent_bumps = resolve_intents(intents, &refs, &participants)?;
-    assert_internal_deps_use_workspace_protocol(&participants)?;
+    if opts.enforce_workspace_protocol {
+        assert_internal_deps_use_workspace_protocol(&participants)?;
+    }
     let consumption = build_consumption_index(ledger, |name| refs.name_to_dirs(name))?;
 
     let ctx = AssembleContext {
@@ -408,11 +416,34 @@ fn assemble(
     releases
         .sort_by(|left, right| left.name.cmp(&right.name).then_with(|| left.dir.cmp(&right.dir)));
 
+    assert_no_duplicate_release_identity(&releases)?;
     if ctx.opts.snapshot_suffix.is_none() {
         enforce_max_bump(&releases, ctx.versioning)?;
     }
 
     Ok(ReleasePlan { releases })
+}
+
+/// A published `package@version` identifies exactly one artifact, so two
+/// projects that share a name cannot both release the same version — the
+/// registry would reject the second publish, and the name-keyed ledger entry
+/// would collide. Caught here, before any manifest is written, naming both
+/// directories.
+fn assert_no_duplicate_release_identity(
+    releases: &[PlannedRelease],
+) -> Result<(), VersioningError> {
+    let mut by_identity: HashMap<String, String> = HashMap::new();
+    for release in releases {
+        let identity = format!("{}@{}", release.name, release.new_version);
+        if let Some(other) = by_identity.insert(identity.clone(), release.dir.clone()) {
+            return Err(VersioningError::DuplicateRelease {
+                identity,
+                first_dir: other,
+                second_dir: release.dir.clone(),
+            });
+        }
+    }
+    Ok(())
 }
 
 fn bump_at_least(

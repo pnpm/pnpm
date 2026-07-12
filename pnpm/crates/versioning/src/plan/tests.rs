@@ -196,16 +196,33 @@ fn ignored_packages_neither_release_nor_propagate() {
 }
 
 #[test]
-fn an_internal_dependency_without_the_workspace_protocol_fails_the_plan() {
+fn an_internal_dependency_without_the_workspace_protocol_fails_a_release_but_not_a_read_only_assemble()
+ {
     let projects =
         [make_project("lib", "1.0.0", &[]), make_project("cli", "1.0.0", &[("lib", "^1.0.0")])];
-    let err = assemble_release_plan(
+    // enforce_workspace_protocol off (the default, used by `pnpm change
+    // status`): a read-only assemble never fails on an unmigrated dependency.
+    let plan = assemble_release_plan(
         &projects,
         std::path::Path::new("/ws"),
         &[],
         &Ledger::new(),
         None,
         &AssembleReleasePlanOptions::default(),
+    )
+    .expect("read-only assemble succeeds");
+    assert!(plan.releases.is_empty());
+    // The release path enforces the prerequisite.
+    let err = assemble_release_plan(
+        &projects,
+        std::path::Path::new("/ws"),
+        &[],
+        &Ledger::new(),
+        None,
+        &AssembleReleasePlanOptions {
+            enforce_workspace_protocol: true,
+            ..AssembleReleasePlanOptions::default()
+        },
     )
     .expect_err("plan must fail");
     assert!(err.to_string().contains("workspace: protocol"), "unexpected error: {err}");
@@ -441,6 +458,38 @@ fn twins() -> [WorkspaceProject; 2] {
             prod_dependencies: Vec::new(),
         },
     ]
+}
+
+#[test]
+fn two_same_named_projects_releasing_to_the_same_version_is_a_hard_error() {
+    let same_version = [
+        WorkspaceProject {
+            root_dir: PathBuf::from("/ws/a/util"),
+            name: Some("@scope/util".to_string()),
+            version: Some("1.0.0".to_string()),
+            prod_dependencies: Vec::new(),
+        },
+        WorkspaceProject {
+            root_dir: PathBuf::from("/ws/b/util"),
+            name: Some("@scope/util".to_string()),
+            version: Some("1.0.0".to_string()),
+            prod_dependencies: Vec::new(),
+        },
+    ];
+    let intents = [make_intent("one", &[("./a/util", "patch"), ("./b/util", "patch")])];
+    let err = assemble_release_plan(
+        &same_version,
+        std::path::Path::new("/ws"),
+        &intents,
+        &Ledger::new(),
+        None,
+        &AssembleReleasePlanOptions::default(),
+    )
+    .expect_err("plan must fail");
+    assert!(
+        err.to_string().contains("Two projects both release @scope/util@1.0.1"),
+        "unexpected error: {err}",
+    );
 }
 
 #[test]

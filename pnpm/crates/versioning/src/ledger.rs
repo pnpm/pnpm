@@ -93,24 +93,58 @@ fn render_ledger(ledger: &Ledger) -> String {
     use std::fmt::Write as _;
     let mut output = String::new();
     for (key, entry) in ledger {
-        if key.starts_with('@') {
-            writeln!(output, r#""{key}":"#).expect("write to string");
-        } else {
-            writeln!(output, "{key}:").expect("write to string");
-        }
+        writeln!(output, "{}:", yaml_scalar(key)).expect("write to string");
         if let LedgerEntry::Attributed { dir, .. } = entry {
-            writeln!(output, "  dir: {dir}").expect("write to string");
+            writeln!(output, "  dir: {}", yaml_scalar(dir)).expect("write to string");
             writeln!(output, "  intents:").expect("write to string");
             for id in entry.intent_ids() {
-                writeln!(output, "    - {id}").expect("write to string");
+                writeln!(output, "    - {}", yaml_scalar(id)).expect("write to string");
             }
         } else {
             for id in entry.intent_ids() {
-                writeln!(output, "  - {id}").expect("write to string");
+                writeln!(output, "  - {}", yaml_scalar(id)).expect("write to string");
             }
         }
     }
     output
+}
+
+/// Renders a string as a YAML scalar the way the TypeScript side's
+/// `yaml.stringify` does: plain when unambiguous, otherwise double-quoted
+/// with escapes. Directory paths and `human-id` intent ids are always plain,
+/// so the two stacks produce byte-identical ledgers for real content; the
+/// quoting only guards odd hand-written values (a `#`, `: `, leading `@`, ...)
+/// from round-tripping wrong.
+fn yaml_scalar(value: &str) -> String {
+    if needs_quoting(value) {
+        let escaped = value.replace('\\', r"\\").replace('"', r#"\""#).replace('\n', r"\n");
+        format!(r#""{escaped}""#)
+    } else {
+        value.to_string()
+    }
+}
+
+fn needs_quoting(value: &str) -> bool {
+    if value.is_empty() {
+        return true;
+    }
+    // Leading indicator characters, or a value YAML would read as something
+    // other than a plain string.
+    if value.starts_with([
+        '!', '&', '*', '[', ']', '{', '}', ',', '#', '|', '>', '@', '`', '"', '\'', '%', '?', ':',
+        '-', ' ',
+    ]) {
+        return true;
+    }
+    if value.ends_with(' ') {
+        return true;
+    }
+    matches!(value, "true" | "false" | "null" | "yes" | "no" | "~")
+        || value.chars().any(char::is_control)
+        // A colon or hash that YAML would treat as a key/comment boundary.
+        || value.contains(": ")
+        || value.ends_with(':')
+        || value.contains(" #")
 }
 
 /// Which intent ids the ledger records for one project.
@@ -192,3 +226,6 @@ pub fn normalize_project_dir(dir: &str) -> String {
     }
     normalized.trim_end_matches('/').to_string()
 }
+
+#[cfg(test)]
+mod tests;

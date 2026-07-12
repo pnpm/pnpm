@@ -97,21 +97,28 @@ impl VersionArgs {
                     .collect::<HashSet<String>>(),
             )
         };
+        let is_filtered = filter.is_some();
         let plan = assemble_release_plan(
             &engine_projects,
             &workspace_dir,
             &intents,
             &ledger,
             Some(&config.versioning),
-            &AssembleReleasePlanOptions { filter, snapshot_suffix: None },
+            &AssembleReleasePlanOptions {
+                filter,
+                snapshot_suffix: None,
+                enforce_workspace_protocol: true,
+            },
         )?;
 
         if plan.releases.is_empty() {
-            // Even an empty plan can leave garbage-collectable intent files
-            // behind: declined ("none"-only) intents and files a merge
-            // resurrected after every named package had already consumed
-            // them.
-            if !self.dry_run {
+            // A full (unfiltered) run garbage-collects the intent files an
+            // empty plan leaves behind: declined ("none"-only) intents and
+            // files a merge resurrected after every named package had already
+            // consumed them. A filtered run must not — "nothing pending in
+            // this scope" is no reason to delete prose belonging to packages
+            // outside the filter.
+            if !self.dry_run && !is_filtered {
                 apply_release_plan(
                     &plan,
                     &workspace_dir,

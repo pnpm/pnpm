@@ -237,13 +237,16 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     ledger,
     versioning: opts.versioning,
     filter,
+    enforceWorkspaceProtocol: true,
   })
 
   if (plan.releases.length === 0) {
-    // Even an empty plan can leave garbage-collectable intent files behind:
-    // declined ("none"-only) intents and files a merge resurrected after
-    // every named package had already consumed them.
-    if (!opts.dryRun) {
+    // A full (unfiltered) run garbage-collects the intent files an empty plan
+    // leaves behind: declined ("none"-only) intents and files a merge
+    // resurrected after every named package had already consumed them. A
+    // filtered run must not — "nothing pending in this scope" is no reason to
+    // delete prose belonging to packages outside the filter.
+    if (!opts.dryRun && filter == null) {
       await applyReleasePlan(plan, { workspaceDir, projects, allIntents: intents, versioning: opts.versioning })
     }
     return 'No pending changes. Record one with "pnpm change".'

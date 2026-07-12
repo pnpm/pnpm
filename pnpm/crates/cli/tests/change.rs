@@ -191,6 +191,71 @@ fn lane_assignment_requires_a_filter() {
     drop(root);
 }
 
+/// A filtered `pnpm version -r` with nothing pending in scope must not
+/// garbage-collect intents belonging to packages outside the filter.
+#[test]
+fn a_filtered_version_run_leaves_out_of_scope_intents_untouched() {
+    let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
+    write_workspace(&workspace);
+    add_pkg(&workspace, "lib", "1.0.0", "{}");
+    add_pkg(&workspace, "cli", "2.0.0", "{}");
+
+    stdout_of(pnpm(&workspace).with_args([
+        "change",
+        "--bump",
+        "none",
+        "--summary",
+        "refactor, no release needed",
+        "lib",
+    ]));
+
+    let output = stdout_of(pnpm(&workspace).with_args(["version", "-r", "--filter", "cli"]));
+    assert!(output.contains("No pending changes"), "unexpected: {output}");
+    let intents: Vec<_> = fs::read_dir(workspace.join(".changeset"))
+        .expect("read .changeset")
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_name().to_string_lossy().ends_with(".md"))
+        .collect();
+    assert_eq!(intents.len(), 1, "the out-of-scope none-only intent must survive");
+
+    drop(root);
+}
+
+/// `pnpm change status` is a read-only diagnostic: it must not fail with the
+/// release-time workspace-protocol error, but `pnpm version -r` does enforce it.
+#[test]
+fn change_status_is_read_only_about_unmigrated_internal_deps() {
+    let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
+    write_workspace(&workspace);
+    add_pkg(&workspace, "lib", "1.0.0", "{}");
+    add_pkg(&workspace, "cli", "2.0.0", r#"{"lib": "^1.0.0"}"#);
+
+    let status = pnpm(&workspace).with_args(["change", "status"]).output().expect("run pnpm");
+    assert!(
+        status.status.success(),
+        "change status must not fail: {}",
+        String::from_utf8_lossy(&status.stderr),
+    );
+
+    stdout_of(pnpm(&workspace).with_args([
+        "change",
+        "--bump",
+        "patch",
+        "--summary",
+        "A fix.",
+        "lib",
+    ]));
+    let release = pnpm(&workspace).with_args(["version", "-r"]).output().expect("run pnpm");
+    assert!(!release.status.success());
+    assert!(
+        String::from_utf8_lossy(&release.stderr).contains("workspace: protocol"),
+        "unexpected: {}",
+        String::from_utf8_lossy(&release.stderr),
+    );
+
+    drop(root);
+}
+
 /// Two workspace projects publishing the same npm name (pnpm's own TS and Rust
 /// CLIs) must be referenced by directory; the ledger attributes the release to
 /// the right one.
