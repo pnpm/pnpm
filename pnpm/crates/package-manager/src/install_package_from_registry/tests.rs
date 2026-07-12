@@ -26,6 +26,7 @@ use tempfile::tempdir;
 
 fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path) -> Config {
     Config {
+        versioning: Default::default(),
         hoist: false,
         hoist_pattern: None,
         public_hoist_pattern: None,

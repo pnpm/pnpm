@@ -83,7 +83,7 @@ pub struct ReleasePlan {
     pub releases: Vec<PlannedRelease>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct AssembleReleasePlanOptions {
     /// Package names selected with --filter. The plan is narrowed to the
     /// selected packages' portion of the pending work, expanded with their
@@ -392,7 +392,7 @@ fn collect_participants<'a>(
 }
 
 /// Decides whether a dependency entry points at a workspace package. Aliased
-/// specs targeting somewhere else (`npm:`, `file:`, git URLs, …) are external
+/// specs targeting somewhere else (`npm:`, `file:`, git URLs, ...) are external
 /// even when the alias collides with a workspace package name; a plain semver
 /// range or `catalog:` entry on a workspace name is internal — it is exactly
 /// the declaration the workspace-protocol check must reject.
@@ -764,7 +764,7 @@ fn enforce_max_bump(
         let raised_by = if intent_files.is_empty() {
             format!(
                 "constraint chain: {}",
-                release.causes.iter().map(ToString::to_string).collect::<Vec<String>>().join(", ")
+                release.causes.iter().map(ToString::to_string).collect::<Vec<String>>().join(", "),
             )
         } else {
             format!("intent file(s) {}", intent_files.join(", "))

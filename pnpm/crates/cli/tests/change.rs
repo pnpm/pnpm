@@ -56,7 +56,7 @@ fn change_records_an_intent_and_version_applies_the_release_plan() {
     let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
     write_workspace(&workspace);
     add_pkg(&workspace, "lib", "1.2.0", "{}");
-    add_pkg(&workspace, "cli", "3.0.0", "{\"lib\": \"workspace:^\"}");
+    add_pkg(&workspace, "cli", "3.0.0", r#"{"lib": "workspace:^"}"#);
 
     let output = stdout_of(pnpm(&workspace).with_args([
         "change",
@@ -72,7 +72,7 @@ fn change_records_an_intent_and_version_applies_the_release_plan() {
     assert!(status.contains("lib: 1.2.0 → 2.0.0 (major, via intent)"), "unexpected: {status}");
     assert!(
         status.contains("cli: 3.0.0 → 3.0.1 (patch, via dependencies)"),
-        "unexpected: {status}"
+        "unexpected: {status}",
     );
 
     let dry_run = stdout_of(pnpm(&workspace).with_args(["version", "-r", "--dry-run"]));
@@ -117,7 +117,7 @@ fn prerelease_lines_are_entered_released_and_graduated() {
 
     let entered =
         stdout_of(pnpm(&workspace).with_args(["version", "unstable", "alpha", "--filter", "cli"]));
-    assert!(entered.contains("Entered the \"alpha\" prerelease line:"), "unexpected: {entered}");
+    assert!(entered.contains(r#"Entered the "alpha" prerelease line:"#), "unexpected: {entered}");
     let manifest = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml");
     assert!(manifest.contains("cli: alpha"), "unexpected: {manifest}");
 

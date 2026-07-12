@@ -16,7 +16,7 @@ pub struct AppliedRelease {
     pub new_version: String,
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct ApplyReleasePlanOptions {
     /// Snapshot releases only rewrite manifest versions: they consume no
     /// intent files, write no changelogs, and leave the ledger untouched.

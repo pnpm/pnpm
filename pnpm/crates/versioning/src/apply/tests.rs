@@ -42,7 +42,7 @@ fn make_workspace(pkgs: &[FixturePkg<'_>]) -> Workspace {
                 root_dir.join("package.json"),
                 format!(
                     "{}\n",
-                    serde_json::to_string_pretty(&manifest).expect("serialize manifest")
+                    serde_json::to_string_pretty(&manifest).expect("serialize manifest"),
                 ),
             )
             .expect("write package.json");

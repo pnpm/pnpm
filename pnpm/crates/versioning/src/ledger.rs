@@ -67,7 +67,7 @@ fn render_ledger(ledger: &Ledger) -> String {
     let mut output = String::new();
     for (key, ids) in ledger {
         if key.starts_with('@') {
-            writeln!(output, "\"{key}\":").expect("write to string");
+            writeln!(output, r#""{key}":"#).expect("write to string");
         } else {
             writeln!(output, "{key}:").expect("write to string");
         }

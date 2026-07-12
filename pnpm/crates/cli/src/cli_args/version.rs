@@ -56,7 +56,7 @@ enum VersionError {
     NpmStyleNotPorted { bump: String },
 
     #[display(
-        "The bare \"pnpm version -r\" form consumes change intents and is only supported in a workspace"
+        r#"The bare "pnpm version -r" form consumes change intents and is only supported in a workspace"#
     )]
     #[diagnostic(code(ERR_PNPM_WORKSPACE_ONLY))]
     ReleaseOutsideWorkspace,
@@ -82,7 +82,7 @@ enum VersionError {
     NoPackagesSelected,
 
     #[display(
-        "A prerelease tag is required, e.g. \"pnpm version unstable alpha\". Tags may contain only alphanumerics and hyphens, and cannot be purely numeric."
+        r#"A prerelease tag is required, e.g. "pnpm version unstable alpha". Tags may contain only alphanumerics and hyphens, and cannot be purely numeric."#
     )]
     #[diagnostic(code(ERR_PNPM_VERSIONING_INVALID_PRERELEASE_TAG))]
     InvalidPrereleaseTag,
@@ -146,7 +146,7 @@ impl VersionArgs {
         )?;
 
         if plan.releases.is_empty() {
-            println!("No pending changes. Record one with \"pnpm change\".");
+            println!(r#"No pending changes. Record one with "pnpm change"."#);
             return Ok(());
         }
         if self.dry_run {
@@ -168,7 +168,7 @@ impl VersionArgs {
             writeln!(
                 output,
                 "{}: {} → {}",
-                release.name, release.current_version, release.new_version
+                release.name, release.current_version, release.new_version,
             )
             .expect("write to string");
         }
@@ -213,8 +213,10 @@ impl VersionArgs {
             // all-digit prerelease identifier as a number, which changes
             // sorting semantics.
             let valid_tag = !tag.is_empty()
-                && tag.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
-                && !tag.chars().all(|c| c.is_ascii_digit());
+                && tag
+                    .chars()
+                    .all(|character| character.is_ascii_alphanumeric() || character == '-')
+                && !tag.chars().all(|character| character.is_ascii_digit());
             if !valid_tag {
                 return Err(VersionError::InvalidPrereleaseTag.into());
             }
@@ -236,7 +238,8 @@ impl VersionArgs {
                 settings.prereleases.shift_remove(name);
             }
             format!(
-                "Exited the prerelease line:\n{selected_lines}The accumulated stable versions release on the next \"pnpm version -r\" run."
+                r#"Exited the prerelease line:
+{selected_lines}The accumulated stable versions release on the next "pnpm version -r" run."#,
             )
         };
 

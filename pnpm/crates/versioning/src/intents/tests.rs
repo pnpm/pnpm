@@ -16,7 +16,7 @@ fn parses_the_changesets_file_format() {
         IndexMap::from([
             ("@example/ui".to_string(), IntentBumpType::Minor),
             ("@example/core".to_string(), IntentBumpType::Patch),
-        ])
+        ]),
     );
     assert_eq!(intent.summary, "Added a `variant` prop to `Button`.");
 }

@@ -128,7 +128,7 @@ fn dependent_propagation_follows_the_materialized_workspace_range() {
     assert_eq!(cli.bump_type, ReleaseBumpType::Patch);
     assert_eq!(
         cli.dependency_updates,
-        vec![DependencyUpdate { name: "lib".to_string(), new_version: "2.0.0".to_string() }]
+        vec![DependencyUpdate { name: "lib".to_string(), new_version: "2.0.0".to_string() }],
     );
 }
 

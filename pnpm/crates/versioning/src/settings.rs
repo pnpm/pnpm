@@ -33,8 +33,8 @@ pub struct ChangelogSettings {
 }
 
 /// Settings for native workspace release management, declared under the
-/// `versioning` key of pnpm-workspace.yaml. Mirrors the TypeScript
-/// `VersioningSettings` type field for field.
+/// `versioning` key of pnpm-workspace.yaml. Mirrors the TypeScript type of
+/// the same name field for field.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct VersioningSettings {
