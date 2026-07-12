@@ -115,6 +115,30 @@ describe('change command and intent-consuming version -r', () => {
     expect(fs.readFileSync(path.join(tempDir, 'pnpm-workspace.yaml'), 'utf8')).not.toContain('alpha')
   })
 
+  it('a none-only intent is consumed by a version -r run with nothing to release', async () => {
+    const lib = addPkg({ name: 'lib', version: '1.0.0' })
+    const opts = baseOpts([lib])
+    await change.handler({ ...opts, bump: 'none', summary: 'refactor, no release needed' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const output = await version.handler(opts as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(output).toContain('No pending changes')
+    const remaining = fs.readdirSync(path.join(tempDir, '.changeset')).filter((fileName) => fileName.endsWith('.md'))
+    expect(remaining).toHaveLength(0)
+  })
+
+  it('rejects differently-cased spellings of the reserved main lane', async () => {
+    const cli = addPkg({ name: 'cli', version: '2.0.0' })
+    const opts = {
+      ...baseOpts([cli]),
+      filter: ['cli'],
+      selectedProjectsGraph: {
+        [cli.rootDir]: { dependencies: [], package: { rootDir: cli.rootDir, manifest: cli.manifest } },
+      },
+    }
+    await expect(
+      lane.handler(opts as any, ['MAIN']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_VERSIONING_INVALID_LANE_NAME' })
+  })
+
   it('lane assignment requires a filter', async () => {
     const cli = addPkg({ name: 'cli', version: '2.0.0' })
     await expect(

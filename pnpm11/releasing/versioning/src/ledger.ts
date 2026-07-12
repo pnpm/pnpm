@@ -35,7 +35,9 @@ export async function readLedger (workspaceDir: string): Promise<Ledger> {
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new PnpmError('INVALID_VERSIONING_LEDGER', `Expected ${ledgerPath} to be a mapping of package@version keys to intent id lists`)
   }
-  const ledger: Ledger = {}
+  // A null prototype so a key like "__proto__" lands as an own property
+  // instead of mutating the prototype.
+  const ledger: Ledger = Object.create(null) as Ledger
   for (const [key, ids] of Object.entries(parsed)) {
     if (!Array.isArray(ids) || ids.some((id) => typeof id !== 'string')) {
       throw new PnpmError('INVALID_VERSIONING_LEDGER', `Invalid entry for ${key} in ${ledgerPath}. Expected a list of intent ids`)
@@ -55,7 +57,7 @@ export async function appendToLedger (workspaceDir: string, newEntries: Ledger):
   const changesDir = path.join(workspaceDir, CHANGES_DIR)
   await fs.mkdir(changesDir, { recursive: true })
   await fs.writeFile(path.join(changesDir, LEDGER_FILENAME), yaml.stringify(sorted), 'utf8')
-  return ledger
+  return sorted
 }
 
 export interface PackageConsumption {
@@ -64,8 +66,6 @@ export interface PackageConsumption {
   /** Intent ids recorded only against prerelease versions of the package. */
   prereleaseOnlyIds: Set<string>
 }
-
-const EMPTY_CONSUMPTION: PackageConsumption = { allIds: new Set(), prereleaseOnlyIds: new Set() }
 
 /**
  * Indexes the ledger by package name in a single pass. Packages without
@@ -102,5 +102,5 @@ export function buildConsumptionIndex (ledger: Ledger): (pkgName: string) => Pac
       prereleaseOnlyIds: new Set([...prereleaseIds].filter((id) => !stableIds.has(id))),
     })
   }
-  return (pkgName) => consumptionByPkg.get(pkgName) ?? EMPTY_CONSUMPTION
+  return (pkgName) => consumptionByPkg.get(pkgName) ?? { allIds: new Set(), prereleaseOnlyIds: new Set() }
 }

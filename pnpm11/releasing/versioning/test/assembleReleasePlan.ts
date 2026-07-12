@@ -300,6 +300,15 @@ test('filter narrows the plan to the selection plus its fixed companions and inv
   expect(plan.releases.map((release) => release.name).sort()).toStrictEqual(['cli', 'lib'])
 })
 
+test('a lane named main is rejected: it is the reserved default lane', () => {
+  expect(() => assembleReleasePlan({
+    projects: [makeProject('cli', '2.0.0')],
+    intents: [],
+    ledger: NO_LEDGER,
+    versioning: { lanes: { cli: 'Main' } },
+  })).toThrow(/reserved default lane/)
+})
+
 test('materializeWorkspaceRange mirrors pack-time materialization', () => {
   expect(materializeWorkspaceRange('workspace:*', '1.2.3')).toBe('1.2.3')
   expect(materializeWorkspaceRange('workspace:^', '1.2.3')).toBe('^1.2.3')

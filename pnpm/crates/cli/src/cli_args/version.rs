@@ -28,9 +28,10 @@ pub struct VersionArgs {
     #[clap(long = "dry-run")]
     pub dry_run: bool,
 
-    /// Release one-off snapshot versions (0.0.0-<tag>-<timestamp>) without
-    /// consuming change intents. Intended for CI preview publishing:
-    /// publish, then discard the manifest changes.
+    /// Release one-off snapshot versions (0.0.0-<timestamp>, or
+    /// 0.0.0-<tag>-<timestamp> when a tag is given) without consuming change
+    /// intents. Intended for CI preview publishing: publish, then discard
+    /// the manifest changes.
     #[clap(long, num_args = 0..=1, default_missing_value = "")]
     pub snapshot: Option<String>,
 
@@ -63,6 +64,12 @@ enum VersionError {
     #[display("Working tree is not clean. Commit or stash your changes.")]
     #[diagnostic(code(ERR_PNPM_UNCLEAN_WORKING_TREE))]
     UncleanWorkingTree,
+
+    #[display(
+        "Invalid snapshot tag: {tag}. The tag must form a valid semver prerelease identifier."
+    )]
+    #[diagnostic(code(ERR_PNPM_INVALID_SNAPSHOT_TAG))]
+    InvalidSnapshotTag { tag: String },
 }
 
 impl VersionArgs {
@@ -102,7 +109,8 @@ impl VersionArgs {
                     .collect::<HashSet<String>>(),
             )
         };
-        let snapshot_suffix = self.snapshot.as_ref().map(|tag| make_snapshot_suffix(tag));
+        let snapshot_suffix =
+            self.snapshot.as_ref().map(|tag| make_snapshot_suffix(tag)).transpose()?;
 
         let plan = assemble_release_plan(
             &engine_projects,
@@ -113,6 +121,19 @@ impl VersionArgs {
         )?;
 
         if plan.releases.is_empty() {
+            // Even an empty plan can leave garbage-collectable intent files
+            // behind: declined ("none"-only) intents and files a merge
+            // resurrected after every named package had already consumed
+            // them.
+            if !self.dry_run && snapshot_suffix.is_none() {
+                apply_release_plan(
+                    &plan,
+                    &workspace_dir,
+                    &intents,
+                    Some(&config.versioning),
+                    ApplyReleasePlanOptions::default(),
+                )?;
+            }
             println!(r#"No pending changes. Record one with "pnpm change"."#);
             return Ok(());
         }
@@ -162,7 +183,11 @@ pub(crate) fn selected_pkg_names(
         .collect())
 }
 
-fn make_snapshot_suffix(tag: &str) -> String {
+fn make_snapshot_suffix(tag: &str) -> miette::Result<String> {
     let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
-    if tag.is_empty() { timestamp.to_string() } else { format!("{tag}-{timestamp}") }
+    let suffix = if tag.is_empty() { timestamp.to_string() } else { format!("{tag}-{timestamp}") };
+    if node_semver::Version::parse(format!("0.0.0-{suffix}")).is_err() {
+        return Err(VersionError::InvalidSnapshotTag { tag: tag.to_string() }.into());
+    }
+    Ok(suffix)
 }

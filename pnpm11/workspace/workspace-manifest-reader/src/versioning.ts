@@ -17,14 +17,14 @@ export function assertValidWorkspaceManifestVersioning (manifest: { packages?: r
       throw new InvalidWorkspaceManifestError(`Expected versioning.fixed to be an array of arrays, but found - ${typeof versioning.fixed}`)
     }
     for (const group of versioning.fixed) {
-      if (!Array.isArray(group) || group.some((name) => typeof name !== 'string')) {
+      if (!Array.isArray(group) || group.some((name) => typeof name !== 'string' || name === '')) {
         throw new InvalidWorkspaceManifestError('Expected every versioning.fixed group to be an array of package names')
       }
     }
   }
 
   if (versioning.ignore != null) {
-    if (!Array.isArray(versioning.ignore) || versioning.ignore.some((name) => typeof name !== 'string')) {
+    if (!Array.isArray(versioning.ignore) || versioning.ignore.some((name) => typeof name !== 'string' || name === '')) {
       throw new InvalidWorkspaceManifestError('Expected versioning.ignore to be an array of package names')
     }
   }
@@ -40,6 +40,9 @@ export function assertValidWorkspaceManifestVersioning (manifest: { packages?: r
     for (const [pkgName, lane] of Object.entries(lanes)) {
       if (typeof lane !== 'string' || lane === '') {
         throw new InvalidWorkspaceManifestError(`Expected versioning.lanes entry for ${pkgName} to be a non-empty lane name`)
+      }
+      if (lane.toLowerCase() === 'main') {
+        throw new InvalidWorkspaceManifestError(`Invalid versioning.lanes entry for ${pkgName}: "main" is the reserved default lane. Remove the entry instead.`)
       }
     }
   }

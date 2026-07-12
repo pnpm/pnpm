@@ -44,6 +44,12 @@ pub enum VersioningError {
     InternalRange { pkg_name: String, alias: String, field: String, spec: String },
 
     #[display(
+        "versioning.lanes assigns {pkg_name} to the \"{lane}\" lane, but \"main\" is the reserved default lane. Remove the entry instead."
+    )]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_INVALID_LANE_NAME))]
+    InvalidLaneName { pkg_name: String, lane: String },
+
+    #[display(
         "The fixed group [{}] mixes packages on different lanes. A fixed group must move between lanes together.",
         group.join(", ")
     )]

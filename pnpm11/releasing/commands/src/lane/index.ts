@@ -86,6 +86,9 @@ export async function handler (opts: LaneCommandOptions, params: string[]): Prom
     output = `Moved to the main lane:\n${selected.map((name) => `  ${name}\n`).join('')}` +
       'The accumulated stable versions release on the next "pnpm version -r" run.'
   } else {
+    if (laneName.toLowerCase() === MAIN_LANE) {
+      throw new PnpmError('VERSIONING_INVALID_LANE_NAME', `Invalid lane name: ${laneName}. "main" is the reserved default lane; spell it in lowercase to move packages back onto it.`)
+    }
     // A purely numeric lane name is rejected because semver parses an
     // all-digit prerelease identifier as a number, which changes sorting
     // semantics.

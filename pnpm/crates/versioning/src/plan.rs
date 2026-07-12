@@ -417,7 +417,8 @@ fn resolve_internal_dep_target(
 fn parse_workspace_spec_alias(rest: &str) -> Option<&str> {
     let at_index = rest.rfind('@').filter(|&index| index > 0)?;
     let alias = &rest[..at_index];
-    if alias.starts_with(['.', '_', '/']) || alias[1..].contains('@') {
+    if alias.starts_with(['.', '_', '/']) || alias.chars().skip(1).any(|character| character == '@')
+    {
         return None;
     }
     Some(alias)
@@ -430,6 +431,14 @@ fn validate_versioning_config(
     let Some(settings) = versioning else {
         return Ok(());
     };
+    for (pkg_name, lane) in &settings.lanes {
+        if lane.eq_ignore_ascii_case("main") {
+            return Err(VersioningError::InvalidLaneName {
+                pkg_name: pkg_name.clone(),
+                lane: lane.clone(),
+            });
+        }
+    }
     for group in &settings.fixed {
         let tags: HashSet<Option<&String>> = group
             .iter()

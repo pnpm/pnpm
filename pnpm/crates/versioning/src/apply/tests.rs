@@ -228,6 +228,33 @@ fn snapshot_releases_rewrite_manifests_without_consuming_intents_or_writing_chan
 }
 
 #[test]
+fn a_none_only_intent_is_garbage_collected_by_a_run_with_an_empty_plan() {
+    let workspace = make_workspace(&[("lib", "1.0.0", &[])]);
+    let releases = IndexMap::from([("lib".to_string(), IntentBumpType::None)]);
+    write_change_intent(workspace.dir.path(), &releases, "refactor, no release needed")
+        .expect("intent writes");
+    let intents = read_change_intents(workspace.dir.path()).expect("intents read");
+    let plan = assemble_release_plan(
+        &workspace.projects,
+        &intents,
+        &read_ledger(workspace.dir.path()).expect("ledger reads"),
+        None,
+        &AssembleReleasePlanOptions::default(),
+    )
+    .expect("plan assembles");
+    assert!(plan.releases.is_empty());
+    apply_release_plan(
+        &plan,
+        workspace.dir.path(),
+        &intents,
+        None,
+        ApplyReleasePlanOptions::default(),
+    )
+    .expect("plan applies");
+    assert_eq!(read_change_intents(workspace.dir.path()).expect("intents read").len(), 0);
+}
+
+#[test]
 fn prepend_keeps_the_title_above_the_new_section_even_without_a_trailing_newline() {
     let dir = tempfile::tempdir().expect("create temp dir");
     fs::write(dir.path().join("CHANGELOG.md"), "# lib").expect("write changelog");

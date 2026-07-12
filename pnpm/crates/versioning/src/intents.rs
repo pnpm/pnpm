@@ -120,11 +120,15 @@ pub fn read_change_intents(workspace_dir: &Path) -> Result<Vec<ChangeIntent>, Ve
         Err(source) => return Err(VersioningError::Read { path: changes_dir, source }),
     };
 
-    let mut file_names: Vec<String> = entries
-        .filter_map(Result::ok)
-        .map(|entry| entry.file_name().to_string_lossy().into_owned())
-        .filter(|name| name.ends_with(".md") && !name.eq_ignore_ascii_case("readme.md"))
-        .collect();
+    let mut file_names = Vec::new();
+    for entry in entries {
+        let entry =
+            entry.map_err(|source| VersioningError::Read { path: changes_dir.clone(), source })?;
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if name.ends_with(".md") && !name.eq_ignore_ascii_case("readme.md") {
+            file_names.push(name);
+        }
+    }
     file_names.sort();
 
     file_names

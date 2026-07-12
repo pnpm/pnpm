@@ -274,6 +274,14 @@ function resolveInternalDepTarget (alias: string, spec: string, workspaceNames: 
 function validateVersioningConfig (participants: Map<string, Participant>, versioning?: VersioningSettings): void {
   if (versioning == null) return
   const lanes = versioning.lanes ?? {}
+  for (const [pkgName, lane] of Object.entries(lanes)) {
+    if (lane.toLowerCase() === 'main') {
+      throw new PnpmError(
+        'VERSIONING_INVALID_LANE_NAME',
+        `versioning.lanes assigns ${pkgName} to the "${lane}" lane, but "main" is the reserved default lane. Remove the entry instead.`
+      )
+    }
+  }
   for (const group of versioning.fixed ?? []) {
     const members = group.filter((name) => participants.has(name))
     const tags = new Set(members.map((name) => lanes[name]))

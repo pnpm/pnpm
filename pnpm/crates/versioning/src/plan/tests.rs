@@ -405,6 +405,33 @@ fn filter_narrows_the_plan_to_the_selection_plus_companions_and_invalidated_depe
 }
 
 #[test]
+fn a_lane_named_main_is_rejected_as_the_reserved_default_lane() {
+    let projects = [make_project("cli", "2.0.0", &[])];
+    let versioning = on_lane("cli", "Main");
+    let err = assemble_release_plan(
+        &projects,
+        &[],
+        &Ledger::new(),
+        Some(&versioning),
+        &AssembleReleasePlanOptions::default(),
+    )
+    .expect_err("plan must fail");
+    assert!(err.to_string().contains("reserved default lane"), "unexpected error: {err}");
+}
+
+#[test]
+fn non_ascii_workspace_aliases_do_not_panic() {
+    assert_eq!(
+        materialize_workspace_range("workspace:\u{e9}dition@^", "1.2.3").as_deref(),
+        Some("^1.2.3"),
+    );
+    assert_eq!(
+        materialize_workspace_range("workspace:\u{e9}@1.0.0", "1.2.3").as_deref(),
+        Some("1.0.0"),
+    );
+}
+
+#[test]
 fn materialize_workspace_range_mirrors_pack_time_materialization() {
     assert_eq!(materialize_workspace_range("workspace:*", "1.2.3").as_deref(), Some("1.2.3"));
     assert_eq!(materialize_workspace_range("workspace:^", "1.2.3").as_deref(), Some("^1.2.3"));

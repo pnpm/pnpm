@@ -70,7 +70,9 @@ export async function handler (opts: ChangeCommandOptions, params: string[]): Pr
   if (!workspaceDir) {
     throw new PnpmError('WORKSPACE_ONLY', 'pnpm change is only supported in a workspace')
   }
-  if (params[0] === 'status') {
+  // Only the exact no-option invocation is the status form, so a package
+  // that happens to be named "status" stays recordable.
+  if (params.length === 1 && params[0] === 'status' && opts.bump == null && opts.summary == null) {
     return renderStatus(workspaceDir, opts)
   }
   return recordChange(workspaceDir, opts, params)

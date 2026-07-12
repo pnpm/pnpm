@@ -52,6 +52,12 @@ enum LaneError {
     InvalidLaneName { name: String },
 
     #[display(
+        "Invalid lane name: {name}. \"main\" is the reserved default lane; spell it in lowercase to move packages back onto it."
+    )]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_INVALID_LANE_NAME))]
+    ReservedLaneName { name: String },
+
+    #[display(
         r#"{pkg_name} is already on the "{lane}" lane. Move it back with "pnpm lane main" first."#
     )]
     #[diagnostic(code(ERR_PNPM_VERSIONING_ALREADY_ON_LANE))]
@@ -99,6 +105,9 @@ impl LaneArgs {
 {selected_lines}The accumulated stable versions release on the next "pnpm version -r" run."#,
             )
         } else {
+            if lane_name.eq_ignore_ascii_case(MAIN_LANE) {
+                return Err(LaneError::ReservedLaneName { name: lane_name }.into());
+            }
             // A purely numeric lane name is rejected because semver parses an
             // all-digit prerelease identifier as a number, which changes
             // sorting semantics.

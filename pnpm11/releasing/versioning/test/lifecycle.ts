@@ -158,6 +158,27 @@ test('snapshot releases rewrite manifests without consuming intents or writing c
   await expect(fs.access(path.join(projects[0].rootDir, 'CHANGELOG.md'))).rejects.toThrow()
 })
 
+test('a ledger entry named __proto__ stays an own key and cannot pollute the prototype', async () => {
+  const workspaceDir = temporaryDirectory()
+  await fs.mkdir(path.join(workspaceDir, '.changeset'))
+  await fs.writeFile(path.join(workspaceDir, '.changeset', 'ledger.yaml'), '__proto__:\n  - sneaky\nlib@1.0.1:\n  - one\n')
+  const ledger = await readLedger(workspaceDir)
+  expect(({} as Record<string, unknown>).sneaky).toBeUndefined()
+  expect(Object.keys(ledger).sort()).toStrictEqual(['__proto__', 'lib@1.0.1'])
+})
+
+test('a none-only intent is garbage-collected by a run with an empty plan', async () => {
+  const { workspaceDir, projects } = await makeWorkspace([
+    { name: 'lib', version: '1.0.0' },
+  ])
+  await writeChangeIntent(workspaceDir, { releases: { lib: 'none' }, summary: 'refactor, no release needed' })
+  const intents = await readChangeIntents(workspaceDir)
+  const plan = assembleReleasePlan({ projects, intents, ledger: await readLedger(workspaceDir) })
+  expect(plan.releases).toHaveLength(0)
+  await applyReleasePlan(plan, { workspaceDir, allIntents: intents })
+  expect(await readChangeIntents(workspaceDir)).toHaveLength(0)
+})
+
 test('a merge-resurrected intent whose id is already in the ledger stays inert and is garbage-collected', async () => {
   const { workspaceDir, projects } = await makeWorkspace([
     { name: 'lib', version: '1.0.1' },

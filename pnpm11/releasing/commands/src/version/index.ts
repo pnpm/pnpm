@@ -112,7 +112,7 @@ export function help (): string {
             name: '--dry-run',
           },
           {
-            description: 'Release one-off snapshot versions (0.0.0-<tag>-<timestamp>) without consuming change intents. Intended for CI preview publishing: publish, then discard the manifest changes',
+            description: 'Release one-off snapshot versions (0.0.0-<timestamp>, or 0.0.0-<tag>-<timestamp> when a tag is given) without consuming change intents. Intended for CI preview publishing: publish, then discard the manifest changes',
             name: '--snapshot [<tag>]',
           },
         ],
@@ -247,6 +247,12 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
   })
 
   if (plan.releases.length === 0) {
+    // Even an empty plan can leave garbage-collectable intent files behind:
+    // declined ("none"-only) intents and files a merge resurrected after
+    // every named package had already consumed them.
+    if (!opts.dryRun && snapshotSuffix == null) {
+      await applyReleasePlan(plan, { workspaceDir, allIntents: intents, versioning: opts.versioning })
+    }
     return 'No pending changes. Record one with "pnpm change".'
   }
 
@@ -279,7 +285,11 @@ function selectedPkgNames (selectedProjectsGraph: ProjectsGraph): string[] {
 
 function makeSnapshotSuffix (snapshot: boolean | string): string {
   const timestamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)
-  return typeof snapshot === 'string' && snapshot !== '' ? `${snapshot}-${timestamp}` : timestamp
+  const suffix = typeof snapshot === 'string' && snapshot !== '' ? `${snapshot}-${timestamp}` : timestamp
+  if (valid(`0.0.0-${suffix}`) == null) {
+    throw new PnpmError('INVALID_SNAPSHOT_TAG', `Invalid snapshot tag: ${String(snapshot)}. The tag must form a valid semver prerelease identifier.`)
+  }
+  return suffix
 }
 
 async function bumpPackageVersion (

@@ -586,6 +586,7 @@ impl WorkspaceSettings {
     /// hoisted` in `~/.config/pnpm/config.yaml` and pacquet would
     /// honor it while pnpm wouldn't — anti-parity.
     pub fn clear_workspace_only_fields(&mut self) {
+        self.versioning = None;
         self.hoist = None;
         self.hoist_pattern = None;
         self.public_hoist_pattern = None;

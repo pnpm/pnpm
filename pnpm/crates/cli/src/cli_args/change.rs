@@ -64,7 +64,13 @@ impl ChangeArgs {
         let (projects, _) = discover_workspace_projects(&workspace_dir)?;
         let engine_projects = to_engine_projects(&projects);
 
-        if self.params.first().is_some_and(|param| param == "status") {
+        // Only the exact no-option invocation is the status form, so a
+        // package that happens to be named "status" stays recordable.
+        if self.params.len() == 1
+            && self.params[0] == "status"
+            && self.bump.is_none()
+            && self.summary.is_none()
+        {
             let output = render_status(&workspace_dir, &engine_projects, config)?;
             println!("{output}");
             return Ok(());

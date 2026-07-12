@@ -578,6 +578,21 @@ changedFilesIgnorePattern:
     assert!(settings.changed_files_ignore_pattern.is_none());
 }
 
+/// `versioning` is workspace-only: release plans must not be shaped by a
+/// global `config.yaml`.
+#[test]
+fn versioning_cleared_as_workspace_only_field() {
+    let yaml = r#"
+versioning:
+  lanes:
+    "@example/cli": alpha
+"#;
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert!(settings.versioning.is_some());
+    settings.clear_workspace_only_fields();
+    assert!(settings.versioning.is_none());
+}
+
 /// `configDependencies` is workspace-only: it must not be honored from
 /// the global `config.yaml`, matching pnpm's `isConfigFileKey` filter.
 #[test]
