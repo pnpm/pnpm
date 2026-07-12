@@ -9,7 +9,7 @@ use std::{
 };
 
 fn pacquet_at(workspace: &Path) -> Command {
-    Command::cargo_bin("pacquet").expect("find the pacquet binary").with_current_dir(workspace)
+    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
 }
 
 fn empty_auth_file(root: &Path) -> PathBuf {
@@ -88,7 +88,7 @@ fn fails_when_package_is_not_provided() {
     let output = run_deprecate(&workspace, &auth_file, None, &[]);
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_DEPRECATE_PACKAGE_REQUIRED"), "stderr: {stderr}");
+    assert!(stderr.contains("ERR_PNPM_DEPRECATE_REQUIRED"), "stderr: {stderr}");
 }
 
 #[test]

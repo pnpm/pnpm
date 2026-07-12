@@ -39,12 +39,20 @@ pub struct DeprecateArgs {
 #[non_exhaustive]
 pub enum DeprecateError {
     #[display("Package name is required")]
-    #[diagnostic(code(ERR_PNPM_DEPRECATE_PACKAGE_REQUIRED))]
+    #[diagnostic(code(ERR_PNPM_DEPRECATE_REQUIRED))]
     PackageRequired,
 
-    #[display("Deprecation message is required")]
+    #[display("Deprecation message is required. To un-deprecate, use the undeprecate command.")]
     #[diagnostic(code(ERR_PNPM_DEPRECATE_MESSAGE_REQUIRED))]
     MessageRequired,
+
+    #[display("Package name is required")]
+    #[diagnostic(code(ERR_PNPM_UNDEPRECATE_REQUIRED))]
+    UndeprecateRequired,
+
+    #[display("The undeprecate command does not accept a message.")]
+    #[diagnostic(code(ERR_PNPM_UNDEPRECATE_NO_MESSAGE))]
+    UndeprecateNoMessage,
 
     #[display(r#"Package "{package_name}" not found in registry"#)]
     #[diagnostic(code(ERR_PNPM_PACKAGE_NOT_FOUND))]
@@ -67,13 +75,13 @@ pub enum DeprecateError {
         version_range: String,
     },
 
-    #[display(r#"No deprecated versions found in "{package_name}""#)]
+    #[display("No deprecated versions found in \"{package_name}\"{version_range_suffix}")]
     #[diagnostic(code(ERR_PNPM_NOT_DEPRECATED))]
     NotDeprecated {
         #[error(not(source))]
         package_name: String,
         #[error(not(source))]
-        version_range: Option<String>,
+        version_range_suffix: String,
     },
 
     #[display("Invalid package spec: {spec}")]
@@ -253,7 +261,9 @@ pub(crate) async fn update_deprecation(
         if !has_deprecated {
             return Err(DeprecateError::NotDeprecated {
                 package_name: package_name.to_string(),
-                version_range: version_range.map(ToString::to_string),
+                version_range_suffix: version_range
+                    .map(|vr| format!(" matching \"{vr}\""))
+                    .unwrap_or_default(),
             }
             .into());
         }
@@ -261,7 +271,7 @@ pub(crate) async fn update_deprecation(
 
     for ver in &versions_to_update {
         if let Some(info) = package_meta.versions.get_mut(ver) {
-            info.deprecated = deprecated_message.map(ToString::to_string);
+            info.deprecated = Some(deprecated_message.map(ToString::to_string).unwrap_or_default());
         }
     }
 
@@ -320,7 +330,7 @@ enum FetchError {
 
 impl FetchError {
     fn is_retryable(&self) -> bool {
-        matches!(self, Self::Body(_) | Self::InvalidJson(_))
+        matches!(self, Self::Body(_))
     }
 }
 
