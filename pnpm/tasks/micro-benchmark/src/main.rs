@@ -121,7 +121,7 @@ pub fn main() -> Result<(), String> {
         criterion = criterion.save_baseline(baseline);
     }
 
-    let packument = fs::read(fixtures_folder.join("lodash.json")).unwrap();
+    let packument = fixtures_folder.join("lodash.json").pipe(fs::read).unwrap();
     let lockfile_dir = root.join("pnpm/tasks/integrated-benchmark/src/fixtures");
 
     bench_tarball(&mut criterion, &mut server, &fixtures_folder);
