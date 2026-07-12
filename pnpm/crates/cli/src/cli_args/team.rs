@@ -264,6 +264,14 @@ impl TeamArgs {
         // registry origins so a redirect cannot forward the `npm-otp` header
         // to another host (reqwest only strips standard auth headers on
         // cross-host redirects). Mirrors the `access` command's guard.
+        //
+        // Deliberate divergence from pnpm: the TypeScript fetch layer
+        // follows a cross-host redirect after stripping `authorization` and
+        // `npm-otp`, so the request proceeds without credentials and fails
+        // at the target; here it fails at the redirect hop instead. reqwest
+        // redirect policies cannot strip custom headers per hop, so matching
+        // pnpm exactly needs a manual redirect loop in pacquet-network — a
+        // follow-up that would cover `access` too.
         let redirect_guard = self.otp.as_ref().map(|_| {
             let origins: Vec<(String, String, Option<u16>)> = registries
                 .values()
