@@ -5,6 +5,7 @@
 [files]
 extend-exclude = [
   "pnpm/crates/crypto-shasums-file/src/node_release_keys.rs",
+  "pnpm/tasks/micro-benchmark/fixtures/lodash.json",
 ]
 
 [default.extend-words]

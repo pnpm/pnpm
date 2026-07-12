@@ -20,6 +20,7 @@ pacquet-network   = { workspace = true }
 pacquet-reporter  = { workspace = true }
 pacquet-store-dir = { workspace = true }
 pacquet-tarball   = { workspace = true }
+pacquet-lockfile  = { workspace = true }
 
 clap         = { workspace = true }
 criterion    = { workspace = true }
@@ -30,6 +31,7 @@ pipe-trait   = { workspace = true }
 project-root = { workspace = true }
 ssri         = { workspace = true }
 node-semver  = { workspace = true }
+serde_json   = { workspace = true }
 
 [lints]
 workspace = true

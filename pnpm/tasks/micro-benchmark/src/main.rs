@@ -1,9 +1,10 @@
-use std::{fs, path::Path};
+use std::{fs, hint::black_box, path::Path};
 
 use clap::Parser;
 use criterion::{Criterion, Throughput};
 use mockito::ServerGuard;
 use pacquet_network::{AuthHeaders, ThrottledClient};
+use pacquet_registry::Package;
 use pacquet_store_dir::StoreDir;
 use pacquet_tarball::{DownloadTarballToStore, RetryOpts};
 use pipe_trait::Pipe;
@@ -67,6 +68,48 @@ fn bench_tarball(criterion: &mut Criterion, server: &mut ServerGuard, fixtures_f
     group.finish();
 }
 
+/// Isolate pacquet's resolve-time metadata parse: deserialize a registry
+/// packument into [`Package`], then pick and hydrate a version — the CPU
+/// `Package::fetch_from_registry` pays on the resolve hot path, minus the
+/// network. `PackageVersions` captures each version as a raw fragment and
+/// hydrates lazily, so this also guards that optimization: a regression that
+/// eagerly hydrates every version would surface here as a parse blowup.
+fn bench_packument(criterion: &mut Criterion, bytes: &[u8]) {
+    let mut group = criterion.benchmark_group("packument");
+    group.throughput(Throughput::Bytes(bytes.len() as u64));
+    group.bench_function("parse", |bencher| {
+        bencher.iter(|| {
+            let package: Package = serde_json::from_slice(black_box(bytes)).unwrap();
+            let latest = package.dist_tag("latest").expect("lodash lists a `latest` dist-tag");
+            let manifest = package.versions.get(latest).expect("the `latest` manifest hydrates");
+            black_box(manifest)
+        });
+    });
+    group.finish();
+}
+
+/// Isolate the lockfile-parse sink
+/// ([`pacquet_lockfile::Lockfile::load_wanted_from_dir`], `serde-saphyr`). The
+/// per-iteration file read is page-cache-warm after the first pass, so the
+/// 12k-line YAML parse dominates the measurement.
+fn bench_lockfile(criterion: &mut Criterion, dir: &Path) {
+    assert!(
+        pacquet_lockfile::Lockfile::load_wanted_from_dir(dir).unwrap().is_some(),
+        "fixture lockfile must parse to Some, else the bench measures nothing",
+    );
+    let bytes = fs::metadata(dir.join(pacquet_lockfile::Lockfile::FILE_NAME)).unwrap().len();
+    let mut group = criterion.benchmark_group("lockfile");
+    group.throughput(Throughput::Bytes(bytes));
+    group.bench_function("parse_pnpm_lock", |bencher| {
+        bencher.iter(|| {
+            let lockfile =
+                pacquet_lockfile::Lockfile::load_wanted_from_dir(black_box(dir)).unwrap();
+            black_box(lockfile.is_some())
+        });
+    });
+    group.finish();
+}
+
 pub fn main() -> Result<(), String> {
     let mut server = mockito::Server::new();
     let CliArgs { save_baseline } = CliArgs::parse();
@@ -78,7 +121,12 @@ pub fn main() -> Result<(), String> {
         criterion = criterion.save_baseline(baseline);
     }
 
+    let packument = fixtures_folder.join("lodash.json").pipe(fs::read).unwrap();
+    let lockfile_dir = root.join("pnpm/tasks/integrated-benchmark/src/fixtures");
+
     bench_tarball(&mut criterion, &mut server, &fixtures_folder);
+    bench_packument(&mut criterion, &packument);
+    bench_lockfile(&mut criterion, &lockfile_dir);
 
     Ok(())
 }
