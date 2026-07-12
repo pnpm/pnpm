@@ -73,10 +73,10 @@ export async function publishWithOtpHandling ({
   return withOtpHandling({
     context,
     fetchOptions,
-    // When otp is undefined (first attempt), { ...publishOptions, otp } adds
+    // When otp is undefined (it can be on first attempt), { ...publishOptions, otp } adds
     // otp: undefined to the options. This is safe because libnpmpublish treats
     // undefined the same as absent (unlike HTTP headers, where undefined gets
     // coerced to the string "undefined").
-    operation: otp => publish(manifest, tarballData, { ...publishOptions, otp }),
+    operation: otp => publish(manifest, tarballData, { ...publishOptions, otp: otp ?? publishOptions.otp }),
   })
 }
