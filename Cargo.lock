@@ -4442,7 +4442,6 @@ dependencies = [
  "ssri",
  "tempfile",
  "tokio",
- "zune-inflate",
 ]
 
 [[package]]
