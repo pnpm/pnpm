@@ -157,7 +157,7 @@ function readOwnManifest () {
   } catch (err) {
     throw new Error(`Failed to read ${manifestPath}: ${err.message}`)
   }
-  if (typeof manifest !== 'object' || manifest == null) {
+  if (typeof manifest !== 'object' || manifest == null || Array.isArray(manifest)) {
     throw new Error(`Expected ${manifestPath} to contain a JSON object`)
   }
   return manifest
