@@ -18,7 +18,7 @@
   "scripts": {
     "lint": "eslint src/**/*.ts test/**/*.ts",
     "compile": "rimraf tsconfig.tsbuildinfo lib && tsc --build",
-    "test": "pn compile && pn --filter=pnpm{pnpm11/pnpm} compile && cross-env NODE_OPTIONS=--experimental-vm-modules jest"
+    "test": "pn compile && pn --filter=pnpm compile && cross-env NODE_OPTIONS=--experimental-vm-modules jest"
   },
   "keywords": [
     "pnpm",

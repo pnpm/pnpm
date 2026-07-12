@@ -93,7 +93,7 @@ function createDistNodeModules () {
     // --force installs all optional dependencies regardless of platform, so that
     // all @reflink/reflink-* platform packages end up in dist/node_modules.
     '--force',
-    '--filter=pnpm{pnpm11/pnpm}',
+    '--filter=pnpm',
     '--prod',
     'deploy',
     DEPLOY_DIR

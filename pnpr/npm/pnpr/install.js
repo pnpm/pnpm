@@ -149,12 +149,21 @@ function fail (message) {
   process.exit(1)
 }
 
+// A successful read with no optionalDependencies is the dev checkout (setup
+// no-ops there); a read/parse failure is a corrupt published package and must
+// not be silently swallowed into that same no-op path.
 function readOwnManifest () {
+  const manifestPath = path.join(ownDir, 'package.json')
+  let manifest
   try {
-    return JSON.parse(fs.readFileSync(path.join(ownDir, 'package.json'), 'utf8'))
-  } catch {
-    return {}
+    manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+  } catch (err) {
+    throw new Error(`Failed to read ${manifestPath}: ${err.message}`)
   }
+  if (typeof manifest !== 'object' || manifest == null) {
+    throw new Error(`Expected ${manifestPath} to contain a JSON object`)
+  }
+  return manifest
 }
 
 /**

@@ -30,7 +30,7 @@
   "scripts": {
     "preinstall": "node setup.js",
     "prepare": "node prepare.js",
-    "build-artifacts": "pn --filter=pnpm{pnpm11/pnpm} prepublishOnly && node ./scripts/build-artifacts.ts",
+    "build-artifacts": "pn --filter=pnpm prepublishOnly && node ./scripts/build-artifacts.ts",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest",
     "test": "pn .test"
   },

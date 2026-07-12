@@ -84,7 +84,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
           return manifest
         }
         if (manifest.name === 'monorepo-root') {
-          manifest.scripts!['release'] = `pn --filter=@pnpm/exe run build-artifacts && pn --filter=@pnpm/exe publish --tag=${nextTag} --access=public --provenance && pn publish --filter=!pnpm{pnpm11/pnpm} --filter=!@pnpm/exe --access=public --provenance && pn publish --filter=pnpm{pnpm11/pnpm} --tag=${nextTag} --access=public --provenance`
+          manifest.scripts!['release'] = `pn --filter=@pnpm/exe run build-artifacts && pn --filter=@pnpm/exe publish --tag=${nextTag} --access=public --provenance && pn publish --filter=!pnpm --filter=!@pnpm/exe --access=public --provenance && pn publish --filter=pnpm --tag=${nextTag} --access=public --provenance`
           syncNodeRuntimeInScripts(manifest, nodeRuntimeVersion)
           return sortKeysInManifest(manifest)
         }
@@ -419,7 +419,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       break
   }
   if (manifest.name && PKGS_NEEDING_CLI_COMPILE.has(manifest.name)) {
-    scripts.test = 'pn compile && pn --filter=pnpm{pnpm11/pnpm} compile && pn .test'
+    scripts.test = 'pn compile && pn --filter=pnpm compile && pn .test'
   }
   // Clean up old underscore-prefixed script names
   delete scripts._test

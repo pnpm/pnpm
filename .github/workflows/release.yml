@@ -100,13 +100,22 @@ jobs:
             *) PNPR_TAG="latest" ;;
           esac
 
+          # Assign first so `set -e` aborts the plan on a `needs_release`
+          # failure. Inside `echo "$(needs_release …)"` the non-zero exit is
+          # the subshell's, discarded by echo, so a registry outage would
+          # otherwise be written out as an empty (falsy) value and silently
+          # skip the release.
+          TS_NEEDS=$(needs_release "pnpm@$TS_VERSION")
+          RUST_NEEDS=$(needs_release "pnpm@$RUST_VERSION")
+          PNPR_NEEDS=$(needs_release "@pnpm/pnpr@$PNPR_VERSION")
+
           {
-            echo "ts=$(needs_release "pnpm@$TS_VERSION")"
+            echo "ts=$TS_NEEDS"
             echo "ts_version=$TS_VERSION"
-            echo "rust=$(needs_release "pnpm@$RUST_VERSION")"
+            echo "rust=$RUST_NEEDS"
             echo "rust_version=$RUST_VERSION"
             echo "rust_tag=$RUST_TAG"
-            echo "pnpr=$(needs_release "@pnpm/pnpr@$PNPR_VERSION")"
+            echo "pnpr=$PNPR_NEEDS"
             echo "pnpr_version=$PNPR_VERSION"
             echo "pnpr_tag=$PNPR_TAG"
           } | tee -a "$GITHUB_OUTPUT"
@@ -168,13 +177,13 @@ jobs:
         run: |
           trap 'pn config delete "//registry.npmjs.org/:_authToken" || true' EXIT
           pn config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
-          pn publish --filter='!pnpm{pnpm11/pnpm}' --filter=!@pnpm/exe --access=public --provenance
+          pn publish --filter=!pnpm --filter=!@pnpm/exe --access=public --provenance
       - name: Publish pnpm CLI (trusted publishing)
         # No NPM_TOKEN — same rationale as the @pnpm/exe step above. This must come after
         # the previous step has cleared its NPM_TOKEN from pnpm's config.
-        # The name filter is qualified by directory because the Rust CLI wrapper
-        # publishes as `pnpm` too; this selects only the TypeScript CLI.
-        run: pn publish --filter='pnpm{pnpm11/pnpm}' --tag=next-11 --access=public --provenance
+        # --filter=pnpm matches both the TypeScript CLI and the Rust wrapper (both
+        # publish as `pnpm`), but the wrapper is private, so publish skips it.
+        run: pn publish --filter=pnpm --tag=next-11 --access=public --provenance
       - name: Copy Artifacts
         run: pn copy-artifacts
       - name: Attest build provenance

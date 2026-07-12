@@ -47,7 +47,7 @@ jobs:
       - name: Build the pnpm CLI bundle
         run: |
           pnpm install --frozen-lockfile
-          pnpm --filter 'pnpm{pnpm11/pnpm}' run compile
+          pnpm --filter 'pnpm' run compile
 
       - name: Upload build outputs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
