@@ -24,9 +24,10 @@
     "!*.map"
   ],
   "scripts": {
-    "lint": "eslint \"src/**/*.ts\"",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "pretest": "rimraf node_modules/.bin/pnpm",
-    "test": "pn compile",
+    "test": "pn compile && pn .test",
+    ".test": "pn pretest && cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest",
     "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix"
   },
@@ -44,6 +45,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/logger": "workspace:*",
     "@pnpm/store.connection-manager": "workspace:*"
   },

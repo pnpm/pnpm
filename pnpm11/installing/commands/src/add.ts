@@ -11,7 +11,6 @@ import { createStoreController } from '@pnpm/store.connection-manager'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
-import { getFetchFullMetadata } from './getFetchFullMetadata.js'
 import type { InstallCommandOptions } from './install.js'
 import { installDeps } from './installDeps.js'
 import { createGlobalPolicyCallbacks } from './resolutionPolicyManifest.js'
@@ -317,7 +316,6 @@ export async function handler (
       ...opts,
       allowBuilds: mergedAllowBuilds,
       rebuildHandler: commands?.rebuild,
-      fetchFullMetadata: getFetchFullMetadata(opts),
       include,
       includeDirect: include,
       // `--dry-run` is an `install`-only preview; never let a config-level
@@ -329,7 +327,6 @@ export async function handler (
   await installDeps({
     ...opts,
     rebuildHandler: commands?.rebuild,
-    fetchFullMetadata: getFetchFullMetadata(opts),
     include,
     includeDirect: include,
     dryRun: false,

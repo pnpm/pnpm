@@ -51,6 +51,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'resolutionMode'
 | 'saveWorkspaceProtocol'
 | 'strictSsl'
+| 'supportedArchitectures'
 | 'trustPolicy'
 | 'trustPolicyExclude'
 | 'trustPolicyIgnoreAfter'
@@ -64,15 +65,40 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
   fetchFullMetadata?: boolean
 } & Partial<Pick<Config, 'deployAllFiles' | 'strictStorePkgContentCheck'>> & Pick<ClientOptions, 'resolveSymlinksInInjectedDirs'>
 
+/**
+ * Whether the resolver should request full registry metadata instead of the
+ * abbreviated document.
+ *
+ * Full metadata is needed when:
+ * - `supportedArchitectures.libc` is set, because the npm registry's
+ *   abbreviated metadata currently does not contain `libc`
+ *   (see <https://github.com/pnpm/pnpm/issues/7362#issuecomment-1971964689>);
+ * - the trust policy is `no-downgrade`, because the trust checks read trust
+ *   evidence (`_npmUser`) that abbreviated metadata never carries, regardless
+ *   of `registrySupportsTimeField`;
+ * - the resolution mode is time-based and the registry does not include the
+ *   `time` field in abbreviated metadata.
+ */
+export function shouldFetchFullMetadata (
+  opts: Pick<CreateNewStoreControllerOptions,
+  | 'fetchFullMetadata'
+  | 'registrySupportsTimeField'
+  | 'resolutionMode'
+  | 'supportedArchitectures'
+  | 'trustPolicy'
+  >
+): boolean {
+  return opts.fetchFullMetadata ?? (
+    opts.supportedArchitectures?.libc != null ||
+    opts.trustPolicy === 'no-downgrade' ||
+    (opts.resolutionMode === 'time-based' && !opts.registrySupportsTimeField)
+  )
+}
+
 export async function createNewStoreController (
   opts: CreateNewStoreControllerOptions
 ): Promise<{ ctrl: StoreController, dir: string, resolutionVerifiers: ResolutionVerifier[] }> {
-  const fullMetadata = opts.fetchFullMetadata ?? (
-    (
-      opts.resolutionMode === 'time-based' ||
-      opts.trustPolicy === 'no-downgrade'
-    ) && !opts.registrySupportsTimeField
-  )
+  const fullMetadata = shouldFetchFullMetadata(opts)
   if (!opts.frozenStore) {
     await fs.mkdir(opts.storeDir, { recursive: true })
   }

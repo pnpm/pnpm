@@ -3,9 +3,9 @@ import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller'
 import { getStorePath } from '@pnpm/store.path'
 
-import { createNewStoreController, type CreateNewStoreControllerOptions } from './createNewStoreController.js'
+import { createNewStoreController, type CreateNewStoreControllerOptions, shouldFetchFullMetadata } from './createNewStoreController.js'
 
-export { createNewStoreController }
+export { createNewStoreController, shouldFetchFullMetadata }
 
 export type CreateStoreControllerOptions = Omit<CreateNewStoreControllerOptions, 'storeDir'> & Pick<Config,
 | 'storeDir'

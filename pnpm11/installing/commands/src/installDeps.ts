@@ -166,7 +166,6 @@ export type InstallDepsOptions = Pick<Config,
   dedupe?: boolean
   workspace?: boolean
   includeOnlyPackageFiles?: boolean
-  fetchFullMetadata?: boolean
   pruneLockfileImporters?: boolean
   rebuildHandler?: CommandHandler
   pnpmfile: string[]

@@ -9108,6 +9108,9 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger

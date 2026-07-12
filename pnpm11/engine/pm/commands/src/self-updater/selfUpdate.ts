@@ -12,7 +12,7 @@ import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { whichVersionIsPinned } from '@pnpm/resolving.npm-resolver'
-import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
+import { createStoreController, type CreateStoreControllerOptions, shouldFetchFullMetadata } from '@pnpm/store.connection-manager'
 import type { PinnedVersion } from '@pnpm/types'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { pick } from 'ramda'
@@ -80,17 +80,11 @@ export async function handler (
     throw new PnpmError('CANT_SELF_UPDATE_IN_COREPACK', 'You should update pnpm with corepack')
   }
   globalInfo('Checking for updates...')
-  // Resolve the engine version exactly as a regular install would. The
-  // no-downgrade trust check reads per-version trust evidence (`_npmUser` /
-  // `dist.attestations`) that abbreviated metadata never carries — so it
-  // always needs full metadata, regardless of `registrySupportsTimeField`
-  // (which only concerns the `time` field). Time-based resolution needs
-  // only `time`. `minimumReleaseAge` is handled by the resolver's on-demand
-  // abbreviated→full upgrade, so it isn't requested up front here.
-  const fullMetadata = (
-    opts.trustPolicy === 'no-downgrade' ||
-    (opts.resolutionMode === 'time-based' && !opts.registrySupportsTimeField)
-  )
+  // Resolve the engine version exactly as a regular install would.
+  // `minimumReleaseAge` is not part of `shouldFetchFullMetadata` because the
+  // resolver upgrades abbreviated metadata to full on demand for the
+  // maturity check, so it isn't requested up front here.
+  const fullMetadata = shouldFetchFullMetadata(opts)
   const { resolve: baseResolve } = createResolver({
     ...opts,
     configByUri: opts.configByUri,
