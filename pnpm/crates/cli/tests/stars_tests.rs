@@ -256,6 +256,33 @@ fn stars_user_not_found() {
 }
 
 #[test]
+fn stars_other_user_401_returns_unauthorized_without_fallback() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    let primary_mock =
+        server.mock("GET", "/-/user/alice/stars").with_status(401).expect_at_least(1).create();
+    let util_mock = server.mock("GET", "/-/util/user/alice/stars").expect(0).create();
+    let auth_file = configure(root.path(), &workspace, &registry, Some("test-token"));
+    let output = pacquet_at(&workspace)
+        .with_arg("--npmrc-auth-file")
+        .with_arg(&auth_file)
+        .with_arg("stars")
+        .with_arg("alice")
+        .output()
+        .expect("spawn pacquet stars");
+    primary_mock.assert();
+    util_mock.assert();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(
+        stderr.contains("ERR_PNPM_STARS_UNAUTHORIZED") && stderr.contains("You must be logged in"),
+        "stderr must name the unauthorized diagnostic; got:\n{stderr}",
+    );
+    drop((root, server));
+}
+
+#[test]
 fn stars_other_user_registry_error() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();

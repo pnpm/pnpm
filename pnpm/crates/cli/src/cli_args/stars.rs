@@ -117,6 +117,11 @@ async fn fetch_stars(
     .wrap_err("requesting the user stars endpoint")?;
 
     if !response.status().is_success() {
+        let status = response.status();
+        if status == 401 {
+            drop(client);
+            return Err(StarsError::Unauthorized.into());
+        }
         drop(client);
         let util_stars_url = format!("{registry_url}-/util/user/{encoded_username}/stars");
         let (client2, response2) =
