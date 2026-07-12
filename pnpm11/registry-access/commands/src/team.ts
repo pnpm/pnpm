@@ -169,12 +169,12 @@ function getRegistryAndAuthForOrg (
   return { registryUrl, authHeader }
 }
 
-function getTeamUrl (registryUrl: string, scope: string, team?: string): string {
-  const base = new URL(`-/org/${encodeURIComponent(scope)}/team`, normalizeRegistryUrl(registryUrl)).href
-  if (team) {
-    return new URL(`-/team/${encodeURIComponent(scope)}/${encodeURIComponent(team)}`, normalizeRegistryUrl(registryUrl)).href
-  }
-  return base
+function getOrgTeamsUrl (registryUrl: string, scope: string): string {
+  return new URL(`-/org/${encodeURIComponent(scope)}/team`, normalizeRegistryUrl(registryUrl)).href
+}
+
+function getTeamUrl (registryUrl: string, scope: string, team: string): string {
+  return new URL(`-/team/${encodeURIComponent(scope)}/${encodeURIComponent(team)}`, normalizeRegistryUrl(registryUrl)).href
 }
 
 function getTeamMembersUrl (registryUrl: string, scope: string, team: string): string {
@@ -184,7 +184,10 @@ function getTeamMembersUrl (registryUrl: string, scope: string, team: string): s
 async function throwRegistryError (response: Response, action: string): Promise<never> {
   const errorBody = await response.text()
   const safeErrorBody = [...errorBody]
-    .filter(c => c.charCodeAt(0) > 0x1f && c.charCodeAt(0) !== 0x7f)
+    .filter(c => {
+      const code = c.charCodeAt(0)
+      return code > 0x1f && (code < 0x7f || code > 0x9f)
+    })
     .join('')
     .slice(0, 500)
   if (response.status === 401) {
@@ -230,7 +233,7 @@ async function teamCreate (
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp
 
-  const teamUrl = getTeamUrl(registryUrl, scope)
+  const teamUrl = getOrgTeamsUrl(registryUrl, scope)
   const response = await fetchFromRegistry(teamUrl, {
     authHeaderValue: authHeader,
     method: 'PUT',
@@ -393,7 +396,7 @@ interface TeamListOptions {
 
 async function teamListTeams (options: TeamListOptions): Promise<string> {
   const { scope, registryUrl, fetchFromRegistry, authHeader, parseable, json } = options
-  const teamsUrl = new URL(`-/org/${encodeURIComponent(scope)}/team`, normalizeRegistryUrl(registryUrl)).href
+  const teamsUrl = getOrgTeamsUrl(registryUrl, scope)
   const response = await fetchFromRegistry(teamsUrl, {
     authHeaderValue: authHeader,
   })

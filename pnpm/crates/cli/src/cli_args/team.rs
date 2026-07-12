@@ -47,7 +47,9 @@ pub enum TeamError {
     #[diagnostic(code(ERR_PNPM_TEAM_SUBCOMMAND_REQUIRED))]
     SubcommandRequired,
 
-    #[display(r#"Team spec must start with @scope, got "{spec}""#)]
+    #[display(
+        r#"Team spec must start with @scope, got "{spec}". Use @scope or @scope:team format."#
+    )]
     #[diagnostic(code(ERR_PNPM_TEAM_INVALID_SCOPE))]
     InvalidScope {
         #[error(not(source))]
@@ -150,14 +152,6 @@ pub enum TeamError {
         body: String,
     },
 
-    #[display("Failed to fetch team info: {status} {status_text}")]
-    #[diagnostic(code(ERR_PNPM_REGISTRY_ERROR))]
-    RegistryFetchFailed {
-        status: u16,
-        #[error(not(source))]
-        status_text: String,
-    },
-
     #[display("Failed to {operation}: {reason}")]
     #[diagnostic(code(ERR_PNPM_REGISTRY_ERROR))]
     RegistryOperationFailed {
@@ -251,7 +245,7 @@ impl TeamArgs {
             _ => {
                 // When no subcommand is given, assume the first arg is a scope:team
                 // and list members, or a scope and list teams.
-                if self.params[0].starts_with('@') {
+                if self.params[0].starts_with('@') || self.params[0].starts_with(':') {
                     team_ls(&context, &self.params).await.map(Some)
                 } else {
                     Err(TeamError::SubcommandRequired.into())
@@ -305,7 +299,8 @@ async fn team_create(context: &TeamContext<'_>, params: &[String]) -> miette::Re
     if response.status().is_success() {
         return Ok(format!("+{}:{}", st.scope, team));
     }
-    write_error_from_response(response, format!(r#"create team "{}:{}""#, st.scope, team)).await
+    Err(registry_error_from_response(response, format!(r#"create team "{}:{}""#, st.scope, team))
+        .await)
 }
 
 async fn team_destroy(context: &TeamContext<'_>, params: &[String]) -> miette::Result<String> {
@@ -328,7 +323,8 @@ async fn team_destroy(context: &TeamContext<'_>, params: &[String]) -> miette::R
     if response.status().is_success() {
         return Ok(format!("-{}:{}", st.scope, team));
     }
-    write_error_from_response(response, format!(r#"destroy team "{}:{}""#, st.scope, team)).await
+    Err(registry_error_from_response(response, format!(r#"destroy team "{}:{}""#, st.scope, team))
+        .await)
 }
 
 async fn team_add(context: &TeamContext<'_>, params: &[String]) -> miette::Result<String> {
@@ -356,11 +352,11 @@ async fn team_add(context: &TeamContext<'_>, params: &[String]) -> miette::Resul
     if response.status().is_success() {
         return Ok(format!("+{username} added to @{}:{team}", st.scope));
     }
-    write_error_from_response(
+    Err(registry_error_from_response(
         response,
         format!(r#"add user "{username}" to team "{}:{team}""#, st.scope),
     )
-    .await
+    .await)
 }
 
 async fn team_rm(context: &TeamContext<'_>, params: &[String]) -> miette::Result<String> {
@@ -388,11 +384,11 @@ async fn team_rm(context: &TeamContext<'_>, params: &[String]) -> miette::Result
     if response.status().is_success() {
         return Ok(format!("-{username} removed from @{}:{team}", st.scope));
     }
-    write_error_from_response(
+    Err(registry_error_from_response(
         response,
         format!(r#"remove user "{username}" from team "{}:{team}""#, st.scope),
     )
-    .await
+    .await)
 }
 
 async fn team_ls(context: &TeamContext<'_>, params: &[String]) -> miette::Result<String> {
@@ -432,12 +428,11 @@ async fn fetch_teams(
         return Err(TeamError::OrgNotFound { scope: scope.to_string() }.into());
     }
     if !response.status().is_success() {
-        let status = response.status();
-        return Err(TeamError::RegistryFetchFailed {
-            status: status.as_u16(),
-            status_text: status.canonical_reason().unwrap_or_default().to_string(),
-        }
-        .into());
+        return Err(registry_error_from_response(
+            response,
+            format!(r#"fetch teams for "@{scope}""#),
+        )
+        .await);
     }
 
     let body = read_limited_body(response, TEAM_BODY_LIMIT)
@@ -473,12 +468,11 @@ async fn fetch_team_members(
         );
     }
     if !response.status().is_success() {
-        let status = response.status();
-        return Err(TeamError::RegistryFetchFailed {
-            status: status.as_u16(),
-            status_text: status.canonical_reason().unwrap_or_default().to_string(),
-        }
-        .into());
+        return Err(registry_error_from_response(
+            response,
+            format!(r#"fetch team members for "@{scope}:{team}""#),
+        )
+        .await);
     }
 
     let body = read_limited_body(response, TEAM_BODY_LIMIT)
@@ -597,9 +591,15 @@ struct LimitedBody {
 }
 
 impl LimitedBody {
+    /// Renders the body for embedding in a one-line error message: control
+    /// characters (including newlines) are stripped and the result is capped
+    /// at 500 characters, matching the TypeScript implementation.
     fn into_display_string(self) -> String {
-        let body = String::from_utf8_lossy(&self.bytes);
-        sanitize::sanitize(&body).into_owned()
+        String::from_utf8_lossy(&self.bytes)
+            .chars()
+            .filter(|ch| !ch.is_control())
+            .take(500)
+            .collect()
     }
 }
 
@@ -646,7 +646,7 @@ where
     .into()
 }
 
-async fn write_error_from_response(response: Response, action: String) -> miette::Result<String> {
+async fn registry_error_from_response(response: Response, action: String) -> miette::Report {
     let status = response.status();
     let status_text = status.canonical_reason().unwrap_or_default().to_string();
     let body = match read_limited_body(response, TEAM_ERROR_BODY_LIMIT).await {
@@ -655,19 +655,18 @@ async fn write_error_from_response(response: Response, action: String) -> miette
     };
 
     if status == reqwest::StatusCode::UNAUTHORIZED {
-        return Err(TeamError::Unauthorized { action, body }.into());
+        return TeamError::Unauthorized { action, body }.into();
     }
     if status == reqwest::StatusCode::FORBIDDEN {
-        return Err(TeamError::Forbidden { action, body }.into());
+        return TeamError::Forbidden { action, body }.into();
     }
     if status == reqwest::StatusCode::NOT_FOUND {
-        return Err(TeamError::NotFound { body }.into());
+        return TeamError::NotFound { body }.into();
     }
     if status == reqwest::StatusCode::CONFLICT {
-        return Err(TeamError::Conflict { body }.into());
+        return TeamError::Conflict { body }.into();
     }
-    Err(TeamError::RegistryWriteFailed { action, status: status.as_u16(), status_text, body }
-        .into())
+    TeamError::RegistryWriteFailed { action, status: status.as_u16(), status_text, body }.into()
 }
 
 #[cfg(test)]
