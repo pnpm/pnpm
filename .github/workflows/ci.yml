@@ -22,7 +22,7 @@ permissions:
 jobs:
   changes:
     name: TS CI / Detect Changes
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
       pull-requests: read
@@ -73,7 +73,7 @@ jobs:
     if: ${{ !cancelled() && needs.changes.outputs.ts == 'true' }}
 
     name: TS CI / Compile & Lint
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
 
     steps:
     - name: Checkout Commit
@@ -214,7 +214,7 @@ jobs:
       - test-smoke
       - test
       - test-windows
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Fail if any dependency failed or was cancelled
         if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
