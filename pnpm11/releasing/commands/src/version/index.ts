@@ -5,11 +5,20 @@ import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/exec.lifecycle'
 import { isGitRepo, isWorkingTreeClean } from '@pnpm/network.git-utils'
-import type { ProjectsGraph } from '@pnpm/types'
+import {
+  applyReleasePlan,
+  assembleReleasePlan,
+  readChangeIntents,
+  readLedger,
+} from '@pnpm/releasing.versioning'
+import type { Project, ProjectsGraph, VersioningSettings } from '@pnpm/types'
+import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 import { safeExeca as execa } from 'execa'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import { inc, valid } from 'semver'
+
+import { getReleasablePkgNames, renderReleasePlan, toWorkspaceProjects } from '../change/index.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
@@ -26,9 +35,11 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...rcOptionsTypes(),
+    'dry-run': Boolean,
     json: Boolean,
     preid: String,
     recursive: Boolean,
+    snapshot: [Boolean, String],
   }
 }
 
@@ -47,6 +58,9 @@ export function help (): string {
     usages: [
       'pnpm version <newversion>',
       'pnpm version <major|minor|patch|premajor|preminor|prepatch|prerelease>',
+      'pnpm version -r [--dry-run] [--snapshot [<tag>]]',
+      'pnpm version pre enter <tag> --filter <pattern>',
+      'pnpm version pre exit --filter <pattern>',
     ],
     descriptionLists: [
       {
@@ -93,8 +107,16 @@ export function help (): string {
             name: '--json',
           },
           {
-            description: 'Apply command to all packages in workspace',
+            description: 'Apply command to all packages in workspace. Without a version argument, consumes the pending change intents from .changeset/ and applies the resulting release plan',
             name: '--recursive',
+          },
+          {
+            description: 'Print the release plan the pending change intents produce without applying it',
+            name: '--dry-run',
+          },
+          {
+            description: 'Release one-off snapshot versions (0.0.0-<tag>-<timestamp>) without consuming change intents',
+            name: '--snapshot [<tag>]',
           },
         ],
       },
@@ -111,8 +133,10 @@ interface VersionChange {
 }
 
 interface VersionHandlerOptions extends Config {
+  allProjects?: Project[]
   allowSameVersion?: boolean
   commitHooks?: boolean
+  dryRun?: boolean
   gitChecks?: boolean
   gitTagVersion?: boolean
   json?: boolean
@@ -121,6 +145,7 @@ interface VersionHandlerOptions extends Config {
   recursive?: boolean
   selectedProjectsGraph?: ProjectsGraph
   signGitTag?: boolean
+  snapshot?: boolean | string
   tagVersionPrefix?: string
 }
 
@@ -130,7 +155,14 @@ export async function handler (
 ): Promise<string | { output?: string, exitCode: number }> {
   const rawBump = params[0]
 
+  if (rawBump === 'pre') {
+    return handlePrereleaseLine(opts, params.slice(1))
+  }
+
   if (!rawBump) {
+    if (opts.recursive) {
+      return releaseFromIntents(opts)
+    }
     throw new PnpmError('INVALID_VERSION_BUMP', 'A version argument is required. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease')
   }
 
@@ -189,6 +221,126 @@ export async function handler (
   }
 
   return output
+}
+
+async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string> {
+  const workspaceDir = opts.workspaceDir
+  if (!workspaceDir) {
+    throw new PnpmError('WORKSPACE_ONLY', 'The bare "pnpm version -r" form consumes change intents and is only supported in a workspace')
+  }
+
+  if (!opts.dryRun && opts.gitChecks !== false && await isGitRepo({ cwd: workspaceDir })) {
+    if (!await isWorkingTreeClean({ cwd: workspaceDir })) {
+      throw new PnpmError('UNCLEAN_WORKING_TREE', 'Working tree is not clean. Commit or stash your changes.')
+    }
+  }
+
+  const intents = await readChangeIntents(workspaceDir)
+  const ledger = await readLedger(workspaceDir)
+  const filter = (opts.filter ?? []).length > 0
+    ? new Set(selectedPkgNames(opts.selectedProjectsGraph ?? {}))
+    : undefined
+  const snapshotSuffix = opts.snapshot != null && opts.snapshot !== false
+    ? makeSnapshotSuffix(opts.snapshot)
+    : undefined
+
+  const plan = assembleReleasePlan({
+    projects: toWorkspaceProjects(opts.allProjects ?? []),
+    intents,
+    ledger,
+    versioning: opts.versioning,
+    filter,
+    snapshotSuffix,
+  })
+
+  if (plan.releases.length === 0) {
+    return 'No pending changes. Record one with "pnpm change".'
+  }
+
+  if (opts.dryRun) {
+    return renderReleasePlan(plan)
+  }
+
+  const applied = await applyReleasePlan(plan, {
+    workspaceDir,
+    allIntents: intents,
+    versioning: opts.versioning,
+    snapshot: snapshotSuffix != null,
+  })
+
+  if (opts.json) {
+    return JSON.stringify(applied, null, 2)
+  }
+  let output = 'Versions applied:\n'
+  for (const release of applied) {
+    output += `${release.name}: ${release.currentVersion} → ${release.newVersion}\n`
+  }
+  return output
+}
+
+async function handlePrereleaseLine (opts: VersionHandlerOptions, params: string[]): Promise<string> {
+  const workspaceDir = opts.workspaceDir
+  if (!workspaceDir) {
+    throw new PnpmError('WORKSPACE_ONLY', '"pnpm version pre" manages per-package prerelease lines and is only supported in a workspace')
+  }
+  if ((opts.filter ?? []).length === 0) {
+    throw new PnpmError('VERSIONING_PRE_FILTER_REQUIRED', 'Select the packages to move with --filter, e.g. "pnpm version pre enter alpha --filter <pkg>..."')
+  }
+
+  const action = params[0]
+  const releasable = new Set(getReleasablePkgNames(opts.allProjects ?? []))
+  const selected = selectedPkgNames(opts.selectedProjectsGraph ?? {}).filter((name) => releasable.has(name))
+  if (selected.length === 0) {
+    throw new PnpmError('VERSIONING_NO_PACKAGES', 'The filter selected no releasable packages')
+  }
+
+  const prereleases = { ...opts.versioning?.prereleases }
+  let output: string
+  if (action === 'enter') {
+    const tag = params[1]
+    if (!tag || !/^[0-9A-Z-]+$/i.test(tag)) {
+      throw new PnpmError('VERSIONING_INVALID_PRERELEASE_TAG', 'A prerelease tag is required, e.g. "pnpm version pre enter alpha". Tags may contain only alphanumerics and hyphens.')
+    }
+    for (const name of selected) {
+      if (prereleases[name] != null && prereleases[name] !== tag) {
+        throw new PnpmError('VERSIONING_ALREADY_ON_LINE', `${name} is already on the "${prereleases[name]}" prerelease line. Exit it first with "pnpm version pre exit".`)
+      }
+      prereleases[name] = tag
+    }
+    output = `Entered the "${tag}" prerelease line:\n${selected.map((name) => `  ${name}\n`).join('')}`
+  } else if (action === 'exit') {
+    for (const name of selected) {
+      delete prereleases[name]
+    }
+    output = `Exited the prerelease line:\n${selected.map((name) => `  ${name}\n`).join('')}` +
+      'The accumulated stable versions release on the next "pnpm version -r" run.'
+  } else {
+    throw new PnpmError('INVALID_PRE_ACTION', 'Expected "pnpm version pre enter <tag>" or "pnpm version pre exit"')
+  }
+
+  const versioning: VersioningSettings = { ...opts.versioning }
+  if (Object.keys(prereleases).length > 0) {
+    versioning.prereleases = prereleases
+  } else {
+    delete versioning.prereleases
+  }
+  await updateWorkspaceManifest(workspaceDir, {
+    updatedFields: {
+      versioning: Object.keys(versioning).length > 0 ? versioning : undefined,
+    },
+  })
+  return output
+}
+
+function selectedPkgNames (selectedProjectsGraph: ProjectsGraph): string[] {
+  return Object.values(selectedProjectsGraph)
+    .map((node) => node.package.manifest.name)
+    .filter((name): name is string => name != null)
+}
+
+function makeSnapshotSuffix (snapshot: boolean | string): string {
+  const timestamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)
+  return typeof snapshot === 'string' && snapshot !== '' ? `${snapshot}-${timestamp}` : timestamp
 }
 
 async function bumpPackageVersion (

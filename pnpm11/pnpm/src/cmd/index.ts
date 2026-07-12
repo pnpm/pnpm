@@ -20,7 +20,7 @@ import { add, dedupe, fetch, importCommand, install, link, prune, remove, unlink
 import { patch, patchCommit, patchRemove } from '@pnpm/patching.commands'
 import { pkg, setScript } from '@pnpm/pkg-manifest.commands'
 import { access, deprecate, distTag, owner, ping, search, star, stars, team, undeprecate, unpublish, unstar, whoami } from '@pnpm/registry-access.commands'
-import { deploy, pack, packApp, publish, stage, version } from '@pnpm/releasing.commands'
+import { change, deploy, pack, packApp, publish, stage, version } from '@pnpm/releasing.commands'
 import { catFile, catIndex, findHash, store } from '@pnpm/store.commands'
 import { init } from '@pnpm/workspace.commands'
 import { pick } from 'ramda'
@@ -130,6 +130,7 @@ const commands: CommandDefinition[] = [
   bin,
   bugs,
   cache,
+  change,
   ci,
   clean,
   config,
