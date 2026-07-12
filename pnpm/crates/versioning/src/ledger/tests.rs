@@ -35,6 +35,29 @@ fn special_characters_round_trip_through_the_serializer() {
 }
 
 #[test]
+fn control_characters_are_escaped_and_round_trip() {
+    // A crafted intent id / directory with control characters (from an odd
+    // .changeset filename) must not produce unparsable YAML.
+    let mut ledger = Ledger::new();
+    ledger.insert(
+        "pkg@1.0.0".to_string(),
+        LedgerEntry::Attributed {
+            dir: "tab\ttab".to_string(),
+            intents: vec![
+                "carriage\rreturn".to_string(),
+                "nul\0byte".to_string(),
+                "esc\u{1b}here".to_string(),
+            ],
+        },
+    );
+    let rendered = render_ledger(&ledger);
+    assert!(!rendered.contains('\r'), "carriage return must be escaped, not literal");
+    assert!(!rendered.contains('\0'), "NUL must be escaped, not literal");
+    let parsed: Ledger = serde_saphyr::from_str(&rendered).expect("render output parses back");
+    assert_eq!(parsed, ledger);
+}
+
+#[test]
 fn yaml_scalar_quotes_only_when_needed() {
     assert_eq!(yaml_scalar("packages/util"), "packages/util");
     assert_eq!(yaml_scalar("pkg@1.0.0"), "pkg@1.0.0");

@@ -116,12 +116,32 @@ fn render_ledger(ledger: &Ledger) -> String {
 /// quoting only guards odd hand-written values (a `#`, `: `, leading `@`, ...)
 /// from round-tripping wrong.
 fn yaml_scalar(value: &str) -> String {
-    if needs_quoting(value) {
-        let escaped = value.replace('\\', r"\\").replace('"', r#"\""#).replace('\n', r"\n");
-        format!(r#""{escaped}""#)
-    } else {
-        value.to_string()
+    if !needs_quoting(value) {
+        return value.to_string();
     }
+    use std::fmt::Write as _;
+    let mut escaped = String::with_capacity(value.len() + 2);
+    escaped.push('"');
+    for character in value.chars() {
+        match character {
+            '\\' => escaped.push_str(r"\\"),
+            '"' => escaped.push_str(r#"\""#),
+            '\n' => escaped.push_str(r"\n"),
+            '\r' => escaped.push_str(r"\r"),
+            '\t' => escaped.push_str(r"\t"),
+            '\0' => escaped.push_str(r"\0"),
+            // Every other control character must be escaped too, or the
+            // written scalar would be invalid YAML that `read_ledger` can no
+            // longer parse. `char::is_control` covers only U+0000–U+001F and
+            // U+007F–U+009F, so a two-digit `\xNN` always fits.
+            control if control.is_control() => {
+                write!(escaped, r"\x{:02X}", control as u32).expect("write to string");
+            }
+            other => escaped.push(other),
+        }
+    }
+    escaped.push('"');
+    escaped
 }
 
 fn needs_quoting(value: &str) -> bool {
