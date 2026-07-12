@@ -1,5 +1,6 @@
 export { change } from './change/index.js'
 export { deploy } from './deploy/index.js'
+export { lane } from './lane/index.js'
 export { packApp } from './pack-app/index.js'
 export { pack, publish } from './publish/index.js'
 export * as stage from './stage/index.js'

@@ -8,7 +8,7 @@ Implements the engine behind `pnpm change` and the bare `pnpm version -r`:
 reading and writing changesets-compatible change-intent files from
 `.changeset/*.md`, assembling a release plan (direct bumps, dependent
 propagation through materialized `workspace:` ranges, fixed groups,
-per-package prerelease lines), and applying it (manifest version updates,
+per-package release lanes), and applying it (manifest version updates,
 changelog composition, the consumed-intents ledger, and intent-file cleanup).
 
 See the [native monorepo versioning RFC](https://github.com/pnpm/rfcs/pull/18).

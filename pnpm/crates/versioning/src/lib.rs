@@ -2,7 +2,7 @@
 //! the bare `pnpm version -r`. Reads and writes changesets-compatible change
 //! intents from `.changeset/*.md`, assembles a release plan (direct bumps,
 //! dependent propagation through materialized `workspace:` ranges, fixed
-//! groups, per-package prerelease lines), and applies it (manifest version
+//! groups, per-package release lanes), and applies it (manifest version
 //! updates, changelog composition, the consumed-intents ledger, and
 //! intent-file cleanup).
 //!

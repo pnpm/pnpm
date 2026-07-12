@@ -23,6 +23,7 @@ use super::{
     ignored_builds::IgnoredBuildsArgs,
     import::ImportArgs,
     install::InstallArgs,
+    lane::LaneArgs,
     link::LinkArgs,
     list::ListArgs,
     login::LoginArgs,
@@ -294,9 +295,10 @@ pub enum CliCommand {
     /// Record a change intent: which packages a change affects, the bump
     /// type for each, and a summary that becomes the changelog entry.
     Change(ChangeArgs),
-    /// Apply the pending change intents (`pnpm version -r`) or manage
-    /// per-package prerelease lines (`stable` / `unstable`).
+    /// Apply the pending change intents (`pnpm version -r`).
     Version(VersionArgs),
+    /// Manage per-package release lanes.
+    Lane(LaneArgs),
     /// Opens the bug tracker URL of a package in the default browser.
     #[clap(visible_alias = "issues")]
     Bugs(BugsArgs),

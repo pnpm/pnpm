@@ -23,6 +23,7 @@ pub mod global;
 pub mod ignored_builds;
 pub mod import;
 pub mod install;
+pub mod lane;
 pub mod link;
 pub mod list;
 pub mod login;

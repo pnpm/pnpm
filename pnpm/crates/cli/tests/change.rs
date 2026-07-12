@@ -1,8 +1,8 @@
 //! Integration tests for `pnpm change` and the intent-consuming
 //! `pnpm version`: recording an intent, printing the pending release plan,
 //! applying it (manifest bumps, changelogs, the consumed-intents ledger,
-//! intent-file cleanup), snapshot releases, and prerelease-line management
-//! via `pnpm version unstable` / `pnpm version stable`. Mirrors the
+//! intent-file cleanup), snapshot releases, and release-lane management via
+//! `pnpm lane`. Mirrors the
 //! TypeScript CLI's `pnpm11/releasing/commands/test/change/index.test.ts`.
 
 use assert_cmd::prelude::*;
@@ -110,14 +110,20 @@ fn change_records_an_intent_and_version_applies_the_release_plan() {
 }
 
 #[test]
-fn prerelease_lines_are_entered_released_and_graduated() {
+fn lanes_are_entered_released_and_graduated() {
     let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
     write_workspace(&workspace);
     add_pkg(&workspace, "cli", "2.0.0", "{}");
 
-    let entered =
-        stdout_of(pnpm(&workspace).with_args(["version", "unstable", "alpha", "--filter", "cli"]));
-    assert!(entered.contains(r#"Entered the "alpha" prerelease line:"#), "unexpected: {entered}");
+    let bare = stdout_of(pnpm(&workspace).with_args(["lane"]));
+    assert!(bare.contains("All packages are on the main lane."), "unexpected: {bare}");
+
+    let entered = stdout_of(pnpm(&workspace).with_args(["lane", "alpha", "--filter", "cli"]));
+    assert!(entered.contains(r#"Moved to the "alpha" lane:"#), "unexpected: {entered}");
+
+    let membership = stdout_of(pnpm(&workspace).with_args(["lane"]));
+    assert!(membership.contains("alpha:"), "unexpected: {membership}");
+    assert!(membership.contains("    cli"), "unexpected: {membership}");
     let manifest = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml");
     assert!(manifest.contains("cli: alpha"), "unexpected: {manifest}");
 
@@ -140,8 +146,8 @@ fn prerelease_lines_are_entered_released_and_graduated() {
         .collect();
     assert_eq!(intents.len(), 1, "the intent must survive until graduation");
 
-    let exited = stdout_of(pnpm(&workspace).with_args(["version", "stable", "--filter", "cli"]));
-    assert!(exited.contains("Exited the prerelease line:"), "unexpected: {exited}");
+    let exited = stdout_of(pnpm(&workspace).with_args(["lane", "main", "--filter", "cli"]));
+    assert!(exited.contains("Moved to the main lane:"), "unexpected: {exited}");
 
     let graduated = stdout_of(pnpm(&workspace).with_args(["version", "-r"]));
     assert!(graduated.contains("cli: 2.1.0-alpha.0 → 2.1.0"), "unexpected: {graduated}");
@@ -200,13 +206,12 @@ fn version_without_arguments_outside_recursive_mode_requires_a_bump() {
 }
 
 #[test]
-fn version_unstable_requires_a_filter() {
+fn lane_assignment_requires_a_filter() {
     let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
     write_workspace(&workspace);
     add_pkg(&workspace, "cli", "2.0.0", "{}");
 
-    let output =
-        pnpm(&workspace).with_args(["version", "unstable", "alpha"]).output().expect("run pnpm");
+    let output = pnpm(&workspace).with_args(["lane", "alpha"]).output().expect("run pnpm");
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("--filter"), "unexpected: {stderr}");

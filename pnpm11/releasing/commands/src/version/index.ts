@@ -11,14 +11,13 @@ import {
   readChangeIntents,
   readLedger,
 } from '@pnpm/releasing.versioning'
-import type { Project, ProjectsGraph, VersioningSettings } from '@pnpm/types'
-import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
+import type { Project, ProjectsGraph } from '@pnpm/types'
 import { safeExeca as execa } from 'execa'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import { inc, valid } from 'semver'
 
-import { getReleasablePkgNames, renderReleasePlan, toWorkspaceProjects } from '../change/index.js'
+import { renderReleasePlan, toWorkspaceProjects } from '../change/index.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
@@ -59,8 +58,6 @@ export function help (): string {
       'pnpm version <newversion>',
       'pnpm version <major|minor|patch|premajor|preminor|prepatch|prerelease>',
       'pnpm version -r [--dry-run] [--snapshot [<tag>]]',
-      'pnpm version unstable <tag> --filter <pattern>',
-      'pnpm version stable --filter <pattern>',
     ],
     descriptionLists: [
       {
@@ -154,10 +151,6 @@ export async function handler (
   params: string[]
 ): Promise<string | { output?: string, exitCode: number }> {
   const rawBump = params[0]
-
-  if (rawBump === 'stable' || rawBump === 'unstable') {
-    return handlePrereleaseLine(opts, rawBump, params.slice(1))
-  }
 
   if (!rawBump) {
     if (opts.recursive) {
@@ -275,59 +268,6 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
   for (const release of applied) {
     output += `${release.name}: ${release.currentVersion} → ${release.newVersion}\n`
   }
-  return output
-}
-
-async function handlePrereleaseLine (opts: VersionHandlerOptions, action: 'stable' | 'unstable', params: string[]): Promise<string> {
-  const workspaceDir = opts.workspaceDir
-  if (!workspaceDir) {
-    throw new PnpmError('WORKSPACE_ONLY', `"pnpm version ${action}" manages per-package prerelease lines and is only supported in a workspace`)
-  }
-  if ((opts.filter ?? []).length === 0) {
-    throw new PnpmError('VERSIONING_PRE_FILTER_REQUIRED', `Select the packages to move with --filter, e.g. "pnpm version ${action === 'unstable' ? 'unstable alpha' : 'stable'} --filter <pkg>..."`)
-  }
-
-  const releasable = new Set(getReleasablePkgNames(opts.allProjects ?? [], opts.versioning))
-  const selected = selectedPkgNames(opts.selectedProjectsGraph ?? {}).filter((name) => releasable.has(name))
-  if (selected.length === 0) {
-    throw new PnpmError('VERSIONING_NO_PACKAGES', 'The filter selected no releasable packages')
-  }
-
-  const prereleases = { ...opts.versioning?.prereleases }
-  let output: string
-  if (action === 'unstable') {
-    const tag = params[0]
-    // A purely numeric tag is rejected because semver parses an all-digit
-    // prerelease identifier as a number, which changes sorting semantics.
-    if (!tag || !/^[0-9A-Z-]+$/i.test(tag) || /^\d+$/.test(tag)) {
-      throw new PnpmError('VERSIONING_INVALID_PRERELEASE_TAG', 'A prerelease tag is required, e.g. "pnpm version unstable alpha". Tags may contain only alphanumerics and hyphens, and cannot be purely numeric.')
-    }
-    for (const name of selected) {
-      if (prereleases[name] != null && prereleases[name] !== tag) {
-        throw new PnpmError('VERSIONING_ALREADY_ON_LINE', `${name} is already on the "${prereleases[name]}" prerelease line. Move it back with "pnpm version stable" first.`)
-      }
-      prereleases[name] = tag
-    }
-    output = `Entered the "${tag}" prerelease line:\n${selected.map((name) => `  ${name}\n`).join('')}`
-  } else {
-    for (const name of selected) {
-      delete prereleases[name]
-    }
-    output = `Exited the prerelease line:\n${selected.map((name) => `  ${name}\n`).join('')}` +
-      'The accumulated stable versions release on the next "pnpm version -r" run.'
-  }
-
-  const versioning: VersioningSettings = { ...opts.versioning }
-  if (Object.keys(prereleases).length > 0) {
-    versioning.prereleases = prereleases
-  } else {
-    delete versioning.prereleases
-  }
-  await updateWorkspaceManifest(workspaceDir, {
-    updatedFields: {
-      versioning: Object.keys(versioning).length > 0 ? versioning : undefined,
-    },
-  })
   return output
 }
 

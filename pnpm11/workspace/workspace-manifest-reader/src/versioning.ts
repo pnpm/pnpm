@@ -35,11 +35,11 @@ export function assertValidWorkspaceManifestVersioning (manifest: { packages?: r
     }
   }
 
-  if (versioning.prereleases != null) {
-    const prereleases = assertPlainObject(versioning.prereleases, 'versioning.prereleases')
-    for (const [pkgName, tag] of Object.entries(prereleases)) {
-      if (typeof tag !== 'string' || tag === '') {
-        throw new InvalidWorkspaceManifestError(`Expected versioning.prereleases entry for ${pkgName} to be a non-empty prerelease tag`)
+  if (versioning.lanes != null) {
+    const lanes = assertPlainObject(versioning.lanes, 'versioning.lanes')
+    for (const [pkgName, lane] of Object.entries(lanes)) {
+      if (typeof lane !== 'string' || lane === '') {
+        throw new InvalidWorkspaceManifestError(`Expected versioning.lanes entry for ${pkgName} to be a non-empty lane name`)
       }
     }
   }

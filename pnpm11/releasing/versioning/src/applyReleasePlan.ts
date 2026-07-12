@@ -66,20 +66,20 @@ export async function applyReleasePlan (plan: ReleasePlan, opts: ApplyReleasePla
 
 /**
  * An intent file is deletable once every package it names has a ledger entry
- * for it, with one exemption: while a package is still on a prerelease line,
+ * for it, with one exemption: while a package is still on a lane,
  * entries against prerelease versions alone keep the file alive — its prose
  * is still needed to compose the stable changelog section at graduation.
  * Declined (`none`) entries demand no release and never block deletion.
  */
 async function deleteConsumedIntentFiles (allIntents: ChangeIntent[], ledger: Ledger, versioning?: VersioningSettings): Promise<void> {
-  const prereleases = versioning?.prereleases ?? {}
+  const lanes = versioning?.lanes ?? {}
   const consumptionOf = buildConsumptionIndex(ledger)
   const deletable = allIntents.filter((intent) =>
     Object.entries(intent.releases).every(([pkgName, bumpType]) => {
       if (bumpType === 'none') return true
       const consumption = consumptionOf(pkgName)
       return consumption.allIds.has(intent.id) &&
-        !(prereleases[pkgName] != null && consumption.prereleaseOnlyIds.has(intent.id))
+        !(lanes[pkgName] != null && consumption.prereleaseOnlyIds.has(intent.id))
     }))
   await Promise.all(deletable.map(async (intent) => fs.rm(intent.filePath)))
 }

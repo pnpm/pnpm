@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals'
 
-import { change, version } from '../../src/index.js'
+import { change, lane, version } from '../../src/index.js'
 
 interface FixturePkg {
   name: string
@@ -94,7 +94,7 @@ describe('change command and intent-consuming version -r', () => {
     expect(output).toContain('No pending changes')
   })
 
-  it('version unstable and stable update versioning.prereleases in pnpm-workspace.yaml', async () => {
+  it('lane assignments update versioning.lanes in pnpm-workspace.yaml', async () => {
     const cli = addPkg({ name: 'cli', version: '2.0.0' })
     const opts = {
       ...baseOpts([cli]),
@@ -104,17 +104,27 @@ describe('change command and intent-consuming version -r', () => {
       },
     }
 
-    await version.handler(opts as any, ['unstable', 'alpha']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    await lane.handler(opts as any, ['alpha']) // eslint-disable-line @typescript-eslint/no-explicit-any
     expect(fs.readFileSync(path.join(tempDir, 'pnpm-workspace.yaml'), 'utf8')).toContain('cli: alpha')
 
-    await version.handler({ ...opts, versioning: { prereleases: { cli: 'alpha' } } } as any, ['stable']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const status = await lane.handler({ ...opts, versioning: { lanes: { cli: 'alpha' } } } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(status).toContain('alpha:')
+    expect(status).toContain('    cli')
+
+    await lane.handler({ ...opts, versioning: { lanes: { cli: 'alpha' } } } as any, ['main']) // eslint-disable-line @typescript-eslint/no-explicit-any
     expect(fs.readFileSync(path.join(tempDir, 'pnpm-workspace.yaml'), 'utf8')).not.toContain('alpha')
   })
 
-  it('version unstable requires a filter', async () => {
+  it('lane assignment requires a filter', async () => {
     const cli = addPkg({ name: 'cli', version: '2.0.0' })
     await expect(
-      version.handler(baseOpts([cli]) as any, ['unstable', 'alpha']) // eslint-disable-line @typescript-eslint/no-explicit-any
-    ).rejects.toMatchObject({ code: 'ERR_PNPM_VERSIONING_PRE_FILTER_REQUIRED' })
+      lane.handler(baseOpts([cli]) as any, ['alpha']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_VERSIONING_LANE_FILTER_REQUIRED' })
+  })
+
+  it('bare lane reports when everything is on the main lane', async () => {
+    const cli = addPkg({ name: 'cli', version: '2.0.0' })
+    const output = await lane.handler(baseOpts([cli]) as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(output).toBe('All packages are on the main lane.')
   })
 })

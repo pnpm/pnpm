@@ -70,8 +70,8 @@ pub struct PlannedRelease {
     pub new_version: String,
     pub bump_type: ReleaseBumpType,
     /// The intent files this release consumes for this package: the pending
-    /// ones, plus — when the release graduates the package off a prerelease
-    /// line — the ones the ledger recorded against the line's prerelease
+    /// ones, plus — when the release graduates the package off a
+    /// lane — the ones the ledger recorded against the lane's prerelease
     /// versions.
     pub intents: Vec<ChangeIntent>,
     pub dependency_updates: Vec<DependencyUpdate>,
@@ -151,9 +151,9 @@ fn assemble(
     opts: &AssembleReleasePlanOptions,
 ) -> Result<ReleasePlan, VersioningError> {
     let pending_by_pkg = collect_pending_intents(participants, intents, consumption);
-    let line_consumed_by_pkg = collect_line_consumed_intents(participants, intents, consumption);
-    let empty_prereleases = indexmap::IndexMap::new();
-    let prereleases = versioning.map_or(&empty_prereleases, |settings| &settings.prereleases);
+    let lane_consumed_by_pkg = collect_lane_consumed_intents(participants, intents, consumption);
+    let empty_lanes = indexmap::IndexMap::new();
+    let lanes = versioning.map_or(&empty_lanes, |settings| &settings.lanes);
 
     let mut state: BTreeMap<String, BumpState> = BTreeMap::new();
 
@@ -166,17 +166,17 @@ fn assemble(
         }
     }
 
-    // A package that left its prerelease line releases the accumulated stable
+    // A package that left its lane releases the accumulated stable
     // version even when no new intents are pending.
-    for (&name, line_consumed) in &line_consumed_by_pkg {
+    for (&name, lane_consumed) in &lane_consumed_by_pkg {
         if selection.is_some_and(|selected| !selected.contains(name)) {
             continue;
         }
-        if prereleases.contains_key(name) {
+        if lanes.contains_key(name) {
             continue;
         }
         if let Some(graduated) =
-            max_bump_type(line_consumed.iter().map(|intent| intent.releases[name]))
+            max_bump_type(lane_consumed.iter().map(|intent| intent.releases[name]))
         {
             bump_at_least(&mut state, name, graduated, ReleaseCause::Intent);
         }
@@ -189,13 +189,13 @@ fn assemble(
             for (name, pkg_state) in state {
                 let participant = &participants[name.as_str()];
                 let cumulative =
-                    cumulative_bump_type(name, pkg_state.bump_type, &line_consumed_by_pkg);
+                    cumulative_bump_type(name, pkg_state.bump_type, &lane_consumed_by_pkg);
                 new_versions.insert(
                     name.clone(),
                     compute_new_version(
                         participant.current_version,
                         pkg_state.bump_type,
-                        prereleases.get(name).map(String::as_str),
+                        lanes.get(name).map(String::as_str),
                         cumulative,
                     ),
                 );
@@ -204,7 +204,7 @@ fn assemble(
                 participants,
                 state,
                 new_versions,
-                &line_consumed_by_pkg,
+                &lane_consumed_by_pkg,
                 versioning,
             );
         };
@@ -279,10 +279,10 @@ fn assemble(
                 .get(name)
                 .map(|intents| intents.iter().map(|&intent| intent.clone()).collect())
                 .unwrap_or_default();
-            if !prereleases.contains_key(name)
-                && let Some(line_consumed) = line_consumed_by_pkg.get(name)
+            if !lanes.contains_key(name)
+                && let Some(lane_consumed) = lane_consumed_by_pkg.get(name)
             {
-                consumed_for_changelog.extend(line_consumed.iter().map(|&intent| intent.clone()));
+                consumed_for_changelog.extend(lane_consumed.iter().map(|&intent| intent.clone()));
             }
             PlannedRelease {
                 name: name.to_string(),
@@ -434,7 +434,7 @@ fn validate_versioning_config(
         let tags: HashSet<Option<&String>> = group
             .iter()
             .filter(|name| participants.contains_key(name.as_str()))
-            .map(|name| settings.prereleases.get(name))
+            .map(|name| settings.lanes.get(name))
             .collect();
         if tags.len() > 1 {
             return Err(VersioningError::ConflictingConfig { group: group.clone() });
@@ -516,14 +516,14 @@ fn collect_pending_intents<'a, 'i>(
 
 /// Intents already consumed by prereleases of a package that has not
 /// graduated to a stable version yet. They participate in the cumulative bump
-/// computation of the package's prerelease line and compose the stable
+/// computation of the package's lane and compose the stable
 /// changelog section at graduation.
-fn collect_line_consumed_intents<'a, 'i>(
+fn collect_lane_consumed_intents<'a, 'i>(
     participants: &BTreeMap<&'a str, Participant<'a>>,
     intents: &'i [ChangeIntent],
     consumption: &HashMap<String, PackageConsumption>,
 ) -> BTreeMap<&'a str, Vec<&'i ChangeIntent>> {
-    let mut line_consumed = BTreeMap::new();
+    let mut lane_consumed = BTreeMap::new();
     for &name in participants.keys() {
         let Some(prerelease_only) = consumption.get(name).map(|entry| &entry.prerelease_only_ids)
         else {
@@ -540,18 +540,18 @@ fn collect_line_consumed_intents<'a, 'i>(
             })
             .collect();
         if !pkg_intents.is_empty() {
-            line_consumed.insert(name, pkg_intents);
+            lane_consumed.insert(name, pkg_intents);
         }
     }
-    line_consumed
+    lane_consumed
 }
 
 fn cumulative_bump_type(
     name: &str,
     planned: ReleaseBumpType,
-    line_consumed_by_pkg: &BTreeMap<&str, Vec<&ChangeIntent>>,
+    lane_consumed_by_pkg: &BTreeMap<&str, Vec<&ChangeIntent>>,
 ) -> ReleaseBumpType {
-    line_consumed_by_pkg
+    lane_consumed_by_pkg
         .get(name)
         .into_iter()
         .flatten()
@@ -572,15 +572,15 @@ fn max_bump_type_of(types: impl Iterator<Item = ReleaseBumpType>) -> Option<Rele
 fn compute_new_version(
     current: &str,
     bump_type: ReleaseBumpType,
-    line_tag: Option<&str>,
+    lane_tag: Option<&str>,
     cumulative_bump: ReleaseBumpType,
 ) -> String {
     let current_version = Version::parse(current).expect("participants have valid versions");
-    let Some(line_tag) = line_tag else {
+    let Some(lane_tag) = lane_tag else {
         if current_version.pre_release.is_empty() {
             return inc_stable(&current_version, bump_type);
         }
-        // Graduation: the accumulated stable version the prerelease line was
+        // Graduation: the accumulated stable version the lane was
         // building toward.
         return escalate_stable_target(&stable_part(&current_version), cumulative_bump);
     };
@@ -589,8 +589,8 @@ fn compute_new_version(
     } else {
         escalate_stable_target(&stable_part(&current_version), cumulative_bump)
     };
-    let next_n = next_prerelease_number(&current_version, &target, line_tag);
-    format!("{target}-{line_tag}.{next_n}")
+    let next_n = next_prerelease_number(&current_version, &target, lane_tag);
+    format!("{target}-{lane_tag}.{next_n}")
 }
 
 fn inc_stable(version: &Version, bump_type: ReleaseBumpType) -> String {
@@ -603,7 +603,7 @@ fn inc_stable(version: &Version, bump_type: ReleaseBumpType) -> String {
     }
 }
 
-/// Re-derives the stable version a prerelease line is building toward when
+/// Re-derives the stable version a lane is building toward when
 /// the cumulative bump escalates. The invariant: the stable part of the
 /// current prerelease already reflects the previous cumulative bump applied
 /// to the version the line started from, so only an escalation changes it.
@@ -632,7 +632,7 @@ fn stable_part(version: &Version) -> String {
     format!("{}.{}.{}", version.major, version.minor, version.patch)
 }
 
-fn next_prerelease_number(current: &Version, target: &str, line_tag: &str) -> u64 {
+fn next_prerelease_number(current: &Version, target: &str, lane_tag: &str) -> u64 {
     if current.pre_release.is_empty() || stable_part(current) != target {
         return 0;
     }
@@ -643,7 +643,7 @@ fn next_prerelease_number(current: &Version, target: &str, line_tag: &str) -> u6
         Some(Identifier::Numeric(tag)) => tag.to_string(),
         None => return 0,
     };
-    if current_tag != line_tag {
+    if current_tag != lane_tag {
         return 0;
     }
     match current.pre_release.get(1) {
@@ -656,7 +656,7 @@ fn apply_fixed_group_versions(
     participants: &BTreeMap<&str, Participant<'_>>,
     state: &BTreeMap<String, BumpState>,
     new_versions: &mut BTreeMap<String, String>,
-    line_consumed_by_pkg: &BTreeMap<&str, Vec<&ChangeIntent>>,
+    lane_consumed_by_pkg: &BTreeMap<&str, Vec<&ChangeIntent>>,
     versioning: Option<&VersioningSettings>,
 ) {
     let Some(settings) = versioning else {
@@ -671,7 +671,7 @@ fn apply_fixed_group_versions(
         let Some(group_bump) = max_bump_type_of(members.iter().filter_map(|&name| {
             state
                 .get(name)
-                .map(|entry| cumulative_bump_type(name, entry.bump_type, line_consumed_by_pkg))
+                .map(|entry| cumulative_bump_type(name, entry.bump_type, lane_consumed_by_pkg))
         })) else {
             continue;
         };
@@ -690,19 +690,19 @@ fn apply_fixed_group_versions(
             escalate_stable_target(&stable_part(&highest_current), group_bump)
         };
 
-        let line_tag = members.first().and_then(|name| settings.prereleases.get(*name));
-        let shared_version = match line_tag {
-            Some(line_tag) => {
+        let lane_tag = members.first().and_then(|name| settings.lanes.get(*name));
+        let shared_version = match lane_tag {
+            Some(lane_tag) => {
                 let next_n = members
                     .iter()
                     .map(|&name| {
                         let current = Version::parse(participants[name].current_version)
                             .expect("participants have valid versions");
-                        next_prerelease_number(&current, &target, line_tag)
+                        next_prerelease_number(&current, &target, lane_tag)
                     })
                     .max()
                     .unwrap_or(0);
-                format!("{target}-{line_tag}.{next_n}")
+                format!("{target}-{lane_tag}.{next_n}")
             }
             None => target,
         };
@@ -780,7 +780,7 @@ fn enforce_max_bump(
 }
 
 /// The bump class a release actually applies. Fixed-group version sharing and
-/// prerelease-line escalation can move a version further than the package's
+/// lane escalation can move a version further than the package's
 /// own declared or propagated bump, so the cap compares against the real
 /// distance between the current and the new version as well.
 fn effective_bump_class(release: &PlannedRelease) -> ReleaseBumpType {

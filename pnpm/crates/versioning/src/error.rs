@@ -44,7 +44,7 @@ pub enum VersioningError {
     InternalRange { pkg_name: String, alias: String, field: String, spec: String },
 
     #[display(
-        "The fixed group [{}] mixes packages on different prerelease lines. A fixed group must enter and exit a prerelease line together.",
+        "The fixed group [{}] mixes packages on different lanes. A fixed group must move between lanes together.",
         group.join(", ")
     )]
     #[diagnostic(code(ERR_PNPM_VERSIONING_CONFLICTING_CONFIG))]

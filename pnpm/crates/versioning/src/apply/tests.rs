@@ -126,13 +126,13 @@ fn apply_bumps_manifests_writes_changelogs_records_the_ledger_and_deletes_consum
 }
 
 #[test]
-fn intent_files_consumed_only_by_prereleases_survive_until_graduation() {
+fn intent_files_consumed_only_by_lane_prereleases_survive_until_graduation() {
     let workspace = make_workspace(&[("cli", "2.0.0", &[])]);
     let releases = IndexMap::from([("cli".to_string(), IntentBumpType::Minor)]);
     write_change_intent(workspace.dir.path(), &releases, "Added a feature.")
         .expect("intent writes");
     let versioning = VersioningSettings {
-        prereleases: IndexMap::from([("cli".to_string(), "alpha".to_string())]),
+        lanes: IndexMap::from([("cli".to_string(), "alpha".to_string())]),
         ..VersioningSettings::default()
     };
 
@@ -160,8 +160,8 @@ fn intent_files_consumed_only_by_prereleases_survive_until_graduation() {
     let intents = read_change_intents(workspace.dir.path()).expect("intents read");
     assert_eq!(intents.len(), 1);
 
-    // Exit the line: the accumulated stable version releases and the intent
-    // is garbage-collected.
+    // Return to the main lane: the accumulated stable version releases and
+    // the intent is garbage-collected.
     let graduated_projects = [WorkspaceProject {
         root_dir: workspace.projects[0].root_dir.clone(),
         name: Some("cli".to_string()),

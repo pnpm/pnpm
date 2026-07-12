@@ -26,8 +26,8 @@ export interface PlannedRelease {
   bumpType: ReleaseBumpType
   /**
    * The intent files this release consumes for this package: the pending ones,
-   * plus — when the release graduates the package off a prerelease line — the
-   * ones the ledger recorded against the line's prerelease versions.
+   * plus — when the release graduates the package off a lane — the
+   * ones the ledger recorded against the lane's prerelease versions.
    */
   intents: ChangeIntent[]
   dependencyUpdates: DependencyUpdate[]
@@ -109,8 +109,8 @@ function assemble (
   opts: AssembleReleasePlanOptions
 ): ReleasePlan {
   const pendingByPkg = collectPendingIntents(participants, opts.intents, consumptionOf)
-  const lineConsumedByPkg = collectLineConsumedIntents(participants, opts.intents, consumptionOf)
-  const prereleases = opts.versioning?.prereleases ?? {}
+  const laneConsumedByPkg = collectLaneConsumedIntents(participants, opts.intents, consumptionOf)
+  const lanes = opts.versioning?.lanes ?? {}
 
   const state = new Map<string, BumpState>()
   const bumpAtLeast = (name: string, bumpType: ReleaseBumpType, cause: ReleaseCause): boolean => {
@@ -135,12 +135,12 @@ function assemble (
     }
   }
 
-  // A package that left its prerelease line releases the accumulated stable
+  // A package that left its lane releases the accumulated stable
   // version even when no new intents are pending.
-  for (const [name, lineConsumed] of lineConsumedByPkg.entries()) {
+  for (const [name, laneConsumed] of laneConsumedByPkg.entries()) {
     if (selection != null && !selection.has(name)) continue
-    if (prereleases[name] != null || lineConsumed.length === 0) continue
-    const graduated = maxBumpType(lineConsumed.map((intent) => intent.releases[name]))
+    if (lanes[name] != null || laneConsumed.length === 0) continue
+    const graduated = maxBumpType(laneConsumed.map((intent) => intent.releases[name]))
     if (graduated != null) {
       bumpAtLeast(name, graduated, 'intent')
     }
@@ -152,11 +152,11 @@ function assemble (
     for (const [name, pkgState] of state.entries()) {
       const participant = participants.get(name)!
       newVersions.set(name, computeNewVersion(participant, pkgState.bumpType, {
-        lineTag: prereleases[name],
-        cumulativeBump: cumulativeBumpType(name, pkgState.bumpType, lineConsumedByPkg),
+        laneTag: lanes[name],
+        cumulativeBump: cumulativeBumpType(name, pkgState.bumpType, laneConsumedByPkg),
       }))
     }
-    applyFixedGroupVersions({ participants, state, newVersions, lineConsumedByPkg, versioning: opts.versioning })
+    applyFixedGroupVersions({ participants, state, newVersions, laneConsumedByPkg, versioning: opts.versioning })
   }
 
   for (let changed = true; changed;) {
@@ -195,7 +195,7 @@ function assemble (
     const participant = participants.get(name)!
     const consumedForChangelog = [
       ...(pendingByPkg.get(name) ?? []),
-      ...(prereleases[name] == null ? lineConsumedByPkg.get(name) ?? [] : []),
+      ...(lanes[name] == null ? laneConsumedByPkg.get(name) ?? [] : []),
     ]
     releases.push({
       name,
@@ -273,14 +273,14 @@ function resolveInternalDepTarget (alias: string, spec: string, workspaceNames: 
 
 function validateVersioningConfig (participants: Map<string, Participant>, versioning?: VersioningSettings): void {
   if (versioning == null) return
-  const prereleases = versioning.prereleases ?? {}
+  const lanes = versioning.lanes ?? {}
   for (const group of versioning.fixed ?? []) {
     const members = group.filter((name) => participants.has(name))
-    const tags = new Set(members.map((name) => prereleases[name]))
+    const tags = new Set(members.map((name) => lanes[name]))
     if (tags.size > 1) {
       throw new PnpmError(
         'VERSIONING_CONFLICTING_CONFIG',
-        `The fixed group [${group.join(', ')}] mixes packages on different prerelease lines. A fixed group must enter and exit a prerelease line together.`
+        `The fixed group [${group.join(', ')}] mixes packages on different lanes. A fixed group must move between lanes together.`
       )
     }
   }
@@ -349,15 +349,15 @@ function collectPendingIntents (
 /**
  * Intents already consumed by prereleases of a package that has not graduated
  * to a stable version yet. They participate in the cumulative bump computation
- * of the package's prerelease line and compose the stable changelog section at
+ * of the package's lane and compose the stable changelog section at
  * graduation.
  */
-function collectLineConsumedIntents (
+function collectLaneConsumedIntents (
   participants: Map<string, Participant>,
   intents: ChangeIntent[],
   consumptionOf: (pkgName: string) => PackageConsumption
 ): Map<string, ChangeIntent[]> {
-  const lineConsumed = new Map<string, ChangeIntent[]>()
+  const laneConsumed = new Map<string, ChangeIntent[]>()
   for (const name of participants.keys()) {
     const consumed = consumptionOf(name)
     if (consumed.prereleaseOnlyIds.size === 0) continue
@@ -366,15 +366,15 @@ function collectLineConsumedIntents (
       intent.releases[name] !== 'none' &&
       consumed.prereleaseOnlyIds.has(intent.id))
     if (pkgIntents.length > 0) {
-      lineConsumed.set(name, pkgIntents)
+      laneConsumed.set(name, pkgIntents)
     }
   }
-  return lineConsumed
+  return laneConsumed
 }
 
-function cumulativeBumpType (name: string, planned: ReleaseBumpType, lineConsumedByPkg: Map<string, ChangeIntent[]>): ReleaseBumpType {
-  const lineConsumed = lineConsumedByPkg.get(name) ?? []
-  return maxBumpType([planned, ...lineConsumed.map((intent) => intent.releases[name])]) ?? planned
+function cumulativeBumpType (name: string, planned: ReleaseBumpType, laneConsumedByPkg: Map<string, ChangeIntent[]>): ReleaseBumpType {
+  const laneConsumed = laneConsumedByPkg.get(name) ?? []
+  return maxBumpType([planned, ...laneConsumed.map((intent) => intent.releases[name])]) ?? planned
 }
 
 function maxBumpType (types: Array<string | undefined>): ReleaseBumpType | null {
@@ -389,9 +389,9 @@ function maxBumpType (types: Array<string | undefined>): ReleaseBumpType | null 
 }
 
 interface NewVersionOptions {
-  lineTag?: string
+  laneTag?: string
   /**
-   * The highest bump accumulated across the package's prerelease line — the
+   * The highest bump accumulated across the package's lane — the
    * planned bump joined with the bumps of intents consumed by earlier
    * prereleases — which keeps the stable target stable across `-tag.N` runs.
    */
@@ -400,22 +400,22 @@ interface NewVersionOptions {
 
 function computeNewVersion (participant: Participant, bumpType: ReleaseBumpType, opts: NewVersionOptions): string {
   const current = participant.currentVersion
-  if (opts.lineTag == null) {
+  if (opts.laneTag == null) {
     if (parsePrerelease(current) == null) {
       return inc(current, bumpType)!
     }
-    // Graduation: the accumulated stable version the prerelease line was
+    // Graduation: the accumulated stable version the lane was
     // building toward.
     return escalateStableTarget(stablePart(current), opts.cumulativeBump)
   }
   const target = parsePrerelease(current) == null
     ? inc(current, opts.cumulativeBump)!
     : escalateStableTarget(stablePart(current), opts.cumulativeBump)
-  return `${target}-${opts.lineTag}.${nextPrereleaseNumber(current, target, opts.lineTag)}`
+  return `${target}-${opts.laneTag}.${nextPrereleaseNumber(current, target, opts.laneTag)}`
 }
 
 /**
- * Re-derives the stable version a prerelease line is building toward when the
+ * Re-derives the stable version a lane is building toward when the
  * cumulative bump escalates. The invariant: the stable part of the current
  * prerelease already reflects the previous cumulative bump applied to the
  * version the line started from, so only an escalation changes it.
@@ -436,13 +436,13 @@ function stablePart (version: string): string {
   return version.split('-')[0]
 }
 
-function nextPrereleaseNumber (current: string, target: string, lineTag: string): number {
+function nextPrereleaseNumber (current: string, target: string, laneTag: string): number {
   const currentPrerelease = parsePrerelease(current)
   if (currentPrerelease == null) return 0
   const [currentTag, currentN] = currentPrerelease
   // semver parses an all-digit prerelease identifier as a number, so the tag
   // comparison must not be strict about the type.
-  if (stablePart(current) !== target || String(currentTag) !== lineTag || typeof currentN !== 'number') return 0
+  if (stablePart(current) !== target || String(currentTag) !== laneTag || typeof currentN !== 'number') return 0
   return currentN + 1
 }
 
@@ -450,18 +450,18 @@ interface ApplyFixedGroupVersionsOptions {
   participants: Map<string, Participant>
   state: Map<string, BumpState>
   newVersions: Map<string, string>
-  lineConsumedByPkg: Map<string, ChangeIntent[]>
+  laneConsumedByPkg: Map<string, ChangeIntent[]>
   versioning?: VersioningSettings
 }
 
-function applyFixedGroupVersions ({ participants, state, newVersions, lineConsumedByPkg, versioning }: ApplyFixedGroupVersionsOptions): void {
-  const prereleases = versioning?.prereleases ?? {}
+function applyFixedGroupVersions ({ participants, state, newVersions, laneConsumedByPkg, versioning }: ApplyFixedGroupVersionsOptions): void {
+  const lanes = versioning?.lanes ?? {}
   for (const group of versioning?.fixed ?? []) {
     const members = group.filter((name) => participants.has(name))
     const bumpedMembers = members.filter((name) => state.has(name))
     if (bumpedMembers.length === 0) continue
 
-    const groupBump = maxBumpType(bumpedMembers.map((name) => cumulativeBumpType(name, state.get(name)!.bumpType, lineConsumedByPkg)))!
+    const groupBump = maxBumpType(bumpedMembers.map((name) => cumulativeBumpType(name, state.get(name)!.bumpType, laneConsumedByPkg)))!
     const highestCurrent = members
       .map((name) => participants.get(name)!.currentVersion)
       .sort(compare)
@@ -470,11 +470,11 @@ function applyFixedGroupVersions ({ participants, state, newVersions, lineConsum
       ? inc(highestCurrent, groupBump)!
       : escalateStableTarget(stablePart(highestCurrent), groupBump)
 
-    const lineTag = prereleases[members[0]]
+    const laneTag = lanes[members[0]]
     let sharedVersion = target
-    if (lineTag != null) {
-      const nextN = Math.max(...members.map((name) => nextPrereleaseNumber(participants.get(name)!.currentVersion, target, lineTag)))
-      sharedVersion = `${target}-${lineTag}.${nextN}`
+    if (laneTag != null) {
+      const nextN = Math.max(...members.map((name) => nextPrereleaseNumber(participants.get(name)!.currentVersion, target, laneTag)))
+      sharedVersion = `${target}-${laneTag}.${nextN}`
     }
     for (const name of members) {
       if (state.has(name)) {
@@ -525,7 +525,7 @@ function enforceMaxBump (releases: PlannedRelease[], versioning?: VersioningSett
 
 /**
  * The bump class a release actually applies. Fixed-group version sharing and
- * prerelease-line escalation can move a version further than the package's own
+ * lane escalation can move a version further than the package's own
  * declared or propagated bump, so the cap compares against the real distance
  * between the current and the new version as well.
  */

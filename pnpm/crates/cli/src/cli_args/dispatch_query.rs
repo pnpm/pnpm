@@ -13,6 +13,7 @@ use super::{
     docs::DocsArgs,
     find_hash::FindHashArgs,
     ignored_builds::IgnoredBuildsArgs,
+    lane::LaneArgs,
     list::ListArgs,
     login::LoginArgs,
     logout::LogoutArgs,
@@ -180,6 +181,12 @@ pub(super) fn dist_tag<'a>(
 /// `change` and `version` are synchronous file-and-prompt commands; the
 /// returned future only carries their already-computed result.
 pub(super) fn change<'a>(ctx: &RunCtx<'a>, args: ChangeArgs) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.config)()?;
+    let result = args.run(cfg);
+    Ok(Box::pin(std::future::ready(result)))
+}
+
+pub(super) fn lane<'a>(ctx: &RunCtx<'a>, args: LaneArgs) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.config)()?;
     let result = args.run(cfg);
     Ok(Box::pin(std::future::ready(result)))

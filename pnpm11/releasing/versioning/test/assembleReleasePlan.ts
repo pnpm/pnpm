@@ -195,12 +195,12 @@ test('maxBump rejects a plan whose effective bump exceeds the cap', () => {
   })).toThrow(/maxBump/)
 })
 
-test('a package on a prerelease line emits tagged versions with an incrementing counter', () => {
+test('a package on a lane emits tagged versions with an incrementing counter', () => {
   const enterPlan = assembleReleasePlan({
     projects: [makeProject('cli', '2.0.0')],
     intents: [makeIntent('one', { cli: 'minor' })],
     ledger: NO_LEDGER,
-    versioning: { prereleases: { cli: 'alpha' } },
+    versioning: { lanes: { cli: 'alpha' } },
   })
   expect(enterPlan.releases[0].newVersion).toBe('2.1.0-alpha.0')
 
@@ -211,12 +211,12 @@ test('a package on a prerelease line emits tagged versions with an incrementing 
       makeIntent('two', { cli: 'patch' }),
     ],
     ledger: { 'cli@2.1.0-alpha.0': ['one'] },
-    versioning: { prereleases: { cli: 'alpha' } },
+    versioning: { lanes: { cli: 'alpha' } },
   })
   expect(nextPlan.releases[0].newVersion).toBe('2.1.0-alpha.1')
 })
 
-test('a bigger bump landing later escalates the stable target of the prerelease line', () => {
+test('a bigger bump landing later escalates the stable target of the lane', () => {
   const plan = assembleReleasePlan({
     projects: [makeProject('cli', '2.1.0-alpha.1')],
     intents: [
@@ -224,23 +224,23 @@ test('a bigger bump landing later escalates the stable target of the prerelease 
       makeIntent('two', { cli: 'major' }),
     ],
     ledger: { 'cli@2.1.0-alpha.0': ['one'], 'cli@2.1.0-alpha.1': [] },
-    versioning: { prereleases: { cli: 'alpha' } },
+    versioning: { lanes: { cli: 'alpha' } },
   })
   expect(plan.releases[0].newVersion).toBe('3.0.0-alpha.0')
 })
 
-test('packages off the line release stable versions from the same run', () => {
+test('packages on the main lane release stable versions from the same run', () => {
   const plan = assembleReleasePlan({
     projects: [makeProject('cli', '2.0.0'), makeProject('lib', '1.0.0')],
     intents: [makeIntent('one', { cli: 'minor', lib: 'minor' })],
     ledger: NO_LEDGER,
-    versioning: { prereleases: { cli: 'alpha' } },
+    versioning: { lanes: { cli: 'alpha' } },
   })
   expect(plan.releases.find((release) => release.name === 'cli')!.newVersion).toBe('2.1.0-alpha.0')
   expect(plan.releases.find((release) => release.name === 'lib')!.newVersion).toBe('1.1.0')
 })
 
-test('exiting the line releases the accumulated stable version even without pending intents', () => {
+test('returning to the main lane releases the accumulated stable version even without pending intents', () => {
   const plan = assembleReleasePlan({
     projects: [makeProject('cli', '2.1.0-alpha.2')],
     intents: [
@@ -256,12 +256,12 @@ test('exiting the line releases the accumulated stable version even without pend
   expect(release.intents.map((intent) => intent.id).sort()).toStrictEqual(['one', 'two'])
 })
 
-test('an intent naming a stable and a line package is consumed half by half', () => {
+test('an intent naming a main-lane and a lane package is consumed half by half', () => {
   const plan = assembleReleasePlan({
     projects: [makeProject('cli', '2.0.0'), makeProject('lib', '1.0.1')],
     intents: [makeIntent('one', { cli: 'minor', lib: 'patch' })],
     ledger: { 'lib@1.0.1': ['one'] },
-    versioning: { prereleases: { cli: 'alpha' } },
+    versioning: { lanes: { cli: 'alpha' } },
   })
   expect(plan.releases.map((release) => release.name)).toStrictEqual(['cli'])
   expect(plan.releases[0].newVersion).toBe('2.1.0-alpha.0')

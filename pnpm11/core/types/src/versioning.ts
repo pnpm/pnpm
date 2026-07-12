@@ -27,9 +27,11 @@ export interface VersioningSettings {
    */
   maxBump?: VersioningBumpType
   /**
-   * Per-package prerelease lines: maps a package name to the prerelease tag
-   * of the line it is on (e.g. `"@example/cli": "alpha"`).
+   * Per-package release lanes: maps a package name to the lane it is on
+   * (e.g. `"@example/cli": "alpha"`). A lane is a parallel release track that
+   * emits `X.Y.Z-tag.N` prereleases; every unlisted package is on the
+   * reserved default lane, `main`, and releases stable versions.
    */
-  prereleases?: Record<string, string>
+  lanes?: Record<string, string>
   changelog?: VersioningChangelogSettings
 }

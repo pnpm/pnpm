@@ -50,10 +50,12 @@ pub struct VersioningSettings {
     /// fixed-group resolution.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_bump: Option<ReleaseBumpType>,
-    /// Per-package prerelease lines: maps a package name to the prerelease
-    /// tag of the line it is on (e.g. `"@example/cli": "alpha"`).
+    /// Per-package release lanes: maps a package name to the lane it is on
+    /// (e.g. `"@example/cli": "alpha"`). A lane is a parallel release track
+    /// that emits `X.Y.Z-tag.N` prereleases; every unlisted package is on the
+    /// reserved default lane, `main`, and releases stable versions.
     #[serde(skip_serializing_if = "IndexMap::is_empty")]
-    pub prereleases: IndexMap<String, String>,
+    pub lanes: IndexMap<String, String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub changelog: Option<ChangelogSettings>,
 }

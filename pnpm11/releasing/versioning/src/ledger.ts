@@ -15,7 +15,7 @@ export const LEDGER_FILENAME = 'ledger.yaml'
  * by that release. Consumption is scoped per package — an intent file is fully
  * consumed only once every package it names has an entry — which is what makes
  * cherry-picked releases on maintenance branches and merge-backs safe, and
- * what lets one intent be half-consumed by a package on a prerelease line.
+ * what lets one intent be half-consumed by a package on a release lane.
  */
 export type Ledger = Record<string, string[]>
 

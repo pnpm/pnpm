@@ -108,7 +108,7 @@ test('applyReleasePlan bumps manifests, writes changelogs, records the ledger, a
   expect(await readChangeIntents(workspaceDir)).toHaveLength(0)
 })
 
-test('intent files consumed only by prereleases survive until graduation', async () => {
+test('intent files consumed only by lane prereleases survive until graduation', async () => {
   const { workspaceDir, projects } = await makeWorkspace([
     { name: 'cli', version: '2.0.0' },
   ])
@@ -116,7 +116,7 @@ test('intent files consumed only by prereleases survive until graduation', async
     releases: { cli: 'minor' },
     summary: 'Added a feature.',
   })
-  const versioning = { prereleases: { cli: 'alpha' } }
+  const versioning = { lanes: { cli: 'alpha' } }
 
   let intents = await readChangeIntents(workspaceDir)
   const prereleasePlan = assembleReleasePlan({ projects, intents, ledger: await readLedger(workspaceDir), versioning })
@@ -127,8 +127,8 @@ test('intent files consumed only by prereleases survive until graduation', async
   intents = await readChangeIntents(workspaceDir)
   expect(intents).toHaveLength(1)
 
-  // Exit the line: the accumulated stable version releases and the intent is
-  // garbage-collected.
+  // Return to the main lane: the accumulated stable version releases and the
+  // intent is garbage-collected.
   const graduatedProjects: WorkspaceProject[] = [{
     rootDir: projects[0].rootDir,
     manifest: { name: 'cli', version: '2.1.0-alpha.0' },

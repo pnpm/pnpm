@@ -15,7 +15,7 @@ pub const LEDGER_FILENAME: &str = "ledger.yaml";
 /// file is fully consumed only once every package it names has an entry —
 /// which is what makes cherry-picked releases on maintenance branches and
 /// merge-backs safe, and what lets one intent be half-consumed by a package
-/// on a prerelease line.
+/// on a release lane.
 pub type Ledger = BTreeMap<String, Vec<String>>;
 
 pub fn read_ledger(workspace_dir: &Path) -> Result<Ledger, VersioningError> {

@@ -73,7 +73,7 @@ pub fn apply_release_plan(
 }
 
 /// An intent file is deletable once every package it names has a ledger entry
-/// for it, with one exemption: while a package is still on a prerelease line,
+/// for it, with one exemption: while a package is still on a lane,
 /// entries against prerelease versions alone keep the file alive — its prose
 /// is still needed to compose the stable changelog section at graduation.
 /// Declined (`none`) entries demand no release and never block deletion.
@@ -86,8 +86,8 @@ fn delete_consumed_intent_files(
     let empty = PackageConsumption::default();
     let consumption_of =
         |pkg_name: &str| -> &PackageConsumption { consumption.get(pkg_name).unwrap_or(&empty) };
-    let on_prerelease_line = |pkg_name: &str| -> bool {
-        versioning.is_some_and(|settings| settings.prereleases.contains_key(pkg_name))
+    let on_lane = |pkg_name: &str| -> bool {
+        versioning.is_some_and(|settings| settings.lanes.contains_key(pkg_name))
     };
 
     for intent in all_intents {
@@ -97,8 +97,7 @@ fn delete_consumed_intent_files(
             }
             let consumed = consumption_of(pkg_name);
             consumed.all_ids.contains(&intent.id)
-                && !(on_prerelease_line(pkg_name)
-                    && consumed.prerelease_only_ids.contains(&intent.id))
+                && !(on_lane(pkg_name) && consumed.prerelease_only_ids.contains(&intent.id))
         });
         if deletable {
             fs::remove_file(&intent.file_path).map_err(|source| VersioningError::Write {

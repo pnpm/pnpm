@@ -299,16 +299,16 @@ fn max_bump_measures_the_real_version_distance_including_fixed_group_jumps() {
     assert!(err.to_string().contains("maxBump"), "unexpected error: {err}");
 }
 
-fn on_line(pkg_name: &str, tag: &str) -> VersioningSettings {
+fn on_lane(pkg_name: &str, tag: &str) -> VersioningSettings {
     VersioningSettings {
-        prereleases: IndexMap::from([(pkg_name.to_string(), tag.to_string())]),
+        lanes: IndexMap::from([(pkg_name.to_string(), tag.to_string())]),
         ..VersioningSettings::default()
     }
 }
 
 #[test]
-fn a_package_on_a_prerelease_line_emits_tagged_versions_with_an_incrementing_counter() {
-    let versioning = on_line("cli", "alpha");
+fn a_package_on_a_lane_emits_tagged_versions_with_an_incrementing_counter() {
+    let versioning = on_lane("cli", "alpha");
 
     let projects = [make_project("cli", "2.0.0", &[])];
     let intents = [make_intent("one", &[("cli", "minor")])];
@@ -324,26 +324,27 @@ fn a_package_on_a_prerelease_line_emits_tagged_versions_with_an_incrementing_cou
 }
 
 #[test]
-fn a_bigger_bump_landing_later_escalates_the_stable_target_of_the_prerelease_line() {
+fn a_bigger_bump_landing_later_escalates_the_stable_target_of_the_lane() {
     let projects = [make_project("cli", "2.1.0-alpha.1", &[])];
     let intents =
         [make_intent("one", &[("cli", "minor")]), make_intent("two", &[("cli", "major")])];
     let consumed = ledger(&[("cli@2.1.0-alpha.0", &["one"]), ("cli@2.1.0-alpha.1", &[])]);
-    let plan = assemble(&projects, &intents, &consumed, Some(&on_line("cli", "alpha")));
+    let plan = assemble(&projects, &intents, &consumed, Some(&on_lane("cli", "alpha")));
     assert_eq!(plan.releases[0].new_version, "3.0.0-alpha.0");
 }
 
 #[test]
-fn packages_off_the_line_release_stable_versions_from_the_same_run() {
+fn packages_on_the_main_lane_release_stable_versions_from_the_same_run() {
     let projects = [make_project("cli", "2.0.0", &[]), make_project("lib", "1.0.0", &[])];
     let intents = [make_intent("one", &[("cli", "minor"), ("lib", "minor")])];
-    let plan = assemble(&projects, &intents, &Ledger::new(), Some(&on_line("cli", "alpha")));
+    let plan = assemble(&projects, &intents, &Ledger::new(), Some(&on_lane("cli", "alpha")));
     assert_eq!(release(&plan, "cli").new_version, "2.1.0-alpha.0");
     assert_eq!(release(&plan, "lib").new_version, "1.1.0");
 }
 
 #[test]
-fn exiting_the_line_releases_the_accumulated_stable_version_even_without_pending_intents() {
+fn returning_to_the_main_lane_releases_the_accumulated_stable_version_even_without_pending_intents()
+{
     let projects = [make_project("cli", "2.1.0-alpha.2", &[])];
     let intents =
         [make_intent("one", &[("cli", "minor")]), make_intent("two", &[("cli", "patch")])];
@@ -358,11 +359,11 @@ fn exiting_the_line_releases_the_accumulated_stable_version_even_without_pending
 }
 
 #[test]
-fn an_intent_naming_a_stable_and_a_line_package_is_consumed_half_by_half() {
+fn an_intent_naming_a_main_lane_and_a_lane_package_is_consumed_half_by_half() {
     let projects = [make_project("cli", "2.0.0", &[]), make_project("lib", "1.0.1", &[])];
     let intents = [make_intent("one", &[("cli", "minor"), ("lib", "patch")])];
     let consumed = ledger(&[("lib@1.0.1", &["one"])]);
-    let plan = assemble(&projects, &intents, &consumed, Some(&on_line("cli", "alpha")));
+    let plan = assemble(&projects, &intents, &consumed, Some(&on_lane("cli", "alpha")));
     assert_eq!(release_names(&plan), ["cli"]);
     assert_eq!(plan.releases[0].new_version, "2.1.0-alpha.0");
 }
