@@ -23,7 +23,14 @@ impl UndeprecateArgs {
     pub async fn run(self, config: &Config) -> miette::Result<Option<String>> {
         let context = DeprecateContext::new(config, self.registry.as_ref(), self.otp)?;
 
-        let spec = self.params.first().ok_or(DeprecateError::PackageRequired)?;
+        if self.params.is_empty() {
+            return Err(DeprecateError::UndeprecateRequired.into());
+        }
+        if self.params.len() > 1 {
+            return Err(DeprecateError::UndeprecateNoMessage.into());
+        }
+
+        let spec = &self.params[0];
         let PackageSpec { name: package_name, version } = parse_package_spec(spec)?;
 
         let output = update_deprecation(&context, None, &package_name, version.as_deref()).await?;

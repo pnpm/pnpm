@@ -9,7 +9,7 @@ use std::{
 };
 
 fn pacquet_at(workspace: &Path) -> Command {
-    Command::cargo_bin("pacquet").expect("find the pacquet binary").with_current_dir(workspace)
+    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
 }
 
 fn empty_auth_file(root: &Path) -> PathBuf {
@@ -54,7 +54,9 @@ fn undeprecates_a_package_version_successfully() {
         .match_header("content-type", "application/json")
         .match_body(Matcher::Json(serde_json::json!({
             "versions": {
-                "1.0.0": {}
+                "1.0.0": {
+                    "deprecated": ""
+                }
             }
         })))
         .with_status(200)
@@ -78,7 +80,7 @@ fn fails_when_package_is_not_provided() {
     let output = run_undeprecate(&workspace, &auth_file, None, &[]);
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_DEPRECATE_PACKAGE_REQUIRED"), "stderr: {stderr}");
+    assert!(stderr.contains("ERR_PNPM_UNDEPRECATE_REQUIRED"), "stderr: {stderr}");
 }
 
 #[test]
@@ -100,4 +102,14 @@ fn fails_when_not_deprecated() {
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("ERR_PNPM_NOT_DEPRECATED"), "stderr: {stderr}");
+}
+
+#[test]
+fn fails_when_message_is_provided() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let auth_file = empty_auth_file(root.path());
+    let output = run_undeprecate(&workspace, &auth_file, None, &["foo", "extra-message"]);
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_UNDEPRECATE_NO_MESSAGE"), "stderr: {stderr}");
 }
