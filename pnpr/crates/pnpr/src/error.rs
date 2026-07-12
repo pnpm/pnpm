@@ -83,6 +83,16 @@ pub enum RegistryError {
         resource: String,
     },
 
+    /// A team mutation (create/destroy/add/rm) hit the npm team API, but
+    /// pnpr teams are declared in the registry configuration and cannot be
+    /// changed over HTTP. Maps to 403.
+    #[display(
+        "Teams on this registry are declared in the pnpr configuration; to {action}, ask the \
+         registry operator to update the config"
+    )]
+    #[from(skip)]
+    TeamsConfigManaged { action: &'static str },
+
     /// Tarball payload from a publish couldn't be decoded — bad
     /// base64, length mismatch, or integrity mismatch.
     #[display("Invalid attachment {filename:?}: {reason}")]
@@ -237,6 +247,7 @@ impl RegistryError {
             RegistryError::InvalidConfig { .. } => "invalid_config",
             RegistryError::Unauthenticated { .. } => "unauthenticated",
             RegistryError::Forbidden { .. } => "forbidden",
+            RegistryError::TeamsConfigManaged { .. } => "teams_config_managed",
             RegistryError::InvalidAttachment { .. } => "invalid_attachment",
             RegistryError::BadRequest { .. } => "bad_request",
             RegistryError::VersionAlreadyPublished { .. } => "version_already_published",
@@ -316,6 +327,7 @@ impl RegistryError {
             RegistryError::VersionAlreadyPublished { .. } => StatusCode::CONFLICT,
             RegistryError::Unauthenticated { .. } => StatusCode::UNAUTHORIZED,
             RegistryError::Forbidden { .. } => StatusCode::FORBIDDEN,
+            RegistryError::TeamsConfigManaged { .. } => StatusCode::FORBIDDEN,
             RegistryError::OsvVulnerability { .. } => StatusCode::FORBIDDEN,
             RegistryError::RegistrationDisabled | RegistryError::TooManyUsers { .. } => {
                 StatusCode::FORBIDDEN

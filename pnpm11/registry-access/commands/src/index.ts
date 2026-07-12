@@ -8,7 +8,8 @@ import * as search from './search.js'
 import * as star from './star/star.js'
 import * as stars from './star/stars.js'
 import * as unstar from './star/unstar.js'
+import * as team from './team.js'
 import * as unpublish from './unpublish.js'
 import * as whoami from './whoami.js'
 
-export { access, deprecate, distTag, owner, ping, search, star, stars, undeprecate, unpublish, unstar, whoami }
+export { access, deprecate, distTag, owner, ping, search, star, stars, team, undeprecate, unpublish, unstar, whoami }

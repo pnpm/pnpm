@@ -59,6 +59,7 @@ pub mod stage;
 pub mod stop;
 pub mod store;
 pub mod supported_architectures;
+pub mod team;
 pub mod unlink;
 pub mod update;
 pub mod update_interactive;

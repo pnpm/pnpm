@@ -153,6 +153,11 @@ pub struct HostedConfig {
     /// reads *and* the write routing (publish, dist-tag, unpublish), with a
     /// denied caller masked as not-found either way.
     pub rules: PackageRules,
+    /// The registry's declared `teams:` map, retained so the npm team API
+    /// (`GET /-/org/{scope}/team`, `GET /-/team/{scope}/{team}/user`) can
+    /// list them. Membership is config-declared: the API serves reads only,
+    /// and team mutations are rejected.
+    pub teams: Teams,
 }
 
 /// Which fetch routes the resolution cache treats as public. The official
@@ -922,10 +927,11 @@ impl AccessSpec {
 }
 
 /// A registry's declared teams — its `teams:` map compiled to name →
-/// member-set. Only alive while that registry's access lists are compiled:
-/// a `team:` token captures the member set, so nothing at runtime consults
-/// the map (see [`AccessToken::Team`]).
-type Teams = IndexMap<String, BTreeSet<String>>;
+/// member-set. Access lists capture the member sets they reference at
+/// compile time (see [`AccessToken::Team`]); a hosted registry additionally
+/// retains its map on [`HostedConfig::teams`] so the npm team API can list
+/// teams and their members.
+pub type Teams = IndexMap<String, BTreeSet<String>>;
 
 /// The declared team names for an undeclared-reference error, so a typo'd
 /// `team:` token points at what exists.
@@ -1457,7 +1463,10 @@ impl Config {
         let rules = registry_mock_rules();
         let local_patterns = rules.patterns();
         let mut hosted = IndexMap::new();
-        hosted.insert("local".to_string(), HostedConfig { org: String::new(), rules });
+        hosted.insert(
+            "local".to_string(),
+            HostedConfig { org: String::new(), rules, teams: Teams::default() },
+        );
         let graph = [
             ("local".to_string(), Registry::Hosted { patterns: local_patterns }),
             ("npmjs".to_string(), Registry::Upstream { patterns: Vec::new() }),
@@ -1504,7 +1513,11 @@ impl Config {
         // one `packages:` map.
         hosted.insert(
             "local".to_string(),
-            HostedConfig { org: String::new(), rules: registry_mock_rules() },
+            HostedConfig {
+                org: String::new(),
+                rules: registry_mock_rules(),
+                teams: Teams::default(),
+            },
         );
         let graph = [
             ("local".to_string(), Registry::Hosted { patterns: Vec::new() }),
@@ -2015,7 +2028,7 @@ fn build_registries(
                 let access = registry_access_list(&name, registry.access.as_ref(), &teams)?;
                 let rules = build_rules(&name, &registry.packages, access, &teams)?;
                 let patterns = rules.patterns();
-                hosted.insert(name.clone(), HostedConfig { org: registry.org, rules });
+                hosted.insert(name.clone(), HostedConfig { org: registry.org, rules, teams });
                 graph.insert(name, Registry::Hosted { patterns });
             }
             RegistryFile::Upstream(upstream) => {

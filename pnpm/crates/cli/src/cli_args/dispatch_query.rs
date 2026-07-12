@@ -31,6 +31,7 @@ use super::{
     setup::SetupArgs,
     stage::StageArgs,
     store::StoreCommand,
+    team::TeamArgs,
     why::WhyArgs,
     with::WithArgs,
 };
@@ -161,6 +162,20 @@ pub(super) fn dist_tag<'a>(
     ctx: &RunCtx<'a>,
     args: DistTagArgs,
 ) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.config)()?;
+    Ok(Box::pin(async move {
+        if let Some(output) = args.run(cfg).await? {
+            let output = super::sanitize::sanitize(&output);
+            if output.is_empty() {
+                return Ok(());
+            }
+            println!("{output}");
+        }
+        Ok(())
+    }))
+}
+
+pub(super) fn team<'a>(ctx: &RunCtx<'a>, args: TeamArgs) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.config)()?;
     Ok(Box::pin(async move {
         if let Some(output) = args.run(cfg).await? {

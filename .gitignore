@@ -81,3 +81,4 @@ pnpm/npm/napi/*.node
 # Generated NAPI addon platform packages + cross-compiled artifacts
 pnpm/npm/napi.*/
 /pnpm-napi.*.node
+pnpr-bins-*

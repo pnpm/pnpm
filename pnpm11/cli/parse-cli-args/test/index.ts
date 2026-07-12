@@ -508,6 +508,17 @@ test('everything after an escape arg is a parameter, even if it has a help optio
   expect(params).toStrictEqual(['rm', '--help'])
 })
 
+test('an escape arg appearing as another command\'s parameter does not stop option parsing', async () => {
+  const { params, options, cmd } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    escapeArgs: ['create', 'exec', 'test'],
+    getTypesByCommandName: (commandName: string) => commandName === 'team' ? { registry: String } : {},
+  }, ['team', 'create', '@org:newteam', '--registry', 'https://registry.example.com/'])
+  expect(cmd).toBe('team')
+  expect(params).toStrictEqual(['create', '@org:newteam'])
+  expect(options.registry).toBe('https://registry.example.com/')
+})
+
 test('`pnpm install ""` is going to be just `pnpm install`', async () => {
   const { params, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,

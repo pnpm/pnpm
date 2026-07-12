@@ -54,6 +54,7 @@ use super::{
     stage::StageArgs,
     stop::StopArgs,
     store::StoreCommand,
+    team::TeamArgs,
     unlink::UnlinkArgs,
     update::UpdateArgs,
     why::WhyArgs,
@@ -423,6 +424,8 @@ pub enum CliCommand {
     /// Log in to an npm registry.
     #[clap(visible_alias = "adduser")]
     Login(LoginArgs),
+    /// Manage organization teams and team memberships.
+    Team(TeamArgs),
     /// Log out of an npm registry.
     Logout(LogoutArgs),
     /// Runs pnpm at a specific version (or the currently running one) for a

@@ -6,7 +6,6 @@ const NOT_IMPLEMENTED_COMMANDS = [
   'edit',
   'profile',
   'set-script',
-  'team',
   'token',
   'xmas',
 ]

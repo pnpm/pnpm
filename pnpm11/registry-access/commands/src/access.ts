@@ -7,12 +7,11 @@ import npa from '@pnpm/npm-package-arg'
 import type { Registries, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 
-import { normalizeRegistryUrl, rcOptionsTypes } from './common.js'
+import { normalizeRegistryUrl, rcOptionsTypes, readErrorBody } from './common.js'
 
 export { rcOptionsTypes }
 
 const DEFAULT_REGISTRY_URL = 'https://registry.npmjs.org/'
-const ERROR_BODY_LIMIT = 64 * 1024
 
 function getRegistries (opts: AccessOptions): Registries {
   return opts.registries ?? { default: DEFAULT_REGISTRY_URL }
@@ -569,36 +568,6 @@ async function throwRegistryError (response: Response, action: string): Promise<
     throw new PnpmError('ACCESS_VALIDATION_ERROR', `Invalid request: ${errorBody}`)
   }
   throw new PnpmError('REGISTRY_ERROR', `Failed to ${action} package: ${response.status} ${response.statusText}. ${errorBody}`)
-}
-
-async function readErrorBody (response: Response): Promise<string> {
-  const reader = response.body?.getReader()
-  if (reader == null) return ''
-  const chunks: Uint8Array[] = []
-  let total = 0
-  let truncated = false
-  while (total < ERROR_BODY_LIMIT) {
-    // eslint-disable-next-line no-await-in-loop
-    const { done, value } = await reader.read()
-    if (done) break
-    const need = ERROR_BODY_LIMIT - total
-    if (value.length > need) {
-      chunks.push(value.subarray(0, need))
-      truncated = true
-      break
-    }
-    chunks.push(value)
-    total += value.length
-  }
-  reader.cancel().catch(() => {})
-  let body = new TextDecoder().decode(Buffer.concat(chunks))
-  if (truncated) {
-    if (body.length > 0 && !body.endsWith(' ')) {
-      body += ' '
-    }
-    body += '(response body truncated)'
-  }
-  return body
 }
 
 function sanitize (text: string): string {
