@@ -1,4 +1,5 @@
 import type { Registries } from './misc.js'
+import type { VersioningSettings } from './versioning.js'
 
 export type Dependencies = Record<string, string>
 
@@ -201,6 +202,7 @@ export interface PnpmSettings {
   httpsProxy?: string
   noProxy?: string | boolean
   pnprServer?: string
+  versioning?: VersioningSettings
 }
 
 export interface ProjectManifest extends BaseManifest {

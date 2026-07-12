@@ -12,6 +12,7 @@ import {
   type WorkspaceNamedCatalogs,
 } from './catalogs.js'
 import { InvalidWorkspaceManifestError } from './errors/InvalidWorkspaceManifestError.js'
+import { assertValidWorkspaceManifestVersioning } from './versioning.js'
 
 export type ConfigFileName =
   | typeof GLOBAL_CONFIG_YAML_FILENAME
@@ -76,6 +77,7 @@ export function validateWorkspaceManifest (manifest: unknown): asserts manifest 
   assertValidWorkspaceManifestPackages(manifest)
   assertValidWorkspaceManifestCatalog(manifest)
   assertValidWorkspaceManifestCatalogs(manifest)
+  assertValidWorkspaceManifestVersioning(manifest)
 
   checkWorkspaceManifestAssignability(manifest)
 }
