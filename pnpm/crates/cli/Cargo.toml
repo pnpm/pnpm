@@ -52,6 +52,7 @@ pacquet-store-dir                         = { workspace = true }
 pacquet-tarball                           = { workspace = true }
 pacquet-diagnostics                       = { workspace = true }
 pacquet-directory-fetcher                 = { workspace = true }
+pacquet-versioning                        = { workspace = true }
 pacquet-workspace                         = { workspace = true }
 pacquet-workspace-manifest-writer         = { workspace = true }
 pacquet-workspace-projects-graph          = { workspace = true }

@@ -19,6 +19,7 @@ pacquet-network                = { workspace = true }
 pacquet-package-is-installable = { workspace = true }
 pacquet-patching               = { workspace = true }
 pacquet-store-dir              = { workspace = true }
+pacquet-versioning             = { workspace = true }
 pacquet-workspace-state        = { workspace = true }
 
 derive_more   = { workspace = true }

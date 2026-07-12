@@ -251,12 +251,14 @@ impl DeployArgs {
         }
 
         apply_deploy_hook(&deploy_dir.join("package.json"))?;
-        self.run_install_in_deploy_dir::<ReporterT>(
+        // Boxed: the install future exceeds clippy's large-future threshold
+        // (the captured `Config` is large).
+        Box::pin(self.run_install_in_deploy_dir::<ReporterT>(
             config,
             &deploy_dir,
             DeployInstallMode::Legacy,
             false,
-        )
+        ))
         .await
     }
 
@@ -290,12 +292,13 @@ impl DeployArgs {
             config,
         )?;
         write_deploy_files(deploy_dir, &deploy_files)?;
-        self.run_install_in_deploy_dir::<ReporterT>(
+        // Boxed for the same large-future reason as the legacy path above.
+        Box::pin(self.run_install_in_deploy_dir::<ReporterT>(
             config,
             deploy_dir,
             DeployInstallMode::Shared { workspace_config: deploy_files.workspace_config },
             true,
-        )
+        ))
         .await?;
         Ok(SharedDeployOutcome::Deployed)
     }

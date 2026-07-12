@@ -1483,6 +1483,10 @@ pub struct Config {
     /// `auditConfig` config for `pnpm audit`.
     pub audit_config: AuditConfig,
 
+    /// `versioning` from `pnpm-workspace.yaml`: native workspace release
+    /// management, consumed by `pnpm change` and the bare `pnpm version -r`.
+    pub versioning: pacquet_versioning::VersioningSettings,
+
     /// Glob-style `name[@version]` patterns that opt specific packages
     /// out of the [`trust_policy`] check. The `trustPolicyExclude`
     /// setting.

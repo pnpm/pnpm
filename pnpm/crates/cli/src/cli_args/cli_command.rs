@@ -8,6 +8,7 @@ use super::{
     cache::CacheCommand,
     cat_file::CatFileArgs,
     cat_index::CatIndexArgs,
+    change::ChangeArgs,
     completion::{CompletionArgs, CompletionServerArgs},
     config::ConfigArgs,
     create::CreateArgs,
@@ -57,6 +58,7 @@ use super::{
     team::TeamArgs,
     unlink::UnlinkArgs,
     update::UpdateArgs,
+    version::VersionArgs,
     why::WhyArgs,
     with::WithArgs,
 };
@@ -289,6 +291,12 @@ pub enum CliCommand {
     Outdated(OutdatedArgs),
     /// Checks for known security issues with the installed packages.
     Audit(AuditArgs),
+    /// Record a change intent: which packages a change affects, the bump
+    /// type for each, and a summary that becomes the changelog entry.
+    Change(ChangeArgs),
+    /// Apply the pending change intents (`pnpm version -r`) or manage
+    /// per-package prerelease lines (`stable` / `unstable`).
+    Version(VersionArgs),
     /// Opens the bug tracker URL of a package in the default browser.
     #[clap(visible_alias = "issues")]
     Bugs(BugsArgs),

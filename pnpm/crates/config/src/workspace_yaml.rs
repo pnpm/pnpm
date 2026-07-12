@@ -405,6 +405,11 @@ pub struct WorkspaceSettings {
     /// `auditConfig` from `pnpm-workspace.yaml`.
     pub audit_config: Option<AuditConfig>,
 
+    /// `versioning` from `pnpm-workspace.yaml`: native workspace release
+    /// management (fixed groups, ignore list, maxBump cap, per-package
+    /// prerelease lines, changelog settings).
+    pub versioning: Option<pacquet_versioning::VersioningSettings>,
+
     /// `trustPolicyExclude` from `pnpm-workspace.yaml`.
     pub trust_policy_exclude: Option<Vec<String>>,
 
@@ -905,6 +910,9 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.audit_config {
             config.audit_config = v;
+        }
+        if let Some(v) = self.versioning {
+            config.versioning = v;
         }
         if let Some(v) = self.trust_policy_exclude {
             config.trust_policy_exclude = Some(v);
