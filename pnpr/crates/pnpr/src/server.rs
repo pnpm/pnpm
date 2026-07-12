@@ -1,6 +1,6 @@
 use crate::{
     auth::{AuthState, TokenRecord, UpsertOutcome, identify},
-    config::Config,
+    config::{Config, HostedConfig},
     error::RegistryError,
     journal::JournaledPublish,
     package_name::PackageName,
@@ -398,7 +398,10 @@ fn router_with_auth_and_osv(
             )
             // Scoped tarball delete: `DELETE /@scope/name/-/<basename-version>.tgz/-rev/<rev>`,
             // plus the registry-addressed dist-tag write and unscoped tarball delete.
-            .route("/{a}/{b}/{c}/{d}/{e}/{f}", put(put_six_segments).delete(delete_six_segments))
+            .route(
+                "/{a}/{b}/{c}/{d}/{e}/{f}",
+                get(get_six_segments).put(put_six_segments).delete(delete_six_segments),
+            )
             // Registry-addressed scoped tarball delete:
             // `DELETE /~<name>/@scope/name/-/<file>/-rev/<rev>`
             .route("/{a}/{b}/{c}/{d}/{e}/{f}/{g}", delete(delete_seven_segments));
@@ -729,6 +732,7 @@ async fn get_tarball_scoped(
 
 /// 4-segment GET:
 /// * `/-/package/{pkg}/dist-tags` — packument's `dist-tags` object.
+/// * `/-/org/{scope}/team` — the teams of the registry claiming `@scope`.
 /// * `/~<name>/-/v1/search` — search through a registry endpoint.
 /// * `/~<name>/@scope/{pkg}/{version}` — scoped version manifest through a
 ///   registry endpoint.
@@ -741,6 +745,9 @@ async fn get_four_segments(
     if a == "-" && b == "package" && d == "dist-tags" {
         let response = get_dist_tags(&state, &identity, None, &c).await;
         return private_if_caller_gated(&state, &c, response);
+    }
+    if a == "-" && b == "org" && d == "team" {
+        return private_no_cache(get_org_teams(&state, &identity, None, &c));
     }
     if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty()) {
         if b == "-" && c == "v1" && d == "search" {
@@ -760,10 +767,12 @@ async fn get_four_segments(
 }
 
 /// 5-segment GET:
+/// * `/-/team/{scope}/{team}/user` — a team's members.
 /// * `/~<name>/@scope/<pkg>/-/<file>` — scoped tarball through a registry
 ///   endpoint.
 /// * `/~<name>/-/package/<pkg>/dist-tags` — dist-tags through a registry
 ///   endpoint.
+/// * `/~<name>/-/org/{scope}/team` — org teams through a registry endpoint.
 ///
 /// Every other 5-segment GET is a not-found catchall (the route exists so
 /// DELETE/PUT can sit on the same path).
@@ -772,6 +781,9 @@ async fn get_five_segments(
     AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d, e)): Path<(String, String, String, String, String)>,
 ) -> Response {
+    if a == "-" && b == "team" && e == "user" {
+        return private_no_cache(get_team_members(&state, &identity, None, &c, &d));
+    }
     if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty()) {
         if b.starts_with('@') && d == "-" {
             let full = format!("{b}/{c}");
@@ -782,6 +794,27 @@ async fn get_five_segments(
         if b == "-" && c == "package" && e == "dist-tags" {
             return private_no_cache(get_dist_tags(&state, &identity, Some(registry), &d).await);
         }
+        if b == "-" && c == "org" && e == "team" {
+            return private_no_cache(get_org_teams(&state, &identity, Some(registry), &d));
+        }
+    }
+    not_found()
+}
+
+/// 6-segment GET:
+/// * `/~<name>/-/team/{scope}/{team}/user` — a team's members through a
+///   registry endpoint.
+async fn get_six_segments(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    Path((a, b, c, d, e, f)): Path<(String, String, String, String, String, String)>,
+) -> Response {
+    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
+        && b == "-"
+        && c == "team"
+        && f == "user"
+    {
+        return private_no_cache(get_team_members(&state, &identity, Some(registry), &d, &e));
     }
     not_found()
 }
@@ -855,6 +888,10 @@ async fn put_four_segments(
     Path((a, b, c, d)): Path<(String, String, String, String)>,
     body: axum::body::Bytes,
 ) -> Response {
+    // `PUT /-/org/{scope}/team` — team create; config-managed, rejected.
+    if a == "-" && b == "org" && d == "team" {
+        return reject_team_mutation(&state, &identity, None, &c, "create a team");
+    }
     if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
         && c == "-rev"
     {
@@ -880,7 +917,12 @@ async fn delete_three_segments(
     not_found()
 }
 
-/// `PUT /-/package/{pkg}/dist-tags/{tag}` — add/update a dist-tag.
+/// 5-segment PUT:
+/// * `/-/package/{pkg}/dist-tags/{tag}` — add/update a dist-tag.
+/// * `/-/team/{scope}/{team}/user` — team member add; config-managed,
+///   rejected.
+/// * `/~<name>/-/org/{scope}/team` — team create through a registry
+///   endpoint; config-managed, rejected.
 async fn put_five_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -890,11 +932,24 @@ async fn put_five_segments(
     if a == "-" && b == "package" && d == "dist-tags" {
         return set_dist_tag(&state, &identity, None, &c, &e, &body).await;
     }
+    if a == "-" && b == "team" && e == "user" {
+        return reject_team_mutation(&state, &identity, None, &c, "add a team member");
+    }
+    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
+        && b == "-"
+        && c == "org"
+        && e == "team"
+    {
+        return reject_team_mutation(&state, &identity, Some(registry), &d, "create a team");
+    }
     not_found()
 }
 
-/// `PUT /~<name>/-/package/{pkg}/dist-tags/{tag}` — add/update a dist-tag
-/// through a registry endpoint.
+/// 6-segment PUT:
+/// * `/~<name>/-/package/{pkg}/dist-tags/{tag}` — add/update a dist-tag
+///   through a registry endpoint.
+/// * `/~<name>/-/team/{scope}/{team}/user` — team member add through a
+///   registry endpoint; config-managed, rejected.
 async fn put_six_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -903,15 +958,25 @@ async fn put_six_segments(
 ) -> Response {
     if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
         && b == "-"
-        && c == "package"
-        && e == "dist-tags"
     {
-        return set_dist_tag(&state, &identity, Some(registry), &d, &f, &body).await;
+        if c == "package" && e == "dist-tags" {
+            return set_dist_tag(&state, &identity, Some(registry), &d, &f, &body).await;
+        }
+        if c == "team" && f == "user" {
+            return reject_team_mutation(
+                &state,
+                &identity,
+                Some(registry),
+                &d,
+                "add a team member",
+            );
+        }
     }
     not_found()
 }
 
 /// 4-segment DELETE:
+/// * `/-/team/{scope}/{team}` — team destroy; config-managed, rejected.
 /// * `/~<name>/{pkg}/-rev/{rev}` — remove the entire package through a
 ///   registry endpoint (scoped packages arrive percent-encoded as one
 ///   `@scope%2Fname` segment).
@@ -920,6 +985,10 @@ async fn delete_four_segments(
     AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d)): Path<(String, String, String, String)>,
 ) -> Response {
+    if a == "-" && b == "team" {
+        let _ = d; // team name — the mutation is rejected regardless
+        return reject_team_mutation(&state, &identity, None, &c, "destroy a team");
+    }
     if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
         && c == "-rev"
     {
@@ -931,6 +1000,10 @@ async fn delete_four_segments(
 
 /// 5-segment DELETE:
 /// * `/-/package/{pkg}/dist-tags/{tag}` — remove a dist-tag.
+/// * `/-/team/{scope}/{team}/user` — team member remove; config-managed,
+///   rejected.
+/// * `/~<name>/-/team/{scope}/{team}` — team destroy through a registry
+///   endpoint; config-managed, rejected.
 /// * `/{pkg}/-/{filename}/-rev/{rev}` — remove an unscoped tarball
 ///   (one step of `pnpm unpublish <pkg>@<version>`).
 async fn delete_five_segments(
@@ -940,6 +1013,16 @@ async fn delete_five_segments(
 ) -> Response {
     if a == "-" && b == "package" && d == "dist-tags" {
         return remove_dist_tag(&state, &identity, None, &c, &e).await;
+    }
+    if a == "-" && b == "team" && e == "user" {
+        return reject_team_mutation(&state, &identity, None, &c, "remove a team member");
+    }
+    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
+        && b == "-"
+        && c == "team"
+    {
+        let _ = e; // team name — the mutation is rejected regardless
+        return reject_team_mutation(&state, &identity, Some(registry), &d, "destroy a team");
     }
     if b == "-" && d == "-rev" {
         let _ = e; // revision token is unused
@@ -957,6 +1040,8 @@ async fn delete_five_segments(
 ///   `@scope%2Fname` URL.
 /// * `/~<name>/-/package/{pkg}/dist-tags/{tag}` — remove a dist-tag
 ///   through a registry endpoint.
+/// * `/~<name>/-/team/{scope}/{team}/user` — team member remove through a
+///   registry endpoint; config-managed, rejected.
 /// * `/~<name>/{pkg}/-/{filename}/-rev/{rev}` — remove an unscoped
 ///   tarball through a registry endpoint.
 async fn delete_six_segments(
@@ -972,6 +1057,15 @@ async fn delete_six_segments(
     if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty()) {
         if b == "-" && c == "package" && e == "dist-tags" {
             return remove_dist_tag(&state, &identity, Some(registry), &d, &f).await;
+        }
+        if b == "-" && c == "team" && f == "user" {
+            return reject_team_mutation(
+                &state,
+                &identity,
+                Some(registry),
+                &d,
+                "remove a team member",
+            );
         }
         if c == "-" && e == "-rev" {
             let _ = f; // revision token is unused
@@ -3604,6 +3698,106 @@ where
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(bytes))
         .expect("static-shape response always builds")
+}
+
+// --------------------------------------------------------------------
+// npm team API — read-only views over the config-declared `teams:` maps.
+// Team membership is part of the registry configuration (it feeds the
+// compiled access lists), so the API serves listings and rejects
+// mutations with an explicit "config-managed" error.
+// --------------------------------------------------------------------
+
+/// The hosted registry whose teams `@{scope}` addresses: the scope routes
+/// through the addressed registry (an explicit `/~<name>/`, or the
+/// path-less default) exactly as a package read in that scope would, then
+/// the registry-level default `access` gates the caller. A denial is
+/// masked as not-found — team and member names must not become an
+/// existence probe for a private registry.
+fn team_registry<'a>(
+    state: &'a AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    scope: &str,
+) -> Result<&'a HostedConfig, Box<Response>> {
+    let scope = scope.strip_prefix('@').unwrap_or(scope);
+    if scope.is_empty() {
+        return Err(Box::new(not_found()));
+    }
+    let target = match registry {
+        Some(registry) => registry.to_string(),
+        None => match default_registry_target(state) {
+            Some(target) => target,
+            None => return Err(Box::new(not_found())),
+        },
+    };
+    let probe = format!("@{scope}/-");
+    let RegistrySource::Hosted(source) = resolve_registry_source(state, &target, &probe) else {
+        return Err(Box::new(not_found()));
+    };
+    let Some(hosted) = state.inner.config.hosted.get(&source) else {
+        return Err(Box::new(not_found()));
+    };
+    if !hosted.rules.default_access().allows(identity) {
+        return Err(Box::new(not_found()));
+    }
+    Ok(hosted)
+}
+
+/// `GET /-/org/{scope}/team` (path-less) or `GET /~<name>/-/org/{scope}/team`
+/// — list the teams of the hosted registry that claims `@{scope}`, in the
+/// shape the pnpm team command consumes: an array of `{"name": ...}`.
+fn get_org_teams(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    scope: &str,
+) -> Response {
+    let hosted = match team_registry(state, identity, registry, scope) {
+        Ok(hosted) => hosted,
+        Err(response) => return *response,
+    };
+    let teams: Vec<Value> = hosted.teams.keys().map(|name| json!({ "name": name })).collect();
+    (StatusCode::OK, axum::Json(Value::Array(teams))).into_response()
+}
+
+/// `GET /-/team/{scope}/{team}/user` (path-less) or
+/// `GET /~<name>/-/team/{scope}/{team}/user` — list a team's members, in
+/// the shape the pnpm team command consumes: an array of `{"name": ...}`.
+fn get_team_members(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    scope: &str,
+    team: &str,
+) -> Response {
+    let hosted = match team_registry(state, identity, registry, scope) {
+        Ok(hosted) => hosted,
+        Err(response) => return *response,
+    };
+    let Some(members) = hosted.teams.get(team) else {
+        return not_found();
+    };
+    let members: Vec<Value> = members.iter().map(|name| json!({ "name": name })).collect();
+    (StatusCode::OK, axum::Json(Value::Array(members))).into_response()
+}
+
+/// Every team mutation — create (`PUT /-/org/{scope}/team`), destroy
+/// (`DELETE /-/team/{scope}/{team}`), member add/remove
+/// (`PUT`/`DELETE /-/team/{scope}/{team}/user`) — answers 403: pnpr teams
+/// are declared in the registry config. The same gate as the reads runs
+/// first, so a caller who may not see the registry keeps the not-found
+/// mask.
+fn reject_team_mutation(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    scope: &str,
+    action: &'static str,
+) -> Response {
+    if let Err(response) = team_registry(state, identity, registry, scope) {
+        return *response;
+    }
+    error_response(&RegistryError::TeamsConfigManaged { action })
 }
 
 // --------------------------------------------------------------------

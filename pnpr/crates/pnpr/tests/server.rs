@@ -47,6 +47,7 @@ fn hosted_with_access(org: &str, access: &str) -> HostedConfig {
         org: org.to_string(),
         rules: PackageRules::new(Vec::new(), Some(AccessList::from_tokens([access])))
             .with_default_unpublish(AccessList::from_tokens(["$authenticated"])),
+        teams: pnpr::Teams::default(),
     }
 }
 
