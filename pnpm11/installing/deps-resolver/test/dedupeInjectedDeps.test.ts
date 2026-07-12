@@ -17,9 +17,10 @@ type Opts = DedupeInjectedDepsOptions<PartialResolvedPackage>
 // package, and the mismatch is incidental to pkg-c itself. This is exactly
 // what a real install produces once an existing lockfile pins an optional
 // peer (e.g. `debug`'s optional `supports-color`) for one occurrence but not
-// the other: the injected occurrence resolves fresh, the target project's own
-// occurrence inherits the pin, and today's strict string-equality check in
-// `getDedupeMap` strands the entry as `file:(...)` instead of `link:`.
+// the other: the injected occurrence resolves fresh while the target project's
+// own occurrence inherits the pin. Without the compatibility tolerance in
+// `getDedupeMap`, a strict string-equality check would strand the entry as
+// `file:(...)` instead of collapsing it to `link:`.
 test('injected dependency dedupes to link: even when an unrelated shared dependency has a peer suffix on only one side', () => {
   const nodeId = 1 as NodeId
   const depPath = '@scope/pkg-c@file:packages/pkg-c(@scope/pkg-a@file:packages/pkg-a)' as DepPath
@@ -58,8 +59,9 @@ test('injected dependency dedupes to link: even when an unrelated shared depende
     ]),
     'packages/pkg-c': new Map<string, DepPath>([
       ['@scope/pkg-a', '@scope/pkg-a@file:packages/pkg-a' as DepPath],
-      // Same underlying debug@4.4.3, but pinned to its previously-locked
-      // optional peer (supports-color) -- a valid, equally-correct resolution.
+      // Same underlying debug@4.4.3, but pinned to its optional peer
+      // (supports-color) by the existing lockfile -- a valid, equally-correct
+      // resolution.
       ['debug', 'debug@4.4.3(supports-color@8.1.1)' as DepPath],
     ]),
   }
