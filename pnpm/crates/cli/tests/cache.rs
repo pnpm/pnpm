@@ -126,7 +126,11 @@ fn should_delete_packages_from_all_metadata_dirs() {
         pacquet_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
     // A package can be cached under any metadata directory depending on the
     // resolution mode used at fetch time, so all of them must be cleared.
-    let meta_dirs = ["v11/metadata", "v11/metadata-full", "v11/metadata-full-filtered"];
+    let meta_dirs = [
+        pacquet_resolving_npm_resolver::mirror::ABBREVIATED_META_DIR,
+        pacquet_resolving_npm_resolver::mirror::FULL_META_DIR,
+        pacquet_resolving_npm_resolver::mirror::FULL_FILTERED_META_DIR,
+    ];
     for meta_dir in meta_dirs {
         let dir = cwd.npmrc_info.cache_dir.join(meta_dir).join(&registry_name);
         fs::create_dir_all(&dir).unwrap();
