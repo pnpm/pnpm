@@ -12,8 +12,9 @@ import {
   type WorkspaceProject,
   writeChangeIntent,
 } from '@pnpm/releasing.versioning'
-import type { Project } from '@pnpm/types'
+import type { Project, VersioningSettings } from '@pnpm/types'
 import { renderHelp } from 'render-help'
+import { valid } from 'semver'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return {}
@@ -76,7 +77,7 @@ export async function handler (opts: ChangeCommandOptions, params: string[]): Pr
 }
 
 async function recordChange (workspaceDir: string, opts: ChangeCommandOptions, params: string[]): Promise<string> {
-  const releasablePkgNames = getReleasablePkgNames(opts.allProjects ?? [])
+  const releasablePkgNames = getReleasablePkgNames(opts.allProjects ?? [], opts.versioning)
   if (releasablePkgNames.length === 0) {
     throw new PnpmError('VERSIONING_NO_PACKAGES', 'No releasable packages found in this workspace')
   }
@@ -147,9 +148,14 @@ export function renderReleasePlan (plan: ReleasePlan): string {
   return output
 }
 
-export function getReleasablePkgNames (allProjects: Array<Pick<Project, 'manifest'>>): string[] {
+export function getReleasablePkgNames (allProjects: Array<Pick<Project, 'manifest'>>, versioning?: VersioningSettings): string[] {
+  const ignored = new Set(versioning?.ignore ?? [])
   return allProjects
-    .filter((project) => project.manifest.name != null && project.manifest.version != null)
+    .filter(({ manifest }) =>
+      manifest.name != null &&
+      manifest.version != null &&
+      valid(manifest.version) != null &&
+      !ignored.has(manifest.name))
     .map((project) => project.manifest.name!)
     .sort()
 }

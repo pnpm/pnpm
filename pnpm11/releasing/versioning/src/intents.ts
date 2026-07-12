@@ -21,17 +21,18 @@ export interface ChangeIntent {
   summary: string
 }
 
-const FRONTMATTER_RE = /^---\r?\n((?:.*\r?\n)*?)---\r?\n?/
-
 export function parseChangeIntent (content: string, id: string, filePath: string): ChangeIntent {
-  const match = FRONTMATTER_RE.exec(content)
-  if (match == null) {
+  const lines = content.replace(/^\uFEFF/, '').split(/\r?\n/)
+  const closingIndex = lines[0]?.trim() === '---'
+    ? lines.findIndex((line, index) => index > 0 && line.trim() === '---')
+    : -1
+  if (closingIndex === -1) {
     throw new PnpmError('INVALID_CHANGE_INTENT', `Change intent file ${filePath} has no YAML frontmatter`)
   }
 
   let frontmatter: unknown
   try {
-    frontmatter = yaml.parse(match[1]) ?? {}
+    frontmatter = yaml.parse(lines.slice(1, closingIndex).join('\n')) ?? {}
   } catch (err: unknown) {
     throw new PnpmError('INVALID_CHANGE_INTENT', `Change intent file ${filePath} has invalid YAML frontmatter: ${util.types.isNativeError(err) ? err.message : String(err)}`)
   }
@@ -52,7 +53,7 @@ export function parseChangeIntent (content: string, id: string, filePath: string
     id,
     filePath,
     releases,
-    summary: content.slice(match[0].length).trim(),
+    summary: lines.slice(closingIndex + 1).join('\n').trim(),
   }
 }
 

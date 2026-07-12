@@ -53,11 +53,11 @@ export async function prependChangelogSection (pkgDir: string, pkgName: string, 
   if (existing == null) {
     content = `# ${pkgName}\n\n${section}`
   } else {
-    const headerMatch = /^#\s[^\n]*\n/.exec(existing)
-    if (headerMatch != null) {
-      const header = headerMatch[0]
-      const body = existing.slice(header.length).replace(/^\n+/, '')
-      content = `${header}\n${section}${body === '' ? '' : `\n${body}`}`
+    const newlineIndex = existing.indexOf('\n')
+    const firstLine = newlineIndex === -1 ? existing : existing.slice(0, newlineIndex)
+    if (firstLine.startsWith('# ')) {
+      const body = (newlineIndex === -1 ? '' : existing.slice(newlineIndex + 1)).replace(/^[\r\n]+/, '')
+      content = `${firstLine}\n\n${section}${body === '' ? '' : `\n${body}`}`
     } else {
       content = `${section}\n${existing}`
     }

@@ -1,9 +1,10 @@
 import { PnpmError } from '@pnpm/error'
 import type { ProjectManifest, VersioningSettings } from '@pnpm/types'
-import { compare, inc, prerelease as parsePrerelease, satisfies, valid } from 'semver'
+import { WorkspaceSpec } from '@pnpm/workspace.spec-parser'
+import { compare, diff, inc, prerelease as parsePrerelease, satisfies, valid, validRange } from 'semver'
 
 import type { ChangeIntent, ReleaseBumpType } from './intents.js'
-import { getPackageConsumption, type Ledger } from './ledger.js'
+import { buildConsumptionIndex, type Ledger, type PackageConsumption } from './ledger.js'
 
 export interface WorkspaceProject {
   rootDir: string
@@ -62,12 +63,13 @@ const PROPAGATED_DEP_FIELDS = ['dependencies', 'optionalDependencies', 'peerDepe
 export function assembleReleasePlan (opts: AssembleReleasePlanOptions): ReleasePlan {
   const participants = collectParticipants(opts.projects, opts.versioning)
   validateVersioningConfig(participants, opts.versioning)
-  validateIntents(opts.intents, opts.projects)
+  validateIntents(opts.intents, opts.projects, participants)
   assertInternalDepsUseWorkspaceProtocol(participants)
+  const consumptionOf = buildConsumptionIndex(opts.ledger)
 
   let selection = opts.filter
   for (;;) {
-    const plan = assemble(participants, selection, opts)
+    const plan = assemble(participants, consumptionOf, selection, opts)
     if (selection == null) return plan
     const expanded = new Set(selection)
     for (const release of plan.releases) {
@@ -102,11 +104,12 @@ interface BumpState {
 
 function assemble (
   participants: Map<string, Participant>,
+  consumptionOf: (pkgName: string) => PackageConsumption,
   selection: Set<string> | undefined,
   opts: AssembleReleasePlanOptions
 ): ReleasePlan {
-  const pendingByPkg = collectPendingIntents(participants, opts.intents, opts.ledger)
-  const lineConsumedByPkg = collectLineConsumedIntents(participants, opts.intents, opts.ledger)
+  const pendingByPkg = collectPendingIntents(participants, opts.intents, consumptionOf)
+  const lineConsumedByPkg = collectLineConsumedIntents(participants, opts.intents, consumptionOf)
   const prereleases = opts.versioning?.prereleases ?? {}
 
   const state = new Map<string, BumpState>()
@@ -153,7 +156,7 @@ function assemble (
         cumulativeBump: cumulativeBumpType(name, pkgState.bumpType, lineConsumedByPkg),
       }))
     }
-    applyFixedGroupVersions(participants, state, newVersions, lineConsumedByPkg, opts.versioning)
+    applyFixedGroupVersions({ participants, state, newVersions, lineConsumedByPkg, versioning: opts.versioning })
   }
 
   for (let changed = true; changed;) {
@@ -228,15 +231,15 @@ function collectParticipants (projects: WorkspaceProject[], versioning?: Version
   const participants = new Map<string, Participant>()
   for (const project of projects) {
     const { name, version } = project.manifest
-    if (name == null || version == null || ignored.has(name)) continue
-    if (valid(version) == null) {
-      throw new PnpmError('VERSIONING_INVALID_VERSION', `Package ${name} in ${project.rootDir} has an invalid version: ${version}`)
-    }
+    // What cannot release is excluded automatically: unnamed and versionless
+    // (private) packages, packages with non-semver placeholder versions, and
+    // the explicitly frozen ones.
+    if (name == null || version == null || valid(version) == null || ignored.has(name)) continue
     const internalDeps: InternalDep[] = []
     for (const fieldName of PROPAGATED_DEP_FIELDS) {
       for (const [alias, spec] of Object.entries(project.manifest[fieldName] ?? {})) {
-        const targetName = spec.startsWith('workspace:') ? parseWorkspaceSpecTarget(spec) ?? alias : alias
-        if (!names.has(targetName) || ignored.has(targetName)) continue
+        const targetName = resolveInternalDepTarget(alias, spec, names)
+        if (targetName == null || ignored.has(targetName)) continue
         internalDeps.push({ targetName, fieldName, alias, spec })
       }
     }
@@ -249,6 +252,23 @@ function collectParticipants (projects: WorkspaceProject[], versioning?: Version
     })
   }
   return participants
+}
+
+/**
+ * Decides whether a dependency entry points at a workspace package. Aliased
+ * specs targeting somewhere else (`npm:`, `file:`, git URLs, …) are external
+ * even when the alias collides with a workspace package name; a plain semver
+ * range or `catalog:` entry on a workspace name is internal — it is exactly
+ * the declaration the workspace-protocol check must reject.
+ */
+function resolveInternalDepTarget (alias: string, spec: string, workspaceNames: Set<string>): string | null {
+  if (spec.startsWith('workspace:')) {
+    const targetName = WorkspaceSpec.parse(spec)?.alias ?? alias
+    return workspaceNames.has(targetName) ? targetName : null
+  }
+  if (!workspaceNames.has(alias)) return null
+  if (spec.startsWith('catalog:') || validRange(spec) != null) return alias
+  return null
 }
 
 function validateVersioningConfig (participants: Map<string, Participant>, versioning?: VersioningSettings): void {
@@ -266,7 +286,7 @@ function validateVersioningConfig (participants: Map<string, Participant>, versi
   }
 }
 
-function validateIntents (intents: ChangeIntent[], projects: WorkspaceProject[]): void {
+function validateIntents (intents: ChangeIntent[], projects: WorkspaceProject[], participants: Map<string, Participant>): void {
   const workspaceNames = new Set<string>()
   for (const project of projects) {
     if (project.manifest.name != null) {
@@ -274,9 +294,20 @@ function validateIntents (intents: ChangeIntent[], projects: WorkspaceProject[])
     }
   }
   for (const intent of intents) {
-    for (const pkgName of Object.keys(intent.releases)) {
+    for (const [pkgName, bumpType] of Object.entries(intent.releases)) {
       if (!workspaceNames.has(pkgName)) {
         throw new PnpmError('VERSIONING_UNKNOWN_PACKAGE', `Change intent file ${intent.filePath} names ${pkgName}, which is not a package in this workspace`)
+      }
+      // A "none" decline is fine for any workspace package, but a release can
+      // only be demanded from a participant — otherwise the intent could never
+      // be consumed and the file would linger forever.
+      if (bumpType !== 'none' && !participants.has(pkgName)) {
+        throw new PnpmError(
+          'VERSIONING_UNRELEASABLE_PACKAGE',
+          `Change intent file ${intent.filePath} requests a ${bumpType} release of ${pkgName}, which cannot release ` +
+          '(it is listed in versioning.ignore, has no version field, or has a non-semver version). ' +
+          'Remove the entry or change it to "none".'
+        )
       }
     }
   }
@@ -296,10 +327,14 @@ function assertInternalDepsUseWorkspaceProtocol (participants: Map<string, Parti
   }
 }
 
-function collectPendingIntents (participants: Map<string, Participant>, intents: ChangeIntent[], ledger: Ledger): Map<string, ChangeIntent[]> {
+function collectPendingIntents (
+  participants: Map<string, Participant>,
+  intents: ChangeIntent[],
+  consumptionOf: (pkgName: string) => PackageConsumption
+): Map<string, ChangeIntent[]> {
   const pending = new Map<string, ChangeIntent[]>()
   for (const name of participants.keys()) {
-    const consumed = getPackageConsumption(ledger, name)
+    const consumed = consumptionOf(name)
     const pkgIntents = intents.filter((intent) =>
       intent.releases[name] != null &&
       intent.releases[name] !== 'none' &&
@@ -317,10 +352,14 @@ function collectPendingIntents (participants: Map<string, Participant>, intents:
  * of the package's prerelease line and compose the stable changelog section at
  * graduation.
  */
-function collectLineConsumedIntents (participants: Map<string, Participant>, intents: ChangeIntent[], ledger: Ledger): Map<string, ChangeIntent[]> {
+function collectLineConsumedIntents (
+  participants: Map<string, Participant>,
+  intents: ChangeIntent[],
+  consumptionOf: (pkgName: string) => PackageConsumption
+): Map<string, ChangeIntent[]> {
   const lineConsumed = new Map<string, ChangeIntent[]>()
   for (const name of participants.keys()) {
-    const consumed = getPackageConsumption(ledger, name)
+    const consumed = consumptionOf(name)
     if (consumed.prereleaseOnlyIds.size === 0) continue
     const pkgIntents = intents.filter((intent) =>
       intent.releases[name] != null &&
@@ -401,17 +440,21 @@ function nextPrereleaseNumber (current: string, target: string, lineTag: string)
   const currentPrerelease = parsePrerelease(current)
   if (currentPrerelease == null) return 0
   const [currentTag, currentN] = currentPrerelease
-  if (stablePart(current) !== target || currentTag !== lineTag || typeof currentN !== 'number') return 0
+  // semver parses an all-digit prerelease identifier as a number, so the tag
+  // comparison must not be strict about the type.
+  if (stablePart(current) !== target || String(currentTag) !== lineTag || typeof currentN !== 'number') return 0
   return currentN + 1
 }
 
-function applyFixedGroupVersions (
-  participants: Map<string, Participant>,
-  state: Map<string, BumpState>,
-  newVersions: Map<string, string>,
-  lineConsumedByPkg: Map<string, ChangeIntent[]>,
+interface ApplyFixedGroupVersionsOptions {
+  participants: Map<string, Participant>
+  state: Map<string, BumpState>
+  newVersions: Map<string, string>
+  lineConsumedByPkg: Map<string, ChangeIntent[]>
   versioning?: VersioningSettings
-): void {
+}
+
+function applyFixedGroupVersions ({ participants, state, newVersions, lineConsumedByPkg, versioning }: ApplyFixedGroupVersionsOptions): void {
   const prereleases = versioning?.prereleases ?? {}
   for (const group of versioning?.fixed ?? []) {
     const members = group.filter((name) => participants.has(name))
@@ -441,15 +484,6 @@ function applyFixedGroupVersions (
   }
 }
 
-const WORKSPACE_RANGE_MODIFIERS = new Set(['', '*', '^', '~'])
-
-function parseWorkspaceSpecTarget (spec: string): string | null {
-  const rest = spec.slice('workspace:'.length)
-  const atIndex = rest.lastIndexOf('@')
-  if (atIndex <= 0) return null
-  return rest.slice(0, atIndex)
-}
-
 /**
  * The range that pnpm materializes for a workspace: spec at pack time, given
  * the dependency's version at the dependent's previous release. Dependent
@@ -457,37 +491,46 @@ function parseWorkspaceSpecTarget (spec: string): string | null {
  * falls outside this range.
  */
 export function materializeWorkspaceRange (spec: string, depCurrentVersion: string): string | null {
-  if (!spec.startsWith('workspace:')) return null
-  let range = spec.slice('workspace:'.length)
-  const atIndex = range.lastIndexOf('@')
-  if (atIndex > 0) {
-    range = range.slice(atIndex + 1)
+  const parsed = WorkspaceSpec.parse(spec)
+  if (parsed == null) return null
+  switch (parsed.version) {
+    case '^':
+      return `^${depCurrentVersion}`
+    case '~':
+      return `~${depCurrentVersion}`
+    case '*':
+    case '':
+      return depCurrentVersion
+    default:
+      return parsed.version
   }
-  if (WORKSPACE_RANGE_MODIFIERS.has(range)) {
-    switch (range) {
-      case '^':
-        return `^${depCurrentVersion}`
-      case '~':
-        return `~${depCurrentVersion}`
-      default:
-        return depCurrentVersion
-    }
-  }
-  return range
 }
 
 function enforceMaxBump (releases: PlannedRelease[], versioning?: VersioningSettings): void {
   const maxBump = versioning?.maxBump
   if (maxBump == null) return
   for (const release of releases) {
-    if (BUMP_ORDER[release.bumpType] <= BUMP_ORDER[maxBump]) continue
+    const effectiveBump = effectiveBumpClass(release)
+    if (BUMP_ORDER[effectiveBump] <= BUMP_ORDER[maxBump]) continue
     const intentFiles = release.intents
-      .filter((intent) => intent.releases[release.name] === release.bumpType)
+      .filter((intent) => intent.releases[release.name] === effectiveBump)
       .map((intent) => intent.filePath)
     const raisedBy = intentFiles.length > 0 ? `intent file(s) ${intentFiles.join(', ')}` : `constraint chain: ${release.causes.join(', ')}`
     throw new PnpmError(
       'VERSIONING_MAX_BUMP_EXCEEDED',
-      `The release plan bumps ${release.name} by ${release.bumpType}, but versioning.maxBump caps releases from this branch at ${maxBump}. Raised by ${raisedBy}.`
+      `The release plan bumps ${release.name} by ${effectiveBump}, but versioning.maxBump caps releases from this branch at ${maxBump}. Raised by ${raisedBy}.`
     )
   }
+}
+
+/**
+ * The bump class a release actually applies. Fixed-group version sharing and
+ * prerelease-line escalation can move a version further than the package's own
+ * declared or propagated bump, so the cap compares against the real distance
+ * between the current and the new version as well.
+ */
+function effectiveBumpClass (release: PlannedRelease): ReleaseBumpType {
+  const diffClass = diff(release.currentVersion, release.newVersion)
+  const normalized = diffClass?.replace(/^pre(?!release)/, '')
+  return maxBumpType([release.bumpType, normalized ?? undefined]) ?? release.bumpType
 }

@@ -7,7 +7,7 @@ import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import type { ReleasePlan } from './assembleReleasePlan.js'
 import { composeChangelogSection, prependChangelogSection } from './changelog.js'
 import type { ChangeIntent } from './intents.js'
-import { appendToLedger, getPackageConsumption, type Ledger, readLedger } from './ledger.js'
+import { appendToLedger, buildConsumptionIndex, type Ledger } from './ledger.js'
 
 export interface ApplyReleasePlanOptions {
   workspaceDir: string
@@ -58,9 +58,7 @@ export async function applyReleasePlan (plan: ReleasePlan, opts: ApplyReleasePla
     if (release.intents.length === 0) continue
     newEntries[`${release.name}@${release.newVersion}`] = release.intents.map((intent) => intent.id).sort()
   }
-  await appendToLedger(opts.workspaceDir, newEntries)
-
-  const ledger = await readLedger(opts.workspaceDir)
+  const ledger = await appendToLedger(opts.workspaceDir, newEntries)
   await deleteConsumedIntentFiles(opts.allIntents, ledger, opts.versioning)
 
   return applied
@@ -75,10 +73,11 @@ export async function applyReleasePlan (plan: ReleasePlan, opts: ApplyReleasePla
  */
 async function deleteConsumedIntentFiles (allIntents: ChangeIntent[], ledger: Ledger, versioning?: VersioningSettings): Promise<void> {
   const prereleases = versioning?.prereleases ?? {}
+  const consumptionOf = buildConsumptionIndex(ledger)
   const deletable = allIntents.filter((intent) =>
     Object.entries(intent.releases).every(([pkgName, bumpType]) => {
       if (bumpType === 'none') return true
-      const consumption = getPackageConsumption(ledger, pkgName)
+      const consumption = consumptionOf(pkgName)
       return consumption.allIds.has(intent.id) &&
         !(prereleases[pkgName] != null && consumption.prereleaseOnlyIds.has(intent.id))
     }))

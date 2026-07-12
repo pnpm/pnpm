@@ -30,7 +30,7 @@ export {
 } from './intents.js'
 export {
   appendToLedger,
-  getPackageConsumption,
+  buildConsumptionIndex,
   type Ledger,
   LEDGER_FILENAME,
   type PackageConsumption,

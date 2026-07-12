@@ -138,6 +138,46 @@ test('an internal dependency without the workspace protocol fails the plan', () 
   })).toThrow(/workspace: protocol/)
 })
 
+test('an npm: alias colliding with a workspace package name is not an internal dependency', () => {
+  const plan = assembleReleasePlan({
+    projects: [
+      makeProject('lib', '1.0.0'),
+      makeProject('cli', '1.0.0', { lib: 'npm:some-fork@^1.0.0' }),
+    ],
+    intents: [makeIntent('one', { lib: 'major' })],
+    ledger: NO_LEDGER,
+  })
+  expect(plan.releases.map((release) => release.name)).toStrictEqual(['lib'])
+})
+
+test('an intent demanding a release of an unreleasable package fails the plan', () => {
+  expect(() => assembleReleasePlan({
+    projects: [makeProject('lib', '1.0.0'), makeProject('frozen', '1.0.0')],
+    intents: [makeIntent('one', { frozen: 'patch', lib: 'patch' })],
+    ledger: NO_LEDGER,
+    versioning: { ignore: ['frozen'] },
+  })).toThrow(/cannot release/)
+})
+
+test('a none decline for an unreleasable package is accepted', () => {
+  const plan = assembleReleasePlan({
+    projects: [makeProject('lib', '1.0.0'), makeProject('frozen', '1.0.0')],
+    intents: [makeIntent('one', { frozen: 'none', lib: 'patch' })],
+    ledger: NO_LEDGER,
+    versioning: { ignore: ['frozen'] },
+  })
+  expect(plan.releases.map((release) => release.name)).toStrictEqual(['lib'])
+})
+
+test('maxBump measures the real version distance, including fixed-group jumps', () => {
+  expect(() => assembleReleasePlan({
+    projects: [makeProject('a', '1.0.5'), makeProject('b', '2.0.0')],
+    intents: [makeIntent('one', { a: 'minor' })],
+    ledger: NO_LEDGER,
+    versioning: { fixed: [['a', 'b']], maxBump: 'minor' },
+  })).toThrow(/maxBump/)
+})
+
 test('an intent naming an unknown package fails the plan', () => {
   expect(() => assembleReleasePlan({
     projects: [makeProject('lib', '1.0.0')],

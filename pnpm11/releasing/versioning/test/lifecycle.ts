@@ -6,6 +6,7 @@ import {
   applyReleasePlan,
   assembleReleasePlan,
   parseChangeIntent,
+  prependChangelogSection,
   readChangeIntents,
   readLedger,
   type WorkspaceProject,
@@ -37,6 +38,20 @@ test('parseChangeIntent reads the changesets file format', () => {
   ].join('\n'), 'brave-pandas-smile', '/x/brave-pandas-smile.md')
   expect(intent.releases).toStrictEqual({ '@example/ui': 'minor', '@example/core': 'patch' })
   expect(intent.summary).toBe('Added a `variant` prop to `Button`.')
+})
+
+test('parseChangeIntent tolerates a UTF-8 BOM and CRLF line endings', () => {
+  const intent = parseChangeIntent('\uFEFF---\r\nfoo: patch\r\n---\r\n\r\nA fix.\r\n', 'id', '/x/id.md')
+  expect(intent.releases).toStrictEqual({ foo: 'patch' })
+  expect(intent.summary).toBe('A fix.')
+})
+
+test('prependChangelogSection keeps the title above the new section even without a trailing newline', async () => {
+  const dir = temporaryDirectory()
+  await fs.writeFile(path.join(dir, 'CHANGELOG.md'), '# lib')
+  await prependChangelogSection(dir, 'lib', '## 1.0.1\n\n### Patch Changes\n\n- A fix.\n')
+  const changelog = await fs.readFile(path.join(dir, 'CHANGELOG.md'), 'utf8')
+  expect(changelog.startsWith('# lib\n\n## 1.0.1')).toBe(true)
 })
 
 test('parseChangeIntent rejects an invalid bump type', () => {

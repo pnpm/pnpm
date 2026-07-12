@@ -34,6 +34,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
+    "@pnpm/workspace.spec-parser": "workspace:*",
     "human-id": "catalog:",
     "semver": "catalog:",
     "yaml": "catalog:"

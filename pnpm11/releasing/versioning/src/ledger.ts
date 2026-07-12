@@ -45,9 +45,9 @@ export async function readLedger (workspaceDir: string): Promise<Ledger> {
   return ledger
 }
 
-export async function appendToLedger (workspaceDir: string, newEntries: Ledger): Promise<void> {
-  if (Object.keys(newEntries).length === 0) return
+export async function appendToLedger (workspaceDir: string, newEntries: Ledger): Promise<Ledger> {
   const ledger = await readLedger(workspaceDir)
+  if (Object.keys(newEntries).length === 0) return ledger
   for (const [key, ids] of Object.entries(newEntries)) {
     ledger[key] = Array.from(new Set([...(ledger[key] ?? []), ...ids])).sort()
   }
@@ -55,6 +55,7 @@ export async function appendToLedger (workspaceDir: string, newEntries: Ledger):
   const changesDir = path.join(workspaceDir, CHANGES_DIR)
   await fs.mkdir(changesDir, { recursive: true })
   await fs.writeFile(path.join(changesDir, LEDGER_FILENAME), yaml.stringify(sorted), 'utf8')
+  return ledger
 }
 
 export interface PackageConsumption {
@@ -64,24 +65,42 @@ export interface PackageConsumption {
   prereleaseOnlyIds: Set<string>
 }
 
-export function getPackageConsumption (ledger: Ledger, pkgName: string): PackageConsumption {
-  const allIds = new Set<string>()
-  const stableIds = new Set<string>()
-  const prereleaseIds = new Set<string>()
-  const prefix = `${pkgName}@`
+const EMPTY_CONSUMPTION: PackageConsumption = { allIds: new Set(), prereleaseOnlyIds: new Set() }
+
+/**
+ * Indexes the ledger by package name in a single pass. Packages without
+ * entries map to an empty consumption, so lookups never miss.
+ */
+export function buildConsumptionIndex (ledger: Ledger): (pkgName: string) => PackageConsumption {
+  const stableIdsByPkg = new Map<string, Set<string>>()
+  const prereleaseIdsByPkg = new Map<string, Set<string>>()
   for (const [key, ids] of Object.entries(ledger)) {
-    if (!key.startsWith(prefix)) continue
-    const version = key.slice(prefix.length)
-    const isPrerelease = version.includes('-')
+    const atIndex = key.lastIndexOf('@')
+    if (atIndex <= 0) continue
+    const pkgName = key.slice(0, atIndex)
+    const version = key.slice(atIndex + 1)
+    // Build metadata (after "+") may itself contain hyphens and never makes a
+    // version a prerelease.
+    const isPrerelease = version.split('+')[0].includes('-')
+    const byPkg = isPrerelease ? prereleaseIdsByPkg : stableIdsByPkg
+    let idSet = byPkg.get(pkgName)
+    if (idSet == null) {
+      idSet = new Set()
+      byPkg.set(pkgName, idSet)
+    }
     for (const id of ids) {
-      allIds.add(id)
-      if (isPrerelease) {
-        prereleaseIds.add(id)
-      } else {
-        stableIds.add(id)
-      }
+      idSet.add(id)
     }
   }
-  const prereleaseOnlyIds = new Set([...prereleaseIds].filter((id) => !stableIds.has(id)))
-  return { allIds, prereleaseOnlyIds }
+
+  const consumptionByPkg = new Map<string, PackageConsumption>()
+  for (const pkgName of new Set([...stableIdsByPkg.keys(), ...prereleaseIdsByPkg.keys()])) {
+    const stableIds = stableIdsByPkg.get(pkgName) ?? new Set()
+    const prereleaseIds = prereleaseIdsByPkg.get(pkgName) ?? new Set()
+    consumptionByPkg.set(pkgName, {
+      allIds: new Set([...stableIds, ...prereleaseIds]),
+      prereleaseOnlyIds: new Set([...prereleaseIds].filter((id) => !stableIds.has(id))),
+    })
+  }
+  return (pkgName) => consumptionByPkg.get(pkgName) ?? EMPTY_CONSUMPTION
 }

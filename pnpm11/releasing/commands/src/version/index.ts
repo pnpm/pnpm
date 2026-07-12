@@ -115,7 +115,7 @@ export function help (): string {
             name: '--dry-run',
           },
           {
-            description: 'Release one-off snapshot versions (0.0.0-<tag>-<timestamp>) without consuming change intents',
+            description: 'Release one-off snapshot versions (0.0.0-<tag>-<timestamp>) without consuming change intents. Intended for CI preview publishing: publish, then discard the manifest changes',
             name: '--snapshot [<tag>]',
           },
         ],
@@ -288,7 +288,7 @@ async function handlePrereleaseLine (opts: VersionHandlerOptions, params: string
   }
 
   const action = params[0]
-  const releasable = new Set(getReleasablePkgNames(opts.allProjects ?? []))
+  const releasable = new Set(getReleasablePkgNames(opts.allProjects ?? [], opts.versioning))
   const selected = selectedPkgNames(opts.selectedProjectsGraph ?? {}).filter((name) => releasable.has(name))
   if (selected.length === 0) {
     throw new PnpmError('VERSIONING_NO_PACKAGES', 'The filter selected no releasable packages')
@@ -298,8 +298,10 @@ async function handlePrereleaseLine (opts: VersionHandlerOptions, params: string
   let output: string
   if (action === 'enter') {
     const tag = params[1]
-    if (!tag || !/^[0-9A-Z-]+$/i.test(tag)) {
-      throw new PnpmError('VERSIONING_INVALID_PRERELEASE_TAG', 'A prerelease tag is required, e.g. "pnpm version pre enter alpha". Tags may contain only alphanumerics and hyphens.')
+    // A purely numeric tag is rejected because semver parses an all-digit
+    // prerelease identifier as a number, which changes sorting semantics.
+    if (!tag || !/^[0-9A-Z-]+$/i.test(tag) || /^\d+$/.test(tag)) {
+      throw new PnpmError('VERSIONING_INVALID_PRERELEASE_TAG', 'A prerelease tag is required, e.g. "pnpm version pre enter alpha". Tags may contain only alphanumerics and hyphens, and cannot be purely numeric.')
     }
     for (const name of selected) {
       if (prereleases[name] != null && prereleases[name] !== tag) {
