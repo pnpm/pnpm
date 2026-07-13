@@ -1,9 +1,13 @@
 use super::{
     calc_global_virtual_store_path_with_subdeps, calc_graph_node_hash,
     calc_leaf_global_virtual_store_path, format_global_virtual_store_path,
+    join_global_virtual_store_path,
 };
 use crate::dep_state::DepsGraphNode;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    path::{MAIN_SEPARATOR, Path},
+};
 
 #[test]
 fn format_prefixes_unscoped_with_at_slash() {
@@ -14,6 +18,26 @@ fn format_prefixes_unscoped_with_at_slash() {
     assert_eq!(
         format_global_virtual_store_path("@scope/foo", "1.2.3", "deadbeef"),
         "@scope/foo/1.2.3/deadbeef",
+    );
+}
+
+/// Guards the native-separator contract of
+/// [`join_global_virtual_store_path`]: the tail it appends to `base`
+/// must contain no `/` (which is what breaks the slot path on Windows).
+#[test]
+fn join_expands_suffix_into_native_components() {
+    let rel = format_global_virtual_store_path("foo", "1.2.3", "deadbeef");
+    let joined = join_global_virtual_store_path(Path::new("base"), &rel);
+
+    // The four suffix segments plus `base` become five components.
+    assert_eq!(joined.components().count(), 5, "{joined:?}");
+
+    // The portion appended after `base` must carry no `/` on any OS —
+    // on Windows that would otherwise survive into the symlink syscall.
+    let tail = joined.strip_prefix("base").unwrap();
+    assert!(
+        !tail.to_string_lossy().contains('/') || MAIN_SEPARATOR == '/',
+        "tail {tail:?} still contains a forward slash",
     );
 }
 

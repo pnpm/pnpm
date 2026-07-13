@@ -19,7 +19,10 @@ use crate::{
     hash_object, hash_object_without_sorting,
 };
 use serde_json::{Value, json};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    path::{Path, PathBuf},
+};
 
 /// Compute the hex digest that uniquely identifies one snapshot's
 /// position in the global virtual store.
@@ -139,6 +142,26 @@ pub fn calc_global_virtual_store_path_with_subdeps(
 pub fn format_global_virtual_store_path(name: &str, version: &str, hex_digest: &str) -> String {
     let prefix = if name.starts_with('@') { "" } else { "@/" };
     format!("{prefix}{name}/{version}/{hex_digest}")
+}
+
+/// Join `base` with a [`format_global_virtual_store_path`]-shaped
+/// relative path, expanding each `/`-separated segment into a native
+/// path component.
+///
+/// The GVS relative path is always formatted with `/` because it
+/// doubles as a cross-platform canonical id (it feeds hashing and
+/// lockfile comparison). Passing that string straight to
+/// [`Path::join`] keeps the `/` bytes on Windows, and the directory
+/// symlink/junction syscall that later consumes the slot path then
+/// rejects the forward-slash path with `ERROR_DIRECTORY`
+/// (`os error 267`). Splitting on `/` and pushing each segment yields
+/// a path built from the platform-native separator on every OS (and
+/// is a no-op transformation on Unix, where `/` is already native).
+#[must_use]
+pub fn join_global_virtual_store_path(base: &Path, rel: &str) -> PathBuf {
+    let mut path = base.to_path_buf();
+    path.extend(rel.split('/'));
+    path
 }
 
 #[cfg(test)]
