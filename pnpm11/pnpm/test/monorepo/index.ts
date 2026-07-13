@@ -1354,6 +1354,12 @@ test('built dependencies are restored from a populated store when the workspace 
   await execPnpm(['install', '--frozen-lockfile'])
 
   expect(fs.existsSync(buildArtifact)).toBe(true)
+
+  rimrafSync('node_modules')
+  rimrafSync('project-1/node_modules')
+  await execPnpm(['install', '--ignore-scripts', '--frozen-lockfile'])
+
+  expect(fs.existsSync(buildArtifact)).toBe(false)
 })
 
 test("linking the package's bin to another workspace package in a monorepo", async () => {
