@@ -122,13 +122,60 @@ function isGitRepoAllowBuildKey (pkg: string): boolean {
 }
 
 function getGitRepoAllowBuildKeyFromDepPath (depPath: string): string | undefined {
-  if (!isGitRepoDepPath(depPath)) return undefined
-  const refStart = depPath.indexOf('#')
-  return refStart === -1 ? depPath : depPath.slice(0, refStart)
+  if (isGitRepoDepPath(depPath)) {
+    const refStart = depPath.indexOf('#')
+    return refStart === -1 ? depPath : depPath.slice(0, refStart)
+  }
+  // Packages installed from a git host as a downloaded tarball (e.g. the
+  // `github:` shortcut, which pnpm fetches from codeload.github.com rather
+  // than cloning) have a depPath built from the tarball URL, not a `git+`
+  // clone URL, so the check above misses them. Normalize the tarball URL back
+  // to the same `git+https://<host>/<repo>.git` repo key that a clone of the
+  // same repository would produce, so a single hashless `allowBuilds` entry
+  // approves the package however pnpm happened to fetch it.
+  return gitHostedTarballRepoKey(depPath)
 }
 
 function isGitRepoDepPath (depPath: string): boolean {
   return depPath.startsWith('git+') || depPath.includes('@git+')
+}
+
+// Reconstructs the committish-free repository URL from the download URL of a
+// git host that pnpm fetches as a tarball instead of cloning. The patterns
+// mirror the tarball templates in @pnpm/git-resolver (which come from
+// hosted-git-info, except GitLab's, which that package overrides). The host of
+// each known template is anchored so a look-alike download host (e.g.
+// `codeload.github.com.example.com`) cannot be rewritten into an unrelated
+// repo key.
+const GIT_HOSTED_TARBALL_REPO_URL_MATCHERS: Array<(tarballUrl: string) => string | undefined> = [
+  // GitHub: https://codeload.github.com/<owner>/<repo>/tar.gz/<committish>
+  makeTarballRepoUrlMatcher(/^https:\/\/codeload\.github\.com\/([^/]+)\/([^/]+)\/tar\.gz\//, (m) => `github.com/${m[1]}/${m[2]}`),
+  // Bitbucket: https://bitbucket.org/<owner>/<repo>/get/<committish>.tar.gz
+  makeTarballRepoUrlMatcher(/^https:\/\/bitbucket\.org\/([^/]+)\/([^/]+)\/get\//, (m) => `bitbucket.org/${m[1]}/${m[2]}`),
+  // GitLab (incl. self-hosted): https://<host>/<group…>/<repo>/-/archive/<ref>/…
+  // The project path may contain nested groups, so match up to the
+  // `/-/archive/<ref>/` marker rather than a fixed number of path segments.
+  makeTarballRepoUrlMatcher(/^https:\/\/([^/]+)\/(.+?)\/-\/archive\/[^/]+\//, (m) => `${m[1]}/${m[2]}`),
+]
+
+function makeTarballRepoUrlMatcher (
+  re: RegExp,
+  toRepoPath: (m: RegExpExecArray) => string
+): (tarballUrl: string) => string | undefined {
+  return (tarballUrl) => {
+    const match = re.exec(tarballUrl)
+    return match == null ? undefined : `git+https://${toRepoPath(match)}.git`
+  }
+}
+
+function gitHostedTarballRepoKey (pkgIdWithPatchHash: string): string | undefined {
+  const { name, nonSemverVersion } = dp.parse(pkgIdWithPatchHash)
+  if (name == null || nonSemverVersion == null) return undefined
+  for (const match of GIT_HOSTED_TARBALL_REPO_URL_MATCHERS) {
+    const repoUrl = match(nonSemverVersion)
+    if (repoUrl != null) return `${name}@${repoUrl}`
+  }
+  return undefined
 }
 
 function isDepPathAllowBuildKey (pkg: string): boolean {
