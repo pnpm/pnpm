@@ -193,3 +193,118 @@ fn changed_files_ignore_pattern_is_respected() {
 
     drop(root);
 }
+
+/// Scaffold a project whose lockfile records exactly one dependency
+/// (`saved-dep`), with both that dependency and an unrecorded
+/// `extraneous` package materialized in `node_modules`.
+fn write_project_with_extraneous_dep(workspace: &Path) {
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "with-extraneous",
+            "version": "1.0.0",
+            "dependencies": { "saved-dep": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    fs::write(
+        workspace.join("pnpm-lock.yaml"),
+        "\
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      saved-dep:
+        specifier: 1.0.0
+        version: 1.0.0
+
+packages:
+
+  saved-dep@1.0.0:
+    resolution: {integrity: sha512-lOLfrmtpmkreuw+9G/zcKnfJGnOPqBvvZqYOaklGJHfyEcEmuItDJee2bDIA9hRK8j0MiYbU5yHEMh0GKG/Ig==}
+
+snapshots:
+
+  saved-dep@1.0.0: {}
+",
+    )
+    .expect("write pnpm-lock.yaml");
+
+    let modules = workspace.join("node_modules");
+    for (name, version) in [("saved-dep", "1.0.0"), ("extraneous", "9.9.9")] {
+        let pkg = modules.join(name);
+        fs::create_dir_all(&pkg).expect("create package dir");
+        fs::write(
+            pkg.join("package.json"),
+            json!({ "name": name, "version": version }).to_string(),
+        )
+        .expect("write package.json");
+    }
+}
+
+/// A package present in `node_modules` but absent from the lockfile
+/// (npm's "extraneous") is reported under `unsavedDependencies` by
+/// `list --json`, while a saved dependency is not. Mirrors the
+/// TypeScript CLI's unsaved-dependency handling.
+#[test]
+fn list_json_reports_extraneous_packages_as_unsaved() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_project_with_extraneous_dep(&workspace);
+
+    let output = pacquet.with_arg("list").with_arg("--json").output().expect("spawn pacquet list");
+    assert!(
+        output.status.success(),
+        "list should succeed:\n{}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    let roots: Vec<Value> = serde_json::from_slice(&output.stdout).expect("parse list JSON");
+    let unsaved = &roots[0]["unsavedDependencies"];
+    assert_eq!(unsaved["extraneous"]["from"], "extraneous");
+    assert_eq!(unsaved["extraneous"]["version"], "9.9.9");
+    assert!(
+        unsaved.get("saved-dep").is_none(),
+        "a saved dependency must not be reported as unsaved:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+    );
+
+    drop(root);
+}
+
+/// Extraneous packages are suppressed when a package-name argument
+/// narrows the listing (the search path). Ports the TypeScript
+/// tree-builder's "unsaved dependencies are listed and filtered".
+#[test]
+fn list_json_with_package_arg_omits_unsaved_dependencies() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_project_with_extraneous_dep(&workspace);
+
+    let output = pacquet
+        .with_arg("list")
+        .with_arg("saved-dep")
+        .with_arg("--json")
+        .output()
+        .expect("spawn pacquet list");
+    assert!(
+        output.status.success(),
+        "list should succeed:\n{}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    let roots: Vec<Value> = serde_json::from_slice(&output.stdout).expect("parse list JSON");
+    assert!(
+        roots[0].get("unsavedDependencies").is_none(),
+        "a package-name filter must suppress extraneous deps:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+    );
+
+    drop(root);
+}

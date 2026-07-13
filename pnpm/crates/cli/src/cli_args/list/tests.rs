@@ -1,9 +1,15 @@
+use std::{collections::HashMap, fs};
+
+use pacquet_config::Config;
+use pacquet_lockfile::{ImporterDepVersion, ProjectSnapshot, ResolvedDependencySpec};
 use pretty_assertions::assert_eq;
 use serde_json::Value;
+use tempfile::TempDir;
 
 use super::{
-    DepNode, LocalTreeRoot, PkgNameVerPeer, dep_to_json, get_peer_set, glob_match, matches_params,
-    name_at_version, print_label, read_root_manifest, render_local_json, render_local_parseable,
+    DepNode, LocalTreeRoot, PkgNameVerPeer, build_unsaved_node, dep_to_json, get_peer_set,
+    glob_match, matches_params, name_at_version, print_label, read_modules_dir_names,
+    read_root_manifest, read_unsaved_dependencies, render_local_json, render_local_parseable,
     render_local_tree, sort_deps,
 };
 
@@ -165,6 +171,7 @@ fn render_local_tree_shows_root_with_name() {
         dependencies: vec![],
         dev_dependencies: vec![],
         optional_dependencies: vec![],
+        unsaved: vec![],
     };
     let output = render_local_tree(&root, false);
     assert!(output.contains("my-pkg"));
@@ -180,6 +187,7 @@ fn render_local_tree_shows_private() {
         dependencies: vec![],
         dev_dependencies: vec![],
         optional_dependencies: vec![],
+        unsaved: vec![],
     };
     let output = render_local_tree(&root, false);
     assert!(output.contains("PRIVATE"));
@@ -204,6 +212,7 @@ fn render_local_tree_with_deps() {
         }],
         dev_dependencies: vec![],
         optional_dependencies: vec![],
+        unsaved: vec![],
     };
     let output = render_local_tree(&root, false);
     assert!(output.contains("foo"));
@@ -220,6 +229,7 @@ fn render_local_tree_empty_returns_root_line() {
         dependencies: vec![],
         dev_dependencies: vec![],
         optional_dependencies: vec![],
+        unsaved: vec![],
     };
     let output = render_local_tree(&root, false);
     assert!(output.contains("lone"));
@@ -236,6 +246,7 @@ fn render_local_tree_sanitizes_root_name_without_deps() {
         dependencies: vec![],
         dev_dependencies: vec![],
         optional_dependencies: vec![],
+        unsaved: vec![],
     };
     let output = render_local_tree(&root, false);
     assert!(!output.contains('\u{1b}'));
@@ -261,6 +272,7 @@ fn render_local_json_basic() {
         }],
         dev_dependencies: vec![],
         optional_dependencies: vec![],
+        unsaved: vec![],
     };
     let output = render_local_json(&root);
     assert!(output.contains("pkg"));
@@ -281,6 +293,7 @@ fn render_local_json_private() {
         dependencies: vec![],
         dev_dependencies: vec![],
         optional_dependencies: vec![],
+        unsaved: vec![],
     };
     let output = render_local_json(&root);
     let parsed: Value = serde_json::from_str(&output).expect("valid json");
@@ -306,6 +319,7 @@ fn render_local_parseable_flat() {
         }],
         dev_dependencies: vec![],
         optional_dependencies: vec![],
+        unsaved: vec![],
     };
     let output = render_local_parseable(&root, false);
     let lines: Vec<&str> = output.lines().collect();
@@ -332,6 +346,7 @@ fn render_local_parseable_long() {
         }],
         dev_dependencies: vec![],
         optional_dependencies: vec![],
+        unsaved: vec![],
     };
     let output = render_local_parseable(&root, true);
     assert!(output.contains(":test@3.0.0"));
@@ -428,4 +443,143 @@ fn print_label_alias_with_version_containing_at() {
     let label = print_label(&dep, &|text| text.to_string());
     assert!(label.starts_with("aliased"));
     assert!(label.contains("npm:@scope/pkg@1.0.0"));
+}
+
+fn write_package(modules_dir: &std::path::Path, name: &str, version: &str) {
+    let pkg = modules_dir.join(name);
+    fs::create_dir_all(&pkg).expect("create package dir");
+    fs::write(pkg.join("package.json"), format!(r#"{{"name":"{name}","version":"{version}"}}"#))
+        .expect("write package.json");
+}
+
+#[test]
+fn read_modules_dir_names_skips_dot_entries_and_files_and_descends_scopes() {
+    let dir = TempDir::new().expect("temp dir");
+    let modules = dir.path().join("node_modules");
+    fs::create_dir_all(modules.join("foo")).expect("create foo");
+    fs::create_dir_all(modules.join(".pnpm")).expect("create .pnpm");
+    fs::create_dir_all(modules.join(".bin")).expect("create .bin");
+    fs::create_dir_all(modules.join("@scope").join("bar")).expect("create @scope/bar");
+    fs::write(modules.join("a-file"), "x").expect("write file");
+
+    let mut names = read_modules_dir_names(&modules).expect("read node_modules");
+    names.sort();
+    assert_eq!(names, vec!["@scope/bar".to_string(), "foo".to_string()]);
+}
+
+#[test]
+fn read_modules_dir_names_of_missing_dir_is_empty() {
+    let dir = TempDir::new().expect("temp dir");
+    assert!(read_modules_dir_names(&dir.path().join("node_modules")).expect("read").is_empty());
+}
+
+#[test]
+fn build_unsaved_node_reads_regular_package_version() {
+    let project = TempDir::new().expect("temp dir");
+    let modules = project.path().join("node_modules");
+    write_package(&modules, "foo", "1.2.3");
+
+    let node = build_unsaved_node("foo", &modules, project.path());
+    assert_eq!(node.alias, "foo");
+    assert_eq!(node.name, "foo");
+    assert_eq!(node.version, "1.2.3");
+    assert_eq!(node.path, modules.join("foo").to_string_lossy());
+    assert!(!node.is_peer && !node.is_dev && !node.is_optional);
+    assert!(node.dependencies.is_empty());
+}
+
+#[test]
+fn build_unsaved_node_without_version_is_undefined() {
+    let project = TempDir::new().expect("temp dir");
+    let modules = project.path().join("node_modules");
+    fs::create_dir_all(modules.join("foo")).expect("create foo");
+
+    let node = build_unsaved_node("foo", &modules, project.path());
+    assert_eq!(node.version, "undefined");
+}
+
+#[cfg(unix)]
+#[test]
+fn build_unsaved_node_symlink_gets_relative_link_version() {
+    let root = TempDir::new().expect("temp dir");
+    let project = root.path().join("project");
+    let sibling = root.path().join("sibling");
+    let modules = project.join("node_modules");
+    fs::create_dir_all(&modules).expect("create node_modules");
+    fs::create_dir_all(&sibling).expect("create sibling");
+    // A relative symlink, as the linker writes for workspace/link: deps.
+    std::os::unix::fs::symlink("../../sibling", modules.join("sibling")).expect("create symlink");
+
+    let node = build_unsaved_node("sibling", &modules, &project);
+    assert_eq!(node.version, "link:../sibling");
+    assert_eq!(node.path, sibling.to_string_lossy());
+}
+
+#[test]
+fn read_unsaved_dependencies_excludes_saved_and_lists_extraneous() {
+    let project = TempDir::new().expect("temp dir");
+    let modules = project.path().join("node_modules");
+    write_package(&modules, "saved-dep", "1.0.0");
+    write_package(&modules, "extraneous", "9.9.9");
+    fs::create_dir_all(modules.join(".pnpm")).expect("create .pnpm");
+
+    let mut deps: HashMap<_, _> = HashMap::new();
+    deps.insert(
+        "saved-dep".parse().expect("parse pkg name"),
+        ResolvedDependencySpec {
+            specifier: "1.0.0".into(),
+            version: ImporterDepVersion::Link("ignored".into()),
+        },
+    );
+    let importer = ProjectSnapshot { dependencies: Some(deps), ..Default::default() };
+
+    let unsaved = read_unsaved_dependencies(&importer, project.path(), &Config::default())
+        .expect("scan node_modules");
+    assert_eq!(unsaved.len(), 1);
+    assert_eq!(unsaved[0].name, "extraneous");
+    assert_eq!(unsaved[0].version, "9.9.9");
+}
+
+fn root_with_one_unsaved() -> LocalTreeRoot {
+    LocalTreeRoot {
+        name: Some("pkg".into()),
+        version: Some("1.0.0".into()),
+        private: Some(false),
+        path: "/p".into(),
+        dependencies: vec![],
+        dev_dependencies: vec![],
+        optional_dependencies: vec![],
+        unsaved: vec![DepNode {
+            alias: "foo".into(),
+            name: "foo".into(),
+            version: "1.0.0".into(),
+            path: "/p/node_modules/foo".into(),
+            is_peer: false,
+            is_dev: false,
+            is_optional: false,
+            dependencies: vec![],
+        }],
+    }
+}
+
+#[test]
+fn render_local_json_includes_unsaved_dependencies() {
+    let parsed: Value =
+        serde_json::from_str(&render_local_json(&root_with_one_unsaved())).expect("valid json");
+    let unsaved = &parsed[0]["unsavedDependencies"]["foo"];
+    assert_eq!(unsaved["from"], "foo");
+    assert_eq!(unsaved["version"], "1.0.0");
+    assert_eq!(unsaved["path"], "/p/node_modules/foo");
+}
+
+#[test]
+fn render_local_parseable_includes_unsaved_dependency_path() {
+    let output = render_local_parseable(&root_with_one_unsaved(), false);
+    assert!(output.lines().any(|line| line == "/p/node_modules/foo"), "output was:\n{output}");
+}
+
+#[test]
+fn render_local_tree_omits_unsaved_dependencies() {
+    let output = render_local_tree(&root_with_one_unsaved(), false);
+    assert!(!output.contains("foo"), "tree must not show extraneous deps:\n{output}");
 }
