@@ -16,14 +16,10 @@ export function nodeDepsCount (node: GenericDependenciesGraphNodeWithResolvedChi
 }
 
 // Whether `depPath1` is a superset-or-equal of `depPath2`: same-or-more resolved
-// children and peers. IMPORTANT: this only compares dependency/peer *sets*, not
-// package identity — two different packages (or two versions of the same
-// package) with compatible dependency sets, e.g. leaf nodes with none, would be
-// considered compatible. Callers must therefore only compare depPaths already
-// known to share the same package identity (`pkgIdWithPatchHash`). In
-// `deduplicateDepPaths` that holds because the candidates are grouped by
-// `pkgIdWithPatchHash`; `dedupeInjectedDeps` enforces it explicitly before
-// calling this.
+// children and peers. Compares dependency/peer *sets* only, not package
+// identity, so callers must pass depPaths already known to share a
+// `pkgIdWithPatchHash` — otherwise two unrelated leaf packages (both with empty
+// sets) would count as compatible.
 export function isCompatibleAndHasMoreDeps<T extends PartialResolvedPackage> (
   depGraph: GenericDependenciesGraphWithResolvedChildren<T>,
   depPath1: DepPath,

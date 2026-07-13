@@ -130,11 +130,10 @@ fn rewrites_when_children_subset_of_target_direct_deps() {
     assert!(!graph.contains_key(&injected));
 }
 
-// Regression test for pnpm/pnpm#10433. An injected workspace dep must still
-// dedupe to `link:` when an unrelated shared dependency resolves to a
-// peer-suffixed variant for the target project's own copy but a peer-free
-// variant for the injected occurrence — both are valid resolutions of the same
-// package (same pkgIdWithPatchHash), so the mismatch is incidental.
+// Regression test for pnpm/pnpm#10433: an injected workspace dep must still
+// dedupe to `link:` when an unrelated shared dep (debug) resolves peer-suffixed
+// for the target project but peer-free for the injected occurrence — both are
+// valid resolutions of the same package.
 #[test]
 fn rewrites_when_shared_dep_differs_only_by_peer_suffix() {
     let lockfile_dir = PathBuf::from("/ws");
@@ -147,9 +146,7 @@ fn rewrites_when_shared_dep_differs_only_by_peer_suffix() {
 
     let mut graph: DependenciesGraph = std::collections::HashMap::new();
     graph.insert(supports_color.clone(), make_node("supports-color@8.1.1", BTreeMap::new()));
-    // The injected occurrence resolved debug peer-free.
     graph.insert(debug.clone(), make_node("debug@4.4.3", BTreeMap::new()));
-    // The target project's own copy inherited a pin to debug's optional peer.
     let mut debug_peer_node = make_node(
         "debug@4.4.3(supports-color@8.1.1)",
         BTreeMap::from([("supports-color".to_string(), supports_color)]),

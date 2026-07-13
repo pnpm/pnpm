@@ -1,8 +1,6 @@
 //! Shared depPath-compatibility helpers used by both
 //! [`fn@crate::dedupe_peer_dependents::dedupe_peer_dependents`] and
-//! [`fn@crate::dedupe_injected_deps::dedupe_injected_deps`]. They live in
-//! their own module so the two consumers share one implementation rather
-//! than each carrying a copy.
+//! [`fn@crate::dedupe_injected_deps::dedupe_injected_deps`].
 
 use std::collections::HashSet;
 
@@ -21,14 +19,10 @@ pub(crate) fn node_deps_count(node: &DependenciesGraphNode) -> usize {
 /// `larger`'s children, and every peer `smaller` resolved must also be
 /// resolved by `larger`.
 ///
-/// IMPORTANT: this only compares dependency/peer *sets*, not package
-/// identity — two different packages (or two versions of the same
-/// package) with compatible dependency sets, e.g. leaf nodes with none,
-/// would be considered compatible. Callers must therefore only compare
-/// depPaths already known to share the same package identity
-/// (`pkgIdWithPatchHash`). In `dedupe_peer_dependents` that holds because
-/// the candidates are grouped by `pkgIdWithPatchHash`;
-/// `dedupe_injected_deps` enforces it explicitly before calling this.
+/// Compares dependency/peer *sets* only, not package identity, so callers
+/// must pass depPaths already known to share a `pkgIdWithPatchHash` —
+/// otherwise two unrelated leaf packages (both with empty sets) would
+/// count as compatible.
 pub(crate) fn is_compatible_and_has_more_deps(
     graph: &DependenciesGraph,
     larger: &DepPath,

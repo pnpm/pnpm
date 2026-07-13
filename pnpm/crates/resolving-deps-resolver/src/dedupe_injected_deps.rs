@@ -94,23 +94,11 @@ fn build_dedupe_map(
 /// Whether the injected snapshot's `child_alias → child_dep_path` edge is
 /// satisfied by the target project's own direct dep for that alias.
 ///
-/// A byte-identical depPath is the common case. Beyond that, an ordinary
-/// (non-workspace) shared dependency of the injected package can resolve
-/// to a peer-suffixed variant on one side and a peer-free variant on the
-/// other — e.g. when reconciling against an existing lockfile pins an
-/// optional peer (debug's supports-color) for the target project's own
-/// resolution but not for the injected occurrence. Both are valid
-/// resolutions of the same package; what matters is whether the target
-/// project's own copy is at least as complete as what the injected
-/// occurrence needed, not that the two depPath strings match. See
+/// A shared dep can resolve peer-suffixed on one side and peer-free on the
+/// other (e.g. an existing lockfile pinned debug's optional supports-color for
+/// the target project but not the injected occurrence). Accept the target's
+/// variant when it is the same package identity and a compatible superset. See
 /// pnpm/pnpm#10433.
-///
-/// Only tolerate that when both sides are the *same package identity*
-/// (same `pkgIdWithPatchHash`, i.e. differing only by peer suffix).
-/// [`is_compatible_and_has_more_deps`] compares dependency/peer sets, not
-/// identity, so without this guard two different versions of a shared dep
-/// — leaf packages especially, whose sets are both empty — would be
-/// treated as interchangeable and wrongly deduped.
 fn child_matches_target(
     graph: &DependenciesGraph,
     target_direct: Option<&BTreeMap<String, DepPath>>,
