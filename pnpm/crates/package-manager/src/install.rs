@@ -2496,9 +2496,8 @@ fn configured_or_discovered_workspace_dir(
 ///
 /// The map is a name/version index of per-project `WorkspacePackage`
 /// entries (`{ rootDir, manifest }`) consumed by the resolver.
-/// Projects whose manifest lacks a name or version are silently
-/// skipped; the manifest reader emits a separate warning that pacquet
-/// doesn't carry through here.
+/// Projects whose manifest lacks a name are skipped. A missing or null
+/// version is indexed as `0.0.0`; malformed non-string versions are skipped.
 fn build_workspace_packages_map(
     projects: Option<&[pacquet_workspace::Project]>,
 ) -> Option<pacquet_resolving_resolver_base::WorkspacePackages> {
@@ -2506,9 +2505,15 @@ fn build_workspace_packages_map(
     let mut map: pacquet_resolving_resolver_base::WorkspacePackages =
         std::collections::BTreeMap::new();
     for project in projects {
-        let name = manifest_string_field(&project.manifest, "name");
-        let version = manifest_string_field(&project.manifest, "version");
-        let (Some(name), Some(version)) = (name, version) else { continue };
+        let Some(name) = manifest_string_field(&project.manifest, "name") else { continue };
+        let version = match project.manifest.value().get("version") {
+            None => "0.0.0".to_string(),
+            Some(value) if value.is_null() => "0.0.0".to_string(),
+            Some(value) => {
+                let Some(version) = value.as_str() else { continue };
+                version.to_string()
+            }
+        };
         map.entry(name).or_default().insert(
             version,
             pacquet_resolving_resolver_base::WorkspacePackage {
