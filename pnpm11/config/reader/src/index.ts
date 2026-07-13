@@ -364,8 +364,10 @@ export async function getConfig (opts: {
   )
   pnpmConfig.configByUri = { ...networkConfigs.configByUri }
 
-  // tokenHelper must only come from user-level config (~/.npmrc or global auth.ini),
-  // not project-level, to prevent project .npmrc from executing arbitrary commands.
+  // tokenHelper names an executable pnpm runs, so it must only come from trusted,
+  // non-repo config sources (~/.npmrc and the global auth.ini) — never from a
+  // workspace or project .npmrc, which could otherwise execute arbitrary commands.
+  // trustedConfig merges exactly those trusted sources and excludes the repo ones.
   const trustedConfig = npmrcResult.trustedConfig as Record<string, string>
   for (const [key, value] of Object.entries(pnpmConfig.authConfig)) {
     if (!key.endsWith('tokenHelper') && key !== 'tokenHelper') continue
