@@ -5,8 +5,8 @@ use miette::{Context, Diagnostic, IntoDiagnostic};
 use node_semver::Version;
 use pacquet_config::Config;
 use pacquet_network::{
-    LimitedBody, NetworkSettings, RetryOpts, ThrottledClient, encode_uri_component,
-    read_limited_body, redact_url_credentials, retry_async, send_with_retry,
+    NetworkSettings, RetryOpts, ThrottledClient, encode_uri_component, read_limited_body,
+    redact_url_credentials, retry_async, send_with_retry,
 };
 use pacquet_resolving_npm_resolver::pick_registry_for_package;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
@@ -427,7 +427,7 @@ async fn write_error_from_response(response: Response, action: String) -> miette
     })?;
     let web_otp_challenge =
         if body.truncated { None } else { parse_web_otp_challenge(&body.bytes) };
-    let body = body_display_string(&body);
+    let body = sanitize::body_display_string(&body);
     if status == StatusCode::UNAUTHORIZED {
         if let Some(challenge) = web_otp_challenge {
             return Err(DistTagError::WebOtpRequired {
@@ -498,20 +498,6 @@ where
         reason: redact_url_credentials(&error.to_string()),
     }
     .into()
-}
-
-/// Render a capped response body for an error message: lossy UTF-8,
-/// sanitized, with a truncation note when the cap was hit.
-pub(super) fn body_display_string(body: &LimitedBody) -> String {
-    let text = String::from_utf8_lossy(&body.bytes);
-    let mut text = sanitize::sanitize(&text).into_owned();
-    if body.truncated {
-        if !text.is_empty() && !text.chars().next_back().is_some_and(char::is_whitespace) {
-            text.push(' ');
-        }
-        text.push_str("(response body truncated)");
-    }
-    text
 }
 
 #[derive(Deserialize)]

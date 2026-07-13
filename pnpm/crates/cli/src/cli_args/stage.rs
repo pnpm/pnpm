@@ -29,8 +29,8 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use super::{
-    dist_tag::body_display_string,
     publish::{PublishArgs, PublishFlags},
+    sanitize::body_display_string,
 };
 use crate::cli_args::registry_client::build_registry_client;
 use summarize_tarball::{create_tarball_filename, summarize_tarball};

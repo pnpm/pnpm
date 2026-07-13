@@ -102,6 +102,30 @@ fn fails_when_message_is_not_provided() {
 }
 
 #[test]
+fn fails_with_no_matching_versions_for_an_invalid_range() {
+    // Parity with the TypeScript CLI: an unparsable range matches nothing and
+    // reports NO_MATCHING_VERSIONS rather than a distinct invalid-spec error.
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+
+    let get_mock = server
+        .mock("GET", "/test")
+        .with_status(200)
+        .with_body(r#"{"versions":{"1.0.0":{}}}"#)
+        .create();
+
+    let auth_file = empty_auth_file(root.path());
+    let output =
+        run_deprecate(&workspace, &auth_file, Some(&registry), &["test@not-a-range", "msg"]);
+
+    get_mock.assert();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_NO_MATCHING_VERSIONS"), "stderr: {stderr}");
+}
+
+#[test]
 fn fails_on_unauthorized() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();

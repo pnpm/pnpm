@@ -1,3 +1,4 @@
+use pacquet_network::LimitedBody;
 use std::borrow::Cow;
 
 /// Strip control characters from store-derived text before it reaches the
@@ -11,4 +12,18 @@ pub fn sanitize(text: &str) -> Cow<'_, str> {
     } else {
         Cow::Borrowed(text)
     }
+}
+
+/// Render a capped response body for an error message: lossy UTF-8,
+/// sanitized, with a truncation note when the cap was hit.
+pub fn body_display_string(body: &LimitedBody) -> String {
+    let text = String::from_utf8_lossy(&body.bytes);
+    let mut text = sanitize(&text).into_owned();
+    if body.truncated {
+        if !text.is_empty() && !text.chars().next_back().is_some_and(char::is_whitespace) {
+            text.push(' ');
+        }
+        text.push_str("(response body truncated)");
+    }
+    text
 }
