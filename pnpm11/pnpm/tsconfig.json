@@ -102,6 +102,9 @@
       "path": "../exec/commands"
     },
     {
+      "path": "../exec/lifecycle"
+    },
+    {
       "path": "../hooks/pnpmfile"
     },
     {

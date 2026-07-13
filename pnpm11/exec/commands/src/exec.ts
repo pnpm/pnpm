@@ -12,7 +12,6 @@ import { prependDirsToPath } from '@pnpm/shell.path'
 import type { Project, ProjectRootDir, ProjectRootDirRealPath, ProjectsGraph } from '@pnpm/types'
 import { tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { sortFilteredProjects } from '@pnpm/workspace.projects-sorter'
-import { safeExeca as execa } from 'execa'
 import pLimit from 'p-limit'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -29,6 +28,7 @@ import {
   shorthands as runShorthands,
 } from './run.js'
 import { runDepsStatusCheck } from './runDepsStatusCheck.js'
+import { trackedExeca } from './trackedExeca.js'
 
 export const shorthands: Record<string, string | string[]> = {
   parallel: runShorthands.parallel,
@@ -262,7 +262,7 @@ export async function handler (
           const [cmd, ...args] = params
           if (reporterShowPrefix) {
             const manifest = await readProjectManifestOnly(prefix)
-            const child = execa(cmd, args, {
+            const child = trackedExeca(cmd, args, {
               cwd: prefix,
               env,
               stdio: 'pipe',
@@ -296,12 +296,13 @@ export async function handler (
             })
             await child
           } else {
-            await execa(cmd, args, {
+            const child = trackedExeca(cmd, args, {
               cwd: prefix,
               env,
               stdio: 'inherit',
               shell: opts.shellMode ?? false,
             })
+            await child
           }
           result[prefix].status = 'passed'
           result[prefix].duration = getExecutionDuration(startTime)
