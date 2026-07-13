@@ -333,6 +333,43 @@ async fn publish_with_otp_handling_returns_the_response_when_no_otp_is_required(
     mock.assert_async().await;
 }
 
+/// A statically configured OTP (`pnpm publish --otp`) must ride the first PUT,
+/// not just a post-challenge retry. `publish_with_otp_handling` invokes its
+/// operation with no challenge OTP first, so the configured one has to fall
+/// through; regressing that would make `--otp` a no-op until the registry
+/// challenges. The single `expect(1)` mock matches `npm-otp` on the first
+/// request and returns 200, so a dropped OTP or an extra challenge round-trip
+/// fails the assertion.
+#[tokio::test]
+async fn publish_with_otp_handling_sends_a_configured_otp_on_the_first_attempt() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("PUT", "/pkg")
+        .match_header("npm-otp", "123456")
+        .with_status(200)
+        .with_body("")
+        .expect(1)
+        .create_async()
+        .await;
+    let client = ThrottledClient::default();
+    let url = format!("{}/pkg", server.url());
+
+    let response = publish_with_otp_handling::<WebAuthHost, SilentReporter>(
+        &client,
+        &url,
+        None,
+        "publish",
+        body(),
+        Some("123456"),
+        false,
+        unused_fetch_options(),
+    )
+    .await
+    .expect("the publish succeeds with the configured OTP");
+    assert!(response.ok);
+    mock.assert_async().await;
+}
+
 /// The classic OTP flow, driven end-to-end through the publish HTTP layer:
 /// prompt for an OTP on the challenge and retry. The first PUT
 /// (no `npm-otp`) gets a 401 OTP challenge, the fake host prompts and returns
