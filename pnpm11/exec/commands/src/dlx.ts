@@ -15,7 +15,6 @@ import { type Config, types } from '@pnpm/config.reader'
 import { getPublishedByPolicy } from '@pnpm/config.version-policy'
 import { createShortHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
-import { trackChildProcess } from '@pnpm/exec.lifecycle'
 import { createResolver, makeResolutionStrict } from '@pnpm/installing.client'
 import { add } from '@pnpm/installing.commands'
 import { logger } from '@pnpm/logger'
@@ -23,12 +22,12 @@ import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import type { PackageManifest, PnpmSettings, SupportedArchitectures } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import { safeExeca as execa } from 'execa'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import { symlinkDir } from 'symlink-dir'
 
 import { makeEnv } from './makeEnv.js'
+import { trackedExeca } from './trackedExeca.js'
 
 export const skipPackageManagerCheck = true
 
@@ -243,13 +242,12 @@ export async function handler (
     ? command
     : await getBinName(cachedDir, opts)
   try {
-    const child = execa(binName, args, {
+    const child = trackedExeca(binName, args, {
       cwd: process.cwd(),
       env,
       stdio: 'inherit',
       shell: opts.shellMode ?? false,
     })
-    trackChildProcess(child)
     await child
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'exitCode' in err && err.exitCode != null) {

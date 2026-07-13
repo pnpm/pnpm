@@ -6,13 +6,12 @@ import { type Config, type ConfigContext, getWorkspaceConcurrency, types } from 
 import { lifecycleLogger, type LifecycleMessage } from '@pnpm/core-loggers'
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
-import { makeNodePackageMapOption, makeNodeRequireOption, trackChildProcess } from '@pnpm/exec.lifecycle'
+import { makeNodePackageMapOption, makeNodeRequireOption } from '@pnpm/exec.lifecycle'
 import { logger } from '@pnpm/logger'
 import { prependDirsToPath } from '@pnpm/shell.path'
 import type { Project, ProjectRootDir, ProjectRootDirRealPath, ProjectsGraph } from '@pnpm/types'
 import { tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { sortFilteredProjects } from '@pnpm/workspace.projects-sorter'
-import { safeExeca as execa } from 'execa'
 import pLimit from 'p-limit'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -29,6 +28,7 @@ import {
   shorthands as runShorthands,
 } from './run.js'
 import { runDepsStatusCheck } from './runDepsStatusCheck.js'
+import { trackedExeca } from './trackedExeca.js'
 
 export const shorthands: Record<string, string | string[]> = {
   parallel: runShorthands.parallel,
@@ -262,13 +262,12 @@ export async function handler (
           const [cmd, ...args] = params
           if (reporterShowPrefix) {
             const manifest = await readProjectManifestOnly(prefix)
-            const child = execa(cmd, args, {
+            const child = trackedExeca(cmd, args, {
               cwd: prefix,
               env,
               stdio: 'pipe',
               shell: opts.shellMode ?? false,
             })
-            trackChildProcess(child)
             const lifecycleOpts = {
               wd: prefix,
               depPath: manifest.name ?? path.relative(opts.dir, prefix),
@@ -297,13 +296,12 @@ export async function handler (
             })
             await child
           } else {
-            const child = execa(cmd, args, {
+            const child = trackedExeca(cmd, args, {
               cwd: prefix,
               env,
               stdio: 'inherit',
               shell: opts.shellMode ?? false,
             })
-            trackChildProcess(child)
             await child
           }
           result[prefix].status = 'passed'
