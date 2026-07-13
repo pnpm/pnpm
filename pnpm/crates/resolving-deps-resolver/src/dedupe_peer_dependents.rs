@@ -249,8 +249,7 @@ fn dep_path_peer_names(dep_path: &DepPath) -> HashSet<String> {
 fn collect_peer_names(raw: &str, names: &mut HashSet<String>) {
     let suffix = index_of_dep_path_suffix(raw);
     let Some(peers_index) = suffix.peers_index else { return };
-    let peers_end = suffix.patch_hash_index.unwrap_or(raw.len());
-    let Some(segments) = split_peer_suffix_segments(&raw[peers_index..peers_end]) else {
+    let Some(segments) = split_peer_suffix_segments(&raw[peers_index..]) else {
         return;
     };
     for segment in segments {

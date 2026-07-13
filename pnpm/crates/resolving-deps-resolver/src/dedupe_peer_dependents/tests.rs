@@ -1,4 +1,4 @@
-use super::{DirectByImporter, dedupe_peer_dependents, deduplicate_dep_paths};
+use super::{DirectByImporter, dedupe_peer_dependents, deduplicate_dep_paths, dep_path_peer_names};
 use crate::dependencies_graph::{DependenciesGraph, DependenciesGraphNode};
 use pacquet_deps_path::DepPath;
 use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
@@ -10,6 +10,26 @@ use std::{
 
 fn dp(raw: &str) -> DepPath {
     DepPath::from(raw.to_string())
+}
+
+#[test]
+fn collects_peer_names_after_patch_hash() {
+    let dep_path = dp(concat!(
+        "@medusajs/workflows-sdk@2.13.3",
+        "(patch_hash=248195172cff27c28650c005b6aa0aa3b2f2976f9739544b360b81668f2d8b59)",
+        "(@types/node@20.19.17)",
+        "(better-sqlite3@12.8.0)",
+        "(express@4.21.2)",
+    ));
+
+    assert_eq!(
+        dep_path_peer_names(&dep_path),
+        HashSet::from([
+            "@types/node".to_string(),
+            "better-sqlite3".to_string(),
+            "express".to_string(),
+        ]),
+    );
 }
 
 fn make_node(
