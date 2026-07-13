@@ -24,6 +24,13 @@ async function setupProject (fixtureName: string): Promise<{ dir: string, storeD
     dir,
     pnpmHomeDir: '',
     storeDir,
+    // Fixtures under the shared `__fixtures__` dir are installed by CI's
+    // `prepare-fixtures` step, so `f.copy` brings their `node_modules` (and its
+    // `.modules.yaml`, which records a different store) into the temp dir. The
+    // install then wants to purge that modules dir, and the purge prompts for
+    // confirmation — which aborts on a machine with no TTY. Tests always want
+    // the purge, so skip the prompt.
+    confirmModulesPurge: false,
   })
 
   return { dir, storeDir: path.resolve(storeDir, STORE_VERSION) }
