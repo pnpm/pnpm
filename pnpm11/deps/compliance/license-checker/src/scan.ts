@@ -7,7 +7,7 @@ import type { LicensesConfig, ProjectManifest, Registries, SupportedArchitecture
 
 import { checkLicenseCompliance, type CheckLicensesResult } from './checkLicenses.js'
 import { collectDirectDepKeys } from './directDeps.js'
-import type { NormalizedPolicy } from './policy.js'
+import { assertNoCompoundPolicyEntries, type NormalizedPolicy } from './policy.js'
 
 // Policy-only scan scope, derived from licenses.environment. Deliberately
 // does NOT consult transient CLI --prod/--dev/--no-optional flags: those
@@ -48,6 +48,13 @@ export interface ScanResult {
 }
 
 export async function scanAndCheckLicenses (opts: ScanOptions): Promise<ScanResult> {
+  // Guard against a compound (AND/OR) entry hand-edited directly into
+  // pnpm-workspace.yaml's `licenses.allowed`/`licenses.disallowed` — reject it
+  // before doing any lockfile read or scanning, so both the post-install hook
+  // and `pnpm licenses check` refuse to run against a policy that can't be
+  // evaluated safely.
+  assertNoCompoundPolicyEntries(opts.policy)
+
   const lockfileDir = opts.lockfileDir ?? opts.dir
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
   if (lockfile == null) {

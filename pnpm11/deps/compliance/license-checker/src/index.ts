@@ -12,6 +12,7 @@ export {
   collectDirectDepKeys,
 } from './directDeps.js'
 export {
+  assertNoCompoundPolicyEntries,
   type NormalizedPolicy,
   resolveLicensePolicy,
 } from './policy.js'
