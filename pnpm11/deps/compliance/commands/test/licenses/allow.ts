@@ -153,6 +153,22 @@ describe('pnpm licenses allow', () => {
     expect(ws).toContain('GPL-2.0+')
   })
 
+  test('does not add a case-variant duplicate of an existing same-list entry', async () => {
+    prepare({ name: 'solo', version: '1.0.0' })
+
+    // "MIT" is already allowed; allowing "mit" (same license, different case)
+    // must not write ['MIT', 'mit'] — the matcher treats them as identical.
+    const { output } = await licensesAllow({
+      rootProjectManifestDir: process.cwd(),
+      workspaceDir: process.cwd(),
+      licenses: { allowed: ['MIT'] },
+    } as any, ['mit']) // eslint-disable-line
+
+    const manifest = readYamlFileSync<any>('pnpm-workspace.yaml') // eslint-disable-line
+    expect(manifest.licenses?.allowed).toStrictEqual(['MIT'])
+    expect(output).toContain('already in the allowed list')
+  })
+
   test('allowing a license removes its case-insensitive match from the disallowed list', async () => {
     const dir = tempDir()
     f.copy('simple-licenses', dir)

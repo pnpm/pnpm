@@ -45,10 +45,19 @@ export async function editLicenseList (
 
   const currentTarget = opts.licenses?.[target] ?? []
   const currentOther = opts.licenses?.[other] ?? []
-  const newTarget = [...new Set([...currentTarget, ...ids])]
-  // Case-insensitive: the matcher treats "mit" and "MIT" as the same license,
-  // so allowing "mit" must also prune "MIT" from the opposite list, not just
-  // an exact-cased "mit".
+  // Case-insensitive throughout: the matcher treats "mit" and "MIT" as the same
+  // license, so allowing "mit" must not add a case-variant duplicate alongside an
+  // existing "MIT" in the same list, and must prune "MIT" from the opposite list.
+  const currentTargetLower = new Set(currentTarget.map((l) => l.toLowerCase()))
+  const added: string[] = []
+  const addedLower = new Set<string>()
+  for (const id of ids) {
+    const lower = id.toLowerCase()
+    if (currentTargetLower.has(lower) || addedLower.has(lower)) continue
+    addedLower.add(lower)
+    added.push(id)
+  }
+  const newTarget = [...currentTarget, ...added]
   const newOther = currentOther.filter((l) => !ids.some((id) => id.toLowerCase() === l.toLowerCase()))
 
   const updatedConfig: LicensesConfig = { ...opts.licenses, [target]: newTarget }
@@ -62,7 +71,6 @@ export async function editLicenseList (
     updatedSettings: { licenses: updatedConfig },
   })
 
-  const added = ids.filter((l) => !currentTarget.includes(l))
   const lines: string[] = []
   lines.push(added.length > 0
     ? `Added to ${target} licenses: ${added.join(', ')}`
