@@ -841,17 +841,30 @@ fn semver_satisfies_loosely(version: &str, range: &str) -> bool {
     range.satisfies(&version)
 }
 
-/// A file's mtime reduced to the two facts the repeat-install fast path
-/// compares: milliseconds since the epoch, and whether the filesystem
-/// recorded it at whole-second resolution.
+const NANOS_PER_MILLI: i64 = 1_000_000;
+const NANOS_PER_SEC: i64 = 1_000_000_000;
+
+/// A file's mtime, kept at full nanosecond precision. The recorded
+/// `lastValidatedTimestamp` is only millisecond-precise (it is a
+/// filesystem mtime truncated to ms — see
+/// [`crate::install::build_workspace_state`]), but the comparison against
+/// it must not be: pacquet installs are fast enough that a lockfile
+/// written by one install and a manifest edited moments later can share
+/// the same millisecond, so a millisecond-granular comparison would miss
+/// the edit and wrongly keep the fast path. Comparing the file's
+/// nanosecond mtime against the truncated (rounded-down) reference
+/// distinguishes them.
 #[derive(Clone, Copy)]
 struct FileMtime {
-    /// Milliseconds since the epoch, matching the `now_millis` the write
-    /// side stamps into `lastValidatedTimestamp` so the two are
-    /// apples-to-apples.
+    /// Milliseconds since the epoch. Used where the value is *recorded* as
+    /// the reference (the state stores `lastValidatedTimestamp` in ms, and
+    /// pnpm's `checkDepsStatus` compares in ms).
     ms: i64,
+    /// Nanoseconds since the epoch. Used as the *subject* of a comparison,
+    /// where sub-millisecond precision matters.
+    ns: i64,
     /// The filesystem stored no sub-second component, so the real
-    /// modification time lies anywhere in `[ms, ms + 1000)`. True on
+    /// modification time lies anywhere in `[ns, ns + 1s)`. True on
     /// second-granularity filesystems (ext4 with 128-byte inodes, HFS+,
     /// some CI runner disks); false wherever mtimes keep sub-second
     /// precision (ext4 256-byte inodes, APFS, NTFS, xfs, and so on).
@@ -864,6 +877,7 @@ fn file_mtime(path: &Path) -> Option<FileMtime> {
     let elapsed = modified.duration_since(SystemTime::UNIX_EPOCH).ok()?;
     Some(FileMtime {
         ms: i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX),
+        ns: i64::try_from(elapsed.as_nanos()).unwrap_or(i64::MAX),
         whole_second: elapsed.subsec_nanos() == 0,
     })
 }
@@ -874,18 +888,51 @@ fn mtime_ms(path: &Path) -> Option<i64> {
 }
 
 /// Whether a file with mtime `subject` may have been modified at or after
-/// `reference_ms`. On a filesystem that keeps sub-second mtimes the
-/// comparison is exact (`ms > reference`); on one that rounds mtimes down
-/// to whole seconds the file could have been touched anywhere within its
-/// second, so the whole second counts as possibly-after
-/// (`ms + 1000 > reference`). A manifest, lockfile, patch, or pnpmfile
-/// edited in the same second as the previous install would otherwise
-/// look unchanged there and wrongly keep the fast path. Erring toward
+/// `reference_ms`. The reference is millisecond-precise (a filesystem
+/// mtime truncated toward zero); the subject is compared at nanosecond
+/// precision, so a file whose whole-millisecond mtime equals the
+/// reference's but which was really written later in that millisecond is
+/// still seen as modified. On a filesystem that rounds mtimes down to
+/// whole seconds the file could have been touched anywhere within its
+/// second, so the whole second counts as possibly-after. Erring toward
 /// "modified" only runs the authoritative content check — it never skips
-/// a needed install — and it is a no-op on sub-second filesystems, so the
-/// common case is unaffected.
+/// a needed install.
 fn modified_at_or_after(subject: FileMtime, reference_ms: i64) -> bool {
-    if subject.whole_second { subject.ms + 1_000 > reference_ms } else { subject.ms > reference_ms }
+    let reference_ns = reference_ms.saturating_mul(NANOS_PER_MILLI);
+    if subject.whole_second {
+        subject.ns.saturating_add(NANOS_PER_SEC) > reference_ns
+    } else {
+        subject.ns > reference_ns
+    }
+}
+
+/// The freshness baseline recorded in the workspace state: the latest
+/// mtime among the lockfile this install wrote (the wanted
+/// `pnpm-lock.yaml`, or the current `<virtual_store_dir>/lock.yaml` when
+/// the wanted one is absent) and the project manifests it validated.
+///
+/// A filesystem mtime, not the wall clock, so the baseline shares a clock
+/// with every file the repeat-install check later compares against it: a
+/// wall-vs-mtime clock skew (observed ~2 ms on some CI microVMs, where the
+/// wall clock ran ahead of the filesystem's mtime clock) would otherwise
+/// let a `now()` baseline sit above the mtime of a manifest/pnpmfile
+/// edited moments after the install, hiding the edit and wrongly keeping
+/// the fast path. Taking the max over the manifests too means a content
+/// check that passed on an already-edited manifest still blesses it, so
+/// the next run can take the pure-mtime fast path. `None` when nothing can
+/// be stat'd.
+pub(crate) fn validation_baseline_ms(
+    workspace_root: &Path,
+    config: &Config,
+    project_manifests: &[(PathBuf, &PackageManifest)],
+) -> Option<i64> {
+    let lockfile = mtime_ms(&workspace_root.join(Lockfile::FILE_NAME))
+        .or_else(|| mtime_ms(&config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME)));
+    project_manifests
+        .iter()
+        .filter_map(|(_, manifest)| mtime_ms(manifest.path()))
+        .chain(lockfile)
+        .max()
 }
 
 /// Whether `<workspace_root>/pnpm-lock.yaml` has an mtime newer than the
@@ -893,9 +940,39 @@ fn modified_at_or_after(subject: FileMtime, reference_ms: i64) -> bool {
 /// untouched but must still defeat the manifest-mtime fast path. A
 /// missing lockfile reports `false` here — it is handled by the
 /// existence and stand-in gates, not treated as a modification.
+///
+/// Compared at whole-millisecond precision, unlike the manifest / patch /
+/// pnpmfile checks: `lastValidatedTimestamp` is itself a lockfile mtime
+/// truncated to milliseconds (see
+/// [`crate::install::build_workspace_state`]), so a nanosecond comparison
+/// would flag the *unchanged* lockfile against its own truncated value on
+/// every repeat install and force a content check each time. An external
+/// lockfile edit (git checkout, manual rewrite) lands in a later
+/// millisecond, so millisecond precision still catches it.
 fn wanted_lockfile_modified(workspace_root: &Path, last_validated_timestamp: i64) -> bool {
     file_mtime(&workspace_root.join(Lockfile::FILE_NAME))
-        .is_some_and(|mtime| modified_at_or_after(mtime, last_validated_timestamp))
+        .is_some_and(|mtime| lockfile_modified_since(mtime, last_validated_timestamp))
+}
+
+/// Whether the lockfile's `subject` mtime post-dates `reference_ms`.
+///
+/// On a sub-second filesystem this is a whole-*millisecond* comparison,
+/// unlike the nanosecond [`modified_at_or_after`] used for
+/// manifests/patches/pnpmfiles: the baseline is the lockfile's own mtime
+/// truncated to milliseconds, so a nanosecond comparison would flag the
+/// unchanged lockfile against its own truncated value on every repeat
+/// install. An external lockfile edit lands in a later millisecond and is
+/// still caught. On a whole-second-mtime filesystem the whole second is
+/// treated as possibly-after (as [`modified_at_or_after`] does), because
+/// there a same-second external edit is indistinguishable from the
+/// install's own lockfile write by mtime alone, so it must fall through to
+/// the authoritative content check. See [`wanted_lockfile_modified`].
+fn lockfile_modified_since(subject: FileMtime, reference_ms: i64) -> bool {
+    if subject.whole_second {
+        subject.ms.saturating_add(1_000) > reference_ms
+    } else {
+        subject.ms > reference_ms
+    }
 }
 
 fn current_lockfile_unusable_with_non_empty_wanted(

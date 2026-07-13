@@ -1,6 +1,7 @@
 use super::{
     Decision, FileMtime, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
-    current_settings, current_settings_with_catalogs, modified_at_or_after,
+    current_settings, current_settings_with_catalogs, lockfile_modified_since,
+    modified_at_or_after,
 };
 use indexmap::IndexMap;
 use pacquet_catalogs_types::Catalogs;
@@ -2225,24 +2226,62 @@ fn does_not_regenerate_wanted_lockfile_when_lockfile_writing_disabled() {
     assert!(!dir.path().join(Lockfile::FILE_NAME).exists(), "lockfile: false must skip the write");
 }
 
-/// A sub-second mtime is compared exactly; a whole-second mtime (as a
-/// second-granularity filesystem records) counts its entire second as
-/// possibly-after the reference, so a change made in the same second as
-/// the last install is not missed.
+/// The subject is compared at nanosecond precision against the
+/// millisecond-precise reference, and a whole-second mtime counts its
+/// entire second as possibly-after.
 #[test]
-fn modified_at_or_after_tolerates_whole_second_mtimes() {
-    let second = 1_700_000_000_000; // a whole second, in ms
+fn modified_at_or_after_compares_at_nanosecond_precision() {
+    let ms = 1_700_000_000_000_i64; // a whole millisecond, in ms
+    let ns = ms * 1_000_000; // the same instant, in ns
 
-    let coarse = FileMtime { ms: second, whole_second: true };
-    // The reference falls inside the mtime's second: possibly modified.
-    assert!(modified_at_or_after(coarse, second));
-    assert!(modified_at_or_after(coarse, second + 999));
+    // Whole-second (coarse filesystem) mtime: the whole second is possibly-after.
+    let coarse = FileMtime { ms, ns, whole_second: true };
+    assert!(modified_at_or_after(coarse, ms));
+    assert!(modified_at_or_after(coarse, ms + 999));
     // The reference is in a later second: the whole second is before it.
-    assert!(!modified_at_or_after(coarse, second + 1_000));
+    assert!(!modified_at_or_after(coarse, ms + 1_000));
 
-    let fine = FileMtime { ms: second, whole_second: false };
-    // Sub-second mtimes are exact: equal is not "after".
-    assert!(!modified_at_or_after(fine, second));
-    assert!(!modified_at_or_after(fine, second + 1));
-    assert!(modified_at_or_after(fine, second - 1));
+    // Sub-second mtime exactly on the millisecond boundary: equal is not after.
+    let on_boundary = FileMtime { ms, ns, whole_second: false };
+    assert!(!modified_at_or_after(on_boundary, ms));
+    assert!(!modified_at_or_after(on_boundary, ms + 1));
+    assert!(modified_at_or_after(on_boundary, ms - 1));
+
+    // Same millisecond as the reference, half a millisecond later: the
+    // millisecond values tie, but the nanosecond mtime does not, so the
+    // edit is still seen (the same-millisecond flake this guards against).
+    let later_in_same_ms = FileMtime { ms, ns: ns + 500_000, whole_second: false };
+    assert!(modified_at_or_after(later_in_same_ms, ms));
+}
+
+/// On a sub-second filesystem the lockfile freshness check uses
+/// whole-millisecond precision so the unchanged lockfile is never flagged
+/// against its own millisecond-truncated baseline (which the nanosecond
+/// manifest comparison would), while an external edit a millisecond later
+/// is still caught. On a whole-second-mtime filesystem the whole second is
+/// possibly-after, so a same-second external edit falls through to the
+/// content check.
+#[test]
+fn lockfile_check_does_not_self_flag_its_own_baseline() {
+    let ms = 1_700_000_000_000_i64;
+    let subsecond_ns = ms * 1_000_000 + 500_000; // .5 ms into its millisecond
+    let fine = FileMtime { ms, ns: subsecond_ns, whole_second: false };
+
+    // A manifest with this mtime would (correctly) be flagged via
+    // nanoseconds against a baseline equal to its own truncated ms:
+    assert!(modified_at_or_after(fine, ms));
+    // The lockfile must NOT self-flag against that same baseline:
+    assert!(!lockfile_modified_since(fine, ms));
+    // An external edit a whole millisecond later is still caught:
+    assert!(lockfile_modified_since(
+        FileMtime { ms: ms + 1, ns: subsecond_ns, whole_second: false },
+        ms
+    ));
+
+    // Whole-second (coarse) filesystem: the whole second is possibly-after
+    // its own baseline, so a same-second external edit is not missed.
+    let coarse = FileMtime { ms, ns: ms * 1_000_000, whole_second: true };
+    assert!(lockfile_modified_since(coarse, ms));
+    // A whole second entirely before the baseline is not flagged.
+    assert!(!lockfile_modified_since(coarse, ms + 1_000));
 }
