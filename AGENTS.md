@@ -194,16 +194,14 @@ GitHub turns any `@name` into a mention of that user/org/team, which is wrong ei
 
 If your changes affect published packages, you MUST create a changeset file in the `.changeset` directory (`pnpm change` records one interactively; `pnpm change status` shows the pending release plan). The file describes the change and specifies the affected packages with their pending version bump types: patch, minor, or major. Write the description for pnpm users and keep it concise — it becomes a release note. Implementation rationale belongs in the commit message, not the changeset. The bare `pnpm version -r` consumes the pending changesets at release time; there is no separate `@changesets/cli` dependency.
 
-**IMPORTANT: Always explicitly include the pnpm CLI in the changeset** with the appropriate version bump (patch, minor, or major). The pnpm CLI will only receive automatic patch bumps from its dependencies, so if your change warrants a minor or major version bump for the CLI, you must specify it explicitly. The changeset description will appear on the release notes page.
-
-Reference the TypeScript CLI as `"./pnpm11/pnpm"`, **not** the bare name `"pnpm"`. The Rust CLI publishes as `pnpm` too, so two workspace projects share the name and a bare `"pnpm"` is ambiguous — `pnpm version -r` rejects it. The directory-path form is the one additive extension to the changesets format; `pnpm change` writes it for you.
+**IMPORTANT: Always explicitly include `"pnpm"` in the changeset** with the appropriate version bump (patch, minor, or major). The pnpm CLI will only receive automatic patch bumps from its dependencies, so if your change warrants a minor or major version bump for the CLI, you must specify it explicitly. The changeset description will appear on the release notes page.
 
 Example:
 
 ```
 ---
 "@pnpm/installing.deps-installer": minor
-"./pnpm11/pnpm": minor
+"pnpm": minor
 ---
 
 Added a new setting `blockExoticSubdeps` that prevents the resolution of exotic protocols in transitive dependencies [#10352](https://github.com/pnpm/pnpm/issues/10352).
@@ -218,13 +216,13 @@ Added a new setting `blockExoticSubdeps` that prevents the resolution of exotic 
 
 The Rust products are released through the same native flow. Their npm wrapper packages are workspace packages with committed versions, so a user-visible change to a Rust product needs a changeset too, targeting:
 
-- `"./pnpm/npm/pnpm"` — the Rust pnpm CLI (published to npm as `pnpm` and `@pnpm/exe` under its `next-<major>` dist-tag). It shares the published name `pnpm` with the TypeScript CLI, so reference it by directory. `@pnpm/napi` is a `versioning.fixed` group with it and bumps with it automatically.
+- `pacquet` — the Rust pnpm CLI (published to npm as `pnpm` and `@pnpm/exe` under its `next-<major>` dist-tag; named `pacquet` in-repo so its name can't collide with the TypeScript CLI). `@pnpm/napi` is a `versioning.fixed` group with it and bumps with it automatically.
 - `@pnpm/napi` — the Node.js addon bindings for the Rust engine.
 - `@pnpm/pnpr` — the pnpr registry server (published as `@pnpm/pnpr` and its platform packages, plus the `ghcr.io/pnpm/pnpr` Docker image).
 
 The Rust products release on `alpha` lanes (`versioning.lanes` in `pnpm-workspace.yaml`): each run of `pnpm version -r` that consumes an intent for one of them cuts an `X.Y.Z-alpha.N` prerelease, while the TypeScript CLI keeps releasing stable versions on the main lane. `pnpm lane main --filter …` graduates a product to a stable version.
 
-A parity change that lands in both stacks carries one changeset naming both the affected TypeScript packages (including `"./pnpm11/pnpm"`) and the Rust wrapper(s).
+Do not add `"pnpm"` to a Rust-only changeset: in changesets, `pnpm` always means the TypeScript CLI package. A parity change that lands in both stacks carries one changeset naming both the affected TypeScript packages (plus `"pnpm"`) and the Rust wrapper(s).
 
 ## Comments
 

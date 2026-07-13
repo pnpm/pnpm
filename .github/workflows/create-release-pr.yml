@@ -78,7 +78,7 @@ jobs:
           cat > .changeset/release-refresh-npm-signing-keys.md <<'EOF'
         ---
         "@pnpm/deps.security.signatures": patch
-        "./pnpm11/pnpm": patch
+        "pnpm": patch
         ---
 
         Updated the embedded npm registry signing keys to the set currently advertised by npm.
@@ -89,7 +89,7 @@ jobs:
           cat > .changeset/release-refresh-node-release-keys.md <<'EOF'
         ---
         "@pnpm/crypto.shasums-file": patch
-        "./pnpm11/pnpm": patch
+        "pnpm": patch
         ---
 
         Updated the embedded Node.js release keys to the current canonical `nodejs/release-keys` list.
@@ -114,11 +114,10 @@ jobs:
 
     # One release PR covers every product; the commit subject lists the ones
     # whose version actually changed against the target branch, e.g.
-    # "chore(release): 11.13.0, pacquet 12.0.0-alpha.9, pnpr 0.2.0". The Rust CLI
-    # (published as pnpm@12) is labelled "pacquet" so the two pnpm lines read
-    # apart. When only the TypeScript CLI bumped, the subject stays the historical
-    # bare version. `@pnpm/napi` is not listed separately: it is a versioning.fixed
-    # group with the Rust CLI, so it always carries the Rust CLI's version.
+    # "chore(release): 11.13.0, pacquet 12.0.0-alpha.9, pnpr 0.2.0". When only
+    # the TypeScript CLI bumped, the subject stays the historical bare version.
+    # `@pnpm/napi` is not listed separately: it is a versioning.fixed group with
+    # pacquet, so it always carries pacquet's version.
     - name: Compose release summary
       id: version
       if: steps.changes.outputs.changed == 'true'

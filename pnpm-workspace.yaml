@@ -58,8 +58,8 @@ packages:
   - '!pnpm11/resolving/local-resolver/example-package/**'
 
 # Native workspace release management (consumed by `pnpm change` / `pnpm version -r`).
-# The Rust CLI wrapper publishes as `pnpm` too (the v12 line), so it shares the
-# name of the TypeScript CLI at ./pnpm11/pnpm and must be referenced by directory.
+# The Rust CLI wrapper is the workspace package `pacquet` (published to npm as
+# `pnpm`); generate-packages.mjs rewrites the name at pack time.
 versioning:
   # @pnpm/logger is a workspace package, but every consumer depends on the
   # published one through the `^1100.0.0` catalog entry (a `catalog:` peer, kept
@@ -72,12 +72,12 @@ versioning:
   # The Rust CLI wrapper and its NAPI addon always release in lockstep at one
   # shared version.
   fixed:
-    - ['./pnpm/npm/pnpm', '@pnpm/napi']
+    - ['pacquet', '@pnpm/napi']
   # The Rust products release as `X.Y.Z-alpha.N` prereleases (published under the
   # `next` dist-tag) while the TypeScript CLI keeps releasing stable versions on
   # the main lane. `pnpm lane main --filter …` graduates a product to stable.
   lanes:
-    './pnpm/npm/pnpm': alpha
+    pacquet: alpha
     '@pnpm/napi': alpha
     '@pnpm/pnpr': alpha
 

@@ -21,16 +21,14 @@ const EXPERIMENTAL_PKGS = new Set([
   '@pnpm/pnpr.client',
 ])
 
-// The Rust products' npm wrapper packages, keyed by workspace-relative
-// directory. Their manifests are release artifacts owned by the respective
-// generate-packages.mjs scripts and are versioned independently of the
-// TypeScript packages, so none of the normalizations below may touch them.
-// Keyed by directory, not name, because the Rust CLI wrapper publishes as
-// `pnpm` — the same name as the TypeScript CLI at pnpm11/pnpm.
-const RUST_WRAPPER_DIRS = new Set([
-  'pnpm/npm/pnpm',
-  'pnpm/npm/napi',
-  'pnpr/npm/pnpr',
+// The Rust products' npm wrapper packages. Their manifests are release
+// artifacts owned by the respective generate-packages.mjs scripts and are
+// versioned independently of the TypeScript packages, so none of the
+// normalizations below may touch them.
+const RUST_WRAPPER_PKGS = new Set([
+  'pacquet',
+  '@pnpm/napi',
+  '@pnpm/pnpr',
 ])
 
 // Files that must be packed with mode 0755 in both `pnpm` and `@pnpm/exe`.
@@ -80,7 +78,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         if (!manifest) {
           return manifest
         }
-        if (RUST_WRAPPER_DIRS.has(normalizePath(path.relative(workspaceDir, dir)))) {
+        if (manifest.name && RUST_WRAPPER_PKGS.has(manifest.name)) {
           return manifest
         }
         if (manifest.name === 'monorepo-root') {

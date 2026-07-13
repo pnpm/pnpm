@@ -82,8 +82,8 @@ jobs:
           NAPI_VERSION=$(jq -r .version pnpm/npm/napi/package.json)
           PNPR_VERSION=$(jq -r .version pnpr/npm/pnpr/package.json)
 
-          # The pnpm v12 wrapper and @pnpm/napi are a versioning.fixed group;
-          # a drift means the versions were edited by hand inconsistently.
+          # pacquet and @pnpm/napi are a versioning.fixed group; a drift means
+          # the versions were edited by hand inconsistently.
           if [ "$RUST_VERSION" != "$NAPI_VERSION" ]; then
             echo "::error::pnpm/npm/pnpm ($RUST_VERSION) and pnpm/npm/napi ($NAPI_VERSION) versions differ"
             exit 1
@@ -181,8 +181,6 @@ jobs:
       - name: Publish pnpm CLI (trusted publishing)
         # No NPM_TOKEN — same rationale as the @pnpm/exe step above. This must come after
         # the previous step has cleared its NPM_TOKEN from pnpm's config.
-        # --filter=pnpm matches both the TypeScript CLI and the Rust wrapper (both
-        # publish as `pnpm`), but the wrapper is private, so publish skips it.
         run: pn publish --filter=pnpm --tag=next-11 --access=public --provenance
       - name: Copy Artifacts
         run: pn copy-artifacts
@@ -392,8 +390,8 @@ jobs:
           done
 
       - name: Generate npm packages
-        # Strips `private` from the committed `pnpm` wrapper (the v12 line) to
-        # make it publishable and generates the per-platform packages.
+        # Rewrites the committed private `pacquet` wrapper into the publishable
+        # `pnpm` manifest and generates the per-platform packages.
         run: |
           node pnpm/npm/pnpm/scripts/generate-packages.mjs
           node pnpm/npm/napi/scripts/generate-packages.mjs

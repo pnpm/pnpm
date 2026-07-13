@@ -788,7 +788,7 @@ catalogs:
       version: 10.0.1
     tar:
       specifier: ^7.5.15
-      version: 7.5.19
+      version: 7.5.20
     tar-stream:
       specifier: ^3.2.0
       version: 3.2.0
@@ -1243,7 +1243,7 @@ importers:
         version: 'link:'
       pnpm:
         specifier: workspace:*
-        version: link:../../../pnpm/npm/pnpm
+        version: link:../../pnpm
       ts-jest-resolver:
         specifier: 'catalog:'
         version: 2.0.1
@@ -1307,7 +1307,7 @@ importers:
         version: 3.0.0
       tar:
         specifier: 'catalog:'
-        version: 7.5.19
+        version: 7.5.20
       tinyglobby:
         specifier: 'catalog:'
         version: 0.2.17
@@ -8356,7 +8356,7 @@ importers:
         version: 7.0.1
       tar:
         specifier: 'catalog:'
-        version: 7.5.19
+        version: 7.5.20
       undici:
         specifier: 'catalog:'
         version: 7.28.0
@@ -16462,8 +16462,8 @@ packages:
   tar-stream@3.2.0:
     resolution: {integrity: sha512-ojzvCvVaNp6aOTFmG7jaRD0meowIAuPc3cMMhSgKiVWws1GyHbGd/xvnyuRKcKlMpt3qvxx6r0hreCNITP9hIg==}
 
-  tar@7.5.19:
-    resolution: {integrity: sha512-4LeEWl96twnS2Q7Bz4MGqgazLqO+hJN63GZxXoIqh1T3VweYD997gbU1ItNsQafqqXTXd5WFyFdReLtwvRBNiw==}
+  tar@7.5.20:
+    resolution: {integrity: sha512-9FcyK4PA6+WbzlTM9WhQm6vB5W7cP7dUiPsv1g7YDwEQnQ1CGpK3MGlKk/ITVWMk05kHZuBhmVhiv8LZoy/PFQ==}
     engines: {node: '>=18'}
 
   teex@1.0.1:
@@ -19947,7 +19947,7 @@ snapshots:
       p-limit: 2.3.0
       semver: 7.8.5
       strip-ansi: 6.0.1
-      tar: 7.5.19
+      tar: 7.5.20
       tinylogic: 2.0.0
       treeify: 1.1.0
       tslib: 2.8.1
@@ -19978,7 +19978,7 @@ snapshots:
       p-limit: 2.3.0
       semver: 7.8.5
       strip-ansi: 6.0.1
-      tar: 7.5.19
+      tar: 7.5.20
       tinylogic: 2.0.0
       treeify: 1.1.0
       tslib: 2.8.1
@@ -20441,7 +20441,7 @@ snapshots:
       minipass-pipeline: 1.2.4
       p-map: 7.0.5
       ssri: 12.0.0
-      tar: 7.5.19
+      tar: 7.5.20
       unique-filename: 4.0.0
 
   cacache@20.0.4:
@@ -23265,7 +23265,7 @@ snapshots:
       nopt: 8.1.0
       proc-log: 5.0.0
       semver: 7.8.5
-      tar: 7.5.19
+      tar: 7.5.20
       tinyglobby: 0.2.17
       which: 5.0.0
     transitivePeerDependencies:
@@ -23279,7 +23279,7 @@ snapshots:
       nopt: 9.0.0
       proc-log: 6.1.0
       semver: 7.8.5
-      tar: 7.5.19
+      tar: 7.5.20
       tinyglobby: 0.2.17
       undici: 6.27.0
       which: 6.0.1
@@ -24547,7 +24547,7 @@ snapshots:
       - bare-buffer
       - react-native-b4a
 
-  tar@7.5.19:
+  tar@7.5.20:
     dependencies:
       '@isaacs/fs-minipass': 4.0.1
       chownr: 3.0.0

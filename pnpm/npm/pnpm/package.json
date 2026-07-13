@@ -1,5 +1,5 @@
 {
-  "name": "pnpm",
+  "name": "pacquet",
   "private": true,
   "version": "12.0.0-alpha.8",
   "description": "Fast, disk space efficient package manager — the Rust port of pnpm (alpha, not production-ready)",
