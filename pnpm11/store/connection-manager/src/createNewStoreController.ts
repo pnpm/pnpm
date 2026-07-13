@@ -158,6 +158,11 @@ export async function createNewStoreController (
  * Whether the resolver should request full registry metadata instead of the
  * abbreviated document.
  *
+ * An explicit `fetchFullMetadata` wins over every derived reason below: `true`
+ * always fetches full metadata and `false` always suppresses it. When it is
+ * unset, the reasons below apply, and the default (no reason present) is
+ * `false` (abbreviated metadata).
+ *
  * Full metadata is needed when:
  * - `supportedArchitectures.libc` is set, because the npm registry's
  *   abbreviated metadata currently does not contain `libc`
