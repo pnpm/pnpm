@@ -136,7 +136,7 @@ async fn roll_forward_preserves_tarball_conflict_across_a_later_package_failure(
 
     let winner = storage.reserve_hosted_tarball(&conflicted_name, filename).await.unwrap();
     fs::write(&winner.tmp_path, b"winner").await.unwrap();
-    assert_eq!(storage.finalize_tarball_slot(winner).await.unwrap(), TarballFinalize::Written,);
+    assert_eq!(storage.finalize_tarball_slot(winner).await.unwrap(), TarballFinalize::Written);
 
     let loser = storage.reserve_hosted_tarball(&conflicted_name, filename).await.unwrap();
     fs::write(&loser.tmp_path, b"loser").await.unwrap();
