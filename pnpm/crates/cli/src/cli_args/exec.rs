@@ -167,6 +167,11 @@ pub(super) fn spawn_in_dir(
     };
 
     cmd.current_dir(dir);
+    // `updateConfig`-provided env, applied first so pnpm's own keys
+    // below (PATH, user-agent, NODE_OPTIONS) win on conflict — matching
+    // TS `makeEnv`, which spreads `...extraEnv` into the base. Empty
+    // unless an install-family command populated it.
+    cmd.envs(&config.extra_env);
     // Drop any inherited PATH-like key before re-inserting our own, so
     // a Windows `Path`/`PATH` pair can't collapse to an unspecified
     // winner at spawn time (matching the lifecycle spawn in

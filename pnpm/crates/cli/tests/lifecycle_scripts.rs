@@ -948,6 +948,80 @@ mod project_scripts {
         drop((root, mock_instance));
     }
 
+    /// An `updateConfig` pnpmfile hook that sets `extraEnv` exports those
+    /// variables into the project's lifecycle-script environment. Mirrors
+    /// the TypeScript CLI, where `config.extraEnv` is forwarded to
+    /// lifecycle scripts.
+    #[test]
+    fn update_config_extra_env_reaches_lifecycle_scripts() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "name": "project-reads-extra-env",
+            "version": "1.0.0",
+            "scripts": {
+                "postinstall":
+                    r#"node -e "require('fs').writeFileSync('extra-env.txt', process.env.PNPM_BUILD_MARKER || '')""#,
+            },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+        fs::write(
+            workspace.join(".pnpmfile.cjs"),
+            "module.exports = { hooks: { updateConfig (config) { config.extraEnv = { ...config.extraEnv, PNPM_BUILD_MARKER: 'from-hook' }; return config } } }",
+        )
+        .expect("write pnpmfile");
+
+        pacquet.with_arg("install").assert().success();
+
+        let value =
+            fs::read_to_string(workspace.join("extra-env.txt")).expect("read extra-env.txt");
+        assert_eq!(value.trim(), "from-hook");
+
+        drop((root, mock_instance));
+    }
+
+    /// A hook `extraEnv` that tries to override a reserved pnpm stamp
+    /// (`INIT_CWD`) must NOT win: pnpm's own value is authoritative,
+    /// matching TS `runLifecycleHook`. The script writes `INIT_CWD`,
+    /// which must be the lockfile dir, not the hook's bogus value.
+    #[test]
+    fn update_config_extra_env_cannot_override_reserved_stamps() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "name": "project-reserved-stamp",
+            "version": "1.0.0",
+            "scripts": {
+                "postinstall":
+                    r#"node -e "require('fs').writeFileSync('init-cwd.txt', process.env.INIT_CWD || '')""#,
+            },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+        fs::write(
+            workspace.join(".pnpmfile.cjs"),
+            "module.exports = { hooks: { updateConfig (config) { config.extraEnv = { ...config.extraEnv, INIT_CWD: '/bogus-from-hook' }; return config } } }",
+        )
+        .expect("write pnpmfile");
+
+        pacquet.with_arg("install").assert().success();
+
+        let init_cwd =
+            fs::read_to_string(workspace.join("init-cwd.txt")).expect("read init-cwd.txt");
+        assert_ne!(init_cwd.trim(), "/bogus-from-hook", "hook extraEnv must not override INIT_CWD");
+        let canonical_workspace = fs::canonicalize(&workspace).expect("canonicalize workspace dir");
+        let canonical_init_cwd =
+            fs::canonicalize(init_cwd.trim()).expect("canonicalize INIT_CWD value");
+        assert_eq!(canonical_init_cwd, canonical_workspace);
+
+        drop((root, mock_instance));
+    }
+
     /// `pacquet add <pkg>` is a partial install, so the project's own
     /// lifecycle scripts must not run: `postinstall`/`prepare` are not
     /// executed after a named install.

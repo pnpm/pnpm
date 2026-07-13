@@ -48,6 +48,52 @@ async fn update_config_null_clears_global_virtual_store_dir() {
     assert!(!config.explicit_settings.contains_key("globalVirtualStoreDir"));
 }
 
+#[tokio::test]
+async fn update_config_can_extend_extra_bin_paths() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    // A workspace manifest makes `current` seed `extra_bin_paths` with the
+    // workspace root's `node_modules/.bin`; the hook appends to that.
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.extraBinPaths = [...config.extraBinPaths, '/opt/pnpm-build/bin']; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    let seeded = config.extra_bin_paths.clone();
+    assert_eq!(seeded, vec![root.path().join("node_modules").join(".bin")]);
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
+        .await
+        .expect("run updateConfig hook");
+
+    let mut expected = seeded;
+    expected.push(Path::new("/opt/pnpm-build/bin").to_path_buf());
+    assert_eq!(config.extra_bin_paths, expected);
+}
+
+#[tokio::test]
+async fn update_config_can_set_extra_env() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.extraEnv = { ...config.extraEnv, npm_config_nodedir: '/brazil/node' }; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    assert!(config.extra_env.is_empty());
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
+        .await
+        .expect("run updateConfig hook");
+
+    assert_eq!(
+        config.extra_env.get("npm_config_nodedir").map(String::as_str),
+        Some("/brazil/node"),
+    );
+}
+
 /// `Accept` header the resolver sends for full metadata
 /// (`ACCEPT_FULL_DOC`); only the full packument carries the per-version
 /// `time` map and trust evidence the no-downgrade check reads.

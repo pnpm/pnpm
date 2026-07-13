@@ -2002,7 +2002,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             .map_err(InstallWithFreshLockfileError::WritePackageMap)?;
         }
 
-        let mut build_extra_env = HashMap::new();
+        let mut build_extra_env = config.extra_env.clone();
         if let Some(node_options) = &config.node_options {
             build_extra_env.insert("NODE_OPTIONS".to_string(), node_options.clone());
         }

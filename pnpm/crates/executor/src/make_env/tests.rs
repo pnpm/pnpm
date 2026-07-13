@@ -1,5 +1,6 @@
 use super::{
-    EnvOptions, build_env, escape_newlines, is_stamping_key, sanitize_env_key, stamp_package,
+    EnvOptions, VERIFY_DEPS_BEFORE_RUN_ENV, build_env, escape_newlines, is_stamping_key,
+    sanitize_env_key, stamp_package,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -173,12 +174,25 @@ fn make_env_tmpdir_gating_mirrors_unsafe_perm() {
     assert_eq!(built.env.get("TMPDIR"), Some(&expected_tmpdir.to_string_lossy().into_owned()));
 }
 
+/// pnpm's reserved per-call stamps override a user `extraEnv` that
+/// tries to set the same key (matching TS `runLifecycleHook`, which
+/// spreads `extraEnv` before its own `INIT_CWD` / user-agent / etc.).
+/// The non-reserved keys pnpm generates before `extra_env`
+/// (`npm_lifecycle_event`, `npm_config_node_gyp`, `npm_package_*`) stay
+/// overridable, matching TS `npm-lifecycle`, which applies `extraEnv`
+/// after those. A brand-new key also applies.
 #[test]
-fn extra_env_overrides_writes_except_lifecycle_script() {
+fn reserved_stamps_win_over_extra_env_but_custom_keys_apply() {
     let pkg_root = Path::new("/tmp/w");
+    let node_gyp = Path::new("/pnpm/node-gyp");
     let mut extra = HashMap::new();
     extra.insert("INIT_CWD".into(), "/overridden".into());
+    extra.insert("npm_config_user_agent".into(), "evil".into());
+    extra.insert(VERIFY_DEPS_BEFORE_RUN_ENV.into(), "true".into());
     extra.insert("npm_lifecycle_script".into(), "FAKE".into());
+    extra.insert("npm_lifecycle_event".into(), "from-hook".into());
+    extra.insert("npm_config_node_gyp".into(), "/from-hook/node-gyp".into());
+    extra.insert("npm_package_name".into(), "from-hook".into());
     extra.insert("CUSTOM".into(), "hello".into());
 
     let opts = EnvOptions {
@@ -189,16 +203,28 @@ fn extra_env_overrides_writes_except_lifecycle_script() {
         script_src_dir: pkg_root,
         node_execpath: None,
         npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: None,
+        node_gyp_path: Some(node_gyp),
+        user_agent: Some("pnpm"),
         unsafe_perm: true,
         extra_env: &extra,
     };
 
     let built = build_env(&opts, &json!({"name":"w","version":"0"}), HashMap::new());
 
-    assert_eq!(built.env.get("INIT_CWD").map(String::as_str), Some("/overridden"));
+    // Reserved pnpm keys win over the user's `extraEnv`.
+    assert_eq!(built.env.get("INIT_CWD").map(String::as_str), Some("/original"));
+    assert_eq!(built.env.get("npm_config_user_agent").map(String::as_str), Some("pnpm"));
+    assert_eq!(built.env.get(VERIFY_DEPS_BEFORE_RUN_ENV).map(String::as_str), Some("false"));
     assert_eq!(built.env.get("npm_lifecycle_script").map(String::as_str), Some("REAL"));
+    // Non-reserved stamps pnpm generates before `extra_env` stay
+    // overridable, matching TS.
+    assert_eq!(built.env.get("npm_lifecycle_event").map(String::as_str), Some("from-hook"));
+    assert_eq!(
+        built.env.get("npm_config_node_gyp").map(String::as_str),
+        Some("/from-hook/node-gyp"),
+    );
+    assert_eq!(built.env.get("npm_package_name").map(String::as_str), Some("from-hook"));
+    // A brand-new key from `extraEnv` also applies.
     assert_eq!(built.env.get("CUSTOM").map(String::as_str), Some("hello"));
 }
 

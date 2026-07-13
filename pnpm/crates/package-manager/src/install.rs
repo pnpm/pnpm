@@ -2232,7 +2232,7 @@ fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
         pacquet_config::ScriptsPrependNodePath::Never => ExecScriptsPrependNodePath::Never,
         pacquet_config::ScriptsPrependNodePath::WarnOnly => ExecScriptsPrependNodePath::WarnOnly,
     };
-    let mut extra_env = std::collections::HashMap::new();
+    let mut extra_env = config.extra_env.clone();
     if let Some(node_options) = &config.node_options {
         extra_env.insert("NODE_OPTIONS".to_string(), node_options.clone());
     }
@@ -2252,7 +2252,7 @@ fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
             pkg_root: project_dir,
             root_modules_dir: &root_modules_dir,
             init_cwd: workspace_root,
-            extra_bin_paths: &[],
+            extra_bin_paths: &config.extra_bin_paths,
             extra_env: &extra_env,
             node_execpath: None,
             npm_execpath: None,

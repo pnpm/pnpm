@@ -18,7 +18,7 @@ use pacquet_reporter::Reporter;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use serde_json::{Value, json};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashMap},
     ffi::OsString,
     fs,
     path::{Path, PathBuf},
@@ -173,6 +173,7 @@ impl DlxArgs {
         let cache_key =
             create_cache_key(&pkgs, &registries, &allow_build, effective_architectures.as_ref());
         let extra_bin_paths = config.extra_bin_paths.clone();
+        let extra_env = config.extra_env.clone();
 
         let dlx_command_cache_dir = cache_dir.join("dlx").join(&cache_key);
         fs::create_dir_all(&dlx_command_cache_dir).map_err(|source| DlxError::Cache {
@@ -223,7 +224,7 @@ impl DlxArgs {
         // The dlx bin runs in the process working directory
         // (`cwd: process.cwd()`), independent of `--dir`.
         let run_cwd = std::env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
-        run_bin(&bin_name, args, &run_cwd, bins_dir, &extra_bin_paths, shell_mode)
+        run_bin(&bin_name, args, &run_cwd, bins_dir, &extra_bin_paths, &extra_env, shell_mode)
     }
 }
 
@@ -338,6 +339,7 @@ fn run_bin(
     cwd: &Path,
     bins_dir: PathBuf,
     extra_bin_paths: &[PathBuf],
+    extra_env: &HashMap<String, String>,
     shell_mode: bool,
 ) -> miette::Result<()> {
     let mut prepend = Vec::with_capacity(1 + extra_bin_paths.len());
@@ -367,6 +369,12 @@ fn run_bin(
     };
 
     cmd.current_dir(cwd);
+    // `updateConfig`-provided env, applied first so pnpm's own keys win
+    // on conflict (matching `exec`'s spawn and TS `makeEnv`). dlx does
+    // not run the `updateConfig` hook, so this is currently always
+    // empty; wired for uniformity with the other spawn sites and so it
+    // works if that changes.
+    cmd.envs(extra_env);
     cmd.env_remove("PATH");
     cmd.env_remove("Path");
     cmd.env("PATH", &path);

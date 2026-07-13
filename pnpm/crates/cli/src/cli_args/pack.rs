@@ -25,7 +25,6 @@ use pacquet_pack::{
 use pacquet_reporter::Reporter;
 use pacquet_workspace::read_workspace_manifest;
 use std::{
-    collections::HashMap,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -239,7 +238,7 @@ impl PackArgs {
             skip_manifest_obfuscation: self.skip_manifest_obfuscation,
             user_agent: config.user_agent.clone(),
             extra_bin_paths: config.extra_bin_paths.clone(),
-            extra_env: HashMap::new(),
+            extra_env: config.extra_env.clone(),
             workspace_dir: config.workspace_dir.clone(),
             dry_run: self.dry_run,
             out,
