@@ -69,7 +69,12 @@ describe('change command and intent-consuming version -r', () => {
   it('bare version -r applies the release plan and cleans up the intent', async () => {
     const lib = addPkg({ name: 'lib', version: '1.0.0' })
     const cli = addPkg({ name: 'cli', version: '2.0.0', dependencies: { lib: 'workspace:*' } })
-    const opts = baseOpts([lib, cli])
+    // Assert the committed-CHANGELOG flow: `repository` storage writes
+    // CHANGELOG.md and deletes the consumed intent at version time. The default
+    // `registry` storage instead parks the section and defers intent GC until
+    // the registry confirms publication — covered in the versioning package's
+    // lifecycle tests.
+    const opts = { ...baseOpts([lib, cli]), versioning: { changelog: { storage: 'repository' } } }
 
     await change.handler({ ...opts, bump: 'major', summary: 'Breaking change.' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any
 
