@@ -688,6 +688,23 @@ fn epic_membership_resolves_directory_globs_and_honors_negations() {
 }
 
 #[test]
+fn epic_selectors_are_order_dependent_a_later_include_overrides_an_earlier_negation() {
+    let projects = [
+        project_at("pnpm", "11.0.0", "pnpm"),
+        project_at("@scope/a", "1100.0.0", "pkgs/a"),
+        project_at("@scope/b", "1100.0.0", "pkgs/b"),
+    ];
+    let intents = [make_intent("one", &[("pnpm", "major")])];
+    // "!./pkgs/b" first, then "./pkgs/**" — the later include wins, so b is a member.
+    let versioning = VersioningSettings {
+        epics: vec![epic("./pnpm", &["!./pkgs/b", "./pkgs/**"])],
+        ..VersioningSettings::default()
+    };
+    let plan = assemble(&projects, &intents, &Ledger::new(), Some(&versioning));
+    assert_eq!(release_names(&plan), ["@scope/a", "@scope/b", "pnpm"]);
+}
+
+#[test]
 fn a_package_matched_by_two_epics_is_a_configuration_error() {
     let projects = [
         make_project("pnpm", "11.0.0", &[]),

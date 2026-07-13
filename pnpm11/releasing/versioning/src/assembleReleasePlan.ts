@@ -541,16 +541,21 @@ function compileEpicSelector (selector: string): EpicSelector {
   return { negated, onDir, match: wildcardMatch(onDir ? normalizeProjectDir(body) : body) }
 }
 
-/** A member matches an epic when a positive selector hits and no negation does. */
+/**
+ * Whether a project is an epic member under pnpm's order-dependent selector
+ * rule: each matching selector overrides the previous verdict, so the last one
+ * to match decides — a positive include or a `!` negation — mirroring
+ * `@pnpm/config.matcher`, where a later include can re-include a package an
+ * earlier negation excluded.
+ */
 function matchesEpicSelectors (selectors: EpicSelector[], dir: string, name: string): boolean {
   let included = false
-  let excluded = false
   for (const selector of selectors) {
-    if (!selector.match(selector.onDir ? dir : name)) continue
-    if (selector.negated) excluded = true
-    else included = true
+    if (selector.match(selector.onDir ? dir : name)) {
+      included = !selector.negated
+    }
   }
-  return included && !excluded
+  return included
 }
 
 /**

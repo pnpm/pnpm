@@ -748,22 +748,20 @@ fn compile_epic_selector(selector: &str) -> EpicSelector {
     EpicSelector { negated, on_dir, pattern }
 }
 
-/// A member matches an epic when a positive selector hits and no negation does.
+/// Whether a project is an epic member under pnpm's order-dependent selector
+/// rule: each matching selector overrides the previous verdict, so the last
+/// one to match decides — a positive include or a `!` negation — mirroring
+/// `@pnpm/config.matcher`, where a later include can re-include a package an
+/// earlier negation excluded.
 fn matches_epic_selectors(selectors: &[EpicSelector], dir: &str, name: &str) -> bool {
     let mut included = false;
-    let mut excluded = false;
     for selector in selectors {
         let input = if selector.on_dir { dir } else { name };
-        if !wildcard_match(&selector.pattern, input) {
-            continue;
-        }
-        if selector.negated {
-            excluded = true;
-        } else {
-            included = true;
+        if wildcard_match(&selector.pattern, input) {
+            included = !selector.negated;
         }
     }
-    included && !excluded
+    included
 }
 
 /// Matches `input` against a pattern where `*` matches any run of characters

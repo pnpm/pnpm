@@ -501,6 +501,23 @@ test('epic membership resolves directory globs and honors negations', () => {
   expect(plan.releases.find((release) => release.name === '@scope/a')!.newVersion).toBe('1200.0.0')
 })
 
+test('epic selectors are order-dependent: a later include overrides an earlier negation', () => {
+  const projects = [
+    { rootDir: '/ws/pnpm', manifest: { name: 'pnpm', version: '11.0.0' } },
+    { rootDir: '/ws/pkgs/a', manifest: { name: '@scope/a', version: '1100.0.0' } },
+    { rootDir: '/ws/pkgs/b', manifest: { name: '@scope/b', version: '1100.0.0' } },
+  ]
+  const plan = assembleReleasePlan({
+    workspaceDir: '/ws',
+    projects,
+    intents: [makeIntent('one', { pnpm: 'major' })],
+    ledger: NO_LEDGER,
+    // '!./pkgs/b' first, then './pkgs/**' — the later include wins, so b is a member.
+    versioning: { epics: [{ lead: './pnpm', packages: ['!./pkgs/b', './pkgs/**'] }] },
+  })
+  expect(plan.releases.map((release) => release.name).sort()).toStrictEqual(['@scope/a', '@scope/b', 'pnpm'])
+})
+
 test('a package matched by two epics is a configuration error', () => {
   expect(() => assembleReleasePlan({
     workspaceDir: '/ws',
