@@ -231,24 +231,26 @@ pub(super) fn ping<'a>(ctx: &RunCtx<'a>, args: PingArgs) -> miette::Result<Comma
 // `pack` prints the tarball summary (or JSON) its handler returns; the
 // reporter type only affects the lifecycle-script output, so it's threaded
 // into `run` and the result printed here, mirroring pnpm's `handler` → CLI
-// print split. The handler is synchronous, so this resolves to a ready future
-// once the output is printed.
-pub(super) fn pack<'a>(ctx: &RunCtx<'a>, args: &PackArgs) -> miette::Result<CommandFuture<'a>> {
-    let output = match ctx.reporter {
-        ReporterType::Default | ReporterType::AppendOnly => {
-            args.run::<DefaultReporter>(ctx.dir, (ctx.config)()?, ctx.recursive)?
+// print split. `run` is async (it may invoke `beforePacking` pnpmfile
+// hooks), so the work is deferred into the returned future.
+pub(super) fn pack<'a>(ctx: &RunCtx<'a>, args: PackArgs) -> miette::Result<CommandFuture<'a>> {
+    let config = (ctx.config)()?;
+    let dir = ctx.dir;
+    let recursive = ctx.recursive;
+    let reporter = ctx.reporter;
+    Ok(Box::pin(async move {
+        let output = match reporter {
+            ReporterType::Default | ReporterType::AppendOnly => {
+                args.run::<DefaultReporter>(dir, config, recursive).await?
+            }
+            ReporterType::Ndjson => args.run::<NdjsonReporter>(dir, config, recursive).await?,
+            ReporterType::Silent => args.run::<SilentReporter>(dir, config, recursive).await?,
+        };
+        if !output.is_empty() {
+            println!("{output}");
         }
-        ReporterType::Ndjson => {
-            args.run::<NdjsonReporter>(ctx.dir, (ctx.config)()?, ctx.recursive)?
-        }
-        ReporterType::Silent => {
-            args.run::<SilentReporter>(ctx.dir, (ctx.config)()?, ctx.recursive)?
-        }
-    };
-    if !output.is_empty() {
-        println!("{output}");
-    }
-    Ok(Box::pin(std::future::ready(Ok(()))))
+        Ok(())
+    }))
 }
 
 /// `publish` packs the project, runs its prepublish/publish lifecycle scripts,

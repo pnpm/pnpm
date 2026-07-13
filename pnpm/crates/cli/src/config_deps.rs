@@ -15,7 +15,7 @@ use pacquet_env_installer::{
     ConfigDepsInstallOptions, resolve_and_install_config_deps, resolve_package_manager_integrities,
 };
 use pacquet_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform};
-use pacquet_hooks::{HookContext, LogFn, finder};
+use pacquet_hooks::{HookContext, LogFn, PnpmfileHooks, finder};
 use pacquet_network::{NetworkSettings, RetryOpts, ThrottledClient};
 use pacquet_reporter::{HookLog, LogEvent, LogLevel, Reporter};
 use pacquet_resolving_npm_resolver::{
@@ -365,10 +365,14 @@ impl EnvInstallerContext {
 /// outside `WorkspaceSettings` — are seeded into the hook input and, when
 /// a hook changes them, captured into [`Config::catalogs`] for the install
 /// to use.
-pub async fn run_update_config_hooks<Reporter: self::Reporter>(
-    config: &mut Config,
-    root_dir: &Path,
-) -> Result<()> {
+/// The pnpmfile paths that contribute hooks for `root_dir`, in
+/// application order: config-dependency plugin pnpmfiles (lexical
+/// order) first, then the workspace-root `.pnpmfile.{cjs,mjs}`. Shared
+/// by the `updateConfig` install hook and the `beforePacking`
+/// pack/publish hook so both apply the same pnpmfile set, matching
+/// pnpm's single loaded hooks object.
+#[must_use]
+pub fn resolve_pnpmfile_paths(config: &Config, root_dir: &Path) -> Vec<PathBuf> {
     let config_modules_dir = root_dir.join("node_modules").join(".pnpm-config");
     let mut pnpmfiles: Vec<PathBuf> = match config.config_dependencies.as_ref() {
         Some(deps) => finder::calc_pnpmfile_paths_of_plugin_deps(
@@ -380,6 +384,24 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     if let Some(root_pnpmfile) = finder::find_pnpmfile(root_dir) {
         pnpmfiles.push(root_pnpmfile);
     }
+    pnpmfiles
+}
+
+/// Load the pnpmfiles that contribute a `beforePacking` hook for
+/// `root_dir` (see [`resolve_pnpmfile_paths`]), returning one shareable
+/// hook handle per pnpmfile. A recursive pack loads them once and clones
+/// the `Arc`s into each project so a pnpmfile's Node worker is spawned
+/// once, not once per packed project.
+#[must_use]
+pub fn load_before_packing_hooks(config: &Config, root_dir: &Path) -> Vec<Arc<dyn PnpmfileHooks>> {
+    resolve_pnpmfile_paths(config, root_dir).into_iter().map(finder::load_pnpmfile_at).collect()
+}
+
+pub async fn run_update_config_hooks<Reporter: self::Reporter>(
+    config: &mut Config,
+    root_dir: &Path,
+) -> Result<()> {
+    let pnpmfiles = resolve_pnpmfile_paths(config, root_dir);
     if pnpmfiles.is_empty() {
         return Ok(());
     }

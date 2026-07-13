@@ -287,6 +287,15 @@ impl crate::PnpmfileHooks for NodeJsHooks {
         Ok(if result.is_null() { config } else { result })
     }
 
+    async fn before_packing(
+        &self,
+        manifest: Value,
+        dir: &std::path::Path,
+        ctx: crate::HookContext,
+    ) -> Result<Value, HookError> {
+        self.worker().await?.call_before_packing(manifest, &dir.to_string_lossy(), ctx.log).await
+    }
+
     async fn pre_resolution(
         &self,
         ctx: crate::PreResolutionHookContext,

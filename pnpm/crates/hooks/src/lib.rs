@@ -99,6 +99,27 @@ pub trait PnpmfileHooks: Send + Sync {
         Ok(config)
     }
 
+    /// `beforePacking` hook: transforms a project's published manifest
+    /// before it is packed. Publish and pack run it once per project,
+    /// after the exportable manifest is built and before the file list
+    /// is computed, so a hook may still change `files`, `bin`, or the
+    /// dependency fields.
+    ///
+    /// Called with `(manifest, dir, context)`, mirroring pnpm's cooked
+    /// `beforePacking(pkg, dir, context)` signature. Returns the
+    /// (possibly modified) manifest; a hook that returns nothing — and
+    /// the default no-op — leaves `manifest` unchanged. A throwing hook
+    /// yields a [`HookError`] and aborts packing.
+    async fn before_packing(
+        &self,
+        manifest: Value,
+        dir: &std::path::Path,
+        ctx: HookContext,
+    ) -> Result<Value, HookError> {
+        let _ = (dir, ctx);
+        Ok(manifest)
+    }
+
     /// `preResolution` hook: side-effect hook called before resolution (e.g., logging, validation).
     async fn pre_resolution(&self, ctx: PreResolutionHookContext, logger: PreResolutionHookLogger);
 

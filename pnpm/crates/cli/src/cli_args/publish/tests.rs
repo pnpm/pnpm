@@ -75,8 +75,8 @@ fn publish_options_applies_tag_access_provenance_and_dry_run() {
     assert_eq!(options.otp, None);
 }
 
-#[test]
-fn pack_for_publish_writes_a_tarball_and_returns_the_manifest() {
+#[tokio::test]
+async fn pack_for_publish_writes_a_tarball_and_returns_the_manifest() {
     let dir = tempfile::tempdir().expect("a source dir");
     std::fs::write(dir.path().join("package.json"), r#"{"name":"pkg","version":"1.0.0"}"#)
         .expect("write the manifest");
@@ -85,6 +85,7 @@ fn pack_for_publish_writes_a_tarball_and_returns_the_manifest() {
     let args = publish_args_with(PublishFlags { ignore_scripts: true, ..publish_flags() });
     let result = args
         .pack_for_publish::<SilentReporter>(dir.path(), &Config::default(), dest.path())
+        .await
         .expect("packing succeeds");
 
     assert_eq!(result.published_manifest["name"], "pkg");

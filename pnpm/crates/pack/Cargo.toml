@@ -17,6 +17,7 @@ pacquet-config                            = { workspace = true }
 pacquet-executor                          = { workspace = true }
 pacquet-exportable-manifest               = { workspace = true }
 pacquet-fs-packlist                       = { workspace = true }
+pacquet-hooks                             = { workspace = true }
 pacquet-package-manifest                  = { workspace = true }
 pacquet-reporter                          = { workspace = true }
 pacquet-resolving-parse-wanted-dependency = { workspace = true }
@@ -33,6 +34,7 @@ tempfile    = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+tokio    = { workspace = true }
 
 [lints]
 workspace = true

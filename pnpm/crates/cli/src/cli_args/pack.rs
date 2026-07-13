@@ -18,6 +18,7 @@ use miette::{Context, IntoDiagnostic};
 use pacquet_catalogs_config::get_catalogs_from_workspace_manifest;
 use pacquet_catalogs_types::Catalogs;
 use pacquet_config::Config;
+use pacquet_hooks::PnpmfileHooks;
 use pacquet_pack::{
     Host, PackError, PackOptions, PackResultJson, api, format_pack_output, to_pack_result_json,
 };
@@ -26,6 +27,7 @@ use pacquet_workspace::read_workspace_manifest;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 /// The catalogs `catalog:` specifiers resolve against when packing a
@@ -90,23 +92,26 @@ pub struct PackArgs {
 impl PackArgs {
     /// Pack the project at `dir` (or the `--filter`-selected workspace
     /// projects when `recursive`), returning the text/JSON the CLI prints.
-    pub fn run<Reporter: self::Reporter>(
+    pub async fn run<Reporter: self::Reporter>(
         &self,
         dir: &Path,
         config: &Config,
         recursive: bool,
     ) -> miette::Result<String> {
         if recursive {
-            self.run_recursive::<Reporter>(dir, config)
+            self.run_recursive::<Reporter>(dir, config).await
         } else {
+            let pnpmfile_root = config.workspace_dir.as_deref().unwrap_or(dir);
             let options = self.pack_options(
                 dir.to_path_buf(),
                 config,
                 pack_catalogs(config)?,
                 self.out.clone(),
                 self.pack_destination.clone(),
+                crate::config_deps::load_before_packing_hooks(config, pnpmfile_root),
             );
             let result = api::<Reporter, Host>(&options)
+                .await
                 .map_err(miette::Report::new)
                 .wrap_err("pack the package")?;
             Ok(format_pack_output(&[to_pack_result_json(&result)], self.json, false))
@@ -115,7 +120,7 @@ impl PackArgs {
 
     /// Pack each `--filter`-selected workspace project that declares both
     /// a name and a version, in topological order.
-    fn run_recursive<Reporter: self::Reporter>(
+    async fn run_recursive<Reporter: self::Reporter>(
         &self,
         dir: &Path,
         config: &Config,
@@ -148,6 +153,11 @@ impl PackArgs {
         // of each project's own root.
         let (out, pack_destination) = self.resolve_recursive_destination(dir);
         let catalogs = pack_catalogs(config)?;
+        // Load the pnpmfiles once for the whole workspace (they live at the
+        // workspace root); cloning the Arcs into each project shares one
+        // worker per pnpmfile instead of re-spawning it per packed project.
+        let before_packing_hooks =
+            crate::config_deps::load_before_packing_hooks(config, workspace_root);
 
         let mut packed: Vec<PackResultJson> = Vec::new();
         for chunk in &chunks {
@@ -171,8 +181,10 @@ impl PackArgs {
                     catalogs.clone(),
                     out.clone(),
                     pack_destination.clone(),
+                    before_packing_hooks.clone(),
                 );
                 let result = api::<Reporter, Host>(&options)
+                    .await
                     .map_err(miette::Report::new)
                     .wrap_err_with(|| format!("pack {}", project.root_dir.display()))?;
                 packed.push(to_pack_result_json(&result));
@@ -203,6 +215,10 @@ impl PackArgs {
     }
 
     /// Map `self` plus the resolved `config` onto a [`PackOptions`].
+    ///
+    /// `before_packing_hooks` is loaded once by the caller and cloned in
+    /// (like `catalogs`) so a recursive pack shares one worker per
+    /// pnpmfile across every project.
     fn pack_options(
         &self,
         dir: PathBuf,
@@ -210,6 +226,7 @@ impl PackArgs {
         catalogs: Catalogs,
         out: Option<String>,
         pack_destination: Option<String>,
+        before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     ) -> PackOptions {
         PackOptions {
             dir,
@@ -227,6 +244,7 @@ impl PackArgs {
             dry_run: self.dry_run,
             out,
             pack_destination,
+            before_packing_hooks,
         }
     }
 }
