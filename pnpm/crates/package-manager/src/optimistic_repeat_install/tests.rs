@@ -1,6 +1,6 @@
 use super::{
     Decision, FileMtime, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
-    current_settings, current_settings_with_catalogs, modified_at_or_after,
+    current_settings, current_settings_with_catalogs, lockfile_mtime_after, modified_at_or_after,
 };
 use indexmap::IndexMap;
 use pacquet_catalogs_types::Catalogs;
@@ -2251,4 +2251,22 @@ fn modified_at_or_after_compares_at_nanosecond_precision() {
     // edit is still seen (the same-millisecond flake this guards against).
     let later_in_same_ms = FileMtime { ms, ns: ns + 500_000, whole_second: false };
     assert!(modified_at_or_after(later_in_same_ms, ms));
+}
+
+/// The lockfile freshness check uses whole-millisecond precision so the
+/// unchanged lockfile is never flagged against its own millisecond-
+/// truncated baseline (which the nanosecond manifest comparison would),
+/// while an external edit a millisecond later is still caught.
+#[test]
+fn lockfile_check_does_not_self_flag_its_own_baseline() {
+    let ms = 1_700_000_000_000_i64;
+    let subsecond_ns = ms * 1_000_000 + 500_000; // .5 ms into its millisecond
+
+    // A manifest with this mtime would (correctly) be flagged via
+    // nanoseconds against a baseline equal to its own truncated ms:
+    assert!(modified_at_or_after(FileMtime { ms, ns: subsecond_ns, whole_second: false }, ms));
+    // The lockfile must NOT self-flag against that same baseline:
+    assert!(!lockfile_mtime_after(ms, ms));
+    // An external edit a whole millisecond later is still caught:
+    assert!(lockfile_mtime_after(ms + 1, ms));
 }

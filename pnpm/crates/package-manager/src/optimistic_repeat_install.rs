@@ -940,9 +940,28 @@ pub(crate) fn validation_baseline_ms(
 /// untouched but must still defeat the manifest-mtime fast path. A
 /// missing lockfile reports `false` here — it is handled by the
 /// existence and stand-in gates, not treated as a modification.
+///
+/// Compared at whole-millisecond precision, unlike the manifest / patch /
+/// pnpmfile checks: `lastValidatedTimestamp` is itself a lockfile mtime
+/// truncated to milliseconds (see
+/// [`crate::install::build_workspace_state`]), so a nanosecond comparison
+/// would flag the *unchanged* lockfile against its own truncated value on
+/// every repeat install and force a content check each time. An external
+/// lockfile edit (git checkout, manual rewrite) lands in a later
+/// millisecond, so millisecond precision still catches it.
 fn wanted_lockfile_modified(workspace_root: &Path, last_validated_timestamp: i64) -> bool {
     file_mtime(&workspace_root.join(Lockfile::FILE_NAME))
-        .is_some_and(|mtime| modified_at_or_after(mtime, last_validated_timestamp))
+        .is_some_and(|mtime| lockfile_mtime_after(mtime.ms, last_validated_timestamp))
+}
+
+/// Whether a lockfile with mtime `subject_ms` post-dates `reference_ms`,
+/// at whole-millisecond precision. Unlike the nanosecond
+/// [`modified_at_or_after`] used for manifests/patches/pnpmfiles: the
+/// baseline is the lockfile's own mtime truncated to milliseconds, so a
+/// nanosecond comparison would flag the unchanged lockfile against its own
+/// truncated value every repeat install. See [`wanted_lockfile_modified`].
+fn lockfile_mtime_after(subject_ms: i64, reference_ms: i64) -> bool {
+    subject_ms > reference_ms
 }
 
 fn current_lockfile_unusable_with_non_empty_wanted(
