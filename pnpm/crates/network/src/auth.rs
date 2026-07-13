@@ -19,7 +19,7 @@ use crate::token_helper::{TokenHelperRunner, execute_token_helper, run_token_hel
 use std::{
     collections::{BTreeMap, HashMap},
     fmt,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, OnceLock},
 };
 
 pub const DEFAULT_REGISTRY_SCOPE: &str = "@";
@@ -90,6 +90,12 @@ pub enum MetadataCacheScope {
 /// Construct via [`AuthHeaders::from_parts`], [`AuthHeaders::from_creds_map`],
 /// [`AuthHeaders::from_map`], or [`AuthHeaders::default`] (empty). Look up via
 /// [`AuthHeaders::for_url`].
+/// Memo of resolved `tokenHelper` results keyed by `scope + map key`. Each
+/// entry is a per-key [`OnceLock`] so a resolving subprocess runs without the
+/// shared [`Mutex`] held. See the `resolved_token_helpers` field on
+/// [`AuthHeaders`].
+type TokenHelperCache = Arc<Mutex<HashMap<String, Arc<OnceLock<Option<String>>>>>>;
+
 #[derive(Default, Clone)]
 pub struct AuthHeaders {
     /// Keys are the nerf-darted form (`//host[:port]/path/`). Each value
@@ -118,11 +124,14 @@ pub struct AuthHeaders {
     /// map of only baked headers pays nothing regardless.
     has_token_helpers: bool,
     /// Memoizes each resolved `tokenHelper`: a helper runs at most once
-    /// per process, keyed by its map key. `Some(header)` on success,
-    /// `None` on failure (so a failed helper is never retried and never
-    /// falls back to sending a different credential). Shared across
-    /// [`Clone`]s so the memo survives an `Arc` unwrap-and-rebuild.
-    resolved_token_helpers: Arc<Mutex<HashMap<String, Option<String>>>>,
+    /// per process, keyed by its map key. Each key maps to a per-key
+    /// [`OnceLock`] so the resolving subprocess runs without the shared
+    /// [`Mutex`] held — one slow helper can't block another registry's
+    /// lookup. `Some(header)` on success, `None` on failure (so a failed
+    /// helper is never retried and never falls back to sending a different
+    /// credential). Shared across [`Clone`]s so the memo survives an `Arc`
+    /// unwrap-and-rebuild.
+    resolved_token_helpers: TokenHelperCache,
     /// Runner used to execute a `tokenHelper`. `None` uses the real
     /// process spawner; tests inject a fake via
     /// [`AuthHeaders::with_token_helper_runner`].
@@ -523,28 +532,35 @@ impl AuthHeaders {
             AuthEntry::Header(value) => Some(value.clone()),
             AuthEntry::TokenHelper(command) => {
                 let cache_key = format!("{scope}\u{0}{key}");
-                let mut cache = self
-                    .resolved_token_helpers
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner);
-                if let Some(cached) = cache.get(&cache_key) {
-                    return cached.clone();
-                }
-                let runner = self.token_helper_runner.unwrap_or(run_token_helper_command);
-                let resolved = match execute_token_helper(command, runner) {
-                    Ok(header) => Some(header),
-                    Err(error) => {
-                        let program = command.first().map_or("", String::as_str);
-                        tracing::error!(
-                            target: "pacquet::auth",
-                            "token helper {program:?} failed; the request will be sent without \
-                             authentication: {error}",
-                        );
-                        None
-                    }
+                // Take the per-key cell out under the global lock, then
+                // release it *before* running the helper. Holding the lock
+                // across the (up to `TOKEN_HELPER_TIMEOUT`) subprocess would
+                // block every other registry's lookup on one slow helper.
+                // `OnceLock` still serializes concurrent first-lookups of the
+                // *same* key, so the command runs at most once.
+                let cell = {
+                    let mut cache = self
+                        .resolved_token_helpers
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    Arc::clone(cache.entry(cache_key).or_default())
                 };
-                cache.insert(cache_key, resolved.clone());
-                resolved
+                cell.get_or_init(|| {
+                    let runner = self.token_helper_runner.unwrap_or(run_token_helper_command);
+                    match execute_token_helper(command, runner) {
+                        Ok(header) => Some(header),
+                        Err(error) => {
+                            let program = command.first().map_or("", String::as_str);
+                            tracing::error!(
+                                target: "pacquet::auth",
+                                "token helper {program:?} failed; the request will be sent \
+                                 without authentication: {error}",
+                            );
+                            None
+                        }
+                    }
+                })
+                .clone()
             }
         }
     }

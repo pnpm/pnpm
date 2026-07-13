@@ -8,8 +8,10 @@ use std::{
     collections::HashMap,
     sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
+    thread,
+    time::{Duration, Instant},
 };
 
 fn token_helper_by_uri(uri: &str, command: &[&str]) -> HashMap<String, Vec<String>> {
@@ -49,6 +51,54 @@ fn token_helper_is_executed_lazily_and_memoized() {
     // A second matching lookup reuses the memoized token.
     assert_eq!(auth.for_url("https://reg.com/other"), Some("Bearer s3cr3t".to_owned()));
     assert_eq!(CALLS.load(Ordering::Relaxed), 1);
+}
+
+#[test]
+fn a_slow_token_helper_does_not_block_a_second_registry_lookup() {
+    // The runner for `//slow.example/` spins until the `//fast.example/`
+    // lookup has finished (or a generous deadline). If the resolution cache
+    // lock were held across the subprocess, the fast lookup would block on
+    // that lock, the flag would never flip, and the slow helper would run
+    // for the full deadline — so the fast lookup completing promptly proves
+    // the lock is released while a helper runs.
+    static FAST_DONE: AtomicBool = AtomicBool::new(false);
+    fn runner(command: &[String]) -> std::io::Result<TokenHelperOutput> {
+        if command[0] == "slow" {
+            let deadline = Instant::now() + Duration::from_secs(10);
+            while !FAST_DONE.load(Ordering::Acquire) && Instant::now() < deadline {
+                thread::sleep(Duration::from_millis(5));
+            }
+        }
+        Ok(TokenHelperOutput {
+            success: true,
+            stdout: format!("{}-token", command[0]),
+            stderr: String::new(),
+        })
+    }
+
+    let mut helpers = token_helper_by_uri("//slow.example/", &["slow"]);
+    helpers.extend(token_helper_by_uri("//fast.example/", &["fast"]));
+    let auth = Arc::new(
+        AuthHeaders::from_parts_with_token_helpers(
+            HashMap::new(),
+            HashMap::new(),
+            helpers,
+            HashMap::new(),
+        )
+        .with_token_helper_runner(runner),
+    );
+
+    let slow_auth = Arc::clone(&auth);
+    let slow = thread::spawn(move || slow_auth.for_url("https://slow.example/pkg"));
+
+    let started = Instant::now();
+    let fast = auth.for_url("https://fast.example/pkg");
+    let fast_elapsed = started.elapsed();
+    FAST_DONE.store(true, Ordering::Release);
+
+    assert_eq!(fast, Some("Bearer fast-token".to_owned()));
+    assert!(fast_elapsed < Duration::from_secs(5), "fast lookup blocked for {fast_elapsed:?}");
+    assert_eq!(slow.join().expect("slow thread"), Some("Bearer slow-token".to_owned()));
 }
 
 #[test]
