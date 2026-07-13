@@ -395,6 +395,84 @@ test('pack: includes prepack-generated files removed by postpack', async () => {
   expect(fs.existsSync('package/generated.txt')).toBeTruthy()
 })
 
+test('pack: uses workspace root gitignore for workspace packages', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+    },
+  ])
+
+  const workspaceDir = process.cwd()
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project'] })
+  fs.writeFileSync('.gitignore', 'dist/\n', 'utf8')
+
+  process.chdir('project')
+  fs.mkdirSync('dist')
+  fs.mkdirSync('src')
+  fs.writeFileSync('dist/generated.js', 'generated', 'utf8')
+  fs.writeFileSync('src/index.js', 'source', 'utf8')
+
+  const packOpts = {
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    dryRun: true,
+  }
+
+  const withoutWorkspaceOutput = await pack.handler(packOpts)
+  expect(withoutWorkspaceOutput).toContain('dist/generated.js')
+
+  const unrelatedWorkspaceDir = path.join(workspaceDir, 'unrelated-workspace')
+  fs.mkdirSync(unrelatedWorkspaceDir)
+  const unrelatedWorkspaceOutput = await pack.handler({
+    ...packOpts,
+    workspaceDir: unrelatedWorkspaceDir,
+  })
+  expect(unrelatedWorkspaceOutput).toContain('dist/generated.js')
+
+  const workspaceOutput = await pack.handler({
+    ...packOpts,
+    workspaceDir,
+  })
+
+  expect(workspaceOutput).toContain('src/index.js')
+  expect(workspaceOutput).not.toContain('dist/generated.js')
+})
+
+test('pack: package-level .npmignore negation overrides workspace root gitignore', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+    },
+  ])
+
+  const workspaceDir = process.cwd()
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project'] })
+  fs.writeFileSync('.gitignore', 'dist/\n', 'utf8')
+
+  process.chdir('project')
+  fs.writeFileSync('.npmignore', '!dist/\n', 'utf8')
+  fs.mkdirSync('dist')
+  fs.mkdirSync('src')
+  fs.writeFileSync('dist/generated.js', 'generated', 'utf8')
+  fs.writeFileSync('src/index.js', 'source', 'utf8')
+
+  const output = await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    dryRun: true,
+    workspaceDir,
+  })
+
+  expect(output).toContain('src/index.js')
+  expect(output).toContain('dist/generated.js')
+})
+
 // A symlinked workspace-root LICENSE must not be injected: following it would
 // leak the target's bytes — potentially a file outside the workspace — into
 // the published tarball.

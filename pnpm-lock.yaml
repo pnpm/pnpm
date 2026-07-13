@@ -4777,6 +4777,9 @@ importers:
 
   pnpm11/fs/packlist:
     dependencies:
+      is-subdir:
+        specifier: 'catalog:'
+        version: 2.0.0
       npm-packlist:
         specifier: 'catalog:'
         version: 10.0.4

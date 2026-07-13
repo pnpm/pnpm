@@ -112,7 +112,25 @@ const ALWAYS_EXCLUDED_SUFFIXES: &[&str] = &[".orig"];
 /// file the published tarball should contain. Paths are relative to
 /// `pkg_dir`, with no leading `./`.
 pub fn packlist(pkg_dir: &Path, manifest: &Value) -> Result<Vec<String>, PacklistError> {
-    let mut out: BTreeSet<String> = collect_own_files(pkg_dir, manifest)?;
+    packlist_with_options(pkg_dir, manifest, PacklistOptions::default())
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+pub struct PacklistOptions<'a> {
+    pub workspace_dir: Option<&'a Path>,
+}
+
+/// Variant of [`packlist`] that lets callers pass workspace context.
+/// Workspace packages honor ancestor `.npmignore` / `.gitignore` files
+/// between the workspace root and the package, matching npm-packlist's
+/// `prefix` / `workspaces` behavior. Callers without workspace context
+/// keep the safer package-only walk.
+pub fn packlist_with_options(
+    pkg_dir: &Path,
+    manifest: &Value,
+    options: PacklistOptions<'_>,
+) -> Result<Vec<String>, PacklistError> {
+    let mut out: BTreeSet<String> = collect_own_files(pkg_dir, manifest, options.workspace_dir)?;
     collect_bundled_files(pkg_dir, manifest, &mut out)?;
     Ok(out.into_iter().collect())
 }
@@ -229,7 +247,7 @@ fn collect_bundled_files(
             .ok()
             .flatten()
             .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
-        for rel in collect_own_files(&dep_dir, &dep_manifest)? {
+        for rel in collect_own_files(&dep_dir, &dep_manifest, None)? {
             out.insert(format!("{prefix}/{rel}"));
         }
         for name in nested_bundle_dep_names(&dep_manifest) {
@@ -270,7 +288,11 @@ fn resolve_bundled_dependency(name: &str, from_dir: &Path, root: &Path) -> Optio
 /// allowlist, and the always-included / `main` / `bin` force-includes.
 /// This is the per-package packlist with no `bundleDependencies`
 /// traversal; [`collect_bundled_files`] layers the closure on top.
-fn collect_own_files(pkg_dir: &Path, manifest: &Value) -> Result<BTreeSet<String>, PacklistError> {
+fn collect_own_files(
+    pkg_dir: &Path,
+    manifest: &Value,
+    workspace_dir: Option<&Path>,
+) -> Result<BTreeSet<String>, PacklistError> {
     let files_field = manifest.get("files").and_then(Value::as_array);
     let files_matcher: Option<Gitignore> =
         files_field.and_then(|arr| build_files_matcher(pkg_dir, arr));
@@ -296,6 +318,7 @@ fn collect_own_files(pkg_dir: &Path, manifest: &Value) -> Result<BTreeSet<String
     // already been deleted by [`crate::GitFetcher`] before this point.
     let mut builder = WalkBuilder::new(pkg_dir);
     builder
+        .current_dir(pkg_dir)
         .standard_filters(false)
         .hidden(false)
         .git_ignore(true)
@@ -309,6 +332,7 @@ fn collect_own_files(pkg_dir: &Path, manifest: &Value) -> Result<BTreeSet<String
         // would leak into the published file set.
         .parents(false)
         .add_custom_ignore_filename(".npmignore");
+    add_workspace_ignore_files(&mut builder, pkg_dir, workspace_dir)?;
 
     for entry in builder.build() {
         let entry = entry.map_err(|err| io_error(pkg_dir, into_io(err)))?;
@@ -384,6 +408,56 @@ fn collect_own_files(pkg_dir: &Path, manifest: &Value) -> Result<BTreeSet<String
     }
 
     Ok(out)
+}
+
+fn add_workspace_ignore_files(
+    builder: &mut WalkBuilder,
+    pkg_dir: &Path,
+    workspace_dir: Option<&Path>,
+) -> Result<(), PacklistError> {
+    let Some(workspace_dir) = workspace_dir else { return Ok(()) };
+    let Ok(rel) = pkg_dir.strip_prefix(workspace_dir) else { return Ok(()) };
+    if rel.as_os_str().is_empty() {
+        return Ok(());
+    }
+    let Some(pkg_parent) = pkg_dir.parent() else { return Ok(()) };
+    let Ok(parent_rel) = pkg_parent.strip_prefix(workspace_dir) else { return Ok(()) };
+
+    let mut current = workspace_dir.to_path_buf();
+    add_workspace_ignore_file(builder, pkg_dir, &current)?;
+    for component in parent_rel.components() {
+        // `parent_rel` is `pkg_parent` relative to `workspace_dir`, so a
+        // clean descendant chain yields only `Normal` components. Anything
+        // else (a stray `..` or root/prefix from a non-canonical path) means
+        // we can't trust the remaining chain, so stop rather than walk out of
+        // the workspace; the already-added root ignore stays in effect.
+        let Component::Normal(segment) = component else { return Ok(()) };
+        current.push(segment);
+        add_workspace_ignore_file(builder, pkg_dir, &current)?;
+    }
+    Ok(())
+}
+
+fn add_workspace_ignore_file(
+    builder: &mut WalkBuilder,
+    pkg_dir: &Path,
+    dir: &Path,
+) -> Result<(), PacklistError> {
+    let npmignore = dir.join(".npmignore");
+    let gitignore = dir.join(".gitignore");
+    let ignore_file = if npmignore.is_file() {
+        Some(npmignore)
+    } else if gitignore.is_file() {
+        Some(gitignore)
+    } else {
+        None
+    };
+    if let Some(ignore_file) = ignore_file
+        && let Some(error) = builder.add_ignore(&ignore_file)
+    {
+        return Err(io_error(pkg_dir, into_io(error)));
+    }
+    Ok(())
 }
 
 /// Compile the `manifest.files` allowlist into a single `Gitignore`

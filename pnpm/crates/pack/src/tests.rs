@@ -369,6 +369,66 @@ fn symlinked_workspace_license_is_not_injected() {
     assert!(!names.contains(&"package/LICENSE".to_string()));
 }
 
+#[test]
+fn workspace_root_gitignore_excludes_workspace_package_files() {
+    let workspace = tempdir().unwrap();
+    std::fs::write(workspace.path().join(".gitignore"), "dist/\n").unwrap();
+    let pkg_dir = workspace.path().join("packages").join("foo");
+    std::fs::create_dir_all(&pkg_dir).unwrap();
+    std::fs::write(
+        pkg_dir.join("package.json"),
+        serde_json::to_string(&json!({ "name": "foo", "version": "1.0.0" })).unwrap(),
+    )
+    .unwrap();
+    touch(&pkg_dir, "dist/generated.js", "generated");
+    touch(&pkg_dir, "src/index.js", "source");
+
+    let opts = PackOptions {
+        dir: pkg_dir.clone(),
+        catalogs: BTreeMap::new(),
+        ignore_scripts: true,
+        unsafe_perm: true,
+        embed_readme: false,
+        pack_gzip_level: None,
+        node_linker: NodeLinker::Isolated,
+        skip_manifest_obfuscation: false,
+        user_agent: "pacquet".to_string(),
+        extra_bin_paths: Vec::new(),
+        extra_env: HashMap::new(),
+        workspace_dir: Some(workspace.path().to_path_buf()),
+        dry_run: false,
+        pack_destination: None,
+        out: None,
+        before_packing_hooks: Vec::new(),
+    };
+
+    let result = api::<SilentReporter, Host>(&opts).unwrap();
+
+    assert!(result.contents.contains(&"src/index.js".to_string()));
+    assert!(!result.contents.contains(&"dist/generated.js".to_string()));
+    let names = tarball_entry_names(&pkg_dir.join("foo-1.0.0.tgz"));
+    assert!(names.contains(&"package/src/index.js".to_string()));
+    assert!(!names.contains(&"package/dist/generated.js".to_string()));
+}
+
+#[test]
+fn unrelated_workspace_dir_does_not_apply_workspace_gitignore() {
+    let workspace = tempdir().unwrap();
+    std::fs::write(workspace.path().join(".gitignore"), "dist/\n").unwrap();
+    let (package, mut opts) = fixture(&json!({ "name": "foo", "version": "1.0.0" }));
+    touch(package.path(), "dist/generated.js", "generated");
+    touch(package.path(), "src/index.js", "source");
+    opts.workspace_dir = Some(workspace.path().to_path_buf());
+
+    let result = api::<SilentReporter, Host>(&opts).unwrap();
+
+    assert!(result.contents.contains(&"dist/generated.js".to_string()));
+    assert!(result.contents.contains(&"src/index.js".to_string()));
+    let names = tarball_entry_names(&package.path().join("foo-1.0.0.tgz"));
+    assert!(names.contains(&"package/dist/generated.js".to_string()));
+    assert!(names.contains(&"package/src/index.js".to_string()));
+}
+
 /// The write-phase DI seam: a fake whose `FsWrite` fails with
 /// `PermissionDenied` must surface as `PackError::WriteTarball`. This is
 /// the branch a real fixture can't reach portably, justifying the `Sys`
