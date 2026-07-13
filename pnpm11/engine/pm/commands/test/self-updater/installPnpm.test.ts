@@ -29,12 +29,12 @@ describe('buildLockfileFromEnvLockfile', () => {
 
     const result = buildLockfileFromEnvLockfile(envLockfile, 'pnpm', '11.12.0')
 
-    expect(result.packages['fdir@6.5.0(picomatch@4.0.5)' as DepPath]).toEqual({
+    expect(result.packages!['fdir@6.5.0(picomatch@4.0.5)' as DepPath]).toEqual({
       resolution: { integrity: 'sha512-base' },
       dependencies: { picomatch: '4.0.5' },
     })
 
-    expect(result.packages['other@1.0.0' as DepPath]).toEqual({
+    expect(result.packages!['other@1.0.0' as DepPath]).toEqual({
       resolution: { integrity: 'sha512-other' },
       dependencies: {},
     })
