@@ -58,6 +58,23 @@ fn set_ignore_dependencies(workspace: &Path, names: &[&str]) {
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 }
 
+/// Append `dedupePeerDependents: false` to the `pnpm-workspace.yaml` the
+/// harness already wrote — the setting under which pnpm/pnpm#12456
+/// reproduces on the TypeScript stack.
+fn disable_dedupe_peer_dependents(workspace: &Path) {
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    assert!(
+        !yaml.contains("dedupePeerDependents:"),
+        "pnpm-workspace.yaml already has a `dedupePeerDependents:` key — update this helper",
+    );
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    yaml.push_str("dedupePeerDependents: false\n");
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+}
+
 fn dep_spec(workspace: &Path, name: &str) -> Option<String> {
     let manifest = PackageManifest::from_path(workspace.join("package.json")).unwrap();
     manifest
@@ -782,6 +799,47 @@ fn update_strict_catalog_range_mismatch_errors() {
     assert!(
         stderr.contains("ERR_PNPM_CATALOG_VERSION_MISMATCH"),
         "stderr did not carry the error code: {stderr}",
+    );
+
+    drop((root, anchor));
+}
+
+/// Updating one dependency must not drop the transitive snapshots of an
+/// unrelated, non-targeted dependency when `dedupePeerDependents` is
+/// disabled. Parity guard for pnpm/pnpm#12456: on the TypeScript stack
+/// the already-linked resolver shortcut fired below the update-depth
+/// boundary, so a partial update made a reused parent snapshot appear
+/// childless. pacquet reuses the whole subtree of a non-targeted package
+/// from the lockfile ([`UpdateReuseScope::Except`]), so the transitive
+/// edge survives — this test locks that in.
+///
+/// The TypeScript regression updates a package absent from the manifest;
+/// pacquet rejects that with `NO_PACKAGE_IN_DEPENDENCIES`, so the update
+/// here targets `foo`, already pinned at its latest so the update is a
+/// no-op. The reused parent is `pkg-with-1-dep`, whose transitive
+/// `dep-of-pkg-with-1-dep` must remain in the lockfile.
+#[test]
+fn update_preserves_unrelated_transitives_without_peer_dedupe() {
+    let (root, workspace, anchor) = setup();
+    disable_dedupe_peer_dependents(&workspace);
+
+    write_manifest(&workspace, &format!(r#"{{ "{PARENT}": "100.0.0", "{FOO}": "100.1.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let lockfile_before =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(
+        lockfile_before.contains(DEP),
+        "the parent's transitive dependency should be in the lockfile after install:\n{lockfile_before}",
+    );
+
+    pacquet(&workspace, ["update", FOO]).assert().success();
+
+    let lockfile_after =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert_eq!(
+        lockfile_after, lockfile_before,
+        "a no-op update of an unrelated package must leave the lockfile — and the reused parent's transitive edges — untouched",
     );
 
     drop((root, anchor));
