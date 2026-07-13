@@ -975,12 +975,12 @@ async fn dist_tag_mutations_refresh_time_modified() {
 }
 
 #[tokio::test]
-async fn dist_tag_set_requires_auth() {
+async fn dist_tag_set_requires_auth_before_body_parsing() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
     let request = Request::put("/-/package/anything/dist-tags/latest")
         .header("content-type", "application/json")
-        .body(Body::from(serde_json::to_string("1.0.0").unwrap()))
+        .body(Body::from("not json"))
         .unwrap();
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);

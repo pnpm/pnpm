@@ -12,6 +12,14 @@ fn pkg(name: &str) -> PackageName {
     PackageName::parse(name).unwrap()
 }
 
+#[test]
+fn packument_write_conflict_delay_caps_growth() {
+    assert_eq!(super::packument_write_conflict_delay(0).as_millis(), 5);
+    assert_eq!(super::packument_write_conflict_delay(1).as_millis(), 10);
+    assert_eq!(super::packument_write_conflict_delay(6).as_millis(), 250);
+    assert_eq!(super::packument_write_conflict_delay(32).as_millis(), 250);
+}
+
 #[tokio::test]
 async fn hosted_tarball_under_non_directory_package_path_is_an_error() {
     let tmp = TempDir::new().unwrap();
