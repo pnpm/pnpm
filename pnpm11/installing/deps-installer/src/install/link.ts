@@ -6,7 +6,7 @@ import {
   stageLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
-import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
+import { calcDepState, type DepsStateCache, findRuntimeNodeVersion, shouldIncludeDepGraphHash } from '@pnpm/deps.graph-hasher'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { symlinkDependency } from '@pnpm/fs.symlink-dependency'
 import {
@@ -533,7 +533,11 @@ async function linkAllPkgs (
       if (opts.sideEffectsCacheRead && files.sideEffectsMaps && !isEmpty(files.sideEffectsMaps)) {
         if (opts.allowBuild?.(depNode.depPath) === true) {
           sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
-            includeDepGraphHash: (!opts.ignoreScripts || opts.deferDependencyBuilds) && depNode.requiresBuild,
+            includeDepGraphHash: shouldIncludeDepGraphHash({
+              ignoreScripts: opts.ignoreScripts,
+              deferDependencyBuilds: opts.deferDependencyBuilds,
+              requiresBuild: depNode.requiresBuild,
+            }),
             patchFileHash: depNode.patch?.hash,
             supportedArchitectures: opts.supportedArchitectures,
             nodeVersion,
