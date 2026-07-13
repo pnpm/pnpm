@@ -951,17 +951,28 @@ pub(crate) fn validation_baseline_ms(
 /// millisecond, so millisecond precision still catches it.
 fn wanted_lockfile_modified(workspace_root: &Path, last_validated_timestamp: i64) -> bool {
     file_mtime(&workspace_root.join(Lockfile::FILE_NAME))
-        .is_some_and(|mtime| lockfile_mtime_after(mtime.ms, last_validated_timestamp))
+        .is_some_and(|mtime| lockfile_modified_since(mtime, last_validated_timestamp))
 }
 
-/// Whether a lockfile with mtime `subject_ms` post-dates `reference_ms`,
-/// at whole-millisecond precision. Unlike the nanosecond
-/// [`modified_at_or_after`] used for manifests/patches/pnpmfiles: the
-/// baseline is the lockfile's own mtime truncated to milliseconds, so a
-/// nanosecond comparison would flag the unchanged lockfile against its own
-/// truncated value every repeat install. See [`wanted_lockfile_modified`].
-fn lockfile_mtime_after(subject_ms: i64, reference_ms: i64) -> bool {
-    subject_ms > reference_ms
+/// Whether the lockfile's `subject` mtime post-dates `reference_ms`.
+///
+/// On a sub-second filesystem this is a whole-*millisecond* comparison,
+/// unlike the nanosecond [`modified_at_or_after`] used for
+/// manifests/patches/pnpmfiles: the baseline is the lockfile's own mtime
+/// truncated to milliseconds, so a nanosecond comparison would flag the
+/// unchanged lockfile against its own truncated value on every repeat
+/// install. An external lockfile edit lands in a later millisecond and is
+/// still caught. On a whole-second-mtime filesystem the whole second is
+/// treated as possibly-after (as [`modified_at_or_after`] does), because
+/// there a same-second external edit is indistinguishable from the
+/// install's own lockfile write by mtime alone, so it must fall through to
+/// the authoritative content check. See [`wanted_lockfile_modified`].
+fn lockfile_modified_since(subject: FileMtime, reference_ms: i64) -> bool {
+    if subject.whole_second {
+        subject.ms.saturating_add(1_000) > reference_ms
+    } else {
+        subject.ms > reference_ms
+    }
 }
 
 fn current_lockfile_unusable_with_non_empty_wanted(
