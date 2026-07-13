@@ -467,6 +467,8 @@ fn command_name(command: &CliCommand) -> &'static str {
         CliCommand::Why(_) => "why",
         CliCommand::Sbom(_) => "sbom",
         CliCommand::Whoami => "whoami",
+        CliCommand::Deprecate(_) => "deprecate",
+        CliCommand::Undeprecate(_) => "undeprecate",
         CliCommand::DistTag(_) => "dist-tag",
         CliCommand::Ping(_) => "ping",
         CliCommand::Search(_) => "search",

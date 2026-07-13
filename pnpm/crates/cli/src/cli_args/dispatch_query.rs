@@ -8,6 +8,7 @@ use super::{
     cat_index::CatIndexArgs,
     change::ChangeArgs,
     config::ConfigArgs,
+    deprecate::DeprecateArgs,
     dispatch::{CommandFuture, RunCtx},
     dist_tag::DistTagArgs,
     docs::DocsArgs,
@@ -34,6 +35,7 @@ use super::{
     stage::StageArgs,
     store::StoreCommand,
     team::TeamArgs,
+    undeprecate::UndeprecateArgs,
     version::VersionArgs,
     why::WhyArgs,
     with::WithArgs,
@@ -199,6 +201,40 @@ pub(super) fn version<'a>(
     let cfg: &Config = (ctx.config)()?;
     let result = args.run(cfg, ctx.recursive);
     Ok(Box::pin(std::future::ready(result)))
+}
+
+pub(super) fn deprecate<'a>(
+    ctx: &RunCtx<'a>,
+    args: DeprecateArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.config)()?;
+    Ok(Box::pin(async move {
+        if let Some(output) = args.run(cfg).await? {
+            let output = super::sanitize::sanitize(&output);
+            if output.is_empty() {
+                return Ok(());
+            }
+            println!("{output}");
+        }
+        Ok(())
+    }))
+}
+
+pub(super) fn undeprecate<'a>(
+    ctx: &RunCtx<'a>,
+    args: UndeprecateArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.config)()?;
+    Ok(Box::pin(async move {
+        if let Some(output) = args.run(cfg).await? {
+            let output = super::sanitize::sanitize(&output);
+            if output.is_empty() {
+                return Ok(());
+            }
+            println!("{output}");
+        }
+        Ok(())
+    }))
 }
 
 pub(super) fn team<'a>(ctx: &RunCtx<'a>, args: TeamArgs) -> miette::Result<CommandFuture<'a>> {
