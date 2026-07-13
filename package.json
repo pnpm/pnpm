@@ -2,7 +2,7 @@
   "name": "monorepo-root",
   "private": true,
   "scripts": {
-    "bump": "node pnpm11/__utils__/scripts/src/bump.ts && pn update-manifests",
+    "bump": "node pnpm11/__utils__/scripts/src/bump.ts",
     "prepare": "husky",
     "pretest": "pn compile-only && pn prepare-fixtures",
     "prepare-fixtures": "pn --dir=pnpm11/__fixtures__ prepareFixtures",
