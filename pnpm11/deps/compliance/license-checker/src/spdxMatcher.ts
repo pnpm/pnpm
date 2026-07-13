@@ -77,12 +77,10 @@ export function matchLicenseAgainstPolicy (
     if (allowedMatch) {
       return { allowed: true, reason: 'explicitly-allowed' }
     }
-    if (opts.mode === 'strict') {
-      return { allowed: false, reason: 'not-in-allowed-list' }
-    }
-    // loose + not in allowed list ⇒ non-blocking (allowed:true); no warning is
-    // emitted.
-    return { allowed: true, reason: 'not-in-allowed-list' }
+    // Not in the allowed list ⇒ allowed:false in BOTH modes. `checkLicenses`
+    // turns this into a violation in strict mode and a (non-blocking) warning
+    // in loose mode.
+    return { allowed: false, reason: 'not-in-allowed-list' }
   }
 
   return { allowed: true, reason: 'allowed-by-default' }
@@ -117,7 +115,7 @@ export function isCompoundLicenseExpression (s: string): boolean {
 // -- helpers --
 
 function unknown (opts: MatchPolicyOptions, hasAllowedList: boolean): LicenseMatchResult {
-  return opts.mode === 'strict' && hasAllowedList
+  return hasAllowedList
     ? { allowed: false, reason: 'unknown-license' }
     : { allowed: true, reason: 'allowed-by-default' }
 }
@@ -131,9 +129,7 @@ function evaluateOpaqueId (id: string, opts: MatchPolicyOptions, hasAllowedList:
     if (setHasCaseInsensitive(opts.allowed!, id)) {
       return { allowed: true, reason: 'explicitly-allowed' }
     }
-    return opts.mode === 'strict'
-      ? { allowed: false, reason: 'not-in-allowed-list' }
-      : { allowed: true, reason: 'not-in-allowed-list' }
+    return { allowed: false, reason: 'not-in-allowed-list' }
   }
   return unknown(opts, hasAllowedList)
 }
