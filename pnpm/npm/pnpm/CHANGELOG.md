@@ -1,5 +1,11 @@
 # pacquet
 
+## 12.0.0-alpha.10
+
+### Patch Changes
+
+- Bump version.
+
 ## 12.0.0-alpha.9
 
 ### Minor Changes
