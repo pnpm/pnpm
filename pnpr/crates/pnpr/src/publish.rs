@@ -275,6 +275,8 @@ pub fn merge_manifest(
         }
     }
 
+    hoist_readme_from_latest(&mut out);
+
     // Sort `versions` by semver-ish key order so the on-disk file is
     // stable across runs. Use a BTreeMap to take advantage of
     // serde_json's `preserve_order` feature — without sorting, two
@@ -286,6 +288,39 @@ pub fn merge_manifest(
     }
 
     Value::Object(out)
+}
+
+/// Copy the `readme` / `readmeFilename` of the `dist-tags.latest` version up to
+/// the packument top level, where full-packument consumers and registry UIs
+/// read it. Publish clients (`libnpmpublish`, pacquet) only send the readme
+/// inside `versions[<version>]`, so without this a published package would
+/// expose no top-level readme — this hoist matches npm and verdaccio.
+///
+/// A top-level value already present (e.g. from an earlier publish or the
+/// upstream packument) is left in place when the latest version carries no
+/// readme, so a metadata-only re-publish never blanks it.
+fn hoist_readme_from_latest(out: &mut Map<String, Value>) {
+    let Some(latest) = out
+        .get("dist-tags")
+        .and_then(|tags| tags.get("latest"))
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+    else {
+        return;
+    };
+    let hoisted: Vec<(String, Value)> = out
+        .get("versions")
+        .and_then(|versions| versions.get(&latest))
+        .map(|version| {
+            ["readme", "readmeFilename"]
+                .into_iter()
+                .filter_map(|key| version.get(key).cloned().map(|value| (key.to_owned(), value)))
+                .collect()
+        })
+        .unwrap_or_default();
+    for (key, value) in hoisted {
+        out.insert(key, value);
+    }
 }
 
 fn merge_objects(existing: Option<&Value>, incoming: &Value) -> Value {
