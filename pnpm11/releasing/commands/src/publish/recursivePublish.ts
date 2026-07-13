@@ -53,6 +53,7 @@ Partial<Pick<Config,
 | 'unsafePerm'
 | 'userAgent'
 | 'verifyStoreIntegrity'
+| 'versioning'
 >> &
 Partial<Pick<ConfigContext,
 | 'selectedProjectsGraph'

@@ -90,6 +90,32 @@ fn format_list_item(summary: &str) -> String {
     item
 }
 
+/// Places `section` at the top of a package's changelog: under the existing
+/// `# <name>` title when `existing` is `Some`, or under a freshly created
+/// title when `existing` is `None`. Used both to write a committed
+/// CHANGELOG.md (`repository` storage) and to build the changelog packed into
+/// a published tarball on top of the previous version's (`registry` storage).
+#[must_use]
+pub fn render_changelog(existing: Option<&str>, pkg_name: &str, section: &str) -> String {
+    let Some(existing) = existing else {
+        return format!("# {pkg_name}\n\n{section}");
+    };
+    let (first_line, rest) = match existing.find('\n') {
+        Some(newline_index) => (&existing[..newline_index], &existing[newline_index + 1..]),
+        None => (existing, ""),
+    };
+    if first_line.starts_with("# ") {
+        let body = rest.trim_start_matches(['\r', '\n']);
+        if body.is_empty() {
+            format!("{first_line}\n\n{section}")
+        } else {
+            format!("{first_line}\n\n{section}\n{body}")
+        }
+    } else {
+        format!("{section}\n{existing}")
+    }
+}
+
 /// Inserts `section` at the top of the package's CHANGELOG.md, under the
 /// `# <name>` title (which is created for a new file).
 pub fn prepend_changelog_section(
@@ -105,26 +131,7 @@ pub fn prepend_changelog_section(
             return Err(VersioningError::Read { path: changelog_path, source });
         }
     };
-
-    let content = match existing {
-        None => format!("# {pkg_name}\n\n{section}"),
-        Some(existing) => {
-            let (first_line, rest) = match existing.find('\n') {
-                Some(newline_index) => (&existing[..newline_index], &existing[newline_index + 1..]),
-                None => (existing.as_str(), ""),
-            };
-            if first_line.starts_with("# ") {
-                let body = rest.trim_start_matches(['\r', '\n']);
-                if body.is_empty() {
-                    format!("{first_line}\n\n{section}")
-                } else {
-                    format!("{first_line}\n\n{section}\n{body}")
-                }
-            } else {
-                format!("{section}\n{existing}")
-            }
-        }
-    };
+    let content = render_changelog(existing.as_deref(), pkg_name, section);
     fs::write(&changelog_path, content)
         .map_err(|source| VersioningError::Write { path: changelog_path, source })
 }

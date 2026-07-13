@@ -23,6 +23,19 @@ pub enum ChangelogStorage {
     Repository,
 }
 
+/// Where release changelogs live, defaulting to `registry`: no CHANGELOG.md is
+/// committed; each release's section is composed at publish time and packed
+/// into the published tarball, on top of the previously published version's
+/// changelog. `repository` keeps a committed CHANGELOG.md in every package.
+/// Mirrors the TypeScript `changelogStorage`.
+#[must_use]
+pub fn changelog_storage(versioning: Option<&VersioningSettings>) -> ChangelogStorage {
+    versioning
+        .and_then(|settings| settings.changelog.as_ref())
+        .and_then(|changelog| changelog.storage)
+        .unwrap_or(ChangelogStorage::Registry)
+}
+
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ChangelogSettings {

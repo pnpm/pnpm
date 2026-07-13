@@ -80,6 +80,8 @@ pub async fn pack(options: PackOptions, on_log: Option<LogSink>) -> napi::Result
         // Bit drives its own `readPackage` hook through the napi bridge and
         // loads no `beforePacking` pnpmfiles, so the hook loop is a no-op.
         before_packing_hooks: Vec::new(),
+        // Bit composes and injects changelogs itself; the pack bridge does not.
+        injected_files: Vec::new(),
     };
 
     let result = tokio::task::spawn_blocking(move || {

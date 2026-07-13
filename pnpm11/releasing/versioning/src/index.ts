@@ -2,6 +2,7 @@ export {
   type AppliedRelease,
   applyReleasePlan,
   type ApplyReleasePlanOptions,
+  changelogStorage,
 } from './applyReleasePlan.js'
 export {
   assembleReleasePlan,
@@ -20,6 +21,7 @@ export {
 export {
   composeChangelogSection,
   prependChangelogSection,
+  renderChangelog,
 } from './changelog.js'
 export {
   BUMP_TYPES,
@@ -43,3 +45,10 @@ export {
   type PackageConsumption,
   readLedger,
 } from './ledger.js'
+export {
+  PENDING_CHANGELOGS_DIR,
+  pendingChangelogPath,
+  readPendingChangelog,
+  removePendingChangelog,
+  writePendingChangelog,
+} from './pendingChangelog.js'

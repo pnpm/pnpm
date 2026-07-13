@@ -224,8 +224,8 @@ pub(super) fn version<'a>(
     args: VersionArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.config)()?;
-    let result = args.run(cfg, ctx.recursive);
-    Ok(Box::pin(std::future::ready(result)))
+    let recursive = ctx.recursive;
+    Ok(Box::pin(async move { args.run(cfg, recursive).await }))
 }
 
 pub(super) fn deprecate<'a>(

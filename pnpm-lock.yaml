@@ -8176,6 +8176,9 @@ importers:
       '@pnpm/fetching.directory-fetcher':
         specifier: workspace:*
         version: link:../../fetching/directory-fetcher
+      '@pnpm/fetching.types':
+        specifier: workspace:*
+        version: link:../../fetching/types
       '@pnpm/fs.indexed-pkg-importer':
         specifier: workspace:*
         version: link:../../fs/indexed-pkg-importer
@@ -8218,6 +8221,12 @@ importers:
       '@pnpm/releasing.versioning':
         specifier: workspace:*
         version: link:../versioning
+      '@pnpm/resolving.npm-resolver':
+        specifier: workspace:*
+        version: link:../../resolving/npm-resolver
+      '@pnpm/resolving.registry.types':
+        specifier: workspace:*
+        version: link:../../resolving/registry/types
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base

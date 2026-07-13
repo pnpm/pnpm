@@ -134,7 +134,7 @@ export async function handler (
     json?: boolean
     recursive?: boolean
     workspaceDir?: string
-  } & Pick<Config, 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'skipManifestObfuscation'>
+  } & Pick<Config, 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'skipManifestObfuscation' | 'versioning'>
   & Pick<ConfigContext, 'allProjects'>,
   params: string[]
 ): Promise<{ exitCode?: number, output?: string } | undefined> {
@@ -171,7 +171,7 @@ export async function publish (
     engineStrict?: boolean
     recursive?: boolean
     workspaceDir?: string
-  } & Pick<Config, 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'packGzipLevel' | 'skipManifestObfuscation'>
+  } & Pick<Config, 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'packGzipLevel' | 'skipManifestObfuscation' | 'versioning'>
   & Pick<ConfigContext, 'allProjects'>,
   params: string[]
 ): Promise<PublishResult> {

@@ -101,7 +101,7 @@ impl PackArgs {
             self.run_recursive::<Reporter>(dir, config).await
         } else {
             let pnpmfile_root = config.workspace_dir.as_deref().unwrap_or(dir);
-            let options = self.pack_options(
+            let mut options = self.pack_options(
                 dir.to_path_buf(),
                 config,
                 pack_catalogs(config)?,
@@ -109,6 +109,7 @@ impl PackArgs {
                 self.pack_destination.clone(),
                 crate::config_deps::load_before_packing_hooks(config, pnpmfile_root),
             );
+            set_injected_changelog(&mut options, config, dir).await?;
             let result = api::<Reporter, Host>(&options)
                 .await
                 .map_err(miette::Report::new)
@@ -174,7 +175,7 @@ impl PackArgs {
                 if !has_name || !has_version {
                     continue;
                 }
-                let options = self.pack_options(
+                let mut options = self.pack_options(
                     project.root_dir.clone(),
                     config,
                     catalogs.clone(),
@@ -182,6 +183,7 @@ impl PackArgs {
                     pack_destination.clone(),
                     before_packing_hooks.clone(),
                 );
+                set_injected_changelog(&mut options, config, &project.root_dir).await?;
                 let result = api::<Reporter, Host>(&options)
                     .await
                     .map_err(miette::Report::new)
@@ -244,8 +246,25 @@ impl PackArgs {
             out,
             pack_destination,
             before_packing_hooks,
+            injected_files: Vec::new(),
         }
     }
+}
+
+/// Composes and injects the `registry`-storage CHANGELOG.md for the project at
+/// `project_dir`, replacing any composed entry already set. A no-op in
+/// `repository` storage or when the project has no parked section.
+pub(crate) async fn set_injected_changelog(
+    options: &mut PackOptions,
+    config: &Config,
+    project_dir: &Path,
+) -> miette::Result<()> {
+    if let Some(changelog) =
+        crate::cli_args::changelog::compose_registry_changelog(config, project_dir).await?
+    {
+        options.injected_files = vec![("package/CHANGELOG.md".to_string(), changelog)];
+    }
+    Ok(())
 }
 
 /// Resolve `path` against `base` when it is relative, mirroring node's

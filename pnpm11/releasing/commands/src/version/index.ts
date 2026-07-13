@@ -7,7 +7,9 @@ import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/exec.lifec
 import { isGitRepo, isWorkingTreeClean } from '@pnpm/network.git-utils'
 import {
   applyReleasePlan,
+  type ApplyReleasePlanOptions,
   assembleReleasePlan,
+  changelogStorage,
   readChangeIntents,
   readLedger,
   toProjectDir,
@@ -19,6 +21,7 @@ import { renderHelp } from 'render-help'
 import { inc, valid } from 'semver'
 
 import { renderReleasePlan, toWorkspaceProjects } from '../change/index.js'
+import { changelogHasSection, fetchPublishedChangelog } from '../publish/previousChangelog.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
@@ -240,6 +243,14 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     enforceWorkspaceProtocol: true,
   })
 
+  const applyOpts: ApplyReleasePlanOptions = {
+    workspaceDir,
+    projects,
+    allIntents: intents,
+    versioning: opts.versioning,
+    verifyPublished: buildVerifyPublished(opts),
+  }
+
   if (plan.releases.length === 0) {
     // A full (unfiltered) run garbage-collects the intent files an empty plan
     // leaves behind: declined ("none"-only) intents and files a merge
@@ -247,7 +258,7 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     // filtered run must not — "nothing pending in this scope" is no reason to
     // delete prose belonging to packages outside the filter.
     if (!opts.dryRun && filter == null) {
-      await applyReleasePlan(plan, { workspaceDir, projects, allIntents: intents, versioning: opts.versioning })
+      await applyReleasePlan(plan, applyOpts)
     }
     return 'No pending changes. Record one with "pnpm change".'
   }
@@ -256,12 +267,7 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     return renderReleasePlan(plan)
   }
 
-  const applied = await applyReleasePlan(plan, {
-    workspaceDir,
-    projects,
-    allIntents: intents,
-    versioning: opts.versioning,
-  })
+  const applied = await applyReleasePlan(plan, applyOpts)
 
   if (opts.json) {
     return JSON.stringify(applied, null, 2)
@@ -271,6 +277,26 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     output += `${release.name}: ${release.currentVersion} → ${release.newVersion}\n`
   }
   return output
+}
+
+/**
+ * In `registry` storage, the gate that lets consumed intents be collected:
+ * the release must be published and its tarball's CHANGELOG.md must already
+ * carry the composed section. Any error resolving that (offline, transient
+ * failure) counts as "not confirmed" so the intent — still the only prose —
+ * is kept. `undefined` in `repository` storage, where the committed changelog
+ * makes the ledger alone sufficient.
+ */
+function buildVerifyPublished (opts: VersionHandlerOptions): ApplyReleasePlanOptions['verifyPublished'] {
+  if (changelogStorage(opts.versioning) !== 'registry') return undefined
+  return async (name, version, section) => {
+    try {
+      const changelog = await fetchPublishedChangelog(opts, name, version)
+      return changelog != null && changelogHasSection(changelog, section)
+    } catch {
+      return false
+    }
+  }
 }
 
 async function bumpPackageVersion (
