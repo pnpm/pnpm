@@ -362,7 +362,7 @@ fn normalize_from_lockfile(
                 r#"pnpm-lock.yaml has an unparsable config-dependency key "{pkg_key}""#,
             ),
         })?;
-        let pkg = env_lockfile.packages.get(&key).ok_or_else(|| {
+        let pkg = env_lockfile.packages.get(&key).or_else(|| env_lockfile.packages.get(&key.without_peer())).ok_or_else(|| {
             ConfigDepError::EnvLockfileCorrupted {
                 message: format!(
                     "pnpm-lock.yaml is corrupted or incomplete: missing packages entry for \
@@ -422,7 +422,7 @@ fn read_optional_subdeps(
         let key = subdep_key.parse().map_err(|_| ConfigDepError::EnvLockfileCorrupted {
             message: format!(r#"pnpm-lock.yaml has an unparsable subdep key "{subdep_key}""#),
         })?;
-        let pkg = env_lockfile.packages.get(&key).ok_or_else(|| {
+        let pkg = env_lockfile.packages.get(&key).or_else(|| env_lockfile.packages.get(&key.without_peer())).ok_or_else(|| {
             ConfigDepError::EnvLockfileCorrupted {
                 message: format!(
                     "pnpm-lock.yaml is corrupted or incomplete: missing packages entry for \

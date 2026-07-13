@@ -1,8 +1,7 @@
 import { describe, expect, test } from '@jest/globals'
+import { buildLockfileFromEnvLockfile } from '@pnpm/engine.pm.commands'
 import type { EnvLockfile } from '@pnpm/lockfile.types'
 import type { DepPath } from '@pnpm/types'
-
-import { buildLockfileFromEnvLockfile } from '../../src/self-updater/installPnpm.js'
 
 describe('buildLockfileFromEnvLockfile', () => {
   test('falls back to base package entry for peer-suffixed package', () => {

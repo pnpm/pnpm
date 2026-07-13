@@ -161,7 +161,7 @@ fn package_manager_entry_exists(env_lockfile: &EnvLockfile, name: &str, version:
     let Ok(key) = format!("{name}@{version}").parse::<PackageKey>() else {
         return false;
     };
-    env_lockfile.packages.contains_key(&key) && env_lockfile.snapshots.contains_key(&key)
+    (env_lockfile.packages.contains_key(&key) || env_lockfile.packages.contains_key(&key.without_peer())) && env_lockfile.snapshots.contains_key(&key)
 }
 
 struct EnvPackage {
