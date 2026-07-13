@@ -10,6 +10,7 @@ import {
   iteratePkgMeta,
   lockfileToDepGraph,
 } from '@pnpm/deps.graph-hasher'
+import { removeSuffix } from '@pnpm/deps.path'
 import { type GlobalAddOptions, installGlobalPackages } from '@pnpm/global.commands'
 import {
   cleanOrphanedInstallDirs,
@@ -483,7 +484,8 @@ function forceLink (src: string, dest: string): void {
   fs.chmodSync(dest, 0o755)
 }
 
-function buildLockfileFromEnvLockfile (
+// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+export function buildLockfileFromEnvLockfile (
   envLockfile: EnvLockfile,
   pkgName: string,
   version: string
@@ -495,7 +497,7 @@ function buildLockfileFromEnvLockfile (
   for (const [depPath, snapshot] of Object.entries(envLockfile.snapshots)) {
     packages[depPath as DepPath] = {
       ...snapshot,
-      ...(envLockfile.packages[depPath] ?? envLockfile.packages[depPath.split('(')[0]]),
+      ...(envLockfile.packages[depPath] ?? envLockfile.packages[removeSuffix(depPath)]),
     }
   }
 
