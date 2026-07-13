@@ -2569,7 +2569,24 @@ pub(crate) fn build_workspace_state(
     project_manifests: &[(std::path::PathBuf, &PackageManifest)],
 ) -> WorkspaceState {
     WorkspaceState {
-        last_validated_timestamp: now_millis(),
+        // Record the freshness baseline from the lockfile this install
+        // just wrote, not the wall clock. The repeat-install fast path
+        // compares this timestamp against file mtimes, so the two must be
+        // on the same clock: on a runner whose wall clock runs ahead of
+        // the filesystem's mtime clock (observed ~2 ms on some CI
+        // microVMs), a `now_millis()` baseline can sit above the mtime of
+        // a manifest/pnpmfile edited moments later, hiding the edit and
+        // wrongly keeping the fast path. The lockfile's own mtime shares
+        // the filesystem clock with every file the check compares, so no
+        // skew is possible. Mirrors pnpm's `checkDepsStatus`, whose
+        // single-project path keys off the wanted lockfile's mtime. Fall
+        // back to the wall clock only when no lockfile was written.
+        last_validated_timestamp: crate::optimistic_repeat_install::validation_baseline_ms(
+            workspace_root,
+            config,
+            project_manifests,
+        )
+        .unwrap_or_else(now_millis),
         projects: build_projects_map(project_manifests),
         pnpmfiles: crate::optimistic_repeat_install::current_pnpmfiles(workspace_root),
         // Pacquet has no `--filter` yet (issue <https://github.com/pnpm/pacquet/issues/299> stage 2). Hard-code

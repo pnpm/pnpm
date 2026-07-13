@@ -888,6 +888,35 @@ fn modified_at_or_after(subject: FileMtime, reference_ms: i64) -> bool {
     if subject.whole_second { subject.ms + 1_000 > reference_ms } else { subject.ms > reference_ms }
 }
 
+/// The freshness baseline recorded in the workspace state: the latest
+/// mtime among the lockfile this install wrote (the wanted
+/// `pnpm-lock.yaml`, or the current `<virtual_store_dir>/lock.yaml` when
+/// the wanted one is absent) and the project manifests it validated.
+///
+/// A filesystem mtime, not the wall clock, so the baseline shares a clock
+/// with every file the repeat-install check later compares against it: a
+/// wall-vs-mtime clock skew (observed ~2 ms on some CI microVMs, where the
+/// wall clock ran ahead of the filesystem's mtime clock) would otherwise
+/// let a `now()` baseline sit above the mtime of a manifest/pnpmfile
+/// edited moments after the install, hiding the edit and wrongly keeping
+/// the fast path. Taking the max over the manifests too means a content
+/// check that passed on an already-edited manifest still blesses it, so
+/// the next run can take the pure-mtime fast path. `None` when nothing can
+/// be stat'd.
+pub(crate) fn validation_baseline_ms(
+    workspace_root: &Path,
+    config: &Config,
+    project_manifests: &[(PathBuf, &PackageManifest)],
+) -> Option<i64> {
+    let lockfile = mtime_ms(&workspace_root.join(Lockfile::FILE_NAME))
+        .or_else(|| mtime_ms(&config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME)));
+    project_manifests
+        .iter()
+        .filter_map(|(_, manifest)| mtime_ms(manifest.path()))
+        .chain(lockfile)
+        .max()
+}
+
 /// Whether `<workspace_root>/pnpm-lock.yaml` has an mtime newer than the
 /// last validation. A lockfile-only change leaves every manifest
 /// untouched but must still defeat the manifest-mtime fast path. A
