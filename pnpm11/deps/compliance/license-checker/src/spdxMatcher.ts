@@ -21,7 +21,7 @@ export function matchLicenseAgainstPolicy (
   const hasAllowedList = !!(opts.allowed && opts.allowed.size > 0)
 
   if (!license || license === 'Unknown') {
-    return unknown(opts, hasAllowedList)
+    return unknown(hasAllowedList)
   }
 
   let tree: SpdxNode
@@ -114,7 +114,7 @@ export function isCompoundLicenseExpression (s: string): boolean {
 
 // -- helpers --
 
-function unknown (opts: MatchPolicyOptions, hasAllowedList: boolean): LicenseMatchResult {
+function unknown (hasAllowedList: boolean): LicenseMatchResult {
   return hasAllowedList
     ? { allowed: false, reason: 'unknown-license' }
     : { allowed: true, reason: 'allowed-by-default' }
@@ -131,7 +131,7 @@ function evaluateOpaqueId (id: string, opts: MatchPolicyOptions, hasAllowedList:
     }
     return { allowed: false, reason: 'not-in-allowed-list' }
   }
-  return unknown(opts, hasAllowedList)
+  return unknown(hasAllowedList)
 }
 
 // A package is blocked by the disallow policy iff EVERY way to satisfy its
