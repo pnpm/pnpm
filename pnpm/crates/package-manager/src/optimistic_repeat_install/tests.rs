@@ -1,6 +1,6 @@
 use super::{
-    Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install, current_settings,
-    current_settings_with_catalogs,
+    Decision, FileMtime, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
+    current_settings, current_settings_with_catalogs, modified_at_or_after,
 };
 use indexmap::IndexMap;
 use pacquet_catalogs_types::Catalogs;
@@ -2223,4 +2223,26 @@ fn does_not_regenerate_wanted_lockfile_when_lockfile_writing_disabled() {
     );
     assert_eq!(decision, Decision::UpToDate);
     assert!(!dir.path().join(Lockfile::FILE_NAME).exists(), "lockfile: false must skip the write");
+}
+
+/// A sub-second mtime is compared exactly; a whole-second mtime (as a
+/// second-granularity filesystem records) counts its entire second as
+/// possibly-after the reference, so a change made in the same second as
+/// the last install is not missed.
+#[test]
+fn modified_at_or_after_tolerates_whole_second_mtimes() {
+    let second = 1_700_000_000_000; // a whole second, in ms
+
+    let coarse = FileMtime { ms: second, whole_second: true };
+    // The reference falls inside the mtime's second: possibly modified.
+    assert!(modified_at_or_after(coarse, second));
+    assert!(modified_at_or_after(coarse, second + 999));
+    // The reference is in a later second: the whole second is before it.
+    assert!(!modified_at_or_after(coarse, second + 1_000));
+
+    let fine = FileMtime { ms: second, whole_second: false };
+    // Sub-second mtimes are exact: equal is not "after".
+    assert!(!modified_at_or_after(fine, second));
+    assert!(!modified_at_or_after(fine, second + 1));
+    assert!(modified_at_or_after(fine, second - 1));
 }
