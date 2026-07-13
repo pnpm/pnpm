@@ -9,8 +9,11 @@ const parentScript = path.join(import.meta.dirname, 'fixtures/process-tree/paren
 
 test('killTrackedProcessTrees() kills a tracked child process and, on Windows, its descendants', async () => {
   const child = spawn(process.execPath, [parentScript], { stdio: ['ignore', 'pipe', 'ignore'] })
-  const childExited = new Promise<void>((resolve) => {
-    child.once('exit', () => {
+  // Wait for 'close' rather than 'exit': the tracker untracks the PID on
+  // 'close', so awaiting it guarantees the registry is empty before the next
+  // test, whose assertion relies on it being so.
+  const childClosed = new Promise<void>((resolve) => {
+    child.once('close', () => {
       resolve()
     })
   })
@@ -19,7 +22,7 @@ test('killTrackedProcessTrees() kills a tracked child process and, on Windows, i
     trackChildProcess(child)
     await killTrackedProcessTrees()
 
-    await childExited
+    await childClosed
     expect(child.exitCode !== 0 || child.signalCode != null).toBe(true)
     if (isWindows()) {
       expect(await exited(grandchildPid)).toBe(true)
