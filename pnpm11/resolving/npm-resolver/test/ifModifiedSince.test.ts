@@ -169,3 +169,62 @@ test('fetch without conditional headers when no local cache exists', async () =>
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
 })
+
+test('retry when an unconditional metadata request receives 304 Not Modified', async () => {
+  const registry = getMockAgent().get(registries.default.replace(/\/$/, ''))
+  registry
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(304, '')
+  registry
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: {
+        'cache-control': 'no-cache',
+      },
+    })
+    .reply(200, isPositiveMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+  const resolveResult = await resolveFromNpm(
+    { alias: 'is-positive', bareSpecifier: '^3.0.0' },
+    {}
+  )
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+})
+
+test('report an invalid response when an unconditional 304 retry also returns 304', async () => {
+  const registry = getMockAgent().get(registries.default.replace(/\/$/, ''))
+  registry
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(304, '')
+  registry
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: {
+        'cache-control': 'no-cache',
+      },
+    })
+    .reply(304, '')
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+
+  await expect(resolveFromNpm(
+    { alias: 'is-positive', bareSpecifier: '^3.0.0' },
+    {}
+  )).rejects.toMatchObject({
+    code: 'ERR_PNPM_META_NOT_MODIFIED_WITHOUT_CACHE',
+    message: 'Registry returned 304 for is-positive without an existing cache to refresh.',
+  })
+})
