@@ -265,6 +265,24 @@ describe('matchLicenseAgainstPolicy', () => {
       expect(result.reason).toBe('allowed-by-default')
     })
 
+    it('rejects unknown license when an allowed list is configured', () => {
+      const result = matchLicenseAgainstPolicy('Unknown', {
+        allowed: new Set(['MIT']),
+        mode: 'loose',
+      })
+      expect(result.allowed).toBe(false)
+      expect(result.reason).toBe('unknown-license')
+    })
+
+    it('rejects empty license string when an allowed list is configured', () => {
+      const result = matchLicenseAgainstPolicy('', {
+        allowed: new Set(['MIT']),
+        mode: 'loose',
+      })
+      expect(result.allowed).toBe(false)
+      expect(result.reason).toBe('unknown-license')
+    })
+
     it('rejects disallowed licenses', () => {
       const result = matchLicenseAgainstPolicy('GPL-3.0-only', {
         disallowed: new Set(['GPL-3.0-only']),
@@ -299,6 +317,25 @@ describe('matchLicenseAgainstPolicy', () => {
       })
       expect(result.allowed).toBe(true)
     })
+
+    it('rejects a license not in the allowed list (reported as a warning by checkLicenses, not a violation)', () => {
+      const result = matchLicenseAgainstPolicy('GPL-3.0-only', {
+        allowed: new Set(['MIT']),
+        mode: 'loose',
+      })
+      expect(result.allowed).toBe(false)
+      expect(result.reason).toBe('not-in-allowed-list')
+    })
+
+    it('still allows unlisted licenses by default when no allowed list is configured', () => {
+      // loose + no allowed list ⇒ still permissive (allowed-by-default); only
+      // an explicit allowed list turns an unlisted license into a warning.
+      const result = matchLicenseAgainstPolicy('GPL-3.0-only', {
+        mode: 'loose',
+      })
+      expect(result.allowed).toBe(true)
+      expect(result.reason).toBe('allowed-by-default')
+    })
   })
 
   describe('non-SPDX license strings', () => {
@@ -324,6 +361,15 @@ describe('matchLicenseAgainstPolicy', () => {
       const result = matchLicenseAgainstPolicy('Public Domain', {
         allowed: new Set(['MIT']),
         mode: 'strict',
+      })
+      expect(result.allowed).toBe(false)
+      expect(result.reason).toBe('not-in-allowed-list')
+    })
+
+    it('rejects non-SPDX string not in allowed list (loose mode)', () => {
+      const result = matchLicenseAgainstPolicy('Public Domain', {
+        allowed: new Set(['MIT']),
+        mode: 'loose',
       })
       expect(result.allowed).toBe(false)
       expect(result.reason).toBe('not-in-allowed-list')

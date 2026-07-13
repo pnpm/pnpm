@@ -51,12 +51,25 @@ describe('checkLicenseCompliance', () => {
   })
 
   describe('loose mode', () => {
-    it('passes unlisted licenses without violation', () => {
+    it('passes unlisted licenses without violation, but reports a warning', () => {
       const result = checkLicenseCompliance(
         [pkg({ license: 'BSD-3-Clause' })],
         { mode: 'loose', allowed: ['MIT'] }
       )
       expect(result.violations).toEqual([])
+      expect(result.warnings).toHaveLength(1)
+      expect(result.warnings[0].packageName).toBe('test-pkg')
+      expect(result.warnings[0].license).toBe('BSD-3-Clause')
+      expect(result.warnings[0].reason).toContain('not in the allowed list')
+    })
+
+    it('passes unlisted licenses without violation or warning when no allowed list is configured', () => {
+      const result = checkLicenseCompliance(
+        [pkg({ license: 'BSD-3-Clause' })],
+        { mode: 'loose' }
+      )
+      expect(result.violations).toEqual([])
+      expect(result.warnings).toEqual([])
     })
 
     it('reports violation for explicitly disallowed license even in loose mode', () => {

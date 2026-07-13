@@ -552,35 +552,36 @@ describe('license compliance after add', () => {
   // non-empty `result.warnings` via `globalWarn` instead of silently
   // discarding it, while letting the add succeed either way.
   //
-  // NOTE on coverage: under the *current* `matchLicenseAgainstPolicy`
-  // semantics (verified empirically — see task-12-report.md), loose mode's
-  // "license missing from the allowed list" / "unknown license" cases both
-  // resolve to `allowed: true` unconditionally, so `checkLicenseCompliance`
-  // never actually returns a non-empty `warnings` array for this (or any
-  // other known) policy shape — the same is true all the way back to the
-  // feature's initial commit, and is called out as an accepted MINOR/cosmetic
-  // gap in this branch's own SDD review notes (Task 7). The `globalWarn`
-  // call this test targets is therefore not currently reachable through any
-  // real policy, so — per this task's guidance not to fabricate a brittle
-  // assertion — this test only asserts the OBSERVABLE outcome that a
-  // loose-mode policy miss does not fail the add (fail-open, matching the
-  // documented "loose mode never blocks on an allow-list miss" behavior).
-  // The #5 test above already proves the `streamParser`-based warning
-  // capture mechanism itself works end-to-end.
-  test('pnpm add succeeds when a loose-mode policy does not allow-list the installed license (regression #7)', async () => {
+  // `matchLicenseAgainstPolicy` now returns `allowed: false` (reason
+  // `not-in-allowed-list`) for a loose-mode license that isn't in the
+  // configured allowed list, instead of silently allowing it. That makes
+  // this policy shape reach `result.warnings` for real, so this test
+  // captures the `globalWarn` output and asserts the warning is actually
+  // emitted — not just that the add doesn't fail.
+  test('pnpm add succeeds and warns when a loose-mode policy does not allow-list the installed license (regression #7)', async () => {
     const project = prepare()
 
-    await add.handler({
-      ...DEFAULT_OPTIONS,
-      dir: process.cwd(),
-      linkWorkspacePackages: false,
-      licenses: {
-        allowed: ['MIT'],
-        mode: 'loose',
-      },
-    }, ['@pnpm.e2e/has-different-licenses@2.0.0'])
+    const { warnings } = await captureWarnings(() =>
+      add.handler({
+        ...DEFAULT_OPTIONS,
+        dir: process.cwd(),
+        linkWorkspacePackages: false,
+        licenses: {
+          allowed: ['MIT'],
+          mode: 'loose',
+        },
+      }, ['@pnpm.e2e/has-different-licenses@2.0.0'])
+    )
 
     project.has('@pnpm.e2e/has-different-licenses')
+    // has-different-licenses@2.0.0 is licensed ISC, which is not in the
+    // configured `allowed: ['MIT']` list, so it must surface as a license
+    // warning while still letting the add succeed.
+    expect(warnings.some((message) =>
+      message.includes('license warning') &&
+      message.includes('has-different-licenses') &&
+      message.includes('ISC')
+    )).toBe(true)
   })
 
   test('pnpm add succeeds when licenses.mode is none', async () => {
