@@ -200,6 +200,34 @@ fn manifest_entry_is_the_published_manifest_not_the_on_disk_one() {
 }
 
 #[test]
+fn readme_is_reported_for_the_registry_but_kept_out_of_the_tarball_manifest() {
+    let (dir, opts) = fixture(&json!({ "name": "foo", "version": "1.0.0" }));
+    touch(dir.path(), "README.md", "# Hello\n");
+    // `embed_readme` defaults to `false` in the fixture.
+
+    let result = api::<SilentReporter, Host>(&opts).unwrap();
+
+    // The manifest reported for publishing carries the readme, matching the npm CLI...
+    assert_eq!(result.published_manifest["readme"], json!("# Hello\n"));
+
+    // ...but the package.json packed into the tarball stays clean.
+    let tarball = dir.path().join("foo-1.0.0.tgz");
+    let file = std::fs::File::open(&tarball).unwrap();
+    let mut archive = tar::Archive::new(GzDecoder::new(file));
+    let mut packed_manifest = None;
+    for entry in archive.entries().unwrap() {
+        let mut entry = entry.unwrap();
+        if entry.path().unwrap().to_string_lossy() == "package/package.json" {
+            let mut buf = String::new();
+            io::Read::read_to_string(&mut entry, &mut buf).unwrap();
+            packed_manifest = Some(serde_json::from_str::<Value>(&buf).unwrap());
+        }
+    }
+    let packed = packed_manifest.expect("tarball carries package/package.json");
+    assert!(packed.get("readme").is_none(), "readme must not be embedded in the tarball manifest");
+}
+
+#[test]
 fn dry_run_reports_without_writing_a_tarball() {
     let (dir, mut opts) = fixture(&json!({ "name": "foo", "version": "1.0.0" }));
     touch(dir.path(), "index.js", "x\n");

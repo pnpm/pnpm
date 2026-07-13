@@ -11,7 +11,7 @@ import { PnpmError } from '@pnpm/error'
 import { packlist } from '@pnpm/fs.packlist'
 import type { Hooks } from '@pnpm/hooks.pnpmfile'
 import { logger } from '@pnpm/logger'
-import { createExportableManifest, type ExportedManifest } from '@pnpm/releasing.exportable-manifest'
+import { createExportableManifest, type ExportedManifest, readReadmeFile } from '@pnpm/releasing.exportable-manifest'
 import { changelogStorage, readPendingChangelog, renderChangelog } from '@pnpm/releasing.versioning'
 import type { DependencyManifest, Project, ProjectManifest, ProjectRootDir, ProjectsGraph } from '@pnpm/types'
 import { sortFilteredProjects } from '@pnpm/workspace.projects-sorter'
@@ -375,11 +375,25 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     packedTarballPath = path.relative(opts.dir, path.join(dir, tarballName))
   }
   return {
-    publishedManifest: publishManifest,
+    publishedManifest: await withRegistryReadme(publishManifest, dir),
     contents: packedContents,
     tarballPath: packedTarballPath,
     unpackedSize,
   }
+}
+
+/**
+ * The readme is always sent to the registry as package metadata, matching the npm CLI, so that
+ * registries can render it on the package page. The `embed-readme` setting only controls whether
+ * the readme is additionally written into the `package.json` inside the tarball (via
+ * `createExportableManifest`), which is why it is added to the returned manifest here rather than
+ * to the packed one.
+ */
+async function withRegistryReadme (manifest: ExportedManifest, projectDir: string): Promise<ExportedManifest> {
+  if (manifest.readme != null) return manifest
+  const readme = await readReadmeFile(projectDir)
+  if (readme == null) return manifest
+  return { ...manifest, readme }
 }
 
 export interface PackResult {

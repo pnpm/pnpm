@@ -21,6 +21,7 @@ mod tests;
 
 pub use create::{
     CreateExportableManifestError, CreateExportableManifestOptions, create_exportable_manifest,
+    read_readme_file,
 };
 pub use replace::{
     CannotResolveWorkspaceProtocolError, ReplaceWorkspaceProtocolError, replace_workspace_protocol,

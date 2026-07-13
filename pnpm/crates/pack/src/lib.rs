@@ -34,6 +34,7 @@ use pacquet_executor::{
 };
 use pacquet_exportable_manifest::{
     CreateExportableManifestError, CreateExportableManifestOptions, create_exportable_manifest,
+    read_readme_file,
 };
 use pacquet_fs_packlist::{PacklistError, PacklistOptions, packlist_with_options};
 use pacquet_hooks::{HookContext, LogFn, PnpmfileHooks};
@@ -374,7 +375,27 @@ where
 
     let tarball_path = packed_tarball_path(&opts.dir, &dir, &dest_dir, &tarball_name);
 
-    Ok(PackResult { published_manifest: publish_manifest, contents, tarball_path, unpacked_size })
+    let published_manifest = with_registry_readme(publish_manifest, &dir)?;
+    Ok(PackResult { published_manifest, contents, tarball_path, unpacked_size })
+}
+
+/// The readme is always reported as part of the published manifest, matching the npm CLI, so a
+/// registry can render it on the package page. `embed_readme` only controls whether the readme is
+/// additionally written into the `package.json` inside the tarball (via
+/// [`create_exportable_manifest`]), which is why it is filled in on the returned manifest here
+/// rather than in the packed one.
+fn with_registry_readme(mut manifest: Value, dir: &Path) -> Result<Value, PackError> {
+    if manifest.get("readme").is_some_and(|readme| !readme.is_null()) {
+        return Ok(manifest);
+    }
+    let readme = read_readme_file(dir)
+        .map_err(|source| PackError::ReadFile { path: dir.display().to_string(), source })?;
+    if let Some(readme) = readme
+        && let Some(object) = manifest.as_object_mut()
+    {
+        object.insert("readme".to_string(), Value::String(readme));
+    }
+    Ok(manifest)
 }
 
 /// Chain every configured pnpmfile's `beforePacking` hook over the

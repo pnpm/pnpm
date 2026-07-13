@@ -296,17 +296,39 @@ fn override_publish_config(publish: &mut Map<String, Value>) {
 /// Read a root `README.md` (case-insensitive) for embedding. Only a
 /// regular file is embedded — a symlink is skipped so it can't leak
 /// the contents of a target outside the project.
-fn read_readme_file(dir: &Path) -> io::Result<Option<String>> {
+pub fn read_readme_file(dir: &Path) -> io::Result<Option<String>> {
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
         if !entry.file_type()?.is_file() {
             continue;
         }
         if entry.file_name().to_string_lossy().eq_ignore_ascii_case("readme.md") {
-            return fs::read_to_string(entry.path()).map(Some);
+            return read_regular_file(&entry.path());
         }
     }
     Ok(None)
+}
+
+/// Read a file, refusing to follow a symlink at the final path component so a
+/// symlink swapped in after the `read_dir` type check (a TOCTOU race) can't
+/// redirect the read outside the project and leak its target into the published
+/// manifest. A symlink (`ELOOP`) yields `Ok(None)`, matching the `is_file`
+/// intent. Windows lacks `O_NOFOLLOW` (and gates symlink creation behind a
+/// privilege), so it falls back to a plain read.
+#[cfg(unix)]
+fn read_regular_file(path: &Path) -> io::Result<Option<String>> {
+    use std::os::unix::fs::OpenOptionsExt;
+    let file = match fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(path) {
+        Ok(file) => file,
+        Err(err) if err.raw_os_error() == Some(libc::ELOOP) => return Ok(None),
+        Err(err) => return Err(err),
+    };
+    io::read_to_string(file).map(Some)
+}
+
+#[cfg(not(unix))]
+fn read_regular_file(path: &Path) -> io::Result<Option<String>> {
+    fs::read_to_string(path).map(Some)
 }
 
 /// Clone `map` without the entries named in `keys`, preserving the

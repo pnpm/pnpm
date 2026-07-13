@@ -20,6 +20,10 @@ derive_more = { workspace = true }
 miette      = { workspace = true }
 serde_json  = { workspace = true }
 
+# `O_NOFOLLOW` for the symlink-safe README read (see `read_readme_file`).
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
 [dev-dependencies]
 tempfile = { workspace = true }
 

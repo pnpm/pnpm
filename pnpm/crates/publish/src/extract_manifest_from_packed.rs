@@ -47,6 +47,62 @@ pub fn extract_manifest_from_packed(tarball_path: &str) -> Result<Value, Extract
     }))
 }
 
+/// Read the publish manifest from a pre-built tarball, filling in its `readme`
+/// from the tarball's root README when the manifest doesn't already declare
+/// one. This mirrors the npm CLI, which reads the readme out of the tarball (via
+/// pacote's `fullReadJson`) so the registry gets it as metadata even though it
+/// isn't stored in the packed `package.json`.
+pub fn extract_publish_manifest_from_packed(
+    tarball_path: &str,
+) -> Result<Value, ExtractManifestError> {
+    let read_err = |source: std::io::Error| ExtractManifestError::Read {
+        tarball_path: tarball_path.to_owned(),
+        source,
+    };
+    let file = File::open(tarball_path).map_err(read_err)?;
+    let mut archive = tar::Archive::new(GzDecoder::new(file));
+    let entries = archive.entries().map_err(read_err)?;
+
+    let mut manifest_text: Option<String> = None;
+    let mut readme: Option<String> = None;
+    for entry in entries {
+        let mut entry = entry.map_err(read_err)?;
+        let normalized = normalize_entry_path(&entry.path().map_err(read_err)?);
+        let target = if normalized == "package/package.json" {
+            &mut manifest_text
+        } else if is_root_readme(&normalized) {
+            &mut readme
+        } else {
+            continue;
+        };
+        let mut text = String::new();
+        entry.read_to_string(&mut text).map_err(read_err)?;
+        *target = Some(text);
+    }
+
+    let manifest_text = manifest_text.ok_or_else(|| {
+        ExtractManifestError::MissingManifest(PublishArchiveMissingManifestError {
+            tarball_path: tarball_path.to_owned(),
+        })
+    })?;
+    let mut manifest: Value = serde_json::from_str(&manifest_text).map_err(|source| {
+        ExtractManifestError::Parse { tarball_path: tarball_path.to_owned(), source }
+    })?;
+    if let Some(readme) = readme
+        && manifest.get("readme").is_none_or(Value::is_null)
+        && let Some(object) = manifest.as_object_mut()
+    {
+        object.insert("readme".to_string(), Value::String(readme));
+    }
+    Ok(manifest)
+}
+
+/// Whether a normalized tar entry path names the package's root README,
+/// matching pnpm's `/^package\/readme\.md$/i`.
+fn is_root_readme(normalized: &str) -> bool {
+    normalized.strip_prefix("package/").is_some_and(|name| name.eq_ignore_ascii_case("readme.md"))
+}
+
 /// Normalize a tar entry path to forward slashes and collapse `.` / `..`
 /// segments (so e.g. `package/./package.json` still matches).
 ///

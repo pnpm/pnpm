@@ -1,5 +1,6 @@
 use super::{
-    ExtractManifestError, extract_manifest_from_packed, is_tarball_path, normalize_entry_path,
+    ExtractManifestError, extract_manifest_from_packed, extract_publish_manifest_from_packed,
+    is_tarball_path, normalize_entry_path,
 };
 use flate2::{Compression, write::GzEncoder};
 use pretty_assertions::assert_eq;
@@ -74,4 +75,41 @@ fn errors_when_manifest_missing() {
     let path = write_tarball(&dir, &[("package/index.js", "x")]);
     let err = extract_manifest_from_packed(&path).unwrap_err();
     assert!(matches!(err, ExtractManifestError::MissingManifest(_)));
+}
+
+#[test]
+fn publish_manifest_fills_readme_from_the_tarball_readme() {
+    let dir = TempDir::new().unwrap();
+    let path = write_tarball(
+        &dir,
+        &[
+            ("package/package.json", r#"{"name":"foo","version":"1.0.0"}"#),
+            ("package/README.md", "# Hello"),
+        ],
+    );
+    let manifest = extract_publish_manifest_from_packed(&path).unwrap();
+    assert_eq!(manifest["readme"], "# Hello");
+}
+
+#[test]
+fn publish_manifest_keeps_a_readme_already_in_the_manifest() {
+    let dir = TempDir::new().unwrap();
+    let path = write_tarball(
+        &dir,
+        &[
+            ("package/package.json", r#"{"name":"foo","version":"1.0.0","readme":"embedded"}"#),
+            ("package/README.md", "# Hello"),
+        ],
+    );
+    let manifest = extract_publish_manifest_from_packed(&path).unwrap();
+    assert_eq!(manifest["readme"], "embedded");
+}
+
+#[test]
+fn publish_manifest_leaves_readme_unset_without_a_tarball_readme() {
+    let dir = TempDir::new().unwrap();
+    let path =
+        write_tarball(&dir, &[("package/package.json", r#"{"name":"foo","version":"1.0.0"}"#)]);
+    let manifest = extract_publish_manifest_from_packed(&path).unwrap();
+    assert!(manifest.get("readme").is_none());
 }
