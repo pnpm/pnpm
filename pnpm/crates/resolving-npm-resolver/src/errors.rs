@@ -68,9 +68,8 @@ pub enum FetchMetadataError {
     },
 
     /// `ERR_PNPM_META_NOT_MODIFIED_WITHOUT_CACHE`. Surfaces when a registry
-    /// repeats an unsolicited 304 after a cache-bypassing retry, or
-    /// when a stale-but-removed mirror leaves no body to satisfy a
-    /// valid conditional response.
+    /// repeats an unsolicited 304 after a cache-bypassing retry, leaving no
+    /// body and no validator that could have justified the response.
     #[display("Registry returned 304 for {pkg_name} without an existing cache to refresh.")]
     #[diagnostic(code(ERR_PNPM_META_NOT_MODIFIED_WITHOUT_CACHE))]
     NotModifiedWithoutCache {
