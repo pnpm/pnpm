@@ -256,13 +256,17 @@ fn stars_user_not_found() {
 }
 
 #[test]
-fn stars_other_user_401_returns_unauthorized_without_fallback() {
+fn stars_other_user_401_falls_through_to_util_endpoint() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
     let primary_mock =
         server.mock("GET", "/-/user/alice/stars").with_status(401).expect_at_least(1).create();
-    let util_mock = server.mock("GET", "/-/util/user/alice/stars").expect(0).create();
+    let util_mock = server
+        .mock("GET", "/-/util/user/alice/stars")
+        .with_status(200)
+        .with_body(r#"["foo"]"#)
+        .create();
     let auth_file = configure(root.path(), &workspace, &registry, Some("test-token"));
     let output = pacquet_at(&workspace)
         .with_arg("--npmrc-auth-file")
@@ -273,12 +277,12 @@ fn stars_other_user_401_returns_unauthorized_without_fallback() {
         .expect("spawn pacquet stars");
     primary_mock.assert();
     util_mock.assert();
-    assert!(!output.status.success());
-    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
     assert!(
-        stderr.contains("ERR_PNPM_STARS_UNAUTHORIZED") && stderr.contains("You must be logged in"),
-        "stderr must name the unauthorized diagnostic; got:\n{stderr}",
+        output.status.success(),
+        "stars must fall through to the util endpoint on 401 (stderr: {})",
+        String::from_utf8_lossy(&output.stderr),
     );
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "foo");
     drop((root, server));
 }
 

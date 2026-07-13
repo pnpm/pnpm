@@ -52,7 +52,7 @@ pub async fn whoami(config: &Config) -> miette::Result<String> {
 /// `registry_url` is the config registry, which always carries a trailing
 /// slash, so concatenating `-/whoami` resolves it relative to the registry
 /// (preserving any registry path prefix).
-async fn fetch_whoami(
+pub(crate) async fn fetch_whoami(
     registry_url: &str,
     http_client: &ThrottledClient,
     auth_header: &str,

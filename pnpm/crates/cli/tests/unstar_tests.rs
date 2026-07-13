@@ -85,7 +85,7 @@ fn unstar_successfully_unstars_a_package() {
 }
 
 #[test]
-fn unstar_falls_back_to_legacy_endpoint_when_primary_fails() {
+fn unstar_falls_back_to_alt_endpoint_when_primary_fails() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
@@ -94,7 +94,7 @@ fn unstar_falls_back_to_legacy_endpoint_when_primary_fails() {
         .match_header("authorization", "Bearer test-token")
         .with_status(404)
         .create();
-    let legacy_mock = server
+    let alt_mock = server
         .mock("DELETE", "/-/user/package/foo/star")
         .match_header("authorization", "Bearer test-token")
         .with_status(200)
@@ -108,10 +108,70 @@ fn unstar_falls_back_to_legacy_endpoint_when_primary_fails() {
         .output()
         .expect("spawn pacquet unstar");
     primary_mock.assert();
-    legacy_mock.assert();
+    alt_mock.assert();
     assert!(
         output.status.success(),
-        "unstar must succeed via legacy endpoint (stderr: {})",
+        "unstar must succeed via the alt endpoint (stderr: {})",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    drop((root, server));
+}
+
+#[test]
+fn unstar_falls_back_to_legacy_packument_when_star_endpoints_unavailable() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    let primary_mock = server
+        .mock("DELETE", "/-/user/v1/star")
+        .match_header("authorization", "Bearer test-token")
+        .with_status(404)
+        .expect_at_least(1)
+        .create();
+    let alt_mock = server
+        .mock("DELETE", "/-/user/package/foo/star")
+        .match_header("authorization", "Bearer test-token")
+        .with_status(404)
+        .expect_at_least(1)
+        .create();
+    let whoami_mock = server
+        .mock("GET", "/-/whoami")
+        .match_header("authorization", "Bearer test-token")
+        .with_status(200)
+        .with_body(r#"{"username":"alice"}"#)
+        .create();
+    let packument_mock = server
+        .mock("GET", "/foo")
+        .match_header("authorization", "Bearer test-token")
+        .with_status(200)
+        .with_body(r#"{"_rev":"1-abc","name":"foo","users":{"alice":true,"bob":true}}"#)
+        .create();
+    // Exact match confirms "alice" was removed while "bob" and the rest of the
+    // packument are preserved.
+    let update_mock = server
+        .mock("PUT", "/foo/-rev/1-abc")
+        .match_header("authorization", "Bearer test-token")
+        .match_body(mockito::Matcher::JsonString(
+            r#"{"_rev":"1-abc","name":"foo","users":{"bob":true}}"#.to_string(),
+        ))
+        .with_status(200)
+        .create();
+    let auth_file = configure(root.path(), &workspace, &registry, Some("test-token"));
+    let output = pacquet_at(&workspace)
+        .with_arg("--npmrc-auth-file")
+        .with_arg(&auth_file)
+        .with_arg("unstar")
+        .with_arg("foo")
+        .output()
+        .expect("spawn pacquet unstar");
+    primary_mock.assert();
+    alt_mock.assert();
+    whoami_mock.assert();
+    packument_mock.assert();
+    update_mock.assert();
+    assert!(
+        output.status.success(),
+        "unstar must succeed via the legacy packument path (stderr: {})",
         String::from_utf8_lossy(&output.stderr),
     );
     drop((root, server));
@@ -128,10 +188,12 @@ fn unstar_registry_error_when_both_endpoints_fail() {
         .with_status(404)
         .expect_at_least(1)
         .create();
-    let legacy_mock = server
+    // 403 is outside the set of statuses that trigger the legacy packument
+    // fallback, so both star endpoints failing surfaces a registry error.
+    let alt_mock = server
         .mock("DELETE", "/-/user/package/foo/star")
         .match_header("authorization", "Bearer test-token")
-        .with_status(500)
+        .with_status(403)
         .expect_at_least(1)
         .create();
     let auth_file = configure(root.path(), &workspace, &registry, Some("test-token"));
@@ -143,7 +205,7 @@ fn unstar_registry_error_when_both_endpoints_fail() {
         .output()
         .expect("spawn pacquet unstar");
     primary_mock.assert();
-    legacy_mock.assert();
+    alt_mock.assert();
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
     assert!(

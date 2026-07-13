@@ -96,9 +96,12 @@ async fn fetch_stars(
         if response.status().is_success() {
             let body: Value = response.json().await.into_diagnostic()?;
             drop(client);
-            return Ok(parse_stars_response(&body));
+            if body.is_array() || body.is_object() {
+                return Ok(parse_stars_response(&body));
+            }
+        } else {
+            drop(client);
         }
-        drop(client);
     }
 
     let encoded_username = encode_uri_component(username);
@@ -117,11 +120,6 @@ async fn fetch_stars(
     .wrap_err("requesting the user stars endpoint")?;
 
     if !response.status().is_success() {
-        let status = response.status();
-        if status == 401 {
-            drop(client);
-            return Err(StarsError::Unauthorized.into());
-        }
         drop(client);
         let util_stars_url = format!("{registry_url}-/util/user/{encoded_username}/stars");
         let (client2, response2) =
