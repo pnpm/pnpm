@@ -341,7 +341,11 @@ fn git_hosted_tarball_repo_url(tarball_url: &str) -> Option<String> {
     if let Some(rest) = tarball_url.strip_prefix("https://codeload.github.com/") {
         let (owner, rest) = rest.split_once('/')?;
         let (repo, _) = rest.split_once("/tar.gz/")?;
-        if owner.is_empty() || repo.is_empty() {
+        // `owner` and `repo` are each a single path segment, matching the
+        // `[^/]+` anchors in the TypeScript matcher so both stacks normalize
+        // identically. `owner` cannot contain a slash (it is the first
+        // `split_once('/')` half), but `repo` can, so reject that here.
+        if owner.is_empty() || repo.is_empty() || repo.contains('/') {
             return None;
         }
         return Some(format!("git+https://github.com/{owner}/{repo}.git"));
@@ -350,7 +354,8 @@ fn git_hosted_tarball_repo_url(tarball_url: &str) -> Option<String> {
     if let Some(rest) = tarball_url.strip_prefix("https://bitbucket.org/") {
         let (owner, rest) = rest.split_once('/')?;
         let (repo, _) = rest.split_once("/get/")?;
-        if owner.is_empty() || repo.is_empty() {
+        // Single-segment `repo`, as in the GitHub branch above.
+        if owner.is_empty() || repo.is_empty() || repo.contains('/') {
             return None;
         }
         return Some(format!("git+https://bitbucket.org/{owner}/{repo}.git"));

@@ -138,6 +138,9 @@ fn explicit_allow_by_git_hosted_tarball_repo_url() {
             ("bar@git+https://bitbucket.org/org/bar.git", true),
             ("baz@git+https://gitlab.com/group/subgroup/baz.git", true),
             ("evil@git+https://github.com/org/evil.git", false),
+            // Slash-bearing keys the buggy multi-segment parse would have produced.
+            ("qux@git+https://github.com/org/extra/qux.git", true),
+            ("quux@git+https://bitbucket.org/org/extra/quux.git", true),
         ],
         false,
     );
@@ -168,6 +171,13 @@ fn explicit_allow_by_git_hosted_tarball_repo_url() {
         policy.check("evil@https://codeload.github.com/org/evil/tar.gz/abc123"),
         Some(false),
     );
+
+    // A tarball URL with an extra path segment is not a valid codeload/get URL
+    // (a repo is exactly `owner/repo`) and must not be normalized, matching the
+    // `[^/]+` repo anchor in the TypeScript matcher. Even with the slash-bearing
+    // key allowlisted, the multi-segment URL stays unapproved.
+    assert_eq!(policy.check("qux@https://codeload.github.com/org/extra/qux/tar.gz/abc123"), None);
+    assert_eq!(policy.check("quux@https://bitbucket.org/org/extra/quux/get/abc123.tar.gz"), None);
 }
 
 #[test]
