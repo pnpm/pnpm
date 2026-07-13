@@ -1,5 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
+    ffi::OsStr,
+    io,
     path::{Path, PathBuf},
 };
 
@@ -7,6 +9,7 @@ use clap::Args;
 use miette::{Context, IntoDiagnostic};
 use owo_colors::{OwoColorize, Stream};
 use pacquet_config::Config;
+use pacquet_fs::lexical_normalize;
 use pacquet_global::{ListReportAs, list_global_packages};
 pub(crate) use pacquet_lockfile::PkgNameVerPeer;
 use pacquet_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotEntry};
@@ -219,6 +222,21 @@ impl ListArgs {
             }
         }
 
+        // Only the `--json`/`--parseable` renderers surface extraneous
+        // packages (the tree view omits them), so the `node_modules` scan
+        // is skipped for the default tree output. It is also suppressed
+        // when searching by name and for `--depth -1` (project-only
+        // output) — the same gates the TypeScript CLI applies before it
+        // scans `node_modules`.
+        let unsaved = if (self.json || self.parseable)
+            && self.packages.is_empty()
+            && self.depth != RecursionLimit::ProjectsOnly
+        {
+            read_unsaved_dependencies(importer, dir, config)?
+        } else {
+            Vec::new()
+        };
+
         let root = LocalTreeRoot {
             name: root_name,
             version: root_version,
@@ -227,6 +245,7 @@ impl ListArgs {
             dependencies: tree.dependencies,
             dev_dependencies: tree.dev_dependencies,
             optional_dependencies: tree.optional_dependencies,
+            unsaved,
         };
 
         Ok(LocalRootResult::Root(root))
@@ -292,6 +311,11 @@ pub(crate) struct LocalTreeRoot {
     pub(crate) dependencies: Vec<DepNode>,
     pub(crate) dev_dependencies: Vec<DepNode>,
     pub(crate) optional_dependencies: Vec<DepNode>,
+    /// Packages present in the importer's `node_modules` but absent from
+    /// its lockfile entry (npm calls these "extraneous"). Surfaced by
+    /// `--json` and `--parseable` only; the tree view omits them, matching
+    /// the TypeScript CLI, which hardcodes `showExtraneous: false`.
+    pub(crate) unsaved: Vec<DepNode>,
 }
 
 fn project_only_root(project: &pacquet_workspace::Project) -> LocalTreeRoot {
@@ -304,6 +328,7 @@ fn project_only_root(project: &pacquet_workspace::Project) -> LocalTreeRoot {
         dependencies: Vec::new(),
         dev_dependencies: Vec::new(),
         optional_dependencies: Vec::new(),
+        unsaved: Vec::new(),
     }
 }
 
@@ -588,6 +613,148 @@ pub(crate) fn read_root_manifest(
     Ok((name, version, private))
 }
 
+/// Scan `project_dir`'s `node_modules` for packages that are installed on
+/// disk but not recorded in `importer` (npm's "extraneous" dependencies),
+/// building a leaf [`DepNode`] for each. Mirrors the unsaved-dependency
+/// handling of the TypeScript CLI's `buildDependenciesTree`.
+fn read_unsaved_dependencies(
+    importer: &ProjectSnapshot,
+    project_dir: &Path,
+    config: &Config,
+) -> miette::Result<Vec<DepNode>> {
+    // Same per-importer modules-dir suffix the linker uses: the final
+    // component of `modules_dir` (default `node_modules`) under the
+    // project root.
+    let modules_dir_name =
+        config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
+    let modules_dir = project_dir.join(modules_dir_name);
+
+    let saved = saved_direct_dep_names(importer);
+    let mut unsaved: Vec<DepNode> = read_modules_dir_names(&modules_dir)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("failed to read {}", modules_dir.display()))?
+        .into_iter()
+        .filter(|name| !saved.contains(name))
+        .map(|name| build_unsaved_node(&name, &modules_dir, project_dir))
+        .collect();
+    sort_deps(&mut unsaved);
+    Ok(unsaved)
+}
+
+/// The alias keys of an importer's `dependencies`, `devDependencies`, and
+/// `optionalDependencies` — the directory names a saved dependency owns
+/// under `node_modules`. Always spans all three groups regardless of
+/// `--prod`/`--dev`/`--optional`, matching the TypeScript CLI's
+/// `getAllDirectDependencies`.
+fn saved_direct_dep_names(importer: &ProjectSnapshot) -> HashSet<String> {
+    let mut names = HashSet::new();
+    let groups =
+        [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies];
+    for group in groups.into_iter().flatten() {
+        for name in group.keys() {
+            names.insert(name.to_string());
+        }
+    }
+    names
+}
+
+/// The package directory names directly under `modules_dir`, following
+/// the same enumeration rules as the TypeScript CLI's `readModulesDir`. A
+/// missing `modules_dir` is not an error; any other read failure is.
+fn read_modules_dir_names(modules_dir: &Path) -> io::Result<Vec<String>> {
+    let mut names = Vec::new();
+    collect_module_names(modules_dir, None, &mut names)?;
+    Ok(names)
+}
+
+fn collect_module_names(
+    modules_dir: &Path,
+    scope: Option<&str>,
+    names: &mut Vec<String>,
+) -> io::Result<()> {
+    let parent_dir = match scope {
+        Some(scope) => modules_dir.join(scope),
+        None => modules_dir.to_path_buf(),
+    };
+    let entries = match std::fs::read_dir(&parent_dir) {
+        Ok(entries) => entries,
+        // A missing directory is "no packages"; every other error is
+        // surfaced, matching `readModulesDir`, which only swallows ENOENT.
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    for entry in entries {
+        let entry = entry?;
+        let file_name = entry.file_name();
+        let Some(name) = file_name.to_str() else {
+            continue;
+        };
+        if name.starts_with('.') {
+            continue;
+        }
+        if entry.file_type().is_ok_and(|file_type| file_type.is_file()) {
+            continue;
+        }
+        if scope.is_none() && name.starts_with('@') {
+            collect_module_names(modules_dir, Some(name), names)?;
+            continue;
+        }
+        match scope {
+            Some(scope) => names.push(format!("{scope}/{name}")),
+            None => names.push(name.to_string()),
+        }
+    }
+    Ok(())
+}
+
+/// Build the leaf [`DepNode`] for one extraneous package, taking its
+/// version and path from the symlink target for a `link:` dependency or
+/// from `package.json` for a regular directory.
+fn build_unsaved_node(name: &str, modules_dir: &Path, project_dir: &Path) -> DepNode {
+    let entry_path = modules_dir.join(name);
+    let (path, version) = if let Some(target) = resolve_link_target(&entry_path) {
+        let relative = pathdiff::diff_paths(&target, project_dir).unwrap_or_else(|| target.clone());
+        let version = format!("link:{}", relative.display().to_string().replace('\\', "/"));
+        (target.to_string_lossy().into_owned(), version)
+    } else {
+        let version = read_package_version(&entry_path).unwrap_or_else(|| "undefined".to_string());
+        (entry_path.to_string_lossy().into_owned(), version)
+    };
+    DepNode {
+        alias: name.to_string(),
+        name: name.to_string(),
+        version,
+        path,
+        is_peer: false,
+        is_dev: false,
+        is_optional: false,
+        dependencies: Vec::new(),
+    }
+}
+
+/// Resolve a symlink to the absolute path of its immediate target,
+/// lexically (without requiring the target to exist), matching the
+/// TypeScript CLI's `resolveLinkTarget`. `None` when `link` is not a
+/// symlink.
+fn resolve_link_target(link: &Path) -> Option<PathBuf> {
+    let target = std::fs::read_link(link).ok()?;
+    let joined = if target.is_absolute() {
+        target
+    } else {
+        match link.parent() {
+            Some(parent) => parent.join(target),
+            None => target,
+        }
+    };
+    Some(lexical_normalize(&joined))
+}
+
+fn read_package_version(pkg_dir: &Path) -> Option<String> {
+    let bytes = std::fs::read(pkg_dir.join("package.json")).ok()?;
+    let manifest: Value = serde_json::from_slice(&bytes).ok()?;
+    manifest.get("version").and_then(Value::as_str).map(str::to_string)
+}
+
 const LEGEND: &str = "Legend: production dependency, optional only, dev only\n\n";
 
 struct TreeNode {
@@ -807,6 +974,14 @@ fn local_root_to_json(root: &LocalTreeRoot) -> Value {
         root_obj.insert("optionalDependencies".to_string(), Value::Object(opt_map));
     }
 
+    if !root.unsaved.is_empty() {
+        let mut unsaved_map = Map::new();
+        for dep in &root.unsaved {
+            unsaved_map.insert(dep.alias.clone(), dep_to_json(dep));
+        }
+        root_obj.insert("unsavedDependencies".to_string(), Value::Object(unsaved_map));
+    }
+
     Value::Object(root_obj)
 }
 
@@ -859,6 +1034,9 @@ pub(crate) fn render_local_parseable(root: &LocalTreeRoot, long: bool) -> String
         flatten_parseable(dep, &mut lines, &mut seen, long);
     }
     for dep in &root.optional_dependencies {
+        flatten_parseable(dep, &mut lines, &mut seen, long);
+    }
+    for dep in &root.unsaved {
         flatten_parseable(dep, &mut lines, &mut seen, long);
     }
 
