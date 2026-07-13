@@ -841,17 +841,30 @@ fn semver_satisfies_loosely(version: &str, range: &str) -> bool {
     range.satisfies(&version)
 }
 
-/// A file's mtime reduced to the two facts the repeat-install fast path
-/// compares: milliseconds since the epoch, and whether the filesystem
-/// recorded it at whole-second resolution.
+const NANOS_PER_MILLI: i64 = 1_000_000;
+const NANOS_PER_SEC: i64 = 1_000_000_000;
+
+/// A file's mtime, kept at full nanosecond precision. The recorded
+/// `lastValidatedTimestamp` is only millisecond-precise (it is a
+/// filesystem mtime truncated to ms — see
+/// [`crate::install::build_workspace_state`]), but the comparison against
+/// it must not be: pacquet installs are fast enough that a lockfile
+/// written by one install and a manifest edited moments later can share
+/// the same millisecond, so a millisecond-granular comparison would miss
+/// the edit and wrongly keep the fast path. Comparing the file's
+/// nanosecond mtime against the truncated (rounded-down) reference
+/// distinguishes them.
 #[derive(Clone, Copy)]
 struct FileMtime {
-    /// Milliseconds since the epoch, matching the `now_millis` the write
-    /// side stamps into `lastValidatedTimestamp` so the two are
-    /// apples-to-apples.
+    /// Milliseconds since the epoch. Used where the value is *recorded* as
+    /// the reference (the state stores `lastValidatedTimestamp` in ms, and
+    /// pnpm's `checkDepsStatus` compares in ms).
     ms: i64,
+    /// Nanoseconds since the epoch. Used as the *subject* of a comparison,
+    /// where sub-millisecond precision matters.
+    ns: i64,
     /// The filesystem stored no sub-second component, so the real
-    /// modification time lies anywhere in `[ms, ms + 1000)`. True on
+    /// modification time lies anywhere in `[ns, ns + 1s)`. True on
     /// second-granularity filesystems (ext4 with 128-byte inodes, HFS+,
     /// some CI runner disks); false wherever mtimes keep sub-second
     /// precision (ext4 256-byte inodes, APFS, NTFS, xfs, and so on).
@@ -864,6 +877,7 @@ fn file_mtime(path: &Path) -> Option<FileMtime> {
     let elapsed = modified.duration_since(SystemTime::UNIX_EPOCH).ok()?;
     Some(FileMtime {
         ms: i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX),
+        ns: i64::try_from(elapsed.as_nanos()).unwrap_or(i64::MAX),
         whole_second: elapsed.subsec_nanos() == 0,
     })
 }
@@ -874,18 +888,22 @@ fn mtime_ms(path: &Path) -> Option<i64> {
 }
 
 /// Whether a file with mtime `subject` may have been modified at or after
-/// `reference_ms`. On a filesystem that keeps sub-second mtimes the
-/// comparison is exact (`ms > reference`); on one that rounds mtimes down
-/// to whole seconds the file could have been touched anywhere within its
-/// second, so the whole second counts as possibly-after
-/// (`ms + 1000 > reference`). A manifest, lockfile, patch, or pnpmfile
-/// edited in the same second as the previous install would otherwise
-/// look unchanged there and wrongly keep the fast path. Erring toward
+/// `reference_ms`. The reference is millisecond-precise (a filesystem
+/// mtime truncated toward zero); the subject is compared at nanosecond
+/// precision, so a file whose whole-millisecond mtime equals the
+/// reference's but which was really written later in that millisecond is
+/// still seen as modified. On a filesystem that rounds mtimes down to
+/// whole seconds the file could have been touched anywhere within its
+/// second, so the whole second counts as possibly-after. Erring toward
 /// "modified" only runs the authoritative content check — it never skips
-/// a needed install — and it is a no-op on sub-second filesystems, so the
-/// common case is unaffected.
+/// a needed install.
 fn modified_at_or_after(subject: FileMtime, reference_ms: i64) -> bool {
-    if subject.whole_second { subject.ms + 1_000 > reference_ms } else { subject.ms > reference_ms }
+    let reference_ns = reference_ms.saturating_mul(NANOS_PER_MILLI);
+    if subject.whole_second {
+        subject.ns.saturating_add(NANOS_PER_SEC) > reference_ns
+    } else {
+        subject.ns > reference_ns
+    }
 }
 
 /// The freshness baseline recorded in the workspace state: the latest
