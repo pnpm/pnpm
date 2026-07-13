@@ -136,6 +136,8 @@ export function createDeployFiles ({
   const result: DeployFiles = {
     lockfile: {
       ...lockfile,
+      // The deployed manifest contains concrete versions, and catalogs are not copied to the target.
+      catalogs: undefined,
       patchedDependencies: undefined,
       overrides: undefined, // the effects of the overrides should already be part of the package snapshots
       packageExtensionsChecksum: undefined, // the effects of the package extensions should already be part of the package snapshots
