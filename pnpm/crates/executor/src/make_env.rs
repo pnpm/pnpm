@@ -96,6 +96,13 @@ pub fn build_env(
         env.insert("npm_execpath".into(), p.to_string_lossy().into_owned());
     }
 
+    // `npm_config_node_gyp` is a default pnpm supplies, not a reserved
+    // stamp: TS `npm-lifecycle` sets it before spreading `extraEnv`, so a
+    // user `extraEnv` overrides it. Stamp it before `extra_env` to match.
+    if let Some(p) = opts.node_gyp_path {
+        env.insert("npm_config_node_gyp".into(), p.to_string_lossy().into_owned());
+    }
+
     // 4. `extra_env` (the user's `updateConfig` `extraEnv` plus any
     //    pnpm-controlled keys the caller merged in, such as
     //    `NODE_OPTIONS`) is applied BEFORE the reserved per-call stamps
@@ -111,9 +118,6 @@ pub fn build_env(
     env.insert("INIT_CWD".into(), opts.init_cwd.to_string_lossy().into_owned());
     env.insert("PNPM_SCRIPT_SRC_DIR".into(), opts.script_src_dir.to_string_lossy().into_owned());
 
-    if let Some(p) = opts.node_gyp_path {
-        env.insert("npm_config_node_gyp".into(), p.to_string_lossy().into_owned());
-    }
     if let Some(ua) = opts.user_agent {
         env.insert("npm_config_user_agent".into(), ua.to_string());
     }
