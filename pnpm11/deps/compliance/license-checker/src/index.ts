@@ -26,6 +26,7 @@ export {
 } from './scan.js'
 export {
   extractLicenseIds,
+  isCompoundLicenseExpression,
   type LicenseMatchResult,
   matchLicenseAgainstPolicy,
   type MatchPolicyOptions,

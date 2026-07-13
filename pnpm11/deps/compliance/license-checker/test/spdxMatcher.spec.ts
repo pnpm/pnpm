@@ -457,3 +457,23 @@ describe('matchLicenseAgainstPolicy — regression fixes', () => {
     expect(r.allowed).toBe(true)
   })
 })
+
+describe('matchLicenseAgainstPolicy — compound entries in the allowed list', () => {
+  test('a compound entry alongside a matching simple entry does not poison the allowed list', () => {
+    // spdx-satisfies throws if ANY element of the approved-licenses array is a
+    // compound (AND/OR) expression. A single bad entry must not fail every
+    // other entry in the list.
+    const r = matchLicenseAgainstPolicy('MIT', {
+      allowed: new Set(['MIT', 'MIT AND Apache-2.0']),
+      mode: 'strict',
+    })
+    expect(r.allowed).toBe(true)
+    expect(r.reason).toBe('explicitly-allowed')
+  })
+
+  test('a compound-only allowed list rejects without throwing', () => {
+    expect(() => matchLicenseAgainstPolicy('MIT', { allowed: new Set(['A AND B']), mode: 'strict' })).not.toThrow()
+    const r = matchLicenseAgainstPolicy('MIT', { allowed: new Set(['A AND B']), mode: 'strict' })
+    expect(r.allowed).toBe(false)
+  })
+})
