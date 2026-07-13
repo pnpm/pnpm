@@ -1,9 +1,9 @@
 use super::{
-    ConvertCtx, convert_package_metadata, create_deploy_install_config, split_local_payload,
-    validate_lockfile_local_path,
+    ConvertCtx, convert_package_key, convert_package_metadata, create_deploy_install_config,
+    split_local_payload, validate_lockfile_local_path,
 };
 use pacquet_config::{Config, NodeLinker};
-use pacquet_lockfile::{LockfileResolution, PackageMetadata, TarballResolution};
+use pacquet_lockfile::{LockfileResolution, PackageKey, PackageMetadata, TarballResolution};
 use std::path::Path;
 
 #[cfg(unix)]
@@ -107,6 +107,31 @@ fn convert_package_metadata_rebases_file_tarball_resolution_to_deploy_dir() {
         }
         other => panic!("expected tarball resolution, got {other:?}"),
     }
+}
+
+#[test]
+fn convert_package_key_preserves_local_tarball_name() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let lockfile_dir = tmp.path().join("workspace");
+    let deploy_dir = lockfile_dir.join("deploy");
+    let deployed_project_root = lockfile_dir.join("packages/app");
+    let all_projects = Vec::new();
+    let ctx = ConvertCtx {
+        all_projects: &all_projects,
+        deploy_dir: &deploy_dir,
+        lockfile_dir: &lockfile_dir,
+        deployed_project_root: &deployed_project_root,
+    };
+    let key: PackageKey =
+        "tar-pkg@file:vendor/tar-pkg-1.0.0.tgz".parse().expect("parse package key");
+
+    let converted = convert_package_key(&key, &ctx).expect("convert package key");
+
+    assert_eq!(
+        converted.name.to_string(),
+        "tar-pkg",
+        "the tarball's package name must be kept, not the tarball filename",
+    );
 }
 
 #[cfg(unix)]
