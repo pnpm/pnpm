@@ -1,5 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, test } from '@jest/globals'
+import type { EnvLockfile } from '@pnpm/lockfile.types'
+import type { DepPath } from '@pnpm/types'
 
 import { buildLockfileFromEnvLockfile } from '../../src/self-updater/installPnpm.js'
 
@@ -24,16 +25,16 @@ describe('buildLockfileFromEnvLockfile', () => {
           dependencies: {},
         },
       },
-    }
+    } as unknown as EnvLockfile
 
-    const result = buildLockfileFromEnvLockfile(envLockfile as any, 'pnpm', '11.12.0')
+    const result = buildLockfileFromEnvLockfile(envLockfile, 'pnpm', '11.12.0')
 
-    expect((result.packages as any)['fdir@6.5.0(picomatch@4.0.5)']).toEqual({
+    expect(result.packages['fdir@6.5.0(picomatch@4.0.5)' as DepPath]).toEqual({
       resolution: { integrity: 'sha512-base' },
       dependencies: { picomatch: '4.0.5' },
     })
 
-    expect((result.packages as any)['other@1.0.0']).toEqual({
+    expect(result.packages['other@1.0.0' as DepPath]).toEqual({
       resolution: { integrity: 'sha512-other' },
       dependencies: {},
     })

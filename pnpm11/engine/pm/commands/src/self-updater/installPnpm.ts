@@ -10,7 +10,7 @@ import {
   iteratePkgMeta,
   lockfileToDepGraph,
 } from '@pnpm/deps.graph-hasher'
-import { removeSuffix } from '@pnpm/deps.path'
+import { removePeersSuffix } from '@pnpm/deps.path'
 import { type GlobalAddOptions, installGlobalPackages } from '@pnpm/global.commands'
 import {
   cleanOrphanedInstallDirs,
@@ -497,7 +497,7 @@ export function buildLockfileFromEnvLockfile (
   for (const [depPath, snapshot] of Object.entries(envLockfile.snapshots)) {
     packages[depPath as DepPath] = {
       ...snapshot,
-      ...(envLockfile.packages[depPath] ?? envLockfile.packages[removeSuffix(depPath)]),
+      ...(envLockfile.packages[depPath] ?? envLockfile.packages[removePeersSuffix(depPath)]),
     }
   }
 
