@@ -2133,7 +2133,14 @@ impl Config {
         for lower in trusted_sources {
             trusted_auth.merge_under(lower);
         }
-        self.package_manager_bootstrap = build_package_manager_bootstrap::<Sys>(trusted_auth);
+
+        // A `tokenHelper` names an executable, so it is honored only from a
+        // trusted, non-repo source. Reject one that a workspace or project
+        // `.npmrc` contributed by comparing the full merge against the
+        // trusted-only merge before either is consumed below.
+        crate::npmrc_auth::enforce_token_helper_trust(&npmrc_auth, &trusted_auth)?;
+
+        self.package_manager_bootstrap = build_package_manager_bootstrap::<Sys>(trusted_auth)?;
 
         npmrc_auth.apply_registry_and_warn(&mut self);
         // Proxy cascade fires unconditionally — even when no `.npmrc`
@@ -2284,7 +2291,7 @@ impl Config {
         // so this is independent of the final `config.registry` (which
         // yaml may have overridden) — the security boundary holds even
         // when the workspace points the default registry elsewhere.
-        npmrc_auth.build_auth_headers(&mut self);
+        npmrc_auth.build_auth_headers(&mut self)?;
 
         // Re-resolve `store_dir` against the project's volume when no
         // explicit source (global config.yaml, pnpm-workspace.yaml,
@@ -2381,7 +2388,7 @@ fn collect_explicit_settings(
 /// minus the repository-controlled sources.
 fn build_package_manager_bootstrap<Sys: EnvVar>(
     mut trusted_auth: NpmrcAuth,
-) -> PackageManagerBootstrap {
+) -> Result<PackageManagerBootstrap, LoadWorkspaceYamlError> {
     // The full-config fold already surfaced these sources' `${VAR}` warnings;
     // drop the duplicates this second pass would log.
     trusted_auth.warnings.clear();
@@ -2390,15 +2397,15 @@ fn build_package_manager_bootstrap<Sys: EnvVar>(
     trusted_auth.apply_json_env_registries(&mut config);
     trusted_auth.apply_proxy_cascade::<Sys>(&mut config);
     trusted_auth.apply_tls_and_local_address(&mut config);
-    trusted_auth.build_auth_headers(&mut config);
-    PackageManagerBootstrap {
+    trusted_auth.build_auth_headers(&mut config)?;
+    Ok(PackageManagerBootstrap {
         registry: config.registry,
         registries: config.registries,
         proxy: config.proxy,
         tls: config.tls,
         tls_by_uri: config.tls_by_uri,
         auth_headers: config.auth_headers,
-    }
+    })
 }
 
 /// Read the text of the `.npmrc` in `dir`, returning `None` for anything

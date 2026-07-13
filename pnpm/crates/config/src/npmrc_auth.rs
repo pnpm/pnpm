@@ -1,4 +1,4 @@
-use crate::{Config, api::EnvVar};
+use crate::{Config, api::EnvVar, workspace_yaml::LoadWorkspaceYamlError};
 use indexmap::IndexMap;
 use pacquet_env_replace::env_replace_lossy;
 use pacquet_network::{
@@ -121,6 +121,14 @@ pub(crate) struct RawCreds {
     pub username: Option<String>,
     /// `_password=` value (base64-encoded password, per npm convention).
     pub password: Option<String>,
+    /// `tokenHelper=` value: the raw command line naming an executable
+    /// pnpm runs to obtain the registry token. Kept as the raw string
+    /// here; validated (reserved characters) and split into a command
+    /// at [`NpmrcAuth::build_auth_headers`] time. Only honored from a
+    /// trusted, non-repo source (see the trust guard in
+    /// [`crate::Config::current`]); a project/workspace `.npmrc`
+    /// carrying one is rejected.
+    pub token_helper: Option<String>,
 }
 
 #[derive(Clone, Copy)]
@@ -135,6 +143,7 @@ impl RawCreds {
             && self.auth_pair_base64.is_none()
             && self.username.is_none()
             && self.password.is_none()
+            && self.token_helper.is_none()
     }
 
     /// Fill any field that is `None` here from `lower`. Used when
@@ -145,6 +154,7 @@ impl RawCreds {
         self.auth_pair_base64 = self.auth_pair_base64.take().or(lower.auth_pair_base64);
         self.username = self.username.take().or(lower.username);
         self.password = self.password.take().or(lower.password);
+        self.token_helper = self.token_helper.take().or(lower.token_helper);
     }
 }
 
@@ -417,7 +427,7 @@ impl NpmrcAuth {
                 _ => {}
             }
 
-            if let Some((uri, suffix)) = split_creds_key(&key) {
+            if let Some((uri, suffix)) = split_ini_creds_key(&key) {
                 let entry = auth.creds_entry_mut(uri);
                 apply_creds_field(entry, suffix, value);
                 continue;
@@ -564,9 +574,19 @@ impl NpmrcAuth {
     /// Phase 2: compute and store the final [`AuthHeaders`] map,
     /// keying default-registry creds at `config.registry`'s nerf-darted
     /// URI.
-    pub fn build_auth_headers(self, config: &mut Config) {
+    ///
+    /// A `tokenHelper` credential becomes an un-executed command in the
+    /// [`AuthHeaders`] (run lazily on lookup) rather than a baked header;
+    /// like pnpm's `credsToHeader`, a `tokenHelper` wins over any static
+    /// token on the same registry. Fails with
+    /// [`TokenHelperUnsupportedCharacterError`] if a honored helper's
+    /// value contains a reserved character.
+    pub fn build_auth_headers(self, config: &mut Config) -> Result<(), LoadWorkspaceYamlError> {
         let mut auth_header_by_uri: HashMap<String, String> = HashMap::new();
         let mut auth_header_by_scope_by_uri: HashMap<String, HashMap<String, String>> =
+            HashMap::new();
+        let mut token_helper_by_uri: HashMap<String, Vec<String>> = HashMap::new();
+        let mut token_helper_by_scope_by_uri: HashMap<String, HashMap<String, Vec<String>>> =
             HashMap::new();
         // Raw `_authToken` per nerf-darted registry URI, default scope
         // only, preserved alongside the baked header for `pnpm logout`.
@@ -579,7 +599,16 @@ impl NpmrcAuth {
                 {
                     auth_tokens_by_uri.insert(uri.clone(), token.clone());
                 }
-                if let Some(header) = creds_to_header(&raw) {
+                if let Some(command) = parse_token_helper_field(raw.token_helper.as_deref())? {
+                    if scope == DEFAULT_REGISTRY_SCOPE {
+                        token_helper_by_uri.insert(uri.clone(), command);
+                    } else {
+                        token_helper_by_scope_by_uri
+                            .entry(uri.clone())
+                            .or_default()
+                            .insert(scope, command);
+                    }
+                } else if let Some(header) = creds_to_header(&raw) {
                     if scope == DEFAULT_REGISTRY_SCOPE {
                         auth_header_by_uri.insert(uri.clone(), header);
                     } else {
@@ -596,14 +625,23 @@ impl NpmrcAuth {
             if let Some(token) = &self.default_creds.auth_token {
                 auth_tokens_by_uri.insert(default_uri.clone(), token.clone());
             }
-            if let Some(header) = creds_to_header(&self.default_creds) {
+            if let Some(command) =
+                parse_token_helper_field(self.default_creds.token_helper.as_deref())?
+            {
+                token_helper_by_uri.insert(default_uri, command);
+            } else if let Some(header) = creds_to_header(&self.default_creds) {
                 auth_header_by_uri.insert(default_uri, header);
             }
         }
 
         config.auth_tokens_by_uri = auth_tokens_by_uri;
-        config.auth_headers =
-            Arc::new(AuthHeaders::from_parts(auth_header_by_uri, auth_header_by_scope_by_uri));
+        config.auth_headers = Arc::new(AuthHeaders::from_parts_with_token_helpers(
+            auth_header_by_uri,
+            auth_header_by_scope_by_uri,
+            token_helper_by_uri,
+            token_helper_by_scope_by_uri,
+        ));
+        Ok(())
     }
 
     /// Pin this source file's **unscoped** credentials (`_authToken`,
@@ -763,7 +801,7 @@ impl NpmrcAuth {
         self.apply_registry_and_warn(config);
         self.apply_proxy_cascade::<Sys>(config);
         self.apply_tls_and_local_address(config);
-        self.build_auth_headers(config);
+        self.build_auth_headers(config).expect("valid tokenHelper in test .npmrc");
     }
 
     fn creds_entry_mut(&mut self, uri: &str) -> &mut RawCreds {
@@ -887,6 +925,78 @@ fn creds_to_header(creds: &RawCreds) -> Option<String> {
     None
 }
 
+/// Reject a `tokenHelper` that a workspace or project `.npmrc` contributed.
+///
+/// `full` is the merged config including the project `.npmrc`; `trusted`
+/// is the same merge minus the project source (mirroring pnpm's
+/// `userConfig` vs `trustedConfig` split). A `tokenHelper` present in
+/// `full` but not reproducible verbatim from `trusted` — because the
+/// project source added it, or overrode a trusted one with a different
+/// command — is repository-controlled and rejected. A project value that
+/// exactly equals the trusted one is harmless and allowed, matching pnpm.
+pub(crate) fn enforce_token_helper_trust(
+    full: &NpmrcAuth,
+    trusted: &NpmrcAuth,
+) -> Result<(), LoadWorkspaceYamlError> {
+    for (uri, by_scope) in &full.creds_by_scope_by_uri {
+        for (scope, raw) in by_scope {
+            let Some(value) = &raw.token_helper else { continue };
+            let trusted_value = trusted
+                .creds_by_scope_by_uri
+                .get(uri)
+                .and_then(|by_scope| by_scope.get(scope))
+                .and_then(|raw| raw.token_helper.as_deref());
+            if trusted_value != Some(value.as_str()) {
+                return Err(LoadWorkspaceYamlError::TokenHelperInProjectConfig {
+                    key: token_helper_key(uri, scope),
+                });
+            }
+        }
+    }
+    // `default_creds` is normally emptied by `rescope_unscoped` before the
+    // merge; guard it too for the paths that skip rescoping.
+    if let Some(value) = &full.default_creds.token_helper
+        && trusted.default_creds.token_helper.as_deref() != Some(value.as_str())
+    {
+        return Err(LoadWorkspaceYamlError::TokenHelperInProjectConfig {
+            key: "tokenHelper".to_owned(),
+        });
+    }
+    Ok(())
+}
+
+/// Reconstruct a representative `.npmrc` key from a nerf-darted registry
+/// URI and scope, for the [`LoadWorkspaceYamlError::TokenHelperInProjectConfig`]
+/// message.
+fn token_helper_key(uri: &str, scope: &str) -> String {
+    if scope == DEFAULT_REGISTRY_SCOPE {
+        format!("{uri}:tokenHelper")
+    } else {
+        format!("{uri}:{scope}:tokenHelper")
+    }
+}
+
+/// Characters pnpm reserves in a `tokenHelper` value for future quoting /
+/// interpolation support; their presence is an error.
+const TOKEN_HELPER_RESERVED_CHARACTERS: [char; 5] = ['$', '%', '`', '"', '\''];
+
+/// Parse an optional raw `tokenHelper` value into `[program, ...args]`,
+/// returning `Ok(None)` when unset or empty (no command to run). Rejects
+/// a reserved character. Mirrors pnpm's `parseTokenHelper`.
+fn parse_token_helper_field(
+    raw: Option<&str>,
+) -> Result<Option<Vec<String>>, LoadWorkspaceYamlError> {
+    let Some(raw) = raw else { return Ok(None) };
+    let source = raw.trim();
+    if let Some(character) =
+        source.chars().find(|character| TOKEN_HELPER_RESERVED_CHARACTERS.contains(character))
+    {
+        return Err(LoadWorkspaceYamlError::TokenHelperUnsupportedCharacter { character });
+    }
+    let command: Vec<String> = source.split_whitespace().map(str::to_owned).collect();
+    Ok((!command.is_empty()).then_some(command))
+}
+
 /// Decode a standard base64 string. Used for the `_password` field
 /// where npm stores the raw password base64-encoded; falls back to
 /// returning `None` so the caller can keep the raw value verbatim
@@ -916,12 +1026,26 @@ fn base64_decode(input: &str) -> Option<String> {
     String::from_utf8(bytes).ok()
 }
 
-/// Auth-suffix keys recognised on a `//host[:port]/path/:` prefix.
+/// Auth-suffix keys recognised on a `//host[:port]/path/:` prefix in
+/// **any** source, including URL-scoped environment variables.
+///
+/// `tokenHelper` is deliberately absent: it names an executable, so it
+/// is only ever honored from a trusted `.npmrc` / `auth.ini` file (see
+/// [`INI_CREDS_SUFFIXES`]), never from the environment — mirroring
+/// pnpm, which drops a `//host/:tokenHelper` env var outright.
 const CREDS_SUFFIXES: &[&str] = &["_authToken", "_auth", "_password", "username"];
 
+/// Auth-suffix keys recognised when parsing an `.npmrc` / `auth.ini`
+/// file. Adds `tokenHelper` to [`CREDS_SUFFIXES`]; the file-vs-env
+/// split is the boundary the trust guard relies on.
+const INI_CREDS_SUFFIXES: &[&str] =
+    &["_authToken", "_auth", "_password", "username", "tokenHelper"];
+
 fn is_auth_value_key(key: &str) -> bool {
-    matches!(key, "_authToken" | "_auth" | "_password" | "username" | "cert" | "key")
-        || split_creds_key(key).is_some()
+    matches!(
+        key,
+        "_authToken" | "_auth" | "_password" | "username" | "tokenHelper" | "cert" | "key",
+    ) || split_ini_creds_key(key).is_some()
         || split_inline_identity_key(key).is_some()
 }
 
@@ -945,11 +1069,24 @@ fn parse_url_scoped_env_name(name: &str) -> Option<(bool, &str)> {
     None
 }
 
-fn split_creds_key(key: &str) -> Option<(&str, &str)> {
+fn split_creds_key(key: &str) -> Option<(&str, &'static str)> {
+    split_creds_key_in(key, CREDS_SUFFIXES)
+}
+
+/// Like [`split_creds_key`] but also recognises `:tokenHelper`. Used only
+/// on `.npmrc` / `auth.ini` file keys, never on environment variables.
+fn split_ini_creds_key(key: &str) -> Option<(&str, &'static str)> {
+    split_creds_key_in(key, INI_CREDS_SUFFIXES)
+}
+
+fn split_creds_key_in<'a>(
+    key: &'a str,
+    suffixes: &[&'static str],
+) -> Option<(&'a str, &'static str)> {
     if !key.starts_with("//") {
         return None;
     }
-    for suffix in CREDS_SUFFIXES {
+    for suffix in suffixes {
         let needle = format!(":{suffix}");
         if let Some(stripped) = key.strip_suffix(needle.as_str()) {
             return Some((stripped, suffix));
@@ -1008,6 +1145,7 @@ fn apply_creds_field(creds: &mut RawCreds, field: &str, value: String) {
         "_auth" => creds.auth_pair_base64 = Some(value),
         "username" => creds.username = Some(value),
         "_password" => creds.password = Some(value),
+        "tokenHelper" => creds.token_helper = Some(value),
         _ => {}
     }
 }

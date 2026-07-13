@@ -247,7 +247,7 @@ fn build_auth_headers_keys_default_token_to_registry_uri() {
         },
         ..Default::default()
     };
-    auth.build_auth_headers(&mut config);
+    auth.build_auth_headers(&mut config).expect("no tokenHelper");
     assert_eq!(
         config.auth_tokens_by_uri.get("//registry.npmjs.org/").map(String::as_str),
         Some("top-secret"),

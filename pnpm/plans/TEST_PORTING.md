@@ -502,10 +502,10 @@ Auth header tests:
 - [x] `TypeScript repo: network/auth-header/test/getAuthHeadersFromConfig.test.ts:32` `should convert auth token to Bearer header`
 - [x] `TypeScript repo: network/auth-header/test/getAuthHeadersFromConfig.test.ts:42` `should convert basicAuth to Basic header`
 - [x] `TypeScript repo: network/auth-header/test/getAuthHeadersFromConfig.test.ts:50` `should handle default registry auth (empty key)`
-- [ ] `TypeScript repo: network/auth-header/test/getAuthHeadersFromConfig.test.ts:58` `should execute tokenHelper`
-- [ ] `TypeScript repo: network/auth-header/test/getAuthHeadersFromConfig.test.ts:66` `should prepend Bearer to raw token from tokenHelper`
-- [ ] `TypeScript repo: network/auth-header/test/getAuthHeadersFromConfig.test.ts:74` `should throw an error if the token helper fails`
-- [ ] `TypeScript repo: network/auth-header/test/getAuthHeadersFromConfig.test.ts:79` `should throw an error if the token helper returns an empty token`
+- [x] `TypeScript repo: network/auth-header/test/getAuthHeadersFromConfig.test.ts:58` `should execute tokenHelper`
+- [x] `TypeScript repo: network/auth-header/test/getAuthHeadersFromConfig.test.ts:66` `should prepend Bearer to raw token from tokenHelper`
+- [x] `TypeScript repo: network/auth-header/test/getAuthHeadersFromConfig.test.ts:74` `should throw an error if the token helper fails`
+- [x] `TypeScript repo: network/auth-header/test/getAuthHeadersFromConfig.test.ts:79` `should throw an error if the token helper returns an empty token`
 - [x] `TypeScript repo: network/auth-header/test/getAuthHeaderByURI.ts:11` `getAuthHeaderByURI()`
 - [x] `TypeScript repo: network/auth-header/test/getAuthHeaderByURI.ts:22` `getAuthHeaderByURI() basic auth without settings`
 - [x] `TypeScript repo: network/auth-header/test/getAuthHeaderByURI.ts:30` `getAuthHeaderByURI() basic auth with settings`
@@ -521,7 +521,7 @@ Auth config parsing and precedence tests:
 - [x] `TypeScript repo: config/reader/test/parseCreds.test.ts:15` `authToken`
 - [x] `TypeScript repo: config/reader/test/parseCreds.test.ts:23` `authPairBase64`
 - [x] `TypeScript repo: config/reader/test/parseCreds.test.ts:49` `authUsername and authPassword`
-- [ ] `TypeScript repo: config/reader/test/parseCreds.test.ts:69` `tokenHelper`
+- [x] `TypeScript repo: config/reader/test/parseCreds.test.ts:69` `tokenHelper`
 
 Fetcher tests:
 

@@ -6,12 +6,14 @@ mod retry;
 #[cfg(test)]
 mod tests;
 mod tls;
+mod token_helper;
 
 pub use auth::{
     AuthHeaders, AuthHeadersByScope, DEFAULT_REGISTRY_SCOPE, MetadataCacheScope, UpstreamRouteHook,
     base64_encode, nerf_dart, redact_and_sanitize, redact_url_credentials,
 };
 pub use limited_body::{LimitedBody, read_limited_body};
+pub use token_helper::{TokenHelperOutput, TokenHelperRunner};
 pub use url_encoding::{encode_package_name, encode_uri_component};
 
 mod url_encoding;
