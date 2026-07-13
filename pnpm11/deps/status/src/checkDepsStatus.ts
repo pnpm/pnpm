@@ -192,8 +192,8 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       manifests.push(rootProjectManifest)
     }
     // parseOverrides throws on a misconfigured catalog or invalid selector;
-    // that propagates to the outer catch in `checkDepsStatus`, which reports
-    // not-up-to-date, and the resulting full install surfaces the same error.
+    // that propagates to the outer catch in `checkDepsStatus`, and the
+    // resulting full install surfaces the same error.
     const overrides = parseOverrides(opts.overrides ?? {}, catalogs)
     const localFileDep = findLocalFileDep(manifests, { include: opts.include, catalogs, overrides })
     if (localFileDep != null) {
