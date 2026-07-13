@@ -495,7 +495,7 @@ function buildLockfileFromEnvLockfile (
   for (const [depPath, snapshot] of Object.entries(envLockfile.snapshots)) {
     packages[depPath as DepPath] = {
       ...snapshot,
-      ...envLockfile.packages[depPath],
+      ...(envLockfile.packages[depPath] ?? envLockfile.packages[depPath.split('(')[0]]),
     }
   }
 
