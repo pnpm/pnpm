@@ -6,10 +6,31 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path, process::Command};
+use std::{fs, path::Path, process::Command, time::Duration};
 
 fn pacquet_at(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
+}
+
+/// Push `manifest_path`'s mtime to well after `lockfile_path`'s so the
+/// second install reads the manifest as a genuine later edit rather than
+/// an unchanged repeat. pnpm and pacquet both gate their incremental
+/// install fast path on a manifest being newer than the previous
+/// install; on a filesystem whose mtime granularity is coarser than the
+/// sub-second gap between these two back-to-back installs (some CI
+/// runners), both writes land in the same tick and the edit is otherwise
+/// skipped.
+fn mark_manifest_edited_after_install(manifest_path: &Path, lockfile_path: &Path) {
+    let lock_mtime = fs::metadata(lockfile_path)
+        .expect("stat pnpm-lock.yaml")
+        .modified()
+        .expect("read pnpm-lock.yaml mtime");
+    fs::File::options()
+        .write(true)
+        .open(manifest_path)
+        .expect("open package.json to bump its mtime")
+        .set_modified(lock_mtime + Duration::from_secs(10))
+        .expect("set package.json mtime");
 }
 
 fn write_manifest(path: &Path, dep_of_version: &str) {
@@ -56,6 +77,7 @@ fn refreshes_stale_transitive_pin_to_higher_direct_dep_version() {
     // transitive `^100.0.0`, so both edges must land on 100.1.0 and the
     // stale 100.0.0 must be pruned.
     write_manifest(&manifest_path, "100.1.0");
+    mark_manifest_edited_after_install(&manifest_path, &lockfile_path);
     pacquet_at(&workspace).with_arg("install").assert().success();
 
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
@@ -88,6 +110,7 @@ fn refreshes_stale_transitive_pin_for_caret_range_direct_dep() {
     pacquet_at(&workspace).with_arg("install").assert().success();
 
     write_manifest(&manifest_path, "^100.1.0");
+    mark_manifest_edited_after_install(&manifest_path, &lockfile_path);
     pacquet_at(&workspace).with_arg("install").assert().success();
 
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
@@ -134,6 +157,7 @@ fn does_not_refresh_an_aliased_transitive_dependency() {
     pacquet_at(&workspace).with_arg("install").assert().success();
 
     write("100.1.0");
+    mark_manifest_edited_after_install(&manifest_path, &lockfile_path);
     pacquet_at(&workspace).with_arg("install").assert().success();
 
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
