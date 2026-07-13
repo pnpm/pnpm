@@ -14,6 +14,7 @@ use pipe_trait::Pipe;
 use std::{
     fs::{self, OpenOptions},
     io::Write,
+    process::Command,
 };
 
 #[test]
@@ -84,6 +85,33 @@ fn no_optional_excludes_transitive_optional_dependencies() {
     assert!(
         !virtual_store.join("is-positive@1.0.0").exists(),
         "--no-optional must not materialize the transitive optional dependency",
+    );
+
+    // The exclusion is transient: the optional stays in the lockfile and is
+    // not persisted to `.modules.yaml.skipped`, so a later install without
+    // `--no-optional` restores it.
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(
+        lockfile.contains("is-positive@1.0.0"),
+        "the excluded optional must remain in the lockfile:\n{lockfile}",
+    );
+    let modules_yaml = fs::read_to_string(workspace.join("node_modules/.modules.yaml"))
+        .expect("read .modules.yaml");
+    assert!(
+        !modules_yaml.contains("is-positive"),
+        "a `--no-optional` exclusion must not be recorded in .modules.yaml.skipped:\n{modules_yaml}",
+    );
+
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["install"])
+        .assert()
+        .success();
+    assert!(
+        virtual_store.join("is-positive@1.0.0").exists(),
+        "a normal install must restore the previously excluded optional dependency",
     );
 
     drop((root, mock_instance));
