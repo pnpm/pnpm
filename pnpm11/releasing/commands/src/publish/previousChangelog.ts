@@ -127,45 +127,83 @@ async function downloadTarballChangelog (client: RegistryClient, pkgName: string
   if (!response.ok) {
     throw new PnpmError('CHANGELOG_TARBALL_FETCH_FAILED', `Failed to download ${pkgName}@${version} tarball (${response.status}) to compose the changelog: ${tarballUrl}`)
   }
-  const declaredLength = Number(response.headers.get('content-length'))
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_TARBALL_BYTES) return undefined
-  return extractTarballEntry(Buffer.from(await response.arrayBuffer()), CHANGELOG_ENTRY)
+  const tarballData = await readCapped(response, MAX_TARBALL_BYTES)
+  if (tarballData == null) return undefined
+  return extractTarballEntry(tarballData, CHANGELOG_ENTRY)
 }
 
-/** Reads one entry's contents out of a (optionally gzipped) tarball buffer. */
+/**
+ * Reads a response body into a buffer, stopping (and returning `undefined`) as
+ * soon as it exceeds `maxBytes` — bounding the actual download rather than
+ * trusting a `content-length` header, which may be absent or lie.
+ */
+async function readCapped (response: Response, maxBytes: number): Promise<Buffer | undefined> {
+  const reader = response.body?.getReader()
+  if (reader == null) {
+    const buffer = Buffer.from(await response.arrayBuffer())
+    return buffer.byteLength > maxBytes ? undefined : buffer
+  }
+  const chunks: Buffer[] = []
+  let total = 0
+  for (;;) {
+    // Streaming a body is inherently sequential — each read must await the
+    // previous chunk — so the successive awaits here are intentional.
+    // eslint-disable-next-line no-await-in-loop
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > maxBytes) {
+      // eslint-disable-next-line no-await-in-loop
+      await reader.cancel()
+      return undefined
+    }
+    chunks.push(Buffer.from(value))
+  }
+  return Buffer.concat(chunks)
+}
+
+/**
+ * Reads one entry's contents out of a (optionally gzipped) tarball buffer.
+ * Composing the changelog is best-effort, so any decode/parse failure —
+ * including a gzip bomb tripping the inflate cap — resolves to `undefined`
+ * (no history prepend) rather than throwing.
+ */
 async function extractTarballEntry (tarballData: Buffer, entryName: string): Promise<string | undefined> {
+  const tarData = gunzipCapped(tarballData)
+  if (tarData == null) return undefined
   const extract = tar.extract()
-  let contents: string | undefined
-  await new Promise<void>((resolve, reject) => {
+  return new Promise<string | undefined>((resolve) => {
+    let contents: string | undefined
     extract.on('entry', (header, stream, next) => {
       if (header.name !== entryName) {
         stream.resume()
         stream.on('end', next)
-        stream.on('error', reject)
+        stream.on('error', () => resolve(undefined))
         return
       }
       const chunks: Buffer[] = []
       stream.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)))
-      stream.on('error', reject)
+      stream.on('error', () => resolve(undefined))
       stream.on('end', () => {
         contents = Buffer.concat(chunks).toString('utf8')
         next()
       })
     })
-    extract.on('error', reject)
-    extract.on('finish', resolve)
-    extract.end(maybeGunzip(tarballData))
+    extract.on('error', () => resolve(undefined))
+    extract.on('finish', () => resolve(contents))
+    extract.end(tarData)
   })
-  return contents
 }
 
-function maybeGunzip (tarballData: Buffer): Buffer {
+/**
+ * Inflates a published `.tgz`, capped at `MAX_TARBALL_BYTES` of output so a
+ * gzip bomb throws rather than ballooning memory. Returns `undefined` on that
+ * cap or any other decode failure — the caller treats it as no changelog.
+ */
+function gunzipCapped (tarballData: Buffer): Buffer | undefined {
   try {
-    // maxOutputLength makes gunzipSync throw rather than balloon memory on a
-    // gzip bomb; the catch then falls back to treating the bytes as an
-    // already-plain tar, which fails to parse and yields no changelog entry.
     return gunzipSync(tarballData, { maxOutputLength: MAX_TARBALL_BYTES })
   } catch {
-    return tarballData
+    return undefined
   }
 }

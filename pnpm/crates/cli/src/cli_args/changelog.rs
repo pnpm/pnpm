@@ -7,6 +7,7 @@
 use std::{collections::HashSet, io::Read, path::Path};
 
 use flate2::read::GzDecoder;
+use futures_util::StreamExt;
 use pacquet_config::Config;
 use pacquet_registry::Package;
 use pacquet_versioning::{
@@ -105,11 +106,18 @@ async fn fetch_changelog(config: &Config, name: &str, pick: VersionPick<'_>) -> 
     if !response.status().is_success() {
         return None;
     }
-    if response.content_length().is_some_and(|length| length > MAX_TARBALL_BYTES) {
-        return None;
+    // Bound the actual download rather than trusting `content-length` (which may
+    // be absent or lie): stream the body and stop once it exceeds the cap.
+    let mut stream = response.bytes_stream();
+    let mut body: Vec<u8> = Vec::new();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.ok()?;
+        if body.len() as u64 + chunk.len() as u64 > MAX_TARBALL_BYTES {
+            return None;
+        }
+        body.extend_from_slice(&chunk);
     }
-    let bytes = response.bytes().await.ok()?;
-    extract_entry(&bytes, CHANGELOG_ENTRY)
+    extract_entry(&body, CHANGELOG_ENTRY)
 }
 
 /// Highest published version of the package that is semver-lower than `version`.
