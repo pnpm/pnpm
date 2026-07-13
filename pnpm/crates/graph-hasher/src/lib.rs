@@ -23,6 +23,7 @@ pub use engine_name::{
 pub use global_virtual_store_path::{
     calc_global_virtual_store_path_with_subdeps, calc_graph_node_hash,
     calc_leaf_global_virtual_store_path, format_global_virtual_store_path,
+    join_global_virtual_store_path,
 };
 pub use object_hasher::{
     hash_object, hash_object_nullable_with_prefix, hash_object_with_encoding,

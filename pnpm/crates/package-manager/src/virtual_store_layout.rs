@@ -25,7 +25,7 @@ use pacquet_config::Config;
 use pacquet_deps_path::get_pkg_id_with_patch_hash;
 use pacquet_graph_hasher::{
     DepsGraphNode, DepsStateCache, calc_graph_node_hash, engine_name,
-    format_global_virtual_store_path,
+    format_global_virtual_store_path, join_global_virtual_store_path,
 };
 use pacquet_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgName, PkgVerPeer,
@@ -273,7 +273,10 @@ impl VirtualStoreLayout {
                 .unwrap_or_else(|| key.to_virtual_store_name(self.virtual_store_dir_max_length)),
             None => key.to_virtual_store_name(self.virtual_store_dir_max_length),
         };
-        self.package_store_dir.join(suffix)
+        // The flat non-GVS `to_virtual_store_name` fallback carries no
+        // `/`, so it too can route through the GVS join (which then just
+        // pushes it as a single component).
+        join_global_virtual_store_path(&self.package_store_dir, &suffix)
     }
 }
 

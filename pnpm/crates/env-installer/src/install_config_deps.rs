@@ -12,6 +12,7 @@ use crate::{
 };
 use pacquet_graph_hasher::{
     calc_global_virtual_store_path_with_subdeps, calc_leaf_global_virtual_store_path,
+    join_global_virtual_store_path,
 };
 use pacquet_lockfile::{EnvLockfile, LockfileResolution, npm_tarball_url};
 use pacquet_package_is_installable::{
@@ -73,7 +74,9 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
             &dep.version,
             &subdep_ids,
         );
-        let leaf_node_modules = global_virtual_store_dir.join(&rel_path).join("node_modules");
+        let leaf_node_modules =
+            join_global_virtual_store_path(&global_virtual_store_dir, &rel_path)
+                .join("node_modules");
         let pkg_dir_in_gvs = leaf_node_modules.join(name);
 
         let parent_symlink_already_correct = existing.iter().any(|entry| entry == name)
@@ -246,8 +249,9 @@ async fn install_optional_subdeps<Reporter: self::Reporter>(
         let subdep_full_id = full_pkg_id(&subdep.name, &subdep.version, &subdep.integrity);
         let subdep_rel =
             calc_leaf_global_virtual_store_path(&subdep_full_id, &subdep.name, &subdep.version);
-        let subdep_dir =
-            global_virtual_store_dir.join(&subdep_rel).join("node_modules").join(&subdep.name);
+        let subdep_dir = join_global_virtual_store_path(global_virtual_store_dir, &subdep_rel)
+            .join("node_modules")
+            .join(&subdep.name);
         if !subdep_dir.join("package.json").exists() {
             started.report::<Reporter>();
             materialize::<Reporter>(
