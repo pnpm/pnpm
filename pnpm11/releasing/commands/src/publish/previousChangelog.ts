@@ -153,8 +153,10 @@ async function readCapped (response: Response, maxBytes: number): Promise<Buffer
     if (done) break
     total += value.byteLength
     if (total > maxBytes) {
+      // Best-effort cleanup: a cancel failure must not turn the over-cap path
+      // into a hard error — the caller just gets no changelog either way.
       // eslint-disable-next-line no-await-in-loop
-      await reader.cancel()
+      await reader.cancel().catch(() => {})
       return undefined
     }
     chunks.push(Buffer.from(value))
