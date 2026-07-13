@@ -493,15 +493,12 @@ describe('license compliance after add', () => {
     ).rejects.toThrow('license violation')
   })
 
-  // Regression test for #1: shallow-mode used to derive direct deps from the
-  // (possibly stale) in-memory root manifest. For a plain, non-workspace
-  // `pnpm add`, no rootProjectManifest is even passed in, so the shallow
-  // filter treated the project as having zero direct deps and silently
-  // dropped every scanned package — including the package that was *just
-  // added* by this very command. The fix derives direct-dep identities from
-  // the lockfile written to disk moments earlier by this same add, so the
-  // just-added package is caught.
-  test('pnpm add fails on the just-added package under a shallow-mode disallowed-license policy (regression #1)', async () => {
+  // Shallow mode has to catch the very package this command just added. Direct-dep
+  // identities therefore come from the lockfile the add wrote moments earlier, not
+  // from the in-memory root manifest: a plain, non-workspace `pnpm add` passes no
+  // rootProjectManifest at all, which would leave the shallow filter believing the
+  // project has zero direct deps and drop every scanned package.
+  test('pnpm add fails on the just-added package under a shallow-mode disallowed-license policy', async () => {
     prepare()
 
     let err!: PnpmError
@@ -522,12 +519,11 @@ describe('license compliance after add', () => {
     expect(err.code).toBe('ERR_PNPM_LICENSE_VIOLATION')
   })
 
-  // Regression test for #5: a missing lockfile (e.g. `useLockfile: false`)
-  // used to make the post-install license check return silently, so a
-  // configured policy was skipped with no indication to the user. The fix
-  // surfaces this via a visible `globalWarn` instead of a silent no-op; the
-  // add itself must still succeed (fail-open, but no longer fail-silent).
-  test('pnpm add succeeds and warns when useLockfile is false, skipping the license check (regression #5)', async () => {
+  // The license check scans the lockfile, so `useLockfile: false` leaves it with
+  // nothing to scan. Skipping a configured policy must be announced with a visible
+  // warning rather than passing silently, while the add itself still succeeds:
+  // fail-open, but never fail-silent.
+  test('pnpm add succeeds and warns when useLockfile is false, skipping the license check', async () => {
     const project = prepare()
 
     const { warnings } = await captureWarnings(() =>
@@ -547,18 +543,12 @@ describe('license compliance after add', () => {
     expect(warnings.some((message) => message.includes('License check skipped'))).toBe(true)
   })
 
-  // Regression test for #7: the fix (commit 242853781e) routes
-  // `checkAfterInstall` through `scanAndCheckLicenses` and reports any
-  // non-empty `result.warnings` via `globalWarn` instead of silently
-  // discarding it, while letting the add succeed either way.
-  //
-  // `matchLicenseAgainstPolicy` now returns `allowed: false` (reason
-  // `not-in-allowed-list`) for a loose-mode license that isn't in the
-  // configured allowed list, instead of silently allowing it. That makes
-  // this policy shape reach `result.warnings` for real, so this test
-  // captures the `globalWarn` output and asserts the warning is actually
-  // emitted — not just that the add doesn't fail.
-  test('pnpm add succeeds and warns when a loose-mode policy does not allow-list the installed license (regression #7)', async () => {
+  // In loose mode, a license outside the allowed list is a warning rather than a
+  // violation: `matchLicenseAgainstPolicy` reports it as `not-in-allowed-list` and
+  // `checkAfterInstall` surfaces it via `globalWarn` while letting the add succeed.
+  // Capture that output and assert the warning is actually emitted — asserting only
+  // that the add doesn't fail would pass just as well if the policy were ignored.
+  test('pnpm add succeeds and warns when a loose-mode policy does not allow-list the installed license', async () => {
     const project = prepare()
 
     const { warnings } = await captureWarnings(() =>
