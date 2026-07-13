@@ -1816,7 +1816,11 @@ async function resolveDependency (
     )
   )
 
-  if (!options.update && !options.proceed && (currentPkg.resolution != null) && depIsLinked) {
+  if (
+    !options.update && !options.proceed &&
+    options.currentDepth === Math.max(0, options.updateDepth) &&
+    (currentPkg.resolution != null) && depIsLinked
+  ) {
     return null
   }
 
