@@ -1,5 +1,21 @@
 # @pnpm/package-requester
 
+## 1102.1.3
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/config.package-is-installable@1100.0.13
+  - @pnpm/core-loggers@1100.2.2
+  - @pnpm/deps.path@1100.0.9
+  - @pnpm/fetching.fetcher-base@1100.2.2
+  - @pnpm/fetching.pick-fetcher@1100.1.1
+  - @pnpm/hooks.types@1100.2.1
+  - @pnpm/resolving.resolver-base@1100.5.2
+  - @pnpm/store.cafs@1100.1.13
+  - @pnpm/store.controller-types@1100.1.8
+  - @pnpm/types@1101.4.0
+
 ## 1102.1.2
 
 ### Patch Changes

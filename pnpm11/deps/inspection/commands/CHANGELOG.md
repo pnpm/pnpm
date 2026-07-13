@@ -1,5 +1,29 @@
 # @pnpm/deps.inspection.commands
 
+## 1100.5.3
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/cli.utils@1101.0.14
+  - @pnpm/config.pick-registry-for-package@1100.0.10
+  - @pnpm/config.reader@1101.12.0
+  - @pnpm/deps.inspection.list@1100.0.24
+  - @pnpm/deps.inspection.outdated@1100.1.14
+  - @pnpm/deps.inspection.peers-checker@1100.0.20
+  - @pnpm/deps.inspection.peers-issues-renderer@1100.0.7
+  - @pnpm/global.commands@1100.0.34
+  - @pnpm/global.packages@1100.0.11
+  - @pnpm/installing.modules-yaml@1100.0.10
+  - @pnpm/lockfile.fs@1100.1.11
+  - @pnpm/network.auth-header@1101.1.4
+  - @pnpm/network.fetch@1100.1.5
+  - @pnpm/resolving.default-resolver@1100.3.14
+  - @pnpm/resolving.npm-resolver@1102.1.3
+  - @pnpm/resolving.registry.types@1100.1.4
+  - @pnpm/types@1101.4.0
+  - @pnpm/workspace.project-manifest-reader@1100.0.15
+
 ## 1100.5.2
 
 ### Patch Changes

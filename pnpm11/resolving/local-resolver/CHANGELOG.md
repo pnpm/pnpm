@@ -1,5 +1,14 @@
 # @pnpm/local-resolver
 
+## 1101.1.9
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/resolving.resolver-base@1100.5.2
+  - @pnpm/types@1101.4.0
+  - @pnpm/workspace.project-manifest-reader@1100.0.15
+
 ## 1101.1.8
 
 ### Patch Changes

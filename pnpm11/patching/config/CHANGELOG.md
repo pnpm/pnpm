@@ -1,5 +1,12 @@
 # @pnpm/patching.config
 
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/deps.path@1100.0.9
+
 ## 1100.0.9
 
 ### Patch Changes

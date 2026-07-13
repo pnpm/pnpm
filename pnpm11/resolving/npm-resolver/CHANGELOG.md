@@ -1,5 +1,23 @@
 # @pnpm/npm-resolver
 
+## 1102.1.3
+
+### Patch Changes
+
+- Retry package metadata requests when a registry or proxy returns `304 Not Modified` to an unconditional request, preventing false `ERR_PNPM_CACHE_MISSING_AFTER_304` failures [pnpm/pnpm#12882](https://github.com/pnpm/pnpm/issues/12882).
+
+  If the retry also returns `304`, report `ERR_PNPM_META_NOT_MODIFIED_WITHOUT_CACHE` instead.
+
+- Updated dependencies:
+  - @pnpm/config.pick-registry-for-package@1100.0.10
+  - @pnpm/config.version-policy@1100.1.7
+  - @pnpm/core-loggers@1100.2.2
+  - @pnpm/resolving.registry.pkg-metadata-filter@1100.0.10
+  - @pnpm/resolving.registry.types@1100.1.4
+  - @pnpm/resolving.resolver-base@1100.5.2
+  - @pnpm/store.cafs@1100.1.13
+  - @pnpm/types@1101.4.0
+
 ## 1102.1.2
 
 ### Patch Changes

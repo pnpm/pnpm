@@ -1,5 +1,13 @@
 # @pnpm/engine.runtime.system-version
 
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/cli.meta@1100.0.9
+  - @pnpm/types@1101.4.0
+
 ## 1100.0.3
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/network.auth-header
 
+## 1101.1.4
+
+### Patch Changes
+
+- A `tokenHelper` command is now given a 60-second time limit. A helper that hangs (deadlock, stuck I/O) is killed and reported as an error instead of leaving the command waiting forever.
+
+- Updated dependencies:
+  - @pnpm/types@1101.4.0
+
 ## 1101.1.3
 
 ### Patch Changes

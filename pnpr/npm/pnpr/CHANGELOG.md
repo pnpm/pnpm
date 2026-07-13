@@ -1,5 +1,11 @@
 # @pnpm/pnpr
 
+## 0.1.0-alpha.1
+
+### Patch Changes
+
+- On publish, the README of the `latest` version is now hoisted to the packument's top-level `readme` (and `readmeFilename`) field, matching npm and verdaccio. Publish clients only send the readme inside the version manifest, so without this a package published to pnpr exposed no top-level readme for full-packument consumers and registry UIs to render.
+
 ## 0.1.0-alpha.0
 
 ### Minor Changes

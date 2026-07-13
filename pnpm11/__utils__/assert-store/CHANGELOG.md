@@ -1,5 +1,13 @@
 # @pnpm/assert-store
 
+## 1100.0.19
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/store.cafs@1100.1.13
+  - @pnpm/testing.registry-mock@1100.0.9
+
 ## 1100.0.18
 
 ### Patch Changes

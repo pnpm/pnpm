@@ -1,5 +1,13 @@
 # @pnpm/config.config-writer
 
+## 1100.0.16
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/types@1101.4.0
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.16
+
 ## 1100.0.15
 
 ### Patch Changes

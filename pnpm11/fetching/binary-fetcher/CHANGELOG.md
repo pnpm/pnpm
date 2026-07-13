@@ -1,5 +1,12 @@
 # @pnpm/fetching.binary-fetcher
 
+## 1102.0.3
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/fetching.fetcher-base@1100.2.2
+
 ## 1102.0.2
 
 ### Patch Changes

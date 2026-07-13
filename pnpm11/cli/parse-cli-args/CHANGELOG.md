@@ -1,5 +1,11 @@
 # @pnpm/parse-cli-args
 
+## 1100.1.6
+
+### Patch Changes
+
+- Options that follow `create`, `exec`, or `test` appearing as a subcommand of another command are now parsed instead of being silently treated as positional parameters. For example, `pnpm team create @org:team --registry <url>` previously ignored the `--registry` option and sent the request to the default registry.
+
 ## 1100.1.5
 
 ### Patch Changes

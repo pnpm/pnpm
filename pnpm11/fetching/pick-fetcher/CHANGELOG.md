@@ -1,5 +1,14 @@
 # @pnpm/pick-fetcher
 
+## 1100.1.1
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/fetching.fetcher-base@1100.2.2
+  - @pnpm/hooks.types@1100.2.1
+  - @pnpm/resolving.resolver-base@1100.5.2
+
 ## 1100.1.0
 
 ### Minor Changes

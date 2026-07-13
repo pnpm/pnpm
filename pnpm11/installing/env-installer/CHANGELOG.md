@@ -1,5 +1,29 @@
 # @pnpm/config.deps-installer
 
+## 1102.0.6
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/config.package-is-installable@1100.0.13
+  - @pnpm/config.pick-registry-for-package@1100.0.10
+  - @pnpm/config.writer@1100.0.16
+  - @pnpm/core-loggers@1100.2.2
+  - @pnpm/deps.graph-hasher@1100.2.10
+  - @pnpm/fs.symlink-dependency@1100.0.11
+  - @pnpm/installing.deps-resolver@1100.2.9
+  - @pnpm/lockfile.fs@1100.1.11
+  - @pnpm/lockfile.pruner@1100.0.14
+  - @pnpm/lockfile.types@1100.0.14
+  - @pnpm/lockfile.utils@1100.1.3
+  - @pnpm/network.auth-header@1101.1.4
+  - @pnpm/network.fetch@1100.1.5
+  - @pnpm/pkg-manifest.reader@1100.0.10
+  - @pnpm/resolving.npm-resolver@1102.1.3
+  - @pnpm/store.controller@1102.0.5
+  - @pnpm/store.controller-types@1100.1.8
+  - @pnpm/types@1101.4.0
+
 ## 1102.0.5
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/jest-config
 
+## 1100.0.20
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/testing.registry-mock@1100.0.9
+  - @pnpm/worker@1100.2.4
+
 ## 1100.0.19
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/fs.packlist
 
+## 1100.0.2
+
+### Patch Changes
+
+- `pnpm pack` now respects workspace-root `.npmignore` and `.gitignore` files when packing workspace packages.
+
 ## 1100.0.1
 
 ### Patch Changes

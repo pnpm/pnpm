@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/releasing.exportable-manifest",
-  "version": "1100.1.9",
+  "version": "1100.1.10",
   "description": "Creates an exportable manifest",
   "keywords": [
     "pnpm",

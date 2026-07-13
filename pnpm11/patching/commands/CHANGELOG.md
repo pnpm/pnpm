@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-patching
 
+## 1100.1.11
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/cli.utils@1101.0.14
+  - @pnpm/config.reader@1101.12.0
+  - @pnpm/config.writer@1100.0.16
+  - @pnpm/fs.packlist@1100.0.2
+  - @pnpm/installing.commands@1100.10.5
+  - @pnpm/installing.modules-yaml@1100.0.10
+  - @pnpm/lockfile.fs@1100.1.11
+  - @pnpm/lockfile.utils@1100.1.3
+  - @pnpm/pkg-manifest.reader@1100.0.10
+  - @pnpm/store.connection-manager@1100.3.6
+  - @pnpm/types@1101.4.0
+  - @pnpm/workspace.project-manifest-reader@1100.0.15
+  - @pnpm/workspace.workspace-manifest-reader@1100.1.0
+
 ## 1100.1.10
 
 ### Patch Changes

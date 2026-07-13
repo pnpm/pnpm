@@ -1,5 +1,17 @@
 # @pnpm/directory-fetcher
 
+## 1100.0.20
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/building.pkg-requires-build@1100.0.9
+  - @pnpm/fetching.fetcher-base@1100.2.2
+  - @pnpm/fs.packlist@1100.0.2
+  - @pnpm/resolving.resolver-base@1100.5.2
+  - @pnpm/types@1101.4.0
+  - @pnpm/workspace.project-manifest-reader@1100.0.15
+
 ## 1100.0.19
 
 ### Patch Changes

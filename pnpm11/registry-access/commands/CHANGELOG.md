@@ -1,5 +1,23 @@
 # @pnpm/registry-access.commands
 
+## 1100.5.0
+
+### Minor Changes
+
+- Added the `team` command for managing organization teams and team memberships on the registry, with create, destroy, add, rm, and ls subcommands and support for --otp, --parseable, and --json flags.
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/cli.utils@1101.0.14
+  - @pnpm/config.pick-registry-for-package@1100.0.10
+  - @pnpm/config.reader@1101.12.0
+  - @pnpm/network.auth-header@1101.1.4
+  - @pnpm/network.fetch@1100.1.5
+  - @pnpm/registry-access.client@1100.1.7
+  - @pnpm/resolving.registry.types@1100.1.4
+  - @pnpm/types@1101.4.0
+
 ## 1100.4.1
 
 ### Patch Changes

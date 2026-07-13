@@ -1,5 +1,29 @@
 # @pnpm/deps.compliance.commands
 
+## 1101.5.4
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/cli.meta@1100.0.9
+  - @pnpm/cli.utils@1101.0.14
+  - @pnpm/config.pick-registry-for-package@1100.0.10
+  - @pnpm/config.reader@1101.12.0
+  - @pnpm/config.version-policy@1100.1.7
+  - @pnpm/config.writer@1100.0.16
+  - @pnpm/deps.compliance.audit@1101.0.22
+  - @pnpm/deps.compliance.license-scanner@1100.0.25
+  - @pnpm/deps.compliance.sbom@1100.3.3
+  - @pnpm/deps.security.signatures@1101.2.4
+  - @pnpm/installing.commands@1100.10.5
+  - @pnpm/lockfile.fs@1100.1.11
+  - @pnpm/lockfile.types@1100.0.14
+  - @pnpm/lockfile.utils@1100.1.3
+  - @pnpm/lockfile.walker@1100.0.14
+  - @pnpm/network.auth-header@1101.1.4
+  - @pnpm/types@1101.4.0
+  - @pnpm/workspace.project-manifest-reader@1100.0.15
+
 ## 1101.5.3
 
 ### Patch Changes

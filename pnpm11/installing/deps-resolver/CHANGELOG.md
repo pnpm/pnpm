@@ -1,5 +1,33 @@
 # @pnpm/resolve-dependencies
 
+## 1100.2.9
+
+### Patch Changes
+
+- Fixed an injected workspace dependency (`injectWorkspacePackages: true`) incorrectly staying as `file:` instead of deduping back to `link:` when an unrelated, ordinary shared dependency resolved to a peer-suffixed variant for the target project's own copy but not for the injected occurrence. See pnpm/pnpm#10433.
+
+- Fixed `pnpm update` removing transitive lockfile entries when `dedupePeerDependents` is disabled and the selected package is absent [pnpm/pnpm#12456](https://github.com/pnpm/pnpm/issues/12456).
+
+- Updated dependencies:
+  - @pnpm/config.version-policy@1100.1.7
+  - @pnpm/core-loggers@1100.2.2
+  - @pnpm/deps.graph-hasher@1100.2.10
+  - @pnpm/deps.path@1100.0.9
+  - @pnpm/fetching.pick-fetcher@1100.1.1
+  - @pnpm/fs.symlink-dependency@1100.0.11
+  - @pnpm/hooks.types@1100.2.1
+  - @pnpm/lockfile.preferred-versions@1100.0.20
+  - @pnpm/lockfile.pruner@1100.0.14
+  - @pnpm/lockfile.types@1100.0.14
+  - @pnpm/lockfile.utils@1100.1.3
+  - @pnpm/patching.config@1100.0.10
+  - @pnpm/pkg-manifest.reader@1100.0.10
+  - @pnpm/pkg-manifest.utils@1100.2.7
+  - @pnpm/resolving.npm-resolver@1102.1.3
+  - @pnpm/resolving.resolver-base@1100.5.2
+  - @pnpm/store.controller-types@1100.1.8
+  - @pnpm/types@1101.4.0
+
 ## 1100.2.8
 
 ### Patch Changes

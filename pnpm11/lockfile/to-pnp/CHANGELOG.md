@@ -1,5 +1,16 @@
 # @pnpm/lockfile-to-pnp
 
+## 1100.1.5
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/deps.path@1100.0.9
+  - @pnpm/fs.symlink-dependency@1100.0.11
+  - @pnpm/lockfile.fs@1100.1.11
+  - @pnpm/lockfile.utils@1100.1.3
+  - @pnpm/types@1101.4.0
+
 ## 1100.1.4
 
 ### Patch Changes

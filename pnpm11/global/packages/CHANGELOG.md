@@ -1,5 +1,14 @@
 # @pnpm/global.packages
 
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/bins.resolver@1100.0.9
+  - @pnpm/pkg-manifest.reader@1100.0.10
+  - @pnpm/types@1101.4.0
+
 ## 1100.0.10
 
 ### Patch Changes
