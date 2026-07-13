@@ -529,6 +529,37 @@ test('a fixed group straddling an epic boundary is a configuration error', () =>
   })).toThrow(/straddles the epic/)
 })
 
+test('a member major bump that would exceed the band ceiling is rejected', () => {
+  expect(() => assembleReleasePlan({
+    workspaceDir: '/ws',
+    projects: [makeProject('pnpm', '11.0.0'), makeProject('lib', '1199.4.2')],
+    intents: [makeIntent('one', { lib: 'major' })],
+    ledger: NO_LEDGER,
+    versioning: { epics: [{ lead: 'pnpm', packages: ['lib'] }] },
+  })).toThrow(/band is exhausted/)
+})
+
+test('a member below its epic band is rejected when it releases', () => {
+  expect(() => assembleReleasePlan({
+    workspaceDir: '/ws',
+    projects: [makeProject('pnpm', '11.0.0'), makeProject('lib', '5.0.0')],
+    intents: [makeIntent('one', { lib: 'patch' })],
+    ledger: NO_LEDGER,
+    versioning: { epics: [{ lead: 'pnpm', packages: ['lib'] }] },
+  })).toThrow(/outside the band 1100–1199/)
+})
+
+test('the top of the band takes a minor without tripping the ceiling guard', () => {
+  const plan = assembleReleasePlan({
+    workspaceDir: '/ws',
+    projects: [makeProject('pnpm', '11.0.0'), makeProject('lib', '1199.4.2')],
+    intents: [makeIntent('one', { lib: 'minor' })],
+    ledger: NO_LEDGER,
+    versioning: { epics: [{ lead: 'pnpm', packages: ['lib'] }] },
+  })
+  expect(plan.releases.find((release) => release.name === 'lib')!.newVersion).toBe('1199.5.0')
+})
+
 test('an epic whose lead is not a releasable project fails the plan', () => {
   expect(() => assembleReleasePlan({
     workspaceDir: '/ws',

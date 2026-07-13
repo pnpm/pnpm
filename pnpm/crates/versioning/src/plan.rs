@@ -456,6 +456,7 @@ fn assemble(
 
     assert_no_duplicate_release_identity(&releases)?;
     if ctx.opts.snapshot_suffix.is_none() {
+        enforce_epic_bands(ctx.epics, participants, &new_versions)?;
         enforce_max_bump(&releases, ctx.versioning)?;
     }
 
@@ -1163,6 +1164,60 @@ fn apply_epic_band_versions(
             new_versions.insert(member_dir.clone(), version);
         }
     }
+}
+
+/// The band of member majors an epic permits, `[lead_major*100,
+/// lead_major*100+99]`, where `lead_major` is the major the plan establishes
+/// for the lead — its re-based major when the lead crosses to a new stable
+/// major, otherwise the lead's current major (a prerelease lead does not open
+/// the next band).
+fn epic_band_major(
+    epic: &ResolvedEpic,
+    participants: &BTreeMap<String, Participant<'_>>,
+    new_versions: &BTreeMap<String, String>,
+) -> u64 {
+    match epic_rebase_floor(epic, participants, new_versions) {
+        Some(floor) => floor / 100,
+        None => {
+            Version::parse(participants[epic.lead_dir.as_str()].current_version)
+                .expect("participants have valid versions")
+                .major
+        }
+    }
+}
+
+/// Enforces that every released member's new major stays inside its epic's
+/// band. The re-base already keeps members in band when the lead moves; this
+/// guards the other direction — an ordinary `major` intent that would carry a
+/// member over the band ceiling (`1199.x` -> `1200.0.0` while the lead is
+/// still on 11) is rejected rather than silently landing in the next band.
+fn enforce_epic_bands(
+    epics: &[ResolvedEpic],
+    participants: &BTreeMap<String, Participant<'_>>,
+    new_versions: &BTreeMap<String, String>,
+) -> Result<(), VersioningError> {
+    for epic in epics {
+        let band_major = epic_band_major(epic, participants, new_versions);
+        let low = band_major * 100;
+        let high = low + 99;
+        for member_dir in &epic.member_dirs {
+            let Some(member_version) = new_versions.get(member_dir) else {
+                continue;
+            };
+            let member_major =
+                Version::parse(member_version).expect("participants have valid versions").major;
+            if member_major < low || member_major > high {
+                return Err(VersioningError::EpicOutOfBand {
+                    pkg_name: participants[member_dir.as_str()].name.to_string(),
+                    new_version: member_version.clone(),
+                    member_major,
+                    lead: epic.lead_ref.clone(),
+                    band_major,
+                });
+            }
+        }
+    }
+    Ok(())
 }
 
 /// The range that pnpm materializes for a workspace: spec at pack time,

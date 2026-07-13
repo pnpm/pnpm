@@ -735,6 +735,52 @@ fn a_fixed_group_straddling_an_epic_boundary_is_a_configuration_error() {
 }
 
 #[test]
+fn a_member_major_bump_that_would_exceed_the_band_ceiling_is_rejected() {
+    let projects = [make_project("pnpm", "11.0.0", &[]), make_project("lib", "1199.4.2", &[])];
+    let intents = [make_intent("one", &[("lib", "major")])];
+    let versioning =
+        VersioningSettings { epics: vec![epic("pnpm", &["lib"])], ..VersioningSettings::default() };
+    let err = assemble_release_plan(
+        &projects,
+        std::path::Path::new("/ws"),
+        &intents,
+        &Ledger::new(),
+        Some(&versioning),
+        &AssembleReleasePlanOptions::default(),
+    )
+    .expect_err("plan must fail");
+    assert!(err.to_string().contains("band is exhausted"), "unexpected error: {err}");
+}
+
+#[test]
+fn a_member_below_its_epic_band_is_rejected_when_it_releases() {
+    let projects = [make_project("pnpm", "11.0.0", &[]), make_project("lib", "5.0.0", &[])];
+    let intents = [make_intent("one", &[("lib", "patch")])];
+    let versioning =
+        VersioningSettings { epics: vec![epic("pnpm", &["lib"])], ..VersioningSettings::default() };
+    let err = assemble_release_plan(
+        &projects,
+        std::path::Path::new("/ws"),
+        &intents,
+        &Ledger::new(),
+        Some(&versioning),
+        &AssembleReleasePlanOptions::default(),
+    )
+    .expect_err("plan must fail");
+    assert!(err.to_string().contains("outside the band 1100-1199"), "unexpected error: {err}");
+}
+
+#[test]
+fn the_top_of_the_band_takes_a_minor_without_tripping_the_ceiling_guard() {
+    let projects = [make_project("pnpm", "11.0.0", &[]), make_project("lib", "1199.4.2", &[])];
+    let intents = [make_intent("one", &[("lib", "minor")])];
+    let versioning =
+        VersioningSettings { epics: vec![epic("pnpm", &["lib"])], ..VersioningSettings::default() };
+    let plan = assemble(&projects, &intents, &Ledger::new(), Some(&versioning));
+    assert_eq!(release(&plan, "lib").new_version, "1199.5.0");
+}
+
+#[test]
 fn an_epic_whose_lead_is_not_a_releasable_project_fails_the_plan() {
     let projects = [make_project("lib", "1101.0.0", &[])];
     let versioning = VersioningSettings {

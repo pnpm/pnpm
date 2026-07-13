@@ -330,6 +330,7 @@ function assemble (ctx: AssembleContext, selection: Set<string> | undefined): Re
 
   assertNoDuplicateReleaseIdentity(releases)
   if (opts.snapshotSuffix == null) {
+    enforceEpicBands(epics, participants, newVersions)
     enforceMaxBump(releases, opts.versioning)
   }
 
@@ -852,6 +853,54 @@ function applyEpicBandVersions ({ participants, state, newVersions, epics, lanes
           ? target
           : `${target}-${laneTag}.${nextPrereleaseNumber(participants.get(memberDir)!.currentVersion, target, laneTag)}`
       )
+    }
+  }
+}
+
+/**
+ * The band of member majors an epic permits: `[leadMajor×100, leadMajor×100+99]`,
+ * where `leadMajor` is the major the plan establishes for the lead — its
+ * re-based major when the lead crosses to a new stable major, otherwise the
+ * lead's current major (a prerelease lead does not open the next band).
+ */
+function epicBandMajor (
+  epic: ResolvedEpic,
+  participants: Map<string, Participant>,
+  newVersions: Map<string, string>
+): number {
+  const floor = epicRebaseFloor(epic, participants, newVersions)
+  return floor != null ? floor / 100 : Number(participants.get(epic.leadDir)!.currentVersion.split('.')[0])
+}
+
+/**
+ * Enforces that every released member's new major stays inside its epic's band.
+ * The re-base already keeps members in band when the lead moves; this guards
+ * the other direction — an ordinary `major` intent that would carry a member
+ * over the band ceiling (`1199.x` → `1200.0.0` while the lead is still on 11)
+ * is rejected rather than silently landing the member in the next band.
+ */
+function enforceEpicBands (
+  epics: ResolvedEpic[],
+  participants: Map<string, Participant>,
+  newVersions: Map<string, string>
+): void {
+  for (const epic of epics) {
+    const bandMajor = epicBandMajor(epic, participants, newVersions)
+    const low = bandMajor * 100
+    const high = low + 99
+    for (const memberDir of epic.memberDirs) {
+      const memberVersion = newVersions.get(memberDir)
+      if (memberVersion == null) continue
+      const memberMajor = Number(memberVersion.split('.')[0])
+      if (memberMajor < low || memberMajor > high) {
+        throw new PnpmError(
+          'VERSIONING_EPIC_OUT_OF_BAND',
+          `The release plan takes ${participants.get(memberDir)!.name} to ${memberVersion}, whose major ${memberMajor} is outside the band ${low}–${high} of the epic led by "${epic.leadRef}" (major ${bandMajor}). ` +
+          (memberMajor > high
+            ? 'The band is exhausted — the lead must advance to a new major to open the next band.'
+            : 'Re-base the member into the band, or remove it from the epic.')
+        )
+      }
     }
   }
 }
