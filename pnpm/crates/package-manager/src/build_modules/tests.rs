@@ -131,6 +131,46 @@ fn explicit_allow_by_git_repo_allows_untrusted_package_identity() {
 }
 
 #[test]
+fn explicit_allow_by_git_hosted_tarball_repo_url() {
+    let policy = policy_from_specs(
+        [
+            ("foo@git+https://github.com/org/foo.git", true),
+            ("bar@git+https://bitbucket.org/org/bar.git", true),
+            ("baz@git+https://gitlab.com/group/subgroup/baz.git", true),
+            ("evil@git+https://github.com/org/evil.git", false),
+        ],
+        false,
+    );
+
+    // A GitHub `github:` dependency is downloaded from codeload.github.com, yet
+    // the same key a clone of the repo would use approves it — no commit hash.
+    assert_eq!(policy.check("foo@https://codeload.github.com/org/foo/tar.gz/abc123"), Some(true));
+    assert_eq!(
+        policy.check("foo@https://codeload.github.com/org/foo/tar.gz/def456(react@19.0.0)"),
+        Some(true),
+    );
+    // Bitbucket and GitLab (with nested groups) tarball downloads too.
+    assert_eq!(policy.check("bar@https://bitbucket.org/org/bar/get/abc123.tar.gz"), Some(true));
+    assert_eq!(
+        policy
+            .check("baz@https://gitlab.com/group/subgroup/baz/-/archive/abc123/baz-abc123.tar.gz"),
+        Some(true),
+    );
+    // A different repository under the same package name is not approved.
+    assert_eq!(policy.check("foo@https://codeload.github.com/attacker/foo/tar.gz/abc123"), None);
+    // A look-alike download host must not be rewritten into the trusted key.
+    assert_eq!(
+        policy.check("foo@https://codeload.github.com.attacker.net/org/foo/tar.gz/abc123"),
+        None,
+    );
+    // Denial by hashless repository key works as well.
+    assert_eq!(
+        policy.check("evil@https://codeload.github.com/org/evil/tar.gz/abc123"),
+        Some(false),
+    );
+}
+
+#[test]
 fn explicit_allow_by_tarball_dep_path_allows_untrusted_package_identity() {
     let policy = policy_from_specs([("foo@https://example.com/foo.tgz", true)], false);
 

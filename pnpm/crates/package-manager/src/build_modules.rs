@@ -20,6 +20,7 @@ use pacquet_reporter::{
 };
 use rayon::prelude::*;
 use std::{
+    borrow::Cow,
     collections::{BTreeSet, HashMap, HashSet},
     path::{Path, PathBuf},
     sync::Mutex,
@@ -217,6 +218,7 @@ impl AllowBuildPolicy {
             return Some(false);
         }
         let git_repo_key = git_repo_allow_build_key_from_dep_path(&normalized_dep_path);
+        let git_repo_key = git_repo_key.as_deref();
         if let Some(git_repo_key) = git_repo_key
             && self.disallowed_git_repos.contains(git_repo_key)
         {
@@ -300,18 +302,71 @@ fn is_git_repo_allow_build_key(spec: &str) -> bool {
     !spec.contains('#') && is_git_repo_dep_path(spec)
 }
 
-fn git_repo_allow_build_key_from_dep_path(dep_path: &str) -> Option<&str> {
-    if !is_git_repo_dep_path(dep_path) {
-        return None;
+fn git_repo_allow_build_key_from_dep_path(dep_path: &str) -> Option<Cow<'_, str>> {
+    if is_git_repo_dep_path(dep_path) {
+        return Some(match dep_path.find('#') {
+            Some(ref_start) => Cow::Borrowed(&dep_path[..ref_start]),
+            None => Cow::Borrowed(dep_path),
+        });
     }
-    Some(match dep_path.find('#') {
-        Some(ref_start) => &dep_path[..ref_start],
-        None => dep_path,
-    })
+    // Packages installed from a git host as a downloaded tarball (e.g. the
+    // `github:` shortcut, which pnpm fetches from codeload.github.com rather
+    // than cloning) have a depPath built from the tarball URL, not a `git+`
+    // clone URL, so the check above misses them. Normalize the tarball URL back
+    // to the same `git+https://<host>/<repo>.git` repo key that a clone of the
+    // same repository would produce, so a single hashless `allowBuilds` entry
+    // approves the package however pnpm happened to fetch it.
+    git_hosted_tarball_repo_key(dep_path).map(Cow::Owned)
 }
 
 fn is_git_repo_dep_path(dep_path: &str) -> bool {
     dep_path.starts_with("git+") || dep_path.contains("@git+")
+}
+
+/// Rebuilds the `<name>@git+https://<host>/<repo>.git` repo key for a git-host
+/// tarball depPath (mirrors the TypeScript `gitHostedTarballRepoKey`).
+fn git_hosted_tarball_repo_key(dep_path: &str) -> Option<String> {
+    let (name, version) = parse_dep_path_name_version(dep_path)?;
+    let repo_url = git_hosted_tarball_repo_url(version)?;
+    Some(format!("{name}@{repo_url}"))
+}
+
+/// The committish-free repository URL for a git host that pnpm downloads as a
+/// tarball instead of cloning. The patterns mirror the tarball templates in
+/// `@pnpm/git-resolver` (from hosted-git-info, except GitLab's override). Each
+/// known host is anchored so a look-alike download host (e.g.
+/// `codeload.github.com.example.com`) cannot be rewritten into an unrelated key.
+fn git_hosted_tarball_repo_url(tarball_url: &str) -> Option<String> {
+    // GitHub: `https://codeload.github.com/<owner>/<repo>/tar.gz/<committish>`
+    if let Some(rest) = tarball_url.strip_prefix("https://codeload.github.com/") {
+        let (owner, rest) = rest.split_once('/')?;
+        let (repo, _) = rest.split_once("/tar.gz/")?;
+        if owner.is_empty() || repo.is_empty() {
+            return None;
+        }
+        return Some(format!("git+https://github.com/{owner}/{repo}.git"));
+    }
+    // Bitbucket: `https://bitbucket.org/<owner>/<repo>/get/<committish>.tar.gz`
+    if let Some(rest) = tarball_url.strip_prefix("https://bitbucket.org/") {
+        let (owner, rest) = rest.split_once('/')?;
+        let (repo, _) = rest.split_once("/get/")?;
+        if owner.is_empty() || repo.is_empty() {
+            return None;
+        }
+        return Some(format!("git+https://bitbucket.org/{owner}/{repo}.git"));
+    }
+    // GitLab (incl. self-hosted): the project path may contain nested groups,
+    // so match up to the `/-/archive/<ref>/` marker.
+    // `https://<host>/<group...>/<repo>/-/archive/<ref>/<repo>-<ref>.tar.gz`
+    if let Some(rest) = tarball_url.strip_prefix("https://") {
+        let (host, rest) = rest.split_once('/')?;
+        let (project, _) = rest.split_once("/-/archive/")?;
+        if host.is_empty() || project.is_empty() {
+            return None;
+        }
+        return Some(format!("git+https://{host}/{project}.git"));
+    }
+    None
 }
 
 fn is_dep_path_allow_build_key(spec: &str) -> bool {

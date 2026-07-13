@@ -120,6 +120,30 @@ it('should allow git-hosted depPaths by repository key', () => {
   expect(allowBuild!(depPath('bar@git+ssh://git@example.com/org/bar.git#abc123'))).toBe(false)
 })
 
+it('should allow git-hosted tarball builds by hashless repository key', () => {
+  const allowBuild = createAllowBuildFunction({
+    allowBuilds: {
+      'foo@git+https://github.com/org/foo.git': true,
+      'bar@git+https://bitbucket.org/org/bar.git': true,
+      'baz@git+https://gitlab.com/group/subgroup/baz.git': true,
+      'evil@git+https://github.com/org/evil.git': false,
+    },
+  })
+  // A GitHub `github:` dependency is downloaded from codeload.github.com, yet
+  // the same key a clone of the repo would use approves it, with no commit hash.
+  expect(allowBuild!(depPath('foo@https://codeload.github.com/org/foo/tar.gz/abc123'))).toBe(true)
+  expect(allowBuild!(depPath('foo@https://codeload.github.com/org/foo/tar.gz/def456(react@19.0.0)'))).toBe(true)
+  // Bitbucket and GitLab (with nested groups) tarball downloads too.
+  expect(allowBuild!(depPath('bar@https://bitbucket.org/org/bar/get/abc123.tar.gz'))).toBe(true)
+  expect(allowBuild!(depPath('baz@https://gitlab.com/group/subgroup/baz/-/archive/abc123/baz-abc123.tar.gz'))).toBe(true)
+  // A different repository under the same package name is not approved.
+  expect(allowBuild!(depPath('foo@https://codeload.github.com/attacker/foo/tar.gz/abc123'))).toBeUndefined()
+  // A look-alike download host must not be rewritten into the trusted key.
+  expect(allowBuild!(depPath('foo@https://codeload.github.com.attacker.net/org/foo/tar.gz/abc123'))).toBeUndefined()
+  // Denial by hashless repository key works as well.
+  expect(allowBuild!(depPath('evil@https://codeload.github.com/org/evil/tar.gz/abc123'))).toBe(false)
+})
+
 it('should allow untrusted package identity by source-only depPath', () => {
   const allowBuild = createAllowBuildFunction({
     allowBuilds: { 'github.com/org/foo/abc123': true },
