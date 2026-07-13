@@ -43,5 +43,6 @@ pub use plan::{
     to_project_dir,
 };
 pub use settings::{
-    ChangelogSettings, ChangelogStorage, ReleaseBumpType, VersioningSettings, changelog_storage,
+    ChangelogSettings, ChangelogStorage, EpicSettings, ReleaseBumpType, VersioningSettings,
+    changelog_storage,
 };

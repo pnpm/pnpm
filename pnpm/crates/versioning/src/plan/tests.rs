@@ -5,13 +5,13 @@ use pretty_assertions::assert_eq;
 
 use super::{
     AssembleReleasePlanOptions, DependencyField, DependencyUpdate, ManifestDependency,
-    PlannedRelease, ReleasePlan, WorkspaceProject, assemble_release_plan,
+    PlannedRelease, ReleaseCause, ReleasePlan, WorkspaceProject, assemble_release_plan,
     materialize_workspace_range,
 };
 use crate::{
     intents::{ChangeIntent, IntentBumpType},
     ledger::{Ledger, LedgerEntry},
-    settings::{ReleaseBumpType, VersioningSettings},
+    settings::{EpicSettings, ReleaseBumpType, VersioningSettings},
 };
 
 fn make_project(name: &str, version: &str, deps: &[(&str, &str)]) -> WorkspaceProject {
@@ -582,4 +582,176 @@ fn materialize_workspace_range_mirrors_pack_time_materialization() {
     assert_eq!(materialize_workspace_range("workspace:^1.0.0", "1.2.3").as_deref(), Some("^1.0.0"));
     assert_eq!(materialize_workspace_range("workspace:lib@^", "1.2.3").as_deref(), Some("^1.2.3"));
     assert_eq!(materialize_workspace_range("^1.0.0", "1.2.3"), None);
+}
+
+fn project_at(name: &str, version: &str, dir: &str) -> WorkspaceProject {
+    WorkspaceProject {
+        root_dir: PathBuf::from(format!("/ws/{dir}")),
+        name: Some(name.to_string()),
+        version: Some(version.to_string()),
+        prod_dependencies: Vec::new(),
+    }
+}
+
+fn epic(lead: &str, packages: &[&str]) -> EpicSettings {
+    EpicSettings {
+        lead: lead.to_string(),
+        packages: packages.iter().map(|selector| (*selector).to_string()).collect(),
+    }
+}
+
+#[test]
+fn epic_members_move_independently_inside_the_band_while_the_lead_major_holds() {
+    let projects = [make_project("pnpm", "11.2.0", &[]), make_project("lib", "1101.4.2", &[])];
+    let intents = [make_intent("one", &[("pnpm", "patch"), ("lib", "minor")])];
+    let versioning =
+        VersioningSettings { epics: vec![epic("pnpm", &["lib"])], ..VersioningSettings::default() };
+    let plan = assemble(&projects, &intents, &Ledger::new(), Some(&versioning));
+    assert_eq!(release(&plan, "pnpm").new_version, "11.2.1");
+    assert_eq!(release(&plan, "lib").new_version, "1101.5.0");
+}
+
+#[test]
+fn a_major_intent_bumps_a_member_to_the_next_major_inside_the_band() {
+    let projects = [make_project("pnpm", "11.0.0", &[]), make_project("lib", "1101.4.2", &[])];
+    let intents = [make_intent("one", &[("lib", "major")])];
+    let versioning =
+        VersioningSettings { epics: vec![epic("pnpm", &["lib"])], ..VersioningSettings::default() };
+    let plan = assemble(&projects, &intents, &Ledger::new(), Some(&versioning));
+    assert_eq!(release_names(&plan), ["lib"]);
+    assert_eq!(release(&plan, "lib").new_version, "1102.0.0");
+}
+
+#[test]
+fn when_the_lead_reaches_a_new_stable_major_every_member_re_bases_to_the_band_floor() {
+    let projects = [
+        make_project("pnpm", "11.9.9", &[]),
+        make_project("lib", "1101.4.2", &[]),
+        make_project("ui", "1105.0.0", &[]),
+    ];
+    let intents = [make_intent("one", &[("pnpm", "major")])];
+    let versioning = VersioningSettings {
+        epics: vec![epic("pnpm", &["lib", "ui"])],
+        ..VersioningSettings::default()
+    };
+    let plan = assemble(&projects, &intents, &Ledger::new(), Some(&versioning));
+    assert_eq!(release(&plan, "pnpm").new_version, "12.0.0");
+    assert_eq!(release(&plan, "lib").new_version, "1200.0.0");
+    assert_eq!(release(&plan, "lib").causes, vec![ReleaseCause::Epic]);
+    assert_eq!(release(&plan, "ui").new_version, "1200.0.0");
+}
+
+#[test]
+fn a_member_on_a_lane_re_bases_to_a_prerelease_of_the_band_floor() {
+    let projects = [make_project("pnpm", "11.0.0", &[]), make_project("lib", "1101.2.0", &[])];
+    let intents = [make_intent("one", &[("pnpm", "major")])];
+    let versioning = VersioningSettings {
+        epics: vec![epic("pnpm", &["lib"])],
+        lanes: IndexMap::from([("lib".to_string(), "alpha".to_string())]),
+        ..VersioningSettings::default()
+    };
+    let plan = assemble(&projects, &intents, &Ledger::new(), Some(&versioning));
+    assert_eq!(release(&plan, "lib").new_version, "1200.0.0-alpha.0");
+}
+
+#[test]
+fn the_re_base_waits_while_the_lead_is_on_a_prerelease_lane() {
+    let projects = [make_project("pnpm", "11.0.0", &[]), make_project("lib", "1101.2.0", &[])];
+    let intents = [make_intent("one", &[("pnpm", "major"), ("lib", "patch")])];
+    let versioning = VersioningSettings {
+        epics: vec![epic("pnpm", &["lib"])],
+        lanes: IndexMap::from([("pnpm".to_string(), "alpha".to_string())]),
+        ..VersioningSettings::default()
+    };
+    let plan = assemble(&projects, &intents, &Ledger::new(), Some(&versioning));
+    assert_eq!(release(&plan, "pnpm").new_version, "12.0.0-alpha.0");
+    // The member versions inside its old band until the lead's stable release.
+    assert_eq!(release(&plan, "lib").new_version, "1101.2.1");
+}
+
+#[test]
+fn epic_membership_resolves_directory_globs_and_honors_negations() {
+    let projects = [
+        project_at("pnpm", "11.0.0", "pnpm"),
+        project_at("@scope/a", "1100.0.0", "pkgs/a"),
+        project_at("@scope/b", "1100.0.0", "pkgs/b"),
+        project_at("@scope/tool", "5.0.0", "tools/tool"),
+    ];
+    let intents = [make_intent("one", &[("pnpm", "major")])];
+    let versioning = VersioningSettings {
+        epics: vec![epic("./pnpm", &["./pkgs/**", "!./pkgs/b"])],
+        ..VersioningSettings::default()
+    };
+    let plan = assemble(&projects, &intents, &Ledger::new(), Some(&versioning));
+    assert_eq!(release_names(&plan), ["@scope/a", "pnpm"]);
+    assert_eq!(release(&plan, "@scope/a").new_version, "1200.0.0");
+}
+
+#[test]
+fn a_package_matched_by_two_epics_is_a_configuration_error() {
+    let projects = [
+        make_project("pnpm", "11.0.0", &[]),
+        make_project("other", "2.0.0", &[]),
+        make_project("lib", "1101.0.0", &[]),
+    ];
+    let versioning = VersioningSettings {
+        epics: vec![epic("pnpm", &["lib"]), epic("other", &["lib"])],
+        ..VersioningSettings::default()
+    };
+    let err = assemble_release_plan(
+        &projects,
+        std::path::Path::new("/ws"),
+        &[],
+        &Ledger::new(),
+        Some(&versioning),
+        &AssembleReleasePlanOptions::default(),
+    )
+    .expect_err("plan must fail");
+    assert!(err.to_string().contains("at most one epic"), "unexpected error: {err}");
+}
+
+#[test]
+fn a_fixed_group_straddling_an_epic_boundary_is_a_configuration_error() {
+    let projects = [
+        make_project("pnpm", "11.0.0", &[]),
+        make_project("lib", "1101.0.0", &[]),
+        make_project("outsider", "3.0.0", &[]),
+    ];
+    let versioning = VersioningSettings {
+        epics: vec![epic("pnpm", &["lib"])],
+        fixed: vec![vec!["lib".to_string(), "outsider".to_string()]],
+        ..VersioningSettings::default()
+    };
+    let err = assemble_release_plan(
+        &projects,
+        std::path::Path::new("/ws"),
+        &[],
+        &Ledger::new(),
+        Some(&versioning),
+        &AssembleReleasePlanOptions::default(),
+    )
+    .expect_err("plan must fail");
+    assert!(err.to_string().contains("straddles the epic"), "unexpected error: {err}");
+}
+
+#[test]
+fn an_epic_whose_lead_is_not_a_releasable_project_fails_the_plan() {
+    let projects = [make_project("lib", "1101.0.0", &[])];
+    let versioning = VersioningSettings {
+        epics: vec![epic("ghost", &["lib"])],
+        ..VersioningSettings::default()
+    };
+    let err = assemble_release_plan(
+        &projects,
+        std::path::Path::new("/ws"),
+        &[],
+        &Ledger::new(),
+        Some(&versioning),
+        &AssembleReleasePlanOptions::default(),
+    )
+    .expect_err("plan must fail");
+    assert!(
+        err.to_string().contains("is not a releasable workspace project"),
+        "unexpected error: {err}",
+    );
 }

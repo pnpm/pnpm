@@ -13,7 +13,7 @@ export interface WorkspaceProject {
   manifest: ProjectManifest
 }
 
-export type ReleaseCause = 'intent' | 'dependencies' | 'fixed'
+export type ReleaseCause = 'intent' | 'dependencies' | 'fixed' | 'epic'
 
 export interface DependencyUpdate {
   name: string
@@ -135,13 +135,15 @@ export function assembleReleasePlan (opts: AssembleReleasePlanOptions): ReleaseP
   const lanesByDir = resolveLanes(refs, participants, opts.versioning)
   const fixedGroups = resolveFixedGroups(refs, participants, opts.versioning)
   validateFixedGroupLanes(fixedGroups, lanesByDir, opts.versioning)
+  const epics = resolveEpics(refs, participants, opts.versioning)
+  validateEpics(epics, fixedGroups)
   const intentBumps = resolveIntents(opts.intents, refs, participants)
   if (opts.enforceWorkspaceProtocol) {
     assertInternalDepsUseWorkspaceProtocol(participants)
   }
   const consumptionOf = buildConsumptionIndex(opts.ledger, refs.nameToDirs)
 
-  const ctx: AssembleContext = { participants, lanesByDir, fixedGroups, intentBumps, consumptionOf, opts }
+  const ctx: AssembleContext = { participants, lanesByDir, fixedGroups, epics, intentBumps, consumptionOf, opts }
   let selection = opts.filter
   for (;;) {
     const plan = assemble(ctx, selection)
@@ -179,10 +181,22 @@ interface BumpState {
   dependencyUpdates: Map<string, string>
 }
 
+/**
+ * An epic resolved against the workspace: the lead's directory and the
+ * directories of its member packages. The lead is never a member of its own
+ * band.
+ */
+interface ResolvedEpic {
+  leadRef: string
+  leadDir: string
+  memberDirs: Set<string>
+}
+
 interface AssembleContext {
   participants: Map<string, Participant>
   lanesByDir: Map<string, string>
   fixedGroups: string[][]
+  epics: ResolvedEpic[]
   /** Per intent id: the participant dirs it releases and their bump types. */
   intentBumps: Map<string, Map<string, IntentBumpType>>
   consumptionOf: (dir: string) => PackageConsumption
@@ -190,7 +204,7 @@ interface AssembleContext {
 }
 
 function assemble (ctx: AssembleContext, selection: Set<string> | undefined): ReleasePlan {
-  const { participants, lanesByDir, fixedGroups, opts } = ctx
+  const { participants, lanesByDir, fixedGroups, epics, opts } = ctx
   const pendingByDir = collectPendingIntents(ctx)
   const laneConsumedByDir = collectLaneConsumedIntents(ctx)
 
@@ -246,6 +260,7 @@ function assemble (ctx: AssembleContext, selection: Set<string> | undefined): Re
       }))
     }
     applyFixedGroupVersions({ participants, state, newVersions, cumulativeBump, fixedGroups, lanesByDir })
+    applyEpicBandVersions({ participants, state, newVersions, epics, lanesByDir })
   }
 
   for (let changed = true; changed;) {
@@ -271,6 +286,18 @@ function assemble (ctx: AssembleContext, selection: Set<string> | undefined): Re
       if (groupBump == null) continue
       for (const dir of group) {
         if (bumpAtLeast(dir, groupBump, 'fixed')) {
+          changed = true
+        }
+      }
+    }
+
+    // When the lead crosses to a new stable major, every member re-bases to
+    // the band floor. Seed a release for each so the override in
+    // applyEpicBandVersions has a version to replace and dependents propagate.
+    for (const epic of epics) {
+      if (epicRebaseFloor(epic, participants, newVersions) == null) continue
+      for (const memberDir of epic.memberDirs) {
+        if (bumpAtLeast(memberDir, 'major', 'epic')) {
           changed = true
         }
       }
@@ -463,6 +490,115 @@ function validateFixedGroupLanes (
         'VERSIONING_CONFLICTING_CONFIG',
         `The fixed group [${(versioning?.fixed ?? [])[index].join(', ')}] mixes packages on different lanes. A fixed group must move between lanes together.`
       )
+    }
+  }
+}
+
+/**
+ * Resolves each configured epic to its lead directory and the set of member
+ * directories its selectors match. The lead — a single named package with a
+ * semver version — is excluded from its own membership; a selector matching
+ * it is a no-op. Membership selectors match name globs, `./`-prefixed
+ * directory globs, and `!`-prefixed negations.
+ */
+function resolveEpics (
+  refs: ProjectRefIndex,
+  participants: Map<string, Participant>,
+  versioning?: VersioningSettings
+): ResolvedEpic[] {
+  return (versioning?.epics ?? []).map((epic) => {
+    const leadDir = resolveConfigRef(refs, epic.lead, 'versioning.epics lead')[0]
+    if (leadDir == null || !participants.has(leadDir)) {
+      throw new PnpmError(
+        'VERSIONING_EPIC_UNKNOWN_LEAD',
+        `versioning.epics lead "${epic.lead}" is not a releasable workspace project (it must be a named package with a semver version).`
+      )
+    }
+    const selectors = epic.packages.map(compileEpicSelector)
+    const memberDirs = new Set<string>()
+    for (const participant of participants.values()) {
+      if (participant.dir === leadDir) continue
+      if (matchesEpicSelectors(selectors, participant.dir, participant.name)) {
+        memberDirs.add(participant.dir)
+      }
+    }
+    return { leadRef: epic.lead, leadDir, memberDirs }
+  })
+}
+
+interface EpicSelector {
+  negated: boolean
+  /** Whether the pattern matches a project's directory rather than its name. */
+  onDir: boolean
+  match: (input: string) => boolean
+}
+
+function compileEpicSelector (selector: string): EpicSelector {
+  const negated = selector.startsWith('!')
+  const body = negated ? selector.slice(1) : selector
+  const onDir = isDirRef(body)
+  return { negated, onDir, match: wildcardMatch(onDir ? normalizeProjectDir(body) : body) }
+}
+
+/** A member matches an epic when a positive selector hits and no negation does. */
+function matchesEpicSelectors (selectors: EpicSelector[], dir: string, name: string): boolean {
+  let included = false
+  let excluded = false
+  for (const selector of selectors) {
+    if (!selector.match(selector.onDir ? dir : name)) continue
+    if (selector.negated) excluded = true
+    else included = true
+  }
+  return included && !excluded
+}
+
+/**
+ * Compiles a selector where `*` matches any run of characters and every other
+ * character is literal, mirroring `@pnpm/config.matcher`'s wildcard semantics
+ * so epic membership globs behave like pnpm's other package selectors.
+ */
+function wildcardMatch (pattern: string): (input: string) => boolean {
+  if (pattern === '*') return () => true
+  let source = '^'
+  for (const character of pattern) {
+    source += character === '*' ? '.*' : character.replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+  }
+  source += '$'
+  const regexp = new RegExp(source)
+  return (input) => regexp.test(input)
+}
+
+/**
+ * Rejects epic configurations that cannot be attributed unambiguously: a
+ * package matched by two epics, and a fixed group that straddles an epic
+ * boundary (a group must sit entirely inside or entirely outside an epic, so
+ * its members never disagree on whether they are band-constrained).
+ */
+function validateEpics (epics: ResolvedEpic[], fixedGroups: string[][]): void {
+  const epicOfMember = new Map<string, string>()
+  for (const epic of epics) {
+    for (const memberDir of epic.memberDirs) {
+      const other = epicOfMember.get(memberDir)
+      if (other != null && other !== epic.leadRef) {
+        throw new PnpmError(
+          'VERSIONING_EPIC_OVERLAP',
+          `Package ./${memberDir} is matched by two epics (leads "${other}" and "${epic.leadRef}"). A package can belong to at most one epic.`
+        )
+      }
+      epicOfMember.set(memberDir, epic.leadRef)
+    }
+  }
+
+  for (const epic of epics) {
+    for (const group of fixedGroups) {
+      if (!group.some((dir) => epic.memberDirs.has(dir))) continue
+      const outsiders = group.filter((dir) => !epic.memberDirs.has(dir))
+      if (outsiders.length > 0) {
+        throw new PnpmError(
+          'VERSIONING_EPIC_FIXED_GROUP_CONFLICT',
+          `A fixed group straddles the epic led by "${epic.leadRef}": it mixes epic members with outside package(s) ${outsiders.map((dir) => `./${dir}`).join(', ')}. A fixed group must sit entirely inside or entirely outside an epic.`
+        )
+      }
     }
   }
 }
@@ -666,6 +802,56 @@ function applyFixedGroupVersions ({ participants, state, newVersions, cumulative
       if (state.has(dir)) {
         newVersions.set(dir, sharedVersion)
       }
+    }
+  }
+}
+
+/**
+ * The band floor (`newMajor × 100`) an epic re-bases its members to, or null
+ * when no re-base is due. A re-base fires only when the lead releases to a
+ * new, higher *stable* major in this plan; a prerelease lead version (the lead
+ * on a lane) defers the re-base until its stable release.
+ */
+function epicRebaseFloor (
+  epic: ResolvedEpic,
+  participants: Map<string, Participant>,
+  newVersions: Map<string, string>
+): number | null {
+  const lead = participants.get(epic.leadDir)
+  const newLeadVersion = newVersions.get(epic.leadDir)
+  if (lead == null || newLeadVersion == null || parsePrerelease(newLeadVersion) != null) return null
+  const newMajor = Number(newLeadVersion.split('.')[0])
+  const currentMajor = Number(lead.currentVersion.split('.')[0])
+  return newMajor > currentMajor ? newMajor * 100 : null
+}
+
+interface ApplyEpicBandVersionsOptions {
+  participants: Map<string, Participant>
+  state: Map<string, BumpState>
+  newVersions: Map<string, string>
+  epics: ResolvedEpic[]
+  lanesByDir: Map<string, string>
+}
+
+/**
+ * Overrides the computed version of every bumped epic member with the band
+ * floor when its lead crosses to a new stable major. A member on a lane
+ * re-bases to a prerelease of the floor; every other member to `floor.0.0`.
+ */
+function applyEpicBandVersions ({ participants, state, newVersions, epics, lanesByDir }: ApplyEpicBandVersionsOptions): void {
+  for (const epic of epics) {
+    const floor = epicRebaseFloor(epic, participants, newVersions)
+    if (floor == null) continue
+    const target = `${floor}.0.0`
+    for (const memberDir of epic.memberDirs) {
+      if (!state.has(memberDir)) continue
+      const laneTag = lanesByDir.get(memberDir)
+      newVersions.set(
+        memberDir,
+        laneTag == null
+          ? target
+          : `${target}-${laneTag}.${nextPrereleaseNumber(participants.get(memberDir)!.currentVersion, target, laneTag)}`
+      )
     }
   }
 }

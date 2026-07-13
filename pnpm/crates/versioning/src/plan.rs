@@ -45,11 +45,13 @@ pub enum DependencyField {
 }
 
 /// Causes are reported sorted by name, matching the TypeScript plan output:
-/// `dependencies < fixed < intent`.
+/// `dependencies < epic < fixed < intent`.
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ReleaseCause {
     #[display("dependencies")]
     Dependencies,
+    #[display("epic")]
+    Epic,
     #[display("fixed")]
     Fixed,
     #[display("intent")]
@@ -172,6 +174,8 @@ pub fn assemble_release_plan(
     let lanes_by_dir = resolve_lanes(&refs, versioning)?;
     let fixed_groups = resolve_fixed_groups(&refs, &participants, versioning)?;
     validate_fixed_group_lanes(&fixed_groups, &lanes_by_dir, versioning)?;
+    let epics = resolve_epics(&refs, &participants, versioning)?;
+    validate_epics(&epics, &fixed_groups)?;
     let intent_bumps = resolve_intents(intents, &refs, &participants)?;
     if opts.enforce_workspace_protocol {
         assert_internal_deps_use_workspace_protocol(&participants)?;
@@ -182,6 +186,7 @@ pub fn assemble_release_plan(
         participants: &participants,
         lanes_by_dir: &lanes_by_dir,
         fixed_groups: &fixed_groups,
+        epics: &epics,
         intent_bumps: &intent_bumps,
         consumption: &consumption,
         intents,
@@ -224,10 +229,20 @@ struct BumpState {
     dependency_updates: BTreeMap<String, String>,
 }
 
+/// An epic resolved against the workspace: the lead's directory and the
+/// directories of its member packages. The lead is never a member of its own
+/// band.
+struct ResolvedEpic {
+    lead_ref: String,
+    lead_dir: String,
+    member_dirs: HashSet<String>,
+}
+
 struct AssembleContext<'a> {
     participants: &'a BTreeMap<String, Participant<'a>>,
     lanes_by_dir: &'a BTreeMap<String, String>,
     fixed_groups: &'a [Vec<String>],
+    epics: &'a [ResolvedEpic],
     /// Per intent id: the participant dirs it releases and their bump types.
     intent_bumps: &'a HashMap<String, BTreeMap<String, IntentBumpType>>,
     consumption: &'a HashMap<String, PackageConsumption>,
@@ -315,6 +330,13 @@ fn assemble(
                 ctx.fixed_groups,
                 ctx.lanes_by_dir,
             );
+            apply_epic_band_versions(
+                participants,
+                state,
+                new_versions,
+                ctx.epics,
+                ctx.lanes_by_dir,
+            );
         };
 
     let mut changed = true;
@@ -370,6 +392,22 @@ fn assemble(
             };
             for dir in group {
                 if bump_at_least(&mut state, dir, group_bump, ReleaseCause::Fixed) {
+                    changed = true;
+                }
+            }
+        }
+
+        // When the lead crosses to a new stable major, every member re-bases
+        // to the band floor. Seed a release for each so the override in
+        // apply_epic_band_versions has a version to replace and dependents
+        // propagate.
+        for epic in ctx.epics {
+            if epic_rebase_floor(epic, participants, &new_versions).is_none() {
+                continue;
+            }
+            for member_dir in &epic.member_dirs {
+                if bump_at_least(&mut state, member_dir, ReleaseBumpType::Major, ReleaseCause::Epic)
+                {
                     changed = true;
                 }
             }
@@ -660,6 +698,149 @@ fn validate_fixed_group_lanes(
     Ok(())
 }
 
+/// Resolves each configured epic to its lead directory and the set of member
+/// directories its selectors match. The lead — a single named package with a
+/// semver version — is excluded from its own membership. Membership selectors
+/// match name globs, `./`-prefixed directory globs, and `!`-prefixed negations.
+fn resolve_epics(
+    refs: &ProjectRefIndex,
+    participants: &BTreeMap<String, Participant<'_>>,
+    versioning: Option<&VersioningSettings>,
+) -> Result<Vec<ResolvedEpic>, VersioningError> {
+    let mut epics = Vec::new();
+    for epic in versioning.map(|settings| settings.epics.as_slice()).unwrap_or_default() {
+        let lead_dir = resolve_config_ref(refs, &epic.lead, "versioning.epics lead")?
+            .into_iter()
+            .next()
+            .filter(|dir| participants.contains_key(dir))
+            .ok_or_else(|| VersioningError::EpicUnknownLead { lead: epic.lead.clone() })?;
+        let selectors: Vec<EpicSelector> =
+            epic.packages.iter().map(|selector| compile_epic_selector(selector)).collect();
+        let mut member_dirs = HashSet::new();
+        for participant in participants.values() {
+            if participant.dir == lead_dir {
+                continue;
+            }
+            if matches_epic_selectors(&selectors, &participant.dir, participant.name) {
+                member_dirs.insert(participant.dir.clone());
+            }
+        }
+        epics.push(ResolvedEpic { lead_ref: epic.lead.clone(), lead_dir, member_dirs });
+    }
+    Ok(epics)
+}
+
+struct EpicSelector {
+    negated: bool,
+    /// Whether the pattern matches a project's directory rather than its name.
+    on_dir: bool,
+    pattern: String,
+}
+
+fn compile_epic_selector(selector: &str) -> EpicSelector {
+    let (negated, body) = match selector.strip_prefix('!') {
+        Some(rest) => (true, rest),
+        None => (false, selector),
+    };
+    let on_dir = is_dir_ref(body);
+    let pattern = if on_dir { normalize_project_dir(body) } else { body.to_string() };
+    EpicSelector { negated, on_dir, pattern }
+}
+
+/// A member matches an epic when a positive selector hits and no negation does.
+fn matches_epic_selectors(selectors: &[EpicSelector], dir: &str, name: &str) -> bool {
+    let mut included = false;
+    let mut excluded = false;
+    for selector in selectors {
+        let input = if selector.on_dir { dir } else { name };
+        if !wildcard_match(&selector.pattern, input) {
+            continue;
+        }
+        if selector.negated {
+            excluded = true;
+        } else {
+            included = true;
+        }
+    }
+    included && !excluded
+}
+
+/// Matches `input` against a pattern where `*` matches any run of characters
+/// and every other character is literal, mirroring `@pnpm/config.matcher`'s
+/// wildcard semantics so epic membership globs behave like the TypeScript
+/// engine's.
+fn wildcard_match(pattern: &str, input: &str) -> bool {
+    let pattern: Vec<char> = pattern.chars().collect();
+    let input: Vec<char> = input.chars().collect();
+    let (mut p, mut s) = (0usize, 0usize);
+    let (mut star, mut mark) = (None, 0usize);
+    while s < input.len() {
+        if pattern.get(p) == Some(&'*') {
+            star = Some(p);
+            mark = s;
+            p += 1;
+        } else if pattern.get(p) == Some(&input[s]) {
+            p += 1;
+            s += 1;
+        } else if let Some(star_p) = star {
+            p = star_p + 1;
+            mark += 1;
+            s = mark;
+        } else {
+            return false;
+        }
+    }
+    while pattern.get(p) == Some(&'*') {
+        p += 1;
+    }
+    p == pattern.len()
+}
+
+/// Rejects epic configurations that cannot be attributed unambiguously: a
+/// package matched by two epics, and a fixed group that straddles an epic
+/// boundary (a group must sit entirely inside or entirely outside an epic, so
+/// its members never disagree on whether they are band-constrained).
+fn validate_epics(
+    epics: &[ResolvedEpic],
+    fixed_groups: &[Vec<String>],
+) -> Result<(), VersioningError> {
+    let mut epic_of_member: HashMap<&str, &str> = HashMap::new();
+    for epic in epics {
+        for member_dir in &epic.member_dirs {
+            if let Some(other) = epic_of_member.get(member_dir.as_str())
+                && *other != epic.lead_ref
+            {
+                return Err(VersioningError::EpicOverlap {
+                    member_dir: member_dir.clone(),
+                    first_lead: (*other).to_string(),
+                    second_lead: epic.lead_ref.clone(),
+                });
+            }
+            epic_of_member.insert(member_dir.as_str(), &epic.lead_ref);
+        }
+    }
+
+    for epic in epics {
+        for group in fixed_groups {
+            if !group.iter().any(|dir| epic.member_dirs.contains(dir)) {
+                continue;
+            }
+            let outsiders: Vec<String> = group
+                .iter()
+                .filter(|dir| !epic.member_dirs.contains(*dir))
+                .map(|dir| format!("./{dir}"))
+                .collect();
+            if !outsiders.is_empty() {
+                return Err(VersioningError::EpicFixedGroupConflict {
+                    lead: epic.lead_ref.clone(),
+                    outsiders: outsiders.join(", "),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Resolves every intent's package references to participant directories,
 /// validating along the way: unknown references and names matching several
 /// projects are hard errors, and a release can only be demanded from a
@@ -929,6 +1110,57 @@ fn apply_fixed_group_versions(
             if state.contains_key(dir) {
                 new_versions.insert(dir.clone(), shared_version.clone());
             }
+        }
+    }
+}
+
+/// The band floor (`new_major × 100`) an epic re-bases its members to, or
+/// `None` when no re-base is due. A re-base fires only when the lead releases
+/// to a new, higher *stable* major in this plan; a prerelease lead version
+/// (the lead on a lane) defers the re-base until its stable release.
+fn epic_rebase_floor(
+    epic: &ResolvedEpic,
+    participants: &BTreeMap<String, Participant<'_>>,
+    new_versions: &BTreeMap<String, String>,
+) -> Option<u64> {
+    let lead = participants.get(epic.lead_dir.as_str())?;
+    let new_lead = Version::parse(new_versions.get(&epic.lead_dir)?).ok()?;
+    if !new_lead.pre_release.is_empty() {
+        return None;
+    }
+    let current_major = Version::parse(lead.current_version).ok()?.major;
+    (new_lead.major > current_major).then_some(new_lead.major * 100)
+}
+
+/// Overrides the computed version of every bumped epic member with the band
+/// floor when its lead crosses to a new stable major. A member on a lane
+/// re-bases to a prerelease of the floor; every other member to `floor.0.0`.
+fn apply_epic_band_versions(
+    participants: &BTreeMap<String, Participant<'_>>,
+    state: &BTreeMap<String, BumpState>,
+    new_versions: &mut BTreeMap<String, String>,
+    epics: &[ResolvedEpic],
+    lanes_by_dir: &BTreeMap<String, String>,
+) {
+    for epic in epics {
+        let Some(floor) = epic_rebase_floor(epic, participants, new_versions) else {
+            continue;
+        };
+        let target = format!("{floor}.0.0");
+        for member_dir in &epic.member_dirs {
+            if !state.contains_key(member_dir) {
+                continue;
+            }
+            let version = match lanes_by_dir.get(member_dir) {
+                None => target.clone(),
+                Some(lane_tag) => {
+                    let current = Version::parse(participants[member_dir.as_str()].current_version)
+                        .expect("participants have valid versions");
+                    let next_n = next_prerelease_number(&current, &target, lane_tag);
+                    format!("{target}-{lane_tag}.{next_n}")
+                }
+            };
+            new_versions.insert(member_dir.clone(), version);
         }
     }
 }

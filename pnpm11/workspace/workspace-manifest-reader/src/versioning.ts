@@ -23,6 +23,21 @@ export function assertValidWorkspaceManifestVersioning (manifest: { packages?: r
     }
   }
 
+  if (versioning.epics != null) {
+    if (!Array.isArray(versioning.epics)) {
+      throw new InvalidWorkspaceManifestError(`Expected versioning.epics to be an array, but found - ${typeof versioning.epics}`)
+    }
+    for (const epic of versioning.epics) {
+      const entry = assertPlainObject(epic, 'versioning.epics entry')
+      if (typeof entry.lead !== 'string' || entry.lead === '') {
+        throw new InvalidWorkspaceManifestError('Expected every versioning.epics entry to have a non-empty "lead" package reference')
+      }
+      if (!Array.isArray(entry.packages) || entry.packages.length === 0 || entry.packages.some((selector) => typeof selector !== 'string' || selector === '')) {
+        throw new InvalidWorkspaceManifestError(`Expected versioning.epics entry for "${entry.lead}" to have a non-empty "packages" array of selector strings`)
+      }
+    }
+  }
+
   if (versioning.ignore != null) {
     if (!Array.isArray(versioning.ignore) || versioning.ignore.some((name) => typeof name !== 'string' || name === '')) {
       throw new InvalidWorkspaceManifestError('Expected versioning.ignore to be an array of package names')

@@ -74,6 +74,24 @@ pub enum VersioningError {
     DuplicateRelease { identity: String, first_dir: String, second_dir: String },
 
     #[display(
+        "versioning.epics lead \"{lead}\" is not a releasable workspace project (it must be a named package with a semver version)."
+    )]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_EPIC_UNKNOWN_LEAD))]
+    EpicUnknownLead { lead: String },
+
+    #[display(
+        "Package ./{member_dir} is matched by two epics (leads \"{first_lead}\" and \"{second_lead}\"). A package can belong to at most one epic."
+    )]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_EPIC_OVERLAP))]
+    EpicOverlap { member_dir: String, first_lead: String, second_lead: String },
+
+    #[display(
+        "A fixed group straddles the epic led by \"{lead}\": it mixes epic members with outside package(s) {outsiders}. A fixed group must sit entirely inside or entirely outside an epic."
+    )]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_EPIC_FIXED_GROUP_CONFLICT))]
+    EpicFixedGroupConflict { lead: String, outsiders: String },
+
+    #[display(
         "The release plan bumps {pkg_name} by {bump_type}, but versioning.maxBump caps releases from this branch at {max_bump}. Raised by {raised_by}."
     )]
     #[diagnostic(code(ERR_PNPM_VERSIONING_MAX_BUMP_EXCEEDED))]
