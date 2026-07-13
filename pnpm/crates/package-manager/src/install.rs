@@ -1444,6 +1444,7 @@ where
                 supported_architectures: supported_architectures.as_ref(),
                 lockfile_only: resolve_only,
                 dry_run,
+                is_full_install,
                 update_seed_policy,
                 auth_override,
                 resolution_observer,
