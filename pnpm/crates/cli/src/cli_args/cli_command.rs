@@ -55,11 +55,14 @@ use super::{
     set_script::SetScriptArgs,
     setup::SetupArgs,
     stage::StageArgs,
+    star::StarArgs,
+    stars::StarsArgs,
     stop::StopArgs,
     store::StoreCommand,
     team::TeamArgs,
     undeprecate::UndeprecateArgs,
     unlink::UnlinkArgs,
+    unstar::UnstarArgs,
     update::UpdateArgs,
     version::VersionArgs,
     why::WhyArgs,
@@ -320,6 +323,12 @@ pub enum CliCommand {
     Deprecate(DeprecateArgs),
     /// Removes deprecation from a version of a package in the registry. Only works on already deprecated versions.
     Undeprecate(UndeprecateArgs),
+    /// Marks a package as a favorite.
+    Star(StarArgs),
+    /// Unmarks a package as a favorite.
+    Unstar(UnstarArgs),
+    /// Lists all packages starred by a specific user.
+    Stars(StarsArgs),
     /// Manage a package's distribution tags.
     #[clap(name = "dist-tag", visible_alias = "dist-tags")]
     DistTag(DistTagArgs),
@@ -456,6 +465,9 @@ impl CliCommand {
     pub(crate) fn default_reporter_summary_scope(&self) -> SummaryScope {
         match self {
             CliCommand::Access(_) => SummaryScope::CurrentPrefix,
+            CliCommand::Star(_) | CliCommand::Stars(_) | CliCommand::Unstar(_) => {
+                SummaryScope::CurrentPrefix
+            }
             CliCommand::Add(args) if args.global => SummaryScope::AllPrefixes,
             CliCommand::Remove(args) if args.global => SummaryScope::AllPrefixes,
             CliCommand::Runtime(args) if args.global => SummaryScope::AllPrefixes,

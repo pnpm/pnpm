@@ -107,6 +107,7 @@ fn error_action_follows_the_dependency_state() {
     )
     .expect("parse package.json");
     manifest["dependencies"] = json!({ "@pnpm.e2e/foo": "100.0.0" });
+    std::thread::sleep(std::time::Duration::from_millis(10));
     fs::write(workspace.join("package.json"), manifest.to_string())
         .expect("write modified package.json");
     let output = pacquet_in(&workspace)
