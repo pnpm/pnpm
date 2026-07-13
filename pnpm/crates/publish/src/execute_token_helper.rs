@@ -1,14 +1,13 @@
 //! run a configured `tokenHelper` command and
 //! return the auth token it prints.
 //!
-//! Not yet wired into the publish auth path. Upstream resolves the publish
-//! `Authorization` per-command (`extractToken`: static `_authToken`, else this
-//! helper). Pacquet instead reuses the shared, pre-resolved
-//! [`AuthHeaders`](pacquet_network::AuthHeaders) map, which carries finished
-//! header strings and no `tokenHelper` slot. Surfacing per-registry
-//! `tokenHelper` credentials so this helper can feed the publish PUT is a
-//! config/network-layer change tracked in `plans/TEST_PORTING.md`; until then a
-//! `tokenHelper`-only registry is unauthenticated on publish.
+//! The publish PUT now authenticates through the shared
+//! [`AuthHeaders`](pacquet_network::AuthHeaders) map, which carries an
+//! un-executed `tokenHelper` command per registry and runs it lazily on
+//! lookup (see `pacquet_network::token_helper`) — so a `tokenHelper`-only
+//! registry is authenticated on publish without this helper. This
+//! function is retained for the publish-specific path that needs the bare
+//! token (no `Bearer` scheme) rather than a finished header value.
 
 use std::io;
 

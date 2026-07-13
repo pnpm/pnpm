@@ -1092,6 +1092,87 @@ pub fn auth_ini_without_registry_falls_back_to_npmjs_default() {
     assert_eq!(config.auth_headers.for_url("https://trusted.example.com/pkg"), None);
 }
 
+/// A `tokenHelper` set in the global pnpm `auth.ini` (a trusted, non-repo
+/// source) is honored: its command runs lazily on lookup and its stdout
+/// becomes the `Authorization` header. `/bin/echo` is a real binary, so
+/// this exercises the whole path end to end (Unix only).
+#[cfg(unix)]
+#[test]
+pub fn token_helper_in_global_auth_ini_is_honored() {
+    let project = tempdir().expect("project tempdir");
+    let config_home = tempdir().expect("config-home tempdir");
+    let pnpm_dir = config_home.path().join("pnpm");
+    fs::create_dir_all(&pnpm_dir).expect("create pnpm config dir");
+    write_file(
+        &pnpm_dir.join("auth.ini"),
+        "//registry.example.com/:tokenHelper=/bin/echo s3cr3t\n",
+    );
+
+    set_fake_env(&[("XDG_CONFIG_HOME", config_home.path().to_str().unwrap())]);
+    let config =
+        Config::default().current::<FakeEnv>(project.path()).expect("load config with tokenHelper");
+
+    assert_eq!(
+        config.auth_headers.for_url("https://registry.example.com/pkg").as_deref(),
+        Some("Bearer s3cr3t"),
+    );
+}
+
+/// A `tokenHelper` in a project `.npmrc` is rejected: a checked-in
+/// `.npmrc` must not be able to run an arbitrary command.
+#[test]
+pub fn token_helper_in_project_npmrc_is_rejected() {
+    let project = tempdir().expect("project tempdir");
+    write_file(
+        &project.path().join(".npmrc"),
+        "//registry.example.com/:tokenHelper=/bin/echo s3cr3t\n",
+    );
+
+    set_fake_env(&[]);
+    let error = Config::default()
+        .current::<FakeEnv>(project.path())
+        .expect_err("project tokenHelper must be rejected");
+    assert!(
+        matches!(error, LoadWorkspaceYamlError::TokenHelperInProjectConfig { .. }),
+        "got {error:?}",
+    );
+}
+
+/// A trusted `tokenHelper` carrying a reserved character (here `$`, which
+/// pnpm reserves for future interpolation) is rejected at config load.
+#[test]
+pub fn token_helper_with_reserved_character_is_rejected() {
+    let project = tempdir().expect("project tempdir");
+    let config_home = tempdir().expect("config-home tempdir");
+    let pnpm_dir = config_home.path().join("pnpm");
+    fs::create_dir_all(&pnpm_dir).expect("create pnpm config dir");
+    write_file(&pnpm_dir.join("auth.ini"), "//registry.example.com/:tokenHelper=echo $SECRET\n");
+
+    set_fake_env(&[("XDG_CONFIG_HOME", config_home.path().to_str().unwrap())]);
+    let error = Config::default()
+        .current::<FakeEnv>(project.path())
+        .expect_err("reserved character must be rejected");
+    assert!(
+        matches!(error, LoadWorkspaceYamlError::TokenHelperUnsupportedCharacter { character: '$' }),
+        "got {error:?}",
+    );
+}
+
+/// A `tokenHelper` supplied through a URL-scoped environment variable is
+/// dropped, not honored: the environment layer must never run an arbitrary
+/// command. Mirrors pnpm dropping `//host/:tokenHelper` env vars.
+#[test]
+pub fn token_helper_from_url_scoped_env_is_not_honored() {
+    let project = tempdir().expect("project tempdir");
+
+    set_fake_env(&[("npm_config_//registry.example.com/:tokenHelper", "/bin/echo s3cr3t")]);
+    let config = Config::default()
+        .current::<FakeEnv>(project.path())
+        .expect("env tokenHelper is dropped, not an error");
+
+    assert_eq!(config.auth_headers.for_url("https://registry.example.com/pkg"), None);
+}
+
 /// `default_store_dir`'s `PNPM_HOME` branch, exercised through the
 /// generic capability seam — no process-environment mutation, no
 /// `EnvGuard` lock, no `unsafe` block. With the DI seam from

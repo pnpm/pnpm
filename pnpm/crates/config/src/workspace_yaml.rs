@@ -547,6 +547,28 @@ pub enum LoadWorkspaceYamlError {
         #[error(source)]
         source: serde_json::Error,
     },
+    /// A `tokenHelper` was configured in a workspace or project `.npmrc`.
+    /// It names an executable, so it is only honored from a trusted,
+    /// non-repo source (`~/.npmrc` or the global `auth.ini`); a
+    /// checked-in `.npmrc` must not be able to run an arbitrary command.
+    #[display("tokenHelper must not be configured in project-level .npmrc")]
+    #[diagnostic(
+        code(ERR_PNPM_TOKEN_HELPER_IN_PROJECT_CONFIG),
+        help(
+            "The key {key:?} was found in project config. Move it to ~/.npmrc or the global pnpm auth.ini."
+        )
+    )]
+    TokenHelperInProjectConfig { key: String },
+    /// A honored `tokenHelper` value contained a character pnpm reserves
+    /// for future quoting / interpolation support.
+    #[display("Unexpected character {character:?} in tokenHelper")]
+    #[diagnostic(
+        code(ERR_PNPM_TOKEN_HELPER_UNSUPPORTED_CHARACTER),
+        help(
+            "Try wrapping the current command in a script whose name does not contain unsupported characters."
+        )
+    )]
+    TokenHelperUnsupportedCharacter { character: char },
 }
 
 impl WorkspaceSettings {

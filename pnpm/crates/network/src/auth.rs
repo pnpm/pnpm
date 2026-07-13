@@ -15,10 +15,11 @@
 //! its own subdomain or path, place a key at that host or prefix in
 //! `.npmrc`; if it redirects across hosts, no header is attached.
 
+use crate::token_helper::{TokenHelperRunner, execute_token_helper, run_token_helper_command};
 use std::{
     collections::{BTreeMap, HashMap},
     fmt,
-    sync::Arc,
+    sync::{Arc, Mutex, OnceLock},
 };
 
 pub const DEFAULT_REGISTRY_SCOPE: &str = "@";
@@ -89,16 +90,23 @@ pub enum MetadataCacheScope {
 /// Construct via [`AuthHeaders::from_parts`], [`AuthHeaders::from_creds_map`],
 /// [`AuthHeaders::from_map`], or [`AuthHeaders::default`] (empty). Look up via
 /// [`AuthHeaders::for_url`].
+/// Memo of resolved `tokenHelper` results keyed by `scope + map key`. Each
+/// entry is a per-key [`OnceLock`] so a resolving subprocess runs without the
+/// shared [`Mutex`] held. See the `resolved_token_helpers` field on
+/// [`AuthHeaders`].
+type TokenHelperCache = Arc<Mutex<HashMap<String, Arc<OnceLock<Option<String>>>>>>;
+
 #[derive(Default, Clone)]
 pub struct AuthHeaders {
-    /// Keys are the nerf-darted form (`//host[:port]/path/`). Values
-    /// are ready-to-send header values like `Bearer abc123` or
-    /// `Basic Zm9vOmJhcg==`.
-    by_uri: HashMap<String, String>,
+    /// Keys are the nerf-darted form (`//host[:port]/path/`). Each value
+    /// is either a ready-to-send header (`Bearer abc123`,
+    /// `Basic Zm9vOmJhcg==`) or an un-executed `tokenHelper` command,
+    /// resolved lazily on lookup (see [`AuthEntry`]).
+    by_uri: HashMap<String, AuthEntry>,
     /// Package-scope credentials keyed as
     /// `scoped_by_scope[scope][registry_uri]`, where `registry_uri` is
     /// the nerf-darted registry URL without the trailing scope segment.
-    scoped_by_scope: HashMap<String, HashMap<String, String>>,
+    scoped_by_scope: HashMap<String, HashMap<String, AuthEntry>>,
     /// The longest key in `by_uri` measured in `/`-separated parts. The
     /// lookup walks from this depth down to 3 (the `//host/` floor).
     max_parts: usize,
@@ -109,6 +117,39 @@ pub struct AuthHeaders {
     /// the client-forwarded credentials above are ignored. See
     /// [`UpstreamRouteHook`].
     route_hook: Option<Arc<dyn UpstreamRouteHook>>,
+    /// Set iff any entry is an [`AuthEntry::TokenHelper`]. Surfaced in the
+    /// [`fmt::Debug`] output (never the values) so a resolve trace shows
+    /// at a glance whether any helper is configured. The lookup hot path
+    /// touches the resolution cache only on a `TokenHelper` match, so a
+    /// map of only baked headers pays nothing regardless.
+    has_token_helpers: bool,
+    /// Memoizes each resolved `tokenHelper`: a helper runs at most once
+    /// per process, keyed by its map key. Each key maps to a per-key
+    /// [`OnceLock`] so the resolving subprocess runs without the shared
+    /// [`Mutex`] held — one slow helper can't block another registry's
+    /// lookup. `Some(header)` on success, `None` on failure (so a failed
+    /// helper is never retried and never falls back to sending a different
+    /// credential). Shared across [`Clone`]s so the memo survives an `Arc`
+    /// unwrap-and-rebuild.
+    resolved_token_helpers: TokenHelperCache,
+    /// Runner used to execute a `tokenHelper`. `None` uses the real
+    /// process spawner; tests inject a fake via
+    /// [`AuthHeaders::with_token_helper_runner`].
+    token_helper_runner: Option<TokenHelperRunner>,
+}
+
+/// One resolved credential slot: either a baked header value or a
+/// `tokenHelper` command still to be executed. Keeping both in the same
+/// map preserves pnpm's single longest-path-prefix lookup — a
+/// `tokenHelper` at `//host/` and a static token at `//host/path/`
+/// compete by prefix length exactly as two static tokens would.
+#[derive(Clone)]
+enum AuthEntry {
+    /// A ready-to-send `Authorization` header value.
+    Header(String),
+    /// A `[program, ...args]` command, executed lazily to a `Bearer …`
+    /// (or scheme-carrying) header on first matching lookup.
+    TokenHelper(Vec<String>),
 }
 
 impl fmt::Debug for AuthHeaders {
@@ -119,6 +160,7 @@ impl fmt::Debug for AuthHeaders {
         f.debug_struct("AuthHeaders")
             .field("by_uri", &self.by_uri.len())
             .field("scoped_by_scope", &self.scoped_by_scope.len())
+            .field("has_token_helpers", &self.has_token_helpers)
             .field("route_hook", &self.route_hook.is_some())
             .finish_non_exhaustive()
     }
@@ -189,14 +231,63 @@ impl AuthHeaders {
         by_uri: HashMap<String, String>,
         scoped_by_uri: HashMap<String, HashMap<String, String>>,
     ) -> Self {
-        let by_uri: HashMap<String, String> =
-            by_uri.into_iter().map(|(uri, value)| (normalize_auth_key(uri), value)).collect();
-        let mut scoped_by_scope: HashMap<String, HashMap<String, String>> = HashMap::new();
-        let mut max_scoped_parts_by_scope: HashMap<String, usize> = HashMap::new();
+        Self::from_parts_with_token_helpers(by_uri, scoped_by_uri, HashMap::new(), HashMap::new())
+    }
+
+    /// Build an [`AuthHeaders`] from baked header maps plus un-executed
+    /// `tokenHelper` command maps. A `tokenHelper` at a given key wins
+    /// over a baked header at the same key (pnpm resolves `tokenHelper`
+    /// before a static token). The helper commands are run lazily on
+    /// lookup.
+    #[must_use]
+    pub fn from_parts_with_token_helpers(
+        by_uri: HashMap<String, String>,
+        scoped_by_uri: HashMap<String, HashMap<String, String>>,
+        token_helper_by_uri: HashMap<String, Vec<String>>,
+        token_helper_scoped_by_uri: HashMap<String, HashMap<String, Vec<String>>>,
+    ) -> Self {
+        let mut by_uri_entries: HashMap<String, AuthEntry> = by_uri
+            .into_iter()
+            .map(|(uri, value)| (normalize_auth_key(uri), AuthEntry::Header(value)))
+            .collect();
+        for (uri, command) in token_helper_by_uri {
+            by_uri_entries.insert(normalize_auth_key(uri), AuthEntry::TokenHelper(command));
+        }
+
+        let mut scoped_entries: HashMap<String, HashMap<String, AuthEntry>> = HashMap::new();
         for (uri, scoped) in scoped_by_uri {
             let uri = normalize_auth_key(uri);
+            let entry = scoped_entries.entry(uri).or_default();
+            for (scope, value) in scoped {
+                entry.insert(scope, AuthEntry::Header(value));
+            }
+        }
+        for (uri, scoped) in token_helper_scoped_by_uri {
+            let uri = normalize_auth_key(uri);
+            let entry = scoped_entries.entry(uri).or_default();
+            for (scope, command) in scoped {
+                entry.insert(scope, AuthEntry::TokenHelper(command));
+            }
+        }
+
+        Self::from_entry_parts(by_uri_entries, scoped_entries)
+    }
+
+    /// Assemble the lookup indices from already-wrapped [`AuthEntry`]
+    /// maps: the per-scope longest-key counts, the top-level
+    /// `max_parts`, and the `has_token_helpers` gate.
+    fn from_entry_parts(
+        by_uri: HashMap<String, AuthEntry>,
+        scoped_by_uri: HashMap<String, HashMap<String, AuthEntry>>,
+    ) -> Self {
+        let mut scoped_by_scope: HashMap<String, HashMap<String, AuthEntry>> = HashMap::new();
+        let mut max_scoped_parts_by_scope: HashMap<String, usize> = HashMap::new();
+        let mut has_token_helpers =
+            by_uri.values().any(|entry| matches!(entry, AuthEntry::TokenHelper(_)));
+        for (uri, scoped) in scoped_by_uri {
             let parts = uri.split('/').count();
             for (scope, value) in scoped {
+                has_token_helpers |= matches!(value, AuthEntry::TokenHelper(_));
                 max_scoped_parts_by_scope
                     .entry(scope.clone())
                     .and_modify(|max| *max = (*max).max(parts))
@@ -211,7 +302,19 @@ impl AuthHeaders {
             max_parts,
             max_scoped_parts_by_scope,
             route_hook: None,
+            has_token_helpers,
+            resolved_token_helpers: Arc::default(),
+            token_helper_runner: None,
         }
+    }
+
+    /// Override the runner used to execute `tokenHelper` commands. The
+    /// dependency-injection seam for tests: production leaves it unset
+    /// and spawns real processes.
+    #[must_use]
+    pub fn with_token_helper_runner(mut self, runner: TokenHelperRunner) -> Self {
+        self.token_helper_runner = Some(runner);
+        self
     }
 
     /// Build an [`AuthHeaders`] from the structured pnpr wire shape:
@@ -238,19 +341,26 @@ impl AuthHeaders {
     /// this lookup, suitable for forwarding to a pnpr resolver.
     #[must_use]
     pub fn to_by_scope(&self) -> AuthHeadersByScope {
+        // A `tokenHelper` entry has no static string to forward — it would
+        // have to be executed — so it is skipped here. This map feeds the
+        // pnpr wire shape, which carries only resolved header strings.
         let mut result = AuthHeadersByScope::new();
-        for (uri, value) in &self.by_uri {
-            result
-                .entry(uri.clone())
-                .or_default()
-                .insert(DEFAULT_REGISTRY_SCOPE.to_owned(), value.clone());
+        for (uri, entry) in &self.by_uri {
+            if let AuthEntry::Header(value) = entry {
+                result
+                    .entry(uri.clone())
+                    .or_default()
+                    .insert(DEFAULT_REGISTRY_SCOPE.to_owned(), value.clone());
+            }
         }
         for (scope, scoped_by_uri) in &self.scoped_by_scope {
-            for (registry_uri, value) in scoped_by_uri {
-                result
-                    .entry(registry_uri.clone())
-                    .or_default()
-                    .insert(scope.clone(), value.clone());
+            for (registry_uri, entry) in scoped_by_uri {
+                if let AuthEntry::Header(value) = entry {
+                    result
+                        .entry(registry_uri.clone())
+                        .or_default()
+                        .insert(scope.clone(), value.clone());
+                }
             }
         }
         result
@@ -340,28 +450,40 @@ impl AuthHeaders {
         if let Some(basic) = parsed.basic_auth_header() {
             return Some(basic);
         }
+        // Each lookup returns `None` when no key matched (so the walk
+        // falls through to the next candidate) and `Some(_)` when a key
+        // matched — even `Some(None)`, a matched `tokenHelper` that failed
+        // to resolve. A match is final: pnpm's most-specific key owns the
+        // decision, so a failed helper must not fall back to a shorter
+        // prefix or a different scope and send another credential.
         if let Some(scope) = package_scope(pkg_name) {
-            if let Some(value) = self.lookup_scope_by_nerf(&parsed, scope) {
-                return Some(value.to_owned());
+            if let Some(resolved) = self.lookup_scope_by_nerf(&parsed, scope) {
+                return resolved;
             }
             if parsed.port.is_some() {
                 let stripped = parsed.with_port_stripped();
-                if let Some(value) = self.lookup_scope_by_nerf(&stripped, scope) {
-                    return Some(value.to_owned());
+                if let Some(resolved) = self.lookup_scope_by_nerf(&stripped, scope) {
+                    return resolved;
                 }
             }
         }
-        if let Some(value) = self.lookup_by_nerf(&parsed) {
-            return Some(value.to_owned());
+        if let Some(resolved) = self.lookup_by_nerf(&parsed) {
+            return resolved;
         }
         if parsed.port.is_some() {
             let stripped = parsed.with_port_stripped();
-            return self.lookup_by_nerf(&stripped).map(str::to_owned);
+            if let Some(resolved) = self.lookup_by_nerf(&stripped) {
+                return resolved;
+            }
         }
         None
     }
 
-    fn lookup_scope_by_nerf(&self, parsed: &ParsedUrl<'_>, scope: &str) -> Option<&str> {
+    /// Walk package-scope keys for `scope` longest-prefix first. Returns
+    /// `None` when nothing matched and `Some(resolved)` when a key
+    /// matched (the inner `Option` is the resolved header, `None` if a
+    /// matched `tokenHelper` failed).
+    fn lookup_scope_by_nerf(&self, parsed: &ParsedUrl<'_>, scope: &str) -> Option<Option<String>> {
         let scoped_by_uri = self.scoped_by_scope.get(scope)?;
         let max_scoped_parts = self.max_scoped_parts_by_scope.get(scope).copied()?;
         let nerfed = parsed.nerf_dart();
@@ -369,14 +491,14 @@ impl AuthHeaders {
         let upper = parts.len().min(max_scoped_parts);
         for i in (3..upper).rev() {
             let key = format!("{}/", parts[..i].join("/"));
-            if let Some(value) = scoped_by_uri.get(&key) {
-                return Some(value.as_str());
+            if let Some(entry) = scoped_by_uri.get(&key) {
+                return Some(self.resolve_entry(&key, scope, entry));
             }
         }
         None
     }
 
-    fn lookup_by_nerf(&self, parsed: &ParsedUrl<'_>) -> Option<&str> {
+    fn lookup_by_nerf(&self, parsed: &ParsedUrl<'_>) -> Option<Option<String>> {
         if self.by_uri.is_empty() {
             return None;
         }
@@ -393,11 +515,54 @@ impl AuthHeaders {
         // never match.
         for i in (3..upper).rev() {
             let key = format!("{}/", parts[..i].join("/"));
-            if let Some(value) = self.by_uri.get(&key) {
-                return Some(value.as_str());
+            if let Some(entry) = self.by_uri.get(&key) {
+                return Some(self.resolve_entry(&key, DEFAULT_REGISTRY_SCOPE, entry));
             }
         }
         None
+    }
+
+    /// Resolve a matched [`AuthEntry`] to a header value. A baked header
+    /// is cloned; a `tokenHelper` is executed once and memoized (keyed by
+    /// `scope` + map key so the same command at two registries still runs
+    /// per registry). A helper failure logs and yields `None` — pacquet
+    /// never sends a wrong, partial, or stale credential.
+    fn resolve_entry(&self, key: &str, scope: &str, entry: &AuthEntry) -> Option<String> {
+        match entry {
+            AuthEntry::Header(value) => Some(value.clone()),
+            AuthEntry::TokenHelper(command) => {
+                let cache_key = format!("{scope}\u{0}{key}");
+                // Take the per-key cell out under the global lock, then
+                // release it *before* running the helper. Holding the lock
+                // across the (up to `TOKEN_HELPER_TIMEOUT`) subprocess would
+                // block every other registry's lookup on one slow helper.
+                // `OnceLock` still serializes concurrent first-lookups of the
+                // *same* key, so the command runs at most once.
+                let cell = {
+                    let mut cache = self
+                        .resolved_token_helpers
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    Arc::clone(cache.entry(cache_key).or_default())
+                };
+                cell.get_or_init(|| {
+                    let runner = self.token_helper_runner.unwrap_or(run_token_helper_command);
+                    match execute_token_helper(command, runner) {
+                        Ok(header) => Some(header),
+                        Err(error) => {
+                            let program = command.first().map_or("", String::as_str);
+                            tracing::error!(
+                                target: "pacquet::auth",
+                                "token helper {program:?} failed; the request will be sent \
+                                 without authentication: {error}",
+                            );
+                            None
+                        }
+                    }
+                })
+                .clone()
+            }
+        }
     }
 }
 

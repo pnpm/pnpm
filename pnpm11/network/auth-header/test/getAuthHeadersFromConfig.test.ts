@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { describe, expect, it } from '@jest/globals'
 
-import { getAuthHeadersByScope, getAuthHeadersFromCreds } from '../src/getAuthHeadersFromConfig.js'
+import { executeTokenHelper, getAuthHeadersByScope, getAuthHeadersFromCreds } from '../src/getAuthHeadersFromConfig.js'
 
 const osTokenHelper = {
   linux: path.join(import.meta.dirname, 'utils/test-exec.js'),
@@ -84,6 +84,12 @@ describe('getAuthHeadersFromCreds()', () => {
     expect(() => getAuthHeadersFromCreds({
       '//reg.com/': { '@': { tokenHelper: [osEmptyTokenHelper[osFamily]] } },
     })).toThrow('returned an empty token')
+  })
+  it('should throw an error if the token helper exceeds the timeout', () => {
+    // A helper that sleeps far longer than the (short, test-supplied) timeout
+    // is killed. `process.execPath` keeps this cross-platform without a fixture.
+    expect(() => executeTokenHelper([process.execPath, '-e', 'setTimeout(() => {}, 30000)'], 500))
+      .toThrow('timed out')
   })
   it('should return empty object when no auth infos', () => {
     const result = getAuthHeadersFromCreds({})

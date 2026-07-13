@@ -364,12 +364,14 @@ export async function getConfig (opts: {
   )
   pnpmConfig.configByUri = { ...networkConfigs.configByUri }
 
-  // tokenHelper must only come from user-level config (~/.npmrc or global auth.ini),
-  // not project-level, to prevent project .npmrc from executing arbitrary commands.
-  const userConfig = npmrcResult.userConfig as Record<string, string>
+  // tokenHelper names an executable pnpm runs, so it must only come from trusted,
+  // non-repo config sources (~/.npmrc and the global auth.ini) — never from a
+  // workspace or project .npmrc, which could otherwise execute arbitrary commands.
+  // trustedConfig merges exactly those trusted sources and excludes the repo ones.
+  const trustedConfig = npmrcResult.trustedConfig as Record<string, string>
   for (const [key, value] of Object.entries(pnpmConfig.authConfig)) {
     if (!key.endsWith('tokenHelper') && key !== 'tokenHelper') continue
-    if (!(key in userConfig) || userConfig[key] !== value) {
+    if (!(key in trustedConfig) || trustedConfig[key] !== value) {
       throw new PnpmError('TOKEN_HELPER_IN_PROJECT_CONFIG',
         'tokenHelper must not be configured in project-level .npmrc',
         { hint: `The key "${key}" was found in project config. Move it to ~/.npmrc or the global pnpm auth.ini.` })

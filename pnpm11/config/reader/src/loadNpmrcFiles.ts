@@ -227,11 +227,11 @@ function readUrlScopedEnvConfig (env: Record<string, string | undefined>): Recor
     const match = URL_SCOPED_ENV_RE.exec(envKey)
     if (match == null) continue
     const key = match[1]
-    // `tokenHelper` names an executable pnpm runs. It is only allowed from a
-    // user-level config file (enforced by the TOKEN_HELPER_IN_PROJECT_CONFIG
-    // check in index.ts, which validates against the user `.npmrc`). The env
-    // layer isn't that file, so honoring `//host/:tokenHelper` here would
-    // trip that guard — never admit it.
+    // `tokenHelper` names an executable pnpm runs, so it must never be honored
+    // from the environment. The TOKEN_HELPER_IN_PROJECT_CONFIG check in index.ts
+    // validates against the trusted config, and that config already includes
+    // this env-scoped layer — so admitting `//host/:tokenHelper` here would let
+    // an env var pass the guard and silently run an arbitrary command. Drop it.
     if (key.endsWith(':tokenHelper')) continue
     const target = envKey.slice(0, 5).toLowerCase() === 'pnpm_' ? pnpmScoped : npmScoped
     target[key] = value

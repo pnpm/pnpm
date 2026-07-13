@@ -2,11 +2,126 @@ use super::{
     AuthHeaders, DEFAULT_REGISTRY_SCOPE, UpstreamRouteHook, base64_encode, nerf_dart,
     redact_and_sanitize, redact_url_credentials,
 };
+use crate::TokenHelperOutput;
 use pretty_assertions::assert_eq;
-use std::sync::{
-    Arc,
-    atomic::{AtomicUsize, Ordering},
+use std::{
+    collections::HashMap,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    },
+    thread,
+    time::{Duration, Instant},
 };
+
+fn token_helper_by_uri(uri: &str, command: &[&str]) -> HashMap<String, Vec<String>> {
+    std::iter::once((
+        uri.to_owned(),
+        command.iter().map(|part| (*part).to_owned()).collect::<Vec<String>>(),
+    ))
+    .collect()
+}
+
+#[test]
+fn token_helper_is_executed_lazily_and_memoized() {
+    // A `fn` runner can't capture, so count through a test-local static;
+    // nextest runs each test in its own process, so it stays isolated.
+    static CALLS: AtomicUsize = AtomicUsize::new(0);
+    fn runner(command: &[String]) -> std::io::Result<TokenHelperOutput> {
+        CALLS.fetch_add(1, Ordering::Relaxed);
+        assert_eq!(command, ["helper", "--flag"]);
+        Ok(TokenHelperOutput {
+            success: true,
+            stdout: "s3cr3t\n".to_owned(),
+            stderr: String::new(),
+        })
+    }
+
+    let auth = AuthHeaders::from_parts_with_token_helpers(
+        HashMap::new(),
+        HashMap::new(),
+        token_helper_by_uri("//reg.com/", &["helper", "--flag"]),
+        HashMap::new(),
+    )
+    .with_token_helper_runner(runner);
+
+    // Constructing the map never runs the helper.
+    assert_eq!(CALLS.load(Ordering::Relaxed), 0);
+    assert_eq!(auth.for_url("https://reg.com/pkg"), Some("Bearer s3cr3t".to_owned()));
+    // A second matching lookup reuses the memoized token.
+    assert_eq!(auth.for_url("https://reg.com/other"), Some("Bearer s3cr3t".to_owned()));
+    assert_eq!(CALLS.load(Ordering::Relaxed), 1);
+}
+
+#[test]
+fn a_slow_token_helper_does_not_block_a_second_registry_lookup() {
+    // The runner for `//slow.example/` spins until the `//fast.example/`
+    // lookup has finished (or a generous deadline). If the resolution cache
+    // lock were held across the subprocess, the fast lookup would block on
+    // that lock, the flag would never flip, and the slow helper would run
+    // for the full deadline — so the fast lookup completing promptly proves
+    // the lock is released while a helper runs.
+    static FAST_DONE: AtomicBool = AtomicBool::new(false);
+    fn runner(command: &[String]) -> std::io::Result<TokenHelperOutput> {
+        if command[0] == "slow" {
+            let deadline = Instant::now() + Duration::from_secs(10);
+            while !FAST_DONE.load(Ordering::Acquire) && Instant::now() < deadline {
+                thread::sleep(Duration::from_millis(5));
+            }
+        }
+        Ok(TokenHelperOutput {
+            success: true,
+            stdout: format!("{}-token", command[0]),
+            stderr: String::new(),
+        })
+    }
+
+    let mut helpers = token_helper_by_uri("//slow.example/", &["slow"]);
+    helpers.extend(token_helper_by_uri("//fast.example/", &["fast"]));
+    let auth = Arc::new(
+        AuthHeaders::from_parts_with_token_helpers(
+            HashMap::new(),
+            HashMap::new(),
+            helpers,
+            HashMap::new(),
+        )
+        .with_token_helper_runner(runner),
+    );
+
+    let slow_auth = Arc::clone(&auth);
+    let slow = thread::spawn(move || slow_auth.for_url("https://slow.example/pkg"));
+
+    let started = Instant::now();
+    let fast = auth.for_url("https://fast.example/pkg");
+    let fast_elapsed = started.elapsed();
+    FAST_DONE.store(true, Ordering::Release);
+
+    assert_eq!(fast, Some("Bearer fast-token".to_owned()));
+    assert!(fast_elapsed < Duration::from_secs(5), "fast lookup blocked for {fast_elapsed:?}");
+    assert_eq!(slow.join().expect("slow thread"), Some("Bearer slow-token".to_owned()));
+}
+
+#[test]
+fn a_failing_token_helper_sends_no_credential_and_does_not_fall_back() {
+    fn runner(_: &[String]) -> std::io::Result<TokenHelperOutput> {
+        Ok(TokenHelperOutput { success: false, stdout: String::new(), stderr: "boom".to_owned() })
+    }
+
+    // A static token sits at the host root; a failing helper at the deeper
+    // path prefix must NOT fall back to it — the most-specific key owns the
+    // decision, exactly as a resolved helper would.
+    let auth = AuthHeaders::from_parts_with_token_helpers(
+        std::iter::once(("//reg.com/".to_owned(), "Bearer root-token".to_owned())).collect(),
+        HashMap::new(),
+        token_helper_by_uri("//reg.com/path/", &["helper"]),
+        HashMap::new(),
+    )
+    .with_token_helper_runner(runner);
+
+    assert_eq!(auth.for_url("https://reg.com/path/pkg"), None);
+    // A request that doesn't match the helper prefix still gets the static token.
+    assert_eq!(auth.for_url("https://reg.com/pkg"), Some("Bearer root-token".to_owned()));
+}
 
 /// Records every `(url, package)` it is asked about and answers with a
 /// fixed header, so a test can assert the hook — not the client

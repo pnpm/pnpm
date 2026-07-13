@@ -36,7 +36,7 @@ For more information, read [pnpm docs about .npmrc](https://pnpm.io/npmrc)
 |------|--------------------|-------|
 | ✅    | registry           |       |
 |      | <URL>:_authToken   |       |
-|      | <URL>:_tokenHelper |       |
+| ✅    | <URL>:tokenHelper  | Trusted sources only; executed lazily on lookup. |
 
 # Request Settings
 
