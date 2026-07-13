@@ -11,8 +11,16 @@ use pacquet_testing_utils::bin::CommandTempCwd;
 use std::{fs, path::Path, process::Command};
 
 fn write_workspace(workspace: &Path) {
-    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
-        .expect("write pnpm-workspace.yaml");
+    // These tests assert committed CHANGELOG.md files, which predate the
+    // `registry`-storage default (where a release's section is parked under
+    // `.changeset/changelogs/` and composed at publish time instead). Opt back
+    // into `repository` storage so `pnpm version -r` writes the changelogs
+    // inline, the way the assertions below expect.
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nversioning:\n  changelog:\n    storage: repository\n",
+    )
+    .expect("write pnpm-workspace.yaml");
     fs::write(workspace.join("package.json"), "{\"name\": \"e2e-root\", \"private\": true}\n")
         .expect("write root package.json");
 }
