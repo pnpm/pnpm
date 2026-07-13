@@ -205,6 +205,7 @@ function filterDeployPackageSnapshots (
     reachable.add(depPath)
 
     const snapshot = packages[depPath]
+    if (snapshot == null) continue
     enqueue(snapshot.dependencies)
     if (include.optionalDependencies) enqueue(snapshot.optionalDependencies)
   }

@@ -461,8 +461,10 @@ fn deploy_graph_keys(deploy_dir: &Path) -> Vec<String> {
 
 fn virtual_store_entries(deploy_dir: &Path) -> Vec<String> {
     fs::read_dir(deploy_dir.join("node_modules/.pnpm"))
-        .unwrap()
-        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .expect("read the deploy virtual store")
+        .map(|entry| {
+            entry.expect("read a virtual store entry").file_name().to_string_lossy().into_owned()
+        })
         .collect()
 }
 
