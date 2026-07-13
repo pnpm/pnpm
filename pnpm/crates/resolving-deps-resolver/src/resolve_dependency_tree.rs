@@ -892,6 +892,10 @@ pub struct TreeCtx {
     /// `time-based` publish-date cutoff in `published_by`. Built once
     /// per importer by [`Self::with_resolution_mode`].
     subdep_opts: ResolveOptions,
+    /// Workspace catalogs used to resolve `catalog:` children of injected
+    /// workspace packages. Other transitive dependencies keep catalog
+    /// resolution disabled.
+    catalogs: Catalogs,
     workspace: Arc<WorkspaceTreeCtx>,
     /// Configured `patchedDependencies` (already grouped by name).
     /// Shared by `Arc` so the lookup table doesn't get cloned per
@@ -916,6 +920,7 @@ impl TreeCtx {
             direct_opts: base_opts.clone(),
             subdep_opts: base_opts.clone(),
             base_opts,
+            catalogs: Catalogs::new(),
             workspace: Arc::new(WorkspaceTreeCtx::default()),
             patched_dependencies: None,
             importer_id: pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY.to_string(),
@@ -932,6 +937,7 @@ impl TreeCtx {
             direct_opts: base_opts.clone(),
             subdep_opts: base_opts.clone(),
             base_opts,
+            catalogs: Catalogs::new(),
             workspace,
             patched_dependencies: None,
             importer_id: pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY.to_string(),
@@ -961,6 +967,12 @@ impl TreeCtx {
         self.direct_opts.pick_lowest_version = pick_lowest_direct;
         self.subdep_opts.pick_lowest_version = false;
         self.subdep_opts.published_by = subdep_published_by;
+        self
+    }
+
+    #[must_use]
+    pub fn with_catalogs(mut self, catalogs: Catalogs) -> Self {
+        self.catalogs = catalogs;
         self
     }
 
@@ -1622,6 +1634,20 @@ where
                 .or_insert_with(|| Arc::clone(&specs));
             specs
         };
+        let child_specs =
+            if result.resolved_via == "workspace" && result.id.as_str().starts_with("file:") {
+                Cow::Owned(
+                    child_specs
+                        .iter()
+                        .map(|(name, range, optional)| {
+                            resolve_catalog_specifier(name.clone(), range.clone(), &ctx.catalogs)
+                                .map(|(name, range)| (name, range, *optional))
+                        })
+                        .collect::<Result<Vec<_>, _>>()?,
+                )
+            } else {
+                Cow::Borrowed(child_specs.as_slice())
+            };
         // A freshly-resolved node forces its whole subtree to
         // re-resolve: an updated parent discards its `resolvedDependencies`
         // child refs. But when the parent landed back on its previously
@@ -2705,19 +2731,25 @@ pub(crate) fn resolve_catalog_specifiers(
     specs
         .into_iter()
         .map(|(name, range, optional, injected)| {
-            let wanted =
-                CatalogWantedDependency { alias: name.clone(), bare_specifier: range.clone() };
-            match resolve_from_catalog(catalogs, &wanted) {
-                CatalogResolutionResult::Found(found) => {
-                    Ok((name, found.resolution.specifier, optional, injected))
-                }
-                CatalogResolutionResult::Unused => Ok((name, range, optional, injected)),
-                CatalogResolutionResult::Misconfiguration(misconfig) => {
-                    Err(ResolveDependencyTreeError::CatalogMisconfiguration(misconfig.error))
-                }
-            }
+            resolve_catalog_specifier(name, range, catalogs)
+                .map(|(name, range)| (name, range, optional, injected))
         })
         .collect()
+}
+
+fn resolve_catalog_specifier(
+    name: String,
+    range: String,
+    catalogs: &Catalogs,
+) -> Result<(String, String), ResolveDependencyTreeError> {
+    let wanted = CatalogWantedDependency { alias: name.clone(), bare_specifier: range.clone() };
+    match resolve_from_catalog(catalogs, &wanted) {
+        CatalogResolutionResult::Found(found) => Ok((name, found.resolution.specifier)),
+        CatalogResolutionResult::Unused => Ok((name, range)),
+        CatalogResolutionResult::Misconfiguration(misconfig) => {
+            Err(ResolveDependencyTreeError::CatalogMisconfiguration(misconfig.error))
+        }
+    }
 }
 
 /// Compute the `pkgIdWithPatchHash` for a freshly-resolved package:
