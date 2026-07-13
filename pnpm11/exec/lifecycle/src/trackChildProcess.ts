@@ -48,17 +48,24 @@ async function killProcessTree (pid: number): Promise<void> {
     // `SystemRoot` also matches the SYSTEMROOT/systemroot spellings.
     const taskkillPath = path.join(process.env.SystemRoot ?? process.env.windir ?? 'C:\\Windows', 'System32', 'taskkill.exe')
     await new Promise<void>((resolve) => {
-      // The timeout bounds the wait in case taskkill itself hangs; the kill
-      // is best-effort either way, and pnpm is exiting on an error already.
-      const taskkill = spawn(taskkillPath, ['/pid', pid.toString(), '/T', '/F'], { stdio: 'ignore', windowsHide: true, timeout: 10_000 })
+      const taskkill = spawn(taskkillPath, ['/pid', pid.toString(), '/T', '/F'], { stdio: 'ignore', windowsHide: true })
+      // pnpm is on its error-exit path and must not hang, so the wait is
+      // bounded by a timer that resolves even if taskkill never emits 'exit'
+      // or 'error' (and reaps a stuck taskkill). The kill is best-effort
+      // either way. The timer is unref'd so it can't keep the process alive.
+      const timer = setTimeout(() => {
+        taskkill.kill()
+        resolve()
+      }, 10_000)
+      timer.unref()
+      const done = (): void => {
+        clearTimeout(timer)
+        resolve()
+      }
       // A non-zero exit code (128 when the process is already gone, 1 when
       // access is denied) is deliberately ignored.
-      taskkill.once('error', () => {
-        resolve()
-      })
-      taskkill.once('exit', () => {
-        resolve()
-      })
+      taskkill.once('error', done)
+      taskkill.once('exit', done)
     })
   } else {
     try {
