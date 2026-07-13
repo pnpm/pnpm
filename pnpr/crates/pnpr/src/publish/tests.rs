@@ -307,16 +307,18 @@ fn merge_does_not_hoist_a_null_readme_over_an_existing_top_level_one() {
     let existing = json!({
         "name": "foo",
         "readme": "# Foo",
+        "readmeFilename": "README.md",
         "versions": { "1.0.0": { "version": "1.0.0" } },
         "dist-tags": { "latest": "1.0.0" }
     });
     let incoming = json!({
         "name": "foo",
-        "versions": { "1.1.0": { "version": "1.1.0", "readme": null } },
+        "versions": { "1.1.0": { "version": "1.1.0", "readme": null, "readmeFilename": null } },
         "dist-tags": { "latest": "1.1.0" }
     });
     let merged = merge_manifest(Some(&existing), &incoming, Some(&existing), "now");
     assert_eq!(merged["readme"], "# Foo");
+    assert_eq!(merged["readmeFilename"], "README.md");
 }
 
 #[test]
