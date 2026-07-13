@@ -10,7 +10,7 @@ use flate2::read::GzDecoder;
 use pacquet_config::Config;
 use pacquet_registry::Package;
 use pacquet_versioning::{
-    ChangeIntent, ChangelogStorage, Ledger, changelog_storage, read_pending_changelog,
+    ChangelogStorage, changelog_storage, list_pending_changelogs, read_pending_changelog,
     render_changelog,
 };
 use tar::Archive;
@@ -18,6 +18,13 @@ use tar::Archive;
 use crate::cli_args::registry_client::build_registry_client;
 
 const CHANGELOG_ENTRY: &str = "package/CHANGELOG.md";
+
+/// Caps the previous tarball we buffer and decompress to compose the changelog.
+/// The bytes come from a registry/proxy, so an unbounded read or a highly
+/// compressible ("gzip bomb") tarball could OOM release automation. A composed
+/// changelog is best-effort — exceeding the cap just skips the history prepend —
+/// so this bound can be generous while still defeating the amplification attack.
+const MAX_TARBALL_BYTES: u64 = 256 * 1024 * 1024;
 
 /// The composed CHANGELOG.md to pack for a `registry`-storage release of the
 /// project at `project_dir`: its parked section rendered on top of the
@@ -44,39 +51,28 @@ pub async fn compose_registry_changelog(
     Ok(Some(render_changelog(previous.as_deref(), &name, &section).into_bytes()))
 }
 
-/// The set of `package@version` ledger keys the registry confirms are
-/// published with their parked changelog section — the gate `apply_release_plan`
-/// uses to garbage-collect consumed intents in `registry` storage. Only entries
-/// still referenced by an unconsumed intent are checked, so already-collected
-/// history costs no network. Empty in `repository` storage.
+/// The set of `package@version` keys the registry confirms are published with
+/// their parked changelog section — the gate `apply_release_plan` uses to
+/// garbage-collect consumed intents and parked sections in `registry` storage.
+/// Driven by the parked files rather than the ledger, so a dependency-propagated
+/// release (which has a section but no consumed intents, hence no ledger entry)
+/// is confirmed too. Every parked file belongs to an as-yet-unpublished
+/// release, so the cost is bounded by the release backlog, not by history. The
+/// checks run concurrently. Empty in `repository` storage.
 pub async fn confirmed_published_versions(
     config: &Config,
     workspace_dir: &Path,
-    ledger: &Ledger,
-    intents: &[ChangeIntent],
 ) -> miette::Result<HashSet<String>> {
-    let mut confirmed = HashSet::new();
     if changelog_storage(Some(&config.versioning)) != ChangelogStorage::Registry {
-        return Ok(confirmed);
+        return Ok(HashSet::new());
     }
-    let pending_ids: HashSet<&str> = intents.iter().map(|intent| intent.id.as_str()).collect();
-    for (key, entry) in ledger {
-        if !entry.intent_ids().iter().any(|id| pending_ids.contains(id.as_str())) {
-            continue;
-        }
-        let Some((name, version)) = split_ledger_key(key) else {
-            continue;
-        };
-        let Some(section) = read_pending_changelog(workspace_dir, name, version)? else {
-            continue;
-        };
-        if let Some(changelog) = fetch_changelog(config, name, VersionPick::Exact(version)).await
-            && changelog.contains(section.trim())
-        {
-            confirmed.insert(key.clone());
-        }
-    }
-    Ok(confirmed)
+    let checks =
+        list_pending_changelogs(workspace_dir)?.into_iter().map(|(name, version)| async move {
+            let section = read_pending_changelog(workspace_dir, &name, &version).ok()??;
+            let changelog = fetch_changelog(config, &name, VersionPick::Exact(&version)).await?;
+            changelog.contains(section.trim()).then(|| format!("{name}@{version}"))
+        });
+    Ok(futures_util::future::join_all(checks).await.into_iter().flatten().collect())
 }
 
 enum VersionPick<'a> {
@@ -109,6 +105,9 @@ async fn fetch_changelog(config: &Config, name: &str, pick: VersionPick<'_>) -> 
     if !response.status().is_success() {
         return None;
     }
+    if response.content_length().is_some_and(|length| length > MAX_TARBALL_BYTES) {
+        return None;
+    }
     let bytes = response.bytes().await.ok()?;
     extract_entry(&bytes, CHANGELOG_ENTRY)
 }
@@ -137,9 +136,11 @@ fn registry_for(config: &Config, name: &str) -> String {
     if registry.ends_with('/') { registry } else { format!("{registry}/") }
 }
 
-/// Reads one entry's contents out of a gzipped tarball buffer.
+/// Reads one entry's contents out of a gzipped tarball buffer. Decompression is
+/// capped (see [`MAX_TARBALL_BYTES`]) by reading at most that many inflated
+/// bytes; a gzip bomb truncates past the cap and simply yields no entry.
 fn extract_entry(gzipped_tarball: &[u8], entry_name: &str) -> Option<String> {
-    let mut archive = Archive::new(GzDecoder::new(gzipped_tarball));
+    let mut archive = Archive::new(GzDecoder::new(gzipped_tarball).take(MAX_TARBALL_BYTES));
     for entry in archive.entries().ok()? {
         let mut entry = entry.ok()?;
         if entry.path().ok()?.to_str() == Some(entry_name) {
@@ -159,14 +160,4 @@ fn read_name_version(project_dir: &Path) -> Option<(String, String)> {
     let name = value.get("name")?.as_str()?.to_string();
     let version = value.get("version")?.as_str()?.to_string();
     Some((name, version))
-}
-
-/// Splits a `package@version` ledger key. The leading `@` of a scoped name is
-/// not a separator, so the split is on the last `@`.
-fn split_ledger_key(key: &str) -> Option<(&str, &str)> {
-    let at = key.rfind('@')?;
-    if at == 0 {
-        return None;
-    }
-    Some((&key[..at], &key[at + 1..]))
 }

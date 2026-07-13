@@ -198,6 +198,35 @@ test('registry storage keeps an intent whose release the registry has not confir
   expect(await readPendingChangelog(workspaceDir, 'lib', '1.1.0')).toContain('## 1.1.0')
 })
 
+test('registry storage collects the parked section of a dependency-only release once published', async () => {
+  const { workspaceDir, projects } = await makeWorkspace([
+    { name: 'lib', version: '1.0.0' },
+    { name: 'cli', version: '2.0.0', deps: { lib: 'workspace:*' } },
+  ])
+  await writeChangeIntent(workspaceDir, { releases: { lib: 'minor' }, summary: 'A feature.' })
+  const firstIntents = await readChangeIntents(workspaceDir)
+  const plan = assembleReleasePlan({ workspaceDir, projects, intents: firstIntents, ledger: await readLedger(workspaceDir) })
+  await applyReleasePlan(plan, { workspaceDir, projects, allIntents: firstIntents })
+
+  // cli was bumped only because lib changed: it has a parked section but,
+  // carrying no consumed intents, no ledger entry.
+  expect(await readPendingChangelog(workspaceDir, 'cli', '2.0.1')).toContain('## 2.0.1')
+  expect(Object.keys(await readLedger(workspaceDir))).toStrictEqual(['lib@1.1.0'])
+
+  const released: WorkspaceProject[] = [
+    { rootDir: projects[0].rootDir, manifest: { name: 'lib', version: '1.1.0' } },
+    { rootDir: projects[1].rootDir, manifest: { name: 'cli', version: '2.0.1', dependencies: { lib: 'workspace:*' } } },
+  ]
+  const intents = await readChangeIntents(workspaceDir)
+  const emptyPlan = assembleReleasePlan({ workspaceDir, projects: released, intents, ledger: await readLedger(workspaceDir) })
+  await applyReleasePlan(emptyPlan, { workspaceDir, projects: released, allIntents: intents, verifyPublished: async () => true })
+
+  // The dependency-only section is collected even though it has no ledger entry.
+  expect(await readPendingChangelog(workspaceDir, 'cli', '2.0.1')).toBeNull()
+  expect(await readPendingChangelog(workspaceDir, 'lib', '1.1.0')).toBeNull()
+  expect(await readChangeIntents(workspaceDir)).toHaveLength(0)
+})
+
 test('a ledger entry named __proto__ stays an own key and cannot pollute the prototype', async () => {
   const workspaceDir = temporaryDirectory()
   await fs.mkdir(path.join(workspaceDir, '.changeset'))

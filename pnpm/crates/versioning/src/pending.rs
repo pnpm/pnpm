@@ -47,6 +47,37 @@ pub fn write_pending_changelog(
     fs::write(&path, section).map_err(|source| VersioningError::Write { path, source })
 }
 
+/// The `(package, version)` of every parked section. The release-driven
+/// garbage collector consults this rather than the ledger so it also collects
+/// the sections of dependency-propagated releases, which carry no consumed
+/// intents and therefore have no ledger entry.
+pub fn list_pending_changelogs(
+    workspace_dir: &Path,
+) -> Result<Vec<(String, String)>, VersioningError> {
+    let dir = workspace_dir.join(CHANGES_DIR).join(PENDING_CHANGELOGS_DIR);
+    let entries = match fs::read_dir(&dir) {
+        Ok(entries) => entries,
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(source) => return Err(VersioningError::Read { path: dir, source }),
+    };
+    let mut pending = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|source| VersioningError::Read { path: dir.clone(), source })?;
+        let file_name = entry.file_name();
+        let Some(key) = file_name.to_str().and_then(|name| name.strip_suffix(".md")) else {
+            continue;
+        };
+        let Some(at) = key.rfind('@') else {
+            continue;
+        };
+        if at == 0 {
+            continue;
+        }
+        pending.push((key[..at].replace('!', "/"), key[at + 1..].to_string()));
+    }
+    Ok(pending)
+}
+
 pub fn read_pending_changelog(
     workspace_dir: &Path,
     pkg_name: &str,

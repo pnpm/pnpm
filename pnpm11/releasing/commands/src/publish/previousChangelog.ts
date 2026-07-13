@@ -23,6 +23,15 @@ export type PreviousChangelogOptions = CreateFetchFromRegistryOptions & Pick<Con
 const CHANGELOG_ENTRY = 'package/CHANGELOG.md'
 
 /**
+ * Caps the previous tarball we buffer and decompress to compose the changelog.
+ * The bytes come from a registry/proxy, so an unbounded read or a highly
+ * compressible ("gzip bomb") tarball could OOM release automation. A composed
+ * changelog is best-effort — exceeding the cap just skips the history prepend —
+ * so this bound can be generous while still defeating the amplification attack.
+ */
+const MAX_TARBALL_BYTES = 256 * 1024 * 1024
+
+/**
  * A registry fetcher and its auth-header resolver, built once per changelog
  * fetch and threaded into both the packument read and the tarball download so
  * the underlying dispatcher/TLS setup is not reconstructed for each request.
@@ -118,6 +127,8 @@ async function downloadTarballChangelog (client: RegistryClient, pkgName: string
   if (!response.ok) {
     throw new PnpmError('CHANGELOG_TARBALL_FETCH_FAILED', `Failed to download ${pkgName}@${version} tarball (${response.status}) to compose the changelog: ${tarballUrl}`)
   }
+  const declaredLength = Number(response.headers.get('content-length'))
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_TARBALL_BYTES) return undefined
   return extractTarballEntry(Buffer.from(await response.arrayBuffer()), CHANGELOG_ENTRY)
 }
 
@@ -150,7 +161,10 @@ async function extractTarballEntry (tarballData: Buffer, entryName: string): Pro
 
 function maybeGunzip (tarballData: Buffer): Buffer {
   try {
-    return gunzipSync(tarballData)
+    // maxOutputLength makes gunzipSync throw rather than balloon memory on a
+    // gzip bomb; the catch then falls back to treating the bytes as an
+    // already-plain tar, which fails to parse and yields no changelog entry.
+    return gunzipSync(tarballData, { maxOutputLength: MAX_TARBALL_BYTES })
   } catch {
     return tarballData
   }

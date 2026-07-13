@@ -6,8 +6,8 @@ import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { indexProjectRefs, type ReleasePlan, type WorkspaceProject } from './assembleReleasePlan.js'
 import { composeChangelogSection, prependChangelogSection } from './changelog.js'
 import type { ChangeIntent } from './intents.js'
-import { appendToLedger, buildConsumptionIndex, type Ledger, ledgerEntryIds } from './ledger.js'
-import { readPendingChangelog, removePendingChangelog, writePendingChangelog } from './pendingChangelog.js'
+import { appendToLedger, buildConsumptionIndex, type Ledger } from './ledger.js'
+import { listPendingChangelogs, readPendingChangelog, removePendingChangelog, writePendingChangelog } from './pendingChangelog.js'
 
 /**
  * Registry storage is the default: no CHANGELOG.md is committed; a release's
@@ -96,7 +96,7 @@ export async function applyReleasePlan (plan: ReleasePlan, opts: ApplyReleasePla
   const refs = indexProjectRefs(opts.projects, opts.workspaceDir)
   const consumedLedger = storage === 'repository'
     ? ledger
-    : await confirmPublishedLedger(ledger, opts)
+    : await confirmPublished(ledger, opts)
   const consumptionOf = buildConsumptionIndex(consumedLedger, refs.nameToDirs)
   const laneDirs = new Set<string>()
   for (const ref of Object.keys(opts.versioning?.lanes ?? {})) {
@@ -119,29 +119,28 @@ export async function applyReleasePlan (plan: ReleasePlan, opts: ApplyReleasePla
 }
 
 /**
- * Narrows `ledger` to the entries the registry confirms are published with
- * their parked changelog section, deleting each confirmed section file (its
- * prose now lives in the published tarball). Only entries still referenced by
- * an unconsumed intent are checked, so already-collected historical releases
- * — which no longer have a parked section — cost no network round-trips.
+ * Confirms the parked sections whose releases the registry reports published
+ * with that section, deletes those section files (their prose now lives in the
+ * published tarball), and returns the subset of `ledger` those confirmations
+ * cover — the consumed ledger that gates intent deletion. Driven by the parked
+ * files rather than the ledger, so a dependency-propagated release (which has a
+ * section but no consumed intents, hence no ledger entry) still gets its
+ * section collected. Every parked file belongs to an as-yet-unpublished
+ * release, so the confirmation cost is bounded by the release backlog, not by
+ * history.
  */
-async function confirmPublishedLedger (ledger: Ledger, opts: ApplyReleasePlanOptions): Promise<Ledger> {
+async function confirmPublished (ledger: Ledger, opts: ApplyReleasePlanOptions): Promise<Ledger> {
   const { verifyPublished } = opts
   const confirmed: Ledger = Object.create(null) as Ledger
   if (verifyPublished == null) return confirmed
-  const pendingIds = new Set(opts.allIntents.map((intent) => intent.id))
-  await Promise.all(Object.entries(ledger).map(async ([key, entry]) => {
-    if (!ledgerEntryIds(entry).some((id) => pendingIds.has(id))) return
-    const atIndex = key.lastIndexOf('@')
-    if (atIndex <= 0) return
-    const name = key.slice(0, atIndex)
-    const version = key.slice(atIndex + 1)
+  const pending = await listPendingChangelogs(opts.workspaceDir)
+  await Promise.all(pending.map(async ({ name, version }) => {
     const section = await readPendingChangelog(opts.workspaceDir, name, version)
     if (section == null) return
-    if (await verifyPublished(name, version, section)) {
-      confirmed[key] = entry
-      await removePendingChangelog(opts.workspaceDir, name, version)
-    }
+    if (!(await verifyPublished(name, version, section))) return
+    const key = `${name}@${version}`
+    if (ledger[key] != null) confirmed[key] = ledger[key]
+    await removePendingChangelog(opts.workspaceDir, name, version)
   }))
   return confirmed
 }

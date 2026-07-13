@@ -33,8 +33,8 @@ pub use ledger::{
     build_consumption_index, normalize_project_dir, read_ledger,
 };
 pub use pending::{
-    PENDING_CHANGELOGS_DIR, pending_changelog_path, read_pending_changelog,
-    remove_pending_changelog, write_pending_changelog,
+    PENDING_CHANGELOGS_DIR, list_pending_changelogs, pending_changelog_path,
+    read_pending_changelog, remove_pending_changelog, write_pending_changelog,
 };
 pub use plan::{
     AssembleReleasePlanOptions, DependencyField, DependencyUpdate, ManifestDependency,

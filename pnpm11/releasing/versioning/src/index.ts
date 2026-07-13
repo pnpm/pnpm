@@ -46,7 +46,9 @@ export {
   readLedger,
 } from './ledger.js'
 export {
+  listPendingChangelogs,
   PENDING_CHANGELOGS_DIR,
+  type PendingChangelog,
   pendingChangelogPath,
   readPendingChangelog,
   removePendingChangelog,

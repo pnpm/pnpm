@@ -120,8 +120,7 @@ impl VersionArgs {
             // this scope" is no reason to delete prose belonging to packages
             // outside the filter.
             if !self.dry_run && !is_filtered {
-                let confirmed =
-                    confirmed_published_versions(config, &workspace_dir, &ledger, &intents).await?;
+                let confirmed = confirmed_published_versions(config, &workspace_dir).await?;
                 apply_release_plan(
                     &plan,
                     &workspace_dir,
@@ -139,8 +138,7 @@ impl VersionArgs {
             return Ok(());
         }
 
-        let confirmed =
-            confirmed_published_versions(config, &workspace_dir, &ledger, &intents).await?;
+        let confirmed = confirmed_published_versions(config, &workspace_dir).await?;
         let applied = apply_release_plan(
             &plan,
             &workspace_dir,

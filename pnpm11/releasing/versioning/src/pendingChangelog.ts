@@ -29,6 +29,39 @@ export function pendingChangelogPath (workspaceDir: string, pkgName: string, ver
   return path.join(workspaceDir, CHANGES_DIR, PENDING_CHANGELOGS_DIR, pendingChangelogFilename(pkgName, version))
 }
 
+export interface PendingChangelog {
+  name: string
+  version: string
+}
+
+/**
+ * The `package@version` of every parked section. The release-driven garbage
+ * collector consults this rather than the ledger so it also collects the
+ * sections of dependency-propagated releases, which carry no consumed intents
+ * and therefore have no ledger entry.
+ */
+export async function listPendingChangelogs (workspaceDir: string): Promise<PendingChangelog[]> {
+  const dir = path.join(workspaceDir, CHANGES_DIR, PENDING_CHANGELOGS_DIR)
+  let fileNames: string[]
+  try {
+    fileNames = await fs.readdir(dir)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return []
+    }
+    throw err
+  }
+  const pending: PendingChangelog[] = []
+  for (const fileName of fileNames) {
+    if (!fileName.endsWith('.md')) continue
+    const key = fileName.slice(0, -'.md'.length)
+    const atIndex = key.lastIndexOf('@')
+    if (atIndex <= 0) continue
+    pending.push({ name: key.slice(0, atIndex).replaceAll('!', '/'), version: key.slice(atIndex + 1) })
+  }
+  return pending
+}
+
 export async function writePendingChangelog (workspaceDir: string, pkgName: string, version: string, section: string): Promise<void> {
   const filePath = pendingChangelogPath(workspaceDir, pkgName, version)
   await fs.mkdir(path.dirname(filePath), { recursive: true })

@@ -338,6 +338,90 @@ fn registry_storage_collects_an_intent_and_its_section_once_confirmed() {
 }
 
 #[test]
+fn registry_storage_collects_a_dependency_only_release_section_when_confirmed() {
+    let workspace =
+        make_workspace(&[("lib", "1.0.0", &[]), ("cli", "2.0.0", &[("lib", "workspace:*")])]);
+    let releases = IndexMap::from([("lib".to_string(), IntentBumpType::Minor)]);
+    write_change_intent(workspace.dir.path(), &releases, "A feature.").expect("intent writes");
+    let first_intents = read_change_intents(workspace.dir.path()).expect("intents read");
+    let plan = assemble_release_plan(
+        &workspace.projects,
+        workspace.dir.path(),
+        &first_intents,
+        &read_ledger(workspace.dir.path()).expect("ledger reads"),
+        None,
+        &AssembleReleasePlanOptions::default(),
+    )
+    .expect("plan assembles");
+    apply_release_plan(
+        &plan,
+        workspace.dir.path(),
+        &workspace.projects,
+        &first_intents,
+        None,
+        &HashSet::new(),
+    )
+    .expect("plan applies");
+
+    // cli was bumped only because lib changed: it has a parked section but,
+    // carrying no consumed intents, no ledger entry.
+    assert!(
+        read_pending_changelog(workspace.dir.path(), "cli", "2.0.1")
+            .expect("pending read")
+            .is_some(),
+    );
+    let ledger = read_ledger(workspace.dir.path()).expect("ledger reads");
+    assert_eq!(ledger.keys().map(String::as_str).collect::<Vec<_>>(), ["lib@1.1.0"]);
+
+    // A later run confirms both published versions (the CLI derives this set
+    // from the parked files; here it is passed directly).
+    let released = [
+        WorkspaceProject {
+            root_dir: workspace.projects[0].root_dir.clone(),
+            name: Some("lib".to_string()),
+            version: Some("1.1.0".to_string()),
+            prod_dependencies: Vec::new(),
+        },
+        WorkspaceProject {
+            root_dir: workspace.projects[1].root_dir.clone(),
+            name: Some("cli".to_string()),
+            version: Some("2.0.1".to_string()),
+            prod_dependencies: vec![ManifestDependency {
+                field: DependencyField::Dependencies,
+                alias: "lib".to_string(),
+                spec: "workspace:*".to_string(),
+            }],
+        },
+    ];
+    let intents = read_change_intents(workspace.dir.path()).expect("intents read");
+    let empty_plan = assemble_release_plan(
+        &released,
+        workspace.dir.path(),
+        &intents,
+        &read_ledger(workspace.dir.path()).expect("ledger reads"),
+        None,
+        &AssembleReleasePlanOptions::default(),
+    )
+    .expect("plan assembles");
+    let confirmed = HashSet::from(["lib@1.1.0".to_string(), "cli@2.0.1".to_string()]);
+    apply_release_plan(&empty_plan, workspace.dir.path(), &released, &intents, None, &confirmed)
+        .expect("plan applies");
+
+    // The dependency-only section is collected even though it has no ledger entry.
+    assert!(
+        read_pending_changelog(workspace.dir.path(), "cli", "2.0.1")
+            .expect("pending read")
+            .is_none(),
+    );
+    assert!(
+        read_pending_changelog(workspace.dir.path(), "lib", "1.1.0")
+            .expect("pending read")
+            .is_none(),
+    );
+    assert_eq!(read_change_intents(workspace.dir.path()).expect("intents read").len(), 0);
+}
+
+#[test]
 fn registry_storage_keeps_an_intent_whose_release_is_not_confirmed() {
     let workspace = make_workspace(&[("lib", "1.0.0", &[])]);
     let releases = IndexMap::from([("lib".to_string(), IntentBumpType::Minor)]);
