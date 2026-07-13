@@ -17,7 +17,10 @@ describe('change command and intent-consuming version -r', () => {
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-change-test-'))
-    fs.writeFileSync(path.join(tempDir, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\n')
+    // Opt into `repository` changelog storage so `pnpm version -r` writes
+    // committed CHANGELOG.md files (the default changed to `registry` in
+    // #12971, which parks sections under .changeset/changelogs/ instead).
+    fs.writeFileSync(path.join(tempDir, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\nversioning:\n  changelog:\n    storage: repository\n')
   })
 
   afterEach(() => {
