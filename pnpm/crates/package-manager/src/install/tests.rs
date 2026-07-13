@@ -214,6 +214,134 @@ async fn should_install_dependencies() {
     drop((dir, mock_instance));
 }
 
+/// `Install` with `UpdateSeedPolicy::DropAll` is the update path
+/// programmatic callers reach through napi `install({ update: true })`,
+/// separate from the `update` subcommand's `Update` type — so it needs
+/// its own coverage that `DropAll` drops the lockfile pin rather than
+/// reusing it.
+#[tokio::test]
+async fn install_with_drop_all_seed_policy_bumps_dependency_within_range() {
+    let mock_instance = TestRegistry::start();
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+    fs::create_dir_all(&project_root).unwrap();
+
+    let manifest_path = project_root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    // Pin 100.0.0 exactly so the first install writes that version, even
+    // though 100.1.0 exists and satisfies the widened range used below.
+    manifest
+        .add_dependency("@pnpm.e2e/dep-of-pkg-with-1-dep", "100.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.lockfile = true;
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir.clone();
+    config.registry = mock_instance.url();
+    let config = config.leak();
+
+    let lockfile_path = project_root.join("pnpm-lock.yaml");
+
+    // Pass 1: a plain install pins 100.0.0.
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        emit_initial_manifest: true,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        lockfile_path: Some(&lockfile_path),
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        peer_issues_sink: None,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: false,
+        pnpmfile_hook_override: None,
+        workspace_projects_override: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("first install should succeed");
+    assert!(
+        virtual_store_dir.join("@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0").exists(),
+        "the pinned install should materialize 100.0.0",
+    );
+
+    // Widen the range and reload the lockfile (which now pins 100.0.0).
+    manifest
+        .add_dependency("@pnpm.e2e/dep-of-pkg-with-1-dep", "^100.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.save().unwrap();
+    let lockfile = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+        .expect("read the written current lockfile")
+        .expect("a lockfile should have been written");
+
+    // Pass 2: install with `DropAll` (the `update: true` seed policy) must
+    // drop the 100.0.0 pin and re-resolve to the highest in-range 100.1.0.
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        emit_initial_manifest: true,
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
+        lockfile_path: Some(&lockfile_path),
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: Some(false),
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::DropAll,
+        auth_override: None,
+        resolution_observer: None,
+        peer_issues_sink: None,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: false,
+        pnpmfile_hook_override: None,
+        workspace_projects_override: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("update install should succeed");
+    assert!(
+        virtual_store_dir.join("@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0").exists(),
+        "install with DropAll should bump the dependency to the highest in-range version",
+    );
+
+    drop((dir, mock_instance));
+}
+
 /// A first install (no prior `.modules.yaml`, so the prune throttle
 /// always fires) sweeps a surplus `.pacquet` directory the wanted
 /// lockfile doesn't reference, while keeping the slot it does. Drives

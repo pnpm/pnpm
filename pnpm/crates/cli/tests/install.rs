@@ -14,6 +14,7 @@ use pipe_trait::Pipe;
 use std::{
     fs::{self, OpenOptions},
     io::Write,
+    process::Command,
 };
 
 #[test]
@@ -49,6 +50,69 @@ fn should_install_dependencies() {
     let workspace_folders = get_all_folders(&workspace);
     let store_files = get_all_files(&store_dir);
     insta::assert_debug_snapshot!((workspace_folders, store_files));
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn no_optional_excludes_transitive_optional_dependencies() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    // `@pnpm.e2e/pkg-with-good-optional` is a prod dependency whose own
+    // `optionalDependencies` pull in `is-positive`. `--no-optional` must
+    // exclude that transitive optional, not just the root's own optionals.
+    let manifest_path = workspace.join("package.json");
+    fs::write(
+        &manifest_path,
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-good-optional": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write to package.json");
+
+    pacquet.with_args(["install", "--no-optional"]).assert().success();
+
+    let virtual_store = workspace.join("node_modules/.pnpm");
+    assert!(
+        virtual_store.join("@pnpm.e2e+pkg-with-good-optional@1.0.0").exists(),
+        "the prod dependency must be installed",
+    );
+    assert!(
+        !virtual_store.join("is-positive@1.0.0").exists(),
+        "--no-optional must not materialize the transitive optional dependency",
+    );
+
+    // The exclusion is transient: the optional stays in the lockfile and is
+    // not persisted to `.modules.yaml.skipped`, so a later install without
+    // `--no-optional` restores it.
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(
+        lockfile.contains("is-positive@1.0.0"),
+        "the excluded optional must remain in the lockfile:\n{lockfile}",
+    );
+    let modules_yaml = fs::read_to_string(workspace.join("node_modules/.modules.yaml"))
+        .expect("read .modules.yaml");
+    assert!(
+        !modules_yaml.contains("is-positive"),
+        "a `--no-optional` exclusion must not be recorded in .modules.yaml.skipped:\n{modules_yaml}",
+    );
+
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["install"])
+        .assert()
+        .success();
+    assert!(
+        virtual_store.join("is-positive@1.0.0").exists(),
+        "a normal install must restore the previously excluded optional dependency",
+    );
 
     drop((root, mock_instance));
 }

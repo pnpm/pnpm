@@ -168,6 +168,13 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// the caller diffs the returned [`InstallWithFreshLockfileResult::wanted_lockfile`]
     /// against the existing one and reports the changes.
     pub dry_run: bool,
+    /// A full workspace install versus a partial one (`pacquet add` and the
+    /// package installs built on it — `dlx`, global add, the engine install).
+    /// See [`crate::Install::is_full_install`]. Gates the `--no-optional`
+    /// exclusion: a partial add's `dependency_groups` names the manifest
+    /// group to save into, not a `--no-optional` intent, so it must not
+    /// drop the added package's transitive optionals.
+    pub is_full_install: bool,
     /// Which lockfile pins to withhold from the preferred-versions seed
     /// so the affected names re-resolve to the highest version
     /// satisfying their manifest range. Drives `pacquet update`'s
@@ -505,6 +512,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             supported_architectures,
             lockfile_only,
             dry_run,
+            is_full_install,
             update_seed_policy,
             auth_override,
             resolution_observer,
@@ -1590,6 +1598,31 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         } else {
             SkippedSnapshots::new()
         };
+
+        // `--no-optional` excludes the Optional group. `dependency_groups`
+        // already drops the root importer's own optional direct deps, but a
+        // transitive optional (an `optionalDependencies` entry of a resolved
+        // package) is still in the graph and would be materialized. Exclude
+        // every optional-only snapshot the same way the frozen-lockfile path
+        // does — via the transient `optional_excluded` skip set, which keeps
+        // it out of materialization and `.modules.yaml.skipped` yet leaves it
+        // in the lockfile, so a later install without the flag restores it.
+        //
+        // Gated on `is_full_install`: for a partial `add` (and the package
+        // installs built on it — `dlx`, global add, the engine install)
+        // `dependency_groups` names the manifest group to save into, not a
+        // `--no-optional` intent, so those must keep their transitive
+        // optionals (e.g. `@pnpm/exe`'s platform binary).
+        if is_full_install
+            && !dependency_groups.contains(&DependencyGroup::Optional)
+            && let Some(snapshots) = built_lockfile.snapshots.as_ref()
+        {
+            for (key, snapshot) in snapshots {
+                if snapshot.optional {
+                    skipped.add_optional_excluded(key.clone());
+                }
+            }
+        }
 
         // Materialise the virtual store via the same phased
         // warm/cold-batch pipeline the frozen-lockfile path uses. The
