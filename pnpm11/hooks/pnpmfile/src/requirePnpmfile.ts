@@ -45,6 +45,9 @@ export interface Pnpmfile {
 
 export async function requirePnpmfile (pnpmFilePath: string, prefix: string): Promise<{ pnpmfileModule: Pnpmfile | undefined } | undefined> {
   try {
+    if (pnpmFilePath.endsWith('.mjs') && !pnpmFileExistsSync(pnpmFilePath)) {
+      return undefined
+    }
     let pnpmfile: Pnpmfile
     // Check if it's an ESM module (ends with .mjs)
     if (pnpmFilePath.endsWith('.mjs')) {
