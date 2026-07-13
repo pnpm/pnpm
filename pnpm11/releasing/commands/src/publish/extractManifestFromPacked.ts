@@ -15,7 +15,7 @@ export const isTarballPath = (path: string): path is TarballPath =>
   TARBALL_SUFFIXES.some(suffix => path.endsWith(suffix))
 
 export async function extractManifestFromPacked<Output = ExportedManifest> (tarballPath: TarballPath): Promise<Output> {
-  const { manifest } = await extractEntriesFromPacked(tarballPath)
+  const { manifest } = await extractEntriesFromPacked(tarballPath, false)
   return JSON.parse(manifest)
 }
 
@@ -26,7 +26,7 @@ export async function extractManifestFromPacked<Output = ExportedManifest> (tarb
  * metadata even though it isn't stored in the packed `package.json`.
  */
 export async function extractPublishManifestFromPacked (tarballPath: TarballPath): Promise<ExportedManifest> {
-  const { manifest, readme } = await extractEntriesFromPacked(tarballPath)
+  const { manifest, readme } = await extractEntriesFromPacked(tarballPath, true)
   const parsed = JSON.parse(manifest) as ExportedManifest
   if (parsed.readme == null && readme != null) {
     parsed.readme = readme
@@ -39,7 +39,13 @@ interface PackedEntries {
   readme?: string
 }
 
-async function extractEntriesFromPacked (tarballPath: TarballPath): Promise<PackedEntries> {
+/**
+ * Scan the tarball for `package/package.json` and, when `wantReadme` is set, the root
+ * `README.md`. The manifest-only path (`wantReadme` false) resolves as soon as the manifest
+ * entry is read and stops decompressing the rest of the archive; the publish path scans on
+ * because a README can appear after the manifest.
+ */
+async function extractEntriesFromPacked (tarballPath: TarballPath, wantReadme: boolean): Promise<PackedEntries> {
   const extract = tar.extract()
   const gunzip = createGunzip()
   const tarballStream = fs.createReadStream(tarballPath)
@@ -56,21 +62,33 @@ async function extractEntriesFromPacked (tarballPath: TarballPath): Promise<Pack
   }
 
   const promise = new Promise<PackedEntries>((resolve, reject) => {
+    let settled = false
+    let manifest: string | undefined
+    let readme: string | undefined
+
     function handleError (error: unknown): void {
       cleanup()
       reject(error)
     }
 
+    function settle (): void {
+      if (settled) return
+      settled = true
+      cleanup()
+      if (manifest == null) {
+        reject(new PublishArchiveMissingManifestError(tarballPath))
+        return
+      }
+      resolve({ manifest, readme })
+    }
+
     tarballStream.once('error', handleError)
     gunzip.once('error', handleError)
-
-    let manifest: string | undefined
-    let readme: string | undefined
 
     extract.on('entry', (header, stream, next) => {
       const normalizedPath = path.normalize(header.name).replaceAll('\\', '/')
       const isManifest = normalizedPath === 'package/package.json'
-      const isReadme = /^package\/readme\.md$/i.test(normalizedPath)
+      const isReadme = wantReadme && /^package\/readme\.md$/i.test(normalizedPath)
 
       if (!isManifest && !isReadme) {
         stream.once('end', next)
@@ -90,22 +108,19 @@ async function extractEntriesFromPacked (tarballPath: TarballPath): Promise<Pack
         } else {
           readme = text
         }
+        // Stop early once every wanted entry has been captured, so the manifest-only
+        // path doesn't stream and decompress the remainder of the tarball.
+        if (manifest != null && (!wantReadme || readme != null)) {
+          settle()
+          return
+        }
         next()
       })
 
       stream.once('error', handleError)
     })
 
-    extract.once('finish', () => {
-      cleanup()
-
-      if (manifest == null) {
-        reject(new PublishArchiveMissingManifestError(tarballPath))
-        return
-      }
-      resolve({ manifest, readme })
-    })
-
+    extract.once('finish', settle)
     extract.once('error', handleError)
   })
 
