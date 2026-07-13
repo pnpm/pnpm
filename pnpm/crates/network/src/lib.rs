@@ -23,6 +23,10 @@ pub use tls::{PerRegistryTls, RegistryTls, TlsConfig, TlsError};
 
 use priority_semaphore::{Permit, PrioritySemaphore};
 use proxy::{NoProxyMatcher, parse_proxy_url, strip_userinfo};
+#[cfg(target_os = "macos")]
+use reqwest::dns::Addrs;
+#[cfg(any(target_os = "macos", test))]
+use reqwest::dns::{Name, Resolve, Resolving};
 use reqwest::{
     Certificate, Client, Identity, Proxy,
     header::{HeaderMap, HeaderValue, USER_AGENT},
@@ -289,20 +293,11 @@ impl ThrottledClient {
     /// [`DEFAULT_FETCH_TIMEOUT_MS`] (60s), the `fetchTimeout` setting's
     /// default.
     ///
-    /// `hickory_dns(true)` swaps reqwest's default resolver
-    /// (tokio's `lookup_host`, which calls the platform's blocking
-    /// `getaddrinfo` from a `spawn_blocking` thread) for the
-    /// pure-Rust async resolver. The default resolver is correct
-    /// but on macOS it routes every lookup through `mDNSResponder`,
-    /// which spuriously returns `EAI_NONAME` ("nodename nor servname
-    /// provided") for valid hostnames when many concurrent lookups
-    /// pile up — e.g. the [`default_network_concurrency`] simultaneous
-    /// tarball connections this client opens. pnpm doesn't hit it
-    /// because Node's `dns.lookup`
-    /// runs on libuv's 4-thread pool, naturally throttling concurrent
-    /// `getaddrinfo` calls. `hickory-dns` queries DNS over UDP / TCP
-    /// directly, bypassing `mDNSResponder` and the `EAI_NONAME` flake
-    /// entirely.
+    /// DNS resolution is platform-specific. macOS uses its native
+    /// `getaddrinfo` resolver because Hickory misses scoped resolver
+    /// routing used by VPNs. A four-request cap matches Node's libuv DNS
+    /// pool and prevents concurrent calls from overwhelming
+    /// `mDNSResponder`. Other platforms keep Hickory's async resolver.
     #[must_use]
     pub fn new_for_installs() -> Self {
         Self::for_installs(
@@ -574,12 +569,69 @@ fn allowlist_redirect_policy(guard: RedirectGuard) -> reqwest::redirect::Policy 
     })
 }
 
+#[cfg(any(target_os = "macos", test))]
+struct CappedDnsResolver<Inner> {
+    inner: Arc<Inner>,
+    permits: Arc<Semaphore>,
+}
+
+#[cfg(target_os = "macos")]
+struct NativeDnsResolver;
+
+#[cfg(target_os = "macos")]
+impl Resolve for NativeDnsResolver {
+    fn resolve(&self, name: Name) -> Resolving {
+        let host = name.as_str().to_owned();
+        Box::pin(async move {
+            tokio::net::lookup_host((host, 0))
+                .await
+                .map(|addrs| Box::new(addrs) as Addrs)
+                .map_err(|error| Box::new(error) as Box<dyn std::error::Error + Send + Sync>)
+        })
+    }
+}
+
+#[cfg(any(target_os = "macos", test))]
+impl<Inner> CappedDnsResolver<Inner> {
+    fn new(inner: Inner, concurrency: NonZeroUsize) -> Self {
+        Self { inner: Arc::new(inner), permits: Arc::new(Semaphore::new(concurrency.get())) }
+    }
+}
+
+#[cfg(any(target_os = "macos", test))]
+impl<Inner> Resolve for CappedDnsResolver<Inner>
+where
+    Inner: Resolve + 'static,
+{
+    fn resolve(&self, name: Name) -> Resolving {
+        let inner = Arc::clone(&self.inner);
+        let permits = Arc::clone(&self.permits);
+        Box::pin(async move {
+            let _permit =
+                permits.acquire_owned().await.expect("DNS concurrency semaphore is never closed");
+            inner.resolve(name).await
+        })
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn configure_dns(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
+    const DNS_CONCURRENCY: NonZeroUsize = NonZeroUsize::new(4).expect("four is non-zero");
+
+    builder.dns_resolver(CappedDnsResolver::new(NativeDnsResolver, DNS_CONCURRENCY))
+}
+
+#[cfg(not(target_os = "macos"))]
+fn configure_dns(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
+    builder.hickory_dns(true)
+}
+
 fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder {
     let user_agent = HeaderValue::from_str(&settings.user_agent)
         .unwrap_or_else(|_| HeaderValue::from_static(DEFAULT_USER_AGENT));
     let mut default_headers = HeaderMap::with_capacity(1);
     default_headers.insert(USER_AGENT, user_agent);
-    Client::builder()
+    let builder = Client::builder()
         .http1_only()
         // Request gzip and transparently decompress it. Packuments are the
         // largest payloads pulled during resolution and registries serve
@@ -591,8 +643,8 @@ fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder 
         .default_headers(default_headers)
         .connect_timeout(settings.fetch_timeout)
         .timeout(settings.fetch_timeout)
-        .pool_idle_timeout(Duration::from_secs(4))
-        .hickory_dns(true)
+        .pool_idle_timeout(Duration::from_secs(4));
+    configure_dns(builder)
 }
 
 /// Load the PEM bundle named by `NODE_EXTRA_CA_CERTS` as extra trust

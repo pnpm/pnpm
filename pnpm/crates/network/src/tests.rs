@@ -12,12 +12,89 @@
 //! absolute-form URI and a decoded `Proxy-Authorization` header.
 
 use super::{
-    ForInstallsError, NetworkSettings, NoProxyMatcher, NoProxySetting, PerRegistryTls, ProxyConfig,
-    ProxyError, ThrottledClient, TlsConfig, origin_of, parse_proxy_url,
+    CappedDnsResolver, ForInstallsError, NetworkSettings, NoProxyMatcher, NoProxySetting,
+    PerRegistryTls, ProxyConfig, ProxyError, ThrottledClient, TlsConfig, origin_of,
+    parse_proxy_url,
 };
 use crate::proxy::{percent_decode_str, strip_userinfo};
 use pacquet_testing_utils::env_guard::EnvGuard;
-use reqwest::Url;
+use reqwest::{
+    Url,
+    dns::{Addrs, Name, Resolve, Resolving},
+};
+use std::{
+    num::NonZeroUsize,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+    time::Duration,
+};
+use tokio::sync::Semaphore;
+
+struct RecordingResolver {
+    active: Arc<AtomicUsize>,
+    gate: Arc<Semaphore>,
+    maximum_active: Arc<AtomicUsize>,
+}
+
+impl Resolve for RecordingResolver {
+    fn resolve(&self, _name: Name) -> Resolving {
+        let active = Arc::clone(&self.active);
+        let gate = Arc::clone(&self.gate);
+        let maximum_active = Arc::clone(&self.maximum_active);
+        Box::pin(async move {
+            let active_count = active.fetch_add(1, Ordering::SeqCst) + 1;
+            maximum_active.fetch_max(active_count, Ordering::SeqCst);
+            let _gate_permit =
+                gate.acquire_owned().await.expect("test gate semaphore is never closed");
+            active.fetch_sub(1, Ordering::SeqCst);
+            Ok(Box::new(std::iter::empty()) as Addrs)
+        })
+    }
+}
+
+#[tokio::test]
+async fn capped_dns_resolver_limits_concurrency() {
+    let active = Arc::new(AtomicUsize::new(0));
+    let gate = Arc::new(Semaphore::new(0));
+    let maximum_active = Arc::new(AtomicUsize::new(0));
+    let resolver = Arc::new(CappedDnsResolver::new(
+        RecordingResolver {
+            active: Arc::clone(&active),
+            gate: Arc::clone(&gate),
+            maximum_active: Arc::clone(&maximum_active),
+        },
+        NonZeroUsize::new(4).expect("four is non-zero"),
+    ));
+    let tasks = (0..8)
+        .map(|_| {
+            let resolver = Arc::clone(&resolver);
+            tokio::spawn(async move {
+                let _addresses = resolver
+                    .resolve("registry.npmjs.org".parse().expect("valid DNS name"))
+                    .await
+                    .expect("recording resolver succeeds");
+            })
+        })
+        .collect::<Vec<_>>();
+
+    tokio::time::timeout(Duration::from_secs(1), async {
+        while active.load(Ordering::SeqCst) < 4 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("four resolutions should start");
+    assert_eq!(maximum_active.load(Ordering::SeqCst), 4);
+
+    gate.add_permits(8);
+    for task in tasks {
+        task.await.expect("resolution task succeeds");
+    }
+    assert_eq!(active.load(Ordering::SeqCst), 0);
+    assert_eq!(maximum_active.load(Ordering::SeqCst), 4);
+}
 
 fn list(entries: &[&str]) -> NoProxySetting {
     NoProxySetting::List(entries.iter().map(|s| (*s).to_string()).collect())
