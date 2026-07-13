@@ -6,6 +6,31 @@ fn ok_stdout(stdout: &str) -> io::Result<TokenHelperOutput> {
 }
 
 #[test]
+fn a_timed_out_runner_maps_to_the_timeout_error() {
+    let command = vec!["helper".to_owned()];
+    let error = execute_token_helper(&command, |_| Err(io::Error::from(io::ErrorKind::TimedOut)))
+        .expect_err("a timed-out helper must fail");
+    assert!(matches!(error, TokenHelperError::Timeout { .. }), "got {error:?}");
+}
+
+/// A helper that never returns is killed at the deadline instead of
+/// hanging forever. Uses a real `sleep` (Unix) far longer than the
+/// tiny test timeout, so the test only passes if the kill actually fires.
+#[cfg(unix)]
+#[test]
+fn a_hung_command_is_killed_at_the_deadline() {
+    use std::time::{Duration, Instant};
+
+    let command = vec!["/bin/sh".to_owned(), "-c".to_owned(), "sleep 10".to_owned()];
+    let started = Instant::now();
+    let result = super::run_token_helper_command_with_timeout(&command, Duration::from_millis(200));
+    let elapsed = started.elapsed();
+
+    assert_eq!(result.expect_err("must time out").kind(), io::ErrorKind::TimedOut);
+    assert!(elapsed < Duration::from_secs(5), "returned only after {elapsed:?} — was it killed?");
+}
+
+#[test]
 fn prepends_bearer_to_a_raw_token() {
     let command = vec!["helper".to_owned()];
     let header = execute_token_helper(&command, |_| ok_stdout("s3cr3t\n")).expect("token resolves");
