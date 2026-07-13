@@ -68,6 +68,10 @@
   dir: pnpr/npm/pnpr
   intents:
     - pnpr-hoist-readme
+"@pnpm/pnpr@0.1.0-alpha.2":
+  dir: pnpr/npm/pnpr
+  intents:
+    - fluffy-snakes-complain
 "@pnpm/registry-access.commands@1100.5.0":
   dir: pnpm11/registry-access/commands
   intents:
@@ -109,6 +113,10 @@
   intents:
     - epics-monorepo-versioning
     - native-monorepo-versioning-core
+pacquet@12.0.0-alpha.10:
+  dir: pnpm/npm/pnpm
+  intents:
+    - fluffy-snakes-complain
 pacquet@12.0.0-alpha.9:
   dir: pnpm/npm/pnpm
   intents:
