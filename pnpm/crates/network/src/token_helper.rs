@@ -10,7 +10,7 @@
 
 use std::{
     io::{self, Read},
-    process::{Command, Stdio},
+    process::{Child, Command, Stdio},
     thread,
     time::{Duration, Instant},
 };
@@ -136,11 +136,16 @@ fn run_token_helper_command_with_timeout(
     };
     // Close stdin (a helper that reads it gets EOF instead of blocking)
     // and pipe stdout/stderr so the reader threads below can drain them.
-    let mut child = build_command(program, args)
+    let child = build_command(program, args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()?;
+    // Guard the child so an early return or a panic (e.g. a failed
+    // `thread::spawn` below) can't leak the process: `ChildGuard` kills it
+    // on drop until we disarm it after reaping. std has no `kill_on_drop`.
+    let mut guard = ChildGuard(Some(child));
+    let child = guard.0.as_mut().expect("child just spawned");
 
     // Drain both pipes on their own threads: a helper that fills the
     // stdout (or stderr) buffer would otherwise block on the write while
@@ -155,8 +160,7 @@ fn run_token_helper_command_with_timeout(
             break status;
         }
         if Instant::now() >= deadline {
-            let _ = child.kill();
-            let _ = child.wait();
+            // Leaving `guard` armed kills the still-running child on drop.
             return Err(io::Error::new(
                 io::ErrorKind::TimedOut,
                 "token helper exceeded its time limit",
@@ -164,12 +168,36 @@ fn run_token_helper_command_with_timeout(
         }
         thread::sleep(Duration::from_millis(20));
     };
+    // The child is reaped; disarm so the guard can't signal a pid the OS
+    // may already have recycled.
+    guard.disarm();
 
     Ok(TokenHelperOutput {
         success: status.success(),
         stdout: stdout.join().unwrap_or_default(),
         stderr: stderr.join().unwrap_or_default(),
     })
+}
+
+/// Kills the wrapped [`Child`] on drop unless [`Self::disarm`]ed first, so a
+/// panic or early return before the process is reaped can't leave it
+/// orphaned. Once the caller has reaped the child (a completed `try_wait`),
+/// it disarms — killing a reaped pid could target a recycled process.
+struct ChildGuard(Option<Child>);
+
+impl ChildGuard {
+    fn disarm(&mut self) {
+        self.0 = None;
+    }
+}
+
+impl Drop for ChildGuard {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.0.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
 }
 
 /// Spawn a thread that reads `pipe` to end-of-stream as lossy UTF-8. A
