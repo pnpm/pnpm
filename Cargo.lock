@@ -5463,7 +5463,7 @@ dependencies = [
 
 [[package]]
 name = "pnpr"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "async-trait",
  "axum 0.8.9",

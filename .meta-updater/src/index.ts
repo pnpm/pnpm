@@ -60,6 +60,13 @@ export default async (workspaceDir: string) => { // eslint-disable-line
   const workspaceManifest = await readWorkspaceManifest(workspaceDir)!
   const pnpmManifest = loadJsonFileSync<ProjectManifest>(path.join(workspaceDir, 'pnpm11/pnpm/package.json'))
   const pnpmVersion = pnpmManifest!.version!
+  // The Rust products embed the versions their release builds report and
+  // verify. `pnpm version -r` bumps only the npm wrapper manifests, so those
+  // are the source of truth; the Rust-source handlers below mirror them, and
+  // `meta-updater --test` (run in pre-push and CI) fails a missed sync before
+  // it can reach the release workflow.
+  const rustCliVersion = loadJsonFileSync<ProjectManifest>(path.join(workspaceDir, 'pnpm/npm/pnpm/package.json'))!.version!
+  const pnprVersion = loadJsonFileSync<ProjectManifest>(path.join(workspaceDir, 'pnpr/npm/pnpr/package.json'))!.version!
   const pnpmMajorNumber = pnpmVersion.split('.')[0]
   const pnpmMajorKeyword = `pnpm${pnpmMajorNumber}`
   const nextTag = `next-${pnpmMajorNumber}`
@@ -72,7 +79,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
   const workspacePackageNames = new Set(workspacePackages.map(pkg => pkg.manifest.name).filter(Boolean))
   const nodeRuntimeVersion = readNodeRuntimeVersion(workspaceDir)
   return createUpdateOptions({
-    formats: { '.yml': yamlTextFormat },
+    formats: { '.yml': textFormat, '.rs': textFormat, '.toml': textFormat, '.lock': textFormat },
     files: {
       'package.json': (manifest: ProjectManifest & { keywords?: string[] } | null, { dir }: { dir: string }) => {
         if (!manifest) {
@@ -194,6 +201,14 @@ export default async (workspaceDir: string) => { // eslint-disable-line
       '.github/workflows/ci.yml': (content: string | null) => syncNodeVersionInWorkflow(content, nodeRuntimeVersion),
       '.github/workflows/release.yml': (content: string | null) => syncNodeVersionInWorkflow(content, nodeRuntimeVersion),
       '.github/workflows/benchmark.yml': (content: string | null) => syncNodeVersionInWorkflow(content, nodeRuntimeVersion),
+      // Mirror the bumped npm wrapper versions into the Rust sources their
+      // release builds report and verify (see rustCliVersion / pnprVersion).
+      'pnpm/crates/config/src/defaults.rs': (content: string | null) =>
+        replaceRustVersion(content, /(pub const PNPM_VERSION: &str = )"[^"]*"/, `$1"${rustCliVersion}"`),
+      'pnpr/crates/pnpr/Cargo.toml': (content: string | null) =>
+        replaceRustVersion(content, /^(version\s*=\s*)"[^"]*"/m, `$1"${pnprVersion}"`),
+      'Cargo.lock': (content: string | null) =>
+        replaceRustVersion(content, /(\[\[package\]\]\nname = "pnpr"\nversion = )"[^"]*"/, `$1"${pnprVersion}"`),
     },
   })
 }
@@ -339,7 +354,20 @@ function syncNodeVersionInWorkflow (content: string | null, version: string | un
   return content.replace(new RegExp(`\\b${major}\\.\\d+\\.\\d+\\b`, 'g'), version)
 }
 
-const yamlTextFormat = createFormat<string>({
+// Rewrites a version literal in a Rust source file to match the npm wrapper.
+// `meta-updater` passes `null` for the packages that don't have the file (only
+// the workspace root does), which are left untouched; a present file that has
+// lost the expected pattern is a hard error so a renamed constant can't
+// silently stop being synced.
+function replaceRustVersion (content: string | null, pattern: RegExp, replacement: string): string | null {
+  if (content == null) return content
+  if (!pattern.test(content)) {
+    throw new Error(`Pattern ${pattern} not found`)
+  }
+  return content.replace(pattern, replacement)
+}
+
+const textFormat = createFormat<string>({
   read: ({ resolvedPath }) => fs.readFileSync(resolvedPath, 'utf8'),
   update: (actual, updater, options) => updater(actual, options),
   equal: (expected, actual) => expected === actual,
