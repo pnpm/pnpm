@@ -76,9 +76,8 @@ export function createDeployFiles ({
       lockfileDir,
       projectRootDirRealPath: rootProjectManifestDir,
     })
-    const inputPackageName = dp.parse(inputDepPath).name
     const outputDepPath = resolveResult
-      ? createFileUrlDepPath(resolveResult, allProjects, resolveResult.packageName ?? inputPackageName)
+      ? createFileUrlDepPath(resolveResult, allProjects)
       : inputDepPath
     targetPackageSnapshots[outputDepPath] = convertPackageSnapshot(inputSnapshot, {
       allProjects,
@@ -120,8 +119,9 @@ export function createDeployFiles ({
         continue
       }
 
+      resolveResult.packageName ??= name
       targetSpecifiers[name] = targetDependencies[name] =
-        resolveResult.resolvedPath === deployedProjectRealPath ? 'link:.' : createFileUrlDepPath(resolveResult, allProjects, resolveResult.packageName ?? name)
+        resolveResult.resolvedPath === deployedProjectRealPath ? 'link:.' : createFileUrlDepPath(resolveResult, allProjects)
     }
   }
 
@@ -253,7 +253,8 @@ function convertResolvedDependencies (
       continue
     }
 
-    output[key] = createFileUrlDepPath(resolveResult, opts.allProjects, resolveResult.packageName ?? key)
+    resolveResult.packageName ??= key
+    output[key] = createFileUrlDepPath(resolveResult, opts.allProjects)
   }
 
   return output
@@ -300,9 +301,8 @@ function resolveLinkOrFile (pkgVer: string, opts: Pick<ConvertOptions, 'lockfile
 }
 
 function createFileUrlDepPath (
-  { resolvedPath, suffix }: Pick<ResolveLinkOrFileResult, 'resolvedPath' | 'suffix'>,
-  allProjects: CreateDeployFilesOptions['allProjects'],
-  packageName?: string
+  { resolvedPath, suffix, packageName }: Pick<ResolveLinkOrFileResult, 'resolvedPath' | 'suffix' | 'packageName'>,
+  allProjects: CreateDeployFilesOptions['allProjects']
 ): DepPath {
   const depFileUrl = url.pathToFileURL(resolvedPath).toString()
   const project = allProjects.find(project => project.rootDirRealPath === resolvedPath)
