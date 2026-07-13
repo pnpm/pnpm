@@ -73,10 +73,13 @@ export async function publishWithOtpHandling ({
   return withOtpHandling({
     context,
     fetchOptions,
-    // When otp is undefined (first attempt), { ...publishOptions, otp } adds
-    // otp: undefined to the options. This is safe because libnpmpublish treats
-    // undefined the same as absent (unlike HTTP headers, where undefined gets
-    // coerced to the string "undefined").
-    operation: otp => publish(manifest, tarballData, { ...publishOptions, otp }),
+    // withOtpHandling first calls this with no otp, then retries with the otp
+    // it obtained from an OTP challenge. On the first attempt we fall back to
+    // the configured --otp (publishOptions.otp) so it is actually sent; a retry
+    // otp takes precedence over it. When both are undefined, passing
+    // otp: undefined is safe because libnpmpublish treats undefined the same as
+    // absent (unlike HTTP headers, where undefined gets coerced to the string
+    // "undefined").
+    operation: otp => publish(manifest, tarballData, { ...publishOptions, otp: otp ?? publishOptions.otp }),
   })
 }
