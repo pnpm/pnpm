@@ -145,7 +145,7 @@ jobs:
             platform_label: ubuntu
             test_chunk: '1'
             test_chunk_total: '1'
-          - node: '26.4.0'
+          - node: '26.5.0'
             node_major: '26'
             platform: ubuntu-latest
             platform_label: ubuntu
