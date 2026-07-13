@@ -60,8 +60,8 @@ export function matchLicenseAgainstPolicy (
       }
     }
     if (!allowedMatch && literalAllowed.length > 0) {
-      const cands = collectLeafCandidates(tree)
-      allowedMatch = literalAllowed.some((lit) => cands.some((c) => c.toLowerCase() === lit.toLowerCase()))
+      const candidates = collectLeafCandidates(tree)
+      allowedMatch = literalAllowed.some((lit) => candidates.some((c) => c.toLowerCase() === lit.toLowerCase()))
     }
     if (allowedMatch) {
       return { allowed: true, reason: 'explicitly-allowed' }
