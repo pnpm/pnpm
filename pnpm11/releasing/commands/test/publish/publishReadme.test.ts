@@ -41,35 +41,6 @@ afterEach(async () => {
   await once(server, 'close')
 })
 
-async function runPublish (dir: string, embedReadme: boolean, params: string[] = []): Promise<void> {
-  await publish.publish({
-    dir,
-    argv: { original: [] },
-    gitChecks: false,
-    ignoreScripts: true,
-    embedReadme,
-    skipManifestObfuscation: false,
-    catalogs: {},
-    registries: { default: registry },
-    configByUri: { [registry]: { '@//': { authToken: 'test' } } },
-    tag: 'latest',
-    userAgent: 'test',
-    fetchRetries: 0,
-    fetchRetryFactor: 1,
-    fetchRetryMintimeout: 0,
-    fetchRetryMaxtimeout: 1,
-    fetchTimeout: 10000,
-  } as unknown as Parameters<typeof publish.publish>[0], params)
-}
-
-function publishedVersionManifest (): Record<string, unknown> {
-  const put = captured.find((request) => request.method === 'PUT')
-  expect(put).toBeDefined()
-  const document = JSON.parse(put!.body)
-  const version = Object.keys(document.versions)[0]
-  return document.versions[version]
-}
-
 test('publish sends the readme to the registry as metadata (embed-readme off)', async () => {
   prepare({ name: 'publish-readme-off', version: '1.0.0' })
   fs.writeFileSync('README.md', '# Hello\n')
@@ -114,3 +85,32 @@ test('publish reads the readme from a pre-built tarball', async () => {
 
   expect(publishedVersionManifest().readme).toBe('# From tarball\n')
 })
+
+async function runPublish (dir: string, embedReadme: boolean, params: string[] = []): Promise<void> {
+  await publish.publish({
+    dir,
+    argv: { original: [] },
+    gitChecks: false,
+    ignoreScripts: true,
+    embedReadme,
+    skipManifestObfuscation: false,
+    catalogs: {},
+    registries: { default: registry },
+    configByUri: { [registry]: { '@//': { authToken: 'test' } } },
+    tag: 'latest',
+    userAgent: 'test',
+    fetchRetries: 0,
+    fetchRetryFactor: 1,
+    fetchRetryMintimeout: 0,
+    fetchRetryMaxtimeout: 1,
+    fetchTimeout: 10000,
+  } as unknown as Parameters<typeof publish.publish>[0], params)
+}
+
+function publishedVersionManifest (): Record<string, unknown> {
+  const put = captured.find((request) => request.method === 'PUT')
+  expect(put).toBeDefined()
+  const document = JSON.parse(put!.body)
+  const version = Object.keys(document.versions)[0]
+  return document.versions[version]
+}
