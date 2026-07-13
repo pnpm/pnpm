@@ -171,19 +171,19 @@ jobs:
         include:
           - node: '22.13.0'
             node_major: '22'
-            platform: blacksmith-8vcpu-windows-2022
+            platform: blacksmith-8vcpu-windows-2025
             platform_label: windows 1/3
             test_chunk: '1'
             test_chunk_total: '3'
           - node: '22.13.0'
             node_major: '22'
-            platform: blacksmith-8vcpu-windows-2022
+            platform: blacksmith-8vcpu-windows-2025
             platform_label: windows 2/3
             test_chunk: '2'
             test_chunk_total: '3'
           - node: '22.13.0'
             node_major: '22'
-            platform: blacksmith-8vcpu-windows-2022
+            platform: blacksmith-8vcpu-windows-2025
             platform_label: windows 3/3
             test_chunk: '3'
             test_chunk_total: '3'

@@ -90,7 +90,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: blacksmith-8vcpu-windows-2022
+          - os: blacksmith-8vcpu-windows-2025
             os_label: windows
           - os: blacksmith-8vcpu-ubuntu-2404
             os_label: ubuntu
