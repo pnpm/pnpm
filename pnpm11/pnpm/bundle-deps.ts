@@ -110,6 +110,8 @@ function createDistNodeModules () {
   fs.rmSync(DEPLOY_DIR, { recursive: true })
 }
 
+createDistNodeModules()
+
 // The bundled dist/node_modules created above already contains every runtime
 // dependency, so the published manifest must not declare dependencies or
 // devDependencies — otherwise pnpm would install them a second time (and the
@@ -121,12 +123,7 @@ function createDistNodeModules () {
 // pnpm v12 alpha that currently runs the release does not yet honor beforePacking,
 // so it published 11.12.0 with the fields intact. Remove this once the release
 // runs a pnpm that applies the hook.
-function stripBundledDependenciesFromManifest () {
-  const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'))
-  delete manifest.dependencies
-  delete manifest.devDependencies
-  fs.writeFileSync(MANIFEST_PATH, `${JSON.stringify(manifest, undefined, 2)}\n`)
-}
-
-createDistNodeModules()
-stripBundledDependenciesFromManifest()
+const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'))
+delete manifest.dependencies
+delete manifest.devDependencies
+fs.writeFileSync(MANIFEST_PATH, `${JSON.stringify(manifest, undefined, 2)}\n`)
