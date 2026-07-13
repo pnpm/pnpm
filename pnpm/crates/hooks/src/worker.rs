@@ -154,6 +154,24 @@ impl NodeWorker {
         self.request(hook, serde_json::json!({ "hook": hook, "payload": payload }), log).await
     }
 
+    /// Call the `beforePacking` hook with `(manifest, dir, context)`.
+    /// Returns the hook's result, or `manifest` unchanged when the
+    /// pnpmfile exports no `beforePacking` (mirroring pnpm's
+    /// `await hook(pkg, dir) ?? publishManifest`).
+    pub async fn call_before_packing(
+        &self,
+        manifest: Value,
+        dir: &str,
+        log: LogFn,
+    ) -> Result<Value, HookError> {
+        self.request(
+            "beforePacking",
+            serde_json::json!({ "hook": "beforePacking", "payload": manifest, "dir": dir }),
+            log,
+        )
+        .await
+    }
+
     /// Whether the loaded pnpmfile exports a `hooks` object. Mirrors
     /// pnpm's `entry.hooks != null` gate for `pnpmfileChecksum`.
     pub async fn has_hooks(&self) -> bool {
@@ -371,6 +389,10 @@ async function handle(line) {{
         }}
       }}
       send({{ ok: newPkg }});
+    }} else if (req.hook === 'beforePacking') {{
+      if (typeof fn !== 'function') {{ send({{ ok: req.payload }}); return; }}
+      const newPkg = await fn(req.payload, req.dir, context);
+      send({{ ok: newPkg == null ? req.payload : newPkg }});
     }} else if (req.hook === 'filterLog') {{
       const res = (typeof fn === 'function') ? await fn(req.payload, context) : true;
       send({{ ok: res }});

@@ -1,6 +1,4 @@
-use super::{
-    Host, PackError, PackOptions, PackResult, api, format_pack_output, to_pack_result_json,
-};
+use super::{Host, PackError, PackOptions, PackResult, format_pack_output, to_pack_result_json};
 use crate::capabilities::{FsAtomicWrite, FsCreateDirAll, FsFileLen, FsReadFile};
 use flate2::read::GzDecoder;
 use pacquet_config::NodeLinker;
@@ -40,8 +38,25 @@ fn fixture(manifest: &Value) -> (TempDir, PackOptions) {
         dry_run: false,
         pack_destination: None,
         out: None,
+        pnpmfiles: Vec::new(),
     };
     (dir, opts)
+}
+
+/// Block on the async [`super::api`] so the synchronous `#[test]`
+/// functions can drive it. These fixtures configure no pnpmfiles, so
+/// the `beforePacking` loop is a no-op and a bare current-thread runtime
+/// is enough.
+fn api<Reporter, Sys>(opts: &PackOptions) -> Result<PackResult, PackError>
+where
+    Reporter: pacquet_reporter::Reporter,
+    Sys: FsReadFile + FsFileLen + FsCreateDirAll + FsAtomicWrite,
+{
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(super::api::<Reporter, Sys>(opts))
 }
 
 fn touch(dir: &Path, rel: &str, contents: &str) {
@@ -301,6 +316,7 @@ fn workspace_license_is_injected_into_a_sub_package() {
         dry_run: false,
         pack_destination: None,
         out: None,
+        pnpmfiles: Vec::new(),
     };
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();
@@ -344,6 +360,7 @@ fn symlinked_workspace_license_is_not_injected() {
         dry_run: false,
         pack_destination: None,
         out: None,
+        pnpmfiles: Vec::new(),
     };
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();

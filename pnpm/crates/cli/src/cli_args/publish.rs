@@ -252,7 +252,7 @@ impl PublishArgs {
 
         let pack_destination = tempfile::tempdir().into_diagnostic().wrap_err("create temp dir")?;
         let pack_result =
-            self.pack_for_publish::<Reporter>(project_dir, config, pack_destination.path())?;
+            self.pack_for_publish::<Reporter>(project_dir, config, pack_destination.path()).await?;
         let tarball_data = std::fs::read(&pack_result.tarball_path)
             .into_diagnostic()
             .wrap_err("read packed tarball")?;
@@ -292,12 +292,14 @@ impl PublishArgs {
 
     /// Pack the project into `pack_destination` for publishing (never a dry
     /// run; the publish itself honors `--dry-run`).
-    fn pack_for_publish<Reporter: self::Reporter>(
+    async fn pack_for_publish<Reporter: self::Reporter>(
         &self,
         dir: &Path,
         config: &Config,
         pack_destination: &Path,
     ) -> miette::Result<PackResult> {
+        let pnpmfile_root = config.workspace_dir.as_deref().unwrap_or(dir);
+        let pnpmfiles = crate::config_deps::resolve_pnpmfile_paths(config, pnpmfile_root);
         let options = PackOptions {
             dir: dir.to_path_buf(),
             catalogs: crate::cli_args::pack::pack_catalogs(config)?,
@@ -314,8 +316,10 @@ impl PublishArgs {
             dry_run: false,
             out: None,
             pack_destination: Some(pack_destination.to_string_lossy().into_owned()),
+            pnpmfiles,
         };
         pack_api::<Reporter, PackHost>(&options)
+            .await
             .map_err(miette::Report::new)
             .wrap_err("pack the package")
     }

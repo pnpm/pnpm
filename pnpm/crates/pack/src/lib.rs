@@ -36,8 +36,9 @@ use pacquet_exportable_manifest::{
     CreateExportableManifestError, CreateExportableManifestOptions, create_exportable_manifest,
 };
 use pacquet_fs_packlist::{PacklistError, packlist};
+use pacquet_hooks::{HookContext, LogFn, finder};
 use pacquet_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
-use pacquet_reporter::Reporter;
+use pacquet_reporter::{HookLog, LogEvent, LogLevel, Reporter};
 use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use serde_json::Value;
 use std::{
@@ -45,6 +46,7 @@ use std::{
     collections::{HashMap, HashSet},
     io,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 pub use capabilities::{FsAtomicWrite, FsCreateDirAll, FsFileLen, FsReadFile, Host};
@@ -86,6 +88,11 @@ pub struct PackOptions {
     /// Workspace root, used to inject a root `LICENSE` into a
     /// sub-package tarball that lacks one.
     pub workspace_dir: Option<PathBuf>,
+    /// Pnpmfile paths whose `beforePacking` hook runs against the
+    /// published manifest before the file list is computed, in
+    /// application order (config-dependency plugin pnpmfiles first, then
+    /// the workspace-root pnpmfile). Empty when none are configured.
+    pub pnpmfiles: Vec<PathBuf>,
     /// Do everything except writing the tarball to disk.
     pub dry_run: bool,
     /// Directory to write the tarball into.
@@ -179,6 +186,10 @@ pub enum PackError {
     #[diagnostic(transparent)]
     Lifecycle(#[error(source)] LifecycleScriptError),
 
+    #[display("The \"beforePacking\" hook from {pnpmfile} failed: {message}")]
+    #[diagnostic(code(pacquet_pack::before_packing))]
+    BeforePacking { pnpmfile: String, message: String },
+
     #[display("Failed to read {path}: {source}")]
     #[diagnostic(code(pacquet_pack::read_file))]
     ReadFile {
@@ -209,7 +220,7 @@ pub enum PackError {
 /// `R` threads the reporter through the lifecycle-script emits; `Sys`
 /// is the filesystem seam for the tarball write phase
 /// ([`capabilities::Host`] in production).
-pub fn api<Reporter, Sys>(opts: &PackOptions) -> Result<PackResult, PackError>
+pub async fn api<Reporter, Sys>(opts: &PackOptions) -> Result<PackResult, PackError>
 where
     Reporter: self::Reporter,
     Sys: FsReadFile + FsFileLen + FsCreateDirAll + FsAtomicWrite,
@@ -267,6 +278,15 @@ where
         },
     )
     .map_err(PackError::CreateManifest)?;
+
+    // Run `beforePacking` hooks against the built manifest, before the
+    // file list is computed, so a hook that rewrites `files` / `bin` /
+    // dependency fields is honored. pnpm runs it inside
+    // `createExportableManifest`; pacquet applies it here because
+    // `create_exportable_manifest` is a pure, synchronous transform.
+    publish_manifest =
+        apply_before_packing::<Reporter>(&opts.dir, &dir, publish_manifest, &opts.pnpmfiles)
+            .await?;
 
     // Strip semver build metadata (the `+<build>` segment) so the
     // tarball name, the packed manifest, and any registry metadata all
@@ -328,6 +348,48 @@ where
     let tarball_path = packed_tarball_path(&opts.dir, &dir, &dest_dir, &tarball_name);
 
     Ok(PackResult { published_manifest: publish_manifest, contents, tarball_path, unpacked_size })
+}
+
+/// Chain every configured pnpmfile's `beforePacking` hook over the
+/// published `manifest`, in order. `project_dir` is the packed project's
+/// root (used as the log prefix); `publish_dir` is the directory passed
+/// to the hook (the project's publish directory, honoring
+/// `publishConfig.directory`), matching pnpm's `hook(manifest, dir)`.
+async fn apply_before_packing<Reporter: self::Reporter>(
+    project_dir: &Path,
+    publish_dir: &Path,
+    mut manifest: Value,
+    pnpmfiles: &[PathBuf],
+) -> Result<Value, PackError> {
+    let prefix = project_dir.to_string_lossy();
+    for pnpmfile in pnpmfiles {
+        let hooks = finder::load_pnpmfile_at(pnpmfile.clone());
+        let ctx =
+            HookContext { log: before_packing_logger::<Reporter>(pnpmfile, &prefix), dir: None };
+        manifest = hooks.before_packing(manifest, publish_dir, ctx).await.map_err(|err| {
+            PackError::BeforePacking {
+                pnpmfile: pnpmfile.display().to_string(),
+                message: err.to_string(),
+            }
+        })?;
+    }
+    Ok(manifest)
+}
+
+/// A `context.log(...)` sink forwarding each `beforePacking` log line to
+/// the `pnpm:hook` channel, tagged with the pnpmfile it came from.
+fn before_packing_logger<Reporter: self::Reporter>(pnpmfile: &Path, prefix: &str) -> LogFn {
+    let from = pnpmfile.to_string_lossy().into_owned();
+    let prefix = prefix.to_owned();
+    Arc::new(move |message| {
+        Reporter::emit(&LogEvent::Hook(HookLog {
+            level: LogLevel::Debug,
+            from: from.clone(),
+            hook: "beforePacking".to_string(),
+            prefix: prefix.clone(),
+            message,
+        }));
+    })
 }
 
 /// Project a [`PackResult`] into its JSON shape.

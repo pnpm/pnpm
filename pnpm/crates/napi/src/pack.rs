@@ -77,10 +77,16 @@ pub async fn pack(options: PackOptions, on_log: Option<LogSink>) -> napi::Result
         dry_run: options.dry_run.unwrap_or(false),
         pack_destination: options.pack_destination,
         out: options.out,
+        // Bit drives its own `readPackage` hook through the napi bridge and
+        // loads no `beforePacking` pnpmfiles, so the hook loop is a no-op.
+        pnpmfiles: Vec::new(),
     };
 
     let result = tokio::task::spawn_blocking(move || {
-        pacquet_pack::api::<NodeBridgeReporter, pacquet_pack::Host>(&pack_opts)
+        // `api` is async; drive it to completion on the blocking thread so the
+        // synchronous tarball write still runs off the async worker threads.
+        tokio::runtime::Handle::current()
+            .block_on(pacquet_pack::api::<NodeBridgeReporter, pacquet_pack::Host>(&pack_opts))
     })
     .await;
 

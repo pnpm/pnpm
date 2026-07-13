@@ -365,10 +365,14 @@ impl EnvInstallerContext {
 /// outside `WorkspaceSettings` — are seeded into the hook input and, when
 /// a hook changes them, captured into [`Config::catalogs`] for the install
 /// to use.
-pub async fn run_update_config_hooks<Reporter: self::Reporter>(
-    config: &mut Config,
-    root_dir: &Path,
-) -> Result<()> {
+/// The pnpmfile paths that contribute hooks for `root_dir`, in
+/// application order: config-dependency plugin pnpmfiles (lexical
+/// order) first, then the workspace-root `.pnpmfile.{cjs,mjs}`. Shared
+/// by the `updateConfig` install hook and the `beforePacking`
+/// pack/publish hook so both apply the same pnpmfile set, matching
+/// pnpm's single loaded hooks object.
+#[must_use]
+pub fn resolve_pnpmfile_paths(config: &Config, root_dir: &Path) -> Vec<PathBuf> {
     let config_modules_dir = root_dir.join("node_modules").join(".pnpm-config");
     let mut pnpmfiles: Vec<PathBuf> = match config.config_dependencies.as_ref() {
         Some(deps) => finder::calc_pnpmfile_paths_of_plugin_deps(
@@ -380,6 +384,14 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     if let Some(root_pnpmfile) = finder::find_pnpmfile(root_dir) {
         pnpmfiles.push(root_pnpmfile);
     }
+    pnpmfiles
+}
+
+pub async fn run_update_config_hooks<Reporter: self::Reporter>(
+    config: &mut Config,
+    root_dir: &Path,
+) -> Result<()> {
+    let pnpmfiles = resolve_pnpmfile_paths(config, root_dir);
     if pnpmfiles.is_empty() {
         return Ok(());
     }

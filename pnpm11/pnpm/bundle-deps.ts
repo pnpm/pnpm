@@ -55,6 +55,7 @@ import { execSync } from 'node:child_process'
 
 const WORKSPACE_DIR = path.join(import.meta.dirname, '..', '..')
 const DEPLOY_DIR = path.join(import.meta.dirname, 'temp-deploy')
+const MANIFEST_PATH = path.join(import.meta.dirname, 'package.json')
 
 const NODE_MODULES_TEMP_DIR = path.join(DEPLOY_DIR, 'node_modules')
 const NODE_MODULES_DEST_DIR = path.join(import.meta.dirname, 'dist/node_modules')
@@ -109,4 +110,23 @@ function createDistNodeModules () {
   fs.rmSync(DEPLOY_DIR, { recursive: true })
 }
 
+// The bundled dist/node_modules created above already contains every runtime
+// dependency, so the published manifest must not declare dependencies or
+// devDependencies — otherwise pnpm would install them a second time (and the
+// internal-only devDependencies, e.g. @pnpm/test-ipc-server, aren't even
+// published, so the install would fail).
+//
+// The workspace .pnpmfile.cjs beforePacking hook already drops these fields when
+// packing. This on-disk strip is a temporary workaround for pnpm/pnpm#12955: the
+// pnpm v12 alpha that currently runs the release does not yet honor beforePacking,
+// so it published 11.12.0 with the fields intact. Remove this once the release
+// runs a pnpm that applies the hook.
+function stripBundledDependenciesFromManifest () {
+  const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'))
+  delete manifest.dependencies
+  delete manifest.devDependencies
+  fs.writeFileSync(MANIFEST_PATH, `${JSON.stringify(manifest, undefined, 2)}\n`)
+}
+
 createDistNodeModules()
+stripBundledDependenciesFromManifest()

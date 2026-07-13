@@ -4578,6 +4578,7 @@ dependencies = [
  "pacquet-executor",
  "pacquet-exportable-manifest",
  "pacquet-fs-packlist",
+ "pacquet-hooks",
  "pacquet-package-manifest",
  "pacquet-reporter",
  "pacquet-resolving-parse-wanted-dependency",
@@ -4586,6 +4587,7 @@ dependencies = [
  "serde_json",
  "tar",
  "tempfile",
+ "tokio",
 ]
 
 [[package]]

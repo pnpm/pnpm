@@ -90,14 +90,14 @@ pub struct PackArgs {
 impl PackArgs {
     /// Pack the project at `dir` (or the `--filter`-selected workspace
     /// projects when `recursive`), returning the text/JSON the CLI prints.
-    pub fn run<Reporter: self::Reporter>(
+    pub async fn run<Reporter: self::Reporter>(
         &self,
         dir: &Path,
         config: &Config,
         recursive: bool,
     ) -> miette::Result<String> {
         if recursive {
-            self.run_recursive::<Reporter>(dir, config)
+            self.run_recursive::<Reporter>(dir, config).await
         } else {
             let options = self.pack_options(
                 dir.to_path_buf(),
@@ -107,6 +107,7 @@ impl PackArgs {
                 self.pack_destination.clone(),
             );
             let result = api::<Reporter, Host>(&options)
+                .await
                 .map_err(miette::Report::new)
                 .wrap_err("pack the package")?;
             Ok(format_pack_output(&[to_pack_result_json(&result)], self.json, false))
@@ -115,7 +116,7 @@ impl PackArgs {
 
     /// Pack each `--filter`-selected workspace project that declares both
     /// a name and a version, in topological order.
-    fn run_recursive<Reporter: self::Reporter>(
+    async fn run_recursive<Reporter: self::Reporter>(
         &self,
         dir: &Path,
         config: &Config,
@@ -173,6 +174,7 @@ impl PackArgs {
                     pack_destination.clone(),
                 );
                 let result = api::<Reporter, Host>(&options)
+                    .await
                     .map_err(miette::Report::new)
                     .wrap_err_with(|| format!("pack {}", project.root_dir.display()))?;
                 packed.push(to_pack_result_json(&result));
@@ -211,6 +213,8 @@ impl PackArgs {
         out: Option<String>,
         pack_destination: Option<String>,
     ) -> PackOptions {
+        let pnpmfile_root = config.workspace_dir.as_deref().unwrap_or(&dir);
+        let pnpmfiles = crate::config_deps::resolve_pnpmfile_paths(config, pnpmfile_root);
         PackOptions {
             dir,
             catalogs,
@@ -227,6 +231,7 @@ impl PackArgs {
             dry_run: self.dry_run,
             out,
             pack_destination,
+            pnpmfiles,
         }
     }
 }
