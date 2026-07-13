@@ -53,6 +53,11 @@ test('createDeployFiles keeps local tarball package names when rewriting file UR
       },
     }],
     deployDir,
+    include: {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    },
     lockfile,
     lockfileDir,
     selectedProjectManifest: {
