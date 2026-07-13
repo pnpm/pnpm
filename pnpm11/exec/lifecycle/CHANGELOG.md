@@ -1,5 +1,19 @@
 # @pnpm/lifecycle
 
+## 1100.1.3
+
+### Patch Changes
+
+- Fixed orphaned child processes on Windows when pnpm exits on an error while commands spawned by `pnpm exec` or `pnpm dlx` are still running (for example, when one project's command fails during `pnpm --recursive exec`). The PIDs of these commands are now recorded when they are spawned and their whole process trees are terminated with `taskkill` on an error exit. Previously the cleanup relied on enumerating the system process list, which is so slow on Windows that the enumeration hit its timeout and the cleanup was silently skipped [#12406](https://github.com/pnpm/pnpm/issues/12406).
+
+- Updated dependencies:
+  - @pnpm/bins.linker@1100.0.17
+  - @pnpm/core-loggers@1100.2.2
+  - @pnpm/fetching.directory-fetcher@1100.0.20
+  - @pnpm/pkg-manifest.reader@1100.0.10
+  - @pnpm/store.controller-types@1100.1.8
+  - @pnpm/types@1101.4.0
+
 ## 1100.1.2
 
 ### Patch Changes

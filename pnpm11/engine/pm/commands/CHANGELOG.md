@@ -1,5 +1,35 @@
 # @pnpm/engine.pm.commands
 
+## 1101.2.3
+
+### Patch Changes
+
+- `pnpm add -g`, `pnpm update -g`, `pnpm setup`, and the self-updater no longer fail with `ERR_PNPM_MISSING_TIME` when `trustPolicy: no-downgrade` or `resolutionMode: time-based` is set in the global config [#12883](https://github.com/pnpm/pnpm/issues/12883). The decision to fetch full registry metadata now lives in one place, and the `no-downgrade` trust policy always requests full metadata (matching the self-updater), since the trust evidence it checks is missing from abbreviated metadata even on registries that include the `time` field.
+
+- Updated dependencies:
+  - @pnpm/bins.linker@1100.0.17
+  - @pnpm/building.policy@1100.0.13
+  - @pnpm/cli.meta@1100.0.9
+  - @pnpm/cli.utils@1101.0.14
+  - @pnpm/config.pick-registry-for-package@1100.0.10
+  - @pnpm/config.reader@1101.12.0
+  - @pnpm/config.version-policy@1100.1.7
+  - @pnpm/deps.graph-hasher@1100.2.10
+  - @pnpm/deps.security.signatures@1101.2.4
+  - @pnpm/global.commands@1100.0.34
+  - @pnpm/global.packages@1100.0.11
+  - @pnpm/installing.client@1100.2.14
+  - @pnpm/installing.deps-restorer@1102.1.5
+  - @pnpm/installing.env-installer@1102.0.6
+  - @pnpm/lockfile.fs@1100.1.11
+  - @pnpm/lockfile.types@1100.0.14
+  - @pnpm/network.auth-header@1101.1.4
+  - @pnpm/resolving.npm-resolver@1102.1.3
+  - @pnpm/store.connection-manager@1100.3.6
+  - @pnpm/store.controller@1102.0.5
+  - @pnpm/types@1101.4.0
+  - @pnpm/workspace.project-manifest-reader@1100.0.15
+
 ## 1101.2.2
 
 ### Patch Changes

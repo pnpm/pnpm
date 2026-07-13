@@ -1,5 +1,14 @@
 # @pnpm/lockfile.settings-checker
 
+## 1100.1.3
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/config.parse-overrides@1100.1.0
+  - @pnpm/lockfile.types@1100.0.14
+  - @pnpm/lockfile.verification@1100.0.24
+
 ## 1100.1.2
 
 ### Patch Changes

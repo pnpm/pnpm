@@ -1,5 +1,20 @@
 # @pnpm/building.during-install
 
+## 1102.0.6
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/bins.linker@1100.0.17
+  - @pnpm/config.reader@1101.12.0
+  - @pnpm/core-loggers@1100.2.2
+  - @pnpm/deps.graph-hasher@1100.2.10
+  - @pnpm/deps.path@1100.0.9
+  - @pnpm/exec.lifecycle@1100.1.3
+  - @pnpm/pkg-manifest.reader@1100.0.10
+  - @pnpm/store.controller-types@1100.1.8
+  - @pnpm/types@1101.4.0
+
 ## 1102.0.5
 
 ### Patch Changes

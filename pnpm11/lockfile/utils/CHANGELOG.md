@@ -1,5 +1,16 @@
 # @pnpm/lockfile-utils
 
+## 1100.1.3
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/deps.path@1100.0.9
+  - @pnpm/hooks.types@1100.2.1
+  - @pnpm/lockfile.types@1100.0.14
+  - @pnpm/resolving.resolver-base@1100.5.2
+  - @pnpm/types@1101.4.0
+
 ## 1100.1.2
 
 ### Patch Changes

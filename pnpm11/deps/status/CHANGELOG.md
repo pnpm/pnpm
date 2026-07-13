@@ -1,5 +1,24 @@
 # @pnpm/deps.status
 
+## 1100.1.7
+
+### Patch Changes
+
+- Fixed the dependency status check wrongly reporting "up to date" when a `package.json`, `.pnpmfile.cjs`, or patch file was edited in the same second as the previous install, on filesystems that record mtimes at whole-second resolution (for example ext4 with 128-byte inodes). The optimistic repeat-install fast path and `verify-deps-before-run` compared mtimes strictly, so a same-second edit whose mtime rounded down looked unchanged and re-resolution was skipped. Such a file's whole second is now treated as possibly-modified, falling through to the content check; behavior on sub-second filesystems is unchanged.
+
+- Updated dependencies:
+  - @pnpm/config.parse-overrides@1100.1.0
+  - @pnpm/config.reader@1101.12.0
+  - @pnpm/installing.context@1100.0.24
+  - @pnpm/lockfile.fs@1100.1.11
+  - @pnpm/lockfile.settings-checker@1100.1.3
+  - @pnpm/lockfile.verification@1100.0.24
+  - @pnpm/resolving.resolver-base@1100.5.2
+  - @pnpm/types@1101.4.0
+  - @pnpm/workspace.projects-reader@1101.0.14
+  - @pnpm/workspace.state@1100.0.28
+  - @pnpm/workspace.workspace-manifest-reader@1100.1.0
+
 ## 1100.1.6
 
 ### Patch Changes

@@ -1,5 +1,66 @@
 # pnpm
 
+## 11.13.0
+
+### Minor Changes
+
+- Added `versioning.epics` to `pnpm-workspace.yaml`. An epic ties a group of member packages to a lead package, constraining every member's major version to a band derived from the lead's major: while the lead is on major `M`, members live in `M*100 … M*100+99`. Members move independently inside the band (patch, minor, and a `major` intent that stays in-band); a bump that would carry a member past the band ceiling is rejected until the lead advances its own major. When a release plan takes the lead to a new stable major, every member re-bases to the band floor in the same plan. Membership is matched with pnpm's package selectors — name globs, `./`-prefixed directory globs, and `!`-prefixed negations.
+
+- Added the `team` command for managing organization teams and team memberships on the registry, with create, destroy, add, rm, and ls subcommands and support for --otp, --parseable, and --json flags.
+
+- Added native workspace release management [#12952](https://github.com/pnpm/pnpm/issues/12952): the new `pnpm change` command records change intents as changesets-compatible `.changeset/*.md` files (`pnpm change status` shows the pending release plan), and the bare `pnpm version -r` consumes them — bumping versions across the workspace with dependent propagation through `workspace:` ranges, fixed groups, a `maxBump` cap, `--filter` narrowing, and `--dry-run` — writing changelogs, and recording consumed intents in a committed ledger that keeps cherry-picks and merge-backs between release branches safe. Packages can be moved onto per-package release lanes with the new `pnpm lane <name> --filter <pkg>` command and back with `pnpm lane main --filter <pkg>` (`pnpm lane` shows the membership), releasing `X.Y.Z-lane.N` prereleases from the same runs that release stable versions of the packages on the main lane. Configuration lives under the new `versioning` key of `pnpm-workspace.yaml` (`fixed`, `ignore`, `maxBump`, `lanes`, `changelog`). When two workspace projects publish the same name, intent files, `versioning.lanes`, and `versioning.fixed`/`ignore` may reference a project by its workspace-relative directory path (e.g. `"./pnpm/npm/pnpm"`) — the one additive extension to the changesets format, applied automatically by `pnpm change`.
+
+  Release changelogs default to `registry` storage (`versioning.changelog.storage`): no `CHANGELOG.md` is committed. Each release's section is composed at publish time and packed into the published tarball on top of the previously published version's changelog, and the consumed change intents are garbage-collected by a later `pnpm version -r` only once the registry confirms the version is published with its section. Set `versioning.changelog.storage: repository` to keep committed `CHANGELOG.md` files instead.
+
+- Added a new override selector form with an empty range — `"pkg@": "<version>"` — called a convergence override. It rewrites a dependency edge only when its exact version satisfies the edge's declared range, so compatible consumers converge on one version while incompatible consumers keep their own resolution — now and for any dependent added in the future [#12794](https://github.com/pnpm/pnpm/issues/12794).
+
+  ```yaml
+  overrides:
+    "form-data@": 4.0.6
+  ```
+
+  The value must be an exact version. When a full resolution detects that every declared range also admits a newer version, pnpm warns that the override is stale and names the version to converge on. Previously an empty range in an override selector was undocumented and behaved like a bare (unscoped) override.
+
+### Patch Changes
+
+- A `tokenHelper` set in the global pnpm `auth.ini` is no longer rejected as project-level configuration. The guard that blocks `tokenHelper` from a project `.npmrc` only treated `~/.npmrc` as a trusted source, so a helper written to `auth.ini` (for example by `pnpm config set`) failed on every command and could not even be removed with `pnpm config delete`. A `tokenHelper` in a workspace or project `.npmrc` is still rejected.
+
+- `pnpm cache delete` now removes a package's metadata from every metadata cache directory (`metadata`, `metadata-full`, and `metadata-full-filtered`), instead of only the one the current resolution mode reads. Previously a package cached under a different mode (e.g. `metadata-full-filtered`) was left behind. Closes pnpm/pnpm#12753.
+
+- Fixed an injected workspace dependency (`injectWorkspacePackages: true`) incorrectly staying as `file:` instead of deduping back to `link:` when an unrelated, ordinary shared dependency resolved to a peer-suffixed variant for the target project's own copy but not for the injected occurrence. See pnpm/pnpm#10433.
+
+- `pnpm deploy` now supports workspaces that use catalogs.
+
+- Fixed `pnpm deploy` with a shared lockfile so local `file:` tarball dependencies keep their package name in the generated deploy lockfile. This prevents warm-store deploys from failing with `ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE` when the tarball filename includes the version.
+
+- Options that follow `create`, `exec`, or `test` appearing as a subcommand of another command are now parsed instead of being silently treated as positional parameters. For example, `pnpm team create @org:team --registry <url>` previously ignored the `--registry` option and sent the request to the default registry.
+
+- `pnpm add -g`, `pnpm update -g`, `pnpm setup`, and the self-updater no longer fail with `ERR_PNPM_MISSING_TIME` when `trustPolicy: no-downgrade` or `resolutionMode: time-based` is set in the global config [#12883](https://github.com/pnpm/pnpm/issues/12883). The decision to fetch full registry metadata now lives in one place, and the `no-downgrade` trust policy always requests full metadata (matching the self-updater), since the trust evidence it checks is missing from abbreviated metadata even on registries that include the `time` field.
+
+- `pnpm list` and `pnpm why` no longer crash with `EMFILE: too many open files` when a project has a large number of unsaved dependencies (packages present in `node_modules` but not in the lockfile). The reads of those packages are now concurrency-limited.
+
+- The published `pnpm` package no longer declares `dependencies` or `devDependencies`. Because the CLI bundles its runtime dependencies into `dist/node_modules`, those fields are dropped when packing, so `npm install` of the tarball no longer tries to resolve internal-only packages such as `@pnpm/test-ipc-server`. Closes pnpm/pnpm#12955.
+
+- Fixed `pnpm publish --otp` and `pnpm publish --batch --otp` to send the configured OTP to the registry.
+
+- `pnpm publish` again sends the package's README to the registry as metadata, so registries can render it on the package page. The readme is always included in the published metadata (matching the npm CLI), while the `embed-readme` setting continues to control only whether the readme is written into the `package.json` inside the tarball. This restores the behavior that was lost when publishing became fully native. Closes pnpm/pnpm#12966.
+
+- Fixed the dependency status check wrongly reporting "up to date" when a `package.json`, `.pnpmfile.cjs`, or patch file was edited in the same second as the previous install, on filesystems that record mtimes at whole-second resolution (for example ext4 with 128-byte inodes). The optimistic repeat-install fast path and `verify-deps-before-run` compared mtimes strictly, so a same-second edit whose mtime rounded down looked unchanged and re-resolution was skipped. Such a file's whole second is now treated as possibly-modified, falling through to the content check; behavior on sub-second filesystems is unchanged.
+
+- Retry package metadata requests when a registry or proxy returns `304 Not Modified` to an unconditional request, preventing false `ERR_PNPM_CACHE_MISSING_AFTER_304` failures [pnpm/pnpm#12882](https://github.com/pnpm/pnpm/issues/12882).
+
+  If the retry also returns `304`, report `ERR_PNPM_META_NOT_MODIFIED_WITHOUT_CACHE` instead.
+
+- Fixed `pnpm update` removing transitive lockfile entries when `dedupePeerDependents` is disabled and the selected package is absent [pnpm/pnpm#12456](https://github.com/pnpm/pnpm/issues/12456).
+
+- Limit modern deploy lockfiles and localized virtual stores to dependencies reachable from the selected dependency groups.
+
+- A `tokenHelper` command is now given a 60-second time limit. A helper that hangs (deadlock, stuck I/O) is killed and reported as an error instead of leaving the command waiting forever.
+
+- Fixed orphaned child processes on Windows when pnpm exits on an error while commands spawned by `pnpm exec` or `pnpm dlx` are still running (for example, when one project's command fails during `pnpm --recursive exec`). The PIDs of these commands are now recorded when they are spawned and their whole process trees are terminated with `taskkill` on an error exit. Previously the cleanup relied on enumerating the system process list, which is so slow on Windows that the enumeration hit its timeout and the cleanup was silently skipped [#12406](https://github.com/pnpm/pnpm/issues/12406).
+
+- `pnpm pack` now respects workspace-root `.npmignore` and `.gitignore` files when packing workspace packages.
+
 ## 11.12.0
 
 ### Minor Changes

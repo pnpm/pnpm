@@ -1,5 +1,18 @@
 # @pnpm/store-connection-manager
 
+## 1100.3.6
+
+### Patch Changes
+
+- `pnpm add -g`, `pnpm update -g`, `pnpm setup`, and the self-updater no longer fail with `ERR_PNPM_MISSING_TIME` when `trustPolicy: no-downgrade` or `resolutionMode: time-based` is set in the global config [#12883](https://github.com/pnpm/pnpm/issues/12883). The decision to fetch full registry metadata now lives in one place, and the `no-downgrade` trust policy always requests full metadata (matching the self-updater), since the trust evidence it checks is missing from abbreviated metadata even on registries that include the `time` field.
+
+- Updated dependencies:
+  - @pnpm/cli.meta@1100.0.9
+  - @pnpm/config.reader@1101.12.0
+  - @pnpm/installing.client@1100.2.14
+  - @pnpm/resolving.resolver-base@1100.5.2
+  - @pnpm/store.controller@1102.0.5
+
 ## 1100.3.5
 
 ### Patch Changes

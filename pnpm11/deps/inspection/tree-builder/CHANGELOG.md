@@ -1,5 +1,22 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 1100.0.21
+
+### Patch Changes
+
+- `pnpm list` and `pnpm why` no longer crash with `EMFILE: too many open files` when a project has a large number of unsaved dependencies (packages present in `node_modules` but not in the lockfile). The reads of those packages are now concurrency-limited.
+
+- Updated dependencies:
+  - @pnpm/config.normalize-registries@1100.0.9
+  - @pnpm/deps.path@1100.0.9
+  - @pnpm/installing.modules-yaml@1100.0.10
+  - @pnpm/lockfile.detect-dep-types@1100.0.14
+  - @pnpm/lockfile.fs@1100.1.11
+  - @pnpm/lockfile.utils@1100.1.3
+  - @pnpm/pkg-manifest.reader@1100.0.10
+  - @pnpm/store.cafs@1100.1.13
+  - @pnpm/types@1101.4.0
+
 ## 1100.0.20
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/tarball-fetcher
 
+## 1102.0.4
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/core-loggers@1100.2.2
+  - @pnpm/exec.prepare-package@1100.0.22
+  - @pnpm/fetching.fetcher-base@1100.2.2
+  - @pnpm/fs.packlist@1100.0.2
+  - @pnpm/types@1101.4.0
+
 ## 1102.0.3
 
 ### Patch Changes

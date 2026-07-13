@@ -1,5 +1,55 @@
 # @pnpm/releasing.commands
 
+## 1100.6.0
+
+### Minor Changes
+
+- Added native workspace release management [#12952](https://github.com/pnpm/pnpm/issues/12952): the new `pnpm change` command records change intents as changesets-compatible `.changeset/*.md` files (`pnpm change status` shows the pending release plan), and the bare `pnpm version -r` consumes them — bumping versions across the workspace with dependent propagation through `workspace:` ranges, fixed groups, a `maxBump` cap, `--filter` narrowing, and `--dry-run` — writing changelogs, and recording consumed intents in a committed ledger that keeps cherry-picks and merge-backs between release branches safe. Packages can be moved onto per-package release lanes with the new `pnpm lane <name> --filter <pkg>` command and back with `pnpm lane main --filter <pkg>` (`pnpm lane` shows the membership), releasing `X.Y.Z-lane.N` prereleases from the same runs that release stable versions of the packages on the main lane. Configuration lives under the new `versioning` key of `pnpm-workspace.yaml` (`fixed`, `ignore`, `maxBump`, `lanes`, `changelog`). When two workspace projects publish the same name, intent files, `versioning.lanes`, and `versioning.fixed`/`ignore` may reference a project by its workspace-relative directory path (e.g. `"./pnpm/npm/pnpm"`) — the one additive extension to the changesets format, applied automatically by `pnpm change`.
+
+  Release changelogs default to `registry` storage (`versioning.changelog.storage`): no `CHANGELOG.md` is committed. Each release's section is composed at publish time and packed into the published tarball on top of the previously published version's changelog, and the consumed change intents are garbage-collected by a later `pnpm version -r` only once the registry confirms the version is published with its section. Set `versioning.changelog.storage: repository` to keep committed `CHANGELOG.md` files instead.
+
+### Patch Changes
+
+- `pnpm deploy` now supports workspaces that use catalogs.
+
+- Fixed `pnpm deploy` with a shared lockfile so local `file:` tarball dependencies keep their package name in the generated deploy lockfile. This prevents warm-store deploys from failing with `ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE` when the tarball filename includes the version.
+
+- Fixed `pnpm publish --otp` and `pnpm publish --batch --otp` to send the configured OTP to the registry.
+
+- `pnpm publish` again sends the package's README to the registry as metadata, so registries can render it on the package page. The readme is always included in the published metadata (matching the npm CLI), while the `embed-readme` setting continues to control only whether the readme is written into the `package.json` inside the tarball. This restores the behavior that was lost when publishing became fully native. Closes pnpm/pnpm#12966.
+
+- Limit modern deploy lockfiles and localized virtual stores to dependencies reachable from the selected dependency groups.
+
+- `pnpm pack` now respects workspace-root `.npmignore` and `.gitignore` files when packing workspace packages.
+
+- Updated dependencies:
+  - @pnpm/bins.resolver@1100.0.9
+  - @pnpm/cli.utils@1101.0.14
+  - @pnpm/config.pick-registry-for-package@1100.0.10
+  - @pnpm/config.reader@1101.12.0
+  - @pnpm/deps.path@1100.0.9
+  - @pnpm/engine.runtime.commands@1100.1.11
+  - @pnpm/engine.runtime.node-resolver@1101.1.13
+  - @pnpm/exec.lifecycle@1100.1.3
+  - @pnpm/fetching.directory-fetcher@1100.0.20
+  - @pnpm/fs.indexed-pkg-importer@1100.0.18
+  - @pnpm/fs.packlist@1100.0.2
+  - @pnpm/installing.client@1100.2.14
+  - @pnpm/installing.commands@1100.10.5
+  - @pnpm/lockfile.fs@1100.1.11
+  - @pnpm/lockfile.types@1100.0.14
+  - @pnpm/network.auth-header@1101.1.4
+  - @pnpm/network.fetch@1100.1.5
+  - @pnpm/releasing.exportable-manifest@1100.1.10
+  - @pnpm/releasing.versioning@1100.1.0
+  - @pnpm/resolving.npm-resolver@1102.1.3
+  - @pnpm/resolving.registry.types@1100.1.4
+  - @pnpm/resolving.resolver-base@1100.5.2
+  - @pnpm/types@1101.4.0
+  - @pnpm/workspace.projects-filter@1100.0.27
+  - @pnpm/workspace.projects-sorter@1100.0.9
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.16
+
 ## 1100.5.5
 
 ### Patch Changes

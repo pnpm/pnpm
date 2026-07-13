@@ -1,5 +1,16 @@
 # @pnpm/cache.commands
 
+## 1100.0.29
+
+### Patch Changes
+
+- `pnpm cache delete` now removes a package's metadata from every metadata cache directory (`metadata`, `metadata-full`, and `metadata-full-filtered`), instead of only the one the current resolution mode reads. Previously a package cached under a different mode (e.g. `metadata-full-filtered`) was left behind. Closes pnpm/pnpm#12753.
+
+- Updated dependencies:
+  - @pnpm/cache.api@1100.0.28
+  - @pnpm/cli.utils@1101.0.14
+  - @pnpm/config.reader@1101.12.0
+
 ## 1100.0.28
 
 ### Patch Changes

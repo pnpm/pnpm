@@ -1,5 +1,62 @@
 # @pnpm/core
 
+## 1102.3.0
+
+### Minor Changes
+
+- Added a new override selector form with an empty range — `"pkg@": "<version>"` — called a convergence override. It rewrites a dependency edge only when its exact version satisfies the edge's declared range, so compatible consumers converge on one version while incompatible consumers keep their own resolution — now and for any dependent added in the future [#12794](https://github.com/pnpm/pnpm/issues/12794).
+
+  ```yaml
+  overrides:
+    "form-data@": 4.0.6
+  ```
+
+  The value must be an exact version. When a full resolution detects that every declared range also admits a newer version, pnpm warns that the override is stale and names the version to converge on. Previously an empty range in an override selector was undocumented and behaved like a bare (unscoped) override.
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/bins.linker@1100.0.17
+  - @pnpm/bins.remover@1100.0.13
+  - @pnpm/building.after-install@1102.0.6
+  - @pnpm/building.during-install@1102.0.6
+  - @pnpm/building.policy@1100.0.13
+  - @pnpm/config.normalize-registries@1100.0.9
+  - @pnpm/config.parse-overrides@1100.1.0
+  - @pnpm/config.version-policy@1100.1.7
+  - @pnpm/core-loggers@1100.2.2
+  - @pnpm/deps.graph-hasher@1100.2.10
+  - @pnpm/deps.path@1100.0.9
+  - @pnpm/exec.lifecycle@1100.1.3
+  - @pnpm/fs.symlink-dependency@1100.0.11
+  - @pnpm/hooks.read-package-hook@1100.1.0
+  - @pnpm/hooks.types@1100.2.1
+  - @pnpm/installing.context@1100.0.24
+  - @pnpm/installing.deps-resolver@1100.2.9
+  - @pnpm/installing.deps-restorer@1102.1.5
+  - @pnpm/installing.linking.direct-dep-linker@1100.0.11
+  - @pnpm/installing.linking.hoist@1100.0.17
+  - @pnpm/installing.linking.modules-cleaner@1100.1.12
+  - @pnpm/installing.modules-yaml@1100.0.10
+  - @pnpm/installing.package-requester@1102.1.3
+  - @pnpm/lockfile.filtering@1100.1.11
+  - @pnpm/lockfile.fs@1100.1.11
+  - @pnpm/lockfile.preferred-versions@1100.0.20
+  - @pnpm/lockfile.pruner@1100.0.14
+  - @pnpm/lockfile.settings-checker@1100.1.3
+  - @pnpm/lockfile.to-pnp@1100.1.5
+  - @pnpm/lockfile.utils@1100.1.3
+  - @pnpm/lockfile.verification@1100.0.24
+  - @pnpm/lockfile.walker@1100.0.14
+  - @pnpm/network.auth-header@1101.1.4
+  - @pnpm/patching.config@1100.0.10
+  - @pnpm/pkg-manifest.utils@1100.2.7
+  - @pnpm/pnpr.client@1.3.3
+  - @pnpm/resolving.resolver-base@1100.5.2
+  - @pnpm/store.controller-types@1100.1.8
+  - @pnpm/types@1101.4.0
+  - @pnpm/workspace.project-manifest-reader@1100.0.15
+
 ## 1102.2.2
 
 ### Patch Changes

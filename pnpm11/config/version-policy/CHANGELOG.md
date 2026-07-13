@@ -1,5 +1,12 @@
 # @pnpm/config.version-policy
 
+## 1100.1.7
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/types@1101.4.0
+
 ## 1100.1.6
 
 ### Patch Changes

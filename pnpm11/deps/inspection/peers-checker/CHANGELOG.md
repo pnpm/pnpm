@@ -1,5 +1,16 @@
 # @pnpm/deps.inspection.peers-checker
 
+## 1100.0.20
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/config.parse-overrides@1100.1.0
+  - @pnpm/deps.path@1100.0.9
+  - @pnpm/lockfile.fs@1100.1.11
+  - @pnpm/lockfile.walker@1100.0.14
+  - @pnpm/types@1101.4.0
+
 ## 1100.0.19
 
 ### Patch Changes

@@ -1,5 +1,19 @@
 # @pnpm/package-store
 
+## 1102.0.5
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/fetching.fetcher-base@1100.2.2
+  - @pnpm/hooks.types@1100.2.1
+  - @pnpm/installing.package-requester@1102.1.3
+  - @pnpm/resolving.resolver-base@1100.5.2
+  - @pnpm/store.cafs@1100.1.13
+  - @pnpm/store.controller-types@1100.1.8
+  - @pnpm/store.create-cafs-store@1100.0.18
+  - @pnpm/types@1101.4.0
+
 ## 1102.0.4
 
 ### Patch Changes

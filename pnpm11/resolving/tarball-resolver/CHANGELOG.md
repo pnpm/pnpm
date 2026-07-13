@@ -1,5 +1,12 @@
 # @pnpm/tarball-resolver
 
+## 1100.1.7
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/resolving.resolver-base@1100.5.2
+
 ## 1100.1.6
 
 ### Patch Changes

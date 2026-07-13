@@ -1,5 +1,23 @@
 # @pnpm/client
 
+## 1100.2.14
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/engine.runtime.node-resolver@1101.1.13
+  - @pnpm/fetching.binary-fetcher@1102.0.3
+  - @pnpm/fetching.directory-fetcher@1100.0.20
+  - @pnpm/fetching.git-fetcher@1102.0.4
+  - @pnpm/fetching.tarball-fetcher@1102.0.4
+  - @pnpm/hooks.types@1100.2.1
+  - @pnpm/network.auth-header@1101.1.4
+  - @pnpm/network.fetch@1100.1.5
+  - @pnpm/resolving.default-resolver@1100.3.14
+  - @pnpm/resolving.npm-resolver@1102.1.3
+  - @pnpm/resolving.resolver-base@1100.5.2
+  - @pnpm/types@1101.4.0
+
 ## 1100.2.13
 
 ### Patch Changes

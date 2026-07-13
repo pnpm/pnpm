@@ -1,5 +1,13 @@
 # @pnpm/agent.client
 
+## 1.3.3
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/lockfile.fs@1100.1.11
+  - @pnpm/lockfile.types@1100.0.14
+
 ## 1.3.2
 
 ### Patch Changes

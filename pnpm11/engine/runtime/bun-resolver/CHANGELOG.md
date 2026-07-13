@@ -1,5 +1,16 @@
 # @pnpm/resolving.bun-resolver
 
+## 1102.0.5
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/fetching.binary-fetcher@1102.0.3
+  - @pnpm/fetching.fetcher-base@1100.2.2
+  - @pnpm/resolving.npm-resolver@1102.1.3
+  - @pnpm/resolving.resolver-base@1100.5.2
+  - @pnpm/types@1101.4.0
+
 ## 1102.0.4
 
 ### Patch Changes

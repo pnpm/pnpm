@@ -1,5 +1,49 @@
 # @pnpm/plugin-commands-installation
 
+## 1100.10.5
+
+### Patch Changes
+
+- `pnpm add -g`, `pnpm update -g`, `pnpm setup`, and the self-updater no longer fail with `ERR_PNPM_MISSING_TIME` when `trustPolicy: no-downgrade` or `resolutionMode: time-based` is set in the global config [#12883](https://github.com/pnpm/pnpm/issues/12883). The decision to fetch full registry metadata now lives in one place, and the `no-downgrade` trust policy always requests full metadata (matching the self-updater), since the trust evidence it checks is missing from abbreviated metadata even on registries that include the `time` field.
+
+- Updated dependencies:
+  - @pnpm/building.after-install@1102.0.6
+  - @pnpm/building.policy@1100.0.13
+  - @pnpm/cli.utils@1101.0.14
+  - @pnpm/config.pick-registry-for-package@1100.0.10
+  - @pnpm/config.reader@1101.12.0
+  - @pnpm/config.version-policy@1100.1.7
+  - @pnpm/config.writer@1100.0.16
+  - @pnpm/deps.inspection.outdated@1100.1.14
+  - @pnpm/deps.path@1100.0.9
+  - @pnpm/deps.security.signatures@1101.2.4
+  - @pnpm/deps.status@1100.1.7
+  - @pnpm/global.commands@1100.0.34
+  - @pnpm/hooks.pnpmfile@1100.0.19
+  - @pnpm/installing.context@1100.0.24
+  - @pnpm/installing.dedupe.check@1100.1.3
+  - @pnpm/installing.deps-installer@1102.3.0
+  - @pnpm/installing.env-installer@1102.0.6
+  - @pnpm/lockfile.fs@1100.1.11
+  - @pnpm/lockfile.types@1100.0.14
+  - @pnpm/network.auth-header@1101.1.4
+  - @pnpm/network.fetch@1100.1.5
+  - @pnpm/pkg-manifest.reader@1100.0.10
+  - @pnpm/pkg-manifest.utils@1100.2.7
+  - @pnpm/resolving.npm-resolver@1102.1.3
+  - @pnpm/resolving.resolver-base@1100.5.2
+  - @pnpm/store.connection-manager@1100.3.6
+  - @pnpm/store.controller@1102.0.5
+  - @pnpm/types@1101.4.0
+  - @pnpm/workspace.project-manifest-reader@1100.0.15
+  - @pnpm/workspace.project-manifest-writer@1100.0.9
+  - @pnpm/workspace.projects-filter@1100.0.27
+  - @pnpm/workspace.projects-graph@1100.0.23
+  - @pnpm/workspace.projects-reader@1101.0.14
+  - @pnpm/workspace.projects-sorter@1100.0.9
+  - @pnpm/workspace.state@1100.0.28
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.16
+
 ## 1100.10.4
 
 ### Patch Changes
