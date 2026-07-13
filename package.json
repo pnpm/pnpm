@@ -3,7 +3,6 @@
   "private": true,
   "scripts": {
     "bump": "node pnpm11/__utils__/scripts/src/bump.ts && pn update-manifests",
-    "changeset": "changeset",
     "prepare": "husky",
     "pretest": "pn compile-only && pn prepare-fixtures",
     "prepare-fixtures": "pn --dir=pnpm11/__fixtures__ prepareFixtures",
@@ -35,7 +34,6 @@
     "dev-setup": "pn -C=./pnpm11/pnpm/dev link -g"
   },
   "devDependencies": {
-    "@changesets/cli": "catalog:",
     "@commitlint/cli": "catalog:",
     "@commitlint/config-conventional": "catalog:",
     "@commitlint/prompt-cli": "catalog:",
@@ -62,11 +60,11 @@
     "shx": "catalog:",
     "typescript": "catalog:"
   },
-  "packageManager": "pnpm@12.0.0-alpha.8",
+  "packageManager": "pnpm@12.0.0-alpha.9",
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "12.0.0-alpha.8",
+      "version": "12.0.0-alpha.9",
       "onFail": "download"
     },
     "runtime": {

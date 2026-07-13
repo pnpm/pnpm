@@ -1,5 +1,13 @@
 name: Release
 
+# The unified release workflow for every product in this repository: the
+# TypeScript pnpm CLI (v11), the Rust pnpm CLI + NAPI addon (v12), and the
+# pnpr registry server. Versions are committed (bumped by `pnpm bump` via the
+# release PR that create-release-pr.yml opens); pushing a version tag runs the
+# `plan` job, which asks the npm registry which committed versions are not
+# published yet, and only those products' jobs run. Tagging e.g. a v12
+# prerelease therefore skips the TypeScript jobs whose version is already on
+# npm, and vice versa.
 on:
   push:
     tags:
@@ -24,8 +32,100 @@ jobs:
               ;;
           esac
 
-  release:
+  plan:
+    name: Plan (which products need publishing)
     needs: validate-release-ref
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      ts: ${{ steps.decide.outputs.ts }}
+      ts_version: ${{ steps.decide.outputs.ts_version }}
+      rust: ${{ steps.decide.outputs.rust }}
+      rust_version: ${{ steps.decide.outputs.rust_version }}
+      rust_tag: ${{ steps.decide.outputs.rust_tag }}
+      pnpr: ${{ steps.decide.outputs.pnpr }}
+      pnpr_version: ${{ steps.decide.outputs.pnpr_version }}
+      pnpr_tag: ${{ steps.decide.outputs.pnpr_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Read committed versions and query the registry
+        id: decide
+        # A product is released when its committed version is not on npm yet.
+        # `needs_release` treats only E404 as "not published"; any other npm
+        # failure aborts the plan so a registry outage can't be misread as a
+        # pending release. The gate packages are the ones each publish job
+        # publishes last (`pnpm` for both CLIs, `@pnpm/pnpr` for pnpr), so a
+        # rerun after a partial failure resumes instead of skipping.
+        run: |
+          set -eu
+          needs_release() {
+            local out
+            # Query from outside the checkout: npm enforces the repository's
+            # devEngines (which pin pnpm) for any command run inside it.
+            if out=$(cd "${RUNNER_TEMP:-/tmp}" && npm view "$1" version 2>&1); then
+              echo false
+            elif echo "$out" | grep -q 'E404'; then
+              echo true
+            else
+              echo "::error::npm view $1 failed: $out"
+              exit 1
+            fi
+          }
+
+          TS_VERSION=$(jq -r .version pnpm11/pnpm/package.json)
+          RUST_VERSION=$(jq -r .version pnpm/npm/pnpm/package.json)
+          NAPI_VERSION=$(jq -r .version pnpm/npm/napi/package.json)
+          PNPR_VERSION=$(jq -r .version pnpr/npm/pnpr/package.json)
+
+          # pacquet and @pnpm/napi are a versioning.fixed group; a drift means
+          # the versions were edited by hand inconsistently.
+          if [ "$RUST_VERSION" != "$NAPI_VERSION" ]; then
+            echo "::error::pnpm/npm/pnpm ($RUST_VERSION) and pnpm/npm/napi ($NAPI_VERSION) versions differ"
+            exit 1
+          fi
+
+          # A v12 prerelease must never move the production dist-tags; derive
+          # next-<major> the way the TypeScript packages' publishConfig does.
+          RUST_TAG="next-${RUST_VERSION%%.*}"
+
+          # A pnpr prerelease must not move the mutable `latest` dist-tag,
+          # mirroring the docker-pnpr job's image-tag handling.
+          case "$PNPR_VERSION" in
+            *-*) PNPR_TAG="next" ;;
+            *) PNPR_TAG="latest" ;;
+          esac
+
+          # Assign first so `set -e` aborts the plan on a `needs_release`
+          # failure. Inside `echo "$(needs_release …)"` the non-zero exit is
+          # the subshell's, discarded by echo, so a registry outage would
+          # otherwise be written out as an empty (falsy) value and silently
+          # skip the release.
+          TS_NEEDS=$(needs_release "pnpm@$TS_VERSION")
+          RUST_NEEDS=$(needs_release "pnpm@$RUST_VERSION")
+          PNPR_NEEDS=$(needs_release "@pnpm/pnpr@$PNPR_VERSION")
+
+          {
+            echo "ts=$TS_NEEDS"
+            echo "ts_version=$TS_VERSION"
+            echo "rust=$RUST_NEEDS"
+            echo "rust_version=$RUST_VERSION"
+            echo "rust_tag=$RUST_TAG"
+            echo "pnpr=$PNPR_NEEDS"
+            echo "pnpr_version=$PNPR_VERSION"
+            echo "pnpr_tag=$PNPR_TAG"
+          } | tee -a "$GITHUB_OUTPUT"
+
+  release:
+    name: Release the TypeScript pnpm CLI
+    needs:
+      - validate-release-ref
+      - plan
+    if: needs.plan.outputs.ts == 'true'
     permissions:
       id-token: write  # Required for OIDC
       contents: write  # for softprops/action-gh-release to create GitHub release
@@ -68,6 +168,8 @@ jobs:
         # so we still need a static token here. The token is removed from pnpm's config
         # at the end of the step so it can't leak into the trusted-publishing step that
         # follows (where its presence would silently downgrade `pnpm` to token publishing).
+        # The Rust products' wrapper packages are private workspace packages, so the
+        # recursive publish skips them; they are published by their own jobs below.
         env:
           # Setting the "npm_config_//registry.npmjs.org/:_authToken" env variable directly
           # doesn't work — pnpm doesn't appear to pass auth tokens to child processes.
@@ -96,3 +198,519 @@ jobs:
           draft: true
           files: dist/*
           body_path: RELEASE.md
+
+  build-rust:
+    needs: plan
+    if: needs.plan.outputs.rust == 'true'
+    permissions:
+      contents: read
+      id-token: write # needed for actions/attest-build-provenance
+      attestations: write
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            code-target: win32-x64
+
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            code-target: win32-arm64
+
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            code-target: linux-x64
+
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            code-target: linux-arm64
+
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            code-target: linux-x64-musl
+
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            code-target: linux-arm64-musl
+
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            code-target: darwin-x64
+
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            code-target: darwin-arm64
+
+    name: Package pnpm (Rust) ${{ matrix.code-target }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install cross
+        uses: taiki-e/install-action@bffeee26d4db9be238a4ea78d8826604ebcb594d # v2.82.5
+        with:
+          tool: cross
+
+      # No build cache: GitHub Actions caches are writable by any workflow on
+      # the default branch, so restoring one here would let a poisoned cache
+      # entry inject code into the published, attested release binaries.
+      - name: Add Rust Target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Verify the committed version
+        # `pacquet --version` and the default User-Agent read the PNPM_VERSION
+        # constant, which `pnpm bump` keeps in sync with the npm wrapper's
+        # version. Verify instead of patching so the binary is reproducible
+        # from the tagged sources.
+        shell: bash
+        env:
+          VERSION: ${{ needs.plan.outputs.rust_version }}
+        run: |
+          grep -F "PNPM_VERSION: &str = \"$VERSION\"" pnpm/crates/config/src/defaults.rs
+
+      - name: Build with cross
+        run: cross build --locked -p pacquet-cli --bin pnpm --release --target=${{ matrix.target }}
+
+      - name: Build NAPI addon with cross
+        # musl targets enable `crt-static` by default, but a `cdylib` (the
+        # `.node` addon) can't be produced with a statically linked CRT. Disable
+        # it so the addon builds as a shared object that dynamically links musl
+        # libc at load time (this is what napi-rs does for musl prebuilds). The
+        # CLI binary keeps `crt-static` — it's built in the separate step above,
+        # so it stays fully static for portability across musl distros.
+        #
+        # Set RUSTFLAGS only for musl: an empty RUSTFLAGS is not a no-op — Cargo
+        # treats it as an override that discards any `rustflags` from
+        # `.cargo/config.toml`, so we leave it unset on every other target.
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          if [[ "$TARGET" == *musl* ]]; then
+            export RUSTFLAGS="-C target-feature=-crt-static"
+          fi
+          cross build --locked -p pacquet-napi --profile napi-release --target="$TARGET"
+
+      - name: Prepare NAPI addon
+        shell: bash
+        run: |
+          case "${{ runner.os }}" in
+            Windows) source="target/${{ matrix.target }}/napi-release/pacquet_napi.dll" ;;
+            macOS) source="target/${{ matrix.target }}/napi-release/libpacquet_napi.dylib" ;;
+            *) source="target/${{ matrix.target }}/napi-release/libpacquet_napi.so" ;;
+          esac
+          cp "$source" "pnpm-napi.${{ matrix.code-target }}.node"
+
+      # The binary is archived to fix permission loss
+      # (https://github.com/actions/upload-artifact#permission-loss) and ships
+      # under its final name: `pnpm-<target>` archives with a plain `pnpm`
+      # binary at the root — the layout the v11 releases use and get.pnpm.io's
+      # install scripts expect — so the github-release-rust job can upload them
+      # to the GitHub release byte-for-byte as attested here.
+      - name: Archive Binary
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mv target/${{ matrix.target }}/release/pnpm.exe pnpm.exe
+          7z a pnpm-${{ matrix.code-target }}.zip pnpm.exe
+
+      - name: Archive Binary
+        if: runner.os != 'Windows'
+        # The binary is staged in a scratch directory because the repo root
+        # already has a `pnpm/` directory (the Rust sub-project) — renaming the
+        # binary to `pnpm` in place would move it *into* that directory and tar
+        # up the whole source tree instead.
+        run: |
+          mkdir stage
+          mv target/${{ matrix.target }}/release/pnpm stage/pnpm
+          tar czf pnpm-${{ matrix.code-target }}.tar.gz -C stage pnpm
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: |
+            pnpm-${{ matrix.code-target }}.*
+            pnpm-napi.${{ matrix.code-target }}.node
+
+      - name: Upload Binary
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          if-no-files-found: error
+          name: binaries-rust-${{ matrix.code-target }}
+          path: |
+            *.zip
+            *.tar.gz
+            *.node
+
+  publish-rust:
+    name: Publish pnpm (Rust) and @pnpm/napi to npm
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      # Required for npm trusted publishing and provenance attestations via OIDC.
+      id-token: write
+    needs:
+      - plan
+      - build-rust
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm and Node
+        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+        with:
+          runtime: node@22
+          install: false
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: binaries-rust-*
+          merge-multiple: true
+
+      - name: Extract archives
+        # Every archive holds a binary named `pnpm` / `pnpm.exe` at its root
+        # (see the Archive Binary steps), so extracting them all into the same
+        # directory would clobber one target with another. Extract each into a
+        # scratch dir and move the binary out under its target-qualified name,
+        # which is what generate-packages.mjs reads.
+        run: |
+          for archive in pnpm-*.zip; do
+            rm -rf extract && mkdir extract
+            unzip -q "$archive" -d extract
+            mv extract/pnpm.exe "${archive%.zip}.exe"
+          done
+          for archive in pnpm-*.tar.gz; do
+            rm -rf extract && mkdir extract
+            tar -xzf "$archive" -C extract
+            mv extract/pnpm "${archive%.tar.gz}"
+          done
+
+      - name: Generate npm packages
+        # Rewrites the committed private `pacquet` wrapper into the publishable
+        # `pnpm` manifest and generates the per-platform packages.
+        run: |
+          node pnpm/npm/pnpm/scripts/generate-packages.mjs
+          node pnpm/npm/napi/scripts/generate-packages.mjs
+          cat pnpm/npm/pnpm/package.json
+          cat pnpm/npm/napi/package.json
+          for package in pnpm/npm/pacquet-* pnpm/npm/napi.*; do cat $package/package.json ; echo ; done
+
+      # Everything publishes via trusted publishing: the `pnpm` / `@pnpm/exe`
+      # trusted publishers are bound to this workflow file (they are shared
+      # with the TypeScript release job above), and the natives' and
+      # `@pnpm/napi`'s publishers are bound here too. Publishing the natives
+      # first keeps the wrappers' exact-version optionalDependencies
+      # installable the moment each wrapper goes live, and the `pnpm` wrapper
+      # goes last because the plan job uses it as the "release completed"
+      # gate. The trailing slash publishes the directory; the build dirs
+      # `pacquet-*` are published as `@pnpm/exe.<target>`.
+      - name: Publish (trusted publishing)
+        env:
+          TAG: ${{ needs.plan.outputs.rust_tag }}
+        run: |
+          for package in pnpm/npm/pacquet-* pnpm/npm/napi.* pnpm/npm/napi pnpm/npm/pnpm-exe pnpm/npm/pnpm; do
+            pnpm publish "$package/" --tag "$TAG" --access public --provenance --no-git-checks
+          done
+
+  github-release-rust:
+    name: Draft GitHub release for pnpm (Rust)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the draft release and its tag
+    needs:
+      - plan
+      - build-rust
+      - publish-rust
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: binaries-rust-*
+          merge-multiple: true
+
+      - name: Release
+        # The build job's archives already carry the release layout (a `pnpm`
+        # binary at the root of `pnpm-<target>.tar.gz` / `.zip`), so they're
+        # uploaded byte-for-byte as attested there — get.pnpm.io's install
+        # scripts fetch them by these exact names. Draft so a maintainer
+        # publishes it deliberately. `make_latest: false` keeps a published v12
+        # prerelease from stealing the "Latest" badge from the stable v11
+        # line.
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.0 # zizmor: ignore[superfluous-actions]
+        with:
+          draft: true
+          prerelease: ${{ contains(needs.plan.outputs.rust_version, '-') }}
+          make_latest: false
+          tag_name: v${{ needs.plan.outputs.rust_version }}
+          target_commitish: ${{ github.sha }}
+          name: pnpm ${{ needs.plan.outputs.rust_version }}
+          files: |
+            pnpm-*.tar.gz
+            pnpm-*.zip
+
+  build-pnpr:
+    needs: plan
+    if: needs.plan.outputs.pnpr == 'true'
+    permissions:
+      contents: read
+      id-token: write # needed for actions/attest-build-provenance
+      attestations: write
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            code-target: win32-x64
+
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            code-target: win32-arm64
+
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            code-target: linux-x64
+
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            code-target: linux-arm64
+
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            code-target: linux-x64-musl
+
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            code-target: linux-arm64-musl
+
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            code-target: darwin-x64
+
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            code-target: darwin-arm64
+
+    name: Package pnpr ${{ matrix.code-target }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install cross
+        uses: taiki-e/install-action@bffeee26d4db9be238a4ea78d8826604ebcb594d # v2.82.5
+        with:
+          tool: cross
+
+      # No build cache: GitHub Actions caches are writable by any workflow on
+      # the default branch, so restoring one here would let a poisoned cache
+      # entry inject code into the published, attested release binaries.
+      - name: Add Rust Target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Verify the committed version
+        # `pnpr --version` reads CARGO_PKG_VERSION via clap's derive `version`
+        # attribute; `pnpm bump` keeps the crate version in sync with the npm
+        # wrapper's version. Verify instead of patching so the binary is
+        # reproducible from the tagged sources.
+        shell: bash
+        env:
+          VERSION: ${{ needs.plan.outputs.pnpr_version }}
+        run: grep -E "^version\s*=\s*\"$VERSION\"" pnpr/crates/pnpr/Cargo.toml
+
+      - name: Build with cross
+        run: cross build --locked -p pnpr --bin pnpr --release --target=${{ matrix.target }}
+
+      # The binary is zipped to fix permission loss https://github.com/actions/upload-artifact#permission-loss
+      # Rename the binary to include the target triple so the archive
+      # that generate-packages.mjs picks up is already named
+      # `pnpr-<target>`.
+      - name: Archive Binary
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          BIN_NAME=pnpr-${{ matrix.code-target }}
+          mv target/${{ matrix.target }}/release/pnpr.exe $BIN_NAME.exe
+          7z a $BIN_NAME.zip $BIN_NAME.exe
+
+      # The binary is zipped to fix permission loss https://github.com/actions/upload-artifact#permission-loss
+      - name: Archive Binary
+        if: runner.os != 'Windows'
+        run: |
+          BIN_NAME=pnpr-${{ matrix.code-target }}
+          mv target/${{ matrix.target }}/release/pnpr $BIN_NAME
+          tar czf $BIN_NAME.tar.gz $BIN_NAME
+          # Pin the binary's checksum at build time so the Docker job can
+          # verify the artifact it stages into the image context.
+          shasum -a 256 $BIN_NAME > $BIN_NAME.sha256
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: |
+            pnpr-${{ matrix.code-target }}*
+
+      - name: Upload Binary
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          if-no-files-found: error
+          name: binaries-pnpr-${{ matrix.code-target }}
+          path: |
+            *.zip
+            *.tar.gz
+            *.sha256
+
+  publish-pnpr:
+    name: Publish @pnpm/pnpr to npm
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      # Required for npm trusted publishing and provenance attestations via OIDC.
+      id-token: write
+    needs:
+      - plan
+      - build-pnpr
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm and Node
+        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+        with:
+          runtime: node@22
+          install: false
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: binaries-pnpr-*
+          merge-multiple: true
+
+      - name: Unzip
+        uses: montudor/action-zip@0852c26906e00f8a315c704958823928d8018b28 # v1.0.0
+        with:
+          args: unzip -qq *.zip -d .
+
+      - name: Extract tarballs
+        run: ls *.gz | xargs -i tar xf {}
+
+      - name: Generate npm packages
+        run: |
+          node pnpr/npm/pnpr/scripts/generate-packages.mjs
+          cat pnpr/npm/pnpr/package.json
+          for package in pnpr/npm/pnpr*; do cat $package/package.json ; echo ; done
+
+      - name: Publish npm packages
+        # Auth is via npm's trusted publishing: `id-token: write` above grants
+        # this job an OIDC token that pnpm/npm exchange with the registry,
+        # so no NPM_TOKEN is needed. `--provenance` attaches the same OIDC
+        # token to a provenance attestation on each tarball.
+        # The natives go first so the wrapper's exact-version
+        # optionalDependencies are installable the moment it goes live; the
+        # wrapper goes last because the plan job uses it as the "release
+        # completed" gate. The trailing slash publishes the directory.
+        env:
+          TAG: ${{ needs.plan.outputs.pnpr_tag }}
+        run: |
+          for package in pnpr/npm/pnpr-* pnpr/npm/pnpr; do
+            pnpm publish "$package/" --tag "$TAG" --access public --provenance --no-git-checks
+          done
+
+  docker-pnpr:
+    name: Publish the pnpr Docker image
+    runs-on: ubuntu-latest
+    environment: release
+    needs:
+      - plan
+      - build-pnpr
+      - publish-pnpr
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/pnpr
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Compute image tags
+        id: tags
+        # A version containing a hyphen (e.g. 0.2.3-rc.1) is a prerelease and
+        # must not move the mutable `latest` tag.
+        env:
+          VERSION: ${{ needs.plan.outputs.pnpr_version }}
+        run: |
+          set -eu
+          tags="${IMAGE}:${VERSION}"
+          case "$VERSION" in
+            *-*) ;;
+            *) tags="${tags},${IMAGE}:latest" ;;
+          esac
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+
+      - name: Download Linux musl binaries
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: binaries-pnpr-linux-*-musl
+          merge-multiple: true
+
+      - name: Stage binaries for the build context
+        id: stage
+        # The static musl binaries match what was just published to npm. The
+        # Dockerfile selects one via the build's TARGETARCH (amd64 / arm64) and
+        # re-verifies it against the build-time checksum surfaced here.
+        #
+        # Extract into a throwaway directory and move only the expected,
+        # checksum-verified regular files into the build context, so a malformed
+        # archive cannot escape it (path traversal, symlinks) and overwrite the
+        # Dockerfile or the staged binaries before they are pushed to GHCR.
+        run: |
+          set -eu
+          rm -rf extracted
+          mkdir extracted
+          for f in pnpr-linux-*-musl.tar.gz; do
+            tar -xzf "$f" -C extracted --no-same-owner
+          done
+          ( cd extracted && sha256sum -c ../pnpr-linux-x64-musl.sha256 ../pnpr-linux-arm64-musl.sha256 )
+          for pair in x64:amd64 arm64:arm64; do
+            bin="extracted/pnpr-linux-${pair%:*}-musl"
+            test -f "$bin" && test ! -L "$bin"
+            mv "$bin" "pnpr/docker/pnpr-${pair#*:}"
+          done
+          {
+            echo "sha_amd64=$(awk '{print $1}' pnpr-linux-x64-musl.sha256)"
+            echo "sha_arm64=$(awk '{print $1}' pnpr-linux-arm64-musl.sha256)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Login to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: ./pnpr/docker
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          build-args: |
+            PNPR_VERSION=${{ needs.plan.outputs.pnpr_version }}
+            PNPR_SHA256_AMD64=${{ steps.stage.outputs.sha_amd64 }}
+            PNPR_SHA256_ARM64=${{ steps.stage.outputs.sha_arm64 }}
+          provenance: mode=max
+          sbom: true
