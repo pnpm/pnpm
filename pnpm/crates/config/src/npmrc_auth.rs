@@ -579,8 +579,8 @@ impl NpmrcAuth {
     /// [`AuthHeaders`] (run lazily on lookup) rather than a baked header;
     /// like pnpm's `credsToHeader`, a `tokenHelper` wins over any static
     /// token on the same registry. Fails with
-    /// [`TokenHelperUnsupportedCharacterError`] if a honored helper's
-    /// value contains a reserved character.
+    /// [`LoadWorkspaceYamlError::TokenHelperUnsupportedCharacter`] if a
+    /// honored helper's value contains a reserved character.
     pub fn build_auth_headers(self, config: &mut Config) -> Result<(), LoadWorkspaceYamlError> {
         let mut auth_header_by_uri: HashMap<String, String> = HashMap::new();
         let mut auth_header_by_scope_by_uri: HashMap<String, HashMap<String, String>> =
