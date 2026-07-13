@@ -178,6 +178,14 @@ export function calcDepState<T extends string> (
   return result
 }
 
+export function shouldIncludeDepGraphHash (opts: {
+  ignoreScripts: boolean
+  deferDependencyBuilds: boolean
+  requiresBuild: boolean | undefined
+}): boolean {
+  return (!opts.ignoreScripts || opts.deferDependencyBuilds) && opts.requiresBuild === true
+}
+
 interface CalcDepGraphHashOptions<T extends string> {
   depsGraph: DepsGraph<T>
   cache: DepsStateCache

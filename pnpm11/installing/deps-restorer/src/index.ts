@@ -24,7 +24,7 @@ import {
   lockfileToDepGraph,
   type LockfileToDepGraphOptions,
 } from '@pnpm/deps.graph-builder'
-import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
+import { calcDepState, type DepsStateCache, findRuntimeNodeVersion, shouldIncludeDepGraphHash } from '@pnpm/deps.graph-hasher'
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import {
@@ -1373,7 +1373,11 @@ async function linkAllPkgs (
       if (sideEffectsCacheKey == null && opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
         if (opts.allowBuild?.(depNode.depPath) === true) {
           const localCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
-            includeDepGraphHash: (!opts.ignoreScripts || opts.deferDependencyBuilds) && depNode.requiresBuild === true,
+            includeDepGraphHash: shouldIncludeDepGraphHash({
+              ignoreScripts: opts.ignoreScripts,
+              deferDependencyBuilds: opts.deferDependencyBuilds,
+              requiresBuild: depNode.requiresBuild,
+            }),
             patchFileHash: depNode.patch?.hash,
             supportedArchitectures: opts.supportedArchitectures,
             nodeVersion,

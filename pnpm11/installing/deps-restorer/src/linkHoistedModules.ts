@@ -13,7 +13,7 @@ import type {
   DependenciesGraph,
   DepHierarchy,
 } from '@pnpm/deps.graph-builder'
-import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
+import { calcDepState, type DepsStateCache, findRuntimeNodeVersion, shouldIncludeDepGraphHash } from '@pnpm/deps.graph-hasher'
 import { logger } from '@pnpm/logger'
 import { createRemoteSideEffectsRestorer, type RemoteSideEffectsRestorer } from '@pnpm/pnpr.client'
 import type {
@@ -212,7 +212,11 @@ async function linkAllPkgsInOrder (
         if (sideEffectsCacheKey == null && opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
           if (opts.allowBuild?.(depNode.depPath) === true) {
             const localCacheKey = calcDepState(graph, opts.depsStateCache, dir, {
-              includeDepGraphHash: (!opts.ignoreScripts || opts.deferDependencyBuilds) && depNode.requiresBuild === true,
+              includeDepGraphHash: shouldIncludeDepGraphHash({
+                ignoreScripts: opts.ignoreScripts,
+                deferDependencyBuilds: opts.deferDependencyBuilds,
+                requiresBuild: depNode.requiresBuild,
+              }),
               patchFileHash: depNode.patch?.hash,
               supportedArchitectures: opts.supportedArchitectures,
               nodeVersion: opts.nodeVersion,
