@@ -26,6 +26,7 @@ const DEPENDENCIES_FIELD = ['dependencies', 'devDependencies', 'optionalDependen
 export interface CreateDeployFilesOptions {
   allProjects: Array<Pick<Project, 'manifest' | 'rootDirRealPath'>>
   deployDir: string
+  include: { [dependenciesField in DependenciesField]: boolean }
   lockfile: LockfileObject
   lockfileDir: string
   patchedDependencies?: PnpmSettings['patchedDependencies']
@@ -49,6 +50,7 @@ export interface DeployFiles {
 export function createDeployFiles ({
   allProjects,
   deployDir,
+  include,
   lockfile,
   lockfileDir,
   patchedDependencies,
@@ -125,6 +127,12 @@ export function createDeployFiles ({
     }
   }
 
+  const deployPackageSnapshots = filterDeployPackageSnapshots(
+    targetSnapshot,
+    targetPackageSnapshots,
+    include
+  )
+
   const result: DeployFiles = {
     lockfile: {
       ...lockfile,
@@ -139,7 +147,7 @@ export function createDeployFiles ({
       importers: {
         ['.' as ProjectId]: targetSnapshot,
       },
-      packages: targetPackageSnapshots,
+      packages: deployPackageSnapshots,
     },
     manifest: {
       ...selectedProjectManifest,
@@ -171,6 +179,41 @@ export function createDeployFiles ({
   }
 
   return result
+}
+
+function filterDeployPackageSnapshots (
+  importer: ProjectSnapshot,
+  packages: PackageSnapshots,
+  include: CreateDeployFilesOptions['include']
+): PackageSnapshots {
+  const queue: DepPath[] = []
+  const enqueue = (dependencies: ResolvedDependencies | undefined) => {
+    for (const [alias, reference] of Object.entries(dependencies ?? {})) {
+      const depPath = dp.refToRelative(reference, alias)
+      if (depPath != null && packages[depPath] != null) queue.push(depPath)
+    }
+  }
+
+  if (include.dependencies) enqueue(importer.dependencies)
+  if (include.devDependencies) enqueue(importer.devDependencies)
+  if (include.optionalDependencies) enqueue(importer.optionalDependencies)
+
+  const reachable = new Set<DepPath>()
+  let head = 0
+  while (head < queue.length) {
+    const depPath = queue[head++]!
+    if (reachable.has(depPath)) continue
+    reachable.add(depPath)
+
+    const snapshot = packages[depPath]
+    if (snapshot == null) continue
+    enqueue(snapshot.dependencies)
+    if (include.optionalDependencies) enqueue(snapshot.optionalDependencies)
+  }
+
+  return Object.fromEntries(
+    Array.from(reachable, (depPath) => [depPath, packages[depPath]])
+  ) as PackageSnapshots
 }
 
 interface ConvertOptions {

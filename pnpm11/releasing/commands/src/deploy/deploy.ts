@@ -378,6 +378,11 @@ async function deployFromSharedLockfile (
   const deployFiles = createDeployFiles({
     allProjects,
     deployDir,
+    include: {
+      dependencies: opts.production !== false,
+      devDependencies: opts.dev !== false,
+      optionalDependencies: opts.optional !== false,
+    },
     lockfile,
     lockfileDir,
     patchedDependencies: opts.patchedDependencies,
