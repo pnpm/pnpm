@@ -127,6 +127,8 @@ it('should allow git-hosted tarball builds by hashless repository key', () => {
       'bar@git+https://bitbucket.org/org/bar.git': true,
       'baz@git+https://gitlab.com/group/subgroup/baz.git': true,
       'evil@git+https://github.com/org/evil.git': false,
+      'qux@git+https://github.com/org/extra/qux.git': true,
+      'quux@git+https://bitbucket.org/org/extra/quux.git': true,
     },
   })
   // A GitHub `github:` dependency is downloaded from codeload.github.com, yet
@@ -142,6 +144,11 @@ it('should allow git-hosted tarball builds by hashless repository key', () => {
   expect(allowBuild!(depPath('foo@https://codeload.github.com.attacker.net/org/foo/tar.gz/abc123'))).toBeUndefined()
   // Denial by hashless repository key works as well.
   expect(allowBuild!(depPath('evil@https://codeload.github.com/org/evil/tar.gz/abc123'))).toBe(false)
+  // A tarball URL with an extra path segment is not a valid codeload/get URL (a repo is exactly
+  // `owner/repo`); the `[^/]+` repo anchor rejects it, so the multi-segment URL stays unapproved
+  // even with the slash-bearing key allowlisted. This keeps parity with the Rust matcher.
+  expect(allowBuild!(depPath('qux@https://codeload.github.com/org/extra/qux/tar.gz/abc123'))).toBeUndefined()
+  expect(allowBuild!(depPath('quux@https://bitbucket.org/org/extra/quux/get/abc123.tar.gz'))).toBeUndefined()
 })
 
 it('should allow untrusted package identity by source-only depPath', () => {
