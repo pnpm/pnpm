@@ -110,7 +110,7 @@ jobs:
     name: TS CI / Build pnpr
     uses: ./.github/workflows/build-pnpr.yml
     with:
-      os: ubuntu-latest
+      os: blacksmith-8vcpu-ubuntu-2404
 
   build-pnpr-windows:
     needs: changes
@@ -118,7 +118,7 @@ jobs:
     name: TS CI / Build pnpr
     uses: ./.github/workflows/build-pnpr.yml
     with:
-      os: windows-latest
+      os: blacksmith-8vcpu-windows-2025
 
   test-smoke:
     name: TS CI / Test / ubuntu
@@ -127,7 +127,7 @@ jobs:
     with:
       node: '24.0.0'
       node_major: '24'
-      platform: ubuntu-latest
+      platform: blacksmith-8vcpu-ubuntu-2404
       garnet: true
     secrets:
       GARNET_API_TOKEN: ${{ secrets.GARNET_API_TOKEN }}
@@ -141,13 +141,13 @@ jobs:
         include:
           - node: '22.13.0'
             node_major: '22'
-            platform: ubuntu-latest
+            platform: blacksmith-8vcpu-ubuntu-2404
             platform_label: ubuntu
             test_chunk: '1'
             test_chunk_total: '1'
           - node: '26.5.0'
             node_major: '26'
-            platform: ubuntu-latest
+            platform: blacksmith-8vcpu-ubuntu-2404
             platform_label: ubuntu
             test_chunk: '1'
             test_chunk_total: '1'
@@ -171,19 +171,19 @@ jobs:
         include:
           - node: '22.13.0'
             node_major: '22'
-            platform: windows-latest
+            platform: blacksmith-8vcpu-windows-2025
             platform_label: windows 1/3
             test_chunk: '1'
             test_chunk_total: '3'
           - node: '22.13.0'
             node_major: '22'
-            platform: windows-latest
+            platform: blacksmith-8vcpu-windows-2025
             platform_label: windows 2/3
             test_chunk: '2'
             test_chunk_total: '3'
           - node: '22.13.0'
             node_major: '22'
-            platform: windows-latest
+            platform: blacksmith-8vcpu-windows-2025
             platform_label: windows 3/3
             test_chunk: '3'
             test_chunk_total: '3'

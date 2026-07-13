@@ -232,15 +232,18 @@ jobs:
           benchmark="${BENCHMARK}.chunk${TEST_CHUNK}"
           cli_benchmark="${cli_benchmark}.chunk${TEST_CHUNK}"
         fi
-        platform_slug=${PLATFORM%-latest}
-        node_major=${NODE_VERSION%%.*}
-        case "$platform_slug" in
-          ubuntu|windows) ;;
+        # Map both GitHub-hosted (`ubuntu-latest`) and Blacksmith
+        # (`blacksmith-8vcpu-ubuntu-2404`) labels to the bare OS slug the
+        # Bencher testbed name requires.
+        case "$PLATFORM" in
+          *ubuntu*) platform_slug=ubuntu ;;
+          *windows*) platform_slug=windows ;;
           *)
-            echo "::error::Unsupported platform '$platform_slug' for pnpm benchmarks; expected ubuntu or windows"
+            echo "::error::Unsupported platform '$PLATFORM' for pnpm benchmarks; expected an ubuntu or windows runner"
             exit 1
             ;;
         esac
+        node_major=${NODE_VERSION%%.*}
         case "$node_major" in
           22|24|26) ;;
           *)
