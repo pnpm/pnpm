@@ -502,6 +502,33 @@ fn returns_skipped_when_a_local_file_dependency_is_matched_only_by_a_parent_scop
     );
 }
 
+/// A convergence override (`pkg@`) rewrites an edge only when its
+/// declared spec is a plain semver range, so it never replaces a
+/// `file:` dependency and does not suppress the local-file bail.
+#[test]
+fn returns_skipped_when_a_local_file_dependency_is_matched_only_by_a_convergence_override() {
+    let (dir, config, manifest) = setup_fresh_install_with_config(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"file:../foo"}"#,
+        |config| {
+            config.overrides = Some(IndexMap::from([("foo@".to_string(), "2.0.0".to_string())]));
+        },
+    );
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
+        "decision was {decision:?}",
+    );
+}
+
 /// A `catalog:` dependency dereferencing to a local path but replaced
 /// by a generic override keeps the fast path, same as a direct `file:`
 /// dependency replaced by one.

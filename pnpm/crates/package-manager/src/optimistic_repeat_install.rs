@@ -354,6 +354,10 @@ fn has_local_file_dep(
 /// depends on which package the dependency belongs to, so a local
 /// file dependency covered only by a parent-scoped override
 /// conservatively stays treated as a local file dependency.
+/// Convergence overrides (`pkg@`) never suppress it either: they
+/// rewrite an edge only when its declared spec is a plain semver
+/// range the override version satisfies, so they never replace a
+/// local file dependency.
 fn is_effective_local_file_dep(
     catalogs: &Catalogs,
     overrides: &[VersionOverride],
@@ -362,7 +366,8 @@ fn is_effective_local_file_dep(
 ) -> bool {
     (is_local_file_spec(spec) || catalog_resolves_to_local_file(catalogs, alias, spec))
         && !overrides.iter().any(|entry| {
-            entry.parent_pkg.is_none()
+            !entry.converge
+                && entry.parent_pkg.is_none()
                 && crate::overrides::matches_target(&entry.target_pkg, alias, spec)
         })
 }

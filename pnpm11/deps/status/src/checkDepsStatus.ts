@@ -800,11 +800,14 @@ function isEffectiveLocalFileSpec (depName: string, spec: string, catalogs?: Cat
  * specifier. Overrides with a parent selector (`parent>dep`) never match
  * here: whether they apply depends on which package the dependency belongs
  * to, so a local file dependency covered only by a parent-scoped override
- * conservatively stays treated as a local file dependency.
+ * conservatively stays treated as a local file dependency. Convergence
+ * overrides (`pkg@`) never match either: they rewrite an edge only when its
+ * declared spec is a plain semver range the override version satisfies, so
+ * they never replace a local file dependency.
  */
 function isDepReplacedByOverride (depName: string, spec: string, overrides: VersionOverride[]): boolean {
-  return overrides.some(({ parentPkg, targetPkg }) =>
-    parentPkg == null && targetPkg.name === depName && isIntersectingRange(targetPkg.bareSpecifier, spec))
+  return overrides.some(({ parentPkg, targetPkg, converge }) =>
+    !converge && parentPkg == null && targetPkg.name === depName && isIntersectingRange(targetPkg.bareSpecifier, spec))
 }
 
 /**
