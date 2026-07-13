@@ -103,6 +103,12 @@ pub struct PackOptions {
     pub pack_destination: Option<String>,
     /// Custom output path template (`%s` = name, `%v` = version).
     pub out: Option<String>,
+    /// In-memory tar entries (`package/<path>` → contents) with no file on
+    /// disk, packed on top of `files_map` (superseding a same-named on-disk
+    /// entry). Used for the composed CHANGELOG.md in `registry` changelog
+    /// storage; the caller (which has registry access) fetches the previous
+    /// version's changelog and renders the new section onto it.
+    pub injected_files: Vec<(String, Vec<u8>)>,
 }
 
 /// Result of packing one project.
@@ -318,6 +324,11 @@ where
     .map_err(PackError::Packlist)?;
     let mut files_map = build_files_map(&dir, &files);
     inject_workspace_license(opts, &dir, &files, &mut files_map);
+    // A composed entry supersedes any same-named on-disk file (e.g. a stale
+    // committed CHANGELOG.md), so drop it from the file map before packing.
+    for (name, _) in &opts.injected_files {
+        files_map.shift_remove(name);
+    }
 
     let manifest_json = serde_json::to_string_pretty(&publish_manifest)
         .expect("publish manifest serializes to JSON")
@@ -334,8 +345,10 @@ where
 
     // The size pass must run before `postpack`, which may delete
     // prepack-generated files that were packed. See pnpm/pnpm#12775.
-    let unpacked_size = unpacked_size::<Sys>(&files_map, manifest_json.len() as u64)?;
-    let contents = packed_contents(&files_map);
+    let injected_size: u64 = opts.injected_files.iter().map(|(_, bytes)| bytes.len() as u64).sum();
+    let unpacked_size =
+        unpacked_size::<Sys>(&files_map, manifest_json.len() as u64)? + injected_size;
+    let contents = packed_contents_with_injected(&files_map, &opts.injected_files);
 
     if !opts.dry_run {
         let bins = executable_sources(&publish_manifest, &manifest, &dir);
@@ -347,6 +360,7 @@ where
                 &manifest_json,
                 &bins,
                 opts.pack_gzip_level,
+                &opts.injected_files,
             )
         })
         .map_err(|source| PackError::WriteTarball {
@@ -730,6 +744,22 @@ fn unpacked_size<Sys: FsFileLen>(
 /// De-duplicated, locale-sorted list of the tarball's contents.
 /// Manifest entries collapse to `package.json`; the `package/` prefix is
 /// stripped from the rest.
+/// [`packed_contents`] plus the injected entries' stripped names, re-sorted.
+fn packed_contents_with_injected(
+    files_map: &indexmap::IndexMap<String, PathBuf>,
+    injected: &[(String, Vec<u8>)],
+) -> Vec<String> {
+    let mut contents = packed_contents(files_map);
+    for (name, _) in injected {
+        let stripped = name.strip_prefix("package/").unwrap_or(name).to_string();
+        if !contents.contains(&stripped) {
+            contents.push(stripped);
+        }
+    }
+    sort_paths_en_locale(&mut contents);
+    contents
+}
+
 fn packed_contents(files_map: &indexmap::IndexMap<String, PathBuf>) -> Vec<String> {
     let mut seen = HashSet::new();
     let mut contents: Vec<String> = files_map

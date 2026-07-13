@@ -79,12 +79,6 @@ pub enum VersioningError {
     #[diagnostic(code(ERR_PNPM_VERSIONING_MAX_BUMP_EXCEEDED))]
     MaxBumpExceeded { pkg_name: String, bump_type: String, max_bump: String, raised_by: String },
 
-    #[display(
-        "versioning.changelog.storage \"{storage}\" is not implemented yet. Use \"repository\"."
-    )]
-    #[diagnostic(code(ERR_PNPM_VERSIONING_UNSUPPORTED_CHANGELOG_STORAGE))]
-    UnsupportedChangelogStorage { storage: String },
-
     #[display("Failed to read {}: {source}", path.display())]
     #[diagnostic(code(pacquet_versioning::read_error))]
     Read { path: PathBuf, source: std::io::Error },
@@ -92,6 +86,10 @@ pub enum VersioningError {
     #[display("Failed to write {}: {source}", path.display())]
     #[diagnostic(code(pacquet_versioning::write_error))]
     Write { path: PathBuf, source: std::io::Error },
+
+    #[display("Failed to remove {}: {source}", path.display())]
+    #[diagnostic(code(pacquet_versioning::remove_error))]
+    Remove { path: PathBuf, source: std::io::Error },
 
     #[display("{_0}")]
     #[diagnostic(transparent)]

@@ -39,6 +39,7 @@ fn fixture(manifest: &Value) -> (TempDir, PackOptions) {
         pack_destination: None,
         out: None,
         before_packing_hooks: Vec::new(),
+        injected_files: Vec::new(),
     };
     (dir, opts)
 }
@@ -76,6 +77,39 @@ fn tarball_entry_names(tarball: &Path) -> Vec<String> {
         .unwrap()
         .map(|entry| entry.unwrap().path().unwrap().to_string_lossy().into_owned())
         .collect()
+}
+
+/// Read one entry's UTF-8 contents out of a written `.tgz`.
+fn tarball_entry_content(tarball: &Path, entry_name: &str) -> Option<String> {
+    let file = std::fs::File::open(tarball).unwrap();
+    let mut archive = tar::Archive::new(GzDecoder::new(file));
+    for entry in archive.entries().unwrap() {
+        let mut entry = entry.unwrap();
+        if entry.path().unwrap().to_str() == Some(entry_name) {
+            let mut contents = String::new();
+            io::Read::read_to_string(&mut entry, &mut contents).unwrap();
+            return Some(contents);
+        }
+    }
+    None
+}
+
+#[test]
+fn injected_files_are_packed_and_supersede_an_on_disk_entry() {
+    let (dir, mut opts) = fixture(&json!({ "name": "foo", "version": "1.1.0" }));
+    // A stale committed CHANGELOG.md that the composed entry must replace.
+    touch(dir.path(), "CHANGELOG.md", "# foo\n\nstale committed changelog\n");
+    let composed = "# foo\n\n## 1.1.0\n\n### Minor Changes\n\n- A feature.\n";
+    opts.injected_files = vec![("package/CHANGELOG.md".to_string(), composed.as_bytes().to_vec())];
+
+    let result = api::<SilentReporter, Host>(&opts).unwrap();
+    assert!(result.contents.contains(&"CHANGELOG.md".to_string()));
+
+    let tarball = dir.path().join("foo-1.1.0.tgz");
+    // Exactly one CHANGELOG.md entry, carrying the composed content.
+    let names = tarball_entry_names(&tarball);
+    assert_eq!(names.iter().filter(|name| *name == "package/CHANGELOG.md").count(), 1);
+    assert_eq!(tarball_entry_content(&tarball, "package/CHANGELOG.md").as_deref(), Some(composed));
 }
 
 #[test]
@@ -317,6 +351,7 @@ fn workspace_license_is_injected_into_a_sub_package() {
         pack_destination: None,
         out: None,
         before_packing_hooks: Vec::new(),
+        injected_files: Vec::new(),
     };
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();
@@ -361,6 +396,7 @@ fn symlinked_workspace_license_is_not_injected() {
         pack_destination: None,
         out: None,
         before_packing_hooks: Vec::new(),
+        injected_files: Vec::new(),
     };
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();
@@ -400,6 +436,7 @@ fn workspace_root_gitignore_excludes_workspace_package_files() {
         pack_destination: None,
         out: None,
         before_packing_hooks: Vec::new(),
+        injected_files: Vec::new(),
     };
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();

@@ -44,6 +44,7 @@ pub fn build_tarball<Sys: FsReadFile>(
     manifest_json: &[u8],
     bins: &[PathBuf],
     gzip_level: Option<u32>,
+    injected: &[(String, Vec<u8>)],
 ) -> io::Result<()> {
     let compression =
         gzip_level.map_or_else(Compression::default, |level| Compression::new(level.min(9)));
@@ -59,15 +60,26 @@ pub fn build_tarball<Sys: FsReadFile>(
             (name.as_str(), Sys::read_file(source)?)
         };
         let mode = if bin_set.contains(source.as_path()) { EXECUTABLE_MODE } else { REGULAR_MODE };
-
-        let mut header = tar::Header::new_gnu();
-        header.set_size(data.len() as u64);
-        header.set_mode(mode);
-        header.set_mtime(REPRODUCIBLE_MTIME);
-        // `append_data` sets the entry path and the header checksum.
-        builder.append_data(&mut header, entry_name, data.as_slice())?;
+        append_entry(&mut builder, entry_name, &data, mode)?;
+    }
+    for (name, data) in injected {
+        append_entry(&mut builder, name, data, REGULAR_MODE)?;
     }
 
     builder.into_inner()?.finish()?;
     Ok(())
+}
+
+fn append_entry<Writer: Write>(
+    builder: &mut tar::Builder<Writer>,
+    entry_name: &str,
+    data: &[u8],
+    mode: u32,
+) -> io::Result<()> {
+    let mut header = tar::Header::new_gnu();
+    header.set_size(data.len() as u64);
+    header.set_mode(mode);
+    header.set_mtime(REPRODUCIBLE_MTIME);
+    // `append_data` sets the entry path and the header checksum.
+    builder.append_data(&mut header, entry_name, data)
 }

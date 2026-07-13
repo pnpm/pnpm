@@ -301,7 +301,7 @@ impl PublishArgs {
         let pnpmfile_root = config.workspace_dir.as_deref().unwrap_or(dir);
         let before_packing_hooks =
             crate::config_deps::load_before_packing_hooks(config, pnpmfile_root);
-        let options = PackOptions {
+        let mut options = PackOptions {
             dir: dir.to_path_buf(),
             catalogs: crate::cli_args::pack::pack_catalogs(config)?,
             ignore_scripts: self.should_ignore_scripts(config),
@@ -318,7 +318,9 @@ impl PublishArgs {
             out: None,
             pack_destination: Some(pack_destination.to_string_lossy().into_owned()),
             before_packing_hooks,
+            injected_files: Vec::new(),
         };
+        crate::cli_args::pack::set_injected_changelog(&mut options, config, dir).await?;
         pack_api::<Reporter, PackHost>(&options)
             .await
             .map_err(miette::Report::new)

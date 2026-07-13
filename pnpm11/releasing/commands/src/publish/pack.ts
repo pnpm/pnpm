@@ -12,6 +12,7 @@ import { packlist } from '@pnpm/fs.packlist'
 import type { Hooks } from '@pnpm/hooks.pnpmfile'
 import { logger } from '@pnpm/logger'
 import { createExportableManifest, type ExportedManifest } from '@pnpm/releasing.exportable-manifest'
+import { changelogStorage, readPendingChangelog, renderChangelog } from '@pnpm/releasing.versioning'
 import type { DependencyManifest, Project, ProjectManifest, ProjectRootDir, ProjectsGraph } from '@pnpm/types'
 import { sortFilteredProjects } from '@pnpm/workspace.projects-sorter'
 import chalk from 'chalk'
@@ -23,6 +24,7 @@ import tar from 'tar-stream'
 import { glob } from 'tinyglobby'
 import validateNpmPackageName from 'validate-npm-package-name'
 
+import { fetchPreviousChangelog, type PreviousChangelogOptions } from './previousChangelog.js'
 import { runScriptsIfPresent } from './publish.js'
 
 const LICENSE_GLOB = 'LICEN{S,C}E{,.*}' // cspell:disable-line
@@ -111,6 +113,25 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
 | 'recursive'
 | 'workspaceConcurrency'
 | 'workspaceDir'
+// Registry-storage changelog composition (see `injectChangelog`): the
+// registry to read the previous version's tarball from, plus the network
+// config `createFetchFromRegistry` needs.
+| 'versioning'
+| 'registries'
+| 'configByUri'
+| 'fetchRetries'
+| 'fetchRetryFactor'
+| 'fetchRetryMaxtimeout'
+| 'fetchRetryMintimeout'
+| 'fetchTimeout'
+| 'ca'
+| 'cert'
+| 'key'
+| 'strictSsl'
+| 'httpProxy'
+| 'httpsProxy'
+| 'noProxy'
+| 'localAddress'
 >> & Partial<Pick<ConfigContext,
 | 'hooks'
 | 'selectedProjectsGraph'
@@ -289,6 +310,16 @@ export async function api (opts: PackOptions): Promise<PackResult> {
       }
     }))
   }
+  // In `registry` changelog storage the package carries no committed
+  // CHANGELOG.md; its section was parked at `pnpm version -r` time and is
+  // composed here on top of the previously published version's changelog and
+  // packed in. A composed entry supersedes any stale committed CHANGELOG.md.
+  const injectedEntries: Record<string, string> = {}
+  const composedChangelog = await composeRegistryChangelog(opts, manifest.name, manifest.version)
+  if (composedChangelog != null) {
+    delete filesMap['package/CHANGELOG.md']
+    injectedEntries['package/CHANGELOG.md'] = composedChangelog
+  }
   const destDir = packDestination
     ? (path.isAbsolute(packDestination) ? packDestination : path.join(dir, packDestination ?? '.'))
     : dir
@@ -309,18 +340,21 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     const stat = await fs.promises.stat(source)
     return stat.size
   }))
-  const unpackedSize = sizes.reduce((acc, size) => acc + size, 0)
-  const packedContents = Array.from(new Set(
-    Object.keys(filesMap).map((name) =>
+  const injectedSize = Object.values(injectedEntries).reduce((acc, content) => acc + Buffer.byteLength(content), 0)
+  const unpackedSize = sizes.reduce((acc, size) => acc + size, 0) + injectedSize
+  const packedContents = Array.from(new Set([
+    ...Object.keys(filesMap).map((name) =>
       isManifestEntry(name)
         ? 'package.json'
         : name.replace(/^package\//, '')
-    )
-  )).sort((a, b) => a.localeCompare(b, 'en'))
+    ),
+    ...Object.keys(injectedEntries).map((name) => name.replace(/^package\//, '')),
+  ])).sort((a, b) => a.localeCompare(b, 'en'))
   if (!opts.dryRun) {
     await packPkg({
       destFile: path.join(destDir, tarballName),
       filesMap,
+      injectedEntries,
       modulesDir: path.join(opts.dir, 'node_modules'),
       packGzipLevel: opts.packGzipLevel,
       manifest: publishManifest,
@@ -363,6 +397,23 @@ function isManifestEntry (name: string): boolean {
   return name === 'package/package.json' || name === 'package/package.json5' || name === 'package/package.yaml'
 }
 
+/**
+ * The CHANGELOG.md to pack for a `registry`-storage release: its parked
+ * section (written at `pnpm version -r` time) rendered on top of the
+ * previously published version's changelog. `undefined` when storage is
+ * `repository`, there is no workspace, or the release has no parked section
+ * (an ordinary `pnpm pack` of a package that is not mid-release).
+ */
+async function composeRegistryChangelog (opts: PackOptions, pkgName: string, version: string): Promise<string | undefined> {
+  if (changelogStorage(opts.versioning) !== 'registry' || opts.workspaceDir == null) return undefined
+  const section = await readPendingChangelog(opts.workspaceDir, pkgName, version)
+  if (section == null) return undefined
+  const previous = opts.registries != null
+    ? await fetchPreviousChangelog(opts as PreviousChangelogOptions, pkgName, version)
+    : undefined
+  return renderChangelog(previous ?? null, pkgName, section)
+}
+
 function stripBuildMetadata (version: string): string {
   const plusIndex = version.indexOf('+')
   return plusIndex === -1 ? version : version.slice(0, plusIndex)
@@ -383,6 +434,8 @@ function preventBundledDependenciesWithoutHoistedNodeLinker (nodeLinker: Config[
 async function packPkg (opts: {
   destFile: string
   filesMap: Record<string, string>
+  /** In-memory tar entries (name → contents) with no file on disk, e.g. the composed CHANGELOG.md. */
+  injectedEntries?: Record<string, string>
   modulesDir: string
   packGzipLevel?: number
   bins: string[]
@@ -391,6 +444,7 @@ async function packPkg (opts: {
   const {
     destFile,
     filesMap,
+    injectedEntries,
     bins,
     manifest,
   } = opts
@@ -405,6 +459,9 @@ async function packPkg (opts: {
     }
     pack.entry({ mode, mtime, name }, fs.readFileSync(source))
   }))
+  for (const [name, content] of Object.entries(injectedEntries ?? {})) {
+    pack.entry({ mode: 0o644, mtime, name }, content)
+  }
   const tarball = fs.createWriteStream(destFile)
   pack.pipe(createGzip({ level: opts.packGzipLevel })).pipe(tarball)
   pack.finalize()

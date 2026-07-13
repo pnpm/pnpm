@@ -52,6 +52,27 @@ function formatListItem (summary: string): string {
   return ['- ' + firstLine, ...rest].join('\n')
 }
 
+/**
+ * Places `section` at the top of a package's changelog: under the existing
+ * `# <name>` title when `existing` has one, or under a freshly created title
+ * when `existing` is `null`. This is the composition used both to write a
+ * committed CHANGELOG.md (`repository` storage) and to build the changelog
+ * packed into a published tarball on top of the previous version's
+ * (`registry` storage).
+ */
+export function renderChangelog (existing: string | null, pkgName: string, section: string): string {
+  if (existing == null) {
+    return `# ${pkgName}\n\n${section}`
+  }
+  const newlineIndex = existing.indexOf('\n')
+  const firstLine = newlineIndex === -1 ? existing : existing.slice(0, newlineIndex)
+  if (firstLine.startsWith('# ')) {
+    const body = (newlineIndex === -1 ? '' : existing.slice(newlineIndex + 1)).replace(/^[\r\n]+/, '')
+    return `${firstLine}\n\n${section}${body === '' ? '' : `\n${body}`}`
+  }
+  return `${section}\n${existing}`
+}
+
 export async function prependChangelogSection (pkgDir: string, pkgName: string, section: string): Promise<void> {
   const changelogPath = path.join(pkgDir, 'CHANGELOG.md')
   let existing: string | null = null
@@ -62,19 +83,5 @@ export async function prependChangelogSection (pkgDir: string, pkgName: string, 
       throw err
     }
   }
-
-  let content: string
-  if (existing == null) {
-    content = `# ${pkgName}\n\n${section}`
-  } else {
-    const newlineIndex = existing.indexOf('\n')
-    const firstLine = newlineIndex === -1 ? existing : existing.slice(0, newlineIndex)
-    if (firstLine.startsWith('# ')) {
-      const body = (newlineIndex === -1 ? '' : existing.slice(newlineIndex + 1)).replace(/^[\r\n]+/, '')
-      content = `${firstLine}\n\n${section}${body === '' ? '' : `\n${body}`}`
-    } else {
-      content = `${section}\n${existing}`
-    }
-  }
-  await fs.writeFile(changelogPath, content, 'utf8')
+  await fs.writeFile(changelogPath, renderChangelog(existing, pkgName, section), 'utf8')
 }

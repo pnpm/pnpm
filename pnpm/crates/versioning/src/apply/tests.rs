@@ -1,4 +1,4 @@
-use std::{fs, path::Path};
+use std::{collections::HashSet, fs, path::Path};
 
 use indexmap::IndexMap;
 use pretty_assertions::assert_eq;
@@ -8,12 +8,25 @@ use crate::{
     changelog::prepend_changelog_section,
     intents::{IntentBumpType, read_change_intents, write_change_intent},
     ledger::read_ledger,
+    pending::read_pending_changelog,
     plan::{
         AssembleReleasePlanOptions, DependencyField, ManifestDependency, WorkspaceProject,
         assemble_release_plan,
     },
-    settings::VersioningSettings,
+    settings::{ChangelogSettings, ChangelogStorage, VersioningSettings},
 };
+
+/// The existing changelog assertions predate the `registry`-storage default,
+/// so they opt back into committed CHANGELOG.md files.
+fn repository() -> VersioningSettings {
+    VersioningSettings {
+        changelog: Some(ChangelogSettings {
+            format: None,
+            storage: Some(ChangelogStorage::Repository),
+        }),
+        ..VersioningSettings::default()
+    }
+}
 
 struct Workspace {
     dir: tempfile::TempDir,
@@ -90,9 +103,15 @@ fn apply_bumps_manifests_writes_changelogs_records_the_ledger_and_deletes_consum
     )
     .expect("plan assembles");
 
-    let applied =
-        apply_release_plan(&plan, workspace.dir.path(), &workspace.projects, &intents, None)
-            .expect("plan applies");
+    let applied = apply_release_plan(
+        &plan,
+        workspace.dir.path(),
+        &workspace.projects,
+        &intents,
+        Some(&repository()),
+        &HashSet::new(),
+    )
+    .expect("plan applies");
     let mut applied_names: Vec<String> =
         applied.iter().map(|release| format!("{}@{}", release.name, release.new_version)).collect();
     applied_names.sort();
@@ -129,7 +148,7 @@ fn intent_files_consumed_only_by_lane_prereleases_survive_until_graduation() {
         .expect("intent writes");
     let versioning = VersioningSettings {
         lanes: IndexMap::from([("cli".to_string(), "alpha".to_string())]),
-        ..VersioningSettings::default()
+        ..repository()
     };
 
     let intents = read_change_intents(workspace.dir.path()).expect("intents read");
@@ -150,6 +169,7 @@ fn intent_files_consumed_only_by_lane_prereleases_survive_until_graduation() {
         &workspace.projects,
         &intents,
         Some(&versioning),
+        &HashSet::new(),
     )
     .expect("plan applies");
 
@@ -176,8 +196,15 @@ fn intent_files_consumed_only_by_lane_prereleases_survive_until_graduation() {
     )
     .expect("plan assembles");
     assert_eq!(graduation_plan.releases[0].new_version, "2.1.0");
-    apply_release_plan(&graduation_plan, workspace.dir.path(), &graduated_projects, &intents, None)
-        .expect("plan applies");
+    apply_release_plan(
+        &graduation_plan,
+        workspace.dir.path(),
+        &graduated_projects,
+        &intents,
+        Some(&repository()),
+        &HashSet::new(),
+    )
+    .expect("plan applies");
 
     let changelog =
         fs::read_to_string(workspace.projects[0].root_dir.join("CHANGELOG.md")).expect("read");
@@ -203,9 +230,256 @@ fn a_none_only_intent_is_garbage_collected_by_a_run_with_an_empty_plan() {
     )
     .expect("plan assembles");
     assert!(plan.releases.is_empty());
-    apply_release_plan(&plan, workspace.dir.path(), &workspace.projects, &intents, None)
-        .expect("plan applies");
+    apply_release_plan(
+        &plan,
+        workspace.dir.path(),
+        &workspace.projects,
+        &intents,
+        None,
+        &HashSet::new(),
+    )
+    .expect("plan applies");
     assert_eq!(read_change_intents(workspace.dir.path()).expect("intents read").len(), 0);
+}
+
+#[test]
+fn registry_storage_parks_the_section_and_defers_intent_gc() {
+    let workspace = make_workspace(&[("lib", "1.0.0", &[])]);
+    let releases = IndexMap::from([("lib".to_string(), IntentBumpType::Minor)]);
+    write_change_intent(workspace.dir.path(), &releases, "Added a feature.")
+        .expect("intent writes");
+    let intents = read_change_intents(workspace.dir.path()).expect("intents read");
+    let plan = assemble_release_plan(
+        &workspace.projects,
+        workspace.dir.path(),
+        &intents,
+        &read_ledger(workspace.dir.path()).expect("ledger reads"),
+        None,
+        &AssembleReleasePlanOptions::default(),
+    )
+    .expect("plan assembles");
+
+    // No versioning => registry storage. Nothing confirmed published, so the
+    // intent (the only copy of the prose) survives.
+    apply_release_plan(
+        &plan,
+        workspace.dir.path(),
+        &workspace.projects,
+        &intents,
+        None,
+        &HashSet::new(),
+    )
+    .expect("plan applies");
+
+    assert!(!workspace.projects[0].root_dir.join("CHANGELOG.md").exists());
+    let section = read_pending_changelog(workspace.dir.path(), "lib", "1.1.0")
+        .expect("pending read")
+        .expect("section is parked");
+    assert!(section.contains("## 1.1.0"), "unexpected: {section}");
+    assert!(section.contains("- Added a feature."), "unexpected: {section}");
+    assert_eq!(read_change_intents(workspace.dir.path()).expect("intents read").len(), 1);
+}
+
+#[test]
+fn registry_storage_collects_an_intent_and_its_section_once_confirmed() {
+    let workspace = make_workspace(&[("lib", "1.0.0", &[])]);
+    let releases = IndexMap::from([("lib".to_string(), IntentBumpType::Minor)]);
+    write_change_intent(workspace.dir.path(), &releases, "Added a feature.")
+        .expect("intent writes");
+    let first_intents = read_change_intents(workspace.dir.path()).expect("intents read");
+    let plan = assemble_release_plan(
+        &workspace.projects,
+        workspace.dir.path(),
+        &first_intents,
+        &read_ledger(workspace.dir.path()).expect("ledger reads"),
+        None,
+        &AssembleReleasePlanOptions::default(),
+    )
+    .expect("plan assembles");
+    apply_release_plan(
+        &plan,
+        workspace.dir.path(),
+        &workspace.projects,
+        &first_intents,
+        None,
+        &HashSet::new(),
+    )
+    .expect("plan applies");
+
+    // A later run: nothing new to release, but the previous release is now
+    // confirmed published, so its intent and parked section are collected.
+    let released = [WorkspaceProject {
+        root_dir: workspace.projects[0].root_dir.clone(),
+        name: Some("lib".to_string()),
+        version: Some("1.1.0".to_string()),
+        prod_dependencies: Vec::new(),
+    }];
+    let intents = read_change_intents(workspace.dir.path()).expect("intents read");
+    let empty_plan = assemble_release_plan(
+        &released,
+        workspace.dir.path(),
+        &intents,
+        &read_ledger(workspace.dir.path()).expect("ledger reads"),
+        None,
+        &AssembleReleasePlanOptions::default(),
+    )
+    .expect("plan assembles");
+    assert!(empty_plan.releases.is_empty());
+    let confirmed = HashSet::from(["lib@1.1.0".to_string()]);
+    apply_release_plan(&empty_plan, workspace.dir.path(), &released, &intents, None, &confirmed)
+        .expect("plan applies");
+
+    assert_eq!(read_change_intents(workspace.dir.path()).expect("intents read").len(), 0);
+    assert!(
+        read_pending_changelog(workspace.dir.path(), "lib", "1.1.0")
+            .expect("pending read")
+            .is_none(),
+    );
+}
+
+#[test]
+fn registry_storage_collects_a_dependency_only_release_section_when_confirmed() {
+    let workspace =
+        make_workspace(&[("lib", "1.0.0", &[]), ("cli", "2.0.0", &[("lib", "workspace:*")])]);
+    let releases = IndexMap::from([("lib".to_string(), IntentBumpType::Minor)]);
+    write_change_intent(workspace.dir.path(), &releases, "A feature.").expect("intent writes");
+    let first_intents = read_change_intents(workspace.dir.path()).expect("intents read");
+    let plan = assemble_release_plan(
+        &workspace.projects,
+        workspace.dir.path(),
+        &first_intents,
+        &read_ledger(workspace.dir.path()).expect("ledger reads"),
+        None,
+        &AssembleReleasePlanOptions::default(),
+    )
+    .expect("plan assembles");
+    apply_release_plan(
+        &plan,
+        workspace.dir.path(),
+        &workspace.projects,
+        &first_intents,
+        None,
+        &HashSet::new(),
+    )
+    .expect("plan applies");
+
+    // cli was bumped only because lib changed: it has a parked section but,
+    // carrying no consumed intents, no ledger entry.
+    assert!(
+        read_pending_changelog(workspace.dir.path(), "cli", "2.0.1")
+            .expect("pending read")
+            .is_some(),
+    );
+    let ledger = read_ledger(workspace.dir.path()).expect("ledger reads");
+    assert_eq!(ledger.keys().map(String::as_str).collect::<Vec<_>>(), ["lib@1.1.0"]);
+
+    // A later run confirms both published versions (the CLI derives this set
+    // from the parked files; here it is passed directly).
+    let released = [
+        WorkspaceProject {
+            root_dir: workspace.projects[0].root_dir.clone(),
+            name: Some("lib".to_string()),
+            version: Some("1.1.0".to_string()),
+            prod_dependencies: Vec::new(),
+        },
+        WorkspaceProject {
+            root_dir: workspace.projects[1].root_dir.clone(),
+            name: Some("cli".to_string()),
+            version: Some("2.0.1".to_string()),
+            prod_dependencies: vec![ManifestDependency {
+                field: DependencyField::Dependencies,
+                alias: "lib".to_string(),
+                spec: "workspace:*".to_string(),
+            }],
+        },
+    ];
+    let intents = read_change_intents(workspace.dir.path()).expect("intents read");
+    let empty_plan = assemble_release_plan(
+        &released,
+        workspace.dir.path(),
+        &intents,
+        &read_ledger(workspace.dir.path()).expect("ledger reads"),
+        None,
+        &AssembleReleasePlanOptions::default(),
+    )
+    .expect("plan assembles");
+    let confirmed = HashSet::from(["lib@1.1.0".to_string(), "cli@2.0.1".to_string()]);
+    apply_release_plan(&empty_plan, workspace.dir.path(), &released, &intents, None, &confirmed)
+        .expect("plan applies");
+
+    // The dependency-only section is collected even though it has no ledger entry.
+    assert!(
+        read_pending_changelog(workspace.dir.path(), "cli", "2.0.1")
+            .expect("pending read")
+            .is_none(),
+    );
+    assert!(
+        read_pending_changelog(workspace.dir.path(), "lib", "1.1.0")
+            .expect("pending read")
+            .is_none(),
+    );
+    assert_eq!(read_change_intents(workspace.dir.path()).expect("intents read").len(), 0);
+}
+
+#[test]
+fn registry_storage_keeps_an_intent_whose_release_is_not_confirmed() {
+    let workspace = make_workspace(&[("lib", "1.0.0", &[])]);
+    let releases = IndexMap::from([("lib".to_string(), IntentBumpType::Minor)]);
+    write_change_intent(workspace.dir.path(), &releases, "Added a feature.")
+        .expect("intent writes");
+    let first_intents = read_change_intents(workspace.dir.path()).expect("intents read");
+    let plan = assemble_release_plan(
+        &workspace.projects,
+        workspace.dir.path(),
+        &first_intents,
+        &read_ledger(workspace.dir.path()).expect("ledger reads"),
+        None,
+        &AssembleReleasePlanOptions::default(),
+    )
+    .expect("plan assembles");
+    apply_release_plan(
+        &plan,
+        workspace.dir.path(),
+        &workspace.projects,
+        &first_intents,
+        None,
+        &HashSet::new(),
+    )
+    .expect("plan applies");
+
+    let released = [WorkspaceProject {
+        root_dir: workspace.projects[0].root_dir.clone(),
+        name: Some("lib".to_string()),
+        version: Some("1.1.0".to_string()),
+        prod_dependencies: Vec::new(),
+    }];
+    let intents = read_change_intents(workspace.dir.path()).expect("intents read");
+    let empty_plan = assemble_release_plan(
+        &released,
+        workspace.dir.path(),
+        &intents,
+        &read_ledger(workspace.dir.path()).expect("ledger reads"),
+        None,
+        &AssembleReleasePlanOptions::default(),
+    )
+    .expect("plan assembles");
+    // Nothing confirmed published: the intent and its section stay put.
+    apply_release_plan(
+        &empty_plan,
+        workspace.dir.path(),
+        &released,
+        &intents,
+        None,
+        &HashSet::new(),
+    )
+    .expect("plan applies");
+
+    assert_eq!(read_change_intents(workspace.dir.path()).expect("intents read").len(), 1);
+    assert!(
+        read_pending_changelog(workspace.dir.path(), "lib", "1.1.0")
+            .expect("pending read")
+            .is_some(),
+    );
 }
 
 #[test]

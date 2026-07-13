@@ -4,6 +4,12 @@ export type VersioningChangelogStorage = 'registry' | 'repository'
 
 export interface VersioningChangelogSettings {
   format?: string
+  /**
+   * Where release changelogs live. Defaults to `registry`: no CHANGELOG.md is
+   * committed; each release's section is composed at publish time and packed
+   * into the published tarball, on top of the previously published version's
+   * changelog. `repository` keeps a committed CHANGELOG.md in every package.
+   */
   storage?: VersioningChangelogStorage
 }
 

@@ -17,11 +17,12 @@ mod error;
 mod human_id;
 mod intents;
 mod ledger;
+mod pending;
 mod plan;
 mod settings;
 
 pub use apply::{AppliedRelease, apply_release_plan};
-pub use changelog::{compose_changelog_section, prepend_changelog_section};
+pub use changelog::{compose_changelog_section, prepend_changelog_section, render_changelog};
 pub use error::VersioningError;
 pub use intents::{
     CHANGES_DIR, ChangeIntent, IntentBumpType, parse_change_intent, read_change_intents,
@@ -31,10 +32,16 @@ pub use ledger::{
     LEDGER_FILENAME, Ledger, LedgerEntry, PackageConsumption, append_to_ledger,
     build_consumption_index, normalize_project_dir, read_ledger,
 };
+pub use pending::{
+    PENDING_CHANGELOGS_DIR, list_pending_changelogs, pending_changelog_path,
+    read_pending_changelog, remove_pending_changelog, write_pending_changelog,
+};
 pub use plan::{
     AssembleReleasePlanOptions, DependencyField, DependencyUpdate, ManifestDependency,
     PlannedRelease, ProjectRefIndex, ReleaseCause, ReleasePlan, WorkspaceProject,
     assemble_release_plan, index_project_refs, is_dir_ref, materialize_workspace_range,
     to_project_dir,
 };
-pub use settings::{ChangelogSettings, ChangelogStorage, ReleaseBumpType, VersioningSettings};
+pub use settings::{
+    ChangelogSettings, ChangelogStorage, ReleaseBumpType, VersioningSettings, changelog_storage,
+};

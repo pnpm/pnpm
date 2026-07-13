@@ -11,6 +11,7 @@ use std::{collections::HashSet, path::Path};
 
 use crate::cli_args::{
     change::{render_release_plan, to_engine_projects},
+    changelog::confirmed_published_versions,
     recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
 };
 
@@ -60,15 +61,15 @@ enum VersionError {
 }
 
 impl VersionArgs {
-    pub fn run(self, config: &Config, recursive: bool) -> miette::Result<()> {
+    pub async fn run(self, config: &Config, recursive: bool) -> miette::Result<()> {
         match self.params.first().map(String::as_str) {
-            None if recursive => self.release_from_intents(config),
+            None if recursive => self.release_from_intents(config).await,
             None => Err(VersionError::MissingBump.into()),
             Some(bump) => Err(VersionError::NpmStyleNotPorted { bump: bump.to_string() }.into()),
         }
     }
 
-    fn release_from_intents(&self, config: &Config) -> miette::Result<()> {
+    async fn release_from_intents(&self, config: &Config) -> miette::Result<()> {
         let Some(workspace_dir) = config.workspace_dir.clone() else {
             return Err(VersionError::ReleaseOutsideWorkspace.into());
         };
@@ -119,12 +120,14 @@ impl VersionArgs {
             // this scope" is no reason to delete prose belonging to packages
             // outside the filter.
             if !self.dry_run && !is_filtered {
+                let confirmed = confirmed_published_versions(config, &workspace_dir).await?;
                 apply_release_plan(
                     &plan,
                     &workspace_dir,
                     &engine_projects,
                     &intents,
                     Some(&config.versioning),
+                    &confirmed,
                 )?;
             }
             println!(r#"No pending changes. Record one with "pnpm change"."#);
@@ -135,12 +138,14 @@ impl VersionArgs {
             return Ok(());
         }
 
+        let confirmed = confirmed_published_versions(config, &workspace_dir).await?;
         let applied = apply_release_plan(
             &plan,
             &workspace_dir,
             &engine_projects,
             &intents,
             Some(&config.versioning),
+            &confirmed,
         )?;
 
         use std::fmt::Write as _;

@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import {
   applyReleasePlan,
   assembleReleasePlan,
@@ -9,6 +9,7 @@ import {
   prependChangelogSection,
   readChangeIntents,
   readLedger,
+  readPendingChangelog,
   type WorkspaceProject,
   writeChangeIntent,
 } from '@pnpm/releasing.versioning'
@@ -71,6 +72,8 @@ test('writeChangeIntent output round-trips through readChangeIntents', async () 
   expect(intents[0].summary).toBe('Added a thing.')
 })
 
+const REPOSITORY = { changelog: { storage: 'repository' } } as const
+
 test('applyReleasePlan bumps manifests, writes changelogs, records the ledger, and deletes consumed intents', async () => {
   const { workspaceDir, projects } = await makeWorkspace([
     { name: 'lib', version: '1.0.0' },
@@ -83,7 +86,7 @@ test('applyReleasePlan bumps manifests, writes changelogs, records the ledger, a
   const intents = await readChangeIntents(workspaceDir)
   const plan = assembleReleasePlan({ workspaceDir, projects, intents, ledger: await readLedger(workspaceDir) })
 
-  const applied = await applyReleasePlan(plan, { workspaceDir, projects, allIntents: intents })
+  const applied = await applyReleasePlan(plan, { workspaceDir, projects, allIntents: intents, versioning: REPOSITORY })
   expect(applied.map((release) => `${release.name}@${release.newVersion}`).sort()).toStrictEqual(['cli@2.0.1', 'lib@1.1.0'])
 
   const libDir = projects.find((project) => project.manifest.name === 'lib')!.rootDir
@@ -116,7 +119,7 @@ test('intent files consumed only by lane prereleases survive until graduation', 
     releases: { cli: 'minor' },
     summary: 'Added a feature.',
   })
-  const versioning = { lanes: { cli: 'alpha' } }
+  const versioning = { lanes: { cli: 'alpha' }, changelog: { storage: 'repository' } } as const
 
   let intents = await readChangeIntents(workspaceDir)
   const prereleasePlan = assembleReleasePlan({ workspaceDir, projects, intents, ledger: await readLedger(workspaceDir), versioning })
@@ -135,11 +138,92 @@ test('intent files consumed only by lane prereleases survive until graduation', 
   }]
   const graduationPlan = assembleReleasePlan({ workspaceDir, projects: graduatedProjects, intents, ledger: await readLedger(workspaceDir), versioning: {} })
   expect(graduationPlan.releases[0].newVersion).toBe('2.1.0')
-  await applyReleasePlan(graduationPlan, { workspaceDir, projects: graduatedProjects, allIntents: intents, versioning: {} })
+  await applyReleasePlan(graduationPlan, { workspaceDir, projects: graduatedProjects, allIntents: intents, versioning: REPOSITORY })
 
   const changelog = await fs.readFile(path.join(projects[0].rootDir, 'CHANGELOG.md'), 'utf8')
   expect(changelog).toContain('## 2.1.0-alpha.0')
   expect(changelog).toContain('## 2.1.0')
+  expect(await readChangeIntents(workspaceDir)).toHaveLength(0)
+})
+
+test('registry storage (the default) parks the section instead of committing CHANGELOG.md and defers intent GC', async () => {
+  const { workspaceDir, projects } = await makeWorkspace([{ name: 'lib', version: '1.0.0' }])
+  await writeChangeIntent(workspaceDir, { releases: { lib: 'minor' }, summary: 'Added a feature.' })
+  const intents = await readChangeIntents(workspaceDir)
+  const plan = assembleReleasePlan({ workspaceDir, projects, intents, ledger: await readLedger(workspaceDir) })
+
+  // No versioning => registry storage. No verifyPublished, so nothing is
+  // confirmed published and the intent (the only copy of the prose) survives.
+  await applyReleasePlan(plan, { workspaceDir, projects, allIntents: intents })
+
+  await expect(fs.readFile(path.join(projects[0].rootDir, 'CHANGELOG.md'), 'utf8')).rejects.toThrow()
+  const section = await readPendingChangelog(workspaceDir, 'lib', '1.1.0')
+  expect(section).toContain('## 1.1.0')
+  expect(section).toContain('- Added a feature.')
+  expect(await readChangeIntents(workspaceDir)).toHaveLength(1)
+})
+
+test('registry storage collects an intent and its parked section once the registry confirms publication', async () => {
+  const { workspaceDir, projects } = await makeWorkspace([{ name: 'lib', version: '1.0.0' }])
+  await writeChangeIntent(workspaceDir, { releases: { lib: 'minor' }, summary: 'Added a feature.' })
+  const firstIntents = await readChangeIntents(workspaceDir)
+  const plan = assembleReleasePlan({ workspaceDir, projects, intents: firstIntents, ledger: await readLedger(workspaceDir) })
+  await applyReleasePlan(plan, { workspaceDir, projects, allIntents: firstIntents })
+
+  const released: WorkspaceProject[] = [{ rootDir: projects[0].rootDir, manifest: { name: 'lib', version: '1.1.0' } }]
+  const intents = await readChangeIntents(workspaceDir)
+  const verifyPublished = jest.fn(async (_name: string, _version: string, section: string) => section.includes('## 1.1.0'))
+  const emptyPlan = assembleReleasePlan({ workspaceDir, projects: released, intents, ledger: await readLedger(workspaceDir) })
+  expect(emptyPlan.releases).toHaveLength(0)
+  await applyReleasePlan(emptyPlan, { workspaceDir, projects: released, allIntents: intents, verifyPublished })
+
+  expect(verifyPublished).toHaveBeenCalledWith('lib', '1.1.0', expect.stringContaining('## 1.1.0'))
+  expect(await readChangeIntents(workspaceDir)).toHaveLength(0)
+  expect(await readPendingChangelog(workspaceDir, 'lib', '1.1.0')).toBeNull()
+})
+
+test('registry storage keeps an intent whose release the registry has not confirmed', async () => {
+  const { workspaceDir, projects } = await makeWorkspace([{ name: 'lib', version: '1.0.0' }])
+  await writeChangeIntent(workspaceDir, { releases: { lib: 'minor' }, summary: 'Added a feature.' })
+  const firstIntents = await readChangeIntents(workspaceDir)
+  const plan = assembleReleasePlan({ workspaceDir, projects, intents: firstIntents, ledger: await readLedger(workspaceDir) })
+  await applyReleasePlan(plan, { workspaceDir, projects, allIntents: firstIntents })
+
+  const released: WorkspaceProject[] = [{ rootDir: projects[0].rootDir, manifest: { name: 'lib', version: '1.1.0' } }]
+  const intents = await readChangeIntents(workspaceDir)
+  const emptyPlan = assembleReleasePlan({ workspaceDir, projects: released, intents, ledger: await readLedger(workspaceDir) })
+  await applyReleasePlan(emptyPlan, { workspaceDir, projects: released, allIntents: intents, verifyPublished: async () => false })
+
+  expect(await readChangeIntents(workspaceDir)).toHaveLength(1)
+  expect(await readPendingChangelog(workspaceDir, 'lib', '1.1.0')).toContain('## 1.1.0')
+})
+
+test('registry storage collects the parked section of a dependency-only release once published', async () => {
+  const { workspaceDir, projects } = await makeWorkspace([
+    { name: 'lib', version: '1.0.0' },
+    { name: 'cli', version: '2.0.0', deps: { lib: 'workspace:*' } },
+  ])
+  await writeChangeIntent(workspaceDir, { releases: { lib: 'minor' }, summary: 'A feature.' })
+  const firstIntents = await readChangeIntents(workspaceDir)
+  const plan = assembleReleasePlan({ workspaceDir, projects, intents: firstIntents, ledger: await readLedger(workspaceDir) })
+  await applyReleasePlan(plan, { workspaceDir, projects, allIntents: firstIntents })
+
+  // cli was bumped only because lib changed: it has a parked section but,
+  // carrying no consumed intents, no ledger entry.
+  expect(await readPendingChangelog(workspaceDir, 'cli', '2.0.1')).toContain('## 2.0.1')
+  expect(Object.keys(await readLedger(workspaceDir))).toStrictEqual(['lib@1.1.0'])
+
+  const released: WorkspaceProject[] = [
+    { rootDir: projects[0].rootDir, manifest: { name: 'lib', version: '1.1.0' } },
+    { rootDir: projects[1].rootDir, manifest: { name: 'cli', version: '2.0.1', dependencies: { lib: 'workspace:*' } } },
+  ]
+  const intents = await readChangeIntents(workspaceDir)
+  const emptyPlan = assembleReleasePlan({ workspaceDir, projects: released, intents, ledger: await readLedger(workspaceDir) })
+  await applyReleasePlan(emptyPlan, { workspaceDir, projects: released, allIntents: intents, verifyPublished: async () => true })
+
+  // The dependency-only section is collected even though it has no ledger entry.
+  expect(await readPendingChangelog(workspaceDir, 'cli', '2.0.1')).toBeNull()
+  expect(await readPendingChangelog(workspaceDir, 'lib', '1.1.0')).toBeNull()
   expect(await readChangeIntents(workspaceDir)).toHaveLength(0)
 })
 
