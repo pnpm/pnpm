@@ -301,6 +301,25 @@ fn merge_keeps_the_top_level_readme_when_the_latest_version_has_none() {
 }
 
 #[test]
+fn merge_does_not_hoist_a_null_readme_over_an_existing_top_level_one() {
+    // Attacker-controlled metadata could set `"readme": null` on the version;
+    // hoisting it would blank the packument's existing top-level readme.
+    let existing = json!({
+        "name": "foo",
+        "readme": "# Foo",
+        "versions": { "1.0.0": { "version": "1.0.0" } },
+        "dist-tags": { "latest": "1.0.0" }
+    });
+    let incoming = json!({
+        "name": "foo",
+        "versions": { "1.1.0": { "version": "1.1.0", "readme": null } },
+        "dist-tags": { "latest": "1.1.0" }
+    });
+    let merged = merge_manifest(Some(&existing), &incoming, Some(&existing), "now");
+    assert_eq!(merged["readme"], "# Foo");
+}
+
+#[test]
 fn now_iso_has_expected_shape() {
     let now = now_iso();
     let bytes = now.as_bytes();

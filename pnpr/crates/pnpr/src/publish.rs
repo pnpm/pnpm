@@ -314,7 +314,13 @@ fn hoist_readme_from_latest(out: &mut Map<String, Value>) {
         .map(|version| {
             ["readme", "readmeFilename"]
                 .into_iter()
-                .filter_map(|key| version.get(key).cloned().map(|value| (key.to_owned(), value)))
+                .filter_map(|key| {
+                    version
+                        .get(key)
+                        .filter(|value| !value.is_null())
+                        .cloned()
+                        .map(|value| (key.to_owned(), value))
+                })
                 .collect()
         })
         .unwrap_or_default();
