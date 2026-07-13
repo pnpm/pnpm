@@ -7,11 +7,20 @@ name: Release
 # `plan` job, which asks the npm registry which committed versions are not
 # published yet, and only those products' jobs run. Tagging e.g. a v12
 # prerelease therefore skips the TypeScript jobs whose version is already on
-# npm, and vice versa.
+# npm, and vice versa. pnpm releases on `v<version>` tags; pnpr, a separate
+# product on its own 0.x line, on `pnpr-v<version>` tags — but since the tag is
+# only a trigger, the `plan` job still decides what actually publishes.
 on:
   push:
     tags:
+      # pnpm (the TypeScript and Rust CLIs) releases on `v<version>` tags; pnpr,
+      # a separate product on its own 0.x line, releases on `pnpr-v<version>`
+      # tags so it doesn't share pnpm's version-tag namespace. The tag is only a
+      # trigger — the `plan` job decides which products actually publish from
+      # their committed versions, so either pattern can drive any product's
+      # release; the convention keeps the tag readable.
       - "v*.*.*"
+      - "pnpr-v*"
   # Manual trigger for rerunning a tag release. Dispatching this workflow from a
   # branch fails before publishing because release artifacts are only built on
   # version tags.
@@ -26,8 +35,9 @@ jobs:
         run: |
           case "${GITHUB_REF}" in
             refs/tags/v*.*.*) ;;
+            refs/tags/pnpr-v*) ;;
             *)
-              echo "::error::The release workflow must run from a version tag like v11.9.0. Current ref: ${GITHUB_REF}"
+              echo "::error::The release workflow must run from a version tag (v<version> for pnpm, pnpr-v<version> for pnpr). Current ref: ${GITHUB_REF}"
               exit 1
               ;;
           esac
@@ -193,11 +203,16 @@ jobs:
       - name: Release
         # `gh release create` could replace this, but the release pipeline is
         # sensitive and softprops/action-gh-release is widely battle-tested.
+        # Pin the release to the committed TypeScript version rather than the
+        # triggering tag: a pnpr-v<version> trigger (or a Rust-only tag) must
+        # not retag this release.
         uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.0 # zizmor: ignore[superfluous-actions]
         with:
           draft: true
           files: dist/*
           body_path: RELEASE.md
+          tag_name: v${{ needs.plan.outputs.ts_version }}
+          target_commitish: ${{ github.sha }}
 
   build-rust:
     needs: plan
@@ -571,6 +586,8 @@ jobs:
     permissions:
       # Required for npm trusted publishing and provenance attestations via OIDC.
       id-token: write
+      # Required for softprops/action-gh-release to create the GitHub release.
+      contents: write
     needs:
       - plan
       - build-pnpr
@@ -620,6 +637,24 @@ jobs:
           for package in pnpr/npm/pnpr-* pnpr/npm/pnpr; do
             pnpm publish "$package/" --tag "$TAG" --access public --provenance --no-git-checks
           done
+
+      - name: Release
+        # pnpr releases in its own `pnpr-v<version>` tag namespace, separate from
+        # pnpm's `v<version>` tags. Draft so a maintainer publishes it
+        # deliberately; `make_latest: false` keeps a pnpr prerelease off the
+        # repository's "Latest" badge (which tracks the stable pnpm CLI).
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.0 # zizmor: ignore[superfluous-actions]
+        with:
+          draft: true
+          prerelease: ${{ contains(needs.plan.outputs.pnpr_version, '-') }}
+          make_latest: false
+          tag_name: pnpr-v${{ needs.plan.outputs.pnpr_version }}
+          target_commitish: ${{ github.sha }}
+          name: pnpr ${{ needs.plan.outputs.pnpr_version }}
+          files: |
+            *.zip
+            *.tar.gz
+            *.sha256
 
   docker-pnpr:
     name: Publish the pnpr Docker image
