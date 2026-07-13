@@ -426,6 +426,11 @@ fn add_workspace_ignore_files(
     let mut current = workspace_dir.to_path_buf();
     add_workspace_ignore_file(builder, pkg_dir, &current)?;
     for component in parent_rel.components() {
+        // `parent_rel` is `pkg_parent` relative to `workspace_dir`, so a
+        // clean descendant chain yields only `Normal` components. Anything
+        // else (a stray `..` or root/prefix from a non-canonical path) means
+        // we can't trust the remaining chain, so stop rather than walk out of
+        // the workspace; the already-added root ignore stays in effect.
         let Component::Normal(segment) = component else { return Ok(()) };
         current.push(segment);
         add_workspace_ignore_file(builder, pkg_dir, &current)?;

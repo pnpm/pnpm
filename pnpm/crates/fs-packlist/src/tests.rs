@@ -486,6 +486,36 @@ fn workspace_root_npmignore_takes_precedence_over_gitignore() {
     );
 }
 
+// A package-level `.npmignore` negation must win over a workspace-root
+// ignore: the workspace-root file is added at the lowest precedence tier
+// (`WalkBuilder::add_ignore`), below the package's own discovered ignore
+// files, matching npm-packlist's ancestor-first ordering.
+#[test]
+fn package_npmignore_negation_overrides_workspace_root_gitignore() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join(".gitignore"), "dist/\n").unwrap();
+    let root = dir.path().join("packages").join("pkg");
+    fs::create_dir_all(&root).unwrap();
+    touch(&root, "package.json");
+    write(&root, ".npmignore", "!dist/\n");
+    touch(&root, "dist/generated.js");
+    touch(&root, "src/index.js");
+
+    let manifest = json!({ "name": "x", "version": "0.0.0" });
+    let out = packlist_with_options(
+        &root,
+        &manifest,
+        PacklistOptions { workspace_dir: Some(dir.path()) },
+    )
+    .unwrap();
+
+    assert!(
+        out.contains(&"dist/generated.js".to_string()),
+        "package-level `!dist/` must re-include files the workspace-root .gitignore excluded; received {out:?}",
+    );
+    assert!(out.contains(&"src/index.js".to_string()), "{out:?}");
+}
+
 #[test]
 fn unrelated_workspace_dir_does_not_apply_workspace_gitignore() {
     let workspace = tempdir().unwrap();
