@@ -110,7 +110,7 @@ jobs:
     name: TS CI / Build pnpr
     uses: ./.github/workflows/build-pnpr.yml
     with:
-      os: ubuntu-latest
+      os: blacksmith-8vcpu-ubuntu-2404
 
   build-pnpr-windows:
     needs: changes
@@ -118,7 +118,7 @@ jobs:
     name: TS CI / Build pnpr
     uses: ./.github/workflows/build-pnpr.yml
     with:
-      os: windows-latest
+      os: blacksmith-8vcpu-windows-2025
 
   test-smoke:
     name: TS CI / Test / ubuntu
