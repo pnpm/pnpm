@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { type CatalogResolver, resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
@@ -88,13 +89,29 @@ export async function createExportableManifest (
   return transform(publishManifest)
 }
 
+// `O_NOFOLLOW` makes the open itself refuse a symlink at the final path component, closing the
+// TOCTOU window between the `readdir` type check and the read: a symlink swapped in for README.md
+// after the check can't redirect the read outside the project and leak its target into the
+// published manifest. Windows lacks the flag (and requires privileges to create symlinks), so it
+// falls back to a plain read.
+const README_READ_FLAGS = fs.constants.O_RDONLY | (process.platform === 'win32' ? 0 : fs.constants.O_NOFOLLOW)
+
 export async function readReadmeFile (projectDir: string): Promise<string | undefined> {
   const entries = await fs.promises.readdir(projectDir, { withFileTypes: true })
-  // Only embed a regular README.md file. A symlink could point outside the
-  // project and leak its target's contents into the published manifest.
+  // Only embed a regular README.md file — a symlink is skipped (see README_READ_FLAGS).
   const readmeEntry = entries.find((entry) => entry.isFile() && /^readme\.md$/i.test(entry.name))
   if (readmeEntry == null) return undefined
-  return fs.promises.readFile(path.join(projectDir, readmeEntry.name), 'utf8')
+  let handle: fs.promises.FileHandle | undefined
+  try {
+    handle = await fs.promises.open(path.join(projectDir, readmeEntry.name), README_READ_FLAGS)
+    return await handle.readFile('utf8')
+  } catch (err: unknown) {
+    // ELOOP: the entry is a symlink after all (a concurrent swap) — skip it, as the isFile() check intended.
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ELOOP') return undefined
+    throw err
+  } finally {
+    await handle?.close()
+  }
 }
 
 export type PublishDependencyConverter = (

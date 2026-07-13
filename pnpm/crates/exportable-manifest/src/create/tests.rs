@@ -231,6 +231,26 @@ fn readme_is_not_embedded_without_opt_in() {
     assert!(out.get("readme").is_none());
 }
 
+#[cfg(unix)]
+#[test]
+fn readme_symlink_is_not_embedded() {
+    // A symlinked README could point outside the project; it must be skipped so its
+    // target's contents can't be leaked into the published manifest.
+    let dir = tempdir().unwrap();
+    let secret = tempdir().unwrap();
+    fs::write(secret.path().join("secret"), "TOP SECRET").unwrap();
+    std::os::unix::fs::symlink(secret.path().join("secret"), dir.path().join("README.md")).unwrap();
+    let catalogs = empty_catalogs();
+    let opts = CreateExportableManifestOptions {
+        catalogs: &catalogs,
+        modules_dir: None,
+        skip_manifest_obfuscation: false,
+        embed_readme: true,
+    };
+    let out = build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &opts);
+    assert!(out.get("readme").is_none());
+}
+
 #[test]
 fn missing_name_surfaces_transform_error() {
     let dir = tempdir().unwrap();

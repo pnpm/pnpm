@@ -4256,6 +4256,7 @@ name = "pacquet-exportable-manifest"
 version = "0.0.1"
 dependencies = [
  "derive_more",
+ "libc",
  "miette 7.6.0",
  "pacquet-catalogs-resolver",
  "pacquet-catalogs-types",
