@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, jest, test } from '@jest/globals'
@@ -123,4 +124,59 @@ test('global add replaces an existing pnpm install when installing @pnpm/exe', a
   expect(removeBin).toHaveBeenCalledWith(path.join('/global/bin', 'pnpm'))
   expect(symlinkDir).toHaveBeenCalledWith('/global/v11/new', '/global/v11/new-hash', { overwrite: true })
   expect(linkBinsOfPackages).toHaveBeenCalledWith([], '/global/bin', { excludeBins: new Set() })
+})
+
+test('global add invokes checkLicensesAfterGlobalInstall once per install group, with that group\'s installDir', async () => {
+  findGlobalPackage.mockReturnValue(null)
+  // A prior test overrides checkGlobalBinConflicts with a custom
+  // mockImplementation that asserts on a package-specific shouldSkip result;
+  // restore the plain default so it doesn't interfere here.
+  checkGlobalBinConflicts.mockReset().mockResolvedValue(new Set())
+  createInstallDir
+    .mockReturnValueOnce('/global/v11/install-foo')
+    .mockReturnValueOnce('/global/v11/install-bar')
+  readPackageJsonFromDirRawSync.mockReturnValue({ dependencies: {} })
+  const checkLicensesAfterGlobalInstall = jest.fn<(installDir: string) => Promise<void>>().mockResolvedValue(undefined)
+
+  await handleGlobalAdd({
+    bin: '/global/bin',
+    dir: '/project',
+    globalPkgDir: '/global/v11',
+    registries: {},
+    checkLicensesAfterGlobalInstall,
+  } as any, ['foo', 'bar'], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  expect(checkLicensesAfterGlobalInstall).toHaveBeenCalledTimes(2)
+  expect(checkLicensesAfterGlobalInstall).toHaveBeenNthCalledWith(1, '/global/v11/install-foo')
+  expect(checkLicensesAfterGlobalInstall).toHaveBeenNthCalledWith(2, '/global/v11/install-bar')
+})
+
+test('global add removes the group install dir and rethrows when checkLicensesAfterGlobalInstall throws', async () => {
+  findGlobalPackage.mockReturnValue(null)
+  createInstallDir.mockReturnValueOnce('/global/v11/install-violating')
+  // These are asserted as not-called below; clear prior tests' call history
+  // (this file has no shared beforeEach reset) so the assertions reflect
+  // only what happens during this test.
+  checkGlobalBinConflicts.mockClear()
+  linkBinsOfPackages.mockClear()
+  const removeDirSpy = jest.spyOn(fs.promises, 'rm').mockResolvedValue(undefined)
+  const violation = new Error('license violation')
+  const checkLicensesAfterGlobalInstall = jest.fn<(installDir: string) => Promise<void>>().mockRejectedValue(violation)
+
+  await expect(handleGlobalAdd({
+    bin: '/global/bin',
+    dir: '/project',
+    globalPkgDir: '/global/v11',
+    registries: {},
+    checkLicensesAfterGlobalInstall,
+  } as any, ['foo'], {})).rejects.toBe(violation) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  expect(checkLicensesAfterGlobalInstall).toHaveBeenCalledWith('/global/v11/install-violating')
+  expect(removeDirSpy).toHaveBeenCalledWith('/global/v11/install-violating', { recursive: true, force: true })
+  // The failure must abort before bin conflicts are checked or bins are linked,
+  // so the violating group isn't left half-applied.
+  expect(checkGlobalBinConflicts).not.toHaveBeenCalled()
+  expect(linkBinsOfPackages).not.toHaveBeenCalled()
+
+  removeDirSpy.mockRestore()
 })

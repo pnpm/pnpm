@@ -681,3 +681,72 @@ describe('license compliance after add', () => {
     ).rejects.toThrow('license violation')
   })
 })
+
+// Global installs (`pnpm add -g`) split each param into its own isolated
+// install group under a global package dir (own lockfile + manifest +
+// node_modules), with no scannable project at the global dir root. These
+// tests exercise the full, unmocked handleGlobalAdd → installGlobalPackages
+// → runLicenseCheckForGlobalInstall chain to prove the per-group license
+// check resolves the right (absolute) store/virtual-store paths for a
+// directory that isn't the process cwd, and that a violation cleans up the
+// half-applied install group instead of leaving it linked.
+describe('license compliance after global add', () => {
+  test('pnpm add -g fails when a disallowed license is present in strict mode, and cleans up the install group', async () => {
+    prepare()
+    const globalDir = path.resolve('..', 'global')
+    const bin = path.join(globalDir, 'bin')
+    const globalPkgDir = path.join(globalDir, 'pnpm')
+
+    let err!: PnpmError
+    try {
+      await add.handler({
+        ...DEFAULT_OPTIONS,
+        dir: process.cwd(),
+        global: true,
+        bin,
+        globalPkgDir,
+        linkWorkspacePackages: false,
+        licenses: {
+          disallowed: ['MIT'],
+          mode: 'strict',
+        },
+      }, ['is-positive@1.0.0'])
+    } catch (_err: any) { // eslint-disable-line
+      err = _err
+    }
+    expect(err.code).toBe('ERR_PNPM_LICENSE_VIOLATION')
+
+    // The violating group's install dir must be removed so it isn't left
+    // half-applied: no install dir/hash symlink remains under the global
+    // package dir, and the bin dir is never even created (bin linking
+    // happens after the license check).
+    expect(fs.readdirSync(globalPkgDir)).toHaveLength(0)
+    expect(fs.existsSync(bin)).toBe(false)
+  })
+
+  test('pnpm add -g succeeds and links the bin when the license is allowed', async () => {
+    prepare()
+    const globalDir = path.resolve('..', 'global')
+    const bin = path.join(globalDir, 'bin')
+    const globalPkgDir = path.join(globalDir, 'pnpm')
+
+    await add.handler({
+      ...DEFAULT_OPTIONS,
+      dir: process.cwd(),
+      global: true,
+      bin,
+      globalPkgDir,
+      linkWorkspacePackages: false,
+      licenses: {
+        disallowed: ['ISC'],
+        mode: 'strict',
+      },
+    }, ['@pnpm.e2e/hello-world-js-bin@1.0.0'])
+
+    expect(fs.existsSync(path.join(bin, 'hello-world-js-bin'))).toBe(true)
+
+    const [hashEntry] = fs.readdirSync(globalPkgDir)
+    const installDir = fs.realpathSync(path.join(globalPkgDir, hashEntry))
+    expect(fs.existsSync(path.join(installDir, 'node_modules', '@pnpm.e2e', 'hello-world-js-bin'))).toBe(true)
+  })
+})

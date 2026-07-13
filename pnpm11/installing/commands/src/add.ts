@@ -15,7 +15,7 @@ import { getFetchFullMetadata } from './getFetchFullMetadata.js'
 import type { InstallCommandOptions } from './install.js'
 import { installDeps } from './installDeps.js'
 import { createGlobalPolicyCallbacks } from './resolutionPolicyManifest.js'
-import { runLicenseCheck } from './runLicenseCheck.js'
+import { runLicenseCheck, runLicenseCheckForGlobalInstall } from './runLicenseCheck.js'
 
 export const shorthands: Record<string, string> = {
   'save-catalog': '--save-catalog-name=default',
@@ -273,6 +273,7 @@ export async function handler (
     return handleGlobalAdd({
       ...opts,
       ...createGlobalPolicyCallbacks(opts),
+      checkLicensesAfterGlobalInstall: (installDir) => runLicenseCheckForGlobalInstall(opts, installDir),
     }, params, commands ?? {})
   }
 
