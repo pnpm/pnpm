@@ -119,6 +119,7 @@ export function createDeployFiles ({
         continue
       }
 
+      resolveResult.packageName ??= name
       targetSpecifiers[name] = targetDependencies[name] =
         resolveResult.resolvedPath === deployedProjectRealPath ? 'link:.' : createFileUrlDepPath(resolveResult, allProjects)
     }
@@ -252,6 +253,7 @@ function convertResolvedDependencies (
       continue
     }
 
+    resolveResult.packageName ??= key
     output[key] = createFileUrlDepPath(resolveResult, opts.allProjects)
   }
 
@@ -262,6 +264,7 @@ interface ResolveLinkOrFileResult {
   scheme: 'link:' | 'file:'
   resolvedPath: string
   suffix?: string
+  packageName?: string
 }
 
 function resolveLinkOrFile (pkgVer: string, opts: Pick<ConvertOptions, 'lockfileDir' | 'projectRootDirRealPath'>): ResolveLinkOrFileResult | undefined {
@@ -277,7 +280,7 @@ function resolveLinkOrFile (pkgVer: string, opts: Pick<ConvertOptions, 'lockfile
   const resolveSchemeResult = resolveScheme('file:', lockfileDir) ?? resolveScheme('link:', projectRootDirRealPath)
   if (resolveSchemeResult) return resolveSchemeResult
 
-  const { nonSemverVersion, patchHash, peerDepGraphHash, version } = dp.parse(pkgVer)
+  const { name, nonSemverVersion, patchHash, peerDepGraphHash, version } = dp.parse(pkgVer)
   if (!nonSemverVersion) return undefined
 
   if (version) {
@@ -292,16 +295,17 @@ function resolveLinkOrFile (pkgVer: string, opts: Pick<ConvertOptions, 'lockfile
   }
 
   parseResult.suffix = `${patchHash ?? ''}${peerDepGraphHash ?? ''}`
+  parseResult.packageName = name
 
   return parseResult
 }
 
 function createFileUrlDepPath (
-  { resolvedPath, suffix }: Pick<ResolveLinkOrFileResult, 'resolvedPath' | 'suffix'>,
+  { resolvedPath, suffix, packageName }: Pick<ResolveLinkOrFileResult, 'resolvedPath' | 'suffix' | 'packageName'>,
   allProjects: CreateDeployFilesOptions['allProjects']
 ): DepPath {
   const depFileUrl = url.pathToFileURL(resolvedPath).toString()
   const project = allProjects.find(project => project.rootDirRealPath === resolvedPath)
-  const name = project?.manifest.name ?? path.basename(resolvedPath)
+  const name = project?.manifest.name ?? packageName ?? path.basename(resolvedPath)
   return `${name}@${depFileUrl}${suffix ?? ''}` as DepPath
 }

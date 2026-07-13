@@ -815,7 +815,7 @@ fn create_deploy_files(
         }
         let project_root =
             validate_lockfile_local_path(&lockfile_dir.join(importer_path), lockfile_dir)?;
-        let package_key = create_file_url_key(&project_root, "", &selected.all_projects)?;
+        let package_key = create_file_url_key(&project_root, "", &selected.all_projects, None)?;
         packages.insert(
             package_key,
             PackageMetadata {
@@ -851,7 +851,7 @@ fn create_deploy_files(
         let project_root =
             validate_lockfile_local_path(&lockfile_dir.join(importer_path), lockfile_dir)?;
         let bases = ResolveBases { file_base: lockfile_dir, link_base: &project_root };
-        let package_key = create_file_url_key(&project_root, "", &selected.all_projects)?;
+        let package_key = create_file_url_key(&project_root, "", &selected.all_projects, None)?;
         snapshots.insert(
             package_key,
             project_snapshot_to_snapshot_entry(project_snapshot, &ctx, &bases)?,
@@ -1084,7 +1084,7 @@ fn convert_importer_version_to_snapshot_ref(
     bases: &ResolveBases,
 ) -> miette::Result<SnapshotDepRef> {
     if let Some(local) = resolve_importer_dep_version(version, bases) {
-        return local_to_snapshot_dep_ref(&local, ctx);
+        return local_to_snapshot_dep_ref(alias, &local, ctx);
     }
     Ok(match version {
         ImporterDepVersion::Regular(version) => SnapshotDepRef::Plain(version.clone()),
@@ -1092,7 +1092,7 @@ fn convert_importer_version_to_snapshot_ref(
         ImporterDepVersion::Link(target) => SnapshotDepRef::Link(target.clone()),
         ImporterDepVersion::File(payload) => {
             let local = resolve_file_payload(bases.file_base, payload).with_alias(alias);
-            local_to_snapshot_dep_ref(&local, ctx)?
+            local_to_snapshot_dep_ref(alias, &local, ctx)?
         }
     })
 }
@@ -1104,7 +1104,7 @@ fn convert_snapshot_dep_ref(
     bases: &ResolveBases,
 ) -> miette::Result<SnapshotDepRef> {
     if let Some(local) = resolve_snapshot_dep_ref(alias, dep_ref, bases) {
-        return local_to_snapshot_dep_ref(&local, ctx);
+        return local_to_snapshot_dep_ref(alias, &local, ctx);
     }
     Ok(dep_ref.clone())
 }
@@ -1173,7 +1173,7 @@ impl LocalResolve {
 }
 
 fn local_to_importer_dep_version(
-    _alias: &PkgName,
+    alias: &PkgName,
     local: &LocalResolve,
     ctx: &ConvertCtx,
 ) -> miette::Result<ImporterDepVersion> {
@@ -1181,11 +1181,12 @@ fn local_to_importer_dep_version(
     if same_path(&resolved_path, ctx.deployed_project_root) {
         return Ok(ImporterDepVersion::Link(".".to_string()));
     }
-    let key = create_file_url_key(&resolved_path, &local.suffix, ctx.all_projects)?;
+    let key = create_file_url_key(&resolved_path, &local.suffix, ctx.all_projects, Some(alias))?;
     Ok(ImporterDepVersion::Alias(key))
 }
 
 fn local_to_snapshot_dep_ref(
+    alias: &PkgName,
     local: &LocalResolve,
     ctx: &ConvertCtx,
 ) -> miette::Result<SnapshotDepRef> {
@@ -1193,13 +1194,18 @@ fn local_to_snapshot_dep_ref(
     if same_path(&resolved_path, ctx.deployed_project_root) {
         return Ok(SnapshotDepRef::Link(".".to_string()));
     }
-    Ok(SnapshotDepRef::Alias(create_file_url_key(&resolved_path, &local.suffix, ctx.all_projects)?))
+    Ok(SnapshotDepRef::Alias(create_file_url_key(
+        &resolved_path,
+        &local.suffix,
+        ctx.all_projects,
+        Some(alias),
+    )?))
 }
 
 fn convert_package_key(key: &PackageKey, ctx: &ConvertCtx) -> miette::Result<PackageKey> {
     let VersionPart::File(path) = key.suffix.version() else { return Ok(key.clone()) };
     let resolved = validate_lockfile_local_path(&ctx.lockfile_dir.join(path), ctx.lockfile_dir)?;
-    create_file_url_key(&resolved, key.suffix.peer(), ctx.all_projects)
+    create_file_url_key(&resolved, key.suffix.peer(), ctx.all_projects, Some(&key.name))
 }
 
 fn validate_lockfile_local_path(path: &Path, lockfile_dir: &Path) -> miette::Result<PathBuf> {
@@ -1215,6 +1221,7 @@ fn create_file_url_key(
     resolved_path: &Path,
     suffix: &str,
     all_projects: &[ProjectInfo],
+    package_name: Option<&PkgName>,
 ) -> miette::Result<PkgNameVerPeer> {
     let normalized = lexical_normalize(resolved_path);
     let normalized_display = normalized.display();
@@ -1226,6 +1233,7 @@ fn create_file_url_key(
         .find(|project| same_path(&project.root_dir, &normalized))
         .and_then(|project| project.name.as_deref())
         .map(str::to_string)
+        .or_else(|| package_name.map(PkgName::to_string))
         .or_else(|| normalized.file_name().map(|name| name.to_string_lossy().into_owned()))
         .unwrap_or_else(|| normalized.display().to_string());
     format!("{name}@{dep_file_url}{suffix}")
