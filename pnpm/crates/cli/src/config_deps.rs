@@ -15,7 +15,7 @@ use pacquet_env_installer::{
     ConfigDepsInstallOptions, resolve_and_install_config_deps, resolve_package_manager_integrities,
 };
 use pacquet_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform};
-use pacquet_hooks::{HookContext, LogFn, finder};
+use pacquet_hooks::{HookContext, LogFn, PnpmfileHooks, finder};
 use pacquet_network::{NetworkSettings, RetryOpts, ThrottledClient};
 use pacquet_reporter::{HookLog, LogEvent, LogLevel, Reporter};
 use pacquet_resolving_npm_resolver::{
@@ -385,6 +385,16 @@ pub fn resolve_pnpmfile_paths(config: &Config, root_dir: &Path) -> Vec<PathBuf> 
         pnpmfiles.push(root_pnpmfile);
     }
     pnpmfiles
+}
+
+/// Load the pnpmfiles that contribute a `beforePacking` hook for
+/// `root_dir` (see [`resolve_pnpmfile_paths`]), returning one shareable
+/// hook handle per pnpmfile. A recursive pack loads them once and clones
+/// the `Arc`s into each project so a pnpmfile's Node worker is spawned
+/// once, not once per packed project.
+#[must_use]
+pub fn load_before_packing_hooks(config: &Config, root_dir: &Path) -> Vec<Arc<dyn PnpmfileHooks>> {
+    resolve_pnpmfile_paths(config, root_dir).into_iter().map(finder::load_pnpmfile_at).collect()
 }
 
 pub async fn run_update_config_hooks<Reporter: self::Reporter>(

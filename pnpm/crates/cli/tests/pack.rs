@@ -117,6 +117,59 @@ fn workspace_root_before_packing_hook_applies_to_a_filtered_package() {
     drop(root);
 }
 
+/// A recursive pack applies the workspace-root `beforePacking` hook to
+/// every packed project. The hooks are loaded once and shared across
+/// projects, so this also exercises the shared-worker path.
+#[test]
+fn recursive_pack_applies_before_packing_hook_to_every_project() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        r"module.exports = {
+  hooks: {
+    beforePacking (manifest) {
+      manifest.packedByHook = true
+      return manifest
+    },
+  },
+}
+",
+    )
+    .expect("write .pnpmfile.cjs");
+    for name in ["project-1", "project-2"] {
+        let dir = workspace.join("packages").join(name);
+        fs::create_dir_all(&dir).expect("create package dir");
+        fs::write(
+            dir.join("package.json"),
+            json!({ "name": name, "version": "1.0.0" }).to_string(),
+        )
+        .expect("write package.json");
+    }
+    let out = workspace.join("tarballs");
+    fs::create_dir_all(&out).expect("create out dir");
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("pack")
+        .with_arg("--pack-destination")
+        .with_arg(out.to_str().expect("utf8 out dir"))
+        .assert()
+        .success();
+
+    for name in ["project-1", "project-2"] {
+        let manifest = read_manifest_from_tarball(&out.join(format!("{name}-1.0.0.tgz")));
+        assert_eq!(
+            manifest["packedByHook"],
+            json!(true),
+            "the workspace-root beforePacking hook must run for {name}",
+        );
+    }
+
+    drop(root);
+}
+
 /// Extract `package/package.json` from a packed tarball.
 fn read_manifest_from_tarball(tarball: &Path) -> serde_json::Value {
     use std::io::Read as _;

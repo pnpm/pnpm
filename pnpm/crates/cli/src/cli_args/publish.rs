@@ -299,7 +299,8 @@ impl PublishArgs {
         pack_destination: &Path,
     ) -> miette::Result<PackResult> {
         let pnpmfile_root = config.workspace_dir.as_deref().unwrap_or(dir);
-        let pnpmfiles = crate::config_deps::resolve_pnpmfile_paths(config, pnpmfile_root);
+        let before_packing_hooks =
+            crate::config_deps::load_before_packing_hooks(config, pnpmfile_root);
         let options = PackOptions {
             dir: dir.to_path_buf(),
             catalogs: crate::cli_args::pack::pack_catalogs(config)?,
@@ -316,7 +317,7 @@ impl PublishArgs {
             dry_run: false,
             out: None,
             pack_destination: Some(pack_destination.to_string_lossy().into_owned()),
-            pnpmfiles,
+            before_packing_hooks,
         };
         pack_api::<Reporter, PackHost>(&options)
             .await

@@ -18,6 +18,7 @@ use miette::{Context, IntoDiagnostic};
 use pacquet_catalogs_config::get_catalogs_from_workspace_manifest;
 use pacquet_catalogs_types::Catalogs;
 use pacquet_config::Config;
+use pacquet_hooks::PnpmfileHooks;
 use pacquet_pack::{
     Host, PackError, PackOptions, PackResultJson, api, format_pack_output, to_pack_result_json,
 };
@@ -26,6 +27,7 @@ use pacquet_workspace::read_workspace_manifest;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 /// The catalogs `catalog:` specifiers resolve against when packing a
@@ -99,12 +101,14 @@ impl PackArgs {
         if recursive {
             self.run_recursive::<Reporter>(dir, config).await
         } else {
+            let pnpmfile_root = config.workspace_dir.as_deref().unwrap_or(dir);
             let options = self.pack_options(
                 dir.to_path_buf(),
                 config,
                 pack_catalogs(config)?,
                 self.out.clone(),
                 self.pack_destination.clone(),
+                crate::config_deps::load_before_packing_hooks(config, pnpmfile_root),
             );
             let result = api::<Reporter, Host>(&options)
                 .await
@@ -149,6 +153,11 @@ impl PackArgs {
         // of each project's own root.
         let (out, pack_destination) = self.resolve_recursive_destination(dir);
         let catalogs = pack_catalogs(config)?;
+        // Load the pnpmfiles once for the whole workspace (they live at the
+        // workspace root); cloning the Arcs into each project shares one
+        // worker per pnpmfile instead of re-spawning it per packed project.
+        let before_packing_hooks =
+            crate::config_deps::load_before_packing_hooks(config, workspace_root);
 
         let mut packed: Vec<PackResultJson> = Vec::new();
         for chunk in &chunks {
@@ -172,6 +181,7 @@ impl PackArgs {
                     catalogs.clone(),
                     out.clone(),
                     pack_destination.clone(),
+                    before_packing_hooks.clone(),
                 );
                 let result = api::<Reporter, Host>(&options)
                     .await
@@ -205,6 +215,10 @@ impl PackArgs {
     }
 
     /// Map `self` plus the resolved `config` onto a [`PackOptions`].
+    ///
+    /// `before_packing_hooks` is loaded once by the caller and cloned in
+    /// (like `catalogs`) so a recursive pack shares one worker per
+    /// pnpmfile across every project.
     fn pack_options(
         &self,
         dir: PathBuf,
@@ -212,9 +226,8 @@ impl PackArgs {
         catalogs: Catalogs,
         out: Option<String>,
         pack_destination: Option<String>,
+        before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     ) -> PackOptions {
-        let pnpmfile_root = config.workspace_dir.as_deref().unwrap_or(&dir);
-        let pnpmfiles = crate::config_deps::resolve_pnpmfile_paths(config, pnpmfile_root);
         PackOptions {
             dir,
             catalogs,
@@ -231,7 +244,7 @@ impl PackArgs {
             dry_run: self.dry_run,
             out,
             pack_destination,
-            pnpmfiles,
+            before_packing_hooks,
         }
     }
 }

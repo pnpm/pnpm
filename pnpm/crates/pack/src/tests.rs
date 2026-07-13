@@ -38,7 +38,7 @@ fn fixture(manifest: &Value) -> (TempDir, PackOptions) {
         dry_run: false,
         pack_destination: None,
         out: None,
-        pnpmfiles: Vec::new(),
+        before_packing_hooks: Vec::new(),
     };
     (dir, opts)
 }
@@ -316,7 +316,7 @@ fn workspace_license_is_injected_into_a_sub_package() {
         dry_run: false,
         pack_destination: None,
         out: None,
-        pnpmfiles: Vec::new(),
+        before_packing_hooks: Vec::new(),
     };
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();
@@ -360,7 +360,7 @@ fn symlinked_workspace_license_is_not_injected() {
         dry_run: false,
         pack_destination: None,
         out: None,
-        pnpmfiles: Vec::new(),
+        before_packing_hooks: Vec::new(),
     };
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();

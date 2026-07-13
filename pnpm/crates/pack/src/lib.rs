@@ -36,7 +36,7 @@ use pacquet_exportable_manifest::{
     CreateExportableManifestError, CreateExportableManifestOptions, create_exportable_manifest,
 };
 use pacquet_fs_packlist::{PacklistError, packlist};
-use pacquet_hooks::{HookContext, LogFn, finder};
+use pacquet_hooks::{HookContext, LogFn, PnpmfileHooks};
 use pacquet_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
 use pacquet_reporter::{HookLog, LogEvent, LogLevel, Reporter};
 use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
@@ -88,11 +88,15 @@ pub struct PackOptions {
     /// Workspace root, used to inject a root `LICENSE` into a
     /// sub-package tarball that lacks one.
     pub workspace_dir: Option<PathBuf>,
-    /// Pnpmfile paths whose `beforePacking` hook runs against the
+    /// Loaded pnpmfiles whose `beforePacking` hook runs against the
     /// published manifest before the file list is computed, in
     /// application order (config-dependency plugin pnpmfiles first, then
     /// the workspace-root pnpmfile). Empty when none are configured.
-    pub pnpmfiles: Vec<PathBuf>,
+    ///
+    /// Holding the loaded hooks (rather than paths) lets a recursive pack
+    /// share one worker per pnpmfile across every packed project instead
+    /// of re-spawning it per project.
+    pub before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     /// Do everything except writing the tarball to disk.
     pub dry_run: bool,
     /// Directory to write the tarball into.
@@ -284,9 +288,13 @@ where
     // dependency fields is honored. pnpm runs it inside
     // `createExportableManifest`; pacquet applies it here because
     // `create_exportable_manifest` is a pure, synchronous transform.
-    publish_manifest =
-        apply_before_packing::<Reporter>(&opts.dir, &dir, publish_manifest, &opts.pnpmfiles)
-            .await?;
+    publish_manifest = apply_before_packing::<Reporter>(
+        &opts.dir,
+        &dir,
+        publish_manifest,
+        &opts.before_packing_hooks,
+    )
+    .await?;
 
     // Strip semver build metadata (the `+<build>` segment) so the
     // tarball name, the packed manifest, and any registry metadata all
@@ -359,14 +367,14 @@ async fn apply_before_packing<Reporter: self::Reporter>(
     project_dir: &Path,
     publish_dir: &Path,
     mut manifest: Value,
-    pnpmfiles: &[PathBuf],
+    hooks: &[Arc<dyn PnpmfileHooks>],
 ) -> Result<Value, PackError> {
     let prefix = project_dir.to_string_lossy();
-    for pnpmfile in pnpmfiles {
-        let hooks = finder::load_pnpmfile_at(pnpmfile.clone());
+    for hook in hooks {
+        let pnpmfile = hook.source_path().unwrap_or_else(|| Path::new("<pnpmfile>"));
         let ctx =
             HookContext { log: before_packing_logger::<Reporter>(pnpmfile, &prefix), dir: None };
-        manifest = hooks.before_packing(manifest, publish_dir, ctx).await.map_err(|err| {
+        manifest = hook.before_packing(manifest, publish_dir, ctx).await.map_err(|err| {
             PackError::BeforePacking {
                 pnpmfile: pnpmfile.display().to_string(),
                 message: err.to_string(),
