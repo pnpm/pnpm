@@ -57,10 +57,12 @@ async function fetchPublishedChangelog (version: string): Promise<string | undef
       if (header.name !== 'package/CHANGELOG.md') {
         stream.resume()
         stream.on('end', next)
+        stream.on('error', reject)
         return
       }
       const chunks: Buffer[] = []
       stream.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)))
+      stream.on('error', reject)
       stream.on('end', () => {
         changelog = Buffer.concat(chunks).toString('utf8')
         next()

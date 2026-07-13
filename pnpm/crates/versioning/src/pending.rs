@@ -71,6 +71,6 @@ pub fn remove_pending_changelog(
     match fs::remove_file(&path) {
         Ok(()) => Ok(()),
         Err(err) if err.kind() == ErrorKind::NotFound => Ok(()),
-        Err(source) => Err(VersioningError::Write { path, source }),
+        Err(source) => Err(VersioningError::Remove { path, source }),
     }
 }

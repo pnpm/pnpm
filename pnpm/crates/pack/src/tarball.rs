@@ -70,8 +70,8 @@ pub fn build_tarball<Sys: FsReadFile>(
     Ok(())
 }
 
-fn append_entry<W: Write>(
-    builder: &mut tar::Builder<W>,
+fn append_entry<Writer: Write>(
+    builder: &mut tar::Builder<Writer>,
     entry_name: &str,
     data: &[u8],
     mode: u32,

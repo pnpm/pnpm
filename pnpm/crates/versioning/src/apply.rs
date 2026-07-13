@@ -131,7 +131,7 @@ pub fn apply_release_plan(
                 && !(lane_dirs.contains(dir) && consumed.prerelease_only_ids.contains(&intent.id))
         });
         if deletable {
-            fs::remove_file(&intent.file_path).map_err(|source| VersioningError::Write {
+            fs::remove_file(&intent.file_path).map_err(|source| VersioningError::Remove {
                 path: intent.file_path.clone(),
                 source,
             })?;

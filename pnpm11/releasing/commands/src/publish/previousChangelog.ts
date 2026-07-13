@@ -23,6 +23,23 @@ export type PreviousChangelogOptions = CreateFetchFromRegistryOptions & Pick<Con
 const CHANGELOG_ENTRY = 'package/CHANGELOG.md'
 
 /**
+ * A registry fetcher and its auth-header resolver, built once per changelog
+ * fetch and threaded into both the packument read and the tarball download so
+ * the underlying dispatcher/TLS setup is not reconstructed for each request.
+ */
+interface RegistryClient {
+  fetch: FetchFromRegistry
+  getAuthHeader: ReturnType<typeof createGetAuthHeaderByURI>
+}
+
+function createRegistryClient (opts: PreviousChangelogOptions): RegistryClient {
+  return {
+    fetch: createFetchFromRegistry(opts),
+    getAuthHeader: createGetAuthHeaderByURI(opts.configByUri ?? {}),
+  }
+}
+
+/**
  * The `CHANGELOG.md` packed into the highest published version of `pkgName`
  * that is semver-lower than `version` — the changelog the section for
  * `version` is prepended onto in `registry` storage. `undefined` when the
@@ -30,11 +47,12 @@ const CHANGELOG_ENTRY = 'package/CHANGELOG.md'
  * carried no changelog.
  */
 export async function fetchPreviousChangelog (opts: PreviousChangelogOptions, pkgName: string, version: string): Promise<string | undefined> {
-  const meta = await fetchPackument(opts, pkgName)
+  const client = createRegistryClient(opts)
+  const meta = await fetchPackument(client, opts, pkgName)
   if (meta == null) return undefined
   const previousVersion = pickPreviousVersion(meta, version)
   if (previousVersion == null) return undefined
-  return downloadTarballChangelog(opts, pkgName, meta, previousVersion)
+  return downloadTarballChangelog(client, pkgName, meta, previousVersion)
 }
 
 /**
@@ -44,24 +62,23 @@ export async function fetchPreviousChangelog (opts: PreviousChangelogOptions, pk
  * intents behind it are garbage-collected.
  */
 export async function fetchPublishedChangelog (opts: PreviousChangelogOptions, pkgName: string, version: string): Promise<string | undefined> {
-  const meta = await fetchPackument(opts, pkgName)
+  const client = createRegistryClient(opts)
+  const meta = await fetchPackument(client, opts, pkgName)
   if (meta?.versions[version] == null) return undefined
-  return downloadTarballChangelog(opts, pkgName, meta, version)
+  return downloadTarballChangelog(client, pkgName, meta, version)
 }
 
 export function changelogHasSection (changelog: string, section: string): boolean {
   return changelog.includes(section.trim())
 }
 
-async function fetchPackument (opts: PreviousChangelogOptions, pkgName: string): Promise<PackageMeta | undefined> {
+async function fetchPackument (client: RegistryClient, opts: PreviousChangelogOptions, pkgName: string): Promise<PackageMeta | undefined> {
   const registry = pickRegistryForPackage(opts.registries, pkgName)
-  const fetchFromRegistry = createFetchFromRegistry(opts)
-  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
   let fetchResult
   try {
     fetchResult = await fetchMetadataFromFromRegistry(
       {
-        fetch: fetchFromRegistry,
+        fetch: client.fetch,
         retry: {
           factor: opts.fetchRetryFactor,
           maxTimeout: opts.fetchRetryMaxtimeout,
@@ -74,7 +91,7 @@ async function fetchPackument (opts: PreviousChangelogOptions, pkgName: string):
       pkgName,
       {
         registry,
-        authHeaderValue: getAuthHeader(registry, { pkgName }),
+        authHeaderValue: client.getAuthHeader(registry, { pkgName }),
         fullMetadata: false,
       }
     )
@@ -94,12 +111,10 @@ function pickPreviousVersion (meta: PackageMeta, version: string): string | unde
   return candidates.length > 0 ? rsort(candidates)[0] : undefined
 }
 
-async function downloadTarballChangelog (opts: PreviousChangelogOptions, pkgName: string, meta: PackageMeta, version: string): Promise<string | undefined> {
+async function downloadTarballChangelog (client: RegistryClient, pkgName: string, meta: PackageMeta, version: string): Promise<string | undefined> {
   const tarballUrl = meta.versions[version]?.dist?.tarball
   if (tarballUrl == null) return undefined
-  const fetchFromRegistry: FetchFromRegistry = createFetchFromRegistry(opts)
-  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
-  const response = await fetchFromRegistry(tarballUrl, { authHeaderValue: getAuthHeader(tarballUrl, { pkgName }) })
+  const response = await client.fetch(tarballUrl, { authHeaderValue: client.getAuthHeader(tarballUrl, { pkgName }) })
   if (!response.ok) {
     throw new PnpmError('CHANGELOG_TARBALL_FETCH_FAILED', `Failed to download ${pkgName}@${version} tarball (${response.status}) to compose the changelog: ${tarballUrl}`)
   }

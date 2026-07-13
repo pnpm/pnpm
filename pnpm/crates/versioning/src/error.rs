@@ -87,6 +87,10 @@ pub enum VersioningError {
     #[diagnostic(code(pacquet_versioning::write_error))]
     Write { path: PathBuf, source: std::io::Error },
 
+    #[display("Failed to remove {}: {source}", path.display())]
+    #[diagnostic(code(pacquet_versioning::remove_error))]
+    Remove { path: PathBuf, source: std::io::Error },
+
     #[display("{_0}")]
     #[diagnostic(transparent)]
     Manifest(pacquet_package_manifest::PackageManifestError),

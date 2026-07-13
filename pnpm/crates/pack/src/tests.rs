@@ -109,7 +109,7 @@ fn injected_files_are_packed_and_supersede_an_on_disk_entry() {
     // Exactly one CHANGELOG.md entry, carrying the composed content.
     let names = tarball_entry_names(&tarball);
     assert_eq!(names.iter().filter(|name| *name == "package/CHANGELOG.md").count(), 1);
-    assert_eq!(tarball_entry_content(&tarball, "package/CHANGELOG.md").as_deref(), Some(composed),);
+    assert_eq!(tarball_entry_content(&tarball, "package/CHANGELOG.md").as_deref(), Some(composed));
 }
 
 #[test]

@@ -333,7 +333,7 @@ fn registry_storage_collects_an_intent_and_its_section_once_confirmed() {
     assert!(
         read_pending_changelog(workspace.dir.path(), "lib", "1.1.0")
             .expect("pending read")
-            .is_none()
+            .is_none(),
     );
 }
 
@@ -394,7 +394,7 @@ fn registry_storage_keeps_an_intent_whose_release_is_not_confirmed() {
     assert!(
         read_pending_changelog(workspace.dir.path(), "lib", "1.1.0")
             .expect("pending read")
-            .is_some()
+            .is_some(),
     );
 }
 
