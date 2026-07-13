@@ -8,6 +8,7 @@ import tar from 'tar-stream'
 
 import {
   extractManifestFromPacked,
+  extractPublishManifestFromPacked,
   isTarballPath,
   PublishArchiveMissingManifestError,
   type TarballPath,
@@ -97,6 +98,50 @@ describe('extractManifestFromPacked', () => {
       code: 'ERR_PNPM_PUBLISH_ARCHIVE_MISSING_MANIFEST',
       tarballPath,
     })
+  })
+})
+
+describe('extractPublishManifestFromPacked', () => {
+  test('fills the manifest readme from the tarball README when the manifest lacks one', async () => {
+    prepareEmpty()
+
+    const tarballPath: TarballPath = 'my-package.tgz'
+
+    await createTarball(tarballPath, {
+      'package/package.json': { name: 'hello-world', version: '0.0.0' },
+      'package/README.md': '# Hello',
+    })
+
+    expect(await extractPublishManifestFromPacked(tarballPath)).toStrictEqual({
+      name: 'hello-world',
+      version: '0.0.0',
+      readme: '# Hello',
+    })
+  })
+
+  test('keeps a readme already declared in the manifest', async () => {
+    prepareEmpty()
+
+    const tarballPath: TarballPath = 'my-package.tgz'
+
+    await createTarball(tarballPath, {
+      'package/package.json': { name: 'hello-world', version: '0.0.0', readme: 'embedded' },
+      'package/README.md': '# Hello',
+    })
+
+    expect((await extractPublishManifestFromPacked(tarballPath)).readme).toBe('embedded')
+  })
+
+  test('leaves readme unset when the tarball has no README', async () => {
+    prepareEmpty()
+
+    const tarballPath: TarballPath = 'my-package.tgz'
+
+    await createTarball(tarballPath, {
+      'package/package.json': { name: 'hello-world', version: '0.0.0' },
+    })
+
+    expect((await extractPublishManifestFromPacked(tarballPath)).readme).toBeUndefined()
   })
 })
 

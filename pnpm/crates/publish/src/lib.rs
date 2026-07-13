@@ -24,7 +24,7 @@ pub use display_error::display_error;
 pub use execute_token_helper::execute_token_helper;
 pub use extract_manifest_from_packed::{
     ExtractManifestError, PublishArchiveMissingManifestError, extract_manifest_from_packed,
-    is_tarball_path,
+    extract_publish_manifest_from_packed, is_tarball_path,
 };
 pub use failed_to_publish_error::FailedToPublishError;
 pub use git_checks::{

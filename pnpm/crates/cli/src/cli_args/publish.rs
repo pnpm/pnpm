@@ -21,7 +21,7 @@ use pacquet_executor::{RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycl
 use pacquet_pack::{Host as PackHost, PackOptions, PackResult, api as pack_api};
 use pacquet_publish::{
     Access, Host, OidcHttpOptions, PackedPkg, PublishNetwork, PublishPackedPkgOptions,
-    PublishSummary, extract_manifest_from_packed, is_tarball_path, publish_packed_pkg,
+    PublishSummary, extract_publish_manifest_from_packed, is_tarball_path, publish_packed_pkg,
     resolve_otp_from_env, run_git_checks,
 };
 use pacquet_reporter::Reporter;
@@ -201,7 +201,7 @@ impl PublishArgs {
         opts: &PublishPackedPkgOptions,
         network: &PublishNetwork<'_>,
     ) -> miette::Result<PublishSummary> {
-        let manifest = extract_manifest_from_packed(tarball_path)?;
+        let manifest = extract_publish_manifest_from_packed(tarball_path)?;
         let tarball_data = std::fs::read(tarball_path)
             .into_diagnostic()
             .wrap_err_with(|| format!("read tarball {tarball_path}"))?;

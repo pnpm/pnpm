@@ -82,6 +82,33 @@ fn publish_puts_the_package_document_with_dist_tag_and_attachment() {
 }
 
 #[test]
+fn publish_sends_the_readme_to_the_registry_as_metadata() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({ "name": "test-publish-readme", "version": "1.0.0" }),
+    );
+    fs::write(dir.path().join("README.md"), "# Hello").expect("write README");
+
+    // The readme rides the version metadata even though `embed-readme` defaults to false.
+    let mock = server
+        .mock("PUT", "/test-publish-readme")
+        .match_body(Matcher::PartialJsonString(
+            r##"{"versions":{"1.0.0":{"readme":"# Hello"}}}"##.to_owned(),
+        ))
+        .with_status(200)
+        .with_body(r#"{"ok":true}"#)
+        .expect(1)
+        .create();
+
+    assert_success(&publish(dir.path(), &[]));
+    mock.assert();
+}
+
+#[test]
 fn dry_run_uploads_nothing() {
     let dir = tempfile::tempdir().expect("workspace");
     let mut server = mockito::Server::new();

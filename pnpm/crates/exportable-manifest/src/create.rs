@@ -296,7 +296,7 @@ fn override_publish_config(publish: &mut Map<String, Value>) {
 /// Read a root `README.md` (case-insensitive) for embedding. Only a
 /// regular file is embedded — a symlink is skipped so it can't leak
 /// the contents of a target outside the project.
-fn read_readme_file(dir: &Path) -> io::Result<Option<String>> {
+pub fn read_readme_file(dir: &Path) -> io::Result<Option<String>> {
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
         if !entry.file_type()?.is_file() {

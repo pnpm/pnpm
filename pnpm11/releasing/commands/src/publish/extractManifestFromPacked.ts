@@ -15,6 +15,31 @@ export const isTarballPath = (path: string): path is TarballPath =>
   TARBALL_SUFFIXES.some(suffix => path.endsWith(suffix))
 
 export async function extractManifestFromPacked<Output = ExportedManifest> (tarballPath: TarballPath): Promise<Output> {
+  const { manifest } = await extractEntriesFromPacked(tarballPath)
+  return JSON.parse(manifest)
+}
+
+/**
+ * Read the publish manifest from a pre-built tarball, filling in its `readme` from the tarball's
+ * root README file when the manifest doesn't already declare one. This mirrors the npm CLI, which
+ * reads the readme out of the tarball (via pacote's `fullReadJson`) so the registry gets it as
+ * metadata even though it isn't stored in the packed `package.json`.
+ */
+export async function extractPublishManifestFromPacked (tarballPath: TarballPath): Promise<ExportedManifest> {
+  const { manifest, readme } = await extractEntriesFromPacked(tarballPath)
+  const parsed = JSON.parse(manifest) as ExportedManifest
+  if (parsed.readme == null && readme != null) {
+    parsed.readme = readme
+  }
+  return parsed
+}
+
+interface PackedEntries {
+  manifest: string
+  readme?: string
+}
+
+async function extractEntriesFromPacked (tarballPath: TarballPath): Promise<PackedEntries> {
   const extract = tar.extract()
   const gunzip = createGunzip()
   const tarballStream = fs.createReadStream(tarballPath)
@@ -30,7 +55,7 @@ export async function extractManifestFromPacked<Output = ExportedManifest> (tarb
     tarballStream.destroy()
   }
 
-  const promise = new Promise<string>((resolve, reject) => {
+  const promise = new Promise<PackedEntries>((resolve, reject) => {
     function handleError (error: unknown): void {
       cleanup()
       reject(error)
@@ -39,18 +64,19 @@ export async function extractManifestFromPacked<Output = ExportedManifest> (tarb
     tarballStream.once('error', handleError)
     gunzip.once('error', handleError)
 
-    let manifestFound = false
+    let manifest: string | undefined
+    let readme: string | undefined
 
     extract.on('entry', (header, stream, next) => {
       const normalizedPath = path.normalize(header.name).replaceAll('\\', '/')
+      const isManifest = normalizedPath === 'package/package.json'
+      const isReadme = /^package\/readme\.md$/i.test(normalizedPath)
 
-      if (normalizedPath !== 'package/package.json') {
+      if (!isManifest && !isReadme) {
         stream.once('end', next)
         stream.resume()
         return
       }
-
-      manifestFound = true
 
       const chunks: Buffer[] = []
       stream.on('data', (chunk: Buffer) => {
@@ -58,13 +84,13 @@ export async function extractManifestFromPacked<Output = ExportedManifest> (tarb
       })
 
       stream.once('end', () => {
-        try {
-          const text = Buffer.concat(chunks).toString()
-          cleanup()
-          resolve(text)
-        } catch (error) {
-          handleError(error)
+        const text = Buffer.concat(chunks).toString()
+        if (isManifest) {
+          manifest = text
+        } else {
+          readme = text
         }
+        next()
       })
 
       stream.once('error', handleError)
@@ -73,9 +99,11 @@ export async function extractManifestFromPacked<Output = ExportedManifest> (tarb
     extract.once('finish', () => {
       cleanup()
 
-      if (!manifestFound) {
+      if (manifest == null) {
         reject(new PublishArchiveMissingManifestError(tarballPath))
+        return
       }
+      resolve({ manifest, readme })
     })
 
     extract.once('error', handleError)
@@ -83,7 +111,7 @@ export async function extractManifestFromPacked<Output = ExportedManifest> (tarb
 
   tarballStream.pipe(gunzip).pipe(extract)
 
-  return JSON.parse(await promise)
+  return promise
 }
 
 export class PublishArchiveMissingManifestError extends PnpmError {

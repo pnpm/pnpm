@@ -572,6 +572,27 @@ test('pack: should not embed readme', async () => {
   expect(pkg.readme).toBeFalsy()
 })
 
+test('pack: readme is sent to the registry as metadata even when not embedded in the tarball', async () => {
+  tempDir()
+
+  const packResult = await pack.api({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: path.join(import.meta.dirname, '../../fixtures/readme'),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+    embedReadme: false,
+  })
+
+  // The manifest reported for publishing carries the readme, matching the npm CLI...
+  expect(packResult.publishedManifest.readme).toContain('# README')
+
+  // ...but the package.json packed into the tarball stays clean.
+  await tar.x({ file: 'readme-0.0.0.tgz' })
+  const { default: pkg } = await import(path.resolve('package/package.json'))
+  expect(pkg.readme).toBeFalsy()
+})
+
 test('pack: remove publishConfig', async () => {
   prepare({
     name: 'remove-publish-config',

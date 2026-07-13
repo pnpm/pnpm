@@ -33,7 +33,7 @@ export interface MakePublishManifestOptions {
   embedReadme?: boolean
 }
 
-async function readReadmeFile (projectDir: string): Promise<string | undefined> {
+export async function readReadmeFile (projectDir: string): Promise<string | undefined> {
   const entries = await fs.promises.readdir(projectDir, { withFileTypes: true })
   // Only embed a regular README.md file. A symlink could point outside the
   // project and leak its target's contents into the published manifest.
