@@ -202,7 +202,12 @@ fn engine_component(
     let integrity = format!("{name}@{version}")
         .parse::<PackageKey>()
         .ok()
-        .and_then(|key| env.packages.get(&key).or_else(|| env.packages.get(&key.without_peer())).map(|metadata| metadata.resolution.integrity()))
+        .and_then(|key| {
+            env.packages
+                .get(&key)
+                .or_else(|| env.packages.get(&key.without_peer()))
+                .map(|metadata| metadata.resolution.integrity())
+        })
         .flatten()
         .map(ToString::to_string);
     let Some(integrity) = integrity.filter(|integrity| !integrity.is_empty()) else {
