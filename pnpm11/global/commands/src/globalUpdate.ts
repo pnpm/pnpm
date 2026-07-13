@@ -30,7 +30,6 @@ export type GlobalUpdateOptions = CreateStoreControllerOptions & {
   allowBuilds?: Record<string, string | boolean>
   saveExact?: boolean
   savePrefix?: string
-  supportedArchitectures?: { libc?: string[] }
   rootProjectManifest?: unknown
   handleResolutionPolicyViolations?: (violations: readonly ResolutionPolicyViolation[]) => Promise<void>
   updateResolutionPolicyManifest?: (violations: readonly ResolutionPolicyViolation[], dir: string) => Promise<void>
@@ -92,7 +91,6 @@ async function updateGlobalPackageGroup (
     devDependencies: false,
     optionalDependencies: true,
   }
-  const fetchFullMetadata = opts.supportedArchitectures?.libc != null && true
   const allowBuilds = opts.allowBuilds ?? {}
 
   const { ignoredBuilds, resolutionPolicyViolations } = await installGlobalPackages({
@@ -110,7 +108,6 @@ async function updateGlobalPackageGroup (
     workspaceDir: undefined,
     sharedWorkspaceLockfile: false,
     lockfileOnly: false,
-    fetchFullMetadata,
     include,
     includeDirect: include,
     allowBuilds,

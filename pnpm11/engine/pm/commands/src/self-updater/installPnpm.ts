@@ -331,7 +331,6 @@ async function installFromResolution (
     devDependencies: false,
     optionalDependencies: true,
   }
-  const fetchFullMetadata = Boolean(opts.supportedArchitectures?.libc)
   await installGlobalPackages({
     ...opts,
     global: false,
@@ -347,7 +346,6 @@ async function installFromResolution (
     workspaceDir: undefined,
     sharedWorkspaceLockfile: false,
     lockfileOnly: false,
-    fetchFullMetadata,
     include,
     includeDirect: include,
     allowBuilds: {},

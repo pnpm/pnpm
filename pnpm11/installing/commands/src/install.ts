@@ -11,7 +11,6 @@ import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manage
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
-import { getFetchFullMetadata } from './getFetchFullMetadata.js'
 import { installDeps, type InstallDepsOptions } from './installDeps.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -432,7 +431,6 @@ export async function handler (opts: InstallCommandOptions & { _calledFromLink?:
     ),
     include,
     includeDirect: include,
-    fetchFullMetadata: getFetchFullMetadata(opts),
     isInstallCommand: true,
   }
   if (opts.resolutionOnly) {
