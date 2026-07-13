@@ -1,1 +1,6 @@
-{}
+# This fixture exercises child-process cleanup when `pnpm run` exits, not
+# dependency verification. `prepareFixtures` pre-installs it with the default
+# store, so the implicit install that `verifyDepsBeforeRun: install` would spawn
+# aborts on a store-mismatch modules purge in the non-TTY test subprocess. This
+# package has no dependencies, so skip the check entirely.
+verifyDepsBeforeRun: false
