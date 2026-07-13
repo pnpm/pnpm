@@ -19,14 +19,15 @@ use pacquet_config_parse_overrides::{PackageSelector, VersionOverride};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use serde_json::Value;
 use std::{
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 /// In-memory hook that applies the parsed `pnpm.overrides` set to a
 /// manifest. Cheap to construct — partitioning the overrides into the
-/// parent-scoped vs. generic buckets happens once, and each call to
-/// [`Self::apply`] walks the dep maps in place.
+/// parent-scoped vs. generic vs. convergence buckets happens once, and
+/// each call to [`Self::apply`] walks the dep maps in place.
 pub struct VersionsOverrider {
     /// Overrides whose key carries a `parent>child` shape — only
     /// applied when the manifest being rewritten matches the parent
@@ -34,6 +35,28 @@ pub struct VersionsOverrider {
     parent_scoped: Vec<ResolvedOverride>,
     /// Generic overrides (no parent half). Apply to every manifest.
     generic: Vec<ResolvedOverride>,
+    /// Convergence overrides (`"pkg@"`), keyed by target package name
+    /// (at most one per name — the overrides map's keys are unique).
+    /// Consulted only for edges no explicit override claims.
+    converge: HashMap<String, ConvergeOverride>,
+    /// Every declared semver range seen for packages that have a
+    /// convergence override, whether or not the override's version
+    /// satisfied it. Feeds the staleness check for convergence
+    /// overrides after a full resolution. Edges claimed by an explicit
+    /// override are not recorded — the convergence override never
+    /// governs them.
+    converge_declared_ranges: Mutex<HashMap<String, HashSet<String>>>,
+}
+
+/// A convergence override's replacement value, with the exact version
+/// pre-parsed once at construction time. `version` is `None` when the
+/// value isn't a parseable semver version (only reachable for
+/// hand-built [`VersionOverride`] entries — [`pacquet_config_parse_overrides::parse_overrides`]
+/// rejects such values); the override then never rewrites an edge,
+/// matching how an unsatisfiable version behaves.
+struct ConvergeOverride {
+    new_bare_specifier: String,
+    version: Option<Version>,
 }
 
 /// `VersionOverride` augmented with a pre-parsed [`LocalTarget`] for
@@ -72,7 +95,18 @@ impl VersionsOverrider {
     pub fn new(overrides: &[VersionOverride], root_dir: &Path) -> Self {
         let mut parent_scoped = Vec::new();
         let mut generic = Vec::new();
+        let mut converge = HashMap::new();
         for override_entry in overrides {
+            if override_entry.converge {
+                converge.insert(
+                    override_entry.target_pkg.name.clone(),
+                    ConvergeOverride {
+                        new_bare_specifier: override_entry.new_bare_specifier.clone(),
+                        version: Version::parse(&override_entry.new_bare_specifier).ok(),
+                    },
+                );
+                continue;
+            }
             let resolved = ResolvedOverride {
                 inner: override_entry.clone(),
                 local_target: parse_local_target(&override_entry.new_bare_specifier, root_dir),
@@ -83,13 +117,30 @@ impl VersionsOverrider {
                 generic.push(resolved);
             }
         }
-        VersionsOverrider { parent_scoped, generic }
+        VersionsOverrider {
+            parent_scoped,
+            generic,
+            converge,
+            converge_declared_ranges: Mutex::new(HashMap::new()),
+        }
     }
 
     /// `true` when the hook has no entries and can be skipped.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.parent_scoped.is_empty() && self.generic.is_empty()
+        self.parent_scoped.is_empty() && self.generic.is_empty() && self.converge.is_empty()
+    }
+
+    /// Snapshot of every declared range recorded so far for packages
+    /// governed by a convergence override. Read by the staleness check
+    /// after a full resolution has streamed every manifest through
+    /// this hook.
+    #[must_use]
+    pub fn converge_declared_ranges(&self) -> HashMap<String, HashSet<String>> {
+        self.converge_declared_ranges
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
     }
 
     /// Apply the override set to `manifest` in place. `manifest_dir`
@@ -119,7 +170,16 @@ impl VersionsOverrider {
     /// the manifest.
     #[must_use]
     pub fn apply_to_arc(&self, manifest: Arc<Value>, manifest_dir: Option<&Path>) -> Arc<Value> {
-        if self.is_empty() || !self.has_applicable_override(&manifest) {
+        if self.is_empty() {
+            return manifest;
+        }
+        if !self.has_applicable_override(&manifest) {
+            // Nothing rewrites, so the shared value is returned as-is —
+            // but the declared ranges of converge-governed edges must
+            // still reach the staleness collector (`apply_to_value`
+            // records them as a side effect of its walk, which is
+            // skipped here).
+            self.record_converge_declared_ranges(&manifest);
             return manifest;
         }
         let mut cloned = (*manifest).clone();
@@ -171,8 +231,36 @@ impl VersionsOverrider {
         map.iter().any(|(name, spec)| {
             spec.as_str().is_some_and(|spec| {
                 self.choose_override(applicable_parent_scoped, name, spec).is_some()
+                    || self.converge_applies(name, spec)
             })
         })
+    }
+
+    /// Record the declared ranges of every converge-governed edge in
+    /// `value`, without rewriting anything. Same claimed-edge exclusion
+    /// as the rewrite walk: an edge an explicit override picks up is
+    /// never governed by the convergence override, so its range does
+    /// not participate in the staleness verdict.
+    fn record_converge_declared_ranges(&self, value: &Value) {
+        if self.converge.is_empty() {
+            return;
+        }
+        let applicable_parent_scoped = self.applicable_parent_scoped(value);
+        for group in [
+            DependencyGroup::Prod,
+            DependencyGroup::Optional,
+            DependencyGroup::Dev,
+            DependencyGroup::Peer,
+        ] {
+            let key: &'static str = group.into();
+            let Some(map) = value.get(key).and_then(Value::as_object) else { continue };
+            for (name, spec) in map {
+                let Some(spec) = spec.as_str() else { continue };
+                if self.choose_override(&applicable_parent_scoped, name, spec).is_none() {
+                    self.try_record_converge_range(name, spec);
+                }
+            }
+        }
     }
 
     fn override_group(
@@ -194,6 +282,9 @@ impl VersionsOverrider {
 
         for (name, spec) in entries {
             let Some(chosen) = self.choose_override(applicable_parent_scoped, &name, &spec) else {
+                if let Some(new_spec) = self.converge_dep(&name, &spec) {
+                    map.insert(name, Value::String(new_spec));
+                }
                 continue;
             };
 
@@ -231,6 +322,15 @@ impl VersionsOverrider {
 
         for (name, spec) in entries {
             let Some(chosen) = self.choose_override(applicable_parent_scoped, &name, &spec) else {
+                // A convergence override's value is an exact version —
+                // always a valid peer range — so the rewrite stays in
+                // `peerDependencies`.
+                if let Some(new_spec) = self.converge_dep(&name, &spec)
+                    && let Some(peers) =
+                        value.get_mut("peerDependencies").and_then(Value::as_object_mut)
+                {
+                    peers.insert(name, Value::String(new_spec));
+                }
                 continue;
             };
 
@@ -304,6 +404,55 @@ impl VersionsOverrider {
         sort_by_specificity(&mut matching);
         matching.into_iter().next()
     }
+
+    /// Consult the convergence override for an edge no explicit
+    /// override claimed: record the declared range for the staleness
+    /// check, then return the exact version when it satisfies the
+    /// declared range — incompatible edges keep their own resolution.
+    fn converge_dep(&self, dep_name: &str, dep_spec: &str) -> Option<String> {
+        let range = self.try_record_converge_range(dep_name, dep_spec)?;
+        let entry = &self.converge[dep_name];
+        let version = entry.version.as_ref()?;
+        range.satisfies(version).then(|| entry.new_bare_specifier.clone())
+    }
+
+    /// Rewrite-only variant of [`Self::converge_dep`] for
+    /// [`Self::has_applicable_override`]'s clone gate: same verdict,
+    /// no collector side effect.
+    fn converge_applies(&self, dep_name: &str, dep_spec: &str) -> bool {
+        self.converge.get(dep_name).is_some_and(|entry| {
+            entry.version.as_ref().is_some_and(|version| {
+                parse_declared_range(dep_spec).is_some_and(|range| range.satisfies(version))
+            })
+        })
+    }
+
+    /// When `dep_name` is converge-governed and `dep_spec` is a plain
+    /// semver range, record the range into the staleness collector and
+    /// return it parsed. `None` skips the edge entirely.
+    fn try_record_converge_range(&self, dep_name: &str, dep_spec: &str) -> Option<Range> {
+        self.converge.get(dep_name)?;
+        let range = parse_declared_range(dep_spec)?;
+        self.converge_declared_ranges
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .entry(dep_name.to_string())
+            .or_default()
+            .insert(dep_spec.to_string());
+        Some(range)
+    }
+}
+
+/// Parse a dependency edge's declared spec for the convergence
+/// consult. Only plain semver ranges participate — `workspace:`,
+/// `catalog:`, `npm:`, git/URL, and dist-tag specifiers have no
+/// defined "satisfies" relation and yield `None`. An empty declared
+/// spec counts as `*`.
+pub(crate) fn parse_declared_range(spec: &str) -> Option<Range> {
+    if spec.is_empty() {
+        return Some(Range::any());
+    }
+    Range::parse(spec).ok()
 }
 
 /// A valid peer range is a parseable semver range, or any expression

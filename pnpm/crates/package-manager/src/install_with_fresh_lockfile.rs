@@ -1135,6 +1135,27 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             update_reuse_scope = pacquet_resolving_deps_resolver::UpdateReuseScope::None;
         }
 
+        // Hand the resolver the prior lockfile so it can reuse
+        // already-resolved subtrees instead of re-resolving from the
+        // registry (see pnpm/plans/LOCKFILE_RESOLUTION_REUSE.md).
+        // Withhold it when packageExtensions or overrides drifted:
+        // both settings rewrite package dependency sets, so the
+        // recorded subtree is stale. pnpm likewise invalidates the
+        // lockfile on these settings changes.
+        let lockfile_reuse_seed = wanted_lockfile.filter(|lockfile| {
+            lockfile.package_extensions_checksum == package_extensions_checksum
+                && overrides_match(lockfile.overrides.as_ref(), resolved_overrides.as_ref())
+        });
+        // Reused subtrees never stream their manifests through the
+        // versions overrider, so only a resolution with no reuse at all
+        // collects the complete declared-range set the convergence
+        // staleness check needs.
+        let full_resolution = lockfile_reuse_seed.is_none()
+            || matches!(
+                update_reuse_scope,
+                pacquet_resolving_deps_resolver::UpdateReuseScope::None,
+            );
+
         let workspace_opts = pacquet_resolving_deps_resolver::WorkspaceResolveOptions {
             dedupe_peers: config.dedupe_peers,
             dedupe_injected_deps: config.dedupe_injected_deps,
@@ -1149,20 +1170,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             skipped_optional_log: Some(skipped_optional_log_fn::<Reporter>()),
             pick_lowest_direct,
             time_based,
-            // Hand the resolver the prior lockfile so it can reuse
-            // already-resolved subtrees instead of re-resolving from the
-            // registry (see pnpm/plans/LOCKFILE_RESOLUTION_REUSE.md).
-            // Withhold it when packageExtensions or overrides drifted:
-            // both settings rewrite package dependency sets, so the
-            // recorded subtree is stale. pnpm likewise invalidates the
-            // lockfile on these settings changes.
-            wanted_lockfile: wanted_lockfile
-                .filter(|lockfile| {
-                    lockfile.package_extensions_checksum == package_extensions_checksum
-                        && overrides_match(lockfile.overrides.as_ref(), resolved_overrides.as_ref())
-                })
-                .cloned()
-                .map(Arc::new),
+            wanted_lockfile: lockfile_reuse_seed.cloned().map(Arc::new),
             update_reuse_scope,
             auto_install_peers: config.auto_install_peers,
             registries,
@@ -1264,6 +1272,44 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             nodes = total_nodes,
             "phase complete",
         );
+
+        // Only a full resolution walks every manifest through the
+        // versions overrider, making the collected declared ranges
+        // complete enough for the staleness verdict; partial (reuse-
+        // seeded) resolutions must stay silent to avoid false positives
+        // from unseen ranges. Runs before the resolver chain is dropped
+        // so the per-range picks reuse the still-warm packument cache.
+        if full_resolution
+            && let (Some(parsed), Some(overrider)) =
+                (parsed_overrides.as_ref(), versions_overrider.as_ref())
+        {
+            let declared_ranges = overrider.converge_declared_ranges();
+            let stale_check_opts = ResolveOptions {
+                project_dir: lockfile_dir.to_path_buf(),
+                lockfile_dir: lockfile_dir.to_path_buf(),
+                default_tag: Some("latest".to_string()),
+                published_by,
+                published_by_exclude: published_by_exclude.clone(),
+                ..ResolveOptions::default()
+            };
+            let stale =
+                crate::warn_on_stale_convergence_overrides::find_stale_convergence_overrides(
+                    parsed,
+                    &declared_ranges,
+                    |name, range| {
+                        crate::warn_on_stale_convergence_overrides::resolve_best_admitted_version(
+                            &*npm_resolver,
+                            &stale_check_opts,
+                            name,
+                            range,
+                        )
+                    },
+                )
+                .await;
+            crate::warn_on_stale_convergence_overrides::warn_stale_convergence_overrides::<Reporter>(
+                &stale,
+            );
+        }
 
         // Drop the resolver (and its packument cache) before the
         // install pass. Dropping `resolver` releases the

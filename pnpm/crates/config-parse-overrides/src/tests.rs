@@ -16,6 +16,7 @@ fn vo(
         parent_pkg: parent,
         target_pkg: target,
         new_bare_specifier: new_bare.to_string(),
+        converge: false,
     }
 }
 
@@ -174,6 +175,59 @@ fn catalog_protocol_with_named_catalog_resolves() {
     let input = HashMap::from([("bar".to_string(), "catalog:shared".to_string())]);
     let out = parse_overrides(&input, &catalogs).unwrap();
     assert_eq!(out, vec![vo("bar", "2.0.0", None, sel("bar", None))]);
+}
+
+#[test]
+fn parses_convergence_override() {
+    for (selector, version, name) in
+        [("foo@", "1.2.3", "foo"), ("@scope/foo@", "2.0.0-beta.1", "@scope/foo")]
+    {
+        let input = HashMap::from([(selector.to_string(), version.to_string())]);
+        let out = parse_overrides(&input, &Catalogs::new()).unwrap();
+        let expected =
+            VersionOverride { converge: true, ..vo(selector, version, None, sel(name, Some(""))) };
+        assert_eq!(out, vec![expected]);
+    }
+}
+
+#[test]
+fn resolves_catalog_value_of_convergence_override() {
+    let mut catalogs = Catalogs::new();
+    let mut default = Catalog::new();
+    default.insert("foo".to_string(), "1.2.3".to_string());
+    catalogs.insert("default".to_string(), default);
+
+    let input = HashMap::from([("foo@".to_string(), "catalog:".to_string())]);
+    let out = parse_overrides(&input, &catalogs).unwrap();
+    let expected =
+        VersionOverride { converge: true, ..vo("foo@", "1.2.3", None, sel("foo", Some(""))) };
+    assert_eq!(out, vec![expected]);
+}
+
+#[test]
+fn rejects_non_exact_convergence_override_values() {
+    for value in ["^1.2.3", "latest", "-", "link:../foo", "npm:bar@1.2.3"] {
+        let input = HashMap::from([("foo@".to_string(), value.to_string())]);
+        let message = parse_overrides(&input, &Catalogs::new()).unwrap_err().to_string();
+        eprintln!("MESSAGE:\n{message}\n");
+        assert_eq!(
+            message,
+            format!(
+                r#"The value of the convergence override "foo@" must be an exact version, but got "{value}""#
+            ),
+        );
+    }
+}
+
+#[test]
+fn rejects_empty_range_in_parent_child_selector() {
+    let input = HashMap::from([("bar>foo@".to_string(), "1.2.3".to_string())]);
+    let message = parse_overrides(&input, &Catalogs::new()).unwrap_err().to_string();
+    eprintln!("MESSAGE:\n{message}\n");
+    assert_eq!(
+        message,
+        r#"Cannot use an empty range in the "bar>foo@" selector: convergence overrides ("pkg@") cannot be combined with parent>child selectors"#,
+    );
 }
 
 #[test]

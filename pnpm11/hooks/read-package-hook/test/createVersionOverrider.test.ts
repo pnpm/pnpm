@@ -766,3 +766,142 @@ test('createVersionsOverrider() moves invalid versions from peerDependencies to 
     },
   })
 })
+
+test('createVersionsOverrider() convergence override rewrites only edges its version satisfies', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: { name: 'form-data', bareSpecifier: '' },
+      newBareSpecifier: '4.0.6',
+      converge: true,
+    },
+  ], process.cwd())
+  expect(overrider({
+    dependencies: {
+      'form-data': '^4.0.5',
+    },
+    optionalDependencies: {
+      'other-form-data': '^3.0.0',
+    },
+  })).toStrictEqual({
+    dependencies: {
+      'form-data': '4.0.6',
+    },
+    optionalDependencies: {
+      'other-form-data': '^3.0.0',
+    },
+  })
+  // Incompatible with 4.0.6, so the edge keeps its own resolution.
+  expect(overrider({
+    dependencies: {
+      'form-data': '^3.0.0',
+    },
+  })).toStrictEqual({
+    dependencies: {
+      'form-data': '^3.0.0',
+    },
+  })
+})
+
+test('createVersionsOverrider() convergence override skips non-range specifiers', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: { name: 'foo', bareSpecifier: '' },
+      newBareSpecifier: '4.0.6',
+      converge: true,
+    },
+  ], process.cwd())
+  expect(overrider({
+    dependencies: {
+      foo: 'github:org/foo',
+    },
+    devDependencies: {
+      foo: 'workspace:^',
+    },
+    optionalDependencies: {
+      foo: 'latest',
+    },
+  })).toStrictEqual({
+    dependencies: {
+      foo: 'github:org/foo',
+    },
+    devDependencies: {
+      foo: 'workspace:^',
+    },
+    optionalDependencies: {
+      foo: 'latest',
+    },
+  })
+})
+
+test('createVersionsOverrider() convergence override rewrites peer dependencies it satisfies', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: { name: 'foo', bareSpecifier: '' },
+      newBareSpecifier: '4.0.6',
+      converge: true,
+    },
+  ], process.cwd())
+  expect(overrider({
+    peerDependencies: {
+      foo: '^4.0.0',
+    },
+  })).toStrictEqual({
+    dependencies: {},
+    peerDependencies: {
+      foo: '4.0.6',
+    },
+  })
+})
+
+test('createVersionsOverrider() explicit overrides win over a convergence override', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: { name: 'foo', bareSpecifier: '^4.0.0' },
+      newBareSpecifier: '4.0.9',
+    },
+    {
+      targetPkg: { name: 'foo', bareSpecifier: '' },
+      newBareSpecifier: '4.0.6',
+      converge: true,
+    },
+  ], process.cwd())
+  expect(overrider({
+    dependencies: {
+      foo: '^4.0.5',
+      bar: '1.0.0',
+    },
+  })).toStrictEqual({
+    dependencies: {
+      foo: '4.0.9',
+      bar: '1.0.0',
+    },
+  })
+})
+
+test('createVersionsOverrider() collects declared ranges of convergence-governed packages', () => {
+  const convergeDeclaredRanges = new Map<string, Set<string>>()
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: { name: 'foo', bareSpecifier: '' },
+      newBareSpecifier: '4.0.6',
+      converge: true,
+    },
+  ], process.cwd(), { convergeDeclaredRanges })
+  overrider({
+    dependencies: {
+      foo: '^4.0.5',
+      bar: '^1.0.0',
+    },
+  })
+  overrider({
+    dependencies: {
+      foo: '^3.0.0',
+    },
+    devDependencies: {
+      foo: 'workspace:^',
+    },
+  })
+  expect(convergeDeclaredRanges).toStrictEqual(new Map([
+    ['foo', new Set(['^4.0.5', '^3.0.0'])],
+  ]))
+})

@@ -2425,6 +2425,9 @@ importers:
       '@pnpm/resolving.parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../resolving/parse-wanted-dependency
+      semver:
+        specifier: 'catalog:'
+        version: 7.8.5
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -2432,6 +2435,9 @@ importers:
       '@pnpm/config.parse-overrides':
         specifier: workspace:*
         version: 'link:'
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.7.1
 
   pnpm11/config/pick-registry-for-package:
     dependencies:
@@ -5528,6 +5534,9 @@ importers:
       '@pnpm/config.parse-overrides':
         specifier: workspace:*
         version: link:../../config/parse-overrides
+      '@pnpm/config.version-policy':
+        specifier: workspace:*
+        version: link:../../config/version-policy
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants

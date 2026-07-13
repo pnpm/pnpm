@@ -312,6 +312,139 @@ fn dash_override_deletes_the_peer_dependency() {
 }
 
 #[test]
+fn convergence_override_rewrites_only_edges_its_version_satisfies() {
+    let overrides = parsed(&[("form-data@", "4.0.6")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let mut satisfied = manifest_from_value(json!({
+        "dependencies": { "form-data": "^4.0.5" },
+        "optionalDependencies": { "other-form-data": "^3.0.0" },
+    }));
+    overrider.apply(&mut satisfied, Some(Path::new("/workspace")));
+    assert_eq!(dep_spec(&satisfied, "dependencies", "form-data"), Some("4.0.6"));
+    assert_eq!(dep_spec(&satisfied, "optionalDependencies", "other-form-data"), Some("^3.0.0"));
+
+    // Incompatible with 4.0.6, so the edge keeps its own resolution.
+    let mut incompatible = manifest_from_value(json!({
+        "dependencies": { "form-data": "^3.0.0" },
+    }));
+    overrider.apply(&mut incompatible, Some(Path::new("/workspace")));
+    assert_eq!(dep_spec(&incompatible, "dependencies", "form-data"), Some("^3.0.0"));
+}
+
+#[test]
+fn convergence_override_skips_non_range_specifiers() {
+    let overrides = parsed(&[("foo@", "4.0.6")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let mut manifest = manifest_from_value(json!({
+        "dependencies": { "foo": "github:org/foo" },
+        "devDependencies": { "foo": "workspace:^" },
+        "optionalDependencies": { "foo": "latest" },
+    }));
+    overrider.apply(&mut manifest, Some(Path::new("/workspace")));
+
+    assert_eq!(dep_spec(&manifest, "dependencies", "foo"), Some("github:org/foo"));
+    assert_eq!(dep_spec(&manifest, "devDependencies", "foo"), Some("workspace:^"));
+    assert_eq!(dep_spec(&manifest, "optionalDependencies", "foo"), Some("latest"));
+}
+
+#[test]
+fn convergence_override_treats_an_empty_declared_spec_as_match_all() {
+    let overrides = parsed(&[("foo@", "4.0.6")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let mut manifest = manifest_from_value(json!({
+        "dependencies": { "foo": "" },
+    }));
+    overrider.apply(&mut manifest, Some(Path::new("/workspace")));
+
+    assert_eq!(dep_spec(&manifest, "dependencies", "foo"), Some("4.0.6"));
+    let declared_ranges = overrider.converge_declared_ranges();
+    dbg!(&declared_ranges);
+    let expected = std::collections::HashMap::from([(
+        "foo".to_string(),
+        std::collections::HashSet::from([String::new()]),
+    )]);
+    assert_eq!(declared_ranges, expected);
+}
+
+#[test]
+fn convergence_override_rewrites_peer_dependencies_it_satisfies() {
+    let overrides = parsed(&[("foo@", "4.0.6")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let mut manifest = manifest_from_value(json!({
+        "peerDependencies": { "foo": "^4.0.0" },
+    }));
+    overrider.apply(&mut manifest, Some(Path::new("/workspace")));
+
+    assert_eq!(dep_spec(&manifest, "peerDependencies", "foo"), Some("4.0.6"));
+    assert_eq!(dep_spec(&manifest, "dependencies", "foo"), None);
+}
+
+#[test]
+fn explicit_overrides_win_over_a_convergence_override() {
+    let overrides = parsed(&[("foo@^4.0.0", "4.0.9"), ("foo@", "4.0.6")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let mut manifest = manifest_from_value(json!({
+        "dependencies": { "foo": "^4.0.5", "bar": "1.0.0" },
+    }));
+    overrider.apply(&mut manifest, Some(Path::new("/workspace")));
+
+    assert_eq!(dep_spec(&manifest, "dependencies", "foo"), Some("4.0.9"));
+    assert_eq!(dep_spec(&manifest, "dependencies", "bar"), Some("1.0.0"));
+}
+
+#[test]
+fn collects_declared_ranges_of_convergence_governed_packages() {
+    let overrides = parsed(&[("foo@", "4.0.6")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let mut first = manifest_from_value(json!({
+        "dependencies": { "foo": "^4.0.5", "bar": "^1.0.0" },
+    }));
+    overrider.apply(&mut first, Some(Path::new("/workspace")));
+    let mut second = manifest_from_value(json!({
+        "dependencies": { "foo": "^3.0.0" },
+        "devDependencies": { "foo": "workspace:^" },
+    }));
+    overrider.apply(&mut second, Some(Path::new("/workspace")));
+
+    let declared_ranges = overrider.converge_declared_ranges();
+    dbg!(&declared_ranges);
+    let expected = std::collections::HashMap::from([(
+        "foo".to_string(),
+        std::collections::HashSet::from(["^4.0.5".to_string(), "^3.0.0".to_string()]),
+    )]);
+    assert_eq!(declared_ranges, expected);
+}
+
+#[test]
+fn apply_to_arc_records_declared_ranges_when_nothing_rewrites() {
+    let overrides = parsed(&[("foo@", "4.0.6")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let original = std::sync::Arc::new(json!({
+        "dependencies": { "foo": "^3.0.0" },
+    }));
+    let updated = overrider.apply_to_arc(std::sync::Arc::clone(&original), None);
+
+    assert!(
+        std::sync::Arc::ptr_eq(&original, &updated),
+        "an unsatisfied convergence override must not clone",
+    );
+    let declared_ranges = overrider.converge_declared_ranges();
+    dbg!(&declared_ranges);
+    let expected = std::collections::HashMap::from([(
+        "foo".to_string(),
+        std::collections::HashSet::from(["^3.0.0".to_string()]),
+    )]);
+    assert_eq!(declared_ranges, expected);
+}
+
+#[test]
 fn apply_to_arc_clones_when_only_a_peer_matches() {
     let overrides = parsed(&[("ajv@<8.18.0", ">=8.18.0")]);
     let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
