@@ -33,15 +33,6 @@ export interface MakePublishManifestOptions {
   embedReadme?: boolean
 }
 
-export async function readReadmeFile (projectDir: string): Promise<string | undefined> {
-  const entries = await fs.promises.readdir(projectDir, { withFileTypes: true })
-  // Only embed a regular README.md file. A symlink could point outside the
-  // project and leak its target's contents into the published manifest.
-  const readmeEntry = entries.find((entry) => entry.isFile() && /^readme\.md$/i.test(entry.name))
-  if (readmeEntry == null) return undefined
-  return fs.promises.readFile(path.join(projectDir, readmeEntry.name), 'utf8')
-}
-
 export async function createExportableManifest (
   dir: string,
   originalManifest: ProjectManifest,
@@ -95,6 +86,15 @@ export async function createExportableManifest (
   }
 
   return transform(publishManifest)
+}
+
+export async function readReadmeFile (projectDir: string): Promise<string | undefined> {
+  const entries = await fs.promises.readdir(projectDir, { withFileTypes: true })
+  // Only embed a regular README.md file. A symlink could point outside the
+  // project and leak its target's contents into the published manifest.
+  const readmeEntry = entries.find((entry) => entry.isFile() && /^readme\.md$/i.test(entry.name))
+  if (readmeEntry == null) return undefined
+  return fs.promises.readFile(path.join(projectDir, readmeEntry.name), 'utf8')
 }
 
 export type PublishDependencyConverter = (
