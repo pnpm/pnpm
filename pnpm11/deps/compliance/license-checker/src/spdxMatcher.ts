@@ -52,9 +52,20 @@ export function matchLicenseAgainstPolicy (
     const spdxAllowed = allowedList.filter(isParseableSpdx)
     const literalAllowed = allowedList.filter((a) => !isParseableSpdx(a))
     let allowedMatch = false
-    if (spdxAllowed.length > 0) {
+    // `satisfies` throws if ANY element of the array it is given is a
+    // compound (AND/OR) expression, so a single bad entry (e.g. a
+    // hand-edited "MIT AND Apache-2.0" in pnpm-workspace.yaml — `pnpm
+    // licenses allow/disallow` reject these at input, but hand edits bypass
+    // that) must not poison every other entry in the list. Drop compound
+    // entries rather than evaluating one-by-one: `satisfies` treats the
+    // array itself as an OR, and evaluating an AND-license expression (e.g.
+    // "MIT AND BSD-3-Clause") needs to see multiple simple entries together
+    // in one call to be satisfied — splitting the call per entry would break
+    // that.
+    const batchAllowed = spdxAllowed.filter((a) => !isCompoundLicenseExpression(a))
+    if (batchAllowed.length > 0) {
       try {
-        allowedMatch = satisfies(license, spdxAllowed)
+        allowedMatch = satisfies(license, batchAllowed)
       } catch {
         allowedMatch = false
       }
@@ -83,6 +94,24 @@ export function extractLicenseIds (license: string): string[] {
   } catch {
     return []
   }
+}
+
+// True iff `s` parses as a valid SPDX expression AND that expression is a
+// compound (AND/OR) of two or more license terms. Simple ids ("MIT"), `+`
+// ranges ("GPL-2.0+"), `WITH` exceptions ("Apache-2.0 WITH LLVM-exception"),
+// and unparseable/literal strings all return false — those are the forms
+// `spdx-satisfies` accepts as approved-license array entries. Compound
+// expressions are rejected because flattening them (e.g. storing "MIT AND
+// Apache-2.0" and matching either half individually) silently changes their
+// meaning, and passing one through unflattened to `spdx-satisfies` throws.
+export function isCompoundLicenseExpression (s: string): boolean {
+  let tree: SpdxNode
+  try {
+    tree = spdxParse(s)
+  } catch {
+    return false
+  }
+  return containsConjunction(tree)
 }
 
 // -- helpers --
@@ -163,6 +192,14 @@ function isParseableSpdx (s: string): boolean {
   } catch {
     return false
   }
+}
+
+// Checks for a `conjunction` (AND/OR) node anywhere in the tree. A leaf
+// (SpdxLicense) node has no children, so if the root itself is not a
+// conjunction, none of its descendants can be one either — the root check
+// alone covers "at any level".
+function containsConjunction (node: SpdxNode): boolean {
+  return 'conjunction' in node
 }
 
 function setHasCaseInsensitive (set: Set<string>, value: string): boolean {

@@ -9,10 +9,12 @@ import { checkLicenseCompliance, type CheckLicensesResult } from './checkLicense
 import { collectDirectDepKeys } from './directDeps.js'
 import type { NormalizedPolicy } from './policy.js'
 
-// Policy-only scan scope, derived from licenses.environment. Deliberately does
-// NOT consult transient CLI --prod/--dev flags (that mismatch caused the
-// `update --prod` gap). Lives here rather than reusing utils.resolveInclude so
-// Task 5 stays additive; utils.resolveInclude is removed in Task 7.
+// Policy-only scan scope, derived from licenses.environment. Deliberately
+// does NOT consult transient CLI --prod/--dev/--no-optional flags: those
+// flags only affect `licenses list`, not `licenses check` or the post-install
+// enforcement hook, so a package installed with `--prod` is still checked
+// against its full policy scope (this closes the gap where `update --prod`
+// could install a package without it ever being checked).
 export function includeForEnvironment (
   environment: NonNullable<LicensesConfig['environment']>
 ): { dependencies: boolean, devDependencies: boolean, optionalDependencies: boolean } {

@@ -108,16 +108,69 @@ describe('pnpm licenses allow', () => {
     expect(ws).toContain('MIT')
   })
 
-  test('stores a compound expression verbatim, not flattened', async () => {
+  test('rejects a compound (AND/OR) expression instead of storing it', async () => {
+    prepare({ name: 'solo', version: '1.0.0' })
+
+    // spdx-satisfies throws if any approved-license entry is a compound
+    // (AND/OR) expression, and flattening one at input time (storing "MIT"
+    // and "Apache-2.0" separately for "MIT AND Apache-2.0") would silently
+    // change its meaning from "both required" to "either is enough". Reject
+    // it instead of storing it.
+    await expect(
+      licensesAllow({
+        rootProjectManifestDir: process.cwd(),
+        workspaceDir: process.cwd(),
+        licenses: undefined,
+      } as any, ['MIT AND Apache-2.0']) // eslint-disable-line
+    ).rejects.toThrow('Compound license expressions')
+
+    expect(fs.existsSync('pnpm-workspace.yaml')).toBe(false)
+  })
+
+  test('stores a WITH exception entry verbatim', async () => {
     prepare({ name: 'solo', version: '1.0.0' })
 
     await licensesAllow({
       rootProjectManifestDir: process.cwd(),
       workspaceDir: process.cwd(),
       licenses: undefined,
-    } as any, ['MIT AND Apache-2.0']) // eslint-disable-line
+    } as any, ['Apache-2.0 WITH LLVM-exception']) // eslint-disable-line
 
     const ws = fs.readFileSync('pnpm-workspace.yaml', 'utf8')
-    expect(ws).toContain('MIT AND Apache-2.0')
+    expect(ws).toContain('Apache-2.0 WITH LLVM-exception')
+  })
+
+  test('stores a plus (or-later) entry verbatim', async () => {
+    prepare({ name: 'solo', version: '1.0.0' })
+
+    await licensesAllow({
+      rootProjectManifestDir: process.cwd(),
+      workspaceDir: process.cwd(),
+      licenses: undefined,
+    } as any, ['GPL-2.0+']) // eslint-disable-line
+
+    const ws = fs.readFileSync('pnpm-workspace.yaml', 'utf8')
+    expect(ws).toContain('GPL-2.0+')
+  })
+
+  test('allowing a license removes its case-insensitive match from the disallowed list', async () => {
+    const dir = tempDir()
+    f.copy('simple-licenses', dir)
+
+    const { output, exitCode } = await licenses.handler({
+      ...DEFAULT_OPTS,
+      dir,
+      workspaceDir: dir,
+      rootProjectManifestDir: dir,
+      pnpmHomeDir: '',
+      licenses: { disallowed: ['MIT'] },
+    }, ['allow', 'mit'])
+
+    expect(exitCode).toBe(0)
+    expect(output).toContain('Removed from disallowed licenses: MIT')
+
+    const manifest = readYamlFileSync<any>(path.join(dir, 'pnpm-workspace.yaml')) // eslint-disable-line
+    expect(manifest.licenses?.allowed).toStrictEqual(['mit'])
+    expect(manifest.licenses?.disallowed ?? []).not.toContain('MIT')
   })
 })

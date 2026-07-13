@@ -1,4 +1,5 @@
 import { writeSettings } from '@pnpm/config.writer'
+import { isCompoundLicenseExpression } from '@pnpm/deps.compliance.license-checker'
 import { PnpmError } from '@pnpm/error'
 import type { LicensesConfig, ProjectManifest } from '@pnpm/types'
 
@@ -32,10 +33,23 @@ export async function editLicenseList (
 
   const other: 'allowed' | 'disallowed' = target === 'allowed' ? 'disallowed' : 'allowed'
   const ids = [...new Set(licenses.map((l) => l.trim()).filter((l) => l.length > 0))]
+
+  const compound = ids.filter(isCompoundLicenseExpression)
+  if (compound.length > 0) {
+    throw new PnpmError(
+      'LICENSES_COMPOUND_EXPRESSION',
+      `Compound license expressions (AND/OR) are not supported in the allowed/disallowed list: ${compound.join(', ')}. ` +
+      'List each license identifier separately, e.g. "pnpm licenses allow MIT Apache-2.0".'
+    )
+  }
+
   const currentTarget = opts.licenses?.[target] ?? []
   const currentOther = opts.licenses?.[other] ?? []
   const newTarget = [...new Set([...currentTarget, ...ids])]
-  const newOther = currentOther.filter((l) => !ids.includes(l))
+  // Case-insensitive: the matcher treats "mit" and "MIT" as the same license,
+  // so allowing "mit" must also prune "MIT" from the opposite list, not just
+  // an exact-cased "mit".
+  const newOther = currentOther.filter((l) => !ids.some((id) => id.toLowerCase() === l.toLowerCase()))
 
   const updatedConfig: LicensesConfig = { ...opts.licenses, [target]: newTarget }
   if (newOther.length !== currentOther.length) {
@@ -53,7 +67,7 @@ export async function editLicenseList (
   lines.push(added.length > 0
     ? `Added to ${target} licenses: ${added.join(', ')}`
     : `All specified licenses are already in the ${target} list`)
-  const removedFromOther = currentOther.filter((l) => ids.includes(l))
+  const removedFromOther = currentOther.filter((l) => ids.some((id) => id.toLowerCase() === l.toLowerCase()))
   if (removedFromOther.length > 0) {
     lines.push(`Removed from ${other} licenses: ${removedFromOther.join(', ')}`)
   }

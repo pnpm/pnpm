@@ -1,4 +1,5 @@
 /// <reference path="../../../../../__typings__/index.d.ts" />
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { describe, expect, test } from '@jest/globals'
@@ -86,5 +87,26 @@ describe('pnpm licenses disallow', () => {
         pnpmHomeDir: '',
       }, ['disallow'])
     ).rejects.toThrow('Please specify at least one license')
+  })
+
+  test('rejects a compound (AND/OR) expression instead of storing it', async () => {
+    const dir = tempDir()
+    f.copy('simple-licenses', dir)
+
+    // A stored compound like "GPL-3.0-only OR GPL-2.0-only" would match no
+    // leaf candidate on the disallow side (the evaluator only matches leaf
+    // candidates against the disallowed set), silently blocking nothing.
+    // Reject it at input instead.
+    await expect(
+      licenses.handler({
+        ...DEFAULT_OPTS,
+        dir,
+        workspaceDir: dir,
+        rootProjectManifestDir: dir,
+        pnpmHomeDir: '',
+      }, ['disallow', 'GPL-3.0-only OR GPL-2.0-only'])
+    ).rejects.toThrow('Compound license expressions')
+
+    expect(fs.existsSync(path.join(dir, 'pnpm-workspace.yaml'))).toBe(false)
   })
 })

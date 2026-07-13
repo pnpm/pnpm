@@ -57,17 +57,18 @@ To display the details, pass this option.',
             name: '--json',
           },
           {
-            description: 'Check only "dependencies" and "optionalDependencies"',
+            description: 'List only "dependencies" and "optionalDependencies" (applies to `licenses list` only; ' +
+              '`licenses check` scope is set by the `licenses.environment` policy setting, not CLI flags)',
             name: '--prod',
             shortAlias: '-P',
           },
           {
-            description: 'Check only "devDependencies"',
+            description: 'List only "devDependencies" (applies to `licenses list` only; see --prod)',
             name: '--dev',
             shortAlias: '-D',
           },
           {
-            description: 'Don\'t check "optionalDependencies"',
+            description: 'Don\'t list "optionalDependencies" (applies to `licenses list` only; see --prod)',
             name: '--no-optional',
           },
         ],

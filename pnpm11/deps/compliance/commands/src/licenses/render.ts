@@ -13,7 +13,7 @@ export function renderCheckTable (
     lines.push(chalk.red(`${violations.length} license violation(s) found:`))
     lines.push('')
     for (const v of violations) {
-      lines.push(`  ${chalk.red('x')} ${sanitizeForTerminal(v.packageName)}@${v.packageVersion} - ${sanitizeForTerminal(v.license)} - ${sanitizeForTerminal(v.reason)}`)
+      lines.push(`  ${chalk.red('x')} ${sanitizeForTerminal(v.packageName)}@${sanitizeForTerminal(v.packageVersion)} - ${sanitizeForTerminal(v.license)} - ${sanitizeForTerminal(v.reason)}`)
     }
   }
   if (warnings.length > 0) {
@@ -21,7 +21,7 @@ export function renderCheckTable (
     lines.push(chalk.yellow(`${warnings.length} license warning(s):`))
     lines.push('')
     for (const w of warnings) {
-      lines.push(`  ${chalk.yellow('!')} ${sanitizeForTerminal(w.packageName)}@${w.packageVersion} - ${sanitizeForTerminal(w.license)} - ${sanitizeForTerminal(w.reason)}`)
+      lines.push(`  ${chalk.yellow('!')} ${sanitizeForTerminal(w.packageName)}@${sanitizeForTerminal(w.packageVersion)} - ${sanitizeForTerminal(w.license)} - ${sanitizeForTerminal(w.reason)}`)
     }
   }
   lines.push('')

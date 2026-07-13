@@ -49,14 +49,14 @@ export async function checkLicensesAfterInstall (opts: CheckAfterInstallOptions)
 
   if (result.warnings.length > 0) {
     const details = result.warnings
-      .map((w) => `  ${sanitizeForTerminal(w.packageName)}@${w.packageVersion} - ${sanitizeForTerminal(w.license)} - ${sanitizeForTerminal(w.reason)}`)
+      .map((w) => `  ${sanitizeForTerminal(w.packageName)}@${sanitizeForTerminal(w.packageVersion)} - ${sanitizeForTerminal(w.license)} - ${sanitizeForTerminal(w.reason)}`)
       .join('\n')
     globalWarn(`${result.warnings.length} license warning(s):\n${details}`)
   }
 
   if (result.violations.length > 0) {
     const details = result.violations
-      .map((v) => `  ${sanitizeForTerminal(v.packageName)}@${v.packageVersion} - ${sanitizeForTerminal(v.license)} - ${sanitizeForTerminal(v.reason)}`)
+      .map((v) => `  ${sanitizeForTerminal(v.packageName)}@${sanitizeForTerminal(v.packageVersion)} - ${sanitizeForTerminal(v.license)} - ${sanitizeForTerminal(v.reason)}`)
       .join('\n')
     throw new PnpmError(
       'LICENSE_VIOLATION',
