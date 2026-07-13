@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import path from 'node:path'
 
 export interface TrackableChildProcess {
   pid?: number
@@ -41,10 +42,15 @@ export async function killTrackedProcessTrees (): Promise<void> {
 
 async function killProcessTree (pid: number): Promise<void> {
   if (process.platform === 'win32') {
+    // Resolve taskkill to its absolute System32 location so a taskkill.exe
+    // planted in the current directory or on PATH can't be run in its place
+    // during error cleanup. `process.env` is case-insensitive on Windows, so
+    // `SystemRoot` also matches the SYSTEMROOT/systemroot spellings.
+    const taskkillPath = path.join(process.env.SystemRoot ?? process.env.windir ?? 'C:\\Windows', 'System32', 'taskkill.exe')
     await new Promise<void>((resolve) => {
       // The timeout bounds the wait in case taskkill itself hangs; the kill
       // is best-effort either way, and pnpm is exiting on an error already.
-      const taskkill = spawn('taskkill', ['/pid', pid.toString(), '/T', '/F'], { stdio: 'ignore', windowsHide: true, timeout: 10_000 })
+      const taskkill = spawn(taskkillPath, ['/pid', pid.toString(), '/T', '/F'], { stdio: 'ignore', windowsHide: true, timeout: 10_000 })
       // A non-zero exit code (128 when the process is already gone, 1 when
       // access is denied) is deliberately ignored.
       taskkill.once('error', () => {
