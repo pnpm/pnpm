@@ -304,19 +304,13 @@ describe('pnpm licenses check', () => {
     expect(shallowResult.checkedCount).toBeGreaterThan(0)
   })
 
-  // Regression test for #4: shallow mode used to derive direct deps from the
-  // manifest's dependency KEYS ('positive', the alias), which never matched
-  // the scanner-reported package name ('is-positive'), so aliased direct
-  // deps silently escaped the shallow filter. `collectDirectDepKeys` now
-  // resolves `npm:` aliases through the lockfile to the real package name,
-  // so the aliased dep is evaluated under its actual license.
   // A hand-edited pnpm-workspace.yaml can put a compound (AND/OR) SPDX
   // expression directly into `licenses.disallowed`, bypassing the rejection
   // `pnpm licenses allow/disallow` applies at input time. Without a scan-time
   // guard this is a silent fail-open: the matcher only compares single leaf
-  // candidates against the disallowed set, so the compound never matches any
-  // one leaf and nothing gets blocked. `scanAndCheckLicenses` now rejects it
-  // up front, so `pnpm licenses check` throws instead of silently passing.
+  // candidates against the disallowed set, so the compound matches no single
+  // leaf and nothing gets blocked. `scanAndCheckLicenses` rejects it up front,
+  // so `pnpm licenses check` throws instead of silently passing.
   test('rejects a hand-edited compound expression in the disallowed list', async () => {
     const { dir, storeDir } = await setupProject('simple-licenses')
 
@@ -334,7 +328,12 @@ describe('pnpm licenses check', () => {
     ).rejects.toThrow('Compound license expressions')
   })
 
-  test('depth shallow evaluates an aliased dependency under its real package name (regression #4)', async () => {
+  // Shallow mode filters by the package identity the scanner reports
+  // ('is-positive'), which `collectDirectDepKeys` resolves through the lockfile.
+  // Filtering by the manifest's dependency key instead ('positive', the alias)
+  // would match nothing the scanner emits, letting aliased direct deps escape
+  // the shallow filter entirely.
+  test('depth shallow evaluates an aliased dependency under its real package name', async () => {
     // with-aliased-dep declares `dependencies: { positive: "npm:is-positive@1.0.0" }`
     const { dir, storeDir } = await setupProject('with-aliased-dep')
 
