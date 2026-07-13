@@ -46,6 +46,7 @@ export type GlobalUpdateOptions = CreateStoreControllerOptions & GlobalNodePathO
   handleResolutionPolicyViolations?: (violations: readonly ResolutionPolicyViolation[]) => Promise<void>
   updateResolutionPolicyManifest?: (violations: readonly ResolutionPolicyViolation[], dir: string) => Promise<void>
   selectedPackageHashes?: Set<string>
+  checkLicensesAfterGlobalInstall?: (installDir: string) => Promise<void>
 }
 
 export async function handleGlobalUpdate (
@@ -170,6 +171,12 @@ async function updateGlobalPackageGroup (
   }
 
   const { ignoredBuilds, resolutionPolicyViolations } = await installGroup(groupOpts, installDir, depSpecs)
+
+  try {
+    await opts.checkLicensesAfterGlobalInstall?.(installDir)
+  } catch (err) {
+    await cleanupFailedGlobalInstall(installDir, err)
+  }
 
   await promptApproveGlobalBuilds({
     globalPkgDir: globalDir,

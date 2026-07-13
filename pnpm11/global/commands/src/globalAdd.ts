@@ -36,6 +36,7 @@ export type GlobalAddOptions = CreateStoreControllerOptions & GlobalNodePathOpti
   rootProjectManifest?: unknown
   handleResolutionPolicyViolations?: (violations: readonly ResolutionPolicyViolation[]) => Promise<void>
   updateResolutionPolicyManifest?: (violations: readonly ResolutionPolicyViolation[], dir: string) => Promise<void>
+  checkLicensesAfterGlobalInstall?: (installDir: string) => Promise<void>
 }
 
 export async function handleGlobalAdd (
@@ -98,6 +99,12 @@ export async function installGroup (
   const installDir = createInstallDir(globalDir)
 
   const { ignoredBuilds, resolutionPolicyViolations } = await installGlobalPackages(createGroupInstallOptions(ctx, installDir), params)
+
+  try {
+    await opts.checkLicensesAfterGlobalInstall?.(installDir)
+  } catch (err) {
+    await cleanupFailedGlobalInstall(installDir, err)
+  }
 
   await promptApproveGlobalBuilds({
     globalPkgDir: globalDir,

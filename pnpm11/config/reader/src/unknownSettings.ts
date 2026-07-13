@@ -25,6 +25,7 @@ const TYPED_WORKSPACE_MANIFEST_KEYS = [
   'httpProxy',
   'httpsProxy',
   'ignoredOptionalDependencies',
+  'licenses',
   'localAddress',
   'namedRegistries',
   'nodeDownloadMirrors',

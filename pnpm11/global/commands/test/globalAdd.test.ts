@@ -430,3 +430,47 @@ async function captureRejection (run: () => Promise<unknown>): Promise<unknown> 
   }
   return undefined
 }
+
+test('global add invokes checkLicensesAfterGlobalInstall once per install group, with that group\'s installDir', async () => {
+  createInstallDir
+    .mockReturnValueOnce('/global/v11/install-foo')
+    .mockReturnValueOnce('/global/v11/install-bar')
+  const checkLicensesAfterGlobalInstall = jest.fn<(installDir: string) => Promise<void>>().mockResolvedValue(undefined)
+
+  await handleGlobalAdd({
+    bin: '/global/bin',
+    dir: '/project',
+    globalPkgDir: '/global/v11',
+    registriesByScope: {},
+    checkLicensesAfterGlobalInstall,
+  } as any, ['foo', 'bar'], {}) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
+
+  expect(checkLicensesAfterGlobalInstall).toHaveBeenCalledTimes(2)
+  expect(checkLicensesAfterGlobalInstall).toHaveBeenNthCalledWith(1, '/global/v11/install-foo')
+  expect(checkLicensesAfterGlobalInstall).toHaveBeenNthCalledWith(2, '/global/v11/install-bar')
+})
+
+test('global add removes the group install dir and rethrows when checkLicensesAfterGlobalInstall throws', async () => {
+  createInstallDir.mockReturnValueOnce('/global/v11/install-violating')
+  const removeDirSpy = jest.spyOn(fs.promises, 'rm').mockResolvedValue(undefined)
+  const violation = new Error('license violation')
+  const checkLicensesAfterGlobalInstall = jest.fn<(installDir: string) => Promise<void>>().mockRejectedValue(violation)
+
+  try {
+    await expect(handleGlobalAdd({
+      bin: '/global/bin',
+      dir: '/project',
+      globalPkgDir: '/global/v11',
+      registriesByScope: {},
+      checkLicensesAfterGlobalInstall,
+    } as any, ['foo'], {})).rejects.toBe(violation) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
+
+    expect(removeDirSpy).toHaveBeenCalledWith('/global/v11/install-violating', { recursive: true, force: true })
+    // A violating group is never activated, so the global install is left as it was.
+    expect(promptApproveGlobalBuilds).not.toHaveBeenCalled()
+    expect(checkGlobalBinConflicts).not.toHaveBeenCalled()
+    expect(activateGlobalInstall).not.toHaveBeenCalled()
+  } finally {
+    removeDirSpy.mockRestore()
+  }
+})

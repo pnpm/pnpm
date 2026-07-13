@@ -1016,3 +1016,66 @@ test('global update --latest preserves deno and bun declared range styles and ig
     ['node@runtime:rc/latest', 'deno@runtime:^2.4.2', 'bun@runtime:1.2.19', 'custom@tool:1.0.0']
   )
 })
+
+test('global update invokes checkLicensesAfterGlobalInstall once per package group, with that group\'s installDir', async () => {
+  createInstallDir
+    .mockReturnValueOnce('/global/v11/install-foo')
+    .mockReturnValueOnce('/global/v11/install-bar')
+  getHashLink
+    .mockReturnValueOnce('/global/v11/hash-foo')
+    .mockReturnValueOnce('/global/v11/hash-bar')
+  scanGlobalPackages.mockReturnValue([
+    {
+      dependencies: { foo: '^1.0.0' },
+      hash: 'hash-foo',
+      installDir: '/global/v11/old-foo',
+    },
+    {
+      dependencies: { bar: '^2.0.0' },
+      hash: 'hash-bar',
+      installDir: '/global/v11/old-bar',
+    },
+  ])
+  const checkLicensesAfterGlobalInstall = jest.fn<(installDir: string) => Promise<void>>().mockResolvedValue(undefined)
+
+  await handleGlobalUpdate({
+    bin: '/global/bin',
+    globalPkgDir: '/global/v11',
+    checkLicensesAfterGlobalInstall,
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
+
+  expect(checkLicensesAfterGlobalInstall).toHaveBeenCalledTimes(2)
+  expect(checkLicensesAfterGlobalInstall).toHaveBeenNthCalledWith(1, '/global/v11/install-foo')
+  expect(checkLicensesAfterGlobalInstall).toHaveBeenNthCalledWith(2, '/global/v11/install-bar')
+})
+
+test('global update removes the group install dir and rethrows when checkLicensesAfterGlobalInstall throws', async () => {
+  createInstallDir.mockReturnValueOnce('/global/v11/install-violating')
+  scanGlobalPackages.mockReturnValue([
+    {
+      dependencies: { foo: '^1.0.0' },
+      hash: 'hash-foo',
+      installDir: '/global/v11/old-foo',
+    },
+  ])
+  const removeDirSpy = jest.spyOn(fs.promises, 'rm').mockResolvedValue(undefined)
+  const violation = new Error('license violation')
+  const checkLicensesAfterGlobalInstall = jest.fn<(installDir: string) => Promise<void>>().mockRejectedValue(violation)
+
+  try {
+    await expect(handleGlobalUpdate({
+      bin: '/global/bin',
+      globalPkgDir: '/global/v11',
+      checkLicensesAfterGlobalInstall,
+    } as any, [], {})).rejects.toBe(violation) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
+
+    expect(checkLicensesAfterGlobalInstall).toHaveBeenCalledWith('/global/v11/install-violating')
+    expect(removeDirSpy).toHaveBeenCalledWith('/global/v11/install-violating', { recursive: true, force: true })
+    // A violating group is never activated, so the previous install stays active.
+    expect(promptApproveGlobalBuilds).not.toHaveBeenCalled()
+    expect(checkGlobalBinConflicts).not.toHaveBeenCalled()
+    expect(activateGlobalInstall).not.toHaveBeenCalled()
+  } finally {
+    removeDirSpy.mockRestore()
+  }
+})

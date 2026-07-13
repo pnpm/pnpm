@@ -9,6 +9,7 @@ import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { createGlobalPolicyCallbacks } from '../resolutionPolicyManifest.js'
+import { runLicenseCheckForGlobalInstall } from '../runLicenseCheck.js'
 import { interactiveUpdate } from './interactiveUpdate.js'
 import { selectGlobalPackageGroups } from './selectGlobalPackageGroups.js'
 import { update, type UpdateCommandOptions } from './update.js'
@@ -225,6 +226,7 @@ async function updateGlobalPackages (
   return handleGlobalUpdate({
     ...opts,
     ...createGlobalPolicyCallbacks(opts),
+    checkLicensesAfterGlobalInstall: (installDir) => runLicenseCheckForGlobalInstall(opts, installDir),
     selectedPackageHashes: selection,
   }, params, commands ?? {})
 }

@@ -25,7 +25,7 @@ import {
 import type { InstallCommandOptions } from './install.js'
 import { installDeps } from './installDeps.js'
 import { createGlobalPolicyCallbacks } from './resolutionPolicyManifest.js'
-import { runLicenseCheck } from './runLicenseCheck.js'
+import { runLicenseCheck, runLicenseCheckForGlobalInstall } from './runLicenseCheck.js'
 import { warnAboutLinkedPeerDependencies } from './warnAboutLinkedPeerDependencies.js'
 
 export {
@@ -352,6 +352,7 @@ async function addGlobally ({ allowBuildSelectors, commands, opts, params }: Add
     ...opts,
     allowBuilds: applyAllowBuildSelectors(opts.allowBuilds, allowBuildSelectors),
     ...createGlobalPolicyCallbacks(opts),
+    checkLicensesAfterGlobalInstall: (installDir) => runLicenseCheckForGlobalInstall(opts, installDir),
   }, params, commands ?? {})
 }
 
