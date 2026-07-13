@@ -454,11 +454,17 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       url: 'git+https://github.com/pnpm/pnpm.git',
       directory: 'pnpm11/pnpm',
     }
-    scripts.compile += ' && rimraf dist bin/nodes && pn bundle \
+    // Publishing runs `prepublishOnly`, so it must build without linting:
+    // the release runner can't reliably reproduce the lint environment, and
+    // CI already lints every PR. `build` produces the artifacts; `compile`
+    // keeps lint for local development and `pnpm test`.
+    scripts.build = 'tsgo --build && rimraf dist bin/nodes && pn bundle \
 && shx cp -r node-gyp-bin dist/node-gyp-bin \
 && shx cp -r node_modules/@pnpm/tabtab/lib/templates dist/templates \
 && shx cp -r node_modules/ps-list/vendor dist/vendor \
 && shx cp pnpmrc dist/pnpmrc'
+    scripts.compile = 'pn lint --fix && pn build'
+    scripts.prepublishOnly = 'pn build && node bundle-deps.ts'
   } else {
     scripts.prepublishOnly = 'tsgo --build'
     homepage = `https://github.com/pnpm/pnpm/tree/main/${relative}#readme`
