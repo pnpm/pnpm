@@ -563,7 +563,7 @@ test('a member below its epic band is rejected when it releases', () => {
     intents: [makeIntent('one', { lib: 'patch' })],
     ledger: NO_LEDGER,
     versioning: { epics: [{ lead: 'pnpm', packages: ['lib'] }] },
-  })).toThrow(/outside the band 1100–1199/)
+  })).toThrow(/outside the band 1100-1199/)
 })
 
 test('the top of the band takes a minor without tripping the ceiling guard', () => {

@@ -900,9 +900,9 @@ function enforceEpicBands (
       if (memberMajor < low || memberMajor > high) {
         throw new PnpmError(
           'VERSIONING_EPIC_OUT_OF_BAND',
-          `The release plan takes ${participants.get(memberDir)!.name} to ${memberVersion}, whose major ${memberMajor} is outside the band ${low}–${high} of the epic led by "${epic.leadRef}" (major ${bandMajor}). ` +
+          `The release plan takes ${participants.get(memberDir)!.name} to ${memberVersion}, whose major ${memberMajor} is outside the band ${low}-${high} of the epic led by "${epic.leadRef}" (major ${bandMajor}). ` +
           (memberMajor > high
-            ? 'The band is exhausted — the lead must advance to a new major to open the next band.'
+            ? 'The band is exhausted - the lead must advance to a new major to open the next band.'
             : 'Re-base the member into the band, or remove it from the epic.')
         )
       }
