@@ -54,6 +54,42 @@ fn should_install_dependencies() {
 }
 
 #[test]
+fn no_optional_excludes_transitive_optional_dependencies() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    // `@pnpm.e2e/pkg-with-good-optional` is a prod dependency whose own
+    // `optionalDependencies` pull in `is-positive`. `--no-optional` must
+    // exclude that transitive optional, not just the root's own optionals.
+    let manifest_path = workspace.join("package.json");
+    fs::write(
+        &manifest_path,
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-good-optional": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write to package.json");
+
+    pacquet.with_args(["install", "--no-optional"]).assert().success();
+
+    let virtual_store = workspace.join("node_modules/.pnpm");
+    assert!(
+        virtual_store.join("@pnpm.e2e+pkg-with-good-optional@1.0.0").exists(),
+        "the prod dependency must be installed",
+    );
+    assert!(
+        !virtual_store.join("is-positive@1.0.0").exists(),
+        "--no-optional must not materialize the transitive optional dependency",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn store_dir_cli_option_overrides_config_and_resolves_from_dir() {
     let CommandTempCwd { mut pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

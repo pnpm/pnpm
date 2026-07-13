@@ -1591,6 +1591,24 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             SkippedSnapshots::new()
         };
 
+        // `--no-optional` excludes the Optional group. `dependency_groups`
+        // already drops the root importer's own optional direct deps, but a
+        // transitive optional (an `optionalDependencies` entry of a resolved
+        // package) is still in the graph and would be materialized. Exclude
+        // every optional-only snapshot the same way the frozen-lockfile path
+        // does — via the transient `optional_excluded` skip set, which keeps
+        // it out of materialization and `.modules.yaml.skipped` yet leaves it
+        // in the lockfile, so a later install without the flag restores it.
+        if !dependency_groups.contains(&DependencyGroup::Optional)
+            && let Some(snapshots) = built_lockfile.snapshots.as_ref()
+        {
+            for (key, snapshot) in snapshots {
+                if snapshot.optional {
+                    skipped.add_optional_excluded(key.clone());
+                }
+            }
+        }
+
         // Materialise the virtual store via the same phased
         // warm/cold-batch pipeline the frozen-lockfile path uses. The
         // phased pipeline in `CreateVirtualStore` runs a single
