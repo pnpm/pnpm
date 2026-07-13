@@ -44,6 +44,19 @@ pub fn get_all_files(root: &Path) -> Vec<String> {
         .collect()
 }
 
+#[must_use]
+pub fn get_all_regular_files(root: &Path) -> Vec<String> {
+    WalkDir::new(root)
+        .sort_by_file_name()
+        .follow_links(false)
+        .into_iter()
+        .map(|entry| entry.expect("access entry"))
+        .filter(|entry| !entry.file_type().is_dir() && !entry.file_type().is_symlink())
+        .map(|entry| normalized_suffix(entry.path(), root))
+        .filter(|suffix| !suffix.is_empty())
+        .collect()
+}
+
 pub fn is_symlink_or_junction(path: &Path) -> io::Result<bool> {
     #[cfg(windows)]
     {

@@ -1242,11 +1242,23 @@ where
                 &hoist_skipped,
             )
             .map_err(InstallFrozenLockfileError::HoistSymlink)?;
-            // Private-side bins → `<vs>/node_modules/.bin`.
-            // Reuses the rayon-parallel `link_direct_dep_bins`
-            // (same shape — read each location's
-            // `package.json`, fan out to
-            // `link_bins_of_packages`).
+            if let Some((snaps, _pkgs)) = snapshots.as_ref().zip(packages.as_ref()) {
+                let private_pattern = pacquet_config::matcher::create_matcher(
+                    config.hoist_pattern.as_deref().unwrap_or(&[]),
+                );
+                let public_pattern = pacquet_config::matcher::create_matcher(
+                    config.public_hoist_pattern.as_deref().unwrap_or(&[]),
+                );
+                crate::create_gvs_hoisted_children_symlinks(
+                    &graph,
+                    &private_pattern,
+                    &public_pattern,
+                    &layout,
+                    snaps,
+                    &hoist_skipped,
+                )
+                .map_err(InstallFrozenLockfileError::HoistSymlink)?;
+            }
             link_direct_dep_bins(&private_dir, &result.hoisted_aliases_with_bins)
                 .map_err(InstallFrozenLockfileError::HoistLinkBins)?;
             // Stash the public-hoist alias list for the

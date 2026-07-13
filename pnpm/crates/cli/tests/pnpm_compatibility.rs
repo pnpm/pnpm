@@ -6,7 +6,7 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
-    fs::get_all_files,
+    fs::{get_all_files, get_all_regular_files},
 };
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
@@ -261,7 +261,7 @@ fn install_then_compare_gvs(
     pnpm_args.extend_from_slice(pnpm_extra_args);
     eprintln!("Installing with pnpm (writes lockfile + pnpm-side GVS slots)...");
     pnpm.with_args(pnpm_args).assert().success();
-    let pnpm_gvs_paths = gvs_paths_only(get_all_files(store_dir));
+    let pnpm_gvs_paths = gvs_paths_only(get_all_regular_files(store_dir));
     assert!(
         !pnpm_gvs_paths.is_empty(),
         "pnpm must have written GVS slots; got nothing matching v11/links/ or links/",
@@ -273,7 +273,7 @@ fn install_then_compare_gvs(
 
     eprintln!("Installing with pacquet --frozen-lockfile (writes pacquet-side GVS slots)...");
     pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
-    let pacquet_gvs_paths = gvs_paths_only(get_all_files(store_dir));
+    let pacquet_gvs_paths = gvs_paths_only(get_all_regular_files(store_dir));
 
     eprintln!("Comparing GVS layouts (pnpm on the right, pacquet on the left)...");
     assert_eq!(&pacquet_gvs_paths, &pnpm_gvs_paths);
