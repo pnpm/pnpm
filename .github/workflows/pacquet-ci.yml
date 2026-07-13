@@ -90,10 +90,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
+          - os: blacksmith-8vcpu-windows-2022
             os_label: windows
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             os_label: ubuntu
+          # Blacksmith offers no macOS runners, so this leg stays on the
+          # GitHub-hosted image.
           - os: macos-latest
             os_label: macos
     runs-on: ${{ matrix.os }}
@@ -177,10 +179,10 @@ jobs:
 
       - name: Stage Bencher test durations
         env:
-          TESTBED_OS: ${{ matrix.os }}
+          TESTBED_OS: ${{ matrix.os_label }}
         shell: bash
         run: |
-          os="${TESTBED_OS%-latest}"
+          os="$TESTBED_OS"
           artifact_dir=.bench/artifact/rust
           mkdir -p "$artifact_dir"
           cp .bench/pacquet-tests-all.json "$artifact_dir/pacquet-tests-all.json"
@@ -205,7 +207,7 @@ jobs:
       - name: Upload Bencher test duration artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ci-performance-rust-${{ matrix.os }}
+          name: ci-performance-rust-${{ matrix.os_label }}
           path: .bench/artifact/rust/
           if-no-files-found: error
           retention-days: 14
