@@ -484,12 +484,11 @@ function forceLink (src: string, dest: string): void {
   fs.chmodSync(dest, 0o755)
 }
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export function buildLockfileFromEnvLockfile (
   envLockfile: EnvLockfile,
   pkgName: string,
   version: string
-) {
+): LockfileObject {
   const dependencies: Record<string, string> = {}
   dependencies[pkgName] = version
 
