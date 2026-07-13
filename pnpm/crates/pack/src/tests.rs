@@ -399,6 +399,7 @@ fn workspace_root_gitignore_excludes_workspace_package_files() {
         dry_run: false,
         pack_destination: None,
         out: None,
+        before_packing_hooks: Vec::new(),
     };
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();
