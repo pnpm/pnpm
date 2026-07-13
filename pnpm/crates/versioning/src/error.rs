@@ -74,6 +74,43 @@ pub enum VersioningError {
     DuplicateRelease { identity: String, first_dir: String, second_dir: String },
 
     #[display(
+        "versioning.epics lead \"{lead}\" is not a releasable workspace project (it must be a named package with a semver version)."
+    )]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_EPIC_UNKNOWN_LEAD))]
+    EpicUnknownLead { lead: String },
+
+    #[display(
+        "Package ./{member_dir} is matched by two epics (leads \"{first_lead}\" and \"{second_lead}\"). A package can belong to at most one epic."
+    )]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_EPIC_OVERLAP))]
+    EpicOverlap { member_dir: String, first_lead: String, second_lead: String },
+
+    #[display(
+        "A fixed group straddles the epic led by \"{lead}\": it mixes epic members with outside package(s) {outsiders}. A fixed group must sit entirely inside or entirely outside an epic."
+    )]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_EPIC_FIXED_GROUP_CONFLICT))]
+    EpicFixedGroupConflict { lead: String, outsiders: String },
+
+    #[display(
+        "The release plan takes {pkg_name} to {new_version}, whose major {member_major} is outside the band {}-{} of the epic led by \"{lead}\" (major {band_major}). {}",
+        band_major * 100,
+        band_major * 100 + 99,
+        if *member_major > band_major * 100 + 99 {
+            "The band is exhausted - the lead must advance to a new major to open the next band."
+        } else {
+            "Re-base the member into the band, or remove it from the epic."
+        }
+    )]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_EPIC_OUT_OF_BAND))]
+    EpicOutOfBand {
+        pkg_name: String,
+        new_version: String,
+        member_major: u64,
+        lead: String,
+        band_major: u64,
+    },
+
+    #[display(
         "The release plan bumps {pkg_name} by {bump_type}, but versioning.maxBump caps releases from this branch at {max_bump}. Raised by {raised_by}."
     )]
     #[diagnostic(code(ERR_PNPM_VERSIONING_MAX_BUMP_EXCEEDED))]

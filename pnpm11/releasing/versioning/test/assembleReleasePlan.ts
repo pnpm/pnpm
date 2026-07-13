@@ -415,3 +415,174 @@ test('materializeWorkspaceRange mirrors pack-time materialization', () => {
   expect(materializeWorkspaceRange('workspace:lib@^', '1.2.3')).toBe('^1.2.3')
   expect(materializeWorkspaceRange('^1.0.0', '1.2.3')).toBeNull()
 })
+
+test('epic members move independently inside the band while the lead major holds', () => {
+  const plan = assembleReleasePlan({
+    workspaceDir: '/ws',
+    projects: [makeProject('pnpm', '11.2.0'), makeProject('lib', '1101.4.2')],
+    intents: [makeIntent('one', { pnpm: 'patch', lib: 'minor' })],
+    ledger: NO_LEDGER,
+    versioning: { epics: [{ lead: 'pnpm', packages: ['lib'] }] },
+  })
+  expect(plan.releases.find((release) => release.name === 'pnpm')!.newVersion).toBe('11.2.1')
+  expect(plan.releases.find((release) => release.name === 'lib')!.newVersion).toBe('1101.5.0')
+})
+
+test('a major intent bumps a member to the next major inside the band', () => {
+  const plan = assembleReleasePlan({
+    workspaceDir: '/ws',
+    projects: [makeProject('pnpm', '11.0.0'), makeProject('lib', '1101.4.2')],
+    intents: [makeIntent('one', { lib: 'major' })],
+    ledger: NO_LEDGER,
+    versioning: { epics: [{ lead: 'pnpm', packages: ['lib'] }] },
+  })
+  expect(plan.releases.map((release) => release.name)).toStrictEqual(['lib'])
+  expect(plan.releases[0].newVersion).toBe('1102.0.0')
+})
+
+test('when the lead reaches a new stable major every member re-bases to the band floor', () => {
+  const plan = assembleReleasePlan({
+    workspaceDir: '/ws',
+    projects: [
+      makeProject('pnpm', '11.9.9'),
+      makeProject('lib', '1101.4.2'),
+      makeProject('ui', '1105.0.0'),
+    ],
+    intents: [makeIntent('one', { pnpm: 'major' })],
+    ledger: NO_LEDGER,
+    versioning: { epics: [{ lead: 'pnpm', packages: ['lib', 'ui'] }] },
+  })
+  expect(plan.releases.find((release) => release.name === 'pnpm')!.newVersion).toBe('12.0.0')
+  const lib = plan.releases.find((release) => release.name === 'lib')!
+  expect(lib.newVersion).toBe('1200.0.0')
+  expect(lib.causes).toStrictEqual(['epic'])
+  expect(plan.releases.find((release) => release.name === 'ui')!.newVersion).toBe('1200.0.0')
+})
+
+test('a member on a lane re-bases to a prerelease of the band floor', () => {
+  const plan = assembleReleasePlan({
+    workspaceDir: '/ws',
+    projects: [makeProject('pnpm', '11.0.0'), makeProject('lib', '1101.2.0')],
+    intents: [makeIntent('one', { pnpm: 'major' })],
+    ledger: NO_LEDGER,
+    versioning: { epics: [{ lead: 'pnpm', packages: ['lib'] }], lanes: { lib: 'alpha' } },
+  })
+  expect(plan.releases.find((release) => release.name === 'lib')!.newVersion).toBe('1200.0.0-alpha.0')
+})
+
+test('the re-base waits while the lead is on a prerelease lane', () => {
+  const plan = assembleReleasePlan({
+    workspaceDir: '/ws',
+    projects: [makeProject('pnpm', '11.0.0'), makeProject('lib', '1101.2.0')],
+    intents: [makeIntent('one', { pnpm: 'major', lib: 'patch' })],
+    ledger: NO_LEDGER,
+    versioning: { epics: [{ lead: 'pnpm', packages: ['lib'] }], lanes: { pnpm: 'alpha' } },
+  })
+  expect(plan.releases.find((release) => release.name === 'pnpm')!.newVersion).toBe('12.0.0-alpha.0')
+  // The member versions inside its old band until the lead's stable release.
+  expect(plan.releases.find((release) => release.name === 'lib')!.newVersion).toBe('1101.2.1')
+})
+
+test('epic membership resolves directory globs and honors negations', () => {
+  const projects = [
+    { rootDir: '/ws/pnpm', manifest: { name: 'pnpm', version: '11.0.0' } },
+    { rootDir: '/ws/pkgs/a', manifest: { name: '@scope/a', version: '1100.0.0' } },
+    { rootDir: '/ws/pkgs/b', manifest: { name: '@scope/b', version: '1100.0.0' } },
+    { rootDir: '/ws/tools/tool', manifest: { name: '@scope/tool', version: '5.0.0' } },
+  ]
+  const plan = assembleReleasePlan({
+    workspaceDir: '/ws',
+    projects,
+    intents: [makeIntent('one', { pnpm: 'major' })],
+    ledger: NO_LEDGER,
+    versioning: { epics: [{ lead: './pnpm', packages: ['./pkgs/**', '!./pkgs/b'] }] },
+  })
+  expect(plan.releases.map((release) => release.name).sort()).toStrictEqual(['@scope/a', 'pnpm'])
+  expect(plan.releases.find((release) => release.name === '@scope/a')!.newVersion).toBe('1200.0.0')
+})
+
+test('epic selectors are order-dependent: a later include overrides an earlier negation', () => {
+  const projects = [
+    { rootDir: '/ws/pnpm', manifest: { name: 'pnpm', version: '11.0.0' } },
+    { rootDir: '/ws/pkgs/a', manifest: { name: '@scope/a', version: '1100.0.0' } },
+    { rootDir: '/ws/pkgs/b', manifest: { name: '@scope/b', version: '1100.0.0' } },
+  ]
+  const plan = assembleReleasePlan({
+    workspaceDir: '/ws',
+    projects,
+    intents: [makeIntent('one', { pnpm: 'major' })],
+    ledger: NO_LEDGER,
+    // '!./pkgs/b' first, then './pkgs/**' — the later include wins, so b is a member.
+    versioning: { epics: [{ lead: './pnpm', packages: ['!./pkgs/b', './pkgs/**'] }] },
+  })
+  expect(plan.releases.map((release) => release.name).sort()).toStrictEqual(['@scope/a', '@scope/b', 'pnpm'])
+})
+
+test('a package matched by two epics is a configuration error', () => {
+  expect(() => assembleReleasePlan({
+    workspaceDir: '/ws',
+    projects: [makeProject('pnpm', '11.0.0'), makeProject('other', '2.0.0'), makeProject('lib', '1101.0.0')],
+    intents: [],
+    ledger: NO_LEDGER,
+    versioning: {
+      epics: [
+        { lead: 'pnpm', packages: ['lib'] },
+        { lead: 'other', packages: ['lib'] },
+      ],
+    },
+  })).toThrow(/at most one epic/)
+})
+
+test('a fixed group straddling an epic boundary is a configuration error', () => {
+  expect(() => assembleReleasePlan({
+    workspaceDir: '/ws',
+    projects: [makeProject('pnpm', '11.0.0'), makeProject('lib', '1101.0.0'), makeProject('outsider', '3.0.0')],
+    intents: [],
+    ledger: NO_LEDGER,
+    versioning: {
+      epics: [{ lead: 'pnpm', packages: ['lib'] }],
+      fixed: [['lib', 'outsider']],
+    },
+  })).toThrow(/straddles the epic/)
+})
+
+test('a member major bump that would exceed the band ceiling is rejected', () => {
+  expect(() => assembleReleasePlan({
+    workspaceDir: '/ws',
+    projects: [makeProject('pnpm', '11.0.0'), makeProject('lib', '1199.4.2')],
+    intents: [makeIntent('one', { lib: 'major' })],
+    ledger: NO_LEDGER,
+    versioning: { epics: [{ lead: 'pnpm', packages: ['lib'] }] },
+  })).toThrow(/band is exhausted/)
+})
+
+test('a member below its epic band is rejected when it releases', () => {
+  expect(() => assembleReleasePlan({
+    workspaceDir: '/ws',
+    projects: [makeProject('pnpm', '11.0.0'), makeProject('lib', '5.0.0')],
+    intents: [makeIntent('one', { lib: 'patch' })],
+    ledger: NO_LEDGER,
+    versioning: { epics: [{ lead: 'pnpm', packages: ['lib'] }] },
+  })).toThrow(/outside the band 1100-1199/)
+})
+
+test('the top of the band takes a minor without tripping the ceiling guard', () => {
+  const plan = assembleReleasePlan({
+    workspaceDir: '/ws',
+    projects: [makeProject('pnpm', '11.0.0'), makeProject('lib', '1199.4.2')],
+    intents: [makeIntent('one', { lib: 'minor' })],
+    ledger: NO_LEDGER,
+    versioning: { epics: [{ lead: 'pnpm', packages: ['lib'] }] },
+  })
+  expect(plan.releases.find((release) => release.name === 'lib')!.newVersion).toBe('1199.5.0')
+})
+
+test('an epic whose lead is not a releasable project fails the plan', () => {
+  expect(() => assembleReleasePlan({
+    workspaceDir: '/ws',
+    projects: [makeProject('lib', '1101.0.0')],
+    intents: [],
+    ledger: NO_LEDGER,
+    versioning: { epics: [{ lead: 'ghost', packages: ['lib'] }] },
+  })).toThrow(/is not a releasable workspace project/)
+})
