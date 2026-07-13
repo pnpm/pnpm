@@ -356,7 +356,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
 
     const modifiedProjects = allManifestStats.filter(
       ({ manifestStats }) =>
-        manifestStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp
+        modifiedAtOrAfter(manifestStats, workspaceState.lastValidatedTimestamp)
     )
 
     if ((modifiedProjects.length === 0) && !lockfilesModified) {
@@ -414,7 +414,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
           useGitBranchLockfile: opts.useGitBranchLockfile,
           mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
         })
-        if (wantedLockfileStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp) {
+        if (modifiedAtOrAfter(wantedLockfileStats, workspaceState.lastValidatedTimestamp)) {
           const currentLockfile = await readCurrentLockfile(path.join(workspaceDir, 'node_modules/.pnpm'), { ignoreIncompatible: false })
           const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(workspaceDir)
           assertLockfilesEqual(currentLockfile, wantedLockfile, workspaceDir)
@@ -434,7 +434,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
         const wantedLockfileStats = await safeStat(path.join(wantedLockfileDir, wantedLockfileName))
 
         if (!wantedLockfileStats) return throwLockfileNotFound(wantedLockfileDir)
-        if (wantedLockfileStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp) {
+        if (modifiedAtOrAfter(wantedLockfileStats, workspaceState.lastValidatedTimestamp)) {
           const currentLockfile = await readCurrentLockfile(path.join(wantedLockfileDir, 'node_modules/.pnpm'), { ignoreIncompatible: false })
           const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(wantedLockfileDir)
           assertLockfilesEqual(currentLockfile, wantedLockfile, wantedLockfileDir)
@@ -560,7 +560,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       return { upToDate: false, issue, workspaceState }
     }
 
-    if (!wantedLockfileIsMissing && currentLockfileStats && wantedLockfileStats.mtime.valueOf() > currentLockfileStats.mtime.valueOf()) {
+    if (!wantedLockfileIsMissing && currentLockfileStats && modifiedAtOrAfter(wantedLockfileStats, currentLockfileStats.mtime.valueOf())) {
       const currentLockfile = await currentLockfilePromise
       const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(rootProjectManifestDir)
       assertLockfilesEqual(currentLockfile, wantedLockfile, rootProjectManifestDir)
@@ -571,7 +571,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       throw new Error(`Cannot find one of ${MANIFEST_BASE_NAMES.join(', ')} in ${rootProjectManifestDir}`)
     }
 
-    if (manifestStats.mtime.valueOf() > effectiveWantedLockfileStats.mtime.valueOf()) {
+    if (modifiedAtOrAfter(manifestStats, effectiveWantedLockfileStats.mtime.valueOf())) {
       logger.debug({ msg: 'The manifest is newer than the lockfile. Continuing check.' })
       try {
         await assertWantedLockfileUpToDate({
@@ -890,15 +890,15 @@ function scanWantedLockfiles (lockfileDirs: string[], lastValidatedTimestamp: nu
       : [opts.wantedLockfileName]
     let foundInDir = false
     for (const lockfileName of lockfileNames) {
-      let mtime: number
+      let stats: fs.Stats
       try {
-        mtime = fs.statSync(path.join(lockfileDir, lockfileName)).mtime.valueOf()
+        stats = fs.statSync(path.join(lockfileDir, lockfileName))
       } catch (err: unknown) {
         if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') continue
         throw err
       }
       foundInDir = true
-      if (mtime <= lastValidatedTimestamp) continue
+      if (!modifiedAtOrAfter(stats, lastValidatedTimestamp)) continue
       anyModified = true
       if (wantedLockfileHasMergeConflictsSync(lockfileDir, lockfileName)) {
         conflictedDir = lockfileDir
@@ -939,7 +939,7 @@ async function patchesOrHooksAreModified (opts: {
     }))
     if (allPatchStats.some(
       (patch) =>
-        patch && patch.mtime.valueOf() > opts.lastValidatedTimestamp
+        patch && modifiedAtOrAfter(patch, opts.lastValidatedTimestamp)
     )) {
       return 'Patches were modified'
     }
@@ -952,9 +952,30 @@ async function patchesOrHooksAreModified (opts: {
     if (pnpmfileStats == null) {
       return `pnpmfile at "${pnpmfilePath}" was removed`
     }
-    if (pnpmfileStats.mtime.valueOf() > opts.lastValidatedTimestamp) {
+    if (modifiedAtOrAfter(pnpmfileStats, opts.lastValidatedTimestamp)) {
       return `pnpmfile at "${pnpmfilePath}" was modified`
     }
   }
   return undefined
+}
+
+// Whether a file with these `stats` may have been modified at or after
+// `referenceMs`. On a filesystem that keeps sub-second mtimes the
+// comparison is exact; on one that rounds mtimes down to whole seconds
+// (ext4 with 128-byte inodes, HFS+, some CI runner disks) the file could
+// have been touched anywhere within its second, so the whole second
+// counts as possibly-after. Without this a manifest, lockfile, patch, or
+// pnpmfile edited in the same second as the previous install looks
+// unchanged and the deps-status fast path wrongly reports up to date.
+// Erring toward "modified" only runs the authoritative content check; it
+// never skips a needed install, and it is a no-op on sub-second
+// filesystems, so the common case is unaffected.
+//
+// `mtimeMs` keeps the sub-millisecond fraction, so a whole-second mtime
+// has no remainder modulo 1000; `mtime.valueOf()` is truncated to whole
+// milliseconds and would misread a sub-millisecond mtime as whole-second.
+function modifiedAtOrAfter (stats: fs.Stats, referenceMs: number): boolean {
+  const wholeSecond = stats.mtimeMs % 1000 === 0
+  const mtimeMs = stats.mtime.valueOf()
+  return wholeSecond ? mtimeMs + 1000 > referenceMs : mtimeMs > referenceMs
 }

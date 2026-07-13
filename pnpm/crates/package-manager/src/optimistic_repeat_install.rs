@@ -236,7 +236,7 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
     };
     let modified: Vec<&ManifestStat<'_>> = manifest_stats
         .iter()
-        .filter(|stat| stat.mtime_ms > state.last_validated_timestamp)
+        .filter(|stat| modified_at_or_after(stat.mtime, state.last_validated_timestamp))
         .collect();
 
     // A lockfile-only change — `git checkout`/stash-restore of just
@@ -488,7 +488,7 @@ fn regenerate_wanted_lockfile_if_missing(
 struct ManifestStat<'a> {
     root_dir: &'a Path,
     manifest: &'a PackageManifest,
-    mtime_ms: i64,
+    mtime: FileMtime,
 }
 
 /// The modified-manifests branch: the lockfile-equality assertion plus
@@ -519,8 +519,8 @@ fn modified_manifests_match_lockfile(
     let mut loaded_current: Option<Lockfile> = None;
     let mut wanted_is_current = false;
     let lockfile = lockfile.get().map_err(|_| "the wanted lockfile cannot be read or parsed")?;
-    let (wanted, wanted_mtime_ms): (&Lockfile, i64) = if let Some(wanted) = lockfile {
-        let Some(mtime) = mtime_ms(&workspace_root.join(Lockfile::FILE_NAME)) else {
+    let (wanted, wanted_mtime): (&Lockfile, FileMtime) = if let Some(wanted) = lockfile {
+        let Some(mtime) = file_mtime(&workspace_root.join(Lockfile::FILE_NAME)) else {
             return Err(
                 "a manifest is newer than the last validation and pnpm-lock.yaml cannot be stat'd",
             );
@@ -528,7 +528,7 @@ fn modified_manifests_match_lockfile(
         (wanted, mtime)
     } else {
         let current_path = config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
-        let Some(mtime) = mtime_ms(&current_path) else {
+        let Some(mtime) = file_mtime(&current_path) else {
             return Err("a manifest is newer than the last validation and no lockfile is loaded");
         };
         let current = Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir)
@@ -550,7 +550,7 @@ fn modified_manifests_match_lockfile(
     } else if is_workspace_install {
         // Workspace branch: a wanted lockfile newer than the last
         // validation must equal what the previous install materialized.
-        if wanted_mtime_ms > state.last_validated_timestamp {
+        if modified_at_or_after(wanted_mtime, state.last_validated_timestamp) {
             assert_wanted_lockfile_equals_current(wanted, config)?;
         }
         modified
@@ -560,12 +560,12 @@ fn modified_manifests_match_lockfile(
         let current_mtime_ms =
             mtime_ms(&config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME));
         if let Some(current_mtime_ms) = current_mtime_ms
-            && wanted_mtime_ms > current_mtime_ms
+            && modified_at_or_after(wanted_mtime, current_mtime_ms)
         {
             assert_wanted_lockfile_equals_current(wanted, config)?;
         }
         let root = modified.first().expect("modified-manifests branch requires a modified project");
-        if root.mtime_ms > wanted_mtime_ms {
+        if modified_at_or_after(root.mtime, wanted_mtime.ms) {
             modified
         } else if current_mtime_ms.is_some() {
             // "The manifest file is not newer than the lockfile.
@@ -841,14 +841,51 @@ fn semver_satisfies_loosely(version: &str, range: &str) -> bool {
     range.satisfies(&version)
 }
 
-/// Millisecond mtime of `path`, `None` when it can't be stat'd.
-/// Converts wall-clock to ms-since-epoch the same way
-/// `pacquet_workspace_state::now_millis` does on the write side, so
-/// comparisons against `lastValidatedTimestamp` are apples-to-apples.
-fn mtime_ms(path: &Path) -> Option<i64> {
+/// A file's mtime reduced to the two facts the repeat-install fast path
+/// compares: milliseconds since the epoch, and whether the filesystem
+/// recorded it at whole-second resolution.
+#[derive(Clone, Copy)]
+struct FileMtime {
+    /// Milliseconds since the epoch, matching the `now_millis` the write
+    /// side stamps into `lastValidatedTimestamp` so the two are
+    /// apples-to-apples.
+    ms: i64,
+    /// The filesystem stored no sub-second component, so the real
+    /// modification time lies anywhere in `[ms, ms + 1000)`. True on
+    /// second-granularity filesystems (ext4 with 128-byte inodes, HFS+,
+    /// some CI runner disks); false wherever mtimes keep sub-second
+    /// precision (ext4 256-byte inodes, APFS, NTFS, xfs, and so on).
+    whole_second: bool,
+}
+
+/// [`FileMtime`] of `path`, `None` when it can't be stat'd.
+fn file_mtime(path: &Path) -> Option<FileMtime> {
     let modified = fs::metadata(path).and_then(|metadata| metadata.modified()).ok()?;
     let elapsed = modified.duration_since(SystemTime::UNIX_EPOCH).ok()?;
-    Some(i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX))
+    Some(FileMtime {
+        ms: i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX),
+        whole_second: elapsed.subsec_nanos() == 0,
+    })
+}
+
+/// Millisecond mtime of `path`, `None` when it can't be stat'd.
+fn mtime_ms(path: &Path) -> Option<i64> {
+    file_mtime(path).map(|mtime| mtime.ms)
+}
+
+/// Whether a file with mtime `subject` may have been modified at or after
+/// `reference_ms`. On a filesystem that keeps sub-second mtimes the
+/// comparison is exact (`ms > reference`); on one that rounds mtimes down
+/// to whole seconds the file could have been touched anywhere within its
+/// second, so the whole second counts as possibly-after
+/// (`ms + 1000 > reference`). A manifest, lockfile, patch, or pnpmfile
+/// edited in the same second as the previous install would otherwise
+/// look unchanged there and wrongly keep the fast path. Erring toward
+/// "modified" only runs the authoritative content check — it never skips
+/// a needed install — and it is a no-op on sub-second filesystems, so the
+/// common case is unaffected.
+fn modified_at_or_after(subject: FileMtime, reference_ms: i64) -> bool {
+    if subject.whole_second { subject.ms + 1_000 > reference_ms } else { subject.ms > reference_ms }
 }
 
 /// Whether `<workspace_root>/pnpm-lock.yaml` has an mtime newer than the
@@ -857,8 +894,8 @@ fn mtime_ms(path: &Path) -> Option<i64> {
 /// missing lockfile reports `false` here — it is handled by the
 /// existence and stand-in gates, not treated as a modification.
 fn wanted_lockfile_modified(workspace_root: &Path, last_validated_timestamp: i64) -> bool {
-    mtime_ms(&workspace_root.join(Lockfile::FILE_NAME))
-        .is_some_and(|mtime| mtime > last_validated_timestamp)
+    file_mtime(&workspace_root.join(Lockfile::FILE_NAME))
+        .is_some_and(|mtime| modified_at_or_after(mtime, last_validated_timestamp))
 }
 
 fn current_lockfile_unusable_with_non_empty_wanted(
@@ -1292,14 +1329,7 @@ fn patches_modified_since(workspace_root: &Path, config: &Config, cutoff_ms: i64
         } else {
             workspace_root.join(candidate)
         };
-        let Ok(modified) = fs::metadata(&path).and_then(|metadata| metadata.modified()) else {
-            return false;
-        };
-        let Ok(elapsed) = modified.duration_since(SystemTime::UNIX_EPOCH) else {
-            return false;
-        };
-        let modified_ms = i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX);
-        modified_ms > cutoff_ms
+        file_mtime(&path).is_some_and(|mtime| modified_at_or_after(mtime, cutoff_ms))
     })
 }
 
@@ -1331,14 +1361,11 @@ fn pnpmfiles_drift(workspace_root: &Path, previous: &[String], cutoff_ms: i64) -
         return Some("The list of pnpmfiles changed.".to_string());
     }
     current.iter().find_map(|path| {
-        let Ok(modified) = fs::metadata(path).and_then(|metadata| metadata.modified()) else {
+        let Some(mtime) = file_mtime(Path::new(path)) else {
             return Some(format!(r#"pnpmfile at "{path}" was removed"#));
         };
-        let Ok(elapsed) = modified.duration_since(SystemTime::UNIX_EPOCH) else {
-            return Some(format!(r#"pnpmfile at "{path}" was modified"#));
-        };
-        let modified_ms = i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX);
-        (modified_ms > cutoff_ms).then(|| format!(r#"pnpmfile at "{path}" was modified"#))
+        modified_at_or_after(mtime, cutoff_ms)
+            .then(|| format!(r#"pnpmfile at "{path}" was modified"#))
     })
 }
 
@@ -1350,10 +1377,10 @@ fn stat_manifests<'a>(
     project_manifests
         .iter()
         .map(|(root_dir, manifest)| {
-            mtime_ms(manifest.path()).map(|mtime_ms| ManifestStat {
+            file_mtime(manifest.path()).map(|mtime| ManifestStat {
                 root_dir: root_dir.as_path(),
                 manifest,
-                mtime_ms,
+                mtime,
             })
         })
         .collect()
@@ -1453,7 +1480,7 @@ pub fn check_deps_status_before_run(
     };
     let modified: Vec<&ManifestStat<'_>> = manifest_stats
         .iter()
-        .filter(|stat| stat.mtime_ms > state.last_validated_timestamp)
+        .filter(|stat| modified_at_or_after(stat.mtime, state.last_validated_timestamp))
         .collect();
     let lockfile_modified =
         wanted_lockfile_modified(workspace_root, state.last_validated_timestamp);
