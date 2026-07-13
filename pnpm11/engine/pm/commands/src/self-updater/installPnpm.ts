@@ -490,9 +490,11 @@ function buildLockfileFromEnvLockfile (
 
   const packages: Record<string, PackageSnapshot> = {}
   for (const [depPath, snapshot] of Object.entries(envLockfile.snapshots)) {
+    const pkgSnapshot = envLockfile.packages[depPath] ?? envLockfile.packages[getPkgIdWithPatchHash(depPath as DepPath)]
+
     packages[depPath as DepPath] = {
       ...snapshot,
-      ...envLockfile.packages[depPath],
+      ...pkgSnapshot,
     }
   }
 
