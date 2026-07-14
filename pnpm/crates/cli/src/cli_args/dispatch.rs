@@ -10,6 +10,7 @@ use crate::{
 use miette::{Context, IntoDiagnostic};
 use pacquet_config::{Config, Host, default_pnpm_home_dir};
 use pacquet_default_reporter::SummaryScope;
+use pacquet_network_web_auth::OtpNonInteractiveError;
 use pacquet_reporter::{ExecutionTimeLog, LogEvent, LogLevel};
 use std::{future::Future, path::Path, pin::Pin};
 
@@ -398,17 +399,47 @@ fn prints_json_errors(command: &CliCommand) -> bool {
 
 fn print_json_error(error: &miette::Report) {
     let code = error.code().map(|code| code.to_string()).unwrap_or_else(|| "pnpm".to_string());
-    let message = error.chain().last().map_or_else(|| error.to_string(), ToString::to_string);
+    let message = json_error_message(error);
+    let mut error_body = serde_json::json!({
+        "code": code,
+        "message": message,
+    });
+    if let Some(otp_error) = otp_non_interactive_error(error) {
+        if let Some(auth_url) = &otp_error.auth_url {
+            error_body["authUrl"] = serde_json::Value::String(auth_url.clone());
+        }
+        if let Some(done_url) = &otp_error.done_url {
+            error_body["doneUrl"] = serde_json::Value::String(done_url.clone());
+        }
+    }
     let output = serde_json::json!({
-        "error": {
-            "code": code,
-            "message": message,
-        },
+        "error": error_body,
     });
     println!(
         "{}",
         serde_json::to_string_pretty(&output).expect("a JSON error envelope serializes"),
     );
+}
+
+fn json_error_message(error: &miette::Report) -> String {
+    let messages =
+        error.chain().map(ToString::to_string).fold(Vec::new(), |mut messages, message| {
+            if messages.last() != Some(&message) {
+                messages.push(message);
+            }
+            messages
+        });
+    match messages.as_slice() {
+        [context, source, ..] if context == "pack the package" => source.clone(),
+        [_, ..] => messages.join(": "),
+        [] => error.to_string(),
+    }
+}
+
+fn otp_non_interactive_error(error: &miette::Report) -> Option<&OtpNonInteractiveError> {
+    error
+        .downcast_ref::<OtpNonInteractiveError>()
+        .or_else(|| error.chain().find_map(|cause| cause.downcast_ref::<OtpNonInteractiveError>()))
 }
 
 fn now_millis() -> u128 {
