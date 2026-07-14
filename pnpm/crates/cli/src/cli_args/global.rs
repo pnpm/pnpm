@@ -25,7 +25,7 @@ use pacquet_global::{
     scan_global_packages,
 };
 use pacquet_package_is_installable::SupportedArchitectures;
-use pacquet_package_manifest::DependencyGroup;
+use pacquet_package_manifest::{DependencyGroup, safe_read_package_json_from_dir};
 use pacquet_registry::PinnedVersion;
 use pacquet_reporter::Reporter;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
@@ -348,11 +348,12 @@ async fn run_group_install<Reporter: self::Reporter + 'static>(
 
     let manifest_path = install_dir.join("package.json");
     for selector in selectors {
+        let selector = infer_local_package_alias(selector)?;
         let state = State::init(manifest_path.clone(), config, false)
             .wrap_err("initialize the global install state")?;
         add_package::<Reporter, _, _>(
             state,
-            selector,
+            &selector,
             pinned_version,
             None,
             false,
@@ -583,6 +584,25 @@ fn resolve_local_param(param: &str, base_dir: &Path) -> String {
         return lexical_normalize(&base_dir.join(param)).display().to_string();
     }
     param.to_string()
+}
+
+fn infer_local_package_alias(selector: &str) -> miette::Result<String> {
+    let Some(path) = selector.strip_prefix("file:").map(Path::new).filter(|path| path.is_dir())
+    else {
+        return Ok(selector.to_string());
+    };
+    let manifest = safe_read_package_json_from_dir(path)
+        .map_err(miette::Report::new)
+        .wrap_err_with(|| format!("read local package manifest from {}", path.display()))?
+        .ok_or_else(|| miette::miette!("No package.json was found in {}", path.display()))?;
+    let name = manifest
+        .get("name")
+        .and_then(serde_json::Value::as_str)
+        .filter(|name| !name.is_empty())
+        .ok_or_else(|| {
+            miette::miette!("The local package at {} has no package name", path.display())
+        })?;
+    Ok(format!("{name}@{selector}"))
 }
 
 fn is_windows_drive_path(param: &str) -> bool {
