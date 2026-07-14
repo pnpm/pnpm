@@ -17,6 +17,16 @@ on:
   # version tags.
   workflow_dispatch:
 
+# A release PR that bumps several products auto-tags each one (tag-release.yml),
+# so several version tags can land together and start a run apiece. Serialize
+# them: the plan job gates every publish on what npm reports as unpublished, so
+# once the first run publishes a product the rest skip it — but only if they
+# don't run concurrently and all read "unpublished" at once. Never cancel a
+# run mid-publish.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   validate-release-ref:
     runs-on: ubuntu-latest

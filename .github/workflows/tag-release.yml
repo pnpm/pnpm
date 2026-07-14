@@ -1,0 +1,82 @@
+name: Tag Release
+
+# When a release PR (opened by create-release-pr.yml) is merged, derive the
+# version tags from the committed manifests and push them. This replaces the
+# manual `git tag && git push` step: deriving each tag from the version already
+# committed on the merge commit makes it impossible to tag a name that doesn't
+# match what was published (a mismatch drafts a GitHub release for a tag that
+# doesn't exist and the release workflow fails).
+on:
+  pull_request:
+    types:
+      - closed
+
+# The checkout only needs read; the tags are pushed with a PAT (below) so the
+# push triggers release.yml — a tag pushed with the default GITHUB_TOKEN would
+# not, by GitHub's workflow-recursion guard.
+permissions:
+  contents: read
+
+jobs:
+  tag-release:
+    name: Push version tags for the merged release
+    # Only merged release PRs on the main repository. `create-release-pr.yml`
+    # always opens them from a `release-pr/<target>` head branch.
+    if: >-
+      github.repository == 'pnpm/pnpm' &&
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'release-pr/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the merge commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          persist-credentials: false
+
+      - name: Push version tags for released products
+        # The manifests read here are exactly the ones release.yml's plan job
+        # reads to decide what to publish, so each `v<version>` tag matches the
+        # version its product will publish. A tag that already exists (a product
+        # whose version didn't change this release) is skipped, so only the
+        # freshly bumped products get tagged — and release.yml still gates the
+        # actual publish on what npm reports as unpublished.
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_LOCKFILE_TOKEN }}
+          SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -eu
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          # Tags already on the remote, so a re-run or an unchanged product can
+          # never clobber or repush an existing version tag. `seen` is a
+          # space-padded set for the ` $tag ` membership test; it also collects
+          # the tags staged this run so a shared version can't be pushed twice.
+          seen=" $(git ls-remote --tags "$REMOTE" | awk '{ print $2 }' | sed 's#refs/tags/##' | tr '\n' ' ') "
+
+          to_push=()
+          add_tag() {
+            local manifest="$1" tag
+            tag="v$(jq -r .version "$manifest")"
+            case "$seen" in
+              *" $tag "*)
+                echo "$tag already exists; skipping"
+                return
+                ;;
+            esac
+            git tag "$tag" "$SHA"
+            to_push+=("$tag")
+            seen="$seen$tag "
+          }
+
+          add_tag pnpm11/pnpm/package.json
+          add_tag pnpm/npm/pnpm/package.json
+          add_tag pnpr/npm/pnpr/package.json
+
+          if [ ${#to_push[@]} -eq 0 ]; then
+            echo "No new version tags to push"
+            exit 0
+          fi
+
+          echo "Pushing: ${to_push[*]}"
+          git push "$REMOTE" "${to_push[@]}"
