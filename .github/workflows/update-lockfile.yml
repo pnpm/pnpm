@@ -19,6 +19,12 @@ jobs:
   update-lockfile:
     if: github.repository == 'pnpm/pnpm' # Only run on the main repository, not forks
     runs-on: ubuntu-latest
+    env:
+      # The husky hooks are a developer safety net; CI has its own gates. Without
+      # this, the full install wires the hooks and the pre-push hook runs the TS
+      # compile/lint (and, when the remote branch doesn't exist yet, the Rust
+      # clippy/doc sweep) during "Commit and push".
+      HUSKY: 0
     steps:
     - name: Checkout Commit
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
