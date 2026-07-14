@@ -288,12 +288,8 @@ async fn update_project_pin(
             .is_some_and(|(name, version)| name == "pnpm" && version.is_some());
 
         let mut changed = false;
-        // The specifier recorded in packageManagerDependencies must match the
-        // devEngines pin a later install reads back (see
-        // `package_manager::package_manager_to_sync`), not the CLI dist-tag —
-        // otherwise a subsequent `--frozen-lockfile` install treats the
-        // lockfile as outdated. Default to the resolved version for the case
-        // where there is no readable pnpm entry to update.
+        // Falls back to the resolved version when devEngines has no pnpm entry
+        // to update; `package_manager_pin_specifier` supplies it otherwise.
         let mut pin_specifier = target_version.to_string();
         if let Some(entry) = dev_engines_pnpm_entry_mut(manifest.value_mut()) {
             let current = entry.get("version").and_then(Value::as_str);

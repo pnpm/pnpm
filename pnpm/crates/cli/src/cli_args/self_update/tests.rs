@@ -40,11 +40,9 @@ fn seed_global_engine(global_dir: &Path, package_name: &str, version: &str) {
 
 #[test]
 fn pin_specifier_records_the_resolved_pin_not_the_cli_dist_tag() {
-    // Regression: `self-update next-12` resolves to an exact prerelease and
-    // rewrites the exact devEngines pin to it, so the packageManagerDependencies
-    // specifier must be that resolved version — not the `next-12` dist-tag the
-    // user typed. Recording the dist-tag desyncs the lockfile from the manifest
-    // pin and breaks the next `--frozen-lockfile` install.
+    // Guards the `self-update next-12` regression: recording the dist-tag
+    // instead of the resolved pin desyncs the lockfile from the manifest and
+    // breaks the next `--frozen-lockfile` install.
     assert_eq!(
         package_manager_pin_specifier(false, Some("12.0.0-alpha.9"), "12.0.0-alpha.10"),
         "12.0.0-alpha.10",
