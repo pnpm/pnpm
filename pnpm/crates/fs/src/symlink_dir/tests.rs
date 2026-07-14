@@ -16,6 +16,8 @@ use std::fs;
 use std::path::Path;
 #[cfg(unix)]
 use std::path::PathBuf;
+#[cfg(windows)]
+use std::sync::{Arc, Barrier};
 use tempfile::tempdir;
 
 #[cfg(unix)]
@@ -176,6 +178,48 @@ fn windows_native_path_is_borrowed_unchanged() {
     let native = Path::new(r"C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\dep");
     assert!(matches!(to_native_separators(native), std::borrow::Cow::Borrowed(_)));
     assert_eq!(to_native_separators(native).as_ref(), native);
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_concurrent_junction_creation_reuses_one_link() {
+    super::windows::force_junction_mode();
+
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("target");
+    fs::create_dir_all(&target).expect("create target");
+
+    for iteration in 0..10 {
+        let link = root.path().join(format!("link-{iteration}"));
+        let barrier = Arc::new(Barrier::new(32));
+        let outcomes = std::thread::scope(|scope| {
+            let handles: Vec<_> = (0..32)
+                .map(|_| {
+                    let barrier = Arc::clone(&barrier);
+                    let link = &link;
+                    let target = &target;
+                    scope.spawn(move || {
+                        barrier.wait();
+                        force_symlink_dir(target, link)
+                    })
+                })
+                .collect();
+            handles
+                .into_iter()
+                .map(|handle| handle.join().expect("junction worker panicked"))
+                .collect::<Vec<_>>()
+        });
+
+        let outcomes: Vec<_> = outcomes
+            .into_iter()
+            .map(|result| result.expect("concurrent junction creation must succeed"))
+            .collect();
+        assert_eq!(
+            outcomes.iter().filter(|outcome| !outcome.reused).count(),
+            1,
+            "one worker must create the junction and every other worker must reuse it",
+        );
+    }
 }
 
 #[cfg(windows)]
