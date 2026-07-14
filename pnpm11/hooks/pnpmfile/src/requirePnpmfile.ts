@@ -94,16 +94,19 @@ export async function requirePnpmfile (pnpmFilePath: string, prefix: string): Pr
       console.error(err)
       process.exit(1)
     }
+    if (
+      typeof err === 'object' &&
+      err !== null &&
+      'code' in err &&
+      (err.code === 'MODULE_NOT_FOUND' || err.code === 'ERR_MODULE_NOT_FOUND') &&
+      !pnpmFileExistsSync(pnpmFilePath)
+    ) {
+      return undefined
+    }
     if (!util.types.isNativeError(err)) {
       throw new PnpmFileFailError(pnpmFilePath, toError(err))
     }
-    if (
-      !('code' in err && (err.code === 'MODULE_NOT_FOUND' || err.code === 'ERR_MODULE_NOT_FOUND')) ||
-      pnpmFileExistsSync(pnpmFilePath)
-    ) {
-      throw new PnpmFileFailError(pnpmFilePath, err)
-    }
-    return undefined
+    throw new PnpmFileFailError(pnpmFilePath, err)
   }
 }
 
