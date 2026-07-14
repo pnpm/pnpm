@@ -144,6 +144,15 @@ jobs:
           tool: just
 
       - name: Install dependencies
+        # This step installs with the *released* packageManager, so an
+        # in-tree fix to the global virtual store's Windows symlink layout
+        # only reaches it one alpha release later (pnpm/pnpm#12991 is the
+        # latest example: merged, but every Windows run fails until it is
+        # published). Fall back to the classic virtual store on Windows so
+        # the Rust test job isn't coupled to that release lag; the other
+        # platforms keep dogfooding the global virtual store.
+        env:
+          PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE: ${{ runner.os == 'Windows' && 'false' || 'true' }}
         run: just install
 
       - name: Install cargo-nextest
