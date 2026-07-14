@@ -4,7 +4,7 @@ import { calcGlobalVirtualStorePathWithSubdeps, calcLeafGlobalVirtualStorePath }
 describe('calcLeafGlobalVirtualStorePath', () => {
   it('returns a stable path for a leaf package', () => {
     const path = calcLeafGlobalVirtualStorePath('foo@1.0.0:sha512-abc', 'foo', '1.0.0')
-    expect(path).toMatch(/^@\/foo\/1\.0\.0\/[a-f0-9]+$/)
+    expect(path).toMatch(/^@[/\\]foo[/\\]1\.0\.0[/\\][a-f0-9]+$/)
   })
 
   // The version segment is lockfile-controlled and inserted raw into the slot
