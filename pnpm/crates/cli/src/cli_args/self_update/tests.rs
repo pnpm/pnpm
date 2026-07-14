@@ -1,4 +1,7 @@
-use super::{install_pnpm, is_installed_globally, update_version_constraint, version_lt};
+use super::{
+    install_pnpm, is_installed_globally, package_manager_pin_specifier, update_version_constraint,
+    version_lt,
+};
 use std::{fs, path::Path};
 
 #[test]
@@ -33,6 +36,24 @@ fn seed_global_engine(global_dir: &Path, package_name: &str, version: &str) {
     .unwrap();
     pacquet_fs::force_symlink_dir(&install_dir, &global_dir.join(format!("hash-{version}")))
         .unwrap();
+}
+
+#[test]
+fn pin_specifier_records_the_resolved_pin_not_the_cli_dist_tag() {
+    // Guards the `self-update next-12` regression: recording the dist-tag
+    // instead of the resolved pin desyncs the lockfile from the manifest and
+    // breaks the next `--frozen-lockfile` install.
+    assert_eq!(
+        package_manager_pin_specifier(false, Some("12.0.0-alpha.9"), "12.0.0-alpha.10"),
+        "12.0.0-alpha.10",
+    );
+    // A range pin is preserved (the lockfile pins the exact version), so the
+    // specifier is the range a later install reads back from the manifest.
+    assert_eq!(package_manager_pin_specifier(false, Some("^12.0.0"), "12.1.0"), "^12.0.0");
+    // A legacy `packageManager` pin is always exact.
+    assert_eq!(package_manager_pin_specifier(true, Some("^12.0.0"), "12.1.0"), "12.1.0");
+    // No prior constraint → the resolved version.
+    assert_eq!(package_manager_pin_specifier(false, None, "12.1.0"), "12.1.0");
 }
 
 #[test]
