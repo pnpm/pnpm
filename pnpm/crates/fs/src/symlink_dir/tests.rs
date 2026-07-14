@@ -133,12 +133,6 @@ fn windows_cross_drive_symlink_target_falls_back_to_absolute() {
     assert_eq!(relative_target_for(target, link), target);
 }
 
-/// Regression for the Windows CI failure where a scoped dependency's
-/// `node_modules/@scope/name` symlink path — built by joining the
-/// `@scope/name` alias as a single segment — kept its forward slash and
-/// was rejected by `CreateSymbolicLinkW` with `ERROR_DIRECTORY`
-/// (os error 267). The writer must rewrite it to a native `\` path
-/// before the syscall.
 #[cfg(windows)]
 #[test]
 fn windows_scoped_alias_path_gets_native_separators() {
@@ -159,10 +153,8 @@ fn windows_scoped_alias_path_gets_native_separators() {
     );
 }
 
-/// Even a verbatim `\\?\` path — where `Path::components` would treat
-/// `/` as a literal filename byte rather than a separator — must have
-/// its forward slashes rewritten. The rewrite runs before the stdlib's
-/// own verbatim conversion, so it must not rely on component parsing.
+/// The verbatim `\\?\` form is the case a `Path::components` rewrite
+/// would miss, since it treats `/` there as a literal byte.
 #[cfg(windows)]
 #[test]
 fn windows_verbatim_path_forward_slashes_are_rewritten() {
@@ -178,8 +170,6 @@ fn windows_verbatim_path_forward_slashes_are_rewritten() {
     );
 }
 
-/// A path that already uses native separators must be returned
-/// unchanged (and borrowed, not reallocated).
 #[cfg(windows)]
 #[test]
 fn windows_native_path_is_borrowed_unchanged() {
@@ -206,10 +196,6 @@ fn windows_verbatim_and_plain_disk_resolve_to_same_root() {
     assert!(relative_target_for(target, link).is_relative());
 }
 
-/// A scoped dependency's link path is built by joining the whole
-/// `@scope/name` alias as one segment. `force_symlink_dir` must create
-/// the intervening `@scope` directory and the link regardless of the
-/// separator the join left behind.
 #[test]
 fn force_symlink_dir_links_a_scoped_alias() {
     let root = tempdir().expect("create temp dir");

@@ -33,34 +33,25 @@ pub fn symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
     }
 }
 
-/// Rewrite `path` so every directory separator is the platform-native
-/// one.
+/// Rewrite every `/` in `path` to the native `\` on Windows.
 ///
-/// [`Path::join`] appends each segment verbatim, so an alias that is
-/// itself a `/`-bearing string — a scoped package like `@scope/name`,
-/// joined into `node_modules` as one segment — leaves a forward slash
-/// in an otherwise `\`-separated Windows path. That slash survives into
-/// `CreateSymbolicLinkW`, which rejects forward-slash paths (the long
-/// store paths reach it in verbatim `\\?\` form, where `/` is a literal
-/// filename byte rather than a separator) with `ERROR_DIRECTORY`
-/// (os error 267). Every `/` is rewritten to `\`.
+/// A scoped alias like `@scope/name` is joined into a path as a single
+/// segment, and [`Path::join`] appends it verbatim, leaving a forward
+/// slash that `CreateSymbolicLinkW` rejects with `ERROR_DIRECTORY`
+/// (os error 267) — the long store paths reach it in verbatim `\\?\`
+/// form, where `/` is a literal byte rather than a separator.
 ///
-/// Borrows unless a rewrite is actually needed. A no-op on Unix, where
-/// `/` is already native.
+/// Borrows unless a rewrite is needed; a no-op on Unix.
 #[cfg(windows)]
 fn to_native_separators(path: &Path) -> Cow<'_, Path> {
-    // WTF-8 keeps ASCII bytes verbatim, so a literal `/` (0x2F) shows up
-    // here iff the path really carries a forward slash — cheaper than
-    // allocating a `String` to scan.
+    // In WTF-8 a 0x2F byte appears iff the path holds a literal `/`, so
+    // scanning bytes is a correct, allocation-free check.
     if !path.as_os_str().as_encoded_bytes().contains(&b'/') {
         return Cow::Borrowed(path);
     }
-    // A plain `/`→`\` string replacement rather than rebuilding from
-    // `Path::components`, because in a verbatim `\\?\` path `components`
-    // treats `/` as a literal filename byte, not a separator, and would
-    // leave it in place. Package paths are always valid Unicode, so
-    // `to_str` succeeds; a path that somehow isn't UTF-8 carries no
-    // separator-intended `/` and is returned untouched.
+    // A string replace, not `Path::components`: in a verbatim `\\?\`
+    // path `components` treats `/` as a literal byte and leaves it in
+    // place. Package paths are valid Unicode, so `to_str` succeeds.
     match path.to_str() {
         Some(s) => Cow::Owned(PathBuf::from(s.replace('/', "\\"))),
         None => Cow::Borrowed(path),
@@ -198,11 +189,8 @@ pub struct ForceSymlinkOutcome {
 /// the `AlreadyExists` and the rename, the initial `AlreadyExists`
 /// error is surfaced rather than the rename's `NotFound`.
 pub fn force_symlink_dir(target: &Path, link: &Path) -> io::Result<ForceSymlinkOutcome> {
-    // Normalize separators once, up front, so every filesystem operation
-    // the retry loop performs on `link` (read_link, remove_dir, rename,
-    // create_dir_all) — not just the symlink syscall — sees a native
-    // path. See [`to_native_separators`] for why a stray `/` is fatal on
-    // Windows.
+    // Normalize up front so every retry-loop fs op on `link` — not just
+    // the symlink syscall — sees a native path. See [`to_native_separators`].
     let target = to_native_separators(target);
     let link = to_native_separators(link);
     force_symlink_inner(&target, &link, false)
