@@ -398,7 +398,7 @@ fn prints_json_errors(command: &CliCommand) -> bool {
 }
 
 fn print_json_error(error: &miette::Report) {
-    let code = error.code().map(|code| code.to_string()).unwrap_or_else(|| "pnpm".to_string());
+    let code = error.code().map_or_else(|| "pnpm".to_string(), |code| code.to_string());
     let message = json_error_message(error);
     let mut error_body = serde_json::json!({
         "code": code,
