@@ -42,6 +42,10 @@ export interface BaseGenericDependenciesGraphNode {
   isBuilt?: boolean
   isPure: boolean
   resolvedPeerNames: Set<string>
+  // The node id of every resolved peer, keyed by peer name. Kept so the
+  // dedupePeerDependents cleanup can recompute this instance's depPath after
+  // dropping a peer that was only bound by the locked-context reuse pass.
+  resolvedPeerNodeIds?: Map<string, NodeId>
   requiresBuild?: boolean
 }
 
@@ -100,6 +104,11 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     peersSuffixMaxLength: number
     workspaceProjectIds: Set<string>
     resolvedPeerProviderPaths?: Map<NodeId, DepPath>
+    // The resolved peer names each node had in the first (fresh) peer-resolution
+    // pass, keyed by node id. Present only for the locked-context reuse pass, it
+    // lets the reuse pass drop a peer it bound laterally that a fresh resolution
+    // (and `pnpm dedupe`) would have left unresolved — see dropSpuriousReusePeers.
+    previousResolvedPeerNamesByNodeId?: Map<NodeId, Set<string>>
   }
 ): Promise<{
   dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<T>
@@ -278,11 +287,259 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       }
     }
   }
+  // Runs after dedupePeerDependents so that compatible instances the reuse pass
+  // duplicated (e.g. the same package resolved with and without a bubbled-up
+  // transitive peer) have already been merged. Only then does each reachable
+  // instance carry a consistent set of children, so dropping a peer the fresh
+  // pass never resolved collapses it onto its deduplicated form without leaving
+  // a conflicting sibling behind.
+  if (opts.previousResolvedPeerNamesByNodeId != null) {
+    dropSpuriousReusePeers({
+      depGraph: depGraphWithResolvedChildren,
+      pathsByNodeId,
+      depPathsByPkgId,
+      dependenciesByProjectId,
+      previousResolvedPeerNamesByNodeId: opts.previousResolvedPeerNamesByNodeId,
+      dependenciesTree: opts.dependenciesTree,
+      dedupePeers: opts.dedupePeers,
+      peersSuffixMaxLength: opts.peersSuffixMaxLength,
+    })
+  }
   return {
     dependenciesGraph: depGraphWithResolvedChildren,
     dependenciesByProjectId,
     peerDependencyIssuesByProjects,
     pathsByNodeId,
+  }
+}
+
+// The locked-context reuse pass keeps a peer bound to the provider recorded in
+// the lockfile so a writable install does not rewrite still-valid dependency
+// instances. It finds that provider through a global lookup, so it can bind a
+// transitive (non-own) peer laterally to a provider in an unrelated subtree —
+// one the first (fresh) pass, and therefore `pnpm dedupe`, left unresolved.
+// That extra binding adds a peer suffix to the consumer that a fresh resolution
+// never produces, which is the lockfile drift in
+// https://github.com/pnpm/pnpm/issues/12756.
+//
+// Rather than stop the reuse pass from propagating the peer (which would forgo
+// the deduplication that resolving a shared provider can enable), this cleanup
+// runs after propagation and drops, per node, only the non-own peers the fresh
+// pass did not resolve for it. Own peers and genuinely reused contexts (a peer
+// the fresh pass also resolved, even to a different provider) are kept, so the
+// context-preservation the reuse pass exists for is untouched. Recomputing the
+// affected depPaths lets the now-canonical instances collapse onto their
+// deduplicated peers — the same result `pnpm dedupe` reaches — during a plain
+// `pnpm install`.
+function dropSpuriousReusePeers<T extends PartialResolvedPackage> (
+  opts: {
+    depGraph: GenericDependenciesGraphWithResolvedChildren<T>
+    pathsByNodeId: Map<NodeId, DepPath>
+    depPathsByPkgId: Map<PkgIdWithPatchHash, Set<DepPath>>
+    dependenciesByProjectId: DependenciesByProjectId
+    previousResolvedPeerNamesByNodeId: Map<NodeId, Set<string>>
+    dependenciesTree: DependenciesTree<T>
+    dedupePeers?: boolean
+    peersSuffixMaxLength: number
+  }
+): void {
+  const { depGraph } = opts
+
+  // Only nodes reachable from an importer end up in the lockfile. The reuse pass
+  // can leave behind unreferenced intermediate instances (e.g. a superseded peer
+  // context); ignoring them keeps the cleanup from seeing a phantom collision
+  // with a node that will be pruned anyway.
+  const reachable = new Set<DepPath>()
+  const reachableStack: DepPath[] = []
+  for (const deps of Object.values(opts.dependenciesByProjectId)) {
+    for (const depPath of deps.values()) {
+      if (!reachable.has(depPath)) {
+        reachable.add(depPath)
+        reachableStack.push(depPath)
+      }
+    }
+  }
+  while (reachableStack.length > 0) {
+    const depPath = reachableStack.pop()!
+    const node = depGraph[depPath]
+    if (node == null) continue
+    for (const childDepPath of Object.values<DepPath>(node.children)) {
+      if (!reachable.has(childDepPath)) {
+        reachable.add(childDepPath)
+        reachableStack.push(childDepPath)
+      }
+    }
+  }
+
+  // Every tree node that resolves to each depPath. A peer is only spurious for a
+  // depPath when the fresh pass left it unresolved for *every* position the
+  // depPath represents — otherwise the depPath stands for a context where the
+  // peer is genuine and must be kept.
+  const nodeIdsByDepPath = new Map<DepPath, NodeId[]>()
+  for (const [nodeId, depPath] of opts.pathsByNodeId.entries()) {
+    let nodeIds = nodeIdsByDepPath.get(depPath)
+    if (nodeIds == null) {
+      nodeIds = []
+      nodeIdsByDepPath.set(depPath, nodeIds)
+    }
+    nodeIds.push(nodeId)
+  }
+
+  const spuriousPeersByDepPath = new Map<DepPath, Set<string>>()
+  for (const [depPath, node] of Object.entries(depGraph)) {
+    if (!reachable.has(depPath as DepPath)) continue
+    if (node.resolvedPeerNames.size === 0) continue
+    // Recomputing a depPath needs every resolved peer's node id. If any is
+    // missing the suffix cannot be rebuilt faithfully, so leave the node as-is.
+    if (node.resolvedPeerNodeIds == null || node.resolvedPeerNodeIds.size !== node.resolvedPeerNames.size) continue
+    const ownPeerNames = node.peerDependencies == null ? new Set<string>() : new Set(Object.keys(node.peerDependencies))
+    const nodeIds = nodeIdsByDepPath.get(depPath as DepPath) ?? []
+    let spurious: Set<string> | undefined
+    for (const peerName of node.resolvedPeerNames) {
+      if (ownPeerNames.has(peerName)) continue
+      const genuine = nodeIds.some((nodeId) => opts.previousResolvedPeerNamesByNodeId.get(nodeId)?.has(peerName))
+      if (genuine) continue
+      spurious ??= new Set<string>()
+      spurious.add(peerName)
+    }
+    if (spurious != null) spuriousPeersByDepPath.set(depPath as DepPath, spurious)
+  }
+
+  if (spuriousPeersByDepPath.size === 0) return
+
+  // Recompute each node's depPath with its spurious peers removed. A depPath is
+  // a function of the kept peers' identifiers, and a non-deduped peer's
+  // identifier is the provider's own (possibly recomputed) depPath, so this
+  // memoized recursion mirrors how depPaths were first built while resolving
+  // provider remaps. A depPath already in progress is on a peer cycle; return
+  // it unchanged, matching how the first pass breaks such cycles.
+  const finalDepPathCache = new Map<DepPath, DepPath>()
+  const inProgress = new Set<DepPath>()
+  const finalDepPath = (depPath: DepPath): DepPath => {
+    const cached = finalDepPathCache.get(depPath)
+    if (cached != null) return cached
+    const node = depGraph[depPath]
+    if (node == null || inProgress.has(depPath)) return depPath
+    // A node whose resolved peers cannot be fully recomputed (see above) keeps
+    // its depPath; recomputing from a partial set would drop real peers.
+    if (node.resolvedPeerNames.size > 0 && (node.resolvedPeerNodeIds == null || node.resolvedPeerNodeIds.size !== node.resolvedPeerNames.size)) {
+      return depPath
+    }
+    inProgress.add(depPath)
+    const spurious = spuriousPeersByDepPath.get(depPath)
+    const peerIds: PeerId[] = []
+    if (node.resolvedPeerNodeIds != null) {
+      for (const [peerName, peerNodeId] of node.resolvedPeerNodeIds.entries()) {
+        if (spurious?.has(peerName)) continue
+        if (typeof peerNodeId === 'string' && peerNodeId.startsWith('link:')) {
+          peerIds.push({ name: peerName, version: linkPathToPeerVersion(peerNodeId.slice(5)) })
+        } else if (opts.dedupePeers) {
+          const peerNode = opts.dependenciesTree.get(peerNodeId)
+          if (peerNode != null) {
+            peerIds.push({ name: peerNode.resolvedPackage.name, version: peerNode.resolvedPackage.version })
+          }
+        } else {
+          const providerDepPath = node.children[peerName]
+          peerIds.push(providerDepPath != null ? finalDepPath(providerDepPath) : (peerNodeId as unknown as DepPath))
+        }
+      }
+    }
+    const suffix = peerIds.length === 0 ? '' : createPeerDepGraphHash(peerIds, opts.peersSuffixMaxLength)
+    const newDepPath = `${node.pkgIdWithPatchHash}${suffix}` as DepPath
+    inProgress.delete(depPath)
+    finalDepPathCache.set(depPath, newDepPath)
+    return newDepPath
+  }
+
+  const remap = new Map<DepPath, DepPath>()
+  for (const depPath of Object.keys(depGraph) as DepPath[]) {
+    if (!reachable.has(depPath)) continue
+    const newDepPath = finalDepPath(depPath)
+    if (newDepPath !== depPath) remap.set(depPath, newDepPath)
+  }
+
+  if (remap.size === 0) return
+
+  const remapped = (depPath: DepPath): DepPath => remap.get(depPath) ?? depPath
+
+  // Safety net: a strip is only valid when the reachable nodes that collapse
+  // onto a recomputed depPath are identical afterwards. If two would collide on
+  // the same depPath with different children, a dropped peer was actually
+  // load-bearing, so skip the cleanup entirely and keep the reuse pass output
+  // rather than risk losing a distinct instance. In practice this never fires;
+  // a fresh resolution distinguishes such nodes through a peer that is then kept.
+  const childrenSignatureByDepPath = new Map<DepPath, string>()
+  for (const [depPath, node] of Object.entries(depGraph) as Array<[DepPath, T & GenericDependenciesGraphNodeWithResolvedChildren]>) {
+    if (!reachable.has(depPath)) continue
+    const newDepPath = remapped(depPath)
+    const spurious = spuriousPeersByDepPath.get(depPath)
+    const signature = Object.entries<DepPath>(node.children)
+      .filter(([alias]) => !spurious?.has(alias))
+      .map(([alias, childDepPath]) => `${alias}=${remapped(childDepPath)}`)
+      .sort()
+      .join('\n')
+    const existing = childrenSignatureByDepPath.get(newDepPath)
+    if (existing == null) {
+      childrenSignatureByDepPath.set(newDepPath, signature)
+    } else if (existing !== signature) {
+      return
+    }
+  }
+
+  // Rebuild the graph under the recomputed depPaths. Reachable nodes are written
+  // last so a remapped reachable instance wins over any unreferenced node that
+  // happens to occupy its recomputed depPath. Nodes that collapse onto the same
+  // depPath are identical after dropping their spurious peers; a dropped peer's
+  // child entry is removed (it is already in transitivePeerDependencies) and
+  // every surviving child is remapped.
+  const newDepGraph: GenericDependenciesGraphWithResolvedChildren<T> = {}
+  for (const [depPath, node] of Object.entries(depGraph) as Array<[DepPath, T & GenericDependenciesGraphNodeWithResolvedChildren]>) {
+    if (reachable.has(depPath)) continue
+    newDepGraph[depPath] = node
+  }
+  for (const [depPath, node] of Object.entries(depGraph) as Array<[DepPath, T & GenericDependenciesGraphNodeWithResolvedChildren]>) {
+    if (!reachable.has(depPath)) continue
+    const newDepPath = remapped(depPath)
+    const spurious = spuriousPeersByDepPath.get(depPath)
+    const children: Record<string, DepPath> = {}
+    for (const [alias, childDepPath] of Object.entries<DepPath>(node.children)) {
+      if (spurious?.has(alias)) continue
+      children[alias] = remapped(childDepPath)
+    }
+    let resolvedPeerNames = node.resolvedPeerNames
+    let resolvedPeerNodeIds = node.resolvedPeerNodeIds
+    if (spurious != null) {
+      resolvedPeerNames = new Set([...node.resolvedPeerNames].filter((peerName) => !spurious.has(peerName)))
+      if (resolvedPeerNodeIds != null) {
+        resolvedPeerNodeIds = new Map([...resolvedPeerNodeIds].filter(([peerName]) => !spurious.has(peerName)))
+      }
+    }
+    newDepGraph[newDepPath] = {
+      ...node,
+      depPath: newDepPath,
+      children,
+      resolvedPeerNames,
+      resolvedPeerNodeIds,
+    }
+  }
+
+  for (const depPath of Object.keys(depGraph) as DepPath[]) {
+    delete depGraph[depPath]
+  }
+  Object.assign(depGraph, newDepGraph)
+
+  for (const [nodeId, depPath] of opts.pathsByNodeId.entries()) {
+    opts.pathsByNodeId.set(nodeId, remapped(depPath))
+  }
+
+  for (const [pkgId, depPaths] of opts.depPathsByPkgId.entries()) {
+    opts.depPathsByPkgId.set(pkgId, new Set([...depPaths].map(remapped)))
+  }
+
+  for (const deps of Object.values(opts.dependenciesByProjectId)) {
+    for (const [alias, depPath] of deps.entries()) {
+      deps.set(alias, remapped(depPath))
+    }
   }
 }
 
@@ -850,6 +1107,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
         peerDependencies,
         transitivePeerDependencies,
         resolvedPeerNames: new Set(allResolvedPeers.keys()),
+        resolvedPeerNodeIds: new Map(allResolvedPeers),
       }
     }
   }

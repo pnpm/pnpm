@@ -301,6 +301,7 @@ export async function resolveDependencies (
     ? await resolvePeers({
       ...peerResolutionOpts,
       resolvedPeerProviderPaths: initiallyResolvedPeers.pathsByNodeId,
+      previousResolvedPeerNamesByNodeId: getResolvedPeerNamesByNodeId(initiallyResolvedPeers),
     })
     : initiallyResolvedPeers
 
@@ -618,4 +619,20 @@ function extendGraph (
     })
   }
   return graph
+}
+
+function getResolvedPeerNamesByNodeId (
+  resolved: {
+    dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<ResolvedPackage>
+    pathsByNodeId: Map<NodeId, DepPath>
+  }
+): Map<NodeId, Set<string>> {
+  const resolvedPeerNamesByNodeId = new Map<NodeId, Set<string>>()
+  for (const [nodeId, depPath] of resolved.pathsByNodeId.entries()) {
+    const node = resolved.dependenciesGraph[depPath]
+    if (node != null && node.resolvedPeerNames.size > 0) {
+      resolvedPeerNamesByNodeId.set(nodeId, node.resolvedPeerNames)
+    }
+  }
+  return resolvedPeerNamesByNodeId
 }
