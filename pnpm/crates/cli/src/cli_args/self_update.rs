@@ -296,10 +296,9 @@ async fn update_project_pin(
         // where there is no readable pnpm entry to update.
         let mut pin_specifier = target_version.to_string();
         if let Some(entry) = dev_engines_pnpm_entry_mut(manifest.value_mut()) {
-            let current = entry.get("version").and_then(Value::as_str).map(ToString::to_string);
-            let updated =
-                package_manager_pin_specifier(legacy_pins_pnpm, current.as_deref(), target_version);
-            if current.as_deref() != Some(updated.as_str())
+            let current = entry.get("version").and_then(Value::as_str);
+            let updated = package_manager_pin_specifier(legacy_pins_pnpm, current, target_version);
+            if current != Some(updated.as_str())
                 && let Some(object) = entry.as_object_mut()
             {
                 object.insert("version".to_string(), Value::String(updated.clone()));
