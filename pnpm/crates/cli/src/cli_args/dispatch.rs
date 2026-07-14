@@ -184,6 +184,7 @@ impl CliArgs {
                 | CliCommand::PatchCommit(_)
                 | CliCommand::PatchRemove(_),
         );
+        let print_json_errors = prints_json_errors(&command);
         let manifest_path = dir.join("package.json");
         // Load config anchored at `anchor`, reading `.npmrc` /
         // `pnpm-workspace.yaml` from there.
@@ -268,7 +269,24 @@ impl CliArgs {
             global_config: &global_config,
             state: &state,
         };
-        route(command, &ctx)?.await?;
+        match route(command, &ctx) {
+            Ok(future) => {
+                if let Err(error) = future.await {
+                    if print_json_errors {
+                        print_json_error(&error);
+                        std::process::exit(1);
+                    }
+                    return Err(error);
+                }
+            }
+            Err(error) => {
+                if print_json_errors {
+                    print_json_error(&error);
+                    std::process::exit(1);
+                }
+                return Err(error);
+            }
+        }
 
         // The `Done in ...` footer covers the whole command, mirroring pnpm's
         // `pnpm:execution-time` emit in `main.ts`. Only the install-family
@@ -372,6 +390,25 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
             unreachable!("completion returns before configuration")
         }
     }
+}
+
+fn prints_json_errors(command: &CliCommand) -> bool {
+    matches!(command, CliCommand::Publish(args) if args.flags.json)
+}
+
+fn print_json_error(error: &miette::Report) {
+    let code = error.code().map(|code| code.to_string()).unwrap_or_else(|| "pnpm".to_string());
+    let message = error.chain().last().map_or_else(|| error.to_string(), ToString::to_string);
+    let output = serde_json::json!({
+        "error": {
+            "code": code,
+            "message": message,
+        },
+    });
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output).expect("a JSON error envelope serializes"),
+    );
 }
 
 fn now_millis() -> u128 {

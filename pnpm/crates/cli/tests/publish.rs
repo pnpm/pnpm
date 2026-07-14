@@ -309,6 +309,28 @@ fn json_flag_prints_the_per_package_summary() {
     );
 }
 
+#[test]
+fn json_flag_prints_errors_to_stdout() {
+    let dir = tempfile::tempdir().expect("workspace");
+    write_project(
+        dir.path(),
+        "https://registry.example/",
+        &json!({ "name": "test-publish-no-version" }),
+    );
+
+    let output = publish(dir.path(), &["--dry-run", "--json"]);
+    assert!(!output.status.success(), "publish without a version must fail");
+    assert!(
+        output.stderr.is_empty(),
+        "--json errors must not be rendered to stderr; stderr: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let parsed: Value = serde_json::from_str(&stdout).expect("stdout is a JSON error envelope");
+    assert_eq!(parsed["error"]["code"], "ERR_PNPM_PACKAGE_VERSION_NOT_FOUND");
+    assert_eq!(parsed["error"]["message"], "Package version is not defined in the package.json.");
+}
+
 /// `prepublishOnly` runs through `sh -c` before packing, so a script that writes
 /// a file leaves it in the package dir; the publish `PUT` still happens.
 #[cfg(unix)]
