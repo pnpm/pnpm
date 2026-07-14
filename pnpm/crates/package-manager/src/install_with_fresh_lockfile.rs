@@ -1512,22 +1512,13 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // `--force` bypasses the installability checks outright (see
         // `Config::force`): no skip set is computed and the hoisted
         // walker emits every dep, so no host detection is needed either.
-        let needs_optional_installability_check = !config.force
-            && built_lockfile.packages.as_ref().is_some_and(|packages| {
-                built_lockfile.snapshots.as_ref().is_some_and(|snapshots| {
-                    crate::any_optional_installability_constraint(snapshots, packages)
-                })
-            });
-        let needs_hoisted_installability_host = !config.force
-            && is_hoisted
+        let needs_installability_check = !config.force
             && built_lockfile.packages.as_ref().is_some_and(|packages| {
                 built_lockfile.snapshots.as_ref().is_some_and(|snapshots| {
                     crate::any_installability_constraint(snapshots, packages)
                 })
             });
-        let needs_installability_host =
-            needs_optional_installability_check || needs_hoisted_installability_host;
-        let installability_host = if needs_installability_host {
+        let installability_host = if needs_installability_check {
             let engine_strict = config.engine_strict;
             let mut host = match config.node_version.clone() {
                 // An explicit `nodeVersion` needs no `node --version` probe, so
@@ -1623,7 +1614,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             );
         }
 
-        let mut skipped = if needs_optional_installability_check {
+        let mut skipped = if needs_installability_check {
             match (
                 built_lockfile.snapshots.as_ref(),
                 built_lockfile.packages.as_ref(),
