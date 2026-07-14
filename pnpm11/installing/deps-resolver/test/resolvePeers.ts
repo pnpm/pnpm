@@ -887,6 +887,19 @@ describe('locked peer provider preferences', () => {
     }
   }
 
+  function resolvedPeerNamesByNodeId (
+    result: Awaited<ReturnType<typeof resolvePeers>>
+  ): Map<NodeId, Set<string>> {
+    const byNodeId = new Map<NodeId, Set<string>>()
+    for (const [nodeId, depPath] of result.pathsByNodeId.entries()) {
+      const node = result.dependenciesGraph[depPath]
+      if (node != null && node.resolvedPeerNames.size > 0) {
+        byNodeId.set(nodeId, node.resolvedPeerNames)
+      }
+    }
+    return byNodeId
+  }
+
   test('prefers a compatible locked provider that remains reachable in the current graph', async () => {
     const resolutionOpts = options(createTree(), new Map([
       ['peer', currentPeerNodeId],
@@ -1111,6 +1124,111 @@ describe('locked peer provider preferences', () => {
 
     expect(preferred.dependenciesGraph['consumer/1.0.0(peer/1.0.0)' as DepPath]).toBeTruthy()
     expect(preferred.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeUndefined()
+  })
+
+  test('drops a spuriously reused optional peer that the fresh pass left unresolved', async () => {
+    // Regression test for https://github.com/pnpm/pnpm/issues/12756. `dep` has an
+    // OPTIONAL peer whose only provider (peer@2.0.0) lives in an unrelated sibling
+    // subtree (under retainer), so a fresh resolution leaves it unbound. The
+    // locked-context reuse pass still binds it under `consumer`'s `dep` — that
+    // propagation is intentionally preserved so a shared provider can deduplicate
+    // — which bubbles `peer` up onto `consumer` (it is not `consumer`'s own peer).
+    // The dropSpuriousReusePeers cleanup then removes that bubbled-up suffix from
+    // `consumer` because the fresh pass did not resolve `peer` for it, keeping a
+    // writable install aligned with `pnpm dedupe`.
+    const depNodeId = '>wrapper/1.0.0>consumer/1.0.0>dep/1.0.0>' as NodeId
+    const depPkg = {
+      name: 'dep',
+      pkgIdWithPatchHash: 'dep/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {
+        peer: { version: '>=1', optional: true },
+      },
+      id: '' as PkgResolutionId,
+    }
+    const plainConsumerPkg = {
+      ...consumerPkg,
+      peerDependencies: {} as PeerDependencies,
+    }
+    const dependenciesTree = new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+      [retainerNodeId, {
+        children: { peer: retainedPeerNodeId },
+        installable: true,
+        resolvedPackage: retainerPkg,
+        depth: 0,
+      }],
+      [retainedPeerNodeId, {
+        children: {},
+        installable: true,
+        previousDepPath: 'peer/2.0.0' as DepPath,
+        resolvedPackage: peer2Pkg,
+        depth: 1,
+      }],
+      [wrapperNodeId, {
+        children: { consumer: consumerNodeId },
+        installable: true,
+        resolvedPackage: wrapperPkg,
+        depth: 0,
+      }],
+      [consumerNodeId, {
+        children: { dep: depNodeId },
+        installable: true,
+        resolvedPackage: plainConsumerPkg,
+        depth: 1,
+      }],
+      [depNodeId, {
+        children: {},
+        installable: true,
+        lockedPeerContext: { peer: 'peer/2.0.0' as DepPath },
+        resolvedPackage: depPkg,
+        depth: 2,
+      }],
+    ])
+    const resolutionOpts = options(dependenciesTree, new Map([
+      ['retainer', retainerNodeId],
+      ['wrapper', wrapperNodeId],
+    ]))
+    const initial = await resolvePeers(resolutionOpts)
+
+    // Without the fresh-pass oracle the reuse pass still propagates the peer,
+    // bubbling the suffixed instance up onto consumer, which the cleanup removes.
+    const propagated = await resolvePeers({
+      ...resolutionOpts,
+      resolvedPeerProviderPaths: initial.pathsByNodeId,
+    })
+    expect(propagated.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeTruthy()
+
+    const cleaned = await resolvePeers({
+      ...resolutionOpts,
+      resolvedPeerProviderPaths: initial.pathsByNodeId,
+      previousResolvedPeerNamesByNodeId: resolvedPeerNamesByNodeId(initial),
+      dedupePeerDependents: true,
+    })
+    expect(cleaned.dependenciesGraph['consumer/1.0.0' as DepPath]).toBeTruthy()
+    expect(cleaned.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeUndefined()
+  })
+
+  test('keeps a genuine reused peer context that the fresh pass also resolved', async () => {
+    // The consumer's peer is REQUIRED and a provider (peer@1.0.0) is in scope, so
+    // the fresh pass resolves the peer and the reuse pass re-binds it to the
+    // locked peer@2.0.0. Because the fresh pass also resolved `peer`, the cleanup
+    // treats the context as genuine and keeps it — the context preservation the
+    // reuse pass exists for is not undone.
+    const resolutionOpts = options(createTree(), new Map([
+      ['peer', currentPeerNodeId],
+      ['retainer', retainerNodeId],
+      ['wrapper', wrapperNodeId],
+    ]))
+    const initial = await resolvePeers(resolutionOpts)
+    const cleaned = await resolvePeers({
+      ...resolutionOpts,
+      resolvedPeerProviderPaths: initial.pathsByNodeId,
+      previousResolvedPeerNamesByNodeId: resolvedPeerNamesByNodeId(initial),
+      dedupePeerDependents: true,
+    })
+
+    expect(cleaned.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeTruthy()
+    expect(cleaned.dependenciesGraph['consumer/1.0.0(peer/1.0.0)' as DepPath]).toBeUndefined()
   })
 })
 
