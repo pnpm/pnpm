@@ -349,6 +349,11 @@ mod windows {
         }
     }
 
+    #[cfg(test)]
+    pub(super) fn force_junction_mode() {
+        MODE.store(USE_JUNCTION, Ordering::Relaxed);
+    }
+
     /// True symlinks on Windows take a relative target —
     /// `path.relative(dirname(dest), src)`, the same form used on Unix.
     /// Junctions take the absolute path with a trailing backslash, but
