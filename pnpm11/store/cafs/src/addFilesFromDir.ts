@@ -23,6 +23,7 @@ export function addFilesFromDir (
   } = {}
 ): AddToStoreResult {
   const filesIndex = new Map() as FilesIndex
+  let hasSymlinks = false
   let manifest: DependencyManifest | undefined
   let files: File[]
   // Resolve the package root to a canonical path for security validation
@@ -31,7 +32,9 @@ export function addFilesFromDir (
     files = []
     for (const file of opts.files) {
       const absolutePath = path.join(dirname, file)
-      const stat = getStatIfContained(absolutePath, resolvedRoot)
+      const result = getStatIfContained(absolutePath, resolvedRoot)
+      hasSymlinks ||= result.isSymbolicLink
+      const { stat } = result
       if (!stat) {
         continue
       }
@@ -42,7 +45,9 @@ export function addFilesFromDir (
       })
     }
   } else {
-    files = findFilesInDir(dirname, resolvedRoot, opts)
+    const result = findFilesInDir(dirname, resolvedRoot, opts)
+    files = result.files
+    hasSymlinks = result.hasSymlinks
   }
   for (const { absolutePath, relativePath, stat } of files) {
     const buffer = gfs.readFileSync(absolutePath)
@@ -57,7 +62,7 @@ export function addFilesFromDir (
       ...addBuffer(buffer, mode),
     })
   }
-  return { manifest, filesIndex }
+  return { manifest, filesIndex, hasSymlinks }
 }
 
 interface File {
@@ -69,25 +74,29 @@ interface File {
 /**
  * Resolves a path and validates it stays within the allowed root directory.
  * If the path is a symlink, resolves it and validates the target.
- * Returns null if the path is a symlink pointing outside the root, or if target is inaccessible.
+ * Returns a null stat if the path is missing, points outside the root, or has an inaccessible target.
+ * The symlink flag remains true when a link target cannot be read.
  */
 function getStatIfContained (
   absolutePath: string,
   rootDir: string
-): Stats | null {
+): { isSymbolicLink: boolean, stat: Stats | null } {
   let lstat: Stats
   try {
     lstat = fs.lstatSync(absolutePath)
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      return null
+      return { isSymbolicLink: false, stat: null }
     }
     throw err
   }
   if (lstat.isSymbolicLink()) {
-    return getSymlinkStatIfContained(absolutePath, rootDir)?.stat ?? null
+    return {
+      isSymbolicLink: true,
+      stat: getSymlinkStatIfContained(absolutePath, rootDir)?.stat ?? null,
+    }
   }
-  return lstat
+  return { isSymbolicLink: false, stat: lstat }
 }
 
 /**
@@ -115,20 +124,22 @@ function getSymlinkStatIfContained (
   return { stat: fs.statSync(realPath), realPath }
 }
 
-function findFilesInDir (dir: string, rootDir: string, opts: { includeNodeModules?: boolean }): File[] {
+function findFilesInDir (dir: string, rootDir: string, opts: { includeNodeModules?: boolean }): { files: File[], hasSymlinks: boolean } {
   const files: File[] = []
   const ctx: FindFilesContext = {
     filesList: files,
     includeNodeModules: opts.includeNodeModules ?? false,
+    hasSymlinks: false,
     rootDir,
     visited: new Set([rootDir]),
   }
   findFiles(ctx, dir, '', rootDir)
-  return files
+  return { files, hasSymlinks: ctx.hasSymlinks }
 }
 
 interface FindFilesContext {
   filesList: File[]
+  hasSymlinks: boolean
   includeNodeModules: boolean
   rootDir: string
   visited: Set<string>
@@ -147,6 +158,10 @@ function findFiles (
     let nextRealDir: string | undefined
 
     if (file.isSymbolicLink()) {
+      if (relativeDir === '' && file.name === 'node_modules' && !ctx.includeNodeModules) {
+        continue
+      }
+      ctx.hasSymlinks = true
       const res = getSymlinkStatIfContained(absolutePath, ctx.rootDir)
       if (!res) {
         continue

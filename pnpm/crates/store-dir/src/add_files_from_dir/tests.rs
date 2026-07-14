@@ -20,6 +20,16 @@ fn write(path: &Path, contents: &str) {
     fs::write(path, contents).expect("write file");
 }
 
+#[cfg(unix)]
+fn symlink_dir(target: &Path, link: &Path) {
+    unix_fs::symlink(target, link).expect("create directory symlink");
+}
+
+#[cfg(windows)]
+fn symlink_dir(target: &Path, link: &Path) {
+    junction::create(target, link).expect("create directory junction");
+}
+
 #[test]
 fn captures_top_level_files() {
     let (_tmp, store_dir) = make_store();
@@ -81,6 +91,20 @@ fn top_level_node_modules_is_skipped() {
 }
 
 #[test]
+fn top_level_node_modules_link_is_not_reported_as_build_output() {
+    let (_tmp, store_dir) = make_store();
+    let pkg_dir = tempdir().expect("create pkg dir");
+    write(&pkg_dir.path().join("index.js"), "x\n");
+    let dependency_dir = tempdir().expect("create dependency dir");
+    write(&dependency_dir.path().join("index.js"), "dependency\n");
+    symlink_dir(dependency_dir.path(), &pkg_dir.path().join("node_modules"));
+
+    let added = add_files_from_dir(&store_dir, pkg_dir.path()).expect("walk");
+    assert!(!added.has_symlinks);
+    assert!(!added.files.keys().any(|path| path.starts_with("node_modules/")));
+}
+
+#[test]
 fn nested_node_modules_is_walked() {
     let (_tmp, store_dir) = make_store();
     let pkg_dir = tempdir().expect("create pkg dir");
@@ -121,6 +145,7 @@ fn symlinks_within_root_are_followed() {
     unix_fs::symlink("target.js", pkg_dir.path().join("alias.js")).expect("create symlink");
 
     let added = add_files_from_dir(&store_dir, pkg_dir.path()).expect("walk");
+    assert!(added.has_symlinks);
     let info_target = added.files.get("target.js").expect("target.js");
     let info_alias = added.files.get("alias.js").expect("alias.js");
     assert_eq!(

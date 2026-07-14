@@ -38,6 +38,8 @@ pub const HASH_ALGORITHM: &str = "sha512";
 ///
 /// Behaviour at the writer side:
 ///
+/// - Build output contains symlinks → skip the cache write so the build
+///   script recreates them on the next install.
 /// - No base row at `files_index_file` → silent skip.
 /// - Existing row's `algo` differs from [`HASH_ALGORITHM`] → log
 ///   at `warn!` and skip (an algorithm mismatch is demoted to a
@@ -55,6 +57,9 @@ pub fn upload(
 ) -> Result<(), UploadError> {
     let added =
         add_files_from_dir(store_dir, built_pkg_location).map_err(UploadError::AddFilesFromDir)?;
+    if added.has_symlinks {
+        return Ok(());
+    }
     writer.queue_side_effects_upload(
         files_index_file.to_string(),
         side_effects_cache_key.to_string(),
