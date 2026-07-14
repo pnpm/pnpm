@@ -1,5 +1,6 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pacquet_lockfile::{Lockfile, PkgName};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
@@ -109,6 +110,49 @@ fn should_add_to_package_json() {
             .any(|(k, _)| k == "@pnpm.e2e/hello-world-js-bin"),
     );
     drop((root, anchor)); // cleanup
+}
+
+#[test]
+fn add_accepts_multiple_local_package_selectors() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let fixtures_dir = workspace.join("fixtures");
+    for package_name in ["local-a", "local-b"] {
+        let package_dir = fixtures_dir.join(package_name);
+        std::fs::create_dir_all(&package_dir).expect("create local package directory");
+        std::fs::write(
+            package_dir.join("package.json"),
+            serde_json::json!({ "name": package_name, "version": "1.0.0" }).to_string(),
+        )
+        .expect("write local package manifest");
+    }
+
+    pacquet
+        .with_args(["add", "local-a@file:./fixtures/local-a", "local-b@file:./fixtures/local-b"])
+        .assert()
+        .success();
+
+    assert_eq!(prod_spec(&workspace, "local-a"), "file:./fixtures/local-a");
+    assert_eq!(prod_spec(&workspace, "local-b"), "file:./fixtures/local-b");
+
+    let lockfile_text =
+        std::fs::read_to_string(workspace.join(Lockfile::FILE_NAME)).expect("read pnpm-lock.yaml");
+    let lockfile: Lockfile = serde_saphyr::from_str(&lockfile_text)
+        .unwrap_or_else(|error| panic!("parse pnpm-lock.yaml: {error}\n{lockfile_text}"));
+    let dependencies = lockfile
+        .importers
+        .get(Lockfile::ROOT_IMPORTER_KEY)
+        .and_then(|importer| importer.dependencies.as_ref())
+        .expect("root importer dependencies");
+    for package_name in ["local-a", "local-b"] {
+        let parsed_name: PkgName = package_name.parse().expect("parse local package name");
+        assert!(dependencies.contains_key(&parsed_name), "lockfile contains {package_name}");
+        assert!(
+            workspace.join("node_modules").join(package_name).join("package.json").exists(),
+            "{package_name} is installed",
+        );
+    }
+
+    drop(root); // cleanup
 }
 
 #[test]

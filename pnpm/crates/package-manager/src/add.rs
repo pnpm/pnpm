@@ -40,8 +40,9 @@ where
     pub manifest: &'a mut PackageManifest,
     pub lockfile: Option<&'a Lockfile>,
     pub lockfile_path: Option<&'a std::path::Path>,
-    pub list_dependency_groups: ListDependencyGroups, // must be a function because it is called multiple times
-    pub package_name: &'a str, // may carry a `@<version>` suffix; TODO: multiple arguments, name this `packages`
+    pub list_dependency_groups: ListDependencyGroups,
+    /// Package selectors, each of which may carry an `@<version>` suffix.
+    pub package_names: &'a [String],
     /// How the freshly-resolved version is pinned into the manifest range,
     /// derived from `--save-exact` / `--save-prefix`. See
     /// [`PinnedVersion::from_save_options`].
@@ -137,15 +138,13 @@ where
             lockfile,
             lockfile_path,
             list_dependency_groups,
-            package_name,
+            package_names,
             pinned_version,
             save_catalog_name,
             resolved_packages,
             supported_architectures,
             lockfile_only,
         } = self;
-
-        let (package_name, explicit_spec) = split_name_spec(package_name);
 
         // Read the workspace catalogs so `catalogMode` / `--save-catalog`
         // can reconcile the added version against them, the same read a
@@ -164,111 +163,48 @@ where
             .map_err(AddError::InvalidCatalogsConfiguration)?;
         let prefix =
             workspace_dir_opt.as_deref().unwrap_or(&manifest_dir).to_string_lossy().into_owned();
-
-        // The dependency's current specifier *in the group(s) this add
-        // targets*, so a re-add keeps the existing range / `catalog:`
-        // reference of the bucket being written. Scanning only the target
-        // groups (rather than every group) avoids preserving a different
-        // group's specifier when the same package exists in more than one
-        // bucket with different specs.
-        let prev_specifier = manifest
-            .dependencies(list_dependency_groups())
-            .find(|(name, _)| *name == package_name)
-            .map(|(_, spec)| spec.to_string());
-
-        // The bare specifier to reconcile against the catalogs:
-        // - an explicit `@<version>` is resolved to a concrete version and
-        //   recorded with the range operator it (or the existing entry)
-        //   pins — `pnpm add foo@^7` records `^7.8.4`, not
-        //   `^7`. Specifiers that aren't a plain registry range/tag/version
-        //   for this package (protocols, `npm:` aliases) stay verbatim;
-        // - an explicit `node@runtime:<spec>` is likewise pinned to the
-        //   picked Node.js version, so the `devEngines.runtime` entry the
-        //   saved dependency folds into records e.g. `26.5.0`, not the
-        //   requested `26`;
-        // - a re-add with no version keeps the dependency's current
-        //   specifier verbatim (a `catalog:` reference, a range, or an
-        //   exact pin) — `pnpm add <existing>` without a
-        //   version leaves the declared range untouched;
-        // - a brand-new dependency fetches and pins the `latest` range.
-        let bare_specifier =
-            if let Some(version_spec) = node_runtime_version_spec(package_name, explicit_spec) {
-                let mut node_resolver = NodeResolver::new(std::sync::Arc::clone(&http_client_arc));
-                node_resolver.offline = config.offline;
-                node_resolver
-                    .resolve_save_specifier(version_spec, prev_specifier.as_deref())
-                    .await
-                    .map_err(AddError::ResolveRuntimeSpec)?
-            } else {
-                match (explicit_spec, prev_specifier.as_deref()) {
-                    (Some(spec), prev) => resolve_explicit_registry_spec(
-                        package_name,
-                        spec,
-                        prev,
-                        config,
-                        http_client,
-                        pinned_version,
-                        lockfile_only,
-                        lockfile,
-                        manifest,
-                    )
-                    .await?
-                    .unwrap_or_else(|| normalized_save_specifier(spec)),
-                    (None, Some(prev)) => prev.to_string(),
-                    (None, None) => {
-                        let registries: std::collections::HashMap<String, String> =
-                            config.resolved_registries().into_iter().collect();
-                        let registry = pick_registry_for_package(&registries, package_name, None);
-                        let latest = PackageVersion::fetch_from_registry(
-                            package_name,
-                            PackageTag::Latest,
-                            http_client,
-                            &registry,
-                            &config.auth_headers,
-                        )
-                        .await
-                        .map_err(|error| AddError::ResolveLatest {
-                            name: package_name.to_string(),
-                            error,
-                        })?;
-                        latest.serialize(pinned_version)
-                    }
-                }
-            };
-
-        let mut updated_catalogs = Catalogs::new();
-        let dep = CatalogModeDep {
-            alias: package_name,
-            bare_specifier: &bare_specifier,
-            prev_specifier: prev_specifier.as_deref(),
-        };
-        let manifest_specifier = match decide_catalog::<Reporter>(
-            config.catalog_mode,
-            save_catalog_name.as_deref(),
-            &catalogs,
-            &dep,
-            &prefix,
-        )
-        .map_err(AddError::CatalogVersionMismatch)?
-        {
-            CatalogDecision::KeepDirect => bare_specifier,
-            CatalogDecision::Catalog { manifest_specifier, updated_entry } => {
-                if let Some(entry) = updated_entry {
-                    updated_catalogs
-                        .entry(entry.catalog_name)
-                        .or_default()
-                        .insert(package_name.to_string(), entry.specifier);
-                }
-                manifest_specifier
-            }
-        };
+        let dependency_groups: Vec<DependencyGroup> =
+            list_dependency_groups().into_iter().collect();
+        let mut resolved_dependencies = Vec::with_capacity(package_names.len());
+        for package_name in package_names {
+            resolved_dependencies.push(
+                resolve_added_dependency::<Reporter>(
+                    package_name,
+                    config,
+                    manifest,
+                    lockfile,
+                    http_client,
+                    &http_client_arc,
+                    pinned_version,
+                    save_catalog_name.as_deref(),
+                    &catalogs,
+                    &prefix,
+                    lockfile_only,
+                    &dependency_groups,
+                )
+                .await?,
+            );
+        }
 
         emit_initial_package_manifest::<Reporter>(manifest);
 
-        for dependency_group in list_dependency_groups() {
-            manifest
-                .add_dependency(package_name, &manifest_specifier, dependency_group)
-                .map_err(AddError::AddDependencyToManifest)?;
+        for dependency in &resolved_dependencies {
+            for dependency_group in &dependency_groups {
+                manifest
+                    .add_dependency(
+                        &dependency.package_name,
+                        &dependency.manifest_specifier,
+                        *dependency_group,
+                    )
+                    .map_err(AddError::AddDependencyToManifest)?;
+            }
+        }
+
+        let mut updated_catalogs = Catalogs::new();
+        for dependency in resolved_dependencies {
+            for (catalog_name, entries) in dependency.updated_catalogs {
+                updated_catalogs.entry(catalog_name).or_default().extend(entries);
+            }
         }
 
         // Write the new catalog entry to `pnpm-workspace.yaml` before the
@@ -289,7 +225,7 @@ where
             emit_initial_manifest: false,
             lockfile: MaybeLazyLockfile::Loaded(lockfile),
             lockfile_path,
-            dependency_groups: list_dependency_groups(),
+            dependency_groups,
             frozen_lockfile: false,
             // `pacquet add` mutates the manifest, so the lockfile is
             // necessarily stale by the time the install dispatch
@@ -351,6 +287,137 @@ where
 
         Ok(())
     }
+}
+
+struct ResolvedAddedDependency {
+    package_name: String,
+    manifest_specifier: String,
+    updated_catalogs: Catalogs,
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "resolving an add selector requires the shared resolution inputs"
+)]
+async fn resolve_added_dependency<Reporter: self::Reporter>(
+    package_selector: &str,
+    config: &Config,
+    manifest: &PackageManifest,
+    lockfile: Option<&Lockfile>,
+    http_client: &ThrottledClient,
+    http_client_arc: &std::sync::Arc<ThrottledClient>,
+    pinned_version: PinnedVersion,
+    save_catalog_name: Option<&str>,
+    catalogs: &Catalogs,
+    prefix: &str,
+    lockfile_only: bool,
+    dependency_groups: &[DependencyGroup],
+) -> Result<ResolvedAddedDependency, AddError> {
+    let (package_name, explicit_spec) = split_name_spec(package_selector);
+
+    // The dependency's current specifier *in the group(s) this add
+    // targets*, so a re-add keeps the existing range / `catalog:`
+    // reference of the bucket being written. Scanning only the target
+    // groups (rather than every group) avoids preserving a different
+    // group's specifier when the same package exists in more than one
+    // bucket with different specs.
+    let prev_specifier = manifest
+        .dependencies(dependency_groups.iter().copied())
+        .find(|(name, _)| *name == package_name)
+        .map(|(_, spec)| spec.to_string());
+
+    // The bare specifier to reconcile against the catalogs:
+    // - an explicit `@<version>` is resolved to a concrete version and
+    //   recorded with the range operator it (or the existing entry)
+    //   pins — `pnpm add foo@^7` records `^7.8.4`, not
+    //   `^7`. Specifiers that aren't a plain registry range/tag/version
+    //   for this package (protocols, `npm:` aliases) stay verbatim;
+    // - an explicit `node@runtime:<spec>` is likewise pinned to the
+    //   picked Node.js version, so the `devEngines.runtime` entry the
+    //   saved dependency folds into records e.g. `26.5.0`, not the
+    //   requested `26`;
+    // - a re-add with no version keeps the dependency's current
+    //   specifier verbatim (a `catalog:` reference, a range, or an
+    //   exact pin) — `pnpm add <existing>` without a
+    //   version leaves the declared range untouched;
+    // - a brand-new dependency fetches and pins the `latest` range.
+    let bare_specifier =
+        if let Some(version_spec) = node_runtime_version_spec(package_name, explicit_spec) {
+            let mut node_resolver = NodeResolver::new(std::sync::Arc::clone(http_client_arc));
+            node_resolver.offline = config.offline;
+            node_resolver
+                .resolve_save_specifier(version_spec, prev_specifier.as_deref())
+                .await
+                .map_err(AddError::ResolveRuntimeSpec)?
+        } else {
+            match (explicit_spec, prev_specifier.as_deref()) {
+                (Some(spec), prev) => resolve_explicit_registry_spec(
+                    package_name,
+                    spec,
+                    prev,
+                    config,
+                    http_client,
+                    pinned_version,
+                    lockfile_only,
+                    lockfile,
+                    manifest,
+                )
+                .await?
+                .unwrap_or_else(|| normalized_save_specifier(spec)),
+                (None, Some(prev)) => prev.to_string(),
+                (None, None) => {
+                    let registries: std::collections::HashMap<String, String> =
+                        config.resolved_registries().into_iter().collect();
+                    let registry = pick_registry_for_package(&registries, package_name, None);
+                    let latest = PackageVersion::fetch_from_registry(
+                        package_name,
+                        PackageTag::Latest,
+                        http_client,
+                        &registry,
+                        &config.auth_headers,
+                    )
+                    .await
+                    .map_err(|error| AddError::ResolveLatest {
+                        name: package_name.to_string(),
+                        error,
+                    })?;
+                    latest.serialize(pinned_version)
+                }
+            }
+        };
+
+    let mut updated_catalogs = Catalogs::new();
+    let dep = CatalogModeDep {
+        alias: package_name,
+        bare_specifier: &bare_specifier,
+        prev_specifier: prev_specifier.as_deref(),
+    };
+    let manifest_specifier = match decide_catalog::<Reporter>(
+        config.catalog_mode,
+        save_catalog_name,
+        catalogs,
+        &dep,
+        prefix,
+    )
+    .map_err(AddError::CatalogVersionMismatch)?
+    {
+        CatalogDecision::KeepDirect => bare_specifier,
+        CatalogDecision::Catalog { manifest_specifier, updated_entry } => {
+            if let Some(entry) = updated_entry {
+                updated_catalogs
+                    .entry(entry.catalog_name)
+                    .or_default()
+                    .insert(package_name.to_string(), entry.specifier);
+            }
+            manifest_specifier
+        }
+    };
+
+    Ok(ResolvedAddedDependency {
+        package_name: package_name.to_string(),
+        manifest_specifier,
+        updated_catalogs,
+    })
 }
 
 /// Resolve an explicit `add <name>@<spec>` registry specifier to the

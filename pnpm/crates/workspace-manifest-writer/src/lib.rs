@@ -141,6 +141,16 @@ pub fn set_config_dependency(
     name: &str,
     specifier: &str,
 ) -> Result<(), UpdateWorkspaceManifestError> {
+    set_config_dependencies(dir, [(name, specifier)])
+}
+
+/// Write `name → specifier` entries into `dir`'s
+/// `pnpm-workspace.yaml` `configDependencies:` block, reading, parsing,
+/// and writing the manifest at most once.
+pub fn set_config_dependencies<'a>(
+    dir: &Path,
+    entries: impl IntoIterator<Item = (&'a str, &'a str)>,
+) -> Result<(), UpdateWorkspaceManifestError> {
     let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
 
     let original = match fs::read_to_string(&path) {
@@ -152,8 +162,11 @@ pub fn set_config_dependency(
     let mut manifest = Manifest::parse(original.as_deref())
         .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
 
-    let changed = edit::add_config_dependency(&mut manifest, name, specifier)
-        .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
+    let mut changed = false;
+    for (name, specifier) in entries {
+        changed |= edit::add_config_dependency(&mut manifest, name, specifier)
+            .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
+    }
     if !changed {
         return Ok(());
     }

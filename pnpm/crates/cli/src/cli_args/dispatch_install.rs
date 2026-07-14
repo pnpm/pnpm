@@ -44,16 +44,21 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
             ReporterType::Silent => Box::pin(args.run_global::<SilentReporter>(config, dir)),
         });
     }
+    let config_dependencies = args.parse_config_dependencies()?;
     let config = (ctx.config)()?;
     args.apply_cli_config(config);
     let command_state = State::init(ctx.manifest_path.to_path_buf(), config, false)
         .wrap_err("initialize the state")?;
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => {
-            Box::pin(args.run::<DefaultReporter>(command_state))
+            Box::pin(args.run::<DefaultReporter>(command_state, config_dependencies))
         }
-        ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(command_state)),
-        ReporterType::Silent => Box::pin(args.run::<SilentReporter>(command_state)),
+        ReporterType::Ndjson => {
+            Box::pin(args.run::<NdjsonReporter>(command_state, config_dependencies))
+        }
+        ReporterType::Silent => {
+            Box::pin(args.run::<SilentReporter>(command_state, config_dependencies))
+        }
     })
 }
 

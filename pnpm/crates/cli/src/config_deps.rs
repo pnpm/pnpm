@@ -27,7 +27,7 @@ use pacquet_store_dir::StoreDir;
 use pacquet_workspace_state::ConfigDependency;
 use serde_json::Value;
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -177,30 +177,34 @@ pub async fn resolve_pnpm_version(
     }))
 }
 
-/// Add a single config dependency: resolve + install it (merged with any
-/// already-declared config deps), then write the clean specifier into
+/// Add config dependencies: resolve + install them (merged with any
+/// already-declared config deps), then write the clean specifiers into
 /// `pnpm-workspace.yaml`'s `configDependencies` block. Backs
 /// `pacquet add --config`.
-pub async fn add_config_dependency<Reporter: self::Reporter>(
+pub async fn add_config_dependencies<Reporter: self::Reporter>(
     config: &Config,
     root_dir: &Path,
-    name: &str,
-    specifier: &str,
+    added: &BTreeMap<String, String>,
 ) -> Result<()> {
     let mut config_dependencies = config.config_dependencies.clone().unwrap_or_default();
-    config_dependencies
-        .insert(name.to_string(), ConfigDependency::VersionWithIntegrity(specifier.to_string()));
+    for (name, specifier) in added {
+        config_dependencies
+            .insert(name.clone(), ConfigDependency::VersionWithIntegrity(specifier.clone()));
+    }
 
     resolve_and_install::<Reporter>(config, &config_dependencies, root_dir, false).await?;
 
-    pacquet_workspace_manifest_writer::set_config_dependency(root_dir, name, specifier)
-        .into_diagnostic()
-        .wrap_err("recording the config dependency in pnpm-workspace.yaml")
+    pacquet_workspace_manifest_writer::set_config_dependencies(
+        root_dir,
+        added.iter().map(|(name, specifier)| (name.as_str(), specifier.as_str())),
+    )
+    .into_diagnostic()
+    .wrap_err("recording the config dependencies in pnpm-workspace.yaml")
 }
 
 /// Build the resolver + install options from `config` and resolve +
 /// install `config_dependencies`. Shared by [`install_config_deps`] and
-/// [`add_config_dependency`].
+/// [`add_config_dependencies`].
 async fn resolve_and_install<Reporter: self::Reporter>(
     config: &Config,
     config_dependencies: &std::collections::BTreeMap<String, ConfigDependency>,

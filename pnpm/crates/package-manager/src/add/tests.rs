@@ -64,6 +64,7 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
 
     let http_client = ThrottledClient::default();
     let resolved_packages = ResolvedPackages::default();
+    let package_names = ["@private/foo".to_string()];
     Add {
         tarball_mem_cache: Arc::default(),
         resolved_packages: &resolved_packages,
@@ -74,7 +75,7 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
         lockfile: None,
         lockfile_path: None,
         list_dependency_groups: || [DependencyGroup::Prod],
-        package_name: "@private/foo",
+        package_names: &package_names,
         pinned_version: PinnedVersion::Patch,
         save_catalog_name: None,
         supported_architectures: None,
