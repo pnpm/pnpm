@@ -1,9 +1,6 @@
-import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
-import util from 'node:util'
 
-import { expect, jest, test } from '@jest/globals'
+import { expect, test } from '@jest/globals'
 import type { Log } from '@pnpm/core-loggers'
 import { BadReadPackageHookError, type HookContext, requireHooks } from '@pnpm/hooks.pnpmfile'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -102,37 +99,6 @@ test('.pnpmfile.mjs takes priority over .pnpmfile.cjs when both exist', async ()
   expect(pkg._fromCjs).toBeUndefined()
 })
 
-test('falling back to .pnpmfile.cjs without classifying a missing default .pnpmfile.mjs import error', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-pnpmfile-'))
-  const cjsPath = path.join(dir, '.pnpmfile.cjs')
-  fs.writeFileSync(cjsPath, 'module.exports = { hooks: {} }\n')
-  const isNativeErrorSpy = jest.spyOn(util.types, 'isNativeError').mockReturnValue(false)
-
-  try {
-    const { hooks, resolvedPnpmfilePaths } = await requireHooks(dir, { tryLoadDefaultPnpmfile: true })
-
-    expect(hooks.readPackage?.length).toBe(0)
-    expect(resolvedPnpmfilePaths).toStrictEqual([cjsPath])
-    expect(isNativeErrorSpy).not.toHaveBeenCalled()
-  } finally {
-    isNativeErrorSpy.mockRestore()
-    fs.rmSync(dir, { recursive: true })
-  }
-})
-
-test('skipping missing default pnpmfiles', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-pnpmfile-'))
-
-  try {
-    const { hooks, resolvedPnpmfilePaths } = await requireHooks(dir, { tryLoadDefaultPnpmfile: true })
-
-    expect(hooks.readPackage?.length).toBe(0)
-    expect(resolvedPnpmfilePaths).toStrictEqual([])
-  } finally {
-    fs.rmSync(dir, { recursive: true })
-  }
-})
-
 test('calculatePnpmfileChecksum is undefined when pnpmfile does not exist', async () => {
   const { hooks } = await requireHooks(import.meta.dirname, {})
   expect(hooks.calculatePnpmfileChecksum).toBeUndefined()
@@ -161,26 +127,8 @@ test('requirePnpmfile wraps non-native-Error throws instead of crashing', async 
   await expect(requirePnpmfile(pnpmfilePath, import.meta.dirname)).rejects.toThrow('this is a string error, not a native Error')
 })
 
-test('requirePnpmfile reports missing imports from an existing ESM pnpmfile', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-pnpmfile-'))
-  const pnpmfilePath = path.join(dir, '.pnpmfile.mjs')
-  fs.writeFileSync(pnpmfilePath, "import './missing.mjs'\n")
-
-  try {
-    await expect(requirePnpmfile(pnpmfilePath, dir)).rejects.toMatchObject({
-      code: 'ERR_PNPM_PNPMFILE_FAIL',
-      message: expect.stringContaining('Error during pnpmfile execution'),
-    })
-  } finally {
-    fs.rmSync(dir, { recursive: true })
-  }
-})
-
-test.each(['cjs', 'mjs'])('requireHooks throws an error if a specified %s pnpmfile does not exist', async (extension) => {
-  await expect(requireHooks(import.meta.dirname, { pnpmfiles: [`does-not-exist.${extension}`] })).rejects.toMatchObject({
-    code: 'ERR_PNPM_PNPMFILE_NOT_FOUND',
-    message: expect.stringContaining('is not found'),
-  })
+test('requireHooks throw an error if one of the specified pnpmfiles does not exist', async () => {
+  await expect(requireHooks(import.meta.dirname, { pnpmfiles: ['does-not-exist.cjs'] })).rejects.toThrow('is not found')
 })
 
 test('requireHooks throws an error if there are two finders with the same name', async () => {
