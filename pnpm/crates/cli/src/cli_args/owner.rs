@@ -68,7 +68,7 @@ pub enum OwnerError {
         body: String,
     },
 
-    #[display("Failed to {action}: {status} {status_text}. {body}")]
+    #[display("Failed to {action} package: {status} {status_text}. {body}")]
     #[diagnostic(code(ERR_PNPM_REGISTRY_ERROR))]
     RegistryWriteFailed {
         #[error(not(source))]
@@ -78,14 +78,6 @@ pub enum OwnerError {
         status_text: String,
         #[error(not(source))]
         body: String,
-    },
-
-    #[display("Failed to fetch owners: {status} {status_text}")]
-    #[diagnostic(code(ERR_PNPM_REGISTRY_ERROR))]
-    FetchOwnersFailed {
-        status: u16,
-        #[error(not(source))]
-        status_text: String,
     },
 
     #[display("Failed to {operation}: {reason}")]
@@ -113,21 +105,24 @@ struct OwnerEntry {
 }
 
 impl OwnerArgs {
-    pub async fn run(self, config: &Config) -> miette::Result<Option<String>> {
+    pub async fn run(&self, config: &Config) -> miette::Result<Option<String>> {
         let subcommand = self.params.first().map(String::as_str);
-        let context = Self::context(config, self.otp)?;
+        let context = self.context(config)?;
 
         match subcommand {
             Some("ls" | "list") => owner_ls(&context, &self.params[1..]).await.map(Some),
             Some("add") => owner_add(&context, &self.params[1..]).await.map(Some),
-            Some("rm" | "remove") => owner_rm(&context, &self.params[1..]).await.map(Some),
+            Some("rm") => owner_rm(&context, &self.params[1..]).await.map(Some),
             _ => owner_ls(&context, &self.params).await.map(Some),
         }
     }
 
-    fn context(config: &Config, otp: Option<String>) -> miette::Result<OwnerContext<'_>> {
-        let registries: HashMap<String, String> =
+    fn context<'a>(&'a self, config: &'a Config) -> miette::Result<OwnerContext<'a>> {
+        let mut registries: HashMap<String, String> =
             config.resolved_registries().into_iter().collect();
+        if let Some(registry) = &self.registry {
+            registries.insert("default".to_string(), normalize_registry_url(registry));
+        }
         Ok(OwnerContext {
             config,
             http_client: build_http_client(config)?,
@@ -138,7 +133,7 @@ impl OwnerArgs {
                 max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
             },
             registries,
-            otp,
+            otp: self.otp.clone(),
         })
     }
 }
@@ -168,12 +163,12 @@ async fn owner_ls(context: &OwnerContext<'_>, params: &[String]) -> miette::Resu
         return Err(OwnerError::PackageNotFound { package_name: package_name.clone() }.into());
     }
     if !response.status().is_success() {
-        let status = response.status();
-        return Err(OwnerError::FetchOwnersFailed {
-            status: status.as_u16(),
-            status_text: status.canonical_reason().unwrap_or_default().to_string(),
-        }
-        .into());
+        return Err(write_error_from_response(
+            response,
+            "fetch owners of".to_string(),
+            package_name,
+        )
+        .await);
     }
 
     let body = read_limited_body(response, OWNER_BODY_LIMIT)
@@ -312,6 +307,10 @@ async fn write_error_from_response(
         _ => OwnerError::RegistryWriteFailed { action, status: status.as_u16(), status_text, body }
             .into(),
     }
+}
+
+fn normalize_registry_url(registry_url: &str) -> String {
+    if registry_url.ends_with('/') { registry_url.to_string() } else { format!("{registry_url}/") }
 }
 
 #[cfg(test)]
