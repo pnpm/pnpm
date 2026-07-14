@@ -1,10 +1,11 @@
 use super::{
-    DownloadTarballToStore, FetchTarballForResolution, HttpStatusError, MemCache, NetworkError,
-    PrefetchedCasPaths, RetryOpts, SharedReportedProgressKeys, TarballError, VerifyChecksumError,
-    allocate_local_tarball_buffer, allocate_tarball_buffer, apply_append_manifest,
-    download_priority, extract_tarball_entries, extract_zip_entries, fetch_and_extract_with_retry,
-    is_transient_error, local_file_tarball_path, normalize_bundled_manifest, open_local_tarball,
-    prefetch_cas_paths, read_local_tarball_buffer,
+    DownloadTarballToStore, FetchTarballForResolution, HttpStatusError,
+    MAX_UNTRUSTED_PREALLOC_BYTES, MemCache, NetworkError, PrefetchedCasPaths, RetryOpts,
+    SharedReportedProgressKeys, TarballError, VerifyChecksumError, allocate_local_tarball_buffer,
+    allocate_tarball_buffer, apply_append_manifest, bounded_gzip_size_hint, download_priority,
+    extract_tarball_entries, extract_zip_entries, fetch_and_extract_with_retry, is_transient_error,
+    local_file_tarball_path, normalize_bundled_manifest, open_local_tarball, prefetch_cas_paths,
+    read_local_tarball_buffer,
 };
 use pacquet_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
 use pacquet_reporter::SilentReporter;
@@ -26,6 +27,18 @@ use tempfile::{TempDir, tempdir};
 
 fn integrity(integrity_str: &str) -> Integrity {
     integrity_str.parse().expect("parse integrity string")
+}
+
+#[test]
+fn gzip_size_hint_enforces_untrusted_preallocation_limit() {
+    assert_eq!(bounded_gzip_size_hint(None), None);
+    assert_eq!(bounded_gzip_size_hint(Some(1)), Some(1));
+    assert_eq!(
+        bounded_gzip_size_hint(Some(MAX_UNTRUSTED_PREALLOC_BYTES)),
+        Some(MAX_UNTRUSTED_PREALLOC_BYTES),
+    );
+    assert_eq!(bounded_gzip_size_hint(Some(MAX_UNTRUSTED_PREALLOC_BYTES + 1)), None,);
+    assert_eq!(bounded_gzip_size_hint(Some(usize::MAX)), None);
 }
 
 /// Absent `Content-Length` (chunked transfer) returns an empty

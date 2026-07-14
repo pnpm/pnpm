@@ -29,6 +29,8 @@ use tokio::sync::{Notify, RwLock, Semaphore};
 use tracing::instrument;
 use zune_inflate::{DeflateDecoder, DeflateOptions, errors::InflateDecodeErrors};
 
+const MAX_UNTRUSTED_PREALLOC_BYTES: usize = 64 * 1024 * 1024;
+
 /// Cap on concurrent post-download tarball work (SHA-512 of the whole
 /// tarball + gzip inflate + per-file SHA-512 + CAFS writes). The body is
 /// CPU-bound with some blocking FS I/O, and putting it on
@@ -454,11 +456,15 @@ fn read_local_tarball_error(
     }
 }
 
+fn bounded_gzip_size_hint(unpacked_size: Option<usize>) -> Option<usize> {
+    unpacked_size.filter(|&size| size <= MAX_UNTRUSTED_PREALLOC_BYTES)
+}
+
 #[instrument(skip(gz_data), fields(gz_data_len = gz_data.len()))]
 fn decompress_gzip(gz_data: &[u8], unpacked_size: Option<usize>) -> Result<Vec<u8>, TarballError> {
     let mut options = DeflateOptions::default().set_confirm_checksum(false);
 
-    if let Some(size) = unpacked_size {
+    if let Some(size) = bounded_gzip_size_hint(unpacked_size) {
         options = options.set_size_hint(size);
     }
 
@@ -1015,8 +1021,7 @@ fn extract_zip_entries(
         // hint at 64 MiB so a maliciously huge `uncompressed_size`
         // in the central directory can't crash the process before
         // `read_to_end` has a chance to surface the real error.
-        const MAX_ENTRY_PREALLOC_BYTES: u64 = 64 * 1024 * 1024;
-        let prealloc_hint = entry.size().min(MAX_ENTRY_PREALLOC_BYTES) as usize;
+        let prealloc_hint = entry.size().min(MAX_UNTRUSTED_PREALLOC_BYTES as u64) as usize;
         let mut buffer = Vec::new();
         buffer.try_reserve(prealloc_hint).map_err(|err| TarballError::ReadZipEntries {
             url: package_url.to_string(),
