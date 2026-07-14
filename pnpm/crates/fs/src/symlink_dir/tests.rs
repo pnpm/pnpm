@@ -159,6 +159,25 @@ fn windows_scoped_alias_path_gets_native_separators() {
     );
 }
 
+/// Even a verbatim `\\?\` path — where `Path::components` would treat
+/// `/` as a literal filename byte rather than a separator — must have
+/// its forward slashes rewritten. The rewrite runs before the stdlib's
+/// own verbatim conversion, so it must not rely on component parsing.
+#[cfg(windows)]
+#[test]
+fn windows_verbatim_path_forward_slashes_are_rewritten() {
+    let verbatim = Path::new(r"\\?\C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\@scope/name");
+    let native = to_native_separators(verbatim);
+    assert!(
+        !native.as_os_str().to_string_lossy().contains('/'),
+        "no forward slash may survive into the symlink syscall: {native:?}",
+    );
+    assert_eq!(
+        native.as_ref(),
+        Path::new(r"\\?\C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\@scope\name"),
+    );
+}
+
 /// A path that already uses native separators must be returned
 /// unchanged (and borrowed, not reallocated).
 #[cfg(windows)]

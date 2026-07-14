@@ -43,8 +43,7 @@ pub fn symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
 /// `CreateSymbolicLinkW`, which rejects forward-slash paths (the long
 /// store paths reach it in verbatim `\\?\` form, where `/` is a literal
 /// filename byte rather than a separator) with `ERROR_DIRECTORY`
-/// (os error 267). Collecting the path's components re-emits each one
-/// behind [`std::path::MAIN_SEPARATOR`].
+/// (os error 267). Every `/` is rewritten to `\`.
 ///
 /// Borrows unless a rewrite is actually needed. A no-op on Unix, where
 /// `/` is already native.
@@ -53,10 +52,18 @@ fn to_native_separators(path: &Path) -> Cow<'_, Path> {
     // WTF-8 keeps ASCII bytes verbatim, so a literal `/` (0x2F) shows up
     // here iff the path really carries a forward slash — cheaper than
     // allocating a `String` to scan.
-    if path.as_os_str().as_encoded_bytes().contains(&b'/') {
-        Cow::Owned(path.components().collect())
-    } else {
-        Cow::Borrowed(path)
+    if !path.as_os_str().as_encoded_bytes().contains(&b'/') {
+        return Cow::Borrowed(path);
+    }
+    // A plain `/`→`\` string replacement rather than rebuilding from
+    // `Path::components`, because in a verbatim `\\?\` path `components`
+    // treats `/` as a literal filename byte, not a separator, and would
+    // leave it in place. Package paths are always valid Unicode, so
+    // `to_str` succeeds; a path that somehow isn't UTF-8 carries no
+    // separator-intended `/` and is returned untouched.
+    match path.to_str() {
+        Some(s) => Cow::Owned(PathBuf::from(s.replace('/', "\\"))),
+        None => Cow::Borrowed(path),
     }
 }
 
