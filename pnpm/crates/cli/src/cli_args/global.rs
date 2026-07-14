@@ -587,20 +587,36 @@ fn resolve_local_param(param: &str, base_dir: &Path) -> String {
 }
 
 fn infer_local_package_alias(selector: &str) -> miette::Result<String> {
-    let Some(path) = selector.strip_prefix("file:").map(Path::new).filter(|path| path.is_dir())
-    else {
+    let Some(path) = selector.strip_prefix("file:").map(Path::new) else {
         return Ok(selector.to_string());
     };
+    let path_display = path.display().to_string();
+    let metadata = match fs::metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(selector.to_string());
+        }
+        Err(error) => {
+            return Err(error)
+                .into_diagnostic()
+                .wrap_err(format!("read local package metadata from {path_display}"));
+        }
+    };
+    if !metadata.is_dir() {
+        return Ok(selector.to_string());
+    }
     let manifest = safe_read_package_json_from_dir(path)
         .map_err(miette::Report::new)
-        .wrap_err_with(|| format!("read local package manifest from {}", path.display()))?
-        .ok_or_else(|| miette::miette!("No package.json was found in {}", path.display()))?;
+        .wrap_err_with(|| format!("read local package manifest from {path_display}"))?
+        .ok_or_else(|| miette::miette!("No package.json was found in {path_display}"))?;
     let name = manifest
         .get("name")
         .and_then(serde_json::Value::as_str)
         .filter(|name| !name.is_empty())
+        .or_else(|| path.file_name().and_then(|name| name.to_str()))
+        .filter(|name| !name.is_empty())
         .ok_or_else(|| {
-            miette::miette!("The local package at {} has no package name", path.display())
+            miette::miette!("The local package at {path_display} has no package name")
         })?;
     Ok(format!("{name}@{selector}"))
 }

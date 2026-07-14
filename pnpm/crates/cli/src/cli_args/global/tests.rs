@@ -1,6 +1,6 @@
 use super::{
-    is_windows_drive_path, replacement_aliases, should_replace_existing_package,
-    split_comma_separated,
+    infer_local_package_alias, is_windows_drive_path, replacement_aliases,
+    should_replace_existing_package, split_comma_separated,
 };
 use pacquet_global::GlobalPackageInfo;
 use std::path::{Path, PathBuf};
@@ -26,6 +26,21 @@ fn detects_windows_drive_paths() {
     assert!(is_windows_drive_path(r"C:\foo"));
     assert!(is_windows_drive_path("d:/bar"));
     assert!(!is_windows_drive_path("foo"));
+}
+
+#[test]
+fn unnamed_local_package_uses_directory_name_as_alias() {
+    let package_dir = tempfile::tempdir().expect("create local package");
+    std::fs::write(package_dir.path().join("package.json"), "{}")
+        .expect("write local package manifest");
+    let selector = format!("file:{}", package_dir.path().display());
+    let directory_name =
+        package_dir.path().file_name().and_then(|name| name.to_str()).expect("directory name");
+
+    assert_eq!(
+        infer_local_package_alias(&selector).expect("infer package alias"),
+        format!("{directory_name}@{selector}"),
+    );
 }
 
 #[test]

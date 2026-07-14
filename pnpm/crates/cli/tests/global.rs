@@ -135,8 +135,10 @@ fn global_add_accepts_ignore_scripts_for_local_directory() {
 
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let pnpm_home = root.path().join("pnpm-home");
-    let package_dir =
-        tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).expect("create local package");
+    // Keep the package on the checkout filesystem so macOS resolves it
+    // outside the symlinked `/var` temp root used for the global home.
+    let target_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../target");
+    let package_dir = tempfile::tempdir_in(target_dir).expect("create local package");
     fs::write(
         package_dir.path().join("package.json"),
         r#"{ "name": "@pnpm/exe", "version": "12.0.0", "scripts": { "install": "exit 1" } }"#,
