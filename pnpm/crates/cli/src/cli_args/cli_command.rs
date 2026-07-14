@@ -116,18 +116,16 @@ pub struct CliArgs {
 
     /// Path to a `.npmrc` to read auth settings from, overriding the
     /// default `~/.npmrc`. Mirrors pnpm's `--npmrc-auth-file` (and its
-    /// `--userconfig` alias) and sets
-    /// [`pacquet_config::Config::npmrc_auth_file`], consumed when
-    /// `Config` resolves the user-level `.npmrc`.
+    /// `--userconfig` alias). Consumed when resolving the user-level
+    /// `.npmrc`.
     #[clap(long = "npmrc-auth-file", visible_alias = "userconfig", global = true)]
     pub npmrc_auth_file: Option<PathBuf>,
 
     /// Run the command for every project in the workspace instead of
     /// only the project in `--dir`. Mirrors pnpm's global `-r` /
-    /// `--recursive` flag and sets
-    /// [`pacquet_config::Config::recursive`]. pacquet's `install`
+    /// `--recursive` flag. pacquet's `install`
     /// already spans the whole workspace, so the flag is a surface
-    /// no-op there today; see the field docs.
+    /// no-op there today.
     #[clap(short = 'r', long, global = true)]
     pub recursive: bool,
 
@@ -137,9 +135,8 @@ pub struct CliArgs {
 
     /// `--filter` / `-F` workspace selectors. Each occurrence adds one
     /// raw selector (`@scope/*`, `./pkg`, `foo...`, `!bar`, `{dir}`,
-    /// `[since]`, ...). Stored into [`pacquet_config::Config::filter`];
-    /// see that field for why the resolved selection is not yet
-    /// consumed by `install`.
+    /// `[since]`, ...). The resolved selection is not yet consumed by
+    /// `install`.
     ///
     /// As a global multi-value flag, occurrences collect only within one
     /// side of the subcommand boundary; mixing sides is a clap limitation,
@@ -147,24 +144,20 @@ pub struct CliArgs {
     #[clap(short = 'F', long, global = true)]
     pub filter: Vec<String>,
 
-    /// `--filter-prod` workspace selectors. Same syntax as
-    /// [`Self::filter`], but the dependency walk follows production
-    /// dependencies only. Stored into
-    /// [`pacquet_config::Config::filter_prod`].
+    /// `--filter-prod` workspace selectors. Same syntax as `--filter`,
+    /// but the dependency walk follows production dependencies only.
     #[clap(long = "filter-prod", global = true)]
     pub filter_prod: Vec<String>,
 
     /// `--test-pattern` glob patterns naming test files, consumed by
     /// the `[<since>]` changed-packages `--filter` selector. Overrides
-    /// [`pacquet_config::Config::test_pattern`] when given.
+    /// the configured value when given.
     #[clap(long = "test-pattern", global = true)]
     pub test_pattern: Vec<String>,
 
     /// `--changed-files-ignore-pattern` glob patterns of changed files
     /// the `[<since>]` changed-packages `--filter` selector ignores.
-    /// Overrides
-    /// [`pacquet_config::Config::changed_files_ignore_pattern`] when
-    /// given.
+    /// Overrides the configured value when given.
     #[clap(long = "changed-files-ignore-pattern", global = true)]
     pub changed_files_ignore_pattern: Vec<String>,
 

@@ -50,8 +50,8 @@ pub(crate) fn pack_catalogs(config: &Config) -> miette::Result<Catalogs> {
 }
 
 /// `pacquet pack` arguments. The `-r` / `--recursive` and `--filter`
-/// selectors are global flags on [`crate::CliArgs`]; `--recursive` is
-/// threaded into [`Self::run`].
+/// selectors are global flags on the top-level CLI; `--recursive` is
+/// threaded into `run`.
 #[derive(Debug, Args)]
 pub struct PackArgs {
     /// Do everything `pack` would do except writing the tarball to disk.

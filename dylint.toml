@@ -45,8 +45,18 @@ enable = ["unordered_derives"]
 disable = [
     "needless_borrowed_parameters",
     "unpinned_repo_ref",
-    "clap_help_markdown",
 ]
+
+# Keep code spans in clap doc comments. The vast majority wrap flag names
+# (`--frozen-lockfile`), file names (`package.json`), literal values (`0`),
+# and version-target syntax (`pacquet@<rev>`) — they read acceptably in
+# `--help` and stay useful as `cargo doc` API docs, and unwrapping a span
+# like `` `pacquet@<rev>` `` would turn `<rev>` into a stray HTML tag that
+# rustdoc rejects. The rule's genuinely user-hostile leaks — links, HTML,
+# and internal-type references — are still forbidden and cleaned out of the
+# help text instead. See <https://github.com/pnpm/pnpm/issues/12718>.
+["perfectionist::clap_help_markdown"]
+ignore_constructs = ["code_span"]
 
 # The codebase collapses imports to one `use` per crate root (shared
 # prefixes in nested braces) — the same granularity rustfmt spells

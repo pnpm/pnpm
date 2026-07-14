@@ -18,7 +18,7 @@ use std::{
 /// The recursive variant (selected by the global `-r` / `--recursive`
 /// flag) runs the command across the `--filter`-selected workspace
 /// projects, topologically sorted and sequential, with `--resume-from` /
-/// `--report-summary` / `--no-bail` (see [`recursive`]).
+/// `--report-summary` / `--no-bail`.
 /// `--workspace-concurrency` parallelism is not ported yet, matching the
 /// recursive `run` runner.
 #[derive(Debug, Args)]

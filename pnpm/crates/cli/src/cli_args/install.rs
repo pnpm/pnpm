@@ -103,7 +103,7 @@ pub struct InstallArgs {
     /// Force-enable `preferFrozenLockfile` for this invocation.
     /// Overrides `pnpm-workspace.yaml` / `PNPM_CONFIG_PREFER_FROZEN_LOCKFILE`.
     /// Mirrors pnpm's `--prefer-frozen-lockfile`. Paired with
-    /// [`Self::no_prefer_frozen_lockfile`] by mutual `overrides_with`, so
+    /// `--no-prefer-frozen-lockfile` by mutual `overrides_with`, so
     /// both spellings in one argv resolve last-one-wins (nopt semantics).
     #[clap(long = "prefer-frozen-lockfile", overrides_with = "no_prefer_frozen_lockfile")]
     pub prefer_frozen_lockfile: bool,
@@ -126,8 +126,8 @@ pub struct InstallArgs {
     /// will rewrite the manifest right after pacquet returns. See
     /// <https://github.com/pnpm/pnpm/issues/11797>.
     ///
-    /// Narrow on purpose: only gates
-    /// [`pacquet_lockfile::satisfies_package_manifest`]. Settings
+    /// Narrow on purpose: only gates the lockfile-satisfies-manifest
+    /// check. Settings
     /// drift (`overrides`, `ignoredOptionalDependencies`,
     /// `pnpmfileChecksum`, ...) still aborts. A future broader flag
     /// matching pnpm's internal `ignorePackageManifest` (used by
@@ -153,7 +153,7 @@ pub struct InstallArgs {
     ///
     /// Merged into `config.ignore_scripts` at the CLI dispatch in
     /// `cli_args.rs`, so the install reads it from the config like every
-    /// other build-script setting. Paired with [`Self::no_ignore_scripts`],
+    /// other build-script setting. Paired with `--no-ignore-scripts`,
     /// the CLI inverse, by mutual `overrides_with` (last-one-wins).
     #[clap(long = "ignore-scripts", overrides_with = "no_ignore_scripts")]
     pub ignore_scripts: bool,
@@ -185,7 +185,7 @@ pub struct InstallArgs {
     /// metadata path.
     ///
     /// Overrides `offline` from `pnpm-workspace.yaml`. Paired with
-    /// [`Self::no_offline`], the CLI inverse that forces a yaml `true`
+    /// `--no-offline`, the CLI inverse that forces a yaml `true`
     /// back off, by mutual `overrides_with` (last-one-wins).
     #[clap(long, overrides_with = "no_offline")]
     pub offline: bool,
@@ -200,7 +200,7 @@ pub struct InstallArgs {
     /// writes. For installs against a store on a read-only filesystem
     /// (e.g. a Nix store); pair with `--offline --frozen-lockfile`.
     /// Mirrors pnpm's `--frozen-store`. Overrides `frozenStore` from
-    /// `pnpm-workspace.yaml`. Paired with [`Self::no_frozen_store`], the
+    /// `pnpm-workspace.yaml`. Paired with `--no-frozen-store`, the
     /// CLI inverse, by mutual `overrides_with` (last-one-wins). (pnpm
     /// additionally rejects `--frozen-store` combined with `--force`;
     /// pacquet has no `force` flow yet, so there is nothing to conflict
@@ -221,7 +221,7 @@ pub struct InstallArgs {
     /// local store via the warm prefetch + `index.db` lookups, so
     /// the flag is a no-op for artifact fetches today. Field exists
     /// so yaml / CLI parse cleanly; Stage 2's resolver will honor it
-    /// on the metadata path. Paired with [`Self::no_prefer_offline`], the
+    /// on the metadata path. Paired with `--no-prefer-offline`, the
     /// CLI inverse, by mutual `overrides_with` (last-one-wins).
     #[clap(long, overrides_with = "no_prefer_offline")]
     pub prefer_offline: bool,
@@ -234,9 +234,9 @@ pub struct InstallArgs {
 
     /// Skip the lockfile supply-chain verification pass entirely.
     /// Overrides `pnpm-workspace.yaml#trustLockfile`. Mirrors pnpm's
-    /// `--trust-lockfile`. See [`pacquet_config::Config::trust_lockfile`].
-    /// Added for [pnpm/pnpm#11860](https://github.com/pnpm/pnpm/issues/11860).
-    /// Paired with [`Self::no_trust_lockfile`], the CLI inverse, by mutual
+    /// `--trust-lockfile`. Added for
+    /// <https://github.com/pnpm/pnpm/issues/11860>.
+    /// Paired with `--no-trust-lockfile`, the CLI inverse, by mutual
     /// `overrides_with` (last-one-wins).
     #[clap(long = "trust-lockfile", overrides_with = "no_trust_lockfile")]
     pub trust_lockfile: bool,
@@ -258,21 +258,17 @@ pub struct InstallArgs {
     /// `networkConcurrency` value resolved from `pnpm-workspace.yaml` /
     /// global `config.yaml` / `PNPM_CONFIG_NETWORK_CONCURRENCY` for this
     /// invocation. `None` (flag absent) leaves the config-resolved
-    /// value in place. Applied to
-    /// [`pacquet_config::Config::network_concurrency`] at the CLI
-    /// dispatch in [`crate::cli_args::CliArgs::run`].
+    /// value in place.
     #[clap(long = "network-concurrency")]
     pub network_concurrency: Option<usize>,
 
     /// Per-request network timeout in milliseconds. Mirrors pnpm's
     /// `--fetch-timeout`; overrides `fetchTimeout` for this invocation.
-    /// Applied to [`pacquet_config::Config::fetch_timeout`].
     #[clap(long = "fetch-timeout")]
     pub fetch_timeout: Option<u64>,
 
     /// `User-Agent` header sent on registry requests. Mirrors pnpm's
     /// `--user-agent`; overrides `userAgent` for this invocation.
-    /// Applied to [`pacquet_config::Config::user_agent`].
     #[clap(long = "user-agent")]
     pub user_agent: Option<String>,
 
@@ -280,7 +276,7 @@ pub struct InstallArgs {
     /// Overrides the `pnprServer` setting for this invocation. When set,
     /// the server resolves against the client's registries and
     /// `node_modules` is linked locally from the server-produced
-    /// lockfile. Applied to [`pacquet_config::Config::pnpr_server`].
+    /// lockfile.
     #[clap(long = "pnpr-server")]
     pub pnpr_server: Option<String>,
 }
