@@ -176,15 +176,8 @@ async fn handler<Reporter: self::Reporter + 'static>(
     if let Some(pm) = &wanted
         && pm.name == "pnpm"
     {
-        return Box::pin(update_project_pin(
-            config,
-            dir,
-            pm,
-            &target_version,
-            bare_specifier,
-            is_implicit_latest,
-        ))
-        .await;
+        return Box::pin(update_project_pin(config, dir, pm, &target_version, is_implicit_latest))
+            .await;
     }
 
     // Global switch. Version equality with the running binary alone must
@@ -214,7 +207,7 @@ async fn handler<Reporter: self::Reporter + 'static>(
     Box::pin(config_deps::sync_package_manager_dependencies(
         config,
         &env_root,
-        bare_specifier,
+        &target_version,
         &target_version,
         false,
     ))
@@ -254,7 +247,6 @@ async fn update_project_pin(
     dir: &Path,
     pm: &super::package_manager::WantedPackageManager,
     target_version: &str,
-    bare_specifier: &str,
     is_implicit_latest: bool,
 ) -> miette::Result<Option<String>> {
     if pm.version.as_deref() == Some(target_version) {
@@ -296,19 +288,24 @@ async fn update_project_pin(
             .is_some_and(|(name, version)| name == "pnpm" && version.is_some());
 
         let mut changed = false;
+        // The specifier recorded in packageManagerDependencies must match the
+        // devEngines pin a later install reads back (see
+        // `package_manager::package_manager_to_sync`), not the CLI dist-tag —
+        // otherwise a subsequent `--frozen-lockfile` install treats the
+        // lockfile as outdated. Default to the resolved version for the case
+        // where there is no readable pnpm entry to update.
+        let mut pin_specifier = target_version.to_string();
         if let Some(entry) = dev_engines_pnpm_entry_mut(manifest.value_mut()) {
             let current = entry.get("version").and_then(Value::as_str).map(ToString::to_string);
-            let updated = if legacy_pins_pnpm {
-                target_version.to_string()
-            } else {
-                update_version_constraint(current.as_deref(), target_version)
-            };
+            let updated =
+                package_manager_pin_specifier(legacy_pins_pnpm, current.as_deref(), target_version);
             if current.as_deref() != Some(updated.as_str())
                 && let Some(object) = entry.as_object_mut()
             {
-                object.insert("version".to_string(), Value::String(updated));
+                object.insert("version".to_string(), Value::String(updated.clone()));
                 changed = true;
             }
+            pin_specifier = updated;
         }
         if legacy_pins_pnpm {
             let new_legacy = format!("pnpm@{target_version}");
@@ -327,7 +324,7 @@ async fn update_project_pin(
             Box::pin(config_deps::sync_package_manager_dependencies(
                 config,
                 &root_dir,
-                bare_specifier,
+                &pin_specifier,
                 target_version,
                 false,
             ))
@@ -369,6 +366,26 @@ fn pm_for_persist(
         version: pm.version.clone(),
         from_dev_engines: true,
         on_fail: pm.on_fail.clone(),
+    }
+}
+
+/// The specifier to record in `packageManagerDependencies` after
+/// `self-update` rewrites the `devEngines.packageManager` pin. It must equal
+/// the constraint a later install reads back from the manifest (see
+/// [`super::package_manager::package_manager_to_sync`]) — the updated
+/// devEngines constraint, never the CLI dist-tag or range passed to
+/// `self-update` — so a subsequent `--frozen-lockfile` install does not
+/// reject the lockfile as outdated. A legacy `packageManager` pin is always
+/// exact, so it takes the resolved version directly.
+fn package_manager_pin_specifier(
+    legacy_pins_pnpm: bool,
+    current_dev_engine_version: Option<&str>,
+    target_version: &str,
+) -> String {
+    if legacy_pins_pnpm {
+        target_version.to_string()
+    } else {
+        update_version_constraint(current_dev_engine_version, target_version)
     }
 }
 
