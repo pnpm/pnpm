@@ -889,7 +889,7 @@ fn files_field_overrides_root_gitignore() {
 
     assert!(
         out.contains(&"pnpm".to_string()),
-        "`files: [\"pnpm\"]` must override `.gitignore` that excludes `pnpm`; received {out:?}",
+        r#"`files: ["pnpm"]` must override `.gitignore` that excludes `pnpm`; received {out:?}"#,
     );
 }
 
