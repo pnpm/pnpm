@@ -8,6 +8,8 @@
 use super::relative_target_for;
 #[cfg(unix)]
 use super::symlink_dir;
+#[cfg(windows)]
+use super::to_native_separators;
 use super::{ForceSymlinkOutcome, force_symlink_dir, read_symlink_dir};
 use std::fs;
 #[cfg(windows)]
@@ -133,6 +135,51 @@ fn windows_cross_drive_symlink_target_falls_back_to_absolute() {
 
 #[cfg(windows)]
 #[test]
+fn windows_scoped_alias_path_gets_native_separators() {
+    let mixed = Path::new(r"C:\store\v11\links\@\pkg\1.0.0\hash\node_modules").join("@scope/name");
+    assert!(
+        mixed.as_os_str().to_string_lossy().contains('/'),
+        "the join must leave a forward slash for the rewrite to remove: {mixed:?}",
+    );
+
+    let native = to_native_separators(&mixed);
+    assert!(
+        !native.as_os_str().to_string_lossy().contains('/'),
+        "no forward slash may survive into the symlink syscall: {native:?}",
+    );
+    assert_eq!(
+        native.as_ref(),
+        Path::new(r"C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\@scope\name"),
+    );
+}
+
+/// The verbatim `\\?\` form is the case a `Path::components` rewrite
+/// would miss, since it treats `/` there as a literal byte.
+#[cfg(windows)]
+#[test]
+fn windows_verbatim_path_forward_slashes_are_rewritten() {
+    let verbatim = Path::new(r"\\?\C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\@scope/name");
+    let native = to_native_separators(verbatim);
+    assert!(
+        !native.as_os_str().to_string_lossy().contains('/'),
+        "no forward slash may survive into the symlink syscall: {native:?}",
+    );
+    assert_eq!(
+        native.as_ref(),
+        Path::new(r"\\?\C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\@scope\name"),
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_native_path_is_borrowed_unchanged() {
+    let native = Path::new(r"C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\dep");
+    assert!(matches!(to_native_separators(native), std::borrow::Cow::Borrowed(_)));
+    assert_eq!(to_native_separators(native).as_ref(), native);
+}
+
+#[cfg(windows)]
+#[test]
 fn windows_same_drive_symlink_target_stays_relative() {
     let target = Path::new(r"C:\workspace\packages\pkg-a");
     let link = Path::new(r"C:\workspace\app\node_modules\pkg-a");
@@ -147,6 +194,22 @@ fn windows_verbatim_and_plain_disk_resolve_to_same_root() {
     let link = Path::new(r"C:\workspace\app\node_modules\pkg-a");
 
     assert!(relative_target_for(target, link).is_relative());
+}
+
+#[test]
+fn force_symlink_dir_links_a_scoped_alias() {
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("store").join("node_modules").join("@scope").join("name");
+    let modules = root.path().join("app").join("node_modules");
+    let link = modules.join("@scope/name");
+    fs::create_dir_all(&target).expect("create target dir");
+
+    let outcome = force_symlink_dir(&target, &link).expect("force_symlink_dir succeeds");
+    assert!(!outcome.reused);
+
+    let resolved_link = fs::canonicalize(&link).expect("canonicalize the scoped symlink");
+    let resolved_target = fs::canonicalize(&target).expect("canonicalize target");
+    assert_eq!(resolved_link, resolved_target);
 }
 
 #[test]

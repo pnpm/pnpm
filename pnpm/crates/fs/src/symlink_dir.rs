@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     fs, io,
     path::{Path, PathBuf},
 };
@@ -26,8 +27,40 @@ pub fn symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
     }
     #[cfg(windows)]
     {
-        windows::create(original, link)
+        let original = to_native_separators(original);
+        let link = to_native_separators(link);
+        windows::create(&original, &link)
     }
+}
+
+/// Rewrite every `/` in `path` to the native `\` on Windows.
+///
+/// A scoped alias like `@scope/name` is joined into a path as a single
+/// segment, and [`Path::join`] appends it verbatim, leaving a forward
+/// slash that `CreateSymbolicLinkW` rejects with `ERROR_DIRECTORY`
+/// (os error 267) — the long store paths reach it in verbatim `\\?\`
+/// form, where `/` is a literal byte rather than a separator.
+///
+/// Borrows unless a rewrite is needed; a no-op on Unix.
+#[cfg(windows)]
+fn to_native_separators(path: &Path) -> Cow<'_, Path> {
+    // In WTF-8 a 0x2F byte appears iff the path holds a literal `/`, so
+    // scanning bytes is a correct, allocation-free check.
+    if !path.as_os_str().as_encoded_bytes().contains(&b'/') {
+        return Cow::Borrowed(path);
+    }
+    // A string replace, not `Path::components`: in a verbatim `\\?\`
+    // path `components` treats `/` as a literal byte and leaves it in
+    // place. Package paths are valid Unicode, so `to_str` succeeds.
+    match path.to_str() {
+        Some(s) => Cow::Owned(PathBuf::from(s.replace('/', "\\"))),
+        None => Cow::Borrowed(path),
+    }
+}
+
+#[cfg(not(windows))]
+fn to_native_separators(path: &Path) -> Cow<'_, Path> {
+    Cow::Borrowed(path)
 }
 
 /// Compute the symlink contents for a true symlink: the path from the
@@ -156,7 +189,11 @@ pub struct ForceSymlinkOutcome {
 /// the `AlreadyExists` and the rename, the initial `AlreadyExists`
 /// error is surfaced rather than the rename's `NotFound`.
 pub fn force_symlink_dir(target: &Path, link: &Path) -> io::Result<ForceSymlinkOutcome> {
-    force_symlink_inner(target, link, false)
+    // Normalize up front so every retry-loop fs op on `link` — not just
+    // the symlink syscall — sees a native path. See [`to_native_separators`].
+    let target = to_native_separators(target);
+    let link = to_native_separators(link);
+    force_symlink_inner(&target, &link, false)
 }
 
 fn force_symlink_inner(
