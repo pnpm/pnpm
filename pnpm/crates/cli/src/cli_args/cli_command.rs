@@ -9,6 +9,7 @@ use super::{
     cat_file::CatFileArgs,
     cat_index::CatIndexArgs,
     change::ChangeArgs,
+    clean::CleanArgs,
     completion::{CompletionArgs, CompletionServerArgs},
     config::ConfigArgs,
     create::CreateArgs,
@@ -372,6 +373,15 @@ pub enum CliCommand {
     Runtime(RuntimeArgs),
     /// Print the directory where pnpm will install executables.
     Bin(BinArgs),
+    /// Safely remove `node_modules` directories from the current project
+    /// (or every workspace project) without following NTFS junctions into
+    /// their targets. A `clean` script in `package.json` overrides
+    /// the built-in command.
+    Clean(CleanArgs),
+    /// Alias of `clean`: same behavior, except a `purge` script
+    /// (not a `clean` script) overrides it when present.
+    #[clap(name = "purge")]
+    Purge(CleanArgs),
     /// Print the effective `node_modules` directory.
     Root(RootArgs),
     /// Print the current package prefix.
