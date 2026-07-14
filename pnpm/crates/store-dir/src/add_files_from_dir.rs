@@ -20,10 +20,12 @@ use std::{
 /// Result of [`add_files_from_dir()`]. The map's key is the file's
 /// path *relative to `pkg_root`*, with forward-slash separators, so the
 /// resulting `FilesIndex` round-trips through pnpm without
-/// renormalisation.
+/// renormalisation. `has_symlinks` records metadata that the file map
+/// cannot represent.
 #[derive(Debug)]
 pub struct AddedFiles {
     pub files: HashMap<String, CafsFileInfo>,
+    pub has_symlinks: bool,
 }
 
 /// Error type of [`add_files_from_dir()`].
@@ -80,16 +82,18 @@ pub fn add_files_from_dir(
         })?;
     let mut ctx = WalkCtx {
         files: HashMap::new(),
+        has_symlinks: false,
         canonical_root: canonical_root.clone(),
         visited: HashSet::from([canonical_root.clone()]),
         store_dir,
     };
     walk(&mut ctx, pkg_root, "", &canonical_root)?;
-    Ok(AddedFiles { files: ctx.files })
+    Ok(AddedFiles { files: ctx.files, has_symlinks: ctx.has_symlinks })
 }
 
 struct WalkCtx<'a> {
     files: HashMap<String, CafsFileInfo>,
+    has_symlinks: bool,
     canonical_root: PathBuf,
     visited: HashSet<PathBuf>,
     store_dir: &'a StoreDir,
@@ -116,7 +120,8 @@ fn walk(
             format!("{relative_dir}/{name}")
         };
 
-        let Some(target) = resolve_entry(ctx, &entry, current_real_path, &name)? else {
+        let Some(target) = resolve_entry(ctx, &entry, current_real_path, relative_dir, &name)?
+        else {
             continue;
         };
         match target {
@@ -149,9 +154,10 @@ enum EntryTarget {
 }
 
 fn resolve_entry(
-    ctx: &WalkCtx<'_>,
+    ctx: &mut WalkCtx<'_>,
     entry: &fs::DirEntry,
     current_real_path: &Path,
+    relative_dir: &str,
     name: &str,
 ) -> Result<Option<EntryTarget>, AddFilesFromDirError> {
     let absolute = entry.path();
@@ -166,6 +172,10 @@ fn resolve_entry(
         return Ok(Some(EntryTarget::File { read_path: absolute, meta: None }));
     }
 
+    if relative_dir.is_empty() && name == "node_modules" {
+        return Ok(None);
+    }
+    ctx.has_symlinks = true;
     let Ok(real) = dunce::canonicalize(&absolute) else { return Ok(None) };
     if !real.starts_with(&ctx.canonical_root) {
         return Ok(None);

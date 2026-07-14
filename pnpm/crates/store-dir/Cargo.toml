@@ -49,6 +49,7 @@ sha2 = { workspace = true, features = ["asm"] }
 windows-sys = { workspace = true, features = ["Win32_Storage_FileSystem"] }
 
 [dev-dependencies]
+junction = { workspace = true }
 pipe-trait = { workspace = true }
 pretty_assertions = { workspace = true }
 sha2 = { workspace = true }
