@@ -114,21 +114,17 @@ fn clean_builtin(ctx: &RunCtx<'_>, config: &Config, remove_lockfile: bool) -> mi
             print_removing(&full_modules_dir);
             remove_modules_dir_contents(&full_modules_dir)?;
         }
-        if remove_lockfile {
-            let lockfile_path = dir.join("pnpm-lock.yaml");
-            if lockfile_path.exists() {
-                print_removing(&lockfile_path);
-                std::fs::remove_file(&lockfile_path)
-                    .or_else(|error| {
-                        if error.kind() == std::io::ErrorKind::NotFound {
-                            Ok(())
-                        } else {
-                            Err(error)
-                        }
-                    })
-                    .into_diagnostic()
-                    .wrap_err_with(|| format!("removing {}", lockfile_path.display()))?;
-            }
+    }
+    if remove_lockfile {
+        let lockfile_path = root_dir.join("pnpm-lock.yaml");
+        if lockfile_path.exists() {
+            print_removing(&lockfile_path);
+            std::fs::remove_file(&lockfile_path)
+                .or_else(|error| {
+                    if error.kind() == std::io::ErrorKind::NotFound { Ok(()) } else { Err(error) }
+                })
+                .into_diagnostic()
+                .wrap_err_with(|| format!("removing {}", lockfile_path.display()))?;
         }
     }
     // A virtual store dir configured outside `node_modules` (e.g. a
@@ -165,8 +161,7 @@ fn remove_modules_dir_contents(modules_dir: &Path) -> miette::Result<()> {
         return Ok(());
     };
     for entry in entries.filter_map(Result::ok) {
-        let name = entry.file_name().to_string_lossy().into_owned();
-        if name.starts_with('.') && !PNPM_HIDDEN_ENTRIES.contains(&name.as_str()) {
+        if !is_pnpm_entry(&entry.file_name().to_string_lossy()) {
             continue;
         }
         remove_path(&entry.path())?;
@@ -175,7 +170,9 @@ fn remove_modules_dir_contents(modules_dir: &Path) -> miette::Result<()> {
 }
 
 fn remove_path(path: &Path) -> miette::Result<()> {
-    std::fs::remove_dir_all(path)
+    let result =
+        if path.is_dir() { std::fs::remove_dir_all(path) } else { std::fs::remove_file(path) };
+    result
         .or_else(
             |error| {
                 if error.kind() == std::io::ErrorKind::NotFound { Ok(()) } else { Err(error) }
@@ -194,8 +191,34 @@ fn is_pnpm_entry(name: &str) -> bool {
 /// empty relative path renders as `.`.
 fn print_removing(path: &Path) {
     let cwd = std::env::current_dir().unwrap_or_default();
-    let relative = path.strip_prefix(&cwd).unwrap_or(path);
+    let relative = strip_prefix_case_insensitive(path, &cwd).unwrap_or_else(|| path.to_path_buf());
     let owned: PathBuf =
-        if relative.as_os_str().is_empty() { PathBuf::from(".") } else { relative.to_path_buf() };
+        if relative.as_os_str().is_empty() { PathBuf::from(".") } else { relative };
     println!("Removing {}", owned.display());
+}
+
+/// Like [`Path::strip_prefix`], but falls back to a case-insensitive
+/// comparison on Windows where `current_dir()` may differ in casing.
+fn strip_prefix_case_insensitive(path: &Path, base: &Path) -> Option<PathBuf> {
+    path.strip_prefix(base)
+        .ok()
+        .map(Path::to_path_buf)
+        .or_else(|| case_insensitive_strip_prefix(path, base))
+}
+
+/// On Windows, `current_dir()` may return different casing than the
+/// canonical path. This fallback strips the base using a case-insensitive
+/// comparison.
+#[cfg(windows)]
+fn case_insensitive_strip_prefix(path: &Path, base: &Path) -> Option<PathBuf> {
+    let path_s = path.to_string_lossy().to_lowercase();
+    let base_s = base.to_string_lossy().to_lowercase();
+    let rest = path_s.strip_prefix(&base_s)?;
+    let byte_offset = path.to_string_lossy().len() - rest.len();
+    Some(PathBuf::from(&path.to_string_lossy()[byte_offset..]))
+}
+
+#[cfg(not(windows))]
+fn case_insensitive_strip_prefix(_path: &Path, _base: &Path) -> Option<PathBuf> {
+    None
 }

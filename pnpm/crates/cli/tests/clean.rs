@@ -1,8 +1,6 @@
 use command_extra::CommandExtra;
-use std::fs;
-use std::path::Path;
-
 use pacquet_testing_utils::bin::CommandTempCwd;
+use std::{fs, path::Path};
 
 /// Create `dir/node_modules/<name>/package.json` so the directory
 /// looks like an installed package that `clean` must remove.
@@ -22,6 +20,7 @@ fn clean_removes_packages_and_pnpm_entries_but_preserves_non_pnpm_dotfiles() {
     fs::create_dir_all(node_modules.join(".pnpm")).expect("create .pnpm");
     fs::create_dir_all(node_modules.join(".cache")).expect("create .cache");
     fs::write(node_modules.join(".cache").join("data"), "x").expect("write .cache/data");
+    fs::write(node_modules.join(".modules.yaml"), "").expect("write .modules.yaml");
 
     let output = pacquet.with_args(["clean"]).output().expect("run pacquet clean");
     assert!(output.status.success(), "pacquet clean should succeed");
@@ -32,6 +31,7 @@ fn clean_removes_packages_and_pnpm_entries_but_preserves_non_pnpm_dotfiles() {
     // Regular packages and pnpm hidden entries are gone.
     assert!(!node_modules.join("lodash").exists(), "lodash package should be removed");
     assert!(!node_modules.join(".pnpm").exists(), ".pnpm should be removed");
+    assert!(!node_modules.join(".modules.yaml").exists(), ".modules.yaml should be removed");
 
     // Non-pnpm dotfiles (e.g. .cache) are preserved, along with the
     // node_modules directory itself.
@@ -168,7 +168,8 @@ fn clean_does_not_remove_virtual_store_dir_outside_the_project_root() {
 /// module is Unix-only.
 #[cfg(unix)]
 mod scripts {
-    use super::*;
+    use super::{CommandTempCwd, Path, fs, seed_package};
+    use command_extra::CommandExtra;
 
     fn write_manifest(dir: &Path, scripts: &serde_json::Value) {
         let manifest = serde_json::json!({
@@ -196,7 +197,7 @@ mod scripts {
         // The built-in clean is overridden, so node_modules is untouched.
         assert!(
             node_modules.join("lodash").exists(),
-            "node_modules must not be cleaned when a script overrides"
+            "node_modules must not be cleaned when a script overrides",
         );
 
         drop(root);
@@ -217,7 +218,7 @@ mod scripts {
         let stdout = String::from_utf8_lossy(&output.stdout);
         assert!(
             !stdout.contains("script-clean-ran"),
-            "purge must not run the clean script: {stdout}"
+            "purge must not run the clean script: {stdout}",
         );
         assert!(!node_modules.join("lodash").exists(), "purge built-in must clean node_modules");
 
@@ -240,7 +241,7 @@ mod scripts {
         assert!(stdout.contains("script-purge-ran"), "purge script should run: {stdout}");
         assert!(
             node_modules.join("lodash").exists(),
-            "node_modules must not be cleaned when a script overrides"
+            "node_modules must not be cleaned when a script overrides",
         );
 
         drop(root);
