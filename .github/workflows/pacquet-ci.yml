@@ -153,10 +153,6 @@ jobs:
         with:
           tool: just
 
-      - name: Reproduce concurrent junction creation
-        if: runner.os == 'Windows'
-        run: cargo test -p pacquet-fs windows_concurrent_junction_creation_reuses_one_link
-
       - name: Install dependencies
         run: just install
 

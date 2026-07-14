@@ -327,9 +327,9 @@ fn rename_overwrite(src: &Path, dst: &Path) -> io::Result<()> {
 #[cfg(windows)]
 mod windows {
     use std::{
-        io,
-        path::Path,
-        sync::atomic::{AtomicU8, Ordering},
+        fs, io,
+        path::{Path, PathBuf},
+        sync::atomic::{AtomicU8, AtomicU64, Ordering},
     };
 
     /// Cached choice of writer. `UNDECIDED` until the first successful
@@ -340,11 +340,12 @@ mod windows {
     const USE_SYMLINK: u8 = 1;
     const USE_JUNCTION: u8 = 2;
     static MODE: AtomicU8 = AtomicU8::new(UNDECIDED);
+    static JUNCTION_STAGING_ID: AtomicU64 = AtomicU64::new(0);
 
     pub fn create(original: &Path, link: &Path) -> io::Result<()> {
         match MODE.load(Ordering::Relaxed) {
             USE_SYMLINK => create_true_symlink(original, link),
-            USE_JUNCTION => junction::create(original, link),
+            USE_JUNCTION => create_junction(original, link),
             _ => probe_and_cache(original, link),
         }
     }
@@ -378,7 +379,7 @@ mod windows {
                 Ok(())
             }
             Err(error) if error.kind() == io::ErrorKind::PermissionDenied => {
-                let result = junction::create(original, link);
+                let result = create_junction(original, link);
                 if result.is_ok() {
                     MODE.store(USE_JUNCTION, Ordering::Relaxed);
                 }
@@ -386,6 +387,56 @@ mod windows {
             }
             Err(error) => Err(error),
         }
+    }
+
+    fn create_junction(original: &Path, link: &Path) -> io::Result<()> {
+        let staging = loop {
+            let candidate = junction_staging_path(link);
+            match junction::create(original, &candidate) {
+                Ok(()) => break candidate,
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+                Err(error) => return Err(error),
+            }
+        };
+
+        if let Err(rename_error) = fs::rename(&staging, link) {
+            fs::remove_dir(&staging).map_err(|cleanup_error| {
+                io::Error::new(
+                    cleanup_error.kind(),
+                    format!(
+                        "failed to clean up staged junction {staging:?} after rename to \
+                         {link:?} failed: {cleanup_error}"
+                    ),
+                )
+            })?;
+            match fs::symlink_metadata(link) {
+                Ok(_) => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::AlreadyExists,
+                        format!("junction path already exists: {link:?}"),
+                    ));
+                }
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) => {
+                    return Err(io::Error::new(
+                        error.kind(),
+                        format!(
+                            "failed to inspect junction destination {link:?} after rename \
+                             failed: {error}"
+                        ),
+                    ));
+                }
+            }
+            return Err(rename_error);
+        }
+
+        Ok(())
+    }
+
+    fn junction_staging_path(link: &Path) -> PathBuf {
+        let id = JUNCTION_STAGING_ID.fetch_add(1, Ordering::Relaxed);
+        let name = format!(".pnpm-junction-{}-{id}", std::process::id());
+        link.with_file_name(name)
     }
 }
 
