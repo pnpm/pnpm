@@ -47,14 +47,8 @@ disable = [
     "unpinned_repo_ref",
 ]
 
-# Keep code spans in clap doc comments. The vast majority wrap flag names
-# (`--frozen-lockfile`), file names (`package.json`), literal values (`0`),
-# and version-target syntax (`pacquet@<rev>`) — they read acceptably in
-# `--help` and stay useful as `cargo doc` API docs, and unwrapping a span
-# like `` `pacquet@<rev>` `` would turn `<rev>` into a stray HTML tag that
-# rustdoc rejects. The rule's genuinely user-hostile leaks — links, HTML,
-# and internal-type references — are still forbidden and cleaned out of the
-# help text instead. See <https://github.com/pnpm/pnpm/issues/12718>.
+# Code spans read fine in `--help` and stay useful as `cargo doc` docs, so
+# keep them; links and HTML remain forbidden and are cleaned from help text.
 ["perfectionist::clap_help_markdown"]
 ignore_constructs = ["code_span"]
 
