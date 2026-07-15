@@ -381,10 +381,8 @@ jobs:
           $clangCl = $null
           do {
             $installerRunning = @(Get-Process -Name 'vs_installer', 'vs_setup', 'setup' -ErrorAction SilentlyContinue).Count -gt 0
-            $clangCl = @(
-              (Join-Path $llvmDir 'ARM64\bin\clang-cl.exe'),
-              (Join-Path $llvmDir 'x64\bin\clang-cl.exe')
-            ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+            $clangCl = Join-Path $llvmDir 'x64\bin\clang-cl.exe'
+            if (-not (Test-Path -LiteralPath $clangCl)) { $clangCl = $null }
             if ($installerRunning -or $null -eq $clangCl) { Start-Sleep -Seconds 5 }
           } while (($installerRunning -or $null -eq $clangCl) -and (Get-Date) -lt $deadline)
           if ($installerRunning) { throw 'Visual Studio installer did not finish within five minutes' }
@@ -772,10 +770,8 @@ jobs:
           $clangCl = $null
           do {
             $installerRunning = @(Get-Process -Name 'vs_installer', 'vs_setup', 'setup' -ErrorAction SilentlyContinue).Count -gt 0
-            $clangCl = @(
-              (Join-Path $llvmDir 'ARM64\bin\clang-cl.exe'),
-              (Join-Path $llvmDir 'x64\bin\clang-cl.exe')
-            ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+            $clangCl = Join-Path $llvmDir 'x64\bin\clang-cl.exe'
+            if (-not (Test-Path -LiteralPath $clangCl)) { $clangCl = $null }
             if ($installerRunning -or $null -eq $clangCl) { Start-Sleep -Seconds 5 }
           } while (($installerRunning -or $null -eq $clangCl) -and (Get-Date) -lt $deadline)
           if ($installerRunning) { throw 'Visual Studio installer did not finish within five minutes' }
