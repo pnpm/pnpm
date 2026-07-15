@@ -73,9 +73,9 @@ fn error_registry_write_failed_includes_package() {
     let msg = err.to_string();
     assert!(
         msg.contains("package"),
-        "error message must include 'package' for parity with TypeScript: {msg}"
+        "error message must include 'package' for parity with TypeScript: {msg}",
     );
-    assert!(msg.contains("add owner \"bob\" to"));
+    assert!(msg.contains(r#"add owner "bob" to"#));
     assert!(msg.contains("500"));
 }
 
