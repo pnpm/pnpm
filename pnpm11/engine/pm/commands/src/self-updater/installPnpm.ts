@@ -408,25 +408,30 @@ export function linkExePlatformBinary (installDir: string, wrapperPkgName: strin
   const arch = process.arch
   const libcFamily = familySync()
   const executable = platform === 'win32' ? 'pnpm.exe' : 'pnpm'
-  // Resolve the platform binary by its explicit adjacent path in the real
-  // virtual store, not via Node resolution: a `node_modules` walk could be
-  // shadowed by a higher-precedence `@pnpm/<dirName>` in a repo-controlled
-  // `store-dir`. `@pnpm/exe`'s parent is already `@pnpm`; `pnpm` descends into it.
   const wrapperRealDir = fs.realpathSync(wrapperDir)
-  const scopeDir = wrapperPkgName.startsWith('@')
+  const adjacentScopeDir = wrapperPkgName.startsWith('@')
     ? path.dirname(wrapperRealDir)
     : path.join(path.dirname(wrapperRealDir), '@pnpm')
+  // GVS dependencies link to sibling slots through the install root. The real
+  // adjacent scope remains necessary for legacy virtual-store layouts.
+  const scopeDirs = new Set([
+    path.join(installDir, 'node_modules', '@pnpm'),
+    adjacentScopeDir,
+  ])
   const candidateDirNames = [
     exePlatformPkgDirName(platform, arch, libcFamily),
     exePlatformPkgDirNameNext(platform, arch, libcFamily),
   ]
   let src: string | undefined
-  for (const dirName of candidateDirNames) {
-    const candidate = path.join(scopeDir, dirName, executable)
-    if (fs.existsSync(candidate)) {
-      src = candidate
-      break
+  for (const scopeDir of scopeDirs) {
+    for (const dirName of candidateDirNames) {
+      const candidate = path.join(scopeDir, dirName, executable)
+      if (fs.existsSync(candidate)) {
+        src = candidate
+        break
+      }
     }
+    if (src != null) break
   }
   if (src == null) return
   const dest = path.join(wrapperDir, executable)

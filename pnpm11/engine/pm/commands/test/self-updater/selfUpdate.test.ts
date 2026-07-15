@@ -1237,6 +1237,33 @@ describe('linkExePlatformBinary', () => {
     expect(result).toBe(fakeBinaryContent)
   })
 
+  test('links @pnpm/exe when its platform dependency is in a sibling GVS slot', () => {
+    const dir = tempDir(false)
+    const wrapperSlot = path.join(dir, 'links', 'wrapper', 'node_modules', '@pnpm', 'exe')
+    const platformSlot = path.join(dir, 'links', 'platform', 'node_modules', '@pnpm', platformPkgName)
+    const wrapperDir = path.join(dir, 'node_modules', '@pnpm', 'exe')
+    const platformDir = path.join(dir, 'node_modules', '@pnpm', platformPkgName)
+
+    fs.mkdirSync(wrapperSlot, { recursive: true })
+    fs.mkdirSync(platformSlot, { recursive: true })
+    fs.writeFileSync(path.join(wrapperSlot, executable), 'This file intentionally left blank')
+    fs.writeFileSync(path.join(wrapperSlot, 'package.json'), JSON.stringify({
+      bin: { pnpm: 'pnpm', pn: 'pn', pnpx: 'pnpx', pnx: 'pnx' },
+    }))
+    const fakeBinaryContent = '#!/bin/sh\necho "fake pnpm binary"'
+    fs.writeFileSync(path.join(platformSlot, executable), fakeBinaryContent)
+
+    fs.mkdirSync(path.dirname(wrapperDir), { recursive: true })
+    fs.mkdirSync(path.dirname(platformDir), { recursive: true })
+    fs.symlinkSync(wrapperSlot, wrapperDir)
+    fs.symlinkSync(platformSlot, platformDir)
+
+    linkExePlatformBinary(dir)
+
+    const result = fs.readFileSync(path.join(wrapperDir, executable), 'utf8')
+    expect(result).toBe(fakeBinaryContent)
+  })
+
   // Regression coverage for https://github.com/pnpm/pnpm/issues/11486 — the
   // `pn` / `pnpx` / `pnx` aliases were broken in MSYS2 / Git Bash on Windows.
   // Root cause: linkExePlatformBinary pointed those bin entries at .cmd files,
