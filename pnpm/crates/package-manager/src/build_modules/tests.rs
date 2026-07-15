@@ -1815,6 +1815,10 @@ async fn frozen_store_skips_side_effects_upload() {
         )]);
     let importers = root_importers(&[("@pnpm/postinstall-modifies-source", "1.0.0")]);
     let policy = policy_from_specs([], true);
+    let side_effects_maps = crate::SideEffectsMapsBySnapshot::from([(
+        pkg_key.clone(),
+        std::sync::Arc::new(HashMap::new()),
+    )]);
 
     let store_root = tempdir().expect("create store dir");
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
@@ -1838,7 +1842,7 @@ async fn frozen_store_skips_side_effects_upload() {
         packages: Some(&packages),
         importers: &importers,
         allow_build_policy: &policy,
-        side_effects_maps_by_snapshot: None,
+        side_effects_maps_by_snapshot: Some(&side_effects_maps),
         requires_build_by_snapshot: None,
         engine_name: Some("darwin;arm64;node20"),
         side_effects_cache: true,
