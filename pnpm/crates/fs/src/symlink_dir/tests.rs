@@ -178,12 +178,14 @@ fn windows_native_path_is_borrowed_unchanged() {
     assert_eq!(to_native_separators(native).as_ref(), native);
 }
 
-/// Regression for the Windows CI failure where a warm install re-links
-/// over a global store restored from `actions/cache`: the slot's
-/// `node_modules` comes back as a dangling junction (tar can't round-trip
-/// a Windows reparse point), so `CreateSymbolicLinkW` rejects the child
-/// link with `ERROR_DIRECTORY` (os error 267). `force_symlink_dir` must
-/// rebuild the broken parent and still produce a working link.
+/// Regression for the Windows failure where a symlink's parent slot is a
+/// dangling junction — the shape a tar-based CI cache restore leaves
+/// behind (tar can't round-trip a Windows reparse point). The child link
+/// can't be created through the dangling junction, and `create_dir_all`
+/// can't rebuild the slot because the junction still occupies it (it
+/// fails with `AlreadyExists`, os error 183). `force_symlink_dir` must
+/// remove the dangling reparse point, rebuild a real directory, and still
+/// produce a working link.
 #[cfg(windows)]
 #[test]
 fn windows_force_symlink_dir_repairs_dangling_junction_parent() {

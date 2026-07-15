@@ -134,10 +134,19 @@ jobs:
       - name: Cache pnpm
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          key: ci-pnpm-v11-${{ matrix.os }}
+          # The global-virtual-store `links/` tree is Windows directory
+          # junctions, which tar (actions/cache) can't round-trip — a
+          # restored store comes back with dangling junctions and installs
+          # fail creating symlinks. Exclude `links/` from the cache; pnpm
+          # regenerates it fresh on every install anyway, so only the CAS
+          # content is cached. The `nolinks` key abandons the old caches
+          # that still hold `links/`.
+          key: ci-pnpm-v11-nolinks-${{ matrix.os }}
           path: |
             ${{ env.PNPM_HOME }}/store/v11
+            !${{ env.PNPM_HOME }}/store/v11/links
             ${{ env.HOME }}/.local/share/pnpm/store/v11
+            !${{ env.HOME }}/.local/share/pnpm/store/v11/links
         timeout-minutes: 1
         continue-on-error: true
 
