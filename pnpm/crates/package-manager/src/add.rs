@@ -2,6 +2,8 @@ use crate::{
     CatalogDecision, CatalogModeDep, CatalogVersionMismatchError, Install, InstallError,
     ResolvedPackages, UpdateSeedPolicy, decide_catalog, emit_initial_package_manifest,
     package_manifest_prefix,
+    resolution_policy::{PickPolicy, pick_package_context},
+    resolve_latest::LatestPicker,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -15,12 +17,12 @@ use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests;
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
-use pacquet_registry::{PackageTag, PackageVersion, PinnedVersion};
+use pacquet_registry::PinnedVersion;
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
 use pacquet_resolving_git_resolver::{HostedGit, HostedOpts};
 use pacquet_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, PickPackageContext, PickPackageError, PickPackageOptions,
-    parse_bare_specifier, pick_package, pick_registry_for_package, shared_packument_fetch_locker,
+    InMemoryPackageMetaCache, PickPackageError, PickPackageOptions, parse_bare_specifier,
+    pick_package, pick_registry_for_package, shared_packument_fetch_locker,
     which_version_is_pinned,
 };
 use pacquet_tarball::MemCache;
@@ -98,14 +100,14 @@ pub enum AddError {
     #[diagnostic(transparent)]
     Install(#[error(source)] InstallError),
 
-    /// Fetching a brand-new dependency's `latest` tag from the registry
-    /// failed while resolving the version to add.
+    /// Resolving a brand-new dependency's `latest` tag against the registry
+    /// failed while computing the version to add.
     #[display("Failed to resolve the latest version of {name}: {error}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_ADD_RESOLVE_LATEST))]
     ResolveLatest {
         name: String,
         #[error(source)]
-        error: pacquet_registry::RegistryError,
+        error: crate::resolve_latest::ResolveLatestError,
     },
 
     /// Resolving an explicit `add <name>@<spec>` specifier against the
@@ -119,7 +121,8 @@ pub enum AddError {
     ResolveRuntimeSpec(#[error(source)] NodeResolverError),
 
     /// `minimumReleaseAgeExclude` contained an invalid rule.
-    #[diagnostic(transparent)]
+    #[display("Invalid value in minimumReleaseAgeExclude: {_0}")]
+    #[diagnostic(code(ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE))]
     MinimumReleaseAgeExclude(#[error(source)] pacquet_config::version_policy::VersionPolicyError),
 }
 
@@ -366,21 +369,15 @@ async fn resolve_added_dependency<Reporter: self::Reporter>(
                 .unwrap_or_else(|| normalized_save_specifier(spec)),
                 (None, Some(prev)) => prev.to_string(),
                 (None, None) => {
-                    let registries: std::collections::HashMap<String, String> =
-                        config.resolved_registries().into_iter().collect();
-                    let registry = pick_registry_for_package(&registries, package_name, None);
-                    let latest = PackageVersion::fetch_from_registry(
-                        package_name,
-                        PackageTag::Latest,
-                        http_client,
-                        &registry,
-                        &config.auth_headers,
-                    )
-                    .await
-                    .map_err(|error| AddError::ResolveLatest {
-                        name: package_name.to_string(),
-                        error,
-                    })?;
+                    let policy = PickPolicy::from_config(config)
+                        .map_err(AddError::MinimumReleaseAgeExclude)?;
+                    let latest = LatestPicker::new(config, http_client, policy)
+                        .resolve(package_name, lockfile_only)
+                        .await
+                        .map_err(|error| AddError::ResolveLatest {
+                            name: package_name.to_string(),
+                            error,
+                        })?;
                     latest.serialize(pinned_version)
                 }
             }
@@ -469,8 +466,7 @@ async fn resolve_explicit_registry_spec(
         return Ok(None);
     }
 
-    let policy = crate::resolution_policy::PickPolicy::from_config(config)
-        .map_err(AddError::MinimumReleaseAgeExclude)?;
+    let policy = PickPolicy::from_config(config).map_err(AddError::MinimumReleaseAgeExclude)?;
     // Bias the pick toward versions already present in the workspace, so a
     // dedup pick matches what the install locks (e.g. a sibling already on
     // `1.2.0` keeps `pnpm add foo@^1` on `1.2.0`). Seeded from the wanted
@@ -483,19 +479,7 @@ async fn resolve_explicit_registry_spec(
     );
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
-    let ctx = PickPackageContext {
-        http_client,
-        auth_headers: &config.auth_headers,
-        meta_cache: &meta_cache,
-        fetch_locker: &fetch_locker,
-        cache_dir: Some(&config.cache_dir),
-        offline: config.offline,
-        prefer_offline: config.prefer_offline,
-        ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
-        full_metadata: policy.full_metadata,
-        filter_metadata: policy.full_metadata,
-        retry_opts: crate::retry_config::retry_opts_from_config(config),
-    };
+    let ctx = pick_package_context(http_client, config, &policy, &meta_cache, &fetch_locker);
     let opts = PickPackageOptions {
         registry: &registry,
         preferred_version_selectors: preferred_versions.get(package_name),

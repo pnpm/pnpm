@@ -956,12 +956,8 @@ where
     if !picker_opts.include_latest_tag {
         return Ok(current);
     }
-    let latest_spec = RegistryPackageSpec {
-        name: spec.name.clone(),
-        fetch_spec: "latest".to_string(),
-        spec_type: RegistryPackageSpecType::Tag,
-        normalized_bare_specifier: spec.normalized_bare_specifier.clone(),
-    };
+    let mut latest_spec = RegistryPackageSpec::latest_tag(spec.name.clone());
+    latest_spec.normalized_bare_specifier.clone_from(&spec.normalized_bare_specifier);
     let latest = pick_one(&latest_spec)?;
     Ok(pick_max(current, latest))
 }

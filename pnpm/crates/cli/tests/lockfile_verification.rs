@@ -40,15 +40,8 @@ fn install_fails_under_huge_minimum_release_age() {
     // The mocked registry's packument times are real-world (years
     // old), so a `minimumReleaseAge` set in the millions of minutes
     // catches every version regardless of when the mock was
-    // populated. The yaml entry shape matches upstream's
-    // pnpm-workspace.yaml settings keys byte-for-byte.
-    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
-    let workspace_yaml = format!(
-        "{}\nminimumReleaseAge: {}\n",
-        fs::read_to_string(&workspace_yaml_path).expect("read workspace yaml seed"),
-        60 * 24 * 365 * 100,
-    );
-    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+    // populated.
+    set_minimum_release_age(&workspace, 60 * 24 * 365 * 100);
 
     // Hand-rolled minimal v9 lockfile pinning the same package the
     // manifest above declares. The placeholder integrity is fine:
@@ -120,13 +113,8 @@ fn trust_lockfile_skips_verification() {
     // minimumReleaseAge rejects every version the mocked registry
     // serves. `trustLockfile: true` is the opt-out that makes the
     // install ignore the gate entirely.
-    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
-    let workspace_yaml = format!(
-        "{}\nminimumReleaseAge: {}\ntrustLockfile: true\n",
-        fs::read_to_string(&workspace_yaml_path).expect("read workspace yaml seed"),
-        60 * 24 * 365 * 100,
-    );
-    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+    set_minimum_release_age(&workspace, 60 * 24 * 365 * 100);
+    append_workspace_yaml_key(&workspace, "trustLockfile", true);
 
     let lockfile = "lockfileVersion: '9.0'\n\
         importers:\n  \
@@ -187,13 +175,7 @@ fn trust_lockfile_cli_flag_skips_verification() {
     });
     fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
 
-    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
-    let workspace_yaml = format!(
-        "{}\nminimumReleaseAge: {}\n",
-        fs::read_to_string(&workspace_yaml_path).expect("read workspace yaml seed"),
-        60 * 24 * 365 * 100,
-    );
-    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+    set_minimum_release_age(&workspace, 60 * 24 * 365 * 100);
 
     let lockfile = "lockfileVersion: '9.0'\n\
         importers:\n  \

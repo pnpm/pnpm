@@ -1,7 +1,7 @@
 use crate::{
     CatalogDecision, CatalogModeDep, CatalogVersionMismatchError, Install, InstallError,
     ResolvedPackages, UpdateSeedPolicy, decide_catalog, emit_initial_package_manifest,
-    package_manifest_prefix,
+    package_manifest_prefix, resolution_policy::PickPolicy, resolve_latest::LatestPicker,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -14,9 +14,9 @@ use pacquet_config::{CatalogMode, Config, matcher::create_matcher};
 use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
-use pacquet_registry::{PackageTag, PackageVersion, PinnedVersion};
+use pacquet_registry::{PackageVersion, PinnedVersion};
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
-use pacquet_resolving_npm_resolver::{pick_registry_for_package, which_version_is_pinned};
+use pacquet_resolving_npm_resolver::which_version_is_pinned;
 use pacquet_tarball::MemCache;
 use pacquet_workspace_manifest_writer::{UpdateWorkspaceManifestError, update_workspace_manifest};
 use std::{collections::HashSet, sync::Arc};
@@ -117,15 +117,20 @@ pub enum UpdateError {
     #[diagnostic(code(ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES))]
     NoPackageInDependencies,
 
-    /// Fetching a package's `latest` tag from the registry failed while
+    /// Resolving a package's `latest` tag against the registry failed while
     /// computing the new manifest range for `--latest`.
     #[display("Failed to resolve the latest version of {name}: {error}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_UPDATE_RESOLVE_LATEST))]
     ResolveLatest {
         name: String,
         #[error(source)]
-        error: pacquet_registry::RegistryError,
+        error: crate::resolve_latest::ResolveLatestError,
     },
+
+    /// `minimumReleaseAgeExclude` contained an invalid rule.
+    #[display("Invalid value in minimumReleaseAgeExclude: {_0}")]
+    #[diagnostic(code(ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE))]
+    MinimumReleaseAgeExclude(#[error(source)] pacquet_config::version_policy::VersionPolicyError),
 
     /// Locating the workspace root (to read `pnpm-workspace.yaml`'s
     /// catalogs) failed while applying `catalogMode`.
@@ -213,6 +218,8 @@ impl Update<'_> {
         // alone selects between an exact pin and the default caret range.
         let pinned_version = PinnedVersion::from_save_options(save_exact, None);
 
+        let mut latest_picker: Option<LatestPicker> = None;
+
         let selectors: Vec<ParsedSelector> =
             packages.iter().map(|input| parse_update_param(input)).collect();
 
@@ -287,7 +294,13 @@ impl Update<'_> {
                     continue;
                 }
                 if latest && !is_workspace_local_path_specifier(prev) {
-                    let version = fetch_latest(name, http_client, config).await?;
+                    let picker = ensure_latest_picker(
+                        &mut latest_picker,
+                        config,
+                        http_client,
+                        resolution_observer.as_ref(),
+                    )?;
+                    let version = resolve_latest_version(picker, name, lockfile_only).await?;
                     let pin =
                         latest_pin(&mut catalog_ctx, manifest, config, prev, name, pinned_version)?;
                     rewrites.push((name.clone(), *group, version.serialize(pin)));
@@ -405,7 +418,13 @@ impl Update<'_> {
                 for (name, group, prev) in &matched_direct {
                     drop_names.insert(name.clone());
                     if latest && !is_workspace_local_path_specifier(prev) {
-                        let version = fetch_latest(name, http_client, config).await?;
+                        let picker = ensure_latest_picker(
+                            &mut latest_picker,
+                            config,
+                            http_client,
+                            resolution_observer.as_ref(),
+                        )?;
+                        let version = resolve_latest_version(picker, name, lockfile_only).await?;
                         let pin = latest_pin(
                             &mut catalog_ctx,
                             manifest,
@@ -694,25 +713,38 @@ fn read_catalog_ctx(
     Ok(CatalogCtx { catalogs, workspace_dir_opt, manifest_dir, prefix })
 }
 
-/// Fetch a package's `latest` dist-tag from the registry. Shares the
-/// shape `pacquet add` uses for a freshly-added dependency.
-async fn fetch_latest(
+/// The run's [`LatestPicker`], created on first use so that command
+/// validation and no-op updates never parse `minimumReleaseAgeExclude`,
+/// matching the TypeScript CLI, which parses the excludes only once
+/// resolution starts. The resolution observer can widen the excludes,
+/// matching the follow-up install's own resolution.
+fn ensure_latest_picker<'p, 'a>(
+    picker: &'p mut Option<LatestPicker<'a>>,
+    config: &'a Config,
+    http_client: &'a ThrottledClient,
+    resolution_observer: Option<&Arc<dyn crate::ResolutionObserver>>,
+) -> Result<&'p LatestPicker<'a>, UpdateError> {
+    if picker.is_none() {
+        let extra_excludes = resolution_observer
+            .and_then(|observer| observer.minimum_release_age_exclude_override());
+        let policy = PickPolicy::from_config_with_extra_excludes(config, extra_excludes.as_deref())
+            .map_err(UpdateError::MinimumReleaseAgeExclude)?;
+        *picker = Some(LatestPicker::new(config, http_client, policy));
+    }
+    Ok(picker.as_ref().expect("picker initialized above"))
+}
+
+/// [`LatestPicker::resolve`] with the failure tagged with `name` as an
+/// [`UpdateError`].
+async fn resolve_latest_version(
+    picker: &LatestPicker<'_>,
     name: &str,
-    http_client: &ThrottledClient,
-    config: &Config,
-) -> Result<PackageVersion, UpdateError> {
-    let registries: std::collections::HashMap<String, String> =
-        config.resolved_registries().into_iter().collect();
-    let registry = pick_registry_for_package(&registries, name, None);
-    PackageVersion::fetch_from_registry(
-        name,
-        PackageTag::Latest,
-        http_client,
-        &registry,
-        &config.auth_headers,
-    )
-    .await
-    .map_err(|error| UpdateError::ResolveLatest { name: name.to_string(), error })
+    lockfile_only: bool,
+) -> Result<Arc<PackageVersion>, UpdateError> {
+    picker
+        .resolve(name, lockfile_only)
+        .await
+        .map_err(|error| UpdateError::ResolveLatest { name: name.to_string(), error })
 }
 
 /// Whether `bare_specifier` is a `workspace:` spec that points at a local
