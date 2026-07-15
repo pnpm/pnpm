@@ -104,8 +104,13 @@ fn clean_works_in_a_workspace() {
     assert!(output.status.success(), "pacquet clean should succeed");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Removing pkg1/node_modules"), "expected pkg1: {stdout}");
-    assert!(stdout.contains("Removing pkg2/node_modules"), "expected pkg2: {stdout}");
+    // `pnpm` prints the module dir relative to the cwd with the platform's
+    // path separator (via `path.relative`), so build the expected text the
+    // same way rather than hard-coding a `/`.
+    let expected_pkg1 = format!("Removing {}", Path::new("pkg1").join("node_modules").display());
+    let expected_pkg2 = format!("Removing {}", Path::new("pkg2").join("node_modules").display());
+    assert!(stdout.contains(&expected_pkg1), "expected pkg1: {stdout}");
+    assert!(stdout.contains(&expected_pkg2), "expected pkg2: {stdout}");
     assert!(!pkg1.join("node_modules").join("a").exists(), "pkg1 package removed");
     assert!(!pkg2.join("node_modules").join("b").exists(), "pkg2 package removed");
 
