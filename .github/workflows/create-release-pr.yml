@@ -21,7 +21,7 @@ concurrency:
 jobs:
   create-release-pr:
     if: github.repository == 'pnpm/pnpm' # Only run on the main repository, not forks
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     env:
       # The husky hooks are a developer safety net; CI has its own gates. Without
       # this, `pnpm install` wires the hooks and the pre-push hook runs the full

@@ -17,7 +17,7 @@ permissions:
 jobs:
   upload:
     name: Upload CI performance results
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     if: >-
       (
         github.event.workflow_run.conclusion == 'success' ||

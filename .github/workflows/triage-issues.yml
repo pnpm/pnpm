@@ -23,7 +23,7 @@ concurrency:
 jobs:
   triage:
     name: Triage issue
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     # Skip automated issues (Renovate, Dependabot, bots) — they are not user
     # reports and each triage run consumes Warp credits.
     if: github.event.issue.user.type != 'Bot'
