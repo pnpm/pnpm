@@ -11,11 +11,26 @@ name: Release
 on:
   push:
     tags:
+      # pnpm (TypeScript, v11.x) and pacquet (v12.x) share the `v<version>`
+      # namespace that get.pnpm.io's install scripts fetch by. pnpr gets its own
+      # Changesets-style `pnpr@<version>` namespace: pnpm's tag history includes
+      # v0.x/v1.x that pnpr's low version numbers would otherwise collide with.
       - "v*.*.*"
+      - "pnpr@*.*.*"
   # Manual trigger for rerunning a tag release. Dispatching this workflow from a
   # branch fails before publishing because release artifacts are only built on
   # version tags.
   workflow_dispatch:
+
+# A release PR that bumps several products auto-tags each one (tag-release.yml),
+# so several version tags can land together and start a run apiece. Serialize
+# them: the plan job gates every publish on what npm reports as unpublished, so
+# once the first run publishes a product the rest skip it — but only if they
+# don't run concurrently and all read "unpublished" at once. Never cancel a
+# run mid-publish.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   validate-release-ref:
@@ -26,8 +41,9 @@ jobs:
         run: |
           case "${GITHUB_REF}" in
             refs/tags/v*.*.*) ;;
+            refs/tags/pnpr@*.*.*) ;;
             *)
-              echo "::error::The release workflow must run from a version tag like v11.9.0. Current ref: ${GITHUB_REF}"
+              echo "::error::The release workflow must run from a version tag like v11.9.0 or pnpr@0.2.0. Current ref: ${GITHUB_REF}"
               exit 1
               ;;
           esac
