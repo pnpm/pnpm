@@ -185,7 +185,9 @@ jobs:
             test -n "$tarball"
             node -e '
               const manifest = require(require("node:path").resolve(process.argv[1]))
-              for (const file of [...(manifest.files ?? []), ...(manifest.publishConfig?.executableFiles ?? [])]) {
+              const files = [...(manifest.files ?? []), ...(manifest.publishConfig?.executableFiles ?? [])]
+              if (!files.some((file) => !/[?*[]/.test(file))) throw new Error("No literal payload files declared by " + manifest.name)
+              for (const file of files) {
                 if (!/[?*[]/.test(file)) console.log(file.replace(/^\.\//, ""))
               }
             ' "$package/package.json" | while IFS= read -r file; do
@@ -504,7 +506,9 @@ jobs:
             test -n "$tarball"
             node -e '
               const manifest = require(require("node:path").resolve(process.argv[1]))
-              for (const file of [...(manifest.files ?? []), ...(manifest.publishConfig?.executableFiles ?? [])]) {
+              const files = [...(manifest.files ?? []), ...(manifest.publishConfig?.executableFiles ?? [])]
+              if (!files.some((file) => !/[?*[]/.test(file))) throw new Error("No literal payload files declared by " + manifest.name)
+              for (const file of files) {
                 if (!/[?*[]/.test(file)) console.log(file.replace(/^\.\//, ""))
               }
             ' "$package/package.json" | while IFS= read -r file; do
@@ -799,7 +803,9 @@ jobs:
             test -n "$tarball"
             node -e '
               const manifest = require(require("node:path").resolve(process.argv[1]))
-              for (const file of [...(manifest.files ?? []), ...(manifest.publishConfig?.executableFiles ?? [])]) {
+              const files = [...(manifest.files ?? []), ...(manifest.publishConfig?.executableFiles ?? [])]
+              if (!files.some((file) => !/[?*[]/.test(file))) throw new Error("No literal payload files declared by " + manifest.name)
+              for (const file of files) {
                 if (!/[?*[]/.test(file)) console.log(file.replace(/^\.\//, ""))
               }
             ' "$package/package.json" | while IFS= read -r file; do
