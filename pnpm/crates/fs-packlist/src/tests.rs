@@ -486,12 +486,11 @@ fn workspace_root_npmignore_takes_precedence_over_gitignore() {
     );
 }
 
-// A package-level `.npmignore` negation must win over a workspace-root
-// ignore: the workspace-root file is added at the lowest precedence tier
-// (`WalkBuilder::add_ignore`), below the package's own discovered ignore
-// files, matching npm-packlist's ancestor-first ordering.
+// A package-level `.npmignore` disables workspace-root ignore inheritance.
+// Keep a negation case to verify the package file remains authoritative even
+// when its matching ancestor rule is no longer loaded.
 #[test]
-fn package_npmignore_negation_overrides_workspace_root_gitignore() {
+fn package_npmignore_negation_includes_workspace_gitignored_file() {
     let dir = tempdir().unwrap();
     fs::write(dir.path().join(".gitignore"), "dist/\n").unwrap();
     let root = dir.path().join("packages").join("pkg");
@@ -514,6 +513,34 @@ fn package_npmignore_negation_overrides_workspace_root_gitignore() {
         "package-level `!dist/` must re-include files the workspace-root .gitignore excluded; received {out:?}",
     );
     assert!(out.contains(&"src/index.js".to_string()), "{out:?}");
+}
+
+#[test]
+fn package_npmignore_disables_workspace_root_gitignore() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join(".gitignore"), "dist/\n").unwrap();
+    let root = dir.path().join("packages").join("pkg");
+    fs::create_dir_all(&root).unwrap();
+    touch(&root, "package.json");
+    write(&root, ".npmignore", "src/ignored.js\n");
+    touch(&root, "dist/generated.js");
+    touch(&root, "src/index.js");
+    touch(&root, "src/ignored.js");
+
+    let manifest = json!({ "name": "x", "version": "0.0.0" });
+    let out = packlist_with_options(
+        &root,
+        &manifest,
+        PacklistOptions { workspace_dir: Some(dir.path()) },
+    )
+    .unwrap();
+
+    assert!(
+        out.contains(&"dist/generated.js".to_string()),
+        "package-level .npmignore must disable workspace-root .gitignore; received {out:?}",
+    );
+    assert!(out.contains(&"src/index.js".to_string()), "{out:?}");
+    assert!(!out.contains(&"src/ignored.js".to_string()), "{out:?}");
 }
 
 #[test]
