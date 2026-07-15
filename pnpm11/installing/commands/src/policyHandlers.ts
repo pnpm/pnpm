@@ -1,5 +1,6 @@
 import { confirm } from '@inquirer/prompts'
 import { mergePackageVersionSpecs } from '@pnpm/config.version-policy'
+import { promptLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
@@ -248,6 +249,8 @@ async function promptForApproval (immature: readonly PolicyViolation[]): Promise
     sorted.map((v) => `  ${v.name}@${v.version}`).join('\n') + '\n' +
     'Add to minimumReleaseAgeExclude in pnpm-workspace.yaml and proceed with the install?'
   let confirmed: boolean
+  // Pause the default reporter's redraws while the prompt is open (see promptLogger).
+  promptLogger.debug({ action: 'start' })
   try {
     confirmed = await confirm({ message, default: false })
   } catch (err) {
@@ -256,6 +259,8 @@ async function promptForApproval (immature: readonly PolicyViolation[]): Promise
     } else {
       throw err
     }
+  } finally {
+    promptLogger.debug({ action: 'end' })
   }
   if (!confirmed) {
     throw new PnpmError(

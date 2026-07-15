@@ -7,6 +7,7 @@ import type * as logs from '@pnpm/core-loggers'
 import {
   lockfileVerificationLogger,
   progressLogger,
+  promptLogger,
   stageLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
@@ -139,6 +140,71 @@ test('each write clears external output below the frame', async () => {
     for (const write of writes) {
       expect(write.endsWith(ERASE_TO_END_OF_DISPLAY)).toBe(true)
     }
+  } finally {
+    stop()
+  }
+})
+
+// Regression test for pnpm/pnpm#13019: a background progress tick that redrew
+// in place while an interactive prompt (the strict minimumReleaseAge approval)
+// was open moved the cursor into the prompt's lines and erased them, leaving
+// the install hanging on an invisible question. The prompt brackets its
+// lifetime with `pnpm:prompt` start/end events; the reporter must hold every
+// frame redraw in between, then resume once the prompt releases the terminal.
+test('holds frame redraws while an interactive prompt owns the terminal', async () => {
+  const writes: string[] = []
+  const mockProcess = {
+    stdout: {
+      columns: 120,
+      rows: 24,
+      write: (chunk: string) => {
+        writes.push(chunk)
+        return true
+      },
+    },
+    stderr: { write: () => true },
+  }
+
+  const cwd = '/home/jane/project'
+  const streamParser = createStreamParser()
+  const stop = initDefaultReporter({
+    streamParser: streamParser as StreamParser<logs.Log>,
+    reportingOptions: { throttleProgress: 0 },
+    context: {
+      argv: ['install'],
+      config: { dir: cwd } as Config & ConfigContext,
+      process: mockProcess as unknown as NodeJS.Process,
+    },
+  })
+
+  const reportResolved = (id: string): void => {
+    progressLogger.debug({ packageId: `registry.npmjs.org/${id}/1.0.0`, requester: cwd, status: 'resolved' })
+  }
+
+  try {
+    await yieldTick()
+
+    stageLogger.debug({ prefix: cwd, stage: 'resolution_started' })
+    reportResolved('a')
+    reportResolved('b')
+    await waitFor(writes, w => w.length >= 1)
+    const writesBeforePrompt = writes.length
+
+    promptLogger.debug({ action: 'start' })
+    // Background resolution keeps ticking while the prompt waits; each of these
+    // would redraw a fresh "resolved N" frame if the reporter weren't paused.
+    reportResolved('c')
+    reportResolved('d')
+    await new Promise(resolve => setTimeout(resolve, 200))
+
+    expect(writes).toHaveLength(writesBeforePrompt)
+
+    promptLogger.debug({ action: 'end' })
+    reportResolved('e')
+    reportResolved('f')
+    await waitFor(writes, w => w.length > writesBeforePrompt)
+
+    expect(writes.length).toBeGreaterThan(writesBeforePrompt)
   } finally {
     stop()
   }
