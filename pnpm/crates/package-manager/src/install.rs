@@ -3011,7 +3011,18 @@ fn build_project_manifests_list<'a>(
             }
         })
         .collect::<Vec<_>>();
-    if !active_project_was_discovered && root_manifest.path().is_file() {
+    let active_manifest_has_dependencies = root_manifest
+        .dependencies([
+            DependencyGroup::Prod,
+            DependencyGroup::Dev,
+            DependencyGroup::Optional,
+            DependencyGroup::Peer,
+        ])
+        .next()
+        .is_some();
+    if !active_project_was_discovered
+        && (root_manifest.path().is_file() || active_manifest_has_dependencies)
+    {
         list.push((active_dir.to_path_buf(), root_manifest));
     }
     list

@@ -532,7 +532,7 @@ async fn canonical_snapshot_link_keeps_direct_links_relative_to_each_importer() 
     );
     let wrapper =
         result.peers.graph.get(&crate::DepPath::from("wrapper@1.0.0")).expect("wrapper graph node");
-    assert_eq!(wrapper.children.get("shared"), Some(&crate::DepPath::from("link:packages/shared")),);
+    assert_eq!(wrapper.children.get("shared"), Some(&crate::DepPath::from("link:packages/shared")));
     assert!(result.merged_tree.packages.contains_key("link:packages/shared"));
     assert!(!result.merged_tree.packages.contains_key("link:../../../packages/shared"));
 }

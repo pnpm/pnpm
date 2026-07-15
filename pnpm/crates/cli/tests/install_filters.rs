@@ -25,7 +25,7 @@ const HELLO_PARENT: &str = "@pnpm.e2e/hello-world-js-bin-parent";
 const NO_DEPS: &str = "@foo/no-deps";
 const PARENT: &str = "@pnpm.e2e/pkg-with-1-dep";
 
-#[derive(Clone, Copy, Default)]
+#[derive(Default, Clone, Copy)]
 struct ManifestDeps<'a> {
     prod: &'a [(&'a str, &'a str)],
     dev: &'a [(&'a str, &'a str)],
@@ -68,10 +68,10 @@ impl FilteredWorkspace {
         project
     }
 
-    fn command_at<I, S>(&self, cwd: &Path, args: I) -> Output
+    fn command_at<Args, Arg>(&self, cwd: &Path, args: Args) -> Output
     where
-        I: IntoIterator<Item = S>,
-        S: AsRef<OsStr>,
+        Args: IntoIterator<Item = Arg>,
+        Arg: AsRef<OsStr>,
     {
         Command::cargo_bin("pnpm")
             .expect("find the pnpm binary")
@@ -83,18 +83,18 @@ impl FilteredWorkspace {
             .expect("run pacquet")
     }
 
-    fn run<I, S>(&self, args: I) -> Vec<Value>
+    fn run<Args, Arg>(&self, args: Args) -> Vec<Value>
     where
-        I: IntoIterator<Item = S>,
-        S: AsRef<OsStr>,
+        Args: IntoIterator<Item = Arg>,
+        Arg: AsRef<OsStr>,
     {
         self.run_at(&self.workspace, args)
     }
 
-    fn run_at<I, S>(&self, cwd: &Path, args: I) -> Vec<Value>
+    fn run_at<Args, Arg>(&self, cwd: &Path, args: Args) -> Vec<Value>
     where
-        I: IntoIterator<Item = S>,
-        S: AsRef<OsStr>,
+        Args: IntoIterator<Item = Arg>,
+        Arg: AsRef<OsStr>,
     {
         let output = self.command_at(cwd, args);
         assert_success(&output);
@@ -542,7 +542,7 @@ fn filtered_update_from_selected_child_uses_discovered_manifest_as_source_of_tru
     assert_eq!(dependency_spec(&selected, "dependencies", HELLO).as_deref(), Some("1.0.0"));
     assert_eq!(importer_specifier(&after, "packages/selected", HELLO), "1.0.0");
     assert_eq!(importer_version(&after, "packages/selected", HELLO), "1.0.0");
-    assert_eq!(fs::read(sibling.join("package.json")).expect("read manifest"), sibling_manifest,);
+    assert_eq!(fs::read(sibling.join("package.json")).expect("read manifest"), sibling_manifest);
     assert_eq!(importer(&after, "packages/sibling"), importer(&before, "packages/sibling"));
     assert!(!after.importers.contains_key("."), "missing root must not become an importer");
 }
@@ -602,7 +602,7 @@ fn compatible_update_scenario(selected_dir: &str, unselected_dir: &str) {
     let lockfile = fixture.wanted();
 
     assert_eq!(importer_version(&lockfile, &format!("packages/{selected_dir}"), DEP), "100.1.0");
-    assert_eq!(importer_version(&lockfile, &format!("packages/{unselected_dir}"), DEP), "100.0.0",);
+    assert_eq!(importer_version(&lockfile, &format!("packages/{unselected_dir}"), DEP), "100.0.0");
     assert_eq!(
         fs::read(unselected.join("package.json")).expect("read manifest"),
         unselected_manifest,
@@ -665,7 +665,7 @@ fn transitive_update_scenario(
         fs::read(unselected.join("package.json")).expect("read manifest"),
         unselected_manifest,
     );
-    assert_eq!(importer_version(&after, &format!("packages/{selected_dir}"), PARENT), selected_ref,);
+    assert_eq!(importer_version(&after, &format!("packages/{selected_dir}"), PARENT), selected_ref);
     assert_eq!(
         importer_version(&after, &format!("packages/{unselected_dir}"), PARENT),
         unselected_ref,
@@ -820,7 +820,7 @@ fn filtered_frozen_install_checks_only_selected_manifest_specifiers() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("pacquet_package_manager::outdated_lockfile")
-            && stderr.contains("Cannot install with \"frozen-lockfile\"")
+            && stderr.contains(r#"Cannot install with "frozen-lockfile""#)
             && stderr.contains("pnpm-lock.yaml is not up"),
         "expected the existing frozen-lockfile mismatch diagnostic:\n{stderr}",
     );
@@ -1361,7 +1361,7 @@ fn filtered_install_refreshes_unselected_catalog_importers_when_catalog_changes(
 
     fixture.run(["--filter", "app", "install", "--lockfile-only"]);
     let wanted = fixture.wanted();
-    assert_eq!(importer_version(&wanted, "packages/catalog-consumer", CATALOG_FOO), "2.0.0",);
+    assert_eq!(importer_version(&wanted, "packages/catalog-consumer", CATALOG_FOO), "2.0.0");
     let catalog = wanted
         .catalogs
         .as_ref()

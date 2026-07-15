@@ -2404,7 +2404,7 @@ fn is_partial_workspace_selection(
 ) -> bool {
     matches!(
         (real_importer_ids, selected_importer_ids),
-        (Some(real), Some(selected)) if real != selected
+        (Some(real), Some(selected)) if real != selected,
     )
 }
 

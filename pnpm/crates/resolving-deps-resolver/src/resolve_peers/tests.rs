@@ -1492,7 +1492,7 @@ fn linked_peer_provider_uses_root_relative_snapshot_ref_in_workspace_fallback() 
         .values()
         .find(|node| node.resolved_package_id == "consumer@1.0.0")
         .expect("consumer graph node");
-    assert_eq!(consumer.children.get("peer"), Some(&DepPath::from("link:packages/peer")),);
+    assert_eq!(consumer.children.get("peer"), Some(&DepPath::from("link:packages/peer")));
 }
 
 #[test]

@@ -73,7 +73,7 @@ fn outdated_from_workspace_member_reads_member_importer() {
     assert!(stdout.contains(DEP), "report should use the member importer: {stdout}");
     assert!(
         stdout.contains("100.1.0"),
-        "report should show the member's current version: {stdout}"
+        "report should show the member's current version: {stdout}",
     );
 
     drop((root, anchor));

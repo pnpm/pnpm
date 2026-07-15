@@ -473,7 +473,7 @@ fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
     assert_eq!(workspace_snapshot_entries(&after, WORKSPACE_PARENT), prior_parent);
     assert_eq!(workspace_snapshot_entries(&after, WORKSPACE_DEP), prior_child);
     assert!(workspace_snapshot_entries(&after, WORKSPACE_HELLO_PARENT).is_empty());
-    assert_eq!(workspace_importer_version(&after, "packages/selected", WORKSPACE_HELLO), "1.0.0",);
+    assert_eq!(workspace_importer_version(&after, "packages/selected", WORKSPACE_HELLO), "1.0.0");
     assert!(!after.importers.contains_key("."));
 
     if lockfile_only {
@@ -543,7 +543,7 @@ fn filtered_workspace_pnpr_reports_a_missing_selected_importer_without_panicking
     );
     assert!(
         !stderr.contains("panicked at"),
-        "the malformed response must not panic; got:\n{stderr}"
+        "the malformed response must not panic; got:\n{stderr}",
     );
     resolve_mock.assert();
     drop((root, mock_instance));

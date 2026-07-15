@@ -694,7 +694,7 @@ fn nested_importer_and_peer_snapshot_links_use_distinct_bases() {
 
     assert_eq!(
         closure.importer_ids,
-        HashSet::from([nested_id, importer_target_id, snapshot_target_id])
+        HashSet::from([nested_id, importer_target_id, snapshot_target_id]),
     );
 }
 
@@ -900,7 +900,7 @@ fn merge_filtered_wanted_lockfile_refreshes_all_importers_when_global_inputs_cha
     assert!(!snapshots.contains_key(&key("old-child", "1.0.0")));
     assert_eq!(
         merged.packages.as_ref().unwrap().get(&key("shared", "1.0.0")),
-        expected_shared_metadata.as_ref()
+        expected_shared_metadata.as_ref(),
     );
     assert_eq!(merged.lockfile_version, expected_lockfile_version);
     assert_eq!(merged.settings, expected_settings);
@@ -1156,7 +1156,7 @@ fn merge_filtered_current_lockfile_uses_one_fresh_shared_snapshot() {
     assert!(!snapshots.contains_key(&key("old-child", "1.0.0")));
     assert_eq!(
         merged.packages.as_ref().unwrap().get(&key("shared", "1.0.0")),
-        Some(&fresh_shared_metadata)
+        Some(&fresh_shared_metadata),
     );
 }
 

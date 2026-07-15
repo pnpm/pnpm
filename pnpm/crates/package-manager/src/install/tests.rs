@@ -7455,7 +7455,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
     };
 
     assert_eq!(install_already_up_to_date(&check).as_deref(), Some(&*workspace_root));
-    assert_eq!(std::fs::read_to_string(&wanted_path).expect("reread wanted lockfile"), current,);
+    assert_eq!(std::fs::read_to_string(&wanted_path).expect("reread wanted lockfile"), current);
 
     std::fs::write(project_root.join(Lockfile::FILE_NAME), current).expect("write member lockfile");
     std::fs::write(&wanted_path, "not: [valid").expect("write invalid root lockfile");
@@ -7473,7 +7473,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
         node_linker: pacquet_config::NodeLinker::Isolated,
     };
 
-    assert_eq!(install_already_up_to_date(&per_project_check).as_deref(), Some(&*workspace_root),);
+    assert_eq!(install_already_up_to_date(&per_project_check).as_deref(), Some(&*workspace_root));
 }
 
 /// `--frozen-lockfile` disables the optimistic short-circuit because

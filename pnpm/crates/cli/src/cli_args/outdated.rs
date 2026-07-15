@@ -197,18 +197,6 @@ fn resolve_target(
     }
 }
 
-/// Map each direct dependency key to its lockfile-pinned semver version.
-/// Only the root importer is consulted (pacquet's single-project scope);
-/// entries whose resolved version is not a plain semver (`link:`,
-/// `file:`, non-semver runtimes) are omitted.
-#[cfg(test)]
-fn current_versions_from_lockfile(
-    lockfile: Option<&Lockfile>,
-    include_direct: &[DependencyGroup],
-) -> HashMap<String, Version> {
-    current_versions_from_importer(lockfile, Lockfile::ROOT_IMPORTER_KEY, include_direct)
-}
-
 fn current_versions_from_importer(
     lockfile: Option<&Lockfile>,
     importer_id: &str,
