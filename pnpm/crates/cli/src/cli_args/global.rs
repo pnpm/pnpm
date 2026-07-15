@@ -179,11 +179,7 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
     };
 
     for pkg in &to_update {
-        let selectors: Vec<String> = pkg
-            .dependencies
-            .iter()
-            .map(|(alias, spec)| if latest { alias.clone() } else { format!("{alias}@{spec}") })
-            .collect();
+        let selectors = update_selectors(&pkg.dependencies, latest);
         let (install_dir, config) = Box::pin(run_group_install::<Reporter>(
             base_config,
             &global_pkg_dir,
@@ -234,6 +230,29 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
             .wrap_err("link global package bins")?;
     }
     Ok(())
+}
+
+/// With `--latest`, registry packages become bare aliases so their latest
+/// version is resolved. Local packages (`link:`/`file:`) always keep their
+/// spec, as they don't resolve from a registry and have no latest version
+/// to query.
+fn update_selectors(dependencies: &[(String, String)], latest: bool) -> Vec<String> {
+    dependencies
+        .iter()
+        .map(
+            |(alias, spec)| {
+                if latest && !is_local_spec(spec) {
+                    alias.clone()
+                } else {
+                    format!("{alias}@{spec}")
+                }
+            },
+        )
+        .collect()
+}
+
+fn is_local_spec(spec: &str) -> bool {
+    spec.starts_with("link:") || spec.starts_with("file:")
 }
 
 /// `pnpm remove -g`. Removes the bins, hash symlinks, and install dirs of

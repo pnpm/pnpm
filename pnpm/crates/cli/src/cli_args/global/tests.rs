@@ -1,6 +1,6 @@
 use super::{
     is_windows_drive_path, replacement_aliases, should_replace_existing_package,
-    split_comma_separated,
+    split_comma_separated, update_selectors,
 };
 use pacquet_global::GlobalPackageInfo;
 use std::path::{Path, PathBuf};
@@ -26,6 +26,31 @@ fn detects_windows_drive_paths() {
     assert!(is_windows_drive_path(r"C:\foo"));
     assert!(is_windows_drive_path("d:/bar"));
     assert!(!is_windows_drive_path("foo"));
+}
+
+#[test]
+fn latest_update_queries_the_registry_only_for_registry_packages() {
+    let dependencies = vec![
+        ("private-linked-pkg".to_string(), "link:/home/user/private-linked-pkg".to_string()),
+        ("local-tarball-pkg".to_string(), "file:/home/user/local-tarball-pkg.tgz".to_string()),
+        ("foo".to_string(), "^1.0.0".to_string()),
+    ];
+    assert_eq!(
+        update_selectors(&dependencies, true),
+        vec![
+            "private-linked-pkg@link:/home/user/private-linked-pkg",
+            "local-tarball-pkg@file:/home/user/local-tarball-pkg.tgz",
+            "foo",
+        ],
+    );
+    assert_eq!(
+        update_selectors(&dependencies, false),
+        vec![
+            "private-linked-pkg@link:/home/user/private-linked-pkg",
+            "local-tarball-pkg@file:/home/user/local-tarball-pkg.tgz",
+            "foo@^1.0.0",
+        ],
+    );
 }
 
 #[test]

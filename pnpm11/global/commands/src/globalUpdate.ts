@@ -71,6 +71,10 @@ export async function handleGlobalUpdate (
   return undefined
 }
 
+function isLocalSpec (spec: string): boolean {
+  return spec.startsWith('link:') || spec.startsWith('file:')
+}
+
 async function updateGlobalPackageGroup (
   opts: GlobalUpdateOptions,
   globalDir: string,
@@ -82,8 +86,10 @@ async function updateGlobalPackageGroup (
 
   // When --latest, just pass alias names to get the latest version.
   // Otherwise, pass alias@spec to update within the existing range.
+  // Local packages (link:/file:) always keep their spec, as they don't
+  // resolve from a registry and have no latest version to query.
   const depSpecs = Object.entries(pkg.dependencies).map(
-    ([alias, spec]) => opts.latest ? alias : `${alias}@${spec}`
+    ([alias, spec]) => opts.latest && !isLocalSpec(spec) ? alias : `${alias}@${spec}`
   )
 
   const include = {
