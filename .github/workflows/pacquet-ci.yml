@@ -97,9 +97,7 @@ jobs:
             os_label: windows
           - os: blacksmith-8vcpu-ubuntu-2404
             os_label: ubuntu
-          # Blacksmith offers no macOS runners, so this leg stays on the
-          # GitHub-hosted image.
-          - os: macos-latest
+          - os: blacksmith-12vcpu-macos-latest
             os_label: macos
     runs-on: ${{ matrix.os }}
     steps:

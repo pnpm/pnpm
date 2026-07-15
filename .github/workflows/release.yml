@@ -34,7 +34,7 @@ concurrency:
 
 jobs:
   validate-release-ref:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions: {}
     steps:
       - name: Validate release ref
@@ -51,7 +51,7 @@ jobs:
   plan:
     name: Plan (which products need publishing)
     needs: validate-release-ref
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
     outputs:
@@ -152,6 +152,7 @@ jobs:
     # macos-latest runner is Apple Silicon and can execute the arm64 binary.
     # Note: this does NOT fix the darwin-x64 crash (nodejs/node#62893) — that's
     # an upstream Node.js SEA bug independent of signing; see pack-app docs.
+    # npm trusted publishing still requires this publish job to run on GitHub-hosted macOS.
     runs-on: macos-latest
     environment: release
     steps:
@@ -225,35 +226,35 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: windows-latest
+          - os: blacksmith-8vcpu-windows-2025
             target: x86_64-pc-windows-msvc
             code-target: win32-x64
 
-          - os: windows-latest
+          - os: blacksmith-8vcpu-windows-2025
             target: aarch64-pc-windows-msvc
             code-target: win32-arm64
 
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             target: x86_64-unknown-linux-gnu
             code-target: linux-x64
 
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             target: aarch64-unknown-linux-gnu
             code-target: linux-arm64
 
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             target: x86_64-unknown-linux-musl
             code-target: linux-x64-musl
 
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             target: aarch64-unknown-linux-musl
             code-target: linux-arm64-musl
 
-          - os: macos-latest
+          - os: blacksmith-12vcpu-macos-latest
             target: x86_64-apple-darwin
             code-target: darwin-x64
 
-          - os: macos-latest
+          - os: blacksmith-12vcpu-macos-latest
             target: aarch64-apple-darwin
             code-target: darwin-arm64
 
@@ -362,6 +363,7 @@ jobs:
 
   publish-rust:
     name: Publish pnpm (Rust) and @pnpm/napi to npm
+    # npm trusted publishing still requires this publish job to run on GitHub-hosted Linux.
     runs-on: ubuntu-latest
     environment: release
     permissions:
@@ -434,7 +436,7 @@ jobs:
 
   github-release-rust:
     name: Draft GitHub release for pnpm (Rust)
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: write # create the draft release and its tag
     needs:
@@ -478,35 +480,35 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: windows-latest
+          - os: blacksmith-8vcpu-windows-2025
             target: x86_64-pc-windows-msvc
             code-target: win32-x64
 
-          - os: windows-latest
+          - os: blacksmith-8vcpu-windows-2025
             target: aarch64-pc-windows-msvc
             code-target: win32-arm64
 
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             target: x86_64-unknown-linux-gnu
             code-target: linux-x64
 
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             target: aarch64-unknown-linux-gnu
             code-target: linux-arm64
 
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             target: x86_64-unknown-linux-musl
             code-target: linux-x64-musl
 
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             target: aarch64-unknown-linux-musl
             code-target: linux-arm64-musl
 
-          - os: macos-latest
+          - os: blacksmith-12vcpu-macos-latest
             target: x86_64-apple-darwin
             code-target: darwin-x64
 
-          - os: macos-latest
+          - os: blacksmith-12vcpu-macos-latest
             target: aarch64-apple-darwin
             code-target: darwin-arm64
 
@@ -582,6 +584,7 @@ jobs:
 
   publish-pnpr:
     name: Publish @pnpm/pnpr to npm
+    # npm trusted publishing still requires this publish job to run on GitHub-hosted Linux.
     runs-on: ubuntu-latest
     environment: release
     permissions:
@@ -639,7 +642,7 @@ jobs:
 
   docker-pnpr:
     name: Publish the pnpr Docker image
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     environment: release
     needs:
       - plan

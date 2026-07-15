@@ -16,7 +16,7 @@ jobs:
   tag-in-registry:
     name: Tagging ${{ github.event.inputs.version }} as ${{ github.event.inputs.tag }}
     environment: release
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
     - uses: garnet-org/action@2b7fc9d79b54f551b43358c27424a36064b3e078 # v2.0.2
       with:
@@ -67,7 +67,7 @@ jobs:
         fi
 
   publish-to-winget:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     environment: release
     needs: tag-in-registry
     steps:
@@ -79,7 +79,7 @@ jobs:
           token: ${{ secrets.WINGET_TOKEN }}
 
   post-to-reddit:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     environment: release
     needs: tag-in-registry
     steps:
@@ -94,7 +94,7 @@ jobs:
           url: https://github.com/pnpm/pnpm/releases/tag/v${{ github.event.inputs.version }}
 
   post-to-mastodon:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     environment: release
     needs: tag-in-registry
     steps:
@@ -109,4 +109,3 @@ jobs:
         env:
           MASTODON_URL: "https://fosstodon.org/"
           MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }} # access token
-

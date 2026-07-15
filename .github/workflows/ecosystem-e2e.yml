@@ -27,7 +27,7 @@ jobs:
   build:
     if: github.repository == 'pnpm/pnpm' # Only run on the main repository, not forks
     name: Ecosystem E2E / Build
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 30
     steps:
       - name: Checkout
@@ -64,7 +64,7 @@ jobs:
     if: github.repository == 'pnpm/pnpm' # Only run on the main repository, not forks
     name: Ecosystem E2E / ${{ matrix.stack }}
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     # Bound the blast radius: a hung build or serve subprocess can't pin a
     # runner indefinitely.
     timeout-minutes: 60

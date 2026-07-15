@@ -26,7 +26,7 @@ jobs:
   benchmark:
     strategy:
       matrix:
-        os: [ubuntu-latest] # `macos-latest` is too unstable to be useful for benchmark, the variance is always huge.
+        os: [blacksmith-8vcpu-ubuntu-2404] # macOS is too unstable to be useful for benchmark, the variance is always huge.
     name: Run benchmark on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     steps:
@@ -71,11 +71,11 @@ jobs:
       - name: Upload benchmark results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: benchmark-results-${{ matrix.os }}
+          name: benchmark-results-ubuntu-latest
           path: ./target/criterion
 
   benchmark-compare:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     name: Compare Benchmarks
     needs:
       - benchmark

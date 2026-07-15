@@ -232,9 +232,7 @@ jobs:
           benchmark="${BENCHMARK}.chunk${TEST_CHUNK}"
           cli_benchmark="${cli_benchmark}.chunk${TEST_CHUNK}"
         fi
-        # Map both GitHub-hosted (`ubuntu-latest`) and Blacksmith
-        # (`blacksmith-8vcpu-ubuntu-2404`) labels to the bare OS slug the
-        # Bencher testbed name requires.
+        # Map runner labels to the bare OS slug the Bencher testbed name requires.
         case "$PLATFORM" in
           *ubuntu*) platform_slug=ubuntu ;;
           *windows*) platform_slug=windows ;;
