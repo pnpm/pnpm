@@ -54,8 +54,9 @@ pub enum WithError {
 
 #[derive(Debug, Args)]
 pub struct WithArgs {
-    /// The pnpm version, range, or dist-tag to run, followed by the pnpm
-    /// command and its arguments.
+    /// The pnpm version, range, or dist-tag to run — or `current` to use
+    /// the pnpm that is already running — followed by the pnpm command and
+    /// its arguments.
     #[clap(trailing_var_arg = true, allow_hyphen_values = true)]
     pub params: Vec<String>,
 }
