@@ -425,98 +425,139 @@ mod windows {
     }
 
     pub(super) fn create_junction(original: &Path, link: &Path) -> io::Result<()> {
-        let staging = loop {
+        let staging = stage_junction(original, link)?;
+        // Serialize only the commit. The slow part — the reparse-point
+        // conversion inside `stage_junction` — already ran in parallel.
+        let _commit_guard = JUNCTION_COMMIT_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
+        commit_staged_junction(link, &staging)
+    }
+
+    /// Build the junction at a unique sibling path so no other worker can
+    /// observe the `junction` crate's transient plain directory at `link`.
+    fn stage_junction(original: &Path, link: &Path) -> io::Result<PathBuf> {
+        loop {
             let candidate = junction_staging_path(link);
             match junction::create(original, &candidate) {
-                Ok(()) => break candidate,
+                Ok(()) => return Ok(candidate),
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
                 Err(error) => return Err(error),
             }
+        }
+    }
+
+    /// Publish `staging` at `link` with an atomic rename, folding a lost race
+    /// into the `AlreadyExists` reuse signal. Runs under [`JUNCTION_COMMIT_LOCK`].
+    fn commit_staged_junction(link: &Path, staging: &Path) -> io::Result<()> {
+        // A worker that took the lock before us may already have committed.
+        match inspect_destination(link) {
+            Destination::Missing => {}
+            Destination::Exists => return Err(reuse_completed_destination(link, staging, "")),
+            Destination::InspectFailed(error) => {
+                return Err(inspect_failed(link, staging, &error, ""));
+            }
+        }
+
+        let rename_error = match fs::rename(staging, link) {
+            Ok(()) => return Ok(()),
+            Err(error) => error,
         };
 
-        let _commit_guard = JUNCTION_COMMIT_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
+        // The rename either lost a cross-process race or genuinely failed;
+        // re-inspecting the destination tells those apart.
+        let after_rename = format!(" after a failed rename ({rename_error})");
+        match inspect_destination(link) {
+            Destination::Exists => Err(reuse_completed_destination(link, staging, &after_rename)),
+            Destination::InspectFailed(error) => {
+                Err(inspect_failed(link, staging, &error, &after_rename))
+            }
+            Destination::Missing => Err(discard_staging_after_rename(staging, link, rename_error)),
+        }
+    }
+
+    /// What `symlink_metadata` reports about a would-be junction destination.
+    enum Destination {
+        /// Another worker already committed the link.
+        Exists,
+        /// The slot is free to claim.
+        Missing,
+        InspectFailed(io::Error),
+    }
+
+    fn inspect_destination(link: &Path) -> Destination {
         match fs::symlink_metadata(link) {
-            Ok(_) => {
-                fs::remove_dir(&staging).map_err(|error| {
-                    io::Error::new(
-                        io::ErrorKind::AlreadyExists,
-                        super::ConcurrentCleanupWarning(format!(
-                            "junction path already exists at {link:?}, but staged junction \
-                             cleanup failed at {staging:?}: {error}",
-                        )),
-                    )
-                })?;
-                return Err(io::Error::new(
-                    io::ErrorKind::AlreadyExists,
-                    format!("junction path already exists: {link:?}"),
-                ));
-            }
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(error) => {
-                let cleanup_error = fs::remove_dir(&staging).err();
-                let cleanup_context = cleanup_error
-                    .map(|cleanup| format!("; staged-junction cleanup failed: {cleanup}"))
-                    .unwrap_or_default();
-                return Err(io::Error::new(
-                    error.kind(),
-                    format!(
-                        "failed to inspect junction destination {link:?}: \
-                         {error}{cleanup_context}",
-                    ),
-                ));
-            }
+            Ok(_) => Destination::Exists,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Destination::Missing,
+            Err(error) => Destination::InspectFailed(error),
         }
+    }
 
-        if let Err(rename_error) = fs::rename(&staging, link) {
-            let cleanup_error = fs::remove_dir(&staging).err();
-            match fs::symlink_metadata(link) {
-                Ok(_) => {
-                    if let Some(cleanup_error) = cleanup_error {
-                        return Err(io::Error::new(
-                            io::ErrorKind::AlreadyExists,
-                            super::ConcurrentCleanupWarning(format!(
-                                "failed to rename staged junction {staging:?} to {link:?}: \
-                                 {rename_error}; destination now exists, but cleanup failed: \
-                                 {cleanup_error}",
-                            )),
-                        ));
-                    }
-                    return Err(io::Error::new(
-                        io::ErrorKind::AlreadyExists,
-                        format!(
-                            "junction path already exists after rename failed: {link:?}; \
-                             rename error: {rename_error}",
-                        ),
-                    ));
-                }
-                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                Err(error) => {
-                    if let Some(cleanup_error) = cleanup_error {
-                        return Err(io::Error::other(format!(
-                            "failed to inspect junction destination {link:?} after rename \
-                             failed: {rename_error}; inspection error: {error}; \
-                             staged-junction cleanup failed: {cleanup_error}",
-                        )));
-                    }
-                    return Err(io::Error::new(
-                        error.kind(),
-                        format!(
-                            "failed to inspect junction destination {link:?} after rename \
-                             failed: {rename_error}; inspection error: {error}",
-                        ),
-                    ));
-                }
-            }
-            if let Some(cleanup_error) = cleanup_error {
-                return Err(io::Error::other(format!(
-                    "failed to rename staged junction {staging:?} to {link:?}: \
-                     {rename_error}; cleanup failed: {cleanup_error}",
-                )));
-            }
-            return Err(rename_error);
+    /// The destination already holds a completed junction. Discard our staging
+    /// copy and return `AlreadyExists` so [`super::force_symlink_inner`] reuses
+    /// the finished link. A cleanup failure must not suppress that reuse — it
+    /// rides along as a [`super::ConcurrentCleanupWarning`] so the orphaned
+    /// staging path still reaches the user.
+    fn reuse_completed_destination(link: &Path, staging: &Path, context: &str) -> io::Error {
+        match fs::remove_dir(staging) {
+            Ok(()) => io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                format!("junction path already exists{context}: {link:?}"),
+            ),
+            Err(cleanup) => io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                super::ConcurrentCleanupWarning(format!(
+                    "junction path already exists{context} at {link:?}, but staged junction \
+                     cleanup failed at {staging:?}: {cleanup}",
+                )),
+            ),
         }
+    }
 
-        Ok(())
+    /// The destination couldn't be inspected. Discard staging and surface the
+    /// inspection error, never as `AlreadyExists` — that kind would let the
+    /// caller reuse a link we could not verify. A concurrent cleanup failure
+    /// downgrades the kind to `Other` since two independent errors are merged.
+    fn inspect_failed(
+        link: &Path,
+        staging: &Path,
+        inspect_error: &io::Error,
+        context: &str,
+    ) -> io::Error {
+        match fs::remove_dir(staging) {
+            Ok(()) => io::Error::new(
+                inspect_error.kind(),
+                format!(
+                    "failed to inspect junction destination {link:?}{context}: {inspect_error}",
+                ),
+            ),
+            Err(cleanup) => io::Error::other(format!(
+                "failed to inspect junction destination {link:?}{context}: {inspect_error}; \
+                 staged-junction cleanup failed: {cleanup}",
+            )),
+        }
+    }
+
+    /// The rename genuinely failed and left nothing at `link`. Discard staging
+    /// and surface the rename error — but never as `AlreadyExists`, or
+    /// [`super::force_symlink_inner`] would treat the missing link as reusable.
+    /// A rename that lost the race only to have the winner vanish before the
+    /// re-inspection can carry that kind, so strip it to `Other`; every other
+    /// kind (including `NotFound`, which drives a mkdir + retry) is informative
+    /// and safe to surface unchanged.
+    pub(super) fn discard_staging_after_rename(
+        staging: &Path,
+        link: &Path,
+        rename_error: io::Error,
+    ) -> io::Error {
+        match fs::remove_dir(staging) {
+            Ok(()) if rename_error.kind() != io::ErrorKind::AlreadyExists => rename_error,
+            Ok(()) => io::Error::other(format!(
+                "failed to rename staged junction {staging:?} to {link:?}: {rename_error}",
+            )),
+            Err(cleanup) => io::Error::other(format!(
+                "failed to rename staged junction {staging:?} to {link:?}: {rename_error}; \
+                 cleanup failed: {cleanup}",
+            )),
+        }
     }
 
     fn junction_staging_path(link: &Path) -> PathBuf {

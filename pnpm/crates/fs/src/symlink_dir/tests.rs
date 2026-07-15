@@ -275,6 +275,31 @@ fn windows_concurrent_junction_creation_reuses_one_link() {
     }
 }
 
+/// Regression for the rename-failure race: if the atomic rename loses to a
+/// concurrent worker (failing with `AlreadyExists`) but that worker's link then
+/// disappears before the re-inspection, the surfaced error must not be
+/// `AlreadyExists`, or `force_symlink_inner` would treat the now-missing link as
+/// reusable. Reproducing the full window deterministically isn't practical, so
+/// this drives the commit helper directly.
+#[cfg(windows)]
+#[test]
+fn windows_rename_failure_with_missing_destination_is_not_reusable() {
+    let root = tempdir().expect("create temp dir");
+    let staging = root.path().join("staging");
+    let link = root.path().join("link");
+    fs::create_dir(&staging).expect("create staged junction stand-in");
+
+    let rename_error = std::io::Error::from(std::io::ErrorKind::AlreadyExists);
+    let error = super::windows::discard_staging_after_rename(&staging, &link, rename_error);
+
+    assert_ne!(
+        error.kind(),
+        std::io::ErrorKind::AlreadyExists,
+        "a genuine rename failure with no destination must not look like a reusable link",
+    );
+    assert!(!staging.exists(), "the staged junction must be cleaned up");
+}
+
 #[cfg(windows)]
 #[test]
 fn windows_same_drive_symlink_target_stays_relative() {
