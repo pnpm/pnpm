@@ -224,8 +224,11 @@ jobs:
                 return new RegExp("^" + pattern.replace(/[.+^{}()|[\]\\]/g, "\\$&").replace(/\*\*\//g, "\x00").replace(/\*\*/g, "\x01").replace(/\*/g, "[^/]*").replace(/\x00/g, "(?:.*/)?").replace(/\x01/g, ".*") + String.fromCharCode(36))
               }
             ' "$package/package.json" | while IFS= read -r file; do
+              echo "Verifying $package/$file"
               test -s "$package/$file"
-              test "$(tar -xOf "$tarball" "package/$file" | shasum -a 256 | cut -d ' ' -f 1)" = "$(shasum -a 256 "$package/$file" | cut -d ' ' -f 1)"
+              tarball_hash=$(tar -xOf "$tarball" "package/$file" | shasum -a 256 | cut -d ' ' -f 1)
+              source_hash=$(shasum -a 256 "$package/$file" | cut -d ' ' -f 1)
+              test "$tarball_hash" = "$source_hash"
             done
           done
 
