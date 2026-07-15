@@ -45,6 +45,7 @@ pub(crate) struct RunCtx<'a> {
     /// `--dir`, so a `-g` install can't inherit the caller project's
     /// `.npmrc` network / TLS / registry settings.
     pub(crate) global_config: &'a (dyn Fn() -> miette::Result<&'static mut Config> + Sync),
+    pub(crate) config_self_update: &'a (dyn Fn() -> miette::Result<&'static mut Config> + Sync),
     pub(crate) state: &'a (dyn Fn(bool) -> miette::Result<State> + Sync),
 }
 
@@ -210,46 +211,51 @@ impl CliArgs {
         // explicitly so the dependency-injection plumbing is visible at the
         // call site. See
         // [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339).
+        // CLI flags are applied on top of whatever `Config::current*` loaded —
+        // they are trusted input and finalize every config variant below,
+        // including `self-update`'s.
+        let finalize_config =
+            |mut cfg: Config, anchor: &Path| -> miette::Result<&'static mut Config> {
+                config_overrides.apply(&mut cfg);
+                cfg.apply_proxy_cli_overrides(
+                    https_proxy.as_deref(),
+                    http_proxy.as_deref(),
+                    no_proxy.as_deref(),
+                );
+                if let Some(registry) = registry.as_deref() {
+                    apply_registry_override(&mut cfg, registry);
+                }
+                if let Some(store_dir) = store_dir.as_deref() {
+                    apply_store_dir_override::<Host>(&mut cfg, store_dir, anchor)?;
+                }
+                // `--recursive` / `--filter` / `--filter-prod` are
+                // CLI-only upstream (not `.npmrc` / yaml keys), so the
+                // global flags are threaded in here. Mirrors pnpm's
+                // `Config.recursive` / `.filter` / `.filterProd`.
+                cfg.recursive = recursive;
+                cfg.filter.clone_from(&filter);
+                cfg.filter_prod.clone_from(&filter_prod);
+                // Unlike the CLI-only selectors above, these two are
+                // genuine config keys — the flag overrides yaml / env
+                // only when actually given.
+                if !test_pattern.is_empty() {
+                    cfg.test_pattern.clone_from(&test_pattern);
+                }
+                if !changed_files_ignore_pattern.is_empty() {
+                    cfg.changed_files_ignore_pattern.clone_from(&changed_files_ignore_pattern);
+                }
+                if let Some(workspace_concurrency) = workspace_concurrency {
+                    cfg.workspace_concurrency =
+                        pacquet_config::resolve_child_concurrency(Some(workspace_concurrency));
+                }
+                Ok(Config::leak(cfg))
+            };
         let load_config = |anchor: &Path| -> miette::Result<&'static mut Config> {
             Config { npmrc_auth_file: npmrc_auth_file.clone(), ..Config::default() }
                 .current::<Host>(anchor)
                 .map_err(miette::Report::new)
                 .wrap_err("load configuration")
-                .and_then(|mut cfg| {
-                    config_overrides.apply(&mut cfg);
-                    cfg.apply_proxy_cli_overrides(
-                        https_proxy.as_deref(),
-                        http_proxy.as_deref(),
-                        no_proxy.as_deref(),
-                    );
-                    if let Some(registry) = registry.as_deref() {
-                        apply_registry_override(&mut cfg, registry);
-                    }
-                    if let Some(store_dir) = store_dir.as_deref() {
-                        apply_store_dir_override::<Host>(&mut cfg, store_dir, anchor)?;
-                    }
-                    // `--recursive` / `--filter` / `--filter-prod` are
-                    // CLI-only upstream (not `.npmrc` / yaml keys), so the
-                    // global flags are threaded in here. Mirrors pnpm's
-                    // `Config.recursive` / `.filter` / `.filterProd`.
-                    cfg.recursive = recursive;
-                    cfg.filter.clone_from(&filter);
-                    cfg.filter_prod.clone_from(&filter_prod);
-                    // Unlike the CLI-only selectors above, these two are
-                    // genuine config keys — the flag overrides yaml / env
-                    // only when actually given.
-                    if !test_pattern.is_empty() {
-                        cfg.test_pattern.clone_from(&test_pattern);
-                    }
-                    if !changed_files_ignore_pattern.is_empty() {
-                        cfg.changed_files_ignore_pattern.clone_from(&changed_files_ignore_pattern);
-                    }
-                    if let Some(workspace_concurrency) = workspace_concurrency {
-                        cfg.workspace_concurrency =
-                            pacquet_config::resolve_child_concurrency(Some(workspace_concurrency));
-                    }
-                    Ok(Config::leak(cfg))
-                })
+                .and_then(|cfg| finalize_config(cfg, anchor))
         };
         // Resolve `.npmrc` / `pnpm-workspace.yaml` from the canonicalized
         // `--dir` rather than the process cwd, matching pnpm 11 (which
@@ -266,6 +272,16 @@ impl CliArgs {
         let pnpm_home_dir = default_pnpm_home_dir::<Host>();
         let global_config_anchor = pnpm_home_dir.as_deref().unwrap_or(&dir);
         let global_config = || load_config(global_config_anchor);
+        // Like [`RunCtx::config`] but loaded through
+        // `Config::current_for_self_update`, so a repo-controlled workspace
+        // manifest or project `.npmrc` can't steer the pnpm fetch.
+        let config_self_update = || -> miette::Result<&'static mut Config> {
+            Config { npmrc_auth_file: npmrc_auth_file.clone(), ..Config::default() }
+                .current_for_self_update::<Host>(&dir)
+                .map_err(miette::Report::new)
+                .wrap_err("load configuration")
+                .and_then(|cfg| finalize_config(cfg, &dir))
+        };
         // `require_lockfile` is the "this subcommand cannot run without a
         // lockfile loaded" signal, used by `State::init` to override
         // `config.lockfile=false`. Only `install --frozen-lockfile` needs
@@ -290,6 +306,7 @@ impl CliArgs {
             if_present,
             config: &config,
             global_config: &global_config,
+            config_self_update: &config_self_update,
             state: &state,
         };
         match route(command, &ctx) {

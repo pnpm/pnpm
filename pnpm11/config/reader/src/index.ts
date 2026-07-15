@@ -96,6 +96,12 @@ export async function getConfig (opts: {
   env?: Record<string, string | undefined>
   onlyInheritDlxSettingsFromLocal?: boolean
   ignoreLocalSettings?: boolean
+  // Set by `self-update`: load config from trusted sources only (skip the
+  // project workspace-yaml settings + project `.npmrc`; force
+  // `minimumReleaseAgeStrict = true`). The project `package.json` is still
+  // read for `packageManager` pin detection. Disable the cutoff via
+  // `minimumReleaseAge: 0`, or strict mode via `minimumReleaseAgeStrict: false`.
+  forSelfUpdate?: boolean
 }): Promise<{ config: Config, context: ConfigContext, warnings: string[] }> {
   if (opts.onlyInheritDlxSettingsFromLocal) {
     const { onlyInheritDlxSettingsFromLocal: _, ...localOpts } = opts
@@ -249,6 +255,7 @@ export async function getConfig (opts: {
     configDir: configDir as string,
     moduleDirname: import.meta.dirname,
     env: opts.env,
+    ignoreProjectNpmrc: opts.forSelfUpdate,
     // Only the global config yaml may supply `_auth` (deleted from
     // `globalYamlConfig` below so it isn't flagged as an unknown setting).
     globalConfigAuth: (globalYamlConfigForNpmrcAuthFile as unknown as Record<string, unknown> | undefined)?._auth,
@@ -461,7 +468,14 @@ export async function getConfig (opts: {
     }
 
     if (pnpmConfig.workspaceDir != null) {
-      const workspaceManifest = await readWorkspaceManifest(pnpmConfig.workspaceDir)
+      // `self-update` doesn't consume the workspace-manifest content (settings
+      // are skipped below; `workspacePackagePatterns` is unused by self-update),
+      // and a repo-controlled malformed yaml must not be able to block it — so
+      // don't read/parse the file. The workspace root (`workspaceDir`, already
+      // set above) is the only structural context self-update needs.
+      const workspaceManifest = opts.forSelfUpdate
+        ? undefined
+        : await readWorkspaceManifest(pnpmConfig.workspaceDir)
 
       pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
       if (workspaceManifest) {
@@ -569,6 +583,12 @@ export async function getConfig (opts: {
     pnpmConfig.explicitlySetKeys.has('minimumReleaseAge') &&
     pnpmConfig.minimumReleaseAgeStrict == null
   ) {
+    pnpmConfig.minimumReleaseAgeStrict = true
+  }
+
+  // `self-update` self-protects: refuse a freshly published pnpm unless a
+  // trusted source (global config / CLI / env) opts out.
+  if (opts.forSelfUpdate && pnpmConfig.minimumReleaseAgeStrict !== false) {
     pnpmConfig.minimumReleaseAgeStrict = true
   }
 
