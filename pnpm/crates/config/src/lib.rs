@@ -2166,6 +2166,8 @@ impl Config {
                 workspace_yaml::find_workspace_manifest(start_dir)
                     .and_then(|manifest_path| manifest_path.parent().map(Path::to_path_buf))
             }) {
+                self.modules_dir = root.join("node_modules");
+                self.virtual_store_dir = root.join("node_modules/.pnpm");
                 self.workspace_dir = Some(root);
             }
             None
