@@ -2,6 +2,10 @@
   dir: pnpm11/cache/commands
   intents:
     - cache-delete-all-metadata-dirs
+"@pnpm/cli.default-reporter@1100.3.8":
+  dir: pnpm11/cli/default-reporter
+  intents:
+    - quiet-prompts
 "@pnpm/cli.parse-cli-args@1100.1.6":
   dir: pnpm11/cli/parse-cli-args
   intents:
@@ -15,6 +19,10 @@
   intents:
     - allow-tokenhelper-in-global-auth-ini
     - native-monorepo-versioning-core
+"@pnpm/core-loggers@1100.2.3":
+  dir: pnpm11/core/core-loggers
+  intents:
+    - quiet-prompts
 "@pnpm/deps.inspection.tree-builder@1100.0.21":
   dir: pnpm11/deps/inspection/tree-builder
   intents:
@@ -27,6 +35,14 @@
   dir: pnpm11/engine/pm/commands
   intents:
     - global-trust-policy-full-metadata
+"@pnpm/engine.pm.commands@1101.2.4":
+  dir: pnpm11/engine/pm/commands
+  intents:
+    - quiet-slots-link
+"@pnpm/exe@11.13.1":
+  dir: pnpm11/pnpm/artifacts/exe
+  intents:
+    - exe-repository-links
 "@pnpm/exec.commands@1100.3.5":
   dir: pnpm11/exec/commands
   intents:
@@ -39,6 +55,10 @@
   dir: pnpm11/fs/packlist
   intents:
     - workspace-pack-gitignore
+"@pnpm/fs.packlist@1100.0.3":
+  dir: pnpm11/fs/packlist
+  intents:
+    - nice-packs-ignore
 "@pnpm/global.commands@1100.0.34":
   dir: pnpm11/global/commands
   intents:
@@ -51,6 +71,10 @@
   dir: pnpm11/installing/commands
   intents:
     - global-trust-policy-full-metadata
+"@pnpm/installing.commands@1100.10.6":
+  dir: pnpm11/installing/commands
+  intents:
+    - quiet-prompts
 "@pnpm/installing.deps-installer@1102.3.0":
   dir: pnpm11/installing/deps-installer
   intents:
@@ -90,6 +114,10 @@
     - publish-readme-metadata
     - tidy-deploy-graphs
     - workspace-pack-gitignore
+"@pnpm/releasing.commands@1100.6.1":
+  dir: pnpm11/releasing/commands
+  intents:
+    - nice-packs-ignore
 "@pnpm/releasing.exportable-manifest@1100.1.10":
   dir: pnpm11/releasing/exportable-manifest
   intents:
@@ -133,7 +161,7 @@ pacquet@12.0.0-alpha.12:
     - pacquet-symlink-dangling-junction-parent
 pacquet@12.0.0-alpha.13:
   dir: pnpm/npm/pnpm
-  intents: []
+  intents:
 pacquet@12.0.0-alpha.9:
   dir: pnpm/npm/pnpm
   intents:
@@ -182,3 +210,9 @@ pnpm@11.13.0:
     - token-helper-timeout
     - windows-kill-tracked-process-trees
     - workspace-pack-gitignore
+pnpm@11.13.1:
+  dir: pnpm11/pnpm
+  intents:
+    - nice-packs-ignore
+    - quiet-prompts
+    - quiet-slots-link
