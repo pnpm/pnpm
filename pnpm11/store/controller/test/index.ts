@@ -185,7 +185,7 @@ describe('store.importPackage()', () => {
   it.each([
     ['synchronous', (storeDir: string) => createCafsStore(storeDir, { packageImportMethod: 'hardlink' }).importPackage],
     ['asynchronous', (storeDir: string) => createPackageImporterAsync({ storeDir, packageImportMethod: 'hardlink' })],
-  ])('replaces sanitized store hardlinks before making a package writable using the %s importer', async (_name, createImporter) => {
+  ])('replaces store hardlinks before making a package writable using the %s importer', async (_name, createImporter) => {
     const tmp = temporaryDirectory()
     const storeDir = path.join(tmp, 'store')
     const storeInvalidFile = path.join(storeDir, 'invalid.js')
@@ -205,7 +205,7 @@ describe('store.importPackage()', () => {
     await importPackage(importTo, {
       filesResponse: {
         filesMap: new Map([
-          ['file?name.js', storeInvalidFile],
+          ['filename.js', storeInvalidFile],
           ['package.json', storeManifest],
         ]),
         requiresBuild: true,
@@ -216,10 +216,13 @@ describe('store.importPackage()', () => {
       safeToSkip: true,
     })
 
+    const projectedInvalidFile = path.join(importTo, 'filename.js')
     expect(fs.statSync(storeInvalidFile).mode & 0o200).toBe(0)
     expect(fs.statSync(storeManifest).mode & 0o200).toBe(0)
+    expect(fs.statSync(projectedInvalidFile).mode & 0o200).toBe(0o200)
     expect(fs.statSync(path.join(importTo, 'package.json')).mode & 0o200).toBe(0o200)
     if (process.platform !== 'win32') {
+      expect(fs.statSync(projectedInvalidFile).ino).not.toBe(fs.statSync(storeInvalidFile).ino)
       expect(fs.statSync(path.join(importTo, 'package.json')).ino).not.toBe(fs.statSync(storeManifest).ino)
     }
   })
