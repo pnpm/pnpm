@@ -1283,7 +1283,7 @@ describe('linkExePlatformBinary', () => {
     fs.writeFileSync(path.join(wrapperSlot, 'package.json'), JSON.stringify({
       bin: { pnpm: 'pnpm', pn: 'pn', pnpx: 'pnpx', pnx: 'pnx' },
     }))
-    fs.linkSync(fs.realpathSync(process.execPath), path.join(platformSlot, executable))
+    fs.copyFileSync(fs.realpathSync(process.execPath), path.join(platformSlot, executable))
 
     fs.mkdirSync(path.dirname(wrapperDir), { recursive: true })
     fs.mkdirSync(path.dirname(platformDir), { recursive: true })
