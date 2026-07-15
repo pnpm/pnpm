@@ -232,7 +232,18 @@ jobs:
           native_tarball=$(find "$release_tarballs/pnpm11_pnpm_artifacts_darwin-arm64" -type f -name '*.tgz' -print -quit)
           test -n "$exe_tarball"
           test -n "$native_tarball"
-          npm install --prefix "$smoke_dir" --ignore-scripts=false "$exe_tarball" "$native_tarball"
+          (
+            cd "$smoke_dir"
+            command -v node
+            node --version
+            command -v npm
+            npm --version
+            npm config get ignore-scripts
+            npm config get strict-allow-scripts
+            npm install --foreground-scripts --ignore-scripts=false --loglevel verbose "$exe_tarball" "$native_tarball"
+          )
+          ls -l "$smoke_dir/node_modules/@pnpm/exe/pnpm"
+          file "$smoke_dir/node_modules/@pnpm/exe/pnpm"
           "$smoke_dir/node_modules/@pnpm/exe/pnpm" --version
 
   release:
