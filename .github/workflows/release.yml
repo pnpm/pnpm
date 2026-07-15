@@ -136,16 +136,14 @@ jobs:
             echo "pnpr_tag=$PNPR_TAG"
           } | tee -a "$GITHUB_OUTPUT"
 
-  release:
-    name: Release the TypeScript pnpm CLI
+  verify-ts-release:
+    name: Verify TypeScript pnpm release artifacts
     needs:
       - validate-release-ref
       - plan
     if: needs.plan.outputs.ts == 'true'
     permissions:
-      id-token: write  # Required for OIDC
-      contents: write  # for softprops/action-gh-release to create GitHub release
-      attestations: write  # for actions/attest-build-provenance
+      contents: read
     # Runs on macOS so the darwin artifacts can be ad-hoc signed with native
     # `codesign` (no need to build/install `ldid` on the runner) and so
     # `verify-binary.mjs` can smoke-test the darwin-arm64 SEA in place — a
@@ -153,6 +151,78 @@ jobs:
     # Note: this does NOT fix the darwin-x64 crash (nodejs/node#62893) — that's
     # an upstream Node.js SEA bug independent of signing; see pack-app docs.
     # npm trusted publishing still requires this publish job to run on GitHub-hosted macOS.
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: garnet-org/action@2b7fc9d79b54f551b43358c27424a36064b3e078 # v2.0.2
+        with:
+          api_token: ${{ secrets.GARNET_API_TOKEN }}
+      - name: Install pnpm and Node
+        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+        with:
+          runtime: node@26.5.0
+      - name: Build TypeScript executable artifacts
+        run: pn --filter=@pnpm/exe run build-artifacts
+
+      - name: Verify TypeScript npm packages
+        # Inspect the same tarballs that publish will upload before the first
+        # immutable npm publish, including the generated platform packages.
+        run: |
+          set -euo pipefail
+          release_tarballs=$(mktemp -d)
+          for package in pnpm11/pnpm/artifacts/{darwin-arm64,exe,linux-arm64,linux-arm64-musl,linux-x64,linux-x64-musl,win32-arm64,win32-x64} pnpm11/pnpm; do
+            package_tarballs="$release_tarballs/${package//\//_}"
+            mkdir "$package_tarballs"
+            (
+              cd "$package"
+              pn pack --pack-destination "$package_tarballs"
+            )
+
+            tarball=$(find "$package_tarballs" -type f -name '*.tgz' -print -quit)
+            test -n "$tarball"
+            node -e '
+              const manifest = require(require("node:path").resolve(process.argv[1]))
+              for (const file of [...(manifest.files ?? []), ...(manifest.publishConfig?.executableFiles ?? [])]) {
+                if (!/[?*[]/.test(file)) console.log(file.replace(/^\.\//, ""))
+              }
+            ' "$package/package.json" | while IFS= read -r file; do
+              if [ ! -f "$package/$file" ]; then continue; fi
+              test -s "$package/$file"
+              test "$(tar -xOf "$tarball" "package/$file" | shasum -a 256 | cut -d ' ' -f 1)" = "$(shasum -a 256 "$package/$file" | cut -d ' ' -f 1)"
+            done
+          done
+
+          pnpm_tarball=$(find "$release_tarballs/pnpm11_pnpm" -type f -name '*.tgz' -print -quit)
+          test -n "$pnpm_tarball"
+
+          smoke_dir=$(mktemp -d)
+          tar -xzf "$pnpm_tarball" -C "$smoke_dir"
+          node "$smoke_dir/package/bin/pnpm.mjs" --version
+
+          exe_tarball=$(find "$release_tarballs/pnpm11_pnpm_artifacts_exe" -type f -name '*.tgz' -print -quit)
+          native_tarball=$(find "$release_tarballs/pnpm11_pnpm_artifacts_darwin-arm64" -type f -name '*.tgz' -print -quit)
+          test -n "$exe_tarball"
+          test -n "$native_tarball"
+          mkdir -p "$smoke_dir/node_modules/@pnpm/exe" "$smoke_dir/node_modules/@pnpm/macos-arm64"
+          tar -xzf "$exe_tarball" -C "$smoke_dir/node_modules/@pnpm/exe" --strip-components=1
+          tar -xzf "$native_tarball" -C "$smoke_dir/node_modules/@pnpm/macos-arm64" --strip-components=1
+          node "$smoke_dir/node_modules/@pnpm/exe/setup.js"
+          "$smoke_dir/node_modules/@pnpm/exe/pnpm" --version
+
+  release:
+    name: Release the TypeScript pnpm CLI
+    needs:
+      - validate-release-ref
+      - plan
+      - verify-ts-release
+    if: needs.plan.outputs.ts == 'true'
+    permissions:
+      id-token: write  # Required for OIDC
+      contents: write  # for softprops/action-gh-release to create GitHub release
+      attestations: write  # for actions/attest-build-provenance
     runs-on: macos-latest
     environment: release
     steps:
@@ -173,12 +243,13 @@ jobs:
       # force trusted publishing for a given package today is to run its publish in a
       # step that doesn't have NPM_TOKEN set. See https://github.com/pnpm/pnpm/pull/11495
       # for the longer-term fix that lets OIDC override a configured token.
+      - name: Build TypeScript executable artifacts
+        run: pn --filter=@pnpm/exe run build-artifacts
+
       - name: Publish @pnpm/exe (trusted publishing)
         # No NPM_TOKEN: pnpm has no static token to short-circuit on, so it will perform
         # the OIDC token exchange against npm's trusted-publishing config for `@pnpm/exe`.
-        # The exe artifacts must be built before the publish, so they're built here too.
         run: |
-          pn --filter=@pnpm/exe run build-artifacts
           pn --filter=@pnpm/exe publish --tag=next-11 --access=public --provenance
       - name: Publish internal workspace packages (static token)
         # The other workspace packages don't have trusted publishing configured on npm,
@@ -361,14 +432,11 @@ jobs:
             *.tar.gz
             *.node
 
-  publish-rust:
-    name: Publish pnpm (Rust) and @pnpm/napi to npm
-    # npm trusted publishing still requires this publish job to run on GitHub-hosted Linux.
+  verify-rust-artifacts:
+    name: Verify pnpm (Rust) npm artifacts
     runs-on: ubuntu-latest
-    environment: release
     permissions:
-      # Required for npm trusted publishing and provenance attestations via OIDC.
-      id-token: write
+      contents: read
     needs:
       - plan
       - build-rust
@@ -415,7 +483,7 @@ jobs:
           node pnpm/npm/napi/scripts/generate-packages.mjs
           cat pnpm/npm/pnpm/package.json
           cat pnpm/npm/napi/package.json
-          for package in pnpm/npm/pacquet-* pnpm/npm/napi.*; do cat $package/package.json ; echo ; done
+          for package in pnpm/npm/pacquet-* pnpm/npm/napi.*; do cat "$package/package.json" ; echo ; done
 
       - name: Verify generated npm packages
         # `pnpm publish` packages its input immediately before upload. Verify
@@ -440,6 +508,7 @@ jobs:
                 if (!/[?*[]/.test(file)) console.log(file.replace(/^\.\//, ""))
               }
             ' "$package/package.json" | while IFS= read -r file; do
+              if [ ! -f "$package/$file" ]; then continue; fi
               test -s "$package/$file"
               test "$(tar -xOf "$tarball" "package/$file" | sha256sum | cut -d ' ' -f 1)" = "$(sha256sum "$package/$file" | cut -d ' ' -f 1)"
             done
@@ -448,6 +517,8 @@ jobs:
           smoke_dir=$(mktemp -d)
           native_tarball=$(find "$release_tarballs/pnpm_npm_pacquet-linux-x64" -type f -name '*.tgz' -print -quit)
           wrapper_tarball=$(find "$release_tarballs/pnpm_npm_pnpm" -type f -name '*.tgz' -print -quit)
+          test -n "$native_tarball"
+          test -n "$wrapper_tarball"
           mkdir -p "$smoke_dir/node_modules/@pnpm/exe.linux-x64" "$smoke_dir/node_modules/pnpm"
           tar -xzf "$native_tarball" \
             -C "$smoke_dir/node_modules/@pnpm/exe.linux-x64" --strip-components=1
@@ -455,6 +526,52 @@ jobs:
             -C "$smoke_dir/node_modules/pnpm" --strip-components=1
           node "$smoke_dir/node_modules/pnpm/install.js"
           "$smoke_dir/node_modules/pnpm/pnpm" --version
+
+  publish-rust:
+    name: Publish pnpm (Rust) and @pnpm/napi to npm
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      # Required for npm trusted publishing and provenance attestations via OIDC.
+      id-token: write
+    needs:
+      - plan
+      - build-rust
+      - verify-rust-artifacts
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm and Node
+        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+        with:
+          runtime: node@22
+          install: false
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: binaries-rust-*
+          merge-multiple: true
+
+      - name: Extract archives
+        run: |
+          for archive in pnpm-*.zip; do
+            rm -rf extract && mkdir extract
+            unzip -q "$archive" -d extract
+            mv extract/pnpm.exe "${archive%.zip}.exe"
+          done
+          for archive in pnpm-*.tar.gz; do
+            rm -rf extract && mkdir extract
+            tar -xzf "$archive" -C extract
+            mv extract/pnpm "${archive%.tar.gz}"
+          done
+
+      - name: Generate npm packages
+        run: |
+          node pnpm/npm/pnpm/scripts/generate-packages.mjs
+          node pnpm/npm/napi/scripts/generate-packages.mjs
 
       # Everything publishes via trusted publishing: the `pnpm` / `@pnpm/exe`
       # trusted publishers are bound to this workflow file (they are shared
@@ -621,14 +738,11 @@ jobs:
             *.tar.gz
             *.sha256
 
-  publish-pnpr:
-    name: Publish @pnpm/pnpr to npm
-    # npm trusted publishing still requires this publish job to run on GitHub-hosted Linux.
+  verify-pnpr-artifacts:
+    name: Verify pnpr npm artifacts
     runs-on: ubuntu-latest
-    environment: release
     permissions:
-      # Required for npm trusted publishing and provenance attestations via OIDC.
-      id-token: write
+      contents: read
     needs:
       - plan
       - build-pnpr
@@ -655,13 +769,98 @@ jobs:
           args: unzip -qq *.zip -d .
 
       - name: Extract tarballs
-        run: ls *.gz | xargs -i tar xf {}
+        run: |
+          for archive in ./*.gz; do
+            tar xf "$archive"
+          done
 
       - name: Generate npm packages
         run: |
           node pnpr/npm/pnpr/scripts/generate-packages.mjs
           cat pnpr/npm/pnpr/package.json
-          for package in pnpr/npm/pnpr*; do cat $package/package.json ; echo ; done
+          for package in pnpr/npm/pnpr*; do cat "$package/package.json" ; echo ; done
+
+      - name: Verify generated npm packages
+        # `pnpm publish` packages its input immediately before upload. Verify
+        # those tarballs, then exercise the wrapper's native-binary install
+        # path before the first immutable npm publish.
+        run: |
+          set -euo pipefail
+          release_tarballs=$(mktemp -d)
+          for package in pnpr/npm/pnpr-* pnpr/npm/pnpr; do
+            package_tarballs="$release_tarballs/${package//\//_}"
+            mkdir "$package_tarballs"
+            (
+              cd "$package"
+              pnpm pack --pack-destination "$package_tarballs"
+            )
+
+            tarball=$(find "$package_tarballs" -type f -name '*.tgz' -print -quit)
+            test -n "$tarball"
+            node -e '
+              const manifest = require(require("node:path").resolve(process.argv[1]))
+              for (const file of [...(manifest.files ?? []), ...(manifest.publishConfig?.executableFiles ?? [])]) {
+                if (!/[?*[]/.test(file)) console.log(file.replace(/^\.\//, ""))
+              }
+            ' "$package/package.json" | while IFS= read -r file; do
+              if [ ! -f "$package/$file" ]; then continue; fi
+              test -s "$package/$file"
+              test "$(tar -xOf "$tarball" "package/$file" | sha256sum | cut -d ' ' -f 1)" = "$(sha256sum "$package/$file" | cut -d ' ' -f 1)"
+            done
+          done
+
+          smoke_dir=$(mktemp -d)
+          native_tarball=$(find "$release_tarballs/pnpr_npm_pnpr-linux-x64" -type f -name '*.tgz' -print -quit)
+          wrapper_tarball=$(find "$release_tarballs/pnpr_npm_pnpr" -type f -name '*.tgz' -print -quit)
+          test -n "$native_tarball"
+          test -n "$wrapper_tarball"
+          mkdir -p "$smoke_dir/node_modules/@pnpm/pnpr.linux-x64" "$smoke_dir/node_modules/@pnpm/pnpr"
+          tar -xzf "$native_tarball" -C "$smoke_dir/node_modules/@pnpm/pnpr.linux-x64" --strip-components=1
+          tar -xzf "$wrapper_tarball" -C "$smoke_dir/node_modules/@pnpm/pnpr" --strip-components=1
+          node "$smoke_dir/node_modules/@pnpm/pnpr/install.js"
+          "$smoke_dir/node_modules/@pnpm/pnpr/bin/pnpr" --version
+
+  publish-pnpr:
+    name: Publish @pnpm/pnpr to npm
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      # Required for npm trusted publishing and provenance attestations via OIDC.
+      id-token: write
+    needs:
+      - plan
+      - build-pnpr
+      - verify-pnpr-artifacts
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm and Node
+        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+        with:
+          runtime: node@22
+          install: false
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: binaries-pnpr-*
+          merge-multiple: true
+
+      - name: Unzip
+        uses: montudor/action-zip@0852c26906e00f8a315c704958823928d8018b28 # v1.0.0
+        with:
+          args: unzip -qq *.zip -d .
+
+      - name: Extract tarballs
+        run: |
+          for archive in ./*.gz; do
+            tar xf "$archive"
+          done
+
+      - name: Generate npm packages
+        run: node pnpr/npm/pnpr/scripts/generate-packages.mjs
 
       - name: Publish npm packages
         # Auth is via npm's trusted publishing: `id-token: write` above grants
