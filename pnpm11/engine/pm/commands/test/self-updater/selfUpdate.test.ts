@@ -1103,7 +1103,7 @@ describe('linkExePlatformBinary', () => {
   const libcFamily = familySync()
   const platformPkgName = exePlatformPkgDirName(platform, arch, libcFamily)
 
-  test('links platform binary in pnpm symlinked node_modules layout', () => {
+  test('prefers the wrapper-adjacent platform binary in a symlinked node_modules layout', () => {
     const dir = tempDir(false)
 
     // Create a virtual store layout like pnpm produces:
@@ -1113,6 +1113,7 @@ describe('linkExePlatformBinary', () => {
     const vsExeDir = path.join(dir, 'node_modules', '.pnpm', '@pnpm+exe@1.0.0', 'node_modules', '@pnpm', 'exe')
     const vsPlatformDir = path.join(dir, 'node_modules', '.pnpm', '@pnpm+exe@1.0.0', 'node_modules', '@pnpm', platformPkgName)
     const topLevelExeDir = path.join(dir, 'node_modules', '@pnpm', 'exe')
+    const topLevelPlatformDir = path.join(dir, 'node_modules', '@pnpm', platformPkgName)
 
     // Create the virtual store directories
     fs.mkdirSync(vsExeDir, { recursive: true })
@@ -1130,6 +1131,8 @@ describe('linkExePlatformBinary', () => {
     // Create the top-level symlink: node_modules/@pnpm/exe -> virtual store
     fs.mkdirSync(path.join(dir, 'node_modules', '@pnpm'), { recursive: true })
     fs.symlinkSync(vsExeDir, topLevelExeDir)
+    fs.mkdirSync(topLevelPlatformDir)
+    fs.writeFileSync(path.join(topLevelPlatformDir, executable), 'wrong platform binary')
 
     // Run the function
     linkExePlatformBinary(dir)
@@ -1235,6 +1238,63 @@ describe('linkExePlatformBinary', () => {
 
     const result = fs.readFileSync(path.join(wrapperDir, executable), 'utf8')
     expect(result).toBe(fakeBinaryContent)
+  })
+
+  test.each([
+    ['legacy', platformPkgName],
+    ['newer', exePlatformPkgDirNameNext(platform, arch, libcFamily)],
+  ])('links @pnpm/exe when its %s platform dependency is in a sibling GVS slot', (_scheme, siblingPlatformPkgName) => {
+    const dir = tempDir(false)
+    const wrapperSlot = path.join(dir, 'links', 'wrapper', 'node_modules', '@pnpm', 'exe')
+    const platformSlot = path.join(dir, 'links', 'platform', 'node_modules', '@pnpm', siblingPlatformPkgName)
+    const wrapperDir = path.join(dir, 'node_modules', '@pnpm', 'exe')
+    const platformDir = path.join(dir, 'node_modules', '@pnpm', siblingPlatformPkgName)
+
+    fs.mkdirSync(wrapperSlot, { recursive: true })
+    fs.mkdirSync(platformSlot, { recursive: true })
+    fs.writeFileSync(path.join(wrapperSlot, executable), 'This file intentionally left blank')
+    fs.writeFileSync(path.join(wrapperSlot, 'package.json'), JSON.stringify({
+      bin: { pnpm: 'pnpm', pn: 'pn', pnpx: 'pnpx', pnx: 'pnx' },
+    }))
+    const fakeBinaryContent = '#!/bin/sh\necho "fake pnpm binary"'
+    fs.writeFileSync(path.join(platformSlot, executable), fakeBinaryContent)
+
+    fs.mkdirSync(path.dirname(wrapperDir), { recursive: true })
+    fs.mkdirSync(path.dirname(platformDir), { recursive: true })
+    fs.symlinkSync(wrapperSlot, wrapperDir)
+    fs.symlinkSync(platformSlot, platformDir)
+
+    linkExePlatformBinary(dir)
+
+    const result = fs.readFileSync(path.join(wrapperDir, executable), 'utf8')
+    expect(result).toBe(fakeBinaryContent)
+  })
+
+  test('runs the self-update wrapper when its platform binary is in a sibling GVS slot', () => {
+    const dir = tempDir(false)
+    const wrapperSlot = path.join(dir, 'links', 'wrapper', 'node_modules', '@pnpm', 'exe')
+    const platformSlot = path.join(dir, 'links', 'platform', 'node_modules', '@pnpm', platformPkgName)
+    const wrapperDir = path.join(dir, 'node_modules', '@pnpm', 'exe')
+    const platformDir = path.join(dir, 'node_modules', '@pnpm', platformPkgName)
+
+    fs.mkdirSync(wrapperSlot, { recursive: true })
+    fs.mkdirSync(platformSlot, { recursive: true })
+    fs.writeFileSync(path.join(wrapperSlot, executable), 'This file intentionally left blank')
+    fs.writeFileSync(path.join(wrapperSlot, 'package.json'), JSON.stringify({
+      bin: { pnpm: 'pnpm', pn: 'pn', pnpx: 'pnpx', pnx: 'pnx' },
+    }))
+    fs.copyFileSync(fs.realpathSync(process.execPath), path.join(platformSlot, executable))
+
+    fs.mkdirSync(path.dirname(wrapperDir), { recursive: true })
+    fs.mkdirSync(path.dirname(platformDir), { recursive: true })
+    fs.symlinkSync(wrapperSlot, wrapperDir)
+    fs.symlinkSync(platformSlot, platformDir)
+
+    linkExePlatformBinary(dir)
+
+    const result = spawn.sync(path.join(wrapperDir, executable), ['--version'])
+    expect(result.status).toBe(0)
+    expect(result.stdout.toString().trim()).toBe(process.version)
   })
 
   // Regression coverage for https://github.com/pnpm/pnpm/issues/11486 — the
