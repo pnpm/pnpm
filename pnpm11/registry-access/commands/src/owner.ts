@@ -216,7 +216,7 @@ async function fetchOwners (
     if (response.status === 404) {
       throw new PnpmError('PACKAGE_NOT_FOUND', `Package "${packageName}" not found in registry`)
     }
-    throw new PnpmError('REGISTRY_ERROR', `Failed to fetch owners: ${response.status} ${response.statusText}`)
+    await throwRegistryError(response, 'fetch owners of')
   }
 
   return await response.json() as Owner[]

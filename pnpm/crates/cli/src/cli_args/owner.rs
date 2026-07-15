@@ -50,6 +50,13 @@ pub enum OwnerError {
         package_name: String,
     },
 
+    #[display("Package not found in registry. {body}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_NOT_FOUND))]
+    WritePackageNotFound {
+        #[error(not(source))]
+        body: String,
+    },
+
     #[display("You must be logged in to {action} packages. {body}")]
     #[diagnostic(code(ERR_PNPM_UNAUTHORIZED))]
     Unauthorized {
@@ -163,12 +170,7 @@ async fn owner_ls(context: &OwnerContext<'_>, params: &[String]) -> miette::Resu
         return Err(OwnerError::PackageNotFound { package_name: package_name.clone() }.into());
     }
     if !response.status().is_success() {
-        return Err(write_error_from_response(
-            response,
-            "fetch owners of".to_string(),
-            package_name,
-        )
-        .await);
+        return Err(write_error_from_response(response, "fetch owners of".to_string()).await);
     }
 
     let body = read_limited_body(response, OWNER_BODY_LIMIT)
@@ -216,8 +218,7 @@ async fn owner_add(context: &OwnerContext<'_>, params: &[String]) -> miette::Res
     if response.status().is_success() {
         return Ok(format!("+{owner}: {package_name}"));
     }
-    Err(write_error_from_response(response, format!(r#"add owner "{owner}" to"#), package_name)
-        .await)
+    Err(write_error_from_response(response, format!(r#"add owner "{owner}" to"#)).await)
 }
 
 async fn owner_rm(context: &OwnerContext<'_>, params: &[String]) -> miette::Result<String> {
@@ -252,12 +253,7 @@ async fn owner_rm(context: &OwnerContext<'_>, params: &[String]) -> miette::Resu
     if response.status().is_success() {
         return Ok(format!("-{owner}: {package_name}"));
     }
-    Err(write_error_from_response(
-        response,
-        format!(r#"remove owner "{owner}" from"#),
-        package_name,
-    )
-    .await)
+    Err(write_error_from_response(response, format!(r#"remove owner "{owner}" from"#)).await)
 }
 
 fn build_http_client(config: &Config) -> miette::Result<ThrottledClient> {
@@ -286,11 +282,7 @@ where
     .into()
 }
 
-async fn write_error_from_response(
-    response: Response,
-    action: String,
-    package_name: &str,
-) -> miette::Report {
+async fn write_error_from_response(response: Response, action: String) -> miette::Report {
     let status = response.status();
     let status_text = status.canonical_reason().unwrap_or_default().to_string();
     let body = match read_limited_body(response, OWNER_ERROR_BODY_LIMIT).await {
@@ -301,9 +293,7 @@ async fn write_error_from_response(
     match status {
         reqwest::StatusCode::UNAUTHORIZED => OwnerError::Unauthorized { action, body }.into(),
         reqwest::StatusCode::FORBIDDEN => OwnerError::Forbidden { action, body }.into(),
-        reqwest::StatusCode::NOT_FOUND => {
-            OwnerError::PackageNotFound { package_name: package_name.to_string() }.into()
-        }
+        reqwest::StatusCode::NOT_FOUND => OwnerError::WritePackageNotFound { body }.into(),
         _ => OwnerError::RegistryWriteFailed { action, status: status.as_u16(), status_text, body }
             .into(),
     }

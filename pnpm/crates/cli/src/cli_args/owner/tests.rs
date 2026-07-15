@@ -130,6 +130,7 @@ async fn owner_ls_success() {
     let result = args.run(&config).await.expect("owner ls must succeed");
 
     mock.assert_async().await;
+    eprintln!("OWNERS:\n{}\n", result.as_deref().unwrap_or_default());
     assert_eq!(result.as_deref(), Some("alice <alice@example.com>\nbob <bob@example.com>"));
 }
 
@@ -149,6 +150,10 @@ async fn owner_ls_404_returns_package_not_found() {
     assert!(formatted.contains("not found"), "expected PackageNotFound, got: {formatted}");
 }
 
+// The `ls` fetch path shares the `add`/`rm` write path's status mapping (TS
+// `fetchOwners` delegates to `throwRegistryError`), so a 401/403 surfaces the
+// registry's response body as an Unauthorized/Forbidden error rather than a
+// bare status line.
 #[tokio::test]
 async fn owner_ls_401_returns_unauthorized() {
     let mut server = mockito::Server::new_async().await;
@@ -166,7 +171,12 @@ async fn owner_ls_401_returns_unauthorized() {
     mock.assert_async().await;
     let report: miette::Report = err;
     let formatted = format!("{report:?}");
-    assert!(formatted.contains("logged in"), "expected Unauthorized error, got: {formatted}");
+    // Assert single tokens: miette's Debug output word-wraps long lines, so a
+    // multi-word substring can straddle a line break.
+    assert!(
+        formatted.contains("logged in") && formatted.contains("unauthorized"),
+        "expected Unauthorized error with body, got: {formatted}",
+    );
 }
 
 #[tokio::test]
@@ -175,7 +185,7 @@ async fn owner_ls_403_returns_forbidden() {
     let mock = server
         .mock("GET", "/-/package/locked-pkg/owners")
         .with_status(403)
-        .with_body("forbidden")
+        .with_body("forbidden detail")
         .create_async()
         .await;
 
@@ -186,7 +196,10 @@ async fn owner_ls_403_returns_forbidden() {
     mock.assert_async().await;
     let report: miette::Report = err;
     let formatted = format!("{report:?}");
-    assert!(formatted.contains("permission"), "expected Forbidden error, got: {formatted}");
+    assert!(
+        formatted.contains("permission") && formatted.contains("forbidden"),
+        "expected Forbidden error with body, got: {formatted}",
+    );
 }
 
 #[tokio::test]
@@ -195,7 +208,7 @@ async fn owner_ls_500_returns_registry_error() {
     let mock = server
         .mock("GET", "/-/package/broken-pkg/owners")
         .with_status(500)
-        .with_body("internal error")
+        .with_body("teapot")
         .create_async()
         .await;
 
@@ -206,7 +219,12 @@ async fn owner_ls_500_returns_registry_error() {
     mock.assert_async().await;
     let report: miette::Report = err;
     let formatted = format!("{report:?}");
-    assert!(formatted.contains("500"), "expected status 500 in error, got: {formatted}");
+    assert!(
+        formatted.contains("fetch owners")
+            && formatted.contains("500")
+            && formatted.contains("teapot"),
+        "expected registry error with body, got: {formatted}",
+    );
 }
 
 #[tokio::test]
@@ -315,11 +333,18 @@ async fn owner_add_403_returns_forbidden() {
     assert!(formatted.contains("permission"), "expected Forbidden, got: {formatted}");
 }
 
+// The write path (add/rm) mirrors the TypeScript `throwRegistryError`, whose
+// 404 message is `Package not found in registry. {body}` — distinct from the
+// `ls` fetch path, which quotes the package name instead.
 #[tokio::test]
 async fn owner_add_404_returns_package_not_found() {
     let mut server = mockito::Server::new_async().await;
-    let mock =
-        server.mock("PUT", "/-/package/missing-pkg/owners").with_status(404).create_async().await;
+    let mock = server
+        .mock("PUT", "/-/package/missing-pkg/owners")
+        .with_status(404)
+        .with_body("no such package")
+        .create_async()
+        .await;
 
     let config = config_with_registry(&server.url());
     let args = owner_args("add", &["missing-pkg", "alice"]);
@@ -328,7 +353,11 @@ async fn owner_add_404_returns_package_not_found() {
     mock.assert_async().await;
     let report: miette::Report = err;
     let formatted = format!("{report:?}");
-    assert!(formatted.contains("not found"), "expected PackageNotFound, got: {formatted}");
+    assert!(
+        formatted.contains("Package not found in registry")
+            && formatted.contains("no such package"),
+        "expected write-path PackageNotFound with body, got: {formatted}",
+    );
 }
 
 #[tokio::test]
