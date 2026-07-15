@@ -15,9 +15,7 @@ use std::fs;
 #[cfg(not(windows))]
 use std::path::PathBuf;
 #[cfg(windows)]
-use std::sync::Barrier;
-#[cfg(windows)]
-use std::{io, path::Path};
+use std::{io, path::Path, sync::Barrier};
 use tempfile::tempdir;
 
 #[cfg(unix)]

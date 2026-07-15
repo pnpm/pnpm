@@ -148,6 +148,9 @@ pub fn force_symlink_dir(target: &Path, link: &Path) -> io::Result<ForceSymlinkO
     // the symlink syscall — sees a native path. See [`to_native_separators`].
     let target = to_native_separators(target);
     let link = to_native_separators(link);
+    #[cfg(windows)]
+    return force_symlink_inner(&target, &link, false, windows::create);
+    #[cfg(not(windows))]
     force_symlink_inner(&target, &link, false, symlink_dir)
 }
 

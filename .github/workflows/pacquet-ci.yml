@@ -154,6 +154,16 @@ jobs:
           tool: just
 
       - name: Install dependencies
+        if: runner.os != 'Windows'
+        run: just install
+
+      # The released native CLI bootstraps this job before the branch is
+      # compiled. Disable its broken GVS path so the Windows suite can test
+      # the source fix in this PR.
+      - name: Install dependencies on Windows
+        if: runner.os == 'Windows'
+        env:
+          PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE: 'false'
         run: just install
 
       - name: Install cargo-nextest
