@@ -9,11 +9,27 @@ use crate::{
     FetchingProgressMessage, GetHostName, GlobalLog, HookLog, Host, IgnoredScriptsLog,
     LifecycleLog, LifecycleMessage, LifecycleStdio, LockfileVerificationLog,
     LockfileVerificationMessage, LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog,
-    PackageManifestLog, PackageManifestMessage, PnpmLog, ProgressLog, ProgressMessage, RemovedRoot,
-    Reporter, RequestRetryError, RequestRetryLog, RootLog, RootMessage, SilentReporter,
-    SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalParent,
-    SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
+    PackageManifestLog, PackageManifestMessage, PnpmLog, ProgressLog, ProgressMessage,
+    PromptAction, PromptLog, RemovedRoot, Reporter, RequestRetryError, RequestRetryLog, RootLog,
+    RootMessage, SilentReporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
+    SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage,
+    SummaryLog,
 };
+
+#[test]
+fn prompt_event_matches_pnpm_wire_shape() {
+    let event = LogEvent::Prompt(PromptLog { level: LogLevel::Debug, action: PromptAction::Start });
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
+    let json: Value = envelope
+        .pipe_ref(serde_json::to_string)
+        .expect("serialize envelope")
+        .pipe_as_ref(serde_json::from_str)
+        .expect("parse JSON");
+
+    assert_eq!(json["name"], "pnpm:prompt");
+    assert_eq!(json["level"], "debug");
+    assert_eq!(json["action"], "start");
+}
 
 /// Context log serializes with the camelCase field names
 /// `@pnpm/cli.default-reporter` expects (`currentLockfileExists`,

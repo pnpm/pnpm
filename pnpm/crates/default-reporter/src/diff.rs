@@ -30,6 +30,12 @@ impl Diff {
         Diff { col: 0, row: 0, width, lines: Vec::new() }
     }
 
+    pub(crate) fn reset(&mut self) {
+        self.col = 0;
+        self.row = 0;
+        self.lines.clear();
+    }
+
     /// Appends to `out` the ANSI escape sequence that transforms the previous
     /// frame into `frame`. The caller wraps this with `\r` (column reset) and
     /// `\x1b[0J` (erase below frame), composing the whole redraw into one

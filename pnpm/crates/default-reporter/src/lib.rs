@@ -25,7 +25,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use pacquet_reporter::{FetchingProgressMessage, LogEvent, Reporter};
+use pacquet_reporter::{FetchingProgressMessage, LogEvent, PromptAction, Reporter};
 
 use crate::{
     colors::Colors,
@@ -85,6 +85,10 @@ pub struct DefaultReporter;
 impl Reporter for DefaultReporter {
     fn emit(event: &LogEvent) {
         let mut sink = SINK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let LogEvent::Prompt(log) = event {
+            sink.on_prompt(log.action);
+            return;
+        }
         let output = sink.state.handle(event);
         sink.write(output, is_coalesceable(event));
     }
@@ -114,6 +118,7 @@ struct Sink {
     frame_buf: String,
     throttle: Duration,
     last_write: Option<Instant>,
+    prompt_active: bool,
 }
 
 impl Sink {
@@ -134,10 +139,36 @@ impl Sink {
         let diff = diff::Diff::new(columns);
         let throttle =
             if append_only { Duration::from_secs(1) } else { Duration::from_millis(200) };
-        Sink { state, diff, frame_buf: String::new(), throttle, last_write: None }
+        Sink {
+            state,
+            diff,
+            frame_buf: String::new(),
+            throttle,
+            last_write: None,
+            prompt_active: false,
+        }
+    }
+
+    fn on_prompt(&mut self, action: PromptAction) {
+        match action {
+            PromptAction::Start => self.prompt_active = true,
+            PromptAction::End => {
+                self.prompt_active = false;
+                self.diff.reset();
+                self.last_write = None;
+            }
+        }
     }
 
     fn write(&mut self, output: Output, coalesceable: bool) {
+        let mut out = std::io::stdout().lock();
+        self.write_to(output, coalesceable, &mut out);
+    }
+
+    fn write_to(&mut self, output: Output, coalesceable: bool, out: &mut impl Write) {
+        if self.prompt_active {
+            return;
+        }
         // Drop a high-volume progress redraw if the throttle window hasn't
         // elapsed. State is already folded, so the next non-coalesceable
         // event (stats, summary, importing-done, the footer) renders the
@@ -145,15 +176,14 @@ impl Sink {
         if coalesceable && self.last_write.is_some_and(|last| last.elapsed() < self.throttle) {
             return;
         }
-        let wrote = self.write_output(output);
+        let wrote = self.write_output(output, out);
         if wrote {
             self.last_write = Some(Instant::now());
         }
     }
 
     /// Returns whether anything was written.
-    fn write_output(&mut self, output: Output) -> bool {
-        let mut out = std::io::stdout().lock();
+    fn write_output(&mut self, output: Output, out: &mut impl Write) -> bool {
         match output {
             Output::None => return false,
             Output::Lines(lines) => {

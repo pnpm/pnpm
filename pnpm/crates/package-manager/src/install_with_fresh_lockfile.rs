@@ -316,6 +316,9 @@ pub enum InstallWithFreshLockfileError {
     #[diagnostic(transparent)]
     BuildPhase(#[error(source)] crate::install_frozen_lockfile::BuildPhaseError),
 
+    #[diagnostic(transparent)]
+    MinimumReleaseAge(#[error(source)] crate::minimum_release_age::MinimumReleaseAgeError),
+
     /// Surfaces any failure from the fresh-lockfile installability
     /// pass before virtual-store materialization starts.
     #[diagnostic(transparent)]
@@ -1246,6 +1249,13 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         .map_err(|ResolveImporterError::Resolve(err)| {
             InstallWithFreshLockfileError::ResolveDependencyTree(err)
         })?;
+        crate::minimum_release_age::handle_minimum_release_age_violations::<Reporter>(
+            config,
+            lockfile_dir,
+            &workspace_result.merged_tree.policy_violations,
+            !dry_run,
+        )
+        .map_err(InstallWithFreshLockfileError::MinimumReleaseAge)?;
         let total_nodes = workspace_result.peers.graph.len();
         // Hand the per-importer issues to the programmatic caller
         // before the graph is consumed below.

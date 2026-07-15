@@ -7,6 +7,7 @@ use super::{
     Install, InstallError, UpToDateFastPathCheck, install_already_up_to_date,
     load_workspace_projects, should_write_package_map,
 };
+use crate::{InstallWithFreshLockfileError, MinimumReleaseAgeError};
 use pacquet_config::{Config, NodePackageMapType};
 use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_modules_yaml::{
@@ -212,6 +213,72 @@ async fn should_install_dependencies() {
     insta::assert_debug_snapshot!(get_all_folders(&project_root));
 
     drop((dir, mock_instance));
+}
+
+#[tokio::test]
+async fn fresh_install_reports_strict_minimum_release_age_violations_before_writing() {
+    let mock_instance = TestRegistry::start();
+    let dir = tempdir().unwrap();
+    let modules_dir = dir.path().join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+    let mut manifest = PackageManifest::create_if_needed(dir.path().join("package.json")).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("store").into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir;
+    config.registry = mock_instance.url();
+    config.minimum_release_age = Some(60 * 24 * 365 * 100);
+    config.minimum_release_age_strict = Some(true);
+    let config = config.leak();
+
+    let error = Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        emit_initial_manifest: true,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: Some(false),
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        peer_issues_sink: None,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: false,
+        pnpmfile_hook_override: None,
+        workspace_projects_override: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect_err("strict non-interactive install must reject immature picks");
+
+    assert!(matches!(
+        error,
+        InstallError::WithFreshLockfile(InstallWithFreshLockfileError::MinimumReleaseAge(
+            MinimumReleaseAgeError::NoMatureMatchingVersion { .. }
+        ))
+    ));
+    assert!(!dir.path().join("pnpm-lock.yaml").exists());
+    assert!(!modules_dir.exists());
 }
 
 /// `Install` with `UpdateSeedPolicy::DropAll` is the update path

@@ -58,9 +58,11 @@ async-recursion = { workspace = true }
 chrono          = { workspace = true }
 dashmap         = { workspace = true }
 derive_more     = { workspace = true }
+dialoguer       = { workspace = true }
 futures-util    = { workspace = true }
 httpdate        = { workspace = true }
 indexmap        = { workspace = true }
+is_ci           = { workspace = true }
 node-semver     = { workspace = true }
 pathdiff        = { workspace = true }
 pipe-trait      = { workspace = true }
