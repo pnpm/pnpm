@@ -117,8 +117,8 @@ pub struct InstallArgs {
     pub no_runtime: bool,
 
     /// Don't run lifecycle scripts of the project or its dependencies.
-    /// Dependencies with build scripts are skipped without failing the
-    /// install.
+    /// Packages are still installed; only their build scripts are skipped,
+    /// and the install won't fail because of it.
     #[clap(long = "ignore-scripts", overrides_with = "no_ignore_scripts")]
     pub ignore_scripts: bool,
 

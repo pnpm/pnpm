@@ -15,8 +15,8 @@ use std::{
 
 /// Run a shell command in the context of a project.
 ///
-/// With `-r` / `--recursive`, runs the command in each of the
-/// `--filter`-selected workspace projects, in topological order.
+/// With `-r` / `--recursive`, runs the command in every workspace project
+/// (or the `--filter`-selected subset), in topological order.
 #[derive(Debug, Args)]
 pub struct ExecArgs {
     /// The command to run, followed by its arguments.

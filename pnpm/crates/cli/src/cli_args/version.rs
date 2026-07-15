@@ -19,8 +19,8 @@ use crate::cli_args::{
 /// `-r` and no version argument.
 #[derive(Debug, Args)]
 pub struct VersionArgs {
-    /// The version to bump to. With no argument, the recursive form consumes
-    /// the pending change intents instead.
+    /// A version to bump to. Passing one is not supported yet; run with
+    /// `-r` and no argument to apply the pending change intents.
     pub params: Vec<String>,
 
     /// Print the release plan the pending change intents produce without

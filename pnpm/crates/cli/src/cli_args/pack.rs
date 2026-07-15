@@ -79,7 +79,8 @@ pub struct PackArgs {
     #[clap(long = "skip-manifest-obfuscation")]
     pub skip_manifest_obfuscation: bool,
 
-    /// Maximum number of projects packed at once in recursive mode.
+    /// Maximum number of projects to pack at once in recursive mode.
+    /// Currently has no effect; packing runs one project at a time.
     #[clap(long = "workspace-concurrency")]
     pub workspace_concurrency: Option<u32>,
 }

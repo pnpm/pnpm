@@ -20,8 +20,9 @@ pub struct RebuildArgs {
     /// that requires a build is rebuilt.
     pub packages: Vec<String>,
 
-    /// Rebuild packages that were not built during installation. Packages
-    /// are not built when installing with the `--ignore-scripts` flag.
+    /// Rebuild packages that were not built during installation, such as
+    /// under `--ignore-scripts`. Currently has no effect: no packages are
+    /// recorded as pending yet.
     #[clap(long)]
     pub pending: bool,
 }
