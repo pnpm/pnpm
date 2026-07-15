@@ -719,6 +719,8 @@ fn resolution_cache_key(config: &PacquetConfig, request: &ResolveRequest) -> Opt
         .map(|project| {
             serde_json::json!({
                 "dir": project.dir,
+                "name": project.name,
+                "version": project.version,
                 "dependencies": project.dependencies,
                 "devDependencies": project.dev_dependencies,
                 "optionalDependencies": project.optional_dependencies,

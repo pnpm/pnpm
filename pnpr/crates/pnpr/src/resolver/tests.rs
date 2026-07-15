@@ -186,6 +186,29 @@ fn resolution_cache_key_normalizes_single_project_requests() {
 }
 
 #[test]
+fn resolution_cache_key_changes_with_project_identity() {
+    let request = |name: &str, version: &str| {
+        serde_json::from_value::<ResolveRequest>(serde_json::json!({
+            "projects": [{
+                "dir": ".",
+                "name": name,
+                "version": version,
+                "dependencies": { "foo": "^1.0.0" }
+            }]
+        }))
+        .expect("resolve request parses")
+    };
+    let base = request("app", "1.0.0");
+    let renamed = request("renamed-app", "1.0.0");
+    let reversioned = request("app", "2.0.0");
+
+    let config = config();
+    let base_key = resolution_cache_key(&config, &base);
+    assert_ne!(base_key, resolution_cache_key(&config, &renamed));
+    assert_ne!(base_key, resolution_cache_key(&config, &reversioned));
+}
+
+#[test]
 fn resolution_cache_key_changes_with_dependencies_and_policy() {
     let base = ResolveRequest {
         dependencies: Some(deps(&[("foo", "^1.0.0")])),
