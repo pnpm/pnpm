@@ -1,5 +1,6 @@
 ---
 "@pnpm/global.commands": patch
+"pnpm": patch
 "pacquet": patch
 ---
 
