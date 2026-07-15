@@ -120,7 +120,7 @@ pub fn make_path_owner_writable(path: &Path) -> io::Result<()> {
         let mut permissions = path.metadata()?.permissions();
         if permissions.readonly() {
             permissions.set_readonly(false);
-            path.set_permissions(permissions)?;
+            std::fs::set_permissions(path, permissions)?;
         }
         return Ok(());
     }

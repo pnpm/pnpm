@@ -100,7 +100,10 @@ describe('store.importPackage()', () => {
     expect(typeof (await import(importTo)).default).toBe('function')
   })
 
-  it('makes private build projections writable without changing read-only store files', async () => {
+  it.each([
+    ['synchronous', (storeDir: string) => createCafsStore(storeDir, { packageImportMethod: 'hardlink' }).importPackage],
+    ['asynchronous', (storeDir: string) => createPackageImporterAsync({ storeDir, packageImportMethod: 'hardlink' })],
+  ])('makes private build projections writable without changing read-only store files using the %s importer', async (_name, createImporter) => {
     const tmp = temporaryDirectory()
     const storeDir = path.join(tmp, 'store')
     const filesMap = new Map([
@@ -116,7 +119,7 @@ describe('store.importPackage()', () => {
     fs.chmodSync(filesMap.get('node_modules/bundled/index.js')!, 0o444)
     fs.chmodSync(filesMap.get('package.json')!, 0o444)
 
-    const importPackage = createCafsStore(storeDir, { packageImportMethod: 'hardlink' }).importPackage
+    const importPackage = createImporter(storeDir)
     const importTo = path.join(tmp, 'project', 'node_modules', 'fixture')
     const filesResponse = {
       filesMap,
@@ -135,6 +138,7 @@ describe('store.importPackage()', () => {
     fs.mkdirSync(path.dirname(nestedDependency), { recursive: true })
     fs.writeFileSync(nestedDependency, 'module.exports = true')
     fs.chmodSync(nestedDependency, 0o444)
+    fs.unlinkSync(path.join(importTo, 'index.js'))
 
     await importPackage(importTo, {
       filesResponse,
@@ -175,6 +179,48 @@ describe('store.importPackage()', () => {
     expect(fs.statSync(path.join(cachedImportTo, 'package.json')).mode & 0o200).toBe(0o200)
     if (process.platform !== 'win32') {
       expect(fs.statSync(path.join(cachedImportTo, 'package.json')).ino).not.toBe(fs.statSync(filesMap.get('package.json')!).ino)
+    }
+  })
+
+  it.each([
+    ['synchronous', (storeDir: string) => createCafsStore(storeDir, { packageImportMethod: 'hardlink' }).importPackage],
+    ['asynchronous', (storeDir: string) => createPackageImporterAsync({ storeDir, packageImportMethod: 'hardlink' })],
+  ])('replaces sanitized store hardlinks before making a package writable using the %s importer', async (_name, createImporter) => {
+    const tmp = temporaryDirectory()
+    const storeDir = path.join(tmp, 'store')
+    const storeInvalidFile = path.join(storeDir, 'invalid.js')
+    const storeManifest = path.join(storeDir, 'package.json')
+    fs.mkdirSync(storeDir, { recursive: true })
+    fs.writeFileSync(storeInvalidFile, 'module.exports = true')
+    fs.writeFileSync(storeManifest, '{"name":"fixture"}')
+
+    const importTo = path.join(tmp, 'project', 'node_modules', 'fixture')
+    fs.mkdirSync(importTo, { recursive: true })
+    fs.linkSync(storeInvalidFile, path.join(importTo, 'filename.js'))
+    fs.linkSync(storeManifest, path.join(importTo, 'package.json'))
+    fs.chmodSync(storeInvalidFile, 0o444)
+    fs.chmodSync(storeManifest, 0o444)
+
+    const importPackage = createImporter(storeDir)
+    await importPackage(importTo, {
+      filesResponse: {
+        filesMap: new Map([
+          ['file?name.js', storeInvalidFile],
+          ['package.json', storeManifest],
+        ]),
+        requiresBuild: true,
+        resolvedFrom: 'store',
+      },
+      force: false,
+      requiresBuild: true,
+      safeToSkip: true,
+    })
+
+    expect(fs.statSync(storeInvalidFile).mode & 0o200).toBe(0)
+    expect(fs.statSync(storeManifest).mode & 0o200).toBe(0)
+    expect(fs.statSync(path.join(importTo, 'package.json')).mode & 0o200).toBe(0o200)
+    if (process.platform !== 'win32') {
+      expect(fs.statSync(path.join(importTo, 'package.json')).ino).not.toBe(fs.statSync(storeManifest).ino)
     }
   })
 

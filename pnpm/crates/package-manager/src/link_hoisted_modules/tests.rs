@@ -174,12 +174,14 @@ fn hoisted_build_candidate_is_private_and_writable() {
     let installed = lockfile_dir.join("node_modules/a/package.json");
     fs::write(&installed, b"built").expect("hoisted build projection should be writable");
     assert_eq!(fs::read(&store_file).unwrap(), manifest);
+    assert!(fs::metadata(&store_file).unwrap().permissions().readonly());
+    assert!(!fs::metadata(&installed).unwrap().permissions().readonly());
     #[cfg(unix)]
     {
         use std::os::unix::fs::{MetadataExt, PermissionsExt};
         assert_ne!(
             fs::metadata(&store_file).unwrap().ino(),
-            fs::metadata(&installed).unwrap().ino()
+            fs::metadata(&installed).unwrap().ino(),
         );
         assert_eq!(fs::metadata(&store_file).unwrap().permissions().mode() & 0o200, 0);
         assert_ne!(fs::metadata(&installed).unwrap().permissions().mode() & 0o200, 0);

@@ -76,7 +76,7 @@ fn writable_import_replaces_a_store_hardlink_with_a_private_writable_copy() {
         fs::set_permissions(&package_json, fs::Permissions::from_mode(0o444)).unwrap();
         assert_eq!(
             fs::metadata(&package_json).unwrap().ino(),
-            fs::metadata(&target_file).unwrap().ino()
+            fs::metadata(&target_file).unwrap().ino(),
         );
     }
     #[cfg(windows)]
@@ -102,14 +102,17 @@ fn writable_import_replaces_a_store_hardlink_with_a_private_writable_copy() {
         use std::os::unix::fs::{MetadataExt, PermissionsExt};
         assert_ne!(
             fs::metadata(&package_json).unwrap().ino(),
-            fs::metadata(&target_file).unwrap().ino()
+            fs::metadata(&target_file).unwrap().ino(),
         );
         assert_ne!(fs::metadata(&target).unwrap().permissions().mode() & 0o200, 0);
         assert_eq!(fs::metadata(&package_json).unwrap().permissions().mode() & 0o200, 0);
         assert_ne!(fs::metadata(&target_file).unwrap().permissions().mode() & 0o200, 0);
     }
     #[cfg(windows)]
-    assert!(!fs::metadata(&target_file).unwrap().permissions().readonly());
+    {
+        assert!(fs::metadata(&package_json).unwrap().permissions().readonly());
+        assert!(!fs::metadata(&target_file).unwrap().permissions().readonly());
+    }
 }
 
 /// Default opts (isolated linker) short-circuit when the target holds the

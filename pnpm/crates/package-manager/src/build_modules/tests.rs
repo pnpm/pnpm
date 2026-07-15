@@ -826,12 +826,9 @@ fn using_side_effects_cache_skips_rebuild() {
     let cas_source = tempdir().expect("create temp dir");
     let side_effect_blob = cas_source.path().join("generated-by-postinstall");
     fs::write(&side_effect_blob, b"built").expect("write side-effect blob");
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&side_effect_blob, fs::Permissions::from_mode(0o444))
-            .expect("make side-effect blob read-only");
-    }
+    let mut permissions = fs::metadata(&side_effect_blob).unwrap().permissions();
+    permissions.set_readonly(true);
+    fs::set_permissions(&side_effect_blob, permissions).expect("make side-effect blob read-only");
     let mut overlay = std::collections::HashMap::new();
     overlay.insert(
         expected_cache_key,
@@ -896,18 +893,19 @@ fn using_side_effects_cache_skips_rebuild() {
         pkg_dir.join("generated-by-postinstall.js").exists(),
         "cached side-effect file must be materialized when the gate skips the rebuild",
     );
-    fs::write(pkg_dir.join("generated-by-postinstall.js"), b"rebuilt")
+    let projected = pkg_dir.join("generated-by-postinstall.js");
+    fs::write(&projected, b"rebuilt")
         .expect("cached projection must remain writable for a later rebuild");
     assert_eq!(fs::read(&side_effect_blob).unwrap(), b"built");
+    assert!(fs::metadata(&side_effect_blob).unwrap().permissions().readonly());
+    assert!(!fs::metadata(&projected).unwrap().permissions().readonly());
     #[cfg(unix)]
     {
-        use std::os::unix::fs::{MetadataExt, PermissionsExt};
-        let projected = pkg_dir.join("generated-by-postinstall.js");
+        use std::os::unix::fs::MetadataExt;
         assert_ne!(
             fs::metadata(&side_effect_blob).unwrap().ino(),
-            fs::metadata(projected).unwrap().ino()
+            fs::metadata(&projected).unwrap().ino(),
         );
-        assert_eq!(fs::metadata(&side_effect_blob).unwrap().permissions().mode() & 0o200, 0);
     }
 }
 

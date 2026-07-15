@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { createIndexedPkgImporter, sanitizeFilenamePath } from '@pnpm/fs.indexed-pkg-importer'
 import {
@@ -38,7 +39,7 @@ export function createPackageImporterAsync (
       ? 'clone-or-copy'
       : (opts.filesResponse.packageImportMethod ?? packageImportMethod)
     const impPkg = cachedImporterCreator(pkgImportMethod)
-    const safeToSkip = makeWritable && hasStoreHardlinks(to, filesMap)
+    const safeToSkip = makeWritable && await hasStoreHardlinksAsync(to, filesMap)
       ? false
       : opts.safeToSkip
     const importMethod = await impPkg(to, {
@@ -49,7 +50,7 @@ export function createPackageImporterAsync (
       keepModulesDir: Boolean(opts.keepModulesDir),
       safeToSkip,
     })
-    if (makeWritable) makePackageWritable(to, filesMap)
+    if (makeWritable) await makePackageWritableAsync(to, filesMap)
     return { importMethod, isBuilt }
   }
 }
@@ -114,19 +115,10 @@ function makePackageWritable (dir: string, filesMap: FilesMap): void {
   const directories = new Set([dir])
   const files: string[] = []
   for (const filename of filesMap.keys()) {
-    const originalPath = path.join(dir, filename)
-    const sanitizedPath = path.join(dir, sanitizeFilenamePath(filename))
-    const filePath = fs.existsSync(originalPath) ? originalPath : sanitizedPath
-    const relativePath = path.relative(dir, filePath)
-    if (relativePath === '..' || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath)) {
-      throw new Error(`Cannot make package file outside the projection writable: ${filePath}`)
-    }
+    const candidates = packageFileCandidates(dir, filename)
+    const filePath = candidates.find(fs.existsSync) ?? candidates.at(-1)!
     files.push(filePath)
-    let parent = path.dirname(filePath)
-    while (parent !== dir) {
-      directories.add(parent)
-      parent = path.dirname(parent)
-    }
+    addParentDirectories(directories, dir, filePath)
   }
   for (const directory of Array.from(directories).sort((a, b) => a.length - b.length)) {
     makePathWritable(directory)
@@ -136,8 +128,8 @@ function makePackageWritable (dir: string, filesMap: FilesMap): void {
 
 function hasStoreHardlinks (dir: string, filesMap: FilesMap): boolean {
   for (const [filename, storePath] of filesMap) {
-    const targetPath = path.join(dir, filename)
-    if (!fs.existsSync(targetPath)) return false
+    const targetPath = packageFileCandidates(dir, filename).find(fs.existsSync)
+    if (targetPath == null) return true
     try {
       const targetStat = fs.statSync(targetPath)
       const storeStat = fs.statSync(storePath)
@@ -147,6 +139,89 @@ function hasStoreHardlinks (dir: string, filesMap: FilesMap): boolean {
     }
   }
   return false
+}
+
+async function makePackageWritableAsync (dir: string, filesMap: FilesMap): Promise<void> {
+  const directories = new Set([dir])
+  const files = await mapInBatches(Array.from(filesMap.keys()), async (filename) => {
+    const candidates = packageFileCandidates(dir, filename)
+    const filePath = await findExistingPath(candidates) ?? candidates.at(-1)!
+    addParentDirectories(directories, dir, filePath)
+    return filePath
+  })
+  await mapInBatches(Array.from(directories).sort((a, b) => a.length - b.length), makePathWritableAsync)
+  await mapInBatches(files, makePathWritableAsync)
+}
+
+async function hasStoreHardlinksAsync (dir: string, filesMap: FilesMap): Promise<boolean> {
+  const entries = Array.from(filesMap)
+  for (let index = 0; index < entries.length; index += FS_OPERATION_CONCURRENCY) {
+    const results = await Promise.all(entries.slice(index, index + FS_OPERATION_CONCURRENCY).map(async ([filename, storePath]) => { // eslint-disable-line no-await-in-loop
+      const candidates = packageFileCandidates(dir, filename)
+      try {
+        const targetPath = await findExistingPath(candidates)
+        if (targetPath == null) return true
+        const [targetStat, storeStat] = await Promise.all([
+          fs.promises.stat(targetPath),
+          fs.promises.stat(storePath),
+        ])
+        return targetStat.dev === storeStat.dev && targetStat.ino === storeStat.ino
+      } catch {
+        return true
+      }
+    }))
+    if (results.some(Boolean)) return true
+  }
+  return false
+}
+
+function packageFileCandidates (dir: string, filename: string): string[] {
+  const originalPath = path.join(dir, filename)
+  const sanitizedPath = path.join(dir, sanitizeFilenamePath(filename))
+  const candidates = originalPath === sanitizedPath ? [originalPath] : [originalPath, sanitizedPath]
+  for (const candidate of candidates) assertPathInsideProjection(dir, candidate)
+  return candidates
+}
+
+function assertPathInsideProjection (dir: string, filePath: string): void {
+  const relativePath = path.relative(dir, filePath)
+  if (relativePath === '' || relativePath === '..' || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath)) {
+    throw new Error(`Cannot make package file outside the projection writable: ${filePath}`)
+  }
+}
+
+function addParentDirectories (directories: Set<string>, dir: string, filePath: string): void {
+  let parent = path.dirname(filePath)
+  while (parent !== dir) {
+    directories.add(parent)
+    parent = path.dirname(parent)
+  }
+}
+
+async function findExistingPath (candidates: string[]): Promise<string | undefined> {
+  for (const candidate of candidates) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await fs.promises.lstat(candidate)
+      return candidate
+    } catch (err: unknown) {
+      if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) throw err
+    }
+  }
+  return undefined
+}
+
+const FS_OPERATION_CONCURRENCY = 64
+
+async function mapInBatches<T, R> (
+  items: T[],
+  operation: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = []
+  for (let index = 0; index < items.length; index += FS_OPERATION_CONCURRENCY) {
+    results.push(...await Promise.all(items.slice(index, index + FS_OPERATION_CONCURRENCY).map(operation))) // eslint-disable-line no-await-in-loop
+  }
+  return results
 }
 
 function makePathWritable (filePath: string): void {
@@ -161,6 +236,22 @@ function makePathWritable (filePath: string): void {
     if ((mode & 0o200) === 0) fs.fchmodSync(fd, mode | 0o200)
   } finally {
     fs.closeSync(fd)
+  }
+}
+
+async function makePathWritableAsync (filePath: string): Promise<void> {
+  if (process.platform === 'win32') {
+    const mode = (await fs.promises.lstat(filePath)).mode
+    if ((mode & 0o200) === 0) await fs.promises.chmod(filePath, mode | 0o200)
+    return
+  }
+  let handle: fs.promises.FileHandle | undefined
+  try {
+    handle = await fs.promises.open(filePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW)
+    const mode = (await handle.stat()).mode
+    if ((mode & 0o200) === 0) await handle.chmod(mode | 0o200)
+  } finally {
+    await handle?.close()
   }
 }
 

@@ -247,6 +247,8 @@ fn run_gives_build_candidates_a_private_writable_projection() {
         std::fs::read_to_string(&package_json).unwrap().contains("postinstall"),
         "writing the build projection must not change the store manifest",
     );
+    assert!(std::fs::metadata(&package_json).unwrap().permissions().readonly());
+    assert!(!std::fs::metadata(&target).unwrap().permissions().readonly());
     #[cfg(unix)]
     {
         use std::os::unix::fs::{MetadataExt, PermissionsExt};
@@ -305,6 +307,18 @@ fn run_gives_patched_packages_a_private_writable_projection() {
         std::fs::read_to_string(&package_json).unwrap().contains("patch-me"),
         "writing the patch projection must not change the store manifest",
     );
+    assert!(std::fs::metadata(&package_json).unwrap().permissions().readonly());
+    assert!(!std::fs::metadata(&target).unwrap().permissions().readonly());
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        assert_ne!(
+            std::fs::metadata(&package_json).unwrap().ino(),
+            std::fs::metadata(&target).unwrap().ino(),
+        );
+        assert_eq!(std::fs::metadata(&package_json).unwrap().permissions().mode() & 0o200, 0);
+        assert_ne!(std::fs::metadata(&target).unwrap().permissions().mode() & 0o200, 0);
+    }
 }
 
 /// A snapshot key whose package name is a path traversal would become
