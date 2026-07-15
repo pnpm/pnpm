@@ -201,6 +201,15 @@ fn parse_store_dir(value: &str) -> Result<PathBuf, std::convert::Infallible> {
 }
 
 impl CliArgs {
+    pub(crate) fn validate_config_conflicts(&self) -> miette::Result<()> {
+        if let CliCommand::Add(args) = &self.command
+            && args.global
+        {
+            args.validate_global_virtual_store_dir()?;
+        }
+        Ok(())
+    }
+
     pub fn validate_command_scoped_global_options(&self) -> Result<(), clap::Error> {
         if self.resume_from.is_some() {
             self.validate_run_scoped_global_option("--resume-from")?;
