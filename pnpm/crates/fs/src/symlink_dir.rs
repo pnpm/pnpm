@@ -455,14 +455,11 @@ mod windows {
             match fs::symlink_metadata(link) {
                 Ok(_) => {
                     if let Some(cleanup_error) = cleanup_error {
-                        return Err(io::Error::new(
-                            rename_error.kind(),
-                            format!(
-                                "failed to rename staged junction {staging:?} to {link:?}: \
-                                 {rename_error}; destination now exists, but cleanup failed: \
-                                 {cleanup_error}",
-                            ),
-                        ));
+                        return Err(io::Error::other(format!(
+                            "failed to rename staged junction {staging:?} to {link:?}: \
+                             {rename_error}; destination now exists, but cleanup failed: \
+                             {cleanup_error}",
+                        )));
                     }
                     return Err(io::Error::new(
                         io::ErrorKind::AlreadyExists,
@@ -474,26 +471,27 @@ mod windows {
                 }
                 Err(error) if error.kind() == io::ErrorKind::NotFound => {}
                 Err(error) => {
-                    let cleanup_context = cleanup_error
-                        .map(|cleanup| format!("; staged-junction cleanup failed: {cleanup}"))
-                        .unwrap_or_default();
+                    if let Some(cleanup_error) = cleanup_error {
+                        return Err(io::Error::other(format!(
+                            "failed to inspect junction destination {link:?} after rename \
+                             failed: {rename_error}; inspection error: {error}; \
+                             staged-junction cleanup failed: {cleanup_error}",
+                        )));
+                    }
                     return Err(io::Error::new(
                         rename_error.kind(),
                         format!(
                             "failed to inspect junction destination {link:?} after rename \
-                             failed: {rename_error}; inspection error: {error}{cleanup_context}",
+                             failed: {rename_error}; inspection error: {error}",
                         ),
                     ));
                 }
             }
             if let Some(cleanup_error) = cleanup_error {
-                return Err(io::Error::new(
-                    rename_error.kind(),
-                    format!(
-                        "failed to rename staged junction {staging:?} to {link:?}: \
-                         {rename_error}; cleanup failed: {cleanup_error}",
-                    ),
-                ));
+                return Err(io::Error::other(format!(
+                    "failed to rename staged junction {staging:?} to {link:?}: \
+                     {rename_error}; cleanup failed: {cleanup_error}",
+                )));
             }
             return Err(rename_error);
         }
