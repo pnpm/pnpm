@@ -64,3 +64,43 @@ test('filterPkgMetadataByPublishDate', () => {
     },
   }, cutoff)).toMatchSnapshot()
 })
+
+test('latest fallback does not exceed the original dist-tag target', () => {
+  const cutoff = new Date('2026-07-15T00:00:00.000Z')
+  const name = 'latest-fallback'
+  const packageVersion = (version: string) => ({
+    name,
+    version,
+    dist: { tarball: `https://registry.npmjs.org/${name}/-/${name}-${version}.tgz`, shasum: '' },
+  })
+
+  const pkgDoc = {
+    name,
+    versions: {
+      '3.0.0': packageVersion('3.0.0'),
+      '3.0.1': packageVersion('3.0.1'),
+      '4.0.0': packageVersion('4.0.0'),
+    },
+    'dist-tags': {
+      latest: '3.0.1',
+    },
+    time: {
+      '3.0.0': '2026-07-01T00:00:00.000Z',
+      '3.0.1': '2026-07-15T12:00:00.000Z',
+      '4.0.0': '2025-10-10T00:00:00.000Z',
+    },
+  }
+
+  const filtered = filterPkgMetadataByPublishDate(pkgDoc, cutoff)
+
+  expect(filtered['dist-tags'].latest).toBe('3.0.0')
+
+  const withoutSafeFallback = filterPkgMetadataByPublishDate({
+    ...pkgDoc,
+    versions: {
+      '3.0.1': packageVersion('3.0.1'),
+      '4.0.0': packageVersion('4.0.0'),
+    },
+  }, cutoff)
+  expect(withoutSafeFallback['dist-tags'].latest).toBeUndefined()
+})
