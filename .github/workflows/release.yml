@@ -234,7 +234,15 @@ jobs:
 
           smoke_dir=$(mktemp -d)
           tar -xzf "$pnpm_tarball" -C "$smoke_dir"
-          node "$smoke_dir/package/bin/pnpm.mjs" --version
+          command -v node
+          node --version
+          set +e
+          node "$smoke_dir/package/bin/pnpm.mjs" --version >"$smoke_dir/pnpm.stdout" 2>"$smoke_dir/pnpm.stderr"
+          pnpm_exit=$?
+          set -e
+          cat "$smoke_dir/pnpm.stdout"
+          cat "$smoke_dir/pnpm.stderr" >&2
+          test "$pnpm_exit" -eq 0
 
           exe_tarball=$(find "$release_tarballs/pnpm11_pnpm_artifacts_exe" -type f -name '*.tgz' -print -quit)
           native_tarball=$(find "$release_tarballs/pnpm11_pnpm_artifacts_darwin-arm64" -type f -name '*.tgz' -print -quit)
@@ -242,8 +250,6 @@ jobs:
           test -n "$native_tarball"
           (
             cd "$smoke_dir"
-            command -v node
-            node --version
             command -v npm
             npm --version
             npm config get ignore-scripts
