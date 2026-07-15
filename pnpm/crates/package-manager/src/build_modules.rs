@@ -605,6 +605,7 @@ impl BuildModules<'_> {
             && engine_name.is_some()
             && side_effects_maps_by_snapshot.is_some_and(|map| !map.is_empty());
         let write_gate_active = side_effects_cache_write
+            && !frozen_store
             && engine_name.is_some()
             && store_index_writer.is_some()
             && store_dir.is_some();
@@ -1094,10 +1095,10 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     // `PackageFilesIndex.sideEffects[cache_key] = diff` mutation
     // so a future install can skip the rebuild.
     //
-    // The gate is `(is_patched || has_side_effects) &&
-    // side_effects_cache_write` — a patched-only snapshot still
-    // uploads its post-patch state so subsequent installs hit the
-    // cache.
+    // A frozen store short-circuits before `upload`: its disabled index writer
+    // drops queued rows, but `upload` writes CAFS files before queuing them.
+    // Otherwise a patched-only snapshot still uploads its post-patch state so
+    // subsequent installs hit the cache.
     //
     // The other preconditions: cache_key composable (engine + graph
     // present), `packages` map available for the integrity lookup,
@@ -1110,6 +1111,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     // build.
     if (is_patched || has_side_effects)
         && side_effects_cache_write
+        && !frozen_store
         && let Some(writer) = store_index_writer
         && let Some(store) = store_dir
         && let Some(cache_key) = cache_key.as_deref()
