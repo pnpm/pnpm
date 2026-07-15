@@ -11,8 +11,10 @@ use crate::{
     },
 };
 use pacquet_deps_path::DepPath;
-use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
-use pacquet_resolving_resolver_base::ResolveResult;
+use pacquet_lockfile::{
+    DirectoryResolution, LockfileResolution, PkgName, PkgNameVer, TarballResolution,
+};
+use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     str::FromStr,
@@ -1417,6 +1419,110 @@ fn pruned_hoisted_provider_falls_back_in_workspace_pass() {
     );
 }
 
+#[test]
+fn linked_peer_provider_uses_root_relative_snapshot_ref_in_workspace_fallback() {
+    let peer = NodeId::leaf("link:packages/peer");
+    let consumer = NodeId::next();
+    let importer = ImporterPeerInput {
+        id: "apps/nested/app".to_string(),
+        direct: vec![
+            DirectDep {
+                alias: "consumer".to_string(),
+                node_id: consumer.clone(),
+                id: "consumer@1.0.0".to_string(),
+            },
+            DirectDep {
+                alias: "peer".to_string(),
+                node_id: peer.clone(),
+                id: "link:packages/peer".to_string(),
+            },
+        ],
+        root_dir: std::path::PathBuf::from("/repo/apps/nested/app"),
+        modules_dir: None,
+    };
+    let mut tree = ResolvedTree {
+        direct: Vec::new(),
+        packages: HashMap::from([
+            (
+                "link:packages/peer".to_string(),
+                linked_package("peer", "link:packages/peer", "packages/peer"),
+            ),
+            ("consumer@1.0.0".to_string(), package("consumer", "1.0.0", &[("peer", "*")], false)),
+        ]),
+        dependencies_tree: HashMap::from([
+            (peer.clone(), tree_node("link:packages/peer", BTreeMap::new(), -1)),
+            (consumer, tree_node("consumer@1.0.0", BTreeMap::new(), 0)),
+        ]),
+        all_peer_dep_names: HashSet::from(["peer".to_string()]),
+        policy_violations: Vec::new(),
+        applied_patches: HashSet::new(),
+        children_by_id: HashMap::new(),
+    };
+
+    let result = resolve_peers_workspace(
+        &mut tree,
+        &[importer],
+        std::path::Path::new("/repo"),
+        false,
+        false,
+        false,
+        ResolvePeersOptions {
+            lockfile_dir: Some(std::path::PathBuf::from("/repo")),
+            hoisted_peer_provider_node_ids: HashSet::from([peer]),
+            ..ResolvePeersOptions::default()
+        },
+    );
+
+    assert_eq!(
+        result.direct_dependencies_by_importer["apps/nested/app"]["peer"].as_str(),
+        "link:../../../packages/peer",
+    );
+    let consumer = result
+        .graph
+        .values()
+        .find(|node| node.resolved_package_id == "consumer@1.0.0")
+        .expect("consumer graph node");
+    assert_eq!(consumer.children.get("peer"), Some(&DepPath::from("link:packages/peer")),);
+}
+
+#[test]
+fn single_importer_link_is_rendered_relative_to_project_root() {
+    let shared = NodeId::leaf("link:packages/shared");
+    let mut tree = ResolvedTree {
+        direct: vec![DirectDep {
+            alias: "shared".to_string(),
+            node_id: shared.clone(),
+            id: "link:packages/shared".to_string(),
+        }],
+        packages: HashMap::from([(
+            "link:packages/shared".to_string(),
+            linked_package("shared", "link:packages/shared", "packages/shared"),
+        )]),
+        dependencies_tree: HashMap::from([(
+            shared,
+            tree_node("link:packages/shared", BTreeMap::new(), -1),
+        )]),
+        all_peer_dep_names: HashSet::new(),
+        policy_violations: Vec::new(),
+        applied_patches: HashSet::new(),
+        children_by_id: HashMap::new(),
+    };
+
+    let result = resolve_peers(
+        &mut tree,
+        ResolvePeersOptions {
+            lockfile_dir: Some(std::path::PathBuf::from("/repo")),
+            project_dir: Some(std::path::PathBuf::from("/repo/apps/nested/app")),
+            ..ResolvePeersOptions::default()
+        },
+    );
+
+    assert_eq!(
+        result.direct_dependencies_by_alias["shared"].as_str(),
+        "link:../../../packages/shared",
+    );
+}
+
 /// Mirror of the TS test "pruned hoisted peer providers that peer-depend on
 /// each other are resolved together" (`deps-resolver/test/resolvePeers.ts`):
 /// two pruned providers form a peer cycle, so each one's suffix depends on
@@ -1693,6 +1799,29 @@ fn package_with_peer_dependencies(
         peer_dependencies,
         optional: false,
         is_leaf,
+    }
+}
+
+fn linked_package(name: &str, id: &str, directory: &str) -> ResolvedPackage {
+    ResolvedPackage {
+        id: id.to_string(),
+        result: Arc::new(ResolveResult {
+            id: PkgResolutionId::from(id.to_string()),
+            name_ver: None,
+            latest: None,
+            published_at: None,
+            manifest: Some(Arc::new(serde_json::json!({ "name": name, "version": "1.0.0" }))),
+            resolution: LockfileResolution::Directory(DirectoryResolution {
+                directory: directory.to_string(),
+            }),
+            resolved_via: "workspace".to_string(),
+            normalized_bare_specifier: None,
+            alias: Some(name.to_string()),
+            policy_violation: None,
+        }),
+        peer_dependencies: BTreeMap::new(),
+        optional: false,
+        is_leaf: true,
     }
 }
 

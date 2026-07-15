@@ -7,10 +7,8 @@ use pacquet_store_dir::StoreDir;
 use std::sync::Arc;
 
 #[test]
-fn root_and_trailing_slashes_normalize_to_dot() {
+fn exact_dot_is_the_only_root_importer() {
     assert_eq!(sanitized_importer_dir(".").unwrap(), ".");
-    assert_eq!(sanitized_importer_dir("").unwrap(), ".");
-    assert_eq!(sanitized_importer_dir("packages/foo/").unwrap(), "packages/foo");
 }
 
 #[test]
@@ -21,11 +19,35 @@ fn nested_member_dirs_pass_through() {
 
 #[test]
 fn traversal_absolute_and_backslash_dirs_are_rejected() {
-    // `/` and `////` are slashes-only: they must be rejected, not trimmed
-    // down to the root importer.
-    for unsafe_dir in
-        ["../escape", "packages/../../etc", "/abs/path", r"packages\foo", "a//b", "/", "////"]
+    for unsafe_dir in [
+        "../escape",
+        "packages/../../etc",
+        "/abs/path",
+        "//server/share",
+        r"packages\foo",
+        r"\\server\share",
+    ] {
+        assert!(
+            sanitized_importer_dir(unsafe_dir).is_err(),
+            "expected {unsafe_dir:?} to be rejected",
+        );
+    }
+}
+
+#[test]
+fn empty_and_dot_components_are_rejected() {
+    for unsafe_dir in ["", "/", "////", "a//b", "packages/foo/", "./packages/foo", "packages/./foo"]
     {
+        assert!(
+            sanitized_importer_dir(unsafe_dir).is_err(),
+            "expected {unsafe_dir:?} to be rejected",
+        );
+    }
+}
+
+#[test]
+fn windows_drive_and_colon_forms_are_rejected() {
+    for unsafe_dir in ["C:/outside", "C:relative", "packages/foo:bar"] {
         assert!(
             sanitized_importer_dir(unsafe_dir).is_err(),
             "expected {unsafe_dir:?} to be rejected",
@@ -62,6 +84,30 @@ async fn workspace_star_uses_forwarded_project_name() {
     .await;
 
     assert_workspace_link(&lockfile, "packages/app", "lib", "../lib");
+}
+
+#[tokio::test]
+async fn workspace_without_root_project_has_no_synthetic_root_importer() {
+    let lockfile = Box::pin(resolve_json(serde_json::json!({
+        "projects": [
+            {
+                "dir": "packages/app",
+                "name": "app",
+                "version": "1.0.0"
+            },
+            {
+                "dir": "packages/lib",
+                "name": "lib",
+                "version": "1.2.3"
+            }
+        ]
+    })))
+    .await;
+
+    assert_eq!(
+        lockfile.importers.keys().map(String::as_str).collect::<std::collections::BTreeSet<_>>(),
+        std::collections::BTreeSet::from(["packages/app", "packages/lib"]),
+    );
 }
 
 #[tokio::test]

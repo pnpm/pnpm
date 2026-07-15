@@ -52,12 +52,11 @@ impl From<std::io::Error> for ResolveError {
 /// tarball downloads happen later from upstream URLs or an upstream's
 /// `/~<name>/` registry endpoint.
 ///
-/// A single-project request resolves one root (`.`) importer. A
-/// multi-project request is reconstructed as a real workspace in the
-/// temp dir — root manifest, `pnpm-workspace.yaml` listing the member
-/// dirs, and a `package.json` per member — so pacquet's install path
-/// discovers and resolves every importer in one pass, producing a
-/// lockfile keyed by the same POSIX importer dirs the client sent.
+/// A request is reconstructed as a real workspace in the temp dir — a
+/// `package.json` per requested project and, when there are members, a
+/// `pnpm-workspace.yaml` listing their dirs — so pacquet's install path
+/// discovers and resolves every importer in one pass, producing a lockfile
+/// keyed by the same POSIX importer dirs the client sent.
 pub async fn resolve(
     config: &'static Config,
     client: &Arc<ThrottledClient>,
@@ -103,15 +102,6 @@ pub async fn resolve(
         tokio::fs::write(project_dir.join("package.json"), manifest_bytes).await?;
     }
 
-    // A workspace needs a root manifest at its root even when the client
-    // didn't send a `.` importer (e.g. a member-only filtered install).
-    if !wrote_root {
-        let root_json = serde_json::json!({ "name": "pnpr-resolve", "version": "0.0.0" });
-        let root_bytes =
-            serde_json::to_vec(&root_json).map_err(|err| ResolveError::Install(err.to_string()))?;
-        tokio::fs::write(dir.join("package.json"), root_bytes).await?;
-    }
-
     // Only declare a workspace when there are members; a lone root
     // importer resolves as a plain single project (no workspace file).
     if !member_dirs.is_empty() {
@@ -131,8 +121,18 @@ pub async fn resolve(
     }
 
     let manifest_path = dir.join("package.json");
-    let manifest = PackageManifest::from_path(manifest_path)
-        .map_err(|err| ResolveError::Manifest(err.to_string()))?;
+    let manifest = if wrote_root {
+        PackageManifest::from_path(manifest_path)
+            .map_err(|err| ResolveError::Manifest(err.to_string()))?
+    } else {
+        // Install needs an active manifest, but keeping this stand-in in
+        // memory prevents workspace discovery from inventing a `.` importer
+        // that the client did not request.
+        PackageManifest::from_value(
+            manifest_path,
+            serde_json::json!({ "name": "pnpr-resolve", "version": "0.0.0" }),
+        )
+    };
 
     // Seed resolution from the client's lockfile when present, matching
     // pnpm's resolution-reuse: frozen → use it as-is (already verified
@@ -283,25 +283,25 @@ pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) ->
 
 /// Validate a client-supplied importer dir before joining it onto the
 /// server's temp dir. The client normalizes to POSIX relative paths, so
-/// anything absolute, backslash-bearing, or containing a `..`/empty
-/// component is rejected rather than risking a write outside the temp
-/// workspace. Returns the canonical `.` for the root.
+/// anything absolute, backslash- or colon-bearing, or containing a
+/// non-canonical component is rejected rather than risking a write outside
+/// the temp workspace or allowing two importer IDs to address the same path.
+/// The exact `.` value is the only accepted root importer.
 fn sanitized_importer_dir(dir: &str) -> Result<&str, ResolveError> {
-    if dir.is_empty() || dir == "." {
+    if dir == "." {
         return Ok(".");
     }
-    let trimmed = dir.trim_end_matches('/');
-    // A now-empty string means the input was only slashes (`/`, `////`):
-    // an absolute path, not the root — reject it rather than collapse it
-    // to `.` by trimming.
-    if trimmed.is_empty()
-        || trimmed.starts_with('/')
-        || trimmed.contains('\\')
-        || trimmed.split('/').any(|component| component == ".." || component.is_empty())
+    if dir.is_empty()
+        || dir.starts_with('/')
+        || dir.contains('\\')
+        || dir.contains(':')
+        || dir
+            .split('/')
+            .any(|component| component.is_empty() || component == "." || component == "..")
     {
         return Err(ResolveError::Install(format!("unsafe importer dir: {dir:?}")));
     }
-    Ok(trimmed)
+    Ok(dir)
 }
 
 /// A synthetic, unique `name` for an importer's throwaway manifest. The

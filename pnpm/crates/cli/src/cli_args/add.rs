@@ -1,7 +1,8 @@
 use crate::{
     State,
     cli_args::{
-        install::resolve_bool_override, supported_architectures::SupportedArchitecturesArgs,
+        install::resolve_bool_override, pipelines::InstallFamilySelection,
+        supported_architectures::SupportedArchitecturesArgs,
     },
     config_deps,
 };
@@ -215,6 +216,59 @@ impl AddArgs {
         .await
     }
 
+    pub(crate) async fn run_selected<Reporter: self::Reporter + 'static>(
+        self,
+        mut state: State,
+        selection: InstallFamilySelection,
+    ) -> miette::Result<()> {
+        let supported_architectures =
+            self.supported_architectures.apply_to(state.config.supported_architectures.clone());
+        let save_catalog_name = self
+            .save_catalog_name
+            .clone()
+            .or_else(|| self.save_catalog.then(|| "default".to_string()))
+            .or_else(|| state.config.save_catalog_name.clone());
+        let pinned_version =
+            PinnedVersion::from_save_options(self.save_exact, self.save_prefix.as_deref());
+        let InstallFamilySelection {
+            workspace_root: _,
+            mut projects,
+            ordered_dirs,
+            selected_dirs,
+            active_manifest_is_standin,
+        } = selection;
+        let lockfile_path = state.lockfile_path();
+        let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
+            &mut state;
+        let lockfile =
+            lockfile.get().map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+
+        Add {
+            tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
+            http_client,
+            http_client_arc: std::sync::Arc::clone(http_client),
+            config,
+            manifest,
+            lockfile,
+            lockfile_path: Some(&lockfile_path),
+            dependency_groups: self.dependency_options.dependency_groups(),
+            package_names: &self.package_names,
+            pinned_version,
+            save_catalog_name,
+            resolved_packages,
+            supported_architectures,
+            lockfile_only: self.lockfile_only,
+        }
+        .run_selected::<Reporter>(
+            &mut projects,
+            &ordered_dirs,
+            selected_dirs.as_ref(),
+            active_manifest_is_standin,
+        )
+        .await
+        .wrap_err("adding a new package")
+    }
+
     /// `pnpm add -g`: install the package into the global packages
     /// directory and link its bins. Delegates to
     /// [`crate::cli_args::global::handle_global_add`].
@@ -295,13 +349,12 @@ where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
     // TODO: if a package already exists in another dependency group, don't remove the existing entry.
+    let lockfile_path = state.lockfile_path();
     let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
         &mut state;
     let lockfile =
         lockfile.get().map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
 
-    let lockfile_path =
-        manifest.path().parent().map(|parent| parent.join(pacquet_lockfile::Lockfile::FILE_NAME));
     Add {
         tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
         http_client,
@@ -309,7 +362,7 @@ where
         config,
         manifest,
         lockfile,
-        lockfile_path: lockfile_path.as_deref(),
+        lockfile_path: Some(&lockfile_path),
         dependency_groups,
         package_names,
         pinned_version,

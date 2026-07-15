@@ -100,6 +100,26 @@ fn sbom_missing_format_fails() {
 }
 
 #[test]
+fn split_sbom_rejects_per_project_workspace_lockfiles() {
+    let tmp = copy_fixture("simple-sbom");
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "sharedWorkspaceLockfile: false\n")
+        .expect("write workspace manifest");
+
+    let output =
+        pacquet(tmp.path(), ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--split"])
+            .output()
+            .expect("run split pacquet sbom");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_RECURSIVE_SHARED_LOCKFILE_UNSUPPORTED")
+            && stderr.contains("sharedWorkspaceLockfile=false"),
+        "stderr: {stderr}",
+    );
+}
+
+#[test]
 fn sbom_prod_excludes_dev() {
     let tmp = copy_fixture("with-dev-dependency");
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--prod"]);
@@ -765,6 +785,44 @@ fn sbom_workspace_split_each_line_has_correct_root() {
         boms.iter().filter_map(|bom| bom["metadata"]["component"]["name"].as_str()).collect();
     assert!(root_names.contains(&"app-a"), "split should include app-a");
     assert!(root_names.contains(&"app-b"), "split should include app-b");
+}
+
+#[test]
+fn sbom_workspace_split_from_member_anchors_importers_at_workspace_root() {
+    let tmp = copy_fixture("workspace-sbom-populated");
+    let member = tmp.path().join("app-a");
+    let output =
+        pacquet(&member, ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--split"])
+            .output()
+            .expect("run pacquet from workspace member");
+
+    assert!(
+        output.status.success(),
+        "member sbom failed: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let boms = output
+        .stdout
+        .split(|byte| *byte == b'\n')
+        .filter(|line| !line.is_empty())
+        .map(|line| serde_json::from_slice::<serde_json::Value>(line).expect("valid JSON"))
+        .collect::<Vec<_>>();
+    let root_names = boms
+        .iter()
+        .filter_map(|bom| bom["metadata"]["component"]["name"].as_str())
+        .collect::<Vec<_>>();
+
+    assert!(root_names.contains(&"app-a"), "split should include app-a: {root_names:?}");
+    assert!(root_names.contains(&"app-b"), "split should include app-b: {root_names:?}");
+    assert!(root_names.contains(&"shared-lib"), "split should include shared-lib: {root_names:?}");
+}
+
+#[test]
+fn sbom_workspace_from_member_uses_the_workspace_root_component() {
+    let tmp = copy_fixture("workspace-sbom-populated");
+    let parsed = run_sbom_json(&tmp.path().join("app-a"), "cyclonedx", &[]);
+
+    assert_eq!(parsed["metadata"]["component"]["name"], "workspace-sbom-root");
 }
 
 #[test]

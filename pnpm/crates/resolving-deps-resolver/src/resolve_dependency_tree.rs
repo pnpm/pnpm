@@ -19,7 +19,7 @@ use serde_json::Value;
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap, HashSet},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex, MutexGuard},
 };
 
@@ -49,7 +49,7 @@ use pacquet_lockfile::{
 /// reuse. An excluded package re-resolves to highest-in-range, and its
 /// whole subtree re-resolves with it (so the bump's new transitive deps
 /// are picked up).
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub enum UpdateReuseScope {
     /// Reuse every still-satisfied dependency. `install` / `add`.
     #[default]
@@ -491,6 +491,11 @@ where
 /// `link:packages/lib` would hand `packages/app` the same string,
 /// which from `packages/app` points at the non-existent
 /// `packages/app/packages/lib`.
+///
+/// The final two fields isolate importers with active update policies
+/// and record whether this wanted dependency is an explicit update target.
+/// Ordinary keep-all importers use no importer scope and retain the existing
+/// cross-importer cache sharing.
 type WantedKey = (
     Option<String>,
     Option<String>,
@@ -501,7 +506,11 @@ type WantedKey = (
     Option<PathBuf>,
     Option<PkgNameVerPeer>,
     Vec<(String, Vec<String>)>,
+    Option<String>,
+    bool,
 );
+
+type SubtreeReuseKey = (Option<String>, PkgNameVerPeer);
 
 /// Whether a wanted dep's resolution is computed relative to the
 /// consuming importer's directory rather than being
@@ -543,6 +552,7 @@ type ChildSpec = (String, String, bool);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ChildrenOwner {
+    update_active: bool,
     depth: i32,
     importer_order: usize,
     parent_path: Vec<String>,
@@ -551,6 +561,9 @@ struct ChildrenOwner {
 
 impl ChildrenOwner {
     fn wins_over(&self, other: &Self) -> bool {
+        if self.update_active != other.update_active {
+            return self.update_active;
+        }
         (&self.depth, &self.importer_order, &self.parent_path)
             < (&other.depth, &other.importer_order, &other.parent_path)
     }
@@ -591,11 +604,15 @@ pub struct WorkspaceTreeCtx {
     /// re-resolves its target deps to highest-in-range, so a reused
     /// resolution would defeat the bump. See [`UpdateReuseScope`].
     update_reuse_scope: UpdateReuseScope,
-    /// Memoises [`fn@subtree_fully_reusable`] per snapshot key so the
-    /// recursive reusability check runs once per package across the
-    /// whole walk. `true` means the package and its entire transitive
-    /// subtree can be synthesized from the prior lockfile.
-    subtree_reusable: Mutex<HashMap<PkgNameVerPeer, bool>>,
+    /// Importer overrides used by filtered workspace updates. IDs absent from
+    /// this map keep the workspace default above.
+    update_reuse_scopes_by_importer: BTreeMap<String, UpdateReuseScope>,
+    /// Memoises [`fn@subtree_fully_reusable`] per update scope and snapshot
+    /// key. Keep-all importers share one scope; update-active importers use
+    /// isolated scopes so one importer's reuse answer cannot leak to another.
+    /// `true` means the package and its entire transitive subtree can be
+    /// synthesized from the prior lockfile.
+    subtree_reusable: Mutex<HashMap<SubtreeReuseKey, bool>>,
     pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>,
     /// `context.log(...)` sink for the `pnpmfile_hook`'s `readPackage`
     /// calls, pre-bound to the install's reporter, project prefix, and
@@ -620,9 +637,9 @@ pub struct WorkspaceTreeCtx {
     registries: HashMap<String, String>,
     /// `pkg id → importer id` of the importer whose occurrence owns
     /// that package's shared children context. Ownership is chosen by
-    /// `(depth, importer order, parent path)`: a package's subtree is
-    /// recorded once per id, and a non-owner occurrence reuses the owner
-    /// occurrence's children and missing-peer report. Consumed via
+    /// update-active status followed by `(depth, importer order, parent path)`:
+    /// a package's subtree is recorded once per id, and a non-owner occurrence
+    /// reuses the owner occurrence's children and missing-peer report. Consumed via
     /// [`crate::HoistMissingScope`].
     first_importer_by_pkg: Mutex<HashMap<String, String>>,
     /// Per package: the missing-peer names reported by the *initial*
@@ -677,6 +694,7 @@ impl Default for WorkspaceTreeCtx {
             manifest_hook: None,
             wanted_lockfile: None,
             update_reuse_scope: UpdateReuseScope::All,
+            update_reuse_scopes_by_importer: BTreeMap::new(),
             subtree_reusable: Mutex::new(HashMap::new()),
             pnpmfile_hook: None,
             read_package_log: None,
@@ -798,6 +816,22 @@ impl WorkspaceTreeCtx {
     }
 
     #[must_use]
+    pub fn with_update_reuse_scopes_by_importer(
+        mut self,
+        scopes: BTreeMap<String, UpdateReuseScope>,
+    ) -> Self {
+        self.update_reuse_scopes_by_importer = scopes;
+        self
+    }
+
+    fn update_reuse_scope_for(&self, importer_id: &str) -> &UpdateReuseScope {
+        if matches!(self.update_reuse_scope, UpdateReuseScope::None) {
+            return &self.update_reuse_scope;
+        }
+        self.update_reuse_scopes_by_importer.get(importer_id).unwrap_or(&self.update_reuse_scope)
+    }
+
+    #[must_use]
     pub fn with_pnpmfile_hook(mut self, pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>) -> Self {
         self.pnpmfile_hook = pnpmfile_hook;
         self
@@ -884,6 +918,9 @@ impl WorkspaceTreeCtx {
 /// envelopes via the shared maps.
 pub struct TreeCtx {
     base_opts: ResolveOptions,
+    /// Absolute root used to make ownerless snapshot `link:` ids stable
+    /// across importers at different depths.
+    lockfile_dir: PathBuf,
     /// [`ResolveOptions`] handed to the resolver for importer-level
     /// (direct) dependencies — `depth == 0`. Differs from `base_opts`
     /// only in `pick_lowest_version`, which is set under
@@ -919,10 +956,16 @@ impl TreeCtx {
     /// the same workspace ctx.
     #[must_use]
     pub fn new(base_opts: ResolveOptions) -> Self {
+        let lockfile_dir = if base_opts.lockfile_dir.as_os_str().is_empty() {
+            base_opts.project_dir.clone()
+        } else {
+            base_opts.lockfile_dir.clone()
+        };
         TreeCtx {
             direct_opts: base_opts.clone(),
             subdep_opts: base_opts.clone(),
             base_opts,
+            lockfile_dir: pacquet_fs::lexical_normalize(&lockfile_dir),
             catalogs: Catalogs::new(),
             workspace: Arc::new(WorkspaceTreeCtx::default()),
             patched_dependencies: None,
@@ -936,16 +979,28 @@ impl TreeCtx {
     /// `workspace` alive across importers (typically via
     /// `Arc::clone(&workspace)`).
     pub fn with_workspace(workspace: Arc<WorkspaceTreeCtx>, base_opts: ResolveOptions) -> Self {
+        let lockfile_dir = if base_opts.lockfile_dir.as_os_str().is_empty() {
+            base_opts.project_dir.clone()
+        } else {
+            base_opts.lockfile_dir.clone()
+        };
         TreeCtx {
             direct_opts: base_opts.clone(),
             subdep_opts: base_opts.clone(),
             base_opts,
+            lockfile_dir: pacquet_fs::lexical_normalize(&lockfile_dir),
             catalogs: Catalogs::new(),
             workspace,
             patched_dependencies: None,
             importer_id: pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY.to_string(),
             importer_order: 0,
         }
+    }
+
+    #[must_use]
+    pub(crate) fn with_lockfile_dir(mut self, lockfile_dir: &Path) -> Self {
+        self.lockfile_dir = pacquet_fs::lexical_normalize(lockfile_dir);
+        self
     }
 
     /// Derive the depth-specific resolve options from `resolutionMode`.
@@ -992,6 +1047,15 @@ impl TreeCtx {
     #[must_use]
     pub fn workspace(&self) -> &Arc<WorkspaceTreeCtx> {
         &self.workspace
+    }
+
+    fn update_reuse_scope(&self) -> &UpdateReuseScope {
+        self.workspace.update_reuse_scope_for(&self.importer_id)
+    }
+
+    fn update_cache_scope(&self) -> Option<String> {
+        (!matches!(self.update_reuse_scope(), UpdateReuseScope::All))
+            .then(|| self.importer_id.clone())
     }
 
     /// Set the importer this context walks for. See [`TreeCtx`]'s
@@ -1422,6 +1486,7 @@ where
             view
         })
         .unwrap_or_default();
+    let update_target = is_update_target(ctx.update_reuse_scope(), &wanted);
     let cache_key: WantedKey = (
         wanted.alias.clone(),
         wanted.bare_specifier.clone(),
@@ -1432,6 +1497,8 @@ where
         project_scope,
         prior_key.clone(),
         overlay_versions.clone(),
+        ctx.update_cache_scope(),
+        update_target,
     );
     let result =
         match resolve_wanted_cached(ctx, resolver, &wanted, opts, pick_overlay.as_ref(), cache_key)
@@ -1880,7 +1947,7 @@ where
     // update target list — so the picker's held-back-update warning fires
     // only for the packages the user actually asked to update.
     let needs_overlay = !cache_key.8.is_empty();
-    let update_target = is_update_target(&ctx.workspace.update_reuse_scope, wanted);
+    let update_target = cache_key.10;
     let needs_update = update_target != opts.update_requested;
     let owned_opts;
     let opts = if needs_overlay || needs_update {
@@ -2013,6 +2080,8 @@ where
                     // reused by edges that carry no currentPkg either.
                     None,
                     Vec::new(),
+                    ctx.update_cache_scope(),
+                    is_update_target(ctx.update_reuse_scope(), &wanted),
                 );
                 let _ = resolve_wanted_cached(ctx, resolver, &wanted, opts, None, cache_key).await;
             }
@@ -2164,6 +2233,7 @@ fn claim_children_owner(
     ancestor_ids: &[String],
 ) -> ChildrenOwnerClaim {
     let owner = ChildrenOwner {
+        update_active: !matches!(ctx.update_reuse_scope(), UpdateReuseScope::All),
         depth,
         importer_order: ctx.importer_order,
         parent_path: ancestor_ids.to_vec(),
@@ -2227,7 +2297,7 @@ fn try_reuse_node(
     prior_key: Option<&PkgNameVerPeer>,
 ) -> Option<ReusedNode> {
     let lockfile = ctx.workspace.wanted_lockfile.as_ref()?;
-    if matches!(ctx.workspace.update_reuse_scope, UpdateReuseScope::None) {
+    if matches!(ctx.update_reuse_scope(), UpdateReuseScope::None) {
         return None;
     }
     let alias = wanted.alias.as_deref()?;
@@ -2430,21 +2500,22 @@ fn subtree_fully_reusable(
     lockfile: &pacquet_lockfile::Lockfile,
     key: &PkgNameVerPeer,
 ) -> bool {
-    if let Some(&cached) = lock_recoverable(&ctx.workspace.subtree_reusable).get(key) {
+    let memo_key = (ctx.update_cache_scope(), key.clone());
+    if let Some(&cached) = lock_recoverable(&ctx.workspace.subtree_reusable).get(&memo_key) {
         return cached;
     }
     // Provisionally mark non-reusable so a cycle back to `key` resolves to
     // `false` (re-resolve) instead of recursing forever — see the doc above
     // for why `false` rather than `true`.
-    lock_recoverable(&ctx.workspace.subtree_reusable).insert(key.clone(), false);
+    lock_recoverable(&ctx.workspace.subtree_reusable).insert(memo_key.clone(), false);
     // A `pacquet update` target anywhere in the subtree forces the whole
     // subtree to re-resolve so the bump's new transitive deps are picked
     // up — update names match at any depth.
     let name = key.name.to_string();
-    let reusable = !update_excludes(&ctx.workspace.update_reuse_scope, &name)
+    let reusable = !update_excludes(ctx.update_reuse_scope(), &name)
         && synthesize_reused_result(lockfile, key, &name).is_some()
         && subtree_children_reusable(ctx, lockfile, key);
-    lock_recoverable(&ctx.workspace.subtree_reusable).insert(key.clone(), reusable);
+    lock_recoverable(&ctx.workspace.subtree_reusable).insert(memo_key, reusable);
     reusable
 }
 
@@ -2521,6 +2592,8 @@ where
         // Reused resolutions are exact pins — preference overlays
         // can't change the pick, so the no-overlay bucket is right.
         Vec::new(),
+        ctx.update_cache_scope(),
+        is_update_target(ctx.update_reuse_scope(), &wanted),
     );
     lock_recoverable(&ctx.workspace.resolved_by_wanted)
         .entry(cache_key)
@@ -2779,17 +2852,18 @@ async fn build_pkg_id_with_patch_hash(
     result: &pacquet_resolving_resolver_base::ResolveResult,
 ) -> Result<String, ResolveDependencyTreeError> {
     let raw_id = result.id.as_str();
-    // `link:`-resolved workspace deps are short-circuited downstream
-    // by `id.starts_with("link:")` checks (see [`is_link`] in the
-    // tree walker and `importer_dep_version`'s
-    // `dep_path_str.strip_prefix("link:")` arm). Leaving the id
-    // unprefixed preserves those short-circuits; pacquet does not yet
-    // model the separate linked-dependency branch that would prefix
-    // them.
-    //
-    // [`is_link`]: fn@resolve_node
-    if raw_id.starts_with("link:") {
-        return Ok(raw_id.to_string());
+    if let Some(target) = raw_id.strip_prefix("link:") {
+        let target = std::path::Path::new(target);
+        let absolute_target = if target.is_absolute() {
+            pacquet_fs::lexical_normalize(target)
+        } else {
+            pacquet_fs::lexical_normalize(&ctx.base_opts.project_dir.join(target))
+        };
+        let relative_target =
+            pathdiff::diff_paths(&absolute_target, &ctx.lockfile_dir).unwrap_or(absolute_target);
+        let relative_target = relative_target.display().to_string().replace('\\', "/");
+        let relative_target = if relative_target.is_empty() { "." } else { &relative_target };
+        return Ok(format!("link:{relative_target}"));
     }
     // Resolvers that learn the name from the fetched manifest (git,
     // tarball, directory) leave `name_ver` unset. The `name` is read

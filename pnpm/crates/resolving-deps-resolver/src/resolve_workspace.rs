@@ -29,7 +29,11 @@ use crate::{
 use chrono::{DateTime, Duration, Utc};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_resolver_base::{Resolver, WantedDependency, parse_packument_timestamp};
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    path::PathBuf,
+    sync::Arc,
+};
 
 /// One importer's input to [`fn@resolve_workspace`].
 pub struct WorkspaceImporter<'a> {
@@ -91,6 +95,10 @@ pub struct WorkspaceResolveOptions {
     /// Which dependencies `pacquet update` excludes from lockfile-
     /// resolution reuse. [`UpdateReuseScope::All`] for `install` / `add`.
     pub update_reuse_scope: UpdateReuseScope,
+
+    /// Per-importer update scopes for filtered workspace updates. An importer
+    /// absent from this map uses [`Self::update_reuse_scope`].
+    pub update_reuse_scopes_by_importer: BTreeMap<String, UpdateReuseScope>,
 
     /// `pnpmfileHook` applied to every resolved manifest before it
     /// enters the wanted-dep cache. Workspace-wide (one hook per
@@ -166,6 +174,7 @@ where
         time_based,
         wanted_lockfile,
         update_reuse_scope,
+        update_reuse_scopes_by_importer,
         auto_install_peers,
         registries,
     } = opts;
@@ -174,6 +183,7 @@ where
             .with_manifest_hook(manifest_hook)
             .with_wanted_lockfile(wanted_lockfile)
             .with_update_reuse_scope(update_reuse_scope)
+            .with_update_reuse_scopes_by_importer(update_reuse_scopes_by_importer)
             .with_pnpmfile_hook(pnpmfile_hook)
             .with_read_package_log(read_package_log)
             .with_skipped_optional_log(skipped_optional_log)
@@ -282,6 +292,7 @@ where
         dedupe_peers,
         exclude_links_from_lockfile,
         lockfile_dir: Some(lockfile_dir.clone()),
+        project_dir: None,
         // Per-importer; resolve_peers_workspace swaps the
         // ImporterPeerInput's modules_dir into walker.opts before each
         // importer's walk.

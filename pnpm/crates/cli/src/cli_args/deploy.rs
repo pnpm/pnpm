@@ -10,9 +10,10 @@ use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker, PackageImportMet
 use pacquet_directory_fetcher::DirectoryFetcher;
 use pacquet_fs::{lexical_normalize, remove_symlink_dir};
 use pacquet_lockfile::{
-    DirectoryResolution, ImporterDepVersion, Lockfile, LockfileResolution, MaybeLazyLockfile,
-    PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencyMap,
-    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry, TarballResolution, VersionPart,
+    DirectoryResolution, ImporterDepVersion, LazyLockfile, Lockfile, LockfileResolution,
+    MaybeLazyLockfile, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, ProjectSnapshot,
+    ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+    TarballResolution, VersionPart,
 };
 use pacquet_package_manager::{
     ImportIndexedDirOpts, Install, UpdateSeedPolicy, import_indexed_dir,
@@ -324,6 +325,7 @@ impl DeployArgs {
         // every platform are materialized (see `Config::force`).
         deploy_config.force = self.force;
 
+        let legacy = matches!(&mode, DeployInstallMode::Legacy);
         match mode {
             DeployInstallMode::Legacy => {}
             DeployInstallMode::Shared { workspace_config } => {
@@ -338,8 +340,19 @@ impl DeployArgs {
         }
 
         let deploy_config = Config::leak(deploy_config);
-        let state = State::init(deploy_dir.join("package.json"), deploy_config, frozen_lockfile)
-            .wrap_err("initialize the deploy install state")?;
+        let mut state =
+            State::init(deploy_dir.join("package.json"), deploy_config, frozen_lockfile)
+                .wrap_err("initialize the deploy install state")?;
+        if legacy {
+            // Legacy deploy still resolves workspace dependencies from the
+            // source workspace, but its synthetic project owns a lockfile in
+            // the deploy directory.
+            state.lockfile = if state.config.lockfile || frozen_lockfile {
+                LazyLockfile::deferred(deploy_dir.to_path_buf())
+            } else {
+                LazyLockfile::disabled()
+            };
+        }
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &state;
 
@@ -358,7 +371,7 @@ impl DeployArgs {
         let dependency_groups =
             self.install_args.dependency_options.dependency_groups().collect::<Vec<_>>();
 
-        Install {
+        let install = Install {
             tarball_mem_cache: Arc::clone(tarball_mem_cache),
             http_client,
             http_client_arc: Arc::clone(http_client),
@@ -388,9 +401,12 @@ impl DeployArgs {
             disable_optimistic_repeat_install: true,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+        };
+        if legacy {
+            install.run_with_root_importer::<ReporterT>().await
+        } else {
+            install.run::<ReporterT>().await
         }
-        .run::<ReporterT>()
-        .await
         .wrap_err("installing deployed dependencies")
     }
 }

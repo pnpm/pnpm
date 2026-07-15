@@ -5,6 +5,7 @@ use std::{ffi::OsStr, fs, path::Path, process::Command};
 use tempfile::TempDir;
 
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
+const HELLO: &str = "@pnpm.e2e/hello-world-js-bin";
 const PKG: &str = "@pnpm.e2e/pkg-with-1-dep";
 
 fn setup() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
@@ -39,6 +40,29 @@ fn why_fails_without_package_name() {
     assert!(
         stderr.contains("requires a package name"),
         "should show error about missing package name: {stderr}",
+    );
+}
+
+#[test]
+fn filtered_why_rejects_per_project_workspace_lockfiles() {
+    let (_root, workspace, _anchor) = setup();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n",
+    )
+    .expect("write workspace manifest");
+    write_manifest(&workspace, "{}");
+
+    let output = pacquet(&workspace, ["--filter", ".", "why", PKG])
+        .output()
+        .expect("run filtered pacquet why");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_RECURSIVE_SHARED_LOCKFILE_UNSUPPORTED")
+            && stderr.contains("sharedWorkspaceLockfile=false"),
+        "stderr: {stderr}",
     );
 }
 
@@ -116,4 +140,134 @@ fn why_depth_limits_output() {
     assert!(full_stdout.contains("test-why"), "full output shows project: {full_stdout}");
     assert!(depth1_stdout.contains(DEP), "depth=1 output still shows the target: {depth1_stdout}");
     assert!(depth1_stdout.contains(PKG), "depth=1 output shows direct parent: {depth1_stdout}");
+}
+
+#[test]
+fn why_from_workspace_member_stays_within_forward_workspace_link_closure() {
+    let (_root, workspace, _anchor) = setup();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    write_manifest(&workspace, "{}");
+
+    let app = workspace.join("packages/app");
+    let linked = workspace.join("packages/linked");
+    let sibling = workspace.join("packages/sibling");
+    for project in [&app, &linked, &sibling] {
+        fs::create_dir_all(project).expect("create workspace project");
+    }
+    fs::write(
+        app.join("package.json"),
+        r#"{ "name": "app", "version": "1.0.0", "dependencies": { "linked": "workspace:*" } }"#,
+    )
+    .expect("write app package.json");
+    fs::write(
+        linked.join("package.json"),
+        format!(
+            r#"{{ "name": "linked", "version": "1.0.0", "dependencies": {{ "{PKG}": "100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write linked package.json");
+    fs::write(
+        sibling.join("package.json"),
+        format!(
+            r#"{{ "name": "sibling", "version": "1.0.0", "dependencies": {{ "{HELLO}": "1.0.0" }} }}"#,
+        ),
+    )
+    .expect("write sibling package.json");
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let sibling_output = pacquet(&app, ["why", HELLO]).output().expect("query sibling dependency");
+    assert!(sibling_output.status.success(), "why should succeed: {sibling_output:?}");
+    let sibling_stdout = String::from_utf8_lossy(&sibling_output.stdout);
+    assert!(
+        sibling_stdout.is_empty(),
+        "a dependency reachable only from a sibling must not be reported: {sibling_stdout}",
+    );
+
+    let linked_output = pacquet(&app, ["why", PKG]).output().expect("query linked dependency");
+    assert!(linked_output.status.success(), "why should succeed: {linked_output:?}");
+    let linked_stdout = String::from_utf8_lossy(&linked_output.stdout);
+    assert!(linked_stdout.contains(PKG), "linked dependency should be reported: {linked_stdout}");
+    assert!(
+        linked_stdout.contains("packages/linked"),
+        "the forward workspace-link closure should be retained: {linked_stdout}",
+    );
+}
+
+#[test]
+fn filtered_why_excludes_unselected_workspace_siblings() {
+    let (_root, workspace, _anchor) = setup();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    write_manifest(&workspace, "{}");
+
+    let app = workspace.join("packages/app");
+    let sibling = workspace.join("packages/sibling");
+    fs::create_dir_all(&app).expect("create app project");
+    fs::create_dir_all(&sibling).expect("create sibling project");
+    fs::write(
+        app.join("package.json"),
+        format!(
+            r#"{{ "name": "app", "version": "1.0.0", "dependencies": {{ "{PKG}": "100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write app package.json");
+    fs::write(
+        sibling.join("package.json"),
+        format!(
+            r#"{{ "name": "sibling", "version": "1.0.0", "dependencies": {{ "{HELLO}": "1.0.0" }} }}"#,
+        ),
+    )
+    .expect("write sibling package.json");
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let excluded = pacquet(&workspace, ["--filter", "app", "why", HELLO])
+        .output()
+        .expect("query unselected sibling dependency");
+    assert!(excluded.status.success(), "filtered why should succeed: {excluded:?}");
+    assert!(
+        String::from_utf8_lossy(&excluded.stdout).is_empty(),
+        "a dependency reachable only from an unselected sibling must not be reported: {}",
+        String::from_utf8_lossy(&excluded.stdout),
+    );
+
+    let included = pacquet(&workspace, ["--filter", "app", "why", PKG])
+        .output()
+        .expect("query selected dependency");
+    assert!(included.status.success(), "filtered why should succeed: {included:?}");
+    assert!(
+        String::from_utf8_lossy(&included.stdout).contains(PKG),
+        "a selected dependency should be reported: {}",
+        String::from_utf8_lossy(&included.stdout),
+    );
+}
+
+#[test]
+fn recursive_why_includes_all_workspace_projects() {
+    let (_root, workspace, _anchor) = setup();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    write_manifest(&workspace, "{}");
+    let sibling = workspace.join("packages/sibling");
+    fs::create_dir_all(&sibling).expect("create workspace project");
+    fs::write(
+        sibling.join("package.json"),
+        format!(
+            r#"{{ "name": "sibling", "version": "1.0.0", "dependencies": {{ "{HELLO}": "1.0.0" }} }}"#,
+        ),
+    )
+    .expect("write sibling package.json");
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output = pacquet(&workspace, ["-r", "why", HELLO])
+        .output()
+        .expect("query recursive workspace dependency");
+
+    assert!(output.status.success(), "recursive why should succeed: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains(HELLO), "recursive why should include sibling dependencies: {stdout}");
+    assert!(
+        stdout.contains("packages/sibling"),
+        "recursive why should include the sibling importer: {stdout}",
+    );
 }

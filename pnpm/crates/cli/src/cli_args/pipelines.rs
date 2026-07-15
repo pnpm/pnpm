@@ -1,15 +1,100 @@
 use super::{
+    add::AddArgs,
     dedupe::{self, DedupeArgs},
     deploy::DeployArgs,
     install::{InstallArgs, resolve_bool_override},
     package_manager::{PackageManagerToSync, package_manager_to_sync},
     prune::PruneArgs,
+    recursive::{
+        AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
+        sort_filtered_projects,
+    },
+    remove::RemoveArgs,
+    update::UpdateArgs,
 };
 use crate::{State, config_deps};
 use miette::Context;
 use pacquet_config::Config;
 use pacquet_reporter::Reporter;
-use std::path::{Path, PathBuf};
+use std::{
+    collections::{BTreeMap, HashSet},
+    path::{Path, PathBuf},
+    sync::Arc,
+};
+
+pub(crate) struct InstallFamilySelection {
+    pub(crate) workspace_root: PathBuf,
+    pub(crate) projects: Vec<pacquet_workspace::Project>,
+    pub(crate) ordered_dirs: Vec<PathBuf>,
+    pub(crate) selected_dirs: Arc<HashSet<PathBuf>>,
+    pub(crate) active_manifest_is_standin: bool,
+}
+
+fn select_install_family_projects(
+    cfg: &Config,
+    prefix: &Path,
+    manifest_path: &Path,
+    recursive_sort: bool,
+    auto_exclude_root: bool,
+) -> miette::Result<Option<InstallFamilySelection>> {
+    if !cfg.recursive {
+        return Ok(None);
+    }
+    if !cfg.shared_workspace_lockfile {
+        return Err(miette::miette!(
+            code = "ERR_PNPM_RECURSIVE_SHARED_LOCKFILE_UNSUPPORTED",
+            "Recursive and filtered install-family commands with `sharedWorkspaceLockfile=false` are not supported yet."
+        ));
+    }
+
+    let workspace_root = cfg.workspace_dir.as_deref().unwrap_or(prefix).to_path_buf();
+    let (projects, workspace_patterns) = discover_workspace_projects(&workspace_root)?;
+    let (ordered_dirs, selected_dirs) = {
+        let selection = select_recursive_projects(
+            &projects,
+            cfg,
+            prefix,
+            if auto_exclude_root {
+                AutoExcludeRoot::Enabled { workspace_patterns: workspace_patterns.as_deref() }
+            } else {
+                AutoExcludeRoot::Disabled
+            },
+        )?;
+        let ordered_dirs = if recursive_sort {
+            sort_filtered_projects(
+                &selection.selected,
+                selection.full_graph(),
+                selection.prod_all.as_ref(),
+                &selection.prod_only_selected,
+            )
+            .into_iter()
+            .flatten()
+            .collect()
+        } else {
+            selection.selected.keys().cloned().collect()
+        };
+        let selected_dirs = Arc::new(selection.selected.keys().cloned().collect());
+        (ordered_dirs, selected_dirs)
+    };
+
+    let active_dir = manifest_path.parent().expect("manifest path always has a parent dir");
+    let normalized_active_dir = pacquet_fs::lexical_normalize(active_dir);
+    let active_manifest_is_standin = !active_dir.join("package.json").is_file()
+        && pacquet_workspace::try_read_project_manifest(active_dir)
+            .map_err(miette::Report::new)?
+            .is_none()
+        && !projects.iter().any(|project| {
+            pacquet_fs::lexical_normalize(&project.root_dir) == normalized_active_dir
+        });
+
+    Ok(Some(InstallFamilySelection {
+        workspace_root,
+        projects,
+        ordered_dirs,
+        selected_dirs,
+        active_manifest_is_standin,
+    }))
+}
 
 /// The reporter-generic body of `pacquet install`: it threads one `Reporter`
 /// type through config-dependency sync, the `updateConfig` hooks, and the
@@ -20,7 +105,9 @@ pub(crate) struct InstallPipeline {
     pub(crate) cfg: &'static mut Config,
     pub(crate) config_root: PathBuf,
     pub(crate) package_manager_to_sync: Option<PackageManagerToSync>,
+    pub(crate) prefix: PathBuf,
     pub(crate) manifest_path: PathBuf,
+    pub(crate) recursive_sort: bool,
     pub(crate) require_lockfile: bool,
     pub(crate) frozen_lockfile: bool,
 }
@@ -32,7 +119,9 @@ impl InstallPipeline {
             cfg,
             config_root,
             package_manager_to_sync,
+            prefix,
             manifest_path,
+            recursive_sort,
             require_lockfile,
             frozen_lockfile,
         } = self;
@@ -48,10 +137,169 @@ impl InstallPipeline {
         }
         config_deps::install_config_deps::<Reporter>(cfg, &config_root, frozen_lockfile).await?;
         config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
+        let selection =
+            select_install_family_projects(cfg, &prefix, &manifest_path, recursive_sort, false)?;
+        if selection.as_ref().is_some_and(|selection| selection.selected_dirs.is_empty()) {
+            return Ok(());
+        }
         let cfg: &'static Config = cfg;
         let state =
             State::init(manifest_path, cfg, require_lockfile).wrap_err("initialize the state")?;
-        Box::pin(args.run::<Reporter>(state)).await
+        match selection {
+            Some(selection) => Box::pin(args.run_selected::<Reporter>(state, selection)).await,
+            None => Box::pin(args.run::<Reporter>(state)).await,
+        }
+    }
+}
+
+pub(crate) struct AddPipeline {
+    pub(crate) args: AddArgs,
+    pub(crate) cfg: &'static mut Config,
+    pub(crate) config_root: PathBuf,
+    pub(crate) package_manager_to_sync: Option<PackageManagerToSync>,
+    pub(crate) prefix: PathBuf,
+    pub(crate) manifest_path: PathBuf,
+    pub(crate) recursive_sort: bool,
+    /// [`AddArgs::parse_config_dependencies`]'s output, parsed by the dispatch
+    /// before this pipeline scaffolds a manifest. `Some` exactly when
+    /// `--config` was passed.
+    pub(crate) config_dependencies: Option<BTreeMap<String, String>>,
+}
+
+impl AddPipeline {
+    pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
+        let AddPipeline {
+            args,
+            cfg,
+            config_root,
+            package_manager_to_sync,
+            prefix,
+            manifest_path,
+            recursive_sort,
+            config_dependencies,
+        } = self;
+        if let Some(pm) = package_manager_to_sync.as_ref() {
+            config_deps::sync_package_manager_dependencies(
+                cfg,
+                &config_root,
+                &pm.specifier,
+                &pm.version,
+                false,
+            )
+            .await?;
+        }
+        config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
+        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
+        // `--config` targets the workspace's configuration dependencies, not
+        // any project's manifest, so it bypasses project selection entirely.
+        let selection = if config_dependencies.is_some() {
+            None
+        } else {
+            select_install_family_projects(cfg, &prefix, &manifest_path, recursive_sort, true)?
+        };
+        if selection.as_ref().is_some_and(|selection| selection.selected_dirs.is_empty()) {
+            return Ok(());
+        }
+        let cfg: &'static Config = cfg;
+        let state = State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
+        match selection {
+            Some(selection) => Box::pin(args.run_selected::<Reporter>(state, selection)).await,
+            None => Box::pin(args.run::<Reporter>(state, config_dependencies)).await,
+        }
+    }
+}
+
+pub(crate) struct UpdatePipeline {
+    pub(crate) args: UpdateArgs,
+    pub(crate) cfg: &'static mut Config,
+    pub(crate) config_root: PathBuf,
+    pub(crate) package_manager_to_sync: Option<PackageManagerToSync>,
+    pub(crate) prefix: PathBuf,
+    pub(crate) manifest_path: PathBuf,
+    pub(crate) recursive_sort: bool,
+}
+
+impl UpdatePipeline {
+    pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
+        let UpdatePipeline {
+            args,
+            cfg,
+            config_root,
+            package_manager_to_sync,
+            prefix,
+            manifest_path,
+            recursive_sort,
+        } = self;
+        if let Some(pm) = package_manager_to_sync.as_ref() {
+            config_deps::sync_package_manager_dependencies(
+                cfg,
+                &config_root,
+                &pm.specifier,
+                &pm.version,
+                false,
+            )
+            .await?;
+        }
+        config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
+        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
+        let selection =
+            select_install_family_projects(cfg, &prefix, &manifest_path, recursive_sort, false)?;
+        if selection.as_ref().is_some_and(|selection| selection.selected_dirs.is_empty()) {
+            return Ok(());
+        }
+        let cfg: &'static Config = cfg;
+        let state = State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
+        match selection {
+            Some(selection) => Box::pin(args.run_selected::<Reporter>(state, selection)).await,
+            None => Box::pin(args.run::<Reporter>(state)).await,
+        }
+    }
+}
+
+pub(crate) struct RemovePipeline {
+    pub(crate) args: RemoveArgs,
+    pub(crate) cfg: &'static mut Config,
+    pub(crate) config_root: PathBuf,
+    pub(crate) package_manager_to_sync: Option<PackageManagerToSync>,
+    pub(crate) prefix: PathBuf,
+    pub(crate) manifest_path: PathBuf,
+    pub(crate) recursive_sort: bool,
+}
+
+impl RemovePipeline {
+    pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
+        let RemovePipeline {
+            args,
+            cfg,
+            config_root,
+            package_manager_to_sync,
+            prefix,
+            manifest_path,
+            recursive_sort,
+        } = self;
+        if let Some(pm) = package_manager_to_sync.as_ref() {
+            config_deps::sync_package_manager_dependencies(
+                cfg,
+                &config_root,
+                &pm.specifier,
+                &pm.version,
+                false,
+            )
+            .await?;
+        }
+        config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
+        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
+        let selection =
+            select_install_family_projects(cfg, &prefix, &manifest_path, recursive_sort, false)?;
+        if selection.as_ref().is_some_and(|selection| selection.selected_dirs.is_empty()) {
+            return Ok(());
+        }
+        let cfg: &'static Config = cfg;
+        let state = State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
+        match selection {
+            Some(selection) => Box::pin(args.run_selected::<Reporter>(state, selection)).await,
+            None => Box::pin(args.run::<Reporter>(state)).await,
+        }
     }
 }
 
@@ -161,7 +409,7 @@ impl DedupePipeline {
         config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
         let cfg: &'static Config = cfg;
         let state = State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
-        args.run::<Reporter>(state, existing, guard, &lockfile_path).await
+        Box::pin(args.run::<Reporter>(state, existing, guard, &lockfile_path)).await
     }
 }
 
@@ -225,6 +473,6 @@ impl PrunePipeline {
             resolve_bool_override(args.ignore_scripts, args.no_ignore_scripts, cfg.ignore_scripts);
         let cfg: &'static Config = cfg;
         let state = State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
-        args.run::<Reporter>(state).await
+        Box::pin(args.run::<Reporter>(state)).await
     }
 }

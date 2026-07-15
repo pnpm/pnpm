@@ -11,6 +11,7 @@ use pacquet_lockfile::{
 };
 use pacquet_package_manifest::{extract_author, extract_homepage, safe_read_package_json_from_dir};
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet},
     io::Write,
     path::{Path, PathBuf},
@@ -371,18 +372,30 @@ fn collect_components(
         ));
     };
 
-    let project_root_dir =
-        state.manifest.path().parent().unwrap_or_else(|| Path::new(".")).to_path_buf();
+    let lockfile_dir = state.lockfile_dir().to_path_buf();
 
     let manifest_value = match filter_importer_ids {
-        Some(&[single_id]) if single_id != "." => {
-            let importer_dir = project_root_dir.join(single_id);
-            safe_read_package_json_from_dir(&importer_dir)
-                .ok()
-                .flatten()
-                .unwrap_or_else(|| state.manifest.value().clone())
+        Some(&[single_id]) => {
+            let importer_dir: Cow<'_, Path> = if single_id == "." {
+                Cow::Borrowed(&lockfile_dir)
+            } else {
+                Cow::Owned(lockfile_dir.join(single_id))
+            };
+            safe_read_package_json_from_dir(&importer_dir).ok().flatten().unwrap_or_else(|| {
+                if single_id == state.active_importer_id() {
+                    state.manifest.value().clone()
+                } else {
+                    serde_json::json!({})
+                }
+            })
         }
-        _ => state.manifest.value().clone(),
+        _ => safe_read_package_json_from_dir(&lockfile_dir).ok().flatten().unwrap_or_else(|| {
+            if state.active_importer_id() == "." {
+                state.manifest.value().clone()
+            } else {
+                serde_json::json!({})
+            }
+        }),
     };
     let root_name =
         manifest_value.get("name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
@@ -400,7 +413,8 @@ fn collect_components(
 
     let dep_types = detect_dep_types(lockfile, include.optional_dependencies);
 
-    let virtual_store_dir = (!lockfile_only).then(|| project_root_dir.join("node_modules/.pnpm"));
+    let virtual_store_dir =
+        (!lockfile_only).then(|| state.config.effective_virtual_store_dir().to_path_buf());
 
     let ctx = WalkContext {
         snapshots: lockfile.snapshots.as_ref(),
@@ -440,9 +454,9 @@ fn collect_components(
 
         let importer_peer_names = if exclude_peers {
             let importer_dir = if importer_id == "." {
-                project_root_dir.clone()
+                lockfile_dir.clone()
             } else {
-                project_root_dir.join(&importer_id)
+                lockfile_dir.join(&importer_id)
             };
             safe_read_package_json_from_dir(&importer_dir)
                 .ok()
@@ -490,9 +504,9 @@ fn collect_components(
                         && lockfile.importers.contains_key(target_id.as_str())
                     {
                         let ws_dir = if target_id == "." {
-                            project_root_dir.clone()
+                            lockfile_dir.clone()
                         } else {
-                            project_root_dir.join(&target_id)
+                            lockfile_dir.join(&target_id)
                         };
                         if let Ok(Some(ws_manifest)) = safe_read_package_json_from_dir(&ws_dir) {
                             let ws_name = ws_manifest
@@ -691,6 +705,14 @@ fn walk_snapshot(
 
 impl SbomArgs {
     pub async fn run(self, state: State) -> miette::Result<()> {
+        if !state.config.shared_workspace_lockfile
+            && (state.config.recursive || self.split || !state.config.filter.is_empty())
+        {
+            return Err(miette::miette!(
+                code = "ERR_PNPM_RECURSIVE_SHARED_LOCKFILE_UNSUPPORTED",
+                "Filtered and split `pacquet sbom` with `sharedWorkspaceLockfile=false` is not supported yet."
+            ));
+        }
         if let Some(ref spec_ver) = self.spec_version {
             if self.format != SbomFormat::CycloneDx {
                 return Err(miette::miette!(
@@ -729,7 +751,7 @@ impl SbomArgs {
         let importer_ids = if state.config.filter.is_empty() {
             all_importer_ids
         } else {
-            let project_root = state.manifest.path().parent().unwrap_or_else(|| Path::new("."));
+            let project_root = state.lockfile_dir();
             all_importer_ids
                 .into_iter()
                 .filter(|id| {

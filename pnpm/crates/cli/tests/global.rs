@@ -344,6 +344,64 @@ fn global_add_ignores_caller_project_npmrc_registry() {
     drop(root);
 }
 
+#[cfg(unix)]
+#[test]
+fn global_outdated_reads_each_global_install_lockfile() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write caller workspace manifest");
+
+    global_command(&workspace, &pnpm_home)
+        .with_arg("add")
+        .with_arg("-g")
+        .with_arg("@pnpm.e2e/pkg-with-1-dep@100.0.0")
+        .assert()
+        .success();
+    let global_pkg_dir = pnpm_home.join("global/v11");
+    let links = symlink_entries(&global_pkg_dir);
+    assert_eq!(links.len(), 1, "global add should create one install-group link");
+    let install_dir = fs::canonicalize(&links[0]).expect("resolve global install-group link");
+    assert!(install_dir.join("package.json").is_file());
+    assert!(install_dir.join("pnpm-lock.yaml").is_file());
+
+    fs::write(workspace.join(".npmrc"), "registry=http://127.0.0.1:1/\n")
+        .expect("poison caller registry");
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_arg("outdated")
+        .with_arg("-g")
+        .with_arg("--format")
+        .with_arg("json")
+        .output()
+        .expect("run outdated -g");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "global dependency should be outdated; stdout: {}; stderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let report: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("parse outdated -g JSON");
+    let entry = &report["@pnpm.e2e/pkg-with-1-dep"];
+    assert_eq!(entry["current"], "100.0.0");
+    assert_eq!(entry["latest"], "100.1.0");
+    assert!(
+        !String::from_utf8_lossy(&output.stderr).contains("No lockfile in directory"),
+        "outdated -g must not read the caller workspace lockfile: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    drop((root, npmrc_info));
+}
+
 /// `pacquet list -g` with nothing installed reports the empty state rather
 /// than erroring. No registry needed.
 #[test]

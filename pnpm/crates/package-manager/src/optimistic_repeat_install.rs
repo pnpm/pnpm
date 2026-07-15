@@ -288,6 +288,7 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
                     included,
                     catalogs,
                     project_manifests,
+                    false,
                 );
                 if let Err(error) = update_workspace_state(workspace_root, &new_state) {
                     tracing::warn!(
@@ -1598,6 +1599,7 @@ pub fn check_deps_status_before_run(
                     included,
                     catalogs,
                     project_manifests,
+                    state.filtered_install,
                 );
                 // The gate ignored `dev`/`optional`/`production` drift
                 // above; writing today's (default-group) values here

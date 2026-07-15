@@ -127,14 +127,9 @@ impl LinkArgs {
         }
 
         let state = State::init(manifest_path, config, false).wrap_err("initialize the state")?;
-
+        let lockfile_path = state.lockfile_path();
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &state;
-
-        let lockfile_path = manifest
-            .path()
-            .parent()
-            .map(|parent| parent.join(pacquet_lockfile::Lockfile::FILE_NAME));
 
         Install {
             tarball_mem_cache: Arc::clone(tarball_mem_cache),
@@ -144,7 +139,7 @@ impl LinkArgs {
             manifest,
             emit_initial_manifest: true,
             lockfile: pacquet_lockfile::MaybeLazyLockfile::Lazy(lockfile),
-            lockfile_path: lockfile_path.as_deref(),
+            lockfile_path: Some(&lockfile_path),
             dependency_groups: [
                 DependencyGroup::Prod,
                 DependencyGroup::Dev,
