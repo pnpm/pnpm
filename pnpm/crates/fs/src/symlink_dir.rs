@@ -206,6 +206,34 @@ fn force_symlink_inner(
         Err(error) => error,
     };
 
+    // Windows `CreateSymbolicLinkW` reports `ERROR_DIRECTORY` (os error
+    // 267) when a component of the link path is a reparse point whose
+    // target is gone — most often the slot's `node_modules` junction
+    // brought back in a dangling state by a tar-based CI store-cache
+    // restore. `create_dir_all` accepts such a reparse point because it
+    // keeps the directory attribute, but a child link can't be created
+    // through a dangling junction, and the error is neither `NotFound`
+    // nor `AlreadyExists`, so the recovery below never sees it. A
+    // dangling reparse point has no live children to lose, so replace the
+    // broken parent with a real directory and retry once.
+    #[cfg(windows)]
+    {
+        if !rename_tried
+            && initial_err.raw_os_error() == Some(ERROR_DIRECTORY)
+            && let Some(parent) = link.parent()
+            && is_reparse_point(parent)
+        {
+            let removed = match remove_symlink_dir(parent) {
+                Ok(()) => true,
+                Err(error) => error.kind() == io::ErrorKind::NotFound,
+            };
+            if removed && fs::create_dir_all(parent).is_ok() {
+                return force_symlink_inner(target, link, true);
+            }
+            return Err(initial_err);
+        }
+    }
+
     match initial_err.kind() {
         io::ErrorKind::NotFound => {
             // Wrap the mkdir failure so callers see *which* step
@@ -274,6 +302,22 @@ fn force_symlink_inner(
         outcome.warning = Some(warning);
         Ok(outcome)
     }
+}
+
+/// Windows `ERROR_DIRECTORY` — "the directory name is invalid."
+#[cfg(windows)]
+const ERROR_DIRECTORY: i32 = 267;
+
+/// Whether `path` is a reparse point (a symbolic link or a junction).
+/// Unlike [`std::fs::FileType::is_symlink`], which is `false` for
+/// junctions, this reads the raw reparse-point attribute, so a dangling
+/// junction is caught too.
+#[cfg(windows)]
+fn is_reparse_point(path: &Path) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+    fs::symlink_metadata(path)
+        .is_ok_and(|meta| meta.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0)
 }
 
 /// Lexical "does the existing link resolve to the wanted target?"
