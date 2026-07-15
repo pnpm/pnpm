@@ -89,7 +89,6 @@ pub struct InstallArgs {
     pub lockfile_only: bool,
 
     /// Show what an install would change without writing anything to disk.
-    /// Always exits with code 0.
     #[clap(long = "dry-run")]
     pub dry_run: bool,
 

@@ -11,8 +11,8 @@ use std::{
     sync::Arc,
 };
 
-/// Remove the link created by `pnpm link` and reinstall the package from the
-/// registry if it is saved in `package.json`.
+/// Remove the link created by `pnpm link` and reinstall the package as
+/// declared in `package.json`.
 ///
 /// With package names, only the matching links are removed; with no
 /// arguments, every link is removed.
