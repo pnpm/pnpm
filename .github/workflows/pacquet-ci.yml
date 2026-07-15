@@ -134,7 +134,13 @@ jobs:
       - name: Cache pnpm
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          key: ci-pnpm-v11-${{ matrix.os }}
+          # `-2` invalidates the prior cache. On Windows the cached store
+          # includes the global-virtual-store `links/` reparse points,
+          # which tar can't round-trip, so a restored store is corrupt and
+          # a warm install fails creating symlinks with ERROR_DIRECTORY
+          # (os error 267). Forcing a cold store confirms that; the durable
+          # fix is to stop caching `links/`.
+          key: ci-pnpm-v11-${{ matrix.os }}-2
           path: |
             ${{ env.PNPM_HOME }}/store/v11
             ${{ env.HOME }}/.local/share/pnpm/store/v11
