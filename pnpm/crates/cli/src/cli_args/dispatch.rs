@@ -415,24 +415,16 @@ fn print_json_error(error: &miette::Report) {
     let output = serde_json::json!({
         "error": error_body,
     });
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&output).expect("a JSON error envelope serializes"),
-    );
+    let output = serde_json::to_string(&output).expect("a JSON error envelope serializes");
+    println!("{output}");
 }
 
 fn json_error_message(error: &miette::Report) -> String {
-    let messages =
-        error.chain().map(ToString::to_string).fold(Vec::new(), |mut messages, message| {
-            if messages.last() != Some(&message) {
-                messages.push(message);
-            }
-            messages
-        });
-    match messages.as_slice() {
-        [context, source, ..] if context == "pack the package" => source.clone(),
-        [_, ..] => messages.join(": "),
-        [] => error.to_string(),
+    let mut messages = error.chain().map(ToString::to_string);
+    match (messages.next(), messages.next()) {
+        (Some(context), Some(source)) if context == "pack the package" => source,
+        (Some(message), _) => message,
+        (None, _) => error.to_string(),
     }
 }
 
@@ -444,4 +436,39 @@ fn otp_non_interactive_error(error: &miette::Report) -> Option<&OtpNonInteractiv
 
 fn now_millis() -> u128 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use miette::Diagnostic;
+
+    #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
+    #[display("canonical publish failure")]
+    #[diagnostic(code(ERR_PNPM_TEST_JSON_ERROR))]
+    struct CanonicalError {
+        #[error(source)]
+        source: SensitiveCause,
+    }
+
+    #[derive(Debug, derive_more::Display, derive_more::Error)]
+    #[display("registry response included token=secret")]
+    struct SensitiveCause;
+
+    #[test]
+    fn json_error_message_omits_nested_causes() {
+        let error = miette::Report::new(CanonicalError { source: SensitiveCause });
+        let message = json_error_message(&error);
+
+        assert_eq!(message, "canonical publish failure");
+        assert!(!message.contains("token=secret"));
+    }
+
+    #[test]
+    fn json_error_message_unwraps_pack_context() {
+        let error = miette::Report::new(CanonicalError { source: SensitiveCause })
+            .wrap_err("pack the package");
+
+        assert_eq!(json_error_message(&error), "canonical publish failure");
+    }
 }

@@ -355,14 +355,16 @@ fn json_flag_prints_errors_to_stdout() {
         String::from_utf8_lossy(&output.stderr),
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let parsed: Value = serde_json::from_str(&stdout).unwrap_or_else(|error| {
+    serde_json::from_str::<Value>(&stdout).unwrap_or_else(|error| {
         panic!(
             "stdout is a JSON error envelope: {error}; stdout: {stdout}; stderr: {}",
             String::from_utf8_lossy(&output.stderr),
         )
     });
-    assert_eq!(parsed["error"]["code"], "ERR_PNPM_PACKAGE_VERSION_NOT_FOUND");
-    assert_eq!(parsed["error"]["message"], "Package version is not defined in the package.json.");
+    assert_eq!(
+        stdout,
+        "{\"error\":{\"code\":\"ERR_PNPM_PACKAGE_VERSION_NOT_FOUND\",\"message\":\"Package version is not defined in the package.json.\"}}\n",
+    );
 }
 
 #[test]
