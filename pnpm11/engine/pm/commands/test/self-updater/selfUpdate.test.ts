@@ -1237,12 +1237,15 @@ describe('linkExePlatformBinary', () => {
     expect(result).toBe(fakeBinaryContent)
   })
 
-  test('links @pnpm/exe when its platform dependency is in a sibling GVS slot', () => {
+  test.each([
+    ['legacy', platformPkgName],
+    ['newer', exePlatformPkgDirNameNext(platform, arch, libcFamily)],
+  ])('links @pnpm/exe when its %s platform dependency is in a sibling GVS slot', (_scheme, siblingPlatformPkgName) => {
     const dir = tempDir(false)
     const wrapperSlot = path.join(dir, 'links', 'wrapper', 'node_modules', '@pnpm', 'exe')
-    const platformSlot = path.join(dir, 'links', 'platform', 'node_modules', '@pnpm', platformPkgName)
+    const platformSlot = path.join(dir, 'links', 'platform', 'node_modules', '@pnpm', siblingPlatformPkgName)
     const wrapperDir = path.join(dir, 'node_modules', '@pnpm', 'exe')
-    const platformDir = path.join(dir, 'node_modules', '@pnpm', platformPkgName)
+    const platformDir = path.join(dir, 'node_modules', '@pnpm', siblingPlatformPkgName)
 
     fs.mkdirSync(wrapperSlot, { recursive: true })
     fs.mkdirSync(platformSlot, { recursive: true })
