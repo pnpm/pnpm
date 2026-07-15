@@ -358,9 +358,9 @@ pub fn pick_lowest_version_by_version_range(
 /// Filter a packument to versions published at or before `cutoff`,
 /// then rewrite each `dist-tag` to the highest within-cutoff version
 /// that still belongs to the tag's original "family" (same major
-/// for non-`latest` tags, no newer than the original `latest` target,
-/// same prerelease/release status, and preferring non-deprecated
-/// versions when both are present).
+/// for non-`latest` tags, no newer than the original target for
+/// `latest`, matching prerelease/release status, and preferring
+/// non-deprecated versions when both are present).
 ///
 /// Panics if `meta.time` is `None` — the caller (the publishedBy
 /// branch in [`pick_package_from_meta`]) only invokes this with full
