@@ -184,14 +184,38 @@ jobs:
             tarball=$(find "$package_tarballs" -type f -name '*.tgz' -print -quit)
             test -n "$tarball"
             node -e '
-              const manifest = require(require("node:path").resolve(process.argv[1]))
-              const files = [...(manifest.files ?? []), ...(manifest.publishConfig?.executableFiles ?? [])]
-              if (!files.some((file) => !/[?*[]/.test(file))) throw new Error("No literal payload files declared by " + manifest.name)
-              for (const file of files) {
-                if (!/[?*[]/.test(file)) console.log(file.replace(/^\.\//, ""))
+              const fs = require("node:fs")
+              const path = require("node:path")
+              const manifestPath = path.resolve(process.argv[1])
+              const manifest = require(manifestPath)
+              const packageDir = path.dirname(manifestPath)
+              const excluded = (manifest.files ?? []).filter((file) => file.startsWith("!")).map((file) => globToRegExp(file.slice(1)))
+              const files = new Set()
+              for (const file of manifest.files ?? []) {
+                if (!file.startsWith("!") && !/[?*[]/.test(file)) add(file)
+              }
+              for (const file of manifest.publishConfig?.executableFiles ?? []) add(file)
+              for (const file of Object.values(typeof manifest.bin === "string" ? { default: manifest.bin } : manifest.bin ?? {})) add(file)
+              if (files.size === 0) throw new Error("No literal payload files declared by " + manifest.name)
+              console.log([...files].join("\n"))
+
+              function add(file) {
+                const relative = file.replace(/^\.\//, "")
+                if (excluded.some((pattern) => pattern.test(relative))) return
+                const source = path.join(packageDir, relative)
+                const stat = fs.statSync(source, { throwIfNoEntry: false })
+                if (stat?.isFile()) {
+                  files.add(relative)
+                  return
+                }
+                if (!stat?.isDirectory()) throw new Error("Missing payload file " + source)
+                for (const entry of fs.readdirSync(source, { withFileTypes: true })) add(path.join(relative, entry.name))
+              }
+
+              function globToRegExp(pattern) {
+                return new RegExp("^" + pattern.replace(/[.+^{}()|[\]\\]/g, "\\$&").replace(/\*\*\//g, "\x00").replace(/\*\*/g, "\x01").replace(/\*/g, "[^/]*").replace(/\x00/g, "(?:.*/)?").replace(/\x01/g, ".*") + String.fromCharCode(36))
               }
             ' "$package/package.json" | while IFS= read -r file; do
-              if [ ! -f "$package/$file" ]; then continue; fi
               test -s "$package/$file"
               test "$(tar -xOf "$tarball" "package/$file" | shasum -a 256 | cut -d ' ' -f 1)" = "$(shasum -a 256 "$package/$file" | cut -d ' ' -f 1)"
             done
@@ -505,14 +529,38 @@ jobs:
             tarball=$(find "$package_tarballs" -type f -name '*.tgz' -print -quit)
             test -n "$tarball"
             node -e '
-              const manifest = require(require("node:path").resolve(process.argv[1]))
-              const files = [...(manifest.files ?? []), ...(manifest.publishConfig?.executableFiles ?? [])]
-              if (!files.some((file) => !/[?*[]/.test(file))) throw new Error("No literal payload files declared by " + manifest.name)
-              for (const file of files) {
-                if (!/[?*[]/.test(file)) console.log(file.replace(/^\.\//, ""))
+              const fs = require("node:fs")
+              const path = require("node:path")
+              const manifestPath = path.resolve(process.argv[1])
+              const manifest = require(manifestPath)
+              const packageDir = path.dirname(manifestPath)
+              const excluded = (manifest.files ?? []).filter((file) => file.startsWith("!")).map((file) => globToRegExp(file.slice(1)))
+              const files = new Set()
+              for (const file of manifest.files ?? []) {
+                if (!file.startsWith("!") && !/[?*[]/.test(file)) add(file)
+              }
+              for (const file of manifest.publishConfig?.executableFiles ?? []) add(file)
+              for (const file of Object.values(typeof manifest.bin === "string" ? { default: manifest.bin } : manifest.bin ?? {})) add(file)
+              if (files.size === 0) throw new Error("No literal payload files declared by " + manifest.name)
+              console.log([...files].join("\n"))
+
+              function add(file) {
+                const relative = file.replace(/^\.\//, "")
+                if (excluded.some((pattern) => pattern.test(relative))) return
+                const source = path.join(packageDir, relative)
+                const stat = fs.statSync(source, { throwIfNoEntry: false })
+                if (stat?.isFile()) {
+                  files.add(relative)
+                  return
+                }
+                if (!stat?.isDirectory()) throw new Error("Missing payload file " + source)
+                for (const entry of fs.readdirSync(source, { withFileTypes: true })) add(path.join(relative, entry.name))
+              }
+
+              function globToRegExp(pattern) {
+                return new RegExp("^" + pattern.replace(/[.+^{}()|[\]\\]/g, "\\$&").replace(/\*\*\//g, "\x00").replace(/\*\*/g, "\x01").replace(/\*/g, "[^/]*").replace(/\x00/g, "(?:.*/)?").replace(/\x01/g, ".*") + String.fromCharCode(36))
               }
             ' "$package/package.json" | while IFS= read -r file; do
-              if [ ! -f "$package/$file" ]; then continue; fi
               test -s "$package/$file"
               test "$(tar -xOf "$tarball" "package/$file" | sha256sum | cut -d ' ' -f 1)" = "$(sha256sum "$package/$file" | cut -d ' ' -f 1)"
             done
@@ -802,14 +850,38 @@ jobs:
             tarball=$(find "$package_tarballs" -type f -name '*.tgz' -print -quit)
             test -n "$tarball"
             node -e '
-              const manifest = require(require("node:path").resolve(process.argv[1]))
-              const files = [...(manifest.files ?? []), ...(manifest.publishConfig?.executableFiles ?? [])]
-              if (!files.some((file) => !/[?*[]/.test(file))) throw new Error("No literal payload files declared by " + manifest.name)
-              for (const file of files) {
-                if (!/[?*[]/.test(file)) console.log(file.replace(/^\.\//, ""))
+              const fs = require("node:fs")
+              const path = require("node:path")
+              const manifestPath = path.resolve(process.argv[1])
+              const manifest = require(manifestPath)
+              const packageDir = path.dirname(manifestPath)
+              const excluded = (manifest.files ?? []).filter((file) => file.startsWith("!")).map((file) => globToRegExp(file.slice(1)))
+              const files = new Set()
+              for (const file of manifest.files ?? []) {
+                if (!file.startsWith("!") && !/[?*[]/.test(file)) add(file)
+              }
+              for (const file of manifest.publishConfig?.executableFiles ?? []) add(file)
+              for (const file of Object.values(typeof manifest.bin === "string" ? { default: manifest.bin } : manifest.bin ?? {})) add(file)
+              if (files.size === 0) throw new Error("No literal payload files declared by " + manifest.name)
+              console.log([...files].join("\n"))
+
+              function add(file) {
+                const relative = file.replace(/^\.\//, "")
+                if (excluded.some((pattern) => pattern.test(relative))) return
+                const source = path.join(packageDir, relative)
+                const stat = fs.statSync(source, { throwIfNoEntry: false })
+                if (stat?.isFile()) {
+                  files.add(relative)
+                  return
+                }
+                if (!stat?.isDirectory()) throw new Error("Missing payload file " + source)
+                for (const entry of fs.readdirSync(source, { withFileTypes: true })) add(path.join(relative, entry.name))
+              }
+
+              function globToRegExp(pattern) {
+                return new RegExp("^" + pattern.replace(/[.+^{}()|[\]\\]/g, "\\$&").replace(/\*\*\//g, "\x00").replace(/\*\*/g, "\x01").replace(/\*/g, "[^/]*").replace(/\x00/g, "(?:.*/)?").replace(/\x01/g, ".*") + String.fromCharCode(36))
               }
             ' "$package/package.json" | while IFS= read -r file; do
-              if [ ! -f "$package/$file" ]; then continue; fi
               test -s "$package/$file"
               test "$(tar -xOf "$tarball" "package/$file" | sha256sum | cut -d ' ' -f 1)" = "$(sha256sum "$package/$file" | cut -d ' ' -f 1)"
             done
