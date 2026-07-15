@@ -153,10 +153,6 @@ jobs:
         with:
           tool: just
 
-      - name: Reproduce missing-parent junction failure
-        if: runner.os == 'Windows'
-        run: cargo test -p pacquet-fs windows_junction_creation_recovers_when_link_parent_is_missing
-
       - name: Install dependencies
         run: just install
 

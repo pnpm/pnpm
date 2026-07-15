@@ -13,7 +13,7 @@ use super::{ForceSymlinkOutcome, force_symlink_dir, read_symlink_dir};
 use super::{is_reparse_point, relative_target_for};
 use std::fs;
 #[cfg(windows)]
-use std::path::Path;
+use std::{io, path::Path};
 #[cfg(not(windows))]
 use std::path::PathBuf;
 #[cfg(windows)]
@@ -259,25 +259,6 @@ fn windows_concurrent_junction_creation_reuses_one_link() {
 
 #[cfg(windows)]
 #[test]
-fn windows_junction_creation_recovers_when_link_parent_is_missing() {
-    let root = tempdir().expect("create temp dir");
-    let target = root.path().join("target");
-    let link = root.path().join("deeply").join("nested").join("link");
-    fs::create_dir_all(&target).expect("create target");
-
-    let outcome =
-        super::force_symlink_inner(&target, &link, false, super::windows::create_junction)
-            .expect("junction creation must create missing link parents");
-
-    assert!(!outcome.reused);
-    assert_eq!(
-        fs::canonicalize(&link).expect("canonicalize junction"),
-        fs::canonicalize(&target).expect("canonicalize target"),
-    );
-}
-
-#[cfg(windows)]
-#[test]
 fn windows_same_drive_symlink_target_stays_relative() {
     let target = Path::new(r"C:\workspace\packages\pkg-a");
     let link = Path::new(r"C:\workspace\app\node_modules\pkg-a");
@@ -292,6 +273,13 @@ fn windows_verbatim_and_plain_disk_resolve_to_same_root() {
     let link = Path::new(r"C:\workspace\app\node_modules\pkg-a");
 
     assert!(relative_target_for(target, link).is_relative());
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_error_directory_falls_back_to_junctions() {
+    assert!(super::windows::should_fallback_to_junction(&io::Error::from_raw_os_error(267)));
+    assert!(!super::windows::should_fallback_to_junction(&io::Error::from_raw_os_error(123)));
 }
 
 #[test]

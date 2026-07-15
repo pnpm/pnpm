@@ -349,7 +349,12 @@ mod windows {
 
     pub fn create(original: &Path, link: &Path) -> io::Result<()> {
         match MODE.load(Ordering::Relaxed) {
-            USE_SYMLINK => create_true_symlink(original, link),
+            USE_SYMLINK => match create_true_symlink(original, link) {
+                Err(error) if should_fallback_to_junction(&error) => {
+                    create_and_cache_junction(original, link)
+                }
+                result => result,
+            },
             USE_JUNCTION => create_junction(original, link),
             _ => probe_and_cache(original, link),
         }
@@ -378,15 +383,25 @@ mod windows {
                 MODE.store(USE_SYMLINK, Ordering::Relaxed);
                 Ok(())
             }
-            Err(error) if error.kind() == io::ErrorKind::PermissionDenied => {
-                let result = create_junction(original, link);
-                if result.is_ok() {
-                    MODE.store(USE_JUNCTION, Ordering::Relaxed);
-                }
-                result
+            Err(error) if should_fallback_to_junction(&error) => {
+                create_and_cache_junction(original, link)
             }
             Err(error) => Err(error),
         }
+    }
+
+    pub(super) fn should_fallback_to_junction(error: &io::Error) -> bool {
+        const ERROR_DIRECTORY: i32 = 267;
+        error.kind() == io::ErrorKind::PermissionDenied
+            || error.raw_os_error() == Some(ERROR_DIRECTORY)
+    }
+
+    fn create_and_cache_junction(original: &Path, link: &Path) -> io::Result<()> {
+        let result = create_junction(original, link);
+        if result.is_ok() {
+            MODE.store(USE_JUNCTION, Ordering::Relaxed);
+        }
+        result
     }
 
     pub(super) fn create_junction(original: &Path, link: &Path) -> io::Result<()> {
@@ -402,13 +417,18 @@ mod windows {
         let _commit_guard = JUNCTION_COMMIT_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
         match fs::symlink_metadata(link) {
             Ok(_) => {
-                let cleanup_error = fs::remove_dir(&staging).err();
-                let cleanup_context = cleanup_error
-                    .map(|error| format!("; staged-junction cleanup failed: {error}"))
-                    .unwrap_or_default();
+                fs::remove_dir(&staging).map_err(|error| {
+                    io::Error::new(
+                        error.kind(),
+                        format!(
+                            "junction path already exists at {link:?}, but staged junction \
+                             cleanup failed at {staging:?}: {error}",
+                        ),
+                    )
+                })?;
                 return Err(io::Error::new(
                     io::ErrorKind::AlreadyExists,
-                    format!("junction path already exists: {link:?}{cleanup_context}"),
+                    format!("junction path already exists: {link:?}"),
                 ));
             }
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
@@ -431,14 +451,21 @@ mod windows {
             let cleanup_error = fs::remove_dir(&staging).err();
             match fs::symlink_metadata(link) {
                 Ok(_) => {
-                    let cleanup_context = cleanup_error
-                        .map(|error| format!("; staged-junction cleanup failed: {error}"))
-                        .unwrap_or_default();
+                    if let Some(cleanup_error) = cleanup_error {
+                        return Err(io::Error::new(
+                            rename_error.kind(),
+                            format!(
+                                "failed to rename staged junction {staging:?} to {link:?}: \
+                                 {rename_error}; destination now exists, but cleanup failed: \
+                                 {cleanup_error}",
+                            ),
+                        ));
+                    }
                     return Err(io::Error::new(
                         io::ErrorKind::AlreadyExists,
                         format!(
                             "junction path already exists after rename failed: {link:?}; \
-                             rename error: {rename_error}{cleanup_context}",
+                             rename error: {rename_error}",
                         ),
                     ));
                 }
