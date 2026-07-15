@@ -48,6 +48,7 @@ export function filterPkgMetadataByPublishDate (
       const candidateParsed = tryParseSemver(candidate)
       if (
         !candidateParsed ||
+        (tag === 'latest' && candidateParsed.compare(originalSemVer) > 0) ||
         (tag !== 'latest' && candidateParsed.major !== originalSemVer.major) ||
         (candidateParsed.prerelease.length > 0) !== originalIsPrerelease
       ) continue

@@ -12,7 +12,8 @@ use pretty_assertions::assert_eq;
 use super::{
     PickPackageFromMetaError, PickPackageFromMetaOptions, PickVersionByVersionRangeOptions,
     RegistryPackageSpec, RegistryPackageSpecType, filter_pkg_metadata_by_publish_date,
-    pick_lowest_version_by_version_range, pick_package_from_meta, pick_version_by_version_range,
+    filter_pkg_metadata_versions, pick_lowest_version_by_version_range, pick_package_from_meta,
+    pick_version_by_version_range,
 };
 
 fn parse_iso(input: &str) -> DateTime<Utc> {
@@ -484,6 +485,43 @@ fn filter_rewrites_dist_tag_to_within_cutoff_max_of_same_major() {
         Some("1.1.0"),
         "latest is allowed to cross majors when its original target dropped",
     );
+}
+
+#[test]
+fn filter_latest_fallback_does_not_exceed_original_tag_target() {
+    let mut pkg = make_package(
+        "acme",
+        &[("3.0.0", None), ("3.0.1", None), ("4.0.0", None)],
+        &[("latest", "3.0.1")],
+    );
+    pkg.time = Some(make_time_map(&[
+        ("3.0.0", "2026-07-01T00:00:00.000Z"),
+        ("3.0.1", "2026-07-15T12:00:00.000Z"),
+        ("4.0.0", "2025-10-10T00:00:00.000Z"),
+    ]));
+    let cutoff = parse_iso("2026-07-15T00:00:00.000Z");
+    let filtered = filter_pkg_metadata_by_publish_date(&pkg, cutoff, None);
+
+    assert_eq!(filtered.dist_tag("latest"), Some("3.0.0"));
+
+    let mut pkg_without_safe_fallback =
+        make_package("acme", &[("3.0.1", None), ("4.0.0", None)], &[("latest", "3.0.1")]);
+    pkg_without_safe_fallback.time = Some(make_time_map(&[
+        ("3.0.1", "2026-07-15T12:00:00.000Z"),
+        ("4.0.0", "2025-10-10T00:00:00.000Z"),
+    ]));
+    let filtered = filter_pkg_metadata_by_publish_date(&pkg_without_safe_fallback, cutoff, None);
+
+    assert_eq!(filtered.dist_tag("latest"), None);
+}
+
+#[test]
+fn generic_version_filter_keeps_unbounded_latest_repopulation() {
+    let pkg = make_package("acme", &[("1.0.0", None), ("2.0.0", None)], &[("latest", "1.0.0")]);
+
+    let filtered = filter_pkg_metadata_versions(&pkg, |version| version != "1.0.0");
+
+    assert_eq!(filtered.dist_tag("latest"), Some("2.0.0"));
 }
 
 #[test]
