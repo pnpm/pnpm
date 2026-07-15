@@ -135,7 +135,7 @@ fn fresh_isolated_install_rejects_required_incompatible_engine_in_strict_mode() 
         "stderr must identify the incompatible lockfile package ID; got:\n{stderr}",
     );
     assert!(
-        stderr.contains("wanted: {\"node\":\">=999.0.0\"}"),
+        stderr.contains(r#"wanted: {"node":">=999.0.0"}"#),
         "stderr must report the required Node.js version; got:\n{stderr}",
     );
 
@@ -186,7 +186,7 @@ fn frozen_isolated_install_rejects_required_incompatible_engine_in_strict_mode()
         "stderr must identify the incompatible lockfile package ID; got:\n{stderr}",
     );
     assert!(
-        stderr.contains("wanted: {\"node\":\">=999.0.0\"}"),
+        stderr.contains(r#"wanted: {"node":">=999.0.0"}"#),
         "stderr must report the required Node.js version; got:\n{stderr}",
     );
 
