@@ -608,7 +608,7 @@ fn modified_manifests_match_lockfile(
             wanted,
             project.manifest,
             &importer_id,
-            config.auto_install_peers,
+            config,
             &ignored_optional_matcher,
             parsed_overrides.as_deref(),
         ) {

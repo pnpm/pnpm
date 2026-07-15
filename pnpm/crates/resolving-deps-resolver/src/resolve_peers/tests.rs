@@ -1,7 +1,7 @@
 use super::{
     ImporterPeerInput, NodeRecord, ResolvePeersOptions, Walker,
-    dep_path_with_allowed_peer_segments, peer_segment_names, resolve_peers,
-    resolve_peers_workspace, satisfies_with_prereleases,
+    dep_path_with_allowed_peer_segments, importer_relative_link_dep_path, peer_segment_names,
+    resolve_peers, resolve_peers_workspace, satisfies_with_prereleases,
 };
 use crate::{
     dependencies_graph::{DependenciesGraph, PeerDependencyIssues},
@@ -17,6 +17,7 @@ use pacquet_lockfile::{
 use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
+    path::Path,
     str::FromStr,
     sync::Arc,
 };
@@ -28,6 +29,15 @@ const PATCHED_WORKFLOWS_SDK: &str = concat!(
     "(better-sqlite3@12.8.0)",
     "(express@4.21.2)",
 );
+
+#[test]
+fn importer_relative_self_link_keeps_an_empty_target() {
+    let workspace = Path::new("workspace");
+    assert_eq!(
+        importer_relative_link_dep_path(&DepPath::from("link:."), Some(workspace), Some(workspace),),
+        DepPath::from("link:"),
+    );
+}
 
 #[test]
 fn parses_peer_suffix_after_patch_hash() {

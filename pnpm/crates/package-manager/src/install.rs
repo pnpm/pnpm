@@ -826,7 +826,7 @@ where
                 })
                 .collect(),
         };
-        let requested_importer_ids = selection.as_ref().map(|selection| {
+        let selected_importer_ids = selection.as_ref().map(|selection| {
             selection
                 .selected_dirs
                 .iter()
@@ -841,9 +841,10 @@ where
                 pacquet_workspace::importer_id_from_root_dir(&workspace_root, project_dir)
             })
             .collect::<HashSet<_>>();
-        let filtered_install = requested_importer_ids
+        let filtered_install = selected_importer_ids
             .as_ref()
             .is_some_and(|selected_importer_ids| selected_importer_ids != &real_importer_ids);
+        let requested_importer_ids = if filtered_install { selected_importer_ids } else { None };
         // Only a full `pacquet install` may short-circuit. `add` and
         // `remove` mutate the manifest in memory and persist it after
         // this run returns, so the on-disk mtimes the check reads still
@@ -856,7 +857,7 @@ where
         // read as up to date and skip the registry re-resolution.
         let optimistic_decision = is_full_install
             && matches!(update_seed_policy, UpdateSeedPolicy::KeepAll)
-            && selection.is_none()
+            && !filtered_install
             && !frozen_lockfile
             && !disable_optimistic_repeat_install
             && check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
@@ -1259,7 +1260,7 @@ where
         }
         let old_modules = modules_manifest_res.ok().flatten();
         let modules_manifest = old_modules.as_ref();
-        let previous_modules_metadata = if selection.is_some() && !resolve_only {
+        let previous_modules_metadata = if filtered_install && !resolve_only {
             pacquet_modules_yaml::read_modules_manifest::<Host>(&config.modules_dir).ok().flatten()
         } else {
             None
@@ -1358,7 +1359,7 @@ where
                     }
                 }
             } else {
-                if selection.is_some() {
+                if filtered_install {
                     return Err(InstallError::UnsafeFilteredModulesDir {
                         modules_dir: config.modules_dir.clone(),
                         workspace_root: workspace_root.clone(),
@@ -1381,7 +1382,7 @@ where
             && !is_inconsistent
             && let Some(modules) = modules_manifest
             && let Some(current) = current_lockfile.as_ref()
-            && (selection.is_some() || modules.included != included)
+            && (filtered_install || modules.included != included)
         {
             let selected_prune_importer_ids = requested_importer_ids.as_ref().map(|requested| {
                 crate::materialization_closure(
@@ -1393,7 +1394,7 @@ where
                 )
                 .importer_ids
             });
-            let previously_included = if selection.is_some() {
+            let previously_included = if filtered_install {
                 IncludedDependencies {
                     dependencies: true,
                     dev_dependencies: true,
@@ -1414,7 +1415,7 @@ where
         }
 
         if take_frozen_path
-            && selection.is_none()
+            && !filtered_install
             && let Some(wanted_lockfile) = lockfile
             && let Some(current) = current_lockfile.as_ref()
             && wanted_lockfile == current
@@ -1835,7 +1836,7 @@ where
             .cloned()
             .collect::<Vec<_>>();
 
-        if selection.is_some()
+        if filtered_install
             && !matches!(node_linker, NodeLinker::Hoisted)
             && crate::should_write_package_map(config, node_linker)
             && let Some(current) = materialized_current_lockfile.as_ref()
@@ -1997,7 +1998,7 @@ where
             &ignored_builds,
             pruned_at,
         );
-        if selection.is_some()
+        if filtered_install
             && !matches!(node_linker, NodeLinker::Hoisted)
             && !is_inconsistent
             && let (Some(previous), Some(current), Some(selected)) = (
@@ -2164,7 +2165,7 @@ fn check_lockfile_freshness(
             lockfile,
             manifest,
             importer_id,
-            config.auto_install_peers,
+            config,
             &ignored_optional_matcher,
             parsed_overrides_opt.as_deref(),
         )?;
@@ -2233,7 +2234,7 @@ pub(crate) fn check_importer_satisfies(
     lockfile: &Lockfile,
     manifest: &PackageManifest,
     importer_id: &str,
-    auto_install_peers: bool,
+    config: &Config,
     ignored_optional_matcher: &pacquet_config::matcher::Matcher,
     parsed_overrides: Option<&[pacquet_config_parse_overrides::VersionOverride]>,
 ) -> Result<(), FreshnessCheckError> {
@@ -2249,16 +2250,26 @@ pub(crate) fn check_importer_satisfies(
     // override pass conceptually returns a new manifest
     // from the perspective of every consumer downstream of the
     // resolver.
-    let overrider_manifest_holder;
-    let manifest_for_freshness: &PackageManifest = if let Some(parsed) = parsed_overrides {
+    // `auto_install_peers` is folded into `satisfies_package_manifest`
+    // itself, so the manifest is cloned here only for the two mutations the
+    // comparison needs done up front: applying `pnpm.overrides` and dropping
+    // `link:` deps under `exclude_links_from_lockfile`.
+    let normalized_manifest_holder;
+    let manifest_for_freshness: &PackageManifest = if parsed_overrides.is_some()
+        || config.exclude_links_from_lockfile
+    {
         let root_dir = manifest.path().parent().unwrap_or_else(|| Path::new("."));
-        let overrider = crate::VersionsOverrider::new(parsed, root_dir);
-        overrider_manifest_holder = {
+        normalized_manifest_holder = {
             let mut cloned: PackageManifest = manifest.clone();
-            overrider.apply(&mut cloned, Some(root_dir));
+            if let Some(parsed) = parsed_overrides {
+                crate::VersionsOverrider::new(parsed, root_dir).apply(&mut cloned, Some(root_dir));
+            }
+            if config.exclude_links_from_lockfile {
+                exclude_linked_dependencies(&mut cloned);
+            }
             cloned
         };
-        &overrider_manifest_holder
+        &normalized_manifest_holder
     } else {
         manifest
     };
@@ -2278,7 +2289,7 @@ pub(crate) fn check_importer_satisfies(
     satisfies_package_manifest(
         importer,
         manifest_for_freshness,
-        auto_install_peers,
+        config.auto_install_peers,
         is_ignored_optional,
     )
     .map_err(FreshnessCheckError::Stale)
@@ -2309,6 +2320,25 @@ fn manifest_has_effective_dependencies(
             pacquet_package_manifest::DependencyGroup::Optional,
         ])
         .any(|(name, _)| !ignored.contains(name))
+}
+
+fn exclude_linked_dependencies(manifest: &mut PackageManifest) {
+    let Some(manifest) = manifest.value_mut().as_object_mut() else {
+        return;
+    };
+    for group in [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional] {
+        let group: &str = group.into();
+        if let Some(dependencies) =
+            manifest.get_mut(group).and_then(serde_json::Value::as_object_mut)
+        {
+            dependencies.retain(|_, specifier| {
+                let Some(specifier) = specifier.as_str() else {
+                    return true;
+                };
+                !specifier.starts_with("link:")
+            });
+        }
+    }
 }
 
 /// Outcome of [`check_lockfile_freshness`]. Splits "user

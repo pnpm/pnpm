@@ -102,7 +102,6 @@ fn importer_relative_link_dep_path(
         .display()
         .to_string()
         .replace('\\', "/");
-    let relative_target = if relative_target.is_empty() { "." } else { &relative_target };
     DepPath::from(format!("link:{relative_target}"))
 }
 

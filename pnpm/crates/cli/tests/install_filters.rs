@@ -30,6 +30,7 @@ struct ManifestDeps<'a> {
     prod: &'a [(&'a str, &'a str)],
     dev: &'a [(&'a str, &'a str)],
     optional: &'a [(&'a str, &'a str)],
+    peer: &'a [(&'a str, &'a str)],
 }
 
 struct FilteredWorkspace {
@@ -148,6 +149,7 @@ fn write_manifest(project: &Path, name: &str, deps: ManifestDeps<'_>) {
     insert_dependency_group(&mut manifest, "dependencies", deps.prod);
     insert_dependency_group(&mut manifest, "devDependencies", deps.dev);
     insert_dependency_group(&mut manifest, "optionalDependencies", deps.optional);
+    insert_dependency_group(&mut manifest, "peerDependencies", deps.peer);
     fs::write(
         project.join("package.json"),
         serde_json::to_string_pretty(&Value::Object(manifest)).expect("serialize package.json"),
@@ -352,6 +354,34 @@ fn assert_full_wanted(lockfile: &Lockfile, ids: &[&str]) {
         ids.iter().map(ToString::to_string).collect(),
         "wanted lockfile must retain every real importer",
     );
+}
+
+#[test]
+fn full_recursive_install_keeps_the_unfiltered_up_to_date_path() {
+    let fixture = FilteredWorkspace::new();
+    fixture.project("app", "app", ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() });
+    fixture.project(
+        "lib",
+        "lib",
+        ManifestDeps {
+            prod: &[(PARENT, "100.0.0")],
+            peer: &[(HELLO, "1.0.0")],
+            ..Default::default()
+        },
+    );
+    fixture.run(["install"]);
+    let lockfile_path = fixture.workspace.join("pnpm-lock.yaml");
+    let before = fs::read(&lockfile_path).expect("read lockfile");
+    fs::write(&lockfile_path, &before).expect("rewrite lockfile without changing its contents");
+
+    let records = fixture.run(["--recursive", "install"]);
+
+    assert_eq!(fs::read(lockfile_path).expect("read lockfile"), before);
+    assert_eq!(importing_started_count(&records), 0, "a full selection must not relink");
+    assert!(records.iter().any(|record| {
+        record.get("name").and_then(Value::as_str) == Some("pnpm")
+            && record.get("message").and_then(Value::as_str) == Some("Already up to date")
+    }));
 }
 
 #[test]
