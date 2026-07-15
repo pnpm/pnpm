@@ -104,7 +104,7 @@ pub struct CliArgs {
 
     /// Directory in which the package store is created. Relative paths
     /// are resolved from the workspace root, or from `--dir` outside a
-    /// workspace. Overrides the configured `storeDir` for this invocation.
+    /// workspace.
     #[clap(
         long = "store-dir",
         value_name = "DIR",
@@ -114,20 +114,13 @@ pub struct CliArgs {
     )]
     pub store_dir: Option<PathBuf>,
 
-    /// Path to a `.npmrc` to read auth settings from, overriding the
-    /// default `~/.npmrc`. Mirrors pnpm's `--npmrc-auth-file` (and its
-    /// `--userconfig` alias) and sets
-    /// [`pacquet_config::Config::npmrc_auth_file`], consumed when
-    /// `Config` resolves the user-level `.npmrc`.
+    /// Path to an `.npmrc` to read auth settings from, overriding the
+    /// default `~/.npmrc`.
     #[clap(long = "npmrc-auth-file", visible_alias = "userconfig", global = true)]
     pub npmrc_auth_file: Option<PathBuf>,
 
-    /// Run the command for every project in the workspace instead of
-    /// only the project in `--dir`. Mirrors pnpm's global `-r` /
-    /// `--recursive` flag and sets
-    /// [`pacquet_config::Config::recursive`]. pacquet's `install`
-    /// already spans the whole workspace, so the flag is a surface
-    /// no-op there today; see the field docs.
+    /// Run the command for every project in the workspace instead of only
+    /// the project in `--dir`.
     #[clap(short = 'r', long, global = true)]
     pub recursive: bool,
 
@@ -135,36 +128,25 @@ pub struct CliArgs {
     #[clap(long, value_enum, default_value_t = ReporterType::Default, global = true)]
     pub reporter: ReporterType,
 
-    /// `--filter` / `-F` workspace selectors. Each occurrence adds one
-    /// raw selector (`@scope/*`, `./pkg`, `foo...`, `!bar`, `{dir}`,
-    /// `[since]`, ...). Stored into [`pacquet_config::Config::filter`];
-    /// see that field for why the resolved selection is not yet
-    /// consumed by `install`.
-    ///
-    /// As a global multi-value flag, occurrences collect only within one
-    /// side of the subcommand boundary; mixing sides is a clap limitation,
-    /// so pass all selectors on the same side.
+    /// Select which workspace projects to run on. Repeat to add more.
+    /// Each selector can be a name pattern (`@scope/*`), a path (`./pkg`),
+    /// a dependency query (`foo...`), an exclusion (`!bar`), a directory
+    /// (`{dir}`), or a changed-since query (`[since]`).
     #[clap(short = 'F', long, global = true)]
     pub filter: Vec<String>,
 
-    /// `--filter-prod` workspace selectors. Same syntax as
-    /// [`Self::filter`], but the dependency walk follows production
-    /// dependencies only. Stored into
-    /// [`pacquet_config::Config::filter_prod`].
+    /// Like `--filter`, but follow only production dependencies when
+    /// selecting projects.
     #[clap(long = "filter-prod", global = true)]
     pub filter_prod: Vec<String>,
 
-    /// `--test-pattern` glob patterns naming test files, consumed by
-    /// the `[<since>]` changed-packages `--filter` selector. Overrides
-    /// [`pacquet_config::Config::test_pattern`] when given.
+    /// Glob patterns naming test files, used by the `[since]` `--filter`
+    /// selector to decide which changes count.
     #[clap(long = "test-pattern", global = true)]
     pub test_pattern: Vec<String>,
 
-    /// `--changed-files-ignore-pattern` glob patterns of changed files
-    /// the `[<since>]` changed-packages `--filter` selector ignores.
-    /// Overrides
-    /// [`pacquet_config::Config::changed_files_ignore_pattern`] when
-    /// given.
+    /// Glob patterns of changed files that the `[since]` `--filter`
+    /// selector should ignore.
     #[clap(long = "changed-files-ignore-pattern", global = true)]
     pub changed_files_ignore_pattern: Vec<String>,
 
@@ -192,12 +174,7 @@ pub struct CliArgs {
     #[clap(long = "no-bail", global = true, hide = true)]
     pub no_bail: bool,
 
-    /// Avoid exiting with a non-zero exit code when the script is
-    /// undefined, accepted ahead of the script name
-    /// (`pnpm --if-present test`) the way pnpm's option parser does.
-    /// Deliberately not `global = true`: `run` / `stop` / `restart`
-    /// declare their own `--if-present`, and a propagated global flag
-    /// would collide with theirs.
+    /// Don't fail when the named script is undefined.
     #[clap(long = "if-present", hide = true)]
     pub if_present: bool,
 }

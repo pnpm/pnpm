@@ -66,10 +66,7 @@ pub struct AddArgs {
     /// --save-prod, --save-dev, --save-optional, --save-peer
     #[clap(flatten)]
     pub dependency_options: AddDependencyOptions,
-    /// `--cpu` / `--os` / `--libc` overrides for the optional-dep
-    /// platform filter. Mirrors upstream pnpm's CLI flags; merges
-    /// per-axis into `supportedArchitectures` loaded from
-    /// `pnpm-workspace.yaml`.
+    /// `--cpu`, `--os`, and `--libc` filters for which optional dependencies are installed.
     #[clap(flatten)]
     pub supported_architectures: SupportedArchitecturesArgs,
     /// Saved dependencies will be configured with an exact version rather than using
@@ -79,26 +76,16 @@ pub struct AddArgs {
     /// The prefix of the saved version range: `^` (default), `~`, or empty for an exact version.
     #[clap(long = "save-prefix", value_name = "prefix")]
     pub save_prefix: Option<String>,
-    /// Save the new dependency to the default catalog: `catalog:` is written
-    /// to `package.json` and the specifier to `pnpm-workspace.yaml`'s
-    /// `catalog:` block. Shorthand for `--save-catalog-name=default`.
+    /// Save the new dependency to the default catalog. Shorthand for `--save-catalog-name=default`.
     #[clap(long = "save-catalog")]
     pub save_catalog: bool,
-    /// Save the new dependency to the named catalog `<name>`: `catalog:<name>`
-    /// is written to `package.json` and the specifier to the matching entry
-    /// under `pnpm-workspace.yaml`'s `catalogs:`.
+    /// Save the new dependency to the named catalog `<name>`.
     #[clap(long = "save-catalog-name", value_name = "name")]
     pub save_catalog_name: Option<String>,
-    /// Add the package as a configurational dependency: the clean
-    /// specifier is written to `pnpm-workspace.yaml`'s `configDependencies`
-    /// block, the resolved version + integrity to the env lockfile, and
-    /// the package linked into `node_modules/.pnpm-config`. Mirrors pnpm's
-    /// `pnpm add --config`.
+    /// Add the package as a configuration dependency.
     #[clap(long = "config")]
     pub config: bool,
-    /// Dependencies are not downloaded. The package is added to the
-    /// manifest and only `pnpm-lock.yaml` is updated; no `node_modules`
-    /// is created. Mirrors pnpm's `--lockfile-only`.
+    /// Dependencies are not downloaded. Only `pnpm-lock.yaml` is updated.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
     /// The directory with links to the store (default is `node_modules/.pacquet`).
@@ -106,8 +93,7 @@ pub struct AddArgs {
     #[clap(long = "virtual-store-dir", default_value = "node_modules/.pacquet")]
     pub virtual_store_dir: Option<PathBuf>, // TODO: make use of this
 
-    /// Install the package globally, linking its bins into the global bin
-    /// directory. Mirrors pnpm's `add -g`.
+    /// Install the package globally, linking its bins into the global bin directory.
     #[clap(short = 'g', long)]
     pub global: bool,
 }

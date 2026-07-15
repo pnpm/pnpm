@@ -14,7 +14,7 @@ use std::{
 
 #[derive(Debug, Args)]
 pub struct PatchRemoveArgs {
-    /// Patches to remove from patchedDependencies.
+    /// Patches to remove.
     #[clap(value_name = "pkg")]
     pub patches: Vec<String>,
 }

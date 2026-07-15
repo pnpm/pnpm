@@ -227,7 +227,7 @@ pub enum BenchmarkScenario {
     /// prefer-offline resolution (e.g. the disk-to-memory metadata
     /// promotion). The measured command can't prime the mirror itself
     /// (`--offline` fails on a cold one), so an online pre-warm pass
-    /// runs first (see [`Self::prewarm_install_args`]).
+    /// runs first.
     #[value(name = "isolated-linker.fresh-resolve.hot-cache.offline")]
     IsolatedFreshResolveHotCacheOffline,
     /// Frozen lockfile, hot cache + hot store, `enableGlobalVirtualStore: true` with a pre-warmed GVS.

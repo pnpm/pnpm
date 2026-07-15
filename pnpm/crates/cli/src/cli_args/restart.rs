@@ -4,10 +4,6 @@ use super::run::RunArgs;
 
 /// Restarts a package. Runs a package's "stop", "restart", and "start"
 /// scripts, and associated pre- and post- scripts.
-///
-/// Each script is executed through the full [`RunArgs`] pipeline, so
-/// lifecycle hooks (`pre<name>` / `post<name>`) and environment setup
-/// apply when `enablePrePostScripts` is set.
 #[derive(Debug, Args)]
 pub struct RestartArgs {
     /// Arguments passed to each script after the script name.

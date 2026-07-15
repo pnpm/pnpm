@@ -20,15 +20,9 @@ pub struct RebuildArgs {
     /// that requires a build is rebuilt.
     pub packages: Vec<String>,
 
-    /// Rebuild packages that were not built during installation. Packages
-    /// are not built when installing with the `--ignore-scripts` flag.
-    ///
-    /// Accepted for parity with pnpm, but currently a no-op: pacquet's
-    /// install pipeline does not yet record `pendingBuilds` in
-    /// `.modules.yaml`, so there is nothing for `--pending` to select.
-    /// Tracked with the rest of the not-yet-populated `.modules.yaml`
-    /// fields; until then, name the packages explicitly or use
-    /// `approve-builds`.
+    /// Rebuild packages that were not built during installation, such as
+    /// under `--ignore-scripts`. Currently has no effect: no packages are
+    /// recorded as pending yet.
     #[clap(long)]
     pub pending: bool,
 }

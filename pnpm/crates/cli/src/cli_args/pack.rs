@@ -49,9 +49,7 @@ pub(crate) fn pack_catalogs(config: &Config) -> miette::Result<Catalogs> {
         .wrap_err("read the workspace catalogs")
 }
 
-/// `pacquet pack` arguments. The `-r` / `--recursive` and `--filter`
-/// selectors are global flags on [`crate::CliArgs`]; `--recursive` is
-/// threaded into [`Self::run`].
+/// Create a tarball from a package.
 #[derive(Debug, Args)]
 pub struct PackArgs {
     /// Do everything `pack` would do except writing the tarball to disk.
@@ -81,9 +79,8 @@ pub struct PackArgs {
     #[clap(long = "skip-manifest-obfuscation")]
     pub skip_manifest_obfuscation: bool,
 
-    /// Maximum number of projects packed at once in recursive mode.
-    /// Accepted for surface parity; the sweep currently runs
-    /// sequentially.
+    /// Maximum number of projects to pack at once in recursive mode.
+    /// Currently has no effect; packing runs one project at a time.
     #[clap(long = "workspace-concurrency")]
     pub workspace_concurrency: Option<u32>,
 }

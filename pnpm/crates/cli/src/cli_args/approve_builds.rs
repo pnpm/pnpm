@@ -13,8 +13,7 @@ use std::{
 
 use crate::{State, cli_args::ignored_builds::get_automatically_ignored_builds};
 
-/// `pacquet approve-builds` — approve dependencies for running scripts
-/// during installation.
+/// Approve dependencies for running scripts during installation.
 #[derive(Debug, Args)]
 pub struct ApproveBuildsArgs {
     /// Packages to approve (`<pkg>`) or deny (`!<pkg>`). With no packages,
@@ -25,8 +24,7 @@ pub struct ApproveBuildsArgs {
     #[clap(long)]
     pub all: bool,
 
-    /// Reserved for parity with pnpm; `approve-builds` is not supported
-    /// with global packages.
+    /// Approve builds for globally installed packages (not supported yet).
     #[clap(long)]
     pub global: bool,
 }
