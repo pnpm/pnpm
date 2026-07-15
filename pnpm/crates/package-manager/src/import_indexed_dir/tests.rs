@@ -24,9 +24,9 @@ fn cas_map(entries: &[(&str, PathBuf)]) -> HashMap<String, PathBuf> {
 }
 
 const FORCE_KEEP: ImportIndexedDirOpts =
-    ImportIndexedDirOpts { force: true, keep_modules_dir: true };
+    ImportIndexedDirOpts { force: true, keep_modules_dir: true, make_writable: false };
 const FORCE_ONLY: ImportIndexedDirOpts =
-    ImportIndexedDirOpts { force: true, keep_modules_dir: false };
+    ImportIndexedDirOpts { force: true, keep_modules_dir: false, make_writable: false };
 
 #[test]
 fn fresh_target_links_files() {
@@ -49,6 +49,67 @@ fn fresh_target_links_files() {
 
     assert_eq!(fs::read(target.join("package.json")).unwrap(), b"alpha");
     assert_eq!(fs::read(target.join("lib/index.js")).unwrap(), b"beta");
+}
+
+#[test]
+fn writable_import_replaces_a_store_hardlink_with_a_private_writable_copy() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let package_json = write_source(&src_root, "package.json", b"{\"name\":\"fixture\"}");
+    let cas = cas_map(&[("package.json", package_json.clone())]);
+    let target = tmp.path().join("pkg");
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Hardlink,
+        &target,
+        &cas,
+        ImportIndexedDirOpts::default(),
+    )
+    .expect("ordinary import should hardlink the store file");
+
+    let target_file = target.join("package.json");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        fs::set_permissions(&package_json, fs::Permissions::from_mode(0o444)).unwrap();
+        assert_eq!(
+            fs::metadata(&package_json).unwrap().ino(),
+            fs::metadata(&target_file).unwrap().ino()
+        );
+    }
+    #[cfg(windows)]
+    {
+        let mut permissions = fs::metadata(&package_json).unwrap().permissions();
+        permissions.set_readonly(true);
+        fs::set_permissions(&package_json, permissions).unwrap();
+    }
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Hardlink,
+        &target,
+        &cas,
+        ImportIndexedDirOpts { make_writable: true, ..ImportIndexedDirOpts::default() },
+    )
+    .expect("build candidate should receive a private writable copy");
+
+    fs::write(&target_file, b"built").expect("private projection should be writable");
+    assert_eq!(fs::read(&package_json).unwrap(), b"{\"name\":\"fixture\"}");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        assert_ne!(
+            fs::metadata(&package_json).unwrap().ino(),
+            fs::metadata(&target_file).unwrap().ino()
+        );
+        assert_ne!(fs::metadata(&target).unwrap().permissions().mode() & 0o200, 0);
+        assert_eq!(fs::metadata(&package_json).unwrap().permissions().mode() & 0o200, 0);
+        assert_ne!(fs::metadata(&target_file).unwrap().permissions().mode() & 0o200, 0);
+    }
+    #[cfg(windows)]
+    assert!(!fs::metadata(&target_file).unwrap().permissions().readonly());
 }
 
 /// Default opts (isolated linker) short-circuit when the target holds the

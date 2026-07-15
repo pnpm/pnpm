@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { beforeAll, beforeEach, describe, expect, it, jest, test } from '@jest/globals'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, jest, test } from '@jest/globals'
 import { install } from '@pnpm/installing.commands'
 import type { PatchCommandOptions, PatchRemoveCommandOptions } from '@pnpm/patching.commands'
 import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
@@ -80,6 +80,10 @@ describe('patch and commit', () => {
     })
   })
 
+  afterEach(() => {
+    setStoreFilesMode(storeDir, 0o644)
+  })
+
   test('patch throws an error when edit dir is not empty', async () => {
     fs.mkdirSync('node_modules/.pnpm_patches/is-positive@1.0.0', { recursive: true })
     fs.writeFileSync('node_modules/.pnpm_patches/is-positive@1.0.0/package.json', '{}')
@@ -89,6 +93,7 @@ describe('patch and commit', () => {
   })
 
   test('patch and commit with exact version', async () => {
+    expect(setStoreFilesMode(storeDir, 0o444)).toBeGreaterThan(0)
     const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
     const patchDir = getPatchDirFromPatchOutput(output)
 
@@ -1404,4 +1409,19 @@ function getPatchDirFromPatchOutput (output: string): string {
   const match = output.match(/['"]([^'"]+)['"]/)
   if (match?.[1] == null) throw new Error('No path in output')
   return match[1]
+}
+
+function setStoreFilesMode (dir: string, mode: number): number {
+  if (!fs.existsSync(dir)) return 0
+  let changed = 0
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const entryPath = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      changed += setStoreFilesMode(entryPath, mode)
+    } else if (entryPath.includes(`${path.sep}files${path.sep}`)) {
+      fs.chmodSync(entryPath, mode)
+      changed++
+    }
+  }
+  return changed
 }

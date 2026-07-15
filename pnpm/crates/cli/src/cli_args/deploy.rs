@@ -724,7 +724,7 @@ fn copy_project<ReporterT: Reporter>(
         PackageImportMethod::CloneOrCopy,
         dest,
         &output.files_map,
-        ImportIndexedDirOpts { force: true, keep_modules_dir: false },
+        ImportIndexedDirOpts { force: true, keep_modules_dir: false, make_writable: true },
     )
     .map_err(miette::Report::new)
     .wrap_err("copy project files")

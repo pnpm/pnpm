@@ -137,6 +137,56 @@ fn import_pass_creates_package_directory() {
 }
 
 #[test]
+fn hoisted_build_candidate_is_private_and_writable() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let cas_root = tmp.path().join("cas");
+    let lockfile_dir = tmp.path().join("repo");
+    let manifest = br#"{"name":"a","version":"1.0.0","scripts":{"postinstall":"node build.js"}}"#;
+    let (graph, hierarchy, cas_paths) = flat_layout(
+        &lockfile_dir,
+        &cas_root,
+        &[("a", "a@1.0.0", "a@1.0.0", &[("package.json", manifest)])],
+    );
+    let store_file = cas_paths[&PkgIdWithPatchHash::from("a@1.0.0")]["package.json"].clone();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&store_file, fs::Permissions::from_mode(0o444)).unwrap();
+    }
+    #[cfg(windows)]
+    {
+        let mut permissions = fs::metadata(&store_file).unwrap().permissions();
+        permissions.set_readonly(true);
+        fs::set_permissions(&store_file, permissions).unwrap();
+    }
+
+    link_hoisted_modules::<SilentReporter>(&LinkHoistedModulesOpts {
+        graph: &graph,
+        prev_graph: None,
+        hierarchy: &hierarchy,
+        cas_paths_by_pkg_id: &cas_paths,
+        import_method: PackageImportMethod::Hardlink,
+        logged_methods: &AtomicU8::new(0),
+        requester: lockfile_dir.to_str().expect("requester"),
+    })
+    .expect("linker succeeds");
+
+    let installed = lockfile_dir.join("node_modules/a/package.json");
+    fs::write(&installed, b"built").expect("hoisted build projection should be writable");
+    assert_eq!(fs::read(&store_file).unwrap(), manifest);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        assert_ne!(
+            fs::metadata(&store_file).unwrap().ino(),
+            fs::metadata(&installed).unwrap().ino()
+        );
+        assert_eq!(fs::metadata(&store_file).unwrap().permissions().mode() & 0o200, 0);
+        assert_ne!(fs::metadata(&installed).unwrap().permissions().mode() & 0o200, 0);
+    }
+}
+
+#[test]
 fn orphan_directory_is_removed() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let cas_root = tmp.path().join("cas");

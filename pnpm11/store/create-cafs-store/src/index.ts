@@ -1,7 +1,7 @@
-import { promises as fs } from 'node:fs'
+import fs from 'node:fs'
 import path from 'node:path'
 
-import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
+import { createIndexedPkgImporter, sanitizeFilenamePath } from '@pnpm/fs.indexed-pkg-importer'
 import {
   type CafsLocker,
   createCafs,
@@ -28,22 +28,28 @@ export function createPackageImporterAsync (
     ? () => opts.importIndexedPackage!
     : memoize(createIndexedPkgImporter)
   const packageImportMethod = opts.packageImportMethod
+  const usesCustomImporter = opts.importIndexedPackage != null
   const gfm = getFlatMap.bind(null, opts.storeDir)
   return async (to, opts) => {
     const { filesMap, isBuilt } = gfm(opts.filesResponse, opts.sideEffectsCacheKey)
-    const willBeBuilt = !isBuilt && opts.requiresBuild
-    const pkgImportMethod = willBeBuilt
+    const mayBeMutated = opts.requiresBuild === true
+    const makeWritable = mayBeMutated && !usesCustomImporter
+    const pkgImportMethod = mayBeMutated
       ? 'clone-or-copy'
       : (opts.filesResponse.packageImportMethod ?? packageImportMethod)
     const impPkg = cachedImporterCreator(pkgImportMethod)
+    const safeToSkip = makeWritable && hasStoreHardlinks(to, filesMap)
+      ? false
+      : opts.safeToSkip
     const importMethod = await impPkg(to, {
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
       filesMap,
       resolvedFrom: opts.filesResponse.resolvedFrom,
-      force: opts.force,
+      force: opts.force || makeWritable,
       keepModulesDir: Boolean(opts.keepModulesDir),
-      safeToSkip: opts.safeToSkip,
+      safeToSkip,
     })
+    if (makeWritable) makePackageWritable(to, filesMap)
     return { importMethod, isBuilt }
   }
 }
@@ -59,22 +65,28 @@ function createPackageImporter (
     ? () => opts.importIndexedPackage!
     : memoize(createIndexedPkgImporter)
   const packageImportMethod = opts.packageImportMethod
+  const usesCustomImporter = opts.importIndexedPackage != null
   const gfm = getFlatMap.bind(null, opts.storeDir)
   return (to, opts) => {
     const { filesMap, isBuilt } = gfm(opts.filesResponse, opts.sideEffectsCacheKey)
-    const willBeBuilt = !isBuilt && opts.requiresBuild
-    const pkgImportMethod = willBeBuilt
+    const mayBeMutated = opts.requiresBuild === true
+    const makeWritable = mayBeMutated && !usesCustomImporter
+    const pkgImportMethod = mayBeMutated
       ? 'clone-or-copy'
       : (opts.filesResponse.packageImportMethod ?? packageImportMethod)
     const impPkg = cachedImporterCreator(pkgImportMethod)
+    const safeToSkip = makeWritable && hasStoreHardlinks(to, filesMap)
+      ? false
+      : opts.safeToSkip
     const importMethod = impPkg(to, {
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
       filesMap,
       resolvedFrom: opts.filesResponse.resolvedFrom,
-      force: opts.force,
+      force: opts.force || makeWritable,
       keepModulesDir: Boolean(opts.keepModulesDir),
-      safeToSkip: opts.safeToSkip,
+      safeToSkip,
     })
+    if (makeWritable) makePackageWritable(to, filesMap)
     return { importMethod, isBuilt }
   }
 }
@@ -95,6 +107,60 @@ function getFlatMap (
   return {
     filesMap: filesResponse.filesMap,
     isBuilt: false,
+  }
+}
+
+function makePackageWritable (dir: string, filesMap: FilesMap): void {
+  const directories = new Set([dir])
+  const files: string[] = []
+  for (const filename of filesMap.keys()) {
+    const originalPath = path.join(dir, filename)
+    const sanitizedPath = path.join(dir, sanitizeFilenamePath(filename))
+    const filePath = fs.existsSync(originalPath) ? originalPath : sanitizedPath
+    const relativePath = path.relative(dir, filePath)
+    if (relativePath === '..' || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath)) {
+      throw new Error(`Cannot make package file outside the projection writable: ${filePath}`)
+    }
+    files.push(filePath)
+    let parent = path.dirname(filePath)
+    while (parent !== dir) {
+      directories.add(parent)
+      parent = path.dirname(parent)
+    }
+  }
+  for (const directory of Array.from(directories).sort((a, b) => a.length - b.length)) {
+    makePathWritable(directory)
+  }
+  for (const file of files) makePathWritable(file)
+}
+
+function hasStoreHardlinks (dir: string, filesMap: FilesMap): boolean {
+  for (const [filename, storePath] of filesMap) {
+    const targetPath = path.join(dir, filename)
+    if (!fs.existsSync(targetPath)) return false
+    try {
+      const targetStat = fs.statSync(targetPath)
+      const storeStat = fs.statSync(storePath)
+      if (targetStat.dev === storeStat.dev && targetStat.ino === storeStat.ino) return true
+    } catch {
+      return true
+    }
+  }
+  return false
+}
+
+function makePathWritable (filePath: string): void {
+  if (process.platform === 'win32') {
+    const mode = fs.lstatSync(filePath).mode
+    if ((mode & 0o200) === 0) fs.chmodSync(filePath, mode | 0o200)
+    return
+  }
+  const fd = fs.openSync(filePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW)
+  try {
+    const mode = fs.fstatSync(fd).mode
+    if ((mode & 0o200) === 0) fs.fchmodSync(fd, mode | 0o200)
+  } finally {
+    fs.closeSync(fd)
   }
 }
 
@@ -139,8 +205,8 @@ export function createCafsStore (
     storeDir,
     importPackage,
     tempDir: async () => {
-      await fs.mkdir(baseTempDir, { recursive: true })
-      return fs.mkdtemp(path.join(baseTempDir, '_tmp_'))
+      await fs.promises.mkdir(baseTempDir, { recursive: true })
+      return fs.promises.mkdtemp(path.join(baseTempDir, '_tmp_'))
     },
   }
 }

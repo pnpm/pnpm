@@ -79,6 +79,7 @@ async function prepareGitHostedPkg (
       requiresBuild: false,
     },
     force: true,
+    requiresBuild: true,
   })
   const { shouldBeBuilt, pkgDir } = await preparePackage({
     ...opts,

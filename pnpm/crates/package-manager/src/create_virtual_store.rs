@@ -992,7 +992,7 @@ fn removed_child_aliases(
     removed
 }
 
-fn requires_build_from_cas_paths(cas_paths: &HashMap<String, PathBuf>) -> bool {
+pub(crate) fn requires_build_from_cas_paths(cas_paths: &HashMap<String, PathBuf>) -> bool {
     if files_include_install_scripts(cas_paths.keys()) {
         return true;
     }

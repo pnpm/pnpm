@@ -216,13 +216,17 @@ function sanitizeFilenames (filenames: Map<string, string>): SanitizeFilenamesRe
   const sanitizedFilenames = new Map<string, string>()
   const invalidFilenames: string[] = []
   for (const [filename, src] of filenames) {
-    const sanitizedFilename = filename.split('/').map((f) => sanitizeFilename(f)).join('/')
+    const sanitizedFilename = sanitizeFilenamePath(filename)
     if (sanitizedFilename !== filename) {
       invalidFilenames.push(filename)
     }
     sanitizedFilenames.set(sanitizedFilename, src)
   }
   return { sanitizedFilenames, invalidFilenames }
+}
+
+export function sanitizeFilenamePath (filename: string): string {
+  return filename.split('/').map((part) => sanitizeFilename(part)).join('/')
 }
 
 function tryImportIndexedDir (

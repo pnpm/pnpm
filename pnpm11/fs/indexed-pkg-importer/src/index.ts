@@ -14,6 +14,7 @@ import { type Importer, type ImportFile, importIndexedDir } from './importIndexe
 import { isNativeBinary, removeQuarantine } from './removeQuarantine.js'
 
 export { type FilesMap, type ImportIndexedPackage, type ImportOptions }
+export { sanitizeFilenamePath } from './importIndexedDir.js'
 
 export type PackageImportMethod = 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
 

@@ -135,6 +135,10 @@ impl CreateVirtualDirBySnapshot<'_> {
         let save_path =
             safe_join_modules_dir(&virtual_node_modules_dir, &package_key.name.to_string())
                 .map_err(CreateVirtualDirError::InvalidAlias)?;
+        let make_writable = snapshot.patched.unwrap_or(false)
+            || crate::create_virtual_store::requires_build_from_cas_paths(cas_paths);
+        let effective_import_method =
+            if make_writable { PackageImportMethod::CloneOrCopy } else { import_method };
 
         // `rayon::join` runs both closures in parallel on rayon's pool,
         // returning only once both finish. `import_indexed_dir` is itself
@@ -147,10 +151,10 @@ impl CreateVirtualDirBySnapshot<'_> {
             || {
                 import_indexed_dir::<Reporter>(
                     logged_methods,
-                    import_method,
+                    effective_import_method,
                     &save_path,
                     cas_paths,
-                    ImportIndexedDirOpts::default(),
+                    ImportIndexedDirOpts { make_writable, ..ImportIndexedDirOpts::default() },
                 )
                 .map_err(CreateVirtualDirError::ImportIndexedDir)
             },
@@ -189,7 +193,7 @@ impl CreateVirtualDirBySnapshot<'_> {
         // inside the virtual store. `method` is best-effort — pacquet
         // doesn't surface the per-package resolved method past
         // `link_file`'s install-scoped atomic, so we report the
-        // optimistic value the configured method would resolve to in
+        // optimistic value the effective method would resolve to in
         // a non-degraded environment (`Auto`/`CloneOrCopy` → `clone`,
         // explicit settings as-is). Refining to per-package resolution
         // would require threading the resolved method back from
@@ -197,7 +201,7 @@ impl CreateVirtualDirBySnapshot<'_> {
         Reporter::emit(&LogEvent::Progress(ProgressLog {
             level: LogLevel::Debug,
             message: ProgressMessage::Imported {
-                method: optimistic_wire_method(import_method),
+                method: optimistic_wire_method(effective_import_method),
                 requester: requester.to_owned(),
                 to: save_path.to_string_lossy().into_owned(),
             },
@@ -207,7 +211,7 @@ impl CreateVirtualDirBySnapshot<'_> {
     }
 }
 
-/// Map pacquet's configured [`PackageImportMethod`] to the value
+/// Map pacquet's effective [`PackageImportMethod`] to the value
 /// `pnpm:progress imported`'s `method` field carries. pnpm only
 /// distinguishes the three resolved methods.
 /// See the comment at the emit site for why this is best-effort.

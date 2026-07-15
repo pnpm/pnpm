@@ -177,6 +177,136 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
     );
 }
 
+#[test]
+fn run_gives_build_candidates_a_private_writable_projection() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let dir = tempdir().expect("tempdir");
+    let cas_dir = tempdir().expect("CAS tempdir");
+    let package_json = cas_dir.path().join("package.json");
+    std::fs::write(
+        &package_json,
+        r#"{"name":"build-me","version":"1.0.0","scripts":{"postinstall":"node build.js"}}"#,
+    )
+    .expect("write store manifest");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&package_json, std::fs::Permissions::from_mode(0o444))
+            .expect("make store manifest read-only");
+    }
+    #[cfg(windows)]
+    {
+        let mut permissions = std::fs::metadata(&package_json).unwrap().permissions();
+        permissions.set_readonly(true);
+        std::fs::set_permissions(&package_json, permissions).unwrap();
+    }
+
+    let cas_paths = HashMap::from([("package.json".to_string(), package_json.clone())]);
+    let package_key: PackageKey = "build-me@1.0.0".parse().expect("valid snapshot key");
+    let layout = crate::VirtualStoreLayout::legacy(
+        dir.path().to_path_buf(),
+        pacquet_config::default_virtual_store_dir_max_length() as usize,
+    );
+    EVENTS.lock().unwrap().clear();
+    CreateVirtualDirBySnapshot {
+        layout: &layout,
+        cas_paths: &cas_paths,
+        import_method: PackageImportMethod::Hardlink,
+        logged_methods: &AtomicU8::new(0),
+        requester: "/proj",
+        package_id: "build-me@1.0.0",
+        package_key: &package_key,
+        snapshot: &SnapshotEntry::default(),
+        skipped: &crate::SkippedSnapshots::default(),
+        removed_aliases: &[],
+        link_concurrency_probe: None,
+    }
+    .run::<RecordingReporter>()
+    .expect("build candidate import should succeed");
+
+    let imported_method = EVENTS.lock().unwrap().iter().find_map(|event| match event {
+        LogEvent::Progress(log) => match &log.message {
+            ProgressMessage::Imported { method, .. } => Some(*method),
+            _ => None,
+        },
+        _ => None,
+    });
+    assert_eq!(imported_method, Some(WireImportMethod::Clone));
+
+    let target = layout.slot_dir(&package_key).join("node_modules/build-me/package.json");
+    std::fs::write(&target, b"built").expect("build projection should be writable");
+    assert!(
+        std::fs::read_to_string(&package_json).unwrap().contains("postinstall"),
+        "writing the build projection must not change the store manifest",
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        assert_ne!(
+            std::fs::metadata(&package_json).unwrap().ino(),
+            std::fs::metadata(&target).unwrap().ino(),
+        );
+        assert_eq!(std::fs::metadata(&package_json).unwrap().permissions().mode() & 0o200, 0);
+        assert_ne!(std::fs::metadata(&target).unwrap().permissions().mode() & 0o200, 0);
+    }
+}
+
+#[test]
+fn run_gives_patched_packages_a_private_writable_projection() {
+    let dir = tempdir().expect("tempdir");
+    let cas_dir = tempdir().expect("CAS tempdir");
+    let package_json = cas_dir.path().join("package.json");
+    std::fs::write(&package_json, b"{\"name\":\"patch-me\",\"version\":\"1.0.0\"}")
+        .expect("write store manifest");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&package_json, std::fs::Permissions::from_mode(0o444)).unwrap();
+    }
+    #[cfg(windows)]
+    {
+        let mut permissions = std::fs::metadata(&package_json).unwrap().permissions();
+        permissions.set_readonly(true);
+        std::fs::set_permissions(&package_json, permissions).unwrap();
+    }
+
+    let package_key: PackageKey = "patch-me@1.0.0".parse().expect("valid snapshot key");
+    let layout = crate::VirtualStoreLayout::legacy(
+        dir.path().to_path_buf(),
+        pacquet_config::default_virtual_store_dir_max_length() as usize,
+    );
+    CreateVirtualDirBySnapshot {
+        layout: &layout,
+        cas_paths: &HashMap::from([("package.json".to_string(), package_json.clone())]),
+        import_method: PackageImportMethod::Hardlink,
+        logged_methods: &AtomicU8::new(0),
+        requester: "/proj",
+        package_id: "patch-me@1.0.0",
+        package_key: &package_key,
+        snapshot: &SnapshotEntry { patched: Some(true), ..SnapshotEntry::default() },
+        skipped: &crate::SkippedSnapshots::default(),
+        removed_aliases: &[],
+        link_concurrency_probe: None,
+    }
+    .run::<pacquet_reporter::SilentReporter>()
+    .expect("patched package import should succeed");
+
+    let target = layout.slot_dir(&package_key).join("node_modules/patch-me/package.json");
+    std::fs::write(&target, b"patched").expect("patch projection should be writable");
+    assert!(
+        std::fs::read_to_string(&package_json).unwrap().contains("patch-me"),
+        "writing the patch projection must not change the store manifest",
+    );
+}
+
 /// A snapshot key whose package name is a path traversal would become
 /// the `<slot>/node_modules/<name>` extraction directory, escaping the
 /// store. The guard rejects it before any package content is imported.

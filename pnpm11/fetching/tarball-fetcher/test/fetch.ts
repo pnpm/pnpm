@@ -704,8 +704,19 @@ test('take only the files included in the package, when fetching a git-hosted pa
   process.chdir(temporaryDirectory())
 
   const resolution = { tarball: 'https://codeload.github.com/pnpm-e2e/pkg-with-ignored-files/tar.gz/958d6d487217512bb154d02836e9b5b922a600d8' }
+  const readOnlySources = new Map<string, Buffer>()
+  const readOnlyCafs = {
+    ...cafs,
+    importPackage: (dest: string, opts: Parameters<typeof cafs.importPackage>[1]) => {
+      for (const source of opts.filesResponse.filesMap.values()) {
+        readOnlySources.set(source, fs.readFileSync(source))
+        fs.chmodSync(source, 0o444)
+      }
+      return cafs.importPackage(dest, opts)
+    },
+  }
 
-  const result = await fetch.gitHostedTarball(cafs, resolution, {
+  const result = await fetch.gitHostedTarball(readOnlyCafs, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
     pkg,
@@ -719,6 +730,12 @@ test('take only the files included in the package, when fetching a git-hosted pa
   // The fetcher must surface the integrity of the downloaded git tarball so
   // that the lockfile can pin it (CVE: malicious codeload.github.com responses).
   expect(result.integrity).toMatch(/^sha512-/)
+  expect(readOnlySources.size).toBeGreaterThan(0)
+  for (const [source, contents] of readOnlySources) {
+    expect(fs.readFileSync(source)).toEqual(contents)
+    expect(fs.statSync(source).mode & 0o200).toBe(0)
+  }
+  for (const source of readOnlySources.keys()) fs.chmodSync(source, 0o644)
 })
 
 test('verify integrity of git-hosted tarball against the resolution', async () => {

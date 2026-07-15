@@ -236,7 +236,12 @@ fn import_node<Reporter: self::Reporter>(
         opts.import_method,
         &node.dir,
         cas_paths,
-        ImportIndexedDirOpts { force: true, keep_modules_dir: true },
+        ImportIndexedDirOpts {
+            force: true,
+            keep_modules_dir: true,
+            make_writable: node.patch.is_some()
+                || crate::create_virtual_store::requires_build_from_cas_paths(cas_paths),
+        },
     )
     .map_err(LinkHoistedModulesError::ImportIndexedDir)
 }

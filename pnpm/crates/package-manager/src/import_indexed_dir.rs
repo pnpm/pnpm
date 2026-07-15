@@ -20,8 +20,9 @@ use std::{
 /// Mirrors pnpm v11's `ImportOptions` at
 /// `store/controller-types/src/index.ts` for the fields pacquet
 /// consumes today. The defaults match the isolated linker's call
-/// shape (no force, no nested-modules preservation); the hoisted
-/// linker passes both flags set to `true`.
+/// shape (no force, no nested-modules preservation, immutable files).
+/// The hoisted linker always forces import and preserves nested modules,
+/// then enables writable copies only for mutation candidates.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct ImportIndexedDirOpts {
     /// When `true`, re-import even when `dir_path` already exists,
@@ -37,6 +38,11 @@ pub struct ImportIndexedDirOpts {
     /// installed by a sibling pass must not be clobbered when the
     /// parent package is re-imported.
     pub keep_modules_dir: bool,
+    /// When `true`, materialize files without hardlinks and add owner-write
+    /// permission to the private copies. Packages that will be patched or run
+    /// lifecycle scripts need this; ordinary package projections remain
+    /// immutable.
+    pub make_writable: bool,
 }
 
 /// Error type for [`import_indexed_dir`].
@@ -95,6 +101,12 @@ pub enum ImportIndexedDirError {
         #[error(source)]
         error: io::Error,
     },
+    #[display("failed to make private package projection writable at {path:?}: {error}")]
+    MakeWritable {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
 }
 
 /// Materialize an indexed package's files into `dir_path`, the way
@@ -119,6 +131,9 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
     cas_paths: &HashMap<String, PathBuf>,
     opts: ImportIndexedDirOpts,
 ) -> Result<(), ImportIndexedDirError> {
+    let import_method =
+        if opts.make_writable { PackageImportMethod::CloneOrCopy } else { import_method };
+    let force = opts.force || opts.make_writable;
     let existing_kind = match fs::symlink_metadata(dir_path) {
         Ok(meta) => Some(meta.file_type()),
         Err(err) if err.kind() == io::ErrorKind::NotFound => None,
@@ -136,9 +151,15 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
     // import nothing, so they skip the sweep, keeping warm installs free of the
     // per-install `xattr` cost — exactly pnpm's `!pkgExistsAtTargetDir` gate.
     let unquarantine = || remove_quarantine_from_native_binaries(dir_path, cas_paths);
-    match (existing_kind, opts.force) {
-        (None, _) => populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths)
-            .inspect(|()| unquarantine()),
+    match (existing_kind, force) {
+        (None, _) => populate_dir::<Reporter>(
+            logged_methods,
+            import_method,
+            dir_path,
+            cas_paths,
+            opts.make_writable,
+        )
+        .inspect(|()| unquarantine()),
         // Short-circuit only when the completion marker is present
         // (pnpm's `pkgExistsAtTargetDir`, which checks `package.json`),
         // not on mere directory existence. A marker-less directory is a
@@ -148,8 +169,14 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
             if marker_present(dir_path, cas_paths) {
                 Ok(())
             } else {
-                populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths)
-                    .inspect(|()| unquarantine())
+                populate_dir::<Reporter>(
+                    logged_methods,
+                    import_method,
+                    dir_path,
+                    cas_paths,
+                    opts.make_writable,
+                )
+                .inspect(|()| unquarantine())
             }
         }
         // A non-directory dirent is left as-is; only force=true clobbers it.
@@ -161,8 +188,14 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
             remove_non_dir_dirent(dir_path, file_type).map_err(|error| {
                 ImportIndexedDirError::ClearNonDirEntry { path: dir_path.to_path_buf(), error }
             })?;
-            populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths)
-                .inspect(|()| unquarantine())
+            populate_dir::<Reporter>(
+                logged_methods,
+                import_method,
+                dir_path,
+                cas_paths,
+                opts.make_writable,
+            )
+            .inspect(|()| unquarantine())
         }
         (Some(_), true) => stage_and_swap::<Reporter>(
             logged_methods,
@@ -170,6 +203,7 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
             dir_path,
             cas_paths,
             opts.keep_modules_dir,
+            opts.make_writable,
         )
         .inspect(|()| unquarantine()),
     }
@@ -187,6 +221,7 @@ fn populate_dir<Reporter: self::Reporter>(
     import_method: PackageImportMethod,
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
+    make_writable: bool,
 ) -> Result<(), ImportIndexedDirError> {
     let mut rel_dirs: HashSet<&str> = HashSet::new();
     for entry in cas_paths.keys() {
@@ -206,6 +241,7 @@ fn populate_dir<Reporter: self::Reporter>(
         dirname: dir_path.to_path_buf(),
         error,
     })?;
+    make_owner_writable(dir_path, make_writable)?;
 
     let mut ordered: Vec<&str> = rel_dirs.into_iter().collect();
     ordered.sort_by_key(|s| s.len());
@@ -213,6 +249,7 @@ fn populate_dir<Reporter: self::Reporter>(
         let abs = dir_path.join(rel);
         fs::create_dir_all(&abs)
             .map_err(|error| ImportIndexedDirError::CreateDir { dirname: abs, error })?;
+        make_owner_writable(&dir_path.join(rel), make_writable)?;
     }
 
     // Link every other file first, then place the marker last, so an
@@ -227,14 +264,16 @@ fn populate_dir<Reporter: self::Reporter>(
             // existing target (the repair branch re-links over a partial
             // directory), so the stat would be pure overhead — ~170k saved
             // syscalls on the alotta-files fixture.
+            let target = dir_path.join(cleaned_entry);
             import_into_fresh_target::<Reporter>(
                 logged_methods,
                 import_method,
                 store_path,
-                &dir_path.join(cleaned_entry),
+                &target,
             )
-        })
-        .map_err(ImportIndexedDirError::LinkFile)?;
+            .map_err(ImportIndexedDirError::LinkFile)?;
+            make_owner_writable(&target, make_writable)
+        })?;
 
     if let Some(marker) = marker {
         import_marker_atomic::<Reporter>(
@@ -242,6 +281,7 @@ fn populate_dir<Reporter: self::Reporter>(
             import_method,
             &cas_paths[marker],
             &dir_path.join(marker),
+            make_writable,
         )?;
     }
     Ok(())
@@ -282,10 +322,15 @@ fn import_marker_atomic<Reporter: self::Reporter>(
     import_method: PackageImportMethod,
     store_path: &Path,
     marker_path: &Path,
+    make_writable: bool,
 ) -> Result<(), ImportIndexedDirError> {
     let temp = pick_stage_path(marker_path);
     import_into_fresh_target::<Reporter>(logged_methods, import_method, store_path, &temp)
         .map_err(ImportIndexedDirError::LinkFile)?;
+    if let Err(error) = make_owner_writable(&temp, make_writable) {
+        let _ = fs::remove_file(&temp);
+        return Err(error);
+    }
     match fs::rename(&temp, marker_path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
@@ -309,6 +354,7 @@ fn stage_and_swap<Reporter: self::Reporter>(
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
     keep_modules_dir: bool,
+    make_writable: bool,
 ) -> Result<(), ImportIndexedDirError> {
     let stage = pick_stage_path(dir_path);
     let target_modules = dir_path.join("node_modules");
@@ -317,7 +363,9 @@ fn stage_and_swap<Reporter: self::Reporter>(
     // 1. Populate the staging directory with the new contents. On
     //    failure, the staging directory is the only thing on disk we
     //    own — a blanket rimraf is safe.
-    if let Err(error) = populate_dir::<Reporter>(logged_methods, import_method, &stage, cas_paths) {
+    if let Err(error) =
+        populate_dir::<Reporter>(logged_methods, import_method, &stage, cas_paths, make_writable)
+    {
         let _ = fs::remove_dir_all(&stage);
         return Err(error);
     }
@@ -398,6 +446,14 @@ fn stage_and_swap<Reporter: self::Reporter>(
         return Err(ImportIndexedDirError::Swap { from: stage, to: dir_path.to_path_buf(), error });
     }
     Ok(())
+}
+
+fn make_owner_writable(target: &Path, enabled: bool) -> Result<(), ImportIndexedDirError> {
+    if !enabled {
+        return Ok(());
+    }
+    pacquet_fs::file_mode::make_path_owner_writable(target)
+        .map_err(|error| ImportIndexedDirError::MakeWritable { path: target.to_path_buf(), error })
 }
 
 /// Combined post-failure cleanup for steps 4 and 5: restore the
