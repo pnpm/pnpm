@@ -72,6 +72,10 @@
   dir: pnpr/npm/pnpr
   intents:
     - fluffy-snakes-complain
+"@pnpm/pnpr@0.1.0-alpha.3":
+  dir: pnpr/npm/pnpr
+  intents:
+    - pacquet-clap-help-markdown
 "@pnpm/registry-access.commands@1100.5.0":
   dir: pnpm11/registry-access/commands
   intents:
@@ -122,6 +126,11 @@ pacquet@12.0.0-alpha.11:
   intents:
     - pacquet-scoped-symlink-windows-separators
     - pacquet-self-update-pin-specifier
+pacquet@12.0.0-alpha.12:
+  dir: pnpm/npm/pnpm
+  intents:
+    - pacquet-clap-help-markdown
+    - pacquet-symlink-dangling-junction-parent
 pacquet@12.0.0-alpha.9:
   dir: pnpm/npm/pnpm
   intents:
