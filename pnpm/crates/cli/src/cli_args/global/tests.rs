@@ -1,5 +1,5 @@
 use super::{
-    infer_local_package_alias, is_windows_drive_path, replacement_aliases,
+    infer_local_package_alias, is_windows_drive_path, replacement_aliases, resolve_local_param,
     should_replace_existing_package, split_comma_separated,
 };
 use pacquet_global::GlobalPackageInfo;
@@ -30,17 +30,56 @@ fn detects_windows_drive_paths() {
 
 #[test]
 fn unnamed_local_package_uses_directory_name_as_alias() {
-    let package_dir = tempfile::tempdir().expect("create local package");
-    std::fs::write(package_dir.path().join("package.json"), "{}")
-        .expect("write local package manifest");
-    let selector = format!("file:{}", package_dir.path().display());
-    let directory_name =
-        package_dir.path().file_name().and_then(|name| name.to_str()).expect("directory name");
+    let root = tempfile::tempdir().expect("create temp directory");
+    let package_dir = create_local_package(root.path(), "local-package", "{}");
+    let selector = format!("file:{}", package_dir.display());
 
     assert_eq!(
         infer_local_package_alias(&selector).expect("infer package alias"),
-        format!("{directory_name}@{selector}"),
+        format!("local-package@{selector}"),
     );
+}
+
+#[test]
+fn relative_file_selectors_resolve_from_the_configured_base_directory() {
+    let root = tempfile::tempdir().expect("create temp directory");
+    let package_dir = create_local_package(root.path(), "local-package", "{}");
+
+    for selector in ["file:.", "file:local-package"] {
+        let base_dir = if selector == "file:." { package_dir.as_path() } else { root.path() };
+        let resolved = resolve_local_param(selector, base_dir);
+
+        assert_eq!(
+            infer_local_package_alias(&resolved).expect("infer package alias"),
+            format!("local-package@{resolved}"),
+        );
+    }
+}
+
+#[test]
+fn parent_file_selector_uses_parent_directory_name_as_alias() {
+    let root = tempfile::tempdir().expect("create temp directory");
+    let package_dir = create_local_package(root.path(), "local-package", "{}");
+    let child_dir = package_dir.join("child");
+    std::fs::create_dir(&child_dir).expect("create local package child");
+    let resolved = resolve_local_param("file:..", &child_dir);
+
+    assert_eq!(
+        infer_local_package_alias(&resolved).expect("infer package alias"),
+        format!("local-package@{resolved}"),
+    );
+}
+
+#[test]
+fn invalid_inferred_package_name_is_rejected() {
+    let root = tempfile::tempdir().expect("create temp directory");
+    let package_dir =
+        create_local_package(root.path(), "local-package", r#"{ "name": "Invalid Name" }"#);
+    let selector = format!("file:{}", package_dir.display());
+
+    let error = infer_local_package_alias(&selector).expect_err("reject invalid package name");
+
+    assert!(error.to_string().contains(r#"Invalid package name "Invalid Name"."#));
 }
 
 #[test]
@@ -95,4 +134,12 @@ fn global_package(aliases: &[&str]) -> GlobalPackageInfo {
             .map(|alias| ((*alias).to_string(), "1.0.0".to_string()))
             .collect(),
     }
+}
+
+fn create_local_package(root: &Path, directory_name: &str, manifest: &str) -> PathBuf {
+    let package_dir = root.join(directory_name);
+    std::fs::create_dir(&package_dir).expect("create local package");
+    std::fs::write(package_dir.join("package.json"), manifest)
+        .expect("write local package manifest");
+    package_dir
 }

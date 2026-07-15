@@ -28,7 +28,9 @@ use pacquet_package_is_installable::SupportedArchitectures;
 use pacquet_package_manifest::{DependencyGroup, safe_read_package_json_from_dir};
 use pacquet_registry::PinnedVersion;
 use pacquet_reporter::Reporter;
-use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pacquet_resolving_parse_wanted_dependency::{
+    is_valid_old_npm_package_name, parse_wanted_dependency,
+};
 use std::{
     collections::HashSet,
     fs,
@@ -56,6 +58,10 @@ pub enum GlobalError {
     #[display("Cannot remove '{param}': not found in global packages")]
     #[diagnostic(code(ERR_PNPM_GLOBAL_PKG_NOT_FOUND))]
     PkgNotFound { param: String },
+
+    #[display(r#"Invalid package name "{name}"."#)]
+    #[diagnostic(code(ERR_PNPM_INVALID_PACKAGE_NAME))]
+    InvalidPackageName { name: String },
 }
 
 /// Resolve the global packages and global bin directories, erroring with
@@ -574,10 +580,10 @@ fn refers_to_existing_local_path(param: &str, base_dir: &Path) -> bool {
 fn resolve_local_param(param: &str, base_dir: &Path) -> String {
     for prefix in ["file:", "link:"] {
         if let Some(rest) = param.strip_prefix(prefix) {
-            if rest.starts_with('.') {
-                return format!("{prefix}{}", lexical_normalize(&base_dir.join(rest)).display());
+            if Path::new(rest).is_absolute() || is_windows_drive_path(rest) {
+                return param.to_string();
             }
-            return param.to_string();
+            return format!("{prefix}{}", lexical_normalize(&base_dir.join(rest)).display());
         }
     }
     if param.starts_with('.') {
@@ -618,6 +624,9 @@ fn infer_local_package_alias(selector: &str) -> miette::Result<String> {
         .ok_or_else(|| {
             miette::miette!("The local package at {path_display} has no package name")
         })?;
+    if !is_valid_old_npm_package_name(name) {
+        return Err(GlobalError::InvalidPackageName { name: name.to_string() }.into());
+    }
     Ok(format!("{name}@{selector}"))
 }
 
