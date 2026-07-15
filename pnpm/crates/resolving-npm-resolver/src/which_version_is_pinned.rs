@@ -31,16 +31,30 @@ pub fn which_version_is_pinned(spec: &str) -> Option<PinnedVersion> {
     }
 
     let mut comparator = None;
+    let mut elements = 0;
     let bytes = spec.as_bytes();
     let mut pos = 0;
     while pos < bytes.len() {
-        let Some((next, end)) = next_comparator(bytes, pos) else { break };
-        if comparator.is_some() {
-            // More than one comparator (a range like `>=1 <2`): no single pin.
+        if bytes[pos] == b'|' && bytes.get(pos + 1) == Some(&b'|') {
+            // semver-utils emits `||` and `-` separators as range elements
+            // of their own, even when dangling (`1.2.3||`).
+            elements += 1;
+            pos += 2;
+        } else if bytes[pos] == b'-' {
+            elements += 1;
+            pos += 1;
+        } else if let Some((next, end)) = try_comparator(bytes, pos) {
+            elements += 1;
+            comparator = Some(next);
+            pos = end;
+        } else {
+            pos += 1;
+        }
+        if elements > 1 {
+            // More than one range element (`>=1 <2`, `1 - 2`, a dangling
+            // separator): no single pin.
             return None;
         }
-        comparator = Some(next);
-        pos = end;
     }
 
     let comparator = comparator?;
@@ -48,10 +62,11 @@ pub fn which_version_is_pinned(spec: &str) -> Option<PinnedVersion> {
         Some(Operator::Tilde) => Some(PinnedVersion::Minor),
         Some(Operator::Caret) => Some(PinnedVersion::Major),
         Some(Operator::Other) => None,
-        None if comparator.has_patch => Some(PinnedVersion::Patch),
-        None if comparator.has_minor => Some(PinnedVersion::Minor),
-        None if comparator.has_major => Some(PinnedVersion::Major),
-        None => None,
+        // A bare `=` pins the same way the plain version it prefixes does.
+        Some(Operator::Eq) | None if comparator.has_patch => Some(PinnedVersion::Patch),
+        Some(Operator::Eq) | None if comparator.has_minor => Some(PinnedVersion::Minor),
+        Some(Operator::Eq) | None if comparator.has_major => Some(PinnedVersion::Major),
+        Some(Operator::Eq) | None => None,
     }
 }
 
@@ -59,7 +74,9 @@ pub fn which_version_is_pinned(spec: &str) -> Option<PinnedVersion> {
 enum Operator {
     Caret,
     Tilde,
-    /// Any other comparison operator (`>=`, `<`, `=`, `~>`, ...). These
+    /// A bare `=`, pinning the exact version it prefixes.
+    Eq,
+    /// Any other comparison operator (`>=`, `<`, `~>`, ...). These
     /// are left unhandled and fall through to `None`.
     Other,
 }
@@ -71,24 +88,12 @@ struct Comparator {
     has_patch: bool,
 }
 
-/// Scan forward from `from` for the next single version comparator,
-/// mirroring one iteration of semver-utils' `reSemverRange` global match.
-/// Returns the parsed comparator and the byte offset just past it, or
-/// `None` if no comparator remains. A comparator requires a numeric major
-/// component; an operator without one (`^abc`) and separators (`||`, `-`)
-/// are skipped, just as a non-matching prefix is skipped by a global
-/// regex match.
-fn next_comparator(bytes: &[u8], from: usize) -> Option<(Comparator, usize)> {
-    let mut start = from;
-    while start < bytes.len() {
-        if let Some(found) = try_comparator(bytes, start) {
-            return Some(found);
-        }
-        start += 1;
-    }
-    None
-}
-
+/// Try to parse a single version comparator starting exactly at `at`,
+/// mirroring one match of semver-utils' `reSemverRange` regex. Returns the
+/// parsed comparator and the byte offset just past it. A comparator
+/// requires a numeric major component; an operator without one (`^abc`) is
+/// no match, just as a non-matching prefix is skipped by a global regex
+/// match.
 fn try_comparator(bytes: &[u8], at: usize) -> Option<(Comparator, usize)> {
     let len = bytes.len();
     let mut idx = at;
@@ -113,9 +118,13 @@ fn try_comparator(bytes: &[u8], at: usize) -> Option<(Comparator, usize)> {
         }
     };
     if idx < len && bytes[idx] == b'=' {
-        // `^=`, `~=`, `>=`, or a bare `=` — none are a plain caret/tilde pin.
+        // `^=`, `~=`, and `>=` are not a plain caret/tilde pin; a bare `=`
+        // pins the exact version.
         idx += 1;
-        operator = Some(Operator::Other);
+        operator = Some(match operator {
+            None => Operator::Eq,
+            _ => Operator::Other,
+        });
     }
 
     // Optional whitespace, then an optional `v`.
