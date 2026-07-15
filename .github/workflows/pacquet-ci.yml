@@ -163,7 +163,7 @@ jobs:
       - name: Install dependencies on Windows
         if: runner.os == 'Windows'
         env:
-          PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE: 'false'
+          pnpm_config_enable_global_virtual_store: 'false'
         run: just install
 
       - name: Install cargo-nextest

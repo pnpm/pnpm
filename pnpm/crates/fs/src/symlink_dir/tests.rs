@@ -12,10 +12,6 @@ use super::{ForceSymlinkOutcome, force_symlink_dir, read_symlink_dir};
 #[cfg(windows)]
 use super::{is_reparse_point, relative_target_for};
 use std::fs;
-#[cfg(not(windows))]
-use std::path::PathBuf;
-#[cfg(windows)]
-use std::{io, path::Path, sync::Barrier};
 use tempfile::tempdir;
 
 #[cfg(unix)]
@@ -32,7 +28,7 @@ fn unix_symlink_contents_are_relative_to_link_parent() {
     let contents = fs::read_link(&link).expect("read_link the symlink we just wrote");
     assert_eq!(
         contents,
-        PathBuf::from("..").join("packages").join("pkg-a"),
+        std::path::PathBuf::from("..").join("packages").join("pkg-a"),
         "symlink contents must be the relative path from link parent to target",
     );
     assert!(link.exists(), "symlink must resolve to an existing directory");
@@ -127,8 +123,8 @@ fn force_symlink_dir_creates_missing_parent_directories() {
 #[cfg(windows)]
 #[test]
 fn windows_cross_drive_symlink_target_falls_back_to_absolute() {
-    let target = Path::new(r"C:\Users\runneradmin\setup-pnpm\store\@babel\plugin-x");
-    let link = Path::new(r"D:\a\pnpm\pnpm\node_modules\@babel\plugin-x");
+    let target = std::path::Path::new(r"C:\Users\runneradmin\setup-pnpm\store\@babel\plugin-x");
+    let link = std::path::Path::new(r"D:\a\pnpm\pnpm\node_modules\@babel\plugin-x");
 
     assert_eq!(relative_target_for(target, link), target);
 }
@@ -136,7 +132,8 @@ fn windows_cross_drive_symlink_target_falls_back_to_absolute() {
 #[cfg(windows)]
 #[test]
 fn windows_scoped_alias_path_gets_native_separators() {
-    let mixed = Path::new(r"C:\store\v11\links\@\pkg\1.0.0\hash\node_modules").join("@scope/name");
+    let mixed = std::path::Path::new(r"C:\store\v11\links\@\pkg\1.0.0\hash\node_modules")
+        .join("@scope/name");
     assert!(
         mixed.as_os_str().to_string_lossy().contains('/'),
         "the join must leave a forward slash for the rewrite to remove: {mixed:?}",
@@ -149,7 +146,7 @@ fn windows_scoped_alias_path_gets_native_separators() {
     );
     assert_eq!(
         native.as_ref(),
-        Path::new(r"C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\@scope\name"),
+        std::path::Path::new(r"C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\@scope\name",),
     );
 }
 
@@ -158,7 +155,8 @@ fn windows_scoped_alias_path_gets_native_separators() {
 #[cfg(windows)]
 #[test]
 fn windows_verbatim_path_forward_slashes_are_rewritten() {
-    let verbatim = Path::new(r"\\?\C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\@scope/name");
+    let verbatim =
+        std::path::Path::new(r"\\?\C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\@scope/name");
     let native = to_native_separators(verbatim);
     assert!(
         !native.as_os_str().to_string_lossy().contains('/'),
@@ -166,14 +164,14 @@ fn windows_verbatim_path_forward_slashes_are_rewritten() {
     );
     assert_eq!(
         native.as_ref(),
-        Path::new(r"\\?\C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\@scope\name"),
+        std::path::Path::new(r"\\?\C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\@scope\name",),
     );
 }
 
 #[cfg(windows)]
 #[test]
 fn windows_native_path_is_borrowed_unchanged() {
-    let native = Path::new(r"C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\dep");
+    let native = std::path::Path::new(r"C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\dep");
     assert!(matches!(to_native_separators(native), std::borrow::Cow::Borrowed(_)));
     assert_eq!(to_native_separators(native).as_ref(), native);
 }
@@ -222,7 +220,7 @@ fn windows_concurrent_junction_creation_reuses_one_link() {
 
     for iteration in 0..10 {
         let link = root.path().join(format!("link-{iteration}"));
-        let barrier = Barrier::new(32);
+        let barrier = std::sync::Barrier::new(32);
         let outcomes = std::thread::scope(|scope| {
             let handles: Vec<_> = (0..32)
                 .map(|_| {
@@ -258,8 +256,8 @@ fn windows_concurrent_junction_creation_reuses_one_link() {
 #[cfg(windows)]
 #[test]
 fn windows_same_drive_symlink_target_stays_relative() {
-    let target = Path::new(r"C:\workspace\packages\pkg-a");
-    let link = Path::new(r"C:\workspace\app\node_modules\pkg-a");
+    let target = std::path::Path::new(r"C:\workspace\packages\pkg-a");
+    let link = std::path::Path::new(r"C:\workspace\app\node_modules\pkg-a");
 
     assert!(relative_target_for(target, link).is_relative());
 }
@@ -267,8 +265,8 @@ fn windows_same_drive_symlink_target_stays_relative() {
 #[cfg(windows)]
 #[test]
 fn windows_verbatim_and_plain_disk_resolve_to_same_root() {
-    let target = Path::new(r"\\?\C:\workspace\packages\pkg-a");
-    let link = Path::new(r"C:\workspace\app\node_modules\pkg-a");
+    let target = std::path::Path::new(r"\\?\C:\workspace\packages\pkg-a");
+    let link = std::path::Path::new(r"C:\workspace\app\node_modules\pkg-a");
 
     assert!(relative_target_for(target, link).is_relative());
 }
@@ -276,8 +274,8 @@ fn windows_verbatim_and_plain_disk_resolve_to_same_root() {
 #[cfg(windows)]
 #[test]
 fn windows_error_directory_falls_back_to_junctions() {
-    assert!(super::windows::should_fallback_to_junction(&io::Error::from_raw_os_error(267)));
-    assert!(!super::windows::should_fallback_to_junction(&io::Error::from_raw_os_error(123)));
+    assert!(super::windows::should_fallback_to_junction(&std::io::Error::from_raw_os_error(267)));
+    assert!(!super::windows::should_fallback_to_junction(&std::io::Error::from_raw_os_error(123)));
 }
 
 #[test]
