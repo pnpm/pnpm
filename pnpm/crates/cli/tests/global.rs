@@ -125,6 +125,58 @@ fn global_add_list_remove_round_trip() {
     drop(root);
 }
 
+/// `pnpm setup` installs the standalone executable through this exact
+/// command shape. The local directory's package name must be inferred
+/// without treating the `file:` selector as a registry package.
+#[cfg(unix)]
+#[test]
+fn global_add_accepts_ignore_scripts_for_local_directory() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm-home");
+    // Keep the package on the checkout filesystem so macOS resolves it
+    // outside the symlinked `/var` temp root used for the global home.
+    let target_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../target");
+    let package_dir = tempfile::tempdir_in(target_dir).expect("create local package");
+    fs::write(
+        package_dir.path().join("package.json"),
+        r#"{ "name": "@pnpm/exe", "version": "12.0.0", "scripts": { "install": "exit 1" } }"#,
+    )
+    .expect("write local package manifest");
+    fs::create_dir_all(pnpm_home.join("bin")).expect("create global bin dir");
+    // Pin a per-test store/cache so `add -g` cannot read from or write to the
+    // developer/CI machine's default global store. The global install anchors
+    // its config at the pnpm home, so seed the store/cache there (as
+    // `prepare_global_home` does).
+    let store_dir = root.path().join("pacquet-store");
+    let cache_dir = root.path().join("pacquet-cache");
+    fs::write(
+        pnpm_home.join("pnpm-workspace.yaml"),
+        format!(
+            "storeDir: {}\ncacheDir: {}\nenableGlobalVirtualStore: false\nignoreScripts: false\n",
+            store_dir.display(),
+            cache_dir.display(),
+        ),
+    )
+    .expect("seed the pnpm-home workspace yaml");
+    let global_pkg_dir = pnpm_home.join("global").join("v11");
+    fs::create_dir_all(&global_pkg_dir).expect("create global package dir");
+    fs::write(global_pkg_dir.join("pnpm-workspace.yaml"), "dangerouslyAllowAllBuilds: true\n")
+        .expect("allow package build scripts");
+
+    global_command(&workspace, &pnpm_home)
+        .with_env("PNPM_CONFIG_IGNORE_SCRIPTS", "false")
+        .with_arg("add")
+        .with_arg("-g")
+        .with_arg("--ignore-scripts")
+        .with_arg(format!("file:{}", package_dir.path().display()))
+        .assert()
+        .success();
+
+    drop(root);
+}
+
 /// A build approved during a global install must persist to the stable
 /// global packages directory (where the next global install reads it back),
 /// not to the throwaway per-group install dir. Regression test: the group

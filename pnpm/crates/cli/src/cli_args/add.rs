@@ -1,4 +1,10 @@
-use crate::{State, cli_args::supported_architectures::SupportedArchitecturesArgs, config_deps};
+use crate::{
+    State,
+    cli_args::{
+        install::resolve_bool_override, supported_architectures::SupportedArchitecturesArgs,
+    },
+    config_deps,
+};
 use clap::Args;
 use miette::Context;
 use pacquet_config::Config;
@@ -96,9 +102,23 @@ pub struct AddArgs {
     /// Install the package globally, linking its bins into the global bin directory.
     #[clap(short = 'g', long)]
     pub global: bool,
+    /// Don't run lifecycle scripts of the added package or its dependencies.
+    #[clap(long = "ignore-scripts", overrides_with = "no_ignore_scripts")]
+    pub ignore_scripts: bool,
+    /// Force-enable lifecycle scripts for this invocation.
+    #[clap(long = "no-ignore-scripts", overrides_with = "ignore_scripts")]
+    pub no_ignore_scripts: bool,
 }
 
 impl AddArgs {
+    pub(crate) fn apply_cli_config(&self, config: &mut Config) {
+        config.ignore_scripts = resolve_bool_override(
+            self.ignore_scripts,
+            self.no_ignore_scripts,
+            config.ignore_scripts,
+        );
+    }
+
     /// Execute the subcommand.
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
         // `--config` routes to the configurational-dependency path

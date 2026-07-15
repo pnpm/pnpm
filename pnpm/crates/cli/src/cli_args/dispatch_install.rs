@@ -26,6 +26,7 @@ use super::{
     unlink::UnlinkArgs,
     update::UpdateArgs,
 };
+use crate::State;
 use miette::Context;
 use pacquet_default_reporter::DefaultReporter;
 use pacquet_reporter::{NdjsonReporter, SilentReporter};
@@ -33,6 +34,7 @@ use pacquet_reporter::{NdjsonReporter, SilentReporter};
 pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFuture<'a>> {
     if args.global {
         let config = (ctx.global_config)()?;
+        args.apply_cli_config(config);
         let dir = ctx.dir;
         return Ok(match ctx.reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
@@ -42,7 +44,10 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
             ReporterType::Silent => Box::pin(args.run_global::<SilentReporter>(config, dir)),
         });
     }
-    let command_state = (ctx.state)(false)?;
+    let config = (ctx.config)()?;
+    args.apply_cli_config(config);
+    let command_state = State::init(ctx.manifest_path.to_path_buf(), config, false)
+        .wrap_err("initialize the state")?;
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => {
             Box::pin(args.run::<DefaultReporter>(command_state))

@@ -635,7 +635,7 @@ fn fetch_directory_resolution(
     workspace_root: &Path,
     dir_resolution: &DirectoryResolution,
 ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
-    let directory = workspace_root.join(&dir_resolution.directory);
+    let directory = lexical_normalize(&workspace_root.join(&dir_resolution.directory));
     let output = pacquet_directory_fetcher::DirectoryFetcher {
         directory,
         include_only_package_files: false,
