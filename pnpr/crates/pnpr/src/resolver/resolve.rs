@@ -89,9 +89,11 @@ pub async fn resolve(
             dir.join(rel)
         };
         tokio::fs::create_dir_all(&project_dir).await?;
+        let name = project.name.clone().unwrap_or_else(|| importer_manifest_name(rel));
+        let version = project.version.as_deref().unwrap_or("0.0.0");
         let manifest_json = serde_json::json!({
-            "name": importer_manifest_name(rel),
-            "version": "0.0.0",
+            "name": name,
+            "version": version,
             "dependencies": project.dependencies,
             "devDependencies": project.dev_dependencies,
             "optionalDependencies": project.optional_dependencies,
@@ -264,8 +266,8 @@ pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) ->
     let temp = tempfile::Builder::new().prefix("pnpr-frozen-").tempdir().ok()?;
     let manifest_path = temp.path().join("package.json");
     let manifest_json = serde_json::json!({
-        "name": "pnpr-resolve",
-        "version": "0.0.0",
+        "name": project.name.as_deref().unwrap_or("pnpr-resolve"),
+        "version": project.version.as_deref().unwrap_or("0.0.0"),
         "dependencies": project.dependencies,
         "devDependencies": project.dev_dependencies,
         "optionalDependencies": project.optional_dependencies,

@@ -11,6 +11,8 @@ import type { ResponseMetadata } from './protocol.js'
 export interface PnprProject {
   /** Relative dir within the workspace (e.g. "." or "packages/foo") */
   dir: string
+  name?: string
+  version?: string
   dependencies?: Record<string, string>
   devDependencies?: Record<string, string>
   optionalDependencies?: Record<string, string>
@@ -19,6 +21,10 @@ export interface PnprProject {
 export interface ResolveViaPnprServerOptions {
   /** URL of the pnpr server */
   registryUrl: string
+  /** Project name to resolve (single project) */
+  name?: string
+  /** Project version to resolve (single project) */
+  version?: string
   /** Dependencies to resolve (single project) */
   dependencies?: Record<string, string>
   /** Dev dependencies to resolve (single project) */
@@ -89,6 +95,8 @@ export async function resolveViaPnprServer (
 ): Promise<ResolveViaPnprServerResult> {
   const projects = opts.projects ?? [{
     dir: '.',
+    name: opts.name,
+    version: opts.version,
     dependencies: opts.dependencies,
     devDependencies: opts.devDependencies,
     optionalDependencies: opts.optionalDependencies,
