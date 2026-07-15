@@ -154,7 +154,7 @@ fn global_add_accepts_ignore_scripts_for_local_directory() {
     fs::write(
         pnpm_home.join("pnpm-workspace.yaml"),
         format!(
-            "storeDir: {}\ncacheDir: {}\nenableGlobalVirtualStore: false\n",
+            "storeDir: {}\ncacheDir: {}\nenableGlobalVirtualStore: false\nignoreScripts: false\n",
             store_dir.display(),
             cache_dir.display(),
         ),
@@ -166,6 +166,7 @@ fn global_add_accepts_ignore_scripts_for_local_directory() {
         .expect("allow package build scripts");
 
     global_command(&workspace, &pnpm_home)
+        .with_env("PNPM_CONFIG_IGNORE_SCRIPTS", "false")
         .with_arg("add")
         .with_arg("-g")
         .with_arg("--ignore-scripts")
