@@ -35,9 +35,23 @@ export interface WorkspaceManifest extends PnpmSettings {
   catalogs?: WorkspaceNamedCatalogs
 }
 
-export async function readWorkspaceManifest (dir: string, cfgFileName: ConfigFileName = WORKSPACE_MANIFEST_FILENAME): Promise<WorkspaceManifest | undefined> {
+export interface ReadWorkspaceManifestOptions {
+  /**
+   * Whether to validate pnpm-settings fields (currently just `licenses`).
+   * Defaults to `true`. Set to `false` when reading a manifest that isn't a
+   * real workspace manifest (e.g. the machine-global `config.yaml`), where
+   * such settings aren't supported.
+   */
+  validatePnpmSettings?: boolean
+}
+
+export async function readWorkspaceManifest (
+  dir: string,
+  cfgFileName: ConfigFileName = WORKSPACE_MANIFEST_FILENAME,
+  opts?: ReadWorkspaceManifestOptions
+): Promise<WorkspaceManifest | undefined> {
   const manifest = await readManifestRaw(dir, cfgFileName)
-  validateWorkspaceManifest(manifest)
+  validateWorkspaceManifest(manifest, opts)
   return manifest
 }
 
@@ -55,7 +69,10 @@ async function readManifestRaw (dir: string, cfgFileName: ConfigFileName): Promi
   }
 }
 
-export function validateWorkspaceManifest (manifest: unknown): asserts manifest is WorkspaceManifest | undefined {
+export function validateWorkspaceManifest (
+  manifest: unknown,
+  opts?: ReadWorkspaceManifestOptions
+): asserts manifest is WorkspaceManifest | undefined {
   if (manifest === undefined || manifest === null) {
     // Empty or null manifest is ok
     return
@@ -78,6 +95,9 @@ export function validateWorkspaceManifest (manifest: unknown): asserts manifest 
   assertValidWorkspaceManifestCatalog(manifest)
   assertValidWorkspaceManifestCatalogs(manifest)
   assertValidWorkspaceManifestVersioning(manifest)
+  if (opts?.validatePnpmSettings !== false) {
+    assertValidWorkspaceManifestLicenses(manifest)
+  }
 
   checkWorkspaceManifestAssignability(manifest)
 }
@@ -100,6 +120,63 @@ function assertValidWorkspaceManifestPackages (manifest: { packages?: unknown })
     if (type !== 'string') {
       throw new InvalidWorkspaceManifestError(`Invalid package type - ${type}`)
     }
+  }
+}
+
+function assertValidWorkspaceManifestLicenses (manifest: { licenses?: unknown, [key: string]: unknown }): asserts manifest is { licenses?: PnpmSettings['licenses'] } {
+  if (manifest.licenses == null) {
+    return
+  }
+
+  if (typeof manifest.licenses !== 'object' || Array.isArray(manifest.licenses)) {
+    throw new InvalidWorkspaceManifestError('licenses must be an object')
+  }
+
+  const config = manifest.licenses as Record<string, unknown>
+
+  assertStringArray(config, 'allowed')
+  assertStringArray(config, 'disallowed')
+
+  if (config.overrides != null) {
+    if (typeof config.overrides !== 'object' || Array.isArray(config.overrides)) {
+      throw new InvalidWorkspaceManifestError('licenses.overrides must be an object')
+    }
+    for (const [key, value] of Object.entries(config.overrides as Record<string, unknown>)) {
+      if (typeof value !== 'boolean' && typeof value !== 'string') {
+        throw new InvalidWorkspaceManifestError(
+          `licenses.overrides["${key}"] must be a boolean or string, got ${typeof value}`
+        )
+      }
+    }
+  }
+
+  assertEnum(config, 'mode', ['strict', 'loose', 'none'])
+  assertEnum(config, 'environment', ['prod', 'dev', 'all'])
+  assertEnum(config, 'depth', ['deep', 'shallow'])
+}
+
+function assertStringArray (config: Record<string, unknown>, field: string): void {
+  if (config[field] == null) {
+    return
+  }
+  if (!Array.isArray(config[field])) {
+    throw new InvalidWorkspaceManifestError(`licenses.${field} must be an array`)
+  }
+  for (const item of config[field] as unknown[]) {
+    if (typeof item !== 'string') {
+      throw new InvalidWorkspaceManifestError(`licenses.${field} must contain only strings`)
+    }
+  }
+}
+
+function assertEnum (config: Record<string, unknown>, field: string, values: string[]): void {
+  if (config[field] == null) {
+    return
+  }
+  if (typeof config[field] !== 'string' || !values.includes(config[field] as string)) {
+    throw new InvalidWorkspaceManifestError(
+      `licenses.${field} must be one of: ${values.join(', ')}`
+    )
   }
 }
 

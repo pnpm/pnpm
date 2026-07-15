@@ -20,6 +20,7 @@ export type LicensesCommandOptions = {
   Config,
 | 'dev'
 | 'dir'
+| 'licenses'
 | 'lockfileDir'
 | 'registries'
 | 'optional'
@@ -30,6 +31,7 @@ export type LicensesCommandOptions = {
 | 'pnpmHomeDir'
 | 'supportedArchitectures'
 | 'virtualStoreDirMaxLength'
+| 'workspaceDir'
 > & Pick<ConfigContext,
 | 'selectedProjectsGraph'
 | 'rootProjectManifest'

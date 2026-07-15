@@ -23,6 +23,7 @@ import type { InstallCommandOptions } from '../install.js'
 import { createVulnerabilityUpdateMatching, installDeps } from '../installDeps.js'
 import { parseUpdateParam } from '../recursive.js'
 import { createGlobalPolicyCallbacks } from '../resolutionPolicyManifest.js'
+import { runLicenseCheck, runLicenseCheckForGlobalInstall } from '../runLicenseCheck.js'
 import { getUpdateChoices } from './getUpdateChoices.js'
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
@@ -189,6 +190,7 @@ export async function handler (
     return handleGlobalUpdate({
       ...opts,
       ...createGlobalPolicyCallbacks(opts),
+      checkLicensesAfterGlobalInstall: (installDir) => runLicenseCheckForGlobalInstall(opts, installDir),
     }, params, commands ?? {})
   }
   const rebuildHandler = commands?.rebuild
@@ -338,6 +340,7 @@ async function update (
     // `dry-run` turn `update` into a no-op check.
     dryRun: false,
   }, dependencies)
+  await runLicenseCheck(opts)
 }
 
 function makeIncludeDependenciesFromCLI (opts: {

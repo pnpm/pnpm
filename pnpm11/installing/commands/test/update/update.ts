@@ -503,3 +503,81 @@ test('should not update tag version when --latest not set', async () => {
   expect(manifest.dependencies?.['@pnpm.e2e/peer-c']).toBe('canary')
   expect(manifest.dependencies?.['@pnpm.e2e/foo']).toBe('1.0.0')
 })
+
+describe('license compliance after update', () => {
+  test('pnpm update fails when a disallowed license is present in strict mode', async () => {
+    prepare({
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    })
+
+    await install.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    })
+
+    await expect(
+      update.handler({
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+        licenses: {
+          disallowed: ['MIT'],
+          mode: 'strict',
+        },
+      })
+    ).rejects.toThrow('license violation')
+  })
+
+  test('pnpm update succeeds when licenses.mode is none', async () => {
+    prepare({
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    })
+
+    await install.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    })
+
+    await update.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      licenses: {
+        disallowed: ['MIT'],
+        mode: 'none',
+      },
+    })
+  })
+
+  // Regression test: the scan scope is driven purely by `licenses.environment`,
+  // not by the CLI `--prod`/`--dev`/`--no-optional` flags. `--prod` only
+  // narrows which dependencies get *updated*; with `environment: 'all'` the
+  // checker must still catch a violation in an untouched devDependency.
+  test('pnpm update --prod still checks a disallowed devDependency (policy environment: all)', async () => {
+    prepare({
+      devDependencies: {
+        'is-positive': '1.0.0',
+      },
+    })
+
+    await install.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    })
+
+    await expect(
+      update.handler({
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+        cliOptions: { production: true },
+        licenses: {
+          disallowed: ['MIT'],
+          mode: 'strict',
+          environment: 'all',
+        },
+      })
+    ).rejects.toThrow('license violation')
+  })
+})

@@ -306,6 +306,9 @@ catalogs:
     '@types/semver':
       specifier: 7.7.1
       version: 7.7.1
+    '@types/spdx-satisfies':
+      specifier: ^6.0.0
+      version: 6.0.0
     '@types/ssri':
       specifier: ^7.1.5
       version: 7.1.5
@@ -762,6 +765,12 @@ catalogs:
     sort-keys:
       specifier: ^6.0.0
       version: 6.0.1
+    spdx-expression-parse:
+      specifier: ^4.0.0
+      version: 4.0.0
+    spdx-satisfies:
+      specifier: ^6.0.0
+      version: 6.0.0
     split-cmd:
       specifier: ^1.1.0
       version: 1.1.0
@@ -2849,6 +2858,9 @@ importers:
       '@pnpm/deps.compliance.audit':
         specifier: workspace:*
         version: link:../audit
+      '@pnpm/deps.compliance.license-checker':
+        specifier: workspace:*
+        version: link:../license-checker
       '@pnpm/deps.compliance.license-resolver':
         specifier: workspace:*
         version: link:../license-resolver
@@ -2964,6 +2976,46 @@ importers:
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
+
+  pnpm11/deps/compliance/license-checker:
+    dependencies:
+      '@pnpm/deps.compliance.license-scanner':
+        specifier: workspace:*
+        version: link:../license-scanner
+      '@pnpm/deps.path':
+        specifier: workspace:*
+        version: link:../../path
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../../core/error
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../../lockfile/fs
+      '@pnpm/store.path':
+        specifier: workspace:*
+        version: link:../../../store/path
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../../core/types
+      spdx-expression-parse:
+        specifier: 'catalog:'
+        version: 4.0.0
+      spdx-satisfies:
+        specifier: 'catalog:'
+        version: 6.0.0
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1
+      '@pnpm/deps.compliance.license-checker':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../../core/logger
+      '@types/spdx-satisfies':
+        specifier: 'catalog:'
+        version: 6.0.0
 
   pnpm11/deps/compliance/license-resolver:
     devDependencies:
@@ -5152,6 +5204,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants
+      '@pnpm/deps.compliance.license-checker':
+        specifier: workspace:*
+        version: link:../../deps/compliance/license-checker
       '@pnpm/deps.inspection.outdated':
         specifier: workspace:*
         version: link:../../deps/inspection/outdated
@@ -12144,6 +12199,9 @@ packages:
   '@types/semver@7.7.1':
     resolution: {integrity: sha512-FmgJfu+MOcQ370SD0ev7EI8TlCAfKYU+B4m5T3yXc1CiRN94g/SZPtsCkk506aUDtlMnFZvasDwHHUcZUEaYuA==}
 
+  '@types/spdx-satisfies@6.0.0':
+    resolution: {integrity: sha512-kOngOQzzhQrj4axuWWSWGzOO6MAe5eQ5qG3Zepe4LE/7lQJf7oYW8gAlNOywOhCpVY6oPs/YuJD463VdTk16ZQ==}
+
   '@types/ssri@7.1.5':
     resolution: {integrity: sha512-odD/56S3B51liILSk5aXJlnYt99S6Rt9EFDDqGtJM26rKHApHcwyU/UoYHrzKkdkHMAIquGWCuHtQTbes+FRQw==}
 
@@ -16295,6 +16353,9 @@ packages:
   spawno@2.1.2:
     resolution: {integrity: sha512-3QmgamuN/bF8zdy7hZaL+dzRYaakJh6UM6zfaS0hLEmVf77rmnFBIayikbLXrqLy8rIVsqKr3npm/14mGKBfOQ==}
 
+  spdx-compare@1.0.0:
+    resolution: {integrity: sha512-C1mDZOX0hnu0ep9dfmuoi03+eOdDoz2yvK79RxbcrVEG1NO1Ph35yW102DHWKN4pk80nwCgeMmSY5L25VE4D9A==}
+
   spdx-correct@3.2.0:
     resolution: {integrity: sha512-kN9dJbvnySHULIluDHy32WHRUu3Og7B9sbY7tsFLctQkIqnMh3hErYgdMjTYuqmcXX+lK5T1lnUt3G7zNswmZA==}
 
@@ -16309,6 +16370,12 @@ packages:
 
   spdx-license-ids@3.0.23:
     resolution: {integrity: sha512-CWLcCCH7VLu13TgOH+r8p1O/Znwhqv/dbb6lqWy67G+pT1kHmeD/+V36AVb/vq8QMIQwVShJ6Ssl5FPh0fuSdw==}
+
+  spdx-ranges@2.1.1:
+    resolution: {integrity: sha512-mcdpQFV7UDAgLpXEE/jOMqvK4LBoO0uTQg0uvXUewmEFhpiZx5yJSZITHB8w1ZahKdhfZqP5GPEOKLyEq5p8XA==}
+
+  spdx-satisfies@6.0.0:
+    resolution: {integrity: sha512-oOWQocnRbFVtBnBITfFgzjhnOklHossTvI+6C1hB2slvp3HgTsfru5wuo8HY2rQpwSm5JuIhNzIuqOfR5IuojQ==}
 
   split-cmd@1.1.0:
     resolution: {integrity: sha512-WhWthSU0kpuxXPbm3QW/QGS+B7ngFb+E1SGXccrUO/ZBcwnG0zuHk1E8v0UJ9HfyDi46k8wZ3dcl5gwa4c2v8g==}
@@ -19720,6 +19787,8 @@ snapshots:
   '@types/semver@6.2.7': {}
 
   '@types/semver@7.7.1': {}
+
+  '@types/spdx-satisfies@6.0.0': {}
 
   '@types/ssri@7.1.5':
     dependencies:
@@ -24353,6 +24422,12 @@ snapshots:
     dependencies:
       proc-output: 1.0.9
 
+  spdx-compare@1.0.0:
+    dependencies:
+      array-find-index: 1.0.2
+      spdx-expression-parse: 3.0.1
+      spdx-ranges: 2.1.1
+
   spdx-correct@3.2.0:
     dependencies:
       spdx-expression-parse: 3.0.1
@@ -24371,6 +24446,14 @@ snapshots:
       spdx-license-ids: 3.0.23
 
   spdx-license-ids@3.0.23: {}
+
+  spdx-ranges@2.1.1: {}
+
+  spdx-satisfies@6.0.0:
+    dependencies:
+      spdx-compare: 1.0.0
+      spdx-expression-parse: 3.0.1
+      spdx-ranges: 2.1.1
 
   split-cmd@1.1.0: {}
 

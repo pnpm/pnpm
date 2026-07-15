@@ -4,9 +4,11 @@ import path from 'node:path'
 import { describe, expect, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import { add, remove } from '@pnpm/installing.commands'
+import { type LogBase, streamParser } from '@pnpm/logger'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { Project, ProjectManifest, ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { loadJsonFile } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
 
@@ -444,5 +446,297 @@ describeOnLinuxOnly('filters optional dependencies based on pnpm.supportedArchit
     expect(pkgDirs).toContain('@pnpm.e2e+support-different-architectures@1.0.0')
     expect(pkgDirs).toContain(found)
     expect(pkgDirs).not.toContain(notFound)
+  })
+})
+
+// Captures `warn`-level messages emitted via `@pnpm/logger`'s `globalWarn`
+// (and any other warn-level logger call) while `fn` runs. The license
+// checker has no dedicated reporter hook, so this is the same
+// streamParser-subscription mechanism `@pnpm/logger`'s own tests use to
+// observe log output (see core/logger/test/index.test.ts): `globalWarn`
+// writes through bole's shared output pipeline, which the singleton
+// `streamParser` is already subscribed to, so no module mocking is needed.
+async function captureWarnings<T> (fn: () => Promise<T>): Promise<{ result: T, warnings: string[] }> {
+  const warnings: string[] = []
+  const handleLog = (msg: LogBase): void => {
+    if (msg.level === 'warn') {
+      warnings.push(msg.message)
+    }
+  }
+  streamParser.on('data', handleLog)
+  try {
+    const result = await fn()
+    // bole writes synchronously, but the ndjson transform stream that feeds
+    // streamParser flows its 'data' events on a later tick; give any
+    // already-queued log line a chance to arrive before reading `warnings`.
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    return { result, warnings }
+  } finally {
+    streamParser.removeListener('data', handleLog)
+  }
+}
+
+describe('license compliance after add', () => {
+  test('pnpm add fails when a disallowed license is present in strict mode', async () => {
+    prepare()
+
+    await expect(
+      add.handler({
+        ...DEFAULT_OPTIONS,
+        dir: process.cwd(),
+        linkWorkspacePackages: false,
+        licenses: {
+          disallowed: ['MIT'],
+          mode: 'strict',
+        },
+      }, ['is-positive@1.0.0'])
+    ).rejects.toThrow('license violation')
+  })
+
+  // Shallow mode has to catch the very package this command just added. Direct-dep
+  // identities therefore come from the lockfile the add wrote moments earlier, not
+  // from the in-memory root manifest: a plain, non-workspace `pnpm add` passes no
+  // rootProjectManifest at all, which would leave the shallow filter believing the
+  // project has zero direct deps and drop every scanned package.
+  test('pnpm add fails on the just-added package under a shallow-mode disallowed-license policy', async () => {
+    prepare()
+
+    let err!: PnpmError
+    try {
+      await add.handler({
+        ...DEFAULT_OPTIONS,
+        dir: process.cwd(),
+        linkWorkspacePackages: false,
+        licenses: {
+          disallowed: ['MIT'],
+          mode: 'strict',
+          depth: 'shallow',
+        },
+      }, ['is-positive@1.0.0'])
+    } catch (_err: any) { // eslint-disable-line
+      err = _err
+    }
+    expect(err.code).toBe('ERR_PNPM_LICENSE_VIOLATION')
+  })
+
+  // The license check scans the lockfile, so `useLockfile: false` leaves it with
+  // nothing to scan. Skipping a configured policy must be announced with a visible
+  // warning rather than passing silently, while the add itself still succeeds:
+  // fail-open, but never fail-silent.
+  test('pnpm add succeeds and warns when useLockfile is false, skipping the license check', async () => {
+    const project = prepare()
+
+    const { warnings } = await captureWarnings(() =>
+      add.handler({
+        ...DEFAULT_OPTIONS,
+        dir: process.cwd(),
+        linkWorkspacePackages: false,
+        useLockfile: false,
+        licenses: {
+          disallowed: ['MIT'],
+          mode: 'strict',
+        },
+      }, ['is-positive@1.0.0'])
+    )
+
+    project.has('is-positive')
+    expect(warnings.some((message) => message.includes('License check skipped'))).toBe(true)
+  })
+
+  // In loose mode, a license outside the allowed list is a warning rather than a
+  // violation: `matchLicenseAgainstPolicy` reports it as `not-in-allowed-list` and
+  // `checkAfterInstall` surfaces it via `globalWarn` while letting the add succeed.
+  // Capture that output and assert the warning is actually emitted — asserting only
+  // that the add doesn't fail would pass just as well if the policy were ignored.
+  test('pnpm add succeeds and warns when a loose-mode policy does not allow-list the installed license', async () => {
+    const project = prepare()
+
+    const { warnings } = await captureWarnings(() =>
+      add.handler({
+        ...DEFAULT_OPTIONS,
+        dir: process.cwd(),
+        linkWorkspacePackages: false,
+        licenses: {
+          allowed: ['MIT'],
+          mode: 'loose',
+        },
+      }, ['@pnpm.e2e/has-different-licenses@2.0.0'])
+    )
+
+    project.has('@pnpm.e2e/has-different-licenses')
+    // has-different-licenses@2.0.0 is licensed ISC, which is not in the
+    // configured `allowed: ['MIT']` list, so it must surface as a license
+    // warning while still letting the add succeed.
+    expect(warnings.some((message) =>
+      message.includes('license warning') &&
+      message.includes('has-different-licenses') &&
+      message.includes('ISC')
+    )).toBe(true)
+  })
+
+  test('pnpm add succeeds when licenses.mode is none', async () => {
+    const project = prepare()
+
+    await add.handler({
+      ...DEFAULT_OPTIONS,
+      dir: process.cwd(),
+      linkWorkspacePackages: false,
+      licenses: {
+        disallowed: ['MIT'],
+        mode: 'none',
+      },
+    }, ['is-positive@1.0.0'])
+
+    project.has('is-positive')
+  })
+
+  test('pnpm add succeeds when no licenses config is set', async () => {
+    const project = prepare()
+
+    await add.handler({
+      ...DEFAULT_OPTIONS,
+      dir: process.cwd(),
+      linkWorkspacePackages: false,
+    }, ['is-positive@1.0.0'])
+
+    project.has('is-positive')
+  })
+
+  // Regression test for the post-install license check on rootless workspaces.
+  // preparePackages creates the workspace root without a package.json; recursive
+  // add must not require the root manifest to scan licenses.
+  test('recursive pnpm add succeeds on a rootless workspace with licenses.mode set', async () => {
+    const projects = preparePackages([
+      {
+        name: 'project-1',
+        version: '1.0.0',
+      },
+      {
+        name: 'project-2',
+        version: '1.0.0',
+      },
+    ])
+
+    const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+
+    await add.handler({
+      ...DEFAULT_OPTIONS,
+      allProjects,
+      dir: process.cwd(),
+      linkWorkspacePackages: false,
+      recursive: true,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+      licenses: {
+        mode: 'loose',
+      },
+    }, ['is-positive@1.0.0'])
+
+    projects['project-1'].has('is-positive')
+    projects['project-2'].has('is-positive')
+  })
+
+  // Regression test: `add --config` used to `return` before ever reaching
+  // `runLicenseCheck`, so it silently bypassed the license policy entirely.
+  // It doesn't scan the configDependency itself (configDependencies live in
+  // a separate env-lockfile document, outside the manifest.dependencies
+  // graph the scanner walks), but it must still enforce the policy against
+  // the project's existing regular dependencies instead of skipping the
+  // check outright.
+  test('pnpm add --config still runs the post-install license check', async () => {
+    const project = prepare()
+
+    // Install a disallowed-license dependency first, with no license policy
+    // configured, so a violation already exists in the project.
+    await add.handler({
+      ...DEFAULT_OPTIONS,
+      dir: process.cwd(),
+      linkWorkspacePackages: false,
+    }, ['is-positive@1.0.0'])
+
+    project.has('is-positive')
+
+    await expect(
+      add.handler({
+        ...DEFAULT_OPTIONS,
+        dir: process.cwd(),
+        rootProjectManifestDir: process.cwd(),
+        linkWorkspacePackages: false,
+        config: true,
+        licenses: {
+          disallowed: ['MIT'],
+          mode: 'strict',
+        },
+      }, ['@pnpm.e2e/foo@100.0.0'])
+    ).rejects.toThrow('license violation')
+  })
+})
+
+// Global installs (`pnpm add -g`) split each param into its own isolated
+// install group under a global package dir (own lockfile + manifest +
+// node_modules), with no scannable project at the global dir root. These
+// tests exercise the full, unmocked handleGlobalAdd → installGlobalPackages
+// → runLicenseCheckForGlobalInstall chain to prove the per-group license
+// check resolves the right (absolute) store/virtual-store paths for a
+// directory that isn't the process cwd, and that a violation cleans up the
+// half-applied install group instead of leaving it linked.
+describe('license compliance after global add', () => {
+  test('pnpm add -g fails when a disallowed license is present in strict mode, and cleans up the install group', async () => {
+    prepare()
+    const globalDir = path.resolve('..', 'global')
+    const bin = path.join(globalDir, 'bin')
+    const globalPkgDir = path.join(globalDir, 'pnpm')
+
+    let err!: PnpmError
+    try {
+      await add.handler({
+        ...DEFAULT_OPTIONS,
+        dir: process.cwd(),
+        global: true,
+        bin,
+        globalPkgDir,
+        linkWorkspacePackages: false,
+        licenses: {
+          disallowed: ['MIT'],
+          mode: 'strict',
+        },
+      }, ['is-positive@1.0.0'])
+    } catch (_err: any) { // eslint-disable-line
+      err = _err
+    }
+    expect(err.code).toBe('ERR_PNPM_LICENSE_VIOLATION')
+
+    // The violating group's install dir must be removed so it isn't left
+    // half-applied: no install dir/hash symlink remains under the global
+    // package dir, and the bin dir is never even created (bin linking
+    // happens after the license check).
+    expect(fs.readdirSync(globalPkgDir)).toHaveLength(0)
+    expect(fs.existsSync(bin)).toBe(false)
+  })
+
+  test('pnpm add -g succeeds and links the bin when the license is allowed', async () => {
+    prepare()
+    const globalDir = path.resolve('..', 'global')
+    const bin = path.join(globalDir, 'bin')
+    const globalPkgDir = path.join(globalDir, 'pnpm')
+
+    await add.handler({
+      ...DEFAULT_OPTIONS,
+      dir: process.cwd(),
+      global: true,
+      bin,
+      globalPkgDir,
+      linkWorkspacePackages: false,
+      licenses: {
+        disallowed: ['ISC'],
+        mode: 'strict',
+      },
+    }, ['@pnpm.e2e/hello-world-js-bin@1.0.0'])
+
+    expect(fs.existsSync(path.join(bin, 'hello-world-js-bin'))).toBe(true)
+
+    const [hashEntry] = fs.readdirSync(globalPkgDir)
+    const installDir = fs.realpathSync(path.join(globalPkgDir, hashEntry))
+    expect(fs.existsSync(path.join(installDir, 'node_modules', '@pnpm.e2e', 'hello-world-js-bin'))).toBe(true)
   })
 })

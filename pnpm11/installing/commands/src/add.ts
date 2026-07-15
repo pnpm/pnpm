@@ -14,6 +14,7 @@ import { renderHelp } from 'render-help'
 import type { InstallCommandOptions } from './install.js'
 import { installDeps } from './installDeps.js'
 import { createGlobalPolicyCallbacks } from './resolutionPolicyManifest.js'
+import { runLicenseCheck, runLicenseCheckForGlobalInstall } from './runLicenseCheck.js'
 
 export const shorthands: Record<string, string> = {
   'save-catalog': '--save-catalog-name=default',
@@ -236,6 +237,7 @@ export async function handler (
       storeDir: store.dir,
       rootDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
     })
+    await runLicenseCheck(opts)
     return
   }
   if (
@@ -270,6 +272,7 @@ export async function handler (
     return handleGlobalAdd({
       ...opts,
       ...createGlobalPolicyCallbacks(opts),
+      checkLicensesAfterGlobalInstall: (installDir) => runLicenseCheckForGlobalInstall(opts, installDir),
     }, params, commands ?? {})
   }
 
@@ -322,6 +325,10 @@ export async function handler (
       // `dry-run` turn `add` into a no-op check.
       dryRun: false,
     }, params)
+    // License check runs after add/update but not after install or remove.
+    // install is excluded per the issue spec to avoid impacting user experience.
+    // remove is excluded because it can only reduce the dependency surface.
+    await runLicenseCheck(opts)
     return
   }
   await installDeps({
@@ -331,4 +338,5 @@ export async function handler (
     includeDirect: include,
     dryRun: false,
   }, params)
+  await runLicenseCheck(opts)
 }

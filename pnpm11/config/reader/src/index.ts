@@ -232,7 +232,7 @@ export async function getConfig (opts: {
   // so that environments that point npm at a custom .npmrc (e.g. actions/setup-node
   // writing to ${runner.temp}/.npmrc) keep working without requiring users to
   // rename the env var to its PNPM_CONFIG_* equivalent.
-  const globalYamlConfigForNpmrcAuthFile = await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
+  const globalYamlConfigForNpmrcAuthFile = await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME, { validatePnpmSettings: false })
   const npmrcAuthFile = cliOptions['npmrc-auth-file'] as string | undefined
     ?? cliOptions.userconfig as string | undefined
     ?? readEnvVar(env, 'npmrc_auth_file')
