@@ -130,6 +130,7 @@ export interface FetchMetadataFromFromRegistryOptions {
 export interface FetchMetadataOptions {
   registry: string
   authHeaderValue?: string
+  cacheBypass?: boolean
   fullMetadata?: boolean
   etag?: string
   modified?: string
@@ -140,6 +141,7 @@ export async function fetchMetadataFromFromRegistry (
   pkgName: string,
   {
     authHeaderValue,
+    cacheBypass = false,
     etag: cachedEtag,
     fullMetadata,
     modified: cachedModified,
@@ -148,8 +150,11 @@ export async function fetchMetadataFromFromRegistry (
 ): Promise<FetchMetadataResult | FetchMetadataNotModifiedResult> {
   const uri = toUri(pkgName, registry)
   const op = retry.operation(fetchOpts.retry)
-  const ifModifiedSince = cachedModified ? new Date(cachedModified).toUTCString() : undefined
-  const hasValidator = Boolean(cachedEtag || ifModifiedSince)
+  const ifNoneMatch = cacheBypass ? undefined : cachedEtag
+  const ifModifiedSince = cacheBypass || !cachedModified
+    ? undefined
+    : new Date(cachedModified).toUTCString()
+  const hasValidator = Boolean(ifNoneMatch || ifModifiedSince)
   return new Promise((resolve, reject) => {
     op.attempt(async (attempt) => {
       let response: RegistryResponse
@@ -159,13 +164,16 @@ export async function fetchMetadataFromFromRegistry (
           authHeaderValue,
           compress: true,
           fullMetadata,
-          ifNoneMatch: cachedEtag,
+          ifNoneMatch,
           ifModifiedSince,
           retry: fetchOpts.retry,
           timeout: fetchOpts.timeout,
+          ...(cacheBypass
+            ? { headers: { 'cache-control': 'no-cache' } }
+            : {}),
         }
         response = await fetchOpts.fetch(uri, requestOptions) as RegistryResponse
-        if (response.status === 304 && !hasValidator) {
+        if (response.status === 304 && !hasValidator && !cacheBypass) {
           response = await fetchOpts.fetch(uri, {
             ...requestOptions,
             headers: {

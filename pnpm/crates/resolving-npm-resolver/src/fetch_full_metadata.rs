@@ -98,6 +98,7 @@ pub(crate) struct MetadataRequestOptions<'a> {
     pub auth_headers: &'a AuthHeaders,
     pub etag: Option<&'a str>,
     pub modified: Option<&'a str>,
+    pub bypass_cache: bool,
     pub retry_opts: RetryOpts,
 }
 
@@ -107,8 +108,9 @@ pub(crate) struct MetadataRequestOptions<'a> {
 pub(crate) async fn send_metadata_request<'a>(
     opts: &MetadataRequestOptions<'a>,
 ) -> Result<(ThrottledClientGuard<'a>, Response), FetchMetadataError> {
-    let etag = opts.etag.filter(|value| !value.is_empty());
-    let modified = opts.modified.filter(|value| !value.is_empty());
+    let etag = if opts.bypass_cache { None } else { opts.etag.filter(|value| !value.is_empty()) };
+    let modified =
+        if opts.bypass_cache { None } else { opts.modified.filter(|value| !value.is_empty()) };
     let has_validator = etag.is_some() || modified.is_some();
     let build_request = |client: &reqwest::Client, bypass_cache: bool| {
         let mut request = client.get(opts.url).header(header::ACCEPT, opts.accept);
@@ -129,7 +131,7 @@ pub(crate) async fn send_metadata_request<'a>(
 
     let (client, response) =
         send_with_retry(opts.http_client, opts.url, opts.retry_opts, |client| {
-            build_request(client, false)
+            build_request(client, opts.bypass_cache)
         })
         .await
         .map_err(|error| FetchMetadataError::Network {
@@ -138,6 +140,12 @@ pub(crate) async fn send_metadata_request<'a>(
         })?;
     if response.status() != StatusCode::NOT_MODIFIED || has_validator {
         return Ok((client, response));
+    }
+    if opts.bypass_cache {
+        drop(client);
+        return Err(FetchMetadataError::NotModifiedWithoutCache {
+            pkg_name: opts.pkg_name.to_string(),
+        });
     }
 
     drop(client);
@@ -177,6 +185,7 @@ pub async fn fetch_full_metadata(
             auth_headers: opts.auth_headers,
             etag: opts.etag,
             modified: opts.modified,
+            bypass_cache: false,
             retry_opts: opts.retry_opts,
         })
         .await?;

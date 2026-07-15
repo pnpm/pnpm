@@ -215,7 +215,7 @@ function cacheDiskLoadedMeta (metaCache: PackageMetaCache, cacheKey: string, met
 
 export async function pickPackage (
   ctx: {
-    fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
+    fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, cacheBypass?: boolean, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
     fullMetadata?: boolean
     metaCache: PackageMetaCache
     cacheDir: string
@@ -427,8 +427,18 @@ export async function pickPackage (
             pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, metaCachedInStore),
           }
         }
-        throw new PnpmError('CACHE_MISSING_AFTER_304',
-          `Metadata cache for ${spec.name} is unreadable after receiving 304 Not Modified`)
+        fetchResult = await ctx.fetch(spec.name, {
+          authHeaderValue: opts.authHeaderValue,
+          cacheBypass: true,
+          fullMetadata,
+          registry: opts.registry,
+        })
+        if (fetchResult.notModified) {
+          throw new PnpmError(
+            'META_NOT_MODIFIED_WITHOUT_CACHE',
+            `Registry returned 304 for ${spec.name} without an existing cache to refresh.`
+          )
+        }
       }
 
       let meta = fetchResult.meta
@@ -530,7 +540,7 @@ export async function pickPackage (
 // so callers can persist it to disk and avoid re-fetching on next install.
 async function maybeUpgradeAbbreviatedMetaForReleaseAge (
   ctx: {
-    fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
+    fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, cacheBypass?: boolean, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
     offline?: boolean
   },
   spec: RegistryPackageSpec,

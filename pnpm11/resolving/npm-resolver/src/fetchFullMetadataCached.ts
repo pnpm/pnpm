@@ -61,7 +61,7 @@ async function fetchMetadataCached (
     ? getPkgMirrorPath(opts.cacheDir, opts.metaDir, opts.registry, pkgName)
     : null
   const cacheHeaders = pkgMirror != null ? await loadMetaHeaders(pkgMirror) : null
-  const result = await fetchMetadataFromFromRegistry(fetchOpts, pkgName, {
+  let result = await fetchMetadataFromFromRegistry(fetchOpts, pkgName, {
     registry: opts.registry,
     authHeaderValue: opts.authHeaderValue,
     fullMetadata: opts.fullMetadata,
@@ -79,14 +79,21 @@ async function fetchMetadataCached (
     }
     const meta = await loadMeta(pkgMirror)
     if (meta == null) {
-      // Cache file vanished between header-load and meta-load (concurrent
-      // store cleanup, antivirus, etc.).
-      throw new PnpmError(
-        'META_CACHE_MISSING_AFTER_304',
-        `Metadata cache for ${pkgName} disappeared between headers read and full read.`
-      )
+      result = await fetchMetadataFromFromRegistry(fetchOpts, pkgName, {
+        registry: opts.registry,
+        authHeaderValue: opts.authHeaderValue,
+        cacheBypass: true,
+        fullMetadata: opts.fullMetadata,
+      })
+      if ('notModified' in result && result.notModified) {
+        throw new PnpmError(
+          'META_NOT_MODIFIED_WITHOUT_CACHE',
+          `Registry returned 304 for ${pkgName} without an existing cache to refresh.`
+        )
+      }
+    } else {
+      return meta
     }
-    return meta
   }
   if (pkgMirror != null) {
     // Persist so the next install can do a headers-only conditional GET.

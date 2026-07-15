@@ -13,7 +13,10 @@
 //! own indexed shape (see [`crate::mirror`]) so warm loads hydrate
 //! only the version fragments a pick consults.
 
-use std::path::Path;
+use std::{
+    path::Path,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use pacquet_network::{
     AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials, retry_async,
@@ -103,24 +106,34 @@ pub async fn fetch_full_metadata_cached(
     let cache_headers = load_meta_headers_async(mirror_path.as_deref()).await;
     let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
     let should_filter_metadata = opts.full_metadata && opts.filter_metadata;
+    let cache_bypass = AtomicBool::new(false);
 
-    // A body-read retry re-issues the whole request, conditional
-    // headers and all, so a `304` stays a success that returns the
-    // cached mirror body rather than re-fetching it.
+    // A retry keeps the request in bypass mode after a conditional
+    // `304` loses its mirror body.
     retry_async(&url, opts.retry_opts, FetchMetadataError::is_body_retryable, || async {
+        let bypass_cache = cache_bypass.load(Ordering::Relaxed);
         let (client, response) = send_metadata_request(&MetadataRequestOptions {
             pkg_name,
             url: &url,
             accept,
             http_client: opts.http_client,
             auth_headers: opts.auth_headers,
-            etag: cache_headers.as_ref().and_then(|headers| headers.etag.as_deref()),
-            modified: cache_headers.as_ref().and_then(|headers| headers.modified.as_deref()),
+            etag: if bypass_cache {
+                None
+            } else {
+                cache_headers.as_ref().and_then(|headers| headers.etag.as_deref())
+            },
+            modified: if bypass_cache {
+                None
+            } else {
+                cache_headers.as_ref().and_then(|headers| headers.modified.as_deref())
+            },
+            bypass_cache,
             retry_opts: opts.retry_opts,
         })
         .await?;
 
-        if response.status() == StatusCode::NOT_MODIFIED {
+        let (client, response) = if response.status() == StatusCode::NOT_MODIFIED {
             // No body to stream — release the connection and its
             // network-concurrency permit before the mirror disk read.
             drop(client);
@@ -132,12 +145,26 @@ pub async fn fetch_full_metadata_cached(
                     pkg_name: pkg_name.to_string(),
                 });
             };
-            let meta = load_meta_async(Some(path)).await.ok_or_else(|| {
-                FetchMetadataError::CacheMissingAfter304 { pkg_name: pkg_name.to_string() }
-            })?;
-            renew_mirror_freshness(path);
-            return Ok(meta);
-        }
+            if let Some(meta) = load_meta_async(Some(path)).await {
+                renew_mirror_freshness(path);
+                return Ok(meta);
+            }
+            cache_bypass.store(true, Ordering::Relaxed);
+            send_metadata_request(&MetadataRequestOptions {
+                pkg_name,
+                url: &url,
+                accept,
+                http_client: opts.http_client,
+                auth_headers: opts.auth_headers,
+                etag: None,
+                modified: None,
+                bypass_cache: true,
+                retry_opts: opts.retry_opts,
+            })
+            .await?
+        } else {
+            (client, response)
+        };
 
         let response = response.error_for_status().map_err(|error| {
             FetchMetadataError::Network { url: redact_url_credentials(&url), error }
