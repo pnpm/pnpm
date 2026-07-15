@@ -17,10 +17,15 @@ on:
       # v0.x/v1.x that pnpr's low version numbers would otherwise collide with.
       - "v*.*.*"
       - "pnpr@*.*.*"
-  # Manual trigger for rerunning a tag release. Dispatching this workflow from a
-  # branch fails before publishing because release artifacts are only built on
-  # version tags.
+  # Manual trigger for rerunning a tag release or verifying TypeScript release
+  # artifacts from a branch without publishing.
   workflow_dispatch:
+    inputs:
+      verify_ts_release:
+        description: Verify TypeScript release artifacts without publishing
+        required: false
+        type: boolean
+        default: false
 
 # A release PR that bumps several products auto-tags each one (tag-release.yml),
 # so several version tags can land together and start a run apiece. Serialize
@@ -43,6 +48,9 @@ jobs:
             refs/tags/v*.*.*) ;;
             refs/tags/pnpr@*.*.*) ;;
             *)
+              if [ "${{ inputs.verify_ts_release }}" = "true" ]; then
+                exit 0
+              fi
               echo "::error::The release workflow must run from a version tag like v11.9.0 or pnpr@0.2.0. Current ref: ${GITHUB_REF}"
               exit 1
               ;;
@@ -141,7 +149,7 @@ jobs:
     needs:
       - validate-release-ref
       - plan
-    if: needs.plan.outputs.ts == 'true'
+    if: needs.plan.outputs.ts == 'true' || inputs.verify_ts_release
     permissions:
       contents: read
     # Runs on macOS so the darwin artifacts can be ad-hoc signed with native
@@ -252,7 +260,7 @@ jobs:
       - validate-release-ref
       - plan
       - verify-ts-release
-    if: needs.plan.outputs.ts == 'true'
+    if: needs.plan.outputs.ts == 'true' && !inputs.verify_ts_release
     permissions:
       id-token: write  # Required for OIDC
       contents: write  # for softprops/action-gh-release to create GitHub release
@@ -323,7 +331,7 @@ jobs:
 
   build-rust:
     needs: plan
-    if: needs.plan.outputs.rust == 'true'
+    if: needs.plan.outputs.rust == 'true' && !inputs.verify_ts_release
     permissions:
       contents: read
       id-token: write # needed for actions/attest-build-provenance
@@ -726,7 +734,7 @@ jobs:
 
   build-pnpr:
     needs: plan
-    if: needs.plan.outputs.pnpr == 'true'
+    if: needs.plan.outputs.pnpr == 'true' && !inputs.verify_ts_release
     permissions:
       contents: read
       id-token: write # needed for actions/attest-build-provenance
