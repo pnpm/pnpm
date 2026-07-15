@@ -377,13 +377,21 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Visual Studio installer exited with $LASTEXITCODE" }
           $llvmDir = Join-Path $installPath 'VC\Tools\Llvm'
           $deadline = (Get-Date).AddMinutes(5)
+          $installerRunning = $true
+          $clangCl = $null
           do {
-            $clangCl = Get-ChildItem -Path $llvmDir -Filter clang-cl.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($null -eq $clangCl) { Start-Sleep -Seconds 5 }
-          } while ($null -eq $clangCl -and (Get-Date) -lt $deadline)
+            $installerRunning = @(Get-Process -Name 'vs_installer', 'vs_setup', 'setup' -ErrorAction SilentlyContinue).Count -gt 0
+            $clangCl = @(
+              (Join-Path $llvmDir 'ARM64\bin\clang-cl.exe'),
+              (Join-Path $llvmDir 'x64\bin\clang-cl.exe')
+            ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+            if ($installerRunning -or $null -eq $clangCl) { Start-Sleep -Seconds 5 }
+          } while (($installerRunning -or $null -eq $clangCl) -and (Get-Date) -lt $deadline)
+          if ($installerRunning) { throw 'Visual Studio installer did not finish within five minutes' }
           if ($null -eq $clangCl) { throw "clang-cl was not installed under $llvmDir" }
-          & $clangCl.FullName --version
-          "CC_aarch64_pc_windows_msvc=$($clangCl.FullName)" >> $env:GITHUB_ENV
+          & $clangCl --version
+          "CC_aarch64_pc_windows_msvc=$clangCl" >> $env:GITHUB_ENV
+          "CXX_aarch64_pc_windows_msvc=$clangCl" >> $env:GITHUB_ENV
 
       # No build cache: GitHub Actions caches are writable by any workflow on
       # the default branch, so restoring one here would let a poisoned cache
@@ -760,13 +768,21 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Visual Studio installer exited with $LASTEXITCODE" }
           $llvmDir = Join-Path $installPath 'VC\Tools\Llvm'
           $deadline = (Get-Date).AddMinutes(5)
+          $installerRunning = $true
+          $clangCl = $null
           do {
-            $clangCl = Get-ChildItem -Path $llvmDir -Filter clang-cl.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($null -eq $clangCl) { Start-Sleep -Seconds 5 }
-          } while ($null -eq $clangCl -and (Get-Date) -lt $deadline)
+            $installerRunning = @(Get-Process -Name 'vs_installer', 'vs_setup', 'setup' -ErrorAction SilentlyContinue).Count -gt 0
+            $clangCl = @(
+              (Join-Path $llvmDir 'ARM64\bin\clang-cl.exe'),
+              (Join-Path $llvmDir 'x64\bin\clang-cl.exe')
+            ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+            if ($installerRunning -or $null -eq $clangCl) { Start-Sleep -Seconds 5 }
+          } while (($installerRunning -or $null -eq $clangCl) -and (Get-Date) -lt $deadline)
+          if ($installerRunning) { throw 'Visual Studio installer did not finish within five minutes' }
           if ($null -eq $clangCl) { throw "clang-cl was not installed under $llvmDir" }
-          & $clangCl.FullName --version
-          "CC_aarch64_pc_windows_msvc=$($clangCl.FullName)" >> $env:GITHUB_ENV
+          & $clangCl --version
+          "CC_aarch64_pc_windows_msvc=$clangCl" >> $env:GITHUB_ENV
+          "CXX_aarch64_pc_windows_msvc=$clangCl" >> $env:GITHUB_ENV
 
       # No build cache: GitHub Actions caches are writable by any workflow on
       # the default branch, so restoring one here would let a poisoned cache
