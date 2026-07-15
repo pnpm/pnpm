@@ -11,13 +11,11 @@ use std::{
     sync::Arc,
 };
 
-/// Removes the link created by `pacquet link` and reinstalls the package if
-/// it is saved in `package.json`.
+/// Remove the link created by `pnpm link` and reinstall the package from the
+/// registry if it is saved in `package.json`.
 ///
-/// Mirrors pnpm's `unlink`: it strips `link:` entries from the `overrides`
-/// block in `pnpm-workspace.yaml` (the same source the installer reads), then
-/// runs install so the previous resolution is restored. With package names it
-/// only drops the matching `link:` overrides; with none it drops them all.
+/// With package names, only the matching links are removed; with no
+/// arguments, every link is removed.
 #[derive(Debug, Args)]
 pub struct UnlinkArgs {
     pub package_names: Vec<String>,

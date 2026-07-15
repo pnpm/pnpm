@@ -4,12 +4,7 @@ use std::path::Path;
 
 use super::global::GlobalError;
 
-/// `pacquet bin`: print the directory where pnpm installs executables.
-///
-/// Locally this is `<dir>/node_modules/.bin`: the `node_modules/.bin` leaf is
-/// hardcoded, so a configured `modules-dir` is ignored, and the anchor is
-/// `--dir` (pnpm's `config.dir`, the cwd, not the workspace root). `--global`
-/// prints the resolved global bin directory instead.
+/// Print the directory where pnpm installs executables.
 #[derive(Debug, Args)]
 pub struct BinArgs {
     /// Print the global executables directory

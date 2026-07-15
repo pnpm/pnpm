@@ -7,8 +7,7 @@ use pacquet_reporter::Reporter;
 
 #[derive(Debug, Args)]
 pub struct ImportArgs {
-    /// Server URL of the alternative resolve/verify endpoint to offload
-    /// lockfile resolution to.
+    /// URL of a pnpr server to offload lockfile resolution to.
     #[clap(long = "pnpr-server")]
     pub pnpr_server: Option<String>,
 }

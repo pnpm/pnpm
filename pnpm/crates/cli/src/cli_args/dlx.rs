@@ -27,14 +27,6 @@ use std::{
 };
 
 /// Run a package in a temporary environment.
-///
-/// Deviations from pnpm, deferred until the surrounding infrastructure
-/// lands:
-/// - The cache key is built from the raw package specs rather than the
-///   resolved package ids, so a floating spec such as `cowsay` is not
-///   re-resolved until the cache entry expires.
-/// - The interactive `approve-builds` prompt is not ported; transitive
-///   build scripts follow the install's normal allow-list.
 #[derive(Debug, Args)]
 pub struct DlxArgs {
     /// The command to run, followed by its arguments.

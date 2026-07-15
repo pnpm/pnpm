@@ -15,13 +15,12 @@ use crate::cli_args::{
     recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
 };
 
-/// `pnpm version` — apply the pending change intents (`-r` with no version
-/// argument). The npm-style explicit-bump forms are not ported yet;
-/// per-package release lanes are managed by `pnpm lane`.
+/// Bump package versions by applying the pending change intents. Run with
+/// `-r` and no version argument.
 #[derive(Debug, Args)]
 pub struct VersionArgs {
-    /// An npm-style version argument (not ported yet); the bare recursive
-    /// form consumes the pending change intents instead.
+    /// The version to bump to. With no argument, the recursive form consumes
+    /// the pending change intents instead.
     pub params: Vec<String>,
 
     /// Print the release plan the pending change intents produce without

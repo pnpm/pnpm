@@ -22,13 +22,6 @@ pub struct RebuildArgs {
 
     /// Rebuild packages that were not built during installation. Packages
     /// are not built when installing with the `--ignore-scripts` flag.
-    ///
-    /// Accepted for parity with pnpm, but currently a no-op: pacquet's
-    /// install pipeline does not yet record `pendingBuilds` in
-    /// `.modules.yaml`, so there is nothing for `--pending` to select.
-    /// Tracked with the rest of the not-yet-populated `.modules.yaml`
-    /// fields; until then, name the packages explicitly or use
-    /// `approve-builds`.
     #[clap(long)]
     pub pending: bool,
 }

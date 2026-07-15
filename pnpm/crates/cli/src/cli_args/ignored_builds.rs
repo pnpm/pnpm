@@ -6,8 +6,8 @@ use pacquet_modules_yaml::{Host, Modules, read_modules_manifest};
 use pacquet_package_manager::allow_build_key_from_ignored_build;
 use std::path::PathBuf;
 
-/// `pacquet ignored-builds` — print the list of packages with blocked
-/// build scripts.
+/// Print the list of packages whose build scripts were not run during
+/// installation.
 #[derive(Debug, Args)]
 pub struct IgnoredBuildsArgs {}
 

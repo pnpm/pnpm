@@ -1,31 +1,24 @@
 use clap::Args;
 use pacquet_package_is_installable::SupportedArchitectures;
 
-/// `--cpu`, `--libc`, `--os` CLI flags. Multi-valued: each may be
-/// repeated (`--cpu arm64 --cpu x64`) or comma-separated
-/// (`--cpu arm64,x64`) — both shapes are wired so the surface
-/// matches every reasonable user expectation.
-///
-/// Flattened into the `InstallArgs` / `AddArgs` clap derives so the
-/// three flags appear under the regular `--help` output. Shared
-/// between the two so the wire shape is identical.
+/// Filters which platforms' optional dependencies are installed, via the
+/// `--cpu`, `--os`, and `--libc` flags. Each flag may be repeated
+/// (`--cpu arm64 --cpu x64`) or comma-separated (`--cpu arm64,x64`).
 #[derive(Debug, Default, Clone, Args)]
 pub struct SupportedArchitecturesArgs {
-    /// CPU architectures whose platform-tagged optional dependencies
-    /// should be kept. Repeat or comma-separate for multiple values.
-    /// Overrides `supportedArchitectures.cpu` from
-    /// `pnpm-workspace.yaml` for this axis only.
+    /// CPU architectures whose platform-specific optional dependencies
+    /// should be installed. Repeat or comma-separate for multiple values.
     #[clap(long, value_delimiter = ',', num_args = 1..)]
     pub cpu: Vec<String>,
 
-    /// Operating systems whose platform-tagged optional dependencies
-    /// should be kept. Overrides `supportedArchitectures.os`.
+    /// Operating systems whose platform-specific optional dependencies
+    /// should be installed. Repeat or comma-separate for multiple values.
     #[clap(long, value_delimiter = ',', num_args = 1..)]
     pub os: Vec<String>,
 
-    /// libc families whose platform-tagged optional dependencies
-    /// should be kept (`glibc`, `musl`). Overrides
-    /// `supportedArchitectures.libc`.
+    /// libc families whose platform-specific optional dependencies should
+    /// be installed (`glibc`, `musl`). Repeat or comma-separate for
+    /// multiple values.
     #[clap(long, value_delimiter = ',', num_args = 1..)]
     pub libc: Vec<String>,
 }

@@ -45,7 +45,7 @@ pub struct DeployArgs {
     #[clap(flatten)]
     pub install_args: InstallArgs,
 
-    /// Use the legacy install-based deploy implementation.
+    /// Use the legacy deploy implementation.
     #[clap(long)]
     pub legacy: bool,
 

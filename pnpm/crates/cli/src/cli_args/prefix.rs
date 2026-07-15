@@ -3,10 +3,8 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::path::{Path, PathBuf};
 
-/// `pacquet prefix`: print the current package prefix.
-///
-/// Ports pnpm's `prefix` handler, walking up to find the nearest
-/// package prefix directory (containing package.json, `node_modules`, etc.).
+/// Print the current package prefix — the nearest directory containing a
+/// `package.json`, `node_modules`, or `pnpm-workspace.yaml`.
 #[derive(Debug, Args)]
 pub struct PrefixArgs {
     /// Print the global prefix

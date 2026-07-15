@@ -279,7 +279,7 @@ pub struct OutdatedArgs {
     pub global: bool,
 }
 
-/// `--sort-by` value. pnpm currently documents only `name`.
+/// Sort order for the outdated report.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum SortBy {
     Name,

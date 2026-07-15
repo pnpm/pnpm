@@ -15,10 +15,7 @@ pub struct PruneArgs {
     no_optional: bool,
     #[clap(long = "ignore-scripts", overrides_with = "no_ignore_scripts")]
     pub ignore_scripts: bool,
-    /// Force-enable lifecycle scripts for this invocation, overriding a
-    /// `pnpm-workspace.yaml` / `.npmrc` `ignoreScripts: true`. Mirrors
-    /// pnpm's `--no-ignore-scripts`. Paired with `ignore_scripts` by
-    /// mutual `overrides_with` (last-one-wins).
+    /// Run lifecycle scripts even if scripts are disabled by configuration.
     #[clap(long = "no-ignore-scripts", overrides_with = "ignore_scripts")]
     pub no_ignore_scripts: bool,
 }

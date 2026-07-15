@@ -27,7 +27,7 @@ use pacquet_workspace_manifest_writer::update_manifest_field;
 use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
 
-/// `pacquet config` and its subcommands.
+/// Manage the pnpm configuration files.
 #[derive(Debug, Args)]
 pub struct ConfigArgs {
     #[clap(subcommand)]
@@ -46,16 +46,15 @@ pub enum ConfigSubcommand {
     List(ConfigListArgs),
 }
 
-/// Shared `--global` / `--location` / `--json` flags. Marked `global` so they
-/// can appear before or after the positional arguments, matching pnpm.
+/// Flags shared by the `config` subcommands.
 #[derive(Debug, Default, Clone, Copy, Args)]
 pub struct ConfigFlags {
     /// Operate on the global config file.
     #[clap(short = 'g', long, global = true)]
     pub global: bool,
 
-    /// When `project`, use `pnpm-workspace.yaml` / `.npmrc`; when `global`, use
-    /// the global `config.yaml` / `auth.ini`.
+    /// Which config to read or write: `project` for the project's config,
+    /// `global` for the global config.
     #[clap(long, value_enum, global = true)]
     pub location: Option<ConfigLocation>,
 

@@ -7,10 +7,8 @@ use pacquet_package_manifest::DependencyGroup;
 use pacquet_registry::PinnedVersion;
 use pacquet_reporter::Reporter;
 
-/// `--prod` / `--dev` / `--no-optional` for `pacquet update`.
-///
-/// These read the *raw* CLI flags (not the rc-merged config) so an absent
-/// flag is unset rather than a default.
+/// The `--prod`, `--dev`, and `--no-optional` flags that select which
+/// dependency groups to update.
 #[derive(Debug, Args)]
 pub struct UpdateDependencyOptions {
     /// Update packages only in "dependencies" and "optionalDependencies".
@@ -50,7 +48,7 @@ impl UpdateDependencyOptions {
     }
 }
 
-/// `pacquet update` (alias `up` / `upgrade`).
+/// Update packages to their latest version based on the specified range.
 #[derive(Debug, Args)]
 pub struct UpdateArgs {
     /// Packages to update. Bare names (`foo`, `@scope/bar`), glob
@@ -63,8 +61,8 @@ pub struct UpdateArgs {
     #[clap(flatten)]
     pub dependency_options: UpdateDependencyOptions,
 
-    /// `--cpu` / `--os` / `--libc` overrides for the optional-dep
-    /// platform filter.
+    /// The `--cpu`, `--os`, and `--libc` flags that select which platforms'
+    /// optional dependencies to install.
     #[clap(flatten)]
     pub supported_architectures: SupportedArchitecturesArgs,
 
