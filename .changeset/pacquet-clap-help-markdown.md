@@ -3,4 +3,4 @@
 "@pnpm/pnpr": patch
 ---
 
-Cleaned up `--help` output by removing markdown that clap printed literally: intra-doc links, an inline link, and a `<...>` placeholder that read as an HTML tag. The affected help text now reads as plain prose — paired flags are named directly (e.g. `--no-offline`) and upstream references appear as plain URLs.
+The `--help` text now reads as user-facing help rather than developer documentation. Command and flag descriptions say what each option does for you, and the leftover markdown that was printing verbatim in the terminal — intra-doc links, an inline link, and an HTML-like path placeholder — has been cleaned out.
