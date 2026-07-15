@@ -232,10 +232,7 @@ jobs:
           native_tarball=$(find "$release_tarballs/pnpm11_pnpm_artifacts_darwin-arm64" -type f -name '*.tgz' -print -quit)
           test -n "$exe_tarball"
           test -n "$native_tarball"
-          mkdir -p "$smoke_dir/node_modules/@pnpm/exe" "$smoke_dir/node_modules/@pnpm/macos-arm64"
-          tar -xzf "$exe_tarball" -C "$smoke_dir/node_modules/@pnpm/exe" --strip-components=1
-          tar -xzf "$native_tarball" -C "$smoke_dir/node_modules/@pnpm/macos-arm64" --strip-components=1
-          node "$smoke_dir/node_modules/@pnpm/exe/setup.js"
+          npm install --prefix "$smoke_dir" --ignore-scripts=false "$exe_tarball" "$native_tarball"
           "$smoke_dir/node_modules/@pnpm/exe/pnpm" --version
 
   release:
