@@ -116,10 +116,10 @@ pub struct PacklistOptions<'a> {
 }
 
 /// Variant of [`packlist`] that lets callers pass workspace context.
-/// Workspace packages honor ancestor `.npmignore` / `.gitignore` files
-/// between the workspace root and the package, matching npm-packlist's
-/// `prefix` / `workspaces` behavior. Callers without workspace context
-/// keep the safer package-only walk.
+/// Workspace packages without a package-level `.npmignore` honor ancestor
+/// `.npmignore` / `.gitignore` files between the workspace root and the
+/// package, matching npm-packlist's `prefix` / `workspaces` behavior. Callers
+/// without workspace context keep the safer package-only walk.
 pub fn packlist_with_options(
     pkg_dir: &Path,
     manifest: &Value,
@@ -415,6 +415,9 @@ fn add_workspace_ignore_files(
     workspace_dir: Option<&Path>,
 ) -> Result<(), PacklistError> {
     let Some(workspace_dir) = workspace_dir else { return Ok(()) };
+    if pkg_dir.join(".npmignore").is_file() {
+        return Ok(());
+    }
     let Ok(rel) = pkg_dir.strip_prefix(workspace_dir) else { return Ok(()) };
     if rel.as_os_str().is_empty() {
         return Ok(());

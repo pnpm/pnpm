@@ -441,7 +441,7 @@ test('pack: uses workspace root gitignore for workspace packages', async () => {
   expect(workspaceOutput).not.toContain('dist/generated.js')
 })
 
-test('pack: package-level .npmignore negation overrides workspace root gitignore', async () => {
+test('pack: package-level .npmignore negation prevents workspace root gitignore inheritance', async () => {
   preparePackages([
     {
       name: 'project',
@@ -471,6 +471,40 @@ test('pack: package-level .npmignore negation overrides workspace root gitignore
 
   expect(output).toContain('src/index.js')
   expect(output).toContain('dist/generated.js')
+})
+
+test('pack: package-level .npmignore disables workspace root gitignore', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+    },
+  ])
+
+  const workspaceDir = process.cwd()
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project'] })
+  fs.writeFileSync('.gitignore', 'dist/\n', 'utf8')
+
+  process.chdir('project')
+  fs.writeFileSync('.npmignore', 'src/ignored.js\n', 'utf8')
+  fs.mkdirSync('dist')
+  fs.mkdirSync('src')
+  fs.writeFileSync('dist/generated.js', 'generated', 'utf8')
+  fs.writeFileSync('src/index.js', 'source', 'utf8')
+  fs.writeFileSync('src/ignored.js', 'ignored', 'utf8')
+
+  const output = await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    dryRun: true,
+    workspaceDir,
+  })
+
+  expect(output).toContain('dist/generated.js')
+  expect(output).toContain('src/index.js')
+  expect(output).not.toContain('src/ignored.js')
 })
 
 // A symlinked workspace-root LICENSE must not be injected: following it would

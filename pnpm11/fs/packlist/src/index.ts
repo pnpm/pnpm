@@ -28,7 +28,16 @@ export async function packlist (pkgDir: string, opts?: {
   const workspaceDir = opts?.workspaceDir == null ? undefined : path.resolve(opts.workspaceDir)
   const pkg = opts?.manifest ?? readPackageJson(resolvedPkgDir)
   const tree = buildRootTree(resolvedPkgDir, pkg)
-  const packlistOpts = workspaceDir != null && workspaceDir !== resolvedPkgDir && isSubdir(workspaceDir, resolvedPkgDir)
+  const hasWorkspaceContext = workspaceDir != null && workspaceDir !== resolvedPkgDir && isSubdir(workspaceDir, resolvedPkgDir)
+  let hasNpmIgnore = false
+  if (hasWorkspaceContext) {
+    try {
+      hasNpmIgnore = (await fs.promises.stat(path.join(resolvedPkgDir, '.npmignore'))).isFile()
+    } catch (err: unknown) {
+      if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
+    }
+  }
+  const packlistOpts = hasWorkspaceContext && !hasNpmIgnore
     ? { prefix: workspaceDir, workspaces: [resolvedPkgDir] }
     : undefined
   const files = await npmPacklist(tree, packlistOpts)
