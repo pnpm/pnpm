@@ -292,12 +292,11 @@ fn lockfile_only_updates_importers_when_a_project_is_added() {
     );
 
     // Add a second project, re-run lockfile-only, and confirm both
-    // importers are recorded. `--no-prefer-frozen-lockfile` forces the
-    // fresh-resolve path: pacquet's auto-frozen freshness gate
-    // (`check_lockfile_freshness`) only validates the root importer
-    // today, so it wouldn't notice a newly-added sibling and would
-    // otherwise short-circuit to the frozen path. The flag makes the
-    // re-resolve unconditional.
+    // importers are recorded. The auto-frozen freshness gate
+    // (`check_lockfile_freshness`) validates every importer, so the
+    // newly-added sibling's missing `importers` entry routes this run
+    // to the fresh-resolve path — no `--no-prefer-frozen-lockfile`
+    // needed.
     fs::create_dir_all(workspace.join("packages/project-2")).expect("mkdir project-2");
     fs::write(
         workspace.join("packages/project-2/package.json"),
@@ -305,10 +304,7 @@ fn lockfile_only_updates_importers_when_a_project_is_added() {
     )
     .expect("write project-2 package.json");
 
-    pacquet_at(&workspace)
-        .with_args(["install", "--lockfile-only", "--no-prefer-frozen-lockfile"])
-        .assert()
-        .success();
+    pacquet_at(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
 
     let lockfile = fs::read_to_string(&lockfile_path).expect("re-read pnpm-lock.yaml");
     assert!(

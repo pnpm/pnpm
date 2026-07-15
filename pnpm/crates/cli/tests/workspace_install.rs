@@ -395,3 +395,179 @@ fn install_does_not_scaffold_a_root_manifest_in_a_workspace() {
 
     drop((root, mock_instance));
 }
+
+/// A fresh `pacquet` command rooted at `workspace`. `std::process::Command`
+/// isn't `Clone` and each invocation consumes the builder, so tests that
+/// run pacquet more than once rebuild it here.
+fn pacquet_at(workspace: &std::path::Path) -> std::process::Command {
+    std::process::Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(workspace)
+}
+
+/// Write a two-sibling workspace (root + `packages/a` + `packages/b`)
+/// and install it so `pnpm-lock.yaml` records every importer. Shared
+/// setup for the frozen-gate regression tests below.
+fn install_two_project_workspace(workspace: &std::path::Path) {
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "ws-root", "version": "0.0.0", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("packages:\n  - 'packages/*'\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::create_dir_all(workspace.join("packages/a")).expect("mkdir packages/a");
+    fs::write(
+        workspace.join("packages/a/package.json"),
+        serde_json::json!({
+            "name": "@scope/a",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/a/package.json");
+
+    fs::create_dir_all(workspace.join("packages/b")).expect("mkdir packages/b");
+    fs::write(
+        workspace.join("packages/b/package.json"),
+        serde_json::json!({ "name": "@scope/b", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write packages/b/package.json");
+
+    pacquet_at(workspace).with_arg("install").assert().success();
+}
+
+/// Regression test for the frozen freshness gate only validating the
+/// root importer: a dependency added to a *sibling* project's manifest
+/// without regenerating the lockfile must fail `--frozen-lockfile`
+/// (`ERR_PNPM_OUTDATED_LOCKFILE`), exactly like the same drift in the
+/// root manifest — not exit 0 with the new dependency silently ignored.
+#[test]
+fn frozen_install_rejects_a_stale_workspace_project_manifest() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    install_two_project_workspace(&workspace);
+
+    // Drift packages/a: add a dep the lockfile doesn't record.
+    fs::write(
+        workspace.join("packages/a/package.json"),
+        serde_json::json!({
+            "name": "@scope/a",
+            "version": "1.0.0",
+            "dependencies": {
+                "@pnpm.e2e/hello-world-js-bin": "1.0.0",
+                "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("rewrite packages/a/package.json");
+
+    let output = pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .output()
+        .expect("run frozen install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !output.status.success(),
+        "frozen install must fail on a stale workspace project manifest\nstderr:\n{stderr}",
+    );
+    // miette hard-wraps the rendered error, so collapse whitespace
+    // before matching the message text.
+    let stderr_flat = stderr.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(
+        stderr_flat.contains("not up to date with package.json"),
+        "expected the outdated-lockfile error\nstderr:\n{stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A workspace project added after the last lockfile write has no
+/// `importers` entry, so `--frozen-lockfile` must fail rather than
+/// materialize a tree that silently omits the new project.
+#[test]
+fn frozen_install_rejects_a_workspace_project_missing_from_the_lockfile() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    install_two_project_workspace(&workspace);
+
+    fs::create_dir_all(workspace.join("packages/c")).expect("mkdir packages/c");
+    fs::write(
+        workspace.join("packages/c/package.json"),
+        serde_json::json!({ "name": "@scope/c", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write packages/c/package.json");
+
+    let output = pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .output()
+        .expect("run frozen install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !output.status.success(),
+        "frozen install must fail when a workspace project has no importers entry\nstderr:\n{stderr}",
+    );
+    // miette hard-wraps the rendered error, so collapse whitespace
+    // before matching the message text.
+    let stderr_flat = stderr.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(
+        stderr_flat.contains(r#"importers["packages/c"]"#),
+        "expected the missing-importer error naming packages/c\nstderr:\n{stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// The auto-frozen fast path (`preferFrozenLockfile`, the default) must
+/// treat a stale sibling manifest as fall-through to fresh resolve —
+/// the drifted dependency gets installed and the lockfile updated,
+/// instead of the frozen path short-circuiting and ignoring it.
+#[test]
+fn auto_frozen_path_falls_through_on_a_stale_workspace_project_manifest() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    install_two_project_workspace(&workspace);
+
+    fs::write(
+        workspace.join("packages/a/package.json"),
+        serde_json::json!({
+            "name": "@scope/a",
+            "version": "1.0.0",
+            "dependencies": {
+                "@pnpm.e2e/hello-world-js-bin": "1.0.0",
+                "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("rewrite packages/a/package.json");
+
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let a_dep = workspace.join("packages/a/node_modules/@pnpm.e2e/hello-world-js-bin-parent");
+    assert!(
+        is_symlink_or_junction(&a_dep).expect("query packages/a symlink"),
+        "the dependency added to packages/a must be installed by the fall-through resolve",
+    );
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(
+        lockfile.contains("hello-world-js-bin-parent"),
+        "the regenerated lockfile must record the new packages/a dependency:\n{lockfile}",
+    );
+
+    drop((root, mock_instance));
+}
