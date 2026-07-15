@@ -1,6 +1,9 @@
 pub mod _utils;
 
-use _utils::{bravo_dep_mature_up_to_1_0_1_minimum_release_age, set_minimum_release_age};
+use _utils::{
+    append_workspace_yaml_key, bravo_dep_mature_up_to_1_0_1_minimum_release_age,
+    set_minimum_release_age,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
@@ -894,6 +897,78 @@ fn update_latest_respects_minimum_release_age() {
     assert_eq!(dep_spec(&workspace, BRAVO_DEP).as_deref(), Some("^1.0.1"));
     assert!(virtual_store_has(&workspace, "@pnpm.e2e+bravo-dep@1.0.1"));
     assert!(!virtual_store_has(&workspace, "@pnpm.e2e+bravo-dep@1.1.0"));
+
+    drop((root, anchor));
+}
+
+/// An invalid `minimumReleaseAgeExclude` must not preempt command
+/// validation: `update <name>@<spec> --latest` still fails with the
+/// versioned-selector rejection, matching the TypeScript CLI, which
+/// parses the excludes only once resolution starts.
+#[test]
+fn update_latest_spec_rejection_wins_over_invalid_minimum_release_age_exclude() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{BRAVO_DEP}": "^1.0.0" }}"#));
+    append_workspace_yaml_key(
+        &workspace,
+        "minimumReleaseAgeExclude",
+        format!(r#"["{BRAVO_DEP}@^1.0.0"]"#),
+    );
+
+    let output = pacquet(&workspace, ["update", "--latest", &format!("{BRAVO_DEP}@1.0.1")])
+        .output()
+        .expect("run pacquet update");
+    assert!(!output.status.success(), "update --latest with a spec should fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Specs are not allowed to be used with --latest"),
+        "stderr did not mention the LATEST_WITH_SPEC error: {stderr}",
+    );
+
+    drop((root, anchor));
+}
+
+/// An invalid `minimumReleaseAgeExclude` must not fail the
+/// unmatched-selector no-op: `update <unmatched> --latest` still
+/// succeeds, matching the TypeScript CLI.
+#[test]
+fn update_latest_unmatched_noop_ignores_invalid_minimum_release_age_exclude() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{BRAVO_DEP}": "^1.0.0" }}"#));
+    append_workspace_yaml_key(
+        &workspace,
+        "minimumReleaseAgeExclude",
+        format!(r#"["{BRAVO_DEP}@^1.0.0"]"#),
+    );
+
+    pacquet(&workspace, ["update", "--latest", "@pnpm.e2e/does-not-exist"]).assert().success();
+
+    drop((root, anchor));
+}
+
+/// An invalid `minimumReleaseAgeExclude` that a `--latest` rewrite does
+/// hit fails with `ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE`, the
+/// same code the install path and the TypeScript CLI report.
+#[test]
+fn update_latest_reports_invalid_minimum_release_age_exclude() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{BRAVO_DEP}": "^1.0.0" }}"#));
+    append_workspace_yaml_key(
+        &workspace,
+        "minimumReleaseAgeExclude",
+        format!(r#"["{BRAVO_DEP}@^1.0.0"]"#),
+    );
+
+    let output = pacquet(&workspace, ["update", "--latest"]).output().expect("run pacquet update");
+    assert!(!output.status.success(), "update --latest with an invalid exclude should fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Invalid value in minimumReleaseAgeExclude"),
+        "stderr did not mention the invalid exclude: {stderr}",
+    );
 
     drop((root, anchor));
 }
