@@ -2060,11 +2060,11 @@ impl Config {
         Ok(Some(calc_patch_hashes(resolved)?))
     }
 
-    /// Build the runtime config by layering:
-    /// 1. hard-coded defaults, then
-    /// 2. the supported `.npmrc` subset read from the nearest `.npmrc`
-    ///    (cwd, falling back to home), then
-    /// 3. the nearest `pnpm-workspace.yaml` walking up from cwd.
+    /// Load the merged configuration for a CLI run.
+    ///
+    /// Config sources (low → high precedence): `SmartDefault`, the supported
+    /// `.npmrc` subset (cwd, falling back to home), global `config.yaml`,
+    /// project `pnpm-workspace.yaml`, then `PNPM_CONFIG_*` env.
     ///
     /// Pacquet currently applies `registry`, scoped registry routes,
     /// npm-auth credentials, the
@@ -2076,14 +2076,38 @@ impl Config {
     /// ignored here. Those must come from `pnpm-workspace.yaml` or CLI
     /// flags, matching pnpm 11.
     ///
-    /// The yaml wins over `.npmrc` on any key it sets.
-    ///
     /// Returns [`LoadWorkspaceYamlError`] when an existing
-    /// `pnpm-workspace.yaml` cannot be read or parsed.
-    /// A missing file is not an error.
-    pub fn current<Sys>(
+    /// `pnpm-workspace.yaml` cannot be read or parsed. A missing file is not
+    /// an error.
+    pub fn current<Sys>(self, start_dir: &std::path::Path) -> Result<Self, LoadWorkspaceYamlError>
+    where
+        Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
+        self.current_inner::<Sys>(start_dir, false)
+    }
+
+    /// Like [`Config::current`], but for `self-update`: load config from
+    /// trusted sources only — skip the project `pnpm-workspace.yaml` settings
+    /// and project `.npmrc`, and force `minimum_release_age_strict = true`.
+    /// The project `package.json` is still read for `packageManager` pin
+    /// detection. Disable the cutoff via `minimum_release_age: 0`, or strict
+    /// mode via `minimum_release_age_strict: false` — from the global
+    /// `config.yaml`, env, or a CLI flag (CLI overrides are applied by the
+    /// caller after this returns).
+    pub fn current_for_self_update<Sys>(
+        self,
+        start_dir: &std::path::Path,
+    ) -> Result<Self, LoadWorkspaceYamlError>
+    where
+        Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
+        self.current_inner::<Sys>(start_dir, true)
+    }
+
+    fn current_inner<Sys>(
         mut self,
         start_dir: &std::path::Path,
+        for_self_update: bool,
     ) -> Result<Self, LoadWorkspaceYamlError>
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
@@ -2131,7 +2155,21 @@ impl Config {
             .or_else(|| Sys::var_os("npm_config_workspace_dir"))
             .filter(|value| !value.is_empty())
             .map(PathBuf::from);
-        let workspace_yaml = if let Some(env_dir) = env_workspace_dir {
+        let workspace_yaml = if for_self_update {
+            // `self-update` needs the workspace root for structural context
+            // (env-lockfile anchoring) but must not depend on the
+            // repo-controlled manifest *content* — a malformed
+            // `pnpm-workspace.yaml` must not be able to block it. Find the
+            // root location without reading/parsing the file; skip the
+            // content load entirely.
+            if let Some(root) = env_workspace_dir.or_else(|| {
+                workspace_yaml::find_workspace_manifest(start_dir)
+                    .and_then(|manifest_path| manifest_path.parent().map(Path::to_path_buf))
+            }) {
+                self.workspace_dir = Some(root);
+            }
+            None
+        } else if let Some(env_dir) = env_workspace_dir {
             // Env-var path: load yaml directly from the env dir. A
             // missing file is silent, but the re-anchor still fires
             // because the user has explicitly told us where the
@@ -2199,15 +2237,23 @@ impl Config {
                 Sys::current_dir().is_ok_and(|cwd| cwd.join(user) == project_npmrc_path)
             }
         });
-        let project_source = read_npmrc(project_npmrc_dir).map(|text| {
-            let mut auth = if project_is_trusted_auth_file {
-                NpmrcAuth::from_ini::<Sys>(&text, project_npmrc_dir)
-            } else {
-                NpmrcAuth::from_project_ini::<Sys>(&text, project_npmrc_dir)
-            };
-            auth.rescope_unscoped("<project>/.npmrc");
-            auth
-        });
+        let project_source = if for_self_update {
+            // `self-update` loads config from trusted sources only, so the
+            // repo-controlled project `.npmrc` is not read — it cannot steer
+            // the pnpm fetch (registry, auth). User-level `.npmrc` and
+            // `auth.ini` below still apply.
+            None
+        } else {
+            read_npmrc(project_npmrc_dir).map(|text| {
+                let mut auth = if project_is_trusted_auth_file {
+                    NpmrcAuth::from_ini::<Sys>(&text, project_npmrc_dir)
+                } else {
+                    NpmrcAuth::from_project_ini::<Sys>(&text, project_npmrc_dir)
+                };
+                auth.rescope_unscoped("<project>/.npmrc");
+                auth
+            })
+        };
         let auth_ini_source = global_config_dir.as_deref().and_then(|dir| {
             read_npmrc_file(&dir.join("auth.ini"))
                 .map(|text| parse_trusted_source(text, dir.to_path_buf(), "auth.ini"))
@@ -2391,6 +2437,13 @@ impl Config {
             if !virtual_store_dir_explicit {
                 self.virtual_store_dir = base_dir.join("node_modules/.pnpm");
             }
+            // The workspace root is structural context (env-lockfile reads/
+            // writes, pin persistence), not a "setting" — set it whenever a
+            // workspace is discovered, even on the `NPM_CONFIG_WORKSPACE_DIR`
+            // path when the yaml file is missing and `apply_to` (which also
+            // writes it) never runs. The `for_self_update` branch above sets
+            // it at discovery for the same reason.
+            self.workspace_dir = Some(base_dir.clone());
             if let Some(mut settings) = settings {
                 // `|=` rather than `=` so an `enableGlobalVirtualStore` /
                 // `virtualStoreDir` set in the global `config.yaml` still
@@ -2401,8 +2454,16 @@ impl Config {
                 store_dir_explicit |= settings.store_dir.is_some();
                 settings.substitute_env_untrusted::<Sys>();
                 self.http_proxy_is_explicit |= has_nonempty_string(settings.http_proxy.as_deref());
-                collect_explicit_settings(&mut self.explicit_settings, &settings);
-                settings.apply_to(&mut self, &base_dir);
+                // `self-update` loads config from trusted sources only, so
+                // the repo-controlled project workspace manifest does not
+                // contribute settings — not just release-age, all of them.
+                // It can still be discovered for structural context above;
+                // the project `package.json` is read separately for
+                // `packageManager` pin detection.
+                if !for_self_update {
+                    collect_explicit_settings(&mut self.explicit_settings, &settings);
+                    settings.apply_to(&mut self, &base_dir);
+                }
             }
         }
 
@@ -2519,6 +2580,17 @@ impl Config {
             .as_deref()
             .map(|dir| vec![dir.join("node_modules").join(".bin")])
             .unwrap_or_default();
+
+        // `self-update` self-protects: enforce a strict release-age for pnpm
+        // itself by default, even at zero config, so a freshly published
+        // malicious pnpm cannot reach users before the cutoff elapses. The
+        // policy is sourced from trusted layers only (built-in default,
+        // global `config.yaml`, env) — the project workspace manifest was
+        // already skipped. An explicit `minimum_release_age_strict: false`
+        // (global / env) or `minimum_release_age: 0` opts out.
+        if for_self_update && self.minimum_release_age_strict != Some(false) {
+            self.minimum_release_age_strict = Some(true);
+        }
 
         Ok(self)
     }

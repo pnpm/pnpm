@@ -65,6 +65,12 @@ export interface LoadNpmrcConfigOpts {
   moduleDirname: string
   env?: Record<string, string | undefined>
   /**
+   * When set (by `self-update`), the project/workspace `.npmrc` is not read —
+   * config comes from the user-level `.npmrc` and trusted sources only, so a
+   * repo-controlled `.npmrc` cannot steer the pnpm fetch (registry, auth).
+   */
+  ignoreProjectNpmrc?: boolean
+  /**
    * The `_auth` value read from the **global** pnpm config yaml (the only
    * file source honored for `_auth`). Project `.npmrc` / `pnpm-workspace.yaml`
    * must not reach this — repo-controlled config may never supply auth.
@@ -93,15 +99,17 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   // When npmrcAuthFile explicitly points at the project .npmrc, the user has
   // opted in to trusting it — allow auth env expansion and suppress the warning.
   const workspaceIsTrustedAuthFile = userConfigPath === workspaceNpmrcPath
-  const workspaceNpmrc = readAndFilterNpmrc(
-    workspaceNpmrcPath,
-    warnings,
-    env,
-    {
-      expandAuthValueEnv: workspaceIsTrustedAuthFile,
-      expandRequestDestinationEnv: workspaceIsTrustedAuthFile,
-    }
-  )
+  const workspaceNpmrc = opts.ignoreProjectNpmrc
+    ? {}
+    : readAndFilterNpmrc(
+      workspaceNpmrcPath,
+      warnings,
+      env,
+      {
+        expandAuthValueEnv: workspaceIsTrustedAuthFile,
+        expandRequestDestinationEnv: workspaceIsTrustedAuthFile,
+      }
+    )
 
   // Read user .npmrc (from npmrcAuthFile setting or ~/.npmrc)
   const userConfig = readAndFilterNpmrc(userConfigPath, warnings, env)

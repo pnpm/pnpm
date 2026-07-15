@@ -85,3 +85,18 @@ pub fn is_path_executable(path: &Path) -> bool {
         .mode();
     mode & 0b001_001_001 != 0
 }
+
+/// Push `path`'s mtime 2 seconds into the future so the optimistic-repeat
+/// install fast path sees a manifest rewrite. The kernel stamps mtimes from
+/// a coarse clock that can lag the fine-grained clock the workspace state's
+/// `lastValidatedTimestamp` is taken from by a few milliseconds — a manifest
+/// rewritten immediately after an install can sort as "unmodified" and the
+/// next install no-ops. Call this after any post-install manifest rewrite.
+pub fn bump_mtime(path: &Path) {
+    let future = std::time::SystemTime::now() + std::time::Duration::from_secs(2);
+    fs::OpenOptions::new()
+        .write(true)
+        .open(path)
+        .and_then(|file| file.set_times(fs::FileTimes::new().set_modified(future)))
+        .expect("bump mtime past lastValidatedTimestamp");
+}

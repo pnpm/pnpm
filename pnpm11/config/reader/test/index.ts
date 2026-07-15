@@ -548,6 +548,108 @@ describe('minimumReleaseAgeStrict default', () => {
   })
 })
 
+describe('forSelfUpdate (self-update loads config from trusted sources only)', () => {
+  test('drops all workspace-manifest settings and forces strict on', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: 60,
+      minimumReleaseAgeStrict: false,
+      nodeLinker: 'hoisted',
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+      forSelfUpdate: true,
+    })
+
+    // Every workspace-manifest setting is dropped — release-age AND structural
+    // — so self-update's fetch can't be steered by a repo-controlled manifest.
+    expect(config.minimumReleaseAge).toBe(1440)
+    expect(config.minimumReleaseAgeStrict).toBe(true)
+    expect(config.nodeLinker).not.toBe('hoisted')
+  })
+
+  test('ignores the project .npmrc', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {})
+    fs.writeFileSync('.npmrc', 'registry=https://self-update-test.example/\n')
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+      forSelfUpdate: true,
+    })
+
+    // A repo-controlled project .npmrc must not steer self-update's registry.
+    expect(config.registries.default).not.toContain('self-update-test.example')
+  })
+
+  test('a malformed pnpm-workspace.yaml does not block self-update', async () => {
+    prepareEmpty()
+
+    // Structural validation error (`packages` must be an array). A normal
+    // load would throw `packages field is not an array` out of readWorkspaceManifest.
+    fs.writeFileSync('pnpm-workspace.yaml', 'packages: "not-an-array"\n')
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+      forSelfUpdate: true,
+    })
+
+    // self-update must proceed with default config — it never parsed the file.
+    expect(config.minimumReleaseAge).toBe(1440)
+    expect(config.minimumReleaseAgeStrict).toBe(true)
+  })
+
+  test('CLI --minimum-release-age=0 disables the check despite forced strict', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: 60,
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {
+        'minimum-release-age': 0,
+      },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+      forSelfUpdate: true,
+    })
+
+    expect(config.minimumReleaseAge).toBe(0)
+    // strict is forced on, but minimumReleaseAge=0 disables the check at
+    // resolution time so it has no effect.
+    expect(config.minimumReleaseAgeStrict).toBe(true)
+  })
+
+  test('CLI --minimum-release-age-strict=false opts out of the forced default', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: 60,
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {
+        'minimum-release-age-strict': false,
+      },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+      forSelfUpdate: true,
+    })
+
+    expect(config.minimumReleaseAgeStrict).toBe(false)
+  })
+})
+
 test('camelCase settings from pnpm-workspace.yaml are read into typed Config properties', async () => {
   prepareEmpty()
 

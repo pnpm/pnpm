@@ -879,9 +879,8 @@ impl WorkspaceSettings {
 
     /// Apply every set field onto `config`, leaving unset ones untouched.
     ///
-    /// Path-valued fields (`store_dir`, `modules_dir`, `virtual_store_dir`)
-    /// are resolved against `base_dir` if relative — anchored at the
-    /// workspace root where the yaml was found, matching pnpm.
+    /// Path-valued settings are resolved against `base_dir` if relative —
+    /// anchored at the workspace root where the yaml was found, matching pnpm.
     pub fn apply_to(self, config: &mut Config, base_dir: &Path) {
         let http_proxy_is_explicit = config.http_proxy_is_explicit;
         self.apply_proxy_to(&mut config.proxy, http_proxy_is_explicit);
@@ -1218,7 +1217,7 @@ fn resolve(base: &Path, value: &str) -> PathBuf {
     if candidate.is_absolute() { candidate.to_path_buf() } else { base.join(candidate) }
 }
 
-fn find_workspace_manifest(start: &Path) -> Option<PathBuf> {
+pub(crate) fn find_workspace_manifest(start: &Path) -> Option<PathBuf> {
     let mut cursor = Some(start);
     while let Some(dir) = cursor {
         let candidate = dir.join(WORKSPACE_MANIFEST_FILENAME);
