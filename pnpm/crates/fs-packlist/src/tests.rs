@@ -871,3 +871,77 @@ fn main_resolving_through_a_symlinked_dir_is_not_force_included() {
         "main resolving outside the package via a symlinked dir must not be included: {out:?}",
     );
 }
+
+#[test]
+fn files_field_overrides_root_gitignore() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    fs::write(root.join("pnpm"), "binary-content").unwrap();
+    fs::write(root.join(".gitignore"), "pnpm\n").unwrap();
+
+    let manifest = json!({
+        "name": "@pnpm/linux-x64",
+        "version": "11.12.0",
+        "files": ["pnpm"],
+    });
+    let out = packlist(root, &manifest).unwrap();
+
+    assert!(
+        out.contains(&"pnpm".to_string()),
+        r#"`files: ["pnpm"]` must override `.gitignore` that excludes `pnpm`; received {out:?}"#,
+    );
+}
+
+#[test]
+fn npmignore_disables_gitignore_in_same_directory() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "index.js");
+    touch(root, "build/output.js");
+    touch(root, "test/foo.test.js");
+    fs::write(root.join(".gitignore"), "build/\n").unwrap();
+    fs::write(root.join(".npmignore"), "test/\n").unwrap();
+
+    let manifest = json!({ "name": "x", "version": "0.0.0" });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert!(
+        out.contains(&"build/output.js".to_string()),
+        "`.npmignore` must supersede `.gitignore`; `build/` should be included: {out:?}",
+    );
+    assert!(
+        !out.iter().any(|p| p.starts_with("test/")),
+        "`.npmignore` must exclude `test/`: {out:?}",
+    );
+}
+
+#[test]
+fn files_field_overrides_gitignore_with_npmignore_coexisting() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    fs::write(root.join("pnpm"), "binary-content").unwrap();
+    touch(root, "nodes/extra");
+    touch(root, "src/index.ts");
+    fs::write(root.join(".gitignore"), "pnpm\n").unwrap();
+    fs::write(root.join(".npmignore"), "nodes\n").unwrap();
+
+    let manifest = json!({
+        "name": "@pnpm/macos-arm64",
+        "version": "11.12.0",
+        "files": ["pnpm"],
+    });
+    let out = packlist(root, &manifest).unwrap();
+
+    assert!(
+        out.contains(&"pnpm".to_string()),
+        "`files` must override both `.gitignore` and `.npmignore`; received {out:?}",
+    );
+    assert!(
+        !out.contains(&"src/index.ts".to_string()),
+        "files not in the `files` allowlist must be excluded: {out:?}",
+    );
+}
