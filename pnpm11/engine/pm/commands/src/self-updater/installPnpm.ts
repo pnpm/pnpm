@@ -415,8 +415,8 @@ export function linkExePlatformBinary (installDir: string, wrapperPkgName: strin
   // GVS dependencies link to sibling slots through the install root. The real
   // adjacent scope remains necessary for legacy virtual-store layouts.
   const scopeDirs = new Set([
-    path.join(installDir, 'node_modules', '@pnpm'),
     adjacentScopeDir,
+    path.join(installDir, 'node_modules', '@pnpm'),
   ])
   const candidateDirNames = [
     exePlatformPkgDirName(platform, arch, libcFamily),

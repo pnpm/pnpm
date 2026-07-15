@@ -1103,7 +1103,7 @@ describe('linkExePlatformBinary', () => {
   const libcFamily = familySync()
   const platformPkgName = exePlatformPkgDirName(platform, arch, libcFamily)
 
-  test('links platform binary in pnpm symlinked node_modules layout', () => {
+  test('prefers the wrapper-adjacent platform binary in a symlinked node_modules layout', () => {
     const dir = tempDir(false)
 
     // Create a virtual store layout like pnpm produces:
@@ -1113,6 +1113,7 @@ describe('linkExePlatformBinary', () => {
     const vsExeDir = path.join(dir, 'node_modules', '.pnpm', '@pnpm+exe@1.0.0', 'node_modules', '@pnpm', 'exe')
     const vsPlatformDir = path.join(dir, 'node_modules', '.pnpm', '@pnpm+exe@1.0.0', 'node_modules', '@pnpm', platformPkgName)
     const topLevelExeDir = path.join(dir, 'node_modules', '@pnpm', 'exe')
+    const topLevelPlatformDir = path.join(dir, 'node_modules', '@pnpm', platformPkgName)
 
     // Create the virtual store directories
     fs.mkdirSync(vsExeDir, { recursive: true })
@@ -1130,6 +1131,8 @@ describe('linkExePlatformBinary', () => {
     // Create the top-level symlink: node_modules/@pnpm/exe -> virtual store
     fs.mkdirSync(path.join(dir, 'node_modules', '@pnpm'), { recursive: true })
     fs.symlinkSync(vsExeDir, topLevelExeDir)
+    fs.mkdirSync(topLevelPlatformDir)
+    fs.writeFileSync(path.join(topLevelPlatformDir, executable), 'wrong platform binary')
 
     // Run the function
     linkExePlatformBinary(dir)
