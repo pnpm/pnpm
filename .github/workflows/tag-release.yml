@@ -62,8 +62,8 @@ jobs:
 
           to_push=()
           add_tag() {
-            local manifest="$1" tag
-            tag="v$(jq -r .version "$manifest")"
+            local manifest="$1" prefix="$2" tag
+            tag="${prefix}v$(jq -r .version "$manifest")"
             case "$seen" in
               *" $tag "*)
                 echo "$tag already exists; skipping"
@@ -75,9 +75,13 @@ jobs:
             seen="$seen$tag "
           }
 
-          add_tag pnpm11/pnpm/package.json
-          add_tag pnpm/npm/pnpm/package.json
-          add_tag pnpr/npm/pnpr/package.json
+          # pnpm (TypeScript, v11.x) and pacquet (v12.x) share the `v<version>`
+          # namespace get.pnpm.io fetches by. pnpr takes a `pnpr-` prefix so its
+          # low version numbers don't collide with pnpm's v0.x/v1.x tag history —
+          # release.yml triggers on `pnpr-v*.*.*` too.
+          add_tag pnpm11/pnpm/package.json ''
+          add_tag pnpm/npm/pnpm/package.json ''
+          add_tag pnpr/npm/pnpr/package.json 'pnpr-'
 
           if [ ${#to_push[@]} -eq 0 ]; then
             echo "No new version tags to push"
