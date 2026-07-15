@@ -417,6 +417,45 @@ jobs:
           cat pnpm/npm/napi/package.json
           for package in pnpm/npm/pacquet-* pnpm/npm/napi.*; do cat $package/package.json ; echo ; done
 
+      - name: Verify generated npm packages
+        # `pnpm publish` packages its input immediately before upload. Verify
+        # those tarballs before the first immutable npm publish, including the
+        # wrapper's preinstall path on this Linux runner.
+        run: |
+          set -euo pipefail
+          release_tarballs=$(mktemp -d)
+          for package in pnpm/npm/pacquet-* pnpm/npm/napi.* pnpm/npm/napi pnpm/npm/pnpm-exe pnpm/npm/pnpm; do
+            package_tarballs="$release_tarballs/${package//\//_}"
+            mkdir "$package_tarballs"
+            (
+              cd "$package"
+              pnpm pack --pack-destination "$package_tarballs"
+            )
+
+            tarball=$(find "$package_tarballs" -type f -name '*.tgz' -print -quit)
+            test -n "$tarball"
+            node -e '
+              const manifest = require(require("node:path").resolve(process.argv[1]))
+              for (const file of [...(manifest.files ?? []), ...(manifest.publishConfig?.executableFiles ?? [])]) {
+                if (!/[?*[]/.test(file)) console.log(file.replace(/^\.\//, ""))
+              }
+            ' "$package/package.json" | while IFS= read -r file; do
+              test -s "$package/$file"
+              test "$(tar -xOf "$tarball" "package/$file" | sha256sum | cut -d ' ' -f 1)" = "$(sha256sum "$package/$file" | cut -d ' ' -f 1)"
+            done
+          done
+
+          smoke_dir=$(mktemp -d)
+          native_tarball=$(find "$release_tarballs/pnpm_npm_pacquet-linux-x64" -type f -name '*.tgz' -print -quit)
+          wrapper_tarball=$(find "$release_tarballs/pnpm_npm_pnpm" -type f -name '*.tgz' -print -quit)
+          mkdir -p "$smoke_dir/node_modules/@pnpm/exe.linux-x64" "$smoke_dir/node_modules/pnpm"
+          tar -xzf "$native_tarball" \
+            -C "$smoke_dir/node_modules/@pnpm/exe.linux-x64" --strip-components=1
+          tar -xzf "$wrapper_tarball" \
+            -C "$smoke_dir/node_modules/pnpm" --strip-components=1
+          node "$smoke_dir/node_modules/pnpm/install.js"
+          "$smoke_dir/node_modules/pnpm/pnpm" --version
+
       # Everything publishes via trusted publishing: the `pnpm` / `@pnpm/exe`
       # trusted publishers are bound to this workflow file (they are shared
       # with the TypeScript release job above), and the natives' and
