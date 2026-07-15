@@ -12,12 +12,12 @@ use super::symlink_dir;
 use super::to_native_separators;
 use super::{ForceSymlinkOutcome, force_symlink_dir, read_symlink_dir};
 use std::fs;
-#[cfg(windows)]
-use std::{io, path::Path};
 #[cfg(not(windows))]
 use std::path::PathBuf;
 #[cfg(windows)]
 use std::sync::Barrier;
+#[cfg(windows)]
+use std::{io, path::Path};
 use tempfile::tempdir;
 
 #[cfg(unix)]
