@@ -224,7 +224,7 @@ jobs:
                 return new RegExp("^" + pattern.replace(/[.+^{}()|[\]\\]/g, "\\$&").replace(/\*\*\//g, "\x00").replace(/\*\*/g, "\x01").replace(/\*/g, "[^/]*").replace(/\x00/g, "(?:.*/)?").replace(/\x01/g, ".*") + String.fromCharCode(36))
               }
             ' "$package/package.json" | while IFS= read -r file; do
-              test -s "$package/$file"
+              test -f "$package/$file"
               test "$(tar -xOf "$tarball" "package/$file" | shasum -a 256 | cut -d ' ' -f 1)" = "$(shasum -a 256 "$package/$file" | cut -d ' ' -f 1)"
             done
           done
@@ -621,7 +621,7 @@ jobs:
                 return new RegExp("^" + pattern.replace(/[.+^{}()|[\]\\]/g, "\\$&").replace(/\*\*\//g, "\x00").replace(/\*\*/g, "\x01").replace(/\*/g, "[^/]*").replace(/\x00/g, "(?:.*/)?").replace(/\x01/g, ".*") + String.fromCharCode(36))
               }
             ' "$package/package.json" | while IFS= read -r file; do
-              test -s "$package/$file"
+              test -f "$package/$file"
               test "$(tar -xOf "$tarball" "package/$file" | sha256sum | cut -d ' ' -f 1)" = "$(sha256sum "$package/$file" | cut -d ' ' -f 1)"
             done
           done
@@ -980,7 +980,7 @@ jobs:
                 return new RegExp("^" + pattern.replace(/[.+^{}()|[\]\\]/g, "\\$&").replace(/\*\*\//g, "\x00").replace(/\*\*/g, "\x01").replace(/\*/g, "[^/]*").replace(/\x00/g, "(?:.*/)?").replace(/\x01/g, ".*") + String.fromCharCode(36))
               }
             ' "$package/package.json" | while IFS= read -r file; do
-              test -s "$package/$file"
+              test -f "$package/$file"
               test "$(tar -xOf "$tarball" "package/$file" | sha256sum | cut -d ' ' -f 1)" = "$(sha256sum "$package/$file" | cut -d ' ' -f 1)"
             done
           done
