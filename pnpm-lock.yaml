@@ -5152,6 +5152,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants
+      '@pnpm/core-loggers':
+        specifier: workspace:*
+        version: link:../../core/core-loggers
       '@pnpm/deps.inspection.outdated':
         specifier: workspace:*
         version: link:../../deps/inspection/outdated
