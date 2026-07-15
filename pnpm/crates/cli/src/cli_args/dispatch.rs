@@ -415,14 +415,16 @@ fn print_json_error(error: &miette::Report) {
     let output = serde_json::json!({
         "error": error_body,
     });
-    let output = serde_json::to_string(&output).expect("a JSON error envelope serializes");
+    // pnpm's `errorHandler` prints the envelope with `JSON.stringify(_, null, 2)`;
+    // match its two-space indentation byte-for-byte.
+    let output = serde_json::to_string_pretty(&output).expect("a JSON error envelope serializes");
     println!("{output}");
 }
 
 fn json_error_message(error: &miette::Report) -> String {
     let mut messages = error.chain().map(ToString::to_string);
     match (messages.next(), messages.next()) {
-        (Some(context), Some(source)) if context == "pack the package" => source,
+        (Some(context), Some(source)) if context == super::pack::PACK_ERROR_CONTEXT => source,
         (Some(message), _) => message,
         (None, _) => error.to_string(),
     }

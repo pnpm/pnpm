@@ -363,7 +363,7 @@ fn json_flag_prints_errors_to_stdout() {
     });
     assert_eq!(
         stdout,
-        "{\"error\":{\"code\":\"ERR_PNPM_PACKAGE_VERSION_NOT_FOUND\",\"message\":\"Package version is not defined in the package.json.\"}}\n",
+        "{\n  \"error\": {\n    \"code\": \"ERR_PNPM_PACKAGE_VERSION_NOT_FOUND\",\n    \"message\": \"Package version is not defined in the package.json.\"\n  }\n}\n",
     );
 }
 
