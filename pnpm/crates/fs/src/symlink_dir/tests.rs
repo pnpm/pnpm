@@ -259,6 +259,25 @@ fn windows_concurrent_junction_creation_reuses_one_link() {
 
 #[cfg(windows)]
 #[test]
+fn windows_junction_creation_recovers_when_link_parent_is_missing() {
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("target");
+    let link = root.path().join("deeply").join("nested").join("link");
+    fs::create_dir_all(&target).expect("create target");
+
+    let outcome =
+        super::force_symlink_inner(&target, &link, false, super::windows::create_junction)
+            .expect("junction creation must create missing link parents");
+
+    assert!(!outcome.reused);
+    assert_eq!(
+        fs::canonicalize(&link).expect("canonicalize junction"),
+        fs::canonicalize(&target).expect("canonicalize target"),
+    );
+}
+
+#[cfg(windows)]
+#[test]
 fn windows_same_drive_symlink_target_stays_relative() {
     let target = Path::new(r"C:\workspace\packages\pkg-a");
     let link = Path::new(r"C:\workspace\app\node_modules\pkg-a");
