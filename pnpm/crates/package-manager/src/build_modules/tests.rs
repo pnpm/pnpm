@@ -1866,8 +1866,25 @@ async fn frozen_store_skips_side_effects_upload() {
     drop(writer);
     writer_task.await.expect("await writer").expect("disabled writer succeeds");
 
-    assert!(pkg_dir.join("generated.txt").exists(), "postinstall must run outside the store");
-    assert_eq!(snapshot_regular_files(store_dir.root()), store_before);
+    let generated_file = pkg_dir.join("generated.txt");
+    eprintln!("Expected generated file: {}", generated_file.display());
+    assert!(generated_file.exists(), "postinstall must run outside the store");
+
+    let store_after = snapshot_regular_files(store_dir.root());
+    if store_after != store_before {
+        eprintln!("Store regular files differ:");
+        for (path, contents) in &store_after {
+            if store_before.get(path) != Some(contents) {
+                eprintln!("  added or modified: {}", path.display());
+            }
+        }
+        for path in store_before.keys() {
+            if !store_after.contains_key(path) {
+                eprintln!("  removed: {}", path.display());
+            }
+        }
+    }
+    assert_eq!(store_after, store_before);
 }
 
 /// Uploading errors do not interrupt the install: the install
