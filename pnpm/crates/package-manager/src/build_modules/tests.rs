@@ -1783,6 +1783,93 @@ async fn write_path_disabled_skips_upload() {
     assert!(row.side_effects.is_none(), "write disabled must NOT populate side_effects");
 }
 
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn frozen_store_skips_side_effects_upload() {
+    use pacquet_store_dir::{StoreDir, StoreIndexWriter};
+
+    let pkg_key = key("@pnpm/postinstall-modifies-source", "1.0.0");
+    let integrity_str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    let snapshots = HashMap::from([(pkg_key.clone(), SnapshotEntry::default())]);
+    let packages: HashMap<pacquet_lockfile::PackageKey, pacquet_lockfile::PackageMetadata> =
+        HashMap::from([(
+            pkg_key.without_peer(),
+            pacquet_lockfile::PackageMetadata {
+                resolution: pacquet_lockfile::LockfileResolution::Registry(
+                    pacquet_lockfile::RegistryResolution {
+                        integrity: integrity_str.parse().expect("parse integrity"),
+                    },
+                ),
+                version: None,
+                engines: None,
+                cpu: None,
+                os: None,
+                libc: None,
+                deprecated: None,
+                has_bin: None,
+                prepare: None,
+                bundled_dependencies: None,
+                peer_dependencies: None,
+                peer_dependencies_meta: None,
+            },
+        )]);
+    let importers = root_importers(&[("@pnpm/postinstall-modifies-source", "1.0.0")]);
+    let policy = policy_from_specs([], true);
+
+    let store_root = tempdir().expect("create store dir");
+    let store_dir = StoreDir::from(store_root.path().to_path_buf());
+    store_dir.init().expect("init store");
+    let virtual_store_dir = tempdir().expect("create vstore dir");
+    let modules_dir = tempdir().expect("create modules dir");
+    let lockfile_dir = tempdir().expect("create lockfile dir");
+    let (pkg_dir, _actual_mode) =
+        create_postinstall_modifies_source_fixture(virtual_store_dir.path(), &pkg_key);
+    let store_before = snapshot_regular_files(store_dir.root());
+    let (writer, writer_task) = StoreIndexWriter::spawn_disabled();
+
+    BuildModules {
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
+        modules_dir: modules_dir.path(),
+        lockfile_dir: lockfile_dir.path(),
+        snapshots: Some(&snapshots),
+        packages: Some(&packages),
+        importers: &importers,
+        allow_build_policy: &policy,
+        side_effects_maps_by_snapshot: None,
+        requires_build_by_snapshot: None,
+        engine_name: Some("darwin;arm64;node20"),
+        side_effects_cache: true,
+        side_effects_cache_write: true,
+        store_dir: Some(&store_dir),
+        store_index_writer: Some(&writer),
+        patches: None,
+
+        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
+        unsafe_perm: true,
+        child_concurrency: 1,
+        skipped: &SkippedSnapshots::default(),
+        pkg_root_by_key: None,
+        gather_ancestor_bin_paths: false,
+        frozen_store: true,
+        ignore_scripts: false,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
+    }
+    .run::<SilentReporter>()
+    .expect("build modules must complete cleanly");
+
+    drop(writer);
+    writer_task.await.expect("await writer").expect("disabled writer succeeds");
+
+    assert!(pkg_dir.join("generated.txt").exists(), "postinstall must run outside the store");
+    assert_eq!(snapshot_regular_files(store_dir.root()), store_before);
+}
+
 /// Uploading errors do not interrupt the install: the install
 /// completes (the postinstall ran, the generated file is on disk)
 /// but the `SQLite` row's `side_effects` stays empty.
@@ -1962,6 +2049,27 @@ fn sha512_hex(buf: &[u8]) -> String {
     use sha2::{Digest, Sha512};
     let digest = Sha512::digest(buf);
     format!("{digest:x}")
+}
+
+#[cfg(unix)]
+fn snapshot_regular_files(root: &Path) -> std::collections::BTreeMap<PathBuf, Vec<u8>> {
+    let mut snapshot = std::collections::BTreeMap::new();
+    let mut directories = vec![root.to_path_buf()];
+    while let Some(directory) = directories.pop() {
+        for entry in fs::read_dir(&directory).expect("read snapshot directory") {
+            let entry = entry.expect("read snapshot entry");
+            let file_type = entry.file_type().expect("read snapshot entry type");
+            if file_type.is_dir() {
+                directories.push(entry.path());
+            } else if file_type.is_file() {
+                let path = entry.path();
+                let relative = path.strip_prefix(root).expect("snapshot path is under root");
+                snapshot
+                    .insert(relative.to_path_buf(), fs::read(&path).expect("read snapshot file"));
+            }
+        }
+    }
+    snapshot
 }
 
 /// When `BuildModules.patches` contains an entry for a snapshot,
