@@ -41,18 +41,26 @@ fn unnamed_local_package_uses_directory_name_as_alias() {
 }
 
 #[test]
-fn relative_file_selectors_resolve_from_the_configured_base_directory() {
+fn dot_relative_file_selectors_resolve_from_the_configured_base_directory() {
     let root = tempfile::tempdir().expect("create temp directory");
     let package_dir = create_local_package(root.path(), "local-package", "{}");
+    let resolved = resolve_local_param("file:.", package_dir.as_path());
 
-    for selector in ["file:.", "file:local-package"] {
-        let base_dir = if selector == "file:." { package_dir.as_path() } else { root.path() };
-        let resolved = resolve_local_param(selector, base_dir);
+    assert_eq!(
+        infer_local_package_alias(&resolved).expect("infer package alias"),
+        format!("local-package@{resolved}"),
+    );
+}
 
-        assert_eq!(
-            infer_local_package_alias(&resolved).expect("infer package alias"),
-            format!("local-package@{resolved}"),
-        );
+/// Parity with the TypeScript `resolveLocalParam`: non-dot `file:`/`link:`
+/// selectors are left untouched. Rewriting a bare name against `base_dir`
+/// would diverge from pnpm, and rewriting `file:~/…` would defeat the
+/// resolver's home-directory expansion.
+#[test]
+fn non_dot_local_selectors_are_passed_through_unchanged() {
+    let base_dir = Path::new("/base");
+    for selector in ["file:local-package", "file:~/pkg", "link:~/pkg", "link:pkg"] {
+        assert_eq!(resolve_local_param(selector, base_dir), selector);
     }
 }
 

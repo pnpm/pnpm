@@ -577,13 +577,17 @@ fn refers_to_existing_local_path(param: &str, base_dir: &Path) -> bool {
     resolved.exists()
 }
 
+/// Mirror the TypeScript `resolveLocalParam`: rewrite only *dot-relative*
+/// `file:`/`link:` selectors against `base_dir`. Bare names, home-relative
+/// (`~/`), and absolute selectors pass through unchanged so the local
+/// resolver's own `~` expansion and registry fallbacks still apply.
 fn resolve_local_param(param: &str, base_dir: &Path) -> String {
     for prefix in ["file:", "link:"] {
         if let Some(rest) = param.strip_prefix(prefix) {
-            if Path::new(rest).is_absolute() || is_windows_drive_path(rest) {
-                return param.to_string();
+            if rest.starts_with('.') {
+                return format!("{prefix}{}", lexical_normalize(&base_dir.join(rest)).display());
             }
-            return format!("{prefix}{}", lexical_normalize(&base_dir.join(rest)).display());
+            return param.to_string();
         }
     }
     if param.starts_with('.') {
