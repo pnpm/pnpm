@@ -1867,8 +1867,11 @@ async fn frozen_store_skips_side_effects_upload() {
     writer_task.await.expect("await writer").expect("disabled writer succeeds");
 
     let generated_file = pkg_dir.join("generated.txt");
-    eprintln!("Expected generated file: {}", generated_file.display());
-    assert!(generated_file.exists(), "postinstall must run outside the store");
+    let generated_file_exists = generated_file.exists();
+    if !generated_file_exists {
+        eprintln!("Expected generated file: {}", generated_file.display());
+    }
+    assert!(generated_file_exists, "postinstall must run outside the store");
 
     let store_after = snapshot_regular_files(store_dir.root());
     if store_after != store_before {
