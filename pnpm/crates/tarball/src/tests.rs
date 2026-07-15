@@ -37,7 +37,7 @@ fn gzip_size_hint_enforces_untrusted_preallocation_limit() {
         bounded_gzip_size_hint(Some(MAX_UNTRUSTED_PREALLOC_BYTES)),
         Some(MAX_UNTRUSTED_PREALLOC_BYTES),
     );
-    assert_eq!(bounded_gzip_size_hint(Some(MAX_UNTRUSTED_PREALLOC_BYTES + 1)), None,);
+    assert_eq!(bounded_gzip_size_hint(Some(MAX_UNTRUSTED_PREALLOC_BYTES + 1)), None);
     assert_eq!(bounded_gzip_size_hint(Some(usize::MAX)), None);
 }
 
