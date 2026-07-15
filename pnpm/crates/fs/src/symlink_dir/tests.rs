@@ -14,10 +14,10 @@ use super::{is_reparse_point, relative_target_for};
 use std::fs;
 #[cfg(windows)]
 use std::path::Path;
-#[cfg(unix)]
+#[cfg(not(windows))]
 use std::path::PathBuf;
 #[cfg(windows)]
-use std::sync::{Arc, Barrier};
+use std::sync::Barrier;
 use tempfile::tempdir;
 
 #[cfg(unix)]
@@ -218,24 +218,24 @@ fn windows_force_symlink_dir_repairs_dangling_junction_parent() {
 #[cfg(windows)]
 #[test]
 fn windows_concurrent_junction_creation_reuses_one_link() {
-    super::windows::force_junction_mode();
-
     let root = tempdir().expect("create temp dir");
     let target = root.path().join("target");
     fs::create_dir_all(&target).expect("create target");
 
     for iteration in 0..10 {
         let link = root.path().join(format!("link-{iteration}"));
-        let barrier = Arc::new(Barrier::new(32));
+        let barrier = Barrier::new(32);
         let outcomes = std::thread::scope(|scope| {
             let handles: Vec<_> = (0..32)
                 .map(|_| {
-                    let barrier = Arc::clone(&barrier);
-                    let link = &link;
-                    let target = &target;
-                    scope.spawn(move || {
+                    scope.spawn(|| {
                         barrier.wait();
-                        force_symlink_dir(target, link)
+                        super::force_symlink_inner(
+                            &target,
+                            &link,
+                            false,
+                            super::windows::create_junction,
+                        )
                     })
                 })
                 .collect();
