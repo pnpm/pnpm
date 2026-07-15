@@ -1,6 +1,7 @@
 use std::{
     borrow::Cow,
-    fs, io,
+    error::Error,
+    fmt, fs, io,
     path::{Path, PathBuf},
 };
 
@@ -128,13 +129,25 @@ pub fn read_symlink_dir(link: &Path) -> io::Result<PathBuf> {
 /// `reused` is `true` when the symlink at `link` already pointed at
 /// the requested target, so no on-disk write was needed. `warning`
 /// carries the human-readable note emitted when an existing non-symlink
-/// occupant had to be moved out of the way to install the symlink —
-/// surface it to the user if your call site has a reporter.
+/// occupant had to be moved out of the way or a concurrent junction
+/// commit succeeded but left a staging path that could not be cleaned
+/// up — surface it to the user if your call site has a reporter.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ForceSymlinkOutcome {
     pub reused: bool,
     pub warning: Option<String>,
 }
+
+#[derive(Debug)]
+struct ConcurrentCleanupWarning(String);
+
+impl fmt::Display for ConcurrentCleanupWarning {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl Error for ConcurrentCleanupWarning {}
 
 /// Idempotent, overwrite-on-stale symlink creator with overwrite-on
 /// semantics: an existing occupant at `link` is moved aside.
@@ -164,6 +177,10 @@ fn force_symlink_inner(
         Ok(()) => return Ok(ForceSymlinkOutcome { reused: false, warning: None }),
         Err(error) => error,
     };
+    let reuse_warning = initial_err
+        .get_ref()
+        .and_then(|error| error.downcast_ref::<ConcurrentCleanupWarning>())
+        .map(|warning| warning.0.clone());
 
     match initial_err.kind() {
         io::ErrorKind::NotFound => {
@@ -189,7 +206,7 @@ fn force_symlink_inner(
 
     if let Ok(existing) = read_symlink_dir(link) {
         if existing_symlink_up_to_date(target, link, &existing) {
-            return Ok(ForceSymlinkOutcome { reused: true, warning: None });
+            return Ok(ForceSymlinkOutcome { reused: true, warning: reuse_warning });
         }
         // Stale link — unlink and retry. Ignore `NotFound` in
         // case a parallel installer beat us to the unlink.
@@ -422,11 +439,11 @@ mod windows {
             Ok(_) => {
                 fs::remove_dir(&staging).map_err(|error| {
                     io::Error::new(
-                        error.kind(),
-                        format!(
+                        io::ErrorKind::AlreadyExists,
+                        super::ConcurrentCleanupWarning(format!(
                             "junction path already exists at {link:?}, but staged junction \
                              cleanup failed at {staging:?}: {error}",
-                        ),
+                        )),
                     )
                 })?;
                 return Err(io::Error::new(
@@ -455,11 +472,14 @@ mod windows {
             match fs::symlink_metadata(link) {
                 Ok(_) => {
                     if let Some(cleanup_error) = cleanup_error {
-                        return Err(io::Error::other(format!(
-                            "failed to rename staged junction {staging:?} to {link:?}: \
-                             {rename_error}; destination now exists, but cleanup failed: \
-                             {cleanup_error}",
-                        )));
+                        return Err(io::Error::new(
+                            io::ErrorKind::AlreadyExists,
+                            super::ConcurrentCleanupWarning(format!(
+                                "failed to rename staged junction {staging:?} to {link:?}: \
+                                 {rename_error}; destination now exists, but cleanup failed: \
+                                 {cleanup_error}",
+                            )),
+                        ));
                     }
                     return Err(io::Error::new(
                         io::ErrorKind::AlreadyExists,
