@@ -2659,12 +2659,23 @@ async function installViaPnprServer (
   try {
     const lockfileDir = opts.lockfileDir ?? rootDir
 
-    // Read the existing lockfile (if any) in its on-disk shape — that's
-    // what the pnpr server protocol carries, so no conversion is needed before
-    // sending it.
-    const existingLockfile = await readWantedLockfileFile(lockfileDir, {
-      ignoreIncompatible: true,
-    }).catch(() => null)
+    const useLockfile = opts.useLockfile ?? true
+    const saveLockfile = opts.saveLockfile ?? true
+    const existingLockfile = useLockfile
+      ? await readWantedLockfileFile(lockfileDir, {
+        ignoreIncompatible: true,
+        useGitBranchLockfile: opts.useGitBranchLockfile,
+        mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+      }).catch(() => null)
+      : null
+    const hasNonEmptyLockfile = existingLockfile != null &&
+      Object.values(existingLockfile.importers ?? {}).some((importer) =>
+        !isEmpty(importer.dependencies ?? {}) ||
+        !isEmpty(importer.devDependencies ?? {}) ||
+        !isEmpty(importer.optionalDependencies ?? {})
+      )
+    const frozenLockfile = opts.frozenLockfile ||
+      (opts.frozenLockfileIfExists && hasNonEmptyLockfile)
 
     logger.info({ message: 'Resolving dependencies via the pnpr server', prefix: rootDir })
 
@@ -2697,16 +2708,22 @@ async function installViaPnprServer (
       overrides: opts.overrides,
       minimumReleaseAge: opts.minimumReleaseAge,
       lockfile: existingLockfile ?? undefined,
+      frozenLockfile,
+      preferFrozenLockfile: opts.preferFrozenLockfile,
+      ignoreManifestCheck: opts.ignorePackageManifest,
+      trustLockfile: opts.trustLockfile,
     })
 
-    await writeWantedLockfileAndRecordVerified({
-      lockfileDir,
-      lockfile,
-      cacheDir: opts.cacheDir,
-      resolutionVerifiers: opts.resolutionVerifiers,
-      useGitBranchLockfile: opts.useGitBranchLockfile,
-      mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
-    })
+    if (useLockfile && saveLockfile) {
+      await writeWantedLockfileAndRecordVerified({
+        lockfileDir,
+        lockfile,
+        cacheDir: opts.cacheDir,
+        resolutionVerifiers: opts.resolutionVerifiers,
+        useGitBranchLockfile: opts.useGitBranchLockfile,
+        mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+      })
+    }
 
     logger.info({
       message: `Resolved ${pnprStats.totalPackages} packages`,

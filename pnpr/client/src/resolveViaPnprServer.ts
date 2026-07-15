@@ -49,6 +49,10 @@ export interface ResolveViaPnprServerOptions {
   authorization?: string
   /** Overrides */
   overrides?: Record<string, string>
+  frozenLockfile?: boolean
+  preferFrozenLockfile?: boolean
+  ignoreManifestCheck?: boolean
+  trustLockfile?: boolean
   /** Node.js version for resolution */
   nodeVersion?: string
   /** Minimum release age in minutes */
@@ -115,6 +119,10 @@ export async function resolveViaPnprServer (
     // protocol carries (split `packages`/`snapshots`, `{ specifier, version }`
     // importer deps).
     lockfile: opts.lockfile,
+    frozenLockfile: opts.frozenLockfile,
+    preferFrozenLockfile: opts.preferFrozenLockfile,
+    ignoreManifestCheck: opts.ignoreManifestCheck,
+    trustLockfile: opts.trustLockfile,
   })
 
   const body = await postResolve(opts.registryUrl, requestBody, opts.authorization)

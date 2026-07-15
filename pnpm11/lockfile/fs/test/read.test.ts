@@ -13,6 +13,7 @@ const {
   existsNonEmptyWantedLockfile,
   readCurrentLockfile,
   readWantedLockfile,
+  readWantedLockfileFile,
   writeCurrentLockfile,
   writeWantedLockfile,
 } = await import('@pnpm/lockfile.fs')
@@ -80,6 +81,29 @@ test('readWantedLockfile() does not use a YAML exception message when its reason
   await expect(readWantedLockfile(projectPath, { ignoreIncompatible: false })).rejects.toMatchObject({
     code: 'ERR_PNPM_BROKEN_LOCKFILE',
     message: `The lockfile at "${path.join(projectPath, 'pnpm-lock.yaml')}" is broken: Unable to parse YAML (2:3)`,
+  })
+})
+
+test('readWantedLockfileFile() returns the unmodified on-disk shape', async () => {
+  expect(await readWantedLockfileFile(path.join('fixtures', '7'), {
+    ignoreIncompatible: false,
+  })).toStrictEqual({
+    lockfileVersion: '9.0',
+    importers: {
+      '.': {
+        dependencies: {
+          'is-positive': { specifier: '^1.0.0', version: '1.0.0' },
+        },
+      },
+    },
+    packages: {
+      'is-positive@1.0.0': {
+        resolution: { integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=' },
+      },
+    },
+    snapshots: {
+      'is-positive@1.0.0': {},
+    },
   })
 })
 
