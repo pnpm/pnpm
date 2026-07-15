@@ -1,3 +1,6 @@
+pub mod _utils;
+
+use _utils::{bravo_dep_mature_up_to_1_0_1_minimum_release_age, set_minimum_release_age};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
@@ -533,4 +536,21 @@ fn should_add_peer_dependency() {
             .any(|(k, _)| k == "@pnpm.e2e/hello-world-js-bin"),
     );
     drop((root, anchor)); // cleanup
+}
+
+/// Covers <https://github.com/pnpm/pnpm/issues/11165>: `add <name>` (no
+/// version) under an active `minimumReleaseAge` pins the newest *mature*
+/// version, not the raw `latest` dist-tag.
+#[test]
+fn add_without_version_respects_minimum_release_age() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    set_minimum_release_age(&workspace, bravo_dep_mature_up_to_1_0_1_minimum_release_age());
+
+    pacquet.with_args(["add", "@pnpm.e2e/bravo-dep"]).assert().success();
+
+    assert_eq!(prod_spec(&workspace, "@pnpm.e2e/bravo-dep"), "^1.0.1");
+
+    drop((root, npmrc_info)); // cleanup
 }

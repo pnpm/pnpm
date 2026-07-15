@@ -1,3 +1,6 @@
+pub mod _utils;
+
+use _utils::{bravo_dep_mature_up_to_1_0_1_minimum_release_age, set_minimum_release_age};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
@@ -841,6 +844,56 @@ fn update_preserves_unrelated_transitives_without_peer_dedupe() {
         lockfile_after, lockfile_before,
         "a no-op update of an unrelated package must leave the lockfile — and the reused parent's transitive edges — untouched",
     );
+
+    drop((root, anchor));
+}
+
+/// See [`_utils::bravo_dep_mature_up_to_1_0_1_minimum_release_age`] for the
+/// publish dates the `minimumReleaseAge` tests below rely on.
+const BRAVO_DEP: &str = "@pnpm.e2e/bravo-dep";
+
+/// Covers <https://github.com/pnpm/pnpm/issues/11165>: a compatible update
+/// under an active `minimumReleaseAge` re-resolves to the newest *mature*
+/// in-range version instead of the raw highest one.
+#[test]
+fn update_respects_minimum_release_age() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{BRAVO_DEP}": "1.0.0" }}"#));
+    set_minimum_release_age(&workspace, bravo_dep_mature_up_to_1_0_1_minimum_release_age());
+    pacquet(&workspace, ["install"]).assert().success();
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+bravo-dep@1.0.0"));
+
+    // Widen the range so the update has newer versions to consider: 1.0.1
+    // is mature under the cutoff, the newest in-range version (1.1.0) is
+    // not.
+    write_manifest(&workspace, &format!(r#"{{ "{BRAVO_DEP}": "^1.0.0" }}"#));
+    pacquet(&workspace, ["update"]).assert().success();
+
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+bravo-dep@1.0.1"));
+    assert!(!virtual_store_has(&workspace, "@pnpm.e2e+bravo-dep@1.1.0"));
+
+    drop((root, anchor));
+}
+
+/// Covers <https://github.com/pnpm/pnpm/issues/11165>: `update --latest`
+/// under an active `minimumReleaseAge` writes the newest *mature* version
+/// into `package.json`, not the raw `latest` dist-tag.
+#[test]
+fn update_latest_respects_minimum_release_age() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{BRAVO_DEP}": "^1.0.0" }}"#));
+    set_minimum_release_age(&workspace, bravo_dep_mature_up_to_1_0_1_minimum_release_age());
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert_eq!(dep_spec(&workspace, BRAVO_DEP).as_deref(), Some("^1.0.1"));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+bravo-dep@1.0.1"));
+    assert!(!virtual_store_has(&workspace, "@pnpm.e2e+bravo-dep@1.1.0"));
 
     drop((root, anchor));
 }
