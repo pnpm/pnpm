@@ -497,6 +497,8 @@ fn command_name(command: &CliCommand) -> &'static str {
         CliCommand::FindHash(_) => "find-hash",
         CliCommand::Runtime(_) => "runtime",
         CliCommand::Bin(_) => "bin",
+        CliCommand::Clean(_) => "clean",
+        CliCommand::Purge(_) => "purge",
         CliCommand::Root(_) => "root",
         CliCommand::Prefix(_) => "prefix",
         CliCommand::Config(_) => "config",

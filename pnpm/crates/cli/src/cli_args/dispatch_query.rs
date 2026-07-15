@@ -7,6 +7,7 @@ use super::{
     cat_file::CatFileArgs,
     cat_index::CatIndexArgs,
     change::ChangeArgs,
+    clean::CleanArgs,
     config::ConfigArgs,
     deprecate::DeprecateArgs,
     dispatch::{CommandFuture, RunCtx},
@@ -380,6 +381,15 @@ pub(super) fn stage<'a>(
 
 pub(super) fn bin<'a>(ctx: &RunCtx<'a>, args: BinArgs) -> miette::Result<CommandFuture<'a>> {
     args.run(ctx.dir, (ctx.config)()?)?;
+    Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+pub(super) fn clean<'a>(
+    ctx: &RunCtx<'a>,
+    args: CleanArgs,
+    command_name: &'a str,
+) -> miette::Result<CommandFuture<'a>> {
+    args.run(ctx, command_name)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
