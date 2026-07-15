@@ -1,9 +1,12 @@
-use super::{GraphToLockfileOptions, ImporterLockfileInput, dependencies_graph_to_lockfile};
+use super::{
+    DependenciesGraphToLockfileError, GraphToLockfileOptions, ImporterLockfileInput,
+    dependencies_graph_to_lockfile as try_dependencies_graph_to_lockfile,
+};
 use indexmap::IndexMap;
 use pacquet_deps_path::DepPath;
 use pacquet_lockfile::{
     DirectoryResolution, ImporterDepVersion, LockfileResolution, PackageKey, PkgName, PkgNameVer,
-    RegistryResolution, SnapshotDepRef, VariationsResolution,
+    RegistryResolution, SnapshotDepRef, TarballResolution, VariationsResolution,
 };
 use pacquet_package_manifest::PackageManifest;
 use pacquet_resolving_deps_resolver::{
@@ -19,6 +22,10 @@ use std::{
     sync::Arc,
 };
 use tempfile::TempDir;
+
+fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> pacquet_lockfile::Lockfile {
+    try_dependencies_graph_to_lockfile(opts).expect("convert dependency graph to lockfile")
+}
 
 /// Shared empty catalogs for the catalog-free fixtures in this module.
 static EMPTY_CATALOGS: pacquet_catalogs_types::Catalogs = BTreeMap::new();
@@ -584,6 +591,115 @@ fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
     let metadata_key: PackageKey = "node@runtime:26.3.0".parse().unwrap();
     let metadata = &lockfile.packages.as_ref().expect("packages")[&metadata_key];
     assert_eq!(metadata.version.as_deref(), Some("26.3.0"));
+}
+
+#[test]
+fn git_hosted_dependency_records_bare_tarball_url_in_importer() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": {
+            "is-negative": "github:kevva/is-negative#1.0.0",
+        },
+    }));
+
+    let url = "https://codeload.github.com/kevva/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99";
+    let dep_path = DepPath::from(url.to_string());
+    let resolve_result = ResolveResult {
+        id: PkgResolutionId::from(url),
+        name_ver: None,
+        latest: None,
+        published_at: None,
+        manifest: Some(Arc::new(json!({
+            "name": "is-negative",
+            "version": "1.0.0",
+        }))),
+        resolution: LockfileResolution::Tarball(TarballResolution {
+            tarball: url.to_string(),
+            integrity: None,
+            git_hosted: Some(true),
+            path: None,
+        }),
+        resolved_via: "git-repository".to_string(),
+        normalized_bare_specifier: Some("github:kevva/is-negative#1.0.0".to_string()),
+        alias: Some("is-negative".to_string()),
+        policy_violation: None,
+    };
+    let node = DependenciesGraphNode {
+        dep_path: dep_path.clone(),
+        resolved_package_id: url.to_string(),
+        resolve_result: Arc::new(resolve_result),
+        children: BTreeMap::new(),
+        optional_children: HashSet::new(),
+        peer_dependencies: BTreeMap::new(),
+        transitive_peer_dependencies: HashSet::new(),
+        resolved_peer_names: HashSet::new(),
+        depth: 1,
+        installable: true,
+        is_pure: true,
+        optional: false,
+    };
+
+    let mut graph = DependenciesGraph::new();
+    graph.insert(dep_path.clone(), node);
+    let direct = BTreeMap::from([("is-negative".to_string(), dep_path)]);
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, false, false, None, None,
+    ));
+
+    let importer = lockfile.root_project().expect("root importer");
+    let entry = importer
+        .dependencies
+        .as_ref()
+        .expect("dependencies")
+        .get(&PkgName::parse("is-negative").unwrap())
+        .expect("git dependency");
+    assert_eq!(entry.specifier, "github:kevva/is-negative#1.0.0");
+    match &entry.version {
+        ImporterDepVersion::Regular(version) => assert_eq!(version.to_string(), url),
+        other => panic!("expected Regular({url}), got {other:?}"),
+    }
+
+    let package_key: PackageKey = format!("is-negative@{url}").parse().unwrap();
+    let packages = lockfile.packages.as_ref().expect("packages");
+    assert_eq!(packages[&package_key].version.as_deref(), Some("1.0.0"));
+    assert!(lockfile.snapshots.as_ref().expect("snapshots").contains_key(&package_key));
+}
+
+#[test]
+fn malformed_importer_dependency_path_returns_structured_error() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "broken": "^1.0.0" },
+    }));
+    let dep_path = DepPath::from("broken@1.0.0(".to_string());
+    let mut node = make_node(
+        "broken",
+        "1.0.0",
+        json!({ "name": "broken", "version": "1.0.0" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::new(),
+    );
+    node.dep_path = dep_path.clone();
+
+    let mut graph = DependenciesGraph::new();
+    graph.insert(dep_path.clone(), node);
+    let direct = BTreeMap::from([("broken".to_string(), dep_path)]);
+
+    let error = try_dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, false, false, None, None,
+    ))
+    .unwrap_err();
+
+    match error {
+        DependenciesGraphToLockfileError::ImporterDependency { alias, dep_path, .. } => {
+            assert_eq!(alias, "broken");
+            assert_eq!(dep_path, "broken@1.0.0(");
+        }
+    }
 }
 
 #[test]
@@ -1599,14 +1715,14 @@ fn same_name_injected_dep_serializes_as_plain_file_ref() {
         optional: false,
     };
 
-    let version = super::importer_dep_version("@scope/comp1", &node);
+    let version = super::importer_dep_version("@scope/comp1", &node).unwrap();
     assert_eq!(
         version,
         ImporterDepVersion::File("comp1(react@16.0.0)".to_string()),
         "same-name injected deps must use the plain file: ref",
     );
     // A genuinely renamed alias keeps the alias form.
-    let renamed = super::importer_dep_version("renamed", &node);
+    let renamed = super::importer_dep_version("renamed", &node).unwrap();
     assert!(
         matches!(renamed, ImporterDepVersion::Alias(_)),
         "renamed aliases must keep the <name>@<ref> form: {renamed:?}",

@@ -1,10 +1,10 @@
 use crate::{
     AllowBuildPolicy, CreateVirtualStore, CreateVirtualStoreError, CreateVirtualStoreOutput,
-    GraphToLockfileOptions, HoistedDependencies, ImporterLockfileInput,
-    InstallPackageFromRegistryError, LinkRootComponentMembersError, LinkVirtualStoreBins,
-    LinkVirtualStoreBinsError, PrefetchContext, PrefetchingResolver, SkippedSnapshots,
-    SymlinkDirectDependencies, SymlinkDirectDependenciesError, VersionPolicyError,
-    VersionsOverrider, VirtualStoreLayout, dependencies_graph_to_lockfile,
+    DependenciesGraphToLockfileError, GraphToLockfileOptions, HoistedDependencies,
+    ImporterLockfileInput, InstallPackageFromRegistryError, LinkRootComponentMembersError,
+    LinkVirtualStoreBins, LinkVirtualStoreBinsError, PrefetchContext, PrefetchingResolver,
+    SkippedSnapshots, SymlinkDirectDependencies, SymlinkDirectDependenciesError,
+    VersionPolicyError, VersionsOverrider, VirtualStoreLayout, dependencies_graph_to_lockfile,
     link_root_component_members, store_init::init_store_dir_best_effort,
 };
 use dashmap::DashMap;
@@ -290,6 +290,10 @@ pub enum InstallWithFreshLockfileError {
     #[display("Failed to resolve dependency tree: {_0}")]
     #[diagnostic(transparent)]
     ResolveDependencyTree(#[error(source)] ResolveDependencyTreeError),
+
+    #[display("Failed to build lockfile from resolved dependency graph: {_0}")]
+    #[diagnostic(code(pacquet_package_manager::dependencies_graph_to_lockfile))]
+    DependenciesGraphToLockfile(#[error(source)] Box<DependenciesGraphToLockfileError>),
 
     /// `minimumReleaseAgeExclude` patterns rejected at compile time.
     /// Surfaced as `ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE`.
@@ -1359,7 +1363,10 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 catalogs: &catalogs,
                 pnpmfile_checksum: pnpmfile_checksum.as_deref(),
                 patched_dependency_hashes: patched_dependency_hashes.as_ref(),
-            });
+            })
+            .map_err(|error| {
+                InstallWithFreshLockfileError::DependenciesGraphToLockfile(Box::new(error))
+            })?;
             // `--dry-run` builds the would-be lockfile so the caller can
             // diff it, but never persists it. A plain `--lockfile-only`
             // writes it (unless `lockfile: false`).
@@ -1502,7 +1509,10 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             catalogs: &catalogs,
             pnpmfile_checksum: pnpmfile_checksum.as_deref(),
             patched_dependency_hashes: patched_dependency_hashes.as_ref(),
-        });
+        })
+        .map_err(|error| {
+            InstallWithFreshLockfileError::DependenciesGraphToLockfile(Box::new(error))
+        })?;
         tracing::info!(
             target: "pacquet::install::phase",
             phase = "build_fresh_lockfile",
@@ -2414,7 +2424,9 @@ struct FreshLockfileBuildOptions<'a> {
     patched_dependency_hashes: Option<&'a BTreeMap<String, String>>,
 }
 
-fn build_fresh_lockfile(opts: FreshLockfileBuildOptions<'_>) -> Lockfile {
+fn build_fresh_lockfile(
+    opts: FreshLockfileBuildOptions<'_>,
+) -> Result<Lockfile, DependenciesGraphToLockfileError> {
     let FreshLockfileBuildOptions {
         config,
         importer_manifests,
