@@ -145,6 +145,21 @@ fn global_add_accepts_ignore_scripts_for_local_directory() {
     )
     .expect("write local package manifest");
     fs::create_dir_all(pnpm_home.join("bin")).expect("create global bin dir");
+    // Pin a per-test store/cache so `add -g` cannot read from or write to the
+    // developer/CI machine's default global store. The global install anchors
+    // its config at the pnpm home, so seed the store/cache there (as
+    // `prepare_global_home` does).
+    let store_dir = root.path().join("pacquet-store");
+    let cache_dir = root.path().join("pacquet-cache");
+    fs::write(
+        pnpm_home.join("pnpm-workspace.yaml"),
+        format!(
+            "storeDir: {}\ncacheDir: {}\nenableGlobalVirtualStore: false\n",
+            store_dir.display(),
+            cache_dir.display(),
+        ),
+    )
+    .expect("seed the pnpm-home workspace yaml");
     let global_pkg_dir = pnpm_home.join("global").join("v11");
     fs::create_dir_all(&global_pkg_dir).expect("create global package dir");
     fs::write(global_pkg_dir.join("pnpm-workspace.yaml"), "dangerouslyAllowAllBuilds: true\n")
