@@ -57,6 +57,28 @@ fn force_symlink_dir_returns_reused_when_already_pointing_at_target() {
 }
 
 #[test]
+fn force_symlink_inner_surfaces_concurrent_cleanup_warnings() {
+    fn create_then_warn(target: &std::path::Path, link: &std::path::Path) -> std::io::Result<()> {
+        super::symlink_dir(target, link)?;
+        Err(std::io::Error::new(
+            std::io::ErrorKind::AlreadyExists,
+            super::ConcurrentCleanupWarning("staged junction cleanup failed".into()),
+        ))
+    }
+
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("real");
+    let link = root.path().join("link");
+    fs::create_dir_all(&target).expect("create target");
+
+    let outcome = super::force_symlink_inner(&target, &link, false, create_then_warn)
+        .expect("completed link should be reused");
+
+    assert!(outcome.reused);
+    assert_eq!(outcome.warning.as_deref(), Some("staged junction cleanup failed"));
+}
+
+#[test]
 fn force_symlink_dir_retargets_a_stale_symlink() {
     let root = tempdir().expect("create temp dir");
     let stale_target = root.path().join("old-target");
