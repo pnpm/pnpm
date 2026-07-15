@@ -172,6 +172,8 @@ jobs:
         uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
         with:
           runtime: node@26.5.0
+      - name: Override workspace ignores for the TypeScript pnpm package
+        run: ': > pnpm11/pnpm/.npmignore'
       - name: Build TypeScript executable artifacts
         run: pn --filter=@pnpm/exe run build-artifacts
 
@@ -285,6 +287,8 @@ jobs:
         uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
         with:
           runtime: node@26.5.0
+      - name: Override workspace ignores for the TypeScript pnpm package
+        run: ': > pnpm11/pnpm/.npmignore'
       # The publish phase is split into three sequential steps to control which packages
       # use trusted publishing (OIDC) vs. a static token. `pnpm publish` currently bails
       # out of OIDC as soon as a static `_authToken` is configured, so the only way to
