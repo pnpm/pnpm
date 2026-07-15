@@ -479,7 +479,7 @@ mod windows {
                         )));
                     }
                     return Err(io::Error::new(
-                        rename_error.kind(),
+                        error.kind(),
                         format!(
                             "failed to inspect junction destination {link:?} after rename \
                              failed: {rename_error}; inspection error: {error}",
