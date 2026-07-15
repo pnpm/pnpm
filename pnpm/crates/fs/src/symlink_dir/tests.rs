@@ -4,13 +4,13 @@
 //! pnpm [`symlink-dir`](https://github.com/pnpm/symlink-dir) npm
 //! package.
 
-#[cfg(windows)]
-use super::relative_target_for;
 #[cfg(unix)]
 use super::symlink_dir;
 #[cfg(windows)]
 use super::to_native_separators;
 use super::{ForceSymlinkOutcome, force_symlink_dir, read_symlink_dir};
+#[cfg(windows)]
+use super::{is_reparse_point, relative_target_for};
 use std::fs;
 #[cfg(windows)]
 use std::path::Path;
@@ -176,6 +176,39 @@ fn windows_native_path_is_borrowed_unchanged() {
     let native = Path::new(r"C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\dep");
     assert!(matches!(to_native_separators(native), std::borrow::Cow::Borrowed(_)));
     assert_eq!(to_native_separators(native).as_ref(), native);
+}
+
+/// Regression for the Windows CI failure where a warm install re-links
+/// over a global store restored from `actions/cache`: the slot's
+/// `node_modules` comes back as a dangling junction (tar can't round-trip
+/// a Windows reparse point), so `CreateSymbolicLinkW` rejects the child
+/// link with `ERROR_DIRECTORY` (os error 267). `force_symlink_dir` must
+/// rebuild the broken parent and still produce a working link.
+#[cfg(windows)]
+#[test]
+fn windows_force_symlink_dir_repairs_dangling_junction_parent() {
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("store").join("dep").join("node_modules").join("dep");
+    fs::create_dir_all(&target).expect("create target dir");
+
+    // Build a slot `node_modules` that is a dangling junction: point it at
+    // a directory, then delete that directory. Windows keeps the reparse
+    // point (with the directory attribute) but its target is now missing —
+    // the state a cache restore leaves behind.
+    let node_modules = root.path().join("store").join("consumer").join("node_modules");
+    let junction_target = root.path().join("gone");
+    fs::create_dir_all(node_modules.parent().unwrap()).expect("create slot dir");
+    fs::create_dir_all(&junction_target).expect("create junction target");
+    junction::create(&junction_target, &node_modules).expect("create junction");
+    fs::remove_dir_all(&junction_target).expect("delete junction target -> dangling");
+    assert!(is_reparse_point(&node_modules), "node_modules must be a dangling reparse point");
+
+    let link = node_modules.join("dep");
+    force_symlink_dir(&target, &link).expect("force_symlink_dir must repair the parent and link");
+
+    let resolved_link = fs::canonicalize(&link).expect("canonicalize the repaired symlink");
+    let resolved_target = fs::canonicalize(&target).expect("canonicalize target");
+    assert_eq!(resolved_link, resolved_target, "the link must resolve to the real target");
 }
 
 #[cfg(windows)]
