@@ -309,6 +309,112 @@ fn json_flag_prints_the_per_package_summary() {
     );
 }
 
+#[test]
+fn json_flag_suppresses_explicit_reporter_output() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({ "name": "test-publish-json-reporter", "version": "1.0.0" }),
+    );
+    server.mock("PUT", "/test-publish-json-reporter").with_status(200).with_body("{}").create();
+
+    let output = publish(dir.path(), &["--json", "--reporter=ndjson"]);
+    assert_success(&output);
+    assert!(
+        output.stderr.is_empty(),
+        "--json must suppress explicit reporter output; stderr: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let parsed: Value = serde_json::from_str(&stdout).unwrap_or_else(|error| {
+        panic!(
+            "stdout is one JSON value: {error}; stdout: {stdout}; stderr: {}",
+            String::from_utf8_lossy(&output.stderr),
+        )
+    });
+    assert_eq!(parsed["id"], "test-publish-json-reporter@1.0.0");
+}
+
+#[test]
+fn json_flag_prints_errors_to_stdout() {
+    let dir = tempfile::tempdir().expect("workspace");
+    write_project(
+        dir.path(),
+        "https://registry.example/",
+        &json!({ "name": "test-publish-no-version" }),
+    );
+
+    let output = publish(dir.path(), &["--dry-run", "--json"]);
+    assert!(!output.status.success(), "publish without a version must fail");
+    assert!(
+        output.stderr.is_empty(),
+        "--json errors must not be rendered to stderr; stderr: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    serde_json::from_str::<Value>(&stdout).unwrap_or_else(|error| {
+        panic!(
+            "stdout is a JSON error envelope: {error}; stdout: {stdout}; stderr: {}",
+            String::from_utf8_lossy(&output.stderr),
+        )
+    });
+    assert_eq!(
+        stdout,
+        "{\n  \"error\": {\n    \"code\": \"ERR_PNPM_PACKAGE_VERSION_NOT_FOUND\",\n    \"message\": \"Package version is not defined in the package.json.\"\n  }\n}\n",
+    );
+}
+
+#[test]
+fn json_flag_preserves_webauth_urls_on_noninteractive_otp_errors() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({ "name": "test-publish-otp-json", "version": "1.0.0" }),
+    );
+    let mock = server
+        .mock("PUT", "/test-publish-otp-json")
+        .with_status(401)
+        .with_body(
+            json!({
+                "error": "one-time pass required",
+                "authUrl": "https://auth.example/login?token=abc",
+                "doneUrl": "https://auth.example/done?token=abc",
+            })
+            .to_string(),
+        )
+        .expect(1)
+        .create();
+
+    let output = publish(dir.path(), &["--json"]);
+    assert!(!output.status.success(), "publish requiring OTP must fail without a TTY");
+    assert!(
+        output.stderr.is_empty(),
+        "--json errors must not be rendered to stderr; stderr: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let parsed: Value = serde_json::from_str(&stdout).unwrap_or_else(|error| {
+        panic!(
+            "stdout is a JSON error envelope: {error}; stdout: {stdout}; stderr: {}",
+            String::from_utf8_lossy(&output.stderr),
+        )
+    });
+    assert_eq!(parsed["error"]["code"], "ERR_PNPM_OTP_NON_INTERACTIVE");
+    assert_eq!(
+        parsed["error"]["message"],
+        "The registry requires additional authentication, but pnpm is not running in an interactive terminal",
+    );
+    assert_eq!(parsed["error"]["authUrl"], "https://auth.example/login?token=abc");
+    assert_eq!(parsed["error"]["doneUrl"], "https://auth.example/done?token=abc");
+    mock.assert();
+}
+
 /// `prepublishOnly` runs through `sh -c` before packing, so a script that writes
 /// a file leaves it in the package dir; the publish `PUT` still happens.
 #[cfg(unix)]

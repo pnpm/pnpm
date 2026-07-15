@@ -10,6 +10,7 @@ use crate::{
 use miette::{Context, IntoDiagnostic};
 use pacquet_config::{Config, Host, default_pnpm_home_dir};
 use pacquet_default_reporter::SummaryScope;
+use pacquet_network_web_auth::OtpNonInteractiveError;
 use pacquet_reporter::{ExecutionTimeLog, LogEvent, LogLevel};
 use std::{future::Future, path::Path, pin::Pin};
 
@@ -184,6 +185,7 @@ impl CliArgs {
                 | CliCommand::PatchCommit(_)
                 | CliCommand::PatchRemove(_),
         );
+        let print_json_errors = prints_json_errors(&command);
         let manifest_path = dir.join("package.json");
         // Load config anchored at `anchor`, reading `.npmrc` /
         // `pnpm-workspace.yaml` from there.
@@ -268,7 +270,24 @@ impl CliArgs {
             global_config: &global_config,
             state: &state,
         };
-        route(command, &ctx)?.await?;
+        match route(command, &ctx) {
+            Ok(future) => {
+                if let Err(error) = future.await {
+                    if print_json_errors {
+                        print_json_error(&error);
+                        std::process::exit(1);
+                    }
+                    return Err(error);
+                }
+            }
+            Err(error) => {
+                if print_json_errors {
+                    print_json_error(&error);
+                    std::process::exit(1);
+                }
+                return Err(error);
+            }
+        }
 
         // The `Done in ...` footer covers the whole command, mirroring pnpm's
         // `pnpm:execution-time` emit in `main.ts`. Only the install-family
@@ -374,6 +393,52 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
     }
 }
 
+fn prints_json_errors(command: &CliCommand) -> bool {
+    matches!(command, CliCommand::Publish(args) if args.flags.json)
+}
+
+fn print_json_error(error: &miette::Report) {
+    let code = error.code().map_or_else(|| "pnpm".to_string(), |code| code.to_string());
+    let message = json_error_message(error);
+    let mut error_body = serde_json::json!({
+        "code": code,
+        "message": message,
+    });
+    if let Some(otp_error) = otp_non_interactive_error(error) {
+        if let Some(auth_url) = &otp_error.auth_url {
+            error_body["authUrl"] = serde_json::Value::String(auth_url.clone());
+        }
+        if let Some(done_url) = &otp_error.done_url {
+            error_body["doneUrl"] = serde_json::Value::String(done_url.clone());
+        }
+    }
+    let output = serde_json::json!({
+        "error": error_body,
+    });
+    // pnpm's `errorHandler` prints the envelope with `JSON.stringify(_, null, 2)`;
+    // match its two-space indentation byte-for-byte.
+    let output = serde_json::to_string_pretty(&output).expect("a JSON error envelope serializes");
+    println!("{output}");
+}
+
+fn json_error_message(error: &miette::Report) -> String {
+    let mut messages = error.chain().map(ToString::to_string);
+    match (messages.next(), messages.next()) {
+        (Some(context), Some(source)) if context == super::pack::PACK_ERROR_CONTEXT => source,
+        (Some(message), _) => message,
+        (None, _) => error.to_string(),
+    }
+}
+
+fn otp_non_interactive_error(error: &miette::Report) -> Option<&OtpNonInteractiveError> {
+    error
+        .downcast_ref::<OtpNonInteractiveError>()
+        .or_else(|| error.chain().find_map(|cause| cause.downcast_ref::<OtpNonInteractiveError>()))
+}
+
 fn now_millis() -> u128 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis())
 }
+
+#[cfg(test)]
+mod tests;

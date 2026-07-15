@@ -331,6 +331,9 @@ pub(super) fn publish<'a>(
     let dir = ctx.dir;
     let recursive = ctx.recursive;
     args.flags.report_summary |= ctx.recursive_report_summary;
+    if args.flags.json {
+        return Ok(Box::pin(args.run::<SilentReporter>(dir, config, recursive)));
+    }
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => {
             Box::pin(args.run::<DefaultReporter>(dir, config, recursive))

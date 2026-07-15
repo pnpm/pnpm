@@ -321,7 +321,7 @@ impl PublishArgs {
         pack_api::<Reporter, PackHost>(&options)
             .await
             .map_err(miette::Report::new)
-            .wrap_err("pack the package")
+            .wrap_err(crate::cli_args::pack::PACK_ERROR_CONTEXT)
     }
 
     /// Map the CLI flags and resolved [`Config`] onto the publish options.

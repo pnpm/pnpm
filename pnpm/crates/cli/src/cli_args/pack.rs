@@ -29,6 +29,12 @@ use std::{
     sync::Arc,
 };
 
+/// The `wrap_err` framing `pack` and `publish` attach to a failed pack.
+/// [`super::dispatch`]'s `--json` error path matches on it to surface the
+/// underlying pack diagnostic instead of this wrapper, so the two sites must
+/// share one definition.
+pub(crate) const PACK_ERROR_CONTEXT: &str = "pack the package";
+
 /// The catalogs `catalog:` specifiers resolve against when packing a
 /// package for `pack` / `publish`: the hook-injected set when an
 /// `updateConfig` pnpmfile provided one ([`Config::catalogs`] is `Some`),
@@ -110,7 +116,7 @@ impl PackArgs {
             let result = api::<Reporter, Host>(&options)
                 .await
                 .map_err(miette::Report::new)
-                .wrap_err("pack the package")?;
+                .wrap_err(PACK_ERROR_CONTEXT)?;
             Ok(format_pack_output(&[to_pack_result_json(&result)], self.json, false))
         }
     }
