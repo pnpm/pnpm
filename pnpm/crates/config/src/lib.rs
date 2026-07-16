@@ -1043,6 +1043,11 @@ pub struct Config {
     #[default = true]
     pub block_exotic_subdeps: bool,
 
+    /// Whether to warn when an entry in `overrides` matches no dependency
+    /// in the resolved tree. The `warnUnusedOverrides` setting; default `true`.
+    #[default = true]
+    pub warn_unused_overrides: bool,
+
     /// Whether to verify each CAFS file's on-disk integrity before reusing it
     /// for an install. When `true` (pnpm's default), the store-index cache
     /// lookup stats each referenced file and re-hashes any whose mtime has

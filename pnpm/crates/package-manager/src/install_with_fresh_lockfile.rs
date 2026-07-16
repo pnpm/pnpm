@@ -25,7 +25,7 @@ use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{
     DeprecationLog, GlobalLog, HookLog, LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog,
     SkippedOptionalPackage, SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog,
-    StatsLog, StatsMessage,
+    StatsLog, StatsMessage, UnusedOverrideLog,
 };
 use pacquet_resolving_default_resolver::DefaultResolver;
 use pacquet_resolving_deps_resolver::{
@@ -1319,8 +1319,11 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         });
         // Reused subtrees never stream their manifests through the
         // versions overrider, so only a resolution with no reuse at all
+        // (or one forced to ignore the reuse seed via `update_reuse_scope`)
         // collects the complete declared-range set the convergence
-        // staleness check needs.
+        // staleness check needs — and the complete `applied` set the
+        // unused-override diff needs. Both post-resolution checks gate
+        // on this flag.
         let full_resolution = full_resolution_required(
             lockfile_reuse_seed.is_some(),
             importer_manifests.keys().map(String::as_str),
@@ -1488,16 +1491,24 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             "phase complete",
         );
 
-        // Only a full resolution walks every manifest through the
-        // versions overrider, making the collected declared ranges
-        // complete enough for the staleness verdict; partial (reuse-
-        // seeded) resolutions must stay silent to avoid false positives
-        // from unseen ranges. Runs before the resolver chain is dropped
-        // so the per-range picks reuse the still-warm packument cache.
+        // Post-resolution warnings, then close the resolution phase with
+        // `pnpm:stage { stage: "resolution_done" }`. Both gates hang off
+        // `full_resolution` because reused subtrees bypass `manifest_hook`,
+        // leaving the overrider's collectors incomplete; emitting under a
+        // partial resolution would produce false positives. The reporter
+        // buffers unused-override events against `resolution_done` and
+        // renders a single grouped warning, so every `pnpm:unused-override`
+        // for this install must precede the `resolution_done` emission.
+        //
+        // Both checks also run before the resolver chain is dropped, so the
+        // staleness check's per-range picks reuse the still-warm packument
+        // cache.
         if full_resolution
             && let (Some(parsed), Some(overrider)) =
                 (parsed_overrides.as_ref(), versions_overrider.as_ref())
         {
+            // 1. Stale convergence overrides — own staleness path, runs
+            //    over the declared-range set the overrider collected.
             let declared_ranges = overrider.converge_declared_ranges();
             let stale_check_opts = ResolveOptions {
                 project_dir: lockfile_dir.to_path_buf(),
@@ -1524,7 +1535,37 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             crate::warn_on_stale_convergence_overrides::warn_stale_convergence_overrides::<Reporter>(
                 &stale,
             );
+
+            // 2. Unused explicit overrides. Convergence overrides are
+            //    excluded — they have their own staleness path above, and
+            //    `record_applied` is never called from `converge_dep`, so
+            //    leaving them in the diff would flag every applied
+            //    convergence override as unused. Gated separately on
+            //    `warn_unused_overrides` so users can silence just this
+            //    warning without losing the convergence staleness check.
+            if config.warn_unused_overrides {
+                let applied = overrider.applied_selectors();
+                let mut unused: Vec<&str> = parsed
+                    .iter()
+                    .filter(|override_entry| !override_entry.converge)
+                    .map(|override_entry| override_entry.selector.as_str())
+                    .filter(|selector| !applied.contains(*selector))
+                    .collect();
+                unused.sort_unstable();
+                for selector in unused {
+                    Reporter::emit(&LogEvent::UnusedOverride(UnusedOverrideLog {
+                        level: LogLevel::Debug,
+                        prefix: lockfile_dir.to_string_lossy().into_owned(),
+                        selector: selector.to_string(),
+                    }));
+                }
+            }
         }
+        Reporter::emit(&LogEvent::Stage(StageLog {
+            level: LogLevel::Debug,
+            prefix: lockfile_dir.to_string_lossy().into_owned(),
+            stage: Stage::ResolutionDone,
+        }));
 
         // Drop the resolver (and its packument cache) before the
         // install pass. Dropping `resolver` releases the

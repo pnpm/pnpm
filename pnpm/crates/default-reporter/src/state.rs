@@ -269,6 +269,12 @@ pub struct ReporterState {
 
     deprecated_subdeps: Vec<DeprecationLog>,
     deprecated_slot: BlockSlot,
+    /// `pnpm:unused-override` selectors buffered until
+    /// `pnpm:stage { stage: "resolution_done" }`, mirroring pnpm's
+    /// `reportDeprecations.ts` `buffer(resolutionDone$)` shape. When
+    /// the stage fires, the buffered selectors are concatenated into
+    /// one grouped warning and the buffer is cleared.
+    pending_unused_overrides: Vec<String>,
 }
 
 const MAX_SHOWN_WARNINGS: usize = 5;
@@ -364,6 +370,7 @@ impl ReporterState {
             collapsed_warn_slot: BlockSlot::default(),
             deprecated_subdeps: Vec::new(),
             deprecated_slot: BlockSlot::default(),
+            pending_unused_overrides: Vec::new(),
         }
     }
 
@@ -397,6 +404,9 @@ impl ReporterState {
             LogEvent::ExecutionTime(log) => self.on_execution_time(log),
             LogEvent::Hook(log) => self.on_hook(log),
             LogEvent::Deprecation(log) => self.on_deprecation(log),
+            LogEvent::UnusedOverride(log) => {
+                self.pending_unused_overrides.push(log.selector.clone());
+            }
             // Debug-only / non-rendered channels in pnpm's default reporter.
             LogEvent::BrokenModules(_) => {}
         }
@@ -501,6 +511,7 @@ impl ReporterState {
         match stage {
             Stage::ResolutionDone => {
                 self.flush_deprecated_subdeps();
+                self.flush_pending_unused_overrides();
             }
             Stage::ImportingDone => {
                 if !self.progress.contains_key(prefix) {
@@ -513,6 +524,34 @@ impl ReporterState {
             }
             _ => {}
         }
+    }
+
+    /// Emit a single grouped warning for any override selectors that
+    /// matched no resolved dependency. Mirrors pnpm's
+    /// `reportUnusedOverrides.ts`: selectors are sorted, the count
+    /// word is singular only when exactly one was collected, and the
+    /// whole batch is emitted at `resolution_done` rather than
+    /// streamed per event. The buffer is cleared after the flush so
+    /// subsequent installs in the same reporter process start fresh.
+    ///
+    /// Selectors are sanitized (control characters stripped) before
+    /// rendering so a crafted override key containing `\n`, `\r`, or
+    /// ESC cannot inject/spoof terminal output. The raw selector stays
+    /// intact in the structured `LogEvent::UnusedOverride` payload.
+    fn flush_pending_unused_overrides(&mut self) {
+        if self.pending_unused_overrides.is_empty() {
+            return;
+        }
+        let selectors = std::mem::take(&mut self.pending_unused_overrides);
+        let mut sanitized: Vec<String> =
+            selectors.iter().map(|s| sanitize_override_selector(s)).collect();
+        sanitized.sort_unstable();
+        let head = if sanitized.len() == 1 {
+            "1 override matched no dependency".to_string()
+        } else {
+            format!("{} overrides matched no dependency", sanitized.len())
+        };
+        self.push_warning(&format!("{}: {}", head, sanitized.join(", ")));
     }
 
     // --- big tarballs -----------------------------------------------------
@@ -1247,6 +1286,13 @@ fn lexically_normalize(path: &Path) -> PathBuf {
 fn strip_trailing_separators(path: &str) -> String {
     let trimmed = path.trim_end_matches('/');
     if trimmed.is_empty() && path.starts_with('/') { "/".to_string() } else { trimmed.to_string() }
+}
+
+/// Strip Unicode control characters (C0, DEL, C1, and other control
+/// code points) from an override selector before rendering, so a
+/// crafted key cannot inject/spoof terminal output.
+fn sanitize_override_selector(selector: &str) -> String {
+    selector.chars().filter(|ch| !ch.is_control()).collect()
 }
 
 fn diff_key(kind: DepKind) -> &'static str {
