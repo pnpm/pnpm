@@ -742,7 +742,7 @@ fn malformed_importer_dependency_path_returns_structured_error() {
         try_dependencies_graph_to_lockfile(single_importer_opts(
             &manifest, &graph, direct, false, false, None, None,
         ))
-        .unwrap_err()
+        .unwrap_err(),
     );
 
     let DependenciesGraphToLockfileError::ImporterDependency { alias, dep_path, .. } = error;
