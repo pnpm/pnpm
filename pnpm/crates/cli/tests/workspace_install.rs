@@ -160,6 +160,9 @@ fn changed_workspace_importer_invalidates_lockfile() {
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut workspace_yaml =
         fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
     workspace_yaml.push_str("packages:\n  - 'pkg-a'\n  - 'pkg-b'\n");
     fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
 

@@ -1800,13 +1800,16 @@ fn check_lockfile_freshness(
         return Ok(());
     }
 
+    let ignored_optional_matcher = pacquet_config::matcher::create_matcher(
+        config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
+    );
     for (project_dir, manifest) in project_manifests {
         let importer_id = pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir);
         check_importer_satisfies(
             lockfile,
             manifest,
             &importer_id,
-            config,
+            &ignored_optional_matcher,
             parsed_overrides_opt.as_deref(),
         )?;
     }
@@ -1874,7 +1877,7 @@ pub(crate) fn check_importer_satisfies(
     lockfile: &Lockfile,
     manifest: &PackageManifest,
     importer_id: &str,
-    config: &Config,
+    ignored_optional_matcher: &pacquet_config::matcher::Matcher,
     parsed_overrides: Option<&[pacquet_config_parse_overrides::VersionOverride]>,
 ) -> Result<(), FreshnessCheckError> {
     let importer = lockfile
@@ -1911,19 +1914,11 @@ pub(crate) fn check_importer_satisfies(
     // optionalDependencies AND matched") rather than pure pattern
     // matching. `devDependencies` is untouched on purpose; the group
     // gate inside `satisfies_package_manifest` enforces that.
-    let ignored_set: std::collections::HashSet<String> = config
-        .ignored_optional_dependencies
-        .as_deref()
-        .filter(|patterns| !patterns.is_empty())
-        .map(|patterns| {
-            let matcher = pacquet_config::matcher::create_matcher(patterns);
-            manifest_for_freshness
-                .dependencies([pacquet_package_manifest::DependencyGroup::Optional])
-                .filter(|(name, _)| matcher.matches(name))
-                .map(|(name, _)| name.to_string())
-                .collect()
-        })
-        .unwrap_or_default();
+    let ignored_set: std::collections::HashSet<String> = manifest_for_freshness
+        .dependencies([pacquet_package_manifest::DependencyGroup::Optional])
+        .filter(|(name, _)| ignored_optional_matcher.matches(name))
+        .map(|(name, _)| name.to_string())
+        .collect();
     let is_ignored_optional: &dyn Fn(&str) -> bool = &|name: &str| ignored_set.contains(name);
 
     satisfies_package_manifest(importer, manifest_for_freshness, is_ignored_optional)
