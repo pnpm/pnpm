@@ -10,7 +10,11 @@ import type {
 
 import type { NodeId } from '../lib/nextNodeId.js'
 import type { ChildrenMap, DependenciesTreeNode, PeerDependencies } from '../lib/resolveDependencies.js'
-import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers.js'
+import {
+  mergeCompatibleLockedOptionalPeerContexts,
+  type PartialResolvedPackage,
+  resolvePeers,
+} from '../lib/resolvePeers.js'
 
 test('resolve peer dependencies of cyclic dependencies', async () => {
   const fooPkg = {
@@ -1111,6 +1115,307 @@ describe('locked peer provider preferences', () => {
 
     expect(preferred.dependenciesGraph['consumer/1.0.0(peer/1.0.0)' as DepPath]).toBeTruthy()
     expect(preferred.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeUndefined()
+  })
+})
+
+describe('filtering reuse-only transitive peers', () => {
+  test('merges disjoint optional peer contexts and removes only conflicting providers', () => {
+    expect(mergeCompatibleLockedOptionalPeerContexts([
+      new Map([
+        ['peer-p', 'peer-p/1.0.0' as DepPath],
+        ['peer-r', 'peer-r/1.0.0' as DepPath],
+      ]),
+      new Map([
+        ['peer-q', 'peer-q/1.0.0' as DepPath],
+        ['peer-r', 'peer-r/2.0.0' as DepPath],
+      ]),
+    ], new Set(['peer-p', 'peer-q', 'peer-r']))).toStrictEqual(new Map([
+      ['peer-p', 'peer-p/1.0.0'],
+      ['peer-q', 'peer-q/1.0.0'],
+    ]))
+  })
+
+  test('does not retain a locked optional peer that no occurrence resolved freshly', () => {
+    expect(mergeCompatibleLockedOptionalPeerContexts([
+      new Map([['peer', 'peer/1.0.0' as DepPath]]),
+    ], new Set())).toStrictEqual(new Map())
+  })
+
+  const pkg = (name: string, peerDependencies: PeerDependencies = {}) => ({
+    name,
+    pkgIdWithPatchHash: `${name}/1.0.0` as PkgIdWithPatchHash,
+    version: '1.0.0',
+    peerDependencies,
+    id: '' as PkgResolutionId,
+  })
+
+  const options = (
+    dependenciesTree: Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>,
+    directNodeIdsByAlias: Map<string, NodeId>,
+    allPeerDepNames: string[]
+  ) => ({
+    allPeerDepNames: new Set(allPeerDepNames),
+    dedupePeerDependents: true,
+    projects: [{
+      directNodeIdsByAlias,
+      topParents: [],
+      rootDir: '' as ProjectRootDir,
+      id: '',
+    }],
+    resolvedImporters: {},
+    dependenciesTree,
+    virtualStoreDir: '',
+    virtualStoreDirMaxLength: 120,
+    lockfileDir: '',
+    peersSuffixMaxLength: 1000,
+    workspaceProjectIds: new Set<string>(),
+  })
+
+  function resolvedPeerNamesByNodeId (
+    result: Awaited<ReturnType<typeof resolvePeers>>
+  ): Map<NodeId, Set<string>> {
+    const peerNamesByKey = new Map<string, Set<string>>()
+    const resultByNodeId = new Map<NodeId, Set<string>>()
+    for (const [nodeId, depPath] of result.pathsByNodeId) {
+      const peerNames = result.dependenciesGraph[depPath]?.resolvedPeerNames ?? new Set()
+      const key = [...peerNames].sort().join('\0')
+      let sharedPeerNames = peerNamesByKey.get(key)
+      if (sharedPeerNames == null) {
+        sharedPeerNames = new Set(peerNames)
+        peerNamesByKey.set(key, sharedPeerNames)
+      }
+      resultByNodeId.set(nodeId, sharedPeerNames)
+    }
+    return resultByNodeId
+  }
+
+  test('keeps a locked peer on its dependent without bubbling it to ancestors', async () => {
+    const retainerNodeId = '>retainer/1.0.0>' as NodeId
+    const peerNodeId = '>retainer/1.0.0>peer/1.0.0>' as NodeId
+    const wrapperNodeId = '>wrapper/1.0.0>' as NodeId
+    const consumerNodeId = '>wrapper/1.0.0>consumer/1.0.0>' as NodeId
+    const depNodeId = '>wrapper/1.0.0>consumer/1.0.0>dep/1.0.0>' as NodeId
+    const dependenciesTree = new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+      [retainerNodeId, {
+        children: { peer: peerNodeId },
+        installable: true,
+        resolvedPackage: pkg('retainer'),
+        depth: 0,
+      }],
+      [peerNodeId, {
+        children: {},
+        installable: true,
+        previousDepPath: 'peer/1.0.0' as DepPath,
+        resolvedPackage: pkg('peer'),
+        depth: 1,
+      }],
+      [wrapperNodeId, {
+        children: { consumer: consumerNodeId },
+        installable: true,
+        resolvedPackage: pkg('wrapper'),
+        depth: 0,
+      }],
+      [consumerNodeId, {
+        children: { dep: depNodeId },
+        installable: true,
+        resolvedPackage: pkg('consumer'),
+        depth: 1,
+      }],
+      [depNodeId, {
+        children: {},
+        installable: true,
+        lockedPeerContext: { peer: 'peer/1.0.0' as DepPath },
+        resolvedPackage: pkg('dep', {
+          peer: { version: '1.0.0', optional: true },
+        }),
+        depth: 2,
+      }],
+    ])
+    const resolutionOpts = options(dependenciesTree, new Map([
+      ['retainer', retainerNodeId],
+      ['wrapper', wrapperNodeId],
+    ]), ['peer'])
+    const initial = await resolvePeers(resolutionOpts)
+    const filtered = await resolvePeers({
+      ...resolutionOpts,
+      allowedTransitivePeerNamesByNodeId: resolvedPeerNamesByNodeId(initial),
+      preferredLockedOptionalPeerContexts: new Map([
+        ['dep/1.0.0' as PkgIdWithPatchHash, new Map([['peer', 'peer/1.0.0' as DepPath]])],
+      ]),
+      resolvedPeerProviderPaths: initial.pathsByNodeId,
+    })
+
+    const wrapperDepPath = filtered.dependenciesByProjectId[''].get('wrapper')!
+    const consumerDepPath = filtered.dependenciesGraph[wrapperDepPath].children.consumer
+    expect(wrapperDepPath).toBe('wrapper/1.0.0')
+    expect(consumerDepPath).toBe('consumer/1.0.0')
+    expect(filtered.dependenciesGraph[consumerDepPath].children.dep).toBe('dep/1.0.0(peer/1.0.0)')
+    expect(filtered.dependenciesGraph[wrapperDepPath].transitivePeerDependencies).toStrictEqual(new Set(['peer']))
+  })
+
+  test('keeps a locked union context available to dedupePeerDependents', async () => {
+    const wrapperANodeId = '>wrapper-a/1.0.0>' as NodeId
+    const consumerANodeId = '>wrapper-a/1.0.0>consumer/1.0.0>' as NodeId
+    const peerQNodeId = '>wrapper-a/1.0.0>peer-q/1.0.0>' as NodeId
+    const wrapperBNodeId = '>wrapper-b/1.0.0>' as NodeId
+    const consumerBNodeId = '>wrapper-b/1.0.0>consumer/1.0.0>' as NodeId
+    const peerPNodeId = '>wrapper-b/1.0.0>peer-p/1.0.0>' as NodeId
+    const consumerPkg = pkg('consumer', {
+      'peer-p': { version: '1.0.0', optional: true },
+      'peer-q': { version: '1.0.0', optional: true },
+    })
+    const dependenciesTree = new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+      [wrapperANodeId, {
+        children: { consumer: consumerANodeId, 'peer-q': peerQNodeId },
+        installable: true,
+        resolvedPackage: pkg('wrapper-a'),
+        depth: 0,
+      }],
+      [consumerANodeId, {
+        children: {},
+        installable: true,
+        lockedPeerContext: {
+          'peer-p': 'peer-p/1.0.0' as DepPath,
+          'peer-q': 'peer-q/1.0.0' as DepPath,
+        },
+        resolvedPackage: consumerPkg,
+        depth: 1,
+      }],
+      [peerQNodeId, {
+        children: {},
+        installable: true,
+        previousDepPath: 'peer-q/1.0.0' as DepPath,
+        resolvedPackage: pkg('peer-q'),
+        depth: 1,
+      }],
+      [wrapperBNodeId, {
+        children: { consumer: consumerBNodeId, 'peer-p': peerPNodeId },
+        installable: true,
+        resolvedPackage: pkg('wrapper-b'),
+        depth: 0,
+      }],
+      [consumerBNodeId, {
+        children: {},
+        installable: true,
+        resolvedPackage: consumerPkg,
+        depth: 1,
+      }],
+      [peerPNodeId, {
+        children: {},
+        installable: true,
+        previousDepPath: 'peer-p/1.0.0' as DepPath,
+        resolvedPackage: pkg('peer-p'),
+        depth: 1,
+      }],
+    ])
+    const resolutionOpts = options(dependenciesTree, new Map([
+      ['wrapper-a', wrapperANodeId],
+      ['wrapper-b', wrapperBNodeId],
+    ]), ['peer-p', 'peer-q'])
+    const initial = await resolvePeers(resolutionOpts)
+    const filtered = await resolvePeers({
+      ...resolutionOpts,
+      allowedTransitivePeerNamesByNodeId: resolvedPeerNamesByNodeId(initial),
+      preferredLockedOptionalPeerContexts: new Map([
+        ['consumer/1.0.0' as PkgIdWithPatchHash, new Map([
+          ['peer-p', 'peer-p/1.0.0' as DepPath],
+          ['peer-q', 'peer-q/1.0.0' as DepPath],
+        ])],
+      ]),
+      resolvedPeerProviderPaths: initial.pathsByNodeId,
+    })
+    const unionDepPath = 'consumer/1.0.0(peer-p/1.0.0)(peer-q/1.0.0)' as DepPath
+    const wrapperADepPath = filtered.dependenciesByProjectId[''].get('wrapper-a')!
+    const wrapperBDepPath = filtered.dependenciesByProjectId[''].get('wrapper-b')!
+    expect(filtered.dependenciesGraph[wrapperADepPath].children.consumer).toBe(unionDepPath)
+    expect(filtered.dependenciesGraph[wrapperBDepPath].children.consumer).toBe(unionDepPath)
+  })
+
+  test('skips conflicting locked optional providers', async () => {
+    const retainerPNodeId = '>retainer-p>' as NodeId
+    const retainerQNodeId = '>retainer-q>' as NodeId
+    const peerPNodeId = '>retainer-p>peer-p>' as NodeId
+    const peerQNodeId = '>retainer-q>peer-q>' as NodeId
+    const wrapperANodeId = '>wrapper-a>' as NodeId
+    const wrapperBNodeId = '>wrapper-b>' as NodeId
+    const consumerANodeId = '>wrapper-a>consumer>' as NodeId
+    const consumerBNodeId = '>wrapper-b>consumer>' as NodeId
+    const consumerPkg = pkg('consumer', {
+      peer: { version: '>=1.0.0', optional: true },
+    })
+    const dependenciesTree = new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+      [retainerPNodeId, {
+        children: { 'peer-p': peerPNodeId },
+        installable: true,
+        resolvedPackage: pkg('retainer-p'),
+        depth: 0,
+      }],
+      [retainerQNodeId, {
+        children: { 'peer-q': peerQNodeId },
+        installable: true,
+        resolvedPackage: pkg('retainer-q'),
+        depth: 0,
+      }],
+      [peerPNodeId, {
+        children: {},
+        installable: true,
+        previousDepPath: 'peer-p/1.0.0' as DepPath,
+        resolvedPackage: pkg('peer-p'),
+        depth: 1,
+      }],
+      [peerQNodeId, {
+        children: {},
+        installable: true,
+        previousDepPath: 'peer-q/1.0.0' as DepPath,
+        resolvedPackage: pkg('peer-q'),
+        depth: 1,
+      }],
+      [wrapperANodeId, {
+        children: { consumer: consumerANodeId },
+        installable: true,
+        resolvedPackage: pkg('wrapper-a'),
+        depth: 0,
+      }],
+      [wrapperBNodeId, {
+        children: { consumer: consumerBNodeId },
+        installable: true,
+        resolvedPackage: pkg('wrapper-b'),
+        depth: 0,
+      }],
+      [consumerANodeId, {
+        children: {},
+        installable: true,
+        lockedPeerContext: { peer: 'peer-p/1.0.0' as DepPath },
+        resolvedPackage: consumerPkg,
+        depth: 1,
+      }],
+      [consumerBNodeId, {
+        children: {},
+        installable: true,
+        lockedPeerContext: { peer: 'peer-q/1.0.0' as DepPath },
+        resolvedPackage: consumerPkg,
+        depth: 1,
+      }],
+    ])
+    const resolutionOpts = options(dependenciesTree, new Map([
+      ['retainer-p', retainerPNodeId],
+      ['retainer-q', retainerQNodeId],
+      ['wrapper-a', wrapperANodeId],
+      ['wrapper-b', wrapperBNodeId],
+    ]), ['peer-p', 'peer-q'])
+    const initial = await resolvePeers(resolutionOpts)
+    const filtered = await resolvePeers({
+      ...resolutionOpts,
+      allowedTransitivePeerNamesByNodeId: resolvedPeerNamesByNodeId(initial),
+      preferredLockedOptionalPeerContexts: new Map([
+        ['consumer/1.0.0' as PkgIdWithPatchHash, new Map()],
+      ]),
+      resolvedPeerProviderPaths: initial.pathsByNodeId,
+    })
+    const wrapperAPath = filtered.dependenciesByProjectId[''].get('wrapper-a')!
+    const wrapperBPath = filtered.dependenciesByProjectId[''].get('wrapper-b')!
+    expect(filtered.dependenciesGraph[wrapperAPath].children.consumer).toBe('consumer/1.0.0')
+    expect(filtered.dependenciesGraph[wrapperBPath].children.consumer).toBe('consumer/1.0.0')
   })
 })
 

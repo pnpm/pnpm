@@ -53,6 +53,7 @@ import {
   type DependenciesByProjectId,
   type GenericDependenciesGraphNodeWithResolvedChildren,
   type GenericDependenciesGraphWithResolvedChildren,
+  mergeCompatibleLockedOptionalPeerContexts,
   resolvePeers,
 } from './resolvePeers.js'
 import { toResolveImporter } from './toResolveImporter.js'
@@ -300,6 +301,11 @@ export async function resolveDependencies (
   } = treeHasLockedPeerContexts(dependenciesTree)
     ? await resolvePeers({
       ...peerResolutionOpts,
+      allowedTransitivePeerNamesByNodeId: getResolvedPeerNamesByNodeId(initiallyResolvedPeers),
+      preferredLockedOptionalPeerContexts: getPreferredLockedOptionalPeerContexts(
+        dependenciesTree,
+        initiallyResolvedPeers
+      ),
       resolvedPeerProviderPaths: initiallyResolvedPeers.pathsByNodeId,
     })
     : initiallyResolvedPeers
@@ -450,6 +456,76 @@ function treeHasLockedPeerContexts (dependenciesTree: DependenciesTree<ResolvedP
     if (node.lockedPeerContext != null) return true
   }
   return false
+}
+
+function getResolvedPeerNamesByNodeId (
+  resolvedPeers: Awaited<ReturnType<typeof resolvePeers>>
+): Map<NodeId, Set<string>> {
+  const peerNamesByKey = new Map<string, Set<string>>()
+  const peerNamesByNodeId = new Map<NodeId, Set<string>>()
+  for (const [nodeId, depPath] of resolvedPeers.pathsByNodeId.entries()) {
+    const peerNames = resolvedPeers.dependenciesGraph[depPath]?.resolvedPeerNames ?? new Set()
+    const key = [...peerNames].sort().join('\0')
+    let sharedPeerNames = peerNamesByKey.get(key)
+    if (sharedPeerNames == null) {
+      sharedPeerNames = new Set(peerNames)
+      peerNamesByKey.set(key, sharedPeerNames)
+    }
+    peerNamesByNodeId.set(nodeId, sharedPeerNames)
+  }
+  return peerNamesByNodeId
+}
+
+function getPreferredLockedOptionalPeerContexts (
+  dependenciesTree: DependenciesTree<ResolvedPackage>,
+  initiallyResolvedPeers: Awaited<ReturnType<typeof resolvePeers>>
+): Map<PkgIdWithPatchHash, Map<string, DepPath>> {
+  const freshPeerNamesByPkgId = new Map<PkgIdWithPatchHash, Set<string>>()
+  for (const [nodeId, depPath] of initiallyResolvedPeers.pathsByNodeId) {
+    const node = dependenciesTree.get(nodeId)
+    if (node == null) continue
+    const pkg = node.resolvedPackage as ResolvedPackage
+    let freshPeerNames = freshPeerNamesByPkgId.get(pkg.pkgIdWithPatchHash)
+    if (freshPeerNames == null) {
+      freshPeerNames = new Set()
+      freshPeerNamesByPkgId.set(pkg.pkgIdWithPatchHash, freshPeerNames)
+    }
+    for (const peerName of initiallyResolvedPeers.dependenciesGraph[depPath]?.resolvedPeerNames ?? []) {
+      freshPeerNames.add(peerName)
+    }
+  }
+  const candidatesByPkgId = new Map<PkgIdWithPatchHash, Map<string, Map<string, DepPath>>>()
+  for (const node of dependenciesTree.values()) {
+    if (node.lockedPeerContext == null) continue
+    const pkg = node.resolvedPackage as ResolvedPackage
+    const context = new Map<string, DepPath>()
+    for (const [peerName, peerDepPath] of Object.entries(node.lockedPeerContext)) {
+      if (pkg.peerDependencies[peerName]?.optional === true) {
+        context.set(peerName, peerDepPath)
+      }
+    }
+    if (context.size === 0) continue
+    const signature = [...context].sort(([peerName1], [peerName2]) => peerName1.localeCompare(peerName2))
+      .map(([peerName, peerDepPath]) => `${peerName}=${peerDepPath}`)
+      .join('\n')
+    let candidates = candidatesByPkgId.get(pkg.pkgIdWithPatchHash)
+    if (candidates == null) {
+      candidates = new Map()
+      candidatesByPkgId.set(pkg.pkgIdWithPatchHash, candidates)
+    }
+    candidates.set(signature, context)
+  }
+  const preferredContexts = new Map<PkgIdWithPatchHash, Map<string, DepPath>>()
+  for (const [pkgId, candidatesBySignature] of candidatesByPkgId.entries()) {
+    preferredContexts.set(
+      pkgId,
+      mergeCompatibleLockedOptionalPeerContexts(
+        candidatesBySignature.values(),
+        freshPeerNamesByPkgId.get(pkgId)
+      )
+    )
+  }
+  return preferredContexts
 }
 
 function addDirectDependenciesToLockfile (

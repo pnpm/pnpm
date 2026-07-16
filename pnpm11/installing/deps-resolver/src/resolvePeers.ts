@@ -84,6 +84,28 @@ export interface ProjectToResolve {
 
 export type DependenciesByProjectId = Record<string, Map<string, DepPath>>
 
+export function mergeCompatibleLockedOptionalPeerContexts (
+  contexts: Iterable<Map<string, DepPath>>,
+  supportedPeerNames?: Set<string>
+): Map<string, DepPath> {
+  const merged = new Map<string, DepPath>()
+  const conflicts = new Set<string>()
+  for (const context of contexts) {
+    for (const [peerName, peerDepPath] of context) {
+      if (supportedPeerNames != null && !supportedPeerNames.has(peerName)) continue
+      if (conflicts.has(peerName)) continue
+      const currentPeerDepPath = merged.get(peerName)
+      if (currentPeerDepPath == null || currentPeerDepPath === peerDepPath) {
+        merged.set(peerName, peerDepPath)
+      } else {
+        merged.delete(peerName)
+        conflicts.add(peerName)
+      }
+    }
+  }
+  return merged
+}
+
 export async function resolvePeers<T extends PartialResolvedPackage> (
   opts: {
     allPeerDepNames: Set<string>
@@ -99,6 +121,8 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     resolvedImporters: ResolvedImporters
     peersSuffixMaxLength: number
     workspaceProjectIds: Set<string>
+    allowedTransitivePeerNamesByNodeId?: Map<NodeId, Set<string>>
+    preferredLockedOptionalPeerContexts?: Map<PkgIdWithPatchHash, Map<string, DepPath>>
     resolvedPeerProviderPaths?: Map<NodeId, DepPath>
   }
 ): Promise<{
@@ -127,6 +151,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
   const finishingList: FinishingResolutionPromise[] = []
   const peersCache = new Map<PkgIdWithPatchHash, PeersCacheItem[]>()
   const purePkgs = new Set<PkgIdWithPatchHash>()
+  const purePkgContexts = new Map<PkgIdWithPatchHash, Set<Set<string>>>()
   for (const { directNodeIdsByAlias, hoistedPeerProviderNodeIds, declaredDirectDependencies, explicitlyRequestedDirectDependencies, topParents, rootDir, id } of opts.projects) {
     const currentProviderSources: CurrentProviderSource[] = [{
       directNodeIdsByAlias,
@@ -182,11 +207,14 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       cycleBrokenNodeIds,
       depPathsByPkgId,
       nodeIdsByPreviousDepPath,
+      allowedTransitivePeerNamesByNodeId: opts.allowedTransitivePeerNamesByNodeId,
+      preferredLockedOptionalPeerContexts: opts.preferredLockedOptionalPeerContexts,
       resolvedPeerProviderPaths: opts.resolvedPeerProviderPaths,
       currentProviderSources,
       peersCache,
       peerDependencyIssues,
       purePkgs,
+      purePkgContexts,
       dedupePeers: opts.dedupePeers,
       peersSuffixMaxLength: opts.peersSuffixMaxLength,
       rootDir,
@@ -469,7 +497,9 @@ interface MissingPeerInfo {
 type MissingPeers = Map<string, MissingPeerInfo>
 
 interface PeersCacheItem {
+  allowedTransitivePeerNames?: Set<string>
   depPath: DeferredPromise<DepPath>
+  propagatedResolvedPeers?: Map<string, NodeId>
   resolvedPeers: Map<string, NodeId>
   missingPeers: MissingPeers
   // The node whose resolution created this entry and will resolve depPath.
@@ -485,6 +515,7 @@ interface PeersResolution {
 }
 
 interface ResolvePeersContext {
+  allowedTransitivePeerNamesByNodeId?: Map<NodeId, Set<string>>
   pathsByNodeId: Map<NodeId, DepPath>
   pathsByNodeIdPromises: Map<NodeId, DeferredPromise<DepPath>>
   // The await edges between dep path calculations, consumed by
@@ -496,6 +527,8 @@ interface ResolvePeersContext {
   cycleBrokenNodeIds: Set<NodeId>
   depPathsByPkgId?: Map<PkgIdWithPatchHash, Set<DepPath>>
   nodeIdsByPreviousDepPath: Map<DepPath, NodeId>
+  purePkgContexts: Map<PkgIdWithPatchHash, Set<Set<string>>>
+  preferredLockedOptionalPeerContexts?: Map<PkgIdWithPatchHash, Map<string, DepPath>>
   resolvedPeerProviderPaths?: Map<NodeId, DepPath>
   currentProviderSources: CurrentProviderSource[]
 }
@@ -534,6 +567,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
     peersCache: PeersCache
     purePkgs: Set<PkgIdWithPatchHash> // pure packages are those that don't rely on externally resolved peers
+    purePkgContexts: Map<PkgIdWithPatchHash, Set<Set<string>>>
     dedupePeers?: boolean
     rootDir: ProjectRootDir
     lockfileDir: string
@@ -541,16 +575,28 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   }
 ): Promise<PeersResolution & { finishing?: FinishingResolutionPromise, calculateDepPath?: CalculateDepPath }> {
   const node = ctx.dependenciesTree.get(nodeId)!
-  if (node.depth === -1) return { resolvedPeers: new Map<string, NodeId>(), missingPeers: new Map<string, MissingPeerInfo>() }
+  if (node.depth === -1) {
+    return {
+      resolvedPeers: new Map<string, NodeId>(),
+      missingPeers: new Map<string, MissingPeerInfo>(),
+    }
+  }
   const resolvedPackage = node.resolvedPackage as T
+  const allowedTransitivePeerNames = ctx.allowedTransitivePeerNamesByNodeId?.get(nodeId)
+  const isKnownPure = allowedTransitivePeerNames == null
+    ? ctx.purePkgs.has(resolvedPackage.pkgIdWithPatchHash)
+    : ctx.purePkgContexts.get(resolvedPackage.pkgIdWithPatchHash)?.has(allowedTransitivePeerNames) === true
   if (
-    ctx.purePkgs.has(resolvedPackage.pkgIdWithPatchHash) &&
+    isKnownPure &&
     ctx.depGraph[resolvedPackage.pkgIdWithPatchHash as unknown as DepPath].depth <= node.depth &&
     Object.keys(resolvedPackage.peerDependencies).length === 0
   ) {
     ctx.pathsByNodeId.set(nodeId, resolvedPackage.pkgIdWithPatchHash as unknown as DepPath)
     ctx.pathsByNodeIdPromises.get(nodeId)!.resolve(resolvedPackage.pkgIdWithPatchHash as unknown as DepPath)
-    return { resolvedPeers: new Map<string, NodeId>(), missingPeers: new Map<string, MissingPeerInfo>() }
+    return {
+      resolvedPeers: new Map<string, NodeId>(),
+      missingPeers: new Map<string, MissingPeerInfo>(),
+    }
   }
   if (typeof node.children === 'function') {
     node.children = node.children()
@@ -610,6 +656,10 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       const currentPeerDepPath = ctx.pathsByNodeId.get(peerNodeId)
       if (currentPeerDepPath != null && currentPeerDepPath !== previousPeerDepPath) continue
       if (hasCurrentPeerProviderThatMustWin(peerName, parentPkgs, ctx)) continue
+      if (peerDependency.optional === true && parentPkgs[peerName] == null) {
+        const preferredContext = ctx.preferredLockedOptionalPeerContexts?.get(resolvedPackage.pkgIdWithPatchHash)
+        if (preferredContext != null && preferredContext.get(peerName) !== previousPeerDepPath) continue
+      }
       const lockedPeer = toPkgByName([{
         alias: peerName,
         node: ctx.dependenciesTree.get(peerNodeId)!,
@@ -633,7 +683,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       parentPkgs[peerName] = lockedPeer
     }
   }
-  const hit = findHit(ctx, parentPkgs, resolvedPackage.pkgIdWithPatchHash)
+  const hit = findHit(ctx, parentPkgs, resolvedPackage.pkgIdWithPatchHash, nodeId)
   if (hit != null) {
     for (const [peerName, { range: wantedRange, optional }] of hit.missingPeers.entries()) {
       if (ctx.peerDependencyIssues.missing[peerName] == null) {
@@ -658,7 +708,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
         ctx.depGraph[depPath].depth = Math.min(ctx.depGraph[depPath].depth, node.depth)
         ctx.pathsByNodeIdPromises.get(nodeId)!.resolve(depPath)
       })(),
-      resolvedPeers: hit.resolvedPeers,
+      resolvedPeers: hit.propagatedResolvedPeers ?? hit.resolvedPeers,
     }
   }
 
@@ -686,11 +736,27 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       parentNodeIds,
     })
 
-  const allResolvedPeers = unknownResolvedPeersOfChildren
-  for (const [k, v] of resolvedPeers) {
-    allResolvedPeers.set(k, v)
+  const propagatedResolvedPeers = unknownResolvedPeersOfChildren
+  const allResolvedPeers = allowedTransitivePeerNames == null
+    ? propagatedResolvedPeers
+    : new Map(propagatedResolvedPeers)
+  const filteredTransitivePeerNames = new Set<string>()
+  if (allowedTransitivePeerNames != null) {
+    for (const peerName of allResolvedPeers.keys()) {
+      if (!allowedTransitivePeerNames.has(peerName)) {
+        allResolvedPeers.delete(peerName)
+        filteredTransitivePeerNames.add(peerName)
+      }
+    }
   }
+  for (const [k, v] of resolvedPeers) {
+    propagatedResolvedPeers.set(k, v)
+    allResolvedPeers.set(k, v)
+    filteredTransitivePeerNames.delete(k)
+  }
+  propagatedResolvedPeers.delete(node.resolvedPackage.name)
   allResolvedPeers.delete(node.resolvedPackage.name)
+  filteredTransitivePeerNames.delete(node.resolvedPackage.name)
 
   const allMissingPeers = new Map<string, MissingPeerInfo>()
   for (const [peer, range] of missingPeersOfChildren.entries()) {
@@ -701,7 +767,10 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   }
 
   let cache: PeersCacheItem
-  const isPure = allResolvedPeers.size === 0 && allMissingPeers.size === 0
+  const isPure =
+    allResolvedPeers.size === 0 &&
+    allMissingPeers.size === 0 &&
+    filteredTransitivePeerNames.size === 0
   // A cycle re-entry resolves against truncated children (the cycle is broken by
   // dropping the repeated package's subtree), so its empty/partial peer sets are
   // not authoritative for the package as a whole. Recording that verdict — as
@@ -713,11 +782,24 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     // Leave both caches untouched so later occurrences re-resolve (or hit the
     // authoritative entry of the same package) instead of reusing this partial one.
   } else if (isPure) {
-    ctx.purePkgs.add(resolvedPackage.pkgIdWithPatchHash)
+    if (allowedTransitivePeerNames == null) {
+      ctx.purePkgs.add(resolvedPackage.pkgIdWithPatchHash)
+    } else {
+      let contexts = ctx.purePkgContexts.get(resolvedPackage.pkgIdWithPatchHash)
+      if (contexts == null) {
+        contexts = new Set()
+        ctx.purePkgContexts.set(resolvedPackage.pkgIdWithPatchHash, contexts)
+      }
+      contexts.add(allowedTransitivePeerNames)
+    }
   } else {
     cache = {
+      allowedTransitivePeerNames,
       missingPeers: allMissingPeers,
       depPath: pDefer(),
+      propagatedResolvedPeers: filteredTransitivePeerNames.size === 0
+        ? undefined
+        : propagatedResolvedPeers,
       resolvedPeers: allResolvedPeers,
       ownerNodeId: nodeId,
     }
@@ -751,7 +833,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   }
 
   return {
-    resolvedPeers: allResolvedPeers,
+    resolvedPeers: propagatedResolvedPeers,
     missingPeers: allMissingPeers,
     calculateDepPath: calculateDepPathIfNeeded,
     finishing,
@@ -832,6 +914,11 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       for (const unknownPeer of missingPeersOfChildren.keys()) {
         if (!peerDependencies[unknownPeer]) {
           transitivePeerDependencies.add(unknownPeer)
+        }
+      }
+      for (const peerName of filteredTransitivePeerNames) {
+        if (!peerDependencies[peerName]) {
+          transitivePeerDependencies.add(peerName)
         }
       }
       ctx.depGraph[depPath] = {
@@ -984,15 +1071,17 @@ function parentPeerDiffers<T extends PartialResolvedPackage> (
 }
 
 function findHit<T extends PartialResolvedPackage> (ctx: {
+  allowedTransitivePeerNamesByNodeId?: Map<NodeId, Set<string>>
   parentPkgsOfNode: ParentPkgsOfNode
   peersCache: PeersCache
   purePkgs: Set<PkgIdWithPatchHash>
   pathsByNodeId: Map<NodeId, DepPath>
   dependenciesTree: DependenciesTree<T>
-}, parentPkgs: ParentRefs, pkgIdWithPatchHash: PkgIdWithPatchHash) {
+}, parentPkgs: ParentRefs, pkgIdWithPatchHash: PkgIdWithPatchHash, nodeId: NodeId) {
   const cacheItems = ctx.peersCache.get(pkgIdWithPatchHash)
   if (!cacheItems) return undefined
   return cacheItems.find((cache) => {
+    if (cache.allowedTransitivePeerNames !== ctx.allowedTransitivePeerNamesByNodeId?.get(nodeId)) return false
     for (const [name, cachedNodeId] of cache.resolvedPeers) {
       const parentPkgNodeId = parentPkgs[name]?.nodeId
       if (Boolean(parentPkgNodeId) !== Boolean(cachedNodeId)) return false
@@ -1207,7 +1296,11 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     }
   }
 
-  return { resolvedPeers: unknownResolvedPeersOfChildren, missingPeers: allMissingPeers, finishing }
+  return {
+    resolvedPeers: unknownResolvedPeersOfChildren,
+    missingPeers: allMissingPeers,
+    finishing,
+  }
 }
 
 function _resolvePeers<T extends PartialResolvedPackage> (
