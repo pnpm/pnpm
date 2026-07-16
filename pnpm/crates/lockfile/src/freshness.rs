@@ -78,6 +78,14 @@ pub enum StalenessReason {
     )]
     DepSpecifierMismatch { field: &'static str, name: String, lockfile: String, manifest: String },
 
+    /// A semver resolution recorded for a direct dependency no longer
+    /// satisfies its unchanged manifest range. This catches a broken
+    /// lockfile whose specifier map still agrees with `package.json`.
+    #[display(
+        "the importer resolution is broken at dependency {name:?}: version {version:?} doesn't satisfy range {range:?}"
+    )]
+    ResolutionDoesNotSatisfy { name: String, version: String, range: String },
+
     /// The lockfile's `ignoredOptionalDependencies` (sorted) differs
     /// from the current install's `Config::ignored_optional_dependencies`
     /// (sorted). This drift would otherwise require a full resolution;
@@ -379,15 +387,17 @@ fn all_catalogs_are_up_to_date(
 ///    modified deps in one bucket.
 /// 2. `publishDirectory` vs `publishConfig.directory`.
 /// 3. `dependenciesMeta` equality.
-/// 4. Per-field name-set check and per-dep specifier match. Catches
+/// 4. Per-field name-set, per-dep specifier, and resolved-version
+///    checks. Catches
 ///    same-name-same-specifier-but-listed-under-different-field
-///    drift the flat-record diff doesn't see.
+///    drift the flat-record diff doesn't see, plus broken lockfiles
+///    whose resolved semver no longer satisfies the recorded range.
 ///
 /// Scoped to what pacquet supports today: no `auto-install-peers`
 /// pre-pass (pacquet has no separate auto-install-peers mode), no
 /// `excludeLinksFromLockfile` (`link:` resolutions aren't supported
-/// yet), and no version-range-satisfies check for
-/// file: / tarball deps (out of scope here).
+/// yet). Non-semver resolutions such as file and tarball dependencies
+/// are excluded from the resolved-version check.
 pub fn satisfies_package_manifest(
     importer: &ProjectSnapshot,
     manifest: &PackageManifest,
@@ -473,7 +483,7 @@ pub fn satisfies_package_manifest(
                 .and_then(|name| importer_field.and_then(|map| map.get(name)))
                 .map(|spec| spec.specifier.as_str());
             match importer_spec {
-                Some(spec) if spec == *manifest_spec => continue,
+                Some(spec) if spec == *manifest_spec => {}
                 Some(spec) => {
                     return Err(StalenessReason::DepSpecifierMismatch {
                         field: field_name,
@@ -490,6 +500,24 @@ pub fn satisfies_package_manifest(
                         manifest: (*manifest_spec).to_string(),
                     });
                 }
+            }
+            let Some(importer_dep) =
+                parsed.as_ref().and_then(|name| importer_field.and_then(|map| map.get(name)))
+            else {
+                continue;
+            };
+            let (Some(version), Ok(range)) = (
+                importer_dep.version.ver_peer().and_then(|version| version.version_semver()),
+                manifest_spec.parse::<node_semver::Range>(),
+            ) else {
+                continue;
+            };
+            if !range.satisfies(version) {
+                return Err(StalenessReason::ResolutionDoesNotSatisfy {
+                    name: (*name).to_string(),
+                    version: version.to_string(),
+                    range: (*manifest_spec).to_string(),
+                });
             }
         }
 

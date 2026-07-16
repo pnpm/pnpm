@@ -818,6 +818,7 @@ where
                         config,
                         &catalogs,
                         ignore_manifest_check,
+                        true,
                     )
                     .ok()
                     .map(|()| current.clone())
@@ -966,6 +967,7 @@ where
                 config,
                 &catalogs,
                 ignore_manifest_check,
+                false,
             )
             .map_err(InstallError::from)?;
             true
@@ -987,6 +989,7 @@ where
                     config,
                     &catalogs,
                     ignore_manifest_check,
+                    true,
                 ) {
                     // Even an up-to-date lockfile may not go frozen: a
                     // custom resolver's `shouldRefreshResolution` can
@@ -1792,6 +1795,7 @@ fn check_lockfile_freshness(
     config: &Config,
     catalogs: &Catalogs,
     ignore_manifest_check: bool,
+    allow_missing_dependency_free_importers: bool,
 ) -> Result<(), FreshnessCheckError> {
     let parsed_overrides_opt = parse_config_overrides(config, catalogs)?;
     check_lockfile_settings_drift(lockfile, config, catalogs, parsed_overrides_opt.as_deref())?;
@@ -1805,6 +1809,19 @@ fn check_lockfile_freshness(
     );
     for (project_dir, manifest) in project_manifests {
         let importer_id = pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir);
+        if allow_missing_dependency_free_importers
+            && !lockfile.importers.contains_key(&importer_id)
+            && manifest
+                .dependencies([
+                    pacquet_package_manifest::DependencyGroup::Prod,
+                    pacquet_package_manifest::DependencyGroup::Dev,
+                    pacquet_package_manifest::DependencyGroup::Optional,
+                ])
+                .next()
+                .is_none()
+        {
+            continue;
+        }
         check_importer_satisfies(
             lockfile,
             manifest,

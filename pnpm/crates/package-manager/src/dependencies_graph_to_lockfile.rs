@@ -289,13 +289,25 @@ fn build_importer(
         }
     }
 
+    let dependencies_meta = manifest
+        .value()
+        .get("dependenciesMeta")
+        .filter(|value| value.as_object().is_some_and(|meta| !meta.is_empty()))
+        .cloned();
+    let publish_directory = manifest
+        .value()
+        .get("publishConfig")
+        .and_then(|publish_config| publish_config.get("directory"))
+        .and_then(Value::as_str)
+        .map(str::to_string);
+
     ProjectSnapshot {
         specifiers: (!specifiers.is_empty()).then_some(specifiers),
         dependencies: (!dependencies.is_empty()).then_some(dependencies),
         dev_dependencies: (!dev_dependencies.is_empty()).then_some(dev_dependencies),
         optional_dependencies: (!optional_dependencies.is_empty()).then_some(optional_dependencies),
-        dependencies_meta: None,
-        publish_directory: None,
+        dependencies_meta,
+        publish_directory,
     }
 }
 

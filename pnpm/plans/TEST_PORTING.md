@@ -17,6 +17,26 @@ Test the tests before marking them ported. After porting a test, temporarily mod
 
 Having more tests than pnpm is a plus, but it is not strictly required. The lists in this plan are a floor, not a ceiling. Porting the upstream coverage is the minimum bar for behavioral parity. Beyond that minimum, pacquet-only tests that exercise edge cases, regressions, or invariants the upstream suite does not cover are welcome and encouraged, but contributors are not obligated to add them. Do not hold back extra coverage just to keep the two suites symmetric.
 
+## Workspace Lockfile Freshness
+
+Multi-importer parity coverage:
+
+- [x] `TypeScript repo: installing/deps-installer/test/install/frozenLockfile.ts:55` `frozen-lockfile: fail on a shared pnpm-lock.yaml that does not satisfy one of the package.json files` — ported as `changed_registry_specifier_in_workspace_importer_invalidates_lockfile` in `crates/cli/tests/workspace_install.rs`.
+- [x] `TypeScript repo: lockfile/verification/test/allProjectsAreUpToDate.test.ts:28` `works with packages linked through the workspace protocol using relative path` — covered end-to-end by `shared_workspace_dep_link_is_relative_to_each_importer`.
+- [x] `TypeScript repo: lockfile/verification/test/allProjectsAreUpToDate.test.ts:70` `works with aliased local dependencies` — ported as `returns_up_to_date_when_aliased_workspace_dependency_satisfies_range`.
+- [x] `TypeScript repo: lockfile/verification/test/allProjectsAreUpToDate.test.ts:112` `works with aliased local dependencies that specify versions` — covered by the same alias-range test.
+- [x] `TypeScript repo: lockfile/verification/test/allProjectsAreUpToDate.test.ts:154` `returns false if the aliased dependency version is out of date` — ported as `returns_skipped_when_aliased_workspace_dependency_version_is_outdated`.
+- [x] `TypeScript repo: lockfile/verification/test/allProjectsAreUpToDate.test.ts:196` `use link and registry version if linkWorkspacePackages = false` — ported as `returns_up_to_date_for_registry_resolution_when_workspace_linking_is_off`.
+- [x] `TypeScript repo: lockfile/verification/test/allProjectsAreUpToDate.test.ts:288` `returns false if dependenciesMeta differs` — covered end-to-end by `workspace_importer_dependencies_meta_is_checked`.
+- [x] `TypeScript repo: lockfile/verification/test/allProjectsAreUpToDate.test.ts:335` `returns true if dependenciesMeta matches` — the same integration test first proves a populated matching map succeeds under `--frozen-lockfile`, then removes it and proves the mismatch fails.
+- [x] `TypeScript repo: lockfile/verification/test/allProjectsAreUpToDate.test.ts:702` `returns true if workspace dependency's version type is tag` — ported as `returns_up_to_date_when_linked_workspace_dependency_uses_a_tag`.
+- [x] `TypeScript repo: lockfile/verification/test/allProjectsAreUpToDate.test.ts:749` `returns false if one of the importers is not present in the lockfile` — covered end-to-end by `missing_workspace_importer_is_not_accepted_by_frozen_install`.
+- [x] `TypeScript repo: lockfile/verification/test/allProjectsAreUpToDate.test.ts:812` `returns true if one of the importers is not present in the lockfile but the importer has no dependencies` — covered by `normal_install_accepts_missing_dependency_free_workspace_importer`; the explicit frozen path remains strict, matching `frozenLockfile.ts`.
+- [x] `TypeScript repo: lockfile/verification/test/allProjectsAreUpToDate.test.ts:872` `returns true for injected self-referencing file: dependency resolved as link:` — ported as `injected_self_reference_resolved_as_link_is_up_to_date`.
+- [x] `TypeScript repo: lockfile/verification/test/allProjectsAreUpToDate.test.ts:918` `returns false if the lockfile is broken, the resolved versions do not satisfy the ranges` — ported as `resolved_version_outside_manifest_range_is_stale` in `crates/lockfile/src/freshness/tests.rs`.
+
+Pacquet also keeps the issue-specific add-and-recover flow in `changed_workspace_importer_invalidates_lockfile`: adding a `workspace:*` dependency to a member makes a frozen install fail and a normal install refresh and link it.
+
 ## `.modules.yaml` Write And Verify
 
 Primary tests:

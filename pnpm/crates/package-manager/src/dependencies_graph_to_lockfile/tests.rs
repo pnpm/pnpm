@@ -191,6 +191,31 @@ fn fresh_install_records_a_single_direct_dependency() {
 }
 
 #[test]
+fn fresh_install_records_importer_manifest_metadata() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependenciesMeta": { "pkg-a": { "injected": true } },
+        "publishConfig": { "directory": "dist" },
+    }));
+    let graph = DependenciesGraph::new();
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest,
+        &graph,
+        BTreeMap::new(),
+        false,
+        false,
+        None,
+        None,
+    ));
+    let importer = lockfile.root_project().expect("root importer exists");
+
+    assert_eq!(importer.dependencies_meta, Some(json!({ "pkg-a": { "injected": true } })));
+    assert_eq!(importer.publish_directory.as_deref(), Some("dist"));
+}
+
+#[test]
 fn dedupe_peers_round_trips_through_lockfile_settings() {
     let (_tmp, manifest) = write_manifest(json!({
         "name": "fixture",
