@@ -331,8 +331,23 @@ jobs:
         with:
           subject-path: 'dist/*'
       - name: Generate release description
-        run: pn make-release-description
+        env:
+          TS_VERSION: ${{ needs.plan.outputs.ts_version }}
+        run: |
+          rm -f RELEASE.md
+          if pn make-release-description && test -s RELEASE.md; then
+            exit 0
+          fi
+          echo "::warning::Release notes could not be generated; publishing the release with a diagnostic description"
+          cat > RELEASE.md <<EOF
+          ## Release notes unavailable
+
+          pnpm ${TS_VERSION} was published successfully, but its release notes could not be generated from the pending changelog. The release artifacts are still available below.
+
+          See the [release workflow run](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) for the generation error.
+          EOF
       - name: Release
+        id: github-release
         # `gh release create` could replace this, but the release pipeline is
         # sensitive and softprops/action-gh-release is widely battle-tested.
         uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.0 # zizmor: ignore[superfluous-actions]
@@ -340,6 +355,22 @@ jobs:
           draft: true
           files: dist/*
           body_path: RELEASE.md
+      - name: Verify and publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ steps.github-release.outputs.id }}
+        run: |
+          test -n "$RELEASE_ID"
+          release_json=$(mktemp)
+          gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" > "$release_json"
+          RELEASE_JSON="$release_json" node <<'NODE'
+          const fs = require('node:fs')
+          const normalizeNewlines = (text) => text?.replace(/\r\n?/g, '\n')
+          const actual = normalizeNewlines(JSON.parse(fs.readFileSync(process.env.RELEASE_JSON, 'utf8')).body)
+          const expected = normalizeNewlines(fs.readFileSync('RELEASE.md', 'utf8'))
+          if (actual !== expected) throw new Error('GitHub draft release body does not match RELEASE.md')
+          NODE
+          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" -F draft=false > /dev/null
 
   build-rust:
     needs: plan

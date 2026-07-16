@@ -1194,6 +1194,12 @@ importers:
 
   pnpm11/__utils__/get-release-text:
     dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
+      '@pnpm/releasing.versioning':
+        specifier: workspace:*
+        version: link:../../releasing/versioning
       mdast-util-to-string:
         specifier: 'catalog:'
         version: 4.0.0
@@ -1210,9 +1216,18 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1
       '@pnpm/get-release-text':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/jest-config':
+        specifier: workspace:*
+        version: link:../jest-config
+      cross-env:
+        specifier: 'catalog:'
+        version: 10.1.0
 
   pnpm11/__utils__/jest-config:
     dependencies:
