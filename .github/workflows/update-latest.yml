@@ -17,14 +17,32 @@ on:
         default: false
 
 permissions: {}
+
+env:
+  # The registry these tags are published to. Passed per command rather than
+  # through `npm_config_registry`, which pnpm ignores.
+  REGISTRY: https://registry.npmjs.org/
+  # The pnpm that sets up the checks below — deliberately not the version being
+  # released. These jobs establish what the release is measured against: the
+  # current release is installed here to serve as the upgrade's starting point,
+  # so letting the version under test build its own starting state would let a
+  # bug in it be blamed on the version it replaces. Pin it, and bump it
+  # deliberately to a version that has already proven itself as `latest`.
+  # Tagging is the opposite case and uses the released version itself.
+  RELEASE_TOOL_PNPM_VERSION: 11.13.1
+
 jobs:
   validate:
     name: Validate ${{ github.event.inputs.version }} and ${{ github.event.inputs.tag }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions: {}
     steps:
-    - name: Setup Node
-      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+    - name: Install pnpm and Node
+      uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+      with:
+        version: ${{ env.RELEASE_TOOL_PNPM_VERSION }}
+        runtime: node@26.5.0
+        install: false
     # The latest-<major> tag is derived from the version instead of being
     # hardcoded per release branch, so dispatching this workflow from the wrong
     # branch cannot point a newer line's tag at an older release
@@ -33,12 +51,11 @@ jobs:
       env:
         VERSION: ${{ github.event.inputs.version }}
         TAG: ${{ github.event.inputs.tag }}
-        # The guard below only means anything against the registry the tags are
-        # published to, so pin it and read no ambient npm config: a runner-level
-        # .npmrc could otherwise point it at a registry whose `latest` says
-        # nothing about pnpm's. RUNNER_TEMP is emptied per job, so this path
-        # stays absent.
-        npm_config_registry: https://registry.npmjs.org/
+        # Read no ambient npm config: a runner-level .npmrc could otherwise
+        # point the guard below at a registry whose `latest` says nothing about
+        # pnpm's. RUNNER_TEMP is emptied per job, so this path stays absent.
+        # The registry itself is pinned per command instead — pnpm takes it from
+        # `--registry`, not from `npm_config_registry`.
         npm_config_userconfig: ${{ runner.temp }}/absent-npmrc
       run: |
         set -euo pipefail
@@ -55,7 +72,7 @@ jobs:
             fi
             ;;
           latest)
-            CURRENT_LATEST_MAJOR="$(npm view pnpm dist-tags.latest | cut -d . -f 1)"
+            CURRENT_LATEST_MAJOR="$(pn view pnpm dist-tags.latest --registry="$REGISTRY" | cut -d . -f 1)"
             # A dist-tag that could not be read must not pass the guard: an
             # empty value makes the comparison below error out with a non-zero
             # status, which `if` swallows, silently skipping the check.
@@ -86,34 +103,35 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions: {}
     steps:
-    - name: Setup Node
-      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+    - name: Install pnpm and Node
+      uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+      with:
+        version: ${{ env.RELEASE_TOOL_PNPM_VERSION }}
+        runtime: node@26.5.0
+        install: false
     - name: Verify upgrading onto the new version
       if: ${{ !inputs.skip_upgrade_check }}
       env:
         VERSION: ${{ github.event.inputs.version }}
-        # This gate is only meaningful if it resolves the artifact users
-        # resolve, so pin the registry and read no ambient npm config: a
-        # runner-level .npmrc could otherwise redirect it to a different
-        # registry, and its contents would reach the lifecycle scripts run
-        # below. RUNNER_TEMP is emptied per job, so this path stays absent.
-        npm_config_registry: https://registry.npmjs.org/
+        # Read no ambient npm config: a runner-level .npmrc could otherwise
+        # redirect this gate to a registry users never resolve, and its contents
+        # would reach the lifecycle scripts run below. RUNNER_TEMP is emptied
+        # per job, so this path stays absent. The registry is pinned per command
+        # instead — pnpm takes it from `--registry`, not `npm_config_registry`.
         npm_config_userconfig: ${{ runner.temp }}/absent-npmrc
-      # zizmor: ignore[adhoc-packages] -- Installing a published release from
-      # the registry is what this smoke test exists to do.
       run: |
         set -eu
-        # npm and pnpm both enforce the devEngines of whatever manifest they
-        # find by walking up from the working directory, and this repo's pins a
-        # pnpm — so every command here runs from a scratch dir instead of the
-        # caller's cwd, which would otherwise fail or switch versions.
+        # pnpm enforces the devEngines of whatever manifest it finds by walking
+        # up from the working directory, and this repo's pins a pnpm — so every
+        # command here runs from a scratch dir instead of the caller's cwd,
+        # which would otherwise fail or switch versions.
         cd "$(mktemp -d)"
 
         MAJOR="${VERSION%%.*}"
         # Upgrade from what users on this release line are running today. A new
         # major has no latest-<major> yet, so fall back to the current latest.
-        if ! FROM=$(npm view "pnpm@latest-${MAJOR}" version 2>/dev/null) || [ -z "$FROM" ]; then
-          FROM=$(npm view pnpm dist-tags.latest)
+        if ! FROM=$(pn view "pnpm@latest-${MAJOR}" version --registry="$REGISTRY" 2>/dev/null) || [ -z "$FROM" ]; then
+          FROM=$(pn view pnpm dist-tags.latest --registry="$REGISTRY")
         fi
         echo "Upgrading from v${FROM} to v${VERSION}"
 
@@ -129,10 +147,20 @@ jobs:
           export XDG_CACHE_HOME="$work/cache"
 
           cd "$work"
-          npm install --prefix "$work/from" --ignore-scripts=false "${package}@${FROM}"
-          # Drive through npm's bin shim rather than a path into the package:
-          # the entry point differs by major (pnpm.cjs in v10, pnpm.mjs in v11)
-          # and between the two wrappers, and the shim is what a user gets.
+          mkdir -p "$work/from"
+          printf '{"name":"pnpm-upgrade-check","version":"0.0.0","private":true}\n' >"$work/from/package.json"
+          # `--allow-build` is what makes this install the starting point rather
+          # than a fake one: pnpm blocks dependency build scripts by default, and
+          # `@pnpm/exe`'s setup.js is what swaps its placeholder bin for the real
+          # native. Without it every run reproduces the exact breakage this gate
+          # exists to catch (the placeholder surviving) and blames the release.
+          pn add "${package}@${FROM}" \
+            --dir "$work/from" \
+            --allow-build=@pnpm/exe \
+            --registry="$REGISTRY"
+          # Drive through the bin shim rather than a path into the package: the
+          # entry point differs by major (pnpm.cjs in v10, pnpm.mjs in v11) and
+          # between the two wrappers, and the shim is what a user gets.
           from_bin="$work/from/node_modules/.bin/pnpm"
 
           # Check the starting point separately so a broken current release
@@ -176,6 +204,12 @@ jobs:
           echo "OK: ${package}@${FROM} self-updated to v${VERSION}"
         done
 
+  # The release tags itself: the pnpm installed here is the version being
+  # promoted, already published under next-<major> and just exercised by
+  # verify-upgrade. Every tag is then one more thing the release had to do
+  # correctly — an authenticated registry write — before it reaches anyone. It
+  # cannot deadlock: a release that fails here blocks only itself, and its
+  # successor arrives carrying its own tagger.
   tag-in-registry:
     name: Tagging ${{ github.event.inputs.version }} as ${{ github.event.inputs.tag }}
     needs: verify-upgrade
@@ -185,20 +219,33 @@ jobs:
     - uses: garnet-org/action@2b7fc9d79b54f551b43358c27424a36064b3e078 # v2.0.2
       with:
         api_token: ${{ secrets.GARNET_API_TOKEN }}
-    - name: Setup Node
-      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+    # `validate` has already checked that the version is exact semver, so it is
+    # safe to resolve here.
+    - name: Install pnpm and Node
+      uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
+      with:
+        version: ${{ github.event.inputs.version }}
+        runtime: node@26.5.0
+        install: false
     - name: Update tag
       env:
-        "npm_config_//registry.npmjs.org/:_authToken": ${{ secrets.NPM_TOKEN }}
+        # Written to pnpm's config rather than passed as
+        # `npm_config_//registry.npmjs.org/:_authToken`, which pnpm does not act
+        # on — the same reason release.yml's publish steps do this.
+        NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         VERSION: ${{ github.event.inputs.version }}
         TAG: ${{ github.event.inputs.tag }}
       run: |
+        set -euo pipefail
+        trap 'pn config delete "//registry.npmjs.org/:_authToken" || true' EXIT
+        pn config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
+
         MAJOR="${VERSION%%.*}"
-        npm dist-tag add "pnpm@${VERSION}" "latest-${MAJOR}"
-        npm dist-tag add "@pnpm/exe@${VERSION}" "latest-${MAJOR}"
+        pn dist-tag add "pnpm@${VERSION}" "latest-${MAJOR}" --registry="$REGISTRY"
+        pn dist-tag add "@pnpm/exe@${VERSION}" "latest-${MAJOR}" --registry="$REGISTRY"
         if [ "$TAG" != "latest-${MAJOR}" ]; then
-          npm dist-tag add "pnpm@${VERSION}" "${TAG}"
-          npm dist-tag add "@pnpm/exe@${VERSION}" "${TAG}"
+          pn dist-tag add "pnpm@${VERSION}" "${TAG}" --registry="$REGISTRY"
+          pn dist-tag add "@pnpm/exe@${VERSION}" "${TAG}" --registry="$REGISTRY"
         fi
 
   publish-to-winget:
