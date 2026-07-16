@@ -3788,6 +3788,9 @@ importers:
       '@pnpm/deps.graph-hasher':
         specifier: workspace:*
         version: link:../../../deps/graph-hasher
+      '@pnpm/deps.path':
+        specifier: workspace:*
+        version: link:../../../deps/path
       '@pnpm/deps.security.signatures':
         specifier: workspace:*
         version: link:../../../deps/security/signatures
