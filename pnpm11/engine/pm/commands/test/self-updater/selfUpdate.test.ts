@@ -1,9 +1,12 @@
+import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
+import { linkBins } from '@pnpm/bins.linker'
 import { STORE_VERSION } from '@pnpm/constants'
+import type { PnpmError } from '@pnpm/error'
 import { prepare as prepareWithPkg, tempDir } from '@pnpm/prepare'
 import { prependDirsToPath } from '@pnpm/shell.path'
 import { getRegisteredProjects } from '@pnpm/store.controller'
@@ -25,7 +28,7 @@ jest.unstable_mockModule('@pnpm/cli.meta', () => {
     packageManager: mockPackageManager,
   }
 })
-const { selfUpdate, installPnpm, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext, pnpmPackageNameToInstall } = await import('@pnpm/engine.pm.commands')
+const { selfUpdate, assertPnpmRuns, assertReleaseIsInstallable, installPnpm, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext, pnpmPackageNameToInstall } = await import('@pnpm/engine.pm.commands')
 
 beforeEach(async () => {
   mockPackageManager.version = '9.0.0'
@@ -1075,6 +1078,44 @@ test('self-update updates the packageManager field in package.json', async () =>
   expect(pkgJson.packageManager).toBe('pnpm@9.1.0')
 })
 
+test('installPnpm rejects and cleans up when the installed pnpm has no working executable', async () => {
+  const opts = prepare()
+  // A package with no bin stands in for a release whose executable is missing.
+  // Serving it as pnpm's tarball is the only way here without publishing a
+  // broken pnpm as a fixture, so the metadata carries this tarball's integrity.
+  const tgzWithoutBin = fs.readFileSync(require.resolve('@pnpm/tgz-fixtures/tgz/is-positive-1.0.0.tgz'))
+  const registry = opts.registries.default
+  getMockAgent().get(registry.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, {
+      name: 'pnpm',
+      'dist-tags': { latest: '9.1.0' },
+      versions: {
+        '9.1.0': {
+          name: 'pnpm',
+          version: '9.1.0',
+          dist: {
+            tarball: `${registry}pnpm/-/pnpm-9.1.0.tgz`,
+            integrity: `sha512-${createHash('sha512').update(tgzWithoutBin).digest('base64')}`,
+          },
+        },
+      },
+      time: {},
+    }).persist()
+  getMockAgent().get(registry.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm/-/pnpm-9.1.0.tgz', method: 'GET' })
+    .reply(200, tgzWithoutBin)
+
+  await expect(installPnpm('9.1.0', opts)).rejects.toThrow(/cannot run/)
+
+  // The half-installed directory must not survive: leaving it behind would let
+  // findGlobalPnpmInstallDir hand the broken install to the next run.
+  const installDirs = fs.existsSync(opts.globalPkgDir)
+    ? fs.readdirSync(opts.globalPkgDir).filter((entry) => /^\d+$/.test(entry))
+    : []
+  expect(installDirs).toHaveLength(0)
+})
+
 test('installPnpm without env lockfile uses resolution path', async () => {
   const opts = prepare()
   getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
@@ -1404,5 +1445,117 @@ describe('exePlatformPkgDirNameNext', () => {
   test('normalizes ia32 to x86 on win32 only', () => {
     expect(exePlatformPkgDirNameNext('win32', 'ia32', null)).toBe('exe.win32-x86')
     expect(exePlatformPkgDirNameNext('linux', 'ia32', null)).toBe('exe.linux-ia32')
+  })
+})
+
+describe('assertReleaseIsInstallable', () => {
+  test.each(['11.12.0', '11.13.0'])('refuses the broken release %s', (version) => {
+    expect(() => {
+      assertReleaseIsInstallable(version)
+    }).toThrow(/pnpm v.+ is a broken release and cannot be installed/)
+  })
+
+  test('the refusal explains that the pin would break teammates', () => {
+    try {
+      assertReleaseIsInstallable('11.13.0')
+      throw new Error('assertReleaseIsInstallable should have thrown')
+    } catch (err: unknown) {
+      const pnpmError = err as PnpmError
+      expect(pnpmError.code).toBe('ERR_PNPM_BROKEN_PNPM_RELEASE')
+      expect(pnpmError.hint).toMatch(/pin is shared/)
+    }
+  })
+
+  test.each(['11.11.0', '11.13.1', '12.0.0'])('allows %s', (version) => {
+    expect(() => {
+      assertReleaseIsInstallable(version)
+    }).not.toThrow()
+  })
+})
+
+describe('assertPnpmRuns', () => {
+  // Build the bins the same way installPnpmToGlobalDir does, so the spawn goes
+  // through the real shim linkBins writes — including the .cmd wrapper on
+  // Windows, which is the part a hand-written fixture would get wrong.
+  async function linkFakePnpm (entry: string): Promise<string> {
+    const dir = tempDir(false)
+    const pkgDir = path.join(dir, 'node_modules', 'fake-pnpm')
+    fs.mkdirSync(pkgDir, { recursive: true })
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({
+      name: 'fake-pnpm',
+      version: '1.0.0',
+      bin: { pnpm: 'entry.js' },
+    }))
+    fs.writeFileSync(path.join(pkgDir, 'entry.js'), `${entry}\n`)
+    const binDir = path.join(dir, 'bin')
+    await linkBins(path.join(dir, 'node_modules'), binDir, { warn: () => {} })
+    return binDir
+  }
+
+  test('passes when the installed pnpm runs', async () => {
+    const binDir = await linkFakePnpm('process.exit(0)')
+    expect(() => {
+      assertPnpmRuns(binDir, '1.0.0')
+    }).not.toThrow()
+  })
+
+  test('reports the failing exit code when the installed pnpm cannot run', async () => {
+    const binDir = await linkFakePnpm('process.exit(1)')
+    expect(() => {
+      assertPnpmRuns(binDir, '1.0.0')
+    }).toThrow(/pnpm v1\.0\.0 that was just installed cannot run.*exited with code 1/s)
+  })
+
+  // Windows has no real signals, so a killed process still reports an exit code
+  // there and this branch is unreachable.
+  const posixOnlyTest = process.platform === 'win32' ? test.skip : test
+
+  posixOnlyTest('describes a signal rather than a null exit code', async () => {
+    // macOS kills a binary whose signature check rejects it, so an incorrectly signed
+    // release arrives here with no exit code at all. The wording matches
+    // pacquet's, which only has the code and cannot name the signal.
+    const binDir = await linkFakePnpm("process.kill(process.pid, 'SIGKILL')")
+    expect(() => {
+      assertPnpmRuns(binDir, '1.0.0')
+    }).toThrow(/cannot run: it exited with a signal/)
+  })
+
+  // pnpm reaches --version only after loading config and running pnpmfile
+  // hooks, so probing from the caller's directory would let an unrelated
+  // project reject a perfectly good release.
+  test('is not affected by the config of the directory self-update was run from', async () => {
+    // Stands in for pnpm's startup: fail if the caller's project is visible.
+    const binDir = await linkFakePnpm("process.exit(require('node:fs').existsSync('.pnpmfile.cjs') ? 1 : 0)")
+    const hostileProject = tempDir(false)
+    fs.writeFileSync(path.join(hostileProject, 'package.json'), '{"name":"p"}')
+    fs.writeFileSync(path.join(hostileProject, 'pnpm-workspace.yaml'), 'packages:\n  - .\n')
+    fs.writeFileSync(path.join(hostileProject, '.pnpmfile.cjs'), "throw new Error('broken pnpmfile')\n")
+    const cwd = process.cwd()
+    process.chdir(hostileProject)
+    try {
+      expect(() => {
+        assertPnpmRuns(binDir, '1.0.0')
+      }).not.toThrow()
+    } finally {
+      process.chdir(cwd)
+    }
+  })
+
+  test('fails when there is no pnpm to run at all', () => {
+    expect(() => {
+      assertPnpmRuns(tempDir(false), '1.0.0')
+    }).toThrow(/cannot run/)
+  })
+
+  test('the failure carries the BROKEN_PNPM_INSTALL code and says the active pnpm was kept', async () => {
+    const binDir = await linkFakePnpm('process.exit(1)')
+    try {
+      assertPnpmRuns(binDir, '1.0.0')
+      throw new Error('assertPnpmRuns should have thrown')
+    } catch (err: unknown) {
+      const pnpmError = err as PnpmError
+      expect(pnpmError.code).toBe('ERR_PNPM_BROKEN_PNPM_INSTALL')
+      expect(pnpmError.hint).toMatch(/currently active pnpm was left in place/)
+    }
   })
 })
