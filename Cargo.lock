@@ -5023,6 +5023,7 @@ version = "0.0.1"
 dependencies = [
  "dashmap",
  "derive_more",
+ "flate2",
  "futures-util",
  "miette 7.6.0",
  "mockito",

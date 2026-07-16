@@ -1401,6 +1401,7 @@ async fn fetch_for_resolution_computes_integrity_when_none_is_expected() {
         package_id: &url,
         auth_headers: &AuthHeaders::default(),
         retry_opts: fast_retry_opts(),
+        manifest_subdir: None,
     }
     .run::<SilentReporter>(None)
     .await
@@ -1441,12 +1442,112 @@ async fn fetch_for_resolution_uses_package_id_for_scoped_auth() {
         package_id: "@scope/test-pkg@1.0.0",
         auth_headers: &auth_headers,
         retry_opts: fast_retry_opts(),
+        manifest_subdir: None,
     }
     .run::<SilentReporter>(None)
     .await
     .expect("the scope token selected via package_id should let the fetch succeed");
 
     assert_eq!(resolved.integrity, integrity(FASTIFY_ERROR_INTEGRITY));
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+/// Gzip a tar holding `(path, contents)` entries, under the top-level
+/// prefix a git host's archive carries.
+fn gzipped_archive(entries: &[(&str, &str)]) -> Vec<u8> {
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut tar_bytes);
+        for (path, contents) in entries {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(contents.len() as u64);
+            header.set_mode(0o644);
+            header.set_entry_type(tar::EntryType::Regular);
+            header.set_cksum();
+            builder
+                .append_data(&mut header, format!("repo-abc123/{path}"), contents.as_bytes())
+                .expect("append entry");
+        }
+        builder.finish().expect("finalize tar");
+    }
+    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+    std::io::Write::write_all(&mut encoder, &tar_bytes).expect("gzip tar");
+    encoder.finish().expect("finish gzip")
+}
+
+/// A git dep pointing at one directory of a repo (`#path:/packages/foo`)
+/// gets an archive spanning the whole repo, so the root `package.json`
+/// is the repo's, not the package's. Reading the root would name the
+/// lockfile key after the wrong package.
+#[tokio::test]
+async fn fetch_for_resolution_reads_manifest_from_subdirectory() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let archive = gzipped_archive(&[
+        ("package.json", r#"{"name":"the-monorepo","version":"0.0.0"}"#),
+        ("packages/foo/package.json", r#"{"name":"foo","version":"1.2.3"}"#),
+    ]);
+    let mock =
+        server.mock("GET", "/repo.tgz").with_status(200).with_body(archive).create_async().await;
+
+    let url = format!("{}/repo.tgz", server.url());
+    let client = ThrottledClient::default();
+
+    let resolved = FetchTarballForResolution {
+        http_client: &client,
+        store_dir: store_path,
+        store_index_writer: None,
+        package_url: &url,
+        package_id: &url,
+        auth_headers: &AuthHeaders::default(),
+        retry_opts: fast_retry_opts(),
+        // Leading slash, exactly as the resolution records it.
+        manifest_subdir: Some("/packages/foo"),
+    }
+    .run::<SilentReporter>(None)
+    .await
+    .expect("subdirectory manifest should be readable from the extracted archive");
+
+    let manifest = dbg!(resolved.manifest).expect("subdirectory manifest");
+    assert_eq!(manifest.get("name").and_then(serde_json::Value::as_str), Some("foo"));
+    assert_eq!(manifest.get("version").and_then(serde_json::Value::as_str), Some("1.2.3"));
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+/// A subdirectory without its own `package.json` degrades to `None`,
+/// the same best-effort contract the archive root has — never the
+/// root's manifest, which would name the key after the wrong package.
+#[tokio::test]
+async fn fetch_for_resolution_returns_no_manifest_for_subdirectory_without_one() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let archive = gzipped_archive(&[
+        ("package.json", r#"{"name":"the-monorepo","version":"0.0.0"}"#),
+        ("packages/foo/index.js", "module.exports = 1"),
+    ]);
+    let mock =
+        server.mock("GET", "/repo.tgz").with_status(200).with_body(archive).create_async().await;
+
+    let url = format!("{}/repo.tgz", server.url());
+    let client = ThrottledClient::default();
+
+    let resolved = FetchTarballForResolution {
+        http_client: &client,
+        store_dir: store_path,
+        store_index_writer: None,
+        package_url: &url,
+        package_id: &url,
+        auth_headers: &AuthHeaders::default(),
+        retry_opts: fast_retry_opts(),
+        manifest_subdir: Some("/packages/foo"),
+    }
+    .run::<SilentReporter>(None)
+    .await
+    .expect("a subdirectory without a package.json is not a fetch failure");
+
+    assert_eq!(dbg!(resolved.manifest), None);
     mock.assert_async().await;
     drop(store_dir_keep);
 }

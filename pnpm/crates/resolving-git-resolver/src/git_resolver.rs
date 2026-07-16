@@ -138,6 +138,10 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
             package_id: &tarball.tarball,
             auth_headers: &ctx.auth_headers,
             retry_opts: ctx.retry_opts,
+            // `#path:/packages/foo` points at one directory of the
+            // repo; the archive spans the whole repo, so its root
+            // `package.json` is the repo's, not this package's.
+            manifest_subdir: tarball.path.as_deref(),
         }
         .run::<SilentReporter>(None)
         .await

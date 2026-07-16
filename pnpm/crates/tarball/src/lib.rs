@@ -2454,6 +2454,15 @@ pub struct FetchTarballForResolution<'a> {
     pub package_id: &'a str,
     pub auth_headers: &'a AuthHeaders,
     pub retry_opts: RetryOpts,
+    /// Directory *within* the archive holding the package, for a
+    /// git-hosted dep that points at one directory of a repo
+    /// (`#path:/packages/foo`). The archive spans the whole repo, so
+    /// the root `package.json` describes the repo, not the package —
+    /// read the manifest from here instead. `None` reads the root.
+    ///
+    /// Matches the resolution's `path` field verbatim, leading slash
+    /// and all.
+    pub manifest_subdir: Option<&'a str>,
 }
 
 impl FetchTarballForResolution<'_> {
@@ -2469,6 +2478,7 @@ impl FetchTarballForResolution<'_> {
             package_id,
             auth_headers,
             retry_opts,
+            manifest_subdir,
         } = self;
 
         // Resolve-time tarball fetches compute integrity from bytes and
@@ -2490,7 +2500,10 @@ impl FetchTarballForResolution<'_> {
         )
         .await?;
 
-        let manifest = pkg_files_idx.manifest.clone();
+        let manifest = match manifest_subdir {
+            Some(subdir) => read_subdir_manifest(&cas_paths, subdir).await?,
+            None => pkg_files_idx.manifest.clone(),
+        };
         // Scope the store-index row by the package's canonical
         // `name@version`, matching what the install pass derives from
         // the same manifest. Fall back to the URL when the tarball has
@@ -2516,6 +2529,39 @@ impl FetchTarballForResolution<'_> {
         }
 
         Ok(ResolvedTarball { integrity, manifest })
+    }
+}
+
+/// Read `<subdir>/package.json` out of a freshly extracted archive.
+///
+/// Extraction only stashes the *root* `package.json` on the
+/// [`PackageFilesIndex`], so a package living in a subdirectory of the
+/// archive has to be read back from the CAS. Returns `None` when the
+/// subdirectory has no `package.json`, matching the root path's
+/// best-effort contract — the caller degrades rather than failing the
+/// resolve.
+async fn read_subdir_manifest(
+    cas_paths: &HashMap<String, PathBuf>,
+    subdir: &str,
+) -> Result<Option<serde_json::Value>, TarballError> {
+    // `cas_paths` is keyed by the archive-relative path left after the
+    // top-level prefix strip; the resolution's `path` keeps the leading
+    // slash it was written with (`#path:/packages/foo`).
+    let key = format!("{}/package.json", subdir.trim_matches('/'));
+    let Some(cas_path) = cas_paths.get(&key) else { return Ok(None) };
+    let bytes = tokio::fs::read(cas_path)
+        .await
+        .map_err(|source| TarballError::ReadLocalTarball { path: cas_path.clone(), source })?;
+    match serde_json::from_slice::<serde_json::Value>(&bytes) {
+        Ok(parsed) => Ok(normalize_bundled_manifest(&parsed)),
+        Err(error) => {
+            tracing::debug!(
+                ?error,
+                ?key,
+                "package.json in archive subdirectory failed to parse as JSON; bundled manifest cleared",
+            );
+            Ok(None)
+        }
     }
 }
 
