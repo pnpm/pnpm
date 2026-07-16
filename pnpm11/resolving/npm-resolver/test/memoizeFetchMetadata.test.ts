@@ -102,6 +102,31 @@ test('clear does not let an in-flight fetch repopulate the cache', async () => {
   await secondPromise
 })
 
+test('a rejected fetch does not evict the request that replaced it', async () => {
+  let calls = 0
+  let release!: (result: FetchMetadataResult) => void
+  const { fetch, clear } = memoizeFetchMetadata(async () => {
+    calls++
+    if (calls === 1) throw new Error('network down')
+    return new Promise<FetchMetadataResult>((resolve) => {
+      release = resolve
+    })
+  })
+
+  const firstPromise = fetch('foo', { registry: REGISTRY })
+  clear()
+  const secondPromise = fetch('foo', { registry: REGISTRY })
+  await expect(firstPromise).rejects.toThrow('network down')
+
+  // The eviction must leave the second request's entry in place, so a third
+  // caller joins it instead of opening a redundant request.
+  const thirdPromise = fetch('foo', { registry: REGISTRY })
+  expect(calls).toBe(2)
+  release(fooFetchResult())
+  const [second, third] = await Promise.all([secondPromise, thirdPromise])
+  expect(third).toBe(second)
+})
+
 test('clear() empties the cache', async () => {
   let calls = 0
   const { fetch, clear } = memoizeFetchMetadata(async () => {

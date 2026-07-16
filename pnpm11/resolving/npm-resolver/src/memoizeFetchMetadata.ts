@@ -16,12 +16,20 @@ export interface MemoizedFetchMetadata {
  * `clear`, see `clearResolutionCache`), deduplicating concurrent and repeat
  * requests for the same package.
  *
- * Unlike plain memoization, the settled cache holds a body-less clone of each
- * result. `jsonText` — the raw registry response body, up to tens of MB for a
- * popular package — is shared by callers waiting on the same in-flight request,
- * then removed from the settled cache entry. This prevents concurrent callers
- * from independently serializing the same large metadata object while still
- * avoiding phase-long retention of raw response bodies.
+ * Unlike plain memoization, the entry is swapped for a body-less clone once
+ * the request settles. `jsonText` — the raw registry response body, up to tens
+ * of MB for a popular package — reaches every caller sharing the in-flight
+ * request, so a package resolved by many workspace projects at once mirrors
+ * that one body to disk instead of each project separately re-serializing
+ * `meta`. Retaining bodies past settlement would pin hundreds of MB on large
+ * cold-cache graphs, so a later cache-hit caller that writes the mirror falls
+ * back to `JSON.stringify(meta)` in `prepareJsonForDisk`, which is equivalent
+ * on read: `loadMeta` re-derives `etag` from the headers line.
+ *
+ * Because that swap lands a turn after the request settles, both settlement
+ * paths write back only while the entry is still their own promise — a `clear`
+ * (or a retry that already replaced the entry) must not be undone by a request
+ * that was in flight when it happened.
  *
  * A rejected fetch is evicted so a transient network failure is retried by
  * the next request instead of being cached for the rest of the phase.

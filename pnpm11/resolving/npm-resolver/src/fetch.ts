@@ -40,10 +40,10 @@ export interface FetchMetadataResult {
   meta: PackageMeta
   /**
    * The raw registry response body, used only to mirror the response to disk
-   * without re-serializing `meta`. A fresh fetch always sets it, but it
-   * reaches only the caller that initiated the request: the phase-long memo
-   * cache holds a body-less clone (see memoizeFetchMetadata.ts), so cache
-   * hits see `undefined` and the cache never pins the body.
+   * without re-serializing `meta`. A fresh fetch always sets it, and every
+   * caller sharing that in-flight request sees it. Once the request settles
+   * the phase-long memo cache drops the body (see memoizeFetchMetadata.ts),
+   * so later cache hits see `undefined` and the cache never pins the body.
    */
   jsonText: string | undefined
   etag?: string
