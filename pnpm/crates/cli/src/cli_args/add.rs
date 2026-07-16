@@ -123,6 +123,13 @@ impl AddArgs {
         );
     }
 
+    /// The `--config` selectors parsed into the `name → specifier` pairs to
+    /// record, or `None` when `--config` was not passed.
+    ///
+    /// Callers must run this *before* [`State::init`]: that scaffolds a
+    /// `package.json` on disk, so rejecting an invalid selector afterwards
+    /// would leave a half-created project behind. A version-less selector
+    /// resolves the `latest` tag, matching the default `add` behavior.
     pub(super) fn parse_config_dependencies(
         &self,
     ) -> miette::Result<Option<BTreeMap<String, String>>> {
@@ -144,7 +151,9 @@ impl AddArgs {
         Ok(Some(added))
     }
 
-    /// Execute the subcommand.
+    /// Execute the subcommand. `config_dependencies` is
+    /// [`Self::parse_config_dependencies`]'s output, so it is `Some` exactly
+    /// when `--config` was passed.
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
         state: State,
@@ -152,11 +161,9 @@ impl AddArgs {
     ) -> miette::Result<()> {
         // `--config` routes to the configurational-dependency path
         // instead of the regular `package.json` add: resolve + install
-        // into `.pnpm-config`, then record the clean specifier in
+        // into `.pnpm-config`, then record the clean specifiers in
         // `pnpm-workspace.yaml`.
-        if self.config {
-            let added = config_dependencies
-                .expect("config dependency selectors are parsed before state initialization");
+        if let Some(added) = config_dependencies {
             // configDependencies are workspace-level: write to the
             // workspace root's `pnpm-workspace.yaml` / env lockfile /
             // `.pnpm-config`, not the current package's. Fall back to the
@@ -245,7 +252,10 @@ impl AddArgs {
 
 /// Add a single package to `state`'s manifest and install it.
 ///
-/// Compatibility adapter for single-package callers such as `pacquet dlx`.
+/// Shared by `pacquet dlx`, `pacquet runtime`, and the self-updater. dlx
+/// points `state` at a cache directory (via a [`Config`] whose `modules_dir`
+/// is anchored there) and saves to `dependencies` so the package's bin lands
+/// in `<cacheDir>/node_modules/.bin`.
 pub(crate) async fn add_package<Reporter, ListDependencyGroups, DependencyGroupList>(
     state: State,
     package_name: &str,

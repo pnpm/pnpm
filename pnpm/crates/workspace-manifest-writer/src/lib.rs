@@ -131,22 +131,12 @@ pub fn update_workspace_manifest(
     write_or_remove_manifest(&path, manifest)
 }
 
-/// Write a `name → specifier` entry into `dir`'s `pnpm-workspace.yaml`
+/// Write `name → specifier` entries into `dir`'s `pnpm-workspace.yaml`
 /// `configDependencies:` block (creating the file/block if absent),
-/// preserving the rest of the document's formatting. Used by
-/// `pnpm add --config`; the resolved integrity is recorded separately in
-/// the env lockfile, so only the clean specifier is written here.
-pub fn set_config_dependency(
-    dir: &Path,
-    name: &str,
-    specifier: &str,
-) -> Result<(), UpdateWorkspaceManifestError> {
-    set_config_dependencies(dir, [(name, specifier)])
-}
-
-/// Write `name → specifier` entries into `dir`'s
-/// `pnpm-workspace.yaml` `configDependencies:` block, reading, parsing,
-/// and writing the manifest at most once.
+/// preserving the rest of the document's formatting and reading, parsing,
+/// and writing the file at most once. Used by `pnpm add --config`; the
+/// resolved integrity is recorded separately in the env lockfile, so only
+/// the clean specifier is written here.
 pub fn set_config_dependencies<'a>(
     dir: &Path,
     entries: impl IntoIterator<Item = (&'a str, &'a str)>,
