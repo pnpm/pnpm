@@ -180,7 +180,8 @@ jobs:
       - name: Verify TypeScript npm packages
         # Inspect the same tarballs that publish will upload before the first
         # immutable npm publish, including the generated platform packages.
-        run: |
+        # The local release tarballs and their install scripts are the smoke-test inputs.
+        run: | # zizmor: ignore[adhoc-packages]
           set -euo pipefail
           release_tarballs=$(mktemp -d)
           for package in pnpm11/pnpm/artifacts/{darwin-arm64,exe,linux-arm64,linux-arm64-musl,linux-x64,linux-x64-musl,win32-arm64,win32-x64} pnpm11/pnpm; do
