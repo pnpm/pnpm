@@ -165,6 +165,15 @@ describe('store.importPackage()', () => {
     fs.writeFileSync(path.join(importTo, 'generated.txt'), 'build output')
     expect(fs.readFileSync(filesMap.get('index.js')!, 'utf8')).toBe('module.exports = true')
 
+    await importPackage(importTo, {
+      filesResponse,
+      force: false,
+      requiresBuild: true,
+      safeToSkip: true,
+    })
+    expect(fs.readFileSync(path.join(importTo, 'index.js'), 'utf8')).toContain('// build output')
+    expect(fs.readFileSync(path.join(importTo, 'generated.txt'), 'utf8')).toBe('build output')
+
     const cachedImportTo = path.join(tmp, 'cached-project', 'node_modules', 'fixture')
     const cachedResult = await importPackage(cachedImportTo, {
       filesResponse: {

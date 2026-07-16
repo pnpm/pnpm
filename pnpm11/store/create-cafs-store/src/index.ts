@@ -39,16 +39,14 @@ export function createPackageImporterAsync (
       ? 'clone-or-copy'
       : (opts.filesResponse.packageImportMethod ?? packageImportMethod)
     const impPkg = cachedImporterCreator(pkgImportMethod)
-    const safeToSkip = makeWritable && await hasStoreHardlinksAsync(to, filesMap)
-      ? false
-      : opts.safeToSkip
+    const needsPrivateCopy = makeWritable && await hasStoreHardlinksAsync(to, filesMap)
     const importMethod = await impPkg(to, {
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
       filesMap,
       resolvedFrom: opts.filesResponse.resolvedFrom,
-      force: opts.force || makeWritable,
+      force: opts.force || needsPrivateCopy,
       keepModulesDir: Boolean(opts.keepModulesDir),
-      safeToSkip,
+      safeToSkip: needsPrivateCopy ? false : opts.safeToSkip,
     })
     if (makeWritable) await makePackageWritableAsync(to, filesMap)
     return { importMethod, isBuilt }
@@ -76,16 +74,14 @@ function createPackageImporter (
       ? 'clone-or-copy'
       : (opts.filesResponse.packageImportMethod ?? packageImportMethod)
     const impPkg = cachedImporterCreator(pkgImportMethod)
-    const safeToSkip = makeWritable && hasStoreHardlinks(to, filesMap)
-      ? false
-      : opts.safeToSkip
+    const needsPrivateCopy = makeWritable && hasStoreHardlinks(to, filesMap)
     const importMethod = impPkg(to, {
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
       filesMap,
       resolvedFrom: opts.filesResponse.resolvedFrom,
-      force: opts.force || makeWritable,
+      force: opts.force || needsPrivateCopy,
       keepModulesDir: Boolean(opts.keepModulesDir),
-      safeToSkip,
+      safeToSkip: needsPrivateCopy ? false : opts.safeToSkip,
     })
     if (makeWritable) makePackageWritable(to, filesMap)
     return { importMethod, isBuilt }
@@ -127,6 +123,7 @@ function makePackageWritable (dir: string, filesMap: FilesMap): void {
 }
 
 function hasStoreHardlinks (dir: string, filesMap: FilesMap): boolean {
+  if (!fs.existsSync(path.join(dir, 'package.json'))) return false
   for (const [filename, storePath] of filesMap) {
     const targetPath = packageFileCandidates(dir, filename).find(fs.existsSync)
     if (targetPath == null) return true
@@ -154,6 +151,7 @@ async function makePackageWritableAsync (dir: string, filesMap: FilesMap): Promi
 }
 
 async function hasStoreHardlinksAsync (dir: string, filesMap: FilesMap): Promise<boolean> {
+  if (await findExistingPath([path.join(dir, 'package.json')]) == null) return false
   const entries = Array.from(filesMap)
   for (let index = 0; index < entries.length; index += FS_OPERATION_CONCURRENCY) {
     const results = await Promise.all(entries.slice(index, index + FS_OPERATION_CONCURRENCY).map(async ([filename, storePath]) => { // eslint-disable-line no-await-in-loop
