@@ -1,11 +1,13 @@
 import { rmSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
-import { expect, test } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import { ABBREVIATED_META_DIR } from '@pnpm/constants'
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
 import { temporaryDirectory } from 'tempy'
 
+import type { FetchMetadataOptions } from '../src/fetch.js'
+import { memoizeFetchMetadata } from '../src/memoizeFetchMetadata.js'
 import type { RegistryPackageSpec } from '../src/parseBareSpecifier.js'
 import {
   getPkgMetaCacheKey,
@@ -189,6 +191,52 @@ test('the raw response body is written verbatim to the disk mirror', async () =>
   const mirror = await readMirrorWithRetry(pkgMirror, 100)
   // The body after the headers line is the raw response text, unchanged.
   expect(mirror?.slice(mirror.indexOf('\n') + 1)).toBe(rawBody)
+})
+
+test('projects sharing one in-flight fetch mirror the fetched body instead of re-serializing it', async () => {
+  const meta = fooMeta()
+  const rawBody = JSON.stringify(meta)
+  const cacheDir = temporaryDirectory()
+  const projects = 20
+
+  let fetches = 0
+  let joined = 0
+  let allJoined!: () => void
+  const inFlight = new Promise<void>((resolve) => {
+    allJoined = resolve
+  })
+  const memoized = memoizeFetchMetadata(async () => {
+    fetches++
+    // Hold the request open until every project has joined it, so the fan-out
+    // this guards against is reproduced rather than raced for.
+    await inFlight
+    return { meta, jsonText: rawBody, etag: undefined }
+  })
+  const ctx = {
+    fetch: async (pkgName: string, opts: FetchMetadataOptions) => {
+      if (++joined === projects) allJoined()
+      return memoized.fetch(pkgName, opts)
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+  const spec: RegistryPackageSpec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }
+
+  const stringifySpy = jest.spyOn(JSON, 'stringify')
+  try {
+    const picks = await Promise.all(Array.from({ length: projects }, async () =>
+      pickPackage(ctx, spec, { registry: REGISTRY, dryRun: false, preferredVersionSelectors: undefined })
+    ))
+    expect(picks.every((pick) => pick.pickedPackage?.version === '1.0.0')).toBe(true)
+    expect(fetches).toBe(1)
+    // Re-serializing per project is what exhausted the heap: the body reaches
+    // tens of MB for a popular package, and every project holds its own copy
+    // until the mirror write limiter drains.
+    const serializations = stringifySpy.mock.calls.filter(([value]) => value === meta).length
+    expect(serializations).toBe(0)
+  } finally {
+    stringifySpy.mockRestore()
+  }
 })
 
 test('a disk-promoted cache entry that cannot satisfy the spec falls back to the registry under prefer-offline', async () => {

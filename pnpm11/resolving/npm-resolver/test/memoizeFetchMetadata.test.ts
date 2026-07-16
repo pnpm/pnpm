@@ -37,7 +37,7 @@ test('the initiating caller receives the raw body; cache hits get a body-less cl
   expect(result.jsonText).toBe('{"name":"foo"}')
 })
 
-test('a caller arriving while the fetch is in flight gets the body-less clone', async () => {
+test('callers sharing an in-flight fetch receive the same raw body', async () => {
   let release!: (result: FetchMetadataResult) => void
   const { fetch } = memoizeFetchMetadata(async () => new Promise<FetchMetadataResult>((resolve) => {
     release = resolve
@@ -50,7 +50,7 @@ test('a caller arriving while the fetch is in flight gets the body-less clone', 
   const [first, second] = await Promise.all([firstPromise, secondPromise])
   if (first.notModified || second.notModified) throw new Error('expected fresh fetch results')
   expect(first.jsonText).toBe('{"name":"foo"}')
-  expect(second.jsonText).toBeUndefined()
+  expect(second).toBe(first)
 })
 
 test('requests with different options are cached separately', async () => {
@@ -79,6 +79,52 @@ test('a rejected fetch is evicted so the next request retries', async () => {
   if (retried.notModified) throw new Error('expected a fresh fetch result')
   expect(retried.meta.name).toBe('foo')
   expect(calls).toBe(2)
+})
+
+test('clear does not let an in-flight fetch repopulate the cache', async () => {
+  let calls = 0
+  let release!: (result: FetchMetadataResult) => void
+  const { fetch, clear } = memoizeFetchMetadata(async () => {
+    calls++
+    return new Promise<FetchMetadataResult>((resolve) => {
+      release = resolve
+    })
+  })
+
+  const firstPromise = fetch('foo', { registry: REGISTRY })
+  clear()
+  release(fooFetchResult())
+  await firstPromise
+
+  const secondPromise = fetch('foo', { registry: REGISTRY })
+  expect(calls).toBe(2)
+  release(fooFetchResult())
+  await secondPromise
+})
+
+test('a rejected fetch does not evict the request that replaced it', async () => {
+  let calls = 0
+  let release!: (result: FetchMetadataResult) => void
+  const { fetch, clear } = memoizeFetchMetadata(async () => {
+    calls++
+    if (calls === 1) throw new Error('network down')
+    return new Promise<FetchMetadataResult>((resolve) => {
+      release = resolve
+    })
+  })
+
+  const firstPromise = fetch('foo', { registry: REGISTRY })
+  clear()
+  const secondPromise = fetch('foo', { registry: REGISTRY })
+  await expect(firstPromise).rejects.toThrow('network down')
+
+  // The eviction must leave the second request's entry in place, so a third
+  // caller joins it instead of opening a redundant request.
+  const thirdPromise = fetch('foo', { registry: REGISTRY })
+  expect(calls).toBe(2)
+  release(fooFetchResult())
+  const [second, third] = await Promise.all([secondPromise, thirdPromise])
+  expect(third).toBe(second)
 })
 
 test('clear() empties the cache', async () => {
