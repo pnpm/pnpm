@@ -329,8 +329,11 @@ jobs:
         with:
           subject-path: 'dist/*'
       - name: Generate release description
-        run: pn make-release-description
+        run: |
+          pn make-release-description
+          test -s RELEASE.md
       - name: Release
+        id: github-release
         # `gh release create` could replace this, but the release pipeline is
         # sensitive and softprops/action-gh-release is widely battle-tested.
         uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.0 # zizmor: ignore[superfluous-actions]
@@ -338,6 +341,14 @@ jobs:
           draft: true
           files: dist/*
           body_path: RELEASE.md
+      - name: Verify draft release description
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ steps.github-release.outputs.id }}
+        run: |
+          test -n "$RELEASE_ID"
+          body_length=$(gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" --jq '.body | length')
+          test "$body_length" -gt 0
 
   build-rust:
     needs: plan
