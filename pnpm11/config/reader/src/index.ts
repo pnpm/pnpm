@@ -126,6 +126,11 @@ export async function getConfig (opts: {
     }
   }
 
+  if (cliOptions['global'] && cliOptions['virtual-store-dir'] != null) {
+    throw new PnpmError('CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL',
+      'Configuration conflict. "virtual-store-dir" may not be used with "global"')
+  }
+
   if (cliOptions.dir) {
     cliOptions.dir = await realpathMissing(cliOptions.dir)
   }
@@ -256,7 +261,7 @@ export async function getConfig (opts: {
   const warnings = npmrcResult.warnings
 
   const configFromCliOpts = Object.fromEntries(Object.entries(cliOptions)
-    .filter(([_, value]) => typeof value !== 'undefined')
+    .filter(([name, value]) => typeof value !== 'undefined' && (name !== 'virtual-store-dir' || value !== ''))
     .map(([name, value]) => [camelcase(name, { locale: 'en-US' }), value])
   )
 
@@ -425,10 +430,6 @@ export async function getConfig (opts: {
           'Configuration conflict. "lockfile-dir" may not be used with "global"')
       }
       delete pnpmConfig.lockfileDir
-    }
-    if (opts.cliOptions['virtual-store-dir']) {
-      throw new PnpmError('CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL',
-        'Configuration conflict. "virtual-store-dir" may not be used with "global"')
     }
     if (pnpmConfig.enableGlobalVirtualStore == null) {
       pnpmConfig.enableGlobalVirtualStore = true

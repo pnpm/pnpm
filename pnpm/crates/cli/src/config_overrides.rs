@@ -63,6 +63,9 @@ pub(crate) fn apply_virtual_store_dir_override(
     virtual_store_dir: &Path,
     dir: &Path,
 ) {
+    if virtual_store_dir.as_os_str().is_empty() {
+        return;
+    }
     let workspace_dir = config.workspace_dir.as_deref().unwrap_or(dir);
     let resolved = if virtual_store_dir.is_absolute() {
         virtual_store_dir.to_path_buf()

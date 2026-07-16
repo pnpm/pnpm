@@ -1,4 +1,4 @@
-use super::{ConfigOverrides, apply_store_dir_override};
+use super::{ConfigOverrides, apply_store_dir_override, apply_virtual_store_dir_override};
 use pacquet_config::{Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker};
 use pacquet_store_dir::STORE_VERSION;
 use pretty_assertions::assert_eq;
@@ -327,5 +327,32 @@ fn empty_store_dir_override_uses_the_injected_default_provider() {
     assert_eq!(
         config.explicit_settings.get("storeDir"),
         Some(&serde_json::Value::String(String::new())),
+    );
+}
+
+#[test]
+fn empty_virtual_store_dir_override_preserves_the_configured_value() {
+    let workspace_dir = std::env::temp_dir().join("pacquet-virtual-store-dir-workspace");
+    let configured_virtual_store_dir = workspace_dir.join(".configured-store");
+    let mut config = Config {
+        workspace_dir: Some(workspace_dir.clone()),
+        virtual_store_dir: configured_virtual_store_dir.clone(),
+        ..Config::default()
+    };
+    config.explicit_settings.insert(
+        "virtualStoreDir".to_string(),
+        serde_json::Value::String(".configured-store".to_string()),
+    );
+
+    apply_virtual_store_dir_override(
+        &mut config,
+        std::path::Path::new(""),
+        &workspace_dir.join("packages/app"),
+    );
+
+    assert_eq!(config.virtual_store_dir, configured_virtual_store_dir);
+    assert_eq!(
+        config.explicit_settings.get("virtualStoreDir"),
+        Some(&serde_json::Value::String(".configured-store".to_string())),
     );
 }
