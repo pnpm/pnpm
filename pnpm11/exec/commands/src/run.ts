@@ -61,6 +61,7 @@ export const RESUME_FROM_OPTION_HELP: DescriptionItem = {
 export const SEQUENTIAL_OPTION_HELP: DescriptionItem = {
   description: 'Run the specified scripts one by one',
   name: '--sequential',
+  shortAlias: '-s',
 }
 
 export const REPORT_SUMMARY_OPTION_HELP: DescriptionItem = {
@@ -79,6 +80,10 @@ export const shorthands: Record<string, string[]> = {
     '--no-sort',
     '--stream',
     '--recursive',
+  ],
+  s: [
+    '--sequential',
+    '--workspace-concurrency=1',
   ],
   sequential: [
     '--workspace-concurrency=1',

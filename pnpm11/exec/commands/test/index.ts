@@ -825,14 +825,11 @@ test('RegExp script matching executes multiple scripts in lexicographically sort
   expect(outputLog).toBe('amz')
 })
 
-test('passing --sequential option sets effective workspaceConcurrency to 1 for matched scripts', async () => {
-  await using serverA = await createTestIpcServer()
-  await using serverB = await createTestIpcServer()
-
+test('passing --sequential option sets effective workspaceConcurrency to 1 for matched scripts without timing flakes', async () => {
   prepare({
     scripts: {
-      'test:a': `node -e "setTimeout(() => { console.log(Date.now()) }, 50)" | ${serverA.generateSendStdinScript()}`,
-      'test:b': `node -e "setTimeout(() => { console.log(Date.now()) }, 50)" | ${serverB.generateSendStdinScript()}`,
+      'test:a': 'node -e "require(\'fs\').appendFileSync(\'./seq.log\', \'A_start\\n\'); setTimeout(() => { require(\'fs\').appendFileSync(\'./seq.log\', \'A_end\\n\') }, 50)"',
+      'test:b': 'node -e "require(\'fs\').appendFileSync(\'./seq.log\', \'B_start\\n\'); setTimeout(() => { require(\'fs\').appendFileSync(\'./seq.log\', \'B_end\\n\') }, 50)"',
     },
   })
 
@@ -847,11 +844,11 @@ test('passing --sequential option sets effective workspaceConcurrency to 1 for m
     cliOptions: { sequential: true },
   }, ['/^test:.*/'])
 
-  const outputsA = serverA.getLines().map(Number)
-  const outputsB = serverB.getLines().map(Number)
+  const outputLog = fs.readFileSync(path.join(process.cwd(), 'seq.log'), 'utf-8').trim().split('\n')
+  expect(outputLog).toEqual(['A_start', 'A_end', 'B_start', 'B_end'])
+})
 
-  expect(outputsA.length).toBeGreaterThan(0)
-  expect(outputsB.length).toBeGreaterThan(0)
-  expect(outputsB[0] - outputsA[outputsA.length - 1]).toBeGreaterThanOrEqual(30)
+test('shorthands maps -s to --sequential and --workspace-concurrency=1', () => {
+  expect(run.shorthands.s).toEqual(['--sequential', '--workspace-concurrency=1'])
 })
 

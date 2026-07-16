@@ -120,7 +120,7 @@ impl RunArgs {
         // directory without a project skips the check instead of
         // spawning a doomed install (see check_deps_status_before_run_at).
         super::verify_deps::verify_deps_before_run(dir, config, silent)?;
-        let RunArgs { command, args, if_present, .. } = self;
+        let RunArgs { command, args, if_present, sequential, .. } = self;
         let Some(script_name) = command else {
             let manifest = read_project_manifest_only(dir).map_err(RunError::Manifest)?;
             println!("{}", render_project_commands(manifest.value()));
@@ -179,6 +179,7 @@ impl RunArgs {
             config,
             extra_env: &extra_env,
             silent,
+            sequential,
         };
         for name in &specified {
             // Resolve the main body (with `start` → `node server.js`
@@ -238,6 +239,8 @@ pub(super) struct RunContext<'a> {
     pub(super) config: &'a Config,
     pub(super) extra_env: &'a HashMap<String, String>,
     pub(super) silent: bool,
+    #[allow(dead_code)]
+    pub(super) sequential: bool,
 }
 
 /// Resolve `name` to a runnable main script body, or `Ok(None)` when
