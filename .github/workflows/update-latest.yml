@@ -77,6 +77,13 @@ jobs:
       if: ${{ !inputs.skip_upgrade_check }}
       env:
         VERSION: ${{ github.event.inputs.version }}
+        # This gate is only meaningful if it resolves the artifact users
+        # resolve, so pin the registry and read no ambient npm config: a
+        # runner-level .npmrc could otherwise redirect it to a different
+        # registry, and its contents would reach the lifecycle scripts run
+        # below. RUNNER_TEMP is emptied per job, so this path stays absent.
+        npm_config_registry: https://registry.npmjs.org/
+        npm_config_userconfig: ${{ runner.temp }}/absent-npmrc
       # zizmor: ignore[adhoc-packages] -- Installing a published release from
       # the registry is what this smoke test exists to do.
       run: |
