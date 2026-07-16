@@ -19,16 +19,15 @@ on:
 permissions: {}
 
 env:
-  # The registry these tags are published to. Passed per command rather than
-  # through `npm_config_registry`, which pnpm ignores.
+  # Passed to each command as `--registry`, which is the only form pnpm reads;
+  # it ignores `npm_config_registry`.
   REGISTRY: https://registry.npmjs.org/
-  # The pnpm that operates this workflow — deliberately never the version being
-  # released, for a different reason in each job that uses it. validate and
-  # verify-upgrade establish what the release is measured against, so letting
-  # the version under test build its own starting point would let a bug in it be
-  # blamed on the version it replaces. tag-in-registry holds the publish token,
-  # so it must not execute an artifact it has not finished vetting. Bump this
-  # deliberately, to a version that has already proven itself as `latest`.
+  # Keeps a runner-level .npmrc from redirecting any of this.
+  npm_config_userconfig: /dev/null
+  # The pnpm that operates this workflow, never the version being released:
+  # validate and verify-upgrade decide what the release is measured against, and
+  # tag-in-registry holds the publish token. Bump deliberately, to a version that
+  # has already proven itself as `latest`.
   RELEASE_TOOL_PNPM_VERSION: 11.13.1
 
 jobs:
@@ -51,20 +50,10 @@ jobs:
       env:
         VERSION: ${{ github.event.inputs.version }}
         TAG: ${{ github.event.inputs.tag }}
-        # Read no ambient npm config: a runner-level .npmrc could otherwise
-        # point the guard below at a registry whose `latest` says nothing about
-        # pnpm's. RUNNER_TEMP is emptied per job, so this path stays absent.
-        # The registry itself is pinned per command instead — pnpm takes it from
-        # `--registry`, not from `npm_config_registry`.
-        npm_config_userconfig: ${{ runner.temp }}/absent-npmrc
       run: |
         set -euo pipefail
-        # Stable versions only, no prerelease suffix. Every dispatch moves
-        # latest-<major> whatever `tag` says, so there is no way to tag a
-        # prerelease here without promoting it to a channel that `pnpm
-        # self-update` and a bare `npm install pnpm` resolve — and the release
-        # lines that publish prereleases (`X.Y.Z-alpha.N` under next-<major>)
-        # are exactly the ones a typo here would leak to everyone.
+        # Stable only: every dispatch moves latest-<major> whatever `tag` says,
+        # so a prerelease cannot be tagged here without reaching everyone.
         if ! printf '%s\n' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
           echo "::error::Version must be an exact, stable semver version like 11.2.0 (prereleases cannot be tagged). Got: ${VERSION}"
           exit 1
@@ -94,15 +83,12 @@ jobs:
         esac
   # Upgrading onto a version reads its published manifest and platform packages,
   # so a release that is only broken as an upgrade target fails here and nowhere
-  # earlier. The release workflow has already published this version under
-  # next-<major>; the dist-tag move is what makes it resolvable to `pnpm
-  # self-update` and to the devEngines/packageManager download path, so this is
-  # the last point at which a bad release can still be held back.
+  # earlier — and the dist-tag move below is the last point at which it can still
+  # be held back.
   #
-  # This job installs and executes packages from the registry, so it must stay
-  # free of the publish token: a lifecycle script here could otherwise persist
-  # into a later step via $GITHUB_PATH/$GITHUB_ENV and capture it. Keep
-  # `environment: release` and every secret confined to tag-in-registry.
+  # This job executes the release, so it holds no secrets: a lifecycle script
+  # could otherwise reach a later step through $GITHUB_PATH/$GITHUB_ENV and take
+  # the publish token with it.
   verify-upgrade:
     name: Verify upgrading onto ${{ github.event.inputs.version }}
     needs: validate
@@ -119,18 +105,11 @@ jobs:
       if: ${{ !inputs.skip_upgrade_check }}
       env:
         VERSION: ${{ github.event.inputs.version }}
-        # Read no ambient npm config: a runner-level .npmrc could otherwise
-        # redirect this gate to a registry users never resolve, and its contents
-        # would reach the lifecycle scripts run below. RUNNER_TEMP is emptied
-        # per job, so this path stays absent. The registry is pinned per command
-        # instead — pnpm takes it from `--registry`, not `npm_config_registry`.
-        npm_config_userconfig: ${{ runner.temp }}/absent-npmrc
       run: |
         set -eu
         # pnpm enforces the devEngines of whatever manifest it finds by walking
-        # up from the working directory, and this repo's pins a pnpm — so every
-        # command here runs from a scratch dir instead of the caller's cwd,
-        # which would otherwise fail or switch versions.
+        # up from the working directory, so every command here runs from a
+        # scratch dir rather than the caller's cwd.
         cd "$(mktemp -d)"
 
         MAJOR="${VERSION%%.*}"
@@ -191,17 +170,11 @@ jobs:
           # the binary is actually invoked.
           test "$("$upgraded" --version)" = "$VERSION"
 
-          # Hand the rest of the gate to the release itself: `pnpm doctor` runs
-          # the same diagnostics here as on a user's machine, so what is gated
-          # is what ships rather than a reproduction of it maintained
-          # separately. `--offline` keeps it to the checks that need no network
-          # — including an offline `file:` install, which exercises the
-          # resolve/store/link path that a manifest declaring its bundled
-          # dependencies breaks.
-          #
-          # The command postdates the older release lines this workflow can
-          # still tag, so run it only where it exists and say so when it does
-          # not, rather than fail a v10 promotion on a v11 command.
+          # Hand the rest of the gate to the release itself, so what is gated is
+          # what ships rather than a reproduction of it maintained here. The
+          # command postdates the older lines this workflow can still tag, so
+          # skip it where it does not exist rather than fail a v10 promotion on
+          # a v11 command.
           if "$upgraded" doctor --help >/dev/null 2>&1; then
             "$upgraded" doctor --offline
           else
@@ -210,16 +183,11 @@ jobs:
           echo "OK: ${package}@${FROM} self-updated to v${VERSION}"
         done
 
-  # This job holds the publish token, so it runs only the pinned pnpm — never
-  # the version being promoted.
-  #
-  # Tagging with the released version instead is tempting: it would make every
-  # tag one more thing the release had to do correctly, and it could not
-  # deadlock, since a release that failed would block only itself. Do not. The
-  # token here is the org's, and this job is deciding whether the artifact is
-  # fit to promote — handing that artifact the credential first inverts the
-  # order. Verification of the release belongs in verify-upgrade, which runs it
-  # with no secrets precisely so this job never has to.
+  # Tagging with the promoted version reads as free verification and must not be
+  # done: this job is deciding whether that artifact is fit to ship, and pnpm is
+  # published by OIDC rather than by this token, so handing it the token turns a
+  # compromised dependency into org-wide publish access. verify-upgrade runs the
+  # release with no secrets so this job never has to.
   tag-in-registry:
     name: Tagging ${{ github.event.inputs.version }} as ${{ github.event.inputs.tag }}
     needs: verify-upgrade
@@ -237,9 +205,8 @@ jobs:
         install: false
     - name: Update tag
       env:
-        # Written to pnpm's config rather than passed as
-        # `npm_config_//registry.npmjs.org/:_authToken`, which pnpm does not act
-        # on — the same reason release.yml's publish steps do this.
+        # Written to pnpm's config below, not passed as
+        # `npm_config_//registry.npmjs.org/:_authToken`, which pnpm ignores.
         NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         VERSION: ${{ github.event.inputs.version }}
         TAG: ${{ github.event.inputs.tag }}
