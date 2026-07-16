@@ -329,9 +329,21 @@ jobs:
         with:
           subject-path: 'dist/*'
       - name: Generate release description
+        env:
+          TS_VERSION: ${{ needs.plan.outputs.ts_version }}
         run: |
-          pn make-release-description
-          test -s RELEASE.md
+          rm -f RELEASE.md
+          if pn make-release-description && test -s RELEASE.md; then
+            exit 0
+          fi
+          echo "::warning::Release notes could not be generated; publishing the release with a diagnostic description"
+          cat > RELEASE.md <<EOF
+          ## Release notes unavailable
+
+          pnpm ${TS_VERSION} was published successfully, but its release notes could not be generated from the pending changelog. The release artifacts are still available below.
+
+          See the [release workflow run](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) for the generation error.
+          EOF
       - name: Release
         id: github-release
         # `gh release create` could replace this, but the release pipeline is

@@ -2,7 +2,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import util from 'node:util'
 
 import { readPendingChangelog } from '@pnpm/releasing.versioning'
 import { toString as mdastToString } from 'mdast-util-to-string'
@@ -27,16 +26,9 @@ if (process.argv[1] != null && path.resolve(process.argv[1]) === fileURLToPath(i
 export async function writeReleaseText (workspaceDir: string): Promise<void> {
   const pnpmDir = path.join(workspaceDir, 'pnpm11/pnpm')
   const pnpm = JSON.parse(await fs.readFile(path.join(pnpmDir, 'package.json'), 'utf8'))
-  let changelog = await readPendingChangelog(workspaceDir, pnpm.name, pnpm.version)
+  const changelog = await readPendingChangelog(workspaceDir, pnpm.name, pnpm.version)
   if (changelog == null) {
-    try {
-      changelog = await fs.readFile(path.join(pnpmDir, 'CHANGELOG.md'), 'utf8')
-    } catch (err: unknown) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-        throw new Error(`No changelog found for pnpm ${pnpm.version}`, { cause: err })
-      }
-      throw err
-    }
+    throw new Error(`No pending changelog found for pnpm ${pnpm.version}`)
   }
   const release = getChangelogEntry(changelog, pnpm.version)
   const releasePath = path.join(workspaceDir, 'RELEASE.md')
