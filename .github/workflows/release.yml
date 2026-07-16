@@ -180,6 +180,8 @@ jobs:
       - name: Verify TypeScript npm packages
         # Inspect the same tarballs that publish will upload before the first
         # immutable npm publish, including the generated platform packages.
+        # zizmor: ignore[adhoc-packages] -- This smoke test intentionally
+        # installs locally built release tarballs before publication.
         run: |
           set -euo pipefail
           release_tarballs=$(mktemp -d)
