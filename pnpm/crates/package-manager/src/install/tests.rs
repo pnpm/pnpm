@@ -7426,7 +7426,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
             version: Some("1.0.0".to_string()),
         },
     );
-    let validated_at = pacquet_workspace_state::now_millis();
+    let validated_at = 0;
     workspace_state::update_workspace_state(
         &workspace_root,
         &pacquet_workspace_state::WorkspaceState {

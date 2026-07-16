@@ -3003,9 +3003,9 @@ fn build_project_manifests_list<'a>(
     let mut list = projects
         .iter()
         .map(|project| {
-            if pacquet_fs::lexical_normalize(&project.root_dir) == normalized_active_dir {
+            if project_dirs_equal(&project.root_dir, &normalized_active_dir) {
                 active_project_was_discovered = true;
-                (project.root_dir.clone(), root_manifest)
+                (active_dir.to_path_buf(), root_manifest)
             } else {
                 (project.root_dir.clone(), &project.manifest)
             }
@@ -3038,7 +3038,7 @@ fn build_root_importer_project_manifests_list<'a>(
         list.extend(
             projects
                 .iter()
-                .filter(|project| project.root_dir != workspace_root)
+                .filter(|project| !project_dirs_equal(&project.root_dir, workspace_root))
                 .map(|project| (project.root_dir.clone(), &project.manifest)),
         );
     }
@@ -3059,11 +3059,20 @@ fn build_selected_project_manifests_list<'a>(
     let normalized_active_dir = pacquet_fs::lexical_normalize(active_dir);
     let active_project_was_discovered = projects
         .iter()
-        .any(|project| pacquet_fs::lexical_normalize(&project.root_dir) == normalized_active_dir);
+        .any(|project| project_dirs_equal(&project.root_dir, &normalized_active_dir));
     if !active_manifest_is_standin && !active_project_was_discovered {
         manifests.push((active_dir.to_path_buf(), active_manifest));
     }
     manifests
+}
+
+fn project_dirs_equal(left: &Path, right: &Path) -> bool {
+    let left = pacquet_fs::lexical_normalize(left);
+    let right = pacquet_fs::lexical_normalize(right);
+    left == right
+        || std::fs::canonicalize(left)
+            .and_then(|left| std::fs::canonicalize(right).map(|right| left == right))
+            .unwrap_or(false)
 }
 
 fn selected_manifest_freshness_inputs<'a>(
