@@ -1,7 +1,8 @@
 /// <reference path="../../../__typings__/local.d.ts" />
-import fs from 'node:fs'
+import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import util from 'node:util'
 
 import { readPendingChangelog } from '@pnpm/releasing.versioning'
 import { toString as mdastToString } from 'mdast-util-to-string'
@@ -25,11 +26,23 @@ if (process.argv[1] != null && path.resolve(process.argv[1]) === fileURLToPath(i
 
 export async function writeReleaseText (workspaceDir: string): Promise<void> {
   const pnpmDir = path.join(workspaceDir, 'pnpm11/pnpm')
-  const pnpm = JSON.parse(fs.readFileSync(path.join(pnpmDir, 'package.json'), 'utf8'))
-  const changelog = await readPendingChangelog(workspaceDir, pnpm.name, pnpm.version) ??
-    fs.readFileSync(path.join(pnpmDir, 'CHANGELOG.md'), 'utf8')
+  const pnpm = JSON.parse(await fs.readFile(path.join(pnpmDir, 'package.json'), 'utf8'))
+  let changelog = await readPendingChangelog(workspaceDir, pnpm.name, pnpm.version)
+  if (changelog == null) {
+    try {
+      changelog = await fs.readFile(path.join(pnpmDir, 'CHANGELOG.md'), 'utf8')
+    } catch (err: unknown) {
+      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+        throw new Error(`No changelog found for pnpm ${pnpm.version}`, { cause: err })
+      }
+      throw err
+    }
+  }
   const release = getChangelogEntry(changelog, pnpm.version)
-  fs.writeFileSync(path.join(workspaceDir, 'RELEASE.md'), release.content)
+  const releasePath = path.join(workspaceDir, 'RELEASE.md')
+  const temporaryPath = `${releasePath}.${process.pid}.tmp`
+  await fs.writeFile(temporaryPath, release.content)
+  await fs.rename(temporaryPath, releasePath)
 }
 
 interface ChangelogEntry {

@@ -338,16 +338,24 @@ jobs:
         # sensitive and softprops/action-gh-release is widely battle-tested.
         uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.0 # zizmor: ignore[superfluous-actions]
         with:
+          draft: true
           files: dist/*
           body_path: RELEASE.md
-      - name: Verify published release description
+      - name: Verify and publish release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_ID: ${{ steps.github-release.outputs.id }}
         run: |
           test -n "$RELEASE_ID"
-          body_length=$(gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" --jq '.body | length')
-          test "$body_length" -gt 0
+          release_json=$(mktemp)
+          gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" > "$release_json"
+          RELEASE_JSON="$release_json" node <<'NODE'
+          const fs = require('node:fs')
+          const actual = JSON.parse(fs.readFileSync(process.env.RELEASE_JSON, 'utf8')).body
+          const expected = fs.readFileSync('RELEASE.md', 'utf8')
+          if (actual !== expected) throw new Error('GitHub draft release body does not match RELEASE.md')
+          NODE
+          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" -F draft=false > /dev/null
 
   build-rust:
     needs: plan

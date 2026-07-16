@@ -1,4 +1,4 @@
-import fs from 'node:fs'
+import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -8,28 +8,36 @@ import { getChangelogEntry, writeReleaseText } from '../src/main.js'
 
 let workspaceDir: string
 
-beforeEach(() => {
-  workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'get-release-text-'))
+beforeEach(async () => {
+  workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'get-release-text-'))
 })
 
-afterEach(() => {
-  fs.rmSync(workspaceDir, { recursive: true, force: true })
+afterEach(async () => {
+  await fs.rm(workspaceDir, { recursive: true, force: true })
 })
 
 test('writes the parked registry changelog section', async () => {
   const pnpmDir = path.join(workspaceDir, 'pnpm11/pnpm')
-  fs.mkdirSync(pnpmDir, { recursive: true })
-  fs.writeFileSync(path.join(pnpmDir, 'package.json'), JSON.stringify({ name: 'pnpm', version: '11.13.1' }))
-  fs.writeFileSync(path.join(pnpmDir, 'CHANGELOG.md'), '# pnpm\n\n## 11.13.0\n\nOld release.\n')
+  await fs.mkdir(pnpmDir, { recursive: true })
+  await fs.writeFile(path.join(pnpmDir, 'package.json'), JSON.stringify({ name: 'pnpm', version: '11.13.1' }))
+  await fs.writeFile(path.join(pnpmDir, 'CHANGELOG.md'), '# pnpm\n\n## 11.13.0\n\nOld release.\n')
   const pendingDir = path.join(workspaceDir, '.changeset/changelogs')
-  fs.mkdirSync(pendingDir, { recursive: true })
-  fs.writeFileSync(path.join(pendingDir, 'pnpm@11.13.1.md'), '## 11.13.1\n\n### Patch Changes\n\n- Fixed the release notes.\n')
+  await fs.mkdir(pendingDir, { recursive: true })
+  await fs.writeFile(path.join(pendingDir, 'pnpm@11.13.1.md'), '## 11.13.1\n\n### Patch Changes\n\n- Fixed the release notes.\n')
 
   await writeReleaseText(workspaceDir)
 
-  const release = fs.readFileSync(path.join(workspaceDir, 'RELEASE.md'), 'utf8')
+  const release = await fs.readFile(path.join(workspaceDir, 'RELEASE.md'), 'utf8')
   expect(release).toContain('Fixed the release notes.')
   expect(release).not.toContain('Old release.')
+})
+
+test('reports a missing changelog for the released version', async () => {
+  const pnpmDir = path.join(workspaceDir, 'pnpm11/pnpm')
+  await fs.mkdir(pnpmDir, { recursive: true })
+  await fs.writeFile(path.join(pnpmDir, 'package.json'), JSON.stringify({ name: 'pnpm', version: '11.13.1' }))
+
+  await expect(writeReleaseText(workspaceDir)).rejects.toThrow('No changelog found for pnpm 11.13.1')
 })
 
 test('rejects a changelog without the released version', () => {
