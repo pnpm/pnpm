@@ -19,11 +19,19 @@ const LOCKFILE_READ_FLAGS = constants.O_RDONLY | (process.platform === 'win32' ?
  * Returns null if the file doesn't exist or doesn't start with "---\n".
  */
 export async function streamReadFirstYamlDocument (filePath: string, readBufferSize = READ_BUFFER_SIZE): Promise<string | null> {
+  return streamReadFirstYamlDocumentWithOpen(filePath, readBufferSize, () => open(filePath, constants.O_RDONLY))
+}
+
+export async function streamReadFirstYamlDocumentNoFollow (filePath: string, readBufferSize = READ_BUFFER_SIZE): Promise<string | null> {
+  return streamReadFirstYamlDocumentWithOpen(filePath, readBufferSize, () => openLockfileNoFollow(filePath))
+}
+
+async function streamReadFirstYamlDocumentWithOpen (filePath: string, readBufferSize: number, openFile: () => Promise<FileHandle>): Promise<string | null> {
   let fileHandle: FileHandle | undefined
   let buffer = ''
   let firstChunk = true
   try {
-    fileHandle = await openLockfileNoFollow(filePath)
+    fileHandle = await openFile()
     const decoder = new StringDecoder('utf8')
     const readBuffer = Buffer.allocUnsafe(normalizeReadBufferSize(readBufferSize))
     let position = 0

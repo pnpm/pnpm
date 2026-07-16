@@ -1,4 +1,6 @@
-use super::{EnvLockfile, SpecifierAndResolution, read_lockfile_to_string_no_follow};
+#[cfg(unix)]
+use super::read_lockfile_to_string_no_follow;
+use super::{EnvLockfile, SpecifierAndResolution};
 use crate::{
     Lockfile, LockfileResolution, PackageKey, PackageMetadata, RegistryResolution, SnapshotEntry,
     extract_env_document,
@@ -86,7 +88,7 @@ fn write_preserves_existing_main_document() {
 
 #[cfg(unix)]
 #[test]
-fn read_rejects_symlinked_lockfile() {
+fn read_symlinked_lockfile() {
     let dir = TempDir::new().unwrap();
     let real_lockfile = dir.path().join("real-lockfile.yaml");
     std::fs::write(
@@ -96,9 +98,9 @@ fn read_rejects_symlinked_lockfile() {
     .unwrap();
     std::os::unix::fs::symlink(&real_lockfile, dir.path().join(Lockfile::FILE_NAME)).unwrap();
 
-    let error = EnvLockfile::read(dir.path()).expect_err("symlinked lockfile must fail");
+    let env = EnvLockfile::read(dir.path()).unwrap().expect("env document parses");
 
-    assert!(error.to_string().contains("symlinked lockfile"), "unexpected error: {error:?}");
+    assert_eq!(env.lockfile_version, "9.0");
 }
 
 #[cfg(unix)]

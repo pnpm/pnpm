@@ -7,6 +7,7 @@ import { temporaryDirectory } from 'tempy'
 import {
   extractMainDocument,
   streamReadFirstYamlDocument,
+  streamReadFirstYamlDocumentNoFollow,
 } from '../lib/yamlDocuments.js'
 
 const testOnNonWindows = process.platform === 'win32' ? test.skip : test
@@ -130,7 +131,7 @@ describe('streamReadFirstYamlDocument', () => {
     fs.writeFileSync(realLockfile, '---\nfoo: bar\n---\nlockfileVersion: 9.0\n')
     fs.symlinkSync(realLockfile, lockfilePath, 'file')
 
-    await expect(streamReadFirstYamlDocument(lockfilePath)).rejects.toThrow(/symlinked lockfile/)
+    await expect(streamReadFirstYamlDocumentNoFollow(lockfilePath)).rejects.toThrow(/symlinked lockfile/)
   })
 })
 

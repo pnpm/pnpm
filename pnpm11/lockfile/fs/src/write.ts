@@ -12,7 +12,7 @@ import { convertToLockfileFile, convertToLockfileObject } from './lockfileFormat
 import { getWantedLockfileName } from './lockfileName.js'
 import { lockfileLogger as logger } from './logger.js'
 import { sortLockfileKeys } from './sortLockfileKeys.js'
-import { streamReadFirstYamlDocument, YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START } from './yamlDocuments.js'
+import { streamReadFirstYamlDocumentNoFollow, YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START } from './yamlDocuments.js'
 
 const LOCKFILE_YAML_FORMAT = {
   blankLines: true,
@@ -75,7 +75,7 @@ async function writeLockfile (
     // and passed through to the write functions, but that would require threading it
     // through 25+ call sites. Re-reading is cheap since the file is likely still
     // in the OS page cache and streaming stops at the first separator.
-    const envDoc = await streamReadFirstYamlDocument(lockfilePath)
+    const envDoc = await streamReadFirstYamlDocumentNoFollow(lockfilePath)
     const envPrefix = envDoc != null ? `${YAML_DOCUMENT_START}${envDoc}${YAML_DOCUMENT_SEPARATOR}` : ''
     await writeFileAtomic(lockfilePath, `${envPrefix}${yamlDoc}`)
   } else {
@@ -152,7 +152,7 @@ export async function writeLockfiles (
   // Preserve the env lockfile document at the top of pnpm-lock.yaml
   let envPrefix = ''
   if (wantedLockfileName === WANTED_LOCKFILE) {
-    const envDoc = await streamReadFirstYamlDocument(wantedLockfilePath)
+    const envDoc = await streamReadFirstYamlDocumentNoFollow(wantedLockfilePath)
     if (envDoc != null) {
       envPrefix = `${YAML_DOCUMENT_START}${envDoc}${YAML_DOCUMENT_SEPARATOR}`
     }

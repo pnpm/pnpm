@@ -107,8 +107,7 @@ impl EnvLockfile {
     ///   importer (and its `configDependencies` map) exists.
     pub fn read(root_dir: &Path) -> Result<Option<Self>, LoadLockfileError> {
         let path = root_dir.join(Lockfile::FILE_NAME);
-        let Some(content) =
-            read_lockfile_to_string_no_follow(&path).map_err(LoadLockfileError::ReadFile)?
+        let Some(content) = read_lockfile_to_string(&path).map_err(LoadLockfileError::ReadFile)?
         else {
             return Ok(None);
         };
@@ -138,7 +137,18 @@ impl EnvLockfile {
 }
 
 fn read_lockfile_to_string_no_follow(path: &Path) -> io::Result<Option<String>> {
-    let mut file = match open_lockfile_no_follow(path) {
+    read_lockfile_to_string_with(path, open_lockfile_no_follow)
+}
+
+fn read_lockfile_to_string(path: &Path) -> io::Result<Option<String>> {
+    read_lockfile_to_string_with(path, |path| File::open(path))
+}
+
+fn read_lockfile_to_string_with(
+    path: &Path,
+    open_file: impl FnOnce(&Path) -> io::Result<File>,
+) -> io::Result<Option<String>> {
+    let mut file = match open_file(path) {
         Ok(file) => file,
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error),
