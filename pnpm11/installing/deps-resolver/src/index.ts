@@ -300,6 +300,7 @@ export async function resolveDependencies (
   } = treeHasLockedPeerContexts(dependenciesTree)
     ? await resolvePeers({
       ...peerResolutionOpts,
+      previousDependenciesGraph: initiallyResolvedPeers.dependenciesGraph,
       resolvedPeerProviderPaths: initiallyResolvedPeers.pathsByNodeId,
       previousResolvedPeerNamesByNodeId: getResolvedPeerNamesByNodeId(initiallyResolvedPeers),
     })

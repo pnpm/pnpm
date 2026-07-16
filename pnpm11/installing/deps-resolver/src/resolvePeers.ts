@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { createPeerDepGraphHash, depPathToFilename, parseDepPath, type PeerId } from '@pnpm/deps.path'
+import { createPeerDepGraphHash, depPathToFilename, getPkgIdWithPatchHash, parseDepPath, type PeerId } from '@pnpm/deps.path'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import type {
   DepPath,
@@ -109,6 +109,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     // lets the reuse pass drop a peer it bound laterally that a fresh resolution
     // (and `pnpm dedupe`) would have left unresolved — see dropSpuriousReusePeers.
     previousResolvedPeerNamesByNodeId?: Map<NodeId, Set<string>>
+    previousDependenciesGraph?: GenericDependenciesGraphWithResolvedChildren<T>
   }
 ): Promise<{
   dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<T>
@@ -299,6 +300,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       pathsByNodeId,
       depPathsByPkgId,
       dependenciesByProjectId,
+      previousDependenciesGraph: opts.previousDependenciesGraph,
       previousResolvedPeerNamesByNodeId: opts.previousResolvedPeerNamesByNodeId,
       dependenciesTree: opts.dependenciesTree,
       dedupePeers: opts.dedupePeers,
@@ -337,6 +339,7 @@ function dropSpuriousReusePeers<T extends PartialResolvedPackage> (
     pathsByNodeId: Map<NodeId, DepPath>
     depPathsByPkgId: Map<PkgIdWithPatchHash, Set<DepPath>>
     dependenciesByProjectId: DependenciesByProjectId
+    previousDependenciesGraph?: GenericDependenciesGraphWithResolvedChildren<T>
     previousResolvedPeerNamesByNodeId: Map<NodeId, Set<string>>
     dependenciesTree: DependenciesTree<T>
     dedupePeers?: boolean
@@ -462,28 +465,46 @@ function dropSpuriousReusePeers<T extends PartialResolvedPackage> (
 
   const remapped = (depPath: DepPath): DepPath => remap.get(depPath) ?? depPath
 
-  // Safety net: a strip is only valid when the reachable nodes that collapse
-  // onto a recomputed depPath are identical afterwards. If two would collide on
-  // the same depPath with different children, a dropped peer was actually
-  // load-bearing, so skip the cleanup entirely and keep the reuse pass output
-  // rather than risk losing a distinct instance. In practice this never fires;
-  // a fresh resolution distinguishes such nodes through a peer that is then kept.
-  const childrenSignatureByDepPath = new Map<DepPath, string>()
+  const candidatesByDepPath = new Map<DepPath, Array<{
+    children: Record<string, DepPath>
+    childDepPaths: Set<DepPath>
+    depPath: DepPath
+  }>>()
   for (const [depPath, node] of Object.entries(depGraph) as Array<[DepPath, T & GenericDependenciesGraphNodeWithResolvedChildren]>) {
     if (!reachable.has(depPath)) continue
     const newDepPath = remapped(depPath)
     const spurious = spuriousPeersByDepPath.get(depPath)
-    const signature = Object.entries<DepPath>(node.children)
-      .filter(([alias]) => !spurious?.has(alias))
-      .map(([alias, childDepPath]) => `${alias}=${remapped(childDepPath)}`)
-      .sort()
-      .join('\n')
-    const existing = childrenSignatureByDepPath.get(newDepPath)
-    if (existing == null) {
-      childrenSignatureByDepPath.set(newDepPath, signature)
-    } else if (existing !== signature) {
-      return
+    const children = Object.fromEntries(
+      Object.entries<DepPath>(node.children)
+        .filter(([alias]) => !spurious?.has(alias))
+        .map(([alias, childDepPath]) => [alias, remapped(childDepPath)])
+    )
+    const childDepPaths = new Set(
+      Object.entries(children).map(([alias, childDepPath]) =>
+        opts.dedupePeers && node.peerDependencies?.[alias] != null
+          ? getPkgIdWithPatchHash(childDepPath) as unknown as DepPath
+          : childDepPath
+      )
+    )
+    const candidates = candidatesByDepPath.get(newDepPath)
+    const candidate = { children, childDepPaths, depPath }
+    if (candidates == null) {
+      candidatesByDepPath.set(newDepPath, [candidate])
+    } else {
+      candidates.push(candidate)
     }
+  }
+  const winnerByDepPath = new Map<DepPath, DepPath>()
+  for (const [newDepPath, candidates] of candidatesByDepPath.entries()) {
+    const previousChildren = opts.previousDependenciesGraph?.[newDepPath]?.children
+    const preferredChildren = previousChildren == null
+      ? undefined
+      : Object.fromEntries(
+        Object.entries(previousChildren).map(([alias, childDepPath]) => [alias, remapped(childDepPath)])
+      )
+    const winner = pickPeerCleanupWinner(candidates, newDepPath, preferredChildren)
+    if (winner == null) return
+    winnerByDepPath.set(newDepPath, winner.depPath)
   }
 
   // Rebuild the graph under the recomputed depPaths. Reachable nodes are written
@@ -500,12 +521,9 @@ function dropSpuriousReusePeers<T extends PartialResolvedPackage> (
   for (const [depPath, node] of Object.entries(depGraph) as Array<[DepPath, T & GenericDependenciesGraphNodeWithResolvedChildren]>) {
     if (!reachable.has(depPath)) continue
     const newDepPath = remapped(depPath)
+    if (winnerByDepPath.get(newDepPath) !== depPath) continue
     const spurious = spuriousPeersByDepPath.get(depPath)
-    const children: Record<string, DepPath> = {}
-    for (const [alias, childDepPath] of Object.entries<DepPath>(node.children)) {
-      if (spurious?.has(alias)) continue
-      children[alias] = remapped(childDepPath)
-    }
+    const children = candidatesByDepPath.get(newDepPath)!.find((candidate) => candidate.depPath === depPath)!.children
     let resolvedPeerNames = node.resolvedPeerNames
     let resolvedPeerNodeIds = node.resolvedPeerNodeIds
     if (spurious != null) {
@@ -1111,6 +1129,43 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       }
     }
   }
+}
+
+export function pickPeerCleanupWinner<T extends {
+  children: Record<string, DepPath>
+  childDepPaths: Set<DepPath>
+  depPath: DepPath
+}> (
+  candidates: T[],
+  preferredDepPath?: DepPath,
+  preferredChildren?: Record<string, DepPath>
+): T | undefined {
+  const childrenSignature = (children: Record<string, DepPath> | undefined): string | undefined =>
+    children == null
+      ? undefined
+      : Object.entries(children)
+        .map(([alias, childDepPath]) => `${alias}=${childDepPath}`)
+        .sort()
+        .join('\n')
+  const preferredChildrenSignature = childrenSignature(preferredChildren)
+  return [...candidates]
+    .sort((candidate1, candidate2) => {
+      const preferredChildrenDiff =
+        Number(childrenSignature(candidate2.children) === preferredChildrenSignature) -
+        Number(childrenSignature(candidate1.children) === preferredChildrenSignature)
+      if (preferredChildrenSignature != null && preferredChildrenDiff !== 0) return preferredChildrenDiff
+      const preferredDiff =
+        Number(candidate2.depPath === preferredDepPath) - Number(candidate1.depPath === preferredDepPath)
+      if (preferredDiff !== 0) return preferredDiff
+      const countDiff = candidate2.childDepPaths.size - candidate1.childDepPaths.size
+      if (countDiff !== 0) return countDiff
+      return candidate1.depPath < candidate2.depPath ? -1 : candidate1.depPath > candidate2.depPath ? 1 : 0
+    })
+    .find((candidate) =>
+      candidates.every(({ childDepPaths }) =>
+        [...childDepPaths].every((childDepPath) => candidate.childDepPaths.has(childDepPath))
+      )
+    )
 }
 
 function getNodeIdsByPreviousDepPath<T> (dependenciesTree: DependenciesTree<T>): Map<DepPath, NodeId> {

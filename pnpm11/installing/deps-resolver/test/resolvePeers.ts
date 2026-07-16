@@ -10,7 +10,7 @@ import type {
 
 import type { NodeId } from '../lib/nextNodeId.js'
 import type { ChildrenMap, DependenciesTreeNode, PeerDependencies } from '../lib/resolveDependencies.js'
-import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers.js'
+import { type PartialResolvedPackage, pickPeerCleanupWinner, resolvePeers } from '../lib/resolvePeers.js'
 
 test('resolve peer dependencies of cyclic dependencies', async () => {
   const fooPkg = {
@@ -764,6 +764,86 @@ test('resolve peer dependencies with npm aliases', async () => {
     'foo/1.0.0(bar/1.0.0)',
     'foo/2.0.0(bar/2.0.0)',
   ])
+})
+
+test('peer cleanup selects a compatible child superset', () => {
+  const subset = {
+    children: { foo: 'foo/1.0.0' as DepPath },
+    childDepPaths: new Set(['foo/1.0.0' as DepPath]),
+    depPath: 'consumer/1.0.0(peer-a/1.0.0)' as DepPath,
+  }
+  const superset = {
+    children: {
+      bar: 'bar/1.0.0' as DepPath,
+      foo: 'foo/1.0.0' as DepPath,
+    },
+    childDepPaths: new Set(['foo/1.0.0' as DepPath, 'bar/1.0.0' as DepPath]),
+    depPath: 'consumer/1.0.0(peer-b/1.0.0)' as DepPath,
+  }
+  expect(pickPeerCleanupWinner([subset, superset])).toBe(superset)
+})
+
+test('peer cleanup rejects incompatible children', () => {
+  const foo = {
+    children: { foo: 'foo/1.0.0' as DepPath },
+    childDepPaths: new Set(['foo/1.0.0' as DepPath]),
+    depPath: 'consumer/1.0.0(peer-a/1.0.0)' as DepPath,
+  }
+  const bar = {
+    children: { bar: 'bar/1.0.0' as DepPath },
+    childDepPaths: new Set(['bar/1.0.0' as DepPath]),
+    depPath: 'consumer/1.0.0(peer-b/1.0.0)' as DepPath,
+  }
+  expect(pickPeerCleanupWinner([foo, bar])).toBeUndefined()
+})
+
+test('peer cleanup breaks equal-child ties by depPath', () => {
+  const later = {
+    children: { foo: 'foo/1.0.0' as DepPath },
+    childDepPaths: new Set(['foo/1.0.0' as DepPath]),
+    depPath: 'consumer/1.0.0(peer-b/1.0.0)' as DepPath,
+  }
+  const earlier = {
+    children: { foo: 'foo/1.0.0' as DepPath },
+    childDepPaths: new Set(['foo/1.0.0' as DepPath]),
+    depPath: 'consumer/1.0.0(peer-a/1.0.0)' as DepPath,
+  }
+  expect(pickPeerCleanupWinner([later, earlier])).toBe(earlier)
+})
+
+test('peer cleanup prefers an existing target depPath', () => {
+  const remapped = {
+    children: { foo: 'foo/1.0.0' as DepPath },
+    childDepPaths: new Set(['foo/1.0.0' as DepPath]),
+    depPath: 'consumer/1.0.0(peer-a/1.0.0)' as DepPath,
+  }
+  const existing = {
+    children: { foo: 'foo/1.0.0' as DepPath },
+    childDepPaths: new Set(['foo/1.0.0' as DepPath]),
+    depPath: 'consumer/1.0.0' as DepPath,
+  }
+  expect(pickPeerCleanupWinner([remapped, existing], existing.depPath)).toBe(existing)
+})
+
+test('peer cleanup preserves the fresh child context when normalized children tie', () => {
+  const normalizedStorybook = 'storybook/10.2.13' as DepPath
+  const freshStorybook = 'storybook/10.2.13(react/18.3.1)' as DepPath
+  const otherStorybook = 'storybook/10.2.13(react/19.2.7)' as DepPath
+  const remapped = {
+    children: { storybook: freshStorybook },
+    childDepPaths: new Set([normalizedStorybook]),
+    depPath: 'consumer/1.0.0(supports-color/5.5.0)' as DepPath,
+  }
+  const existing = {
+    children: { storybook: otherStorybook },
+    childDepPaths: new Set([normalizedStorybook]),
+    depPath: 'consumer/1.0.0' as DepPath,
+  }
+  expect(pickPeerCleanupWinner(
+    [existing, remapped],
+    existing.depPath,
+    { storybook: freshStorybook }
+  )).toBe(remapped)
 })
 
 describe('locked peer provider preferences', () => {
