@@ -310,6 +310,29 @@ fn reuse_cached_engine_rejects_a_version_mismatch() {
     assert!(!reuse_cached_engine(temp.path(), pnpm_package_to_install("11.10.0"), "11.10.0"));
 }
 
+/// `@pnpm/exe` 11.12.0 and 11.13.0 shipped platform packages with no binary, so
+/// a cached slot for either cannot run. Rejecting them by version keeps the
+/// cache-hit path from having to spawn the engine to find that out.
+#[test]
+fn reuse_cached_engine_rejects_a_release_that_cannot_run() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    fake_engine_install_for(temp.path(), PNPM_EXE_PACKAGE_NAME, true);
+    write_wrapper_version(temp.path(), PNPM_EXE_PACKAGE_NAME, "11.13.0");
+
+    // The slot is otherwise perfectly reusable: right package, right version.
+    assert!(!reuse_cached_engine(temp.path(), pnpm_package_to_install("11.13.0"), "11.13.0"));
+    assert!(!reuse_cached_engine(temp.path(), pnpm_package_to_install("11.12.0"), "11.12.0"));
+}
+
+#[test]
+fn reuse_cached_engine_accepts_a_neighbouring_release() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    fake_engine_install_for(temp.path(), PNPM_EXE_PACKAGE_NAME, true);
+    write_wrapper_version(temp.path(), PNPM_EXE_PACKAGE_NAME, "11.13.1");
+
+    assert!(reuse_cached_engine(temp.path(), pnpm_package_to_install("11.13.1"), "11.13.1"));
+}
+
 /// A slot left by an older layout whose wrapper symlink escapes the slot
 /// (e.g. into a shared global virtual store) must not be reused — the
 /// caller falls through to a fresh install instead of aborting the whole

@@ -93,12 +93,9 @@ pub(super) async fn install_pnpm<Reporter: self::Reporter + 'static>(
     .and_then(|()| {
         if package.links_native_binary {
             link_exe_platform_binary(&install_dir, package_name)?;
-            // Nothing above proves the engine can run: a wrapper whose platform
-            // package shipped without its native keeps the placeholder from the
-            // tarball, and a truncated binary is equally silent. Catching it
-            // before the caller links this dir into the global bin is what keeps
-            // a bad release from replacing a working pnpm, and the error path
-            // below removes the directory so the next run reinstalls it.
+            // Runs here, before the caller links this dir into the global bin,
+            // so a release that cannot run is discarded instead of replacing a
+            // working pnpm.
             assert_pnpm_runs(&install_dir, package_name, version)
         } else {
             // Only a native wrapper can install yet fail to execute. The legacy
@@ -116,9 +113,11 @@ pub(super) async fn install_pnpm<Reporter: self::Reporter + 'static>(
 
 /// Fail unless the native engine installed at `install_dir` can execute.
 ///
-/// Only that it runs is asserted, not what it prints: the point is to reject an
-/// executable that cannot start at all, and matching `--version` output exactly
-/// would fail on anything else a release chooses to write to stdout.
+/// A release can install cleanly and still not run: a wrapper whose platform
+/// package shipped without its native keeps the placeholder bin from its own
+/// tarball, and a truncated or incorrectly signed binary is equally silent. Only that it
+/// runs is asserted, not what it prints — matching `--version` output exactly
+/// would fail on anything else a release writes to stdout.
 pub(super) fn assert_pnpm_runs(
     install_dir: &Path,
     package_name: &str,
@@ -184,10 +183,24 @@ pub(super) fn installed_version(install_dir: &Path, package_name: &str) -> Optio
 /// shared `<store>/links` tree), so this recovery is the common upgrade
 /// path, not only an adversarial one.
 fn reuse_cached_engine(install_dir: &Path, package: PnpmPackageToInstall, version: &str) -> bool {
+    if is_broken_release(package.name, version) {
+        return false;
+    }
     if installed_version(install_dir, package.name).as_deref() != Some(version) {
         return false;
     }
     !package.links_native_binary || link_exe_platform_binary(install_dir, package.name).is_ok()
+}
+
+/// Whether [`assert_pnpm_runs`] rejects this release, on every platform. Knowing
+/// it lets a cached install be rejected without spawning it, which keeps the
+/// cache-hit path free of that cost; both are immutable on npm and deprecated
+/// there, so the version alone settles it.
+///
+/// Not a second safety net: [`assert_pnpm_runs`] catches a broken release
+/// whether or not it is listed here.
+fn is_broken_release(package_name: &str, version: &str) -> bool {
+    package_name == PNPM_EXE_PACKAGE_NAME && matches!(version, "11.12.0" | "11.13.0")
 }
 
 pub(crate) fn pnpm_package_to_install(pnpm_version: &str) -> PnpmPackageToInstall {

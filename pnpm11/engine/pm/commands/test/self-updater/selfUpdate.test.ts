@@ -28,7 +28,7 @@ jest.unstable_mockModule('@pnpm/cli.meta', () => {
     packageManager: mockPackageManager,
   }
 })
-const { selfUpdate, assertPnpmRuns, installPnpm, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext, pnpmPackageNameToInstall } = await import('@pnpm/engine.pm.commands')
+const { selfUpdate, assertPnpmRuns, findGlobalPnpmInstallDir, installPnpm, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext, pnpmPackageNameToInstall } = await import('@pnpm/engine.pm.commands')
 
 beforeEach(async () => {
   mockPackageManager.version = '9.0.0'
@@ -1450,6 +1450,41 @@ describe('exePlatformPkgDirNameNext', () => {
   })
 })
 
+describe('findGlobalPnpmInstallDir', () => {
+  // Mirror what installPnpmToGlobalDir leaves behind: the install dir, the
+  // wrapper's manifest, and the cache-keyed symlink that makes the slot
+  // discoverable — scanGlobalPackages only looks at symlinked entries.
+  function seedGlobalInstall (pkgName: string, version: string): string {
+    const globalDir = tempDir(false)
+    const installDir = path.join(globalDir, '1')
+    const pkgDir = path.join(installDir, 'node_modules', ...pkgName.split('/'))
+    fs.mkdirSync(pkgDir, { recursive: true })
+    fs.writeFileSync(path.join(installDir, 'package.json'), JSON.stringify({ dependencies: { [pkgName]: version } }))
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: pkgName, version }))
+    fs.symlinkSync(installDir, path.join(globalDir, 'hash'), 'dir')
+    return globalDir
+  }
+
+  test('reuses a healthy cached install', async () => {
+    const globalDir = seedGlobalInstall('@pnpm/exe', '11.13.1')
+    await expect(findGlobalPnpmInstallDir(globalDir, '@pnpm/exe', '11.13.1')).resolves.toBe(path.join(globalDir, '1'))
+  })
+
+  // @pnpm/exe 11.12.0 and 11.13.0 shipped platform packages with no binary, so
+  // a cached slot for either cannot run. Rejecting them by version keeps the
+  // cache-hit path from having to spawn the engine to find that out.
+  test.each(['11.12.0', '11.13.0'])('does not reuse a cached @pnpm/exe %s, which cannot run', async (version) => {
+    // The slot is otherwise perfectly reusable: right package, right version.
+    const globalDir = seedGlobalInstall('@pnpm/exe', version)
+    await expect(findGlobalPnpmInstallDir(globalDir, '@pnpm/exe', version)).resolves.toBeUndefined()
+  })
+
+  test('only the wrapper that shipped without a binary is rejected', async () => {
+    const globalDir = seedGlobalInstall('pnpm', '11.13.0')
+    await expect(findGlobalPnpmInstallDir(globalDir, 'pnpm', '11.13.0')).resolves.toBe(path.join(globalDir, '1'))
+  })
+})
+
 describe('assertPnpmRuns', () => {
   // Build the bins the same way installPnpmToGlobalDir does, so the spawn goes
   // through the real shim linkBins writes — including the .cmd wrapper on
@@ -1488,7 +1523,7 @@ describe('assertPnpmRuns', () => {
   const posixOnlyTest = process.platform === 'win32' ? test.skip : test
 
   posixOnlyTest('describes a signal rather than a null exit code', async () => {
-    // macOS kills a binary whose signature check rejects it, so a mis-signed
+    // macOS kills a binary whose signature check rejects it, so an incorrectly signed
     // release arrives here with no exit code at all. The wording matches
     // pacquet's, which only has the code and cannot name the signal.
     const binDir = await linkFakePnpm("process.kill(process.pid, 'SIGKILL')")

@@ -36,6 +36,19 @@ import { verifyPnpmEngineIdentity, type VerifyPnpmEngineIdentityOptions } from '
 const PNPM_ALLOW_BUILDS: Record<string, boolean> = { '@pnpm/exe': true, 'pnpm': true }
 
 /**
+ * Releases that {@link assertPnpmRuns} rejects, on every platform. Listing them
+ * lets a cached install be rejected without spawning it, which keeps the
+ * cache-hit path free of that cost; both are immutable on npm and deprecated
+ * there, so the version alone settles it.
+ *
+ * Not a second safety net: {@link assertPnpmRuns} catches a broken release
+ * whether or not it is listed here.
+ */
+const BROKEN_RELEASES: Record<string, ReadonlySet<string>> = {
+  '@pnpm/exe': new Set(['11.12.0', '11.13.0']),
+}
+
+/**
  * Package name to install for a switch to `pnpmVersion`. From v12 the unscoped
  * `pnpm` is itself the native exe (equal content to `@pnpm/exe`), so v12+ always
  * converges on `pnpm`, even from a SEA `@pnpm/exe` build. Earlier majors keep
@@ -230,12 +243,8 @@ async function installPnpmToGlobalDir (
     linkExePlatformBinary(installDir, pkgName)
     await linkBins(path.join(installDir, 'node_modules'), binDir, { warn: noop })
 
-    // Nothing above proves the installed CLI can actually run: a wrapper whose
-    // platform package shipped without its native keeps the placeholder bin
-    // from the tarball, and a truncated or mis-signed binary is equally silent.
-    // Catching that here — before the caller points PNPM_HOME at this dir — is
-    // what keeps a bad release from replacing a working pnpm, and the catch
-    // below removes the directory so the next run reinstalls it.
+    // Runs here, before the caller points PNPM_HOME at this directory, so a
+    // release that cannot run is discarded instead of replacing a working pnpm.
     assertPnpmRuns(binDir, version)
 
     // Create hash symlink for the global packages system
@@ -257,22 +266,23 @@ async function installPnpmToGlobalDir (
 /**
  * Throws unless the pnpm CLI in `binDir` can execute.
  *
- * Only that it runs is asserted, not what it prints: the point is to reject an
- * executable that cannot start at all, and matching `--version` output exactly
- * would fail on anything else a release chooses to write to stdout.
+ * A release can install cleanly and still not run: a wrapper whose platform
+ * package shipped without its native keeps the placeholder bin from its own
+ * tarball, and a truncated or incorrectly signed binary is equally silent. Only that it
+ * runs is asserted, not what it prints — matching `--version` output exactly
+ * would fail on anything else a release writes to stdout.
  *
- * Spawned through cross-spawn, and by the same bare `pnpm` name the version
- * switcher spawns, so that the `.cmd` shim `linkBins` writes on Windows is
- * resolved rather than executed as a script. Exported as a test seam, since
- * reaching it through an install would mean publishing a deliberately broken
- * pnpm tarball as a fixture.
+ * Spawned through cross-spawn by the bare `pnpm` name the version switcher also
+ * uses, so the `.cmd` shim `linkBins` writes on Windows is resolved rather than
+ * executed as a script. Exported as a test seam: reaching it through an install
+ * would mean publishing a deliberately broken pnpm tarball as a fixture.
  */
 export function assertPnpmRuns (binDir: string, version: string): void {
   const pnpmBinPath = path.join(binDir, 'pnpm')
   const { status, error, stderr } = spawn.sync(pnpmBinPath, ['--version'], { encoding: 'utf8' })
   if (error == null && status === 0) return
   // A signal leaves `status` null, which macOS produces for a binary its
-  // signature check rejects — the exact shape of a mis-signed release.
+  // signature check rejects — the exact shape of an incorrectly signed release.
   const exit = status != null ? `code ${status}` : 'a signal'
   const reason = error != null
     ? error.message
@@ -289,9 +299,10 @@ export function assertPnpmRuns (binDir: string, version: string): void {
 /**
  * The install dir under `globalDir` that already holds `pkgName` at exactly
  * `version`, or `undefined` when the global install is missing, at a
- * different version, or unreadable.
+ * different version, unreadable, or a release listed in {@link BROKEN_RELEASES}.
  */
 export async function findGlobalPnpmInstallDir (globalDir: string, pkgName: string, version: string): Promise<string | undefined> {
+  if (BROKEN_RELEASES[pkgName]?.has(version)) return undefined
   const existing = findGlobalPackage(globalDir, pkgName)
   if (!existing) return undefined
   try {
