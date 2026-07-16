@@ -199,6 +199,7 @@ function makeOwnerWritableImporter (importFile: ImportFile): Importer {
 function makeOwnerWritable (filePath: string): void {
   const pathStats = lstatSync(filePath, { bigint: true })
   if (!pathStats.isFile()) throw new Error(`Cannot make non-file package entry writable: ${filePath}`)
+  if (isOwnerWritable(Number(pathStats.mode))) return
   const flags = process.platform === 'win32'
     ? constants.O_RDONLY
     : constants.O_RDONLY | constants.O_NOFOLLOW

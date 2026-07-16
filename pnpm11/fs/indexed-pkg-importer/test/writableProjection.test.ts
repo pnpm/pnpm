@@ -117,6 +117,27 @@ test.each(['plain', 'trailing-separator'] as const)(
   }
 )
 
+test('clone-or-copy imports an already writable package file', () => {
+  const tmp = tempDir()
+  const storeFile = path.join(tmp, 'store', 'index.js')
+  const importTo = path.join(tmp, 'project', 'package')
+  fs.mkdirSync(path.dirname(storeFile), { recursive: true })
+  fs.writeFileSync(storeFile, 'store contents')
+  expect(fs.statSync(storeFile).mode & 0o200).toBe(0o200)
+
+  const importPackage = createIndexedPkgImporter('clone-or-copy')
+  expect(importPackage(importTo, {
+    filesMap: new Map([['index.js', storeFile]]),
+    force: false,
+    resolvedFrom: 'store',
+  })).toMatch(/^(clone|copy)$/)
+
+  const projectedFile = path.join(importTo, 'index.js')
+  fs.writeFileSync(projectedFile, 'project mutation')
+  expect(fs.readFileSync(projectedFile, 'utf8')).toBe('project mutation')
+  expect(fs.readFileSync(storeFile, 'utf8')).toBe('store contents')
+})
+
 test('clone-or-copy replaces a private projection that became read-only', () => {
   const tmp = tempDir()
   const storeDir = path.join(tmp, 'store')
