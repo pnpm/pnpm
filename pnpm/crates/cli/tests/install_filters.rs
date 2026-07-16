@@ -338,7 +338,7 @@ fn has_link(project: &Path, name: &str) -> bool {
 }
 
 fn canonical_path(path: &Path) -> String {
-    fs::canonicalize(path)
+    dunce::canonicalize(path)
         .unwrap_or_else(|error| panic!("canonicalize {}: {error}", path.display()))
         .to_string_lossy()
         .into_owned()
