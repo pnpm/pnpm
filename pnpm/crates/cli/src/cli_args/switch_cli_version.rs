@@ -4,7 +4,7 @@ use super::{
         PACKAGE_MANAGER_SWITCH_ENV_VARS, WantedPackageManager, read_manifest_json,
         should_persist_package_manager_lockfile, version_satisfies, wanted_package_manager,
     },
-    self_update::install_pnpm::pnpm_package_to_install,
+    self_update::install_pnpm::{assert_release_is_installable, pnpm_package_to_install},
     with::{
         PackageManagerCheck,
         install_pnpm_to_store::{install_pnpm_from_env, install_pnpm_to_store},
@@ -61,6 +61,7 @@ pub(crate) async fn execute_switch(
             if version == PNPM_VERSION {
                 return Ok(false);
             }
+            assert_release_is_installable(&version)?;
             let bin_dir =
                 Box::pin(install_pnpm_from_env::<SilentReporter>(config, &env, &version)).await?;
             (version, bin_dir)
@@ -72,6 +73,7 @@ pub(crate) async fn execute_switch(
             if resolved.version == PNPM_VERSION {
                 return Ok(false);
             }
+            assert_release_is_installable(&resolved.version)?;
             let bin_dir = Box::pin(install_pnpm_to_store::<SilentReporter>(
                 config,
                 &env_root,
