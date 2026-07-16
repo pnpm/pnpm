@@ -982,10 +982,11 @@ fn unused_overrides_strips_control_characters_from_selectors() {
             level: LogLevel::Debug,
             prefix: CWD.to_string(),
             // `\u{202E}` (RIGHT-TO-LEFT OVERRIDE) and `\u{200B}` (ZERO
-            // WIDTH SPACE) cover Cf; `\x1b` (ESC) covers Cc. All must be
-            // stripped or a crafted key can visually flip / hide text
-            // or inject terminal sequences.
-            selector: "inj\u{202E}ect\u{200B}ion\x1b".to_string(),
+            // WIDTH SPACE) cover Cf; `\x1b` (ESC) covers Cc. `\u{2069}`
+            // (BIDI ISOLATE) and `\u{FEFF}` (BOM) cover the remaining
+            // Cf ranges. All must be stripped or a crafted key can
+            // visually flip / hide text or inject terminal sequences.
+            selector: "inj\u{202E}ect\u{200B}ion\u{2069}\u{FEFF}\x1b".to_string(),
         }),
         LogEvent::Stage(StageLog {
             level: LogLevel::Debug,
