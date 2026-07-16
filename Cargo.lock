@@ -4880,9 +4880,13 @@ dependencies = [
  "node-semver",
  "pacquet-lockfile",
  "pacquet-network",
+ "pacquet-reporter",
  "pacquet-resolving-resolver-base",
+ "pacquet-store-dir",
+ "pacquet-tarball",
  "pretty_assertions",
  "reqwest 0.13.4",
+ "serde_json",
  "tokio",
  "tracing",
 ]

@@ -164,15 +164,17 @@ fn run_resolve_blocking(
         retry_opts,
     });
 
+    // No fetch context on the single-resolve path for either resolver:
+    // there's no install store to extract into, so an `http(s)` tarball
+    // is claimed with its normalized URL but no bundled manifest /
+    // integrity (see the module docs), and a git dep is claimed without
+    // its archive's manifest. The install path wires the full
+    // `TarballFetchContext` / `GitFetchContext`.
     let git_resolver = GitResolver::new(
         Arc::new(RealGitProbe::new(Arc::clone(&http_client))),
         Arc::new(RealGitRunner::new()),
     );
 
-    // No fetch context on the single-resolve path: there's no install
-    // store to extract into, so an `http(s)` tarball is claimed with its
-    // normalized URL but no bundled manifest / integrity (see the module
-    // docs). The install path wires the full [`TarballFetchContext`].
     let tarball_resolver =
         TarballResolver { http_client: Arc::clone(&http_client), fetch_context: None };
 

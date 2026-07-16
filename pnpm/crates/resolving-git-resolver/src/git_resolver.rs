@@ -5,10 +5,14 @@
 use std::sync::Arc;
 
 use pacquet_lockfile::{GitResolution, LockfileResolution, TarballResolution};
+use pacquet_network::{AuthHeaders, ThrottledClient};
+use pacquet_reporter::SilentReporter;
 use pacquet_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, WantedDependency,
 };
+use pacquet_store_dir::{StoreDir, StoreIndexWriter};
+use pacquet_tarball::{FetchTarballForResolution, RetryOpts};
 
 use crate::{
     create_git_hosted_pkg_id::create_git_hosted_pkg_id,
@@ -17,6 +21,30 @@ use crate::{
     resolve_ref::{GitCommandRunner, resolve_ref},
 };
 
+/// Store/network handles [`GitResolver`] needs to read a git-hosted
+/// package's `package.json` during resolution.
+///
+/// A git host's archive endpoint is the only place a git dep's name
+/// lives — the specifier names a repo, not a package — and pacquet
+/// builds the lockfile before the install/fetch pass runs, so the name
+/// has to be read here. Mirrors the tarball resolver's remote-tarball
+/// fetch, which fills `manifest` for the same reason.
+///
+/// This fetch stops at the raw archive: the git-hosted
+/// `prepare`/`prepublish` pass and its packlist filtering stay in the
+/// install pass, so no package script runs during resolution. The
+/// install pass re-fetches the archive to run them — unlike a registry
+/// tarball, a git-hosted one can't hand its extraction over through
+/// `MemCache` (only `Registry` resolutions read it) — so a git dep
+/// costs one extra archive download per install.
+pub struct GitFetchContext {
+    pub http_client: Arc<ThrottledClient>,
+    pub store_dir: &'static StoreDir,
+    pub store_index_writer: Option<Arc<StoreIndexWriter>>,
+    pub auth_headers: Arc<AuthHeaders>,
+    pub retry_opts: RetryOpts,
+}
+
 /// Git resolver entry point. Holds the production network / git
 /// runners shared across every per-dep `resolve()` call; tests
 /// construct one with fake runners.
@@ -24,14 +52,28 @@ use crate::{
 /// `Arc` so the resolver can be cloned into the default-resolver
 /// chain without forcing the runners (whose ownership lives on the
 /// install dispatcher) into a single owner.
+///
+/// When `fetch_context` is `Some`, a git-hosted dep's archive is
+/// downloaded during resolution to fill `manifest` — see
+/// [`GitFetchContext`]. `None` (unit tests, and the resolve-only NAPI
+/// entry point) keeps the manifest-less shape.
 pub struct GitResolver<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> {
     probe: Arc<Probe>,
     runner: Arc<Runner>,
+    fetch_context: Option<GitFetchContext>,
 }
 
 impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<Probe, Runner> {
     pub fn new(probe: Arc<Probe>, runner: Arc<Runner>) -> Self {
-        Self { probe, runner }
+        Self { probe, runner, fetch_context: None }
+    }
+
+    /// Attach the store/network handles that let resolution read a
+    /// git-hosted package's name from its `package.json`.
+    #[must_use]
+    pub fn with_fetch_context(mut self, fetch_context: GitFetchContext) -> Self {
+        self.fetch_context = Some(fetch_context);
+        self
     }
 }
 
@@ -64,10 +106,44 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
         let Some(bare) = wanted_dependency.bare_specifier.as_deref() else { return Ok(None) };
         let Some(partial) = parse_bare_specifier(bare) else { return Ok(None) };
         let spec = partial.finalize(self.probe.as_ref()).await;
-        let result =
+        let mut result =
             build_resolve_result(spec, self.runner.as_ref(), wanted_dependency.alias.as_deref())
                 .await?;
+        result.manifest = self.fetch_manifest(&result).await?;
         Ok(Some(result))
+    }
+
+    /// Read the `package.json` bundled in a git-hosted package's
+    /// archive. `None` whenever the name can't be sourced this way —
+    /// no fetch context (unit tests / resolve-only callers), or a
+    /// non-hosted repo that needs a clone rather than an archive
+    /// download.
+    async fn fetch_manifest(
+        &self,
+        result: &ResolveResult,
+    ) -> Result<Option<Arc<serde_json::Value>>, ResolveError> {
+        let Some(ctx) = self.fetch_context.as_ref() else { return Ok(None) };
+        let LockfileResolution::Tarball(tarball) = &result.resolution else { return Ok(None) };
+
+        // Silent reporter: the install pass owns the
+        // `resolved → found_in_store → imported` event ordering.
+        let resolved = FetchTarballForResolution {
+            http_client: &ctx.http_client,
+            store_dir: ctx.store_dir,
+            store_index_writer: ctx.store_index_writer.clone(),
+            package_url: &tarball.tarball,
+            // A git host's archive URL is the package's only identifier
+            // at this point — its name is what this fetch is here to
+            // learn — and such archives carry no scoped-registry auth.
+            package_id: &tarball.tarball,
+            auth_headers: &ctx.auth_headers,
+            retry_opts: ctx.retry_opts,
+        }
+        .run::<SilentReporter>(None)
+        .await
+        .map_err(|err| Box::new(err) as ResolveError)?;
+
+        Ok(resolved.manifest.map(Arc::new))
     }
 
     /// Companion to [`Self::resolve_impl`].

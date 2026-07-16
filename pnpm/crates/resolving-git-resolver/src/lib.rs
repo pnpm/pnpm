@@ -14,9 +14,15 @@
 //! - [`GitResolver`] — the [`Resolver`](pacquet_resolving_resolver_base::Resolver)
 //!   impl that drives the two above, runs `git ls-remote` to pin a
 //!   commit, and emits either a `Tarball{gitHosted: true}` or `Git`
-//!   resolution.
+//!   resolution. Given a [`GitFetchContext`], it also reads the
+//!   package's name from the host archive's `package.json` — see that
+//!   type for why resolution is where that has to happen.
 //!
 //! Out of scope:
+//!
+//! - Reading the name of a `Git`-resolution dep (a private/ssh repo
+//!   with no host archive endpoint). Those need a clone rather than an
+//!   archive download, so they keep resolving without a manifest.
 //!
 //! - The `prev_specifier` short-circuit (the `currentPkg && !update`
 //!   fast path). Pacquet doesn't thread `currentPkg` through the seam
@@ -34,7 +40,7 @@ mod resolve_ref;
 mod runners;
 
 pub use create_git_hosted_pkg_id::create_git_hosted_pkg_id;
-pub use git_resolver::GitResolver;
+pub use git_resolver::{GitFetchContext, GitResolver};
 pub use hosted_git::{HostedGit, HostedGitType, HostedOpts};
 pub use parse_bare_specifier::{
     GitProbe, HostedPackageSpec, PartialSpec, ProbeFuture, parse_bare_specifier,

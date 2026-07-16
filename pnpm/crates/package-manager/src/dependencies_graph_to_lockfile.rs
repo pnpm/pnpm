@@ -14,10 +14,9 @@ use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
 use pacquet_catalogs_types::Catalogs;
 use pacquet_lockfile::{
     CatalogSnapshots, ComVer, ImporterDepVersion, Lockfile, LockfileResolution, LockfileSettings,
-    LockfileVersion, PackageKey, PackageMetadata, ParseImporterDepVersionError, ParsePkgNameError,
-    ParsePkgVerPeerError, PeerDependencyMeta, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot,
-    ResolvedCatalogEntry, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef,
-    SnapshotEntry, VersionPart,
+    LockfileVersion, PackageKey, PackageMetadata, ParseImporterDepVersionError, PeerDependencyMeta,
+    PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, ResolvedCatalogEntry,
+    ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry, VersionPart,
 };
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_deps_resolver::{DepPath, DependenciesGraph, DependenciesGraphNode};
@@ -114,23 +113,6 @@ pub enum DependenciesGraphToLockfileError {
         dep_path: String,
         #[error(source)]
         source: Box<ParseImporterDepVersionError>,
-    },
-    #[display("Git-hosted dependency path {dep_path:?} has no package name in its manifest")]
-    MissingGitHostedPackageName { dep_path: String },
-    #[display(
-        "Git-hosted dependency path {dep_path:?} has invalid package name {name:?}: {source}"
-    )]
-    InvalidGitHostedPackageName {
-        dep_path: String,
-        name: String,
-        #[error(source)]
-        source: ParsePkgNameError,
-    },
-    #[display("Failed to parse git-hosted dependency path {dep_path:?}: {source}")]
-    InvalidGitHostedPackagePath {
-        dep_path: String,
-        #[error(source)]
-        source: Box<ParsePkgVerPeerError>,
     },
 }
 
@@ -453,21 +435,20 @@ fn real_name(result: &ResolveResult) -> Option<String> {
         return Some(name_ver.name.to_string());
     }
     // `name_ver` is unset for resolutions that learn the canonical name
-    // from the fetched manifest. Read it for the two shapes whose `name@`
+    // from the fetched manifest. Read it for the shapes whose `name@`
     // prefix is stripped off the importer entry:
-    // - a remote (non-registry, non-git) http(s) tarball direct dep
-    //   (`<name>@<tarball-url>` -> `version: <url>`), and
+    // - a remote (non-registry) http(s) tarball direct dep
+    //   (`<name>@<tarball-url>` -> `version: <url>`), which a git-hosted
+    //   dep's host archive URL also is,
     // - a runtime dep (`<name>@runtime:<ver>`, a Variations resolution ->
     //   `version: runtime:<ver>`).
-    // Other manifest-only resolutions (`file:` / git) are deliberately
-    // left to the `None` path so their importer entries keep pacquet's
-    // current prefixed shape — bringing those in line is separate from
+    // `file:` resolutions are deliberately left to the `None` path so
+    // their importer entries keep pacquet's current prefixed shape —
+    // bringing those in line is separate from
     // <https://github.com/pnpm/pnpm/issues/12053>.
     let reads_name_from_manifest = match &result.resolution {
         LockfileResolution::Variations(_) => true,
-        LockfileResolution::Tarball(tarball) => {
-            tarball.git_hosted != Some(true) && is_remote_http_tarball(&tarball.tarball)
-        }
+        LockfileResolution::Tarball(tarball) => is_remote_http_tarball(&tarball.tarball),
         _ => false,
     };
     if !reads_name_from_manifest {
@@ -507,7 +488,7 @@ fn build_packages_and_snapshots(
     let mut snapshots: HashMap<PackageKey, SnapshotEntry> = HashMap::new();
 
     for node in graph.values() {
-        let Some(snapshot_key) = package_key(node)? else { continue };
+        let Ok(snapshot_key) = node.dep_path.as_str().parse::<PackageKey>() else { continue };
         let metadata_key = snapshot_key.without_peer();
 
         let snapshot = build_snapshot_entry(node, graph, optional_overrides);
@@ -519,47 +500,6 @@ fn build_packages_and_snapshots(
     }
 
     Ok((packages, snapshots))
-}
-
-// Build the lockfile key for a graph node. Registry dep paths already include
-// the package name, while git-hosted dep paths need the name reported by the
-// resolved manifest prepended to their bare tarball URL.
-fn package_key(
-    node: &DependenciesGraphNode,
-) -> Result<Option<PackageKey>, DependenciesGraphToLockfileError> {
-    if let Ok(key) = node.dep_path.as_str().parse::<PackageKey>() {
-        return Ok(Some(key));
-    }
-    if !matches!(
-        &node.resolve_result.resolution,
-        LockfileResolution::Tarball(tarball) if tarball.git_hosted == Some(true),
-    ) {
-        return Ok(None);
-    }
-    let dep_path = node.dep_path.to_string();
-    let manifest_name = node
-        .resolve_result
-        .manifest
-        .as_ref()
-        .and_then(|manifest| manifest.get("name"))
-        .and_then(Value::as_str)
-        .ok_or_else(|| DependenciesGraphToLockfileError::MissingGitHostedPackageName {
-            dep_path: dep_path.clone(),
-        })?;
-    let name = manifest_name.parse().map_err(|source| {
-        DependenciesGraphToLockfileError::InvalidGitHostedPackageName {
-            dep_path: dep_path.clone(),
-            name: manifest_name.to_string(),
-            source,
-        }
-    })?;
-    let suffix = node.dep_path.as_str().parse::<PkgVerPeer>().map_err(|source| {
-        DependenciesGraphToLockfileError::InvalidGitHostedPackagePath {
-            dep_path,
-            source: Box::new(source),
-        }
-    })?;
-    Ok(Some(PackageKey::new(name, suffix)))
 }
 
 /// Build the per-`(name, version)` [`PackageMetadata`] block for the

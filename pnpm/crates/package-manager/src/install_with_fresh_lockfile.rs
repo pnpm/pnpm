@@ -29,7 +29,7 @@ use pacquet_resolving_default_resolver::DefaultResolver;
 use pacquet_resolving_deps_resolver::{
     ManifestHook, ResolveDependencyTreeError, ResolveImporterError, ResolveImporterOptions,
 };
-use pacquet_resolving_git_resolver::{GitResolver, RealGitProbe, RealGitRunner};
+use pacquet_resolving_git_resolver::{GitFetchContext, GitResolver, RealGitProbe, RealGitRunner};
 use pacquet_resolving_local_resolver::{
     LocalPathResolver, LocalResolverContext, LocalSchemeResolver,
 };
@@ -678,10 +678,22 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             filter_metadata: full_metadata,
             retry_opts: crate::retry_config::retry_opts_from_config(config),
         });
+        // A git dep's specifier names a repo, not a package, so its
+        // name — the `<name>@` half of every lockfile key it reaches —
+        // is only readable from the `package.json` in the host's
+        // archive. Hand the resolver the handles to fetch it, on the
+        // same rationale as the remote-tarball fetch below.
         let git_resolver = GitResolver::new(
             Arc::new(RealGitProbe::new(Arc::clone(&http_client_arc))),
             Arc::new(RealGitRunner::new()),
-        );
+        )
+        .with_fetch_context(GitFetchContext {
+            http_client: Arc::clone(&http_client_arc),
+            store_dir,
+            store_index_writer: Some(Arc::clone(&store_index_writer)),
+            auth_headers: Arc::clone(&auth_headers),
+            retry_opts: crate::retry_config::retry_opts_from_config(config),
+        });
         // A remote (non-registry) tarball *direct* dependency carries no
         // name/version/integrity at resolve time — they live in the
         // tarball's `package.json`. The resolver downloads + extracts it
