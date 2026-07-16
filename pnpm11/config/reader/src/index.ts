@@ -201,6 +201,7 @@ export async function getConfig (opts: {
     'recursive-install': true,
     registry: npmDefaults.registry,
     'block-exotic-subdeps': true,
+    'warn-unused-overrides': true,
     'resolution-mode': 'highest',
     'resolve-peers-from-workspace-root': true,
     'save-peer': false,

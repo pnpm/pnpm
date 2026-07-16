@@ -93,6 +93,7 @@ fn create_config(
         ignore_compatibility_db: false,
         resolve_peers_from_workspace_root: false,
         block_exotic_subdeps: false,
+        warn_unused_overrides: true,
         verify_store_integrity: true,
         frozen_store: false,
         force: false,

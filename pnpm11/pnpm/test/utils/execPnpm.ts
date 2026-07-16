@@ -20,7 +20,7 @@ const TIMEOUT_FOR_GRACEFUL_EXIT = 10 * 1000 // 10s
 export async function execPnpm (
   args: string[],
   opts?: {
-    env: Record<string, string>
+    env?: Record<string, string>
     storeDir?: string
     timeout?: number // timeout in ms
   }

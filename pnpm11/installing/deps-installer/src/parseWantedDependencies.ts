@@ -14,6 +14,7 @@ export function parseWantedDependencies (
     optional: boolean
     optionalDependencies: Dependencies
     overrides?: Record<string, string>
+    onOverrideApplied?: (selector: string) => void
     updateWorkspaceDependencies?: boolean
     preferredSpecs?: Record<string, string>
     saveCatalogName?: string
@@ -59,6 +60,7 @@ export function parseWantedDependencies (
         }
       }
       if (alias && opts.overrides?.[alias]) {
+        opts.onOverrideApplied?.(alias)
         return {
           ...result,
           bareSpecifier: opts.overrides[alias],

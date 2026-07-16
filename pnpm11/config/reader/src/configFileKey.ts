@@ -54,6 +54,7 @@ export const pnpmConfigFileKeys = [
   'prefer-offline',
   'prefer-symlinked-executables',
   'block-exotic-subdeps',
+  'warn-unused-overrides',
   'registry-supports-time-field',
   'reporter',
   'resolution-mode',
