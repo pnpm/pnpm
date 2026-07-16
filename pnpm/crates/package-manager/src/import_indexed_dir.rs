@@ -624,17 +624,36 @@ fn restore_preserved_node_modules(
 }
 
 fn merge_modules_dirs(src: &Path, dest: &Path) -> io::Result<()> {
+    for collision in move_missing_entries(src, dest)? {
+        if !collision.to_string_lossy().starts_with('@') {
+            continue;
+        }
+        let src_scope = src.join(&collision);
+        let dest_scope = dest.join(&collision);
+        if fs::symlink_metadata(&src_scope)?.file_type().is_dir()
+            && fs::symlink_metadata(&dest_scope)?.file_type().is_dir()
+        {
+            move_missing_entries(&src_scope, &dest_scope)?;
+        }
+    }
+    Ok(())
+}
+
+fn move_missing_entries(src: &Path, dest: &Path) -> io::Result<Vec<std::ffi::OsString>> {
     fs::create_dir_all(dest)?;
     let dest_files = fs::read_dir(dest)?
         .map(|entry| entry.map(|entry| entry.file_name()))
         .collect::<io::Result<HashSet<_>>>()?;
+    let mut collisions = Vec::new();
     for entry in fs::read_dir(src)? {
         let entry = entry?;
-        if !dest_files.contains(&entry.file_name()) {
+        if dest_files.contains(&entry.file_name()) {
+            collisions.push(entry.file_name());
+        } else {
             fs::rename(entry.path(), dest.join(entry.file_name()))?;
         }
     }
-    Ok(())
+    Ok(collisions)
 }
 
 /// Emit a warning that the staging directory is being left in place

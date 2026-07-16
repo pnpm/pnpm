@@ -313,10 +313,25 @@ function renameEvenAcrossDevices (src: string, dest: string): void {
 }
 
 function mergeModulesDirs (src: string, dest: string): void {
-  const srcFiles = fs.readdirSync(src)
-  const destFiles = new Set(fs.readdirSync(dest))
-  const filesToMove = srcFiles.filter((file) => !destFiles.has(file))
-  for (const file of filesToMove) {
-    renameEvenAcrossDevices(path.join(src, file), path.join(dest, file))
+  for (const collision of moveMissingEntries(src, dest)) {
+    if (!collision.startsWith('@')) continue
+    const srcScope = path.join(src, collision)
+    const destScope = path.join(dest, collision)
+    if (fs.lstatSync(srcScope).isDirectory() && fs.lstatSync(destScope).isDirectory()) {
+      moveMissingEntries(srcScope, destScope)
+    }
   }
+}
+
+function moveMissingEntries (src: string, dest: string): string[] {
+  const destFiles = new Set(fs.readdirSync(dest))
+  const collisions: string[] = []
+  for (const file of fs.readdirSync(src)) {
+    if (destFiles.has(file)) {
+      collisions.push(file)
+    } else {
+      renameEvenAcrossDevices(path.join(src, file), path.join(dest, file))
+    }
+  }
+  return collisions
 }

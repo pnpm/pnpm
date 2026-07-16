@@ -561,13 +561,22 @@ fn bundled_dependencies_merge_with_preserved_node_modules() {
     fs::create_dir_all(&src_root).unwrap();
     let regular = write_source(&src_root, "a.txt", b"top");
     let inside_nm = write_source(&src_root, "b.txt", b"shipped-nm");
-    let cas = cas_map(&[("package.json", regular), ("node_modules/foo/index.js", inside_nm)]);
+    let scoped = write_source(&src_root, "scoped.js", b"scoped-bundled");
+    let cas = cas_map(&[
+        ("package.json", regular),
+        ("node_modules/foo/index.js", inside_nm),
+        ("node_modules/@scope/bundled/index.js", scoped),
+    ]);
 
     let target = tmp.path().join("pkg");
     fs::create_dir_all(target.join("node_modules/existing")).unwrap();
     fs::write(target.join("node_modules/existing/keep.js"), b"survivor").unwrap();
     fs::create_dir_all(target.join("node_modules/foo")).unwrap();
     fs::write(target.join("node_modules/foo/index.js"), b"stale").unwrap();
+    fs::create_dir_all(target.join("node_modules/@scope/preserved")).unwrap();
+    fs::write(target.join("node_modules/@scope/preserved/index.js"), b"scoped-preserved").unwrap();
+    fs::create_dir_all(target.join("node_modules/@scope/bundled")).unwrap();
+    fs::write(target.join("node_modules/@scope/bundled/index.js"), b"scoped-stale").unwrap();
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -586,6 +595,14 @@ fn bundled_dependencies_merge_with_preserved_node_modules() {
 
     assert_eq!(fs::read(target.join("node_modules/existing/keep.js")).unwrap(), b"survivor");
     assert_eq!(fs::read(target.join("node_modules/foo/index.js")).unwrap(), b"shipped-nm");
+    assert_eq!(
+        fs::read(target.join("node_modules/@scope/bundled/index.js")).unwrap(),
+        b"scoped-bundled",
+    );
+    assert_eq!(
+        fs::read(target.join("node_modules/@scope/preserved/index.js")).unwrap(),
+        b"scoped-preserved",
+    );
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
