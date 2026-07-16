@@ -597,6 +597,9 @@ fn modified_manifests_match_lockfile(
     }
 
     let linked_ctx = LinkedPackagesContext::new(config, project_manifests);
+    let ignored_optional_matcher = pacquet_config::matcher::create_matcher(
+        config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
+    );
     for project in to_check {
         let importer_id =
             pacquet_workspace::importer_id_from_root_dir(workspace_root, project.root_dir);
@@ -604,7 +607,7 @@ fn modified_manifests_match_lockfile(
             wanted,
             project.manifest,
             &importer_id,
-            config,
+            &ignored_optional_matcher,
             parsed_overrides.as_deref(),
         ) {
             tracing::debug!(target: "pacquet::install", %error, importer_id, "repeat-install content check: manifest no longer satisfied");

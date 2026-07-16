@@ -813,10 +813,12 @@ where
                 current_lockfile.as_ref().and_then(|current| {
                     check_lockfile_freshness(
                         current,
-                        manifest,
+                        &workspace_root,
+                        &project_manifests,
                         config,
                         &catalogs,
                         ignore_manifest_check,
+                        true,
                     )
                     .ok()
                     .map(|()| current.clone())
@@ -956,10 +958,18 @@ where
             // Run the freshness gates; on failure surface a fatal
             // InstallError via `FreshnessCheckError`'s `From` impl.
             // The check is run for its side effect (the typed
-            // outcome) — the borrowed lockfile / manifest are consumed
+            // outcome) — the borrowed lockfile / manifests are consumed
             // again inside the frozen branch below.
-            check_lockfile_freshness(lockfile, manifest, config, &catalogs, ignore_manifest_check)
-                .map_err(InstallError::from)?;
+            check_lockfile_freshness(
+                lockfile,
+                &workspace_root,
+                &project_manifests,
+                config,
+                &catalogs,
+                ignore_manifest_check,
+                false,
+            )
+            .map_err(InstallError::from)?;
             true
         } else if update_checksums {
             false
@@ -974,10 +984,12 @@ where
             if prefer_frozen_lockfile {
                 match check_lockfile_freshness(
                     lockfile,
-                    manifest,
+                    &workspace_root,
+                    &project_manifests,
                     config,
                     &catalogs,
                     ignore_manifest_check,
+                    true,
                 ) {
                     // Even an up-to-date lockfile may not go frozen: a
                     // custom resolver's `shouldRefreshResolution` can
@@ -1778,10 +1790,12 @@ where
 /// `ignoredOptionalDependencies`) still runs.
 fn check_lockfile_freshness(
     lockfile: &Lockfile,
-    manifest: &PackageManifest,
+    workspace_root: &Path,
+    project_manifests: &[(PathBuf, &PackageManifest)],
     config: &Config,
     catalogs: &Catalogs,
     ignore_manifest_check: bool,
+    allow_missing_dependency_free_importers: bool,
 ) -> Result<(), FreshnessCheckError> {
     let parsed_overrides_opt = parse_config_overrides(config, catalogs)?;
     check_lockfile_settings_drift(lockfile, config, catalogs, parsed_overrides_opt.as_deref())?;
@@ -1790,17 +1804,26 @@ fn check_lockfile_freshness(
         return Ok(());
     }
 
-    // Pacquet has only one importer today (<https://github.com/pnpm/pacquet/issues/431> tracks workspaces),
-    // so the root project is the only thing to verify; once
-    // workspaces land this becomes a per-project loop over
-    // `lockfile.importers`.
-    check_importer_satisfies(
-        lockfile,
-        manifest,
-        Lockfile::ROOT_IMPORTER_KEY,
-        config,
-        parsed_overrides_opt.as_deref(),
-    )
+    let ignored_optional_matcher = pacquet_config::matcher::create_matcher(
+        config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
+    );
+    for (project_dir, manifest) in project_manifests {
+        let importer_id = pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir);
+        if allow_missing_dependency_free_importers
+            && !lockfile.importers.contains_key(&importer_id)
+            && !manifest_has_effective_dependencies(manifest, &ignored_optional_matcher)
+        {
+            continue;
+        }
+        check_importer_satisfies(
+            lockfile,
+            manifest,
+            &importer_id,
+            &ignored_optional_matcher,
+            parsed_overrides_opt.as_deref(),
+        )?;
+    }
+    Ok(())
 }
 
 /// Parse `pnpm.overrides` from the config. Values can use the
@@ -1864,7 +1887,7 @@ pub(crate) fn check_importer_satisfies(
     lockfile: &Lockfile,
     manifest: &PackageManifest,
     importer_id: &str,
-    config: &Config,
+    ignored_optional_matcher: &pacquet_config::matcher::Matcher,
     parsed_overrides: Option<&[pacquet_config_parse_overrides::VersionOverride]>,
 ) -> Result<(), FreshnessCheckError> {
     let importer = lockfile
@@ -1901,23 +1924,39 @@ pub(crate) fn check_importer_satisfies(
     // optionalDependencies AND matched") rather than pure pattern
     // matching. `devDependencies` is untouched on purpose; the group
     // gate inside `satisfies_package_manifest` enforces that.
-    let ignored_set: std::collections::HashSet<String> = config
-        .ignored_optional_dependencies
-        .as_deref()
-        .filter(|patterns| !patterns.is_empty())
-        .map(|patterns| {
-            let matcher = pacquet_config::matcher::create_matcher(patterns);
-            manifest_for_freshness
-                .dependencies([pacquet_package_manifest::DependencyGroup::Optional])
-                .filter(|(name, _)| matcher.matches(name))
-                .map(|(name, _)| name.to_string())
-                .collect()
-        })
-        .unwrap_or_default();
+    let ignored_set =
+        ignored_optional_dependency_names(manifest_for_freshness, ignored_optional_matcher);
     let is_ignored_optional: &dyn Fn(&str) -> bool = &|name: &str| ignored_set.contains(name);
 
-    satisfies_package_manifest(importer, manifest_for_freshness, importer_id, is_ignored_optional)
+    satisfies_package_manifest(importer, manifest_for_freshness, is_ignored_optional)
         .map_err(FreshnessCheckError::Stale)
+}
+
+fn ignored_optional_dependency_names(
+    manifest: &PackageManifest,
+    matcher: &pacquet_config::matcher::Matcher,
+) -> std::collections::HashSet<String> {
+    manifest
+        .dependencies([pacquet_package_manifest::DependencyGroup::Optional])
+        .filter(|(name, _)| matcher.matches(name))
+        .map(|(name, _)| name.to_string())
+        .collect()
+}
+
+fn manifest_has_effective_dependencies(
+    manifest: &PackageManifest,
+    ignored_optional_matcher: &pacquet_config::matcher::Matcher,
+) -> bool {
+    if manifest.dependencies([pacquet_package_manifest::DependencyGroup::Dev]).next().is_some() {
+        return true;
+    }
+    let ignored = ignored_optional_dependency_names(manifest, ignored_optional_matcher);
+    manifest
+        .dependencies([
+            pacquet_package_manifest::DependencyGroup::Prod,
+            pacquet_package_manifest::DependencyGroup::Optional,
+        ])
+        .any(|(name, _)| !ignored.contains(name))
 }
 
 /// Outcome of [`check_lockfile_freshness`]. Splits "user

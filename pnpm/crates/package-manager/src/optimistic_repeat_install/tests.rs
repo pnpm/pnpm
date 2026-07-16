@@ -1,7 +1,7 @@
 use super::{
-    Decision, FileMtime, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
-    current_settings, current_settings_with_catalogs, lockfile_modified_since,
-    modified_at_or_after,
+    Decision, FileMtime, LinkedPackagesContext, OptimisticRepeatInstallCheck,
+    check_optimistic_repeat_install, current_settings, current_settings_with_catalogs,
+    linked_packages_are_up_to_date, lockfile_modified_since, modified_at_or_after,
 };
 use indexmap::IndexMap;
 use pacquet_catalogs_types::Catalogs;
@@ -2018,11 +2018,32 @@ fn workspace_content_check_refreshes_last_validated_timestamp() {
 /// range, and a bump outside the range falls through to the full
 /// install.
 fn linked_sibling_decision(sibling_version: &str) -> Decision {
+    linked_sibling_decision_for_spec(
+        "pkg-a",
+        "^1.0.0",
+        "link:pkg-a",
+        sibling_version,
+        pacquet_config::LinkWorkspacePackages::DirectOnly,
+    )
+}
+
+fn linked_sibling_decision_for_spec(
+    dependency_name: &str,
+    specifier: &str,
+    lockfile_ref: &str,
+    sibling_version: &str,
+    link_workspace_packages: pacquet_config::LinkWorkspacePackages,
+) -> Decision {
     let dir = tempdir().unwrap();
     let workspace_root = dir.path();
     fs::write(
         workspace_root.join("package.json"),
-        r#"{"name":"root","version":"1.0.0","devDependencies":{"pkg-a":"^1.0.0"}}"#,
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "devDependencies": { (dependency_name): specifier },
+        })
+        .to_string(),
     )
     .unwrap();
     let sibling_dir = workspace_root.join("pkg-a");
@@ -2034,25 +2055,27 @@ fn linked_sibling_decision(sibling_version: &str) -> Decision {
     .unwrap();
     fs::write(
         workspace_root.join(Lockfile::FILE_NAME),
-        "lockfileVersion: '9.0'
+        format!(
+            "lockfileVersion: '9.0'
 
 importers:
 
   .:
     devDependencies:
-      pkg-a:
-        specifier: ^1.0.0
-        version: link:pkg-a
+      {dependency_name}:
+        specifier: {specifier}
+        version: {lockfile_ref}
 
-  pkg-a: {}
+  pkg-a: {{}}
 ",
+        ),
     )
     .unwrap();
 
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     config.virtual_store_dir = workspace_root.join("node_modules/.pnpm");
-    config.link_workspace_packages = pacquet_config::LinkWorkspacePackages::DirectOnly;
+    config.link_workspace_packages = link_workspace_packages;
     fs::create_dir_all(&config.modules_dir).unwrap();
     let config = config.leak();
 
@@ -2077,7 +2100,12 @@ importers:
     // Touch the root manifest so the content re-check runs.
     fs::write(
         workspace_root.join("package.json"),
-        r#"{"name":"root","version":"1.0.0","devDependencies":{"pkg-a":"^1.0.0"}}"#,
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "devDependencies": { (dependency_name): specifier },
+        })
+        .to_string(),
     )
     .unwrap();
     let root_manifest_touched =
@@ -2112,6 +2140,105 @@ fn returns_skipped_when_linked_sibling_no_longer_satisfies_range() {
         matches!(decision, Decision::Skipped { reason } if reason.contains("linked")),
         "expected Skipped(linked package out of date), got {decision:?}",
     );
+}
+
+#[test]
+fn returns_up_to_date_when_aliased_workspace_dependency_satisfies_range() {
+    assert_eq!(
+        linked_sibling_decision_for_spec(
+            "alias",
+            "npm:pkg-a@^1.0.0",
+            "link:pkg-a",
+            "1.5.0",
+            pacquet_config::LinkWorkspacePackages::DirectOnly,
+        ),
+        Decision::UpToDate,
+    );
+}
+
+#[test]
+fn returns_skipped_when_aliased_workspace_dependency_version_is_outdated() {
+    let decision = linked_sibling_decision_for_spec(
+        "alias",
+        "npm:pkg-a@^1.0.0",
+        "link:pkg-a",
+        "2.0.0",
+        pacquet_config::LinkWorkspacePackages::DirectOnly,
+    );
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("linked")),
+        "expected Skipped(linked package out of date), got {decision:?}",
+    );
+}
+
+#[test]
+fn returns_up_to_date_when_linked_workspace_dependency_uses_a_tag() {
+    assert_eq!(
+        linked_sibling_decision_for_spec(
+            "pkg-a",
+            "unpublished-tag",
+            "link:pkg-a",
+            "1.0.0",
+            pacquet_config::LinkWorkspacePackages::DirectOnly,
+        ),
+        Decision::UpToDate,
+    );
+}
+
+#[test]
+fn returns_up_to_date_for_registry_resolution_when_workspace_linking_is_off() {
+    assert_eq!(
+        linked_sibling_decision_for_spec(
+            "pkg-a",
+            "1.0.0",
+            "1.0.0",
+            "1.0.0",
+            pacquet_config::LinkWorkspacePackages::Off,
+        ),
+        Decision::UpToDate,
+    );
+}
+
+#[test]
+fn injected_self_reference_resolved_as_link_is_up_to_date() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let sibling_dir = workspace_root.join("pkg-a");
+    fs::create_dir_all(&sibling_dir).unwrap();
+    fs::write(
+        workspace_root.join("package.json"),
+        r#"{"name":"root","version":"1.0.0","dependencies":{"pkg-a":"file:pkg-a"}}"#,
+    )
+    .unwrap();
+    fs::write(sibling_dir.join("package.json"), r#"{"name":"pkg-a","version":"1.0.0"}"#).unwrap();
+    let root_manifest = PackageManifest::from_path(workspace_root.join("package.json")).unwrap();
+    let sibling_manifest = PackageManifest::from_path(sibling_dir.join("package.json")).unwrap();
+    let lockfile: Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      pkg-a:
+        specifier: file:pkg-a
+        version: link:pkg-a
+
+  pkg-a: {}
+",
+    )
+    .unwrap();
+    let config = Config::new();
+    let project_manifests =
+        [(workspace_root.to_path_buf(), &root_manifest), (sibling_dir, &sibling_manifest)];
+    let context = LinkedPackagesContext::new(&config, &project_manifests);
+
+    assert!(linked_packages_are_up_to_date(
+        &context,
+        workspace_root,
+        &root_manifest,
+        lockfile.root_project().unwrap(),
+    ));
 }
 
 /// `pnpm-lock.yaml` deleted while `node_modules` (and its current

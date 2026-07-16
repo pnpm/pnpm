@@ -56,7 +56,7 @@ fn matching_manifest_and_lockfile_satisfies() {
         }
     }"#,
     );
-    assert!(satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false).is_ok());
+    assert!(satisfies_package_manifest(importer, &manifest, &|_: &str| false).is_ok());
 }
 
 #[test]
@@ -82,7 +82,7 @@ fn manifest_adds_dep_returns_specifier_diff() {
         }
     }"#,
     );
-    let err = satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false)
+    let err = satisfies_package_manifest(importer, &manifest, &|_: &str| false)
         .expect_err("should be stale");
     let StalenessReason::SpecifiersDiffer(diff) = err else {
         panic!("expected SpecifiersDiffer, got {err:?}");
@@ -117,7 +117,7 @@ fn manifest_drops_dep_returns_specifier_diff() {
         }
     }"#,
     );
-    let err = satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false)
+    let err = satisfies_package_manifest(importer, &manifest, &|_: &str| false)
         .expect_err("should be stale");
     let StalenessReason::SpecifiersDiffer(diff) = err else {
         panic!("expected SpecifiersDiffer, got {err:?}");
@@ -147,7 +147,7 @@ fn manifest_bumps_specifier_returns_specifier_diff() {
         }
     }"#,
     );
-    let err = satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false)
+    let err = satisfies_package_manifest(importer, &manifest, &|_: &str| false)
         .expect_err("should be stale");
     let StalenessReason::SpecifiersDiffer(diff) = err else {
         panic!("expected SpecifiersDiffer, got {err:?}");
@@ -187,7 +187,7 @@ fn matching_across_all_three_dep_fields_satisfies() {
         "optionalDependencies": { "fsevents": "^2.0.0" }
     }"#,
     );
-    assert!(satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false).is_ok());
+    assert!(satisfies_package_manifest(importer, &manifest, &|_: &str| false).is_ok());
 }
 
 /// Lockfile has no `importers["."]` entry — even though pacquet's
@@ -230,7 +230,7 @@ fn dep_moves_between_fields_returns_dep_specifier_mismatch() {
         "dependencies": { "typescript": "^5.0.0" }
     }"#,
     );
-    let err = satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false)
+    let err = satisfies_package_manifest(importer, &manifest, &|_: &str| false)
         .expect_err("should be stale");
     assert!(
         matches!(err, StalenessReason::DepSpecifierMismatch { .. }),
@@ -280,7 +280,7 @@ fn cross_field_swap_with_same_cardinalities_caught_by_per_field_check() {
         "devDependencies": { "react": "^17.0.2" }
     }"#,
     );
-    let err = satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false)
+    let err = satisfies_package_manifest(importer, &manifest, &|_: &str| false)
         .expect_err("should be stale");
     assert!(
         matches!(err, StalenessReason::DepSpecifierMismatch { .. }),
@@ -312,7 +312,7 @@ fn publish_directory_mismatch_returns_publish_directory_mismatch() {
         "dependencies": { "react": "^17.0.2" }
     }"#,
     );
-    let err = satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false)
+    let err = satisfies_package_manifest(importer, &manifest, &|_: &str| false)
         .expect_err("should be stale");
     assert!(
         matches!(err, StalenessReason::PublishDirectoryMismatch { .. }),
@@ -343,7 +343,7 @@ fn dependencies_meta_mismatch_returns_dependencies_meta_mismatch() {
         "dependencies": { "foo": "^1.0.0" }
     }"#,
     );
-    let err = satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false)
+    let err = satisfies_package_manifest(importer, &manifest, &|_: &str| false)
         .expect_err("should be stale");
     assert!(
         matches!(err, StalenessReason::DependenciesMetaMismatch { .. }),
@@ -415,7 +415,7 @@ fn dependencies_meta_empty_object_equivalent_to_absent() {
         "dependenciesMeta": {}
     }"#,
     );
-    assert!(satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false).is_ok());
+    assert!(satisfies_package_manifest(importer, &manifest, &|_: &str| false).is_ok());
 }
 
 #[test]
@@ -440,7 +440,7 @@ fn publish_directory_match_satisfies() {
         "dependencies": { "foo": "1.0.0" }
     }"#,
     );
-    assert!(satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false).is_ok());
+    assert!(satisfies_package_manifest(importer, &manifest, &|_: &str| false).is_ok());
 }
 
 #[test]
@@ -465,7 +465,7 @@ fn same_dep_in_prod_and_dev_counts_under_prod() {
     }"#,
     );
     assert!(
-        satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false).is_ok(),
+        satisfies_package_manifest(importer, &manifest, &|_: &str| false).is_ok(),
         "manifest listing foo in prod+dev must satisfy a lockfile that records it under prod only",
     );
 }
@@ -492,7 +492,7 @@ fn same_dep_in_prod_and_optional_counts_under_optional() {
     }"#,
     );
     assert!(
-        satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false).is_ok(),
+        satisfies_package_manifest(importer, &manifest, &|_: &str| false).is_ok(),
         "manifest listing foo in prod+optional must satisfy a lockfile that records it under optional only",
     );
 }
@@ -518,7 +518,40 @@ fn importer_empty_dev_dependencies_equivalent_to_absent() {
         "dependencies": { "foo": "^1.0.0" }
     }"#,
     );
-    assert!(satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false).is_ok());
+    assert!(satisfies_package_manifest(importer, &manifest, &|_: &str| false).is_ok());
+}
+
+#[test]
+fn resolved_version_outside_manifest_range_is_stale() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies:"
+        "      '@apollo/client':"
+        "        specifier: 3.3.7"
+        "        version: 3.13.8"
+    })
+    .expect("parse fixture lockfile");
+    let importer = lockfile.root_project().expect("root importer present");
+    let (_dir, manifest) = manifest_from_json(
+        r#"{
+        "name": "x",
+        "version": "1.0.0",
+        "dependencies": { "@apollo/client": "3.3.7" }
+    }"#,
+    );
+
+    let err = satisfies_package_manifest(importer, &manifest, &|_: &str| false)
+        .expect_err("a broken direct resolution must be stale");
+    assert_eq!(
+        err,
+        StalenessReason::ResolutionDoesNotSatisfy {
+            name: "@apollo/client".to_string(),
+            version: "3.13.8".to_string(),
+            range: "3.3.7".to_string(),
+        },
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1296,7 +1329,7 @@ fn ignored_optional_filtered_out_of_manifest_diff() {
     }"#,
     );
     let is_ignored: &dyn Fn(&str) -> bool = &|name: &str| name == "foo";
-    assert!(satisfies_package_manifest(importer, &manifest, ".", is_ignored).is_ok());
+    assert!(satisfies_package_manifest(importer, &manifest, is_ignored).is_ok());
 }
 
 /// Polarity: without the filter the same fixture must fail.
@@ -1323,7 +1356,7 @@ fn ignored_optional_without_filter_surfaces_as_drift() {
         "optionalDependencies": { "foo": "^1.0.0" }
     }"#,
     );
-    let err = satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false)
+    let err = satisfies_package_manifest(importer, &manifest, &|_: &str| false)
         .expect_err("without the filter the manifest's extra `foo` must surface as drift");
     assert!(
         matches!(err, StalenessReason::SpecifiersDiffer(_)),
@@ -1377,7 +1410,7 @@ fn ignored_optional_does_not_apply_to_dev_dependencies() {
     }"#,
     );
     let is_ignored: &dyn Fn(&str) -> bool = &|name: &str| name == "foo";
-    assert!(satisfies_package_manifest(importer, &manifest, ".", is_ignored).is_ok());
+    assert!(satisfies_package_manifest(importer, &manifest, is_ignored).is_ok());
 }
 
 /// Pins the group gate: removing the `matches!(... Prod | Optional)`
@@ -1404,5 +1437,5 @@ fn ignored_optional_dev_only_lockfile_entry_kept() {
     }"#,
     );
     let is_ignored: &dyn Fn(&str) -> bool = &|name: &str| name == "foo";
-    assert!(satisfies_package_manifest(importer, &manifest, ".", is_ignored).is_ok());
+    assert!(satisfies_package_manifest(importer, &manifest, is_ignored).is_ok());
 }
