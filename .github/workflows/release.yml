@@ -262,6 +262,38 @@ jobs:
           file "$smoke_dir/node_modules/@pnpm/exe/pnpm"
           "$smoke_dir/node_modules/@pnpm/exe/pnpm" --version
 
+      - name: Archive verified TypeScript release build
+        run: |
+          tar -czf "$RUNNER_TEMP/typescript-pnpm-release-build.tar.gz" \
+            pnpm11/pnpm/dist \
+            pnpm11/pnpm/package.json \
+            pnpm11/pnpm/artifacts/exe/dist \
+            pnpm11/pnpm/artifacts/exe/pn \
+            pnpm11/pnpm/artifacts/exe/pn.cmd \
+            pnpm11/pnpm/artifacts/exe/pn.ps1 \
+            pnpm11/pnpm/artifacts/exe/pnpm \
+            pnpm11/pnpm/artifacts/exe/pnpx \
+            pnpm11/pnpm/artifacts/exe/pnpx.cmd \
+            pnpm11/pnpm/artifacts/exe/pnpx.ps1 \
+            pnpm11/pnpm/artifacts/exe/pnx \
+            pnpm11/pnpm/artifacts/exe/pnx.cmd \
+            pnpm11/pnpm/artifacts/exe/pnx.ps1 \
+            pnpm11/pnpm/artifacts/darwin-arm64/pnpm \
+            pnpm11/pnpm/artifacts/linux-arm64/pnpm \
+            pnpm11/pnpm/artifacts/linux-arm64-musl/pnpm \
+            pnpm11/pnpm/artifacts/linux-x64/pnpm \
+            pnpm11/pnpm/artifacts/linux-x64-musl/pnpm \
+            pnpm11/pnpm/artifacts/win32-arm64/pnpm.exe \
+            pnpm11/pnpm/artifacts/win32-x64/pnpm.exe
+      - name: Upload verified TypeScript release build
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: typescript-pnpm-release-build
+          path: ${{ runner.temp }}/typescript-pnpm-release-build.tar.gz
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 1
+
   release:
     name: Release the TypeScript pnpm CLI
     needs:
@@ -289,20 +321,24 @@ jobs:
           runtime: node@26.5.0
       - name: Override workspace ignores for the TypeScript pnpm package
         run: ': > pnpm11/pnpm/.npmignore'
+      - name: Download verified TypeScript release build
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: typescript-pnpm-release-build
+          path: ${{ runner.temp }}
+      - name: Restore verified TypeScript release build
+        run: tar -xzf "$RUNNER_TEMP/typescript-pnpm-release-build.tar.gz"
       # The publish phase is split into three sequential steps to control which packages
       # use trusted publishing (OIDC) vs. a static token. `pnpm publish` currently bails
       # out of OIDC as soon as a static `_authToken` is configured, so the only way to
       # force trusted publishing for a given package today is to run its publish in a
       # step that doesn't have NPM_TOKEN set. See https://github.com/pnpm/pnpm/pull/11495
       # for the longer-term fix that lets OIDC override a configured token.
-      - name: Build TypeScript executable artifacts
-        run: pn --filter=@pnpm/exe run build-artifacts
-
       - name: Publish @pnpm/exe (trusted publishing)
         # No NPM_TOKEN: pnpm has no static token to short-circuit on, so it will perform
         # the OIDC token exchange against npm's trusted-publishing config for `@pnpm/exe`.
         run: |
-          pn --filter=@pnpm/exe publish --tag=next-11 --access=public --provenance
+          pn --filter=@pnpm/exe publish --tag=next-11 --access=public --provenance --ignore-scripts
       - name: Publish internal workspace packages (static token)
         # The other workspace packages don't have trusted publishing configured on npm,
         # so we still need a static token here. The token is removed from pnpm's config
@@ -321,7 +357,7 @@ jobs:
       - name: Publish pnpm CLI (trusted publishing)
         # No NPM_TOKEN — same rationale as the @pnpm/exe step above. This must come after
         # the previous step has cleared its NPM_TOKEN from pnpm's config.
-        run: pn publish --filter=pnpm --tag=next-11 --access=public --provenance
+        run: pn publish --filter=pnpm --tag=next-11 --access=public --provenance --ignore-scripts
       - name: Copy Artifacts
         run: pn copy-artifacts
       - name: Attest build provenance
