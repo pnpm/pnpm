@@ -128,23 +128,33 @@ pub(super) fn assert_pnpm_runs(
     } else {
         "pnpm"
     });
-    let reason = match Command::new(&executable).arg("--version").output() {
-        Err(err) => err.to_string(),
-        Ok(output) if !output.status.success() => {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            let stderr = stderr.trim();
-            let code = output
-                .status
-                .code()
-                .map_or_else(|| "a signal".to_string(), |code| format!("code {code}"));
-            if stderr.is_empty() {
-                format!("it exited with {code}")
-            } else {
-                format!("it exited with {code}: {stderr}")
+    // pnpm reaches `--version` only after loading config, switching versions and
+    // running pnpmfile hooks, so probing from the caller's directory would let
+    // an unrelated project decide the result: a pinned `packageManager` would
+    // report that version instead, and a project's pnpmfile would run. Probe
+    // from an empty directory, where startup finds nothing of the user's to act
+    // on.
+    let probe_dir = tempfile::tempdir()
+        .into_diagnostic()
+        .wrap_err("create a directory to check the installed pnpm from")?;
+    let reason =
+        match Command::new(&executable).arg("--version").current_dir(probe_dir.path()).output() {
+            Err(err) => err.to_string(),
+            Ok(output) if !output.status.success() => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                let stderr = stderr.trim();
+                let code = output
+                    .status
+                    .code()
+                    .map_or_else(|| "a signal".to_string(), |code| format!("code {code}"));
+                if stderr.is_empty() {
+                    format!("it exited with {code}")
+                } else {
+                    format!("it exited with {code}: {stderr}")
+                }
             }
-        }
-        Ok(_) => return Ok(()),
-    };
+            Ok(_) => return Ok(()),
+        };
     Err(SelfUpdateError::BrokenPnpmInstall {
         version: version.to_string(),
         reason,

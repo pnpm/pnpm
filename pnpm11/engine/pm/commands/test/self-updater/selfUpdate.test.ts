@@ -1532,6 +1532,27 @@ describe('assertPnpmRuns', () => {
     }).toThrow(/cannot run: it exited with a signal/)
   })
 
+  // pnpm reaches --version only after loading config and running pnpmfile
+  // hooks, so probing from the caller's directory would let an unrelated
+  // project reject a perfectly good release.
+  test('is not affected by the config of the directory self-update was run from', async () => {
+    // Stands in for pnpm's startup: fail if the caller's project is visible.
+    const binDir = await linkFakePnpm("process.exit(require('node:fs').existsSync('.pnpmfile.cjs') ? 1 : 0)")
+    const hostileProject = tempDir(false)
+    fs.writeFileSync(path.join(hostileProject, 'package.json'), '{"name":"p"}')
+    fs.writeFileSync(path.join(hostileProject, 'pnpm-workspace.yaml'), 'packages:\n  - .\n')
+    fs.writeFileSync(path.join(hostileProject, '.pnpmfile.cjs'), "throw new Error('broken pnpmfile')\n")
+    const cwd = process.cwd()
+    process.chdir(hostileProject)
+    try {
+      expect(() => {
+        assertPnpmRuns(binDir, '1.0.0')
+      }).not.toThrow()
+    } finally {
+      process.chdir(cwd)
+    }
+  })
+
   test('fails when there is no pnpm to run at all', () => {
     expect(() => {
       assertPnpmRuns(tempDir(false), '1.0.0')

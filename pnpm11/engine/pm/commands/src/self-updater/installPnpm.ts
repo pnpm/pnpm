@@ -1,4 +1,6 @@
+import type { SpawnSyncReturns } from 'node:child_process'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import util from 'node:util'
 
@@ -279,7 +281,24 @@ async function installPnpmToGlobalDir (
  */
 export function assertPnpmRuns (binDir: string, version: string): void {
   const pnpmBinPath = path.join(binDir, 'pnpm')
-  const { status, error, stderr } = spawn.sync(pnpmBinPath, ['--version'], { encoding: 'utf8' })
+  // pnpm reaches `--version` only after loading config, switching versions and
+  // running pnpmfile hooks, so probing from the caller's directory would let an
+  // unrelated project decide the result: a pinned `packageManager` would report
+  // that version instead, and a project's pnpmfile would run. Probe from an
+  // empty directory, where startup finds nothing of the user's to act on.
+  const probeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-self-update-check-'))
+  let result: SpawnSyncReturns<string>
+  try {
+    result = spawn.sync(pnpmBinPath, ['--version'], {
+      encoding: 'utf8',
+      cwd: probeDir,
+    })
+  } finally {
+    try {
+      fs.rmSync(probeDir, { recursive: true, force: true })
+    } catch {}
+  }
+  const { status, error, stderr } = result
   if (error == null && status === 0) return
   // A signal leaves `status` null, which macOS produces for a binary its
   // signature check rejects — the exact shape of an incorrectly signed release.
