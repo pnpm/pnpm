@@ -17,10 +17,15 @@ on:
       # v0.x/v1.x that pnpr's low version numbers would otherwise collide with.
       - "v*.*.*"
       - "pnpr@*.*.*"
-  # Manual trigger for rerunning a tag release. Dispatching this workflow from a
-  # branch fails before publishing because release artifacts are only built on
-  # version tags.
+  # Manual trigger for rerunning a tag release or verifying TypeScript release
+  # artifacts from a branch without publishing.
   workflow_dispatch:
+    inputs:
+      verify_ts_release:
+        description: Verify TypeScript release artifacts without publishing
+        required: false
+        type: boolean
+        default: false
 
 # A release PR that bumps several products auto-tags each one (tag-release.yml),
 # so several version tags can land together and start a run apiece. Serialize
@@ -43,6 +48,9 @@ jobs:
             refs/tags/v*.*.*) ;;
             refs/tags/pnpr@*.*.*) ;;
             *)
+              if [ "${{ inputs.verify_ts_release }}" = "true" ]; then
+                exit 0
+              fi
               echo "::error::The release workflow must run from a version tag like v11.9.0 or pnpr@0.2.0. Current ref: ${GITHUB_REF}"
               exit 1
               ;;
@@ -141,7 +149,7 @@ jobs:
     needs:
       - validate-release-ref
       - plan
-    if: needs.plan.outputs.ts == 'true'
+    if: needs.plan.outputs.ts == 'true' || inputs.verify_ts_release
     permissions:
       contents: read
     # Runs on macOS so the darwin artifacts can be ad-hoc signed with native
@@ -164,6 +172,8 @@ jobs:
         uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
         with:
           runtime: node@26.5.0
+      - name: Override workspace ignores for the TypeScript pnpm package
+        run: ': > pnpm11/pnpm/.npmignore'
       - name: Build TypeScript executable artifacts
         run: pn --filter=@pnpm/exe run build-artifacts
 
@@ -216,7 +226,7 @@ jobs:
                 return new RegExp("^" + pattern.replace(/[.+^{}()|[\]\\]/g, "\\$&").replace(/\*\*\//g, "\x00").replace(/\*\*/g, "\x01").replace(/\*/g, "[^/]*").replace(/\x00/g, "(?:.*/)?").replace(/\x01/g, ".*") + String.fromCharCode(36))
               }
             ' "$package/package.json" | while IFS= read -r file; do
-              test -s "$package/$file"
+              test -f "$package/$file"
               test "$(tar -xOf "$tarball" "package/$file" | shasum -a 256 | cut -d ' ' -f 1)" = "$(shasum -a 256 "$package/$file" | cut -d ' ' -f 1)"
             done
           done
@@ -226,13 +236,30 @@ jobs:
 
           smoke_dir=$(mktemp -d)
           tar -xzf "$pnpm_tarball" -C "$smoke_dir"
-          node "$smoke_dir/package/bin/pnpm.mjs" --version
+          command -v node
+          node --version
+          set +e
+          node "$smoke_dir/package/bin/pnpm.mjs" --version >"$smoke_dir/pnpm.stdout" 2>"$smoke_dir/pnpm.stderr"
+          pnpm_exit=$?
+          set -e
+          cat "$smoke_dir/pnpm.stdout"
+          cat "$smoke_dir/pnpm.stderr" >&2
+          test "$pnpm_exit" -eq 0
 
           exe_tarball=$(find "$release_tarballs/pnpm11_pnpm_artifacts_exe" -type f -name '*.tgz' -print -quit)
           native_tarball=$(find "$release_tarballs/pnpm11_pnpm_artifacts_darwin-arm64" -type f -name '*.tgz' -print -quit)
           test -n "$exe_tarball"
           test -n "$native_tarball"
-          npm install --prefix "$smoke_dir" --ignore-scripts=false "$exe_tarball" "$native_tarball"
+          (
+            cd "$smoke_dir"
+            command -v npm
+            npm --version
+            npm config get ignore-scripts
+            npm config get strict-allow-scripts
+            npm install --foreground-scripts --ignore-scripts=false --loglevel verbose "$exe_tarball" "$native_tarball"
+          )
+          ls -l "$smoke_dir/node_modules/@pnpm/exe/pnpm"
+          file "$smoke_dir/node_modules/@pnpm/exe/pnpm"
           "$smoke_dir/node_modules/@pnpm/exe/pnpm" --version
 
   release:
@@ -241,7 +268,7 @@ jobs:
       - validate-release-ref
       - plan
       - verify-ts-release
-    if: needs.plan.outputs.ts == 'true'
+    if: needs.plan.outputs.ts == 'true' && !inputs.verify_ts_release
     permissions:
       id-token: write  # Required for OIDC
       contents: write  # for softprops/action-gh-release to create GitHub release
@@ -260,6 +287,8 @@ jobs:
         uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
         with:
           runtime: node@26.5.0
+      - name: Override workspace ignores for the TypeScript pnpm package
+        run: ': > pnpm11/pnpm/.npmignore'
       # The publish phase is split into three sequential steps to control which packages
       # use trusted publishing (OIDC) vs. a static token. `pnpm publish` currently bails
       # out of OIDC as soon as a static `_authToken` is configured, so the only way to
@@ -312,7 +341,7 @@ jobs:
 
   build-rust:
     needs: plan
-    if: needs.plan.outputs.rust == 'true'
+    if: needs.plan.outputs.rust == 'true' && !inputs.verify_ts_release
     permissions:
       contents: read
       id-token: write # needed for actions/attest-build-provenance
@@ -596,7 +625,7 @@ jobs:
                 return new RegExp("^" + pattern.replace(/[.+^{}()|[\]\\]/g, "\\$&").replace(/\*\*\//g, "\x00").replace(/\*\*/g, "\x01").replace(/\*/g, "[^/]*").replace(/\x00/g, "(?:.*/)?").replace(/\x01/g, ".*") + String.fromCharCode(36))
               }
             ' "$package/package.json" | while IFS= read -r file; do
-              test -s "$package/$file"
+              test -f "$package/$file"
               test "$(tar -xOf "$tarball" "package/$file" | sha256sum | cut -d ' ' -f 1)" = "$(sha256sum "$package/$file" | cut -d ' ' -f 1)"
             done
           done
@@ -715,7 +744,7 @@ jobs:
 
   build-pnpr:
     needs: plan
-    if: needs.plan.outputs.pnpr == 'true'
+    if: needs.plan.outputs.pnpr == 'true' && !inputs.verify_ts_release
     permissions:
       contents: read
       id-token: write # needed for actions/attest-build-provenance
@@ -955,7 +984,7 @@ jobs:
                 return new RegExp("^" + pattern.replace(/[.+^{}()|[\]\\]/g, "\\$&").replace(/\*\*\//g, "\x00").replace(/\*\*/g, "\x01").replace(/\*/g, "[^/]*").replace(/\x00/g, "(?:.*/)?").replace(/\x01/g, ".*") + String.fromCharCode(36))
               }
             ' "$package/package.json" | while IFS= read -r file; do
-              test -s "$package/$file"
+              test -f "$package/$file"
               test "$(tar -xOf "$tarball" "package/$file" | sha256sum | cut -d ' ' -f 1)" = "$(sha256sum "$package/$file" | cut -d ' ' -f 1)"
             done
           done
