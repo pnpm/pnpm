@@ -52,6 +52,59 @@ jobs:
             fi
             ;;
         esac
+    # The release workflow has already published this version under
+    # next-<major>; moving the dist-tags below is what makes `pnpm self-update`
+    # and the devEngines/packageManager download path resolve it. Upgrading onto
+    # a version reads its published manifest, so a bad one only fails here, on
+    # the real registry artifact — 11.12.0 published its bundled dependencies as
+    # real dependencies and every upgrade onto it crashed
+    # (pnpm/pnpm#12955, pnpm/pnpm#12959). This is the last gate before `latest`
+    # exposes the version to everyone.
+    - name: Verify upgrading onto the new version
+      env:
+        VERSION: ${{ github.event.inputs.version }}
+      run: |
+        set -eu
+        MAJOR="${VERSION%%.*}"
+        # Upgrade from what users on this release line are running today. A new
+        # major has no latest-<major> yet, so fall back to the current latest.
+        if ! FROM=$(npm view "pnpm@latest-${MAJOR}" version 2>/dev/null) || [ -z "$FROM" ]; then
+          FROM=$(npm view pnpm dist-tags.latest)
+        fi
+        echo "Upgrading from v${FROM} to v${VERSION}"
+
+        # Both wrappers are exercised: self-update reinstalls the package it is
+        # running from, so `pnpm` and `@pnpm/exe` resolve different published
+        # manifests and a broken one surfaces on only that wrapper.
+        for package in pnpm @pnpm/exe; do
+          work=$(mktemp -d)
+          # Isolate the whole pnpm environment so the upgrade resolves and
+          # installs for real instead of reusing a warm store or global dir.
+          export PNPM_HOME="$work/home"
+          export XDG_DATA_HOME="$work/data"
+          export XDG_CACHE_HOME="$work/cache"
+
+          npm install --prefix "$work/from" --ignore-scripts=false "${package}@${FROM}"
+          case "$package" in
+            pnpm) from_bin=(node "$work/from/node_modules/pnpm/bin/pnpm.mjs") ;;
+            @pnpm/exe) from_bin=("$work/from/node_modules/@pnpm/exe/pnpm") ;;
+          esac
+
+          # Check the starting point separately so a previous release that is
+          # itself broken fails here, with its own version in the message,
+          # instead of looking like a fault in $VERSION.
+          test "$("${from_bin[@]}" --version)" = "$FROM"
+
+          ( cd "$work" && "${from_bin[@]}" self-update "$VERSION" )
+          # Run the upgraded binary, not just the exit code: @pnpm/exe's
+          # preinstall leaves its placeholder bin in place when the platform
+          # package ships without a native, so a self-update onto a release with
+          # missing natives (11.12.0, 11.13.0) still "succeeds" and only a real
+          # invocation catches it.
+          test "$("$PNPM_HOME/bin/pnpm" --version)" = "$VERSION"
+          echo "OK: ${package}@${FROM} self-updated to v${VERSION}"
+        done
+
     - name: Update tag
       env:
         "npm_config_//registry.npmjs.org/:_authToken": ${{ secrets.NPM_TOKEN }}

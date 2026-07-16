@@ -236,6 +236,22 @@ jobs:
           pnpm_tarball=$(find "$release_tarballs/pnpm11_pnpm" -type f -name '*.tgz' -print -quit)
           test -n "$pnpm_tarball"
 
+          # Every runtime dependency is bundled into dist/node_modules, so the
+          # published manifest must declare neither field — the .pnpmfile.cjs
+          # beforePacking hook and bundle-deps.ts each strip them. When 11.12.0
+          # was packed by a pnpm that ignored the hook, the fields survived and
+          # resolving them dragged a peer-suffixed dependency into the env
+          # lockfile, which crashed every `pnpm self-update` onto that version
+          # (pnpm/pnpm#12955, pnpm/pnpm#12959). Assert on the tarball rather than
+          # trusting either stripper, since npm publishes are immutable.
+          tar -xOf "$pnpm_tarball" package/package.json | node -e '
+            const manifest = JSON.parse(require("node:fs").readFileSync(0, "utf8"))
+            const declared = ["dependencies", "devDependencies"].filter((field) => manifest[field] != null)
+            if (declared.length > 0) {
+              throw new Error("The published pnpm manifest must not declare " + declared.join(" or ") + " - they are bundled into dist/node_modules")
+            }
+          '
+
           smoke_dir=$(mktemp -d)
           tar -xzf "$pnpm_tarball" -C "$smoke_dir"
           command -v node
