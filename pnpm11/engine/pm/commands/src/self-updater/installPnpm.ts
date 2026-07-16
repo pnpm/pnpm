@@ -38,16 +38,28 @@ import { verifyPnpmEngineIdentity, type VerifyPnpmEngineIdentityOptions } from '
 const PNPM_ALLOW_BUILDS: Record<string, boolean> = { '@pnpm/exe': true, 'pnpm': true }
 
 /**
- * Releases that {@link assertPnpmRuns} rejects, on every platform. Listing them
- * lets a cached install be rejected without spawning it, which keeps the
- * cache-hit path free of that cost; both are immutable on npm and deprecated
- * there, so the version alone settles it.
+ * Versions that must not be installed or pinned by any wrapper. Their
+ * `@pnpm/exe` published its platform packages with no binary, so that wrapper
+ * keeps the placeholder bin from its own tarball and cannot run.
  *
- * Not a second safety net: {@link assertPnpmRuns} catches a broken release
- * whether or not it is listed here.
+ * Keyed by version, not by package, because the pin is shared while the wrapper
+ * is not: `packageManager` / `devEngines.packageManager` is committed, so a
+ * developer on the JS `pnpm` — for which these versions do run — would pin one
+ * and break every teammate who uses `@pnpm/exe`. Both are immutable on npm and
+ * deprecated there, so the version alone settles it.
  */
-const BROKEN_RELEASES: Record<string, ReadonlySet<string>> = {
-  '@pnpm/exe': new Set(['11.12.0', '11.13.0']),
+const BROKEN_RELEASES: ReadonlySet<string> = new Set(['11.12.0', '11.13.0'])
+
+/** Throws when `version` is one of the {@link BROKEN_RELEASES}. */
+export function assertReleaseIsInstallable (version: string): void {
+  if (!BROKEN_RELEASES.has(version)) return
+  throw new PnpmError(
+    'BROKEN_PNPM_RELEASE',
+    `pnpm v${version} is a broken release and cannot be installed`,
+    {
+      hint: 'Its "@pnpm/exe" build shipped without a binary and does not run. Even where it does run, pinning it would break everyone on the project who uses "@pnpm/exe", because the pin is shared. Choose another version, or run "pnpm self-update latest".',
+    }
+  )
 }
 
 /**
@@ -318,10 +330,9 @@ export function assertPnpmRuns (binDir: string, version: string): void {
 /**
  * The install dir under `globalDir` that already holds `pkgName` at exactly
  * `version`, or `undefined` when the global install is missing, at a
- * different version, unreadable, or a release listed in {@link BROKEN_RELEASES}.
+ * different version, or unreadable.
  */
 export async function findGlobalPnpmInstallDir (globalDir: string, pkgName: string, version: string): Promise<string | undefined> {
-  if (BROKEN_RELEASES[pkgName]?.has(version)) return undefined
   const existing = findGlobalPackage(globalDir, pkgName)
   if (!existing) return undefined
   try {

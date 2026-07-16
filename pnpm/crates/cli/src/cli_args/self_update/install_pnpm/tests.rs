@@ -1,7 +1,7 @@
 use super::{
-    PNPM_EXE_PACKAGE_NAME, PNPM_PACKAGE_NAME, exe_platform_pkg_dir_name,
-    exe_platform_pkg_dir_name_next, link_exe_platform_binary, package_dir, pnpm_package_to_install,
-    reuse_cached_engine,
+    PNPM_EXE_PACKAGE_NAME, PNPM_PACKAGE_NAME, assert_release_is_installable,
+    exe_platform_pkg_dir_name, exe_platform_pkg_dir_name_next, link_exe_platform_binary,
+    package_dir, pnpm_package_to_install, reuse_cached_engine,
 };
 use pacquet_graph_hasher::{host_arch, host_libc, host_platform};
 use std::fs;
@@ -310,27 +310,22 @@ fn reuse_cached_engine_rejects_a_version_mismatch() {
     assert!(!reuse_cached_engine(temp.path(), pnpm_package_to_install("11.10.0"), "11.10.0"));
 }
 
-/// `@pnpm/exe` 11.12.0 and 11.13.0 shipped platform packages with no binary, so
-/// a cached slot for either cannot run. Rejecting them by version keeps the
-/// cache-hit path from having to spawn the engine to find that out.
+/// The pin is committed and shared while the wrapper is not, so a release whose
+/// `@pnpm/exe` cannot run must be refused for every wrapper — refusing only the
+/// one that breaks would let a JS user pin it for the whole team.
 #[test]
-fn reuse_cached_engine_rejects_a_release_that_cannot_run() {
-    let temp = tempfile::tempdir().expect("tempdir");
-    fake_engine_install_for(temp.path(), PNPM_EXE_PACKAGE_NAME, true);
-    write_wrapper_version(temp.path(), PNPM_EXE_PACKAGE_NAME, "11.13.0");
-
-    // The slot is otherwise perfectly reusable: right package, right version.
-    assert!(!reuse_cached_engine(temp.path(), pnpm_package_to_install("11.13.0"), "11.13.0"));
-    assert!(!reuse_cached_engine(temp.path(), pnpm_package_to_install("11.12.0"), "11.12.0"));
+fn assert_release_is_installable_refuses_the_broken_releases() {
+    for version in ["11.12.0", "11.13.0"] {
+        let err = assert_release_is_installable(version).unwrap_err();
+        assert!(err.to_string().contains("broken release"), "{err}");
+    }
 }
 
 #[test]
-fn reuse_cached_engine_accepts_a_neighbouring_release() {
-    let temp = tempfile::tempdir().expect("tempdir");
-    fake_engine_install_for(temp.path(), PNPM_EXE_PACKAGE_NAME, true);
-    write_wrapper_version(temp.path(), PNPM_EXE_PACKAGE_NAME, "11.13.1");
-
-    assert!(reuse_cached_engine(temp.path(), pnpm_package_to_install("11.13.1"), "11.13.1"));
+fn assert_release_is_installable_allows_every_other_release() {
+    for version in ["11.11.0", "11.13.1", "12.0.0"] {
+        assert_release_is_installable(version).unwrap();
+    }
 }
 
 /// A slot left by an older layout whose wrapper symlink escapes the slot

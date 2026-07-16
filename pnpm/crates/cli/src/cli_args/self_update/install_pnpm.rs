@@ -193,24 +193,26 @@ pub(super) fn installed_version(install_dir: &Path, package_name: &str) -> Optio
 /// shared `<store>/links` tree), so this recovery is the common upgrade
 /// path, not only an adversarial one.
 fn reuse_cached_engine(install_dir: &Path, package: PnpmPackageToInstall, version: &str) -> bool {
-    if is_broken_release(package.name, version) {
-        return false;
-    }
     if installed_version(install_dir, package.name).as_deref() != Some(version) {
         return false;
     }
     !package.links_native_binary || link_exe_platform_binary(install_dir, package.name).is_ok()
 }
 
-/// Whether [`assert_pnpm_runs`] rejects this release, on every platform. Knowing
-/// it lets a cached install be rejected without spawning it, which keeps the
-/// cache-hit path free of that cost; both are immutable on npm and deprecated
-/// there, so the version alone settles it.
+/// Versions that must not be installed or pinned by any wrapper. Their
+/// `@pnpm/exe` published its platform packages with no binary, so that wrapper
+/// keeps the placeholder bin from its own tarball and cannot run.
 ///
-/// Not a second safety net: [`assert_pnpm_runs`] catches a broken release
-/// whether or not it is listed here.
-fn is_broken_release(package_name: &str, version: &str) -> bool {
-    package_name == PNPM_EXE_PACKAGE_NAME && matches!(version, "11.12.0" | "11.13.0")
+/// Matched by version, not by package, because the pin is shared while the
+/// wrapper is not: `packageManager` / `devEngines.packageManager` is committed,
+/// so a developer on the JS `pnpm` — for which these versions do run — would pin
+/// one and break every teammate who uses `@pnpm/exe`. Both are immutable on npm
+/// and deprecated there, so the version alone settles it.
+pub(super) fn assert_release_is_installable(version: &str) -> miette::Result<()> {
+    if matches!(version, "11.12.0" | "11.13.0") {
+        return Err(SelfUpdateError::BrokenPnpmRelease { version: version.to_string() }.into());
+    }
+    Ok(())
 }
 
 pub(crate) fn pnpm_package_to_install(pnpm_version: &str) -> PnpmPackageToInstall {

@@ -1,5 +1,5 @@
 export { selfUpdate } from './self-updater/index.js'
-export { assertPnpmRuns, exePlatformPkgDirName, exePlatformPkgDirNameNext, findGlobalPnpmInstallDir, installPnpm, installPnpmToStore, linkExePlatformBinary, pnpmPackageNameToInstall } from './self-updater/installPnpm.js'
+export { assertPnpmRuns, assertReleaseIsInstallable, exePlatformPkgDirName, exePlatformPkgDirNameNext, installPnpm, installPnpmToStore, linkExePlatformBinary, pnpmPackageNameToInstall } from './self-updater/installPnpm.js'
 export { verifyPnpmEngineIdentity, type VerifyPnpmEngineIdentityOptions } from './self-updater/verifyPnpmEngineIdentity.js'
 export { setup } from './setup/index.js'
 export { withCmd } from './with/index.js'

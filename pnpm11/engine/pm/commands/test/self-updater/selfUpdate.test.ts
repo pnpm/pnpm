@@ -28,7 +28,7 @@ jest.unstable_mockModule('@pnpm/cli.meta', () => {
     packageManager: mockPackageManager,
   }
 })
-const { selfUpdate, assertPnpmRuns, findGlobalPnpmInstallDir, installPnpm, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext, pnpmPackageNameToInstall } = await import('@pnpm/engine.pm.commands')
+const { selfUpdate, assertPnpmRuns, assertReleaseIsInstallable, installPnpm, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext, pnpmPackageNameToInstall } = await import('@pnpm/engine.pm.commands')
 
 beforeEach(async () => {
   mockPackageManager.version = '9.0.0'
@@ -1450,38 +1450,31 @@ describe('exePlatformPkgDirNameNext', () => {
   })
 })
 
-describe('findGlobalPnpmInstallDir', () => {
-  // Mirror what installPnpmToGlobalDir leaves behind: the install dir, the
-  // wrapper's manifest, and the cache-keyed symlink that makes the slot
-  // discoverable — scanGlobalPackages only looks at symlinked entries.
-  function seedGlobalInstall (pkgName: string, version: string): string {
-    const globalDir = tempDir(false)
-    const installDir = path.join(globalDir, '1')
-    const pkgDir = path.join(installDir, 'node_modules', ...pkgName.split('/'))
-    fs.mkdirSync(pkgDir, { recursive: true })
-    fs.writeFileSync(path.join(installDir, 'package.json'), JSON.stringify({ dependencies: { [pkgName]: version } }))
-    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: pkgName, version }))
-    fs.symlinkSync(installDir, path.join(globalDir, 'hash'), 'dir')
-    return globalDir
-  }
-
-  test('reuses a healthy cached install', async () => {
-    const globalDir = seedGlobalInstall('@pnpm/exe', '11.13.1')
-    await expect(findGlobalPnpmInstallDir(globalDir, '@pnpm/exe', '11.13.1')).resolves.toBe(path.join(globalDir, '1'))
+describe('assertReleaseIsInstallable', () => {
+  // The pin is committed and shared while the wrapper is not, so a release
+  // whose @pnpm/exe cannot run must be refused for every wrapper — refusing
+  // only the one that breaks would let a JS user pin it for the whole team.
+  test.each(['11.12.0', '11.13.0'])('refuses the broken release %s', (version) => {
+    expect(() => {
+      assertReleaseIsInstallable(version)
+    }).toThrow(/pnpm v.+ is a broken release and cannot be installed/)
   })
 
-  // @pnpm/exe 11.12.0 and 11.13.0 shipped platform packages with no binary, so
-  // a cached slot for either cannot run. Rejecting them by version keeps the
-  // cache-hit path from having to spawn the engine to find that out.
-  test.each(['11.12.0', '11.13.0'])('does not reuse a cached @pnpm/exe %s, which cannot run', async (version) => {
-    // The slot is otherwise perfectly reusable: right package, right version.
-    const globalDir = seedGlobalInstall('@pnpm/exe', version)
-    await expect(findGlobalPnpmInstallDir(globalDir, '@pnpm/exe', version)).resolves.toBeUndefined()
+  test('the refusal explains that the pin would break teammates', () => {
+    try {
+      assertReleaseIsInstallable('11.13.0')
+      throw new Error('assertReleaseIsInstallable should have thrown')
+    } catch (err: unknown) {
+      const pnpmError = err as PnpmError
+      expect(pnpmError.code).toBe('ERR_PNPM_BROKEN_PNPM_RELEASE')
+      expect(pnpmError.hint).toMatch(/pin is shared/)
+    }
   })
 
-  test('only the wrapper that shipped without a binary is rejected', async () => {
-    const globalDir = seedGlobalInstall('pnpm', '11.13.0')
-    await expect(findGlobalPnpmInstallDir(globalDir, 'pnpm', '11.13.0')).resolves.toBe(path.join(globalDir, '1'))
+  test.each(['11.11.0', '11.13.1', '12.0.0'])('allows %s', (version) => {
+    expect(() => {
+      assertReleaseIsInstallable(version)
+    }).not.toThrow()
   })
 })
 
