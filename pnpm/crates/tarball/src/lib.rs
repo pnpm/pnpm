@@ -2462,6 +2462,10 @@ pub struct FetchTarballForResolution<'a> {
     ///
     /// Matches the resolution's `path` field verbatim, leading slash
     /// and all.
+    ///
+    /// Setting this suppresses the store-index row: the extracted
+    /// index describes the archive, not the named subpackage, so
+    /// there is no row to write that the key would honestly describe.
     pub manifest_subdir: Option<&'a str>,
 }
 
@@ -2504,23 +2508,37 @@ impl FetchTarballForResolution<'_> {
             Some(subdir) => read_subdir_manifest(&cas_paths, subdir).await?,
             None => pkg_files_idx.manifest.clone(),
         };
-        // Scope the store-index row by the package's canonical
-        // `name@version`, matching what the install pass derives from
-        // the same manifest. Fall back to the URL when the tarball has
-        // no usable `package.json` name (degraded, but keeps the row
-        // addressable).
-        let package_id =
-            manifest_package_id(manifest.as_ref()).unwrap_or_else(|| package_url.to_string());
 
-        let index_key = store_index_key(&integrity.to_string(), &package_id);
-        if let Some(writer) = store_index_writer {
-            writer.queue(index_key, pkg_files_idx);
-        } else {
-            tracing::warn!(
-                target: "pacquet::download",
-                ?index_key,
-                "no shared store-index writer; skipping index row for this resolve-time tarball",
-            );
+        // A subdirectory package gets no row. Its key would name the
+        // subpackage while `pkg_files_idx` describes the whole archive
+        // — the repo's manifest and every repo file — and a row whose
+        // key and payload disagree is worse than none: consumers that
+        // trust `PackageFilesIndex.manifest` / `files` to match the key
+        // (bin linking, file materialization) would read the repo.
+        // Nothing needs this row. A git-hosted archive — the only shape
+        // carrying a subdirectory — is addressed by
+        // `git_hosted_store_index_key` once the install pass has run
+        // `prepare` over it, and both the graph prefetch and the
+        // warm-store reuse map skip git-hosted entries.
+        if manifest_subdir.is_none() {
+            // Scope the store-index row by the package's canonical
+            // `name@version`, matching what the install pass derives from
+            // the same manifest. Fall back to the URL when the tarball has
+            // no usable `package.json` name (degraded, but keeps the row
+            // addressable).
+            let package_id =
+                manifest_package_id(manifest.as_ref()).unwrap_or_else(|| package_url.to_string());
+
+            let index_key = store_index_key(&integrity.to_string(), &package_id);
+            if let Some(writer) = store_index_writer {
+                writer.queue(index_key, pkg_files_idx);
+            } else {
+                tracing::warn!(
+                    target: "pacquet::download",
+                    ?index_key,
+                    "no shared store-index writer; skipping index row for this resolve-time tarball",
+                );
+            }
         }
 
         if let Some(mem_cache) = mem_cache {
