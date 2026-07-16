@@ -113,7 +113,11 @@ test('strips control characters from selectors before rendering', async () => {
 
   unusedOverrideLogger.debug({
     prefix,
-    selector: 'foo\nbar\x1b[0m',
+    // `\u202E` (RIGHT-TO-LEFT OVERRIDE) and `\u200B` (ZERO WIDTH SPACE)
+    // cover Cf; `\x1b` (ESC) covers Cc. All must be stripped or a
+    // crafted key can visually flip / hide text or inject terminal
+    // sequences.
+    selector: 'inj\u202Eect\u200Bion\x1b',
   })
 
   stageLogger.debug({
@@ -124,5 +128,5 @@ test('strips control characters from selectors before rendering', async () => {
   expect.assertions(1)
 
   const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
-  expect(output).toBe(formatWarn('1 override matched no dependency: foobar[0m'))
+  expect(output).toBe(formatWarn('1 override matched no dependency: injection'))
 })
