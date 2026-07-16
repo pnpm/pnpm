@@ -16,6 +16,7 @@ use super::{
     find_hash::FindHashArgs,
     ignored_builds::IgnoredBuildsArgs,
     lane::LaneArgs,
+    licenses::LicensesArgs,
     list::ListArgs,
     login::LoginArgs,
     logout::LogoutArgs,
@@ -115,6 +116,16 @@ pub(super) fn ll<'a>(ctx: &RunCtx<'a>, mut args: ListArgs) -> miette::Result<Com
     args.long = true;
     args.run((ctx.config)()?, ctx.dir, ctx.recursive)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+pub(super) fn licenses<'a>(
+    ctx: &RunCtx<'a>,
+    args: LicensesArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let config = (ctx.config)()?;
+    let dir = ctx.dir;
+    let recursive = ctx.recursive;
+    Ok(Box::pin(async move { args.run(config, dir, recursive).await }))
 }
 
 pub(super) fn why<'a>(ctx: &RunCtx<'a>, args: WhyArgs) -> miette::Result<CommandFuture<'a>> {
