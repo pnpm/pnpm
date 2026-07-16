@@ -363,8 +363,9 @@ jobs:
           gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" > "$release_json"
           RELEASE_JSON="$release_json" node <<'NODE'
           const fs = require('node:fs')
-          const actual = JSON.parse(fs.readFileSync(process.env.RELEASE_JSON, 'utf8')).body
-          const expected = fs.readFileSync('RELEASE.md', 'utf8')
+          const normalizeNewlines = (text) => text?.replace(/\r\n?/g, '\n')
+          const actual = normalizeNewlines(JSON.parse(fs.readFileSync(process.env.RELEASE_JSON, 'utf8')).body)
+          const expected = normalizeNewlines(fs.readFileSync('RELEASE.md', 'utf8'))
           if (actual !== expected) throw new Error('GitHub draft release body does not match RELEASE.md')
           NODE
           gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" -F draft=false > /dev/null

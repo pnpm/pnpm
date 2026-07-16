@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { PnpmError } from '@pnpm/error'
 import { readPendingChangelog } from '@pnpm/releasing.versioning'
 import { toString as mdastToString } from 'mdast-util-to-string'
 import remarkParse from 'remark-parse'
@@ -28,7 +29,7 @@ export async function writeReleaseText (workspaceDir: string): Promise<void> {
   const pnpm = JSON.parse(await fs.readFile(path.join(pnpmDir, 'package.json'), 'utf8'))
   const changelog = await readPendingChangelog(workspaceDir, pnpm.name, pnpm.version)
   if (changelog == null) {
-    throw new Error(`No pending changelog found for pnpm ${pnpm.version}`)
+    throw new PnpmError('MISSING_CHANGELOG', `No pending changelog found for pnpm ${pnpm.version}`)
   }
   const release = getChangelogEntry(changelog, pnpm.version)
   const releasePath = path.join(workspaceDir, 'RELEASE.md')
@@ -83,7 +84,7 @@ export function getChangelogEntry (changelog: string, version: string): Changelo
     }
   }
   if (headingStartInfo == null) {
-    throw new Error(`No changelog entry found for pnpm ${version}`)
+    throw new PnpmError('MISSING_CHANGELOG_ENTRY', `No changelog entry found for pnpm ${version}`)
   }
   ast['children'] = (ast['children'] as any).slice( // eslint-disable-line @typescript-eslint/no-explicit-any
     headingStartInfo.index + 1,

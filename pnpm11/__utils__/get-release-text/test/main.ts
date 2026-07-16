@@ -35,9 +35,21 @@ test('reports a missing changelog for the released version', async () => {
   await fs.mkdir(pnpmDir, { recursive: true })
   await fs.writeFile(path.join(pnpmDir, 'package.json'), JSON.stringify({ name: 'pnpm', version: '11.13.1' }))
 
-  await expect(writeReleaseText(workspaceDir)).rejects.toThrow('No pending changelog found for pnpm 11.13.1')
+  await expect(writeReleaseText(workspaceDir)).rejects.toMatchObject({
+    code: 'ERR_PNPM_MISSING_CHANGELOG',
+    message: 'No pending changelog found for pnpm 11.13.1',
+  })
 })
 
 test('rejects a changelog without the released version', () => {
-  expect(() => getChangelogEntry('# pnpm\n\n## 11.13.0\n', '11.13.1')).toThrow('No changelog entry found for pnpm 11.13.1')
+  let thrown: unknown
+  try {
+    getChangelogEntry('# pnpm\n\n## 11.13.0\n', '11.13.1')
+  } catch (err: unknown) {
+    thrown = err
+  }
+  expect(thrown).toMatchObject({
+    code: 'ERR_PNPM_MISSING_CHANGELOG_ENTRY',
+    message: 'No changelog entry found for pnpm 11.13.1',
+  })
 })

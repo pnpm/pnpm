@@ -1194,6 +1194,9 @@ importers:
 
   pnpm11/__utils__/get-release-text:
     dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       '@pnpm/releasing.versioning':
         specifier: workspace:*
         version: link:../../releasing/versioning
