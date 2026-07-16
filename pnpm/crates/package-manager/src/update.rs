@@ -158,6 +158,9 @@ pub enum UpdateError {
 
     #[diagnostic(transparent)]
     Install(#[error(source)] InstallError),
+
+    #[diagnostic(transparent)]
+    MinimumReleaseAge(#[error(source)] crate::minimum_release_age::MinimumReleaseAgeError),
 }
 
 /// A CLI selector split into its name pattern and optional version part.
@@ -202,6 +205,9 @@ impl Update<'_> {
             lockfile_only,
             resolution_observer,
         } = self;
+
+        crate::minimum_release_age::ensure_strict_minimum_release_age_can_save(config, save)
+            .map_err(UpdateError::MinimumReleaseAge)?;
 
         // `pacquet update` has no `--save-prefix` flag yet, so `save_exact`
         // alone selects between an exact pin and the default caret range.

@@ -311,6 +311,8 @@ impl ReporterState {
     pub fn handle(&mut self, event: &LogEvent) -> Output {
         match event {
             LogEvent::Context(log) => self.on_context(log),
+            // Prompt lifetime is handled by `Sink` before state folding.
+            LogEvent::Prompt(_) => {}
             LogEvent::PackageImportMethod(log) => {
                 self.import_method = Some(log.method);
                 self.maybe_render_context();

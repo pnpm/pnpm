@@ -36,6 +36,12 @@ pub enum LogEvent {
     #[serde(rename = "pnpm:stage")]
     Stage(StageLog),
 
+    /// Brackets an interactive terminal prompt (`pnpm:prompt`). The default
+    /// reporter holds live redraws between `start` and `end` so they cannot
+    /// overwrite the question while it is waiting for input.
+    #[serde(rename = "pnpm:prompt")]
+    Prompt(PromptLog),
+
     /// End-of-install marker (`pnpm:summary`). pnpm's reporter combines
     /// this with the accumulated `pnpm:root` events to render the final
     /// "+N -M" block.
@@ -201,6 +207,21 @@ pub struct StageLog {
     pub level: LogLevel,
     pub prefix: String,
     pub stage: Stage,
+}
+
+/// `pnpm:prompt` payload.
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct PromptLog {
+    pub level: LogLevel,
+    pub action: PromptAction,
+}
+
+/// Whether an interactive prompt is acquiring or releasing the terminal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PromptAction {
+    Start,
+    End,
 }
 
 /// `pnpm:stage` phase marker.
