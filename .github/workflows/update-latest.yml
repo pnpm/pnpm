@@ -59,8 +59,14 @@ jobs:
         npm_config_userconfig: ${{ runner.temp }}/absent-npmrc
       run: |
         set -euo pipefail
-        if ! printf '%s\n' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[.0-9A-Za-z-]+)?$'; then
-          echo "::error::Version must be an exact semver version like 11.2.0. Got: ${VERSION}"
+        # Stable versions only, no prerelease suffix. Every dispatch moves
+        # latest-<major> whatever `tag` says, so there is no way to tag a
+        # prerelease here without promoting it to a channel that `pnpm
+        # self-update` and a bare `npm install pnpm` resolve — and the release
+        # lines that publish prereleases (`X.Y.Z-alpha.N` under next-<major>)
+        # are exactly the ones a typo here would leak to everyone.
+        if ! printf '%s\n' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+          echo "::error::Version must be an exact, stable semver version like 11.2.0 (prereleases cannot be tagged). Got: ${VERSION}"
           exit 1
         fi
         MAJOR="${VERSION%%.*}"
