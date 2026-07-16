@@ -114,10 +114,11 @@ test('strips control characters from selectors before rendering', async () => {
   unusedOverrideLogger.debug({
     prefix,
     // `\u202E` (RIGHT-TO-LEFT OVERRIDE) and `\u200B` (ZERO WIDTH SPACE)
-    // cover Cf; `\x1b` (ESC) covers Cc. All must be stripped or a
-    // crafted key can visually flip / hide text or inject terminal
+    // cover Cf; `\x1b` (ESC) covers Cc. `\u2069` (BIDI ISOLATE) and
+    // `\uFEFF` (BOM) cover the remaining Cf ranges. All must be stripped
+    // or a crafted key can visually flip / hide text or inject terminal
     // sequences.
-    selector: 'inj\u202Eect\u200Bion\x1b',
+    selector: 'inj\u202Eect\u200Bion\u2069\uFEFF\x1b',
   })
 
   stageLogger.debug({
