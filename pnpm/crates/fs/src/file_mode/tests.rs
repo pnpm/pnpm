@@ -95,6 +95,39 @@ fn make_path_owner_writable_does_not_follow_symlinks() {
     assert_eq!(fs::metadata(&target).unwrap().permissions().mode() & 0o777, 0o444);
 }
 
+#[cfg(windows)]
+#[test]
+fn make_path_owner_writable_uses_the_opened_file() {
+    use super::make_path_owner_writable;
+    use std::fs;
+
+    let tmp = tempfile::tempdir().expect("create tempdir");
+    let file = tmp.path().join("file");
+    fs::write(&file, b"contents").expect("write file");
+    let mut permissions = fs::metadata(&file).unwrap().permissions();
+    permissions.set_readonly(true);
+    fs::set_permissions(&file, permissions).expect("make file read-only");
+
+    make_path_owner_writable(&file).expect("make file writable");
+
+    assert!(!fs::metadata(&file).unwrap().permissions().readonly());
+}
+
+#[cfg(windows)]
+#[test]
+fn make_path_owner_writable_does_not_follow_junctions() {
+    use super::make_path_owner_writable;
+    use std::fs;
+
+    let tmp = tempfile::tempdir().expect("create tempdir");
+    let target = tmp.path().join("target");
+    let link = tmp.path().join("link");
+    fs::create_dir(&target).expect("create target");
+    junction::create(&target, &link).expect("create junction");
+
+    make_path_owner_writable(&link).expect_err("junction must not be followed");
+}
+
 /// The `0o644` seed stands in for a target a reflink left non-executable.
 #[cfg(unix)]
 #[test]

@@ -315,6 +315,12 @@ fn marker_present(dir_path: &Path, cas_paths: &HashMap<String, PathBuf>) -> bool
 fn package_needs_private_copy(dir_path: &Path, cas_paths: &HashMap<String, PathBuf>) -> bool {
     cas_paths.iter().any(|(entry, store_path)| {
         let target_path = dir_path.join(entry);
+        let Ok(metadata) = fs::symlink_metadata(&target_path) else {
+            return true;
+        };
+        if !metadata.file_type().is_file() {
+            return true;
+        }
         same_file::is_same_file(target_path, store_path).unwrap_or(true)
     })
 }

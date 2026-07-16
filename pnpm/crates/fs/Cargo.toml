@@ -20,8 +20,9 @@ tempfile    = { workspace = true }
 sha2 = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
-dunce    = { workspace = true }
-junction = { workspace = true }
+dunce       = { workspace = true }
+junction    = { workspace = true }
+windows-sys = { workspace = true, features = ["Win32_Storage_FileSystem"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true }

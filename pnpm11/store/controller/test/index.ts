@@ -263,6 +263,42 @@ describe('store.importPackage()', () => {
     expect(fs.readFileSync(path.join(externalDir, 'package.json'), 'utf8')).toBe('{"name":"external"}')
   })
 
+  it.each(builtInImporters)('replaces a symlinked package file without changing its target using the %s importer', async (_name, createImporter) => {
+    const tmp = temporaryDirectory()
+    const storeDir = path.join(tmp, 'store')
+    const storeFile = path.join(storeDir, 'index.js')
+    const storeManifest = path.join(storeDir, 'package.json')
+    fs.mkdirSync(storeDir, { recursive: true })
+    fs.writeFileSync(storeFile, 'module.exports = "store"')
+    fs.writeFileSync(storeManifest, '{"name":"fixture"}')
+
+    const externalFile = path.join(tmp, 'external.js')
+    fs.writeFileSync(externalFile, 'module.exports = "external"')
+    const importTo = path.join(tmp, 'project', 'node_modules', 'fixture')
+    fs.mkdirSync(importTo, { recursive: true })
+    fs.copyFileSync(storeManifest, path.join(importTo, 'package.json'))
+    fs.symlinkSync(externalFile, path.join(importTo, 'index.js'), 'file')
+
+    const importPackage = createImporter(storeDir)
+    await importPackage(importTo, {
+      filesResponse: {
+        filesMap: new Map([
+          ['index.js', storeFile],
+          ['package.json', storeManifest],
+        ]),
+        requiresBuild: true,
+        resolvedFrom: 'store',
+      },
+      force: false,
+      requiresBuild: true,
+      safeToSkip: true,
+    })
+
+    expect(fs.lstatSync(path.join(importTo, 'index.js')).isFile()).toBe(true)
+    expect(fs.readFileSync(path.join(importTo, 'index.js'), 'utf8')).toBe('module.exports = "store"')
+    expect(fs.readFileSync(externalFile, 'utf8')).toBe('module.exports = "external"')
+  })
+
   it.each(builtInImporters)('replaces store hardlinks from old entries without package.json before making a package writable using the %s importer', async (_name, createImporter) => {
     const tmp = temporaryDirectory()
     const storeDir = path.join(tmp, 'store')

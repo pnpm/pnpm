@@ -133,7 +133,8 @@ function packageNeedsPrivateCopy (dir: string, filesMap: FilesMap): boolean {
     const targetPath = packageFileCandidates(dir, filename).find(fs.existsSync)
     if (targetPath == null) return true
     try {
-      const targetStat = fs.statSync(targetPath, { bigint: true })
+      const targetStat = fs.lstatSync(targetPath, { bigint: true })
+      if (!targetStat.isFile()) return true
       const storeStat = fs.statSync(storePath, { bigint: true })
       if (targetStat.ino === 0n || storeStat.ino === 0n) return true
       if (targetStat.dev === storeStat.dev && targetStat.ino === storeStat.ino) return true
@@ -168,18 +169,23 @@ function addParentDirectories (directories: Set<string>, dir: string, filePath: 
 }
 
 function makePathWritable (filePath: string): void {
-  const stat = fs.lstatSync(filePath)
-  if (stat.isSymbolicLink()) {
+  const pathStat = fs.lstatSync(filePath, { bigint: true })
+  if (pathStat.isSymbolicLink()) {
     throw new Error(`Cannot make symlinked package file writable: ${filePath}`)
   }
-  if (process.platform === 'win32') {
-    const mode = stat.mode
-    if ((mode & 0o200) === 0) fs.chmodSync(filePath, mode | 0o200)
-    return
-  }
-  const fd = fs.openSync(filePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW)
+  const openFlags = process.platform === 'win32'
+    ? fs.constants.O_RDONLY
+    : fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW
+  const fd = fs.openSync(filePath, openFlags)
   try {
-    const mode = fs.fstatSync(fd).mode
+    const openedStat = fs.fstatSync(fd, { bigint: true })
+    if (process.platform === 'win32' && (
+      pathStat.ino === 0n || openedStat.ino === 0n ||
+      pathStat.dev !== openedStat.dev || pathStat.ino !== openedStat.ino
+    )) {
+      throw new Error(`Package file changed while making it writable: ${filePath}`)
+    }
+    const mode = Number(openedStat.mode)
     if ((mode & 0o200) === 0) fs.fchmodSync(fd, mode | 0o200)
   } finally {
     fs.closeSync(fd)

@@ -385,6 +385,37 @@ fn writable_import_replaces_symlink_target_without_following() {
     assert_eq!(fs::read(pointee.join("package.json")).unwrap(), b"external");
 }
 
+#[test]
+#[cfg(unix)]
+fn writable_import_replaces_symlinked_package_file_without_following() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let index = write_source(&src_root, "index.js", b"store");
+    let package_json = write_source(&src_root, "package.json", br#"{"name":"fixture"}"#);
+    let cas = cas_map(&[("index.js", index), ("package.json", package_json.clone())]);
+
+    let external = tmp.path().join("external.js");
+    fs::write(&external, b"external").unwrap();
+    let target = tmp.path().join("pkg");
+    fs::create_dir_all(&target).unwrap();
+    fs::copy(package_json, target.join("package.json")).unwrap();
+    std::os::unix::fs::symlink(&external, target.join("index.js")).unwrap();
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Hardlink,
+        &target,
+        &cas,
+        ImportIndexedDirOpts { make_writable: true, ..ImportIndexedDirOpts::default() },
+    )
+    .expect("writable import should replace a symlinked package file");
+
+    assert!(fs::symlink_metadata(target.join("index.js")).unwrap().file_type().is_file());
+    assert_eq!(fs::read(target.join("index.js")).unwrap(), b"store");
+    assert_eq!(fs::read(external).unwrap(), b"external");
+}
+
 /// Sanity-checks that the parent-dir pre-pass is reached on the
 /// fresh-target branch (shared between default and force opts).
 #[test]

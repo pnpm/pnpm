@@ -76,23 +76,51 @@ pub fn make_path_owner_writable(path: &Path) -> io::Result<()> {
         std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(path)
     })?;
     #[cfg(windows)]
+    let file = crate::ensure_file::retry_on_fd_pressure(|| {
+        use std::os::windows::fs::OpenOptionsExt;
+        use windows_sys::Win32::Storage::FileSystem::{
+            FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT, FILE_READ_ATTRIBUTES,
+            FILE_WRITE_ATTRIBUTES,
+        };
+        std::fs::OpenOptions::new()
+            .access_mode(FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES)
+            .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
+            .open(path)
+    })?;
+    #[cfg(windows)]
     {
-        let metadata = path.symlink_metadata()?;
+        let metadata = file.metadata()?;
         if metadata.file_type().is_symlink() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!("refusing to make symlink writable at {}", path.display()),
-            ));
+            return Err(symlink_writable_error(path));
         }
-        let mut permissions = metadata.permissions();
-        if permissions.readonly() {
-            permissions.set_readonly(false);
-            std::fs::set_permissions(path, permissions)?;
-        }
-        return Ok(());
+        make_windows_file_writable(&file, metadata.permissions())
     }
     #[cfg(unix)]
     add_mode_bits(&file, 0o200)
+}
+
+#[cfg(windows)]
+#[expect(
+    clippy::permissions_set_readonly_false,
+    reason = "this Windows-only helper clears FILE_ATTRIBUTE_READONLY"
+)]
+fn make_windows_file_writable(
+    file: &std::fs::File,
+    mut permissions: std::fs::Permissions,
+) -> io::Result<()> {
+    if permissions.readonly() {
+        permissions.set_readonly(false);
+        file.set_permissions(permissions)?;
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn symlink_writable_error(path: &Path) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidInput,
+        format!("refusing to make symlink writable at {}", path.display()),
+    )
 }
 
 #[cfg(unix)]
