@@ -795,3 +795,63 @@ test('pnpm run without node version', async () => {
     workspaceConcurrency: 1,
   }, ['assert-node-version'])
 })
+
+test('cliOptionsTypes exposes sequential as Boolean flag', () => {
+  const options = run.cliOptionsTypes()
+  expect(options.sequential).toBe(Boolean)
+})
+
+test('RegExp script matching executes multiple scripts in lexicographically sorted order when sequential is enabled', async () => {
+  prepare({
+    scripts: {
+      'build:z': 'node -e "require(\'fs\').appendFileSync(\'./order.log\', \'z\')"',
+      'build:a': 'node -e "require(\'fs\').appendFileSync(\'./order.log\', \'a\')"',
+      'build:m': 'node -e "require(\'fs\').appendFileSync(\'./order.log\', \'m\')"',
+    },
+  })
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
+    dir: process.cwd(),
+    extraBinPaths: [],
+    extraEnv: {},
+    pnpmHomeDir: '',
+    sequential: true,
+    cliOptions: { sequential: true },
+  }, ['/^build:.*/'])
+
+  const outputLog = fs.readFileSync(path.join(process.cwd(), 'order.log'), 'utf-8')
+  expect(outputLog).toBe('amz')
+})
+
+test('passing --sequential option sets effective workspaceConcurrency to 1 for matched scripts', async () => {
+  await using serverA = await createTestIpcServer()
+  await using serverB = await createTestIpcServer()
+
+  prepare({
+    scripts: {
+      'test:a': `node -e "setTimeout(() => { console.log(Date.now()) }, 50)" | ${serverA.generateSendStdinScript()}`,
+      'test:b': `node -e "setTimeout(() => { console.log(Date.now()) }, 50)" | ${serverB.generateSendStdinScript()}`,
+    },
+  })
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
+    dir: process.cwd(),
+    extraBinPaths: [],
+    extraEnv: {},
+    pnpmHomeDir: '',
+    sequential: true,
+    cliOptions: { sequential: true },
+  }, ['/^test:.*/'])
+
+  const outputsA = serverA.getLines().map(Number)
+  const outputsB = serverB.getLines().map(Number)
+
+  expect(outputsA.length).toBeGreaterThan(0)
+  expect(outputsB.length).toBeGreaterThan(0)
+  expect(outputsB[0]).toBeGreaterThanOrEqual(outputsA[outputsA.length - 1])
+})
+

@@ -25,6 +25,7 @@ impl StopArgs {
             report_summary: false,
             no_bail: false,
             sort: true,
+            sequential: false,
         }
     }
 

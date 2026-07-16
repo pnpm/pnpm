@@ -53,6 +53,10 @@ pub struct RunArgs {
     /// Sort recursive workspace projects topologically before running.
     #[clap(skip = true)]
     pub sort: bool,
+
+    /// Run the specified scripts one by one.
+    #[clap(long, short = 's')]
+    pub sequential: bool,
 }
 
 /// Errors from `pacquet run`, including the hidden-script rejections from

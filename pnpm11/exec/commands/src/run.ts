@@ -110,6 +110,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
     'resume-from': String,
     'report-summary': Boolean,
     'reporter-hide-prefix': Boolean,
+    sequential: Boolean,
   }
 }
 
@@ -190,6 +191,7 @@ export type RunOpts =
       original: string[]
     }
     fallbackCommandUsed?: boolean
+    sequential?: boolean
   }
   & CheckDepsStatusOptions
 
@@ -197,6 +199,9 @@ export async function handler (
   opts: RunOpts,
   params: string[]
 ): Promise<string | { exitCode: number } | undefined> {
+  if (opts.sequential) {
+    opts.workspaceConcurrency = 1
+  }
   let dir: string
   if (opts.fallbackCommandUsed && (params[0] === 't' || params[0] === 'tst')) {
     params[0] = 'test'
