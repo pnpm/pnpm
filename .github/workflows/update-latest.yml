@@ -108,23 +108,32 @@ jobs:
 
           cd "$work"
           npm install --prefix "$work/from" --ignore-scripts=false "${package}@${FROM}"
-          case "$package" in
-            pnpm) from_bin=(node "$work/from/node_modules/pnpm/bin/pnpm.mjs") ;;
-            @pnpm/exe) from_bin=("$work/from/node_modules/@pnpm/exe/pnpm") ;;
-          esac
+          # Drive through npm's bin shim rather than a path into the package:
+          # the entry point differs by major (pnpm.cjs in v10, pnpm.mjs in v11)
+          # and between the two wrappers, and the shim is what a user gets.
+          from_bin="$work/from/node_modules/.bin/pnpm"
 
           # Check the starting point separately so a broken current release
           # fails naming its own version rather than looking like a fault in
           # $VERSION. When the current release is the broken one, it also blocks
           # its own fix — dispatch with skip_upgrade_check to promote that.
-          test "$("${from_bin[@]}" --version)" = "$FROM"
+          test "$("$from_bin" --version)" = "$FROM"
 
-          "${from_bin[@]}" self-update "$VERSION"
+          "$from_bin" self-update "$VERSION"
+
+          # self-update installs the target using the layout of the version
+          # doing the installing: v11 links global bins into $PNPM_HOME/bin,
+          # v10 links them directly into $PNPM_HOME.
+          if [ -x "$PNPM_HOME/bin/pnpm" ]; then
+            upgraded="$PNPM_HOME/bin/pnpm"
+          else
+            upgraded="$PNPM_HOME/pnpm"
+          fi
           # Run the upgraded binary rather than trust self-update's exit code:
           # `@pnpm/exe`'s preinstall leaves its placeholder bin in place when the
           # platform package ships no native, so that failure is invisible until
           # the binary is actually invoked.
-          test "$("$PNPM_HOME/bin/pnpm" --version)" = "$VERSION"
+          test "$("$upgraded" --version)" = "$VERSION"
           echo "OK: ${package}@${FROM} self-updated to v${VERSION}"
         done
 
