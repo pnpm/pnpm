@@ -1288,11 +1288,31 @@ fn strip_trailing_separators(path: &str) -> String {
     if trimmed.is_empty() && path.starts_with('/') { "/".to_string() } else { trimmed.to_string() }
 }
 
-/// Strip Unicode control characters (C0, DEL, C1, and other control
-/// code points) from an override selector before rendering, so a
-/// crafted key cannot inject/spoof terminal output.
+/// Strip characters that can spoof or inject into terminal output from
+/// an override selector before rendering. Covers:
+///
+/// - `Cc` (control): C0 (U+0000–U+001F), DEL (U+007F), C1 (U+0080–U+009F)
+///   — matched by [`char::is_control`].
+/// - `Cf` (format): zero-width and bidi overrides — U+200B–U+200F,
+///   U+2028–U+202E (line/paragraph separators + LRE/RLE/PDF/LRO/RLO,
+///   including U+202E RIGHT-TO-LEFT OVERRIDE), U+2060–U+2069 (invisible
+///   operators + bidi isolates), and U+FEFF (BOM / zero-width no-break
+///   space). Not matched by `is_control`; listed explicitly.
+///
+/// The raw selector stays intact in the structured `LogEvent::UnusedOverride`
+/// payload; this only affects the rendered warning.
 fn sanitize_override_selector(selector: &str) -> String {
-    selector.chars().filter(|ch| !ch.is_control()).collect()
+    selector
+        .chars()
+        .filter(|ch| {
+            !ch.is_control()
+                && !matches!(ch,
+                    '\u{200B}'..='\u{200F}'
+                    | '\u{2028}'..='\u{202E}'
+                    | '\u{2060}'..='\u{2069}'
+                    | '\u{FEFF}')
+        })
+        .collect()
 }
 
 fn diff_key(kind: DepKind) -> &'static str {

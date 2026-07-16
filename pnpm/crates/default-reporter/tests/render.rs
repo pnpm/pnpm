@@ -981,7 +981,11 @@ fn unused_overrides_strips_control_characters_from_selectors() {
         LogEvent::UnusedOverride(UnusedOverrideLog {
             level: LogLevel::Debug,
             prefix: CWD.to_string(),
-            selector: "foo\nbar\x1b[0m".to_string(),
+            // `\u{202E}` (RIGHT-TO-LEFT OVERRIDE) and `\u{200B}` (ZERO
+            // WIDTH SPACE) cover Cf; `\x1b` (ESC) covers Cc. All must be
+            // stripped or a crafted key can visually flip / hide text
+            // or inject terminal sequences.
+            selector: "inj\u{202E}ect\u{200B}ion\x1b".to_string(),
         }),
         LogEvent::Stage(StageLog {
             level: LogLevel::Debug,
@@ -991,5 +995,5 @@ fn unused_overrides_strips_control_characters_from_selectors() {
     ];
     let frame = render(&mut reporter, events);
     let lines: Vec<&str> = frame.lines().collect();
-    assert_eq!(lines, vec!["[WARN] 1 override matched no dependency: foobar[0m"]);
+    assert_eq!(lines, vec!["[WARN] 1 override matched no dependency: injection"]);
 }
