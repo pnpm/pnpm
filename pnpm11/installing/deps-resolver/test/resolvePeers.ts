@@ -10,11 +10,7 @@ import type {
 
 import type { NodeId } from '../lib/nextNodeId.js'
 import type { ChildrenMap, DependenciesTreeNode, PeerDependencies } from '../lib/resolveDependencies.js'
-import {
-  mergeCompatibleLockedOptionalPeerContexts,
-  type PartialResolvedPackage,
-  resolvePeers,
-} from '../lib/resolvePeers.js'
+import { mergeCompatibleLockedOptionalPeerContexts, type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers.js'
 
 test('resolve peer dependencies of cyclic dependencies', async () => {
   const fooPkg = {

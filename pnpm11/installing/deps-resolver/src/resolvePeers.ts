@@ -575,12 +575,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   }
 ): Promise<PeersResolution & { finishing?: FinishingResolutionPromise, calculateDepPath?: CalculateDepPath }> {
   const node = ctx.dependenciesTree.get(nodeId)!
-  if (node.depth === -1) {
-    return {
-      resolvedPeers: new Map<string, NodeId>(),
-      missingPeers: new Map<string, MissingPeerInfo>(),
-    }
-  }
+  if (node.depth === -1) return { resolvedPeers: new Map<string, NodeId>(), missingPeers: new Map<string, MissingPeerInfo>() }
   const resolvedPackage = node.resolvedPackage as T
   const allowedTransitivePeerNames = ctx.allowedTransitivePeerNamesByNodeId?.get(nodeId)
   const isKnownPure = allowedTransitivePeerNames == null
@@ -593,10 +588,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   ) {
     ctx.pathsByNodeId.set(nodeId, resolvedPackage.pkgIdWithPatchHash as unknown as DepPath)
     ctx.pathsByNodeIdPromises.get(nodeId)!.resolve(resolvedPackage.pkgIdWithPatchHash as unknown as DepPath)
-    return {
-      resolvedPeers: new Map<string, NodeId>(),
-      missingPeers: new Map<string, MissingPeerInfo>(),
-    }
+    return { resolvedPeers: new Map<string, NodeId>(), missingPeers: new Map<string, MissingPeerInfo>() }
   }
   if (typeof node.children === 'function') {
     node.children = node.children()
@@ -1296,11 +1288,7 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     }
   }
 
-  return {
-    resolvedPeers: unknownResolvedPeersOfChildren,
-    missingPeers: allMissingPeers,
-    finishing,
-  }
+  return { resolvedPeers: unknownResolvedPeersOfChildren, missingPeers: allMissingPeers, finishing }
 }
 
 function _resolvePeers<T extends PartialResolvedPackage> (

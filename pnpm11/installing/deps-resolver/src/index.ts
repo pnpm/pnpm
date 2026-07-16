@@ -302,10 +302,7 @@ export async function resolveDependencies (
     ? await resolvePeers({
       ...peerResolutionOpts,
       allowedTransitivePeerNamesByNodeId: getResolvedPeerNamesByNodeId(initiallyResolvedPeers),
-      preferredLockedOptionalPeerContexts: getPreferredLockedOptionalPeerContexts(
-        dependenciesTree,
-        initiallyResolvedPeers
-      ),
+      preferredLockedOptionalPeerContexts: getPreferredLockedOptionalPeerContexts(dependenciesTree, initiallyResolvedPeers),
       resolvedPeerProviderPaths: initiallyResolvedPeers.pathsByNodeId,
     })
     : initiallyResolvedPeers
