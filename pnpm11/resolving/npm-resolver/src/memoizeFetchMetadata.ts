@@ -16,14 +16,12 @@ export interface MemoizedFetchMetadata {
  * `clear`, see `clearResolutionCache`), deduplicating concurrent and repeat
  * requests for the same package.
  *
- * Unlike plain memoization, the cache holds a body-less clone of each result:
- * `jsonText` — the raw registry response body, up to tens of MB for a popular
- * package — reaches only the caller that initiated the fetch, which is the
- * caller that writes the disk mirror. A phase-long cache that kept the bodies
- * would pin hundreds of MB on large cold-cache graphs. A cache-hit caller
- * that also writes the mirror falls back to `JSON.stringify(meta)` in
- * `prepareJsonForDisk`, which is equivalent on read: `loadMeta` re-derives
- * `etag` from the headers line.
+ * Unlike plain memoization, the settled cache holds a body-less clone of each
+ * result. `jsonText` — the raw registry response body, up to tens of MB for a
+ * popular package — is shared by callers waiting on the same in-flight request,
+ * then removed from the settled cache entry. This prevents concurrent callers
+ * from independently serializing the same large metadata object while still
+ * avoiding phase-long retention of raw response bodies.
  *
  * A rejected fetch is evicted so a transient network failure is retried by
  * the next request instead of being cached for the rest of the phase.
@@ -36,11 +34,21 @@ export function memoizeFetchMetadata (fetch: FetchMetadata): MemoizedFetchMetada
       const cached = cache.get(key)
       if (cached != null) return cached
       const pending = fetch(pkgName, opts)
-      const bodiless = pending.then((result) =>
-        result.notModified ? result : { ...result, jsonText: undefined }
+      cache.set(key, pending)
+      void pending.then(
+        (result) => {
+          if (cache.get(key) !== pending) return
+          cache.set(
+            key,
+            Promise.resolve(
+              result.notModified ? result : { ...result, jsonText: undefined }
+            )
+          )
+        },
+        () => {
+          if (cache.get(key) === pending) cache.delete(key)
+        }
       )
-      bodiless.catch(() => cache.delete(key))
-      cache.set(key, bodiless)
       return pending
     },
     clear: () => {
