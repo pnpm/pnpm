@@ -320,6 +320,7 @@ fn should_skip_command(command: &CliCommand) -> bool {
         command,
         CliCommand::Completion(_)
             | CliCommand::CompletionServer(_)
+            | CliCommand::Doctor(_)
             | CliCommand::Runtime(_)
             | CliCommand::SelfUpdate(_)
             | CliCommand::Setup(_)
@@ -333,6 +334,7 @@ fn should_skip_command_name(command: &str) -> bool {
         command,
         "completion"
             | "completion-server"
+            | "doctor"
             | "env"
             | "runtime"
             | "rt"
@@ -474,6 +476,7 @@ fn command_name(command: &CliCommand) -> &'static str {
         CliCommand::Stars(_) => "stars",
         CliCommand::DistTag(_) => "dist-tag",
         CliCommand::Ping(_) => "ping",
+        CliCommand::Doctor(_) => "doctor",
         CliCommand::Search(_) => "search",
         CliCommand::Rebuild(_) => "rebuild",
         CliCommand::Pack(_) => "pack",

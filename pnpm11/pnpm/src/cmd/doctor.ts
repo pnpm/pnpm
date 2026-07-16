@@ -362,9 +362,31 @@ async function probeLinkCapabilities (dir: string): Promise<{ reflink: boolean, 
   const source = path.join(dir, 'source')
   await fs.promises.writeFile(source, 'pnpm-doctor')
   return {
-    reflink: await canLink(() => fs.promises.copyFile(source, path.join(dir, 'reflink'), fs.constants.COPYFILE_FICLONE_FORCE)),
+    reflink: canReflink(source, path.join(dir, 'reflink')),
     hardlink: await canLink(() => fs.promises.link(source, path.join(dir, 'hardlink'))),
     symlink: await canLink(() => fs.promises.symlink(source, path.join(dir, 'symlink'))),
+  }
+}
+
+/**
+ * Clone exactly the way the importer does, so the answer describes the reflink
+ * pnpm would really attempt: Node cannot clone on macOS or Windows — its
+ * `COPYFILE_FICLONE_FORCE` fails there with ENOSYS even on a filesystem that
+ * supports cloning — so those platforms go through `@reflink/reflink`, as
+ * `@pnpm/fs.indexed-pkg-importer` does.
+ */
+function canReflink (source: string, dest: string): boolean {
+  try {
+    if (process.platform === 'darwin' || process.platform === 'win32') {
+      // eslint-disable-next-line
+      const { reflinkFileSync } = require('@reflink/reflink') as typeof import('@reflink/reflink')
+      reflinkFileSync(source, dest)
+    } else {
+      fs.copyFileSync(source, dest, fs.constants.COPYFILE_FICLONE_FORCE)
+    }
+    return true
+  } catch {
+    return false
   }
 }
 

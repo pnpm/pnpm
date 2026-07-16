@@ -13,6 +13,7 @@ use super::{
     dispatch::{CommandFuture, RunCtx},
     dist_tag::DistTagArgs,
     docs::DocsArgs,
+    doctor::{DoctorArgs, DoctorOutcome},
     find_hash::FindHashArgs,
     ignored_builds::IgnoredBuildsArgs,
     lane::LaneArgs,
@@ -301,6 +302,27 @@ pub(super) fn ping<'a>(ctx: &RunCtx<'a>, args: PingArgs) -> miette::Result<Comma
     Ok(Box::pin(async move {
         let report = args.run(cfg).await?;
         println!("{report}");
+        Ok(())
+    }))
+}
+
+// `doctor` reports on the installation and its environment, so it needs config
+// resolved but no lockfile or install pipeline. It returns the rendered report
+// rather than printing it, mirroring pnpm's handler → CLI print split, and the
+// exit lives here because a failing check must fail the command — that is what
+// lets the release pipeline gate a promotion on it.
+pub(super) fn doctor<'a>(ctx: &RunCtx<'a>, args: DoctorArgs) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.config)()?;
+    Ok(Box::pin(async move {
+        let result = args.run(cfg).await?;
+        println!("{}", result.output);
+        if result.outcome == DoctorOutcome::Unhealthy {
+            #[expect(
+                clippy::exit,
+                reason = "`doctor` exits non-zero when a check fails, mirroring pnpm"
+            )]
+            std::process::exit(1);
+        }
         Ok(())
     }))
 }
