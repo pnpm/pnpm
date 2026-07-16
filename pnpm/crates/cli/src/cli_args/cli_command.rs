@@ -31,6 +31,7 @@ use super::{
     login::LoginArgs,
     logout::LogoutArgs,
     outdated::OutdatedArgs,
+    owner::OwnerArgs,
     pack::PackArgs,
     pack_app::PackAppArgs,
     patch::PatchArgs,
@@ -438,6 +439,9 @@ pub enum CliCommand {
     Login(LoginArgs),
     /// Manage organization teams and team memberships.
     Team(TeamArgs),
+    /// Manage package owners on the registry.
+    #[clap(visible_alias = "owners")]
+    Owner(OwnerArgs),
     /// Log out of an npm registry.
     Logout(LogoutArgs),
     /// Runs pnpm at a specific version (or the currently running one) for a

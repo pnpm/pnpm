@@ -20,6 +20,7 @@ use super::{
     login::LoginArgs,
     logout::LogoutArgs,
     outdated::{OutdatedArgs, OutdatedOutcome},
+    owner::OwnerArgs,
     pack::PackArgs,
     pack_app::PackAppArgs,
     peers::{PeersArgs, PeersOutcome},
@@ -264,6 +265,20 @@ pub(super) fn undeprecate<'a>(
 }
 
 pub(super) fn team<'a>(ctx: &RunCtx<'a>, args: TeamArgs) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.config)()?;
+    Ok(Box::pin(async move {
+        if let Some(output) = args.run(cfg).await? {
+            let output = super::sanitize::sanitize(&output);
+            if output.is_empty() {
+                return Ok(());
+            }
+            println!("{output}");
+        }
+        Ok(())
+    }))
+}
+
+pub(super) fn owner<'a>(ctx: &RunCtx<'a>, args: OwnerArgs) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.config)()?;
     Ok(Box::pin(async move {
         if let Some(output) = args.run(cfg).await? {

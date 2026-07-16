@@ -334,6 +334,7 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
         CliCommand::Stars(args) => dispatch_query::stars(ctx, args),
         CliCommand::DistTag(args) => dispatch_query::dist_tag(ctx, args),
         CliCommand::Team(args) => dispatch_query::team(ctx, args),
+        CliCommand::Owner(args) => dispatch_query::owner(ctx, args),
         CliCommand::Deprecate(args) => dispatch_query::deprecate(ctx, args),
         CliCommand::Undeprecate(args) => dispatch_query::undeprecate(ctx, args),
         CliCommand::Ping(args) => dispatch_query::ping(ctx, args),
