@@ -168,6 +168,10 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// the caller diffs the returned [`InstallWithFreshLockfileResult::wanted_lockfile`]
     /// against the existing one and reports the changes.
     pub dry_run: bool,
+    /// Whether this invocation can safely read an interactive approval from
+    /// stdin. Computed once by the outer install runner from CI and terminal
+    /// state, with an explicit override available to deterministic tests.
+    pub can_prompt: bool,
     /// A full workspace install versus a partial one (`pacquet add` and the
     /// package installs built on it — `dlx`, global add, the engine install).
     /// See [`crate::Install::is_full_install`]. Gates the `--no-optional`
@@ -515,6 +519,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             supported_architectures,
             lockfile_only,
             dry_run,
+            can_prompt,
             is_full_install,
             update_seed_policy,
             auth_override,
@@ -1253,8 +1258,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             config,
             lockfile_dir,
             &workspace_result.merged_tree.policy_violations,
-            !dry_run,
+            can_prompt && !dry_run,
         )
+        .await
         .map_err(InstallWithFreshLockfileError::MinimumReleaseAge)?;
         let total_nodes = workspace_result.peers.graph.len();
         // Hand the per-importer issues to the programmatic caller

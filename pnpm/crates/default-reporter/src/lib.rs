@@ -119,6 +119,8 @@ struct Sink {
     throttle: Duration,
     last_write: Option<Instant>,
     prompt_active: bool,
+    prompt_lines: Vec<String>,
+    prompt_frame: Option<String>,
 }
 
 impl Sink {
@@ -146,16 +148,38 @@ impl Sink {
             throttle,
             last_write: None,
             prompt_active: false,
+            prompt_lines: Vec::new(),
+            prompt_frame: None,
         }
     }
 
     fn on_prompt(&mut self, action: PromptAction) {
+        let mut out = std::io::stdout().lock();
+        self.on_prompt_to(action, &mut out);
+    }
+
+    fn on_prompt_to(&mut self, action: PromptAction, out: &mut impl Write) {
         match action {
-            PromptAction::Start => self.prompt_active = true,
+            PromptAction::Start => {
+                self.prompt_active = true;
+                self.prompt_lines.clear();
+                self.prompt_frame = None;
+            }
             PromptAction::End => {
                 self.prompt_active = false;
                 self.diff.reset();
                 self.last_write = None;
+                let mut wrote = false;
+                if !self.prompt_lines.is_empty() {
+                    let lines = std::mem::take(&mut self.prompt_lines);
+                    wrote |= self.write_output(Output::Lines(lines), out);
+                }
+                if let Some(frame) = self.prompt_frame.take() {
+                    wrote |= self.write_output(Output::Frame(frame), out);
+                }
+                if wrote {
+                    self.last_write = Some(Instant::now());
+                }
             }
         }
     }
@@ -167,6 +191,11 @@ impl Sink {
 
     fn write_to(&mut self, output: Output, coalesceable: bool, out: &mut impl Write) {
         if self.prompt_active {
+            match output {
+                Output::None => {}
+                Output::Lines(mut lines) => self.prompt_lines.append(&mut lines),
+                Output::Frame(frame) => self.prompt_frame = Some(frame),
+            }
             return;
         }
         // Drop a high-volume progress redraw if the throttle window hasn't

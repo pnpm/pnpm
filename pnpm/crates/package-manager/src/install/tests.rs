@@ -267,7 +267,7 @@ async fn fresh_install_reports_strict_minimum_release_age_violations_before_writ
         pnpmfile_hook_override: None,
         workspace_projects_override: None,
     }
-    .run::<SilentReporter>()
+    .run_with_prompt_eligibility::<SilentReporter>(false)
     .await
     .expect_err("strict non-interactive install must reject immature picks");
 

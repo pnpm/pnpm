@@ -42,12 +42,48 @@ fn prompt_holds_redraws_and_resets_before_resuming() {
     sink.write_to(Output::Frame("before".to_string()), false, &mut writes);
     let before_prompt = writes.len();
 
-    sink.on_prompt(PromptAction::Start);
+    sink.on_prompt_to(PromptAction::Start, &mut writes);
     sink.write_to(Output::Frame("during".to_string()), false, &mut writes);
     assert_eq!(writes.len(), before_prompt);
 
-    sink.on_prompt(PromptAction::End);
-    sink.write_to(Output::Frame("after".to_string()), false, &mut writes);
+    sink.on_prompt_to(PromptAction::End, &mut writes);
     assert!(writes.len() > before_prompt);
+    assert!(String::from_utf8(writes.clone()).expect("utf8 output").contains("during"));
+
+    let after_prompt = writes.len();
+    sink.write_to(Output::Frame("after".to_string()), false, &mut writes);
+    assert!(writes.len() > after_prompt);
     assert!(String::from_utf8(writes).expect("utf8 output").contains("after"));
+}
+
+#[test]
+fn prompt_replays_every_append_only_line() {
+    let mut sink = Sink::new();
+    let mut writes = Vec::new();
+
+    sink.on_prompt_to(PromptAction::Start, &mut writes);
+    sink.write_to(Output::Lines(vec!["first".to_string()]), false, &mut writes);
+    sink.write_to(Output::Lines(vec!["second".to_string()]), false, &mut writes);
+    assert!(writes.is_empty());
+
+    sink.on_prompt_to(PromptAction::End, &mut writes);
+
+    assert_eq!(String::from_utf8(writes).expect("utf8 output"), "first\nsecond\n");
+}
+
+#[test]
+fn prompt_renders_only_the_latest_buffered_frame() {
+    let mut sink = Sink::new();
+    let mut writes = Vec::new();
+
+    sink.on_prompt_to(PromptAction::Start, &mut writes);
+    sink.write_to(Output::Frame("stale".to_string()), false, &mut writes);
+    sink.write_to(Output::Frame("latest".to_string()), false, &mut writes);
+    assert!(writes.is_empty());
+
+    sink.on_prompt_to(PromptAction::End, &mut writes);
+
+    let output = String::from_utf8(writes).expect("utf8 output");
+    assert!(output.contains("latest"));
+    assert!(!output.contains("stale"));
 }

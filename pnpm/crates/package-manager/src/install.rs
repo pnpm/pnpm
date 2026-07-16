@@ -41,6 +41,7 @@ use pacquet_workspace_state::{
 };
 use std::{
     collections::BTreeMap,
+    io::IsTerminal,
     path::{Path, PathBuf},
     sync::{Arc, atomic::AtomicU8},
     time::SystemTime,
@@ -496,14 +497,22 @@ where
 {
     /// Execute the subroutine.
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), InstallError> {
-        self.run_inner::<Reporter>(None, None).await
+        self.run_inner::<Reporter>(None, None, None).await
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn run_with_prompt_eligibility<Reporter: self::Reporter + 'static>(
+        self,
+        can_prompt: bool,
+    ) -> Result<(), InstallError> {
+        self.run_inner::<Reporter>(None, None, Some(can_prompt)).await
     }
 
     pub async fn run_with_lockfile_verification<Reporter: self::Reporter + 'static>(
         self,
         lockfile_verification_override: LockfileVerificationOverride<'a>,
     ) -> Result<(), InstallError> {
-        self.run_inner::<Reporter>(Some(lockfile_verification_override), None).await
+        self.run_inner::<Reporter>(Some(lockfile_verification_override), None, None).await
     }
 
     /// Execute as a forced rebuild: take the frozen path against the
@@ -523,13 +532,14 @@ where
         rebuild: RebuildOptions,
     ) -> Result<(), InstallError> {
         assert!(self.frozen_lockfile, "run_rebuild requires frozen_lockfile = true");
-        self.run_inner::<Reporter>(None, Some(rebuild)).await
+        self.run_inner::<Reporter>(None, Some(rebuild), None).await
     }
 
     async fn run_inner<Reporter: self::Reporter + 'static>(
         self,
         lockfile_verification_override: Option<LockfileVerificationOverride<'a>>,
         rebuild: Option<RebuildOptions>,
+        prompt_eligibility_override: Option<bool>,
     ) -> Result<(), InstallError> {
         let Install {
             tarball_mem_cache,
@@ -562,6 +572,8 @@ where
             pnpmfile_hook_override,
             workspace_projects_override,
         } = self;
+        let can_prompt = prompt_eligibility_override
+            .unwrap_or_else(|| !is_ci::cached() && std::io::stdin().is_terminal());
         // Read before the sink is moved into the fresh-path inputs.
         let peer_issues_sink_is_none = peer_issues_sink.is_none();
 
@@ -1444,6 +1456,7 @@ where
                 supported_architectures: supported_architectures.as_ref(),
                 lockfile_only: resolve_only,
                 dry_run,
+                can_prompt,
                 is_full_install,
                 update_seed_policy,
                 auth_override,
