@@ -138,9 +138,8 @@ export async function handler (
   // project still pinned to v10). Otherwise fall back to the running
   // binary. Skip the hint entirely on a no-op (target === previous).
   const targetVersion = resolution.manifest.version
-  // Before the pin below is written, not just before the install: that field is
-  // committed and shared, so pinning a release the running wrapper happens to
-  // survive would still break every teammate whose wrapper does not.
+  // Before the pin below is written, not just before the install: the pin is
+  // shared, so a release this wrapper survives can still break a teammate's.
   assertReleaseIsInstallable(targetVersion)
   let previousVersion: string | undefined
   if (opts.wantedPackageManager?.name === packageManager.name) {

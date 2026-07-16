@@ -310,9 +310,6 @@ fn reuse_cached_engine_rejects_a_version_mismatch() {
     assert!(!reuse_cached_engine(temp.path(), pnpm_package_to_install("11.10.0"), "11.10.0"));
 }
 
-/// The pin is committed and shared while the wrapper is not, so a release whose
-/// `@pnpm/exe` cannot run must be refused for every wrapper — refusing only the
-/// one that breaks would let a JS user pin it for the whole team.
 #[test]
 fn assert_release_is_installable_refuses_the_broken_releases() {
     for version in ["11.12.0", "11.13.0"] {

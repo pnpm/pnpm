@@ -38,15 +38,10 @@ import { verifyPnpmEngineIdentity, type VerifyPnpmEngineIdentityOptions } from '
 const PNPM_ALLOW_BUILDS: Record<string, boolean> = { '@pnpm/exe': true, 'pnpm': true }
 
 /**
- * Versions that must not be installed or pinned by any wrapper. Their
- * `@pnpm/exe` published its platform packages with no binary, so that wrapper
- * keeps the placeholder bin from its own tarball and cannot run.
- *
- * Keyed by version, not by package, because the pin is shared while the wrapper
- * is not: `packageManager` / `devEngines.packageManager` is committed, so a
- * developer on the JS `pnpm` — for which these versions do run — would pin one
- * and break every teammate who uses `@pnpm/exe`. Both are immutable on npm and
- * deprecated there, so the version alone settles it.
+ * Versions whose `@pnpm/exe` shipped platform packages with no binary, so it
+ * cannot run. Keyed by version, not package: the pin is shared but the wrapper
+ * is not, so a developer on the JS `pnpm` — which does run at these versions —
+ * would otherwise pin one and break every teammate on `@pnpm/exe`.
  */
 const BROKEN_RELEASES: ReadonlySet<string> = new Set(['11.12.0', '11.13.0'])
 
@@ -257,8 +252,8 @@ async function installPnpmToGlobalDir (
     linkExePlatformBinary(installDir, pkgName)
     await linkBins(path.join(installDir, 'node_modules'), binDir, { warn: noop })
 
-    // Runs here, before the caller points PNPM_HOME at this directory, so a
-    // release that cannot run is discarded instead of replacing a working pnpm.
+    // Before the caller points PNPM_HOME here, so a broken release is discarded
+    // rather than swapped in.
     assertPnpmRuns(binDir, version)
 
     // Create hash symlink for the global packages system
@@ -278,28 +273,18 @@ async function installPnpmToGlobalDir (
 }
 
 /**
- * Throws unless the pnpm CLI in `binDir` can execute.
+ * Throws unless the pnpm CLI in `binDir` can execute — a release can install
+ * cleanly and still not run, when its wrapper kept the placeholder bin of a
+ * platform package that shipped without a native.
  *
- * A release can install cleanly and still not run: a wrapper whose platform
- * package shipped without its native keeps the placeholder bin from its own
- * tarball, and a truncated or incorrectly signed binary is equally silent. Only that it
- * runs is asserted, not what it prints — matching `--version` output exactly
- * would fail on anything else a release writes to stdout.
- *
- * Spawned through cross-spawn, naming the bin without its extension exactly as
- * the version switcher does: `which` applies PATHEXT even to a path that has
- * separators, so Windows resolves the `.cmd` shim `linkBins` wrote there and
- * cross-spawn runs it through cmd.exe, rather than executing the Bash shim
- * beside it. Exported as a test seam: reaching it through an install would mean
- * publishing a deliberately broken pnpm tarball as a fixture.
+ * Only that it runs is asserted; reading `--version` output would tie the check
+ * to whatever startup decides to print. Exported as a test seam.
  */
 export function assertPnpmRuns (binDir: string, version: string): void {
   const pnpmBinPath = path.join(binDir, 'pnpm')
-  // pnpm reaches `--version` only after loading config, switching versions and
-  // running pnpmfile hooks, so probing from the caller's directory would let an
-  // unrelated project decide the result: a pinned `packageManager` would report
-  // that version instead, and a project's pnpmfile would run. Probe from an
-  // empty directory, where startup finds nothing of the user's to act on.
+  // pnpm prints its version only after loading config and switching versions,
+  // so probing from the caller's directory answers with their pin rather than
+  // the release under test.
   const probeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-self-update-check-'))
   let result: SpawnSyncReturns<string>
   try {

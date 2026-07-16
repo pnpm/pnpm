@@ -1080,11 +1080,9 @@ test('self-update updates the packageManager field in package.json', async () =>
 
 test('installPnpm rejects and cleans up when the installed pnpm has no working executable', async () => {
   const opts = prepare()
-  // A package with no bin at all stands in for a release whose executable is
-  // missing — the shape of @pnpm/exe when its platform package ships without a
-  // native. Serving it under pnpm's tarball URL is the only way to reach the
-  // check without publishing a deliberately broken pnpm as a fixture, so the
-  // metadata has to carry this tarball's integrity rather than pnpm's.
+  // A package with no bin stands in for a release whose executable is missing.
+  // Serving it as pnpm's tarball is the only way here without publishing a
+  // broken pnpm as a fixture, so the metadata carries this tarball's integrity.
   const tgzWithoutBin = fs.readFileSync(require.resolve('@pnpm/tgz-fixtures/tgz/is-positive-1.0.0.tgz'))
   const registry = opts.registries.default
   getMockAgent().get(registry.replace(/\/$/, ''))
@@ -1451,9 +1449,6 @@ describe('exePlatformPkgDirNameNext', () => {
 })
 
 describe('assertReleaseIsInstallable', () => {
-  // The pin is committed and shared while the wrapper is not, so a release
-  // whose @pnpm/exe cannot run must be refused for every wrapper — refusing
-  // only the one that breaks would let a JS user pin it for the whole team.
   test.each(['11.12.0', '11.13.0'])('refuses the broken release %s', (version) => {
     expect(() => {
       assertReleaseIsInstallable(version)

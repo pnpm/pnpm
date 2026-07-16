@@ -93,14 +93,11 @@ pub(super) async fn install_pnpm<Reporter: self::Reporter + 'static>(
     .and_then(|()| {
         if package.links_native_binary {
             link_exe_platform_binary(&install_dir, package_name)?;
-            // Runs here, before the caller links this dir into the global bin,
-            // so a release that cannot run is discarded instead of replacing a
-            // working pnpm.
+            // Before the caller links this dir into the global bin, so a broken
+            // release is discarded rather than swapped in.
             assert_pnpm_runs(&install_dir, package_name, version)
         } else {
-            // Only a native wrapper can install yet fail to execute. The legacy
-            // JS engine has no binary of its own to be missing, and running it
-            // would mean locating a Node.js to run it with.
+            // The legacy JS engine has no binary of its own to be missing.
             Ok(())
         }
     });
@@ -111,13 +108,12 @@ pub(super) async fn install_pnpm<Reporter: self::Reporter + 'static>(
     Ok(InstallPnpmResult { install_dir, package_name, already_existed: false })
 }
 
-/// Fail unless the native engine installed at `install_dir` can execute.
+/// Fail unless the engine installed at `install_dir` can execute — a release can
+/// install cleanly and still not run, when its wrapper kept the placeholder bin
+/// of a platform package that shipped without a native.
 ///
-/// A release can install cleanly and still not run: a wrapper whose platform
-/// package shipped without its native keeps the placeholder bin from its own
-/// tarball, and a truncated or incorrectly signed binary is equally silent. Only that it
-/// runs is asserted, not what it prints — matching `--version` output exactly
-/// would fail on anything else a release writes to stdout.
+/// Only that it runs is asserted; reading `--version` output would tie the check
+/// to whatever startup decides to print.
 pub(super) fn assert_pnpm_runs(
     install_dir: &Path,
     package_name: &str,
@@ -128,12 +124,9 @@ pub(super) fn assert_pnpm_runs(
     } else {
         "pnpm"
     });
-    // pnpm reaches `--version` only after loading config, switching versions and
-    // running pnpmfile hooks, so probing from the caller's directory would let
-    // an unrelated project decide the result: a pinned `packageManager` would
-    // report that version instead, and a project's pnpmfile would run. Probe
-    // from an empty directory, where startup finds nothing of the user's to act
-    // on.
+    // pnpm prints its version only after loading config and switching versions,
+    // so probing from the caller's directory answers with their pin rather than
+    // the release under test.
     let probe_dir = tempfile::tempdir()
         .into_diagnostic()
         .wrap_err("create a directory to check the installed pnpm from")?;
@@ -199,15 +192,10 @@ fn reuse_cached_engine(install_dir: &Path, package: PnpmPackageToInstall, versio
     !package.links_native_binary || link_exe_platform_binary(install_dir, package.name).is_ok()
 }
 
-/// Versions that must not be installed or pinned by any wrapper. Their
-/// `@pnpm/exe` published its platform packages with no binary, so that wrapper
-/// keeps the placeholder bin from its own tarball and cannot run.
-///
-/// Matched by version, not by package, because the pin is shared while the
-/// wrapper is not: `packageManager` / `devEngines.packageManager` is committed,
-/// so a developer on the JS `pnpm` — for which these versions do run — would pin
-/// one and break every teammate who uses `@pnpm/exe`. Both are immutable on npm
-/// and deprecated there, so the version alone settles it.
+/// Fail for versions whose `@pnpm/exe` shipped platform packages with no binary,
+/// so it cannot run. Matched by version, not package: the pin is shared but the
+/// wrapper is not, so a developer on the JS `pnpm` — which does run at these
+/// versions — would otherwise pin one and break every teammate on `@pnpm/exe`.
 pub(super) fn assert_release_is_installable(version: &str) -> miette::Result<()> {
     if matches!(version, "11.12.0" | "11.13.0") {
         return Err(SelfUpdateError::BrokenPnpmRelease { version: version.to_string() }.into());

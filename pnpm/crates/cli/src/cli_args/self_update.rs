@@ -151,9 +151,8 @@ async fn handler<Reporter: self::Reporter + 'static>(
             || SelfUpdateError::CannotResolvePnpm { specifier: bare_specifier.to_string() },
         )?;
     let target_version = resolved.version;
-    // Before the pin below is written, not just before the install: that field
-    // is committed and shared, so pinning a release the running wrapper happens
-    // to survive would still break every teammate whose wrapper does not.
+    // Before the pin below is written, not just before the install: the pin is
+    // shared, so a release this wrapper survives can still break a teammate's.
     install_pnpm::assert_release_is_installable(&target_version)?;
 
     // Under strict resolution (`minimumReleaseAge` strict, or
