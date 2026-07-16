@@ -362,16 +362,14 @@ fn normalize_from_lockfile(
                 r#"pnpm-lock.yaml has an unparsable config-dependency key "{pkg_key}""#,
             ),
         })?;
-        let pkg = env_lockfile
-            .packages
-            .get(&key)
-            .or_else(|| env_lockfile.packages.get(&key.without_peer()))
-            .ok_or_else(|| ConfigDepError::EnvLockfileCorrupted {
+        let pkg = env_lockfile.packages.get(&key).ok_or_else(|| {
+            ConfigDepError::EnvLockfileCorrupted {
                 message: format!(
                     "pnpm-lock.yaml is corrupted or incomplete: missing packages entry for \
                      \"{pkg_key}\" referenced from importers['.'].configDependencies",
                 ),
-            })?;
+            }
+        })?;
         // Derive the tarball URL (when integrity-only) from the registry
         // that serves this package, honoring per-scope registry entries.
         let (integrity, tarball) = integrity_and_tarball(
@@ -424,17 +422,15 @@ fn read_optional_subdeps(
         let key = subdep_key.parse().map_err(|_| ConfigDepError::EnvLockfileCorrupted {
             message: format!(r#"pnpm-lock.yaml has an unparsable subdep key "{subdep_key}""#),
         })?;
-        let pkg = env_lockfile
-            .packages
-            .get(&key)
-            .or_else(|| env_lockfile.packages.get(&key.without_peer()))
-            .ok_or_else(|| ConfigDepError::EnvLockfileCorrupted {
+        let pkg = env_lockfile.packages.get(&key).ok_or_else(|| {
+            ConfigDepError::EnvLockfileCorrupted {
                 message: format!(
                     "pnpm-lock.yaml is corrupted or incomplete: missing packages entry for \
                      \"{subdep_key}\" referenced from optionalDependencies of config dependency \
                      \"{parent_name}\"",
                 ),
-            })?;
+            }
+        })?;
         let (integrity, tarball) = integrity_and_tarball(
             &pkg.resolution,
             &subdep_name,
