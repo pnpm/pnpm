@@ -23,7 +23,7 @@ describe('edit command', () => {
   test('edit dependency, verify de-hardlinking, edit file, and rebuild', async () => {
     prepare({
       dependencies: {
-        'is-positive': '1.0.0',
+        '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
       },
     })
 
@@ -40,13 +40,19 @@ describe('edit command', () => {
       packageImportMethod: 'hardlink',
     })
 
-    const pkgPath = path.resolve('node_modules/is-positive')
-    const indexPath = path.join(pkgPath, 'index.js')
-    expect(fs.existsSync(indexPath)).toBe(true)
+    const pkgPath = path.resolve('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
+    const packageJsonPath = path.join(pkgPath, 'package.json')
+    expect(fs.existsSync(packageJsonPath)).toBe(true)
 
-    const initialStat = fs.statSync(indexPath)
+    const initialStat = fs.statSync(packageJsonPath)
     const originalInode = initialStat.ino
     expect(initialStat.nlink).toBeGreaterThan(1)
+
+    // The fixture has a postinstall script that creates generated-by-postinstall.js.
+    // We delete it before edit to verify that rebuild runs and recreates it.
+    const markerPath = path.join(pkgPath, 'generated-by-postinstall.js')
+    expect(fs.existsSync(markerPath)).toBe(true)
+    fs.rmSync(markerPath)
 
     const dummyEditor = 'node -e "const fs = require(\'fs\'); fs.writeFileSync(require(\'path\').join(process.argv[1], \'index.js\'), \'module.exports = () => \\"modified\\";\');"'
 
@@ -54,14 +60,18 @@ describe('edit command', () => {
       ...baseOptions,
       dir: projectDir,
       editor: dummyEditor,
-    }, ['is-positive'])
+    }, ['@pnpm.e2e/pre-and-postinstall-scripts-example'])
 
+    const indexPath = path.join(pkgPath, 'index.js')
     const modifiedContent = fs.readFileSync(indexPath, 'utf8')
     expect(modifiedContent).toContain('modified')
 
-    const newStat = fs.statSync(indexPath)
+    const newStat = fs.statSync(packageJsonPath)
     expect(newStat.ino).not.toBe(originalInode)
     expect(newStat.nlink).toBe(1)
+
+    // Assert that rebuild actually ran by checking the marker file
+    expect(fs.existsSync(markerPath)).toBe(true)
   })
 
   test('resolveSafePnpmPath excludes PATH entries under project root', async () => {
