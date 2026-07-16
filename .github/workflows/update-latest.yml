@@ -22,13 +22,13 @@ env:
   # The registry these tags are published to. Passed per command rather than
   # through `npm_config_registry`, which pnpm ignores.
   REGISTRY: https://registry.npmjs.org/
-  # The pnpm that sets up the checks below — deliberately not the version being
-  # released. These jobs establish what the release is measured against: the
-  # current release is installed here to serve as the upgrade's starting point,
-  # so letting the version under test build its own starting state would let a
-  # bug in it be blamed on the version it replaces. Pin it, and bump it
-  # deliberately to a version that has already proven itself as `latest`.
-  # Tagging is the opposite case and uses the released version itself.
+  # The pnpm that operates this workflow — deliberately never the version being
+  # released, for a different reason in each job that uses it. validate and
+  # verify-upgrade establish what the release is measured against, so letting
+  # the version under test build its own starting point would let a bug in it be
+  # blamed on the version it replaces. tag-in-registry holds the publish token,
+  # so it must not execute an artifact it has not finished vetting. Bump this
+  # deliberately, to a version that has already proven itself as `latest`.
   RELEASE_TOOL_PNPM_VERSION: 11.13.1
 
 jobs:
@@ -210,12 +210,16 @@ jobs:
           echo "OK: ${package}@${FROM} self-updated to v${VERSION}"
         done
 
-  # The release tags itself: the pnpm installed here is the version being
-  # promoted, already published under next-<major> and just exercised by
-  # verify-upgrade. Every tag is then one more thing the release had to do
-  # correctly — an authenticated registry write — before it reaches anyone. It
-  # cannot deadlock: a release that fails here blocks only itself, and its
-  # successor arrives carrying its own tagger.
+  # This job holds the publish token, so it runs only the pinned pnpm — never
+  # the version being promoted.
+  #
+  # Tagging with the released version instead is tempting: it would make every
+  # tag one more thing the release had to do correctly, and it could not
+  # deadlock, since a release that failed would block only itself. Do not. The
+  # token here is the org's, and this job is deciding whether the artifact is
+  # fit to promote — handing that artifact the credential first inverts the
+  # order. Verification of the release belongs in verify-upgrade, which runs it
+  # with no secrets precisely so this job never has to.
   tag-in-registry:
     name: Tagging ${{ github.event.inputs.version }} as ${{ github.event.inputs.tag }}
     needs: verify-upgrade
@@ -225,12 +229,10 @@ jobs:
     - uses: garnet-org/action@2b7fc9d79b54f551b43358c27424a36064b3e078 # v2.0.2
       with:
         api_token: ${{ secrets.GARNET_API_TOKEN }}
-    # `validate` has already checked that the version is exact semver, so it is
-    # safe to resolve here.
     - name: Install pnpm and Node
       uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
       with:
-        version: ${{ github.event.inputs.version }}
+        version: ${{ env.RELEASE_TOOL_PNPM_VERSION }}
         runtime: node@26.5.0
         install: false
     - name: Update tag
