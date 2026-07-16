@@ -25,7 +25,7 @@ use std::{
 
 #[derive(Debug, Args)]
 pub struct PatchCommitArgs {
-    /// Directory created by `pacquet patch`.
+    /// Directory created by `pnpm patch`.
     pub patch_dir: PathBuf,
     /// The generated patch file will be saved to this directory.
     #[clap(long = "patches-dir", value_name = "dir")]
@@ -38,7 +38,7 @@ pub enum PatchCommitError {
     #[display("{} is not a valid patch directory", patch_dir.display())]
     #[diagnostic(
         code(ERR_PNPM_INVALID_PATCH_DIR),
-        help("A valid patch directory should be created by `pacquet patch`")
+        help("A valid patch directory should be created by `pnpm patch`")
     )]
     InvalidPatchDir { patch_dir: PathBuf },
 
@@ -55,7 +55,7 @@ pub enum PatchCommitError {
     },
 
     #[display("The modules directory is not ready for patching")]
-    #[diagnostic(code(ERR_PNPM_PATCH_NO_LOCKFILE), help("Run pacquet install first"))]
+    #[diagnostic(code(ERR_PNPM_PATCH_NO_LOCKFILE), help("Run `pnpm install` first"))]
     PatchNoLockfile,
 
     #[display("Failed to create patches directory {}: {source}", path.display())]

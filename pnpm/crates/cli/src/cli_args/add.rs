@@ -94,9 +94,9 @@ pub struct AddArgs {
     /// Dependencies are not downloaded. Only `pnpm-lock.yaml` is updated.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
-    /// The directory with links to the store (default is `node_modules/.pacquet`).
+    /// The directory with links to the store (default is `node_modules/.pnpm`).
     /// All direct and indirect dependencies of the project are linked into this directory
-    #[clap(long = "virtual-store-dir", default_value = "node_modules/.pacquet")]
+    #[clap(long = "virtual-store-dir", default_value = "node_modules/.pnpm")]
     pub virtual_store_dir: Option<PathBuf>, // TODO: make use of this
 
     /// Install the package globally, linking its bins into the global bin directory.
@@ -199,13 +199,11 @@ impl AddArgs {
         // `--config` (configurational dependency) and `--lockfile-only` have
         // no meaning for a global install; reject rather than silently ignore.
         if self.config {
-            return Err(miette::miette!(
-                "`pacquet add --config` cannot be combined with --global."
-            ));
+            return Err(miette::miette!("`pnpm add --config` cannot be combined with --global."));
         }
         if self.lockfile_only {
             return Err(miette::miette!(
-                "`pacquet add --lockfile-only` cannot be combined with --global."
+                "`pnpm add --lockfile-only` cannot be combined with --global."
             ));
         }
         let supported_architectures =

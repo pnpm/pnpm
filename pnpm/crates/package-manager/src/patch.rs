@@ -78,7 +78,7 @@ pub enum WritePackageForPatchError {
     MissingPackageMetadata { package_key: String },
 
     #[display(
-        "Package `{package}` uses a `{resolution_kind}` resolution, which pacquet patch does not yet support."
+        "Package `{package}` uses a `{resolution_kind}` resolution, which `pnpm patch` does not yet support."
     )]
     #[diagnostic(code(pacquet_package_manager::patch_unsupported_resolution))]
     UnsupportedResolution { package: String, resolution_kind: &'static str },

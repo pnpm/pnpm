@@ -44,7 +44,7 @@ pub struct CreateArgs {
 #[non_exhaustive]
 pub enum CreateError {
     #[display(
-        "Missing the template package name.\nThe correct usage is `pacquet create <name>` with <name> substituted for a package name."
+        "Missing the template package name.\nThe correct usage is `pnpm create <name>` with <name> substituted for a package name."
     )]
     #[diagnostic(code(ERR_PNPM_MISSING_ARGS))]
     MissingArgs,

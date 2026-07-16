@@ -19,9 +19,7 @@ pub enum PrefixError {
     /// `--global` is rejected because the global-dir machinery (pnpm's
     /// `@pnpm/global.commands`) is not ported to pacquet yet; refuse rather
     /// than print a wrong path.
-    #[display(
-        "`pacquet prefix --global` is not supported yet; global package management has not been ported to pacquet."
-    )]
+    #[display("`pnpm prefix --global` is not supported yet.")]
     #[diagnostic(code(pacquet_cli::prefix_global_unsupported))]
     GlobalUnsupported,
 

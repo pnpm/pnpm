@@ -103,7 +103,7 @@ pub struct ConfigListArgs {
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum ConfigError {
-    #[display("`pacquet config {subcommand}` requires the config key")]
+    #[display("`pnpm config {subcommand}` requires the config key")]
     #[diagnostic(code(ERR_PNPM_CONFIG_NO_PARAMS))]
     NoParams { subcommand: String },
 

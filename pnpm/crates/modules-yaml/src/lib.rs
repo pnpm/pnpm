@@ -321,7 +321,7 @@ impl TryFrom<u32> for LayoutVersion {
 /// is not the one pacquet supports.
 #[derive(Debug, Display, Error)]
 #[display(
-    "Unsupported layout version {found}; this build of pacquet only supports layout version {}",
+    "Unsupported layout version {found}; this build of pnpm only supports layout version {}",
     LayoutVersion::VALUE
 )]
 pub struct UnsupportedLayoutVersionError {

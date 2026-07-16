@@ -95,7 +95,7 @@ pub struct PackAppArgs {
 #[non_exhaustive]
 pub enum PackAppError {
     #[display(
-        r#""pacquet pack-app" requires a CJS entry file — pass --entry <path> or set "pnpm.app.entry" in package.json."#
+        r#""pnpm pack-app" requires a CJS entry file — pass --entry <path> or set "pnpm.app.entry" in package.json."#
     )]
     #[diagnostic(code(ERR_PNPM_PACK_APP_MISSING_ENTRY))]
     MissingEntry,
@@ -151,7 +151,7 @@ pub enum PackAppError {
     },
 
     #[display(
-        r#""pacquet pack-app" requires at least one target — pass --target <triplet> or set "pnpm.app.targets" in package.json. Supported: {supported}"#
+        r#""pnpm pack-app" requires at least one target — pass --target <triplet> or set "pnpm.app.targets" in package.json. Supported: {supported}"#
     )]
     #[diagnostic(code(ERR_PNPM_PACK_APP_MISSING_TARGET))]
     MissingTarget {
@@ -388,7 +388,7 @@ impl PackAppArgs {
 
         let pacquet_bin = std::env::current_exe()
             .into_diagnostic()
-            .wrap_err("resolving the pacquet executable path")?;
+            .wrap_err("resolving the pnpm executable path")?;
 
         let mut results = Vec::with_capacity(targets.len());
         for target in &targets {
@@ -495,9 +495,8 @@ fn resolve_builder_binary(build_root: &Path, target_version: &str) -> miette::Re
         }
         .into());
     }
-    let pacquet_bin = std::env::current_exe()
-        .into_diagnostic()
-        .wrap_err("resolving the pacquet executable path")?;
+    let pacquet_bin =
+        std::env::current_exe().into_diagnostic().wrap_err("resolving the pnpm executable path")?;
     ensure_node_runtime(
         &pacquet_bin,
         build_root,
@@ -582,7 +581,7 @@ fn ensure_node_runtime(
         command.arg(format!("--libc={libc}"));
     }
     command.arg(format!("node@runtime:{version}"));
-    run_command(&mut command, "pacquet add node@runtime")?;
+    run_command(&mut command, "pnpm add node@runtime")?;
 
     if !binary_path.exists() {
         return Err(PackAppError::NodeBinaryMissing {

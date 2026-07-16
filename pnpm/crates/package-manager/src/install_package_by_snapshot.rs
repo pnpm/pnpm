@@ -142,13 +142,13 @@ pub enum InstallPackageBySnapshotError {
     CreateVirtualDir(#[error(source)] CreateVirtualDirError),
 
     #[display(
-        "Package `{package_key}` has a tarball resolution without an `integrity` field; pacquet cannot verify the download and refuses to install it."
+        "Package `{package_key}` has a tarball resolution without an `integrity` field; pnpm cannot verify the download and refuses to install it."
     )]
     #[diagnostic(code(pacquet_package_manager::missing_tarball_integrity))]
     MissingTarballIntegrity { package_key: String },
 
     #[display(
-        "Package `{package_key}` uses a `{resolution_kind}` resolution, which pacquet does not yet support."
+        "Package `{package_key}` uses a `{resolution_kind}` resolution, which pnpm does not yet support."
     )]
     #[diagnostic(code(pacquet_package_manager::unsupported_resolution))]
     UnsupportedResolution { package_key: String, resolution_kind: &'static str },
@@ -217,7 +217,7 @@ pub enum InstallPackageBySnapshotError {
     /// or a future shape pacquet doesn't recognise rather than
     /// silently routing through and confusing the install pipeline.
     #[display(
-        "Package `{package_key}` carries a runtime variant whose inner resolution is `{inner_kind}` rather than `binary`; pacquet only knows how to install binary-shaped variants."
+        "Package `{package_key}` carries a runtime variant whose inner resolution is `{inner_kind}` rather than `binary`; pnpm only knows how to install binary-shaped variants."
     )]
     #[diagnostic(code(pacquet_package_manager::variant_has_non_binary_resolution))]
     VariantHasNonBinaryResolution { package_key: String, inner_kind: &'static str },
