@@ -422,3 +422,61 @@ test('readWantedLockfile() returns null for env-only lockfile with no main docum
   const lockfile = await readWantedLockfile(projectPath, { ignoreIncompatible: false })
   expect(lockfile).toBeNull()
 })
+
+const testOnNonWindows = process.platform === 'win32' ? test.skip : test
+
+const upToDateLockfile = {
+  importers: {
+    '.': {
+      dependencies: { 'is-positive': '1.0.0' },
+      specifiers: { 'is-positive': '^1.0.0' },
+    },
+  },
+  lockfileVersion: LOCKFILE_VERSION,
+  packages: {},
+  snapshots: {},
+}
+
+test('writeWantedLockfile() leaves an unchanged lockfile untouched', async () => {
+  const projectPath = temporaryDirectory()
+  const lockfilePath = path.join(projectPath, WANTED_LOCKFILE)
+  await writeWantedLockfile(projectPath, upToDateLockfile)
+  const mtimeBefore = fs.statSync(lockfilePath).mtimeMs
+
+  await new Promise((resolve) => setTimeout(resolve, 10))
+  await writeWantedLockfile(projectPath, upToDateLockfile)
+
+  expect(fs.statSync(lockfilePath).mtimeMs).toBe(mtimeBefore)
+})
+
+testOnNonWindows('writeWantedLockfile() accepts a symlinked lockfile when nothing changes', async () => {
+  const projectPath = temporaryDirectory()
+  const realDir = temporaryDirectory()
+  const realLockfile = path.join(realDir, 'pnpm-lock.yaml')
+  await writeWantedLockfile(realDir, upToDateLockfile)
+  fs.symlinkSync(realLockfile, path.join(projectPath, WANTED_LOCKFILE), 'file')
+
+  await expect(writeWantedLockfile(projectPath, upToDateLockfile)).resolves.toBeTruthy()
+  expect(fs.lstatSync(path.join(projectPath, WANTED_LOCKFILE)).isSymbolicLink()).toBe(true)
+})
+
+testOnNonWindows('writeWantedLockfile() refuses a real write through a symlink', async () => {
+  const projectPath = temporaryDirectory()
+  const realDir = temporaryDirectory()
+  const realLockfile = path.join(realDir, 'pnpm-lock.yaml')
+  await writeWantedLockfile(realDir, upToDateLockfile)
+  const targetBefore = fs.readFileSync(realLockfile, 'utf8')
+  fs.symlinkSync(realLockfile, path.join(projectPath, WANTED_LOCKFILE), 'file')
+
+  const changed = {
+    ...upToDateLockfile,
+    importers: {
+      '.': {
+        dependencies: { 'is-negative': '1.0.0' },
+        specifiers: { 'is-negative': '^1.0.0' },
+      },
+    },
+  }
+  await expect(writeWantedLockfile(projectPath, changed)).rejects.toThrow(/symlinked lockfile/)
+  expect(fs.readFileSync(realLockfile, 'utf8')).toBe(targetBefore)
+})

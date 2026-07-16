@@ -70,22 +70,55 @@ pub enum SaveLockfileError {
 /// `${YAML_DOCUMENT_START}${envDoc}${YAML_DOCUMENT_SEPARATOR}${mainDoc}`.
 /// A lockfile with no env document round-trips byte-for-byte (no
 /// leading `---`).
+///
+/// A byte-identical rewrite is skipped, so an up-to-date install leaves the
+/// lockfile — and its mtime — untouched. Reads follow a symlinked lockfile,
+/// but a write through one is refused: it would redirect the write onto the
+/// symlink's target (<https://github.com/pnpm/pnpm/issues/13073>).
+///
+/// The write is atomic: a crash mid-write leaves the previous lockfile intact
+/// rather than a truncated one. A missing parent directory is an error, not
+/// something to create — the lockfile is written into an existing project.
 pub fn save_value_to_path<Document: serde::Serialize>(
     value: &Document,
     path: &Path,
 ) -> Result<(), SaveLockfileError> {
     let content = serialize_yaml::to_string(value).map_err(SaveLockfileError::SerializeYaml)?;
-    let env_prefix = match fs::read_to_string(path) {
-        Ok(existing) => extract_env_document(&existing)
-            .map(|env| format!("{YAML_DOCUMENT_START}{env}{YAML_DOCUMENT_SEPARATOR}")),
+    let existing = match fs::read_to_string(path) {
+        Ok(existing) => Some(existing),
         Err(error) if error.kind() == io::ErrorKind::NotFound => None,
         Err(error) => return Err(SaveLockfileError::WriteFile(error)),
     };
-    let output = match env_prefix {
-        Some(prefix) => format!("{prefix}{content}"),
+    let output = match existing.as_deref().and_then(extract_env_document) {
+        Some(env) => format!("{YAML_DOCUMENT_START}{env}{YAML_DOCUMENT_SEPARATOR}{content}"),
         None => content,
     };
-    fs::write(path, output).map_err(SaveLockfileError::WriteFile)
+    if existing.as_deref() == Some(output.as_str()) {
+        return Ok(());
+    }
+    ensure_lockfile_is_not_symlink(path).map_err(SaveLockfileError::WriteFile)?;
+    write_atomic(path, output.as_bytes())
+}
+
+/// Refuses a symlinked lockfile before a write, so a repo-planted
+/// `pnpm-lock.yaml` symlink cannot redirect the write onto its target — any
+/// file the user can write. Callers that only read must not use this: reading
+/// through a symlink is safe, and build sandboxes stage the lockfile as one
+/// (<https://github.com/pnpm/pnpm/issues/13073>).
+pub(crate) fn ensure_lockfile_is_not_symlink(path: &Path) -> io::Result<()> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() => Err(symlinked_lockfile_error(path)),
+        Ok(_) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
+}
+
+pub(crate) fn symlinked_lockfile_error(path: &Path) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidInput,
+        format!("refusing to write symlinked lockfile at {}", path.display()),
+    )
 }
 
 impl Lockfile {
@@ -138,9 +171,41 @@ impl Lockfile {
     }
 }
 
+/// Make the freshly created temp file a faithful stand-in for `target`: flush
+/// it to disk so the rename can't publish a directory entry whose data didn't
+/// survive a power loss, and carry `target`'s mode across — the rename replaces
+/// `target` with this file, so a lockfile the user tightened would otherwise
+/// silently revert to the umask default.
+fn fill_temp_file(file: &mut fs::File, content: &[u8], target: &Path) -> io::Result<()> {
+    file.write_all(content)?;
+    file.sync_all()?;
+    carry_mode_across(file, target)
+}
+
+#[cfg(unix)]
+fn carry_mode_across(file: &fs::File, target: &Path) -> io::Result<()> {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    // `symlink_metadata` so a symlinked target is never followed. Callers
+    // refuse a symlinked lockfile before reaching here; a fresh file keeps the
+    // umask default, matching a plain create.
+    let Ok(metadata) = fs::symlink_metadata(target) else { return Ok(()) };
+    if metadata.file_type().is_symlink() {
+        return Ok(());
+    }
+    file.set_permissions(fs::Permissions::from_mode(metadata.permissions().mode()))
+}
+
+#[cfg(not(unix))]
+fn carry_mode_across(_file: &fs::File, _target: &Path) -> io::Result<()> {
+    Ok(())
+}
+
 /// Write `content` to `target` via a temp file in the same directory
 /// followed by `rename`. The rename is atomic on Unix and replaces
-/// in-place on Windows, so an observer never sees a torn file.
+/// in-place on Windows, so an observer never sees a torn file, and a
+/// crash mid-write leaves the previous `target` intact. A missing parent
+/// directory surfaces as an error rather than being created.
 ///
 /// The temp file is opened with `O_CREAT | O_EXCL` (`create_new(true)`)
 /// rather than `create + truncate`, so we never follow a symlink or
@@ -180,7 +245,7 @@ fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> 
             Err(error) => return Err(SaveLockfileError::WriteFile(error)),
         };
 
-        if let Err(error) = file.write_all(content) {
+        if let Err(error) = fill_temp_file(&mut file, content, target) {
             drop(file);
             let _ = fs::remove_file(&tmp);
             return Err(SaveLockfileError::WriteFile(error));

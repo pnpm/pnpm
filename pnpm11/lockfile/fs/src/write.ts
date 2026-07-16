@@ -12,7 +12,7 @@ import { convertToLockfileFile, convertToLockfileObject } from './lockfileFormat
 import { getWantedLockfileName } from './lockfileName.js'
 import { lockfileLogger as logger } from './logger.js'
 import { sortLockfileKeys } from './sortLockfileKeys.js'
-import { streamReadFirstYamlDocumentNoFollow, YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START } from './yamlDocuments.js'
+import { ensureLockfileIsNotSymlink, extractEnvDocument, readLockfileToString, YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START } from './yamlDocuments.js'
 
 const LOCKFILE_YAML_FORMAT = {
   blankLines: true,
@@ -69,24 +69,42 @@ async function writeLockfile (
   const lockfileToStringify = convertToLockfileFile(wantedLockfile)
   const yamlDoc = yamlStringify(lockfileToStringify)
 
-  if (lockfileFilename === WANTED_LOCKFILE) {
-    // Re-read the env document from the existing lockfile to preserve it.
-    // Ideally the env document would be captured during the initial lockfile read
-    // and passed through to the write functions, but that would require threading it
-    // through 25+ call sites. Re-reading is cheap since the file is likely still
-    // in the OS page cache and streaming stops at the first separator.
-    const envDoc = await streamReadFirstYamlDocumentNoFollow(lockfilePath)
-    const envPrefix = envDoc != null ? `${YAML_DOCUMENT_START}${envDoc}${YAML_DOCUMENT_SEPARATOR}` : ''
-    await writeFileAtomic(lockfilePath, `${envPrefix}${yamlDoc}`)
-  } else {
-    await writeFileAtomic(lockfilePath, yamlDoc)
-  }
+  await writeLockfileDoc(lockfilePath, lockfileFilename, yamlDoc)
 
   // YAML drops undefined on serialize, so the in-memory LockfileFile
   // can carry fields (like an unset settings.dedupePeers) that won't
   // survive a round-trip; strip them to mirror what the next reader
   // will parse back.
   return convertToLockfileObject(stripUndefinedDeep(lockfileToStringify) as LockfileFile)
+}
+
+/**
+ * Writes a serialized lockfile. Only `pnpm-lock.yaml` is led by an env
+ * document; `lock.yaml` and git-branch lockfiles are written as-is.
+ *
+ * The env document is preserved by re-reading it. Ideally it would be captured
+ * during the initial lockfile read and passed through to the write functions,
+ * but that would require threading it through 25+ call sites. Re-reading is
+ * cheap since the file is likely still in the OS page cache.
+ *
+ * A byte-identical rewrite is skipped. An up-to-date install — every
+ * `--frozen-lockfile` run — would otherwise rewrite the lockfile for nothing,
+ * and refuse a symlinked one over a write that changes no bytes
+ * (https://github.com/pnpm/pnpm/issues/13073).
+ */
+async function writeLockfileDoc (lockfilePath: string, lockfileName: string, mainDoc: string): Promise<void> {
+  if (lockfileName !== WANTED_LOCKFILE) {
+    await writeFileAtomic(lockfilePath, mainDoc)
+    return
+  }
+  const existing = await readLockfileToString(lockfilePath)
+  const envDoc = existing == null ? null : extractEnvDocument(existing)
+  const content = envDoc == null
+    ? mainDoc
+    : `${YAML_DOCUMENT_START}${envDoc}${YAML_DOCUMENT_SEPARATOR}${mainDoc}`
+  if (existing === content) return
+  await ensureLockfileIsNotSymlink(lockfilePath)
+  await writeFileAtomic(lockfilePath, content)
 }
 
 function stripUndefinedDeep<T> (value: T): T {
@@ -149,22 +167,12 @@ export async function writeLockfiles (
   const wantedLockfileToStringify = convertToLockfileFile(opts.wantedLockfile)
   const yamlDoc = yamlStringify(wantedLockfileToStringify)
 
-  // Preserve the env lockfile document at the top of pnpm-lock.yaml
-  let envPrefix = ''
-  if (wantedLockfileName === WANTED_LOCKFILE) {
-    const envDoc = await streamReadFirstYamlDocumentNoFollow(wantedLockfilePath)
-    if (envDoc != null) {
-      envPrefix = `${YAML_DOCUMENT_START}${envDoc}${YAML_DOCUMENT_SEPARATOR}`
-    }
-  }
-  const wantedYamlDoc = `${envPrefix}${yamlDoc}`
-
   // in most cases the `pnpm-lock.yaml` and `node_modules/.pnpm-lock.yaml` are equal
   // in those cases the YAML document can be stringified only once for both files
   // which is more efficient
   if (opts.wantedLockfile === opts.currentLockfile) {
     await Promise.all([
-      writeFileAtomic(wantedLockfilePath, wantedYamlDoc),
+      writeLockfileDoc(wantedLockfilePath, wantedLockfileName, yamlDoc),
       (async () => {
         if (isEmptyLockfile(opts.wantedLockfile)) {
           await rimraf(currentLockfilePath)
@@ -195,7 +203,7 @@ export async function writeLockfiles (
   // current against a non-empty wanted; key off the current.
   const currentIsEmpty = isEmptyLockfile(opts.currentLockfile)
   await Promise.all([
-    writeFileAtomic(wantedLockfilePath, wantedYamlDoc),
+    writeLockfileDoc(wantedLockfilePath, wantedLockfileName, yamlDoc),
     (async () => {
       if (currentIsEmpty) {
         await rimraf(currentLockfilePath)
