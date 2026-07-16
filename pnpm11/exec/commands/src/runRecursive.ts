@@ -248,7 +248,7 @@ export function getSpecifiedScripts (scripts: PackageScripts, scriptName: string
     const scriptKeys = Object.keys(scripts)
     return scriptKeys
       .filter(script => script.match(scriptSelector))
-      .sort((a, b) => a.localeCompare(b))
+      .sort()
   }
 
   return []

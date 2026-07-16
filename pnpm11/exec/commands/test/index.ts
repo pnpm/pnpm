@@ -852,6 +852,6 @@ test('passing --sequential option sets effective workspaceConcurrency to 1 for m
 
   expect(outputsA.length).toBeGreaterThan(0)
   expect(outputsB.length).toBeGreaterThan(0)
-  expect(outputsB[0]).toBeGreaterThanOrEqual(outputsA[outputsA.length - 1])
+  expect(outputsB[0] - outputsA[outputsA.length - 1]).toBeGreaterThanOrEqual(30)
 })
 
