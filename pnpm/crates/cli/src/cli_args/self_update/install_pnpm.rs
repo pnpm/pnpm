@@ -196,7 +196,7 @@ fn reuse_cached_engine(install_dir: &Path, package: PnpmPackageToInstall, versio
 /// so it cannot run. Matched by version, not package: the pin is shared but the
 /// wrapper is not, so a developer on the JS `pnpm` — which does run at these
 /// versions — would otherwise pin one and break every teammate on `@pnpm/exe`.
-pub(super) fn assert_release_is_installable(version: &str) -> miette::Result<()> {
+pub(crate) fn assert_release_is_installable(version: &str) -> miette::Result<()> {
     if matches!(version, "11.12.0" | "11.13.0") {
         return Err(SelfUpdateError::BrokenPnpmRelease { version: version.to_string() }.into());
     }
