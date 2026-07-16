@@ -45,8 +45,8 @@ impl PublishArgs {
     ) -> miette::Result<Vec<PublishSummary>> {
         if self.flags.batch {
             return Err(miette::miette!(
-                help = "Publish without --batch; batched publishing is not yet ported to pacquet.",
-                "Batch publishing (--batch) is not yet supported by pacquet",
+                help = "Publish without --batch; batched publishing is not yet ported to pnpm.",
+                "Batch publishing (--batch) is not yet supported by pnpm",
             ));
         }
 

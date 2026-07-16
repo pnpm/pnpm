@@ -301,7 +301,7 @@ impl OutdatedArgs {
     pub async fn run(self, state: State) -> miette::Result<OutdatedOutcome> {
         if state.config.recursive {
             return Err(miette::miette!(
-                "`pacquet outdated --recursive` is not supported yet; recursive workspace inspection has not been ported to pacquet."
+                "`pnpm outdated --recursive` is not supported yet; recursive workspace inspection has not been ported to pnpm."
             ));
         }
 
@@ -328,7 +328,7 @@ impl OutdatedArgs {
             let dir = manifest.path().parent().unwrap_or_else(|| manifest.path()).display();
             return Err(miette::miette!(
                 code = "ERR_PNPM_OUTDATED_NO_LOCKFILE",
-                r#"No lockfile in directory "{dir}". Run `pacquet install` to generate one."#
+                r#"No lockfile in directory "{dir}". Run `pnpm install` to generate one."#
             ));
         }
 
@@ -367,7 +367,7 @@ impl OutdatedArgs {
     pub async fn run_global(self, config: &'static Config) -> miette::Result<OutdatedOutcome> {
         if config.recursive {
             return Err(miette::miette!(
-                "`pacquet outdated --recursive` is not supported yet; recursive workspace inspection has not been ported to pacquet."
+                "`pnpm outdated --recursive` is not supported yet; recursive workspace inspection has not been ported to pnpm."
             ));
         }
         let global_pkg_dir = config.global_pkg_dir.clone().ok_or_else(|| {

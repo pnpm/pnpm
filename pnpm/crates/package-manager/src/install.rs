@@ -283,7 +283,7 @@ where
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum InstallError {
     #[display(
-        "Headless installation requires a pnpm-lock.yaml file, but none was found. Run `pacquet install` without --frozen-lockfile to create one."
+        "Headless installation requires a pnpm-lock.yaml file, but none was found. Run `pnpm install` without --frozen-lockfile to create one."
     )]
     #[diagnostic(code(pacquet_package_manager::no_lockfile))]
     NoLockfile,
@@ -390,7 +390,7 @@ pub enum InstallError {
     #[diagnostic(
         code(pacquet_package_manager::outdated_lockfile),
         help(
-            "Regenerate the lockfile with `pnpm install --lockfile-only` so that pnpm-lock.yaml reflects the current package.json, then re-run `pacquet install --frozen-lockfile`."
+            "Regenerate the lockfile with `pnpm install --lockfile-only` so that pnpm-lock.yaml reflects the current package.json, then re-run `pnpm install --frozen-lockfile`."
         )
     )]
     OutdatedLockfile { reason: StalenessReason },

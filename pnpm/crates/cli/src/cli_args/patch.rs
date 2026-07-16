@@ -41,7 +41,7 @@ pub enum PatchError {
     MissingPackageName,
 
     #[display("The modules directory is not ready for patching")]
-    #[diagnostic(code(ERR_PNPM_PATCH_NO_LOCKFILE), help("Run pacquet install first"))]
+    #[diagnostic(code(ERR_PNPM_PATCH_NO_LOCKFILE), help("Run `pnpm install` first"))]
     PatchNoLockfile,
 
     #[display("The target directory already exists: '{}'", edit_dir.display())]

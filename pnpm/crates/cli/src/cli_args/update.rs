@@ -115,7 +115,7 @@ impl UpdateArgs {
         // [`Self::run_global`] before `run` is reached.)
         if self.workspace {
             return Err(miette::miette!(
-                "`pacquet update --workspace` is not supported yet; workspace-protocol version linking has not been ported to pacquet."
+                "`pnpm update --workspace` is not supported yet; workspace-protocol version linking has not been ported to pnpm."
             ));
         }
 
@@ -186,12 +186,12 @@ impl UpdateArgs {
     ) -> miette::Result<()> {
         if self.workspace {
             return Err(miette::miette!(
-                "`pacquet update --workspace` is not supported yet; workspace-protocol version linking has not been ported to pacquet."
+                "`pnpm update --workspace` is not supported yet; workspace-protocol version linking has not been ported to pnpm."
             ));
         }
         if self.interactive {
             return Err(miette::miette!(
-                "`pacquet update --global --interactive` is not supported yet; interactive selection for global updates has not been ported to pacquet."
+                "`pnpm update --global --interactive` is not supported yet; interactive selection for global updates has not been ported to pnpm."
             ));
         }
         let supported_architectures =

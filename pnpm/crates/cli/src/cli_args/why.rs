@@ -1,4 +1,4 @@
-//! `pacquet why` — show the packages that depend on `<pkg>`.
+//! `pnpm why` — show the packages that depend on `<pkg>`.
 
 use crate::{State, cli_args::sanitize::sanitize};
 use clap::Args;
@@ -73,7 +73,7 @@ impl WhyArgs {
         if self.packages.is_empty() {
             return Err(miette::miette!(
                 code = "ERR_PNPM_MISSING_PACKAGE_NAME",
-                "`pacquet why` requires a package name or pattern"
+                "`pnpm why` requires a package name or pattern"
             ));
         }
 

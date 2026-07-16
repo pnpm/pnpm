@@ -18,7 +18,7 @@ pub enum RootError {
     /// `--global` is rejected because the global-dir machinery is not
     /// ported to pacquet yet; refuse rather than print a wrong path.
     #[display(
-        "`pacquet root --global` is not supported yet; global package management has not been ported to pacquet."
+        "`pnpm root --global` is not supported yet; global package management has not been ported to pnpm."
     )]
     #[diagnostic(code(pacquet_cli::root_global_unsupported))]
     GlobalUnsupported,

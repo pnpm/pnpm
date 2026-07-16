@@ -165,7 +165,7 @@ pub enum TarballError {
     #[diagnostic(
         code(pacquet_tarball::verify_checksum_error),
         help(
-            "The downloaded tarball does not match the integrity recorded in the lockfile. If you trust the new content (legitimate republish, or stale local metadata cache), run `pnpm install --update-checksums` (or `pacquet install --update-checksums`). Otherwise treat this as a potential supply-chain issue and verify the new content first."
+            "The downloaded tarball does not match the integrity recorded in the lockfile. If you trust the new content (legitimate republish, or stale local metadata cache), run `pnpm install --update-checksums`. Otherwise treat this as a potential supply-chain issue and verify the new content first."
         )
     )]
     Checksum(VerifyChecksumError),
@@ -191,7 +191,7 @@ pub enum TarballError {
 
     #[from(ignore)]
     #[display(
-        "Archive at {url} advertised a Content-Length of {advertised_size} bytes, which exceeds what pacquet can allocate (either larger than `usize::MAX` on this target or memory pressure prevented a one-shot reservation)"
+        "Archive at {url} advertised a Content-Length of {advertised_size} bytes, which exceeds what pnpm can allocate (either larger than `usize::MAX` on this target or memory pressure prevented a one-shot reservation)"
     )]
     #[diagnostic(code(pacquet_tarball::tarball_too_large))]
     TarballTooLarge { url: String, advertised_size: u64 },
