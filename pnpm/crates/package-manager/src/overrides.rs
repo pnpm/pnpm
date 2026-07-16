@@ -53,7 +53,7 @@ pub struct VersionsOverrider {
     /// `createVersionsOverrider`; readers (the post-resolution
     /// unused-override check) call [`Self::applied_selectors`] to
     /// compute the diff against the configured set.
-    applied: Arc<Mutex<HashSet<String>>>,
+    applied: Mutex<HashSet<String>>,
 }
 
 /// A convergence override's replacement value, with the exact version
@@ -130,7 +130,7 @@ impl VersionsOverrider {
             generic,
             converge,
             converge_declared_ranges: Mutex::new(HashMap::new()),
-            applied: Arc::new(Mutex::new(HashSet::new())),
+            applied: Mutex::new(HashSet::new()),
         }
     }
 
