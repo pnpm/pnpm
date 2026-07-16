@@ -1811,14 +1811,7 @@ fn check_lockfile_freshness(
         let importer_id = pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir);
         if allow_missing_dependency_free_importers
             && !lockfile.importers.contains_key(&importer_id)
-            && manifest
-                .dependencies([
-                    pacquet_package_manifest::DependencyGroup::Prod,
-                    pacquet_package_manifest::DependencyGroup::Dev,
-                    pacquet_package_manifest::DependencyGroup::Optional,
-                ])
-                .next()
-                .is_none()
+            && !manifest_has_effective_dependencies(manifest, &ignored_optional_matcher)
         {
             continue;
         }
@@ -1931,15 +1924,39 @@ pub(crate) fn check_importer_satisfies(
     // optionalDependencies AND matched") rather than pure pattern
     // matching. `devDependencies` is untouched on purpose; the group
     // gate inside `satisfies_package_manifest` enforces that.
-    let ignored_set: std::collections::HashSet<String> = manifest_for_freshness
-        .dependencies([pacquet_package_manifest::DependencyGroup::Optional])
-        .filter(|(name, _)| ignored_optional_matcher.matches(name))
-        .map(|(name, _)| name.to_string())
-        .collect();
+    let ignored_set =
+        ignored_optional_dependency_names(manifest_for_freshness, ignored_optional_matcher);
     let is_ignored_optional: &dyn Fn(&str) -> bool = &|name: &str| ignored_set.contains(name);
 
     satisfies_package_manifest(importer, manifest_for_freshness, is_ignored_optional)
         .map_err(FreshnessCheckError::Stale)
+}
+
+fn ignored_optional_dependency_names(
+    manifest: &PackageManifest,
+    matcher: &pacquet_config::matcher::Matcher,
+) -> std::collections::HashSet<String> {
+    manifest
+        .dependencies([pacquet_package_manifest::DependencyGroup::Optional])
+        .filter(|(name, _)| matcher.matches(name))
+        .map(|(name, _)| name.to_string())
+        .collect()
+}
+
+fn manifest_has_effective_dependencies(
+    manifest: &PackageManifest,
+    ignored_optional_matcher: &pacquet_config::matcher::Matcher,
+) -> bool {
+    if manifest.dependencies([pacquet_package_manifest::DependencyGroup::Dev]).next().is_some() {
+        return true;
+    }
+    let ignored = ignored_optional_dependency_names(manifest, ignored_optional_matcher);
+    manifest
+        .dependencies([
+            pacquet_package_manifest::DependencyGroup::Prod,
+            pacquet_package_manifest::DependencyGroup::Optional,
+        ])
+        .any(|(name, _)| !ignored.contains(name))
 }
 
 /// Outcome of [`check_lockfile_freshness`]. Splits "user

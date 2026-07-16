@@ -352,6 +352,44 @@ fn normal_install_accepts_missing_dependency_free_workspace_importer() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn normal_install_accepts_missing_importer_with_only_ignored_optional_dependencies() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
+        &serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "optionalDependencies": { "is-positive": "1.0.0" },
+        }),
+        &serde_json::json!({ "name": "pkg-b", "version": "1.0.0" }),
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    workspace_yaml.push_str("ignoredOptionalDependencies:\n  - is-positive\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write ignored optional config");
+
+    pacquet_at(&workspace).with_arg("install").assert().success();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let mut lockfile: pacquet_lockfile::Lockfile =
+        serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml"))
+            .expect("parse pnpm-lock.yaml");
+    lockfile.importers.remove("pkg-a").expect("pkg-a importer exists");
+    lockfile.save_to_path(&lockfile_path).expect("save lockfile without pkg-a importer");
+
+    pacquet_at(&workspace).with_arg("install").assert().success();
+    let retained: pacquet_lockfile::Lockfile = serde_saphyr::from_str(
+        &fs::read_to_string(&lockfile_path).expect("read retained pnpm-lock.yaml"),
+    )
+    .expect("parse retained pnpm-lock.yaml");
+    assert!(
+        !retained.importers.contains_key("pkg-a"),
+        "ignored optional dependency should not force lockfile regeneration",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// When the workspace root and a non-root importer both depend on the
 /// same workspace package via `workspace:*`, each importer's resolved
 /// `link:` target is relative to *its own* directory — pnpm writes
