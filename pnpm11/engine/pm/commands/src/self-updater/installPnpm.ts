@@ -286,10 +286,12 @@ async function installPnpmToGlobalDir (
  * runs is asserted, not what it prints — matching `--version` output exactly
  * would fail on anything else a release writes to stdout.
  *
- * Spawned through cross-spawn by the bare `pnpm` name the version switcher also
- * uses, so the `.cmd` shim `linkBins` writes on Windows is resolved rather than
- * executed as a script. Exported as a test seam: reaching it through an install
- * would mean publishing a deliberately broken pnpm tarball as a fixture.
+ * Spawned through cross-spawn, naming the bin without its extension exactly as
+ * the version switcher does: `which` applies PATHEXT even to a path that has
+ * separators, so Windows resolves the `.cmd` shim `linkBins` wrote there and
+ * cross-spawn runs it through cmd.exe, rather than executing the Bash shim
+ * beside it. Exported as a test seam: reaching it through an install would mean
+ * publishing a deliberately broken pnpm tarball as a fixture.
  */
 export function assertPnpmRuns (binDir: string, version: string): void {
   const pnpmBinPath = path.join(binDir, 'pnpm')
