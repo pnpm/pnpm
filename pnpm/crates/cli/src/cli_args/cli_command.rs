@@ -294,7 +294,7 @@ pub enum CliCommand {
     #[clap(visible_alias = "la")]
     Ll(ListArgs),
     /// Check the licenses of the installed packages.
-    #[clap(visible_aliases = ["licenses", "licences"])]
+    #[clap(visible_aliases = ["licences"])]
     Licenses(LicensesArgs),
     /// Shows the packages that depend on `pkg`
     Why(WhyArgs),
