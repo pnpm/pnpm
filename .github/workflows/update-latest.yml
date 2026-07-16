@@ -10,17 +10,19 @@ on:
         description: Tag (use latest-<major> when tagging an older release line)
         default: latest
         required: true
+      skip_upgrade_check:
+        description: Skip the upgrade check (use only when the release line's current version is itself broken)
+        required: false
+        type: boolean
+        default: false
 
 permissions: {}
 jobs:
-  tag-in-registry:
-    name: Tagging ${{ github.event.inputs.version }} as ${{ github.event.inputs.tag }}
-    environment: release
+  validate:
+    name: Validate ${{ github.event.inputs.version }} and ${{ github.event.inputs.tag }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions: {}
     steps:
-    - uses: garnet-org/action@2b7fc9d79b54f551b43358c27424a36064b3e078 # v2.0.2
-      with:
-        api_token: ${{ secrets.GARNET_API_TOKEN }}
     - name: Setup Node
       uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
     # The latest-<major> tag is derived from the version instead of being
@@ -52,19 +54,39 @@ jobs:
             fi
             ;;
         esac
-    # The release workflow has already published this version under
-    # next-<major>; moving the dist-tags below is what makes `pnpm self-update`
-    # and the devEngines/packageManager download path resolve it. Upgrading onto
-    # a version reads its published manifest, so a bad one only fails here, on
-    # the real registry artifact — 11.12.0 published its bundled dependencies as
-    # real dependencies and every upgrade onto it crashed
-    # (pnpm/pnpm#12955, pnpm/pnpm#12959). This is the last gate before `latest`
-    # exposes the version to everyone.
+  # Upgrading onto a version reads its published manifest and platform packages,
+  # so a release that is only broken as an upgrade target fails here and nowhere
+  # earlier. The release workflow has already published this version under
+  # next-<major>; the dist-tag move is what makes it resolvable to `pnpm
+  # self-update` and to the devEngines/packageManager download path, so this is
+  # the last point at which a bad release can still be held back.
+  #
+  # This job installs and executes packages from the registry, so it must stay
+  # free of the publish token: a lifecycle script here could otherwise persist
+  # into a later step via $GITHUB_PATH/$GITHUB_ENV and capture it. Keep
+  # `environment: release` and every secret confined to tag-in-registry.
+  verify-upgrade:
+    name: Verify upgrading onto ${{ github.event.inputs.version }}
+    needs: validate
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions: {}
+    steps:
+    - name: Setup Node
+      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
     - name: Verify upgrading onto the new version
+      if: ${{ !inputs.skip_upgrade_check }}
       env:
         VERSION: ${{ github.event.inputs.version }}
+      # zizmor: ignore[adhoc-packages] -- Installing a published release from
+      # the registry is what this smoke test exists to do.
       run: |
         set -eu
+        # npm and pnpm both enforce the devEngines of whatever manifest they
+        # find by walking up from the working directory, and this repo's pins a
+        # pnpm — so every command here runs from a scratch dir instead of the
+        # caller's cwd, which would otherwise fail or switch versions.
+        cd "$(mktemp -d)"
+
         MAJOR="${VERSION%%.*}"
         # Upgrade from what users on this release line are running today. A new
         # major has no latest-<major> yet, so fall back to the current latest.
@@ -84,27 +106,39 @@ jobs:
           export XDG_DATA_HOME="$work/data"
           export XDG_CACHE_HOME="$work/cache"
 
+          cd "$work"
           npm install --prefix "$work/from" --ignore-scripts=false "${package}@${FROM}"
           case "$package" in
             pnpm) from_bin=(node "$work/from/node_modules/pnpm/bin/pnpm.mjs") ;;
             @pnpm/exe) from_bin=("$work/from/node_modules/@pnpm/exe/pnpm") ;;
           esac
 
-          # Check the starting point separately so a previous release that is
-          # itself broken fails here, with its own version in the message,
-          # instead of looking like a fault in $VERSION.
+          # Check the starting point separately so a broken current release
+          # fails naming its own version rather than looking like a fault in
+          # $VERSION. When the current release is the broken one, it also blocks
+          # its own fix — dispatch with skip_upgrade_check to promote that.
           test "$("${from_bin[@]}" --version)" = "$FROM"
 
-          ( cd "$work" && "${from_bin[@]}" self-update "$VERSION" )
-          # Run the upgraded binary, not just the exit code: @pnpm/exe's
-          # preinstall leaves its placeholder bin in place when the platform
-          # package ships without a native, so a self-update onto a release with
-          # missing natives (11.12.0, 11.13.0) still "succeeds" and only a real
-          # invocation catches it.
+          "${from_bin[@]}" self-update "$VERSION"
+          # Run the upgraded binary rather than trust self-update's exit code:
+          # `@pnpm/exe`'s preinstall leaves its placeholder bin in place when the
+          # platform package ships no native, so that failure is invisible until
+          # the binary is actually invoked.
           test "$("$PNPM_HOME/bin/pnpm" --version)" = "$VERSION"
           echo "OK: ${package}@${FROM} self-updated to v${VERSION}"
         done
 
+  tag-in-registry:
+    name: Tagging ${{ github.event.inputs.version }} as ${{ github.event.inputs.tag }}
+    needs: verify-upgrade
+    environment: release
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+    - uses: garnet-org/action@2b7fc9d79b54f551b43358c27424a36064b3e078 # v2.0.2
+      with:
+        api_token: ${{ secrets.GARNET_API_TOKEN }}
+    - name: Setup Node
+      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
     - name: Update tag
       env:
         "npm_config_//registry.npmjs.org/:_authToken": ${{ secrets.NPM_TOKEN }}

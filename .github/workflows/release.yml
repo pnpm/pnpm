@@ -236,14 +236,13 @@ jobs:
           pnpm_tarball=$(find "$release_tarballs/pnpm11_pnpm" -type f -name '*.tgz' -print -quit)
           test -n "$pnpm_tarball"
 
-          # Every runtime dependency is bundled into dist/node_modules, so the
-          # published manifest must declare neither field — the .pnpmfile.cjs
-          # beforePacking hook and bundle-deps.ts each strip them. When 11.12.0
-          # was packed by a pnpm that ignored the hook, the fields survived and
-          # resolving them dragged a peer-suffixed dependency into the env
-          # lockfile, which crashed every `pnpm self-update` onto that version
-          # (pnpm/pnpm#12955, pnpm/pnpm#12959). Assert on the tarball rather than
-          # trusting either stripper, since npm publishes are immutable.
+          # dist/node_modules carries every runtime dependency, so the published
+          # manifest must declare none: a surviving `dependencies` is resolved
+          # and installed a second time, and `devDependencies` names workspace
+          # packages that are never published at all. The .pnpmfile.cjs
+          # beforePacking hook and bundle-deps.ts both strip these fields;
+          # assert on the packed tarball rather than trusting either, because an
+          # npm publish cannot be taken back.
           tar -xOf "$pnpm_tarball" package/package.json | node -e '
             const manifest = JSON.parse(require("node:fs").readFileSync(0, "utf8"))
             const declared = ["dependencies", "devDependencies"].filter((field) => manifest[field] != null)
