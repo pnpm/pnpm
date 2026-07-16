@@ -11,7 +11,7 @@ use pacquet_catalogs_config::{
     InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest,
 };
 use pacquet_catalogs_types::Catalogs;
-use pacquet_config::{Config, NodeLinker};
+use pacquet_config::{Config, NodeLinker, PNPM_VERSION};
 use pacquet_executor::{
     LifecycleScriptError, RunPostinstallHooks,
     ScriptsPrependNodePath as ExecScriptsPrependNodePath, run_project_lifecycle_scripts,
@@ -2204,9 +2204,11 @@ fn build_modules_manifest(
         included,
         layout_version: Some(LayoutVersion),
         node_linker: Some(map_node_linker(node_linker)),
-        // `${name}@${version}`. `CARGO_PKG_VERSION`
-        // resolves at compile time to this crate's package version.
-        package_manager: concat!("pacquet@", env!("CARGO_PKG_VERSION")).to_string(),
+        // `${name}@${version}`, where the name is the CLI's published
+        // npm name. `pacquet` is an in-repo crate name that never
+        // reaches disk, and the crate version is not the release
+        // version.
+        package_manager: format!("pnpm@{PNPM_VERSION}"),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         // RFC 1123 / `toUTCString()` format. The caller decides whether
         // this is a fresh timestamp (a prune ran or first install) or the

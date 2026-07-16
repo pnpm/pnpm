@@ -1389,10 +1389,7 @@ async fn install_writes_modules_yaml() {
         registries.as_ref().and_then(|r| r.get("@private")).map(String::as_str),
         Some("https://private.example.com/npm/"),
     );
-    assert!(
-        package_manager.starts_with("pacquet@"),
-        "expected `pacquet@<version>`, got {package_manager:?}",
-    );
+    assert_eq!(package_manager, format!("pnpm@{}", pacquet_config::PNPM_VERSION));
 
     drop(dir);
 }
