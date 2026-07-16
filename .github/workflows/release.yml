@@ -237,17 +237,26 @@ jobs:
           test -n "$pnpm_tarball"
 
           # dist/node_modules carries every runtime dependency, so the published
-          # manifest must declare none: a surviving `dependencies` is resolved
-          # and installed a second time, and `devDependencies` names workspace
-          # packages that are never published at all. The .pnpmfile.cjs
-          # beforePacking hook and bundle-deps.ts both strip these fields;
-          # assert on the packed tarball rather than trusting either, because an
-          # npm publish cannot be taken back.
+          # manifest must declare no dependency field of any kind: a surviving
+          # `dependencies` or `optionalDependencies` is resolved and installed a
+          # second time, and `devDependencies` names workspace packages that are
+          # never published at all. .meta-updater/src/index.ts additionally
+          # forbids `optionalDependencies` and `peerDependencies` on this
+          # package outright.
+          #
+          # Assert on the packed tarball rather than on any of the strippers,
+          # because an npm publish cannot be taken back and only two of these
+          # fields are stripped at pack time: the .pnpmfile.cjs beforePacking
+          # hook deliberately leaves `optionalDependencies` alone (the v12 Rust
+          # wrapper needs them for its natives), which leaves meta-updater — a
+          # source normalizer, not a release gate — as the only thing between
+          # that field and the registry.
           tar -xOf "$pnpm_tarball" package/package.json | node -e '
             const manifest = JSON.parse(require("node:fs").readFileSync(0, "utf8"))
-            const declared = ["dependencies", "devDependencies"].filter((field) => manifest[field] != null)
+            const fields = ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]
+            const declared = fields.filter((field) => manifest[field] != null)
             if (declared.length > 0) {
-              throw new Error("The published pnpm manifest must not declare " + declared.join(" or ") + " - they are bundled into dist/node_modules")
+              throw new Error("The published pnpm manifest must not declare " + declared.join(" or ") + " - every runtime dependency is bundled into dist/node_modules")
             }
           '
 
