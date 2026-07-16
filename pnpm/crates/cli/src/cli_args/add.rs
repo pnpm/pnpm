@@ -13,7 +13,10 @@ use pacquet_package_manifest::DependencyGroup;
 use pacquet_registry::PinnedVersion;
 use pacquet_reporter::Reporter;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
-use std::path::{Path, PathBuf};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
 #[derive(Debug, Args)]
 pub struct AddDependencyOptions {
@@ -67,8 +70,9 @@ impl AddDependencyOptions {
 
 #[derive(Debug, Args)]
 pub struct AddArgs {
-    /// Name of the package
-    pub package_name: String, // TODO: 1. support version range, 2. multiple arguments, 3. name this `packages`
+    /// Names of the packages to add.
+    #[clap(required = true)]
+    pub package_names: Vec<String>,
     /// --save-prod, --save-dev, --save-optional, --save-peer
     #[clap(flatten)]
     pub dependency_options: AddDependencyOptions,
@@ -119,23 +123,47 @@ impl AddArgs {
         );
     }
 
-    /// Execute the subcommand.
-    pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
-        // `--config` routes to the configurational-dependency path
-        // instead of the regular `package.json` add: resolve + install
-        // into `.pnpm-config`, then record the clean specifier in
-        // `pnpm-workspace.yaml`.
-        if self.config {
-            let parsed = parse_wanted_dependency(&self.package_name);
+    /// The `--config` selectors parsed into the `name → specifier` pairs to
+    /// record, or `None` when `--config` was not passed.
+    ///
+    /// Callers must run this *before* [`State::init`]: that scaffolds a
+    /// `package.json` on disk, so rejecting an invalid selector afterwards
+    /// would leave a half-created project behind. A version-less selector
+    /// resolves the `latest` tag, matching the default `add` behavior.
+    pub(super) fn parse_config_dependencies(
+        &self,
+    ) -> miette::Result<Option<BTreeMap<String, String>>> {
+        if !self.config {
+            return Ok(None);
+        }
+
+        let mut added = BTreeMap::new();
+        for package_name in &self.package_names {
+            let parsed = parse_wanted_dependency(package_name);
             let Some(name) = parsed.alias else {
                 return Err(miette::miette!(
-                    "'{}' is not a valid package name for a configuration dependency",
-                    self.package_name,
+                    "'{package_name}' is not a valid package name for a configuration dependency",
                 ));
             };
-            // No version given → resolve the `latest` tag, matching the
-            // default `add` behavior.
             let specifier = parsed.bare_specifier.unwrap_or_else(|| "latest".to_string());
+            added.insert(name, specifier);
+        }
+        Ok(Some(added))
+    }
+
+    /// Execute the subcommand. `config_dependencies` is
+    /// [`Self::parse_config_dependencies`]'s output, so it is `Some` exactly
+    /// when `--config` was passed.
+    pub async fn run<Reporter: self::Reporter + 'static>(
+        self,
+        state: State,
+        config_dependencies: Option<BTreeMap<String, String>>,
+    ) -> miette::Result<()> {
+        // `--config` routes to the configurational-dependency path
+        // instead of the regular `package.json` add: resolve + install
+        // into `.pnpm-config`, then record the clean specifiers in
+        // `pnpm-workspace.yaml`.
+        if let Some(added) = config_dependencies {
             // configDependencies are workspace-level: write to the
             // workspace root's `pnpm-workspace.yaml` / env lockfile /
             // `.pnpm-config`, not the current package's. Fall back to the
@@ -143,11 +171,10 @@ impl AddArgs {
             let root_dir = state.config.workspace_dir.clone().unwrap_or_else(|| {
                 state.manifest.path().parent().map_or_else(|| PathBuf::from("."), Path::to_path_buf)
             });
-            return config_deps::add_config_dependency::<Reporter>(
+            return config_deps::add_config_dependencies::<Reporter>(
                 state.config,
                 &root_dir,
-                &name,
-                &specifier,
+                &added,
             )
             .await;
         }
@@ -176,9 +203,9 @@ impl AddArgs {
         let pinned_version =
             PinnedVersion::from_save_options(self.save_exact, self.save_prefix.as_deref());
 
-        add_package::<Reporter, _, _>(
+        add_packages::<Reporter, _, _>(
             state,
-            &self.package_name,
+            &self.package_names,
             pinned_version,
             save_catalog_name,
             self.lockfile_only,
@@ -212,7 +239,7 @@ impl AddArgs {
             PinnedVersion::from_save_options(self.save_exact, self.save_prefix.as_deref());
         Box::pin(crate::cli_args::global::handle_global_add::<Reporter>(
             config,
-            &[self.package_name],
+            &self.package_names,
             pinned_version,
             supported_architectures,
             dir,
@@ -223,13 +250,41 @@ impl AddArgs {
 
 /// Add a single package to `state`'s manifest and install it.
 ///
-/// Shared by `pacquet add` and `pacquet dlx`. dlx points `state` at a
-/// cache directory (via a [`Config`] whose
-/// `modules_dir` is anchored there) and saves to `dependencies` so the
-/// package's bin lands in `<cacheDir>/node_modules/.bin`.
+/// Shared by `pacquet dlx`, `pacquet runtime`, and the self-updater. dlx
+/// points `state` at a cache directory (via a [`Config`] whose `modules_dir`
+/// is anchored there) and saves to `dependencies` so the package's bin lands
+/// in `<cacheDir>/node_modules/.bin`.
 pub(crate) async fn add_package<Reporter, ListDependencyGroups, DependencyGroupList>(
-    mut state: State,
+    state: State,
     package_name: &str,
+    pinned_version: PinnedVersion,
+    save_catalog_name: Option<String>,
+    lockfile_only: bool,
+    supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
+    list_dependency_groups: ListDependencyGroups,
+) -> miette::Result<()>
+where
+    Reporter: self::Reporter + 'static,
+    ListDependencyGroups: Fn() -> DependencyGroupList,
+    DependencyGroupList: IntoIterator<Item = DependencyGroup>,
+{
+    let package_names = [package_name.to_string()];
+    Box::pin(add_packages::<Reporter, _, _>(
+        state,
+        &package_names,
+        pinned_version,
+        save_catalog_name,
+        lockfile_only,
+        supported_architectures,
+        list_dependency_groups,
+    ))
+    .await
+}
+
+/// Add packages to `state`'s manifest and install them in one operation.
+pub(crate) async fn add_packages<Reporter, ListDependencyGroups, DependencyGroupList>(
+    mut state: State,
+    package_names: &[String],
     pinned_version: PinnedVersion,
     save_catalog_name: Option<String>,
     lockfile_only: bool,
@@ -258,7 +313,7 @@ where
         lockfile,
         lockfile_path: lockfile_path.as_deref(),
         list_dependency_groups,
-        package_name,
+        package_names,
         pinned_version,
         save_catalog_name,
         resolved_packages,

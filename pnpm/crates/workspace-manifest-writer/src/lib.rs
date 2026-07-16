@@ -131,15 +131,15 @@ pub fn update_workspace_manifest(
     write_or_remove_manifest(&path, manifest)
 }
 
-/// Write a `name → specifier` entry into `dir`'s `pnpm-workspace.yaml`
+/// Write `name → specifier` entries into `dir`'s `pnpm-workspace.yaml`
 /// `configDependencies:` block (creating the file/block if absent),
-/// preserving the rest of the document's formatting. Used by
-/// `pnpm add --config`; the resolved integrity is recorded separately in
-/// the env lockfile, so only the clean specifier is written here.
-pub fn set_config_dependency(
+/// preserving the rest of the document's formatting and reading, parsing,
+/// and writing the file at most once. Used by `pnpm add --config`; the
+/// resolved integrity is recorded separately in the env lockfile, so only
+/// the clean specifier is written here.
+pub fn set_config_dependencies<'a>(
     dir: &Path,
-    name: &str,
-    specifier: &str,
+    entries: impl IntoIterator<Item = (&'a str, &'a str)>,
 ) -> Result<(), UpdateWorkspaceManifestError> {
     let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
 
@@ -152,8 +152,11 @@ pub fn set_config_dependency(
     let mut manifest = Manifest::parse(original.as_deref())
         .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
 
-    let changed = edit::add_config_dependency(&mut manifest, name, specifier)
-        .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
+    let mut changed = false;
+    for (name, specifier) in entries {
+        changed |= edit::add_config_dependency(&mut manifest, name, specifier)
+            .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
+    }
     if !changed {
         return Ok(());
     }

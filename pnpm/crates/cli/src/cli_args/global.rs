@@ -9,7 +9,7 @@
 use crate::{
     State,
     cli_args::{
-        add::add_package, approve_builds::ApproveBuildsArgs,
+        add::add_packages, approve_builds::ApproveBuildsArgs,
         ignored_builds::get_automatically_ignored_builds, rebuild::run_rebuild,
     },
 };
@@ -353,21 +353,22 @@ async fn run_group_install<Reporter: self::Reporter + 'static>(
     let config: &'static Config = Config::leak(cfg);
 
     let manifest_path = install_dir.join("package.json");
-    for selector in selectors {
-        let selector = infer_local_package_alias(selector)?;
-        let state = State::init(manifest_path.clone(), config, false)
-            .wrap_err("initialize the global install state")?;
-        add_package::<Reporter, _, _>(
-            state,
-            &selector,
-            pinned_version,
-            None,
-            false,
-            config.supported_architectures.clone(),
-            || std::iter::once(DependencyGroup::Prod),
-        )
-        .await?;
-    }
+    let selectors = selectors
+        .iter()
+        .map(|selector| infer_local_package_alias(selector))
+        .collect::<miette::Result<Vec<_>>>()?;
+    let state = State::init(manifest_path, config, false)
+        .wrap_err("initialize the global install state")?;
+    add_packages::<Reporter, _, _>(
+        state,
+        &selectors,
+        pinned_version,
+        None,
+        false,
+        config.supported_architectures.clone(),
+        || std::iter::once(DependencyGroup::Prod),
+    )
+    .await?;
 
     prompt_approve_global_builds::<Reporter>(config, &install_dir, global_pkg_dir).await?;
     Ok((install_dir, config))
