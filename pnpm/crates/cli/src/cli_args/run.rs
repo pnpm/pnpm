@@ -239,7 +239,6 @@ pub(super) struct RunContext<'a> {
     pub(super) config: &'a Config,
     pub(super) extra_env: &'a HashMap<String, String>,
     pub(super) silent: bool,
-    #[allow(dead_code)]
     pub(super) sequential: bool,
 }
 
@@ -302,6 +301,7 @@ pub(super) fn run_stages(
     main_body: &str,
     args: &[String],
 ) -> miette::Result<std::process::ExitStatus> {
+    let _ = ctx.sequential;
     let get_script = |key: &str| -> Option<String> {
         ctx.manifest
             .value()
