@@ -19,6 +19,7 @@ use serde_json::Value;
 use std::{
     fs,
     path::{Path, PathBuf},
+    process::Command,
 };
 
 use super::SelfUpdateError;
@@ -91,8 +92,18 @@ pub(super) async fn install_pnpm<Reporter: self::Reporter + 'static>(
     .await
     .and_then(|()| {
         if package.links_native_binary {
-            link_exe_platform_binary(&install_dir, package_name)
+            link_exe_platform_binary(&install_dir, package_name)?;
+            // Nothing above proves the engine can run: a wrapper whose platform
+            // package shipped without its native keeps the placeholder from the
+            // tarball, and a truncated binary is equally silent. Catching it
+            // before the caller links this dir into the global bin is what keeps
+            // a bad release from replacing a working pnpm, and the error path
+            // below removes the directory so the next run reinstalls it.
+            assert_pnpm_runs(&install_dir, package_name, version)
         } else {
+            // Only a native wrapper can install yet fail to execute. The legacy
+            // JS engine has no binary of its own to be missing, and running it
+            // would mean locating a Node.js to run it with.
             Ok(())
         }
     });
@@ -101,6 +112,46 @@ pub(super) async fn install_pnpm<Reporter: self::Reporter + 'static>(
         return Err(err);
     }
     Ok(InstallPnpmResult { install_dir, package_name, already_existed: false })
+}
+
+/// Fail unless the native engine installed at `install_dir` can execute.
+///
+/// Only that it runs is asserted, not what it prints: the point is to reject an
+/// executable that cannot start at all, and matching `--version` output exactly
+/// would fail on anything else a release chooses to write to stdout.
+pub(super) fn assert_pnpm_runs(
+    install_dir: &Path,
+    package_name: &str,
+    version: &str,
+) -> miette::Result<()> {
+    let executable = package_dir(install_dir, package_name).join(if host_platform() == "win32" {
+        "pnpm.exe"
+    } else {
+        "pnpm"
+    });
+    let reason = match Command::new(&executable).arg("--version").output() {
+        Err(err) => err.to_string(),
+        Ok(output) if !output.status.success() => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stderr = stderr.trim();
+            let code = output
+                .status
+                .code()
+                .map_or_else(|| "a signal".to_string(), |code| format!("code {code}"));
+            if stderr.is_empty() {
+                format!("it exited with {code}")
+            } else {
+                format!("it exited with {code}: {stderr}")
+            }
+        }
+        Ok(_) => return Ok(()),
+    };
+    Err(SelfUpdateError::BrokenPnpmInstall {
+        version: version.to_string(),
+        reason,
+        executable: executable.display().to_string(),
+    }
+    .into())
 }
 
 /// The installed wrapper's recorded version, or `None` when the install is

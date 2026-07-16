@@ -78,6 +78,15 @@ pub(crate) enum SelfUpdateError {
         )
     )]
     NoGlobalDir,
+
+    #[display("The pnpm v{version} that was just installed cannot run: {reason}")]
+    #[diagnostic(
+        code(ERR_PNPM_BROKEN_PNPM_INSTALL),
+        help(
+            r#"The installation at "{executable}" was discarded and the currently active pnpm was left in place, so pnpm still works. A release that installs but cannot run is a packaging fault — please report it at https://github.com/pnpm/pnpm/issues. To move to a different version meanwhile, pass one to "pnpm self-update"."#
+        )
+    )]
+    BrokenPnpmInstall { version: String, reason: String, executable: String },
 }
 
 #[derive(Debug, Args)]

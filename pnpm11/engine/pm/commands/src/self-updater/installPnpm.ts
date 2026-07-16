@@ -10,6 +10,7 @@ import {
   iteratePkgMeta,
   lockfileToDepGraph,
 } from '@pnpm/deps.graph-hasher'
+import { PnpmError } from '@pnpm/error'
 import { type GlobalAddOptions, installGlobalPackages } from '@pnpm/global.commands'
 import {
   cleanOrphanedInstallDirs,
@@ -22,6 +23,7 @@ import { headlessInstall } from '@pnpm/installing.deps-restorer'
 import type { EnvLockfile, LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
 import { registerProject, type StoreController } from '@pnpm/store.controller'
 import type { DepPath, ProjectId, ProjectRootDir, Registries } from '@pnpm/types'
+import spawn from 'cross-spawn'
 import { familySync } from 'detect-libc'
 import semver from 'semver'
 import { symlinkDir } from 'symlink-dir'
@@ -228,6 +230,14 @@ async function installPnpmToGlobalDir (
     linkExePlatformBinary(installDir, pkgName)
     await linkBins(path.join(installDir, 'node_modules'), binDir, { warn: noop })
 
+    // Nothing above proves the installed CLI can actually run: a wrapper whose
+    // platform package shipped without its native keeps the placeholder bin
+    // from the tarball, and a truncated or mis-signed binary is equally silent.
+    // Catching that here — before the caller points PNPM_HOME at this dir — is
+    // what keeps a bad release from replacing a working pnpm, and the catch
+    // below removes the directory so the next run reinstalls it.
+    assertPnpmRuns(binDir, version)
+
     // Create hash symlink for the global packages system
     const pkgJson = JSON.parse(fs.readFileSync(path.join(installDir, 'package.json'), 'utf8'))
     const aliases = Object.keys(pkgJson.dependencies ?? {})
@@ -242,6 +252,35 @@ async function installPnpmToGlobalDir (
     } catch {}
     throw err
   }
+}
+
+/**
+ * Throws unless the pnpm CLI in `binDir` can execute.
+ *
+ * Only that it runs is asserted, not what it prints: the point is to reject an
+ * executable that cannot start at all, and matching `--version` output exactly
+ * would fail on anything else a release chooses to write to stdout.
+ *
+ * Spawned through cross-spawn, and by the same bare `pnpm` name the version
+ * switcher spawns, so that the `.cmd` shim `linkBins` writes on Windows is
+ * resolved rather than executed as a script. Exported as a test seam, since
+ * reaching it through an install would mean publishing a deliberately broken
+ * pnpm tarball as a fixture.
+ */
+export function assertPnpmRuns (binDir: string, version: string): void {
+  const pnpmBinPath = path.join(binDir, 'pnpm')
+  const { status, error, stderr } = spawn.sync(pnpmBinPath, ['--version'], { encoding: 'utf8' })
+  if (error == null && status === 0) return
+  const reason = error != null
+    ? error.message
+    : `it exited with code ${status}${(stderr ?? '').trim() ? `: ${stderr.trim()}` : ''}`
+  throw new PnpmError(
+    'BROKEN_PNPM_INSTALL',
+    `The pnpm v${version} that was just installed cannot run: ${reason}`,
+    {
+      hint: `The installation at "${pnpmBinPath}" was discarded and the currently active pnpm was left in place, so pnpm still works. A release that installs but cannot run is a packaging fault — please report it at https://github.com/pnpm/pnpm/issues. To move to a different version meanwhile, pass one to "pnpm self-update".`,
+    }
+  )
 }
 
 /**
