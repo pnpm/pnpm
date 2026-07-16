@@ -1418,16 +1418,20 @@ function getPatchDirFromPatchOutput (output: string): string {
 
 async function makeStoreFilesReadOnly (dir: string): Promise<{ changed: number, restore: () => void }> {
   const originalModes = new Map<string, number>()
-  const storeFiles = await glob('**/files/**/*', { absolute: true, cwd: dir, onlyFiles: true })
-  for (const filePath of storeFiles) {
-    const mode = fs.statSync(filePath).mode
-    originalModes.set(filePath, mode)
-    fs.chmodSync(filePath, mode & ~0o222)
+  try {
+    const storeFiles = await glob('**/files/**/*', { absolute: true, cwd: dir, onlyFiles: true })
+    for (const filePath of storeFiles) {
+      const mode = fs.statSync(filePath).mode
+      originalModes.set(filePath, mode)
+      fs.chmodSync(filePath, mode & ~0o222)
+    }
+    return { changed: originalModes.size, restore }
+  } catch (err) {
+    restore()
+    throw err
   }
-  return {
-    changed: originalModes.size,
-    restore: () => {
-      for (const [filePath, mode] of originalModes) fs.chmodSync(filePath, mode)
-    },
+
+  function restore (): void {
+    for (const [filePath, mode] of originalModes) fs.chmodSync(filePath, mode)
   }
 }

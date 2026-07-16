@@ -580,6 +580,11 @@ fn bundled_dependencies_merge_with_preserved_node_modules() {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(
+            target.join("node_modules/@scope/bundled"),
+            fs::Permissions::from_mode(0o500),
+        )
+        .unwrap();
         fs::set_permissions(target.join("node_modules"), fs::Permissions::from_mode(0o000))
             .unwrap();
     }
@@ -603,6 +608,16 @@ fn bundled_dependencies_merge_with_preserved_node_modules() {
         fs::read(target.join("node_modules/@scope/preserved/index.js")).unwrap(),
         b"scoped-preserved",
     );
+    for entry in fs::read_dir(tmp.path()).unwrap() {
+        let path = entry.unwrap().path();
+        assert!(
+            !path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| { name.contains("pacquet-stage") }),
+            "successful import leaked a staging directory at {path:?}",
+        );
+    }
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -668,13 +683,21 @@ fn remove_dir_all_failure_restores_preserved_node_modules() {
     fs::create_dir_all(&src_root).unwrap();
     let pkg_json = write_source(&src_root, "package.json", b"new");
     let bundled = write_source(&src_root, "bundled.js", b"bundled");
-    let cas = cas_map(&[("package.json", pkg_json), ("node_modules/bundled/index.js", bundled)]);
+    let cas = cas_map(&[
+        ("package.json", pkg_json),
+        ("node_modules/bundled/index.js", bundled.clone()),
+        ("node_modules/@scope/bundled/index.js", bundled),
+    ]);
 
     let target = tmp.path().join("pkg");
     fs::create_dir_all(&target).unwrap();
     fs::write(target.join("stale.txt"), b"stale").unwrap();
     fs::create_dir_all(target.join("node_modules/inner")).unwrap();
     fs::write(target.join("node_modules/inner/sentinel"), b"survivor").unwrap();
+    fs::create_dir_all(target.join("node_modules/@scope/preserved")).unwrap();
+    fs::write(target.join("node_modules/@scope/preserved/sentinel"), b"scoped survivor").unwrap();
+    fs::create_dir_all(target.join("node_modules/@scope/bundled")).unwrap();
+    fs::write(target.join("node_modules/@scope/bundled/index.js"), b"old bundled").unwrap();
 
     // Create a write-protected subdirectory whose contents
     // `remove_dir_all` can read but not unlink.
@@ -710,6 +733,20 @@ fn remove_dir_all_failure_restores_preserved_node_modules() {
         b"survivor",
         "preserved node_modules/ contents must be intact",
     );
+    assert!(
+        !target.join("node_modules/bundled").exists(),
+        "a failed swap must not restore newly staged bundled dependencies",
+    );
+    assert_eq!(
+        fs::read(target.join("node_modules/@scope/bundled/index.js")).unwrap(),
+        b"old bundled",
+        "a failed swap must restore the old version of a bundled dependency collision",
+    );
+    assert_eq!(
+        fs::read(target.join("node_modules/@scope/preserved/sentinel")).unwrap(),
+        b"scoped survivor",
+        "preserved scoped dependencies must survive the failed swap",
+    );
     // No staging directory left behind anywhere under the outer
     // tempdir.
     for entry in walkdir::WalkDir::new(tmp.path()) {
@@ -719,6 +756,36 @@ fn remove_dir_all_failure_restores_preserved_node_modules() {
             "staging directory leaked at {path:?}",
         );
     }
+}
+
+#[test]
+fn merged_restore_excludes_new_stage_entries_and_recovers_old_collisions() {
+    let tmp = tempdir().unwrap();
+    let stage_modules = tmp.path().join("stage/node_modules");
+    let target_modules = tmp.path().join("target/node_modules");
+    let collisions = tmp.path().join("preserved-collisions");
+
+    fs::create_dir_all(stage_modules.join("new-bundled")).unwrap();
+    fs::write(stage_modules.join("new-bundled/index.js"), b"new").unwrap();
+    fs::create_dir_all(stage_modules.join("old-preserved")).unwrap();
+    fs::write(stage_modules.join("old-preserved/index.js"), b"old").unwrap();
+    fs::create_dir_all(collisions.join("old-collision")).unwrap();
+    fs::write(collisions.join("old-collision/index.js"), b"old collision").unwrap();
+
+    let preserved = super::PreservedModules::Merged {
+        moved: vec![PathBuf::from("old-preserved")],
+        collisions: Some(collisions.clone()),
+    };
+    let restored =
+        super::restore_preserved_node_modules(&preserved, &stage_modules, &target_modules);
+    assert!(restored);
+
+    assert_eq!(fs::read(target_modules.join("old-preserved/index.js")).unwrap(), b"old");
+    let old_collision = fs::read(target_modules.join("old-collision/index.js")).unwrap();
+    assert_eq!(old_collision, b"old collision");
+    assert!(!target_modules.join("new-bundled").exists());
+    assert_eq!(fs::read(stage_modules.join("new-bundled/index.js")).unwrap(), b"new");
+    assert!(!collisions.exists());
 }
 
 /// `symlink_metadata` errors on the preserved `node_modules/` inspect

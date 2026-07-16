@@ -206,9 +206,8 @@ function makeOwnerWritable (filePath: string): void {
   const fd = openSync(filePath, flags)
   try {
     const openedStats = fstatSync(fd, { bigint: true })
-    const identityChanged = pathStats.dev !== openedStats.dev || pathStats.ino !== openedStats.ino
-    if (identityChanged ||
-      process.platform === 'win32' && (pathStats.ino === 0n || openedStats.ino === 0n)) {
+    if (process.platform !== 'win32' &&
+      (pathStats.dev !== openedStats.dev || pathStats.ino !== openedStats.ino)) {
       throw new Error(`Package file changed while making it writable: ${filePath}`)
     }
     const mode = Number(openedStats.mode)

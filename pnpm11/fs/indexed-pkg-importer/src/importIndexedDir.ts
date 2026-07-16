@@ -7,7 +7,7 @@ import { globalInfo, globalWarn, logger } from '@pnpm/logger'
 import { rimrafSync } from '@zkochan/rimraf'
 import fsx from 'fs-extra'
 import { makeEmptyDirSync } from 'make-empty-dir'
-import { fastPathTemp as pathTemp } from 'path-temp'
+import { fastPathTemp, pathTemp } from 'path-temp'
 import { renameOverwriteSync } from 'rename-overwrite'
 import sanitizeFilename from 'sanitize-filename'
 
@@ -62,7 +62,7 @@ export function importIndexedDir (
   // Staging path: create in temp dir, then atomically rename.
   // The dir rename is itself atomic, so individual file atomicity is not
   // needed here — use importFile for everything.
-  const stage = pathTemp(newDir)
+  const stage = fastPathTemp(newDir)
   try {
     makeEmptyDirSync(stage, { recursive: true })
     tryImportIndexedDir({ importFile: importer.importFile, importFileAtomic: importer.importFile }, stage, filenames)
@@ -317,8 +317,14 @@ function mergeModulesDirs (src: string, dest: string): void {
     if (!collision.startsWith('@')) continue
     const srcScope = path.join(src, collision)
     const destScope = path.join(dest, collision)
-    if (fs.lstatSync(srcScope).isDirectory() && fs.lstatSync(destScope).isDirectory()) {
-      moveMissingEntries(srcScope, destScope)
+    const capturedScope = pathTemp(path.dirname(srcScope))
+    gfs.renameSync(srcScope, capturedScope)
+    try {
+      if (fs.lstatSync(capturedScope).isDirectory() && fs.lstatSync(destScope).isDirectory()) {
+        moveMissingEntries(capturedScope, destScope)
+      }
+    } finally {
+      gfs.renameSync(capturedScope, srcScope)
     }
   }
 }
