@@ -24,9 +24,9 @@ fn cas_map(entries: &[(&str, PathBuf)]) -> HashMap<String, PathBuf> {
 }
 
 const FORCE_KEEP: ImportIndexedDirOpts =
-    ImportIndexedDirOpts { force: true, keep_modules_dir: true, make_writable: false };
+    ImportIndexedDirOpts { force: true, keep_modules_dir: true };
 const FORCE_ONLY: ImportIndexedDirOpts =
-    ImportIndexedDirOpts { force: true, keep_modules_dir: false, make_writable: false };
+    ImportIndexedDirOpts { force: true, keep_modules_dir: false };
 
 #[test]
 fn fresh_target_links_files() {
@@ -52,7 +52,7 @@ fn fresh_target_links_files() {
 }
 
 #[test]
-fn writable_import_replaces_a_store_hardlink_with_a_private_writable_copy() {
+fn clone_or_copy_replaces_a_store_hardlink_with_a_private_writable_copy() {
     let tmp = tempdir().unwrap();
     let src_root = tmp.path().join("cas");
     fs::create_dir_all(&src_root).unwrap();
@@ -88,39 +88,15 @@ fn writable_import_replaces_a_store_hardlink_with_a_private_writable_copy() {
 
     import_indexed_dir::<SilentReporter>(
         &AtomicU8::new(0),
-        PackageImportMethod::Hardlink,
+        PackageImportMethod::CloneOrCopy,
         &target,
         &cas,
-        ImportIndexedDirOpts { make_writable: true, ..ImportIndexedDirOpts::default() },
+        ImportIndexedDirOpts::default(),
     )
     .expect("build candidate should receive a private writable copy");
 
     fs::write(&target_file, b"built").expect("private projection should be writable");
-    fs::write(target.join("generated.txt"), b"generated").expect("write generated build output");
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&target, fs::Permissions::from_mode(0o555)).unwrap();
-        fs::set_permissions(&target_file, fs::Permissions::from_mode(0o444)).unwrap();
-    }
-    #[cfg(windows)]
-    {
-        let mut permissions = fs::metadata(&target_file).unwrap().permissions();
-        permissions.set_readonly(true);
-        fs::set_permissions(&target_file, permissions).unwrap();
-    }
-
-    import_indexed_dir::<SilentReporter>(
-        &AtomicU8::new(0),
-        PackageImportMethod::Hardlink,
-        &target,
-        &cas,
-        ImportIndexedDirOpts { make_writable: true, ..ImportIndexedDirOpts::default() },
-    )
-    .expect("an existing private writable projection should be preserved");
-
     assert_eq!(fs::read(&target_file).unwrap(), b"built");
-    assert_eq!(fs::read(target.join("generated.txt")).unwrap(), b"generated");
     assert_eq!(fs::read(&package_json).unwrap(), b"{\"name\":\"fixture\"}");
     #[cfg(unix)]
     {
@@ -138,10 +114,134 @@ fn writable_import_replaces_a_store_hardlink_with_a_private_writable_copy() {
         assert!(fs::metadata(&package_json).unwrap().permissions().readonly());
         assert!(!fs::metadata(&target_file).unwrap().permissions().readonly());
     }
+
+    let mut permissions = fs::metadata(&target_file).unwrap().permissions();
+    permissions.set_readonly(true);
+    fs::set_permissions(&target_file, permissions).unwrap();
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::CloneOrCopy,
+        &target,
+        &cas,
+        ImportIndexedDirOpts::default(),
+    )
+    .expect("a private projection that became read-only should be replaced");
+    assert_eq!(fs::read(&target_file).unwrap(), b"{\"name\":\"fixture\"}");
+    assert!(!fs::metadata(&target_file).unwrap().permissions().readonly());
 }
 
 #[test]
-fn writable_import_replaces_store_hardlinks_in_a_partial_projection() {
+fn clone_or_copy_reuses_a_private_writable_projection() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let package_json = write_source(&src_root, "package.json", b"{\"name\":\"fixture\"}");
+    let cas = cas_map(&[("package.json", package_json)]);
+    let target = tmp.path().join("pkg");
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::CloneOrCopy,
+        &target,
+        &cas,
+        ImportIndexedDirOpts::default(),
+    )
+    .expect("initial private import should succeed");
+
+    fs::write(target.join("package.json"), b"built").unwrap();
+    fs::write(target.join("generated.js"), b"generated").unwrap();
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::CloneOrCopy,
+        &target,
+        &cas,
+        ImportIndexedDirOpts::default(),
+    )
+    .expect("private projection should be reused");
+
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"built");
+    assert_eq!(fs::read(target.join("generated.js")).unwrap(), b"generated");
+}
+
+#[test]
+#[cfg(unix)]
+fn clone_or_copy_replaces_a_projection_with_a_read_only_intermediate_directory() {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let package_json = write_source(&src_root, "package.json", b"{\"name\":\"fixture\"}");
+    let nested = write_source(&src_root, "index.js", b"module.exports = true");
+    let cas = cas_map(&[("package.json", package_json), ("lib/deep/index.js", nested)]);
+    let target = tmp.path().join("pkg");
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::CloneOrCopy,
+        &target,
+        &cas,
+        ImportIndexedDirOpts::default(),
+    )
+    .expect("initial private import should succeed");
+
+    let old_identity = fs::metadata(target.join("package.json")).unwrap().ino();
+    fs::set_permissions(target.join("lib"), fs::Permissions::from_mode(0o000)).unwrap();
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::CloneOrCopy,
+        &target,
+        &cas,
+        ImportIndexedDirOpts::default(),
+    )
+    .expect("a projection with a read-only intermediate directory should be replaced");
+
+    assert_ne!(fs::metadata(target.join("package.json")).unwrap().ino(), old_identity);
+    assert_ne!(fs::metadata(target.join("lib")).unwrap().permissions().mode() & 0o200, 0);
+}
+
+#[test]
+#[cfg(unix)]
+fn forced_clone_or_copy_replaces_a_projection_with_a_read_only_generated_directory() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let package_json = write_source(&src_root, "package.json", b"{\"name\":\"fixture\"}");
+    let cas = cas_map(&[("package.json", package_json)]);
+    let target = tmp.path().join("pkg");
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::CloneOrCopy,
+        &target,
+        &cas,
+        ImportIndexedDirOpts::default(),
+    )
+    .expect("initial private import should succeed");
+
+    let generated = target.join("generated/deep");
+    fs::create_dir_all(&generated).unwrap();
+    fs::write(generated.join("output"), b"built").unwrap();
+    fs::set_permissions(target.join("generated"), fs::Permissions::from_mode(0o000)).unwrap();
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::CloneOrCopy,
+        &target,
+        &cas,
+        FORCE_ONLY,
+    )
+    .expect("forced import should replace a projection with read-only generated output");
+
+    assert!(!target.join("generated").exists());
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"name\":\"fixture\"}");
+}
+
+#[test]
+fn clone_or_copy_replaces_store_hardlinks_in_a_partial_projection() {
     let tmp = tempdir().unwrap();
     let src_root = tmp.path().join("cas");
     fs::create_dir_all(&src_root).unwrap();
@@ -158,10 +258,10 @@ fn writable_import_replaces_store_hardlinks_in_a_partial_projection() {
 
     import_indexed_dir::<SilentReporter>(
         &AtomicU8::new(0),
-        PackageImportMethod::Hardlink,
+        PackageImportMethod::CloneOrCopy,
         &target,
         &cas,
-        ImportIndexedDirOpts { make_writable: true, ..ImportIndexedDirOpts::default() },
+        ImportIndexedDirOpts::default(),
     )
     .expect("partial projection should be replaced with a private writable copy");
 
@@ -206,7 +306,7 @@ fn existing_target_short_circuits_under_default_opts() {
 }
 
 #[test]
-fn force_keep_replaces_files_and_preserves_node_modules() {
+fn clone_or_copy_force_keep_replaces_files_and_preserves_node_modules() {
     let tmp = tempdir().unwrap();
     let src_root = tmp.path().join("cas");
     fs::create_dir_all(&src_root).unwrap();
@@ -220,10 +320,16 @@ fn force_keep_replaces_files_and_preserves_node_modules() {
     fs::create_dir_all(target.join("node_modules/inner")).unwrap();
     fs::write(target.join("node_modules/inner/index.js"), b"// inner dep").unwrap();
     fs::write(target.join("node_modules/.placeholder"), b"keep me").unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(target.join("node_modules/inner"), fs::Permissions::from_mode(0o555))
+            .unwrap();
+    }
 
     import_indexed_dir::<SilentReporter>(
         &AtomicU8::new(0),
-        PackageImportMethod::Copy,
+        PackageImportMethod::CloneOrCopy,
         &target,
         &cas,
         FORCE_KEEP,
@@ -234,6 +340,13 @@ fn force_keep_replaces_files_and_preserves_node_modules() {
     assert!(!target.join("stale.txt").exists(), "stale file must be removed");
     assert_eq!(fs::read(target.join("node_modules/inner/index.js")).unwrap(), b"// inner dep");
     assert_eq!(fs::read(target.join("node_modules/.placeholder")).unwrap(), b"keep me");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let inner = target.join("node_modules/inner");
+        assert_eq!(fs::metadata(&inner).unwrap().permissions().mode() & 0o777, 0o555);
+        fs::set_permissions(inner, fs::Permissions::from_mode(0o755)).unwrap();
+    }
 }
 
 /// This isn't a call shape any current pacquet linker uses, but the
@@ -357,7 +470,7 @@ fn force_replaces_symlink_target_without_following() {
 
 #[test]
 #[cfg(unix)]
-fn writable_import_replaces_symlink_target_without_following() {
+fn clone_or_copy_replaces_symlink_target_without_following() {
     let tmp = tempdir().unwrap();
     let src_root = tmp.path().join("cas");
     fs::create_dir_all(&src_root).unwrap();
@@ -372,10 +485,10 @@ fn writable_import_replaces_symlink_target_without_following() {
 
     import_indexed_dir::<SilentReporter>(
         &AtomicU8::new(0),
-        PackageImportMethod::Hardlink,
+        PackageImportMethod::CloneOrCopy,
         &target,
         &cas,
-        ImportIndexedDirOpts { make_writable: true, ..ImportIndexedDirOpts::default() },
+        ImportIndexedDirOpts::default(),
     )
     .expect("writable import should replace a symlink target");
 
@@ -387,7 +500,7 @@ fn writable_import_replaces_symlink_target_without_following() {
 
 #[test]
 #[cfg(unix)]
-fn writable_import_replaces_symlinked_package_file_without_following() {
+fn clone_or_copy_replaces_symlinked_package_file_without_following() {
     let tmp = tempdir().unwrap();
     let src_root = tmp.path().join("cas");
     fs::create_dir_all(&src_root).unwrap();
@@ -404,10 +517,10 @@ fn writable_import_replaces_symlinked_package_file_without_following() {
 
     import_indexed_dir::<SilentReporter>(
         &AtomicU8::new(0),
-        PackageImportMethod::Hardlink,
+        PackageImportMethod::CloneOrCopy,
         &target,
         &cas,
-        ImportIndexedDirOpts { make_writable: true, ..ImportIndexedDirOpts::default() },
+        ImportIndexedDirOpts::default(),
     )
     .expect("writable import should replace a symlinked package file");
 
@@ -441,11 +554,8 @@ fn fresh_target_creates_nested_directories() {
     assert_eq!(fs::read(target.join("lib/deep/nested/file.js")).unwrap(), b"deeper");
 }
 
-/// Upstream's `moveOrMergeModulesDirs` would merge; pacquet's slice-1
-/// consumer (the hoisted-linker) never produces this state, so erroring
-/// loudly is the right call until a real caller demands the merge.
 #[test]
-fn node_modules_collision_in_file_map_errors() {
+fn bundled_dependencies_merge_with_preserved_node_modules() {
     let tmp = tempdir().unwrap();
     let src_root = tmp.path().join("cas");
     fs::create_dir_all(&src_root).unwrap();
@@ -456,21 +566,34 @@ fn node_modules_collision_in_file_map_errors() {
     let target = tmp.path().join("pkg");
     fs::create_dir_all(target.join("node_modules/existing")).unwrap();
     fs::write(target.join("node_modules/existing/keep.js"), b"survivor").unwrap();
+    fs::create_dir_all(target.join("node_modules/foo")).unwrap();
+    fs::write(target.join("node_modules/foo/index.js"), b"stale").unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(target.join("node_modules"), fs::Permissions::from_mode(0o000))
+            .unwrap();
+    }
 
-    let err = import_indexed_dir::<SilentReporter>(
+    import_indexed_dir::<SilentReporter>(
         &AtomicU8::new(0),
-        PackageImportMethod::Copy,
+        PackageImportMethod::CloneOrCopy,
         &target,
         &cas,
         FORCE_KEEP,
     )
-    .expect_err("collision should surface");
-    assert!(matches!(err, ImportIndexedDirError::NodeModulesCollision { .. }), "got: {err:?}");
+    .expect("bundled and preserved dependencies should merge");
 
-    // After the error, the existing nested dep must still be on disk —
-    // the function's cleanup must not have rimrafed it as a side
-    // effect of the failed stage.
     assert_eq!(fs::read(target.join("node_modules/existing/keep.js")).unwrap(), b"survivor");
+    assert_eq!(fs::read(target.join("node_modules/foo/index.js")).unwrap(), b"shipped-nm");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(
+            fs::metadata(target.join("node_modules")).unwrap().permissions().mode() & 0o700,
+            0o700,
+        );
+    }
 }
 
 /// On Unix, when `Hardlink` is available we want force re-imports to
@@ -527,7 +650,8 @@ fn remove_dir_all_failure_restores_preserved_node_modules() {
     let src_root = tmp.path().join("cas");
     fs::create_dir_all(&src_root).unwrap();
     let pkg_json = write_source(&src_root, "package.json", b"new");
-    let cas = cas_map(&[("package.json", pkg_json)]);
+    let bundled = write_source(&src_root, "bundled.js", b"bundled");
+    let cas = cas_map(&[("package.json", pkg_json), ("node_modules/bundled/index.js", bundled)]);
 
     let target = tmp.path().join("pkg");
     fs::create_dir_all(&target).unwrap();

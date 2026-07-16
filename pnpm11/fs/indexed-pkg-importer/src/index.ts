@@ -1,5 +1,5 @@
 import assert from 'node:assert'
-import { constants, existsSync, type Stats } from 'node:fs'
+import { closeSync, constants, existsSync, fchmodSync, fstatSync, lstatSync, openSync, type Stats } from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
@@ -10,11 +10,10 @@ import type { FilesMap, ImportIndexedPackage, ImportOptions } from '@pnpm/store.
 import { fastPathTemp as pathTemp } from 'path-temp'
 import { renameOverwriteSync } from 'rename-overwrite'
 
-import { type Importer, type ImportFile, importIndexedDir } from './importIndexedDir.js'
+import { type Importer, type ImportFile, importIndexedDir, sanitizeFilenamePath } from './importIndexedDir.js'
 import { isNativeBinary, removeQuarantine } from './removeQuarantine.js'
 
 export { type FilesMap, type ImportIndexedPackage, type ImportOptions }
-export { sanitizeFilenamePath } from './importIndexedDir.js'
 
 export type PackageImportMethod = 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
 
@@ -28,6 +27,7 @@ function createImportPackage (packageImportMethod?: PackageImportMethod): Import
   // - hardlink: hardlink the packages, no fallback
   // - clone: clone the packages, no fallback
   // - auto: try to clone or hardlink the packages, if it fails, fallback to copy
+  // - clone-or-copy: create a private owner-writable clone, falling back to copy
   // - copy: copy the packages, do not try to link them first
   switch (packageImportMethod ?? 'auto') {
     case 'clone':
@@ -100,18 +100,21 @@ function createAutoImporter (): ImportIndexedPackage {
 }
 
 function createCloneOrCopyImporter (): ImportIndexedPackage {
+  const copyPkg = createPrivateWritablePkg(resilientCopyFileSync, 'copy')
   let auto = initialAuto
 
-  return (to, opts) => auto(to, opts)
+  return (to, opts) => auto(to, privateWritableImportOptions(to, opts))
 
   function initialAuto (
     to: string,
     opts: ImportOptions
   ): string | undefined {
     try {
-      if (!tryClonePkg(to, opts)) return undefined
+      const clone = createCloneFunction()
+      const rawClonePkg = createPrivateWritablePkg(clone, 'clone')
+      if (!rawClonePkg(to, opts)) return undefined
       packageImportMethodLogger.debug({ method: 'clone' })
-      auto = createClonePkg()
+      auto = createPrivateWritablePkg(createCloneImporter().importFile, 'clone')
       return 'clone'
     } catch {
       // ignore
@@ -119,6 +122,98 @@ function createCloneOrCopyImporter (): ImportIndexedPackage {
     packageImportMethodLogger.debug({ method: 'copy' })
     auto = copyPkg
     return auto(to, opts)
+  }
+}
+
+function createPrivateWritablePkg (importFile: ImportFile, method: 'clone' | 'copy'): ImportIndexedPackage {
+  const writableImporter = makeOwnerWritableImporter(importFile)
+  return (to, opts) => {
+    if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
+      importIndexedDir(writableImporter, to, opts.filesMap, opts)
+      removeQuarantineFromNativeBinaries(to, opts)
+      return method
+    }
+    return undefined
+  }
+}
+
+function privateWritableImportOptions (to: string, opts: ImportOptions): ImportOptions {
+  return {
+    ...opts,
+    force: opts.force || !packageIsPrivateAndWritable(to, opts.filesMap),
+    safeToSkip: false,
+  }
+}
+
+function packageIsPrivateAndWritable (targetDir: string, filesMap: FilesMap): boolean {
+  const packageDir = path.resolve(targetDir)
+  const directories = new Set([packageDir])
+  try {
+    for (const filename of filesMap.keys()) {
+      const target = projectedFilePath(packageDir, filename)
+      const stats = lstatSync(target)
+      if (!stats.isFile() || stats.nlink !== 1 || !isOwnerWritable(stats.mode)) return false
+      for (let directory = path.dirname(target); directory !== packageDir; directory = path.dirname(directory)) {
+        const relativeDir = path.relative(packageDir, directory)
+        if (relativeDir === '..' || relativeDir.startsWith(`..${path.sep}`) || path.isAbsolute(relativeDir)) return false
+        directories.add(directory)
+      }
+    }
+    for (const directory of directories) {
+      const stats = lstatSync(directory)
+      if (!stats.isDirectory() || !isOwnerUsableDirectory(stats.mode)) return false
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
+function projectedFilePath (targetDir: string, filename: string): string {
+  const original = path.join(targetDir, filename)
+  if (existsSync(original)) return original
+  return path.join(targetDir, sanitizeFilenamePath(filename))
+}
+
+function isOwnerWritable (mode: number): boolean {
+  return (mode & 0o200) !== 0
+}
+
+function isOwnerUsableDirectory (mode: number): boolean {
+  return process.platform === 'win32'
+    ? isOwnerWritable(mode)
+    : (mode & 0o700) === 0o700
+}
+
+function makeOwnerWritableImporter (importFile: ImportFile): Importer {
+  const importWritableFile = (src: string, dest: string): void => {
+    importFile(src, dest)
+    makeOwnerWritable(dest)
+  }
+  return {
+    importFile: importWritableFile,
+    importFileAtomic: (src, dest) => atomicImportFileSync(importWritableFile, src, dest),
+  }
+}
+
+function makeOwnerWritable (filePath: string): void {
+  const pathStats = lstatSync(filePath, { bigint: true })
+  if (!pathStats.isFile()) throw new Error(`Cannot make non-file package entry writable: ${filePath}`)
+  const flags = process.platform === 'win32'
+    ? constants.O_RDONLY
+    : constants.O_RDONLY | constants.O_NOFOLLOW
+  const fd = openSync(filePath, flags)
+  try {
+    const openedStats = fstatSync(fd, { bigint: true })
+    const identityChanged = pathStats.dev !== openedStats.dev || pathStats.ino !== openedStats.ino
+    if (identityChanged ||
+      process.platform === 'win32' && (pathStats.ino === 0n || openedStats.ino === 0n)) {
+      throw new Error(`Package file changed while making it writable: ${filePath}`)
+    }
+    const mode = Number(openedStats.mode)
+    if (!isOwnerWritable(mode)) fchmodSync(fd, mode | 0o200)
+  } finally {
+    closeSync(fd)
   }
 }
 
@@ -152,6 +247,18 @@ function tryClonePkg (
  * atomic.
  */
 function createClonePkg (): ImportIndexedPackage {
+  const importer = createCloneImporter()
+  return (to: string, opts: ImportOptions) => {
+    if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
+      importIndexedDir(importer, to, opts.filesMap, opts)
+      removeQuarantineFromNativeBinaries(to, opts)
+      return 'clone'
+    }
+    return undefined
+  }
+}
+
+function createCloneImporter (): Importer {
   const clone = createCloneFunction()
   const withFallback = (fallback: CloneFunction): ImportFile => (src, dest) => {
     try {
@@ -164,17 +271,9 @@ function createClonePkg (): ImportIndexedPackage {
       throw err
     }
   }
-  const importer: Importer = {
+  return {
     importFile: withFallback(resilientCopyFileSync),
     importFileAtomic: withFallback(atomicCopyFileSync),
-  }
-  return (to: string, opts: ImportOptions) => {
-    if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
-      importIndexedDir(importer, to, opts.filesMap, opts)
-      removeQuarantineFromNativeBinaries(to, opts)
-      return 'clone'
-    }
-    return undefined
   }
 }
 
@@ -315,9 +414,13 @@ export function copyPkg (
 }
 
 function atomicCopyFileSync (src: string, dest: string): void {
+  atomicImportFileSync(resilientCopyFileSync, src, dest)
+}
+
+function atomicImportFileSync (importFile: ImportFile, src: string, dest: string): void {
   const tmp = pathTemp(dest)
   try {
-    resilientCopyFileSync(src, tmp)
+    importFile(src, tmp)
   } catch (err) {
     try {
       fs.unlinkSync(tmp)

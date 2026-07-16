@@ -69,6 +69,8 @@ pub fn make_file_executable(file: &std::fs::File) -> io::Result<()> {
 }
 
 /// Add owner-write permission without following a symlink at the final path.
+/// Directories also receive owner-read and owner-execute so the owner can
+/// enumerate, traverse, and modify their entries.
 pub fn make_path_owner_writable(path: &Path) -> io::Result<()> {
     #[cfg(unix)]
     let file = crate::ensure_file::retry_on_fd_pressure(|| {
@@ -76,27 +78,79 @@ pub fn make_path_owner_writable(path: &Path) -> io::Result<()> {
         std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(path)
     })?;
     #[cfg(windows)]
-    let file = crate::ensure_file::retry_on_fd_pressure(|| {
-        use std::os::windows::fs::OpenOptionsExt;
-        use windows_sys::Win32::Storage::FileSystem::{
-            FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT, FILE_READ_ATTRIBUTES,
-            FILE_WRITE_ATTRIBUTES,
-        };
-        std::fs::OpenOptions::new()
-            .access_mode(FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES)
-            .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
-            .open(path)
-    })?;
+    let file = open_windows_path(
+        path,
+        windows_sys::Win32::Storage::FileSystem::FILE_READ_ATTRIBUTES
+            | windows_sys::Win32::Storage::FileSystem::FILE_WRITE_ATTRIBUTES,
+    )?;
     #[cfg(windows)]
     {
         let metadata = file.metadata()?;
         if metadata.file_type().is_symlink() {
-            return Err(symlink_writable_error(path));
+            return Err(symlink_path_error(path));
         }
         make_windows_file_writable(&file, metadata.permissions())
     }
     #[cfg(unix)]
-    add_mode_bits(&file, 0o200)
+    {
+        let bits = if file.metadata()?.is_dir() { 0o700 } else { 0o200 };
+        add_mode_bits(&file, bits)
+    }
+}
+
+/// Return the number of hard links to a path without following a final symlink.
+pub fn hard_link_count(path: &Path) -> io::Result<u64> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        Ok(std::fs::symlink_metadata(path)?.nlink())
+    }
+
+    #[cfg(windows)]
+    {
+        use std::{mem, os::windows::io::AsRawHandle};
+        use windows_sys::Win32::{
+            Foundation::HANDLE,
+            Storage::FileSystem::{
+                FILE_READ_ATTRIBUTES, FILE_STANDARD_INFO, FileStandardInfo,
+                GetFileInformationByHandleEx,
+            },
+        };
+
+        let file = open_windows_path(path, FILE_READ_ATTRIBUTES)?;
+        if file.metadata()?.file_type().is_symlink() {
+            return Err(symlink_path_error(path));
+        }
+        let mut info = FILE_STANDARD_INFO::default();
+        // SAFETY: `file` owns a valid handle and `info` is a correctly sized,
+        // writable `FILE_STANDARD_INFO` buffer for the duration of the call.
+        let result = unsafe {
+            GetFileInformationByHandleEx(
+                file.as_raw_handle() as HANDLE,
+                FileStandardInfo,
+                (&mut info as *mut FILE_STANDARD_INFO).cast(),
+                mem::size_of::<FILE_STANDARD_INFO>() as u32,
+            )
+        };
+        if result == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(u64::from(info.NumberOfLinks))
+    }
+}
+
+#[cfg(windows)]
+fn open_windows_path(path: &Path, access_mode: u32) -> io::Result<std::fs::File> {
+    use std::os::windows::fs::OpenOptionsExt;
+    use windows_sys::Win32::Storage::FileSystem::{
+        FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT,
+    };
+    crate::ensure_file::retry_on_fd_pressure(|| {
+        std::fs::OpenOptions::new()
+            .access_mode(access_mode)
+            .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
+            .open(path)
+    })
 }
 
 #[cfg(windows)]
@@ -116,10 +170,10 @@ fn make_windows_file_writable(
 }
 
 #[cfg(windows)]
-fn symlink_writable_error(path: &Path) -> io::Error {
+fn symlink_path_error(path: &Path) -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidInput,
-        format!("refusing to make symlink writable at {}", path.display()),
+        format!("refusing to operate on symlink at {}", path.display()),
     )
 }
 

@@ -2,6 +2,7 @@
 "@pnpm/fetching.tarball-fetcher": patch
 "@pnpm/fs.indexed-pkg-importer": patch
 "@pnpm/patching.commands": patch
+"@pnpm/releasing.commands": patch
 "@pnpm/store.create-cafs-store": patch
 "pnpm": patch
 "pacquet": patch

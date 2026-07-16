@@ -20,14 +20,13 @@ use std::{
 /// Mirrors pnpm v11's `ImportOptions` at
 /// `store/controller-types/src/index.ts` for the fields pacquet
 /// consumes today. The defaults match the isolated linker's call
-/// shape (no force, no nested-modules preservation, immutable files).
-/// The hoisted linker always forces import and preserves nested modules,
-/// then enables writable copies only for mutation candidates.
+/// shape (no force and no nested-modules preservation). The hoisted linker
+/// always forces import and preserves nested modules.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct ImportIndexedDirOpts {
     /// When `true`, re-import even when `dir_path` already exists,
-    /// overwriting the existing contents. A writable import may also
-    /// replace an existing target when it is not already a private copy.
+    /// overwriting the existing contents. Clone-or-copy may also replace an
+    /// existing target that is not already private and owner-writable.
     pub force: bool,
     /// When `true` (only meaningful with `force`), preserve
     /// `dir_path/node_modules/` across the re-import so nested
@@ -37,11 +36,6 @@ pub struct ImportIndexedDirOpts {
     /// installed by a sibling pass must not be clobbered when the
     /// parent package is re-imported.
     pub keep_modules_dir: bool,
-    /// When `true`, materialize files without hardlinks and add owner-write
-    /// permission to the private copies. Packages that will be patched or run
-    /// lifecycle scripts need this; ordinary package projections remain
-    /// immutable.
-    pub make_writable: bool,
 }
 
 /// Error type for [`import_indexed_dir`].
@@ -76,10 +70,6 @@ pub enum ImportIndexedDirError {
         #[error(source)]
         error: io::Error,
     },
-    #[display(
-        "the indexed file map already contains a node_modules/ entry at {path:?}, which would conflict with the directory being preserved"
-    )]
-    NodeModulesCollision { path: PathBuf },
     #[display("failed to remove existing directory {path:?} prior to swap: {error}")]
     RemoveExisting {
         path: PathBuf,
@@ -115,10 +105,9 @@ pub enum ImportIndexedDirError {
 /// controlled by [`ImportIndexedDirOpts`].
 ///
 /// Files in `cas_paths` are materialized using `import_method`'s preference
-/// order. [`ImportIndexedDirOpts::make_writable`] substitutes
-/// [`PackageImportMethod::CloneOrCopy`] so the projection does not share file
-/// identity with the store. The first use of each import tier during an
-/// install emits a `pnpm:package-import-method` event through `logged_methods`.
+/// order. [`PackageImportMethod::CloneOrCopy`] creates a private owner-writable
+/// projection. The first use of each import tier during an install emits a
+/// `pnpm:package-import-method` event through `logged_methods`.
 pub fn import_indexed_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
@@ -126,8 +115,7 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
     cas_paths: &HashMap<String, PathBuf>,
     opts: ImportIndexedDirOpts,
 ) -> Result<(), ImportIndexedDirError> {
-    let import_method =
-        if opts.make_writable { PackageImportMethod::CloneOrCopy } else { import_method };
+    let private_writable = import_method == PackageImportMethod::CloneOrCopy;
     let existing_kind = match fs::symlink_metadata(dir_path) {
         Ok(meta) => Some(meta.file_type()),
         Err(err) if err.kind() == io::ErrorKind::NotFound => None,
@@ -139,9 +127,9 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
         }
     };
     let force = opts.force
-        || (opts.make_writable
+        || (private_writable
             && existing_kind.as_ref().is_some_and(|file_type| {
-                !file_type.is_dir() || package_needs_private_copy(dir_path, cas_paths)
+                !file_type.is_dir() || !package_is_private_and_writable(dir_path, cas_paths)
             }));
 
     // Drop the macOS quarantine xattr from the package's native binaries after
@@ -151,14 +139,8 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
     // per-install `xattr` cost — exactly pnpm's `!pkgExistsAtTargetDir` gate.
     let unquarantine = || remove_quarantine_from_native_binaries(dir_path, cas_paths);
     match (existing_kind, force) {
-        (None, _) => populate_dir::<Reporter>(
-            logged_methods,
-            import_method,
-            dir_path,
-            cas_paths,
-            opts.make_writable,
-        )
-        .inspect(|()| unquarantine()),
+        (None, _) => populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths)
+            .inspect(|()| unquarantine()),
         // Short-circuit only when the completion marker is present
         // (pnpm's `pkgExistsAtTargetDir`),
         // not on mere directory existence. A marker-less directory is a
@@ -166,16 +148,10 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
         // `populate_dir`. Ported from pnpm/pnpm#12204 (cbfeeef328).
         (Some(file_type), false) if file_type.is_dir() => {
             if marker_present(dir_path, cas_paths) {
-                if opts.make_writable { make_package_writable(dir_path, cas_paths) } else { Ok(()) }
+                Ok(())
             } else {
-                populate_dir::<Reporter>(
-                    logged_methods,
-                    import_method,
-                    dir_path,
-                    cas_paths,
-                    opts.make_writable,
-                )
-                .inspect(|()| unquarantine())
+                populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths)
+                    .inspect(|()| unquarantine())
             }
         }
         // A non-directory dirent is left as-is; only force=true clobbers it.
@@ -187,14 +163,8 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
             remove_non_dir_dirent(dir_path, file_type).map_err(|error| {
                 ImportIndexedDirError::ClearNonDirEntry { path: dir_path.to_path_buf(), error }
             })?;
-            populate_dir::<Reporter>(
-                logged_methods,
-                import_method,
-                dir_path,
-                cas_paths,
-                opts.make_writable,
-            )
-            .inspect(|()| unquarantine())
+            populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths)
+                .inspect(|()| unquarantine())
         }
         (Some(_), true) => stage_and_swap::<Reporter>(
             logged_methods,
@@ -202,7 +172,6 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
             dir_path,
             cas_paths,
             opts.keep_modules_dir,
-            opts.make_writable,
         )
         .inspect(|()| unquarantine()),
     }
@@ -220,8 +189,8 @@ fn populate_dir<Reporter: self::Reporter>(
     import_method: PackageImportMethod,
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
-    make_writable: bool,
 ) -> Result<(), ImportIndexedDirError> {
+    let private_writable = import_method == PackageImportMethod::CloneOrCopy;
     // The package root itself: pnpm's `importIndexedDir` mkdirs
     // `newDir` before calling `tryImportIndexedDir`, so do that here
     // too. Files at the package root (e.g. `package.json`) need this
@@ -230,13 +199,17 @@ fn populate_dir<Reporter: self::Reporter>(
         dirname: dir_path.to_path_buf(),
         error,
     })?;
-    make_owner_writable(dir_path, make_writable)?;
+    if private_writable {
+        make_owner_writable(dir_path)?;
+    }
 
     for rel in package_directories(cas_paths) {
         let abs = dir_path.join(rel);
         fs::create_dir_all(&abs)
             .map_err(|error| ImportIndexedDirError::CreateDir { dirname: abs, error })?;
-        make_owner_writable(&dir_path.join(rel), make_writable)?;
+        if private_writable {
+            make_owner_writable(&dir_path.join(rel))?;
+        }
     }
 
     // Link every other file first, then place the marker last, so an
@@ -259,7 +232,7 @@ fn populate_dir<Reporter: self::Reporter>(
                 &target,
             )
             .map_err(ImportIndexedDirError::LinkFile)?;
-            make_owner_writable(&target, make_writable)
+            if private_writable { make_owner_writable(&target) } else { Ok(()) }
         })?;
 
     if let Some(marker) = marker {
@@ -268,7 +241,6 @@ fn populate_dir<Reporter: self::Reporter>(
             import_method,
             &cas_paths[marker],
             &dir_path.join(marker),
-            make_writable,
         )?;
     }
     Ok(())
@@ -277,11 +249,14 @@ fn populate_dir<Reporter: self::Reporter>(
 fn package_directories(cas_paths: &HashMap<String, PathBuf>) -> Vec<&str> {
     let mut directories = HashSet::new();
     for entry in cas_paths.keys() {
-        if let Some(parent) = Path::new(entry).parent()
-            && let Some(relative) = parent.to_str()
-            && !relative.is_empty()
-        {
-            directories.insert(relative);
+        let mut parent = Path::new(entry).parent();
+        while let Some(path) = parent {
+            if let Some(relative) = path.to_str()
+                && !relative.is_empty()
+            {
+                directories.insert(relative);
+            }
+            parent = path.parent();
         }
     }
     let mut ordered: Vec<_> = directories.into_iter().collect();
@@ -312,28 +287,30 @@ fn marker_present(dir_path: &Path, cas_paths: &HashMap<String, PathBuf>) -> bool
     }
 }
 
-fn package_needs_private_copy(dir_path: &Path, cas_paths: &HashMap<String, PathBuf>) -> bool {
-    cas_paths.iter().any(|(entry, store_path)| {
-        let target_path = dir_path.join(entry);
-        let Ok(metadata) = fs::symlink_metadata(&target_path) else {
-            return true;
-        };
-        if !metadata.file_type().is_file() {
-            return true;
-        }
-        same_file::is_same_file(target_path, store_path).unwrap_or(true)
-    })
-}
-
-fn make_package_writable(
-    dir_path: &Path,
-    cas_paths: &HashMap<String, PathBuf>,
-) -> Result<(), ImportIndexedDirError> {
-    make_owner_writable(dir_path, true)?;
-    for relative in package_directories(cas_paths) {
-        make_owner_writable(&dir_path.join(relative), true)?;
+fn package_is_private_and_writable(dir_path: &Path, cas_paths: &HashMap<String, PathBuf>) -> bool {
+    let Ok(root_metadata) = fs::symlink_metadata(dir_path) else {
+        return false;
+    };
+    if !root_metadata.file_type().is_dir() || !is_owner_usable_directory(&root_metadata) {
+        return false;
     }
-    cas_paths.par_iter().try_for_each(|(entry, _)| make_owner_writable(&dir_path.join(entry), true))
+    for relative in package_directories(cas_paths) {
+        let Ok(metadata) = fs::symlink_metadata(dir_path.join(relative)) else {
+            return false;
+        };
+        if !metadata.file_type().is_dir() || !is_owner_usable_directory(&metadata) {
+            return false;
+        }
+    }
+    cas_paths.iter().all(|(entry, _)| {
+        let target = dir_path.join(entry);
+        let Ok(metadata) = fs::symlink_metadata(&target) else {
+            return false;
+        };
+        metadata.file_type().is_file()
+            && is_owner_writable(&metadata)
+            && has_single_hard_link(&target, &metadata)
+    })
 }
 
 /// Place the marker atomically (pnpm's `importFileAtomic`): link it into a
@@ -348,12 +325,13 @@ fn import_marker_atomic<Reporter: self::Reporter>(
     import_method: PackageImportMethod,
     store_path: &Path,
     marker_path: &Path,
-    make_writable: bool,
 ) -> Result<(), ImportIndexedDirError> {
     let temp = pick_stage_path(marker_path);
     import_into_fresh_target::<Reporter>(logged_methods, import_method, store_path, &temp)
         .map_err(ImportIndexedDirError::LinkFile)?;
-    if let Err(error) = make_owner_writable(&temp, make_writable) {
+    if import_method == PackageImportMethod::CloneOrCopy
+        && let Err(error) = make_owner_writable(&temp)
+    {
         let _ = fs::remove_file(&temp);
         return Err(error);
     }
@@ -380,7 +358,6 @@ fn stage_and_swap<Reporter: self::Reporter>(
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
     keep_modules_dir: bool,
-    make_writable: bool,
 ) -> Result<(), ImportIndexedDirError> {
     let stage = pick_stage_path(dir_path);
     let target_modules = dir_path.join("node_modules");
@@ -389,11 +366,17 @@ fn stage_and_swap<Reporter: self::Reporter>(
     // 1. Populate the staging directory with the new contents. On
     //    failure, the staging directory is the only thing on disk we
     //    own — a blanket rimraf is safe.
-    if let Err(error) =
-        populate_dir::<Reporter>(logged_methods, import_method, &stage, cas_paths, make_writable)
-    {
+    if let Err(error) = populate_dir::<Reporter>(logged_methods, import_method, &stage, cas_paths) {
         let _ = fs::remove_dir_all(&stage);
         return Err(error);
+    }
+
+    if import_method == PackageImportMethod::CloneOrCopy {
+        let preserved_modules = keep_modules_dir.then(|| dir_path.join("node_modules"));
+        if let Err(error) = make_existing_tree_removable(dir_path, preserved_modules.as_deref()) {
+            let _ = fs::remove_dir_all(&stage);
+            return Err(error);
+        }
     }
 
     // 2. Inspect the existing `node_modules/` so nested deps survive
@@ -414,23 +397,35 @@ fn stage_and_swap<Reporter: self::Reporter>(
         None
     };
 
-    // 3. Preserve `node_modules/` if it's a real directory. Track the
-    //    move so steps 4 and 5 can rescue it on failure.
-    //
-    //    Indexed file maps for npm tarballs never contain
-    //    `node_modules/` entries (npm and pnpm strip them at pack
-    //    time), so a pre-existing `<stage>/node_modules/` would be
-    //    pathological; surface it as an error rather than silently
-    //    merging. Upstream's `moveOrMergeModulesDirs` performs a real
-    //    merge for this case, but the hoisted-linker call site does
-    //    not exercise it in practice.
+    if import_method == PackageImportMethod::CloneOrCopy
+        && nm_kind.as_ref().is_some_and(fs::FileType::is_dir)
+        && let Err(error) = make_directory_removable(&target_modules)
+    {
+        let _ = fs::remove_dir_all(&stage);
+        return Err(error);
+    }
+
+    // 3. Preserve `node_modules/` if it's a real directory. A package may
+    //    contain bundled dependencies in the staged tree, so merge only names
+    //    that the package did not supply. Track the move so steps 4 and 5 can
+    //    rescue it on failure.
     let nm_moved = match nm_kind {
         Some(file_type) if file_type.is_dir() => {
             if stage_modules.exists() {
-                let _ = fs::remove_dir_all(&stage);
-                return Err(ImportIndexedDirError::NodeModulesCollision { path: stage_modules });
-            }
-            if let Err(error) = fs::rename(&target_modules, &stage_modules) {
+                if let Err(error) = merge_modules_dirs(&target_modules, &stage_modules) {
+                    finalize_stage_cleanup_after_failure(
+                        true,
+                        &stage,
+                        &stage_modules,
+                        &target_modules,
+                    );
+                    return Err(ImportIndexedDirError::PreserveModulesDir {
+                        from: target_modules,
+                        to: stage_modules,
+                        error,
+                    });
+                }
+            } else if let Err(error) = fs::rename(&target_modules, &stage_modules) {
                 let _ = fs::remove_dir_all(&stage);
                 return Err(ImportIndexedDirError::PreserveModulesDir {
                     from: target_modules,
@@ -474,12 +469,104 @@ fn stage_and_swap<Reporter: self::Reporter>(
     Ok(())
 }
 
-fn make_owner_writable(target: &Path, enabled: bool) -> Result<(), ImportIndexedDirError> {
-    if !enabled {
-        return Ok(());
+fn make_existing_tree_removable(
+    dir_path: &Path,
+    preserved_dir: Option<&Path>,
+) -> Result<(), ImportIndexedDirError> {
+    let mut pending = vec![dir_path.to_path_buf()];
+    while let Some(directory) = pending.pop() {
+        make_directory_removable(&directory)?;
+        let entries = fs::read_dir(&directory).map_err(|error| {
+            ImportIndexedDirError::InspectTarget { path: directory.clone(), error }
+        })?;
+        for entry in entries {
+            let entry = entry.map_err(|error| ImportIndexedDirError::InspectTarget {
+                path: directory.clone(),
+                error,
+            })?;
+            let path = entry.path();
+            if preserved_dir == Some(path.as_path()) {
+                continue;
+            }
+            let file_type = entry.file_type().map_err(|error| {
+                ImportIndexedDirError::InspectTarget { path: path.clone(), error }
+            })?;
+            if file_type.is_dir() {
+                pending.push(path);
+            }
+        }
     }
+    Ok(())
+}
+
+fn make_directory_removable(directory: &Path) -> Result<(), ImportIndexedDirError> {
+    match make_owner_writable(directory) {
+        Ok(()) => Ok(()),
+        #[cfg(unix)]
+        Err(ImportIndexedDirError::MakeWritable { error, .. })
+            if error.kind() == io::ErrorKind::PermissionDenied =>
+        {
+            use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+            // Opening a mode-000 directory cannot produce the descriptor used
+            // by the no-follow helper. This tree is a stale private projection
+            // beneath the install root, so make only the directory traversable
+            // before removing it.
+            let metadata = fs::symlink_metadata(directory).map_err(|error| {
+                ImportIndexedDirError::InspectTarget { path: directory.to_path_buf(), error }
+            })?;
+            if !metadata.file_type().is_dir() {
+                return Err(ImportIndexedDirError::MakeWritable {
+                    path: directory.to_path_buf(),
+                    error,
+                });
+            }
+            fs::set_permissions(directory, fs::Permissions::from_mode(metadata.mode() | 0o700))
+                .map_err(|error| ImportIndexedDirError::MakeWritable {
+                    path: directory.to_path_buf(),
+                    error,
+                })
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn make_owner_writable(target: &Path) -> Result<(), ImportIndexedDirError> {
     pacquet_fs::file_mode::make_path_owner_writable(target)
         .map_err(|error| ImportIndexedDirError::MakeWritable { path: target.to_path_buf(), error })
+}
+
+#[cfg(unix)]
+fn has_single_hard_link(_path: &Path, metadata: &fs::Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    metadata.nlink() == 1
+}
+
+#[cfg(windows)]
+fn has_single_hard_link(path: &Path, _metadata: &fs::Metadata) -> bool {
+    pacquet_fs::file_mode::hard_link_count(path).is_ok_and(|count| count == 1)
+}
+
+#[cfg(unix)]
+fn is_owner_writable(metadata: &fs::Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    metadata.mode() & 0o200 != 0
+}
+
+#[cfg(unix)]
+fn is_owner_usable_directory(metadata: &fs::Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    metadata.mode() & 0o700 == 0o700
+}
+
+#[cfg(windows)]
+fn is_owner_writable(metadata: &fs::Metadata) -> bool {
+    !metadata.permissions().readonly()
+}
+
+#[cfg(windows)]
+fn is_owner_usable_directory(metadata: &fs::Metadata) -> bool {
+    is_owner_writable(metadata)
 }
 
 /// Combined post-failure cleanup for steps 4 and 5: restore the
@@ -519,17 +606,35 @@ fn restore_preserved_node_modules(
     }
     match fs::rename(stage_modules, target_modules) {
         Ok(()) => true,
-        Err(error) => {
-            tracing::warn!(
-                target: "pacquet::import_indexed_dir",
-                ?stage_modules,
-                ?target_modules,
-                %error,
-                "failed to restore preserved node_modules/ after a partial stage-and-swap",
-            );
-            false
+        Err(rename_error) => match merge_modules_dirs(stage_modules, target_modules) {
+            Ok(()) => true,
+            Err(error) => {
+                tracing::warn!(
+                    target: "pacquet::import_indexed_dir",
+                    ?stage_modules,
+                    ?target_modules,
+                    %rename_error,
+                    %error,
+                    "failed to restore preserved node_modules/ after a partial stage-and-swap",
+                );
+                false
+            }
+        },
+    }
+}
+
+fn merge_modules_dirs(src: &Path, dest: &Path) -> io::Result<()> {
+    fs::create_dir_all(dest)?;
+    let dest_files = fs::read_dir(dest)?
+        .map(|entry| entry.map(|entry| entry.file_name()))
+        .collect::<io::Result<HashSet<_>>>()?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        if !dest_files.contains(&entry.file_name()) {
+            fs::rename(entry.path(), dest.join(entry.file_name()))?;
         }
     }
+    Ok(())
 }
 
 /// Emit a warning that the staging directory is being left in place

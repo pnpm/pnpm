@@ -1205,7 +1205,7 @@ fn pkg_root_for_key(
 /// slot "looks" materialized is unsound by filename alone — a slot left
 /// from a different cache key can carry the same filenames with stale
 /// bytes — and a content check would read every file, costing as much as
-/// the private clone-or-copy re-import it would replace. A cheap *and* sound skip
+/// the hardlink-based re-import it would replace. A cheap *and* sound skip
 /// needs a link-phase "this slot was re-linked pristine-only this install"
 /// signal threaded from the link phase, which is left as a follow-up.
 fn materialize_side_effects<Reporter: self::Reporter>(
@@ -1219,7 +1219,7 @@ fn materialize_side_effects<Reporter: self::Reporter>(
         import_method,
         pkg_dir,
         overlay,
-        ImportIndexedDirOpts { force: true, keep_modules_dir: true, make_writable: true },
+        ImportIndexedDirOpts { force: true, keep_modules_dir: true },
     )
     .map_err(BuildModulesError::MaterializeSideEffects)
 }

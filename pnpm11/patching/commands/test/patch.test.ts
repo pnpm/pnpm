@@ -12,6 +12,7 @@ import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { temporaryDirectory } from 'tempy'
+import { glob } from 'tinyglobby'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
@@ -95,7 +96,7 @@ describe('patch and commit', () => {
   })
 
   test('patch and commit with exact version', async () => {
-    const readOnlyStore = makeStoreFilesReadOnly(storeDir)
+    const readOnlyStore = await makeStoreFilesReadOnly(storeDir)
     restoreStoreFiles = readOnlyStore.restore
     expect(readOnlyStore.changed).toBeGreaterThan(0)
     const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
@@ -1415,27 +1416,18 @@ function getPatchDirFromPatchOutput (output: string): string {
   return match[1]
 }
 
-function makeStoreFilesReadOnly (dir: string): { changed: number, restore: () => void } {
+async function makeStoreFilesReadOnly (dir: string): Promise<{ changed: number, restore: () => void }> {
   const originalModes = new Map<string, number>()
-  visit(dir)
+  const storeFiles = await glob('**/files/**/*', { absolute: true, cwd: dir, onlyFiles: true })
+  for (const filePath of storeFiles) {
+    const mode = fs.statSync(filePath).mode
+    originalModes.set(filePath, mode)
+    fs.chmodSync(filePath, mode & ~0o222)
+  }
   return {
     changed: originalModes.size,
     restore: () => {
       for (const [filePath, mode] of originalModes) fs.chmodSync(filePath, mode)
     },
-  }
-
-  function visit (currentDir: string): void {
-    if (!fs.existsSync(currentDir)) return
-    for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
-      const entryPath = path.join(currentDir, entry.name)
-      if (entry.isDirectory()) {
-        visit(entryPath)
-      } else if (entryPath.includes(`${path.sep}files${path.sep}`)) {
-        const mode = fs.statSync(entryPath).mode
-        originalModes.set(entryPath, mode)
-        fs.chmodSync(entryPath, mode & ~0o222)
-      }
-    }
   }
 }

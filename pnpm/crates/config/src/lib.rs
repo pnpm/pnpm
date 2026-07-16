@@ -486,7 +486,8 @@ pub enum PackageImportMethod {
     /// clone (AKA copy-on-write or reference link) packages from the store
     Clone,
 
-    /// try to clone packages from the store. If cloning is not supported then fall back to copying
+    /// try to clone packages from the store. If cloning is not supported then fall back to
+    /// copying. Package imports finalize the private result as owner-writable.
     CloneOrCopy,
 }
 

@@ -135,10 +135,10 @@ impl CreateVirtualDirBySnapshot<'_> {
         let save_path =
             safe_join_modules_dir(&virtual_node_modules_dir, &package_key.name.to_string())
                 .map_err(CreateVirtualDirError::InvalidAlias)?;
-        let make_writable = snapshot.patched.unwrap_or(false)
+        let needs_private_copy = snapshot.patched.unwrap_or(false)
             || crate::create_virtual_store::requires_build_from_cas_paths(cas_paths);
         let effective_import_method =
-            if make_writable { PackageImportMethod::CloneOrCopy } else { import_method };
+            if needs_private_copy { PackageImportMethod::CloneOrCopy } else { import_method };
 
         // `rayon::join` runs both closures in parallel on rayon's pool,
         // returning only once both finish. `import_indexed_dir` is itself
@@ -154,7 +154,7 @@ impl CreateVirtualDirBySnapshot<'_> {
                     effective_import_method,
                     &save_path,
                     cas_paths,
-                    ImportIndexedDirOpts { make_writable, ..ImportIndexedDirOpts::default() },
+                    ImportIndexedDirOpts::default(),
                 )
                 .map_err(CreateVirtualDirError::ImportIndexedDir)
             },

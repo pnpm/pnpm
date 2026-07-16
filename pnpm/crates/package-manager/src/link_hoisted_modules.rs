@@ -231,17 +231,19 @@ fn import_node<Reporter: self::Reporter>(
         });
     };
 
+    let import_method = if node.patch.is_some()
+        || crate::create_virtual_store::requires_build_from_cas_paths(cas_paths)
+    {
+        PackageImportMethod::CloneOrCopy
+    } else {
+        opts.import_method
+    };
     import_indexed_dir::<Reporter>(
         opts.logged_methods,
-        opts.import_method,
+        import_method,
         &node.dir,
         cas_paths,
-        ImportIndexedDirOpts {
-            force: true,
-            keep_modules_dir: true,
-            make_writable: node.patch.is_some()
-                || crate::create_virtual_store::requires_build_from_cas_paths(cas_paths),
-        },
+        ImportIndexedDirOpts { force: true, keep_modules_dir: true },
     )
     .map_err(LinkHoistedModulesError::ImportIndexedDir)
 }

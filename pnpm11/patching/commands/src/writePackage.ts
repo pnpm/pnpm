@@ -22,6 +22,5 @@ export async function writePackage (dep: ParseWantedDependencyResult, dest: stri
   await store.ctrl.importPackage(dest, {
     filesResponse: files,
     force: true,
-    requiresBuild: true,
   })
 }

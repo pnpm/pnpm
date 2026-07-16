@@ -79,6 +79,23 @@ fn make_path_owner_writable_preserves_other_file_and_directory_bits() {
 
 #[cfg(unix)]
 #[test]
+fn make_path_owner_writable_makes_a_directory_traversable() {
+    use super::make_path_owner_writable;
+    use std::{fs, os::unix::fs::PermissionsExt};
+
+    let tmp = tempfile::tempdir().expect("create tempdir");
+    let directory = tmp.path().join("directory");
+    fs::create_dir(&directory).expect("create directory");
+    fs::set_permissions(&directory, fs::Permissions::from_mode(0o444))
+        .expect("seed directory mode");
+
+    make_path_owner_writable(&directory).expect("make directory usable");
+
+    assert_eq!(fs::metadata(&directory).unwrap().permissions().mode() & 0o777, 0o744);
+}
+
+#[cfg(unix)]
+#[test]
 fn make_path_owner_writable_does_not_follow_symlinks() {
     use super::make_path_owner_writable;
     use std::{fs, os::unix::fs::PermissionsExt};
@@ -111,6 +128,22 @@ fn make_path_owner_writable_uses_the_opened_file() {
     make_path_owner_writable(&file).expect("make file writable");
 
     assert!(!fs::metadata(&file).unwrap().permissions().readonly());
+}
+
+#[test]
+fn hard_link_count_reports_shared_and_private_files() {
+    use super::hard_link_count;
+    use std::fs;
+
+    let tmp = tempfile::tempdir().expect("create tempdir");
+    let file = tmp.path().join("file");
+    let link = tmp.path().join("link");
+    fs::write(&file, b"contents").expect("write file");
+    assert_eq!(hard_link_count(&file).expect("count private file links"), 1);
+
+    fs::hard_link(&file, &link).expect("create hard link");
+    assert_eq!(hard_link_count(&file).expect("count shared file links"), 2);
+    assert_eq!(hard_link_count(&link).expect("count link links"), 2);
 }
 
 #[cfg(windows)]
