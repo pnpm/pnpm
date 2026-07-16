@@ -50,6 +50,9 @@
       "path": "../../../deps/graph-hasher"
     },
     {
+      "path": "../../../deps/path"
+    },
+    {
       "path": "../../../deps/security/signatures"
     },
     {

@@ -39,6 +39,7 @@
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/deps.graph-hasher": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
     "@pnpm/deps.security.signatures": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/global.commands": "workspace:*",

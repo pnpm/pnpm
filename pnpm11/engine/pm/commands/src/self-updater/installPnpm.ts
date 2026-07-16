@@ -10,6 +10,7 @@ import {
   iteratePkgMeta,
   lockfileToDepGraph,
 } from '@pnpm/deps.graph-hasher'
+import { getPkgIdWithPatchHash } from '@pnpm/deps.path'
 import { type GlobalAddOptions, installGlobalPackages } from '@pnpm/global.commands'
 import {
   cleanOrphanedInstallDirs,
@@ -483,11 +484,11 @@ function forceLink (src: string, dest: string): void {
   fs.chmodSync(dest, 0o755)
 }
 
-function buildLockfileFromEnvLockfile (
+export function buildLockfileFromEnvLockfile (
   envLockfile: EnvLockfile,
   pkgName: string,
   version: string
-) {
+): LockfileObject {
   const dependencies: Record<string, string> = {}
   dependencies[pkgName] = version
 
@@ -495,7 +496,7 @@ function buildLockfileFromEnvLockfile (
   for (const [depPath, snapshot] of Object.entries(envLockfile.snapshots)) {
     packages[depPath as DepPath] = {
       ...snapshot,
-      ...envLockfile.packages[depPath],
+      ...envLockfile.packages[getPkgIdWithPatchHash(depPath as DepPath)],
     }
   }
 
