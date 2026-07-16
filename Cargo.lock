@@ -4671,6 +4671,7 @@ dependencies = [
  "pretty_assertions",
  "rayon",
  "reflink-copy",
+ "same-file",
  "serde",
  "serde-saphyr",
  "serde_json",

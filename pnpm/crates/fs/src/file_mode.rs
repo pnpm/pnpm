@@ -62,53 +62,13 @@ pub fn restore_exec_bit_from_cas_suffix(cas_path: &Path, target: &Path) -> io::R
 #[cfg_attr(windows, allow(unused))]
 pub fn make_file_executable(file: &std::fs::File) -> io::Result<()> {
     #[cfg(unix)]
-    return {
-        use std::{
-            fs::Permissions,
-            os::unix::fs::{MetadataExt, PermissionsExt},
-        };
-        let mode = file.metadata()?.mode();
-        if mode & EXEC_MASK == EXEC_MASK {
-            return Ok(());
-        }
-        file.set_permissions(Permissions::from_mode(mode | EXEC_MASK))
-    };
+    return add_mode_bits(file, EXEC_MASK);
 
     #[cfg(windows)]
     return Ok(());
 }
 
-/// Add the owner-write bit to `file` without changing any other permissions.
-///
-/// Mutation candidates are imported as private copies before this is called,
-/// so making the file writable cannot change the shared CAS object. On
-/// Windows, the closest equivalent is clearing the read-only attribute.
-pub fn make_file_owner_writable(file: &std::fs::File) -> io::Result<()> {
-    let mut permissions = file.metadata()?.permissions();
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mode = permissions.mode();
-        if mode & 0o200 != 0 {
-            return Ok(());
-        }
-        permissions.set_mode(mode | 0o200);
-    }
-
-    #[cfg(windows)]
-    {
-        if !permissions.readonly() {
-            return Ok(());
-        }
-        permissions.set_readonly(false);
-    }
-
-    file.set_permissions(permissions)
-}
-
-/// Open `path` with file-descriptor-pressure retries and add owner-write
-/// permission to the opened inode.
+/// Add owner-write permission without following a symlink at the final path.
 pub fn make_path_owner_writable(path: &Path) -> io::Result<()> {
     #[cfg(unix)]
     let file = crate::ensure_file::retry_on_fd_pressure(|| {
@@ -117,7 +77,14 @@ pub fn make_path_owner_writable(path: &Path) -> io::Result<()> {
     })?;
     #[cfg(windows)]
     {
-        let mut permissions = path.metadata()?.permissions();
+        let metadata = path.symlink_metadata()?;
+        if metadata.file_type().is_symlink() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("refusing to make symlink writable at {}", path.display()),
+            ));
+        }
+        let mut permissions = metadata.permissions();
         if permissions.readonly() {
             permissions.set_readonly(false);
             std::fs::set_permissions(path, permissions)?;
@@ -125,7 +92,20 @@ pub fn make_path_owner_writable(path: &Path) -> io::Result<()> {
         return Ok(());
     }
     #[cfg(unix)]
-    make_file_owner_writable(&file)
+    add_mode_bits(&file, 0o200)
+}
+
+#[cfg(unix)]
+fn add_mode_bits(file: &std::fs::File, bits: u32) -> io::Result<()> {
+    use std::{
+        fs::Permissions,
+        os::unix::fs::{MetadataExt, PermissionsExt},
+    };
+    let mode = file.metadata()?.mode();
+    if mode & bits == bits {
+        return Ok(());
+    }
+    file.set_permissions(Permissions::from_mode(mode | bits))
 }
 
 #[cfg(test)]

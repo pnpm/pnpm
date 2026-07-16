@@ -55,6 +55,46 @@ fn make_file_executable_fills_partial_bits_and_preserves_full() {
     assert_eq!(file.metadata().unwrap().permissions().mode() & 0o777, 0o755);
 }
 
+#[cfg(unix)]
+#[test]
+fn make_path_owner_writable_preserves_other_file_and_directory_bits() {
+    use super::make_path_owner_writable;
+    use std::{fs, os::unix::fs::PermissionsExt};
+
+    let tmp = tempfile::tempdir().expect("create tempdir");
+    let file = tmp.path().join("file");
+    let directory = tmp.path().join("directory");
+    fs::write(&file, b"contents").expect("write file");
+    fs::create_dir(&directory).expect("create directory");
+    fs::set_permissions(&file, fs::Permissions::from_mode(0o555)).expect("seed file mode");
+    fs::set_permissions(&directory, fs::Permissions::from_mode(0o555))
+        .expect("seed directory mode");
+
+    make_path_owner_writable(&file).expect("make file writable");
+    make_path_owner_writable(&directory).expect("make directory writable");
+
+    assert_eq!(fs::metadata(&file).unwrap().permissions().mode() & 0o777, 0o755);
+    assert_eq!(fs::metadata(&directory).unwrap().permissions().mode() & 0o777, 0o755);
+}
+
+#[cfg(unix)]
+#[test]
+fn make_path_owner_writable_does_not_follow_symlinks() {
+    use super::make_path_owner_writable;
+    use std::{fs, os::unix::fs::PermissionsExt};
+
+    let tmp = tempfile::tempdir().expect("create tempdir");
+    let target = tmp.path().join("target");
+    let link = tmp.path().join("link");
+    fs::write(&target, b"contents").expect("write target");
+    fs::set_permissions(&target, fs::Permissions::from_mode(0o444)).expect("seed target mode");
+    std::os::unix::fs::symlink(&target, &link).expect("create symlink");
+
+    make_path_owner_writable(&link).expect_err("symlink must not be followed");
+
+    assert_eq!(fs::metadata(&target).unwrap().permissions().mode() & 0o777, 0o444);
+}
+
 /// The `0o644` seed stands in for a target a reflink left non-executable.
 #[cfg(unix)]
 #[test]

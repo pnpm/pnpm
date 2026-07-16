@@ -96,6 +96,31 @@ fn writable_import_replaces_a_store_hardlink_with_a_private_writable_copy() {
     .expect("build candidate should receive a private writable copy");
 
     fs::write(&target_file, b"built").expect("private projection should be writable");
+    fs::write(target.join("generated.txt"), b"generated").expect("write generated build output");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&target, fs::Permissions::from_mode(0o555)).unwrap();
+        fs::set_permissions(&target_file, fs::Permissions::from_mode(0o444)).unwrap();
+    }
+    #[cfg(windows)]
+    {
+        let mut permissions = fs::metadata(&target_file).unwrap().permissions();
+        permissions.set_readonly(true);
+        fs::set_permissions(&target_file, permissions).unwrap();
+    }
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Hardlink,
+        &target,
+        &cas,
+        ImportIndexedDirOpts { make_writable: true, ..ImportIndexedDirOpts::default() },
+    )
+    .expect("an existing private writable projection should be preserved");
+
+    assert_eq!(fs::read(&target_file).unwrap(), b"built");
+    assert_eq!(fs::read(target.join("generated.txt")).unwrap(), b"generated");
     assert_eq!(fs::read(&package_json).unwrap(), b"{\"name\":\"fixture\"}");
     #[cfg(unix)]
     {
@@ -112,6 +137,41 @@ fn writable_import_replaces_a_store_hardlink_with_a_private_writable_copy() {
     {
         assert!(fs::metadata(&package_json).unwrap().permissions().readonly());
         assert!(!fs::metadata(&target_file).unwrap().permissions().readonly());
+    }
+}
+
+#[test]
+fn writable_import_replaces_store_hardlinks_in_a_partial_projection() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let index = write_source(&src_root, "index.js", b"module.exports = true");
+    let package_json = write_source(&src_root, "package.json", br#"{"name":"fixture"}"#);
+    let cas = cas_map(&[("index.js", index.clone()), ("package.json", package_json)]);
+
+    let target = tmp.path().join("pkg");
+    fs::create_dir_all(&target).unwrap();
+    fs::hard_link(&index, target.join("index.js")).unwrap();
+    let mut permissions = fs::metadata(&index).unwrap().permissions();
+    permissions.set_readonly(true);
+    fs::set_permissions(&index, permissions).unwrap();
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Hardlink,
+        &target,
+        &cas,
+        ImportIndexedDirOpts { make_writable: true, ..ImportIndexedDirOpts::default() },
+    )
+    .expect("partial projection should be replaced with a private writable copy");
+
+    let projected = target.join("index.js");
+    assert!(fs::metadata(&index).unwrap().permissions().readonly());
+    assert!(!fs::metadata(&projected).unwrap().permissions().readonly());
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        assert_ne!(fs::metadata(&index).unwrap().ino(), fs::metadata(projected).unwrap().ino());
     }
 }
 
@@ -293,6 +353,36 @@ fn force_replaces_symlink_target_without_following() {
     assert!(target_meta.file_type().is_dir(), "target is now a real directory");
     assert_eq!(fs::read(target.join("package.json")).unwrap(), b"new");
     assert_eq!(fs::read(pointee.join("sentinel.txt")).unwrap(), b"untouched");
+}
+
+#[test]
+#[cfg(unix)]
+fn writable_import_replaces_symlink_target_without_following() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let file_a = write_source(&src_root, "a.txt", b"new");
+    let cas = cas_map(&[("package.json", file_a)]);
+
+    let pointee = tmp.path().join("real_dir");
+    fs::create_dir_all(&pointee).unwrap();
+    fs::write(pointee.join("package.json"), b"external").unwrap();
+    let target = tmp.path().join("pkg");
+    std::os::unix::fs::symlink(&pointee, &target).unwrap();
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Hardlink,
+        &target,
+        &cas,
+        ImportIndexedDirOpts { make_writable: true, ..ImportIndexedDirOpts::default() },
+    )
+    .expect("writable import should replace a symlink target");
+
+    let target_meta = fs::symlink_metadata(&target).unwrap();
+    assert!(target_meta.file_type().is_dir(), "target is now a real directory");
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"new");
+    assert_eq!(fs::read(pointee.join("package.json")).unwrap(), b"external");
 }
 
 /// Sanity-checks that the parent-dir pre-pass is reached on the

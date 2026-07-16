@@ -26,9 +26,8 @@ use std::{
 #[derive(Debug, Default, Clone, Copy)]
 pub struct ImportIndexedDirOpts {
     /// When `true`, re-import even when `dir_path` already exists,
-    /// overwriting the existing contents. Without `force`, an
-    /// existing directory short-circuits this function (matches
-    /// pnpm's pre-existence check in `importIndexedPackage`).
+    /// overwriting the existing contents. A writable import may also
+    /// replace an existing target when it is not already a private copy.
     pub force: bool,
     /// When `true` (only meaningful with `force`), preserve
     /// `dir_path/node_modules/` across the re-import so nested
@@ -115,15 +114,11 @@ pub enum ImportIndexedDirError {
 /// services both node-linkers; behavior at the destination is
 /// controlled by [`ImportIndexedDirOpts`].
 ///
-/// Files in `cas_paths` are materialized by `import_into_fresh_target()`
-/// using `import_method`'s preference order
-/// (hardlink → reflink → copy, etc.), and the per-method
-/// `pnpm:package-import-method` log is emitted via `logged_methods`
-/// the first time each tier is used in this install. The pre-flight
-/// `fs::metadata` short-circuit lives on `link_file()`; `populate_dir`
-/// skips it and relies on `import_into_fresh_target`'s EEXIST tolerance,
-/// which is what keeps a marker-repair re-link over a partial directory
-/// correct.
+/// Files in `cas_paths` are materialized using `import_method`'s preference
+/// order. [`ImportIndexedDirOpts::make_writable`] substitutes
+/// [`PackageImportMethod::CloneOrCopy`] so the projection does not share file
+/// identity with the store. The first use of each import tier during an
+/// install emits a `pnpm:package-import-method` event through `logged_methods`.
 pub fn import_indexed_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
@@ -133,7 +128,6 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
 ) -> Result<(), ImportIndexedDirError> {
     let import_method =
         if opts.make_writable { PackageImportMethod::CloneOrCopy } else { import_method };
-    let force = opts.force || opts.make_writable;
     let existing_kind = match fs::symlink_metadata(dir_path) {
         Ok(meta) => Some(meta.file_type()),
         Err(err) if err.kind() == io::ErrorKind::NotFound => None,
@@ -144,6 +138,11 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
             });
         }
     };
+    let force = opts.force
+        || (opts.make_writable
+            && existing_kind.as_ref().is_some_and(|file_type| {
+                !file_type.is_dir() || package_needs_private_copy(dir_path, cas_paths)
+            }));
 
     // Drop the macOS quarantine xattr from the package's native binaries after
     // a populating import, matching pnpm's `removeQuarantineFromNativeBinaries`.
@@ -161,13 +160,13 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
         )
         .inspect(|()| unquarantine()),
         // Short-circuit only when the completion marker is present
-        // (pnpm's `pkgExistsAtTargetDir`, which checks `package.json`),
+        // (pnpm's `pkgExistsAtTargetDir`),
         // not on mere directory existence. A marker-less directory is a
         // partial import; repair it by re-running the non-destructive
         // `populate_dir`. Ported from pnpm/pnpm#12204 (cbfeeef328).
         (Some(file_type), false) if file_type.is_dir() => {
             if marker_present(dir_path, cas_paths) {
-                Ok(())
+                if opts.make_writable { make_package_writable(dir_path, cas_paths) } else { Ok(()) }
             } else {
                 populate_dir::<Reporter>(
                     logged_methods,
@@ -223,16 +222,6 @@ fn populate_dir<Reporter: self::Reporter>(
     cas_paths: &HashMap<String, PathBuf>,
     make_writable: bool,
 ) -> Result<(), ImportIndexedDirError> {
-    let mut rel_dirs: HashSet<&str> = HashSet::new();
-    for entry in cas_paths.keys() {
-        if let Some(parent) = Path::new(entry).parent()
-            && let Some(rel) = parent.to_str()
-            && !rel.is_empty()
-        {
-            rel_dirs.insert(rel);
-        }
-    }
-
     // The package root itself: pnpm's `importIndexedDir` mkdirs
     // `newDir` before calling `tryImportIndexedDir`, so do that here
     // too. Files at the package root (e.g. `package.json`) need this
@@ -243,9 +232,7 @@ fn populate_dir<Reporter: self::Reporter>(
     })?;
     make_owner_writable(dir_path, make_writable)?;
 
-    let mut ordered: Vec<&str> = rel_dirs.into_iter().collect();
-    ordered.sort_by_key(|s| s.len());
-    for rel in ordered {
+    for rel in package_directories(cas_paths) {
         let abs = dir_path.join(rel);
         fs::create_dir_all(&abs)
             .map_err(|error| ImportIndexedDirError::CreateDir { dirname: abs, error })?;
@@ -287,6 +274,21 @@ fn populate_dir<Reporter: self::Reporter>(
     Ok(())
 }
 
+fn package_directories(cas_paths: &HashMap<String, PathBuf>) -> Vec<&str> {
+    let mut directories = HashSet::new();
+    for entry in cas_paths.keys() {
+        if let Some(parent) = Path::new(entry).parent()
+            && let Some(relative) = parent.to_str()
+            && !relative.is_empty()
+        {
+            directories.insert(relative);
+        }
+    }
+    let mut ordered: Vec<_> = directories.into_iter().collect();
+    ordered.sort_by_key(|path| path.len());
+    ordered
+}
+
 /// The completion-marker filename, mirroring pnpm's `pickFileFromFilesMap`:
 /// `package.json` when present, else a fallback file for old store entries
 /// indexed before the synthetic manifest. pnpm picks the first inserted
@@ -308,6 +310,24 @@ fn marker_present(dir_path: &Path, cas_paths: &HashMap<String, PathBuf>) -> bool
         Some(marker) => dir_path.join(marker).exists(),
         None => true,
     }
+}
+
+fn package_needs_private_copy(dir_path: &Path, cas_paths: &HashMap<String, PathBuf>) -> bool {
+    cas_paths.iter().any(|(entry, store_path)| {
+        let target_path = dir_path.join(entry);
+        same_file::is_same_file(target_path, store_path).unwrap_or(true)
+    })
+}
+
+fn make_package_writable(
+    dir_path: &Path,
+    cas_paths: &HashMap<String, PathBuf>,
+) -> Result<(), ImportIndexedDirError> {
+    make_owner_writable(dir_path, true)?;
+    for relative in package_directories(cas_paths) {
+        make_owner_writable(&dir_path.join(relative), true)?;
+    }
+    cas_paths.par_iter().try_for_each(|(entry, _)| make_owner_writable(&dir_path.join(entry), true))
 }
 
 /// Place the marker atomically (pnpm's `importFileAtomic`): link it into a
