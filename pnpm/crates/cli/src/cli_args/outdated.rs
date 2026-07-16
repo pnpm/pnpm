@@ -300,9 +300,7 @@ impl OutdatedArgs {
     /// dependency was outdated; the caller decides the process exit code.
     pub async fn run(self, state: State) -> miette::Result<OutdatedOutcome> {
         if state.config.recursive {
-            return Err(miette::miette!(
-                "`pnpm outdated --recursive` is not supported yet; recursive workspace inspection has not been ported to pnpm."
-            ));
+            return Err(miette::miette!("`pnpm outdated --recursive` is not supported yet."));
         }
 
         let config = state.config;
@@ -366,9 +364,7 @@ impl OutdatedArgs {
     /// the aggregate.
     pub async fn run_global(self, config: &'static Config) -> miette::Result<OutdatedOutcome> {
         if config.recursive {
-            return Err(miette::miette!(
-                "`pnpm outdated --recursive` is not supported yet; recursive workspace inspection has not been ported to pnpm."
-            ));
+            return Err(miette::miette!("`pnpm outdated --recursive` is not supported yet."));
         }
         let global_pkg_dir = config.global_pkg_dir.clone().ok_or_else(|| {
             miette::miette!(
