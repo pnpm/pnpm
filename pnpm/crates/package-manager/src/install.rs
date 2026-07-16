@@ -813,7 +813,8 @@ where
                 current_lockfile.as_ref().and_then(|current| {
                     check_lockfile_freshness(
                         current,
-                        manifest,
+                        &workspace_root,
+                        &project_manifests,
                         config,
                         &catalogs,
                         ignore_manifest_check,
@@ -956,10 +957,17 @@ where
             // Run the freshness gates; on failure surface a fatal
             // InstallError via `FreshnessCheckError`'s `From` impl.
             // The check is run for its side effect (the typed
-            // outcome) — the borrowed lockfile / manifest are consumed
+            // outcome) — the borrowed lockfile / manifests are consumed
             // again inside the frozen branch below.
-            check_lockfile_freshness(lockfile, manifest, config, &catalogs, ignore_manifest_check)
-                .map_err(InstallError::from)?;
+            check_lockfile_freshness(
+                lockfile,
+                &workspace_root,
+                &project_manifests,
+                config,
+                &catalogs,
+                ignore_manifest_check,
+            )
+            .map_err(InstallError::from)?;
             true
         } else if update_checksums {
             false
@@ -974,7 +982,8 @@ where
             if prefer_frozen_lockfile {
                 match check_lockfile_freshness(
                     lockfile,
-                    manifest,
+                    &workspace_root,
+                    &project_manifests,
                     config,
                     &catalogs,
                     ignore_manifest_check,
@@ -1778,7 +1787,8 @@ where
 /// `ignoredOptionalDependencies`) still runs.
 fn check_lockfile_freshness(
     lockfile: &Lockfile,
-    manifest: &PackageManifest,
+    workspace_root: &Path,
+    project_manifests: &[(PathBuf, &PackageManifest)],
     config: &Config,
     catalogs: &Catalogs,
     ignore_manifest_check: bool,
@@ -1790,17 +1800,17 @@ fn check_lockfile_freshness(
         return Ok(());
     }
 
-    // Pacquet has only one importer today (<https://github.com/pnpm/pacquet/issues/431> tracks workspaces),
-    // so the root project is the only thing to verify; once
-    // workspaces land this becomes a per-project loop over
-    // `lockfile.importers`.
-    check_importer_satisfies(
-        lockfile,
-        manifest,
-        Lockfile::ROOT_IMPORTER_KEY,
-        config,
-        parsed_overrides_opt.as_deref(),
-    )
+    for (project_dir, manifest) in project_manifests {
+        let importer_id = pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir);
+        check_importer_satisfies(
+            lockfile,
+            manifest,
+            &importer_id,
+            config,
+            parsed_overrides_opt.as_deref(),
+        )?;
+    }
+    Ok(())
 }
 
 /// Parse `pnpm.overrides` from the config. Values can use the
@@ -1916,7 +1926,7 @@ pub(crate) fn check_importer_satisfies(
         .unwrap_or_default();
     let is_ignored_optional: &dyn Fn(&str) -> bool = &|name: &str| ignored_set.contains(name);
 
-    satisfies_package_manifest(importer, manifest_for_freshness, importer_id, is_ignored_optional)
+    satisfies_package_manifest(importer, manifest_for_freshness, is_ignored_optional)
         .map_err(FreshnessCheckError::Stale)
 }
 

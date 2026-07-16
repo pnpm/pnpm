@@ -19,7 +19,11 @@ use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::is_symlink_or_junction,
 };
-use std::fs;
+use std::{fs, path::Path, process::Command};
+
+fn pacquet_at(workspace: &Path) -> Command {
+    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
+}
 
 /// A workspace with two sibling projects, each pulling in a
 /// different mocked package, runs through the fresh-resolve path and
@@ -137,6 +141,75 @@ fn fresh_resolve_walks_every_workspace_importer() {
         a_importer_section.contains("hello-world-js-bin-parent"),
         "pnpm-lock.yaml packages/a importer missing hello-world-js-bin-parent:\n{lockfile}",
     );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn changed_workspace_importer_invalidates_lockfile() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    workspace_yaml.push_str("packages:\n  - 'pkg-a'\n  - 'pkg-b'\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::create_dir(workspace.join("pkg-a")).expect("mkdir pkg-a");
+    fs::write(
+        workspace.join("pkg-a/package.json"),
+        serde_json::json!({ "name": "pkg-a", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write pkg-a/package.json");
+    fs::create_dir(workspace.join("pkg-b")).expect("mkdir pkg-b");
+    fs::write(
+        workspace.join("pkg-b/package.json"),
+        serde_json::json!({ "name": "pkg-b", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write pkg-b/package.json");
+
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    fs::write(
+        workspace.join("pkg-a/package.json"),
+        serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": { "pkg-b": "workspace:*" },
+        })
+        .to_string(),
+    )
+    .expect("update pkg-a/package.json");
+
+    let frozen_output = pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .output()
+        .expect("run frozen install");
+    let frozen_stderr = String::from_utf8_lossy(&frozen_output.stderr);
+    assert!(
+        !frozen_output.status.success(),
+        "frozen install accepted a stale workspace importer\nstderr:\n{frozen_stderr}",
+    );
+    assert!(
+        frozen_stderr.contains("pacquet_package_manager::outdated_lockfile"),
+        "frozen install returned the wrong error\nstderr:\n{frozen_stderr}",
+    );
+
+    pacquet_at(&workspace).with_arg("install").assert().success();
+    let linked_pkg = workspace.join("pkg-a/node_modules/pkg-b");
+    assert!(
+        is_symlink_or_junction(&linked_pkg).expect("query pkg-b link"),
+        "normal install did not link the dependency added to pkg-a",
+    );
+    assert!(linked_pkg.join("package.json").exists(), "pkg-b link is dangling");
 
     drop((root, mock_instance));
 }

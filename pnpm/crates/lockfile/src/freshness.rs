@@ -372,9 +372,6 @@ fn all_catalogs_are_up_to_date(
 /// when the lockfile is up-to-date; returns `Err(StalenessReason)`
 /// describing the first detected mismatch otherwise.
 ///
-/// Single-importer only today (pacquet doesn't have workspace support
-/// — see [#431]). Callers thread the root importer entry directly.
-///
 /// What is checked (in order, short-circuiting on the first failure):
 ///
 /// 1. Flat-record specifier diff against `devDependencies ∪
@@ -389,18 +386,13 @@ fn all_catalogs_are_up_to_date(
 /// Scoped to what pacquet supports today: no `auto-install-peers`
 /// pre-pass (pacquet has no separate auto-install-peers mode), no
 /// `excludeLinksFromLockfile` (`link:` resolutions aren't supported
-/// yet — [#431] territory), and no version-range-satisfies check for
+/// yet), and no version-range-satisfies check for
 /// file: / tarball deps (out of scope here).
-///
-/// [#431]: https://github.com/pnpm/pacquet/issues/431
 pub fn satisfies_package_manifest(
     importer: &ProjectSnapshot,
     manifest: &PackageManifest,
-    importer_id: &str,
     is_ignored_optional: &dyn Fn(&str) -> bool,
 ) -> Result<(), StalenessReason> {
-    let _ = importer_id; // reserved for the multi-importer path once <https://github.com/pnpm/pacquet/issues/431> lands.
-
     // Phase 1: flat-record diff against the manifest's union of
     // dependency fields. Compares the importer's specifiers to the
     // manifest's existing deps (devs + prod + optional flattened
