@@ -14,9 +14,10 @@ use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
 use pacquet_catalogs_types::Catalogs;
 use pacquet_lockfile::{
     CatalogSnapshots, ComVer, ImporterDepVersion, Lockfile, LockfileResolution, LockfileSettings,
-    LockfileVersion, PackageKey, PackageMetadata, ParseImporterDepVersionError, PeerDependencyMeta,
-    PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, ResolvedCatalogEntry,
-    ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry, VersionPart,
+    LockfileVersion, PackageKey, PackageMetadata, ParseImporterDepVersionError, ParsePkgNameError,
+    ParsePkgVerPeerError, PeerDependencyMeta, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot,
+    ResolvedCatalogEntry, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef,
+    SnapshotEntry, VersionPart,
 };
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_deps_resolver::{DepPath, DependenciesGraph, DependenciesGraphNode};
@@ -114,6 +115,23 @@ pub enum DependenciesGraphToLockfileError {
         #[error(source)]
         source: Box<ParseImporterDepVersionError>,
     },
+    #[display("Git-hosted dependency path {dep_path:?} has no package name in its manifest")]
+    MissingGitHostedPackageName { dep_path: String },
+    #[display(
+        "Git-hosted dependency path {dep_path:?} has invalid package name {name:?}: {source}"
+    )]
+    InvalidGitHostedPackageName {
+        dep_path: String,
+        name: String,
+        #[error(source)]
+        source: ParsePkgNameError,
+    },
+    #[display("Failed to parse git-hosted dependency path {dep_path:?}: {source}")]
+    InvalidGitHostedPackagePath {
+        dep_path: String,
+        #[error(source)]
+        source: Box<ParsePkgVerPeerError>,
+    },
 }
 
 /// Build a [`Lockfile`] from the resolver's [`DependenciesGraph`] plus
@@ -159,7 +177,7 @@ pub fn dependencies_graph_to_lockfile(
         &optional_overrides,
         registry,
         lockfile_include_tarball_url,
-    );
+    )?;
 
     let mut importers: HashMap<String, ProjectSnapshot> =
         HashMap::with_capacity(importer_inputs.len());
@@ -389,14 +407,13 @@ fn importer_dep_version(
     }
 
     let real_name = real_name(&node.resolve_result);
-    if let Some(real) = real_name.as_deref() {
-        let prefix = format!("{real}@");
-        if alias == real
-            && let Some(ver) = dep_path_str.strip_prefix(&prefix)
-            && let Ok(parsed) = ver.parse::<PkgVerPeer>()
-        {
-            return Ok(ImporterDepVersion::Regular(parsed));
-        }
+    if let Some(real) = real_name.as_deref()
+        && alias == real
+        && let Some(rest) = dep_path_str.strip_prefix(real)
+        && let Some(ver) = rest.strip_prefix('@')
+        && let Ok(parsed) = ver.parse::<PkgVerPeer>()
+    {
+        return Ok(ImporterDepVersion::Regular(parsed));
     }
     let parsed = dep_path_str.parse::<ImporterDepVersion>()?;
     // An injected workspace dep reaches this point as its full peered
@@ -409,7 +426,14 @@ fn importer_dep_version(
     // double-prefix every consumer that composes `alias@version` into a
     // snapshot key (v11 readers, Bit's graph converter).
     if let ImporterDepVersion::Alias(parsed_alias) = &parsed
-        && parsed_alias.name.to_string() == alias
+        && match parsed_alias.name.scope.as_deref() {
+            Some(scope) => {
+                alias.strip_prefix('@').and_then(|unscoped| unscoped.split_once('/')).is_some_and(
+                    |(alias_scope, bare)| alias_scope == scope && bare == parsed_alias.name.bare,
+                )
+            }
+            None => alias == parsed_alias.name.bare,
+        }
         && matches!(parsed_alias.suffix.version(), VersionPart::File(_))
     {
         let suffix = parsed_alias.suffix.to_string();
@@ -460,6 +484,9 @@ fn is_remote_http_tarball(tarball: &str) -> bool {
     tarball.starts_with("http:") || tarball.starts_with("https:")
 }
 
+type PackagesAndSnapshots =
+    (HashMap<PackageKey, PackageMetadata>, HashMap<PackageKey, SnapshotEntry>);
+
 /// Walk the depPath-keyed [`DependenciesGraph`] and emit the matching
 /// `(PackageMetadata, SnapshotEntry)` pair for each node — fanned out
 /// across the two top-level maps the v9 lockfile splits.
@@ -475,12 +502,12 @@ fn build_packages_and_snapshots(
     optional_overrides: &HashMap<DepPath, bool>,
     registry: &str,
     lockfile_include_tarball_url: bool,
-) -> (HashMap<PackageKey, PackageMetadata>, HashMap<PackageKey, SnapshotEntry>) {
+) -> Result<PackagesAndSnapshots, DependenciesGraphToLockfileError> {
     let mut packages: HashMap<PackageKey, PackageMetadata> = HashMap::new();
     let mut snapshots: HashMap<PackageKey, SnapshotEntry> = HashMap::new();
 
     for node in graph.values() {
-        let Some(snapshot_key) = package_key(node) else { continue };
+        let Some(snapshot_key) = package_key(node)? else { continue };
         let metadata_key = snapshot_key.without_peer();
 
         let snapshot = build_snapshot_entry(node, graph, optional_overrides);
@@ -491,25 +518,48 @@ fn build_packages_and_snapshots(
         });
     }
 
-    (packages, snapshots)
+    Ok((packages, snapshots))
 }
 
-/// Build the lockfile key for a graph node. Registry dep paths already include
-/// the package name, while git-hosted dep paths need the name reported by the
-/// resolved manifest prepended to their bare tarball URL.
-fn package_key(node: &DependenciesGraphNode) -> Option<PackageKey> {
+// Build the lockfile key for a graph node. Registry dep paths already include
+// the package name, while git-hosted dep paths need the name reported by the
+// resolved manifest prepended to their bare tarball URL.
+fn package_key(
+    node: &DependenciesGraphNode,
+) -> Result<Option<PackageKey>, DependenciesGraphToLockfileError> {
     if let Ok(key) = node.dep_path.as_str().parse::<PackageKey>() {
-        return Some(key);
+        return Ok(Some(key));
     }
     if !matches!(
         &node.resolve_result.resolution,
-        LockfileResolution::Tarball(tarball) if tarball.git_hosted == Some(true)
+        LockfileResolution::Tarball(tarball) if tarball.git_hosted == Some(true),
     ) {
-        return None;
+        return Ok(None);
     }
-    let name = node.resolve_result.manifest.as_ref()?.get("name")?.as_str()?.parse().ok()?;
-    let suffix = node.dep_path.as_str().parse::<PkgVerPeer>().ok()?;
-    Some(PackageKey::new(name, suffix))
+    let dep_path = node.dep_path.to_string();
+    let manifest_name = node
+        .resolve_result
+        .manifest
+        .as_ref()
+        .and_then(|manifest| manifest.get("name"))
+        .and_then(Value::as_str)
+        .ok_or_else(|| DependenciesGraphToLockfileError::MissingGitHostedPackageName {
+            dep_path: dep_path.clone(),
+        })?;
+    let name = manifest_name.parse().map_err(|source| {
+        DependenciesGraphToLockfileError::InvalidGitHostedPackageName {
+            dep_path: dep_path.clone(),
+            name: manifest_name.to_string(),
+            source,
+        }
+    })?;
+    let suffix = node.dep_path.as_str().parse::<PkgVerPeer>().map_err(|source| {
+        DependenciesGraphToLockfileError::InvalidGitHostedPackagePath {
+            dep_path,
+            source: Box::new(source),
+        }
+    })?;
+    Ok(Some(PackageKey::new(name, suffix)))
 }
 
 /// Build the per-`(name, version)` [`PackageMetadata`] block for the

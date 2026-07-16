@@ -14,7 +14,7 @@ use pacquet_resolving_deps_resolver::{
     PeerDep, ResolvePeersOptions, ResolvedPackage, ResolvedTree, TreeChildren, resolve_peers,
 };
 use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
-use serde_json::json;
+use serde_json::{Value, json};
 use ssri::Integrity;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -593,6 +593,41 @@ fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
     assert_eq!(metadata.version.as_deref(), Some("26.3.0"));
 }
 
+fn git_hosted_node(url: &str, manifest: Option<Value>) -> DependenciesGraphNode {
+    let dep_path = DepPath::from(url.to_string());
+    let resolve_result = ResolveResult {
+        id: PkgResolutionId::from(url),
+        name_ver: None,
+        latest: None,
+        published_at: None,
+        manifest: manifest.map(Arc::new),
+        resolution: LockfileResolution::Tarball(TarballResolution {
+            tarball: url.to_string(),
+            integrity: None,
+            git_hosted: Some(true),
+            path: None,
+        }),
+        resolved_via: "git-repository".to_string(),
+        normalized_bare_specifier: Some("github:kevva/is-negative#1.0.0".to_string()),
+        alias: Some("is-negative".to_string()),
+        policy_violation: None,
+    };
+    DependenciesGraphNode {
+        dep_path,
+        resolved_package_id: url.to_string(),
+        resolve_result: Arc::new(resolve_result),
+        children: BTreeMap::new(),
+        optional_children: HashSet::new(),
+        peer_dependencies: BTreeMap::new(),
+        transitive_peer_dependencies: HashSet::new(),
+        resolved_peer_names: HashSet::new(),
+        depth: 1,
+        installable: true,
+        is_pure: true,
+        optional: false,
+    }
+}
+
 #[test]
 fn git_hosted_dependency_records_bare_tarball_url_in_importer() {
     let (_tmp, manifest) = write_manifest(json!({
@@ -605,40 +640,13 @@ fn git_hosted_dependency_records_bare_tarball_url_in_importer() {
 
     let url = "https://codeload.github.com/kevva/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99";
     let dep_path = DepPath::from(url.to_string());
-    let resolve_result = ResolveResult {
-        id: PkgResolutionId::from(url),
-        name_ver: None,
-        latest: None,
-        published_at: None,
-        manifest: Some(Arc::new(json!({
+    let node = git_hosted_node(
+        url,
+        Some(json!({
             "name": "is-negative",
             "version": "1.0.0",
-        }))),
-        resolution: LockfileResolution::Tarball(TarballResolution {
-            tarball: url.to_string(),
-            integrity: None,
-            git_hosted: Some(true),
-            path: None,
-        }),
-        resolved_via: "git-repository".to_string(),
-        normalized_bare_specifier: Some("github:kevva/is-negative#1.0.0".to_string()),
-        alias: Some("is-negative".to_string()),
-        policy_violation: None,
-    };
-    let node = DependenciesGraphNode {
-        dep_path: dep_path.clone(),
-        resolved_package_id: url.to_string(),
-        resolve_result: Arc::new(resolve_result),
-        children: BTreeMap::new(),
-        optional_children: HashSet::new(),
-        peer_dependencies: BTreeMap::new(),
-        transitive_peer_dependencies: HashSet::new(),
-        resolved_peer_names: HashSet::new(),
-        depth: 1,
-        installable: true,
-        is_pure: true,
-        optional: false,
-    };
+        })),
+    );
 
     let mut graph = DependenciesGraph::new();
     graph.insert(dep_path.clone(), node);
@@ -668,6 +676,34 @@ fn git_hosted_dependency_records_bare_tarball_url_in_importer() {
 }
 
 #[test]
+fn git_hosted_dependency_without_manifest_name_returns_structured_error() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": {
+            "is-negative": "github:kevva/is-negative#1.0.0",
+        },
+    }));
+    let url = "https://codeload.github.com/kevva/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99";
+    let dep_path = DepPath::from(url.to_string());
+    let mut graph = DependenciesGraph::new();
+    graph.insert(dep_path.clone(), git_hosted_node(url, None));
+    let direct = BTreeMap::from([("is-negative".to_string(), dep_path)]);
+
+    let error = dbg!(
+        try_dependencies_graph_to_lockfile(single_importer_opts(
+            &manifest, &graph, direct, false, false, None, None,
+        ))
+        .unwrap_err()
+    );
+
+    let DependenciesGraphToLockfileError::MissingGitHostedPackageName { dep_path } = error else {
+        panic!("expected missing git-hosted package name error, got {error:?}");
+    };
+    assert_eq!(dep_path, url);
+}
+
+#[test]
 fn malformed_importer_dependency_path_returns_structured_error() {
     let (_tmp, manifest) = write_manifest(json!({
         "name": "fixture",
@@ -689,17 +725,18 @@ fn malformed_importer_dependency_path_returns_structured_error() {
     graph.insert(dep_path.clone(), node);
     let direct = BTreeMap::from([("broken".to_string(), dep_path)]);
 
-    let error = try_dependencies_graph_to_lockfile(single_importer_opts(
-        &manifest, &graph, direct, false, false, None, None,
-    ))
-    .unwrap_err();
+    let error = dbg!(
+        try_dependencies_graph_to_lockfile(single_importer_opts(
+            &manifest, &graph, direct, false, false, None, None,
+        ))
+        .unwrap_err()
+    );
 
-    match error {
-        DependenciesGraphToLockfileError::ImporterDependency { alias, dep_path, .. } => {
-            assert_eq!(alias, "broken");
-            assert_eq!(dep_path, "broken@1.0.0(");
-        }
-    }
+    let DependenciesGraphToLockfileError::ImporterDependency { alias, dep_path, .. } = error else {
+        panic!("expected importer dependency error, got {error:?}");
+    };
+    assert_eq!(alias, "broken");
+    assert_eq!(dep_path, "broken@1.0.0(");
 }
 
 #[test]
