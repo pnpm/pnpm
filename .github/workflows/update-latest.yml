@@ -156,6 +156,23 @@ jobs:
           # platform package ships no native, so that failure is invisible until
           # the binary is actually invoked.
           test "$("$upgraded" --version)" = "$VERSION"
+
+          # Hand the rest of the gate to the release itself: `pnpm doctor` runs
+          # the same diagnostics here as on a user's machine, so what is gated
+          # is what ships rather than a reproduction of it maintained
+          # separately. `--offline` keeps it to the checks that need no network
+          # — including an offline `file:` install, which exercises the
+          # resolve/store/link path that a manifest declaring its bundled
+          # dependencies breaks.
+          #
+          # The command postdates the older release lines this workflow can
+          # still tag, so run it only where it exists and say so when it does
+          # not, rather than fail a v10 promotion on a v11 command.
+          if "$upgraded" doctor --help >/dev/null 2>&1; then
+            "$upgraded" doctor --offline
+          else
+            echo "SKIP: ${package}@${VERSION} predates \`pnpm doctor\`; ran --version only"
+          fi
           echo "OK: ${package}@${FROM} self-updated to v${VERSION}"
         done
 

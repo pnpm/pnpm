@@ -31,6 +31,7 @@ import type { PnpmOptions } from '../types.js'
 import * as bin from './bin.js'
 import * as clean from './clean.js'
 import * as ci from './cleanInstall.js'
+import * as doctor from './doctor.js'
 import { createHelp } from './help.js'
 import * as installTest from './installTest.js'
 import { NOT_IMPLEMENTED_COMMAND_SET, notImplementedCommandDefinitions } from './notImplemented.js'
@@ -141,6 +142,7 @@ const commands: CommandDefinition[] = [
   deprecate,
   deploy,
   distTag,
+  doctor,
   owner,
   dlx,
   docs,
