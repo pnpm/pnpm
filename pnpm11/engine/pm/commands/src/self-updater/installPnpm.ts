@@ -271,9 +271,12 @@ export function assertPnpmRuns (binDir: string, version: string): void {
   const pnpmBinPath = path.join(binDir, 'pnpm')
   const { status, error, stderr } = spawn.sync(pnpmBinPath, ['--version'], { encoding: 'utf8' })
   if (error == null && status === 0) return
+  // A signal leaves `status` null, which macOS produces for a binary its
+  // signature check rejects — the exact shape of a mis-signed release.
+  const exit = status != null ? `code ${status}` : 'a signal'
   const reason = error != null
     ? error.message
-    : `it exited with code ${status}${(stderr ?? '').trim() ? `: ${stderr.trim()}` : ''}`
+    : `it exited with ${exit}${(stderr ?? '').trim() ? `: ${stderr.trim()}` : ''}`
   throw new PnpmError(
     'BROKEN_PNPM_INSTALL',
     `The pnpm v${version} that was just installed cannot run: ${reason}`,

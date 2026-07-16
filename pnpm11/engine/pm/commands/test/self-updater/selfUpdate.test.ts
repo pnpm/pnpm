@@ -1454,7 +1454,7 @@ describe('assertPnpmRuns', () => {
   // Build the bins the same way installPnpmToGlobalDir does, so the spawn goes
   // through the real shim linkBins writes — including the .cmd wrapper on
   // Windows, which is the part a hand-written fixture would get wrong.
-  async function linkFakePnpm (exitCode: number): Promise<string> {
+  async function linkFakePnpm (entry: string): Promise<string> {
     const dir = tempDir(false)
     const pkgDir = path.join(dir, 'node_modules', 'fake-pnpm')
     fs.mkdirSync(pkgDir, { recursive: true })
@@ -1463,24 +1463,38 @@ describe('assertPnpmRuns', () => {
       version: '1.0.0',
       bin: { pnpm: 'entry.js' },
     }))
-    fs.writeFileSync(path.join(pkgDir, 'entry.js'), `process.exit(${exitCode})\n`)
+    fs.writeFileSync(path.join(pkgDir, 'entry.js'), `${entry}\n`)
     const binDir = path.join(dir, 'bin')
     await linkBins(path.join(dir, 'node_modules'), binDir, { warn: () => {} })
     return binDir
   }
 
   test('passes when the installed pnpm runs', async () => {
-    const binDir = await linkFakePnpm(0)
+    const binDir = await linkFakePnpm('process.exit(0)')
     expect(() => {
       assertPnpmRuns(binDir, '1.0.0')
     }).not.toThrow()
   })
 
   test('reports the failing exit code when the installed pnpm cannot run', async () => {
-    const binDir = await linkFakePnpm(1)
+    const binDir = await linkFakePnpm('process.exit(1)')
     expect(() => {
       assertPnpmRuns(binDir, '1.0.0')
     }).toThrow(/pnpm v1\.0\.0 that was just installed cannot run.*exited with code 1/s)
+  })
+
+  // Windows has no real signals, so a killed process still reports an exit code
+  // there and this branch is unreachable.
+  const posixOnlyTest = process.platform === 'win32' ? test.skip : test
+
+  posixOnlyTest('describes a signal rather than a null exit code', async () => {
+    // macOS kills a binary whose signature check rejects it, so a mis-signed
+    // release arrives here with no exit code at all. The wording matches
+    // pacquet's, which only has the code and cannot name the signal.
+    const binDir = await linkFakePnpm("process.kill(process.pid, 'SIGKILL')")
+    expect(() => {
+      assertPnpmRuns(binDir, '1.0.0')
+    }).toThrow(/cannot run: it exited with a signal/)
   })
 
   test('fails when there is no pnpm to run at all', () => {
@@ -1490,7 +1504,7 @@ describe('assertPnpmRuns', () => {
   })
 
   test('the failure carries the BROKEN_PNPM_INSTALL code and says the active pnpm was kept', async () => {
-    const binDir = await linkFakePnpm(1)
+    const binDir = await linkFakePnpm('process.exit(1)')
     try {
       assertPnpmRuns(binDir, '1.0.0')
       throw new Error('assertPnpmRuns should have thrown')
