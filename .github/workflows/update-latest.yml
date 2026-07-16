@@ -33,7 +33,15 @@ jobs:
       env:
         VERSION: ${{ github.event.inputs.version }}
         TAG: ${{ github.event.inputs.tag }}
+        # The guard below only means anything against the registry the tags are
+        # published to, so pin it and read no ambient npm config: a runner-level
+        # .npmrc could otherwise point it at a registry whose `latest` says
+        # nothing about pnpm's. RUNNER_TEMP is emptied per job, so this path
+        # stays absent.
+        npm_config_registry: https://registry.npmjs.org/
+        npm_config_userconfig: ${{ runner.temp }}/absent-npmrc
       run: |
+        set -euo pipefail
         if ! printf '%s\n' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[.0-9A-Za-z-]+)?$'; then
           echo "::error::Version must be an exact semver version like 11.2.0. Got: ${VERSION}"
           exit 1
@@ -48,6 +56,13 @@ jobs:
             ;;
           latest)
             CURRENT_LATEST_MAJOR="$(npm view pnpm dist-tags.latest | cut -d . -f 1)"
+            # A dist-tag that could not be read must not pass the guard: an
+            # empty value makes the comparison below error out with a non-zero
+            # status, which `if` swallows, silently skipping the check.
+            if [ -z "$CURRENT_LATEST_MAJOR" ]; then
+              echo "::error::Could not read the current latest version of pnpm from the registry."
+              exit 1
+            fi
             if [ "$MAJOR" -lt "$CURRENT_LATEST_MAJOR" ]; then
               echo "::error::Refusing to move the latest tag back from v${CURRENT_LATEST_MAJOR} to ${VERSION}. Use latest-${MAJOR} to tag an older release line."
               exit 1
