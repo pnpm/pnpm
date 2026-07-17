@@ -167,6 +167,35 @@ test('hoistPeers handles workspace: protocol range without throwing', () => {
   })
 })
 
+test('hoistPeers dedupes a named-registry peer onto a preferred version that satisfies its extracted range', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      foo: {
+        '1.0.0': 'version',
+        '2.0.0': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['foo', { range: 'work:^1.0.0' }]])).toStrictEqual({
+    foo: '1.0.0',
+  })
+})
+
+test('hoistPeers falls back to the raw scheme specifier when no preferred version satisfies its extracted range', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      foo: {
+        '2.0.0': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['foo', { range: 'work:^1.0.0' }]])).toStrictEqual({
+    foo: 'work:^1.0.0',
+  })
+})
+
 // Regression test for https://github.com/pnpm/pnpm/pull/11048
 test('hoistPeers handles version selector with weight', () => {
   expect(hoistPeers({

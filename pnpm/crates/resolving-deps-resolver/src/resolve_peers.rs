@@ -975,7 +975,8 @@ impl Walker<'_> {
                         continue;
                     }
                     self.issues.missing.entry(peer_name.clone()).or_default().push(MissingPeer {
-                        wanted_range: info.range.clone(),
+                        wanted_range: get_peer_version_range(&info.range),
+                        raw_range: info.range.clone(),
                         optional: info.optional,
                         meta_only: info.meta_only,
                         parents: parents_from_chain(parent_chain_names, &pkg_name),
@@ -1285,7 +1286,8 @@ impl Walker<'_> {
                 if !self.missing_issue_suppressed(ancestor_pkg_ids, peer_name) {
                     self.issues.missing.entry(peer_name.to_string()).or_default().push(
                         MissingPeer {
-                            wanted_range: range_for_match.to_string(),
+                            wanted_range: range_for_satisfies,
+                            raw_range: range_for_match.to_string(),
                             optional,
                             meta_only,
                             parents: parents_from_chain(chain, pkg_name),
@@ -1297,7 +1299,7 @@ impl Walker<'_> {
                 if !satisfies_with_prereleases(&parent.version, &range_for_satisfies) {
                     self.issues.bad.entry(peer_name.to_string()).or_default().push(
                         PeerDependencyIssue {
-                            wanted_range: range_for_match.to_string(),
+                            wanted_range: range_for_satisfies,
                             found_version: parent.version.clone(),
                             optional,
                             parents: parents_from_chain(chain, pkg_name),

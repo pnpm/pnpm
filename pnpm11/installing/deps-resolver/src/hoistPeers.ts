@@ -1,3 +1,4 @@
+import { getPeerVersionRange } from '@pnpm/deps.peer-range'
 import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import semver from 'semver'
@@ -47,11 +48,16 @@ export function hoistPeers (
       // the range lets a version resolved for one importer be auto-installed as
       // another importer's peer even though nothing in that importer's closure
       // accepts it, silently producing a peer graph that mixes incompatible
-      // majors. Ranges that are not semver (workspace:, npm: aliases, dist-tags)
-      // cannot be checked, so they keep the dedupe-to-highest behavior.
-      const isSemverRange = semver.validRange(range, { includePrerelease: true }) != null
+      // majors. Scheme specifiers (named-registry, npm: aliases, workspace:)
+      // contribute a comparable range through getPeerVersionRange, so they get
+      // range-aware selection too; specs with no version body (catalog:,
+      // dist-tags) yield a non-semver value and keep the dedupe-to-highest
+      // behavior. The raw scheme is preserved below so the fallback still
+      // selects the package to install.
+      const rangeForMatch = getPeerVersionRange(range)
+      const isSemverRange = semver.validRange(rangeForMatch, { includePrerelease: true }) != null
       const satisfyingVersion = isSemverRange
-        ? semver.maxSatisfying(versions, range, { includePrerelease: true })
+        ? semver.maxSatisfying(versions, rangeForMatch, { includePrerelease: true })
         : null
       if (satisfyingVersion) {
         dependencies[peerName] = [satisfyingVersion, ...nonVersions].join(' || ')

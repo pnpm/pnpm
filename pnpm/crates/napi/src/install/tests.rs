@@ -266,6 +266,7 @@ fn peer_issues_to_json_derives_conflicts_and_intersections() {
     let parent = ParentPackageRef { name: "comp1".to_string(), version: "1.0.0".to_string() };
     let missing_entry = |range: &str, optional: bool| MissingPeer {
         wanted_range: range.to_string(),
+        raw_range: range.to_string(),
         optional,
         meta_only: false,
         parents: vec![parent.clone()],
