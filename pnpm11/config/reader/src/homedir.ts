@@ -1,6 +1,8 @@
 import { spawnSync } from 'node:child_process'
 import os from 'node:os'
 
+import { PnpmError } from '@pnpm/error'
+
 export function getHomedir (env: NodeJS.ProcessEnv = process.env, platform: string = process.platform): string {
   if (env.SUDO_USER && env.SUDO_USER !== 'root') {
     if (platform === 'linux') {
@@ -14,9 +16,9 @@ export function getHomedir (env: NodeJS.ProcessEnv = process.env, platform: stri
           }
         }
         // cspell:disable-next-line
-        throw new Error(`Failed to resolve home directory for SUDO_USER '${env.SUDO_USER}' via getent.`)
+        throw new PnpmError('SUDO_HOME_DIR_RESOLUTION', `Failed to resolve home directory for SUDO_USER '${env.SUDO_USER}' via getent.`)
       } catch (err: any) { // eslint-disable-line
-        throw new Error(`Failed to resolve home directory for SUDO_USER '${env.SUDO_USER}': ${err}`, { cause: err })
+        throw new PnpmError('SUDO_HOME_DIR_RESOLUTION', `Failed to resolve home directory for SUDO_USER '${env.SUDO_USER}': ${err}`, { cause: err })
       }
     }
     if (platform === 'darwin') {
@@ -28,9 +30,9 @@ export function getHomedir (env: NodeJS.ProcessEnv = process.env, platform: stri
             return match[1].trim()
           }
         }
-        throw new Error(`Failed to resolve home directory for SUDO_USER '${env.SUDO_USER}' via dscl.`)
+        throw new PnpmError('SUDO_HOME_DIR_RESOLUTION', `Failed to resolve home directory for SUDO_USER '${env.SUDO_USER}' via dscl.`)
       } catch (err: any) { // eslint-disable-line
-        throw new Error(`Failed to resolve home directory for SUDO_USER '${env.SUDO_USER}': ${err}`, { cause: err })
+        throw new PnpmError('SUDO_HOME_DIR_RESOLUTION', `Failed to resolve home directory for SUDO_USER '${env.SUDO_USER}': ${err}`, { cause: err })
       }
     }
   }
