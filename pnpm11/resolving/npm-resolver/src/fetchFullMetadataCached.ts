@@ -65,17 +65,6 @@ async function fetchMetadataCached (
     ? getPkgMirrorPath(opts.cacheDir, opts.metaDir, opts.registry, pkgName)
     : null
 
-  // Persist a freshly downloaded body so the next install can do a headers-only
-  // conditional GET, then hand its meta back. Fire-and-forget — a cache-write
-  // failure isn't a reason to fail the caller; the next install just won't get
-  // the speedup.
-  const persistAndReturn = (result: FetchMetadataResult): PackageMeta => {
-    if (pkgMirror != null) {
-      saveMeta(pkgMirror, prepareJsonForDisk(result.meta, result.etag, result.jsonText)).catch(() => {})
-    }
-    return result.meta
-  }
-
   const cacheHeaders = pkgMirror != null ? await loadMetaHeaders(pkgMirror) : null
   const conditional = await fetchMetadataFromFromRegistry(fetchOpts, pkgName, {
     registry: opts.registry,
@@ -103,4 +92,15 @@ async function fetchMetadataCached (
   })
   if (refetched.notModified) throw notModifiedWithoutCacheError(pkgName)
   return persistAndReturn(refetched)
+
+  // Persist a freshly downloaded body so the next install can do a headers-only
+  // conditional GET, then hand its meta back. Fire-and-forget — a cache-write
+  // failure isn't a reason to fail the caller; the next install just won't get
+  // the speedup.
+  function persistAndReturn (result: FetchMetadataResult): PackageMeta {
+    if (pkgMirror != null) {
+      saveMeta(pkgMirror, prepareJsonForDisk(result.meta, result.etag, result.jsonText)).catch(() => {})
+    }
+    return result.meta
+  }
 }

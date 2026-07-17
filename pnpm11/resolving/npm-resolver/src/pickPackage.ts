@@ -379,10 +379,57 @@ export async function pickPackage (
       }
     }
 
+    try {
+      // Load only the cache headers (etag, modified) for conditional request headers.
+      // This avoids reading and parsing the full metadata file (which can be megabytes)
+      // when the registry returns 200 and the old metadata would be discarded anyway.
+      const cacheHeaders = metaCachedInStore != null
+        ? { etag: metaCachedInStore.etag, modified: metaCachedInStore.modified ?? metaCachedInStore.time?.modified }
+        : await limit(async () => loadMetaHeaders(pkgMirror))
+      const conditional = await ctx.fetch(spec.name, {
+        authHeaderValue: opts.authHeaderValue,
+        fullMetadata,
+        etag: cacheHeaders?.etag,
+        modified: cacheHeaders?.modified,
+        registry: opts.registry,
+      })
+      // 200 — the registry sent a fresh body; persist and return it. `await`
+      // keeps a persist-path failure inside this try's cached-meta fallback.
+      if (!conditional.notModified) return await persistFreshMeta(conditional)
+
+      // 304 Not Modified — the registry confirmed the mirror is still fresh, so
+      // serve the body it vouched for.
+      metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
+      if (metaCachedInStore != null) return await serveValidatedMeta(metaCachedInStore)
+
+      // The mirror vanished between the headers read and this read (concurrent
+      // store cleanup, antivirus, ...), so the 304 now validates nothing. Ask
+      // again as a cold cache would, which the registry can only answer with a
+      // body or an error — never another 304.
+      const refetched = await ctx.fetch(spec.name, {
+        authHeaderValue: opts.authHeaderValue,
+        cacheBypass: true,
+        fullMetadata,
+        registry: opts.registry,
+      })
+      if (refetched.notModified) throw notModifiedWithoutCacheError(spec.name)
+      return await persistFreshMeta(refetched)
+    } catch (err: any) { // eslint-disable-line
+      err.spec = spec
+      const meta = await loadMeta(pkgMirror) // TODO: add test for this usecase
+      if (meta == null) throw err
+      logger.error(err, err)
+      logger.debug({ message: `Using cached meta from ${pkgMirror}` })
+      return {
+        meta,
+        pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, meta),
+      }
+    }
+
     // A 304 whose cached body is still on disk: the registry vouched the
     // packument is current, so restart its validation clock, upgrade
     // abbreviated -> full when the maturity check needs `time`, and serve it.
-    const serveValidatedMeta = async (cached: PackageMeta): Promise<{ meta: PackageMeta, pickedPackage: PackageInRegistry | null }> => {
+    async function serveValidatedMeta (cached: PackageMeta): Promise<{ meta: PackageMeta, pickedPackage: PackageInRegistry | null }> {
       // The registry just vouched that the cached packument equals its current
       // one, so the validation clock restarts now: bump the mirror's mtime so
       // the publishedBy freshness shortcut above can fire again on the next
@@ -417,7 +464,7 @@ export async function pickPackage (
     // A freshly downloaded 200 body: when minimumReleaseAge needs the
     // per-version `time` an abbreviated document omits, upgrade to full
     // metadata; then filter, persist to the mirror, and cache it.
-    const persistFreshMeta = async (fetched: FetchMetadataResult): Promise<{ meta: PackageMeta, pickedPackage: PackageInRegistry | null }> => {
+    async function persistFreshMeta (fetched: FetchMetadataResult): Promise<{ meta: PackageMeta, pickedPackage: PackageInRegistry | null }> {
       let meta = fetched.meta
       let resultToSave: FetchMetadataResult = fetched
 
@@ -482,53 +529,6 @@ export async function pickPackage (
       meta.etag = resultToSave.etag
       // only save meta to cache, when it is fresh
       ctx.metaCache.set(cacheKey, meta)
-      return {
-        meta,
-        pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, meta),
-      }
-    }
-
-    try {
-      // Load only the cache headers (etag, modified) for conditional request headers.
-      // This avoids reading and parsing the full metadata file (which can be megabytes)
-      // when the registry returns 200 and the old metadata would be discarded anyway.
-      const cacheHeaders = metaCachedInStore != null
-        ? { etag: metaCachedInStore.etag, modified: metaCachedInStore.modified ?? metaCachedInStore.time?.modified }
-        : await limit(async () => loadMetaHeaders(pkgMirror))
-      const conditional = await ctx.fetch(spec.name, {
-        authHeaderValue: opts.authHeaderValue,
-        fullMetadata,
-        etag: cacheHeaders?.etag,
-        modified: cacheHeaders?.modified,
-        registry: opts.registry,
-      })
-      // 200 — the registry sent a fresh body; persist and return it. `await`
-      // keeps a persist-path failure inside this try's cached-meta fallback.
-      if (!conditional.notModified) return await persistFreshMeta(conditional)
-
-      // 304 Not Modified — the registry confirmed the mirror is still fresh, so
-      // serve the body it vouched for.
-      metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
-      if (metaCachedInStore != null) return await serveValidatedMeta(metaCachedInStore)
-
-      // The mirror vanished between the headers read and this read (concurrent
-      // store cleanup, antivirus, ...), so the 304 now validates nothing. Ask
-      // again as a cold cache would, which the registry can only answer with a
-      // body or an error — never another 304.
-      const refetched = await ctx.fetch(spec.name, {
-        authHeaderValue: opts.authHeaderValue,
-        cacheBypass: true,
-        fullMetadata,
-        registry: opts.registry,
-      })
-      if (refetched.notModified) throw notModifiedWithoutCacheError(spec.name)
-      return await persistFreshMeta(refetched)
-    } catch (err: any) { // eslint-disable-line
-      err.spec = spec
-      const meta = await loadMeta(pkgMirror) // TODO: add test for this usecase
-      if (meta == null) throw err
-      logger.error(err, err)
-      logger.debug({ message: `Using cached meta from ${pkgMirror}` })
       return {
         meta,
         pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, meta),
