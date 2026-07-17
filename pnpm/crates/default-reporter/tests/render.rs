@@ -106,7 +106,11 @@ fn package_manifest_updated_at(prefix: &str, value: serde_json::Value) -> LogEve
 }
 
 fn summary() -> LogEvent {
-    LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix: CWD.to_string() })
+    summary_at(CWD)
+}
+
+fn summary_at(prefix: &str) -> LogEvent {
+    LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix: prefix.to_string() })
 }
 
 #[test]
@@ -199,6 +203,9 @@ fn append_only_stats_render_on_summary_when_pair_is_incomplete() {
         message: StatsMessage::Added { prefix: CWD.to_string(), added: 5 },
     }));
     assert!(matches!(added, Output::None));
+
+    let other_summary = reporter.handle(&summary_at("/repo/packages/other"));
+    assert!(matches!(other_summary, Output::None));
 
     let summarized = reporter.handle(&summary());
     match summarized {

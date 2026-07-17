@@ -323,7 +323,7 @@ impl ReporterState {
             LogEvent::Stats(log) => self.on_stats(&log.message),
             LogEvent::Root(log) => self.on_root(&log.message),
             LogEvent::PackageManifest(log) => self.on_manifest(&log.message),
-            LogEvent::Summary(_) => self.on_summary(),
+            LogEvent::Summary(log) => self.on_summary(&log.prefix),
             LogEvent::Lifecycle(log) => self.on_lifecycle(&log.message),
             LogEvent::IgnoredScripts(log) => self.on_ignored_scripts(log),
             LogEvent::SkippedOptionalDependency(log) => self.on_skipped_optional(log),
@@ -615,8 +615,8 @@ impl ReporterState {
         }
     }
 
-    fn on_summary(&mut self) {
-        if self.stats_added.is_some() || self.stats_removed.is_some() {
+    fn on_summary(&mut self, prefix: &str) {
+        if prefix == self.cwd && (self.stats_added.is_some() || self.stats_removed.is_some()) {
             self.render_stats();
         }
         self.summary_seen = true;
