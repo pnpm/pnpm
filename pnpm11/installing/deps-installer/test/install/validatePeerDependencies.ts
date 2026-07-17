@@ -24,13 +24,13 @@ test('throws an error when the peerDependencies have unallowed specs', async () 
       version: '0.0.0',
       private: true,
       peerDependencies: {
-        foo: 'link:foo',
+        foo: 'bar@1.2.3',
       },
     }, testDefaults())
   )
 
   await rejects.toHaveProperty(['code'], 'ERR_PNPM_INVALID_PEER_DEPENDENCY_SPECIFICATION')
-  await rejects.toHaveProperty(['message'], "The peerDependencies field named 'foo' of package 'root' has an invalid value: 'link:foo'")
+  await rejects.toHaveProperty(['message'], "The peerDependencies field named 'foo' of package 'root' has an invalid value: 'bar@1.2.3'")
 })
 
 test('overrides are not prevented from replacing peerDependencies with local links', async () => {
@@ -93,11 +93,11 @@ test("empty overrides don't disable peer dependencies validation", async () => {
       version: '0.0.0',
       private: true,
       peerDependencies: {
-        foo: 'link:foo',
+        foo: 'bar@1.2.3',
       },
     }, testDefaults({ overrides }))
   )
 
   await rejects.toHaveProperty(['code'], 'ERR_PNPM_INVALID_PEER_DEPENDENCY_SPECIFICATION')
-  await rejects.toHaveProperty(['message'], "The peerDependencies field named 'foo' of package 'root' has an invalid value: 'link:foo'")
+  await rejects.toHaveProperty(['message'], "The peerDependencies field named 'foo' of package 'root' has an invalid value: 'bar@1.2.3'")
 })

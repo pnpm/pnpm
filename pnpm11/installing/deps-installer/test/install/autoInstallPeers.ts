@@ -11,6 +11,21 @@ import { rimrafSync } from '@zkochan/rimraf'
 
 import { testDefaults } from '../utils/index.js'
 
+test('a peer dependency declared with a scheme specifier is accepted and auto-installed', async () => {
+  const project = prepareEmpty()
+  await install({
+    name: 'root',
+    version: '0.0.0',
+    private: true,
+    peerDependencies: {
+      'is-positive': 'npm:is-positive@^3.0.0',
+    },
+  }, testDefaults({ autoInstallPeers: true }))
+  const lockfile = project.readLockfile()
+  expect(Object.keys(lockfile.snapshots)).toContain('is-positive@3.1.0')
+  project.has('is-positive')
+})
+
 test('auto install non-optional peer dependencies', async () => {
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
   const project = prepareEmpty()
