@@ -62,6 +62,7 @@ export {
   getPackageManagerRegistries,
   type PackageManagerBootstrapConfig,
 } from './packageManagerRegistries.js'
+export { getHomedir } from './homedir.js'
 export type { Creds } from './parseCreds.js'
 export {
   createProjectConfigRecord,
