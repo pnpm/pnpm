@@ -169,7 +169,7 @@ where
             workspace_dir_opt.as_deref().unwrap_or(&manifest_dir).to_string_lossy().into_owned();
         let dependency_groups: Vec<DependencyGroup> =
             list_dependency_groups().into_iter().collect();
-        let latest_picker = std::sync::OnceLock::new();
+        let latest_picker = tokio::sync::OnceCell::new();
         let meta_cache = InMemoryPackageMetaCache::default();
         let fetch_locker = shared_packument_fetch_locker();
         let resolved_dependencies = {
@@ -325,7 +325,7 @@ async fn resolve_added_dependency<'a>(
     lockfile: Option<&Lockfile>,
     http_client: &'a ThrottledClient,
     http_client_arc: &std::sync::Arc<ThrottledClient>,
-    latest_picker: &std::sync::OnceLock<LatestPicker<'a>>,
+    latest_picker: &tokio::sync::OnceCell<LatestPicker<'a>>,
     pinned_version: PinnedVersion,
     save_catalog_name: Option<&str>,
     catalogs: &Catalogs,
@@ -392,10 +392,13 @@ async fn resolve_added_dependency<'a>(
                 (None, None) => {
                     let latest = latest_picker
                         .get_or_try_init(|| {
-                            let policy = PickPolicy::from_config(config)
-                                .map_err(AddError::MinimumReleaseAgeExclude)?;
-                            Ok::<_, AddError>(LatestPicker::new(config, http_client, policy))
-                        })?
+                            std::future::ready(
+                                PickPolicy::from_config(config)
+                                    .map(|policy| LatestPicker::new(config, http_client, policy))
+                                    .map_err(AddError::MinimumReleaseAgeExclude),
+                            )
+                        })
+                        .await?
                         .resolve(package_name, lockfile_only)
                         .await
                         .map_err(|error| AddError::ResolveLatest {

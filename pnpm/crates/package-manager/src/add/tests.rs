@@ -135,6 +135,7 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
     config.catalog_mode = pacquet_config::CatalogMode::Prefer;
+    config.minimum_release_age = None;
     let mut servers = Vec::new();
     let mut mocks = Vec::new();
     let mut package_names = Vec::new();
@@ -366,6 +367,7 @@ async fn add_reports_resolution_errors_in_selector_order() {
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
+    config.minimum_release_age = None;
     let mut servers = Vec::new();
     let mut mocks = Vec::new();
     let mut package_names = Vec::new();
@@ -439,6 +441,7 @@ async fn add_does_not_wait_for_a_slower_later_resolution_after_an_error() {
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
+    config.minimum_release_age = None;
     let mut servers = Vec::new();
     let mut mocks = Vec::new();
     let mut package_names = Vec::new();
