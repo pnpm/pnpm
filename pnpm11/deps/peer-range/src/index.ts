@@ -31,9 +31,15 @@ export function isAcceptablePeerSpec (version: string): boolean {
  * any other non-semver specifier (git, file, URL) becomes `*`, so the peer is
  * satisfied by any version while its original specifier still selects the
  * package to install. Valid semver ranges and `catalog:` specs are returned
- * unchanged.
+ * unchanged. A `||` union of scheme specifiers — produced when several
+ * consumers' ranges are merged for highest-match auto-installation — is reduced
+ * to the union of its version bodies (`work:^1 || work:^2` → `^1 || ^2`) so the
+ * result stays a comparable range.
  */
 export function getPeerVersionRange (version: string): string {
+  if (version.includes('||')) {
+    return version.split('||').map((part) => getPeerVersionRange(part.trim())).join(' || ')
+  }
   if (isValidPeerRange(version)) {
     return version.replace(/^workspace:/, '')
   }

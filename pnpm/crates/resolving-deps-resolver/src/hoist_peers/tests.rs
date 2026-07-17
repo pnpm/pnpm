@@ -186,6 +186,25 @@ fn falls_back_to_raw_scheme_specifier_when_no_preferred_version_satisfies_its_ex
     assert_eq!(result, expected);
 }
 
+#[test]
+fn respects_a_merged_union_of_scheme_specifiers_instead_of_picking_the_highest() {
+    // `4.0.0` is the highest but satisfies neither `^2.0.0` nor `^3.0.0`, so a
+    // blind highest-version pick would be wrong; `3.0.0` is the highest match.
+    let preferred = preferred(&[(
+        "foo",
+        &[
+            ("2.1.0", plain(VersionSelectorType::Version)),
+            ("3.0.0", plain(VersionSelectorType::Version)),
+            ("4.0.0", plain(VersionSelectorType::Version)),
+        ],
+    )]);
+    let result =
+        hoist_peers(&opts(true, &preferred), &[missing("foo", "work:^2.0.0 || work:^3.0.0")]);
+    let mut expected = BTreeMap::new();
+    expected.insert("foo".to_string(), "3.0.0".to_string());
+    assert_eq!(result, expected);
+}
+
 /// Regression for <https://github.com/pnpm/pnpm/pull/11048>.
 #[test]
 fn handles_version_selector_with_weight() {

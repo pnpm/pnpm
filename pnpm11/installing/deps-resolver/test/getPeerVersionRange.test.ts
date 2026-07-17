@@ -53,3 +53,11 @@ test('getPeerVersionRange falls back to * for specifiers without a comparable ve
   expect(getPeerVersionRange('npm:bar')).toBe('*')
   expect(getPeerVersionRange('work:@scope/bar')).toBe('*')
 })
+
+test('getPeerVersionRange reduces a || union of scheme specifiers to a union of version bodies', () => {
+  expect(getPeerVersionRange('work:^1.0.0 || work:^2.0.0')).toBe('^1.0.0 || ^2.0.0')
+  expect(getPeerVersionRange('npm:bar@^1 || npm:bar@^2')).toBe('^1 || ^2')
+  expect(getPeerVersionRange('^1.0.0 || work:^2.0.0')).toBe('^1.0.0 || ^2.0.0')
+  // A plain semver union is a valid range and is returned unchanged.
+  expect(getPeerVersionRange('^1.0.0 || ^2.0.0')).toBe('^1.0.0 || ^2.0.0')
+})

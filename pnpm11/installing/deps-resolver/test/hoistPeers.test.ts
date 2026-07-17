@@ -196,6 +196,24 @@ test('hoistPeers falls back to the raw scheme specifier when no preferred versio
   })
 })
 
+test('hoistPeers respects a merged || union of scheme specifiers instead of picking the highest version', () => {
+  // `4.0.0` is the highest but satisfies neither `^2.0.0` nor `^3.0.0`, so a
+  // blind highest-version pick would be wrong; `3.0.0` is the highest match.
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      foo: {
+        '2.1.0': 'version',
+        '3.0.0': 'version',
+        '4.0.0': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['foo', { range: 'work:^2.0.0 || work:^3.0.0' }]])).toStrictEqual({
+    foo: '3.0.0',
+  })
+})
+
 // Regression test for https://github.com/pnpm/pnpm/pull/11048
 test('hoistPeers handles version selector with weight', () => {
   expect(hoistPeers({

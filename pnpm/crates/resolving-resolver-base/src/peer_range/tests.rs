@@ -59,3 +59,12 @@ fn get_peer_version_range_falls_back_to_star() {
     assert_eq!(get_peer_version_range("npm:bar"), "*");
     assert_eq!(get_peer_version_range("work:@scope/bar"), "*");
 }
+
+#[test]
+fn get_peer_version_range_reduces_a_union_of_scheme_specifiers() {
+    assert_eq!(get_peer_version_range("work:^1.0.0 || work:^2.0.0"), "^1.0.0 || ^2.0.0");
+    assert_eq!(get_peer_version_range("npm:bar@^1 || npm:bar@^2"), "^1 || ^2");
+    assert_eq!(get_peer_version_range("^1.0.0 || work:^2.0.0"), "^1.0.0 || ^2.0.0");
+    // A plain semver union is a valid range and is returned unchanged.
+    assert_eq!(get_peer_version_range("^1.0.0 || ^2.0.0"), "^1.0.0 || ^2.0.0");
+}
