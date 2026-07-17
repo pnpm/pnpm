@@ -29,7 +29,7 @@ pub enum ResolveLatestError {
     /// The packument carries no version behind the `latest` tag (nor a
     /// fallback pick) — e.g. every version was unpublished.
     #[display("no version found for the latest tag")]
-    #[diagnostic(code(pacquet_package_manager::no_latest_version))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_NO_LATEST_VERSION))]
     NoLatestVersion,
 }
 

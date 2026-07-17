@@ -168,6 +168,7 @@ where
             workspace_dir_opt.as_deref().unwrap_or(&manifest_dir).to_string_lossy().into_owned();
         let dependency_groups: Vec<DependencyGroup> =
             list_dependency_groups().into_iter().collect();
+        let mut latest_picker = None;
         let mut resolved_dependencies = Vec::with_capacity(package_names.len());
         for package_name in package_names {
             resolved_dependencies.push(
@@ -178,6 +179,7 @@ where
                     lockfile,
                     http_client,
                     &http_client_arc,
+                    &mut latest_picker,
                     pinned_version,
                     save_catalog_name.as_deref(),
                     &catalogs,
@@ -302,13 +304,14 @@ struct ResolvedAddedDependency {
     clippy::too_many_arguments,
     reason = "resolving an add selector requires the shared resolution inputs"
 )]
-async fn resolve_added_dependency<Reporter: self::Reporter>(
+async fn resolve_added_dependency<'a, Reporter: self::Reporter>(
     package_selector: &str,
-    config: &Config,
+    config: &'a Config,
     manifest: &PackageManifest,
     lockfile: Option<&Lockfile>,
-    http_client: &ThrottledClient,
+    http_client: &'a ThrottledClient,
     http_client_arc: &std::sync::Arc<ThrottledClient>,
+    latest_picker: &mut Option<LatestPicker<'a>>,
     pinned_version: PinnedVersion,
     save_catalog_name: Option<&str>,
     catalogs: &Catalogs,
@@ -369,9 +372,14 @@ async fn resolve_added_dependency<Reporter: self::Reporter>(
                 .unwrap_or_else(|| normalized_save_specifier(spec)),
                 (None, Some(prev)) => prev.to_string(),
                 (None, None) => {
-                    let policy = PickPolicy::from_config(config)
-                        .map_err(AddError::MinimumReleaseAgeExclude)?;
-                    let latest = LatestPicker::new(config, http_client, policy)
+                    if latest_picker.is_none() {
+                        let policy = PickPolicy::from_config(config)
+                            .map_err(AddError::MinimumReleaseAgeExclude)?;
+                        *latest_picker = Some(LatestPicker::new(config, http_client, policy));
+                    }
+                    let latest = latest_picker
+                        .as_ref()
+                        .expect("picker initialized above")
                         .resolve(package_name, lockfile_only)
                         .await
                         .map_err(|error| AddError::ResolveLatest {

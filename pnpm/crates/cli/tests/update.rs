@@ -64,21 +64,10 @@ fn set_ignore_dependencies(workspace: &Path, names: &[&str]) {
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 }
 
-/// Append `dedupePeerDependents: false` to the `pnpm-workspace.yaml` the
-/// harness already wrote — the setting under which pnpm/pnpm#12456
-/// reproduces on the TypeScript stack.
+/// [`append_workspace_yaml_key`] for `dedupePeerDependents: false` — the
+/// setting under which pnpm/pnpm#12456 reproduces on the TypeScript stack.
 fn disable_dedupe_peer_dependents(workspace: &Path) {
-    let yaml_path = workspace.join("pnpm-workspace.yaml");
-    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
-    assert!(
-        !yaml.contains("dedupePeerDependents:"),
-        "pnpm-workspace.yaml already has a `dedupePeerDependents:` key — update this helper",
-    );
-    if !yaml.ends_with('\n') {
-        yaml.push('\n');
-    }
-    yaml.push_str("dedupePeerDependents: false\n");
-    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+    append_workspace_yaml_key(workspace, "dedupePeerDependents", false);
 }
 
 fn dep_spec(workspace: &Path, name: &str) -> Option<String> {
