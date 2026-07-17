@@ -276,8 +276,11 @@ pub enum ResolveDependencyTreeError {
     },
 
     /// A pnpmfile hook (`readPackage`) threw, timed out, or returned an
-    /// invalid package manifest. Carries the `ERR_PNPM_PNPMFILE_FAIL` /
-    /// `ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT` code: a bad hook aborts the install.
+    /// invalid package manifest; a bad hook aborts the install. Carries
+    /// `ERR_PNPM_PNPMFILE_FAIL` for all of those. pnpm splits them across
+    /// two codes, reserving `ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT` for a
+    /// hook that returns a non-manifest; pacquet does not distinguish the
+    /// two yet.
     #[display("{_0}")]
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     PnpmfileHook(#[error(not(source))] pacquet_hooks::HookError),
