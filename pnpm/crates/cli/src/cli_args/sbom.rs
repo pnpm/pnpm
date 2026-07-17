@@ -9,7 +9,7 @@ use indexmap::IndexMap;
 use pacquet_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotEntry,
 };
-use pacquet_package_manager::importer_root_dir;
+use pacquet_package_manager::{importer_root_dir, validate_importer_id};
 use pacquet_package_manifest::{extract_author, extract_homepage, safe_read_package_json_from_dir};
 use std::{
     collections::{HashMap, HashSet},
@@ -376,8 +376,15 @@ fn collect_components(
 
     let manifest_value = match filter_importer_ids {
         Some(&[single_id]) => {
-            let importer_dir = importer_root_dir(&lockfile_dir, single_id);
-            safe_read_package_json_from_dir(&importer_dir).ok().flatten().unwrap_or_else(|| {
+            // `single_id` is a raw lockfile importer key; validate it before
+            // it turns into an on-disk path so a crafted `../foo` or absolute
+            // key cannot read a `package.json` outside the workspace.
+            let manifest = validate_importer_id(single_id).ok().and_then(|()| {
+                safe_read_package_json_from_dir(&importer_root_dir(&lockfile_dir, single_id))
+                    .ok()
+                    .flatten()
+            });
+            manifest.unwrap_or_else(|| {
                 if single_id == state.active_importer_id() {
                     state.manifest.value().clone()
                 } else {
@@ -448,7 +455,7 @@ fn collect_components(
         let parent_purl =
             ws_purl_by_importer.get(&importer_id).cloned().unwrap_or_else(|| root_purl.clone());
 
-        let importer_peer_names = if exclude_peers {
+        let importer_peer_names = if exclude_peers && validate_importer_id(&importer_id).is_ok() {
             let importer_dir = importer_root_dir(&lockfile_dir, &importer_id);
             safe_read_package_json_from_dir(&importer_dir)
                 .ok()
@@ -494,6 +501,7 @@ fn collect_components(
                 if let Some(link_target) = spec.version.as_link_target() {
                     if let Some(target_id) = normalize_link_path(&importer_id, link_target)
                         && lockfile.importers.contains_key(target_id.as_str())
+                        && validate_importer_id(&target_id).is_ok()
                     {
                         let ws_dir = importer_root_dir(&lockfile_dir, &target_id);
                         if let Ok(Some(ws_manifest)) = safe_read_package_json_from_dir(&ws_dir) {

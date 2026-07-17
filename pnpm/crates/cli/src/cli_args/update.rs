@@ -109,6 +109,12 @@ pub struct UpdateArgs {
     pub workspace: bool,
 }
 
+/// The `pnpm update --workspace` rejection message. `--workspace` needs
+/// workspace-protocol version linking, which has not been ported yet, so
+/// every dispatch path — plain, selected, and global — refuses it with the
+/// same wording rather than silently doing a plain update.
+const WORKSPACE_UPDATE_UNSUPPORTED: &str = "`pnpm update --workspace` is not supported yet.";
+
 impl UpdateArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
@@ -119,7 +125,7 @@ impl UpdateArgs {
         // silently doing a plain update. (`--global` is routed to
         // [`Self::run_global`] before `run` is reached.)
         if self.workspace {
-            return Err(miette::miette!("`pnpm update --workspace` is not supported yet."));
+            return Err(miette::miette!("{WORKSPACE_UPDATE_UNSUPPORTED}"));
         }
 
         let lockfile_path = state.lockfile_path();
@@ -184,9 +190,7 @@ impl UpdateArgs {
         selection: InstallFamilySelection,
     ) -> miette::Result<()> {
         if self.workspace {
-            return Err(miette::miette!(
-                "`pnpm update --workspace` is not supported yet; workspace-protocol version linking has not been ported yet."
-            ));
+            return Err(miette::miette!("{WORKSPACE_UPDATE_UNSUPPORTED}"));
         }
 
         let lockfile_path = state.lockfile_path();
@@ -258,7 +262,7 @@ impl UpdateArgs {
         config: &'static Config,
     ) -> miette::Result<()> {
         if self.workspace {
-            return Err(miette::miette!("`pnpm update --workspace` is not supported yet."));
+            return Err(miette::miette!("{WORKSPACE_UPDATE_UNSUPPORTED}"));
         }
         if self.interactive {
             return Err(miette::miette!(
