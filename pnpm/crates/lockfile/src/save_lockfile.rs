@@ -85,7 +85,9 @@ pub fn save_value_to_path<Document: serde::Serialize>(
 ) -> Result<(), SaveLockfileError> {
     let content = serialize_yaml::to_string(value).map_err(SaveLockfileError::SerializeYaml)?;
     let existing = match fs::read_to_string(path) {
-        Ok(existing) => Some(existing),
+        Ok(existing) => {
+            Some(existing.strip_prefix('\u{feff}').unwrap_or(&existing).replace("\r\n", "\n"))
+        }
         Err(error) if error.kind() == io::ErrorKind::NotFound => None,
         Err(error) => return Err(SaveLockfileError::WriteFile(error)),
     };
@@ -117,7 +119,7 @@ pub(crate) fn ensure_lockfile_is_not_symlink(path: &Path) -> io::Result<()> {
 pub(crate) fn symlinked_lockfile_error(path: &Path) -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidInput,
-        format!("refusing to write symlinked lockfile at {}", path.display()),
+        format!("Refusing to write symlinked lockfile at {}", path.display()),
     )
 }
 

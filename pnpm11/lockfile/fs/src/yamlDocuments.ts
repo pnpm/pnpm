@@ -76,7 +76,7 @@ export async function streamReadFirstYamlDocument (filePath: string, readBufferS
  */
 export async function readLockfileToString (filePath: string): Promise<string | null> {
   try {
-    return await readFile(filePath, 'utf8')
+    return stripBom(await readFile(filePath, 'utf8')).replace(/\r\n/g, '\n')
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       return null

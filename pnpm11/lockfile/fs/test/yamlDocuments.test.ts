@@ -7,6 +7,7 @@ import { temporaryDirectory } from 'tempy'
 import {
   extractEnvDocument,
   extractMainDocument,
+  readLockfileToString,
   streamReadFirstYamlDocument,
 } from '../lib/yamlDocuments.js'
 
@@ -136,6 +137,16 @@ describe('streamReadFirstYamlDocument', () => {
 })
 
 describe('extractEnvDocument', () => {
+  test('whole-file reads strip a BOM and normalize CRLF', async () => {
+    const dir = temporaryDirectory()
+    const filePath = path.join(dir, 'test.yaml')
+    fs.writeFileSync(filePath, '\uFEFF---\r\nfoo: bar\r\n---\r\nlockfileVersion: 9.0\r\n')
+
+    await expect(readLockfileToString(filePath)).resolves.toBe(
+      '---\nfoo: bar\n---\nlockfileVersion: 9.0\n'
+    )
+  })
+
   test('returns null when content does not start with ---', () => {
     expect(extractEnvDocument('lockfileVersion: 9.0\npackages: {}\n')).toBeNull()
   })

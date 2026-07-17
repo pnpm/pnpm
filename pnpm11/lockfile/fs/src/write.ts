@@ -1,4 +1,6 @@
+import { randomUUID } from 'node:crypto'
 import { promises as fs } from 'node:fs'
+import type { FileHandle } from 'node:fs/promises'
 import path from 'node:path'
 
 import { WANTED_LOCKFILE } from '@pnpm/constants'
@@ -103,8 +105,37 @@ async function writeLockfileDoc (lockfilePath: string, lockfileName: string, mai
     ? mainDoc
     : `${YAML_DOCUMENT_START}${envDoc}${YAML_DOCUMENT_SEPARATOR}${mainDoc}`
   if (existing === content) return
+  await writeWantedLockfileAtomic(lockfilePath, content)
+}
+
+async function writeWantedLockfileAtomic (lockfilePath: string, content: string): Promise<void> {
   await ensureLockfileIsNotSymlink(lockfilePath)
-  await writeFileAtomic(lockfilePath, content)
+  const targetStat = await fs.lstat(lockfilePath).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === 'ENOENT') return undefined
+    throw error
+  })
+  const tempPath = path.join(
+    path.dirname(lockfilePath),
+    `.${path.basename(lockfilePath)}.${process.pid}.${randomUUID()}.tmp`
+  )
+  let tempFile: FileHandle | undefined
+  try {
+    tempFile = await fs.open(tempPath, 'wx', targetStat?.mode)
+    await tempFile.writeFile(content)
+    if (targetStat != null) await tempFile.chmod(targetStat.mode)
+    await tempFile.sync()
+    await tempFile.close()
+    tempFile = undefined
+
+    // Check again at publication time. rename() replaces the final path entry
+    // itself and never resolves it, so a swap after this check cannot redirect
+    // the write through a symlink.
+    await ensureLockfileIsNotSymlink(lockfilePath)
+    await fs.rename(tempPath, lockfilePath)
+  } finally {
+    await tempFile?.close().catch(() => {})
+    await fs.rm(tempPath, { force: true }).catch(() => {})
+  }
 }
 
 function stripUndefinedDeep<T> (value: T): T {

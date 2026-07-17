@@ -449,15 +449,48 @@ test('writeWantedLockfile() leaves an unchanged lockfile untouched', async () =>
   expect(fs.statSync(lockfilePath).mtimeMs).toBe(mtimeBefore)
 })
 
+test('writeWantedLockfile() leaves an unchanged CRLF lockfile untouched', async () => {
+  const projectPath = temporaryDirectory()
+  const lockfilePath = path.join(projectPath, WANTED_LOCKFILE)
+  await writeWantedLockfile(projectPath, upToDateLockfile)
+  const crlfContent = fs.readFileSync(lockfilePath, 'utf8').replace(/\n/g, '\r\n')
+  fs.writeFileSync(lockfilePath, crlfContent)
+  const mtimeBefore = fs.statSync(lockfilePath).mtimeMs
+
+  await writeWantedLockfile(projectPath, upToDateLockfile)
+
+  expect(fs.readFileSync(lockfilePath, 'utf8')).toBe(crlfContent)
+  expect(fs.statSync(lockfilePath).mtimeMs).toBe(mtimeBefore)
+})
+
 testOnNonWindows('writeWantedLockfile() accepts a symlinked lockfile when nothing changes', async () => {
   const projectPath = temporaryDirectory()
   const realDir = temporaryDirectory()
   const realLockfile = path.join(realDir, 'pnpm-lock.yaml')
   await writeWantedLockfile(realDir, upToDateLockfile)
+  const targetBefore = fs.readFileSync(realLockfile, 'utf8')
+  const mtimeBefore = fs.statSync(realLockfile).mtimeMs
   fs.symlinkSync(realLockfile, path.join(projectPath, WANTED_LOCKFILE), 'file')
 
   await expect(writeWantedLockfile(projectPath, upToDateLockfile)).resolves.toBeTruthy()
   expect(fs.lstatSync(path.join(projectPath, WANTED_LOCKFILE)).isSymbolicLink()).toBe(true)
+  expect(fs.readFileSync(realLockfile, 'utf8')).toBe(targetBefore)
+  expect(fs.statSync(realLockfile).mtimeMs).toBe(mtimeBefore)
+})
+
+testOnNonWindows('writeWantedLockfile() accepts an unchanged CRLF symlinked lockfile', async () => {
+  const projectPath = temporaryDirectory()
+  const realDir = temporaryDirectory()
+  const realLockfile = path.join(realDir, WANTED_LOCKFILE)
+  await writeWantedLockfile(realDir, upToDateLockfile)
+  const crlfContent = fs.readFileSync(realLockfile, 'utf8').replace(/\n/g, '\r\n')
+  fs.writeFileSync(realLockfile, crlfContent)
+  const mtimeBefore = fs.statSync(realLockfile).mtimeMs
+  fs.symlinkSync(realLockfile, path.join(projectPath, WANTED_LOCKFILE), 'file')
+
+  await expect(writeWantedLockfile(projectPath, upToDateLockfile)).resolves.toBeTruthy()
+  expect(fs.readFileSync(realLockfile, 'utf8')).toBe(crlfContent)
+  expect(fs.statSync(realLockfile).mtimeMs).toBe(mtimeBefore)
 })
 
 testOnNonWindows('writeWantedLockfile() refuses a real write through a symlink', async () => {
