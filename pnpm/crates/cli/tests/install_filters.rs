@@ -819,7 +819,7 @@ fn filtered_frozen_install_checks_only_selected_manifest_specifiers() {
     assert!(!output.status.success(), "selected manifest mismatch must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("pacquet_package_manager::outdated_lockfile")
+        stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE")
             && stderr.contains(r#"Cannot install with "frozen-lockfile""#)
             && stderr.contains("pnpm-lock.yaml is not up"),
         "expected the existing frozen-lockfile mismatch diagnostic:\n{stderr}",

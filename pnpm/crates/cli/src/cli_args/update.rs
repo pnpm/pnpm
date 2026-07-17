@@ -185,7 +185,7 @@ impl UpdateArgs {
     ) -> miette::Result<()> {
         if self.workspace {
             return Err(miette::miette!(
-                "`pacquet update --workspace` is not supported yet; workspace-protocol version linking has not been ported to pacquet."
+                "`pnpm update --workspace` is not supported yet; workspace-protocol version linking has not been ported yet."
             ));
         }
 

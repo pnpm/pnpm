@@ -3,18 +3,18 @@
 //! Ports pnpm's
 //! [`sbom` command](https://github.com/pnpm/pnpm/blob/2b4952e804/pnpm11/deps/compliance/commands/src/sbom/sbom.ts).
 
-use crate::State;
+use crate::{State, cli_args::recursive::RecursiveSharedLockfileUnsupported};
 use clap::Args;
 use indexmap::IndexMap;
 use pacquet_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotEntry,
 };
+use pacquet_package_manager::importer_root_dir;
 use pacquet_package_manifest::{extract_author, extract_homepage, safe_read_package_json_from_dir};
 use std::{
-    borrow::Cow,
     collections::{HashMap, HashSet},
     io::Write,
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
@@ -376,11 +376,7 @@ fn collect_components(
 
     let manifest_value = match filter_importer_ids {
         Some(&[single_id]) => {
-            let importer_dir: Cow<'_, Path> = if single_id == "." {
-                Cow::Borrowed(&lockfile_dir)
-            } else {
-                Cow::Owned(lockfile_dir.join(single_id))
-            };
+            let importer_dir = importer_root_dir(&lockfile_dir, single_id);
             safe_read_package_json_from_dir(&importer_dir).ok().flatten().unwrap_or_else(|| {
                 if single_id == state.active_importer_id() {
                     state.manifest.value().clone()
@@ -453,11 +449,7 @@ fn collect_components(
             ws_purl_by_importer.get(&importer_id).cloned().unwrap_or_else(|| root_purl.clone());
 
         let importer_peer_names = if exclude_peers {
-            let importer_dir = if importer_id == "." {
-                lockfile_dir.clone()
-            } else {
-                lockfile_dir.join(&importer_id)
-            };
+            let importer_dir = importer_root_dir(&lockfile_dir, &importer_id);
             safe_read_package_json_from_dir(&importer_dir)
                 .ok()
                 .flatten()
@@ -503,11 +495,7 @@ fn collect_components(
                     if let Some(target_id) = normalize_link_path(&importer_id, link_target)
                         && lockfile.importers.contains_key(target_id.as_str())
                     {
-                        let ws_dir = if target_id == "." {
-                            lockfile_dir.clone()
-                        } else {
-                            lockfile_dir.join(&target_id)
-                        };
+                        let ws_dir = importer_root_dir(&lockfile_dir, &target_id);
                         if let Ok(Some(ws_manifest)) = safe_read_package_json_from_dir(&ws_dir) {
                             let ws_name = ws_manifest
                                 .get("name")
@@ -708,10 +696,9 @@ impl SbomArgs {
         if !state.config.shared_workspace_lockfile
             && (state.config.recursive || self.split || !state.config.filter.is_empty())
         {
-            return Err(miette::miette!(
-                code = "ERR_PNPM_RECURSIVE_SHARED_LOCKFILE_UNSUPPORTED",
-                "Filtered and split `pacquet sbom` with `sharedWorkspaceLockfile=false` is not supported yet."
-            ));
+            return Err(
+                RecursiveSharedLockfileUnsupported::new("Filtered and split `pnpm sbom`").into()
+            );
         }
         if let Some(ref spec_ver) = self.spec_version {
             if self.format != SbomFormat::CycloneDx {

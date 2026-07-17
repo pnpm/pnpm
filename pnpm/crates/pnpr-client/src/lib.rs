@@ -17,7 +17,7 @@
 //! `/~<name>/` registry endpoint (which may cache them server-side under
 //! its own private namespace).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use derive_more::{Display, Error, From};
 use futures_util::StreamExt as _;
@@ -405,6 +405,20 @@ impl PnprClient {
         opts: ResolveProjectsOptions,
         mut on_package: impl FnMut(ResolvedPackage),
     ) -> Result<ResolveOutcome, PnprClientError> {
+        // The server's response is untrusted, and the caller merges the
+        // returned lockfile into `pnpm-lock.yaml`. Constrain it to the
+        // importers this request is about — the requested projects plus
+        // whatever the input lockfile already carried — so a hostile server
+        // cannot introduce dependencies for a project that was never sent.
+        // Only containment is checked, not presence: pnpm omits
+        // dependency-free importers, so a requested project may legitimately
+        // have no entry.
+        let permitted_importers: HashSet<String> = opts
+            .projects
+            .iter()
+            .map(|project| project.dir.clone())
+            .chain(opts.lockfile.iter().flat_map(|lockfile| lockfile.importers.keys().cloned()))
+            .collect();
         let request = serde_json::json!({
             "projects": opts.projects,
             "registry": opts.registry,
@@ -472,6 +486,15 @@ impl PnprClient {
                         });
                     }
                     Frame::Done { lockfile, stats } => {
+                        if let Some(unexpected) = lockfile
+                            .importers
+                            .keys()
+                            .find(|importer| !permitted_importers.contains(*importer))
+                        {
+                            return Err(PnprClientError::Protocol(format!(
+                                "/-/pnpr/v0/resolve returned an importer that was not requested: {unexpected:?}",
+                            )));
+                        }
                         return Ok(ResolveOutcome { lockfile: *lockfile, stats });
                     }
                     Frame::Error { message } => return Err(PnprClientError::Server(message)),

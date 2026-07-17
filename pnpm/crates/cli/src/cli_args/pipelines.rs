@@ -6,8 +6,8 @@ use super::{
     package_manager::{PackageManagerToSync, package_manager_to_sync},
     prune::PruneArgs,
     recursive::{
-        AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
-        sort_filtered_projects,
+        AutoExcludeRoot, RecursiveSharedLockfileUnsupported, discover_workspace_projects,
+        select_recursive_projects, sort_filtered_projects,
     },
     remove::RemoveArgs,
     update::UpdateArgs,
@@ -41,10 +41,10 @@ fn select_install_family_projects(
         return Ok(None);
     }
     if !cfg.shared_workspace_lockfile {
-        return Err(miette::miette!(
-            code = "ERR_PNPM_RECURSIVE_SHARED_LOCKFILE_UNSUPPORTED",
-            "Recursive and filtered install-family commands with `sharedWorkspaceLockfile=false` are not supported yet."
-        ));
+        return Err(RecursiveSharedLockfileUnsupported::new(
+            "Recursive and filtered install-family commands",
+        )
+        .into());
     }
 
     let workspace_root = cfg.workspace_dir.as_deref().unwrap_or(prefix).to_path_buf();

@@ -281,6 +281,11 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
             // repeat of the content check, so it degrades rather than
             // fails.
             if is_workspace_install {
+                // This path refreshes the timestamp without materializing
+                // anything, so it carries the previous run's
+                // `filtered_install` forward: clearing it would claim every
+                // importer is materialized when a filtered install left the
+                // unselected ones untouched.
                 let new_state = crate::install::build_workspace_state(
                     workspace_root,
                     config,
@@ -288,7 +293,7 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
                     included,
                     catalogs,
                     project_manifests,
-                    false,
+                    state.filtered_install,
                 );
                 if let Err(error) = update_workspace_state(workspace_root, &new_state) {
                     tracing::warn!(

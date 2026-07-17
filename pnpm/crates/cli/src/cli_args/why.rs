@@ -3,7 +3,10 @@
 use crate::{
     State,
     cli_args::{
-        recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
+        recursive::{
+            AutoExcludeRoot, RecursiveSharedLockfileUnsupported, discover_workspace_projects,
+            select_recursive_projects,
+        },
         sanitize::sanitize,
     },
 };
@@ -85,10 +88,10 @@ impl WhyArgs {
             ));
         }
         if state.config.recursive && !state.config.shared_workspace_lockfile {
-            return Err(miette::miette!(
-                code = "ERR_PNPM_RECURSIVE_SHARED_LOCKFILE_UNSUPPORTED",
-                "Recursive and filtered `pacquet why` with `sharedWorkspaceLockfile=false` is not supported yet."
-            ));
+            return Err(RecursiveSharedLockfileUnsupported::new(
+                "Recursive and filtered `pnpm why`",
+            )
+            .into());
         }
 
         let active_importer_id = state.active_importer_id();

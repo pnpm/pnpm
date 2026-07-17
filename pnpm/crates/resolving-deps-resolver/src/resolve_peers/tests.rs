@@ -39,6 +39,28 @@ fn importer_relative_self_link_keeps_an_empty_target() {
     );
 }
 
+/// The link target is relative to the importer, so a project dir that
+/// still carries `.` / `..` segments must be normalized before it is used
+/// as the base — otherwise those segments are counted as real directories
+/// and the target gains extra `..` hops.
+#[test]
+fn importer_relative_link_normalizes_the_project_dir() {
+    let expected = DepPath::from("link:../lib");
+    for project_dir in
+        ["workspace/packages/app", "workspace/packages/./app", "workspace/packages/nested/../app"]
+    {
+        assert_eq!(
+            importer_relative_link_dep_path(
+                &DepPath::from("link:packages/lib"),
+                Some(Path::new("workspace")),
+                Some(Path::new(project_dir)),
+            ),
+            expected,
+            "unexpected link target for project dir {project_dir:?}",
+        );
+    }
+}
+
 #[test]
 fn parses_peer_suffix_after_patch_hash() {
     let dep_path = DepPath::from(PATCHED_WORKFLOWS_SDK);

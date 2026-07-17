@@ -2,7 +2,7 @@ import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 
 import { expect, test } from '@jest/globals'
-import { resolveViaPnprServer, type ResolveViaPnprServerOptions } from '@pnpm/pnpr.client'
+import { type PnprProject, resolveViaPnprServer, type ResolveViaPnprServerOptions } from '@pnpm/pnpr.client'
 
 interface CapturedResolveRequest {
   projects: Array<Record<string, unknown>>
@@ -26,7 +26,7 @@ test('serializes name and version for the single-project compatibility options',
 })
 
 test('serializes name and version for every explicit project', async () => {
-  const projects = [
+  const projects: PnprProject[] = [
     {
       dir: 'packages/app',
       name: 'app',

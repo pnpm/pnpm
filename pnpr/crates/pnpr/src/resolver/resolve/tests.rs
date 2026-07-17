@@ -194,7 +194,55 @@ async fn legacy_projects_without_identity_use_synthetic_name_and_version() {
     assert_workspace_link(&lockfile, ".", "pnpr-importer-packages-lib", "packages/lib");
 }
 
+/// `packages/Foo` and `packages/foo` are two directories on a
+/// case-sensitive filesystem and one directory on a case-insensitive one.
+/// Both outcomes are acceptable; what must never happen is one importer's
+/// `package.json` overwriting the other's and both resolving to the same
+/// dependency map. The two aliases depend on different workspace siblings,
+/// so a collision is visible in the resolved links rather than only in the
+/// importer keys, which survive the overwrite either way.
+#[tokio::test]
+async fn case_aliasing_importer_dirs_never_drop_a_project() {
+    let outcome = Box::pin(try_resolve_json(serde_json::json!({
+        "projects": [
+            {
+                "dir": "packages/Foo",
+                "name": "foo-upper",
+                "version": "1.0.0",
+                "dependencies": { "lib-upper": "workspace:*" }
+            },
+            {
+                "dir": "packages/foo",
+                "name": "foo-lower",
+                "version": "1.0.0",
+                "dependencies": { "lib-lower": "workspace:*" }
+            },
+            { "dir": "packages/lib-upper", "name": "lib-upper", "version": "1.0.0" },
+            { "dir": "packages/lib-lower", "name": "lib-lower", "version": "1.0.0" }
+        ]
+    })))
+    .await;
+
+    match outcome {
+        Ok(lockfile) => {
+            assert_workspace_link(&lockfile, "packages/Foo", "lib-upper", "../lib-upper");
+            assert_workspace_link(&lockfile, "packages/foo", "lib-lower", "../lib-lower");
+        }
+        Err(error) => {
+            let error = format!("{error:?}");
+            assert!(
+                error.contains("duplicate importer dir"),
+                "a case-insensitive filesystem must reject the alias, got {error}",
+            );
+        }
+    }
+}
+
 async fn resolve_json(request: serde_json::Value) -> Lockfile {
+    try_resolve_json(request).await.expect("offline workspace resolution succeeds")
+}
+
+async fn try_resolve_json(request: serde_json::Value) -> Result<Lockfile, super::ResolveError> {
     let temp = tempfile::tempdir().expect("create resolver test directory");
     let mut config = Config::new();
     config.offline = true;
@@ -214,7 +262,6 @@ async fn resolve_json(request: serde_json::Value) -> Lockfile {
         None,
     )
     .await
-    .expect("offline workspace resolution succeeds")
 }
 
 fn assert_workspace_link(lockfile: &Lockfile, importer: &str, alias: &str, expected_target: &str) {

@@ -19,6 +19,7 @@ use pacquet_package_manager::{Install, ResolutionObserver, ResolvedPackages};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::SilentReporter;
 use pacquet_tarball::MemCache;
+use tokio::io::AsyncWriteExt;
 
 use super::protocol::ResolveRequest;
 
@@ -99,7 +100,31 @@ pub async fn resolve(
         });
         let manifest_bytes = serde_json::to_vec(&manifest_json)
             .map_err(|err| ResolveError::Install(err.to_string()))?;
-        tokio::fs::write(project_dir.join("package.json"), manifest_bytes).await?;
+        // The temp dir starts empty and the `seen_dirs` check above already
+        // rejected byte-equal dirs, so an existing `package.json` means two
+        // importer dirs addressed the same directory — `packages/Foo` and
+        // `packages/foo` on a case-insensitive filesystem. Creating the file
+        // exclusively lets the host's own path semantics catch that, which a
+        // string comparison here cannot do portably.
+        match tokio::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(project_dir.join("package.json"))
+            .await
+        {
+            Ok(mut file) => {
+                file.write_all(&manifest_bytes).await?;
+                // `tokio::fs::File` buffers and does not flush on drop, so
+                // the manifest has to be flushed before it is read back.
+                file.flush().await?;
+            }
+            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
+                return Err(ResolveError::Install(format!(
+                    "duplicate importer dir: {rel:?} resolves to a directory already written by another importer",
+                )));
+            }
+            Err(err) => return Err(err.into()),
+        }
     }
 
     // Only declare a workspace when there are members; a lone root
@@ -259,7 +284,9 @@ pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) ->
         return None;
     }
     let project = projects.pop()?;
-    if project.dir != "." && !project.dir.is_empty() {
+    // `.` is the only root importer `sanitized_importer_dir` accepts, so
+    // this fast path must not recognize any other spelling of it.
+    if project.dir != "." {
         return None;
     }
     let importer = lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY)?;

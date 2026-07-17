@@ -67,10 +67,17 @@ pub enum PruneDirectDepsError {
 }
 
 /// Remove the direct-dependency links that `old_included` selected but
-/// `new_included` does not from the current lockfile
-/// (`<virtual_store_dir>/lock.yaml` — what the previous install actually
-/// materialized). When `trusted_importer_ids` is set, only those importers
-/// are eligible for removal.
+/// `new_included` does not, for every importer recorded in the current
+/// lockfile (`<virtual_store_dir>/lock.yaml` — what the previous install
+/// actually materialized). When `prunable_importer_ids` is set, only links
+/// belonging to those importers are eligible for removal; a filtered
+/// install leaves every other importer's links untouched because it never
+/// re-materialized them.
+///
+/// Unrelated to [`crate::SymlinkDirectDependencies::trusted_importer_ids`],
+/// which names importers allowed to *skip* ID validation. This set never
+/// widens what may be deleted — every removal still passes the same
+/// validation and containment checks.
 ///
 /// Runs when `.modules.yaml` records a different `included` set than the
 /// current install wants while the layout itself is unchanged: that
@@ -104,7 +111,7 @@ pub fn prune_direct_deps_excluded_by_groups(
     new_included: IncludedDependencies,
     workspace_root: &Path,
     config: &Config,
-    trusted_importer_ids: Option<&HashSet<String>>,
+    prunable_importer_ids: Option<&HashSet<String>>,
 ) -> Result<(), PruneDirectDepsError> {
     let old_groups = selected_groups(old_included);
     let new_groups = selected_groups(new_included);
@@ -119,7 +126,7 @@ pub fn prune_direct_deps_excluded_by_groups(
         config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
 
     for (importer_id, snapshot) in &current_lockfile.importers {
-        if trusted_importer_ids.is_some_and(|importer_ids| !importer_ids.contains(importer_id)) {
+        if prunable_importer_ids.is_some_and(|importer_ids| !importer_ids.contains(importer_id)) {
             continue;
         }
         // A malformed importer key is rejected with a typed error by

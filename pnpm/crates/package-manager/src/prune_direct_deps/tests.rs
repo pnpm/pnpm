@@ -321,7 +321,7 @@ fn prune_direct_deps_respects_trusted_importer_allow_set() {
             },
         ),
     ]);
-    let trusted_importer_ids = HashSet::from(["packages/selected".to_string()]);
+    let prunable_importer_ids = HashSet::from(["packages/selected".to_string()]);
 
     prune_direct_deps_excluded_by_groups(
         &current_lockfile,
@@ -329,7 +329,7 @@ fn prune_direct_deps_respects_trusted_importer_allow_set() {
         PROD_ONLY,
         workspace_root,
         config,
-        Some(&trusted_importer_ids),
+        Some(&prunable_importer_ids),
     )
     .expect("prune should succeed");
 

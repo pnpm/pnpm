@@ -26,7 +26,7 @@ use pacquet_lockfile_verification::{
 };
 use pacquet_modules_yaml::{
     Host, IncludedDependencies, LayoutVersion, Modules, NodeLinker as ModulesNodeLinker,
-    WriteModulesError, write_modules_manifest,
+    ReadModulesError, WriteModulesError, write_modules_manifest,
 };
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
@@ -374,6 +374,14 @@ pub enum InstallError {
 
     #[diagnostic(transparent)]
     WriteModules(#[error(source)] WriteModulesError),
+
+    /// A filtered install rewrites `.modules.yaml` from the selected
+    /// projects' state merged over the previous file's. Without the
+    /// previous contents the rewrite would drop every unselected
+    /// project's `pendingBuilds` / `ignoredBuilds` / `injectedDeps`, so an
+    /// unreadable file fails the install instead of silently pruning it.
+    #[diagnostic(transparent)]
+    ReadModules(#[error(source)] ReadModulesError),
 
     /// Surfaces a corrupted `<virtual_store_dir>/lock.yaml` rather
     /// than silently skipping the optimization.
@@ -1260,8 +1268,17 @@ where
         }
         let old_modules = modules_manifest_res.ok().flatten();
         let modules_manifest = old_modules.as_ref();
-        let previous_modules_metadata = if filtered_install && !resolve_only {
-            pacquet_modules_yaml::read_modules_manifest::<Host>(&config.modules_dir).ok().flatten()
+        // A filtered install rewrites `.modules.yaml` from the selected
+        // projects' state merged over the previous file's, so losing the
+        // previous contents would drop every unselected project's entries.
+        // An unreadable *layout* is already handled as an inconsistent
+        // `node_modules` — the purge rebuilds everything and the merge is
+        // skipped — but a file whose layout parses while some later field
+        // does not would otherwise merge against `None` and silently prune
+        // those entries, so that case fails instead.
+        let previous_modules_metadata = if filtered_install && !resolve_only && !read_failed {
+            pacquet_modules_yaml::read_modules_manifest::<Host>(&config.modules_dir)
+                .map_err(InstallError::ReadModules)?
         } else {
             None
         };
@@ -2662,6 +2679,11 @@ fn merge_filtered_modules_metadata(
             next.skipped.push(dep_path);
         }
     }
+    // A source the selected install re-materialized has its targets
+    // recomputed in `next`, so the previous file's targets for it are
+    // stale — a bumped injected dep moves to a new virtual-store slot and
+    // the old one is gone. Only sources no selected importer touched carry
+    // their previous targets forward.
     let current_injected_sources = injected_source_paths(current);
     let selected_injected_sources = injected_source_paths(selected);
     if let Some(previous_injected) = previous.injected_deps.as_ref() {
@@ -2998,12 +3020,12 @@ fn build_project_manifests_list<'a>(
         return vec![(workspace_root.to_path_buf(), root_manifest)];
     };
     let active_dir = root_manifest.path().parent().expect("manifest path always has a parent dir");
-    let normalized_active_dir = pacquet_fs::lexical_normalize(active_dir);
+    let active_dir_matcher = ProjectDirMatcher::new(active_dir);
     let mut active_project_was_discovered = false;
     let mut list = projects
         .iter()
         .map(|project| {
-            if project_dirs_equal(&project.root_dir, &normalized_active_dir) {
+            if active_dir_matcher.matches(&project.root_dir) {
                 active_project_was_discovered = true;
                 (active_dir.to_path_buf(), root_manifest)
             } else {
@@ -3035,10 +3057,11 @@ fn build_root_importer_project_manifests_list<'a>(
 ) -> Vec<(PathBuf, &'a PackageManifest)> {
     let mut list = vec![(workspace_root.to_path_buf(), root_manifest)];
     if let Some(projects) = workspace_projects {
+        let workspace_root_matcher = ProjectDirMatcher::new(workspace_root);
         list.extend(
             projects
                 .iter()
-                .filter(|project| !project_dirs_equal(&project.root_dir, workspace_root))
+                .filter(|project| !workspace_root_matcher.matches(&project.root_dir))
                 .map(|project| (project.root_dir.clone(), &project.manifest)),
         );
     }
@@ -3056,23 +3079,44 @@ fn build_selected_project_manifests_list<'a>(
         .collect::<Vec<_>>();
     let active_dir =
         active_manifest.path().parent().expect("manifest path always has a parent dir");
-    let normalized_active_dir = pacquet_fs::lexical_normalize(active_dir);
-    let active_project_was_discovered = projects
-        .iter()
-        .any(|project| project_dirs_equal(&project.root_dir, &normalized_active_dir));
+    let active_dir_matcher = ProjectDirMatcher::new(active_dir);
+    let active_project_was_discovered =
+        projects.iter().any(|project| active_dir_matcher.matches(&project.root_dir));
     if !active_manifest_is_standin && !active_project_was_discovered {
         manifests.push((active_dir.to_path_buf(), active_manifest));
     }
     manifests
 }
 
-fn project_dirs_equal(left: &Path, right: &Path) -> bool {
-    let left = pacquet_fs::lexical_normalize(left);
-    let right = pacquet_fs::lexical_normalize(right);
-    left == right
-        || std::fs::canonicalize(left)
-            .and_then(|left| std::fs::canonicalize(right).map(|right| left == right))
-            .unwrap_or(false)
+/// Matches workspace project roots against one fixed directory.
+///
+/// Two paths can name the same project without being equal as strings —
+/// a symlinked workspace root, or `/tmp` against its `/private/tmp` target
+/// on macOS — so a lexical mismatch falls back to comparing canonical
+/// paths. Canonicalizing touches the filesystem once per candidate, so the
+/// fixed side is resolved up front rather than once per project.
+struct ProjectDirMatcher {
+    normalized: PathBuf,
+    canonical: Option<PathBuf>,
+}
+
+impl ProjectDirMatcher {
+    fn new(dir: &Path) -> Self {
+        let normalized = pacquet_fs::lexical_normalize(dir);
+        let canonical = std::fs::canonicalize(&normalized).ok();
+        ProjectDirMatcher { normalized, canonical }
+    }
+
+    fn matches(&self, project_dir: &Path) -> bool {
+        let project_dir = pacquet_fs::lexical_normalize(project_dir);
+        if project_dir == self.normalized {
+            return true;
+        }
+        let Some(canonical) = self.canonical.as_deref() else {
+            return false;
+        };
+        std::fs::canonicalize(project_dir).is_ok_and(|project_dir| project_dir == canonical)
+    }
 }
 
 fn selected_manifest_freshness_inputs<'a>(

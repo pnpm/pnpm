@@ -103,6 +103,20 @@ pub fn materialization_closure(
     }
 }
 
+/// Build the complete wanted lockfile for a filtered install: the
+/// selected importers take their freshly-resolved entries, and every other
+/// importer in `real_importer_ids` keeps the pins `previous_wanted`
+/// recorded. The wanted lockfile stays workspace-global no matter how
+/// narrow the filter is, so `pnpm install --filter` never truncates the
+/// entries of the projects it did not touch.
+///
+/// `freshly_resolved` must contain an entry for every id in
+/// `real_importer_ids`, not just the selected ones: when a global
+/// resolution input (settings, catalogs, overrides, a pnpmfile, ...) drifts
+/// from `previous_wanted`, the previous entries cannot be reused and every
+/// importer falls back to its fresh entry. Resolving only the selected
+/// subset therefore fails with [`MergeFilteredWantedLockfileError::MissingImporter`]
+/// exactly when those inputs changed.
 pub fn merge_filtered_wanted_lockfile(
     previous_wanted: Option<&Lockfile>,
     mut freshly_resolved: Lockfile,
@@ -294,6 +308,11 @@ pub fn filter_lockfile_for_current(
     skipped: &SkippedSnapshots,
 ) -> Lockfile {
     let all_importer_ids = lockfile.importers.keys().cloned().collect();
+    // Every importer is a root here, so no importer has to be *discovered*
+    // through a `link:` dep and the walk needs no real workspace root to
+    // resolve those links against. The empty root keeps the walk in the
+    // lockfile-relative space importer IDs already use — `importer_root_dir("", id)`
+    // is `id` — so link resolution stays correct rather than merely unused.
     materialization_closure(lockfile, Path::new(""), &all_importer_ids, included, skipped).lockfile
 }
 

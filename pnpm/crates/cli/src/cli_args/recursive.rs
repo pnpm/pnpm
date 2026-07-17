@@ -42,6 +42,30 @@ pub struct ResumeFromNotFound {
     pub resume_from: String,
 }
 
+/// `{operation} with `sharedWorkspaceLockfile=false` is not supported yet.`
+///
+/// Every workspace-aware command reads and rewrites one shared
+/// `pnpm-lock.yaml`; the per-project lockfiles that
+/// `sharedWorkspaceLockfile=false` produces have no reader here yet. pnpm
+/// itself supports the combination, so this is a known gap rather than a
+/// rejected configuration — it fails loudly instead of silently installing
+/// something other than what was asked for.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("{operation} with `sharedWorkspaceLockfile=false` is not supported yet.")]
+#[diagnostic(code(ERR_PNPM_RECURSIVE_SHARED_LOCKFILE_UNSUPPORTED))]
+pub struct RecursiveSharedLockfileUnsupported {
+    /// The user-facing description of what was attempted, e.g.
+    /// ``Recursive and filtered `pnpm why` ``.
+    #[error(not(source))]
+    pub operation: String,
+}
+
+impl RecursiveSharedLockfileUnsupported {
+    pub fn new(operation: impl Into<String>) -> Self {
+        RecursiveSharedLockfileUnsupported { operation: operation.into() }
+    }
+}
+
 /// Sort the `--filter`-selected workspace projects into topologically
 /// ordered chunks: every project in chunk `i` depends only on projects in
 /// earlier chunks, so chunk `i` may run after chunks `0..i`.

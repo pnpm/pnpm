@@ -97,6 +97,10 @@ fn importer_relative_link_dep_path(
     } else {
         pacquet_fs::lexical_normalize(&lockfile_dir.join(target))
     };
+    // `diff_paths` walks both paths component-wise, so a base still
+    // carrying `.` / `..` segments would consume them as real directories
+    // and count the wrong number of `..` hops back out.
+    let project_dir = pacquet_fs::lexical_normalize(project_dir);
     let relative_target = pathdiff::diff_paths(&absolute_target, project_dir)
         .unwrap_or(absolute_target)
         .display()
