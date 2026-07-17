@@ -171,6 +171,65 @@ fn own_peer_is_resolved_from_peer_relevant_child() {
 }
 
 #[test]
+fn named_registry_peer_is_matched_via_extracted_range() {
+    let (mut tree, dep_path) = named_registry_peer_tree("work:^1.0.0");
+
+    let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+
+    assert!(result.graph[&dep_path].resolved_peer_names.contains("types"));
+    assert!(!result.peer_dependency_issues.bad.contains_key("types"));
+}
+
+#[test]
+fn named_registry_peer_reports_bad_when_extracted_range_unmet() {
+    let (mut tree, _dep_path) = named_registry_peer_tree("work:^2.0.0");
+
+    let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+
+    assert!(result.peer_dependency_issues.bad.contains_key("types"));
+}
+
+/// A tree with a `consumer` whose peer on `types@1.0.0` is declared with the
+/// given named-registry specifier. Returns the tree and the expected dep path.
+fn named_registry_peer_tree(peer_spec: &str) -> (ResolvedTree, DepPath) {
+    let types = NodeId::leaf("types@1.0.0");
+    let consumer = NodeId::next();
+
+    let mut consumer_children = BTreeMap::new();
+    consumer_children.insert("types".to_string(), types.clone());
+
+    let tree = ResolvedTree {
+        direct: vec![DirectDep {
+            alias: "consumer".to_string(),
+            node_id: consumer.clone(),
+            id: "consumer@1.0.0".to_string(),
+        }],
+        packages: HashMap::from([
+            ("types@1.0.0".to_string(), package("types", "1.0.0", &[], true)),
+            (
+                "consumer@1.0.0".to_string(),
+                package_with_peer_dependencies(
+                    "consumer",
+                    "1.0.0",
+                    &[("types", peer_spec, false)],
+                    false,
+                ),
+            ),
+        ]),
+        dependencies_tree: HashMap::from([
+            (types, tree_node("types@1.0.0", BTreeMap::new(), 1)),
+            (consumer, tree_node("consumer@1.0.0", consumer_children, 0)),
+        ]),
+        all_peer_dep_names: HashSet::from(["types".to_string()]),
+        policy_violations: Vec::new(),
+        applied_patches: HashSet::new(),
+        children_by_id: HashMap::new(),
+    };
+
+    (tree, DepPath::from("consumer@1.0.0(types@1.0.0)"))
+}
+
+#[test]
 fn alias_child_resolves_peer_by_real_package_name() {
     let provider = NodeId::leaf("peer@1.0.0");
     let plugin = NodeId::next();

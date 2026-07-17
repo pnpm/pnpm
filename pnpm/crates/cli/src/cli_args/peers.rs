@@ -13,6 +13,7 @@ use pacquet_config::{Config, PeerDependencyRules};
 use pacquet_lockfile::{Lockfile, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotEntry};
 use pacquet_package_manifest::PackageManifest;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pacquet_resolving_resolver_base::get_peer_version_range;
 
 use crate::cli_args::sanitize::sanitize;
 
@@ -254,6 +255,7 @@ fn check_linked_package_peers(
 
     for (peer_name, peer_range_val) in peer_deps {
         let Some(peer_range) = peer_range_val.as_str() else { continue };
+        let peer_range = get_peer_version_range(peer_range);
         let is_optional = manifest
             .value()
             .get("peerDependenciesMeta")
@@ -278,11 +280,11 @@ fn check_linked_package_peers(
             Some(spec) => {
                 if let Some(ver_peer) = spec.version.ver_peer() {
                     let version_str = ver_peer.version().to_string();
-                    if !satisfies(&version_str, peer_range) {
+                    if !satisfies(&version_str, &peer_range) {
                         issues.bad.entry(peer_name.clone()).or_default().push(BadPeerIssue {
                             parents: current_parents.clone(),
                             optional: is_optional,
-                            wanted_range: peer_range.to_string(),
+                            wanted_range: peer_range.clone(),
                             found_version: version_str,
                             resolved_from: Vec::new(),
                         });
@@ -291,11 +293,11 @@ fn check_linked_package_peers(
                     let found_version =
                         resolve_link_version(&importer_dir, lockfile_dir, link_target)
                             .unwrap_or_else(|| format!("link:{link_target}"));
-                    if !satisfies(&found_version, peer_range) {
+                    if !satisfies(&found_version, &peer_range) {
                         issues.bad.entry(peer_name.clone()).or_default().push(BadPeerIssue {
                             parents: current_parents.clone(),
                             optional: is_optional,
-                            wanted_range: peer_range.to_string(),
+                            wanted_range: peer_range.clone(),
                             found_version,
                             resolved_from: Vec::new(),
                         });
@@ -307,7 +309,7 @@ fn check_linked_package_peers(
                     issues.missing.entry(peer_name.clone()).or_default().push(MissingPeerIssue {
                         parents: current_parents.clone(),
                         optional: is_optional,
-                        wanted_range: peer_range.to_string(),
+                        wanted_range: peer_range.clone(),
                     });
                 }
             }
@@ -400,6 +402,7 @@ fn walk_snapshot(
         {
             let snapshot = snapshots.get(&key);
             for (peer_name, peer_range) in peers {
+                let peer_range = get_peer_version_range(peer_range);
                 let is_optional = meta
                     .peer_dependencies_meta
                     .as_ref()
@@ -424,7 +427,7 @@ fn walk_snapshot(
                     Some(dep_ref) => {
                         if let Some(ver_peer) = dep_ref.ver_peer() {
                             let version_str = ver_peer.version().to_string();
-                            if !satisfies(&version_str, peer_range) {
+                            if !satisfies(&version_str, &peer_range) {
                                 issues.bad.entry(peer_name.clone()).or_default().push(
                                     BadPeerIssue {
                                         parents: current_parents.clone(),
@@ -439,7 +442,7 @@ fn walk_snapshot(
                             let found_version =
                                 resolve_link_version(lockfile_dir, lockfile_dir, link_target)
                                     .unwrap_or_else(|| format!("link:{link_target}"));
-                            if !satisfies(&found_version, peer_range) {
+                            if !satisfies(&found_version, &peer_range) {
                                 issues.bad.entry(peer_name.clone()).or_default().push(
                                     BadPeerIssue {
                                         parents: current_parents.clone(),

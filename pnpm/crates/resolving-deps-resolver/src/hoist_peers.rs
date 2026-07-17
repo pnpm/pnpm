@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use node_semver::{Range, Version};
 use pacquet_resolving_resolver_base::{
-    PreferredVersions, VersionSelectorEntry, VersionSelectorType,
+    PreferredVersions, VersionSelectorEntry, VersionSelectorType, get_peer_version_range,
 };
 
 /// One workspace-root dep the loop can satisfy a peer with.
@@ -89,12 +89,17 @@ pub fn hoist_peers(
             // regardless of the range lets a version resolved for one importer
             // be auto-installed as another importer's peer even though nothing
             // in that importer's closure accepts it, silently producing a peer
-            // graph that mixes incompatible majors. Ranges that are not semver
-            // (workspace:, npm: aliases, dist-tags) cannot be checked, so they
-            // keep the dedupe-to-highest behavior.
-            let is_semver_range = range.parse::<Range>().is_ok();
+            // graph that mixes incompatible majors. Scheme specifiers
+            // (named-registry, npm: aliases, workspace:) contribute a comparable
+            // range through get_peer_version_range, so they get range-aware
+            // selection too; specs with no version body (catalog:, dist-tags)
+            // yield a non-semver value and keep the dedupe-to-highest behavior.
+            // The raw scheme is preserved below so the fallback still selects
+            // the package to install.
+            let range_for_match = get_peer_version_range(range);
+            let is_semver_range = range_for_match.parse::<Range>().is_ok();
             let satisfying_version =
-                if is_semver_range { max_satisfying(&versions, range) } else { None };
+                if is_semver_range { max_satisfying(&versions, &range_for_match) } else { None };
             if let Some(satisfying) = satisfying_version {
                 let mut parts: Vec<&str> = vec![satisfying];
                 parts.extend(non_versions.iter().copied());

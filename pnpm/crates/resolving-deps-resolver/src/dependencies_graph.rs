@@ -74,7 +74,14 @@ pub struct PeerDependencyIssues {
 /// [`PeerDependencyIssues::missing`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MissingPeer {
+    /// The semver range the peer is matched/displayed against — scheme
+    /// specifiers are reduced to their version body (`work:5.x.x` → `5.x.x`).
     pub wanted_range: String,
+    /// The original specifier used to auto-install this peer when hoisting,
+    /// with its scheme preserved (`work:5.x.x`). The importer hoist loop reads
+    /// this, not [`Self::wanted_range`], so the peer is fetched from the right
+    /// source.
+    pub raw_range: String,
     pub optional: bool,
     /// `true` when the requiring package declares the peer only via
     /// `peerDependenciesMeta`. The importer hoist loop uses it to keep

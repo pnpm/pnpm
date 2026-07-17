@@ -4971,6 +4971,7 @@ version = "0.0.1"
 dependencies = [
  "chrono",
  "derive_more",
+ "node-semver",
  "pacquet-config",
  "pacquet-lockfile",
  "serde",

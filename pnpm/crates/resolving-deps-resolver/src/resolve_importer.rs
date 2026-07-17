@@ -607,10 +607,14 @@ fn partition_missing_peers(
         if parent_pkg_aliases.contains(peer_name) {
             continue;
         }
+        // Hoisting a missing required peer fetches it, so it needs the original
+        // specifier with its scheme preserved (`work:5.x.x`); hoist_peers reduces
+        // it to a comparable range itself. The optional path below dedupes onto
+        // an already-present version, so it uses the display range instead.
         let required_ranges: Vec<&str> = entries
             .iter()
             .filter(|entry| !entry.optional)
-            .map(|entry| entry.wanted_range.as_str())
+            .map(|entry| entry.raw_range.as_str())
             .collect();
         if required_ranges.is_empty() {
             let mut seen: BTreeSet<String> = BTreeSet::new();

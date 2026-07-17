@@ -17,6 +17,7 @@
 use node_semver::{Range, Version};
 use pacquet_config_parse_overrides::{PackageSelector, VersionOverride};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use pacquet_resolving_resolver_base::is_valid_peer_range;
 use serde_json::Value;
 use std::{
     collections::{HashMap, HashSet},
@@ -453,12 +454,6 @@ pub(crate) fn parse_declared_range(spec: &str) -> Option<Range> {
         return Some(Range::any());
     }
     Range::parse(spec).ok()
-}
-
-/// A valid peer range is a parseable semver range, or any expression
-/// containing a `workspace:` / `catalog:` segment.
-fn is_valid_peer_range(spec: &str) -> bool {
-    Range::parse(spec).is_ok() || spec.contains("workspace:") || spec.contains("catalog:")
 }
 
 /// A target matches when its name equals `dep_name` and its range
