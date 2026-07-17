@@ -3,10 +3,10 @@ import { PnpmError } from '@pnpm/error'
 import type { CommandDefinition } from './index.js'
 
 const NOT_IMPLEMENTED_COMMANDS = [
-
   'profile',
   'set-script',
   'token',
+  'xmas',
 ]
 
 export const NOT_IMPLEMENTED_COMMAND_SET = new Set(NOT_IMPLEMENTED_COMMANDS)
