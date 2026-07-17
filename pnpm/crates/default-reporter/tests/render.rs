@@ -192,6 +192,22 @@ fn append_only_stats_render_once_after_both_events() {
 }
 
 #[test]
+fn append_only_stats_render_on_summary_when_pair_is_incomplete() {
+    let mut reporter = ReporterState::new(CWD.to_string(), 80, Colors { enabled: false }, true);
+    let added = reporter.handle(&LogEvent::Stats(StatsLog {
+        level: LogLevel::Debug,
+        message: StatsMessage::Added { prefix: CWD.to_string(), added: 5 },
+    }));
+    assert!(matches!(added, Output::None));
+
+    let summarized = reporter.handle(&summary());
+    match summarized {
+        Output::Lines(lines) => assert_eq!(lines, vec!["Packages: +5\n+++++"]),
+        _ => panic!("summary should flush incomplete stats"),
+    }
+}
+
+#[test]
 fn summary_groups_by_dependency_type_in_order() {
     let mut reporter = state(false);
     let frame = render(

@@ -501,11 +501,14 @@ impl ReporterState {
                 self.stats_removed = Some(*removed);
             }
         }
-        if self.stats_added.is_none() || self.stats_removed.is_none() {
-            return;
+        if self.stats_added.is_some() && self.stats_removed.is_some() {
+            self.render_stats();
         }
-        let added = self.stats_added.take().expect("added stats checked above");
-        let removed = self.stats_removed.take().expect("removed stats checked above");
+    }
+
+    fn render_stats(&mut self) {
+        let added = self.stats_added.take().unwrap_or(0);
+        let removed = self.stats_removed.take().unwrap_or(0);
         if added == 0 && removed == 0 {
             // The "Already up to date" line is emitted by pacquet as a
             // `pnpm` log; rendering it here too would duplicate it.
@@ -613,6 +616,9 @@ impl ReporterState {
     }
 
     fn on_summary(&mut self) {
+        if self.stats_added.is_some() || self.stats_removed.is_some() {
+            self.render_stats();
+        }
         self.summary_seen = true;
         self.try_render_summary();
     }
