@@ -36,11 +36,9 @@ use zune_inflate::{DeflateDecoder, DeflateOptions, errors::InflateDecodeErrors};
 /// [`post_download_semaphore`]), so whatever one task reserves up front
 /// is multiplied across every task in flight.
 ///
-/// An oversized figure is clamped to the ceiling rather than dropped.
-/// Both consumers grow their buffer on demand, so clamping still decodes
-/// a genuinely larger archive in full while keeping the reservation the
-/// hint exists for — dropping it instead would leave a large package
-/// growing from the decoder's 37 KB default in 4 KiB steps.
+/// Bounds the eager reservation only, never the output: both consumers
+/// grow their buffer on demand, so an archive larger than the ceiling
+/// still decodes in full.
 const MAX_UNTRUSTED_PREALLOC_BYTES: usize = 64 * 1024 * 1024;
 
 /// Cap on concurrent post-download tarball work (SHA-512 of the whole
@@ -468,10 +466,9 @@ fn read_local_tarball_error(
     }
 }
 
-/// Clamp a `dist.unpackedSize` hint to [`MAX_UNTRUSTED_PREALLOC_BYTES`].
-/// zune-inflate turns the hint into an infallible zero-filled
-/// `vec![0; hint]` that aborts the process when the allocation fails, so
-/// the registry's figure must never reach it unbounded.
+/// Bound a registry-supplied `dist.unpackedSize` before it reaches
+/// zune-inflate, which reserves the hint as an infallible zero-filled
+/// `vec![0; hint]` and aborts the process if that allocation fails.
 fn bounded_gzip_size_hint(unpacked_size: Option<usize>) -> Option<usize> {
     unpacked_size.map(|size| size.min(MAX_UNTRUSTED_PREALLOC_BYTES))
 }

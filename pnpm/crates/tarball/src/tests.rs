@@ -44,11 +44,10 @@ fn gzip_size_hint_enforces_untrusted_preallocation_limit() {
     assert_eq!(bounded_gzip_size_hint(Some(usize::MAX)), Some(MAX_UNTRUSTED_PREALLOC_BYTES));
 }
 
-/// `decompress_gzip` must route `dist.unpackedSize` through
-/// [`bounded_gzip_size_hint`] instead of handing it to zune-inflate,
-/// which reserves it as an infallible zero-filled `vec![0; hint]` —
-/// a failed reservation aborts the process and takes the install with
-/// it. A registry that overstates the size still decodes correctly.
+/// Covers the wiring rather than the bound itself: nothing in
+/// [`bounded_gzip_size_hint`]'s own test catches `decompress_gzip`
+/// handing the raw hint to zune-inflate, which aborts the process
+/// instead of failing.
 #[test]
 fn decompress_gzip_bounds_oversized_unpacked_size() {
     let payload = b"decompressed tar payload";
