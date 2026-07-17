@@ -23,10 +23,18 @@
   dir: pnpm11/core/core-loggers
   intents:
     - quiet-prompts
+"@pnpm/deps.inspection.peers-checker@1100.0.21":
+  dir: pnpm11/deps/inspection/peers-checker
+  intents:
+    - peer-scheme-specifiers
 "@pnpm/deps.inspection.tree-builder@1100.0.21":
   dir: pnpm11/deps/inspection/tree-builder
   intents:
     - limit-unsaved-dep-reads
+"@pnpm/deps.peer-range@1100.1.0":
+  dir: pnpm11/deps/peer-range
+  intents:
+    - peer-scheme-specifiers
 "@pnpm/deps.status@1100.1.7":
   dir: pnpm11/deps/status
   intents:
@@ -39,6 +47,10 @@
   dir: pnpm11/engine/pm/commands
   intents:
     - quiet-slots-link
+"@pnpm/engine.pm.commands@1101.2.5":
+  dir: pnpm11/engine/pm/commands
+  intents:
+    - self-update-verify-installed-pnpm
 "@pnpm/exe@11.13.1":
   dir: pnpm11/pnpm/artifacts/exe
   intents:
@@ -47,6 +59,10 @@
   dir: pnpm11/exec/commands
   intents:
     - windows-kill-tracked-process-trees
+"@pnpm/exec.commands@1100.4.0":
+  dir: pnpm11/exec/commands
+  intents:
+    - run-regex-and-sequential
 "@pnpm/exec.lifecycle@1100.1.3":
   dir: pnpm11/exec/lifecycle
   intents:
@@ -79,11 +95,24 @@
   dir: pnpm11/installing/deps-installer
   intents:
     - olive-pandas-converge
+"@pnpm/installing.deps-resolver@1100.2.11":
+  dir: pnpm11/installing/deps-resolver
+  intents:
+    - peer-scheme-specifiers
 "@pnpm/installing.deps-resolver@1100.2.9":
   dir: pnpm11/installing/deps-resolver
   intents:
     - dedupe-injected-deps-unrelated-peer-suffix
     - steady-lockfile-children
+"@pnpm/lockfile.fs@1100.1.12":
+  dir: pnpm11/lockfile/fs
+  intents:
+    - allow-symlinked-lockfile-reads
+    - safe-broken-lockfile-errors
+"@pnpm/lockfile.verification@1100.0.26":
+  dir: pnpm11/lockfile/verification
+  intents:
+    - fresh-gits-agree
 "@pnpm/network.auth-header@1101.1.4":
   dir: pnpm11/network/auth-header
   intents:
@@ -104,6 +133,10 @@
   dir: pnpm11/registry-access/commands
   intents:
     - implement-team-command
+"@pnpm/registry-access.commands@1100.5.2":
+  dir: pnpm11/registry-access/commands
+  intents:
+    - owner-ls-auth-errors
 "@pnpm/releasing.commands@1100.6.0":
   dir: pnpm11/releasing/commands
   intents:
@@ -131,6 +164,12 @@
   dir: pnpm11/resolving/npm-resolver
   intents:
     - retry-invalid-304
+"@pnpm/resolving.npm-resolver@1102.1.5":
+  dir: pnpm11/resolving/npm-resolver
+  intents:
+    - recover-metadata-cache-race
+    - share-inflight-packuments
+    - update-preserve-exact-pins
 "@pnpm/store.connection-manager@1100.3.6":
   dir: pnpm11/store/connection-manager
   intents:
@@ -161,7 +200,33 @@ pacquet@12.0.0-alpha.12:
     - pacquet-symlink-dangling-junction-parent
 pacquet@12.0.0-alpha.13:
   dir: pnpm/npm/pnpm
-  intents: []
+  intents:
+pacquet@12.0.0-alpha.14:
+  dir: pnpm/npm/pnpm
+  intents:
+    - allow-symlinked-lockfile-reads
+    - bound-pacquet-gzip-hints
+    - fresh-gits-agree
+    - git-importer-lockfile
+    - modules-yaml-package-manager-pnpm
+    - pacquet-add-multiple-packages
+    - pacquet-concurrent-add-resolution
+    - pacquet-err-pnpm-error-codes
+    - pacquet-fresh-engine-strict
+    - pacquet-minimum-release-age-add-update
+    - pacquet-owner
+    - pacquet-render-stats-once
+    - pacquet-strict-age-prompt
+    - pacquet-user-facing-pnpm-naming
+    - pacquet-workspace-lockfile-freshness
+    - peer-scheme-specifiers
+    - pnpm-doctor-command
+    - recover-metadata-cache-race
+    - refuse-broken-release-on-version-switch
+    - run-regex-and-sequential
+    - safe-broken-lockfile-errors
+    - self-update-verify-installed-pnpm
+    - update-preserve-exact-pins
 pacquet@12.0.0-alpha.9:
   dir: pnpm/npm/pnpm
   intents:
@@ -216,3 +281,18 @@ pnpm@11.13.1:
     - nice-packs-ignore
     - quiet-prompts
     - quiet-slots-link
+pnpm@11.14.0:
+  dir: pnpm11/pnpm
+  intents:
+    - allow-symlinked-lockfile-reads
+    - fresh-gits-agree
+    - owner-ls-auth-errors
+    - peer-scheme-specifiers
+    - pnpm-doctor-command
+    - recover-metadata-cache-race
+    - refuse-broken-release-on-version-switch
+    - run-regex-and-sequential
+    - safe-broken-lockfile-errors
+    - self-update-verify-installed-pnpm
+    - share-inflight-packuments
+    - update-preserve-exact-pins
