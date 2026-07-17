@@ -330,6 +330,24 @@ fn update_latest_preserves_exact() {
     drop((root, anchor));
 }
 
+/// `--latest` treats a `=` pin (`=100.0.0`) as an exact pin instead of
+/// widening it to the default caret range, writing the bare version back
+/// (`=x.y.z` and `x.y.z` are the same range). Regression test for
+/// <https://github.com/pnpm/pnpm/issues/12745>.
+#[test]
+fn update_latest_preserves_equals_pin_as_exact() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "=100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("101.0.0"));
+
+    drop((root, anchor));
+}
+
 /// `--latest` must not rewrite a `workspace:` dependency that points at a
 /// local path. Resolving it against the registry would either fail (the
 /// package is workspace-only, not published) or replace the path — which can

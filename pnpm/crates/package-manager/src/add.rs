@@ -534,8 +534,8 @@ async fn resolve_explicit_registry_spec(
     // Specifier-operator precedence: the existing entry's operator wins
     // over the spec's, which wins over the configured default. Only a
     // registry-style previous specifier carries a meaningful operator —
-    // `which_version_is_pinned` forward-scans for a version substring, so a
-    // path/URL prev (e.g. `file:../foo-2.0.0.tgz`) would otherwise be misread
+    // `which_version_is_pinned` scans for a version anywhere in the spec, so a
+    // path/URL prev (e.g. `file:../deps/2.0.0.tgz`) would otherwise be misread
     // as a pin. Gate it on `parse_bare_specifier` accepting a non-URL spec.
     let prev_pin = prev_specifier
         .filter(|prev| is_registry_style_specifier(prev, package_name, &registry))

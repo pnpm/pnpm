@@ -497,17 +497,18 @@ fn add_npm_alias_spec_is_kept_verbatim() {
 }
 
 /// A previous specifier that is a non-registry path/URL must not influence
-/// the pin: `which_version_is_pinned` forward-scans for a version substring,
-/// so a `file:` tarball path with an embedded `x.y.z` could otherwise force
-/// an exact pin. Re-adding over `file:../…-100.0.0.tgz` with `@^100.0.0`
-/// keeps the caret (`^100.1.0`), not an exact `100.1.0`.
+/// the pin: `which_version_is_pinned` scans for a version anywhere in the
+/// spec, so a `file:` tarball path whose only range-like element is an
+/// `x.y.z` classifies as an exact pin. Re-adding over
+/// `file:../deps/100.0.0.tgz` with `@^100.0.0` keeps the caret
+/// (`^100.1.0`), not an exact `100.1.0`.
 #[test]
 fn add_explicit_range_ignores_pin_from_non_registry_prev() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     std::fs::write(
         workspace.join("package.json"),
-        r#"{ "name": "p", "version": "1.0.0", "dependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "file:../dep-of-pkg-with-1-dep-100.0.0.tgz" } }"#,
+        r#"{ "name": "p", "version": "1.0.0", "dependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "file:../deps/100.0.0.tgz" } }"#,
     )
     .unwrap();
 
