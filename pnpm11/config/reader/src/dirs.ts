@@ -1,7 +1,8 @@
-import os from 'node:os'
 import path from 'node:path'
 
 import { GLOBAL_CONFIG_YAML_FILENAME } from '@pnpm/constants'
+
+import { getHomedir } from './homedir.js'
 
 export function getGlobalConfigPath (configDir: string): string {
   return path.join(configDir, GLOBAL_CONFIG_YAML_FILENAME)
@@ -17,15 +18,15 @@ export function getCacheDir (
     return path.join(opts.env.XDG_CACHE_HOME, 'pnpm')
   }
   if (opts.platform === 'darwin') {
-    return path.join(os.homedir(), 'Library/Caches/pnpm')
+    return path.join(getHomedir(opts.env), 'Library/Caches/pnpm')
   }
   if (opts.platform !== 'win32') {
-    return path.join(os.homedir(), '.cache/pnpm')
+    return path.join(getHomedir(opts.env), '.cache/pnpm')
   }
   if (opts.env.LOCALAPPDATA) {
     return path.join(opts.env.LOCALAPPDATA, 'pnpm-cache')
   }
-  return path.join(os.homedir(), '.pnpm-cache')
+  return path.join(getHomedir(opts.env), '.pnpm-cache')
 }
 
 export function getStateDir (
@@ -38,12 +39,12 @@ export function getStateDir (
     return path.join(opts.env.XDG_STATE_HOME, 'pnpm')
   }
   if (opts.platform !== 'win32') {
-    return path.join(os.homedir(), '.local/state/pnpm')
+    return path.join(getHomedir(opts.env), '.local/state/pnpm')
   }
   if (opts.env.LOCALAPPDATA) {
     return path.join(opts.env.LOCALAPPDATA, 'pnpm-state')
   }
-  return path.join(os.homedir(), '.pnpm-state')
+  return path.join(getHomedir(opts.env), '.pnpm-state')
 }
 
 export function getDataDir (
@@ -59,15 +60,15 @@ export function getDataDir (
     return path.join(opts.env.XDG_DATA_HOME, 'pnpm')
   }
   if (opts.platform === 'darwin') {
-    return path.join(os.homedir(), 'Library/pnpm')
+    return path.join(getHomedir(opts.env), 'Library/pnpm')
   }
   if (opts.platform !== 'win32') {
-    return path.join(os.homedir(), '.local/share/pnpm')
+    return path.join(getHomedir(opts.env), '.local/share/pnpm')
   }
   if (opts.env.LOCALAPPDATA) {
     return path.join(opts.env.LOCALAPPDATA, 'pnpm')
   }
-  return path.join(os.homedir(), '.pnpm')
+  return path.join(getHomedir(opts.env), '.pnpm')
 }
 
 export function getConfigDir (
@@ -80,13 +81,13 @@ export function getConfigDir (
     return path.join(opts.env.XDG_CONFIG_HOME, 'pnpm')
   }
   if (opts.platform === 'darwin') {
-    return path.join(os.homedir(), 'Library/Preferences/pnpm')
+    return path.join(getHomedir(opts.env), 'Library/Preferences/pnpm')
   }
   if (opts.platform !== 'win32') {
-    return path.join(os.homedir(), '.config/pnpm')
+    return path.join(getHomedir(opts.env), '.config/pnpm')
   }
   if (opts.env.LOCALAPPDATA) {
     return path.join(opts.env.LOCALAPPDATA, 'pnpm/config')
   }
-  return path.join(os.homedir(), '.config/pnpm')
+  return path.join(getHomedir(opts.env), '.config/pnpm')
 }
