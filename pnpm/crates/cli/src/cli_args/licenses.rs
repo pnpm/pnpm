@@ -166,7 +166,9 @@ impl LicensesArgs {
                     };
 
                 queue_children(snapshot.dependencies.as_ref());
-                queue_children(snapshot.optional_dependencies.as_ref());
+                if include.optional_dependencies {
+                    queue_children(snapshot.optional_dependencies.as_ref());
+                }
             }
         }
 
