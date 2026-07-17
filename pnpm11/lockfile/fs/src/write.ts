@@ -89,9 +89,9 @@ async function writeLockfile (
  * but that would require threading it through 25+ call sites. Re-reading is
  * cheap since the file is likely still in the OS page cache.
  *
- * A byte-identical rewrite is skipped. An up-to-date install — every
- * `--frozen-lockfile` run — would otherwise rewrite the lockfile for nothing,
- * and refuse a symlinked one over a write that changes no bytes
+ * A byte-identical rewrite is skipped, so an up-to-date install — every
+ * `--frozen-lockfile` run — leaves the lockfile and its mtime untouched, and a
+ * symlinked lockfile that nothing changes is never refused
  * (https://github.com/pnpm/pnpm/issues/13073).
  */
 async function writeLockfileDoc (lockfilePath: string, lockfileName: string, mainDoc: string): Promise<void> {
@@ -112,10 +112,11 @@ async function writeLockfileDoc (lockfilePath: string, lockfileName: string, mai
  * Replaces `pnpm-lock.yaml` through a temp file and `rename`, carrying the
  * target's ownership and mode onto the replacement.
  *
- * `write-file-atomic` is not used here because it resolves the destination with
- * `realpath`, which a symlink swapped in after {@link ensureLockfileIsNotSymlink}
- * would follow. `rename` replaces the final path component itself and never
- * resolves it, so the write cannot be redirected.
+ * `rename` is what makes this safe: it replaces the final path component and
+ * never resolves it, so a symlink swapped in after
+ * {@link ensureLockfileIsNotSymlink} cannot redirect the write. The
+ * `write-file-atomic` this file uses elsewhere resolves the destination with
+ * `realpath`, which would follow such a swap.
  */
 async function writeWantedLockfileAtomic (lockfilePath: string, content: string): Promise<void> {
   await ensureLockfileIsNotSymlink(lockfilePath)
@@ -133,10 +134,8 @@ async function writeWantedLockfileAtomic (lockfilePath: string, content: string)
     await tempFile.writeFile(content)
     if (targetStat != null) {
       // The rename replaces the target with this fresh file, so an install
-      // running as another user (root in a container over a bind-mounted repo)
-      // would otherwise hand the lockfile's owner a file they can no longer
-      // write. Ownership we aren't permitted to set is not fatal: the file just
-      // stays ours, exactly as `write-file-atomic` treats it.
+      // running as another user — root in a container over a bind-mounted repo —
+      // would hand the lockfile's owner a file they can no longer write.
       await tempFile.chown(targetStat.uid, targetStat.gid).catch(ignoreUnprivilegedChown)
       await tempFile.chmod(targetStat.mode)
     }

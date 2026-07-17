@@ -72,9 +72,9 @@ pub enum SaveLockfileError {
 /// leading `---`).
 ///
 /// A byte-identical rewrite is skipped, so an up-to-date install leaves the
-/// lockfile — and its mtime — untouched. Reads follow a symlinked lockfile,
-/// but a write through one is refused: it would redirect the write onto the
-/// symlink's target (<https://github.com/pnpm/pnpm/issues/13073>).
+/// lockfile — and its mtime — untouched, and a symlinked lockfile that nothing
+/// changes is never refused (<https://github.com/pnpm/pnpm/issues/13073>). A
+/// write that does change bytes refuses a symlinked lockfile.
 ///
 /// The write is atomic: a crash mid-write leaves the previous lockfile intact
 /// rather than a truncated one. A missing parent directory is an error, not
@@ -102,11 +102,16 @@ pub fn save_value_to_path<Document: serde::Serialize>(
     write_atomic(path, output.as_bytes())
 }
 
-/// Refuses a symlinked lockfile before a write, so a repo-planted
-/// `pnpm-lock.yaml` symlink cannot redirect the write onto its target — any
-/// file the user can write. Callers that only read must not use this: reading
-/// through a symlink is safe, and build sandboxes stage the lockfile as one
-/// (<https://github.com/pnpm/pnpm/issues/13073>).
+/// Refuses a symlinked lockfile before a write: the lockfile must be a real file
+/// to be written. A writer that resolves the path lands on the link's target, so
+/// a repo-planted `pnpm-lock.yaml` redirects the write onto any file the user can
+/// write; a writer that renames over the link instead discards a lockfile a build
+/// sandbox staged deliberately.
+///
+/// Reads may follow the link and must not call this. Sandboxes stage
+/// `pnpm-lock.yaml` as a symlink (<https://github.com/pnpm/pnpm/issues/13073>),
+/// and lockfile content is untrusted however it is reached — a repository can
+/// commit whatever content it likes as a plain file.
 pub(crate) fn ensure_lockfile_is_not_symlink(path: &Path) -> io::Result<()> {
     match fs::symlink_metadata(path) {
         Ok(metadata) if metadata.file_type().is_symlink() => Err(symlinked_lockfile_error(path)),

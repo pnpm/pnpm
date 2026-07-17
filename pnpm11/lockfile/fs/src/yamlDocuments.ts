@@ -18,14 +18,8 @@ const LOCKFILE_READ_FLAGS = constants.O_RDONLY | (process.platform === 'win32' ?
  * Stops reading as soon as the second document separator is found.
  * Returns null if the file doesn't exist or doesn't start with "---\n".
  *
- * Follows a symlinked lockfile, as build sandboxes stage `pnpm-lock.yaml`
- * (https://github.com/pnpm/pnpm/issues/13073). Refusing it here bought nothing:
- * `readWantedLockfile` reads the same file with a plain `readFile` and has always
- * followed the link, and a hostile repo can commit a hostile lockfile as a plain
- * file regardless — the content is untrusted either way.
- *
- * Writes are the real boundary and still refuse a symlink, because a write
- * follows the link and lands on its target; see {@link ensureLockfileIsNotSymlink}.
+ * Follows a symlinked lockfile; {@link ensureLockfileIsNotSymlink} covers why
+ * only writes refuse one.
  */
 export async function streamReadFirstYamlDocument (filePath: string, readBufferSize = READ_BUFFER_SIZE): Promise<string | null> {
   let fileHandle: FileHandle | undefined
@@ -122,11 +116,16 @@ async function openLockfileNoFollow (filePath: string): Promise<FileHandle> {
 }
 
 /**
- * Refuses a symlinked lockfile before a write. `write-file-atomic` resolves the
- * target with `realpath` before writing, so writing through a symlink lets a
- * repo-planted `pnpm-lock.yaml` redirect the write onto any file the user can
- * write. Callers that only read must not use this — see
- * {@link streamReadFirstYamlDocument}.
+ * Refuses a symlinked lockfile before a write: the lockfile must be a real file
+ * to be written. A writer that resolves the path lands on the link's target, so
+ * a repo-planted `pnpm-lock.yaml` redirects the write onto any file the user can
+ * write; a writer that renames over the link instead discards a lockfile a build
+ * sandbox staged deliberately.
+ *
+ * Reads may follow the link and must not call this. Sandboxes stage
+ * `pnpm-lock.yaml` as a symlink (https://github.com/pnpm/pnpm/issues/13073), and
+ * lockfile content is untrusted however it is reached — a repository can commit
+ * whatever content it likes as a plain file.
  */
 export async function ensureLockfileIsNotSymlink (filePath: string): Promise<void> {
   let stat
