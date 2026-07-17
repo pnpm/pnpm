@@ -306,7 +306,7 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     for pkg in pkgs {
         let state = State::init(manifest_path.clone(), config, false)
             .wrap_err("initialize the dlx install state")?;
-        add_package::<Reporter, _, _>(
+        add_package::<Reporter, _>(
             state,
             pkg,
             // dlx records the default caret range; the spec is throwaway.
@@ -316,7 +316,7 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
             // dlx must download to run the bin, so never lockfile-only.
             false,
             config.supported_architectures.clone(),
-            || std::iter::once(DependencyGroup::Prod),
+            [DependencyGroup::Prod],
         )
         .await?;
     }

@@ -30,9 +30,8 @@ use pacquet_tarball::MemCache;
 use pacquet_workspace_manifest_writer::{UpdateWorkspaceManifestError, update_workspace_manifest};
 
 #[must_use]
-pub struct Add<'a, ListDependencyGroups, DependencyGroupList>
+pub struct Add<'a, DependencyGroupList>
 where
-    ListDependencyGroups: Fn() -> DependencyGroupList,
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
     pub tarball_mem_cache: std::sync::Arc<MemCache>,
@@ -43,7 +42,7 @@ where
     pub manifest: &'a mut PackageManifest,
     pub lockfile: Option<&'a Lockfile>,
     pub lockfile_path: Option<&'a std::path::Path>,
-    pub list_dependency_groups: ListDependencyGroups,
+    pub dependency_groups: DependencyGroupList,
     /// Package selectors, each of which may carry an `@<version>` suffix.
     pub package_names: &'a [String],
     /// How the freshly-resolved version is pinned into the manifest range,
@@ -127,9 +126,8 @@ pub enum AddError {
     MinimumReleaseAgeExclude(#[error(source)] pacquet_config::version_policy::VersionPolicyError),
 }
 
-impl<ListDependencyGroups, DependencyGroupList> Add<'_, ListDependencyGroups, DependencyGroupList>
+impl<DependencyGroupList> Add<'_, DependencyGroupList>
 where
-    ListDependencyGroups: Fn() -> DependencyGroupList,
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), AddError> {
@@ -141,7 +139,7 @@ where
             manifest,
             lockfile,
             lockfile_path,
-            list_dependency_groups,
+            dependency_groups,
             package_names,
             pinned_version,
             save_catalog_name,
@@ -167,8 +165,7 @@ where
             .map_err(AddError::InvalidCatalogsConfiguration)?;
         let prefix =
             workspace_dir_opt.as_deref().unwrap_or(&manifest_dir).to_string_lossy().into_owned();
-        let dependency_groups: Vec<DependencyGroup> =
-            list_dependency_groups().into_iter().collect();
+        let dependency_groups: Vec<DependencyGroup> = dependency_groups.into_iter().collect();
         let latest_picker = tokio::sync::OnceCell::new();
         let meta_cache = std::sync::Arc::new(InMemoryPackageMetaCache::default());
         let fetch_locker = shared_packument_fetch_locker();

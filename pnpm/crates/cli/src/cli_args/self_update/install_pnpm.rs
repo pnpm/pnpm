@@ -288,14 +288,14 @@ pub(crate) async fn run_install<Reporter: self::Reporter + 'static>(
     let manifest_path = install_dir.join("package.json");
     let state = State::init(manifest_path, config, false)
         .wrap_err("initialize the self-update install state")?;
-    add_package::<Reporter, _, _>(
+    add_package::<Reporter, _>(
         state,
         &format!("{package_name}@{version}"),
         PinnedVersion::Patch,
         None,
         false,
         config.supported_architectures.clone(),
-        || std::iter::once(DependencyGroup::Prod),
+        [DependencyGroup::Prod],
     )
     .await
 }

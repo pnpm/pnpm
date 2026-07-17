@@ -78,7 +78,7 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
         manifest: &mut manifest,
         lockfile: None,
         lockfile_path: None,
-        list_dependency_groups: || [DependencyGroup::Prod],
+        dependency_groups: [DependencyGroup::Prod],
         package_names: &package_names,
         pinned_version: PinnedVersion::Patch,
         save_catalog_name: None,
