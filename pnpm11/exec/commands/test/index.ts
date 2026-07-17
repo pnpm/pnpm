@@ -795,3 +795,60 @@ test('pnpm run without node version', async () => {
     workspaceConcurrency: 1,
   }, ['assert-node-version'])
 })
+
+test('cliOptionsTypes exposes sequential as Boolean flag', () => {
+  const options = run.cliOptionsTypes()
+  expect(options.sequential).toBe(Boolean)
+})
+
+test('RegExp script matching executes multiple scripts in lexicographically sorted order when sequential is enabled', async () => {
+  prepare({
+    scripts: {
+      'build:z': 'node -e "require(\'fs\').appendFileSync(\'./order.log\', \'z\')"',
+      'build:a': 'node -e "require(\'fs\').appendFileSync(\'./order.log\', \'a\')"',
+      'build:m': 'node -e "require(\'fs\').appendFileSync(\'./order.log\', \'m\')"',
+    },
+  })
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
+    dir: process.cwd(),
+    extraBinPaths: [],
+    extraEnv: {},
+    pnpmHomeDir: '',
+    sequential: true,
+    cliOptions: { sequential: true },
+  }, ['/^build:.*/'])
+
+  const outputLog = fs.readFileSync(path.join(process.cwd(), 'order.log'), 'utf-8')
+  expect(outputLog).toBe('amz')
+})
+
+test('passing --sequential option sets effective workspaceConcurrency to 1 for matched scripts without timing flakes', async () => {
+  prepare({
+    scripts: {
+      'test:a': 'node -e "require(\'fs\').appendFileSync(\'./seq.log\', \'A_start\\n\'); setTimeout(() => { require(\'fs\').appendFileSync(\'./seq.log\', \'A_end\\n\') }, 50)"',
+      'test:b': 'node -e "require(\'fs\').appendFileSync(\'./seq.log\', \'B_start\\n\'); setTimeout(() => { require(\'fs\').appendFileSync(\'./seq.log\', \'B_end\\n\') }, 50)"',
+    },
+  })
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
+    dir: process.cwd(),
+    extraBinPaths: [],
+    extraEnv: {},
+    pnpmHomeDir: '',
+    sequential: true,
+    cliOptions: { sequential: true },
+  }, ['/^test:.*/'])
+
+  const outputLog = fs.readFileSync(path.join(process.cwd(), 'seq.log'), 'utf-8').trim().split('\n')
+  expect(outputLog).toEqual(['A_start', 'A_end', 'B_start', 'B_end'])
+})
+
+test('shorthands maps -s to --sequential and --workspace-concurrency=1', () => {
+  expect(run.shorthands.s).toEqual(['--sequential', '--workspace-concurrency=1'])
+})
+

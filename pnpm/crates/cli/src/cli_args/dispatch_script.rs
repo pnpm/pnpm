@@ -63,6 +63,7 @@ pub(super) fn fallback<'a>(
         report_summary: false,
         no_bail: false,
         sort: true,
+        sequential: false,
     };
     let args = with_recursive_run_options(ctx, args);
     if ctx.recursive {
@@ -132,5 +133,6 @@ fn run_args_for_script(command: &str, if_present: bool) -> RunArgs {
         report_summary: false,
         no_bail: false,
         sort: true,
+        sequential: false,
     }
 }
