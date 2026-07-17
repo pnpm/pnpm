@@ -163,7 +163,7 @@ pub enum TarballError {
     },
 
     #[diagnostic(
-        code(ERR_PNPM_TARBALL_VERIFY_CHECKSUM_ERROR),
+        code(ERR_PNPM_TARBALL_INTEGRITY),
         help(
             "The downloaded tarball does not match the integrity recorded in the lockfile. If you trust the new content (legitimate republish, or stale local metadata cache), run `pnpm install --update-checksums`. Otherwise treat this as a potential supply-chain issue and verify the new content first."
         )
@@ -193,7 +193,7 @@ pub enum TarballError {
     #[display(
         "Archive at {url} advertised a Content-Length of {advertised_size} bytes, which exceeds what pnpm can allocate (either larger than `usize::MAX` on this target or memory pressure prevented a one-shot reservation)"
     )]
-    #[diagnostic(code(ERR_PNPM_TARBALL_TARBALL_TOO_LARGE))]
+    #[diagnostic(code(ERR_PNPM_TARBALL_TOO_LARGE))]
     TarballTooLarge { url: String, advertised_size: u64 },
 
     /// A concurrent request for the same tarball URL went through
