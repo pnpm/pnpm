@@ -60,6 +60,7 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
     config.virtual_store_dir = virtual_store_dir;
     config.registry = format!("{}/", default_registry.url());
     config.registries.insert("@private".to_string(), scoped_registry_url);
+    config.minimum_release_age = None;
     let config = config.leak();
 
     let http_client = ThrottledClient::default();
