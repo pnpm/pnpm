@@ -16,7 +16,7 @@ use pacquet_network::ThrottledClient;
 use pacquet_registry::{PackageTag, PackageVersion};
 use pacquet_resolving_npm_resolver::{
     InMemoryPackageMetaCache, PackumentFetchLocker, PickPackageError, PickPackageOptions,
-    RegistryPackageSpec, pick_package, pick_registry_for_package, shared_packument_fetch_locker,
+    RegistryPackageSpec, pick_package, pick_registry_for_package,
 };
 use std::{collections::HashMap, sync::Arc};
 
@@ -45,7 +45,7 @@ pub(crate) struct LatestPicker<'a> {
     config: &'a Config,
     http_client: &'a ThrottledClient,
     policy: PickPolicy,
-    meta_cache: InMemoryPackageMetaCache,
+    meta_cache: Arc<InMemoryPackageMetaCache>,
     fetch_locker: PackumentFetchLocker,
     registries: HashMap<String, String>,
 }
@@ -55,13 +55,15 @@ impl<'a> LatestPicker<'a> {
         config: &'a Config,
         http_client: &'a ThrottledClient,
         policy: PickPolicy,
+        meta_cache: Arc<InMemoryPackageMetaCache>,
+        fetch_locker: PackumentFetchLocker,
     ) -> Self {
         Self {
             config,
             http_client,
             policy,
-            meta_cache: InMemoryPackageMetaCache::default(),
-            fetch_locker: shared_packument_fetch_locker(),
+            meta_cache,
+            fetch_locker,
             registries: config.resolved_registries().into_iter().collect(),
         }
     }

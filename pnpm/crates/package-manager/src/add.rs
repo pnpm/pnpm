@@ -170,7 +170,7 @@ where
         let dependency_groups: Vec<DependencyGroup> =
             list_dependency_groups().into_iter().collect();
         let latest_picker = tokio::sync::OnceCell::new();
-        let meta_cache = InMemoryPackageMetaCache::default();
+        let meta_cache = std::sync::Arc::new(InMemoryPackageMetaCache::default());
         let fetch_locker = shared_packument_fetch_locker();
         let resolved_dependencies = {
             let mut resolution_futures = FuturesOrdered::new();
@@ -187,7 +187,6 @@ where
                     save_catalog_name.as_deref(),
                     &catalogs,
                     &prefix,
-                    lockfile_only,
                     &dependency_groups,
                     &meta_cache,
                     &fetch_locker,
@@ -330,9 +329,8 @@ async fn resolve_added_dependency<'a>(
     save_catalog_name: Option<&str>,
     catalogs: &Catalogs,
     prefix: &str,
-    lockfile_only: bool,
     dependency_groups: &[DependencyGroup],
-    meta_cache: &InMemoryPackageMetaCache,
+    meta_cache: &std::sync::Arc<InMemoryPackageMetaCache>,
     fetch_locker: &PackumentFetchLocker,
 ) -> Result<ResolvedAddedDependency, AddError> {
     let (package_name, explicit_spec) = split_name_spec(package_selector);
@@ -380,7 +378,6 @@ async fn resolve_added_dependency<'a>(
                     config,
                     http_client,
                     pinned_version,
-                    lockfile_only,
                     lockfile,
                     manifest,
                     meta_cache,
@@ -394,12 +391,20 @@ async fn resolve_added_dependency<'a>(
                         .get_or_try_init(|| {
                             std::future::ready(
                                 PickPolicy::from_config(config)
-                                    .map(|policy| LatestPicker::new(config, http_client, policy))
+                                    .map(|policy| {
+                                        LatestPicker::new(
+                                            config,
+                                            http_client,
+                                            policy,
+                                            std::sync::Arc::clone(meta_cache),
+                                            std::sync::Arc::clone(fetch_locker),
+                                        )
+                                    })
                                     .map_err(AddError::MinimumReleaseAgeExclude),
                             )
                         })
                         .await?
-                        .resolve(package_name, lockfile_only)
+                        .resolve(package_name, false)
                         .await
                         .map_err(|error| AddError::ResolveLatest {
                             name: package_name.to_string(),
@@ -464,7 +469,6 @@ async fn resolve_explicit_registry_spec(
     config: &Config,
     http_client: &ThrottledClient,
     pinned_version: PinnedVersion,
-    lockfile_only: bool,
     lockfile: Option<&Lockfile>,
     manifest: &PackageManifest,
     meta_cache: &InMemoryPackageMetaCache,
@@ -514,7 +518,7 @@ async fn resolve_explicit_registry_spec(
         // `latest` satisfies it; forcing the `latest` tag in would wrongly
         // bump a narrower spec (`~7.0.0`, `7.0.0`) past its own bound.
         include_latest_tag: false,
-        dry_run: lockfile_only,
+        dry_run: false,
         optional: false,
         update_checksums: false,
         blocked_versions: None,
