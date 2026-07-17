@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { createPeerDepGraphHash, depPathToFilename, parseDepPath, type PeerId } from '@pnpm/deps.path'
+import { createPeerDepGraphHash, depPathToFilename, getPkgIdWithPatchHash, parseDepPath, type PeerId } from '@pnpm/deps.path'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import type {
   DepPath,
@@ -30,6 +30,8 @@ import type {
 } from './resolveDependencies.js'
 import type { ResolvedImporters } from './resolveDependencyTree.js'
 
+type ResolvedPeerId = ({ peerId: PeerId } | { depPath: DepPath }) & { nodeId: NodeId }
+
 export interface BaseGenericDependenciesGraphNode {
   // at this point the version is really needed only for logging
   modules: string
@@ -42,6 +44,8 @@ export interface BaseGenericDependenciesGraphNode {
   isBuilt?: boolean
   isPure: boolean
   resolvedPeerNames: Set<string>
+  // Exact hash inputs, keyed by peer name, for recomputing this depPath.
+  resolvedPeerIds?: Map<string, ResolvedPeerId>
   requiresBuild?: boolean
 }
 
@@ -100,6 +104,8 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     peersSuffixMaxLength: number
     workspaceProjectIds: Set<string>
     resolvedPeerProviderPaths?: Map<NodeId, DepPath>
+    previousResolvedPeerNamesByNodeId?: Map<NodeId, Set<string>>
+    previousDependenciesGraph?: GenericDependenciesGraphWithResolvedChildren<T>
   }
 ): Promise<{
   dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<T>
@@ -109,11 +115,11 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
 }> {
   const depGraph: GenericDependenciesGraph<T> = {}
   const pathsByNodeId = new Map<NodeId, DepPath>()
+  const resolvedOwnPeerNamesByNodeId = new Map<NodeId, Set<string>>()
   const pathsByNodeIdPromises = new Map<NodeId, DeferredPromise<DepPath>>()
   const awaitedPeerNodeIdsByNodeId = new Map<NodeId, Set<NodeId>>()
   const peersCacheOwnerByNodeId = new Map<NodeId, NodeId>()
   const cycleBrokenNodeIds = new Set<NodeId>()
-  const depPathsByPkgId = new Map<PkgIdWithPatchHash, Set<DepPath>>()
   const nodeIdsByPreviousDepPath = opts.resolvedPeerProviderPaths == null
     ? new Map<DepPath, NodeId>()
     : getNodeIdsByPreviousDepPath(opts.dependenciesTree)
@@ -176,11 +182,11 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       parentNodeIds: [],
       parentDepPathsChain: [],
       pathsByNodeId,
+      resolvedOwnPeerNamesByNodeId,
       pathsByNodeIdPromises,
       awaitedPeerNodeIdsByNodeId,
       peersCacheOwnerByNodeId,
       cycleBrokenNodeIds,
-      depPathsByPkgId,
       nodeIdsByPreviousDepPath,
       resolvedPeerProviderPaths: opts.resolvedPeerProviderPaths,
       currentProviderSources,
@@ -258,6 +264,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       dependenciesByProjectId[id].set(alias, pathsByNodeId.get(nodeId)!)
     }
   }
+  const pathsByNodeIdBeforeDedupe = new Map(pathsByNodeId)
   if (opts.dedupeInjectedDeps) {
     dedupeInjectedDeps({
       dependenciesByProjectId,
@@ -269,20 +276,392 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       workspaceProjectIds: opts.workspaceProjectIds,
     })
   }
-  if (opts.dedupePeerDependents) {
-    const duplicates = Array.from(depPathsByPkgId.values()).filter((item) => item.size > 1)
-    const allDepPathsMap = deduplicateAll(depGraphWithResolvedChildren, duplicates)
-    for (const { id } of opts.projects) {
-      for (const [alias, depPath] of dependenciesByProjectId[id].entries()) {
-        dependenciesByProjectId[id].set(alias, allDepPathsMap[depPath] ?? depPath)
-      }
-    }
+  const deduplicatedDepPaths = opts.dedupePeerDependents
+    ? dedupePeerDependents(depGraphWithResolvedChildren, dependenciesByProjectId)
+    : {}
+  if (opts.previousResolvedPeerNamesByNodeId != null) {
+    dropSpuriousReusePeers({
+      depGraph: depGraphWithResolvedChildren,
+      pathsByNodeId,
+      pathsByNodeIdBeforeDedupe,
+      dependenciesByProjectId,
+      dependenciesTree: opts.dependenciesTree,
+      deduplicatedDepPaths,
+      previousDependenciesGraph: opts.previousDependenciesGraph,
+      resolvedOwnPeerNamesByNodeId,
+      previousResolvedPeerNamesByNodeId: opts.previousResolvedPeerNamesByNodeId,
+      projects: opts.projects,
+      dedupePeers: opts.dedupePeers,
+      peersSuffixMaxLength: opts.peersSuffixMaxLength,
+      virtualStoreDir: opts.virtualStoreDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+    })
   }
   return {
     dependenciesGraph: depGraphWithResolvedChildren,
     dependenciesByProjectId,
     peerDependencyIssuesByProjects,
     pathsByNodeId,
+  }
+}
+
+function dedupePeerDependents<T extends PartialResolvedPackage> (
+  depGraph: GenericDependenciesGraphWithResolvedChildren<T>,
+  dependenciesByProjectId: DependenciesByProjectId
+): Record<DepPath, DepPath> {
+  const depPathsByPkgId = new Map<PkgIdWithPatchHash, Set<DepPath>>()
+  for (const [depPath, node] of Object.entries(depGraph) as Array<[DepPath, T & GenericDependenciesGraphNodeWithResolvedChildren]>) {
+    const depPaths = depPathsByPkgId.get(node.pkgIdWithPatchHash)
+    if (depPaths == null) {
+      depPathsByPkgId.set(node.pkgIdWithPatchHash, new Set([depPath]))
+    } else {
+      depPaths.add(depPath)
+    }
+  }
+  const duplicates = Array.from(depPathsByPkgId.values()).filter((depPaths) => depPaths.size > 1)
+  const deduplicatedDepPaths = deduplicateAll(depGraph, duplicates)
+  for (const depPath of Object.keys(deduplicatedDepPaths) as DepPath[]) {
+    let deduplicatedDepPath = deduplicatedDepPaths[depPath]
+    while (
+      deduplicatedDepPaths[deduplicatedDepPath] != null &&
+      deduplicatedDepPaths[deduplicatedDepPath] !== deduplicatedDepPath
+    ) {
+      deduplicatedDepPath = deduplicatedDepPaths[deduplicatedDepPath]
+    }
+    deduplicatedDepPaths[depPath] = deduplicatedDepPath
+  }
+  for (const [depPath, deduplicatedDepPath] of Object.entries(deduplicatedDepPaths) as Array<[DepPath, DepPath]>) {
+    const node = depGraph[depPath]
+    const deduplicatedNode = depGraph[deduplicatedDepPath]
+    if (node == null || deduplicatedNode == null) continue
+    deduplicatedNode.depth = Math.min(deduplicatedNode.depth, node.depth)
+    deduplicatedNode.installable ||= node.installable
+  }
+  for (const dependencies of Object.values(dependenciesByProjectId)) {
+    for (const [alias, depPath] of dependencies) {
+      dependencies.set(alias, deduplicatedDepPaths[depPath] ?? depPath)
+    }
+  }
+  return deduplicatedDepPaths
+}
+
+// The locked-context reuse pass keeps a peer bound to the provider recorded in
+// the lockfile so a writable install does not rewrite still-valid dependency
+// instances. It finds that provider through a global lookup, so it can bind a
+// transitive (non-own) peer laterally to a provider in an unrelated subtree —
+// one the first (fresh) pass, and therefore `pnpm dedupe`, left unresolved.
+// That extra binding adds a peer suffix to the consumer that a fresh resolution
+// never produces, which is the lockfile drift in
+// https://github.com/pnpm/pnpm/issues/12756.
+//
+// Rather than stop the reuse pass from propagating the peer (which would forgo
+// the deduplication that resolving a shared provider can enable), this cleanup
+// runs after propagation and drops, per node, only the non-own peers the fresh
+// pass did not resolve for it. Own peers and genuinely reused contexts (a peer
+// the fresh pass also resolved, even to a different provider) are kept, so the
+// context-preservation the reuse pass exists for is untouched. Recomputing the
+// affected depPaths lets the now-canonical instances collapse onto their
+// deduplicated peers — the same result `pnpm dedupe` reaches — during a plain
+// `pnpm install`.
+function dropSpuriousReusePeers<T extends PartialResolvedPackage> (
+  opts: {
+    depGraph: GenericDependenciesGraphWithResolvedChildren<T>
+    pathsByNodeId: Map<NodeId, DepPath>
+    pathsByNodeIdBeforeDedupe: Map<NodeId, DepPath>
+    dependenciesByProjectId: DependenciesByProjectId
+    dependenciesTree: DependenciesTree<T>
+    deduplicatedDepPaths: Record<DepPath, DepPath>
+    previousDependenciesGraph?: GenericDependenciesGraphWithResolvedChildren<T>
+    resolvedOwnPeerNamesByNodeId: Map<NodeId, Set<string>>
+    previousResolvedPeerNamesByNodeId: Map<NodeId, Set<string>>
+    projects: ProjectToResolve[]
+    dedupePeers?: boolean
+    peersSuffixMaxLength: number
+    virtualStoreDir: string
+    virtualStoreDirMaxLength: number
+  }
+): void {
+  const { depGraph } = opts
+  const deduplicated = (depPath: DepPath): DepPath => opts.deduplicatedDepPaths[depPath] ?? depPath
+
+  // Include graph nodes reached through package children or peer hash inputs.
+  // The reuse pass can leave other intermediate instances behind; ignoring those
+  // keeps cleanup from seeing collisions with nodes that will be pruned anyway.
+  const reachable = new Set<DepPath>()
+  const peerHashNodeIds = new Set<NodeId>()
+  const reachableStack: DepPath[] = []
+  for (const deps of Object.values(opts.dependenciesByProjectId)) {
+    for (const depPath of deps.values()) {
+      if (!reachable.has(depPath)) {
+        reachable.add(depPath)
+        reachableStack.push(depPath)
+      }
+    }
+  }
+  while (reachableStack.length > 0) {
+    const depPath = reachableStack.pop()!
+    const node = depGraph[depPath]
+    if (node == null) continue
+    for (const childDepPath of Object.values<DepPath>(node.children)) {
+      if (!reachable.has(childDepPath)) {
+        reachable.add(childDepPath)
+        reachableStack.push(childDepPath)
+      }
+    }
+    for (const resolvedPeerId of node.resolvedPeerIds?.values() ?? []) {
+      peerHashNodeIds.add(resolvedPeerId.nodeId)
+      const peerDepPath = 'depPath' in resolvedPeerId
+        ? resolvedPeerId.depPath
+        : opts.pathsByNodeIdBeforeDedupe.get(resolvedPeerId.nodeId)
+      if (peerDepPath == null) continue
+      if (depGraph[peerDepPath] != null && !reachable.has(peerDepPath)) {
+        reachable.add(peerDepPath)
+        reachableStack.push(peerDepPath)
+      }
+    }
+  }
+
+  // Every tree node that resolves to each depPath. A peer is only spurious for a
+  // depPath when the fresh pass left it unresolved for *every* position the
+  // depPath represents — otherwise the depPath stands for a context where the
+  // peer is genuine and must be kept.
+  const reachableNodeIds = new Set<NodeId>()
+  const reachableNodeIdsStack: NodeId[] = []
+  for (const project of opts.projects) {
+    for (const alias of opts.dependenciesByProjectId[project.id].keys()) {
+      const nodeId = project.directNodeIdsByAlias.get(alias)
+      if (nodeId != null && opts.dependenciesTree.has(nodeId) && !reachableNodeIds.has(nodeId)) {
+        reachableNodeIds.add(nodeId)
+        reachableNodeIdsStack.push(nodeId)
+      }
+    }
+  }
+  for (const nodeId of peerHashNodeIds) {
+    if (opts.dependenciesTree.has(nodeId) && !reachableNodeIds.has(nodeId)) {
+      reachableNodeIds.add(nodeId)
+      reachableNodeIdsStack.push(nodeId)
+    }
+  }
+  while (reachableNodeIdsStack.length > 0) {
+    const nodeId = reachableNodeIdsStack.pop()!
+    const node = opts.dependenciesTree.get(nodeId)!
+    if (typeof node.children === 'function') continue
+    const children = node.children
+    for (const childNodeId of Object.values(children)) {
+      if (opts.dependenciesTree.has(childNodeId) && !reachableNodeIds.has(childNodeId)) {
+        reachableNodeIds.add(childNodeId)
+        reachableNodeIdsStack.push(childNodeId)
+      }
+    }
+  }
+  const nodeIdsByDepPath = new Map<DepPath, NodeId[]>()
+  for (const [nodeId, depPath] of opts.pathsByNodeIdBeforeDedupe.entries()) {
+    if (!reachableNodeIds.has(nodeId) && !peerHashNodeIds.has(nodeId)) continue
+    for (const indexedDepPath of new Set([depPath, deduplicated(depPath)])) {
+      let nodeIds = nodeIdsByDepPath.get(indexedDepPath)
+      if (nodeIds == null) {
+        nodeIds = []
+        nodeIdsByDepPath.set(indexedDepPath, nodeIds)
+      }
+      nodeIds.push(nodeId)
+    }
+  }
+
+  const spuriousPeersByDepPath = new Map<DepPath, Set<string>>()
+  for (const [depPath, node] of Object.entries(depGraph)) {
+    if (!reachable.has(depPath as DepPath)) continue
+    if (node.resolvedPeerNames.size === 0) continue
+    // Recomputing a depPath needs every resolved peer's original hash input. If any is
+    // missing the suffix cannot be rebuilt faithfully, so leave the node as-is.
+    if (node.resolvedPeerIds == null || node.resolvedPeerIds.size !== node.resolvedPeerNames.size) continue
+    const nodeIds = nodeIdsByDepPath.get(depPath as DepPath) ?? []
+    if (nodeIds.length === 0) continue
+    let spurious: Set<string> | undefined
+    for (const peerName of node.resolvedPeerNames) {
+      const resolvedAsOwnPeer = nodeIds.some((nodeId) => opts.resolvedOwnPeerNamesByNodeId.get(nodeId)?.has(peerName))
+      if (resolvedAsOwnPeer) continue
+      const genuine = nodeIds.some((nodeId) => opts.previousResolvedPeerNamesByNodeId.get(nodeId)?.has(peerName))
+      if (genuine) continue
+      spurious ??= new Set<string>()
+      spurious.add(peerName)
+    }
+    if (spurious != null) spuriousPeersByDepPath.set(depPath as DepPath, spurious)
+  }
+
+  if (spuriousPeersByDepPath.size === 0) return
+
+  const peerGraph: Array<[string, string[]]> = []
+  for (const [depPath, node] of Object.entries(depGraph) as Array<[DepPath, T & GenericDependenciesGraphNodeWithResolvedChildren]>) {
+    if (!reachable.has(depPath) || node.resolvedPeerIds == null) continue
+    const peerDepPaths = [...node.resolvedPeerIds.values()]
+      .flatMap((resolvedPeerId) => 'depPath' in resolvedPeerId ? [deduplicated(resolvedPeerId.depPath)] : [])
+    if (peerDepPaths.length > 0) {
+      peerGraph.push([depPath, peerDepPaths])
+    }
+  }
+  const { cycles: peerCycles } = analyzeGraph(peerGraph as unknown as Graph) as unknown as { cycles: DepPath[][] }
+  const cyclicDepPaths = new Set(peerCycles.flat())
+  for (const depPath of cyclicDepPaths) {
+    spuriousPeersByDepPath.delete(depPath)
+  }
+
+  // Recompute each node's depPath with its spurious peers removed. A depPath is
+  // a function of the kept peers' identifiers, and a non-deduped peer's
+  // identifier is the provider's own (possibly recomputed) depPath, so this
+  // memoized recursion mirrors how depPaths were first built while resolving
+  // provider remaps. A depPath already in progress is on a peer cycle; return
+  // it unchanged, matching how the first pass breaks such cycles.
+  const finalDepPathCache = new Map<DepPath, DepPath>()
+  const inProgress = new Set<DepPath>()
+  const finalDepPath = (depPath: DepPath): DepPath => {
+    const cached = finalDepPathCache.get(depPath)
+    if (cached != null) return cached
+    const node = depGraph[depPath]
+    if (node == null || cyclicDepPaths.has(depPath) || inProgress.has(depPath)) return depPath
+    // A node whose resolved peers cannot be fully recomputed (see above) keeps
+    // its depPath; recomputing from a partial set would drop real peers.
+    if (node.resolvedPeerNames.size > 0 && (node.resolvedPeerIds == null || node.resolvedPeerIds.size !== node.resolvedPeerNames.size)) {
+      return depPath
+    }
+    inProgress.add(depPath)
+    const spurious = spuriousPeersByDepPath.get(depPath)
+    const peerIds: PeerId[] = []
+    if (node.resolvedPeerIds != null) {
+      for (const [peerName, resolvedPeerId] of node.resolvedPeerIds.entries()) {
+        if (spurious?.has(peerName)) continue
+        peerIds.push('depPath' in resolvedPeerId
+          ? finalDepPath(resolvedPeerId.depPath)
+          : resolvedPeerId.peerId)
+      }
+    }
+    const suffix = peerIds.length === 0 ? '' : createPeerDepGraphHash(peerIds, opts.peersSuffixMaxLength)
+    const newDepPath = `${node.pkgIdWithPatchHash}${suffix}` as DepPath
+    inProgress.delete(depPath)
+    finalDepPathCache.set(depPath, newDepPath)
+    return newDepPath
+  }
+
+  const remap = new Map<DepPath, DepPath>()
+  for (const depPath of Object.keys(depGraph) as DepPath[]) {
+    if (!reachable.has(depPath)) continue
+    const newDepPath = finalDepPath(depPath)
+    if (newDepPath !== depPath) remap.set(depPath, newDepPath)
+  }
+
+  if (remap.size === 0) return
+
+  const remapped = (depPath: DepPath): DepPath => remap.get(depPath) ?? depPath
+
+  const candidatesByDepPath = new Map<DepPath, Array<{
+    children: Record<string, DepPath>
+    childKeys: Set<string>
+    depth: number
+    depPath: DepPath
+    installable: boolean
+  }>>()
+  for (const [depPath, node] of Object.entries(depGraph) as Array<[DepPath, T & GenericDependenciesGraphNodeWithResolvedChildren]>) {
+    if (!reachable.has(depPath)) continue
+    const newDepPath = remapped(depPath)
+    const spurious = spuriousPeersByDepPath.get(depPath)
+    const children = Object.fromEntries(
+      Object.entries<DepPath>(node.children)
+        .filter(([alias]) => !spurious?.has(alias))
+        .map(([alias, childDepPath]) => [alias, remapped(childDepPath)])
+    )
+    const childKeys = new Set(Object.entries(children).map(([alias, childDepPath]) => {
+      const normalizedChildDepPath = opts.dedupePeers && node.resolvedPeerNames.has(alias)
+        ? getPkgIdWithPatchHash(childDepPath)
+        : childDepPath
+      return `${alias}\0${normalizedChildDepPath}`
+    }))
+    const candidates = candidatesByDepPath.get(newDepPath)
+    const candidate = { children, childKeys, depth: node.depth, depPath, installable: node.installable }
+    if (candidates == null) {
+      candidatesByDepPath.set(newDepPath, [candidate])
+    } else {
+      candidates.push(candidate)
+    }
+  }
+  const winnerByDepPath = new Map<DepPath, DepPath>()
+  for (const [newDepPath, candidates] of candidatesByDepPath.entries()) {
+    const previousChildren = opts.previousDependenciesGraph?.[newDepPath]?.children
+    const preferredChildren = previousChildren == null
+      ? undefined
+      : Object.fromEntries(
+        Object.entries(previousChildren).map(([alias, childDepPath]) => [alias, remapped(deduplicated(childDepPath))])
+      )
+    const winner = pickPeerCleanupWinner(candidates, newDepPath, preferredChildren)
+    if (winner == null) return
+    winnerByDepPath.set(newDepPath, winner.depPath)
+  }
+
+  // Rebuild the graph under the recomputed depPaths. Reachable nodes are written
+  // last so a remapped reachable instance wins over any unreferenced node that
+  // happens to occupy its recomputed depPath. Nodes that collapse onto the same
+  // depPath are identical after dropping their spurious peers; a dropped peer's
+  // child entry is removed (it is already in transitivePeerDependencies) and
+  // every surviving child is remapped.
+  const newDepGraph: GenericDependenciesGraphWithResolvedChildren<T> = {}
+  for (const [depPath, node] of Object.entries(depGraph) as Array<[DepPath, T & GenericDependenciesGraphNodeWithResolvedChildren]>) {
+    if (reachable.has(depPath)) continue
+    newDepGraph[depPath] = {
+      ...node,
+      children: Object.fromEntries(
+        Object.entries(node.children).map(([alias, childDepPath]) => [alias, remapped(childDepPath)])
+      ),
+    }
+  }
+  for (const [depPath, node] of Object.entries(depGraph) as Array<[DepPath, T & GenericDependenciesGraphNodeWithResolvedChildren]>) {
+    if (!reachable.has(depPath)) continue
+    const newDepPath = remapped(depPath)
+    if (winnerByDepPath.get(newDepPath) !== depPath) continue
+    const spurious = spuriousPeersByDepPath.get(depPath)
+    const candidates = candidatesByDepPath.get(newDepPath)!
+    const children = candidates.find((candidate) => candidate.depPath === depPath)!.children
+    const depth = Math.min(...candidates.map((candidate) => candidate.depth))
+    const installable = candidates.some((candidate) => candidate.installable)
+    let resolvedPeerNames = node.resolvedPeerNames
+    let resolvedPeerIds = node.resolvedPeerIds
+    if (spurious != null) {
+      resolvedPeerNames = new Set([...node.resolvedPeerNames].filter((peerName) => !spurious.has(peerName)))
+      resolvedPeerIds = resolvedPeerIds == null
+        ? undefined
+        : new Map([...resolvedPeerIds].filter(([peerName]) => !spurious.has(peerName)))
+    }
+    if (resolvedPeerIds != null && !cyclicDepPaths.has(depPath)) {
+      resolvedPeerIds = new Map([...resolvedPeerIds].map(([peerName, resolvedPeerId]): [string, ResolvedPeerId] => {
+        if (!('depPath' in resolvedPeerId)) return [peerName, resolvedPeerId]
+        const depPath = remapped(resolvedPeerId.depPath)
+        return [peerName, { depPath, nodeId: resolvedPeerId.nodeId }]
+      }))
+    }
+    const modules = path.join(opts.virtualStoreDir, depPathToFilename(newDepPath, opts.virtualStoreDirMaxLength), 'node_modules')
+    newDepGraph[newDepPath] = {
+      ...node,
+      depPath: newDepPath,
+      children,
+      depth,
+      dir: safeJoinModulesDir(modules, node.name),
+      installable,
+      modules,
+      resolvedPeerNames,
+      resolvedPeerIds,
+    }
+  }
+
+  for (const depPath of Object.keys(depGraph) as DepPath[]) {
+    delete depGraph[depPath]
+  }
+  Object.assign(depGraph, newDepGraph)
+
+  for (const [nodeId, depPath] of opts.pathsByNodeId.entries()) {
+    opts.pathsByNodeId.set(nodeId, remapped(depPath))
+  }
+
+  for (const deps of Object.values(opts.dependenciesByProjectId)) {
+    for (const [alias, depPath] of deps.entries()) {
+      deps.set(alias, remapped(depPath))
+    }
   }
 }
 
@@ -470,6 +849,7 @@ type MissingPeers = Map<string, MissingPeerInfo>
 
 interface PeersCacheItem {
   depPath: DeferredPromise<DepPath>
+  resolvedOwnPeerNames: Set<string>
   resolvedPeers: Map<string, NodeId>
   missingPeers: MissingPeers
   // The node whose resolution created this entry and will resolve depPath.
@@ -486,6 +866,7 @@ interface PeersResolution {
 
 interface ResolvePeersContext {
   pathsByNodeId: Map<NodeId, DepPath>
+  resolvedOwnPeerNamesByNodeId: Map<NodeId, Set<string>>
   pathsByNodeIdPromises: Map<NodeId, DeferredPromise<DepPath>>
   // The await edges between dep path calculations, consumed by
   // breakDepPathAwaitCycles: which pathsByNodeIdPromises entries each node's
@@ -494,7 +875,6 @@ interface ResolvePeersContext {
   awaitedPeerNodeIdsByNodeId: Map<NodeId, Set<NodeId>>
   peersCacheOwnerByNodeId: Map<NodeId, NodeId>
   cycleBrokenNodeIds: Set<NodeId>
-  depPathsByPkgId?: Map<PkgIdWithPatchHash, Set<DepPath>>
   nodeIdsByPreviousDepPath: Map<DepPath, NodeId>
   resolvedPeerProviderPaths?: Map<NodeId, DepPath>
   currentProviderSources: CurrentProviderSource[]
@@ -650,6 +1030,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       })
     }
     ctx.peersCacheOwnerByNodeId.set(nodeId, hit.ownerNodeId)
+    ctx.resolvedOwnPeerNamesByNodeId.set(nodeId, hit.resolvedOwnPeerNames)
     return {
       missingPeers: hit.missingPeers,
       finishing: (async () => {
@@ -685,6 +1066,8 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       rootDir: ctx.rootDir,
       parentNodeIds,
     })
+  const resolvedOwnPeerNames = new Set(resolvedPeers.keys())
+  ctx.resolvedOwnPeerNamesByNodeId.set(nodeId, resolvedOwnPeerNames)
 
   const allResolvedPeers = unknownResolvedPeersOfChildren
   for (const [k, v] of resolvedPeers) {
@@ -718,6 +1101,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     cache = {
       missingPeers: allMissingPeers,
       depPath: pDefer(),
+      resolvedOwnPeerNames,
       resolvedPeers: allResolvedPeers,
       ownerNodeId: nodeId,
     }
@@ -733,20 +1117,22 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     addDepPathToGraph(resolvedPackage.pkgIdWithPatchHash as unknown as DepPath)
   } else {
     const peerIds: PeerId[] = []
+    const resolvedPeerIds = new Map<string, ResolvedPeerId>()
     const pendingPeers: PendingPeer[] = []
     for (const [alias, peerNodeId] of allResolvedPeers.entries()) {
-      const peerId = peerNodeIdToPeerId(alias, peerNodeId, ctx)
-      if (peerId != null) {
-        peerIds.push(peerId)
+      const resolvedPeerId = peerNodeIdToResolvedPeerId(alias, peerNodeId, ctx)
+      if (resolvedPeerId != null) {
+        resolvedPeerIds.set(alias, resolvedPeerId)
+        peerIds.push('depPath' in resolvedPeerId ? resolvedPeerId.depPath : resolvedPeerId.peerId)
       } else {
         pendingPeers.push({ alias, nodeId: peerNodeId })
       }
     }
     if (pendingPeers.length === 0) {
       const peerDepGraphHash = createPeerDepGraphHash(peerIds, ctx.peersSuffixMaxLength)
-      addDepPathToGraph(`${resolvedPackage.pkgIdWithPatchHash}${peerDepGraphHash}` as DepPath)
+      addDepPathToGraph(`${resolvedPackage.pkgIdWithPatchHash}${peerDepGraphHash}` as DepPath, resolvedPeerIds)
     } else {
-      calculateDepPathIfNeeded = calculateDepPath.bind(null, peerIds, pendingPeers)
+      calculateDepPathIfNeeded = calculateDepPath.bind(null, peerIds, resolvedPeerIds, pendingPeers)
     }
   }
 
@@ -759,6 +1145,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
 
   async function calculateDepPath (
     peerIds: PeerId[],
+    resolvedPeerIds: Map<string, ResolvedPeerId>,
     pendingPeerNodes: PendingPeer[],
     cycles: string[][]
   ): Promise<void> {
@@ -786,12 +1173,15 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
             const id = `${name}@${version}`
             ctx.cycleBrokenNodeIds.add(pendingPeer.nodeId)
             ctx.pathsByNodeIdPromises.get(pendingPeer.nodeId)?.resolve(id as DepPath)
+            resolvedPeerIds.set(pendingPeer.alias, { peerId: id, nodeId: pendingPeer.nodeId })
             return id
           }
           if (ctx.dedupePeers) {
             const peerNode = ctx.dependenciesTree.get(pendingPeer.nodeId)
             if (peerNode) {
-              return { name: peerNode.resolvedPackage.name, version: peerNode.resolvedPackage.version }
+              const peerId = { name: peerNode.resolvedPackage.name, version: peerNode.resolvedPackage.version }
+              resolvedPeerIds.set(pendingPeer.alias, { peerId, nodeId: pendingPeer.nodeId })
+              return peerId
             }
           }
           let awaitedPeerNodeIds = ctx.awaitedPeerNodeIdsByNodeId.get(nodeId)
@@ -800,24 +1190,27 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
             ctx.awaitedPeerNodeIdsByNodeId.set(nodeId, awaitedPeerNodeIds)
           }
           awaitedPeerNodeIds.add(pendingPeer.nodeId)
-          return ctx.pathsByNodeIdPromises.get(pendingPeer.nodeId)!.promise
+          const depPath = await ctx.pathsByNodeIdPromises.get(pendingPeer.nodeId)!.promise
+          resolvedPeerIds.set(
+            pendingPeer.alias,
+            ctx.cycleBrokenNodeIds.has(pendingPeer.nodeId)
+              ? { peerId: depPath, nodeId: pendingPeer.nodeId }
+              : { depPath, nodeId: pendingPeer.nodeId }
+          )
+          return depPath
         })
       ),
     ], ctx.peersSuffixMaxLength)
-    addDepPathToGraph(`${resolvedPackage.pkgIdWithPatchHash}${peerDepGraphHash}` as DepPath)
+    addDepPathToGraph(`${resolvedPackage.pkgIdWithPatchHash}${peerDepGraphHash}` as DepPath, resolvedPeerIds)
   }
 
-  function addDepPathToGraph (depPath: DepPath): void {
+  function addDepPathToGraph (
+    depPath: DepPath,
+    resolvedPeerIds?: Map<string, ResolvedPeerId>
+  ): void {
     cache?.depPath.resolve(depPath)
     ctx.pathsByNodeId.set(nodeId, depPath)
     ctx.pathsByNodeIdPromises.get(nodeId)!.resolve(depPath)
-    if (ctx.depPathsByPkgId != null) {
-      if (!ctx.depPathsByPkgId.has(resolvedPackage.pkgIdWithPatchHash)) {
-        ctx.depPathsByPkgId.set(resolvedPackage.pkgIdWithPatchHash, new Set([depPath]))
-      } else {
-        ctx.depPathsByPkgId.get(resolvedPackage.pkgIdWithPatchHash)!.add(depPath)
-      }
-    }
     const peerDependencies = { ...resolvedPackage.peerDependencies }
     if (!ctx.depGraph[depPath] || ctx.depGraph[depPath].depth > node.depth) {
       const modules = path.join(ctx.virtualStoreDir, depPathToFilename(depPath, ctx.virtualStoreDirMaxLength), 'node_modules')
@@ -850,9 +1243,47 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
         peerDependencies,
         transitivePeerDependencies,
         resolvedPeerNames: new Set(allResolvedPeers.keys()),
+        resolvedPeerIds,
       }
     }
   }
+}
+
+export function pickPeerCleanupWinner<T extends {
+  children: Record<string, DepPath>
+  childKeys: Set<string>
+  depPath: DepPath
+}> (
+  candidates: T[],
+  preferredDepPath?: DepPath,
+  preferredChildren?: Record<string, DepPath>
+): T | undefined {
+  const childrenSignature = (children: Record<string, DepPath> | undefined): string | undefined =>
+    children == null
+      ? undefined
+      : Object.entries(children)
+        .map(([alias, childDepPath]) => `${alias}=${childDepPath}`)
+        .sort()
+        .join('\n')
+  const preferredChildrenSignature = childrenSignature(preferredChildren)
+  return [...candidates]
+    .sort((candidate1, candidate2) => {
+      const preferredChildrenDiff =
+        Number(childrenSignature(candidate2.children) === preferredChildrenSignature) -
+        Number(childrenSignature(candidate1.children) === preferredChildrenSignature)
+      if (preferredChildrenSignature != null && preferredChildrenDiff !== 0) return preferredChildrenDiff
+      const preferredDiff =
+        Number(candidate2.depPath === preferredDepPath) - Number(candidate1.depPath === preferredDepPath)
+      if (preferredDiff !== 0) return preferredDiff
+      const countDiff = candidate2.childKeys.size - candidate1.childKeys.size
+      if (countDiff !== 0) return countDiff
+      return candidate1.depPath < candidate2.depPath ? -1 : candidate1.depPath > candidate2.depPath ? 1 : 0
+    })
+    .find((candidate) =>
+      candidates.every(({ childKeys }) =>
+        [...childKeys].every((childKey) => candidate.childKeys.has(childKey))
+      )
+    )
 }
 
 function getNodeIdsByPreviousDepPath<T> (dependenciesTree: DependenciesTree<T>): Map<DepPath, NodeId> {
@@ -1292,18 +1723,21 @@ function getLocationFromParentNodeIds<T> (
   }
 }
 
-function peerNodeIdToPeerId<T extends PartialResolvedPackage> (
+function peerNodeIdToResolvedPeerId<T extends PartialResolvedPackage> (
   alias: string,
   peerNodeId: NodeId,
   ctx: ResolvePeersContext & {
     dedupePeers?: boolean
     dependenciesTree: DependenciesTree<T>
   }
-): PeerId | undefined {
+): ResolvedPeerId | undefined {
   if (typeof peerNodeId === 'string' && peerNodeId.startsWith('link:')) {
     return {
-      name: alias,
-      version: linkPathToPeerVersion(peerNodeId.slice(5)),
+      peerId: {
+        name: alias,
+        version: linkPathToPeerVersion(peerNodeId.slice(5)),
+      },
+      nodeId: peerNodeId,
     }
   }
   if (ctx.dedupePeers) {
@@ -1311,10 +1745,17 @@ function peerNodeIdToPeerId<T extends PartialResolvedPackage> (
     // This eliminates nested peer suffixes like (foo@1.0.0(bar@2.0.0)).
     const peerNode = ctx.dependenciesTree.get(peerNodeId)
     if (peerNode) {
-      return { name: peerNode.resolvedPackage.name, version: peerNode.resolvedPackage.version }
+      return {
+        peerId: {
+          name: peerNode.resolvedPackage.name,
+          version: peerNode.resolvedPackage.version,
+        },
+        nodeId: peerNodeId,
+      }
     }
   }
-  return ctx.pathsByNodeId.get(peerNodeId)
+  const depPath = ctx.pathsByNodeId.get(peerNodeId)
+  return depPath == null ? undefined : { depPath, nodeId: peerNodeId }
 }
 
 interface ParentRefs {

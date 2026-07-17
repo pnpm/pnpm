@@ -287,7 +287,12 @@ export async function resolveDependencies (
     peersSuffixMaxLength: opts.peersSuffixMaxLength,
     workspaceProjectIds: new Set([...opts.allProjectIds, ...Object.keys(opts.wantedLockfile.importers)]),
   }
-  const initiallyResolvedPeers = await resolvePeers(peerResolutionOpts)
+  const hasLockedPeerContexts = treeHasLockedPeerContexts(dependenciesTree)
+  const initiallyResolvedPeers = await resolvePeers({
+    ...peerResolutionOpts,
+    dedupeInjectedDeps: hasLockedPeerContexts ? false : opts.dedupeInjectedDeps,
+    dedupePeerDependents: hasLockedPeerContexts ? false : opts.dedupePeerDependents,
+  })
   // A second pass reuses the peer contexts already recorded in the lockfile so a
   // writable install does not rewrite dependency instances whose locked provider
   // is still valid and present. It can only differ from the first pass for nodes
@@ -297,10 +302,12 @@ export async function resolveDependencies (
     dependenciesGraph,
     dependenciesByProjectId,
     peerDependencyIssuesByProjects,
-  } = treeHasLockedPeerContexts(dependenciesTree)
+  } = hasLockedPeerContexts
     ? await resolvePeers({
       ...peerResolutionOpts,
+      previousDependenciesGraph: initiallyResolvedPeers.dependenciesGraph,
       resolvedPeerProviderPaths: initiallyResolvedPeers.pathsByNodeId,
+      previousResolvedPeerNamesByNodeId: getResolvedPeerNamesByNodeId(initiallyResolvedPeers),
     })
     : initiallyResolvedPeers
 
@@ -450,6 +457,22 @@ function treeHasLockedPeerContexts (dependenciesTree: DependenciesTree<ResolvedP
     if (node.lockedPeerContext != null) return true
   }
   return false
+}
+
+function getResolvedPeerNamesByNodeId (
+  resolved: {
+    dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<ResolvedPackage>
+    pathsByNodeId: Map<NodeId, DepPath>
+  }
+): Map<NodeId, Set<string>> {
+  const resolvedPeerNamesByNodeId = new Map<NodeId, Set<string>>()
+  for (const [nodeId, depPath] of resolved.pathsByNodeId.entries()) {
+    const node = resolved.dependenciesGraph[depPath]
+    if (node != null && node.resolvedPeerNames.size > 0) {
+      resolvedPeerNamesByNodeId.set(nodeId, node.resolvedPeerNames)
+    }
+  }
+  return resolvedPeerNamesByNodeId
 }
 
 function addDirectDependenciesToLockfile (
