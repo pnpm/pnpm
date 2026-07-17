@@ -1,4 +1,4 @@
-import fs from 'node:fs'
+import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { expect, jest, test } from '@jest/globals'
@@ -53,7 +53,7 @@ test('readWantedLockfile()', async () => {
 test('readWantedLockfile() does not include lockfile content in parse errors', async () => {
   const projectPath = temporaryDirectory()
   const secret = 'aws_secret_access_key = marker-secret'
-  fs.writeFileSync(path.join(projectPath, 'pnpm-lock.yaml'), `[default]\n${secret}\n`)
+  await writeFile(path.join(projectPath, 'pnpm-lock.yaml'), `[default]\n${secret}\n`)
 
   const error = await readWantedLockfile(projectPath, { ignoreIncompatible: false }).catch((err: unknown) => err)
 
@@ -68,7 +68,7 @@ test('readWantedLockfile() does not include lockfile content in parse errors', a
 test('readWantedLockfile() does not use a YAML exception message when its reason is missing', async () => {
   const projectPath = temporaryDirectory()
   const secret = 'aws_secret_access_key = marker-secret'
-  fs.writeFileSync(path.join(projectPath, 'pnpm-lock.yaml'), 'broken')
+  await writeFile(path.join(projectPath, 'pnpm-lock.yaml'), 'broken')
   jest.spyOn(yaml, 'load').mockImplementationOnce(() => {
     throw {
       name: 'YAMLException',
