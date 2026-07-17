@@ -4388,6 +4388,7 @@ dependencies = [
  "pacquet-diagnostics",
  "pacquet-fs",
  "pacquet-package-manifest",
+ "pacquet-resolving-parse-wanted-dependency",
  "pipe-trait",
  "pretty_assertions",
  "serde",

@@ -60,6 +60,68 @@ fn matching_manifest_and_lockfile_satisfies() {
 }
 
 #[test]
+fn equivalent_git_specifiers_satisfy_manifest() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies:"
+        "      is-positive:"
+        "        specifier: git+https://github.com/kevva/is-positive.git#97edff6"
+        "        version: git+https://github.com/kevva/is-positive.git#97edff6"
+    })
+    .expect("parse fixture lockfile");
+    let importer = lockfile.root_project().expect("root importer present");
+    let (_dir, manifest) = manifest_from_json(
+        r#"{
+        "name": "x",
+        "version": "1.0.0",
+        "dependencies": {
+            "is-positive": "git://github.com/kevva/is-positive#97edff6"
+        }
+    }"#,
+    );
+    satisfies_package_manifest(importer, &manifest, &|_: &str| false)
+        .expect("equivalent git specifiers must satisfy the manifest");
+}
+
+#[test]
+fn different_git_specifiers_do_not_satisfy_manifest() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies:"
+        "      is-positive:"
+        "        specifier: git+https://github.com/kevva/is-positive.git#97edff6"
+        "        version: git+https://github.com/kevva/is-positive.git#97edff6"
+    })
+    .expect("parse fixture lockfile");
+    let importer = lockfile.root_project().expect("root importer present");
+    for specifier in [
+        "git+https://gitlab.com/kevva/is-positive.git#97edff6",
+        "git+https://github.com/kevva/different.git#97edff6",
+        "git+https://github.com/kevva/is-positive.git#different",
+    ] {
+        let (_dir, manifest) = manifest_from_json(&format!(
+            r#"{{
+            "name": "x",
+            "version": "1.0.0",
+            "dependencies": {{
+                "is-positive": "{specifier}"
+            }}
+        }}"#,
+        ));
+        let error = satisfies_package_manifest(importer, &manifest, &|_: &str| false)
+            .expect_err("different git specifiers must leave the manifest stale");
+        assert!(
+            matches!(error, StalenessReason::SpecifiersDiffer(_)),
+            "SPECIFIER: {specifier}\nERROR: {error:?}",
+        );
+    }
+}
+
+#[test]
 fn manifest_adds_dep_returns_specifier_diff() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
         "lockfileVersion: '9.0'"
@@ -574,6 +636,28 @@ fn check_settings_passes_when_catalog_snapshot_matches_config() {
         BTreeMap::from([("react".to_string(), "^18.2.0".to_string())]),
     )]);
     assert!(check_lockfile_settings_with_catalogs(&lockfile, settings_check(&catalogs)).is_ok());
+}
+
+#[test]
+fn check_settings_accepts_equivalent_git_catalog_specifiers() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "catalogs:"
+        "  default:"
+        "    is-positive:"
+        "      specifier: git+https://github.com/kevva/is-positive.git#97edff6"
+        "      version: git+https://github.com/kevva/is-positive.git#97edff6"
+    })
+    .expect("parse lockfile with catalogs");
+    let catalogs = Catalogs::from([(
+        "default".to_string(),
+        BTreeMap::from([(
+            "is-positive".to_string(),
+            "github:kevva/is-positive#97edff6".to_string(),
+        )]),
+    )]);
+    check_lockfile_settings_with_catalogs(&lockfile, settings_check(&catalogs))
+        .expect("equivalent git catalog specifiers must be current");
 }
 
 #[test]
