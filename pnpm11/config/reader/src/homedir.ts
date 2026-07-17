@@ -13,6 +13,7 @@ export function getHomedir (env: NodeJS.ProcessEnv = process.env, platform: stri
             return parts[5]
           }
         }
+        // cspell:disable-next-line
         throw new Error(`Failed to resolve home directory for SUDO_USER '${env.SUDO_USER}' via getent.`)
       } catch (err: any) { // eslint-disable-line
         throw new Error(`Failed to resolve home directory for SUDO_USER '${env.SUDO_USER}': ${err}`, { cause: err })
