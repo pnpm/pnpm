@@ -38,6 +38,11 @@ import { difference, zipWith } from 'ramda'
 
 import { depPathToRef } from './depPathToRef.js'
 import { getCatalogSnapshots } from './getCatalogSnapshots.js'
+import {
+  getDedupeOnlyLockedPeerUnions,
+  getLockedOptionalPeerUnionCandidates,
+  getPeersCacheBypassNodeIds,
+} from './getDedupeOnlyLockedPeerUnions.js'
 import { getWantedDependencies, type WantedDependency } from './getWantedDependencies.js'
 import type { NodeId } from './nextNodeId.js'
 import { createNodeIdForLinkedLocalPkg, type DependenciesTree, type UpdateMatchingFunction } from './resolveDependencies.js'
@@ -287,7 +292,18 @@ export async function resolveDependencies (
     peersSuffixMaxLength: opts.peersSuffixMaxLength,
     workspaceProjectIds: new Set([...opts.allProjectIds, ...Object.keys(opts.wantedLockfile.importers)]),
   }
-  const initiallyResolvedPeers = await resolvePeers(peerResolutionOpts)
+  const dedupeOnlyLockedPeerCandidates = opts.dedupePeerDependents
+    ? getLockedOptionalPeerUnionCandidates(dependenciesTree)
+    : new Map<NodeId, Map<string, DepPath>>()
+  const initiallyResolvedPeers = await resolvePeers({
+    ...peerResolutionOpts,
+    peersCacheBypassNodeIds: getPeersCacheBypassNodeIds(dependenciesTree, dedupeOnlyLockedPeerCandidates.keys()),
+  })
+  const dedupeOnlyLockedPeers = getDedupeOnlyLockedPeerUnions(
+    dependenciesTree,
+    initiallyResolvedPeers,
+    dedupeOnlyLockedPeerCandidates
+  )
   // A second pass reuses the peer contexts already recorded in the lockfile so a
   // writable install does not rewrite dependency instances whose locked provider
   // is still valid and present. It can only differ from the first pass for nodes
@@ -300,6 +316,8 @@ export async function resolveDependencies (
   } = treeHasLockedPeerContexts(dependenciesTree)
     ? await resolvePeers({
       ...peerResolutionOpts,
+      allowedLockedOptionalPeerNamesByNodeId: dedupeOnlyLockedPeers.peerNamesByNodeId,
+      peersCacheBypassNodeIds: dedupeOnlyLockedPeers.peersCacheBypassNodeIds,
       resolvedPeerProviderPaths: initiallyResolvedPeers.pathsByNodeId,
     })
     : initiallyResolvedPeers

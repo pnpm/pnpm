@@ -98,6 +98,7 @@ export type DependenciesTreeNode<T> = {
   installable: boolean
   dependencyNamesWhoseCurrentProviderMustWin?: Set<string>
   lockedPeerContext?: LockedPeerContext
+  parentNodeId?: NodeId
   previousDepPath?: DepPath
 } & ({
   resolvedPackage: T & { name: string, version: string }
@@ -147,6 +148,7 @@ export interface PendingNode {
   installable: boolean
   lockedPeerContext?: LockedPeerContext
   previousDepPath?: DepPath
+  parentNodeId?: NodeId
   parentIds: PkgResolutionId[]
 }
 
@@ -281,6 +283,7 @@ export interface PkgAddress extends PkgAddressOrLinkBase {
   saveCatalogName?: string
   lockedPeerContext?: LockedPeerContext
   previousDepPath?: DepPath
+  parentNodeId?: NodeId
   /**
    * A peer dependency provider attached to the root importer so that other
    * subtrees can reuse it. Its `nodeId` keeps pointing at the provider's
@@ -338,7 +341,7 @@ export interface ResolvedPackage {
   }
 }
 
-type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'rootDir' | 'optional' | 'pkgId' | 'resolvedVia' | 'lockedPeerContext' | 'previousDepPath'>
+type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'rootDir' | 'optional' | 'pkgId' | 'resolvedVia' | 'lockedPeerContext' | 'parentNodeId' | 'previousDepPath'>
 
 export type ParentPkgAliases = Record<string, PkgAddress | true>
 
@@ -1031,6 +1034,9 @@ async function resolveDependenciesOfDependency (
   const resolveDependencyResult = await resolveDependency(extendedWantedDep.wantedDependency, ctx, resolveDependencyOpts)
 
   if (resolveDependencyResult == null) return { resolveDependencyResult: null }
+  if (!resolveDependencyResult.isLinkedDependency) {
+    resolveDependencyResult.parentNodeId = options.parentPkg.nodeId
+  }
   if (resolveDependencyResult.isLinkedDependency) {
     ctx.dependenciesTree.set(createNodeIdForLinkedLocalPkg(ctx.lockfileDir, resolveDependencyResult.resolution.directory), {
       children: {},
@@ -1300,10 +1306,11 @@ function setDependencyTreeNodeWithCurrentChildren (
   }
 ): void {
   ctx.dependenciesTree.set(parentPkg.nodeId, {
-    children: () => buildTree(ctx, parentPkg.pkgId, parentIds, ctx.childrenByParentId[parentPkg.pkgId] ?? [], parentDepth + 1, parentPkg.installable),
+    children: () => buildTree(ctx, parentPkg.nodeId, parentPkg.pkgId, parentIds, ctx.childrenByParentId[parentPkg.pkgId] ?? [], parentDepth + 1, parentPkg.installable),
     depth: parentDepth,
     installable: parentPkg.installable,
     lockedPeerContext: parentPkg.lockedPeerContext,
+    parentNodeId: parentPkg.parentNodeId,
     previousDepPath: parentPkg.previousDepPath,
     resolvedPackage: ctx.resolvedPkgsById[parentPkg.pkgId],
   })
@@ -1324,7 +1331,7 @@ function updateChildrenResolutionNodes (
     if (nodeId === currentNodeId || nodeContext.pkgId !== pkgId) continue
     const node = ctx.dependenciesTree.get(nodeId)
     if (node == null || node.depth === -1) continue
-    node.children = () => buildTree(ctx, pkgId, nodeContext.parentIds, ctx.childrenByParentId[pkgId] ?? [], nodeContext.depth + 1, nodeContext.installable)
+    node.children = () => buildTree(ctx, nodeId, pkgId, nodeContext.parentIds, ctx.childrenByParentId[pkgId] ?? [], nodeContext.depth + 1, nodeContext.installable)
   }
 }
 
@@ -1335,6 +1342,7 @@ export function buildTree (
     resolvedPkgsById: ResolvedPkgsById
     skipped: Set<PkgResolutionId>
   },
+  parentNodeId: NodeId,
   parentId: PkgResolutionId,
   parentIds: PkgResolutionId[],
   children: Array<{ alias: string, id: PkgResolutionId }>,
@@ -1359,6 +1367,7 @@ export function buildTree (
     installable = installable || !ctx.skipped.has(child.id)
     ctx.dependenciesTree.set(childNodeId, {
       children: () => buildTree(ctx,
+        childNodeId,
         child.id,
         [...parentIds, child.id],
         ctx.childrenByParentId[child.id],
@@ -1367,6 +1376,7 @@ export function buildTree (
       ),
       depth,
       installable,
+      parentNodeId,
       resolvedPackage: ctx.resolvedPkgsById[child.id],
     })
   }
@@ -1484,6 +1494,7 @@ async function resolveChildren (
       })
       .map(({ alias }) => alias)),
     lockedPeerContext: parentPkg.lockedPeerContext,
+    parentNodeId: parentPkg.parentNodeId,
     previousDepPath: parentPkg.previousDepPath,
     resolvedPackage: ctx.resolvedPkgsById[parentPkg.pkgId],
   })
@@ -2174,6 +2185,7 @@ async function resolveDependency (
             parentIds: options.parentIds,
             installable,
             lockedPeerContext: currentPkg.lockedPeerContext,
+            parentNodeId: options.parentPkg.nodeId,
             previousDepPath: currentPkg.depPath,
             nodeId,
             resolvedPackage: ctx.resolvedPkgsById[pkgResponse.body.id],

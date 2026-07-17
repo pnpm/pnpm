@@ -99,6 +99,8 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     resolvedImporters: ResolvedImporters
     peersSuffixMaxLength: number
     workspaceProjectIds: Set<string>
+    allowedLockedOptionalPeerNamesByNodeId?: Map<NodeId, Set<string>>
+    peersCacheBypassNodeIds?: Set<NodeId>
     resolvedPeerProviderPaths?: Map<NodeId, DepPath>
   }
 ): Promise<{
@@ -115,7 +117,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
   const cycleBrokenNodeIds = new Set<NodeId>()
   const depPathsByPkgId = new Map<PkgIdWithPatchHash, Set<DepPath>>()
   const nodeIdsByPreviousDepPath = opts.resolvedPeerProviderPaths == null
-    ? new Map<DepPath, NodeId>()
+    ? new Map<DepPath, NodeId[]>()
     : getNodeIdsByPreviousDepPath(opts.dependenciesTree)
   const _createPkgsByName = createPkgsByName.bind(null, opts.dependenciesTree)
   const workspaceRootProject = opts.resolvePeersFromWorkspaceRoot && opts.projects.length > 1
@@ -182,6 +184,8 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       cycleBrokenNodeIds,
       depPathsByPkgId,
       nodeIdsByPreviousDepPath,
+      allowedLockedOptionalPeerNamesByNodeId: opts.allowedLockedOptionalPeerNamesByNodeId,
+      peersCacheBypassNodeIds: opts.peersCacheBypassNodeIds,
       resolvedPeerProviderPaths: opts.resolvedPeerProviderPaths,
       currentProviderSources,
       peersCache,
@@ -495,7 +499,9 @@ interface ResolvePeersContext {
   peersCacheOwnerByNodeId: Map<NodeId, NodeId>
   cycleBrokenNodeIds: Set<NodeId>
   depPathsByPkgId?: Map<PkgIdWithPatchHash, Set<DepPath>>
-  nodeIdsByPreviousDepPath: Map<DepPath, NodeId>
+  nodeIdsByPreviousDepPath: Map<DepPath, NodeId[]>
+  allowedLockedOptionalPeerNamesByNodeId?: Map<NodeId, Set<string>>
+  peersCacheBypassNodeIds?: Set<NodeId>
   resolvedPeerProviderPaths?: Map<NodeId, DepPath>
   currentProviderSources: CurrentProviderSource[]
 }
@@ -544,6 +550,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   if (node.depth === -1) return { resolvedPeers: new Map<string, NodeId>(), missingPeers: new Map<string, MissingPeerInfo>() }
   const resolvedPackage = node.resolvedPackage as T
   if (
+    !ctx.peersCacheBypassNodeIds?.has(nodeId) &&
     ctx.purePkgs.has(resolvedPackage.pkgIdWithPatchHash) &&
     ctx.depGraph[resolvedPackage.pkgIdWithPatchHash as unknown as DepPath].depth <= node.depth &&
     Object.keys(resolvedPackage.peerDependencies).length === 0
@@ -590,12 +597,27 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       }
     }
   }
+  const nonPropagatingPeerNames = new Set<string>()
   if (node.lockedPeerContext != null && ctx.resolvedPeerProviderPaths != null) {
+    const lockedPeers: Array<{
+      isDedupeOnly: boolean
+      lockedPeer: ParentRef
+      peerName: string
+      peerNodeId: NodeId
+      previousPeerDepPath: DepPath
+    }> = []
     for (const [peerName, previousPeerDepPath] of Object.entries(node.lockedPeerContext)) {
-      const peerNodeId = ctx.nodeIdsByPreviousDepPath.get(previousPeerDepPath)
       const peerDependency = resolvedPackage.peerDependencies[peerName]
-      if (peerNodeId == null || peerDependency == null) continue
-      if (ctx.resolvedPeerProviderPaths?.get(peerNodeId) !== previousPeerDepPath) continue
+      if (peerDependency == null) continue
+      const providerWasVisible = parentPkgs[peerName] != null
+      const isDedupeOnly = peerDependency.optional === true && !providerWasVisible
+      if (
+        isDedupeOnly &&
+        !ctx.allowedLockedOptionalPeerNamesByNodeId?.get(nodeId)?.has(peerName)
+      ) continue
+      const peerNodeId = ctx.nodeIdsByPreviousDepPath.get(previousPeerDepPath)
+        ?.find((nodeId) => ctx.resolvedPeerProviderPaths?.get(nodeId) === previousPeerDepPath)
+      if (peerNodeId == null) continue
       // Only pin providers that have no peer context of their own. A provider
       // whose locked depPath carries a peer suffix is itself context-dependent
       // — and self-referential for cyclic peers — so reusing it can re-expand
@@ -617,6 +639,20 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
         parentNodeIds,
       }])[peerName]
       if (!semverUtils.satisfiesWithPrereleases(lockedPeer.version, peerDependency.version.replace(/^workspace:/, ''), true)) continue
+      lockedPeers.push({
+        isDedupeOnly,
+        lockedPeer,
+        peerName,
+        peerNodeId,
+        previousPeerDepPath,
+      })
+    }
+    const allowedPeerNames = ctx.allowedLockedOptionalPeerNamesByNodeId?.get(nodeId)
+    const applyDedupeOnlyContext = allowedPeerNames == null ||
+      [...allowedPeerNames].every((peerName) => lockedPeers.some((lockedPeer) => lockedPeer.peerName === peerName))
+    for (const { isDedupeOnly, lockedPeer, peerName, peerNodeId, previousPeerDepPath } of lockedPeers) {
+      if (isDedupeOnly && !applyDedupeOnlyContext) continue
+      if (isDedupeOnly) nonPropagatingPeerNames.add(peerName)
       const peerPathPromise = ctx.pathsByNodeIdPromises.get(peerNodeId) ?? pDefer<DepPath>()
       ctx.pathsByNodeIdPromises.set(peerNodeId, peerPathPromise)
       ctx.pathsByNodeId.set(peerNodeId, previousPeerDepPath)
@@ -633,7 +669,9 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       parentPkgs[peerName] = lockedPeer
     }
   }
-  const hit = findHit(ctx, parentPkgs, resolvedPackage.pkgIdWithPatchHash)
+  const hit = !ctx.peersCacheBypassNodeIds?.has(nodeId) && nonPropagatingPeerNames.size === 0
+    ? findHit(ctx, parentPkgs, resolvedPackage.pkgIdWithPatchHash)
+    : undefined
   if (hit != null) {
     for (const [peerName, { range: wantedRange, optional }] of hit.missingPeers.entries()) {
       if (ctx.peerDependencyIssues.missing[peerName] == null) {
@@ -691,6 +729,9 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     allResolvedPeers.set(k, v)
   }
   allResolvedPeers.delete(node.resolvedPackage.name)
+  const propagatedResolvedPeers = nonPropagatingPeerNames.size === 0
+    ? allResolvedPeers
+    : new Map([...allResolvedPeers].filter(([peerName]) => !nonPropagatingPeerNames.has(peerName)))
 
   const allMissingPeers = new Map<string, MissingPeerInfo>()
   for (const [peer, range] of missingPeersOfChildren.entries()) {
@@ -698,6 +739,13 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   }
   for (const [peer, range] of missingPeers.entries()) {
     allMissingPeers.set(peer, range)
+  }
+  // The peer is resolved for this package but remains transitive to its ancestors.
+  for (const peerName of nonPropagatingPeerNames) {
+    allMissingPeers.set(peerName, {
+      range: resolvedPackage.peerDependencies[peerName].version,
+      optional: true,
+    })
   }
 
   let cache: PeersCacheItem
@@ -709,7 +757,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   // see the full subtree, dropping their transitivePeerDependencies depending on
   // traversal order and churning the lockfile (https://github.com/pnpm/pnpm/issues/5108).
   const resolvedThroughCycle = ctx.parentDepPathsChain.includes(resolvedPackage.pkgIdWithPatchHash)
-  if (resolvedThroughCycle) {
+  if (resolvedThroughCycle || ctx.peersCacheBypassNodeIds?.has(nodeId)) {
     // Leave both caches untouched so later occurrences re-resolve (or hit the
     // authoritative entry of the same package) instead of reusing this partial one.
   } else if (isPure) {
@@ -751,7 +799,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   }
 
   return {
-    resolvedPeers: allResolvedPeers,
+    resolvedPeers: propagatedResolvedPeers,
     missingPeers: allMissingPeers,
     calculateDepPath: calculateDepPathIfNeeded,
     finishing,
@@ -855,11 +903,15 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   }
 }
 
-function getNodeIdsByPreviousDepPath<T> (dependenciesTree: DependenciesTree<T>): Map<DepPath, NodeId> {
-  const nodeIdsByPreviousDepPath = new Map<DepPath, NodeId>()
+function getNodeIdsByPreviousDepPath<T> (dependenciesTree: DependenciesTree<T>): Map<DepPath, NodeId[]> {
+  const nodeIdsByPreviousDepPath = new Map<DepPath, NodeId[]>()
   for (const [nodeId, node] of dependenciesTree.entries()) {
-    if (node.previousDepPath != null && !nodeIdsByPreviousDepPath.has(node.previousDepPath)) {
-      nodeIdsByPreviousDepPath.set(node.previousDepPath, nodeId)
+    if (node.previousDepPath == null) continue
+    const nodeIds = nodeIdsByPreviousDepPath.get(node.previousDepPath)
+    if (nodeIds == null) {
+      nodeIdsByPreviousDepPath.set(node.previousDepPath, [nodeId])
+    } else {
+      nodeIds.push(nodeId)
     }
   }
   return nodeIdsByPreviousDepPath

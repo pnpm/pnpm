@@ -321,12 +321,13 @@ export async function resolveDependencyTree<T> (
 
   for (const pendingNode of ctx.pendingNodes) {
     ctx.dependenciesTree.set(pendingNode.nodeId, {
-      children: () => buildTree(ctx, pendingNode.resolvedPackage.id,
+      children: () => buildTree(ctx, pendingNode.nodeId, pendingNode.resolvedPackage.id,
         pendingNode.parentIds,
         ctx.childrenByParentId[pendingNode.resolvedPackage.id], pendingNode.depth + 1, pendingNode.installable),
       depth: pendingNode.depth,
       installable: pendingNode.installable,
       lockedPeerContext: pendingNode.lockedPeerContext,
+      parentNodeId: pendingNode.parentNodeId,
       previousDepPath: pendingNode.previousDepPath,
       resolvedPackage: pendingNode.resolvedPackage,
     })

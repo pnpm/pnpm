@@ -8,9 +8,14 @@ import type {
   ProjectRootDir,
 } from '@pnpm/types'
 
+import {
+  getDedupeOnlyLockedPeerUnions,
+  getLockedOptionalPeerUnionCandidates,
+  getPeersCacheBypassNodeIds,
+} from '../lib/getDedupeOnlyLockedPeerUnions.js'
 import type { NodeId } from '../lib/nextNodeId.js'
 import type { ChildrenMap, DependenciesTreeNode, PeerDependencies } from '../lib/resolveDependencies.js'
-import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers.js'
+import { type PartialResolvedPackage, type ProjectToResolve, resolvePeers } from '../lib/resolvePeers.js'
 
 test('resolve peer dependencies of cyclic dependencies', async () => {
   const fooPkg = {
@@ -1111,6 +1116,480 @@ describe('locked peer provider preferences', () => {
 
     expect(preferred.dependenciesGraph['consumer/1.0.0(peer/1.0.0)' as DepPath]).toBeTruthy()
     expect(preferred.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeUndefined()
+  })
+
+  test('does not reuse a single invisible optional peer context', async () => {
+    const dependenciesTree = createTree()
+    dependenciesTree.get(consumerNodeId)!.resolvedPackage = {
+      ...consumerPkg,
+      peerDependencies: {
+        peer: { version: '>=1', optional: true },
+      },
+    }
+    const resolutionOpts = options(dependenciesTree, new Map([
+      ['retainer', retainerNodeId],
+      ['wrapper', wrapperNodeId],
+    ]))
+    const initial = await resolvePeers(resolutionOpts)
+    const preferred = await resolvePeers({
+      ...resolutionOpts,
+      resolvedPeerProviderPaths: initial.pathsByNodeId,
+    })
+
+    expect(preferred.dependenciesGraph['consumer/1.0.0' as DepPath]).toBeTruthy()
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeUndefined()
+  })
+
+  test('keeps a new locked optional-peer union available to dedupePeerDependents', async () => {
+    const wrapperANodeId = '>wrapper-a>' as NodeId
+    const consumerANodeId = '>wrapper-a>consumer>' as NodeId
+    const qNodeId = '>wrapper-a>q>' as NodeId
+    const wrapperBNodeId = '>wrapper-b>' as NodeId
+    const consumerBNodeId = '>wrapper-b>consumer>' as NodeId
+    const pNodeId = '>wrapper-b>p>' as NodeId
+    const wrapperCNodeId = '>wrapper-c>' as NodeId
+    const consumerCNodeId = '>wrapper-c>consumer>' as NodeId
+    const consumer = pkg('consumer', {
+      p: { version: '1.0.0', optional: true },
+      q: { version: '1.0.0', optional: true },
+    })
+    const dependenciesTree = new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+      [wrapperANodeId, node('wrapper-a', { consumer: consumerANodeId, q: qNodeId })],
+      [consumerANodeId, {
+        ...node(consumer),
+        lockedPeerContext: {
+          p: 'p/1.0.0' as DepPath,
+          q: 'q/1.0.0' as DepPath,
+        },
+        parentNodeId: wrapperANodeId,
+      }],
+      [qNodeId, { ...node('q'), previousDepPath: 'q/1.0.0' as DepPath }],
+      [wrapperBNodeId, node('wrapper-b', { consumer: consumerBNodeId, p: pNodeId })],
+      [consumerBNodeId, node(consumer)],
+      [pNodeId, { ...node('p'), previousDepPath: 'p/1.0.0' as DepPath }],
+      [wrapperCNodeId, node('wrapper-c', { consumer: consumerCNodeId })],
+      [consumerCNodeId, {
+        ...node(consumer),
+        lockedPeerContext: {
+          p: 'p/1.0.0' as DepPath,
+          q: 'q/1.0.0' as DepPath,
+        },
+        parentNodeId: wrapperCNodeId,
+      }],
+    ])
+    const resolutionOpts = {
+      allPeerDepNames: new Set(['p', 'q']),
+      dedupePeerDependents: true,
+      projects: [{
+        directNodeIdsByAlias: new Map([
+          ['wrapper-a', wrapperANodeId],
+          ['wrapper-b', wrapperBNodeId],
+          ['wrapper-c', wrapperCNodeId],
+        ]),
+        topParents: [],
+        rootDir: '' as ProjectRootDir,
+        id: '',
+      }],
+      resolvedImporters: {},
+      dependenciesTree,
+      virtualStoreDir: '',
+      virtualStoreDirMaxLength: 120,
+      lockfileDir: '',
+      peersSuffixMaxLength: 1000,
+      workspaceProjectIds: new Set<string>(),
+    }
+    const candidates = getLockedOptionalPeerUnionCandidates(dependenciesTree)
+    const initial = await resolvePeers({
+      ...resolutionOpts,
+      peersCacheBypassNodeIds: getPeersCacheBypassNodeIds(dependenciesTree, candidates.keys()),
+    })
+    const dedupeOnlyLockedPeers = getDedupeOnlyLockedPeerUnions(dependenciesTree, initial, candidates)
+    const preferred = await resolvePeers({
+      ...resolutionOpts,
+      allowedLockedOptionalPeerNamesByNodeId: dedupeOnlyLockedPeers.peerNamesByNodeId,
+      peersCacheBypassNodeIds: dedupeOnlyLockedPeers.peersCacheBypassNodeIds,
+      resolvedPeerProviderPaths: initial.pathsByNodeId,
+    })
+    const unionDepPath = 'consumer/1.0.0(p/1.0.0)(q/1.0.0)' as DepPath
+    const wrapperADepPath = preferred.dependenciesByProjectId[''].get('wrapper-a')!
+    const wrapperBDepPath = preferred.dependenciesByProjectId[''].get('wrapper-b')!
+
+    expect(preferred.dependenciesGraph[wrapperADepPath].children.consumer).toBe(unionDepPath)
+    expect(preferred.dependenciesGraph[wrapperBDepPath].children.consumer).toBe(unionDepPath)
+    expect(dedupeOnlyLockedPeers.peerNamesByNodeId.get(consumerANodeId)).toEqual(new Set(['p', 'q']))
+    expect(dedupeOnlyLockedPeers.peerNamesByNodeId.has(consumerCNodeId)).toBe(false)
+    expect(dedupeOnlyLockedPeers.peersCacheBypassNodeIds).toEqual(new Set([wrapperANodeId, consumerANodeId]))
+    expect(wrapperADepPath).toBe('wrapper-a/1.0.0')
+    expect(wrapperBDepPath).toBe('wrapper-b/1.0.0')
+    expect(preferred.dependenciesGraph[wrapperADepPath].transitivePeerDependencies).toContain('p')
+    expect(preferred.dependenciesGraph[wrapperBDepPath].transitivePeerDependencies).toContain('q')
+
+    function pkg (name: string, peerDependencies: PeerDependencies = {}): PartialResolvedPackage {
+      return {
+        name,
+        pkgIdWithPatchHash: `${name}/1.0.0` as PkgIdWithPatchHash,
+        version: '1.0.0',
+        peerDependencies,
+        id: '' as PkgResolutionId,
+      }
+    }
+
+    function node (
+      resolvedPackage: string | PartialResolvedPackage,
+      children: ChildrenMap = {}
+    ): DependenciesTreeNode<PartialResolvedPackage> {
+      return {
+        children,
+        installable: true,
+        resolvedPackage: typeof resolvedPackage === 'string' ? pkg(resolvedPackage) : resolvedPackage,
+        depth: 0,
+      }
+    }
+  })
+})
+
+describe('dedupe-only locked peer regressions', () => {
+  function pkg (
+    name: string,
+    peerDependencies: PeerDependencies = {},
+    version = '1.0.0'
+  ): PartialResolvedPackage {
+    return {
+      name,
+      version,
+      pkgIdWithPatchHash: `${name}/${version}` as PkgIdWithPatchHash,
+      peerDependencies,
+      id: '' as PkgResolutionId,
+    }
+  }
+
+  function project (
+    id: string,
+    dependencies: Array<[string, NodeId]>
+  ): ProjectToResolve {
+    return {
+      directNodeIdsByAlias: new Map(dependencies),
+      topParents: [],
+      rootDir: '' as ProjectRootDir,
+      id,
+    }
+  }
+
+  async function resolveTwoPass (
+    dependenciesTree: Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>,
+    projects: ProjectToResolve[],
+    peerNames: string[]
+  ) {
+    const opts = {
+      allPeerDepNames: new Set(peerNames),
+      dedupePeerDependents: true,
+      projects,
+      resolvedImporters: {},
+      dependenciesTree,
+      virtualStoreDir: '',
+      virtualStoreDirMaxLength: 120,
+      lockfileDir: '',
+      peersSuffixMaxLength: 1000,
+      workspaceProjectIds: new Set<string>(),
+    }
+    const candidates = getLockedOptionalPeerUnionCandidates(dependenciesTree)
+    const initial = await resolvePeers({
+      ...opts,
+      peersCacheBypassNodeIds: getPeersCacheBypassNodeIds(dependenciesTree, candidates.keys()),
+    })
+    const dedupeOnly = getDedupeOnlyLockedPeerUnions(dependenciesTree, initial, candidates)
+    const resolved = await resolvePeers({
+      ...opts,
+      allowedLockedOptionalPeerNamesByNodeId: dedupeOnly.peerNamesByNodeId,
+      peersCacheBypassNodeIds: dedupeOnly.peersCacheBypassNodeIds,
+      resolvedPeerProviderPaths: initial.pathsByNodeId,
+    })
+    return { dedupeOnly, resolved }
+  }
+
+  test.each(['unlocked-first', 'locked-first'] as const)(
+    'same-package parent retains the union with %s project order',
+    async (order) => {
+      const unlockedWrapper = 1 as NodeId
+      const unlockedConsumer = 2 as NodeId
+      const unlockedA = 3 as NodeId
+      const lockedWrapper = 4 as NodeId
+      const lockedConsumer = 5 as NodeId
+      const lockedA = 6 as NodeId
+      const supportingConsumer = 7 as NodeId
+      const bNodeId = 8 as NodeId
+      const consumer = pkg('consumer', {
+        a: { version: '*', optional: true },
+        b: { version: '*', optional: true },
+      })
+      const wrapper = pkg('wrapper')
+      const dependenciesTree = new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+        [unlockedWrapper, {
+          children: { consumer: unlockedConsumer, a: unlockedA },
+          installable: true,
+          resolvedPackage: wrapper,
+          depth: 0,
+        }],
+        [unlockedConsumer, {
+          children: {},
+          installable: true,
+          parentNodeId: unlockedWrapper,
+          resolvedPackage: consumer,
+          depth: 1,
+        }],
+        [unlockedA, {
+          children: {},
+          installable: true,
+          previousDepPath: 'a/1.0.0' as DepPath,
+          parentNodeId: unlockedWrapper,
+          resolvedPackage: pkg('a'),
+          depth: 1,
+        }],
+        [lockedWrapper, {
+          children: { consumer: lockedConsumer, a: lockedA },
+          installable: true,
+          resolvedPackage: wrapper,
+          depth: 0,
+        }],
+        [lockedConsumer, {
+          children: {},
+          installable: true,
+          lockedPeerContext: {
+            a: 'a/1.0.0' as DepPath,
+            b: 'b/1.0.0' as DepPath,
+          },
+          parentNodeId: lockedWrapper,
+          resolvedPackage: consumer,
+          depth: 1,
+        }],
+        [lockedA, {
+          children: {},
+          installable: true,
+          previousDepPath: 'a/1.0.0' as DepPath,
+          parentNodeId: lockedWrapper,
+          resolvedPackage: pkg('a'),
+          depth: 1,
+        }],
+        [supportingConsumer, {
+          children: {},
+          installable: true,
+          resolvedPackage: consumer,
+          depth: 0,
+        }],
+        [bNodeId, {
+          children: {},
+          installable: true,
+          previousDepPath: 'b/1.0.0' as DepPath,
+          resolvedPackage: pkg('b'),
+          depth: 0,
+        }],
+      ])
+      const unlockedProject = project('unlocked', [['wrapper', unlockedWrapper]])
+      const lockedProject = project('locked', [['wrapper', lockedWrapper]])
+      const orderedParents = order === 'unlocked-first'
+        ? [unlockedProject, lockedProject]
+        : [lockedProject, unlockedProject]
+      const { dedupeOnly, resolved } = await resolveTwoPass(
+        dependenciesTree,
+        [
+          project('support', [
+            ['consumer', supportingConsumer],
+            ['b', bNodeId],
+          ]),
+          ...orderedParents,
+        ],
+        ['a', 'b']
+      )
+      const union = 'consumer/1.0.0(a/1.0.0)(b/1.0.0)' as DepPath
+      const wrapperPath = resolved.dependenciesByProjectId.locked.get('wrapper')!
+
+      expect(dedupeOnly.peerNamesByNodeId.get(lockedConsumer)).toEqual(new Set(['a', 'b']))
+      expect(dedupeOnly.peersCacheBypassNodeIds).toEqual(new Set([lockedConsumer, lockedWrapper]))
+      expect(resolved.dependenciesGraph[wrapperPath].children.consumer).toBe(union)
+    }
+  )
+
+  const guardCases: Array<{
+    name: string
+    bVersion: string
+    bRange: string
+    bPath: DepPath
+    bPeers: PeerDependencies
+    includeQ: boolean
+  }> = [
+    {
+      name: 'peer-suffix guard',
+      bVersion: '1.0.0',
+      bRange: '*',
+      bPath: 'b/1.0.0(q/1.0.0)' as DepPath,
+      bPeers: { q: { version: '*' } },
+      includeQ: true,
+    },
+    {
+      name: 'semver guard',
+      bVersion: '2.0.0',
+      bRange: '^1.0.0',
+      bPath: 'b/2.0.0' as DepPath,
+      bPeers: {},
+      includeQ: false,
+    },
+  ]
+
+  test.each(guardCases)(
+    'rejects the whole approved union when the $name rejects one provider',
+    async ({ bVersion, bRange, bPath, bPeers, includeQ }) => {
+      const targetNodeId = '>target>consumer>' as NodeId
+      const supportingNodeId = '>support>consumer>' as NodeId
+      const aNodeId = '>target>a>' as NodeId
+      const bNodeId = '>support>b>' as NodeId
+      const cNodeId = '>support>c>' as NodeId
+      const qNodeId = '>support>q>' as NodeId
+      const consumer = pkg('consumer', {
+        a: { version: '*', optional: true },
+        b: { version: bRange, optional: true },
+        c: { version: '*', optional: true },
+      })
+      const dependenciesTree = new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+        [targetNodeId, {
+          children: {},
+          installable: true,
+          lockedPeerContext: {
+            a: 'a/1.0.0' as DepPath,
+            b: bPath,
+            c: 'c/1.0.0' as DepPath,
+          },
+          resolvedPackage: consumer,
+          depth: 0,
+        }],
+        [supportingNodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: consumer,
+          depth: 0,
+        }],
+        [aNodeId, {
+          children: {},
+          installable: true,
+          previousDepPath: 'a/1.0.0' as DepPath,
+          resolvedPackage: pkg('a'),
+          depth: 0,
+        }],
+        [bNodeId, {
+          children: {},
+          installable: true,
+          previousDepPath: bPath,
+          resolvedPackage: pkg('b', bPeers, bVersion),
+          depth: 0,
+        }],
+        [cNodeId, {
+          children: {},
+          installable: true,
+          previousDepPath: 'c/1.0.0' as DepPath,
+          resolvedPackage: pkg('c'),
+          depth: 0,
+        }],
+        [qNodeId, {
+          children: {},
+          installable: true,
+          previousDepPath: 'q/1.0.0' as DepPath,
+          resolvedPackage: pkg('q'),
+          depth: 0,
+        }],
+      ])
+      const supportingDependencies: Array<[string, NodeId]> = [
+        ['consumer', supportingNodeId],
+        ['b', bNodeId],
+        ['c', cNodeId],
+      ]
+      if (includeQ) supportingDependencies.push(['q', qNodeId])
+      const { dedupeOnly, resolved } = await resolveTwoPass(
+        dependenciesTree,
+        [
+          project('target', [
+            ['consumer', targetNodeId],
+            ['a', aNodeId],
+          ]),
+          project('support', supportingDependencies),
+        ],
+        ['a', 'b', 'c', 'q']
+      )
+
+      expect(dedupeOnly.peerNamesByNodeId.get(targetNodeId)).toEqual(new Set(['a', 'b', 'c']))
+      expect(resolved.dependenciesByProjectId.target.get('consumer'))
+        .toBe('consumer/1.0.0(a/1.0.0)' as DepPath)
+      expect(resolved.dependenciesGraph[
+        'consumer/1.0.0(a/1.0.0)(c/1.0.0)' as DepPath
+      ]).toBeUndefined()
+    }
+  )
+
+  test('rejects a union whose fresh contexts have incompatible children', async () => {
+    const targetNodeId = '>target>consumer>' as NodeId
+    const targetXNodeId = '>target>consumer>x>' as NodeId
+    const aNodeId = '>target>a>' as NodeId
+    const supportingNodeId = '>support>consumer>' as NodeId
+    const supportXNodeId = '>support>consumer>x>' as NodeId
+    const bNodeId = '>support>b>' as NodeId
+    const consumer = pkg('consumer', {
+      a: { version: '1.0.0', optional: true },
+      b: { version: '1.0.0', optional: true },
+    })
+    const dependenciesTree = new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+      [targetNodeId, {
+        children: { x: targetXNodeId },
+        installable: true,
+        lockedPeerContext: {
+          a: 'a/1.0.0' as DepPath,
+          b: 'b/1.0.0' as DepPath,
+        },
+        resolvedPackage: consumer,
+        depth: 0,
+      }],
+      [targetXNodeId, {
+        children: {},
+        installable: true,
+        resolvedPackage: pkg('x', {}, '1.0.0'),
+        depth: 1,
+      }],
+      [aNodeId, {
+        children: {},
+        installable: true,
+        previousDepPath: 'a/1.0.0' as DepPath,
+        resolvedPackage: pkg('a'),
+        depth: 0,
+      }],
+      [supportingNodeId, {
+        children: { x: supportXNodeId },
+        installable: true,
+        resolvedPackage: consumer,
+        depth: 0,
+      }],
+      [supportXNodeId, {
+        children: {},
+        installable: true,
+        resolvedPackage: pkg('x', {}, '2.0.0'),
+        depth: 1,
+      }],
+      [bNodeId, {
+        children: {},
+        installable: true,
+        previousDepPath: 'b/1.0.0' as DepPath,
+        resolvedPackage: pkg('b'),
+        depth: 0,
+      }],
+    ])
+    const { dedupeOnly, resolved } = await resolveTwoPass(
+      dependenciesTree,
+      [
+        project('target', [['consumer', targetNodeId], ['a', aNodeId]]),
+        project('support', [['consumer', supportingNodeId], ['b', bNodeId]]),
+      ],
+      ['a', 'b']
+    )
+
+    expect(dedupeOnly.peerNamesByNodeId.has(targetNodeId)).toBe(false)
+    expect(resolved.dependenciesByProjectId.target.get('consumer'))
+      .toBe('consumer/1.0.0(a/1.0.0)' as DepPath)
   })
 })
 
