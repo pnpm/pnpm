@@ -78,9 +78,22 @@ pub enum GitFetcherError {
     #[diagnostic(code(ERR_PNPM_INVALID_GIT_COMMIT))]
     InvalidCommit { commit: String, repo: String },
 
+    /// `resolution.repo` begins with `-`. Same class as
+    /// [`Self::InvalidCommit`]: git parses such a value as an option
+    /// rather than a repository, so `--upload-pack=<cmd>` reaches the
+    /// transport and runs `<cmd>`. The `--` end-of-options marker is
+    /// passed as well; this rejects the value outright rather than rely
+    /// on every subcommand honoring it.
+    #[display("Invalid git repository {repo:?}. A repository must not begin with '-'.")]
+    #[diagnostic(code(INVALID_GIT_REPOSITORY))]
+    InvalidRepo { repo: String },
+
     #[display("I/O error during git fetch: {_0}")]
     #[diagnostic(code(ERR_PNPM_GIT_FETCHER_IO))]
     Io(#[error(source)] std::io::Error),
+
+    #[diagnostic(transparent)]
+    ReadManifest(#[error(source)] pacquet_package_manifest::PackageManifestError),
 
     #[diagnostic(transparent)]
     Prepare(#[error(source)] PreparePackageError),

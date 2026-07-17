@@ -38,6 +38,7 @@ zune-inflate = { workspace = true }
 
 [dev-dependencies]
 dashmap           = { workspace = true, features = ["raw-api"] }
+flate2            = { workspace = true }
 mockito           = { workspace = true }
 pretty_assertions = { workspace = true }
 tempfile          = { workspace = true }

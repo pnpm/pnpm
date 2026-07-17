@@ -219,6 +219,10 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
                     package_id: &package_id,
                     auth_headers: &self.ctx.auth_headers,
                     retry_opts: self.ctx.retry_opts,
+                    // Only integrity is read off this fetch, and
+                    // git-hosted archives (the sole subdirectory-bearing
+                    // shape) are filtered out above.
+                    manifest_subdir: None,
                 }
                 .run::<SilentReporter>(Some(&self.ctx.mem_cache))
                 .await

@@ -1,10 +1,10 @@
 use crate::{
     AllowBuildPolicy, CreateVirtualStore, CreateVirtualStoreError, CreateVirtualStoreOutput,
-    GraphToLockfileOptions, HoistedDependencies, ImporterLockfileInput,
-    InstallPackageFromRegistryError, LinkRootComponentMembersError, LinkVirtualStoreBins,
-    LinkVirtualStoreBinsError, PrefetchContext, PrefetchingResolver, SkippedSnapshots,
-    SymlinkDirectDependencies, SymlinkDirectDependenciesError, VersionPolicyError,
-    VersionsOverrider, VirtualStoreLayout, dependencies_graph_to_lockfile,
+    DependenciesGraphToLockfileError, GraphToLockfileOptions, HoistedDependencies,
+    ImporterLockfileInput, InstallPackageFromRegistryError, LinkRootComponentMembersError,
+    LinkVirtualStoreBins, LinkVirtualStoreBinsError, PrefetchContext, PrefetchingResolver,
+    SkippedSnapshots, SymlinkDirectDependencies, SymlinkDirectDependenciesError,
+    VersionPolicyError, VersionsOverrider, VirtualStoreLayout, dependencies_graph_to_lockfile,
     link_root_component_members, store_init::init_store_dir_best_effort,
 };
 use dashmap::DashMap;
@@ -29,7 +29,7 @@ use pacquet_resolving_default_resolver::DefaultResolver;
 use pacquet_resolving_deps_resolver::{
     ManifestHook, ResolveDependencyTreeError, ResolveImporterError, ResolveImporterOptions,
 };
-use pacquet_resolving_git_resolver::{GitResolver, RealGitProbe, RealGitRunner};
+use pacquet_resolving_git_resolver::{GitFetchContext, GitResolver, RealGitProbe, RealGitRunner};
 use pacquet_resolving_local_resolver::{
     LocalPathResolver, LocalResolverContext, LocalSchemeResolver,
 };
@@ -294,6 +294,10 @@ pub enum InstallWithFreshLockfileError {
     #[display("Failed to resolve dependency tree: {_0}")]
     #[diagnostic(transparent)]
     ResolveDependencyTree(#[error(source)] ResolveDependencyTreeError),
+
+    #[display("Failed to build lockfile from resolved dependency graph: {_0}")]
+    #[diagnostic(code(pacquet_package_manager::dependencies_graph_to_lockfile))]
+    DependenciesGraphToLockfile(#[error(source)] Box<DependenciesGraphToLockfileError>),
 
     /// `minimumReleaseAgeExclude` patterns rejected at compile time.
     /// Surfaced as `ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE`.
@@ -682,10 +686,24 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             filter_metadata: full_metadata,
             retry_opts: crate::retry_config::retry_opts_from_config(config),
         });
+        // A git dep's specifier names a repo, not a package, so its
+        // name — the `<name>@` half of every lockfile key it reaches —
+        // is only readable from the package's own `package.json`, in
+        // the host's archive or (for a repo with no archive endpoint) a
+        // checkout. Hand the resolver the handles to read it, on the
+        // same rationale as the remote-tarball fetch below.
         let git_resolver = GitResolver::new(
             Arc::new(RealGitProbe::new(Arc::clone(&http_client_arc))),
             Arc::new(RealGitRunner::new()),
-        );
+        )
+        .with_fetch_context(GitFetchContext {
+            http_client: Arc::clone(&http_client_arc),
+            store_dir,
+            store_index_writer: Some(Arc::clone(&store_index_writer)),
+            auth_headers: Arc::clone(&auth_headers),
+            retry_opts: crate::retry_config::retry_opts_from_config(config),
+            git_shallow_hosts: config.git_shallow_hosts.clone(),
+        });
         // A remote (non-registry) tarball *direct* dependency carries no
         // name/version/integrity at resolve time — they live in the
         // tarball's `package.json`. The resolver downloads + extracts it
@@ -1375,7 +1393,10 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 catalogs: &catalogs,
                 pnpmfile_checksum: pnpmfile_checksum.as_deref(),
                 patched_dependency_hashes: patched_dependency_hashes.as_ref(),
-            });
+            })
+            .map_err(|error| {
+                InstallWithFreshLockfileError::DependenciesGraphToLockfile(Box::new(error))
+            })?;
             // `--dry-run` builds the would-be lockfile so the caller can
             // diff it, but never persists it. A plain `--lockfile-only`
             // writes it (unless `lockfile: false`).
@@ -1518,7 +1539,10 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             catalogs: &catalogs,
             pnpmfile_checksum: pnpmfile_checksum.as_deref(),
             patched_dependency_hashes: patched_dependency_hashes.as_ref(),
-        });
+        })
+        .map_err(|error| {
+            InstallWithFreshLockfileError::DependenciesGraphToLockfile(Box::new(error))
+        })?;
         tracing::info!(
             target: "pacquet::install::phase",
             phase = "build_fresh_lockfile",
@@ -2421,7 +2445,9 @@ struct FreshLockfileBuildOptions<'a> {
     patched_dependency_hashes: Option<&'a BTreeMap<String, String>>,
 }
 
-fn build_fresh_lockfile(opts: FreshLockfileBuildOptions<'_>) -> Lockfile {
+fn build_fresh_lockfile(
+    opts: FreshLockfileBuildOptions<'_>,
+) -> Result<Lockfile, DependenciesGraphToLockfileError> {
     let FreshLockfileBuildOptions {
         config,
         importer_manifests,

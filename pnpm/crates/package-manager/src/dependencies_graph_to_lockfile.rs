@@ -8,14 +8,15 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
+use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
 use pacquet_catalogs_types::Catalogs;
 use pacquet_lockfile::{
     CatalogSnapshots, ComVer, ImporterDepVersion, Lockfile, LockfileResolution, LockfileSettings,
-    LockfileVersion, PackageKey, PackageMetadata, PeerDependencyMeta, PkgName, PkgNameVerPeer,
-    PkgVerPeer, ProjectSnapshot, ResolvedCatalogEntry, ResolvedDependencyMap,
-    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry, VersionPart,
+    LockfileVersion, PackageKey, PackageMetadata, ParseImporterDepVersionError, PeerDependencyMeta,
+    PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, ResolvedCatalogEntry,
+    ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry, VersionPart,
 };
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_deps_resolver::{DepPath, DependenciesGraph, DependenciesGraphNode};
@@ -100,6 +101,21 @@ pub struct GraphToLockfileOptions<'a> {
     pub lockfile_include_tarball_url: bool,
 }
 
+/// Error returned while converting a resolver graph into a lockfile.
+#[derive(Debug, Display, Error)]
+#[non_exhaustive]
+pub enum DependenciesGraphToLockfileError {
+    #[display(
+        "Failed to serialize importer dependency {alias:?} from dependency path {dep_path:?}: {source}"
+    )]
+    ImporterDependency {
+        alias: String,
+        dep_path: String,
+        #[error(source)]
+        source: Box<ParseImporterDepVersionError>,
+    },
+}
+
 /// Build a [`Lockfile`] from the resolver's [`DependenciesGraph`] plus
 /// the per-importer context needed to populate the `importers:` map.
 ///
@@ -116,8 +132,9 @@ pub struct GraphToLockfileOptions<'a> {
 /// - `snapshots` carries one [`SnapshotEntry`] per *peer-suffixed*
 ///   depPath — peer variants of the same package each get their own
 ///   snapshot row.
-#[must_use]
-pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockfile {
+pub fn dependencies_graph_to_lockfile(
+    opts: GraphToLockfileOptions<'_>,
+) -> Result<Lockfile, DependenciesGraphToLockfileError> {
     let GraphToLockfileOptions {
         importers: importer_inputs,
         graph,
@@ -142,17 +159,17 @@ pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockf
         &optional_overrides,
         registry,
         lockfile_include_tarball_url,
-    );
+    )?;
 
     let mut importers: HashMap<String, ProjectSnapshot> =
         HashMap::with_capacity(importer_inputs.len());
     for (id, input) in &importer_inputs {
-        importers.insert(id.clone(), build_importer(input, graph, exclude_links_from_lockfile));
+        importers.insert(id.clone(), build_importer(input, graph, exclude_links_from_lockfile)?);
     }
 
     let catalog_snapshots = build_catalog_snapshots(&importers, catalogs);
 
-    Lockfile {
+    Ok(Lockfile {
         lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0))
             .expect("lockfileVersion 9.0 is always compatible with MAJOR=9"),
         settings: Some(LockfileSettings {
@@ -172,7 +189,7 @@ pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockf
         importers,
         packages: (!packages.is_empty()).then_some(packages),
         snapshots: (!snapshots.is_empty()).then_some(snapshots),
-    }
+    })
 }
 
 /// Build the lockfile's `catalogs:` snapshot from the resolved importers.
@@ -236,7 +253,7 @@ fn build_importer(
     input: &ImporterLockfileInput<'_>,
     graph: &DependenciesGraph,
     exclude_links_from_lockfile: bool,
-) -> ProjectSnapshot {
+) -> Result<ProjectSnapshot, DependenciesGraphToLockfileError> {
     let manifest = input.manifest;
     let direct = &input.direct_dependencies_by_alias;
 
@@ -271,7 +288,13 @@ fn build_importer(
             ImporterDepVersion::Link(target.to_string())
         } else {
             let Some(node) = graph.get(dep_path) else { continue };
-            importer_dep_version(alias, node)
+            importer_dep_version(alias, node).map_err(|source| {
+                DependenciesGraphToLockfileError::ImporterDependency {
+                    alias: alias.clone(),
+                    dep_path: dep_path.to_string(),
+                    source: Box::new(source),
+                }
+            })?
         };
         let spec = ResolvedDependencySpec { specifier: specifier.clone(), version };
         specifiers.insert(alias.clone(), specifier);
@@ -301,14 +324,14 @@ fn build_importer(
         .and_then(Value::as_str)
         .map(str::to_string);
 
-    ProjectSnapshot {
+    Ok(ProjectSnapshot {
         specifiers: (!specifiers.is_empty()).then_some(specifiers),
         dependencies: (!dependencies.is_empty()).then_some(dependencies),
         dev_dependencies: (!dev_dependencies.is_empty()).then_some(dev_dependencies),
         optional_dependencies: (!optional_dependencies.is_empty()).then_some(optional_dependencies),
         dependencies_meta,
         publish_directory,
-    }
+    })
 }
 
 /// Map each direct-dep alias to the manifest group it appears in.
@@ -349,32 +372,32 @@ fn read_manifest_specifier(manifest: &PackageManifest, alias: &str) -> Option<St
 }
 
 /// Build the version cell for an importer-level dependency.
-fn importer_dep_version(alias: &str, node: &DependenciesGraphNode) -> ImporterDepVersion {
+fn importer_dep_version(
+    alias: &str,
+    node: &DependenciesGraphNode,
+) -> Result<ImporterDepVersion, ParseImporterDepVersionError> {
     let dep_path_str = node.dep_path.as_str();
 
     if let Some(target) = dep_path_str.strip_prefix("link:") {
-        return ImporterDepVersion::Link(target.to_string());
+        return Ok(ImporterDepVersion::Link(target.to_string()));
     }
     if let Some(target) = dep_path_str.strip_prefix("file:") {
         // An injected workspace dep reaches the `file:` arm (rather than
         // deduping back to `link:`) because its children weren't a subset
         // of the target project's direct deps, or `dedupeInjectedDeps` is off.
-        return ImporterDepVersion::File(target.to_string());
+        return Ok(ImporterDepVersion::File(target.to_string()));
     }
 
     let real_name = real_name(&node.resolve_result);
-    if let Some(real) = real_name.as_deref() {
-        let prefix = format!("{real}@");
-        if alias == real
-            && let Some(ver) = dep_path_str.strip_prefix(&prefix)
-            && let Ok(parsed) = ver.parse::<PkgVerPeer>()
-        {
-            return ImporterDepVersion::Regular(parsed);
-        }
+    if let Some(real) = real_name.as_deref()
+        && alias == real
+        && let Some(rest) = dep_path_str.strip_prefix(real)
+        && let Some(ver) = rest.strip_prefix('@')
+        && let Ok(parsed) = ver.parse::<PkgVerPeer>()
+    {
+        return Ok(ImporterDepVersion::Regular(parsed));
     }
-    let parsed = dep_path_str
-        .parse::<PkgNameVerPeer>()
-        .expect("dep paths produced by the resolver always parse as PkgNameVerPeer");
+    let parsed = dep_path_str.parse::<ImporterDepVersion>()?;
     // An injected workspace dep reaches this point as its full peered
     // dep path, `<name>@file:<path>(peers)` — the bare `file:` strip
     // above only matches peerless dep paths, and `real_name` is unset
@@ -384,14 +407,24 @@ fn importer_dep_version(alias: &str, node: &DependenciesGraphNode) -> ImporterDe
     // the alias equals the package name; a self-aliased ref would
     // double-prefix every consumer that composes `alias@version` into a
     // snapshot key (v11 readers, Bit's graph converter).
-    if parsed.name.to_string() == alias && matches!(parsed.suffix.version(), VersionPart::File(_)) {
-        let suffix = parsed.suffix.to_string();
+    if let ImporterDepVersion::Alias(parsed_alias) = &parsed
+        && match parsed_alias.name.scope.as_deref() {
+            Some(scope) => {
+                alias.strip_prefix('@').and_then(|unscoped| unscoped.split_once('/')).is_some_and(
+                    |(alias_scope, bare)| alias_scope == scope && bare == parsed_alias.name.bare,
+                )
+            }
+            None => alias == parsed_alias.name.bare,
+        }
+        && matches!(parsed_alias.suffix.version(), VersionPart::File(_))
+    {
+        let suffix = parsed_alias.suffix.to_string();
         let payload = suffix
             .strip_prefix("file:")
             .expect("a File version part always displays with the file: scheme");
-        return ImporterDepVersion::File(payload.to_string());
+        return Ok(ImporterDepVersion::File(payload.to_string()));
     }
-    ImporterDepVersion::Alias(parsed)
+    Ok(parsed)
 }
 
 /// `Some(real_name)` when the resolver produced a structured name; `None`
@@ -402,21 +435,20 @@ fn real_name(result: &ResolveResult) -> Option<String> {
         return Some(name_ver.name.to_string());
     }
     // `name_ver` is unset for resolutions that learn the canonical name
-    // from the fetched manifest. Read it for the two shapes whose `name@`
+    // from the fetched manifest. Read it for the shapes whose `name@`
     // prefix is stripped off the importer entry:
-    // - a remote (non-registry, non-git) http(s) tarball direct dep
-    //   (`<name>@<tarball-url>` -> `version: <url>`), and
+    // - a remote (non-registry) http(s) tarball direct dep
+    //   (`<name>@<tarball-url>` -> `version: <url>`), which a git-hosted
+    //   dep's host archive URL also is,
     // - a runtime dep (`<name>@runtime:<ver>`, a Variations resolution ->
     //   `version: runtime:<ver>`).
-    // Other manifest-only resolutions (`file:` / git) are deliberately
-    // left to the `None` path so their importer entries keep pacquet's
-    // current prefixed shape — bringing those in line is separate from
+    // `file:` resolutions are deliberately left to the `None` path so
+    // their importer entries keep pacquet's current prefixed shape —
+    // bringing those in line is separate from
     // <https://github.com/pnpm/pnpm/issues/12053>.
     let reads_name_from_manifest = match &result.resolution {
         LockfileResolution::Variations(_) => true,
-        LockfileResolution::Tarball(tarball) => {
-            tarball.git_hosted != Some(true) && is_remote_http_tarball(&tarball.tarball)
-        }
+        LockfileResolution::Tarball(tarball) => is_remote_http_tarball(&tarball.tarball),
         _ => false,
     };
     if !reads_name_from_manifest {
@@ -433,6 +465,9 @@ fn is_remote_http_tarball(tarball: &str) -> bool {
     tarball.starts_with("http:") || tarball.starts_with("https:")
 }
 
+type PackagesAndSnapshots =
+    (HashMap<PackageKey, PackageMetadata>, HashMap<PackageKey, SnapshotEntry>);
+
 /// Walk the depPath-keyed [`DependenciesGraph`] and emit the matching
 /// `(PackageMetadata, SnapshotEntry)` pair for each node — fanned out
 /// across the two top-level maps the v9 lockfile splits.
@@ -448,7 +483,7 @@ fn build_packages_and_snapshots(
     optional_overrides: &HashMap<DepPath, bool>,
     registry: &str,
     lockfile_include_tarball_url: bool,
-) -> (HashMap<PackageKey, PackageMetadata>, HashMap<PackageKey, SnapshotEntry>) {
+) -> Result<PackagesAndSnapshots, DependenciesGraphToLockfileError> {
     let mut packages: HashMap<PackageKey, PackageMetadata> = HashMap::new();
     let mut snapshots: HashMap<PackageKey, SnapshotEntry> = HashMap::new();
 
@@ -464,7 +499,7 @@ fn build_packages_and_snapshots(
         });
     }
 
-    (packages, snapshots)
+    Ok((packages, snapshots))
 }
 
 /// Build the per-`(name, version)` [`PackageMetadata`] block for the
