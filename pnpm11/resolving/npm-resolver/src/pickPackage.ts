@@ -288,38 +288,38 @@ export async function pickPackage (
   }
 
   return runLimited(pkgMirror, async (limit) => {
-    let metaCachedInStore: PackageMeta | null | undefined
+    let diskMeta: PackageMeta | null | undefined
     if (ctx.offline === true || ctx.preferOffline === true || opts.pickLowestVersion) {
-      metaCachedInStore = await limit(async () => loadMeta(pkgMirror))
+      diskMeta = await limit(async () => loadMeta(pkgMirror))
 
       if (ctx.offline) {
-        if (metaCachedInStore != null) {
+        if (diskMeta != null) {
           // maybeUpgradeAbbreviatedMetaForReleaseAge short-circuits when
           // offline, so a later in-memory cache hit returns this same meta
           // without any network access.
-          cacheDiskLoadedMeta(ctx.metaCache, cacheKey, metaCachedInStore)
+          cacheDiskLoadedMeta(ctx.metaCache, cacheKey, diskMeta)
           return {
-            meta: metaCachedInStore,
-            pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, metaCachedInStore),
+            meta: diskMeta,
+            pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, diskMeta),
           }
         }
 
         throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
       }
 
-      if (metaCachedInStore != null) {
+      if (diskMeta != null) {
         // Disk-cached meta may be abbreviated; upgrade for the maturity check
         // before letting pickMatchingVersionFinal warn-and-skip on missing time.
-        const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, spec, opts, metaCachedInStore)
-        metaCachedInStore = upgrade.meta
+        const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, spec, opts, diskMeta)
+        diskMeta = upgrade.meta
         if (upgrade.upgradedFrom != null) {
           // Persist so the next install skips this upgrade fetch entirely.
           if (!opts.dryRun) {
-            metaCachedInStore = persistUpgradedMeta(ctx, pkgMirror, upgrade.upgradedFrom)
+            diskMeta = persistUpgradedMeta(ctx, pkgMirror, upgrade.upgradedFrom)
           }
-          ctx.metaCache.set(cacheKey, metaCachedInStore)
+          ctx.metaCache.set(cacheKey, diskMeta)
         }
-        const pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, metaCachedInStore)
+        const pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, diskMeta)
         if (pickedPackage) {
           // A cache hit re-runs maybeUpgradeAbbreviatedMetaForReleaseAge, so
           // serving this meta from memory can't bypass the release-age
@@ -327,10 +327,10 @@ export async function pickPackage (
           // registry-validated upgraded meta, don't overwrite it with a
           // disk-sourced marking.
           if (upgrade.upgradedFrom == null) {
-            cacheDiskLoadedMeta(ctx.metaCache, cacheKey, metaCachedInStore)
+            cacheDiskLoadedMeta(ctx.metaCache, cacheKey, diskMeta)
           }
           return {
-            meta: metaCachedInStore,
+            meta: diskMeta,
             pickedPackage,
           }
         }
@@ -338,16 +338,16 @@ export async function pickPackage (
     }
 
     if (!opts.includeLatestTag && !opts.updateChecksums && spec.type === 'version') {
-      metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
+      diskMeta = diskMeta ?? await limit(async () => loadMeta(pkgMirror))
       // use the cached meta only if it has the required package version
       // otherwise it is probably out of date
-      if ((metaCachedInStore?.versions?.[spec.fetchSpec]) != null) {
+      if ((diskMeta?.versions?.[spec.fetchSpec]) != null) {
         try {
-          const pickedPackage = pickMatchingVersionFast(pickerOpts, spec, metaCachedInStore)
+          const pickedPackage = pickMatchingVersionFast(pickerOpts, spec, diskMeta)
           if (pickedPackage) {
-            cacheDiskLoadedMeta(ctx.metaCache, cacheKey, metaCachedInStore)
+            cacheDiskLoadedMeta(ctx.metaCache, cacheKey, diskMeta)
             return {
-              meta: metaCachedInStore,
+              meta: diskMeta,
               pickedPackage,
             }
           }
@@ -362,13 +362,13 @@ export async function pickPackage (
     if (opts.publishedBy && opts.publishedByExclude?.(spec.name) !== true) {
       const mtime = await limit(async () => getFileMtime(pkgMirror))
       if (mtime != null && mtime >= opts.publishedBy) {
-        metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
-        if (metaCachedInStore != null) {
+        diskMeta = diskMeta ?? await limit(async () => loadMeta(pkgMirror))
+        if (diskMeta != null) {
           try {
-            const pickedPackage = pickMatchingVersionFast(pickerOpts, spec, metaCachedInStore)
+            const pickedPackage = pickMatchingVersionFast(pickerOpts, spec, diskMeta)
             if (pickedPackage) {
               return {
-                meta: metaCachedInStore,
+                meta: diskMeta,
                 pickedPackage,
               }
             }
@@ -383,8 +383,8 @@ export async function pickPackage (
       // Load only the cache headers (etag, modified) for conditional request headers.
       // This avoids reading and parsing the full metadata file (which can be megabytes)
       // when the registry returns 200 and the old metadata would be discarded anyway.
-      const cacheHeaders = metaCachedInStore != null
-        ? { etag: metaCachedInStore.etag, modified: metaCachedInStore.modified ?? metaCachedInStore.time?.modified }
+      const cacheHeaders = diskMeta != null
+        ? { etag: diskMeta.etag, modified: diskMeta.modified ?? diskMeta.time?.modified }
         : await limit(async () => loadMetaHeaders(pkgMirror))
       const conditional = await ctx.fetch(spec.name, {
         authHeaderValue: opts.authHeaderValue,
@@ -398,8 +398,8 @@ export async function pickPackage (
       if (!conditional.notModified) return await persistFreshMeta(conditional)
 
       // 304: the cached mirror is still current.
-      metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
-      if (metaCachedInStore != null) return await serveValidatedMeta(metaCachedInStore)
+      diskMeta = diskMeta ?? await limit(async () => loadMeta(pkgMirror))
+      if (diskMeta != null) return await serveValidatedMeta(diskMeta)
 
       // The mirror vanished between the headers read and this read (concurrent
       // store cleanup, antivirus, ...), so the 304 now validates nothing. Ask
