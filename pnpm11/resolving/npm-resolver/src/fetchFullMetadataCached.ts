@@ -100,10 +100,10 @@ async function fetchMetadataCached (
   // conditional GET, then hand its meta back. Fire-and-forget — a cache-write
   // failure isn't a reason to fail the caller; the next install just won't get
   // the speedup.
-  function persistAndReturn (result: FetchMetadataResult): PackageMeta {
+  function persistAndReturn (fetched: FetchMetadataResult): PackageMeta {
     if (pkgMirror != null) {
-      saveMeta(pkgMirror, prepareJsonForDisk(result.meta, result.etag, result.jsonText)).catch(() => {})
+      saveMeta(pkgMirror, prepareJsonForDisk(fetched.meta, fetched.etag, fetched.jsonText)).catch(() => {})
     }
-    return result.meta
+    return fetched.meta
   }
 }
