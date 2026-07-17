@@ -2,6 +2,7 @@ use crate::{
     DirectoryResolution, ImporterDepVersion, Lockfile, LockfileResolution, PackageKey, PkgName,
     SnapshotDepRef,
 };
+use pacquet_diagnostics::miette::Diagnostic;
 use pretty_assertions::assert_eq;
 use tempfile::tempdir;
 use text_block_macros::text_block;
@@ -106,7 +107,15 @@ fn parse_error_does_not_include_lockfile_content() {
     let error = Lockfile::load_wanted_from_dir(dir.path()).expect_err("lockfile must be broken");
     let message = error.to_string();
 
-    assert!(message.contains("line 1, column 1"), "unexpected error: {message}");
+    assert_eq!(error.code().expect("diagnostic code").to_string(), "ERR_PNPM_BROKEN_LOCKFILE");
+    assert!(
+        message.starts_with(&format!(
+            r#"The lockfile at "{}" is broken: "#,
+            dir.path().join(Lockfile::FILE_NAME).display()
+        )),
+        "unexpected error: {message}",
+    );
+    assert!(message.contains("(1:1)"), "unexpected error: {message}");
     assert!(!message.contains(secret), "error included lockfile content: {message}");
     assert!(
         std::error::Error::source(&error).is_none(),

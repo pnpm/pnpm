@@ -11,7 +11,6 @@ import { mergeLockfileChanges } from '@pnpm/lockfile.merger'
 import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
 import type { ProjectId } from '@pnpm/types'
 import { comverToSemver } from 'comver-to-semver'
-import type { YAMLException } from 'js-yaml'
 import yaml from 'js-yaml'
 import semver from 'semver'
 import stripBom from 'strip-bom'
@@ -185,16 +184,30 @@ async function _read (
 
 function formatLockfileError (err: unknown): string {
   if (isYamlException(err)) {
-    const position = err.mark == null ? '' : ` (${err.mark.line + 1}:${err.mark.column + 1})`
-    return `${err.reason}${position}`
+    const reason = typeof err.reason === 'string' ? err.reason : 'Unable to parse YAML'
+    const line = err.mark?.line
+    const column = err.mark?.column
+    const position = typeof line === 'number' && Number.isFinite(line) &&
+      typeof column === 'number' && Number.isFinite(column)
+      ? ` (${line + 1}:${column + 1})`
+      : ''
+    return `${reason}${position}`
   }
   return util.types.isNativeError(err) ? err.message : String(err)
 }
 
-function isYamlException (err: unknown): err is YAMLException {
+function isYamlException (err: unknown): err is YamlExceptionLike {
   return typeof err === 'object' && err !== null &&
-    'name' in err && err.name === 'YAMLException' &&
-    'reason' in err && typeof err.reason === 'string'
+    'name' in err && err.name === 'YAMLException'
+}
+
+interface YamlExceptionLike {
+  name: 'YAMLException'
+  reason?: unknown
+  mark?: {
+    line?: unknown
+    column?: unknown
+  } | null
 }
 
 export function createLockfileObject (
