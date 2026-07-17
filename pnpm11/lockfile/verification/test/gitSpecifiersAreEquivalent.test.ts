@@ -14,6 +14,10 @@ test('recognizes equivalent git specifiers', () => {
     ['bitbucket:group/repository#main', 'git+https://bitbucket.org/group/repository.git#main'],
     ['kevva/is-positive#97edff6', 'https://github.com/kevva/is-positive.git#97edff6'],
     ['github:kevva/is-positive', 'GIT+HTTPS://github.com/kevva/is-positive.git'],
+    [
+      'git+https://GitHub.com/kevva/is-positive.git#97edff6',
+      'git+https://github.com/kevva/is-positive.git#97edff6',
+    ],
   ]) {
     expect(gitSpecifiersAreEquivalent(left, right)).toBe(true)
     expect(gitSpecifiersAreEquivalent(right, left)).toBe(true)
@@ -29,6 +33,7 @@ test('distinguishes different git specifiers', () => {
     'git+https://github.com/kevva/is-positive.git#different',
     'git+ssh://git@github.com/kevva/is-positive.git#97edff6',
     'https://example.com/not-a-git-dependency',
+    'git+https://github.com/kevva/Is-Positive.git#97edff6',
     '^1.0.0',
   ]) {
     expect(gitSpecifiersAreEquivalent(canonical, different)).toBe(false)

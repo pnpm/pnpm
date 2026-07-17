@@ -2,7 +2,8 @@
 ///
 /// Hosted shortcuts and bare GitHub shortcuts compare with `git://`,
 /// `git+https://`, and hosted `https://` forms after adding or removing the
-/// conventional `.git` suffix. Authentication-bearing, query-bearing, SSH,
+/// conventional `.git` suffix. Hostnames compare case-insensitively; the
+/// repository path and ref do not. Authentication-bearing, query-bearing, SSH,
 /// and plain HTTP specifiers remain distinct.
 #[must_use]
 pub fn git_specifiers_are_equivalent(left: &str, right: &str) -> bool {
@@ -52,10 +53,12 @@ fn normalize_url(specifier: &str) -> Option<String> {
     {
         return None;
     }
-    if scheme.eq_ignore_ascii_case("https") && !is_known_host(host) && !path.ends_with(".git") {
+    // Hostnames are case-insensitive; the repository path and ref are not.
+    let host = host.to_ascii_lowercase();
+    if scheme.eq_ignore_ascii_case("https") && !is_known_host(&host) && !path.ends_with(".git") {
         return None;
     }
-    normalize_parts(host, path, committish)
+    normalize_parts(&host, path, committish)
 }
 
 fn normalize_parts(host: &str, path: &str, committish: Option<&str>) -> Option<String> {

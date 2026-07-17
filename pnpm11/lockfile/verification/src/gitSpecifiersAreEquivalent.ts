@@ -21,8 +21,9 @@ export function dependencySpecifiersAreEqual (
  * Returns whether both inputs identify the same supported Git repository and
  * ref. Hosted shortcuts and bare GitHub shortcuts compare with `git://`,
  * `git+https://`, and hosted `https://` forms after adding or removing the
- * conventional `.git` suffix. Authentication-bearing, query-bearing, SSH, and
- * plain HTTP specifiers remain distinct.
+ * conventional `.git` suffix. Hostnames compare case-insensitively; the
+ * repository path and ref do not. Authentication-bearing, query-bearing, SSH,
+ * and plain HTTP specifiers remain distinct.
  */
 export function gitSpecifiersAreEquivalent (left: string, right: string): boolean {
   const normalizedLeft = normalizeGitSpecifier(left)
@@ -71,7 +72,8 @@ function normalizeUrl (specifier: string): string | undefined {
   const location = repository.slice(schemeEnd + '://'.length)
   const slash = location.indexOf('/')
   if (slash === -1) return undefined
-  const host = location.slice(0, slash)
+  // Hostnames are case-insensitive; the repository path and ref are not.
+  const host = location.slice(0, slash).toLowerCase()
   const path = location.slice(slash + 1)
   if (host === '' || host.includes('@') || host.includes('?') || /\s/.test(host)) return undefined
   if (scheme === 'https' && !KNOWN_HOSTS.has(host) && !path.endsWith('.git')) return undefined
