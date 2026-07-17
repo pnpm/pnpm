@@ -2000,11 +2000,11 @@ describe('locked peer provider preferences', () => {
       previousDependenciesGraph: initial.dependenciesGraph,
       previousResolvedPeerNamesByNodeId: resolvedPeerNamesByNodeId(initial),
     })
-    const peerfulConsumer = 'consumer/1.0.0(peer/1.0.0)' as DepPath
+    const consumerWithPeer = 'consumer/1.0.0(peer/1.0.0)' as DepPath
     const plainConsumer = 'consumer/1.0.0' as DepPath
     const holderWithConsumer = 'holder/1.0.0(consumer/1.0.0)' as DepPath
 
-    expect(initial.pathsByNodeId.get(injectedConsumerNodeId)).toBe(peerfulConsumer)
+    expect(initial.pathsByNodeId.get(injectedConsumerNodeId)).toBe(consumerWithPeer)
     expect(initial.pathsByNodeId.get(survivingConsumerNodeId)).toBe(plainConsumer)
     expect(cleaned.dependenciesByProjectId['']).toEqual(new Map([
       ['consumer', plainConsumer],
