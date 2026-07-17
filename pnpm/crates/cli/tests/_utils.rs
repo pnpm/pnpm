@@ -46,8 +46,9 @@ pub fn bravo_dep_mature_up_to_1_0_1_minimum_release_age() -> u64 {
 pub fn append_workspace_yaml_key(workspace: &Path, key: &str, value: impl std::fmt::Display) {
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    let key_prefix = format!("{key}:");
     assert!(
-        !yaml.contains(&format!("{key}:")),
+        !yaml.lines().any(|line| line.starts_with(&key_prefix)),
         "pnpm-workspace.yaml already has a `{key}:` key — update this helper",
     );
     if !yaml.ends_with('\n') {
