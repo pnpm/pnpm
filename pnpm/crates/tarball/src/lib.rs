@@ -29,6 +29,12 @@ use tokio::sync::{Notify, RwLock, Semaphore};
 use tracing::instrument;
 use zune_inflate::{DeflateDecoder, DeflateOptions, errors::InflateDecodeErrors};
 
+/// Ceiling on a single eager buffer reservation sized from untrusted
+/// archive metadata — `dist.unpackedSize` in registry metadata and an
+/// entry's `uncompressed_size` in a zip central directory. Both are
+/// attacker-controlled, and post-download work runs concurrently (see
+/// [`post_download_semaphore`]), so whatever one task reserves up front
+/// is multiplied across every task in flight.
 const MAX_UNTRUSTED_PREALLOC_BYTES: usize = 64 * 1024 * 1024;
 
 /// Cap on concurrent post-download tarball work (SHA-512 of the whole
@@ -456,6 +462,13 @@ fn read_local_tarball_error(
     }
 }
 
+/// Keep a `dist.unpackedSize` hint only while it stays within
+/// [`MAX_UNTRUSTED_PREALLOC_BYTES`]. An oversized hint is dropped rather
+/// than clamped to the ceiling: zune-inflate turns the hint into an
+/// infallible zero-filled `vec![0; hint]`, so clamping would let every
+/// package that overstates its size pin the whole ceiling up front.
+/// Dropping the hint costs only buffer growth: the decoder resizes as
+/// it goes, so a genuinely larger archive still decompresses.
 fn bounded_gzip_size_hint(unpacked_size: Option<usize>) -> Option<usize> {
     unpacked_size.filter(|&size| size <= MAX_UNTRUSTED_PREALLOC_BYTES)
 }
@@ -1016,11 +1029,10 @@ fn extract_zip_entries(
             continue;
         }
 
-        // Same allocation-safety shape as
-        // [`extract_tarball_entries`]: clamp the pre-allocation
-        // hint at 64 MiB so a maliciously huge `uncompressed_size`
-        // in the central directory can't crash the process before
-        // `read_to_end` has a chance to surface the real error.
+        // Clamped here rather than dropped as in `bounded_gzip_size_hint`:
+        // the `try_reserve` below surfaces a refused reservation as an
+        // error instead of aborting, so a capped hint stays useful for a
+        // large legitimate entry.
         let prealloc_hint = entry.size().min(MAX_UNTRUSTED_PREALLOC_BYTES as u64) as usize;
         let mut buffer = Vec::new();
         buffer.try_reserve(prealloc_hint).map_err(|err| TarballError::ReadZipEntries {
