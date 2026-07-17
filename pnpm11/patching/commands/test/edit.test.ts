@@ -112,7 +112,7 @@ describe('edit command', () => {
       fs.writeFileSync(trapPnpm, '', { mode: 0o755 })
 
       const symlinkDir = path.join(symlinkBase, 'hijacked-bin')
-      fs.symlinkSync(trapDir, symlinkDir, 'dir')
+      fs.symlinkSync(trapDir, symlinkDir, process.platform === 'win32' ? 'junction' : 'dir')
 
       const safePnpm = path.join(safeDir, 'pnpm')
       fs.writeFileSync(safePnpm, '', { mode: 0o755 })

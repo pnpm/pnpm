@@ -234,6 +234,7 @@ fn de_hardlink_dir(dir: &Path) -> io::Result<()> {
 
             tmp.as_file().set_permissions(owner_writable_permissions)?;
 
+            std::fs::remove_file(&path)?;
             tmp.persist(&path).map_err(|err| err.error)?;
         }
     }
