@@ -13,7 +13,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::Config;
 use pacquet_network::ThrottledClient;
-use pacquet_registry::PackageVersion;
+use pacquet_registry::{PackageTag, PackageVersion};
 use pacquet_resolving_npm_resolver::{
     InMemoryPackageMetaCache, PackumentFetchLocker, PickPackageError, PickPackageOptions,
     RegistryPackageSpec, pick_package, pick_registry_for_package, shared_packument_fetch_locker,
@@ -26,6 +26,9 @@ pub enum ResolveLatestError {
     #[diagnostic(transparent)]
     Pick(#[error(source)] Box<PickPackageError>),
 
+    #[diagnostic(transparent)]
+    Registry(#[error(source)] pacquet_registry::RegistryError),
+
     /// The packument carries no version behind the `latest` tag (nor a
     /// fallback pick) — e.g. every version was unpublished.
     #[display("no version found for the latest tag")]
@@ -35,10 +38,9 @@ pub enum ResolveLatestError {
 
 /// Maturity-aware picker for `latest` dist-tags (see the module docs for
 /// why). One instance per command run: every [`Self::resolve`] call shares
-/// the policy's single `minimumReleaseAge` cutoff instant plus one metadata
-/// cache, fetch locker, and registries map, so an `update --latest` run
-/// resolves all matched dependencies against the same view instead of
-/// re-fetching per call.
+/// the policy's single `minimumReleaseAge` cutoff instant and registries map,
+/// plus one metadata cache and fetch locker whenever policy-aware resolution
+/// needs the packument.
 pub(crate) struct LatestPicker<'a> {
     config: &'a Config,
     http_client: &'a ThrottledClient,
@@ -64,8 +66,9 @@ impl<'a> LatestPicker<'a> {
         }
     }
 
-    /// Resolve `package_name`'s `latest` dist-tag to a concrete version
-    /// through the same maturity-aware picker the install uses.
+    /// Resolve `package_name`'s `latest` dist-tag to a concrete version. The
+    /// default online path keeps the lightweight dist-tag endpoint; maturity
+    /// filtering and offline modes use the install-equivalent package picker.
     ///
     /// `dry_run` skips the metadata cache write-back (`--lockfile-only`).
     pub(crate) async fn resolve(
@@ -74,6 +77,22 @@ impl<'a> LatestPicker<'a> {
         dry_run: bool,
     ) -> Result<Arc<PackageVersion>, ResolveLatestError> {
         let registry = pick_registry_for_package(&self.registries, package_name, None);
+        if self.policy.published_by.is_none()
+            && self.policy.published_by_exclude.is_none()
+            && !self.config.offline
+            && !self.config.prefer_offline
+        {
+            return PackageVersion::fetch_from_registry(
+                package_name,
+                PackageTag::Latest,
+                self.http_client,
+                &registry,
+                &self.config.auth_headers,
+            )
+            .await
+            .map(Arc::new)
+            .map_err(ResolveLatestError::Registry);
+        }
         let spec = RegistryPackageSpec::latest_tag(package_name);
 
         let opts = PickPackageOptions {

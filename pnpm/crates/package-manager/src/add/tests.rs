@@ -22,6 +22,12 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
         .expect("create manifest");
 
     let mut default_registry = mockito::Server::new_async().await;
+    let default_latest = default_registry
+        .mock("GET", "/@private%2Ffoo/latest")
+        .with_status(500)
+        .expect(0)
+        .create_async()
+        .await;
     let default_packument = default_registry
         .mock("GET", "/@private%2Ffoo")
         .with_status(500)
@@ -31,6 +37,14 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
 
     let mut scoped_registry = mockito::Server::new_async().await;
     let scoped_registry_url = format!("{}/", scoped_registry.url());
+    let scoped_latest = scoped_registry
+        .mock("GET", "/@private%2Ffoo/latest")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(scoped_version_body(&scoped_registry_url))
+        .expect(1)
+        .create_async()
+        .await;
     let scoped_packument = scoped_registry
         .mock("GET", "/@private%2Ffoo")
         .with_status(200)
@@ -46,6 +60,7 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
     config.virtual_store_dir = virtual_store_dir;
     config.registry = format!("{}/", default_registry.url());
     config.registries.insert("@private".to_string(), scoped_registry_url);
+    config.minimum_release_age = None;
     let config = config.leak();
 
     let http_client = ThrottledClient::default();
@@ -71,8 +86,23 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
     .await
     .expect("add should resolve scoped package through scoped registry");
 
+    default_latest.assert_async().await;
     default_packument.assert_async().await;
+    scoped_latest.assert_async().await;
     scoped_packument.assert_async().await;
+}
+
+fn scoped_version_body(registry_url: &str) -> String {
+    format!(
+        r#"{{
+  "name": "@private/foo",
+  "version": "1.0.0",
+  "dist": {{
+    "integrity": "{SCOPED_TEST_INTEGRITY}",
+    "tarball": "{registry_url}@private/foo/-/foo-1.0.0.tgz"
+  }}
+}}"#,
+    )
 }
 
 fn scoped_package_body(registry_url: &str) -> String {
