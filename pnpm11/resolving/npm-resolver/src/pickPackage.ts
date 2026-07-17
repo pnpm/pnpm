@@ -379,78 +379,48 @@ export async function pickPackage (
       }
     }
 
-    try {
-      // Load only the cache headers (etag, modified) for conditional request headers.
-      // This avoids reading and parsing the full metadata file (which can be megabytes)
-      // when the registry returns 200 and the old metadata would be discarded anyway.
-      const cacheHeaders = metaCachedInStore != null
-        ? { etag: metaCachedInStore.etag, modified: metaCachedInStore.modified ?? metaCachedInStore.time?.modified }
-        : await limit(async () => loadMetaHeaders(pkgMirror))
-      let fetchResult = await ctx.fetch(spec.name, {
-        authHeaderValue: opts.authHeaderValue,
-        fullMetadata,
-        etag: cacheHeaders?.etag,
-        modified: cacheHeaders?.modified,
-        registry: opts.registry,
-      })
-
-      // 304 Not Modified — registry confirmed local cache is still fresh.
-      // Now we need the full metadata, so load it from disk.
-      if (fetchResult.notModified) {
-        metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
-        if (metaCachedInStore != null) {
-          // The registry just vouched that the cached packument equals its
-          // current one, so the validation clock restarts now: bump the
-          // mirror's mtime so the publishedBy freshness shortcut above can
-          // fire again on the next install. Without this, a mirror older
-          // than minimumReleaseAge re-validates on every subsequent
-          // install — a 304 never rewrites the file. Fire-and-forget: a
-          // read-only cache dir only costs another conditional request.
-          if (!opts.dryRun) {
-            const now = new Date()
-            fs.utimes(pkgMirror, now, now).catch(() => {})
-          }
-          // The cached metadata may be abbreviated (no per-version `time`).
-          // When minimumReleaseAge is active we need `time` for the maturity check,
-          // so upgrade to full metadata via a follow-up fetch when warranted.
-          // Without this, repeat installs of recently-modified packages would
-          // silently bypass the maturity check via the warn-and-skip fallback.
-          const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(
-            ctx, spec, opts, metaCachedInStore
-          )
-          metaCachedInStore = upgrade.meta
-          if (upgrade.upgradedFrom != null && !opts.dryRun) {
-            // Persist the upgraded full metadata to disk so subsequent installs
-            // skip this upgrade fetch entirely (the cached meta will then have
-            // `time` populated, so the upgrade condition won't trigger).
-            metaCachedInStore = persistUpgradedMeta(ctx, pkgMirror, upgrade.upgradedFrom)
-          }
-          ctx.metaCache.set(cacheKey, metaCachedInStore)
-          return {
-            meta: metaCachedInStore,
-            pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, metaCachedInStore),
-          }
-        }
-        // The mirror vanished between the headers read and this read
-        // (concurrent store cleanup, antivirus, ...), so the 304 now validates
-        // nothing. Ask again as a cold cache would, which the registry can
-        // only answer with a body or an error — never another 304.
-        fetchResult = await ctx.fetch(spec.name, {
-          authHeaderValue: opts.authHeaderValue,
-          cacheBypass: true,
-          fullMetadata,
-          registry: opts.registry,
-        })
-        if (fetchResult.notModified) throw notModifiedWithoutCacheError(spec.name)
+    // A 304 whose cached body is still on disk: the registry vouched the
+    // packument is current, so restart its validation clock, upgrade
+    // abbreviated -> full when the maturity check needs `time`, and serve it.
+    const serveValidatedMeta = async (cached: PackageMeta): Promise<{ meta: PackageMeta, pickedPackage: PackageInRegistry | null }> => {
+      // The registry just vouched that the cached packument equals its current
+      // one, so the validation clock restarts now: bump the mirror's mtime so
+      // the publishedBy freshness shortcut above can fire again on the next
+      // install. Without this, a mirror older than minimumReleaseAge
+      // re-validates on every subsequent install — a 304 never rewrites the
+      // file. Fire-and-forget: a read-only cache dir only costs another
+      // conditional request.
+      if (!opts.dryRun) {
+        const now = new Date()
+        fs.utimes(pkgMirror, now, now).catch(() => {})
       }
+      // The cached metadata may be abbreviated (no per-version `time`). When
+      // minimumReleaseAge is active we need `time` for the maturity check, so
+      // upgrade to full metadata via a follow-up fetch when warranted. Without
+      // this, repeat installs of recently-modified packages would silently
+      // bypass the maturity check via the warn-and-skip fallback.
+      const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, spec, opts, cached)
+      let meta = upgrade.meta
+      if (upgrade.upgradedFrom != null && !opts.dryRun) {
+        // Persist the upgraded full metadata to disk so subsequent installs
+        // skip this upgrade fetch entirely (the cached meta will then have
+        // `time` populated, so the upgrade condition won't trigger).
+        meta = persistUpgradedMeta(ctx, pkgMirror, upgrade.upgradedFrom)
+      }
+      ctx.metaCache.set(cacheKey, meta)
+      return {
+        meta,
+        pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, meta),
+      }
+    }
 
-      let meta = fetchResult.meta
-      let resultToSave: FetchMetadataResult = fetchResult
+    // A freshly downloaded 200 body: when minimumReleaseAge needs the
+    // per-version `time` an abbreviated document omits, upgrade to full
+    // metadata; then filter, persist to the mirror, and cache it.
+    const persistFreshMeta = async (fetched: FetchMetadataResult): Promise<{ meta: PackageMeta, pickedPackage: PackageInRegistry | null }> => {
+      let meta = fetched.meta
+      let resultToSave: FetchMetadataResult = fetched
 
-      // When minimumReleaseAge is active and we fetched abbreviated metadata,
-      // check if the package was recently modified and needs full metadata
-      // for per-version time-based filtering.
-      //
       // This two-step approach is intentional: abbreviated metadata is much smaller,
       // and most packages won't have been modified recently enough to need the full
       // document. We only upgrade to full metadata when the package's modification
@@ -516,6 +486,43 @@ export async function pickPackage (
         meta,
         pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, meta),
       }
+    }
+
+    try {
+      // Load only the cache headers (etag, modified) for conditional request headers.
+      // This avoids reading and parsing the full metadata file (which can be megabytes)
+      // when the registry returns 200 and the old metadata would be discarded anyway.
+      const cacheHeaders = metaCachedInStore != null
+        ? { etag: metaCachedInStore.etag, modified: metaCachedInStore.modified ?? metaCachedInStore.time?.modified }
+        : await limit(async () => loadMetaHeaders(pkgMirror))
+      const conditional = await ctx.fetch(spec.name, {
+        authHeaderValue: opts.authHeaderValue,
+        fullMetadata,
+        etag: cacheHeaders?.etag,
+        modified: cacheHeaders?.modified,
+        registry: opts.registry,
+      })
+      // 200 — the registry sent a fresh body; persist and return it. `await`
+      // keeps a persist-path failure inside this try's cached-meta fallback.
+      if (!conditional.notModified) return await persistFreshMeta(conditional)
+
+      // 304 Not Modified — the registry confirmed the mirror is still fresh, so
+      // serve the body it vouched for.
+      metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
+      if (metaCachedInStore != null) return await serveValidatedMeta(metaCachedInStore)
+
+      // The mirror vanished between the headers read and this read (concurrent
+      // store cleanup, antivirus, ...), so the 304 now validates nothing. Ask
+      // again as a cold cache would, which the registry can only answer with a
+      // body or an error — never another 304.
+      const refetched = await ctx.fetch(spec.name, {
+        authHeaderValue: opts.authHeaderValue,
+        cacheBypass: true,
+        fullMetadata,
+        registry: opts.registry,
+      })
+      if (refetched.notModified) throw notModifiedWithoutCacheError(spec.name)
+      return await persistFreshMeta(refetched)
     } catch (err: any) { // eslint-disable-line
       err.spec = spec
       const meta = await loadMeta(pkgMirror) // TODO: add test for this usecase
