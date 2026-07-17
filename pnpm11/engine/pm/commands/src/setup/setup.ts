@@ -188,7 +188,11 @@ export async function handler (
       removeLegacyHomeDirShims(opts.pnpmHomeDir)
       return renderSetupOutput(report)
     } finally {
-      process.env.HOME = originalHome
+      if (originalHome !== undefined) {
+        process.env.HOME = originalHome
+      } else {
+        delete process.env.HOME
+      }
     }
   } catch (err: any) { // eslint-disable-line
     switch (err.code) {

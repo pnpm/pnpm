@@ -9,6 +9,8 @@ export const npmDefaults = {
     process.platform === 'cygwin' ||
     !(process.getuid && process.setuid && process.getgid && process.setgid) ||
     process.getuid!() !== 0,
-  userconfig: path.resolve(getHomedir(), '.npmrc'),
+  get userconfig (): string {
+    return path.resolve(getHomedir(), '.npmrc')
+  },
   maxsockets: 50,
 }

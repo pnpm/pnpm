@@ -136,14 +136,22 @@ impl GetHomeDir for Host {
                 {
                     use std::ffi::CString;
                     if let Ok(c_user) = CString::new(sudo_user.clone()) {
-                        // SAFETY: calling getpwnam is safe and returns a pointer to a static struct or null.
-                        unsafe {
-                            let pw = libc::getpwnam(c_user.as_ptr());
-                            if !pw.is_null() {
-                                let c_str = std::ffi::CStr::from_ptr((*pw).pw_dir);
-                                if let Ok(s) = c_str.to_str() {
-                                    return Some(PathBuf::from(s));
-                                }
+                        let mut pw_buf: libc::passwd = unsafe { std::mem::zeroed() };
+                        let mut buf = vec![0; 4096];
+                        let mut result_ptr = std::ptr::null_mut();
+                        let status = unsafe {
+                            libc::getpwnam_r(
+                                c_user.as_ptr(),
+                                &mut pw_buf,
+                                buf.as_mut_ptr() as *mut libc::c_char,
+                                buf.len(),
+                                &mut result_ptr,
+                            )
+                        };
+                        if status == 0 && !result_ptr.is_null() && !pw_buf.pw_dir.is_null() {
+                            let pw_dir = unsafe { std::ffi::CStr::from_ptr(pw_buf.pw_dir) };
+                            if let Ok(path) = pw_dir.to_str() {
+                                return Some(PathBuf::from(path));
                             }
                         }
                     }
