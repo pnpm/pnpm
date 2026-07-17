@@ -173,6 +173,14 @@ export async function handler (
     createAliasScripts(binDir)
   }
   try {
+    const originalHome = process.env.HOME
+    if (process.env.SUDO_USER) {
+      if (process.platform === 'linux') {
+        process.env.HOME = path.join('/home', process.env.SUDO_USER)
+      } else if (process.platform === 'darwin') {
+        process.env.HOME = path.join('/Users', process.env.SUDO_USER)
+      }
+    }
     const report = await addDirToEnvPath(opts.pnpmHomeDir, {
       configSectionName: 'pnpm',
       proxyVarName: 'PNPM_HOME',
@@ -182,6 +190,7 @@ export async function handler (
     })
     writeGHActionsEnvFiles(opts.pnpmHomeDir, binDir)
     removeLegacyHomeDirShims(opts.pnpmHomeDir)
+    process.env.HOME = originalHome
     return renderSetupOutput(report)
   } catch (err: any) { // eslint-disable-line
     switch (err.code) {
