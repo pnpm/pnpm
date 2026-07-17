@@ -18,10 +18,14 @@ const LOCKFILE_READ_FLAGS = constants.O_RDONLY | (process.platform === 'win32' ?
  * Stops reading as soon as the second document separator is found.
  * Returns null if the file doesn't exist or doesn't start with "---\n".
  *
- * Follows a symlinked lockfile. Reading through a symlink is safe — planting one
- * already requires write access to the working tree — and build sandboxes stage
- * `pnpm-lock.yaml` as a symlink (https://github.com/pnpm/pnpm/issues/13073).
- * Only writes refuse a symlink; see {@link ensureLockfileIsNotSymlink}.
+ * Follows a symlinked lockfile, as build sandboxes stage `pnpm-lock.yaml`
+ * (https://github.com/pnpm/pnpm/issues/13073). Refusing it here bought nothing:
+ * `readWantedLockfile` reads the same file with a plain `readFile` and has always
+ * followed the link, and a hostile repo can commit a hostile lockfile as a plain
+ * file regardless — the content is untrusted either way.
+ *
+ * Writes are the real boundary and still refuse a symlink, because a write
+ * follows the link and lands on its target; see {@link ensureLockfileIsNotSymlink}.
  */
 export async function streamReadFirstYamlDocument (filePath: string, readBufferSize = READ_BUFFER_SIZE): Promise<string | null> {
   let fileHandle: FileHandle | undefined

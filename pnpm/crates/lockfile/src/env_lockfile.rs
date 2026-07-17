@@ -142,10 +142,12 @@ fn read_lockfile_to_string_no_follow(path: &Path) -> io::Result<Option<String>> 
     read_lockfile_to_string_with(path, open_lockfile_no_follow)
 }
 
-/// Reads a whole lockfile, following a symlink. Reading through one is safe —
-/// planting a symlink already requires write access to the working tree — and
-/// build sandboxes stage `pnpm-lock.yaml` as a symlink
-/// (<https://github.com/pnpm/pnpm/issues/13073>). Only writes refuse a symlink.
+/// Reads a whole lockfile, following a symlink, as build sandboxes stage
+/// `pnpm-lock.yaml` (<https://github.com/pnpm/pnpm/issues/13073>). Refusing it
+/// here bought nothing: the main lockfile is loaded with an ordinary read that
+/// follows the link anyway, and a hostile repo can commit a hostile lockfile as
+/// a plain file regardless — the content is untrusted either way. Writes are the
+/// real boundary and still refuse a symlink, since a write lands on its target.
 fn read_lockfile_to_string(path: &Path) -> io::Result<Option<String>> {
     read_lockfile_to_string_with(path, |path| File::open(path))
 }
