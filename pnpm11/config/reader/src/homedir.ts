@@ -3,8 +3,15 @@ import os from 'node:os'
 
 import { PnpmError } from '@pnpm/error'
 
+const sudoHomedirCache = new Map<string, string>()
+
 export function getHomedir (env: NodeJS.ProcessEnv = process.env, platform: string = process.platform): string {
   if (env.SUDO_USER && env.SUDO_USER !== 'root') {
+    const cacheKey = `${platform}:${env.SUDO_USER}`
+    if (sudoHomedirCache.has(cacheKey)) {
+      return sudoHomedirCache.get(cacheKey)!
+    }
+
     if (platform === 'linux') {
       try {
         // cspell:disable-next-line
@@ -12,7 +19,9 @@ export function getHomedir (env: NodeJS.ProcessEnv = process.env, platform: stri
         if (result.status === 0 && result.stdout) {
           const parts = result.stdout.split(':')
           if (parts.length >= 6) {
-            return parts[5]
+            const homedir = parts[5]
+            sudoHomedirCache.set(cacheKey, homedir)
+            return homedir
           }
         }
         // cspell:disable-next-line
@@ -27,7 +36,9 @@ export function getHomedir (env: NodeJS.ProcessEnv = process.env, platform: stri
         if (result.status === 0 && result.stdout) {
           const match = result.stdout.match(/NFSHomeDirectory:\s*(.+)/)
           if (match) {
-            return match[1].trim()
+            const homedir = match[1].trim()
+            sudoHomedirCache.set(cacheKey, homedir)
+            return homedir
           }
         }
         throw new PnpmError('SUDO_HOME_DIR_RESOLUTION', `Failed to resolve home directory for SUDO_USER '${env.SUDO_USER}' via dscl.`)
