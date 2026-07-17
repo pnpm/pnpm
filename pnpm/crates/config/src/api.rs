@@ -129,8 +129,7 @@ impl EnvVarOs for Host {
 
 impl GetHomeDir for Host {
     fn home_dir() -> Option<PathBuf> {
-        if let Ok(sudo_user) = std::env::var("SUDO_USER") {
-            if sudo_user != "root" {
+        if let Ok(sudo_user) = std::env::var("SUDO_USER").map(|u| u.trim().to_string()).filter(|u| u != "root") {
                 #[cfg(all(unix, not(target_os = "cygwin")))]
                 {
                     use std::ffi::CString;
@@ -146,9 +145,8 @@ impl GetHomeDir for Host {
                             }
                         }
                     }
-                    panic!("Failed to resolve home directory for SUDO_USER '{}'", sudo_user);
+                    panic!("Failed to resolve home directory for SUDO_USER '{sudo_user}'");
                 }
-            }
         }
         home::home_dir()
     }
