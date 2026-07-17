@@ -989,6 +989,38 @@ fn merge_filtered_wanted_lockfile_rejects_a_missing_selected_importer() {
 }
 
 #[test]
+fn merge_filtered_wanted_lockfile_keeps_a_dependency_free_importer() {
+    // A dependency-free importer is *present-but-empty* in the fresh
+    // lockfile, not absent: pnpm's `pruneLockfile` records it as
+    // `{ specifiers: {} }` and the pnpr resolver returns every requested
+    // importer. So an unfiltered full-workspace merge that lists a dep-free
+    // project in `real_importer_ids` finds its empty snapshot and merges it
+    // without a `MissingImporter` error (that error is reserved for an
+    // importer genuinely absent from the fresh lockfile — a partial
+    // resolution — as the sibling test above covers).
+    let app_id = "packages/app".to_string();
+    let lib_id = "packages/lib".to_string();
+    let fresh_app = ProjectSnapshot {
+        dependencies: Some(importer_map(&[("dep", "1.0.0")])),
+        ..Default::default()
+    };
+    let mut fresh = lockfile_with_top_level("same", 0);
+    fresh.importers = HashMap::from([
+        (app_id.clone(), fresh_app.clone()),
+        (lib_id.clone(), ProjectSnapshot::default()),
+    ]);
+    fresh.snapshots = Some(HashMap::from([(key("dep", "1.0.0"), SnapshotEntry::default())]));
+
+    let all = HashSet::from([app_id.clone(), lib_id.clone()]);
+    let merged =
+        super::merge_filtered_wanted_lockfile(None, fresh, &all, &all, Path::new("/workspace"))
+            .expect("a dependency-free importer present as an empty snapshot must not error");
+
+    assert_eq!(merged.importers.get(&app_id), Some(&fresh_app));
+    assert_eq!(merged.importers.get(&lib_id), Some(&ProjectSnapshot::default()));
+}
+
+#[test]
 fn merge_filtered_current_lockfile_preserves_prior_importers_across_sequential_runs() {
     let first_id = "packages/first".to_string();
     let second_id = "packages/second".to_string();

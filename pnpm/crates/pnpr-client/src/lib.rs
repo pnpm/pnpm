@@ -410,9 +410,12 @@ impl PnprClient {
         // importers this request is about — the requested projects plus
         // whatever the input lockfile already carried — so a hostile server
         // cannot introduce dependencies for a project that was never sent.
-        // Only containment is checked, not presence: pnpm omits
-        // dependency-free importers, so a requested project may legitimately
-        // have no entry.
+        // This is a containment check (every returned importer was
+        // requested), which is the injection boundary; it deliberately does
+        // not require every requested importer to be present. A dependency-
+        // free importer is still present-but-empty (pnpm records it as
+        // `{ specifiers: {} }`), and a genuinely missing importer is surfaced
+        // downstream by the lockfile merge, not a way to inject dependencies.
         let permitted_importers: HashSet<String> = opts
             .projects
             .iter()
