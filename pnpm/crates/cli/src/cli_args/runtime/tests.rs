@@ -1,6 +1,10 @@
+use pacquet_config::Config;
 use pacquet_package_manifest::DependencyGroup;
+use pacquet_reporter::SilentReporter;
+use tempfile::tempdir;
 
 use super::{RuntimeArgs, RuntimeError};
+use crate::State;
 
 fn args(params: &[&str]) -> RuntimeArgs {
     RuntimeArgs {
@@ -91,6 +95,30 @@ fn set_request_accepts_every_supported_runtime() {
         let request = args(&["set", name, "22"]).set_request().unwrap();
         assert_eq!(request.package_name, format!("{name}@runtime:22"));
     }
+}
+
+/// `run` (the local, non-`-g` path) must actually reach the shared
+/// `add_package` pipeline with the request `set_request` built, not just
+/// build the request and stop. `offline` makes the node resolver fail
+/// fast (no network) as soon as it tries to resolve `node@runtime:22`,
+/// which only happens once `run` has handed the request off.
+#[tokio::test]
+async fn run_hands_the_set_request_off_to_add_package() {
+    let dir = tempdir().expect("temp dir");
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = dir.path().join("node_modules");
+    config.virtual_store_dir = config.modules_dir.join(".pacquet");
+    config.offline = true;
+    let config = config.leak();
+    let state = State::init(dir.path().join("package.json"), config, false).expect("init state");
+
+    let err = args(&["set", "node", "22"])
+        .run::<SilentReporter>(state)
+        .await
+        .expect_err("offline resolution must fail, not silently succeed");
+    let err = format!("{err:?}");
+    assert!(err.contains("Offline"), "expected the offline Node.js resolver error, got: {err}");
 }
 
 #[test]
