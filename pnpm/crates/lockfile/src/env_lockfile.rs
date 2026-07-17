@@ -14,7 +14,9 @@
 
 use crate::{
     LoadLockfileError, Lockfile, PackageKey, PackageMetadata, SaveLockfileError, SnapshotEntry,
-    extract_env_document, extract_main_document, serialize_yaml,
+    extract_env_document, extract_main_document,
+    save_lockfile::{ensure_lockfile_is_not_symlink, symlinked_lockfile_error},
+    serialize_yaml,
     yaml_documents::{YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START},
 };
 use pacquet_fs::write_atomic;
@@ -107,8 +109,7 @@ impl EnvLockfile {
     ///   importer (and its `configDependencies` map) exists.
     pub fn read(root_dir: &Path) -> Result<Option<Self>, LoadLockfileError> {
         let path = root_dir.join(Lockfile::FILE_NAME);
-        let Some(content) =
-            read_lockfile_to_string_no_follow(&path).map_err(LoadLockfileError::ReadFile)?
+        let Some(content) = read_lockfile_to_string(&path).map_err(LoadLockfileError::ReadFile)?
         else {
             return Ok(None);
         };
@@ -138,7 +139,20 @@ impl EnvLockfile {
 }
 
 fn read_lockfile_to_string_no_follow(path: &Path) -> io::Result<Option<String>> {
-    let mut file = match open_lockfile_no_follow(path) {
+    read_lockfile_to_string_with(path, open_lockfile_no_follow)
+}
+
+/// Reads a whole lockfile, following a symlink;
+/// [`ensure_lockfile_is_not_symlink`] covers why only writes refuse one.
+fn read_lockfile_to_string(path: &Path) -> io::Result<Option<String>> {
+    read_lockfile_to_string_with(path, |path| File::open(path))
+}
+
+fn read_lockfile_to_string_with(
+    path: &Path,
+    open_file: impl FnOnce(&Path) -> io::Result<File>,
+) -> io::Result<Option<String>> {
+    let mut file = match open_file(path) {
         Ok(file) => file,
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error),
@@ -146,7 +160,7 @@ fn read_lockfile_to_string_no_follow(path: &Path) -> io::Result<Option<String>> 
     let mut content = String::new();
     #[expect(
         clippy::verbose_file_reads,
-        reason = "Reading from the no-follow file handle avoids reopening the lockfile by path."
+        reason = "Reading from the caller's file handle avoids reopening the lockfile by path."
     )]
     file.read_to_string(&mut content)?;
     Ok(Some(content))
@@ -170,22 +184,6 @@ fn open_lockfile_no_follow(path: &Path) -> io::Result<File> {
 #[cfg(unix)]
 fn normalize_no_follow_error(path: &Path, error: io::Error) -> io::Error {
     if error.raw_os_error() == Some(libc::ELOOP) { symlinked_lockfile_error(path) } else { error }
-}
-
-fn ensure_lockfile_is_not_symlink(path: &Path) -> io::Result<()> {
-    match fs::symlink_metadata(path) {
-        Ok(metadata) if metadata.file_type().is_symlink() => Err(symlinked_lockfile_error(path)),
-        Ok(_) => Ok(()),
-        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error),
-    }
-}
-
-fn symlinked_lockfile_error(path: &Path) -> io::Error {
-    io::Error::new(
-        ErrorKind::InvalidInput,
-        format!("refusing to read or write symlinked lockfile at {}", path.display()),
-    )
 }
 
 #[cfg(test)]
