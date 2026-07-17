@@ -5,7 +5,6 @@ import {
   fetchMetadataFromFromRegistry,
   type FetchMetadataFromFromRegistryOptions,
   type FetchMetadataResult,
-  notModifiedWithoutCacheError,
 } from './fetch.js'
 import { getPkgMirrorPath, loadMeta, loadMetaHeaders, prepareJsonForDisk, saveMeta } from './pickPackage.js'
 
@@ -75,8 +74,10 @@ async function fetchMetadataCached (
   })
   if (!conditional.notModified) return persistAndReturn(conditional)
 
-  // 304: serve the mirror body the validators vouched for.
-  if (pkgMirror == null) throw notModifiedWithoutCacheError(pkgName)
+  // A 304 only resolves as `notModified` when a validator was sent, which
+  // requires cache headers loaded from a mirror — so a null mirror here is an
+  // unreachable invariant breach.
+  if (pkgMirror == null) throw new Error(`Unexpected 304 for ${pkgName} without a metadata cache`)
   const cached = await loadMeta(pkgMirror)
   if (cached != null) return cached
 
@@ -90,7 +91,9 @@ async function fetchMetadataCached (
     cacheBypass: true,
     fullMetadata: opts.fullMetadata,
   })
-  if (refetched.notModified) throw notModifiedWithoutCacheError(pkgName)
+  // Unreachable narrowing guard: the cache-bypassing request sends no validator,
+  // so fetchMetadataFromFromRegistry rejects a repeated 304 before returning.
+  if (refetched.notModified) throw new Error(`Unexpected 304 for ${pkgName} on a cache-bypassing refetch`)
   return persistAndReturn(refetched)
 
   // Persist a freshly downloaded body so the next install can do a headers-only

@@ -393,12 +393,11 @@ export async function pickPackage (
         modified: cacheHeaders?.modified,
         registry: opts.registry,
       })
-      // 200 — the registry sent a fresh body; persist and return it. `await`
-      // keeps a persist-path failure inside this try's cached-meta fallback.
+      // `return await` (not `return`) so a failure inside persistFreshMeta lands
+      // in this try's cached-meta fallback instead of escaping it.
       if (!conditional.notModified) return await persistFreshMeta(conditional)
 
-      // 304 Not Modified — the registry confirmed the mirror is still fresh, so
-      // serve the body it vouched for.
+      // 304: the cached mirror is still current.
       metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
       if (metaCachedInStore != null) return await serveValidatedMeta(metaCachedInStore)
 
