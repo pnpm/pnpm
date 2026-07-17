@@ -488,20 +488,24 @@ impl ReporterState {
 
     fn on_stats(&mut self, message: &StatsMessage) {
         let prefix = match message {
-            StatsMessage::Added { prefix, added } => {
-                self.stats_added = Some(*added);
-                prefix.clone()
-            }
-            StatsMessage::Removed { prefix, removed } => {
-                self.stats_removed = Some(*removed);
-                prefix.clone()
-            }
+            StatsMessage::Added { prefix, .. } | StatsMessage::Removed { prefix, .. } => prefix,
         };
-        if prefix != self.cwd {
+        if prefix != &self.cwd {
             return;
         }
-        let added = self.stats_added.unwrap_or(0);
-        let removed = self.stats_removed.unwrap_or(0);
+        match message {
+            StatsMessage::Added { added, .. } => {
+                self.stats_added = Some(*added);
+            }
+            StatsMessage::Removed { removed, .. } => {
+                self.stats_removed = Some(*removed);
+            }
+        }
+        if self.stats_added.is_none() || self.stats_removed.is_none() {
+            return;
+        }
+        let added = self.stats_added.take().expect("added stats checked above");
+        let removed = self.stats_removed.take().expect("removed stats checked above");
         if added == 0 && removed == 0 {
             // The "Already up to date" line is emitted by pacquet as a
             // `pnpm` log; rendering it here too would duplicate it.

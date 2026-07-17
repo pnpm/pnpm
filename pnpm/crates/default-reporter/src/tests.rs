@@ -26,7 +26,7 @@ fn progress_and_in_progress_downloads_coalesce() {
 }
 
 #[test]
-fn stats_renders_immediately() {
+fn stats_are_not_throttled() {
     let stats = LogEvent::Stats(StatsLog {
         level: LogLevel::Debug,
         message: StatsMessage::Added { prefix: "/repo".to_string(), added: 1 },
