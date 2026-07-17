@@ -1,4 +1,4 @@
-use super::*;
+use super::{Config, LicensesArgs, LicensesDependencyOptions};
 use tempfile::TempDir;
 
 #[test]
