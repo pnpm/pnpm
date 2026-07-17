@@ -4,6 +4,7 @@ import type { PackageMeta } from '@pnpm/resolving.registry.types'
 import {
   fetchMetadataFromFromRegistry,
   type FetchMetadataFromFromRegistryOptions,
+  type FetchMetadataResult,
   notModifiedWithoutCacheError,
 } from './fetch.js'
 import { getPkgMirrorPath, loadMeta, loadMetaHeaders, prepareJsonForDisk, saveMeta } from './pickPackage.js'
@@ -63,40 +64,43 @@ async function fetchMetadataCached (
   const pkgMirror = opts.cacheDir != null
     ? getPkgMirrorPath(opts.cacheDir, opts.metaDir, opts.registry, pkgName)
     : null
+
+  // Persist a freshly downloaded body so the next install can do a headers-only
+  // conditional GET, then hand its meta back. Fire-and-forget — a cache-write
+  // failure isn't a reason to fail the caller; the next install just won't get
+  // the speedup.
+  const persistAndReturn = (result: FetchMetadataResult): PackageMeta => {
+    if (pkgMirror != null) {
+      saveMeta(pkgMirror, prepareJsonForDisk(result.meta, result.etag, result.jsonText)).catch(() => {})
+    }
+    return result.meta
+  }
+
   const cacheHeaders = pkgMirror != null ? await loadMetaHeaders(pkgMirror) : null
-  let result = await fetchMetadataFromFromRegistry(fetchOpts, pkgName, {
+  const conditional = await fetchMetadataFromFromRegistry(fetchOpts, pkgName, {
     registry: opts.registry,
     authHeaderValue: opts.authHeaderValue,
     fullMetadata: opts.fullMetadata,
     etag: cacheHeaders?.etag,
     modified: cacheHeaders?.modified,
   })
-  if (result.notModified) {
-    if (pkgMirror == null) {
-      // We didn't send conditional headers (no cacheDir), but the registry
-      // returned 304 anyway. There's no body to fall back on.
-      throw notModifiedWithoutCacheError(pkgName)
-    }
-    const meta = await loadMeta(pkgMirror)
-    if (meta != null) return meta
-    // The mirror vanished between the headers read and this read (concurrent
-    // store cleanup, antivirus, ...), so the 304 now validates nothing. Ask
-    // again as a cold cache would, which the registry can only answer with a
-    // body or an error — never another 304.
-    result = await fetchMetadataFromFromRegistry(fetchOpts, pkgName, {
-      registry: opts.registry,
-      authHeaderValue: opts.authHeaderValue,
-      cacheBypass: true,
-      fullMetadata: opts.fullMetadata,
-    })
-    if (result.notModified) throw notModifiedWithoutCacheError(pkgName)
-  }
-  if (pkgMirror != null) {
-    // Persist so the next install can do a headers-only conditional GET.
-    // Fire-and-forget — a cache-write failure isn't a reason to fail the
-    // caller; the next install just won't get the speedup.
-    const json = prepareJsonForDisk(result.meta, result.etag, result.jsonText)
-    saveMeta(pkgMirror, json).catch(() => {})
-  }
-  return result.meta
+  if (!conditional.notModified) return persistAndReturn(conditional)
+
+  // 304: serve the mirror body the validators vouched for.
+  if (pkgMirror == null) throw notModifiedWithoutCacheError(pkgName)
+  const cached = await loadMeta(pkgMirror)
+  if (cached != null) return cached
+
+  // The mirror vanished between the headers read and this read (concurrent
+  // store cleanup, antivirus, ...), so the 304 now validates nothing. Ask again
+  // as a cold cache would, which the registry can only answer with a body or an
+  // error — never another 304.
+  const refetched = await fetchMetadataFromFromRegistry(fetchOpts, pkgName, {
+    registry: opts.registry,
+    authHeaderValue: opts.authHeaderValue,
+    cacheBypass: true,
+    fullMetadata: opts.fullMetadata,
+  })
+  if (refetched.notModified) throw notModifiedWithoutCacheError(pkgName)
+  return persistAndReturn(refetched)
 }
