@@ -1169,7 +1169,7 @@ describe('locked peer provider preferences', () => {
 
     expect(cleaned.dependenciesByProjectId[''].has('injected')).toBe(false)
     expect(lazyChildren).not.toHaveBeenCalled()
-    expect(cleaned.dependenciesGraph['retainer/1.0.0'].children.dep).toBe(depWithPeer)
+    expect(cleaned.dependenciesGraph['retainer/1.0.0' as DepPath].children.dep).toBe(depWithPeer)
     expect(cleaned.dependenciesGraph[depWithPeer].resolvedPeerNames).toEqual(new Set(['peer']))
   })
 
