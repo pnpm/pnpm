@@ -1,7 +1,8 @@
 use super::{
-    DownloadTarballToStore, FetchTarballForResolution, HttpStatusError, MemCache, NetworkError,
-    PrefetchedCasPaths, RetryOpts, SharedReportedProgressKeys, TarballError, VerifyChecksumError,
-    allocate_local_tarball_buffer, allocate_tarball_buffer, apply_append_manifest,
+    DownloadTarballToStore, FetchTarballForResolution, HttpStatusError,
+    MAX_UNTRUSTED_PREALLOC_BYTES, MemCache, NetworkError, PrefetchedCasPaths, RetryOpts,
+    SharedReportedProgressKeys, TarballError, VerifyChecksumError, allocate_local_tarball_buffer,
+    allocate_tarball_buffer, apply_append_manifest, bounded_gzip_size_hint, decompress_gzip,
     download_priority, extract_tarball_entries, extract_zip_entries, fetch_and_extract_with_retry,
     is_transient_error, local_file_tarball_path, normalize_bundled_manifest, open_local_tarball,
     prefetch_cas_paths, read_local_tarball_buffer,
@@ -26,6 +27,37 @@ use tempfile::{TempDir, tempdir};
 
 fn integrity(integrity_str: &str) -> Integrity {
     integrity_str.parse().expect("parse integrity string")
+}
+
+#[test]
+fn gzip_size_hint_enforces_untrusted_preallocation_limit() {
+    assert_eq!(bounded_gzip_size_hint(None), None);
+    assert_eq!(bounded_gzip_size_hint(Some(1)), Some(1));
+    assert_eq!(
+        bounded_gzip_size_hint(Some(MAX_UNTRUSTED_PREALLOC_BYTES)),
+        Some(MAX_UNTRUSTED_PREALLOC_BYTES),
+    );
+    assert_eq!(
+        bounded_gzip_size_hint(Some(MAX_UNTRUSTED_PREALLOC_BYTES + 1)),
+        Some(MAX_UNTRUSTED_PREALLOC_BYTES),
+    );
+    assert_eq!(bounded_gzip_size_hint(Some(usize::MAX)), Some(MAX_UNTRUSTED_PREALLOC_BYTES));
+}
+
+/// Covers the wiring rather than the bound itself: nothing in
+/// [`bounded_gzip_size_hint`]'s own test catches `decompress_gzip`
+/// handing the raw hint to zune-inflate, which aborts the process
+/// instead of failing.
+#[test]
+fn decompress_gzip_bounds_oversized_unpacked_size() {
+    let payload = b"decompressed tar payload";
+    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+    std::io::Write::write_all(&mut encoder, payload).expect("gzip payload");
+    let gz_data = encoder.finish().expect("finish gzip");
+
+    let decompressed = decompress_gzip(&gz_data, Some(usize::MAX)).expect("decompress gzip");
+
+    assert_eq!(decompressed, payload);
 }
 
 /// Absent `Content-Length` (chunked transfer) returns an empty
