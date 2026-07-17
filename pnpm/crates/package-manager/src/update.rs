@@ -16,7 +16,7 @@ use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_registry::{PackageVersion, PinnedVersion};
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
-use pacquet_resolving_npm_resolver::which_version_is_pinned;
+use pacquet_resolving_npm_resolver::{shared_packument_fetch_locker, which_version_is_pinned};
 use pacquet_tarball::MemCache;
 use pacquet_workspace_manifest_writer::{UpdateWorkspaceManifestError, update_workspace_manifest};
 use std::{collections::HashSet, sync::Arc};
@@ -729,7 +729,13 @@ fn ensure_latest_picker<'p, 'a>(
             .and_then(|observer| observer.minimum_release_age_exclude_override());
         let policy = PickPolicy::from_config_with_extra_excludes(config, extra_excludes.as_deref())
             .map_err(UpdateError::MinimumReleaseAgeExclude)?;
-        *picker = Some(LatestPicker::new(config, http_client, policy));
+        *picker = Some(LatestPicker::new(
+            config,
+            http_client,
+            policy,
+            Arc::default(),
+            shared_packument_fetch_locker(),
+        ));
     }
     Ok(picker.as_ref().expect("picker initialized above"))
 }

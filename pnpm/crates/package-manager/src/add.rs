@@ -1,11 +1,12 @@
 use crate::{
     CatalogDecision, CatalogModeDep, CatalogVersionMismatchError, Install, InstallError,
-    ResolvedPackages, UpdateSeedPolicy, decide_catalog, emit_initial_package_manifest,
+    ResolvedPackages, UpdateSeedPolicy, decide_catalog_outcome, emit_initial_package_manifest,
     package_manifest_prefix,
     resolution_policy::{PickPolicy, pick_package_context},
     resolve_latest::LatestPicker,
 };
 use derive_more::{Display, Error};
+use futures_util::{StreamExt, stream::FuturesOrdered};
 use miette::Diagnostic;
 use pacquet_catalogs_config::{
     InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest,
@@ -21,8 +22,8 @@ use pacquet_registry::PinnedVersion;
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
 use pacquet_resolving_git_resolver::{HostedGit, HostedOpts};
 use pacquet_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, PickPackageError, PickPackageOptions, parse_bare_specifier,
-    pick_package, pick_registry_for_package, shared_packument_fetch_locker,
+    InMemoryPackageMetaCache, PackumentFetchLocker, PickPackageError, PickPackageOptions,
+    parse_bare_specifier, pick_package, pick_registry_for_package, shared_packument_fetch_locker,
     which_version_is_pinned,
 };
 use pacquet_tarball::MemCache;
@@ -168,28 +169,39 @@ where
             workspace_dir_opt.as_deref().unwrap_or(&manifest_dir).to_string_lossy().into_owned();
         let dependency_groups: Vec<DependencyGroup> =
             list_dependency_groups().into_iter().collect();
-        let mut latest_picker = None;
-        let mut resolved_dependencies = Vec::with_capacity(package_names.len());
-        for package_name in package_names {
-            resolved_dependencies.push(
-                resolve_added_dependency::<Reporter>(
+        let latest_picker = tokio::sync::OnceCell::new();
+        let meta_cache = std::sync::Arc::new(InMemoryPackageMetaCache::default());
+        let fetch_locker = shared_packument_fetch_locker();
+        let resolved_dependencies = {
+            let mut resolution_futures = FuturesOrdered::new();
+            for package_name in package_names {
+                resolution_futures.push_back(resolve_added_dependency(
                     package_name,
                     config,
                     manifest,
                     lockfile,
                     http_client,
                     &http_client_arc,
-                    &mut latest_picker,
+                    &latest_picker,
                     pinned_version,
                     save_catalog_name.as_deref(),
                     &catalogs,
                     &prefix,
-                    lockfile_only,
                     &dependency_groups,
-                )
-                .await?,
-            );
-        }
+                    &meta_cache,
+                    &fetch_locker,
+                ));
+            }
+            let mut dependencies = Vec::with_capacity(package_names.len());
+            while let Some(result) = resolution_futures.next().await {
+                let dependency = result?;
+                if let Some(warning) = &dependency.warning {
+                    Reporter::emit(warning);
+                }
+                dependencies.push(dependency);
+            }
+            dependencies
+        };
 
         emit_initial_package_manifest::<Reporter>(manifest);
 
@@ -298,26 +310,28 @@ struct ResolvedAddedDependency {
     package_name: String,
     manifest_specifier: String,
     updated_catalogs: Catalogs,
+    warning: Option<LogEvent>,
 }
 
 #[expect(
     clippy::too_many_arguments,
     reason = "resolving an add selector requires the shared resolution inputs"
 )]
-async fn resolve_added_dependency<'a, Reporter: self::Reporter>(
+async fn resolve_added_dependency<'a>(
     package_selector: &str,
     config: &'a Config,
     manifest: &PackageManifest,
     lockfile: Option<&Lockfile>,
     http_client: &'a ThrottledClient,
     http_client_arc: &std::sync::Arc<ThrottledClient>,
-    latest_picker: &mut Option<LatestPicker<'a>>,
+    latest_picker: &tokio::sync::OnceCell<LatestPicker<'a>>,
     pinned_version: PinnedVersion,
     save_catalog_name: Option<&str>,
     catalogs: &Catalogs,
     prefix: &str,
-    lockfile_only: bool,
     dependency_groups: &[DependencyGroup],
+    meta_cache: &std::sync::Arc<InMemoryPackageMetaCache>,
+    fetch_locker: &PackumentFetchLocker,
 ) -> Result<ResolvedAddedDependency, AddError> {
     let (package_name, explicit_spec) = split_name_spec(package_selector);
 
@@ -364,23 +378,33 @@ async fn resolve_added_dependency<'a, Reporter: self::Reporter>(
                     config,
                     http_client,
                     pinned_version,
-                    lockfile_only,
                     lockfile,
                     manifest,
+                    meta_cache,
+                    fetch_locker,
                 )
                 .await?
                 .unwrap_or_else(|| normalized_save_specifier(spec)),
                 (None, Some(prev)) => prev.to_string(),
                 (None, None) => {
-                    if latest_picker.is_none() {
-                        let policy = PickPolicy::from_config(config)
-                            .map_err(AddError::MinimumReleaseAgeExclude)?;
-                        *latest_picker = Some(LatestPicker::new(config, http_client, policy));
-                    }
                     let latest = latest_picker
-                        .as_ref()
-                        .expect("picker initialized above")
-                        .resolve(package_name, lockfile_only)
+                        .get_or_try_init(|| {
+                            std::future::ready(
+                                PickPolicy::from_config(config)
+                                    .map(|policy| {
+                                        LatestPicker::new(
+                                            config,
+                                            http_client,
+                                            policy,
+                                            std::sync::Arc::clone(meta_cache),
+                                            std::sync::Arc::clone(fetch_locker),
+                                        )
+                                    })
+                                    .map_err(AddError::MinimumReleaseAgeExclude),
+                            )
+                        })
+                        .await?
+                        .resolve(package_name, false)
                         .await
                         .map_err(|error| AddError::ResolveLatest {
                             name: package_name.to_string(),
@@ -397,15 +421,10 @@ async fn resolve_added_dependency<'a, Reporter: self::Reporter>(
         bare_specifier: &bare_specifier,
         prev_specifier: prev_specifier.as_deref(),
     };
-    let manifest_specifier = match decide_catalog::<Reporter>(
-        config.catalog_mode,
-        save_catalog_name,
-        catalogs,
-        &dep,
-        prefix,
-    )
-    .map_err(AddError::CatalogVersionMismatch)?
-    {
+    let outcome =
+        decide_catalog_outcome(config.catalog_mode, save_catalog_name, catalogs, &dep, prefix)
+            .map_err(AddError::CatalogVersionMismatch)?;
+    let manifest_specifier = match outcome.decision {
         CatalogDecision::KeepDirect => bare_specifier,
         CatalogDecision::Catalog { manifest_specifier, updated_entry } => {
             if let Some(entry) = updated_entry {
@@ -422,6 +441,7 @@ async fn resolve_added_dependency<'a, Reporter: self::Reporter>(
         package_name: package_name.to_string(),
         manifest_specifier,
         updated_catalogs,
+        warning: outcome.warning,
     })
 }
 
@@ -449,9 +469,10 @@ async fn resolve_explicit_registry_spec(
     config: &Config,
     http_client: &ThrottledClient,
     pinned_version: PinnedVersion,
-    lockfile_only: bool,
     lockfile: Option<&Lockfile>,
     manifest: &PackageManifest,
+    meta_cache: &InMemoryPackageMetaCache,
+    fetch_locker: &PackumentFetchLocker,
 ) -> Result<Option<String>, AddError> {
     if spec.starts_with("npm:") {
         return Ok(None);
@@ -485,9 +506,7 @@ async fn resolve_explicit_registry_spec(
         lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()),
         &[manifest],
     );
-    let meta_cache = InMemoryPackageMetaCache::default();
-    let fetch_locker = shared_packument_fetch_locker();
-    let ctx = pick_package_context(http_client, config, &policy, &meta_cache, &fetch_locker);
+    let ctx = pick_package_context(http_client, config, &policy, meta_cache, fetch_locker);
     let opts = PickPackageOptions {
         registry: &registry,
         preferred_version_selectors: preferred_versions.get(package_name),
@@ -499,7 +518,7 @@ async fn resolve_explicit_registry_spec(
         // `latest` satisfies it; forcing the `latest` tag in would wrongly
         // bump a narrower spec (`~7.0.0`, `7.0.0`) past its own bound.
         include_latest_tag: false,
-        dry_run: lockfile_only,
+        dry_run: false,
         optional: false,
         update_checksums: false,
         blocked_versions: None,
