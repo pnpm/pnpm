@@ -1,8 +1,9 @@
+import { writeFileSync } from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
-import { mutateModules, mutateModulesInSingleProject, type ProjectOptions } from '@pnpm/installing.deps-installer'
+import { type MutatedProject, mutateModules, mutateModulesInSingleProject, type ProjectOptions } from '@pnpm/installing.deps-installer'
 import { preparePackages } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 
@@ -312,4 +313,120 @@ test('peer-resolved workspace packages should keep their file: protocol after si
   // check, dedupeInjectedDeps would collapse the peer-resolved file: entry to link:../b
   // and lose the importer's peer context.
   expect(lockfileAfterRm.importers.a.dependencies!.b.version).toBe(initialVersion)
+})
+
+// Regression test for https://github.com/pnpm/pnpm/issues/10433: updating one
+// dependency must not rewrite an untouched workspace dependency's `link:` entry
+// to a peer-suffixed `file:`.
+//
+// `d` peer-depends on `a` and `b`; `b` has an optional `winston` peer. On the
+// initial install `consumer` -> `d` dedupes to `link:../d`. Updating the
+// unrelated `winston` re-resolves the untouched injected workspace deps on a
+// path dedupeInjectedDeps doesn't reach and, without the fix, flips
+// `consumer` -> `d` to `file:d(a@file:a)(b@file:b(a@file:a)(winston@3.19.0))`.
+//
+// The update is driven exactly like `pnpm update winston@3.19.0 --recursive`
+// lowers it (see installing/commands/src/recursive.ts): the importer whose
+// manifest has `winston` gets `installSome` with the selector, every other
+// importer gets `installSome` with no selectors and `update: true`.
+test('injected workspace dependency keeps link: when an unrelated dependency is updated', async () => {
+  const pkgA = { name: 'a', version: '1.0.0' }
+  const pkgB = {
+    name: 'b',
+    version: '1.0.0',
+    dependencies: { bluebird: '^3.7.2', 'c': 'workspace:^' },
+    peerDependencies: { winston: '^3' },
+    peerDependenciesMeta: { winston: { optional: true } },
+  }
+  const pkgC = {
+    name: 'c',
+    version: '1.0.0',
+    peerDependencies: { 'a': '>=1.0.0' },
+    dependencies: { debug: '^4.4.3' },
+  }
+  const pkgD = {
+    name: 'd',
+    version: '1.0.0',
+    peerDependencies: { 'a': '*', 'b': '^1.0.0' },
+    dependencies: { debug: '^4.4.3' },
+  }
+  const consumerManifest = {
+    name: 'consumer',
+    version: '1.0.0',
+    dependencies: { 'd': 'workspace:*', 'a': 'workspace:*' },
+  }
+  const rootManifest = {
+    name: 'root',
+    version: '0.0.0',
+    devDependencies: { winston: '3.17.0' },
+  }
+
+  preparePackages([
+    { location: 'a', package: pkgA },
+    { location: 'b', package: pkgB },
+    { location: 'c', package: pkgC },
+    { location: 'd', package: pkgD },
+    { location: 'consumer', package: consumerManifest },
+  ])
+  // The workspace root carries the dependency that will be updated.
+  writeFileSync('package.json', `${JSON.stringify(rootManifest, null, 2)}\n`)
+
+  const allProjects: ProjectOptions[] = [
+    { buildIndex: 0, manifest: rootManifest, rootDir: path.resolve('.') as ProjectRootDir },
+    { buildIndex: 0, manifest: pkgA, rootDir: path.resolve('a') as ProjectRootDir },
+    { buildIndex: 0, manifest: pkgB, rootDir: path.resolve('b') as ProjectRootDir },
+    { buildIndex: 0, manifest: pkgC, rootDir: path.resolve('c') as ProjectRootDir },
+    { buildIndex: 0, manifest: pkgD, rootDir: path.resolve('d') as ProjectRootDir },
+    { buildIndex: 0, manifest: consumerManifest, rootDir: path.resolve('consumer') as ProjectRootDir },
+  ]
+
+  const sharedOpts = {
+    allProjects,
+    injectWorkspacePackages: true,
+    linkWorkspacePackages: 'deep' as const,
+    preferWorkspacePackages: true,
+    dedupeInjectedDeps: true,
+    dedupePeerDependents: true,
+  }
+
+  // Initial install: `consumer` -> `d` dedupes to link:../d.
+  await mutateModules(
+    allProjects.map(({ rootDir }) => ({ mutation: 'install' as const, rootDir })),
+    testDefaults(sharedOpts)
+  )
+
+  const rootModules = assertProject(process.cwd())
+  expect(rootModules.readLockfile().importers.consumer.dependencies!.d.version).toBe('link:../d')
+
+  // `pnpm update winston@3.19.0 --recursive`, as lowered by
+  // installing/commands/src/recursive.ts.
+  const updateMutations: MutatedProject[] = allProjects.map(({ rootDir }) =>
+    rootDir === path.resolve('.')
+      ? {
+        allowNew: false,
+        dependencySelectors: ['winston@3.19.0'],
+        mutation: 'installSome' as const,
+        rootDir,
+        update: true,
+        updatePackageManifest: true,
+      } as MutatedProject
+      : {
+        allowNew: false,
+        dependencySelectors: [],
+        mutation: 'installSome' as const,
+        rootDir,
+        update: true,
+        updatePackageManifest: true,
+      } as MutatedProject
+  )
+  await mutateModules(updateMutations, testDefaults({
+    ...sharedOpts,
+    depth: Infinity,
+  }))
+
+  const lockfileAfterUpdate = rootModules.readLockfile()
+  // The update itself must still happen.
+  expect(lockfileAfterUpdate.importers['.'].devDependencies!.winston.version).toBe('3.19.0')
+  // The untouched workspace dependency must keep its link:.
+  expect(lockfileAfterUpdate.importers.consumer.dependencies!.d.version).toBe('link:../d')
 })
