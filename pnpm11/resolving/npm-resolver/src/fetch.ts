@@ -54,6 +54,19 @@ export interface FetchMetadataNotModifiedResult {
   notModified: true
 }
 
+/**
+ * A 304 answers a validator with "the body you already have is current". Sent
+ * without one — either because nothing was cached or because `cacheBypass`
+ * dropped the validators to recover a lost cache entry — it refers to a body
+ * nobody holds, so there is nothing to serve and nothing left to retry.
+ */
+export function notModifiedWithoutCacheError (pkgName: string): PnpmError {
+  return new PnpmError(
+    'META_NOT_MODIFIED_WITHOUT_CACHE',
+    `Registry returned 304 for ${pkgName} without an existing cache to refresh.`
+  )
+}
+
 export class RegistryResponseError extends FetchError {
   public readonly pkgName: string
 
@@ -168,9 +181,7 @@ export async function fetchMetadataFromFromRegistry (
           ifModifiedSince,
           retry: fetchOpts.retry,
           timeout: fetchOpts.timeout,
-          ...(cacheBypass
-            ? { headers: { 'cache-control': 'no-cache' } }
-            : {}),
+          headers: cacheBypass ? { 'cache-control': 'no-cache' } : undefined,
         }
         response = await fetchOpts.fetch(uri, requestOptions) as RegistryResponse
         if (response.status === 304 && !hasValidator && !cacheBypass) {
@@ -196,10 +207,7 @@ export async function fetchMetadataFromFromRegistry (
       }
       if (response.status === 304) {
         if (!hasValidator) {
-          reject(new PnpmError(
-            'META_NOT_MODIFIED_WITHOUT_CACHE',
-            `Registry returned 304 for ${pkgName} without an existing cache to refresh.`
-          ))
+          reject(notModifiedWithoutCacheError(pkgName))
           return
         }
         resolve({ notModified: true })

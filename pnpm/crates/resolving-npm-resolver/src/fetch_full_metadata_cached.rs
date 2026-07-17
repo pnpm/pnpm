@@ -108,27 +108,19 @@ pub async fn fetch_full_metadata_cached(
     let should_filter_metadata = opts.full_metadata && opts.filter_metadata;
     let cache_bypass = AtomicBool::new(false);
 
-    // A retry keeps the request in bypass mode after a conditional
-    // `304` loses its mirror body.
+    // A body retry re-enters this closure from the top, so the bypass has to
+    // outlive the attempt that discovered the loss: re-validating against a
+    // mirror already known to be gone would 304 into the same dead end.
     retry_async(&url, opts.retry_opts, FetchMetadataError::is_body_retryable, || async {
-        let bypass_cache = cache_bypass.load(Ordering::Relaxed);
         let (client, response) = send_metadata_request(&MetadataRequestOptions {
             pkg_name,
             url: &url,
             accept,
             http_client: opts.http_client,
             auth_headers: opts.auth_headers,
-            etag: if bypass_cache {
-                None
-            } else {
-                cache_headers.as_ref().and_then(|headers| headers.etag.as_deref())
-            },
-            modified: if bypass_cache {
-                None
-            } else {
-                cache_headers.as_ref().and_then(|headers| headers.modified.as_deref())
-            },
-            bypass_cache,
+            etag: cache_headers.as_ref().and_then(|headers| headers.etag.as_deref()),
+            modified: cache_headers.as_ref().and_then(|headers| headers.modified.as_deref()),
+            bypass_cache: cache_bypass.load(Ordering::Relaxed),
             retry_opts: opts.retry_opts,
         })
         .await?;

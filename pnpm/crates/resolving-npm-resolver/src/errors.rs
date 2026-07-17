@@ -77,16 +77,6 @@ pub enum FetchMetadataError {
         pkg_name: String,
     },
 
-    /// `META_CACHE_MISSING_AFTER_304`. The mirror existed when we read
-    /// its headers but vanished before the full read on a 304 response
-    /// — concurrent cache cleanup, antivirus, etc.
-    #[display("Metadata cache for {pkg_name} disappeared between headers read and full read.")]
-    #[diagnostic(code(ERR_PNPM_CACHE_MISSING_AFTER_304))]
-    CacheMissingAfter304 {
-        #[error(not(source))]
-        pkg_name: String,
-    },
-
     /// The blocking task that deserializes a packument body panicked
     /// or was cancelled by runtime shutdown.
     #[display("Failed to parse metadata from {url}: {error}")]

@@ -98,6 +98,11 @@ pub(crate) struct MetadataRequestOptions<'a> {
     pub auth_headers: &'a AuthHeaders,
     pub etag: Option<&'a str>,
     pub modified: Option<&'a str>,
+    /// Ask for the packument as a cold cache would: [`Self::etag`] and
+    /// [`Self::modified`] are dropped rather than sent, and `Cache-Control:
+    /// no-cache` keeps an intermediary from validating them on our behalf.
+    /// Set when the mirror those validators describe is known to be gone, so
+    /// only a body — never a `304` — can satisfy the request.
     pub bypass_cache: bool,
     pub retry_opts: RetryOpts,
 }
@@ -105,6 +110,10 @@ pub(crate) struct MetadataRequestOptions<'a> {
 /// Send a metadata GET, retrying an unsolicited 304 once with intermediary
 /// cache reuse disabled. A repeated 304 cannot validate any local body and is
 /// reported with the same error in both pnpm implementations.
+///
+/// A [`MetadataRequestOptions::bypass_cache`] request has already given up its
+/// validators, so that retry would only repeat itself: its 304 fails straight
+/// away instead.
 pub(crate) async fn send_metadata_request<'a>(
     opts: &MetadataRequestOptions<'a>,
 ) -> Result<(ThrottledClientGuard<'a>, Response), FetchMetadataError> {

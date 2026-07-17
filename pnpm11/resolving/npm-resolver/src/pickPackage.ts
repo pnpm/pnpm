@@ -14,7 +14,11 @@ import { renameOverwrite } from 'rename-overwrite'
 import semver from 'semver'
 
 import { clearMeta } from './clearMeta.js'
-import type { FetchMetadataNotModifiedResult, FetchMetadataResult } from './fetch.js'
+import {
+  type FetchMetadataNotModifiedResult,
+  type FetchMetadataResult,
+  notModifiedWithoutCacheError,
+} from './fetch.js'
 import type { RegistryPackageSpec } from './parseBareSpecifier.js'
 import {
   pickLowestVersionByVersionRange,
@@ -427,18 +431,17 @@ export async function pickPackage (
             pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, metaCachedInStore),
           }
         }
+        // The mirror vanished between the headers read and this read
+        // (concurrent store cleanup, antivirus, ...), so the 304 now validates
+        // nothing. Ask again as a cold cache would, which the registry can
+        // only answer with a body or an error — never another 304.
         fetchResult = await ctx.fetch(spec.name, {
           authHeaderValue: opts.authHeaderValue,
           cacheBypass: true,
           fullMetadata,
           registry: opts.registry,
         })
-        if (fetchResult.notModified) {
-          throw new PnpmError(
-            'META_NOT_MODIFIED_WITHOUT_CACHE',
-            `Registry returned 304 for ${spec.name} without an existing cache to refresh.`
-          )
-        }
+        if (fetchResult.notModified) throw notModifiedWithoutCacheError(spec.name)
       }
 
       let meta = fetchResult.meta
