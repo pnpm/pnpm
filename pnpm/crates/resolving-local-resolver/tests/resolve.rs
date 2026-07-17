@@ -394,6 +394,14 @@ async fn fail_when_resolving_missing_tarball_with_file_protocol() {
         .await
         .expect_err("expected LINKED_PKG_DIR_NOT_FOUND");
     let expected = project_dir.join("missing.tgz").display().to_string();
+    {
+        use miette::Diagnostic;
+        let code = err.code().map(|c| c.to_string()).unwrap_or_default();
+        assert_eq!(
+            code, "ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND",
+            "diagnostic code must match the upstream error contract",
+        );
+    }
     match err {
         ResolveLocalError::LinkedPkgDirNotFound { path } => assert_eq!(path, expected),
         other => panic!("unexpected error: {other:?}"),

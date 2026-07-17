@@ -1018,6 +1018,10 @@ fn install_surfaces_catalog_misconfiguration() {
         ),
         "stderr did not mention the missing-catalog-entry error: {stderr}",
     );
+    assert!(
+        stderr.contains("ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC"),
+        "the catalog error must surface upstream's code, not the resolver chain's: {stderr}",
+    );
 
     drop((root, mock_instance));
 }

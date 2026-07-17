@@ -650,6 +650,14 @@ async fn tarball_path_traversal_attack_is_rejected() {
     .await
     .unwrap_err();
 
+    {
+        use miette::Diagnostic;
+        let code = err.code().map(|c| c.to_string()).unwrap_or_default();
+        assert_eq!(
+            code, "ERR_PNPM_INVALID_PATH",
+            "diagnostic code must match the upstream error contract",
+        );
+    }
     match err {
         GitFetcherError::Prepare(PreparePackageError::InvalidPath { path }) => {
             assert_eq!(path, "../escape");
@@ -690,6 +698,14 @@ async fn tarball_path_to_missing_subdir_is_rejected() {
     .await
     .unwrap_err();
 
+    {
+        use miette::Diagnostic;
+        let code = err.code().map(|c| c.to_string()).unwrap_or_default();
+        assert_eq!(
+            code, "ERR_PNPM_INVALID_PATH",
+            "diagnostic code must match the upstream error contract",
+        );
+    }
     match err {
         GitFetcherError::Prepare(PreparePackageError::InvalidPath { path }) => {
             assert_eq!(path, "does/not/exist");
