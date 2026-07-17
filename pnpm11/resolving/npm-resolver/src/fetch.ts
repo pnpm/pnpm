@@ -54,19 +54,6 @@ export interface FetchMetadataNotModifiedResult {
   notModified: true
 }
 
-/**
- * A 304 answers a validator with "the body you already have is current". Sent
- * without one — either because nothing was cached or because `cacheBypass`
- * dropped the validators to recover a lost cache entry — it refers to a body
- * nobody holds, so there is nothing to serve and nothing left to retry.
- */
-export function notModifiedWithoutCacheError (pkgName: string): PnpmError {
-  return new PnpmError(
-    'META_NOT_MODIFIED_WITHOUT_CACHE',
-    `Registry returned 304 for ${pkgName} without an existing cache to refresh.`
-  )
-}
-
 export class RegistryResponseError extends FetchError {
   public readonly pkgName: string
 
@@ -263,6 +250,19 @@ export async function fetchMetadataFromFromRegistry (
       }
     })
   })
+}
+
+/**
+ * A 304 answers a validator with "the body you already have is current". Sent
+ * without one — either because nothing was cached or because `cacheBypass`
+ * dropped the validators to recover a lost cache entry — it refers to a body
+ * nobody holds, so there is nothing to serve and nothing left to retry.
+ */
+export function notModifiedWithoutCacheError (pkgName: string): PnpmError {
+  return new PnpmError(
+    'META_NOT_MODIFIED_WITHOUT_CACHE',
+    `Registry returned 304 for ${pkgName} without an existing cache to refresh.`
+  )
 }
 
 /**
