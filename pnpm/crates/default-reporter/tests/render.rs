@@ -106,7 +106,11 @@ fn package_manifest_updated_at(prefix: &str, value: serde_json::Value) -> LogEve
 }
 
 fn summary() -> LogEvent {
-    LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix: CWD.to_string() })
+    summary_at(CWD)
+}
+
+fn summary_at(prefix: &str) -> LogEvent {
+    LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix: prefix.to_string() })
 }
 
 #[test]
@@ -158,12 +162,56 @@ fn stats_bar_is_colored_when_enabled() {
     let mut reporter = state(true);
     let frame = render(
         &mut reporter,
-        vec![LogEvent::Stats(StatsLog {
-            level: LogLevel::Debug,
-            message: StatsMessage::Added { prefix: CWD.to_string(), added: 1 },
-        })],
+        vec![
+            LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Added { prefix: CWD.to_string(), added: 1 },
+            }),
+            LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Removed { prefix: CWD.to_string(), removed: 0 },
+            }),
+        ],
     );
     assert_eq!(frame, "Packages: \u{1b}[32m+1\u{1b}[39m\n\u{1b}[32m+\u{1b}[39m");
+}
+
+#[test]
+fn append_only_stats_render_once_after_both_events() {
+    let mut reporter = ReporterState::new(CWD.to_string(), 80, Colors { enabled: false }, true);
+    let added = reporter.handle(&LogEvent::Stats(StatsLog {
+        level: LogLevel::Debug,
+        message: StatsMessage::Added { prefix: CWD.to_string(), added: 5 },
+    }));
+    assert!(matches!(added, Output::None));
+
+    let removed = reporter.handle(&LogEvent::Stats(StatsLog {
+        level: LogLevel::Debug,
+        message: StatsMessage::Removed { prefix: CWD.to_string(), removed: 0 },
+    }));
+    match removed {
+        Output::Lines(lines) => assert_eq!(lines, vec!["Packages: +5\n+++++"]),
+        _ => panic!("complete stats should emit Lines"),
+    }
+}
+
+#[test]
+fn append_only_stats_render_on_summary_when_pair_is_incomplete() {
+    let mut reporter = ReporterState::new(CWD.to_string(), 80, Colors { enabled: false }, true);
+    let added = reporter.handle(&LogEvent::Stats(StatsLog {
+        level: LogLevel::Debug,
+        message: StatsMessage::Added { prefix: CWD.to_string(), added: 5 },
+    }));
+    assert!(matches!(added, Output::None));
+
+    let other_summary = reporter.handle(&summary_at("/repo/packages/other"));
+    assert!(matches!(other_summary, Output::None));
+
+    let summarized = reporter.handle(&summary());
+    match summarized {
+        Output::Lines(lines) => assert_eq!(lines, vec!["Packages: +5\n+++++"]),
+        _ => panic!("summary should flush incomplete stats"),
+    }
 }
 
 #[test]
@@ -385,6 +433,10 @@ fn full_install_frame_orders_blocks_like_pnpm() {
             LogEvent::Stats(StatsLog {
                 level: LogLevel::Debug,
                 message: StatsMessage::Added { prefix: CWD.to_string(), added: 1 },
+            }),
+            LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Removed { prefix: CWD.to_string(), removed: 0 },
             }),
             added_root("foo", "1.0.0", DependencyType::Prod),
             summary(),

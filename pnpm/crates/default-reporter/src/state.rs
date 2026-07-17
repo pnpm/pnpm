@@ -323,7 +323,7 @@ impl ReporterState {
             LogEvent::Stats(log) => self.on_stats(&log.message),
             LogEvent::Root(log) => self.on_root(&log.message),
             LogEvent::PackageManifest(log) => self.on_manifest(&log.message),
-            LogEvent::Summary(_) => self.on_summary(),
+            LogEvent::Summary(log) => self.on_summary(&log.prefix),
             LogEvent::Lifecycle(log) => self.on_lifecycle(&log.message),
             LogEvent::IgnoredScripts(log) => self.on_ignored_scripts(log),
             LogEvent::SkippedOptionalDependency(log) => self.on_skipped_optional(log),
@@ -488,20 +488,27 @@ impl ReporterState {
 
     fn on_stats(&mut self, message: &StatsMessage) {
         let prefix = match message {
-            StatsMessage::Added { prefix, added } => {
-                self.stats_added = Some(*added);
-                prefix.clone()
-            }
-            StatsMessage::Removed { prefix, removed } => {
-                self.stats_removed = Some(*removed);
-                prefix.clone()
-            }
+            StatsMessage::Added { prefix, .. } | StatsMessage::Removed { prefix, .. } => prefix,
         };
-        if prefix != self.cwd {
+        if prefix != &self.cwd {
             return;
         }
-        let added = self.stats_added.unwrap_or(0);
-        let removed = self.stats_removed.unwrap_or(0);
+        match message {
+            StatsMessage::Added { added, .. } => {
+                self.stats_added = Some(*added);
+            }
+            StatsMessage::Removed { removed, .. } => {
+                self.stats_removed = Some(*removed);
+            }
+        }
+        if self.stats_added.is_some() && self.stats_removed.is_some() {
+            self.render_stats();
+        }
+    }
+
+    fn render_stats(&mut self) {
+        let added = self.stats_added.take().unwrap_or(0);
+        let removed = self.stats_removed.take().unwrap_or(0);
         if added == 0 && removed == 0 {
             // The "Already up to date" line is emitted by pacquet as a
             // `pnpm` log; rendering it here too would duplicate it.
@@ -608,7 +615,10 @@ impl ReporterState {
         }
     }
 
-    fn on_summary(&mut self) {
+    fn on_summary(&mut self, prefix: &str) {
+        if prefix == self.cwd && (self.stats_added.is_some() || self.stats_removed.is_some()) {
+            self.render_stats();
+        }
         self.summary_seen = true;
         self.try_render_summary();
     }
