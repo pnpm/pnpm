@@ -13,6 +13,7 @@ test.each([
   ['^=1.0.0', undefined],
   ['~=1.0.0', undefined],
   ['=1.0.0||', undefined],
+  ['1.0.0||', undefined],
   ['*', 'none'],
   ['workspace:^1.0.0', 'major'],
   ['npm:foo@1.0.0', 'patch'],
