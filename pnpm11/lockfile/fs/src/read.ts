@@ -11,6 +11,7 @@ import { mergeLockfileChanges } from '@pnpm/lockfile.merger'
 import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
 import type { ProjectId } from '@pnpm/types'
 import { comverToSemver } from 'comver-to-semver'
+import type { YAMLException } from 'js-yaml'
 import yaml from 'js-yaml'
 import semver from 'semver'
 import stripBom from 'strip-bom'
@@ -141,7 +142,7 @@ async function _read (
     hadConflicts = false
   } catch (err: unknown) {
     if (!opts.autofixMergeConflicts || !isDiff(lockfileRawContent)) {
-      throw new PnpmError('BROKEN_LOCKFILE', `The lockfile at "${lockfilePath}" is broken: ${(err as Error).message}`)
+      throw new PnpmError('BROKEN_LOCKFILE', `The lockfile at "${lockfilePath}" is broken: ${formatLockfileError(err)}`)
     }
     hadConflicts = true
     lockfile = autofixMergeConflicts(lockfileRawContent)
@@ -180,6 +181,20 @@ async function _read (
     return { lockfile: null, lockfileFile: null, hadConflicts: false }
   }
   throw new LockfileBreakingChangeError(lockfilePath)
+}
+
+function formatLockfileError (err: unknown): string {
+  if (isYamlException(err)) {
+    const position = err.mark == null ? '' : ` (${err.mark.line + 1}:${err.mark.column + 1})`
+    return `${err.reason}${position}`
+  }
+  return util.types.isNativeError(err) ? err.message : String(err)
+}
+
+function isYamlException (err: unknown): err is YAMLException {
+  return typeof err === 'object' && err !== null &&
+    'name' in err && err.name === 'YAMLException' &&
+    'reason' in err && typeof err.reason === 'string'
 }
 
 export function createLockfileObject (

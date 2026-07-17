@@ -20,9 +20,9 @@ pub enum LoadLockfileError {
     #[diagnostic(code(ERR_PNPM_LOCKFILE_READ_FILE))]
     ReadFile(io::Error),
 
-    #[display("Failed to parse lockfile content as YAML: {_0}")]
+    #[display("Failed to parse lockfile content as YAML: {}", _0.without_snippet())]
     #[diagnostic(code(ERR_PNPM_LOCKFILE_PARSE_YAML))]
-    ParseYaml(serde_saphyr::Error),
+    ParseYaml(#[error(not(source))] serde_saphyr::Error),
 }
 
 impl Lockfile {

@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, jest, test } from '@jest/globals'
@@ -46,6 +47,17 @@ test('readWantedLockfile()', async () => {
       wantedVersions: ['3'],
     })
   ).rejects.toMatchObject({ code: 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE' })
+})
+
+test('readWantedLockfile() does not include lockfile content in parse errors', async () => {
+  const projectPath = temporaryDirectory()
+  const secret = 'aws_secret_access_key = marker-secret'
+  fs.writeFileSync(path.join(projectPath, 'pnpm-lock.yaml'), `[default]\n${secret}\n`)
+
+  await expect(readWantedLockfile(projectPath, { ignoreIncompatible: false })).rejects.toMatchObject({
+    code: 'ERR_PNPM_BROKEN_LOCKFILE',
+    message: `The lockfile at "${path.join(projectPath, 'pnpm-lock.yaml')}" is broken: end of the stream or a document separator is expected (2:1)`,
+  })
 })
 
 test('readWantedLockfile() when lockfileVersion is a string', async () => {
