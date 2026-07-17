@@ -12,7 +12,9 @@
 use crate::{
     cas_io::{ImportedFiles, import_into_cas},
     error::{GitFetcherError, PreparePackageError},
-    prepare_package::{AllowBuildRef, PreparePackageOptions, PreparedPackage, prepare_package},
+    prepare_package::{
+        AllowBuildRef, PreparePackageOptions, PreparedPackage, prepare_package, safe_join_path,
+    },
 };
 use pacquet_executor::ScriptsPrependNodePath;
 use pacquet_fs_packlist::packlist;
@@ -226,14 +228,19 @@ pub fn checkout_commit(opts: &CheckoutOptions<'_>) -> Result<(), GitFetcherError
             repo: repo.to_string(),
         });
     }
+    if !is_safe_repo_arg(repo) {
+        return Err(GitFetcherError::InvalidRepo { repo: repo.to_string() });
+    }
 
     let git_bin = git_bin.unwrap_or_else(|| Path::new("git"));
+    // `--` keeps the repository positional out of git's option parser,
+    // belt and braces with the `is_safe_repo_arg` check above.
     if should_use_shallow(repo, git_shallow_hosts) {
         exec_git_with(git_bin, &["init"], Some(dest))?;
-        exec_git_with(git_bin, &["remote", "add", "origin", repo], Some(dest))?;
+        exec_git_with(git_bin, &["remote", "add", "origin", "--", repo], Some(dest))?;
         exec_git_with(git_bin, &["fetch", "--depth", "1", "origin", commit], Some(dest))?;
     } else {
-        exec_git_with(git_bin, &["clone", repo, &dest.to_string_lossy()], None)?;
+        exec_git_with(git_bin, &["clone", "--", repo, &dest.to_string_lossy()], None)?;
     }
 
     exec_git_with(git_bin, &["checkout", commit], Some(dest))?;
@@ -286,19 +293,28 @@ pub async fn read_git_manifest(
             git_bin: query.git_bin,
             dest: temp.path(),
         })?;
-        // The leading slash of `#path:/packages/foo` is rooted at the
-        // repo, not the filesystem — same normalization the install
-        // pass's `prepare_package` applies.
-        let pkg_dir = match query.path.map(|path| path.trim_start_matches(['/', '\\'])) {
-            Some(path) if !path.is_empty() => temp.path().join(path),
-            _ => temp.path().to_path_buf(),
-        };
+        // Same guarded join the install pass uses: the sub-path is
+        // repo-rooted, and a `path` that climbs out of the checkout
+        // must not reach `safe_read_package_json_from_dir`, which would
+        // happily read an arbitrary `package.json` off the host and
+        // stamp its name onto this dep.
+        let pkg_dir = safe_join_path(temp.path(), query.path).map_err(GitFetcherError::Prepare)?;
         safe_read_package_json_from_dir(&pkg_dir).map_err(GitFetcherError::ReadManifest)
     })
 }
 
 fn is_valid_commit_hash(commit: &str) -> bool {
     commit.len() == 40 && commit.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
+/// True iff `repo` is safe to pass to git as a repository positional.
+///
+/// A leading `-` makes git read the value as an option instead: `git
+/// clone --upload-pack=<cmd>` runs `<cmd>` on a local or SSH transport,
+/// so a malicious lockfile could otherwise execute arbitrary commands.
+/// See [`GitFetcherError::InvalidRepo`].
+fn is_safe_repo_arg(repo: &str) -> bool {
+    !repo.is_empty() && !repo.starts_with('-') && !repo.contains('\0')
 }
 
 /// True iff `repo` parses to a host that pacquet should clone via the

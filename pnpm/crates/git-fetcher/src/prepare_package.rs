@@ -197,7 +197,10 @@ fn package_should_be_built(manifest: &Value, pkg_dir: &Path) -> bool {
 /// rooted at the repo, not the filesystem, so it is stripped before
 /// joining — [`Path::join`] would otherwise discard `root` and treat
 /// the whole thing as absolute, unlike the `path.join` upstream uses.
-fn safe_join_path(root: &Path, sub: Option<&str>) -> Result<PathBuf, PreparePackageError> {
+pub(crate) fn safe_join_path(
+    root: &Path,
+    sub: Option<&str>,
+) -> Result<PathBuf, PreparePackageError> {
     let sub = sub.unwrap_or("").trim_start_matches(['/', '\\']);
     let joined = if sub.is_empty() { root.to_path_buf() } else { root.join(sub) };
     let canonical_root = root.canonicalize().map_err(PreparePackageError::Io)?;
