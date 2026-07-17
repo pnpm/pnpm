@@ -308,6 +308,30 @@ export async function resolveDependencies (
   await Promise.all(projectsToResolve.map(async (project, index) => {
     const resolvedImporter = resolvedImporters[project.id]
     linkedDependenciesByProjectId[project.id] = resolvedImporter.linkedDependencies
+    // Capture previous importer refs before the lockfile importer is rebuilt,
+    // so a partial update that doesn't actually change a workspace dependency
+    // does not rewrite its `link:` entry to a peer-suffixed `file:`. This is the
+    // `pnpm update --recursive` path of pnpm/pnpm#10433 that dedupeInjectedDeps
+    // does not reach.
+    const previousImporterSnapshot = opts.wantedLockfile.importers[project.id]
+    const previousDirectRefs: Record<string, string> = {
+      ...previousImporterSnapshot?.dependencies,
+      ...previousImporterSnapshot?.devDependencies,
+      ...previousImporterSnapshot?.optionalDependencies,
+    }
+    // Aliases this run actually targets (added, spec-changed, or matched by a
+    // `pnpm update <name>`). Only these may legitimately change their
+    // `link:`/`file:` form; the preserve-prior-link guard below is limited to
+    // dependencies outside this set.
+    const importer = importers[index]
+    const updateMatching = importer.updateMatching
+    const updateTargetedAliases = new Set(
+      project.wantedDependencies.flatMap(({ alias, bareSpecifier, isNew, prevSpecifier, updateSpec }) =>
+        alias != null && (isNew === true || updateSpec === true || (prevSpecifier != null && bareSpecifier !== prevSpecifier))
+          ? [alias]
+          : []
+      )
+    )
     let updatedManifest: ProjectManifest | undefined
     let updatedOriginalManifest: ProjectManifest | undefined
     if (project.updatePackageManifest) {
@@ -356,10 +380,23 @@ export async function resolveDependencies (
 
       const depNode = dependenciesGraph[depPath]
 
-      const ref = depPathToRef(depPath, {
+      let ref = depPathToRef(depPath, {
         alias,
         realName: depNode.name,
       })
+      // A workspace dependency resolved to `link:` has no version to update, so
+      // it should stay `link:` unless this run specifically targets it (a spec
+      // change or `pnpm update <name>`). Preserving it stops a partial update
+      // (e.g. `pnpm update <other-pkg> --recursive`) from re-resolving an
+      // untouched injected workspace dep and flipping its `link:` to a
+      // peer-suffixed `file:` on paths dedupeInjectedDeps doesn't reach. See
+      // pnpm/pnpm#10433.
+      const previousRef = previousDirectRefs[alias]
+      const targetedByUpdate = updateTargetedAliases.has(alias) ||
+        (updateMatching?.(depNode.name) ?? false)
+      if (!targetedByUpdate && ref.startsWith('file:') && previousRef?.startsWith('link:')) {
+        ref = previousRef
+      }
       if (projectSnapshot.dependencies?.[alias]) {
         projectSnapshot.dependencies[alias] = ref
       } else if (projectSnapshot.devDependencies?.[alias]) {
