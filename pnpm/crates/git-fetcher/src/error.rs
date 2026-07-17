@@ -83,6 +83,9 @@ pub enum GitFetcherError {
     Io(#[error(source)] std::io::Error),
 
     #[diagnostic(transparent)]
+    ReadManifest(#[error(source)] pacquet_package_manifest::PackageManifestError),
+
+    #[diagnostic(transparent)]
     Prepare(#[error(source)] PreparePackageError),
 
     #[diagnostic(transparent)]

@@ -4878,6 +4878,7 @@ dependencies = [
  "derive_more",
  "miette 7.6.0",
  "node-semver",
+ "pacquet-git-fetcher",
  "pacquet-lockfile",
  "pacquet-network",
  "pacquet-reporter",

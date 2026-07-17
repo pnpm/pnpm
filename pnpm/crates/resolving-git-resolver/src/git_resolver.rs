@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use pacquet_git_fetcher::{GitManifestQuery, read_git_manifest};
 use pacquet_lockfile::{GitResolution, LockfileResolution, TarballResolution};
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_reporter::SilentReporter;
@@ -21,29 +22,39 @@ use crate::{
     resolve_ref::{GitCommandRunner, resolve_ref},
 };
 
-/// Store/network handles [`GitResolver`] needs to read a git-hosted
-/// package's identity out of its archive during resolution.
+/// Store/network handles [`GitResolver`] needs to read a git dep's
+/// identity out of the package itself during resolution.
 ///
-/// A git host's archive endpoint is the only place a git dep's name
-/// and integrity live — the specifier names a repo, not a package —
-/// and pacquet builds the lockfile before the install/fetch pass runs,
-/// so both have to be read here. Mirrors the tarball resolver's
-/// remote-tarball fetch, which fills the same two fields for the same
-/// reason.
+/// A git dep's specifier names a repo, not a package, so its name —
+/// and, for a host archive, its integrity — live only in the package's
+/// own `package.json`. pacquet builds the lockfile before the
+/// install/fetch pass runs, so they have to be read here. Mirrors the
+/// tarball resolver's remote-tarball fetch, which fills the same fields
+/// for the same reason.
 ///
-/// This fetch stops at the raw archive: the git-hosted
-/// `prepare`/`prepublish` pass and its packlist filtering stay in the
-/// install pass, so no package script runs during resolution. The
-/// install pass re-fetches the archive to run them — unlike a registry
-/// tarball, a git-hosted one can't hand its extraction over through
-/// `MemCache` (only `Registry` resolutions read it) — so a git dep
-/// costs one extra archive download per install.
+/// Two shapes, by resolution:
+///
+/// - a git *host* (`github:` / `gitlab:` / `bitbucket:`) serves an
+///   archive, which is downloaded and hashed;
+/// - any other repo (ssh, self-hosted, `file:`) has no archive
+///   endpoint, so a throwaway checkout is the cheapest read.
+///
+/// Either way this stops at the manifest: `prepare` / `prepublish` and
+/// packlist filtering stay in the install pass, so no package script
+/// runs during resolution. The install pass re-fetches to run them —
+/// unlike a registry tarball, a git-hosted one can't hand its
+/// extraction over through `MemCache` (only `Registry` resolutions read
+/// it) — so a git dep costs one extra fetch per install.
 pub struct GitFetchContext {
     pub http_client: Arc<ThrottledClient>,
     pub store_dir: &'static StoreDir,
     pub store_index_writer: Option<Arc<StoreIndexWriter>>,
     pub auth_headers: Arc<AuthHeaders>,
     pub retry_opts: RetryOpts,
+    /// Hosts that opt into `git init` + `git fetch --depth 1` instead
+    /// of a full clone, for the repos with no archive endpoint. Mirrors
+    /// `Config::git_shallow_hosts`.
+    pub git_shallow_hosts: Vec<String>,
 }
 
 /// Git resolver entry point. Holds the production network / git
@@ -54,10 +65,10 @@ pub struct GitFetchContext {
 /// chain without forcing the runners (whose ownership lives on the
 /// install dispatcher) into a single owner.
 ///
-/// When `fetch_context` is `Some`, a git-hosted dep's archive is
-/// downloaded during resolution to fill `manifest` + `integrity` — see
-/// [`GitFetchContext`]. `None` (unit tests, and the resolve-only NAPI
-/// entry point) keeps the manifest-less shape.
+/// When `fetch_context` is `Some`, the package is read during
+/// resolution to fill `manifest` (and `integrity`, for a host archive)
+/// — see [`GitFetchContext`]. `None` (unit tests, and the resolve-only
+/// NAPI entry point) keeps the manifest-less shape.
 pub struct GitResolver<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> {
     probe: Arc<Probe>,
     runner: Arc<Runner>,
@@ -69,8 +80,8 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
         Self { probe, runner, fetch_context: None }
     }
 
-    /// Attach the store/network handles that let resolution read a
-    /// git-hosted package's name from its `package.json`.
+    /// Attach the store/network handles that let resolution read the
+    /// package's name from its `package.json`.
     #[must_use]
     pub fn with_fetch_context(mut self, fetch_context: GitFetchContext) -> Self {
         self.fetch_context = Some(fetch_context);
@@ -110,50 +121,71 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
         let mut result =
             build_resolve_result(spec, self.runner.as_ref(), wanted_dependency.alias.as_deref())
                 .await?;
-        self.read_archive_metadata(&mut result).await?;
+        self.read_package_metadata(&mut result).await?;
         Ok(Some(result))
     }
 
-    /// Fill `manifest` + the resolution's `integrity` from a git-hosted
-    /// package's archive. No-op without a fetch context (unit tests /
-    /// resolve-only callers), or for a non-hosted repo, which needs a
-    /// clone rather than an archive download.
-    async fn read_archive_metadata(&self, result: &mut ResolveResult) -> Result<(), ResolveError> {
+    /// Fill `manifest` — and, for an archive, the resolution's
+    /// `integrity` — from the package the git dep points at. No-op
+    /// without a fetch context (unit tests / resolve-only callers).
+    async fn read_package_metadata(&self, result: &mut ResolveResult) -> Result<(), ResolveError> {
         let Some(ctx) = self.fetch_context.as_ref() else { return Ok(()) };
-        let LockfileResolution::Tarball(tarball) = &result.resolution else { return Ok(()) };
-        let tarball_url = tarball.tarball.clone();
-        // `#path:/packages/foo` points at one directory of the repo; the
-        // archive spans the whole repo, so its root `package.json` is
-        // the repo's, not this package's.
-        let manifest_subdir = tarball.path.clone();
+        match &result.resolution {
+            LockfileResolution::Tarball(tarball) => {
+                let tarball_url = tarball.tarball.clone();
+                // `#path:/packages/foo` points at one directory of the
+                // repo; the archive spans the whole repo, so its root
+                // `package.json` is the repo's, not this package's.
+                let manifest_subdir = tarball.path.clone();
 
-        // Silent reporter: the install pass owns the
-        // `resolved → found_in_store → imported` event ordering.
-        let resolved = FetchTarballForResolution {
-            http_client: &ctx.http_client,
-            store_dir: ctx.store_dir,
-            store_index_writer: ctx.store_index_writer.clone(),
-            package_url: &tarball_url,
-            // A git host's archive URL is the package's only identifier
-            // at this point — its name is what this fetch is here to
-            // learn — and such archives carry no scoped-registry auth.
-            package_id: &tarball_url,
-            auth_headers: &ctx.auth_headers,
-            retry_opts: ctx.retry_opts,
-            manifest_subdir: manifest_subdir.as_deref(),
-        }
-        .run::<SilentReporter>(None)
-        .await
-        .map_err(|err| Box::new(err) as ResolveError)?;
+                // Silent reporter: the install pass owns the
+                // `resolved → found_in_store → imported` event ordering.
+                let resolved = FetchTarballForResolution {
+                    http_client: &ctx.http_client,
+                    store_dir: ctx.store_dir,
+                    store_index_writer: ctx.store_index_writer.clone(),
+                    package_url: &tarball_url,
+                    // A git host's archive URL is the package's only
+                    // identifier at this point — its name is what this
+                    // fetch is here to learn — and such archives carry
+                    // no scoped-registry auth.
+                    package_id: &tarball_url,
+                    auth_headers: &ctx.auth_headers,
+                    retry_opts: ctx.retry_opts,
+                    manifest_subdir: manifest_subdir.as_deref(),
+                }
+                .run::<SilentReporter>(None)
+                .await
+                .map_err(|err| Box::new(err) as ResolveError)?;
 
-        result.manifest = resolved.manifest.map(Arc::new);
-        if let LockfileResolution::Tarball(tarball) = &mut result.resolution {
-            // A git host's archive carries no integrity of its own, and
-            // the install pass refuses a tarball resolution without one
-            // (`tarball_url_and_integrity`). The bytes were just hashed
-            // to extract them, so record that — same field upstream
-            // writes for a git dep.
-            tarball.integrity = Some(resolved.integrity);
+                result.manifest = resolved.manifest.map(Arc::new);
+                if let LockfileResolution::Tarball(tarball) = &mut result.resolution {
+                    // A git host's archive carries no integrity of its
+                    // own, and the install pass refuses a tarball
+                    // resolution without one
+                    // (`tarball_url_and_integrity`). The bytes were
+                    // just hashed to extract them, so record that —
+                    // same field upstream writes for a git dep.
+                    tarball.integrity = Some(resolved.integrity);
+                }
+            }
+            LockfileResolution::Git(git) => {
+                // No archive endpoint to read, so the working tree is
+                // the only source of the name. A `Git` resolution
+                // carries no integrity — it is anchored by its commit —
+                // so the manifest is all there is to read.
+                let manifest = read_git_manifest(GitManifestQuery {
+                    repo: &git.repo,
+                    commit: &git.commit,
+                    path: git.path.as_deref(),
+                    git_shallow_hosts: &ctx.git_shallow_hosts,
+                    git_bin: None,
+                })
+                .await
+                .map_err(|err| Box::new(err) as ResolveError)?;
+                result.manifest = manifest.map(Arc::new);
+            }
+            _ => {}
         }
         Ok(())
     }

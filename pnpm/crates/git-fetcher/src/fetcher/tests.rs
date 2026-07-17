@@ -1,10 +1,14 @@
-use super::{GitFetcher, exec_git_with, extract_host, is_valid_commit_hash, should_use_shallow};
+use super::{
+    GitFetcher, GitManifestQuery, exec_git_with, extract_host, is_valid_commit_hash,
+    read_git_manifest, should_use_shallow,
+};
 use crate::{error::GitFetcherError, prepare_package::AllowBuildRef};
 use pacquet_executor::ScriptsPrependNodePath;
 use pacquet_reporter::SilentReporter;
 use pacquet_store_dir::StoreDir;
 #[cfg(unix)]
 use pacquet_testing_utils::env_guard::EnvGuard;
+use serde_json::Value;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -68,6 +72,33 @@ fn make_bare_repo(tmp: &Path) -> (PathBuf, String) {
     exec_git(&["add", "-A"], Some(&work)).unwrap();
     // `-c commit.gpgsign=false` neutralises a user-global `gpgsign=true`
     // setting that would otherwise demand a real signing key in CI.
+    exec_git(&["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"], Some(&work)).unwrap();
+    let commit = exec_git(&["rev-parse", "HEAD"], Some(&work)).unwrap().trim().to_string();
+    exec_git(&["clone", "--bare", "-q", &work.to_string_lossy(), &bare.to_string_lossy()], None)
+        .unwrap();
+    (bare, commit)
+}
+
+/// Like [`make_bare_repo`], plus a `packages/foo` sub-package (whose
+/// name deliberately differs from the repo root's) and a
+/// `packages/no-manifest` directory with no `package.json`.
+fn make_bare_repo_with_sub_package(tmp: &Path) -> (PathBuf, String) {
+    let work = tmp.join("work-sub");
+    let bare = tmp.join("repo-sub.git");
+    fs::create_dir_all(work.join("packages/foo")).unwrap();
+    fs::create_dir_all(work.join("packages/no-manifest")).unwrap();
+
+    exec_git(&["init", "-q", "-b", "main"], Some(&work)).unwrap();
+    exec_git(&["config", "user.email", "test@example.invalid"], Some(&work)).unwrap();
+    exec_git(&["config", "user.name", "Test"], Some(&work)).unwrap();
+    fs::write(work.join("package.json"), r#"{"name":"the-monorepo","version":"0.0.0"}"#).unwrap();
+    fs::write(
+        work.join("packages/foo/package.json"),
+        r#"{"name":"@scope/foo","version":"2.0.0","main":"index.js"}"#,
+    )
+    .unwrap();
+    fs::write(work.join("packages/no-manifest/readme.md"), "no manifest here\n").unwrap();
+    exec_git(&["add", "-A"], Some(&work)).unwrap();
     exec_git(&["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"], Some(&work)).unwrap();
     let commit = exec_git(&["rev-parse", "HEAD"], Some(&work)).unwrap().trim().to_string();
     exec_git(&["clone", "--bare", "-q", &work.to_string_lossy(), &bare.to_string_lossy()], None)
@@ -1018,4 +1049,91 @@ async fn fetcher_clones_when_host_not_in_shallow_list() {
     }
 
     drop(env);
+}
+
+/// A `Git` resolution's package name lives only in the working tree —
+/// the specifier names a repo, not a package.
+#[tokio::test(flavor = "multi_thread")]
+async fn read_git_manifest_reads_the_name_from_the_checkout() {
+    let tmp = tempdir().unwrap();
+    let (bare, commit) = make_bare_repo(tmp.path());
+    let repo = format!("file://{}", bare.to_string_lossy());
+
+    let manifest = read_git_manifest(GitManifestQuery {
+        repo: &repo,
+        commit: &commit,
+        path: None,
+        git_shallow_hosts: &[],
+        git_bin: None,
+    })
+    .await
+    .expect("checkout should be readable");
+
+    let manifest = dbg!(manifest).expect("repo root has a package.json");
+    assert_eq!(manifest.get("name").and_then(Value::as_str), Some("pkg"));
+    assert_eq!(manifest.get("version").and_then(Value::as_str), Some("1.0.0"));
+}
+
+/// `#path:/packages/foo` keeps its leading slash, which is rooted at
+/// the repo rather than the filesystem.
+#[tokio::test(flavor = "multi_thread")]
+async fn read_git_manifest_reads_a_repo_rooted_sub_directory() {
+    let tmp = tempdir().unwrap();
+    let (bare, commit) = make_bare_repo_with_sub_package(tmp.path());
+    let repo = format!("file://{}", bare.to_string_lossy());
+
+    let manifest = read_git_manifest(GitManifestQuery {
+        repo: &repo,
+        commit: &commit,
+        path: Some("/packages/foo"),
+        git_shallow_hosts: &[],
+        git_bin: None,
+    })
+    .await
+    .expect("checkout should be readable");
+
+    let manifest = dbg!(manifest).expect("sub-directory has a package.json");
+    assert_eq!(manifest.get("name").and_then(Value::as_str), Some("@scope/foo"));
+}
+
+/// Degrades to `None` rather than failing the resolve, matching the
+/// archive path's best-effort contract.
+#[tokio::test(flavor = "multi_thread")]
+async fn read_git_manifest_returns_none_for_a_directory_without_a_manifest() {
+    let tmp = tempdir().unwrap();
+    let (bare, commit) = make_bare_repo_with_sub_package(tmp.path());
+    let repo = format!("file://{}", bare.to_string_lossy());
+
+    let manifest = read_git_manifest(GitManifestQuery {
+        repo: &repo,
+        commit: &commit,
+        path: Some("/packages/no-manifest"),
+        git_shallow_hosts: &[],
+        git_bin: None,
+    })
+    .await
+    .expect("a manifest-less directory is not a failure");
+
+    assert_eq!(dbg!(manifest), None);
+}
+
+/// The commit guard protects the resolve-time checkout too: a value
+/// starting with `-` would otherwise reach `git checkout` as a flag.
+#[tokio::test(flavor = "multi_thread")]
+async fn read_git_manifest_rejects_a_non_sha_commit() {
+    let tmp = tempdir().unwrap();
+    let (bare, _) = make_bare_repo(tmp.path());
+    let repo = format!("file://{}", bare.to_string_lossy());
+
+    let err = read_git_manifest(GitManifestQuery {
+        repo: &repo,
+        commit: "--upload-pack=touch /tmp/pwned",
+        path: None,
+        git_shallow_hosts: &[],
+        git_bin: None,
+    })
+    .await
+    .expect_err("a non-SHA commit must be rejected before it reaches git");
+
+    assert!(matches!(err, GitFetcherError::InvalidCommit { .. }), "{err:?}");
 }

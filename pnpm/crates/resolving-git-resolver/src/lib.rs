@@ -15,16 +15,12 @@
 //!   impl that drives the two above, runs `git ls-remote` to pin a
 //!   commit, and emits either a `Tarball{gitHosted: true}` or `Git`
 //!   resolution. Given a [`GitFetchContext`], it also reads the
-//!   package's name from the host archive's `package.json` and its
-//!   integrity from the archive bytes — see that type for why
-//!   resolution is where that has to happen.
+//!   package's name from its `package.json` — out of the host archive,
+//!   or out of a checkout for a repo that serves no archive — plus the
+//!   archive's integrity. See that type for why resolution is where
+//!   that has to happen.
 //!
 //! Out of scope:
-//!
-//! - Reading the identity of a `Git`-resolution dep (a private/ssh
-//!   repo with no host archive endpoint). Those need a clone rather
-//!   than an archive download, so they keep resolving without a
-//!   manifest or integrity.
 //!
 //! - The `prev_specifier` short-circuit (the `currentPkg && !update`
 //!   fast path). Pacquet doesn't thread `currentPkg` through the seam

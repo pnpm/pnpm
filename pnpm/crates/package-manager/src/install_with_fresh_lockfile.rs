@@ -680,8 +680,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         });
         // A git dep's specifier names a repo, not a package, so its
         // name — the `<name>@` half of every lockfile key it reaches —
-        // is only readable from the `package.json` in the host's
-        // archive. Hand the resolver the handles to fetch it, on the
+        // is only readable from the package's own `package.json`, in
+        // the host's archive or (for a repo with no archive endpoint) a
+        // checkout. Hand the resolver the handles to read it, on the
         // same rationale as the remote-tarball fetch below.
         let git_resolver = GitResolver::new(
             Arc::new(RealGitProbe::new(Arc::clone(&http_client_arc))),
@@ -693,6 +694,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             store_index_writer: Some(Arc::clone(&store_index_writer)),
             auth_headers: Arc::clone(&auth_headers),
             retry_opts: crate::retry_config::retry_opts_from_config(config),
+            git_shallow_hosts: config.git_shallow_hosts.clone(),
         });
         // A remote (non-registry) tarball *direct* dependency carries no
         // name/version/integrity at resolve time — they live in the
