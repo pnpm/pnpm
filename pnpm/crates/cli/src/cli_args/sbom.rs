@@ -14,7 +14,7 @@ use pacquet_package_manifest::{extract_author, extract_homepage, safe_read_packa
 use std::{
     collections::{HashMap, HashSet},
     io::Write,
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
@@ -147,6 +147,23 @@ struct SbomResult {
     root_bugs_url: Option<String>,
     components: Vec<SbomComponent>,
     relationships: Vec<SbomRelationship>,
+}
+
+/// Resolve a lockfile importer key to the on-disk directory whose
+/// `package.json` the SBOM reads, returning `None` when that directory does
+/// not stay inside the lockfile dir. Mirrors pnpm's SBOM importer handling
+/// (`sbom.ts`): `validate_importer_id` is the cheap lexical pre-filter, then
+/// both the lockfile dir and the importer dir are canonicalized so a
+/// *symlinked* importer directory can't resolve outside the workspace, and a
+/// resolved path outside the root is skipped rather than read. `importer_id`
+/// comes from an untrusted lockfile.
+fn confined_importer_dir(lockfile_dir: &Path, importer_id: &str) -> Option<PathBuf> {
+    if validate_importer_id(importer_id).is_err() {
+        return None;
+    }
+    let lockfile_root = std::fs::canonicalize(lockfile_dir).ok()?;
+    let importer_dir = std::fs::canonicalize(importer_root_dir(lockfile_dir, importer_id)).ok()?;
+    importer_dir.starts_with(&lockfile_root).then_some(importer_dir)
 }
 
 fn extract_repository(manifest: &serde_json::Value) -> Option<String> {
@@ -376,14 +393,12 @@ fn collect_components(
 
     let manifest_value = match filter_importer_ids {
         Some(&[single_id]) => {
-            // `single_id` is a raw lockfile importer key; validate it before
-            // it turns into an on-disk path so a crafted `../foo` or absolute
-            // key cannot read a `package.json` outside the workspace.
-            let manifest = validate_importer_id(single_id).ok().and_then(|()| {
-                safe_read_package_json_from_dir(&importer_root_dir(&lockfile_dir, single_id))
-                    .ok()
-                    .flatten()
-            });
+            // `single_id` is a raw lockfile importer key; confine it to the
+            // workspace before it turns into an on-disk path so neither a
+            // crafted `../foo`/absolute key nor a symlinked importer dir can
+            // read a `package.json` outside the workspace.
+            let manifest = confined_importer_dir(&lockfile_dir, single_id)
+                .and_then(|dir| safe_read_package_json_from_dir(&dir).ok().flatten());
             manifest.unwrap_or_else(|| {
                 if single_id == state.active_importer_id() {
                     state.manifest.value().clone()
@@ -455,11 +470,9 @@ fn collect_components(
         let parent_purl =
             ws_purl_by_importer.get(&importer_id).cloned().unwrap_or_else(|| root_purl.clone());
 
-        let importer_peer_names = if exclude_peers && validate_importer_id(&importer_id).is_ok() {
-            let importer_dir = importer_root_dir(&lockfile_dir, &importer_id);
-            safe_read_package_json_from_dir(&importer_dir)
-                .ok()
-                .flatten()
+        let importer_peer_names = if exclude_peers {
+            confined_importer_dir(&lockfile_dir, &importer_id)
+                .and_then(|dir| safe_read_package_json_from_dir(&dir).ok().flatten())
                 .map(|m| peer_names_from_manifest(&m))
                 .unwrap_or_default()
         } else {
@@ -498,65 +511,63 @@ fn collect_components(
                 {
                     continue;
                 }
-                if let Some(link_target) = spec.version.as_link_target() {
-                    if let Some(target_id) = normalize_link_path(&importer_id, link_target)
-                        && lockfile.importers.contains_key(target_id.as_str())
-                        && validate_importer_id(&target_id).is_ok()
-                    {
-                        let ws_dir = importer_root_dir(&lockfile_dir, &target_id);
-                        if let Ok(Some(ws_manifest)) = safe_read_package_json_from_dir(&ws_dir) {
-                            let ws_name = ws_manifest
-                                .get("name")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or(&name.to_string())
-                                .to_string();
-                            let ws_version = ws_manifest
-                                .get("version")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("0.0.0")
-                                .to_string();
-                            let ws_purl = build_purl(&ws_name, &ws_version);
-                            let name_str = name.to_string();
-                            let dev_only = dev_dep_names.contains(&name_str)
-                                && !prod_dep_names.contains(&name_str);
-                            relationships.push(SbomRelationship {
-                                from: parent_purl.clone(),
-                                to: ws_purl.clone(),
-                            });
-                            let ws_dep_type =
-                                if dev_only { DepType::DevOnly } else { DepType::ProdOnly };
-                            if let Some(existing) = components_map.get_mut(&ws_purl) {
-                                if !dev_only && existing.dep_type == DepType::DevOnly {
-                                    existing.dep_type = DepType::ProdOnly;
-                                }
-                            } else {
-                                components_map.insert(
-                                    ws_purl.clone(),
-                                    SbomComponent {
-                                        name: ws_name,
-                                        version: ws_version,
-                                        purl: ws_purl.clone(),
-                                        dep_type: ws_dep_type,
-                                        integrity: None,
-                                        tarball_url: None,
-                                        license: ws_manifest
-                                            .get("license")
-                                            .and_then(|v| v.as_str())
-                                            .map(ToString::to_string),
-                                        description: ws_manifest
-                                            .get("description")
-                                            .and_then(|v| v.as_str())
-                                            .map(ToString::to_string),
-                                        author: extract_author(&ws_manifest),
-                                        homepage: extract_homepage(&ws_manifest),
-                                        repository: extract_repository(&ws_manifest),
-                                        bugs_url: extract_bugs_url(&ws_manifest),
-                                    },
-                                );
+                if let Some(link_target) = spec.version.as_link_target()
+                    && let Some(target_id) = normalize_link_path(&importer_id, link_target)
+                    && lockfile.importers.contains_key(target_id.as_str())
+                    && let Some(ws_dir) = confined_importer_dir(&lockfile_dir, &target_id)
+                {
+                    if let Ok(Some(ws_manifest)) = safe_read_package_json_from_dir(&ws_dir) {
+                        let ws_name = ws_manifest
+                            .get("name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or(&name.to_string())
+                            .to_string();
+                        let ws_version = ws_manifest
+                            .get("version")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("0.0.0")
+                            .to_string();
+                        let ws_purl = build_purl(&ws_name, &ws_version);
+                        let name_str = name.to_string();
+                        let dev_only = dev_dep_names.contains(&name_str)
+                            && !prod_dep_names.contains(&name_str);
+                        relationships.push(SbomRelationship {
+                            from: parent_purl.clone(),
+                            to: ws_purl.clone(),
+                        });
+                        let ws_dep_type =
+                            if dev_only { DepType::DevOnly } else { DepType::ProdOnly };
+                        if let Some(existing) = components_map.get_mut(&ws_purl) {
+                            if !dev_only && existing.dep_type == DepType::DevOnly {
+                                existing.dep_type = DepType::ProdOnly;
                             }
-                            ws_purl_by_importer.insert(target_id.clone(), ws_purl);
-                            importer_queue.push(target_id);
+                        } else {
+                            components_map.insert(
+                                ws_purl.clone(),
+                                SbomComponent {
+                                    name: ws_name,
+                                    version: ws_version,
+                                    purl: ws_purl.clone(),
+                                    dep_type: ws_dep_type,
+                                    integrity: None,
+                                    tarball_url: None,
+                                    license: ws_manifest
+                                        .get("license")
+                                        .and_then(|v| v.as_str())
+                                        .map(ToString::to_string),
+                                    description: ws_manifest
+                                        .get("description")
+                                        .and_then(|v| v.as_str())
+                                        .map(ToString::to_string),
+                                    author: extract_author(&ws_manifest),
+                                    homepage: extract_homepage(&ws_manifest),
+                                    repository: extract_repository(&ws_manifest),
+                                    bugs_url: extract_bugs_url(&ws_manifest),
+                                },
+                            );
                         }
+                        ws_purl_by_importer.insert(target_id.clone(), ws_purl);
+                        importer_queue.push(target_id);
                     }
                 } else if let Some(snapshot_key) = spec.version.resolved_key(name) {
                     walk_snapshot(
