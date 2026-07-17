@@ -19,6 +19,7 @@ pub mod deprecate;
 pub mod dist_tag;
 pub mod dlx;
 pub mod docs;
+pub mod doctor;
 pub mod exec;
 pub mod fetch;
 pub mod find_hash;

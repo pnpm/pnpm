@@ -75,6 +75,7 @@ p256                 = { workspace = true }
 pathdiff             = { workspace = true }
 pipe-trait           = { workspace = true }
 rayon                = { workspace = true }
+reflink-copy         = { workspace = true }
 reqwest              = { workspace = true }
 rmp-serde            = { workspace = true }
 serde                = { workspace = true }

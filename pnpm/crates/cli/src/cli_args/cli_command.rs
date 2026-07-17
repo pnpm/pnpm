@@ -19,6 +19,7 @@ use super::{
     dist_tag::DistTagArgs,
     dlx::DlxArgs,
     docs::DocsArgs,
+    doctor::DoctorArgs,
     exec::ExecArgs,
     fetch::FetchArgs,
     find_hash::FindHashArgs,
@@ -313,6 +314,8 @@ pub enum CliCommand {
     DistTag(DistTagArgs),
     /// Test connectivity to the configured registry.
     Ping(PingArgs),
+    /// Run diagnostics on the pnpm installation and environment.
+    Doctor(DoctorArgs),
     /// Search for packages in the registry.
     #[clap(visible_aliases = ["s", "se", "find"])]
     Search(SearchArgs),
