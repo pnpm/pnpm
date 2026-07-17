@@ -1,4 +1,6 @@
-use crate::cli_args::recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects};
+use crate::cli_args::recursive::{
+    AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
+};
 use clap::Args;
 use miette::IntoDiagnostic;
 use pacquet_config::Config;
@@ -83,8 +85,6 @@ pub struct LicenseInfo {
     pub description: Option<String>,
 }
 
-
-
 impl LicensesArgs {
     pub async fn run(
         self,
@@ -112,7 +112,8 @@ impl LicensesArgs {
                 let id = if project_dir == lockfile_dir {
                     ".".to_string()
                 } else {
-                    project_dir.strip_prefix(lockfile_dir)
+                    project_dir
+                        .strip_prefix(lockfile_dir)
                         .ok()
                         .map(|rel| rel.to_string_lossy().replace('\\', "/"))
                         .filter(|id| !id.is_empty())
@@ -138,7 +139,8 @@ impl LicensesArgs {
         let mut stack: Vec<(PackageKey, BelongsTo)> = Vec::new();
 
         for id in importer_ids {
-            let Some(importer) = lockfile.importers.get(&id).or_else(|| lockfile.root_project()) else {
+            let Some(importer) = lockfile.importers.get(&id).or_else(|| lockfile.root_project())
+            else {
                 continue;
             };
             let mut queue_deps = |deps: Option<&ResolvedDependencyMap>, kind: BelongsTo| {
@@ -223,15 +225,17 @@ impl LicensesArgs {
             }
 
             let store_name = key.to_virtual_store_name(virtual_store_dir_max_length);
-            
+
             let pkg_dir = virtual_store_dir.join(&store_name).join("node_modules").join(&name);
-            let is_unsafe = store_name.contains("..") || name.contains("..") || std::path::Path::new(&store_name).is_absolute() || std::path::Path::new(&name).is_absolute();
+            let is_unsafe = store_name.contains("..")
+                || name.contains("..")
+                || std::path::Path::new(&store_name).is_absolute()
+                || std::path::Path::new(&name).is_absolute();
             let manifest = if is_unsafe {
                 None
             } else {
                 safe_read_package_json_from_dir(&pkg_dir).unwrap_or(None)
             };
-
 
             let license = manifest
                 .as_ref()
