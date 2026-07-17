@@ -17,9 +17,6 @@ const LOCKFILE_READ_FLAGS = constants.O_RDONLY | (process.platform === 'win32' ?
  * The file must start with "---\n" to indicate it contains an env lockfile document.
  * Stops reading as soon as the second document separator is found.
  * Returns null if the file doesn't exist or doesn't start with "---\n".
- *
- * Follows a symlinked lockfile; {@link ensureLockfileIsNotSymlink} covers why
- * only writes refuse one.
  */
 export async function streamReadFirstYamlDocument (filePath: string, readBufferSize = READ_BUFFER_SIZE): Promise<string | null> {
   let fileHandle: FileHandle | undefined
@@ -68,15 +65,6 @@ export async function streamReadFirstYamlDocument (filePath: string, readBufferS
   }
 }
 
-/**
- * Reads a whole lockfile, following a symlink. Returns null if it doesn't exist.
- * See {@link streamReadFirstYamlDocument} for why reads may follow symlinks.
- *
- * The BOM is stripped and CRLF normalized, matching what
- * {@link streamReadFirstYamlDocument} yields, so a caller can compare the result
- * against freshly serialized content without a lockfile's encoding alone
- * counting as a change.
- */
 export async function readLockfileToString (filePath: string): Promise<string | null> {
   try {
     return stripBom(await readFile(filePath, 'utf8')).replace(/\r\n/g, '\n')
@@ -116,16 +104,10 @@ async function openLockfileNoFollow (filePath: string): Promise<FileHandle> {
 }
 
 /**
- * Refuses a symlinked lockfile before a write: the lockfile must be a real file
- * to be written. A writer that resolves the path lands on the link's target, so
- * a repo-planted `pnpm-lock.yaml` redirects the write onto any file the user can
- * write; a writer that renames over the link instead discards a lockfile a build
- * sandbox staged deliberately.
- *
- * Reads may follow the link and must not call this. Sandboxes stage
- * `pnpm-lock.yaml` as a symlink (https://github.com/pnpm/pnpm/issues/13073), and
- * lockfile content is untrusted however it is reached — a repository can commit
- * whatever content it likes as a plain file.
+ * Refuses a symlinked lockfile before a write, which would land on the link's
+ * target — any file the user can write. Reads may follow it: sandboxes stage
+ * `pnpm-lock.yaml` as a symlink, and lockfile content is untrusted either way
+ * (https://github.com/pnpm/pnpm/issues/13073).
  */
 export async function ensureLockfileIsNotSymlink (filePath: string): Promise<void> {
   let stat
@@ -157,11 +139,7 @@ function normalizeReadBufferSize (readBufferSize: number): number {
   return size > 0 ? size : READ_BUFFER_SIZE
 }
 
-/**
- * Extracts the env lockfile content (first YAML document) from a combined string,
- * or null when there is no leading env document. The string counterpart of
- * {@link streamReadFirstYamlDocument}, for callers that already hold the file.
- */
+/** The in-memory counterpart of {@link streamReadFirstYamlDocument}. */
 export function extractEnvDocument (content: string): string | null {
   content = content.replace(/\r\n/g, '\n')
   if (!content.startsWith(YAML_DOCUMENT_START)) return null

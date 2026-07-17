@@ -71,14 +71,8 @@ pub enum SaveLockfileError {
 /// A lockfile with no env document round-trips byte-for-byte (no
 /// leading `---`).
 ///
-/// A byte-identical rewrite is skipped, so an up-to-date install leaves the
-/// lockfile — and its mtime — untouched, and a symlinked lockfile that nothing
-/// changes is never refused (<https://github.com/pnpm/pnpm/issues/13073>). A
-/// write that does change bytes refuses a symlinked lockfile.
-///
-/// The write is atomic: a crash mid-write leaves the previous lockfile intact
-/// rather than a truncated one. A missing parent directory is an error, not
-/// something to create — the lockfile is written into an existing project.
+/// A write that changes bytes is atomic and refuses a symlinked lockfile. A
+/// missing parent directory is an error, not something to create.
 pub fn save_value_to_path<Document: serde::Serialize>(
     value: &Document,
     path: &Path,
@@ -102,16 +96,10 @@ pub fn save_value_to_path<Document: serde::Serialize>(
     write_atomic(path, output.as_bytes())
 }
 
-/// Refuses a symlinked lockfile before a write: the lockfile must be a real file
-/// to be written. A writer that resolves the path lands on the link's target, so
-/// a repo-planted `pnpm-lock.yaml` redirects the write onto any file the user can
-/// write; a writer that renames over the link instead discards a lockfile a build
-/// sandbox staged deliberately.
-///
-/// Reads may follow the link and must not call this. Sandboxes stage
-/// `pnpm-lock.yaml` as a symlink (<https://github.com/pnpm/pnpm/issues/13073>),
-/// and lockfile content is untrusted however it is reached — a repository can
-/// commit whatever content it likes as a plain file.
+/// Refuses a symlinked lockfile before a write, which would land on the link's
+/// target — any file the user can write. Reads may follow it: sandboxes stage
+/// `pnpm-lock.yaml` as a symlink, and lockfile content is untrusted either way
+/// (<https://github.com/pnpm/pnpm/issues/13073>).
 pub(crate) fn ensure_lockfile_is_not_symlink(path: &Path) -> io::Result<()> {
     match fs::symlink_metadata(path) {
         Ok(metadata) if metadata.file_type().is_symlink() => Err(symlinked_lockfile_error(path)),
@@ -178,11 +166,10 @@ impl Lockfile {
     }
 }
 
-/// Make the freshly created temp file a faithful stand-in for `target`: flush
-/// it to disk so the rename can't publish a directory entry whose data didn't
-/// survive a power loss, and carry `target`'s mode across — the rename replaces
-/// `target` with this file, so a lockfile the user tightened would otherwise
-/// silently revert to the umask default.
+/// Makes the temp file a faithful stand-in for `target`: flushed, so the rename
+/// can't publish a directory entry whose data didn't survive a power loss, and
+/// carrying `target`'s mode, which the rename would otherwise reset to the umask
+/// default.
 fn fill_temp_file(file: &mut fs::File, content: &[u8], target: &Path) -> io::Result<()> {
     file.write_all(content)?;
     file.sync_all()?;
@@ -193,9 +180,7 @@ fn fill_temp_file(file: &mut fs::File, content: &[u8], target: &Path) -> io::Res
 fn carry_mode_across(file: &fs::File, target: &Path) -> io::Result<()> {
     use std::os::unix::fs::PermissionsExt as _;
 
-    // `symlink_metadata` so a symlinked target is never followed. Callers
-    // refuse a symlinked lockfile before reaching here; a fresh file keeps the
-    // umask default, matching a plain create.
+    // `symlink_metadata` so a symlinked target is never followed.
     let Ok(metadata) = fs::symlink_metadata(target) else { return Ok(()) };
     if metadata.file_type().is_symlink() {
         return Ok(());

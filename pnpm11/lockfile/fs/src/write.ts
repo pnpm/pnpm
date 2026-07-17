@@ -81,18 +81,11 @@ async function writeLockfile (
 }
 
 /**
- * Writes a serialized lockfile. Only `pnpm-lock.yaml` is led by an env
- * document; `lock.yaml` and git-branch lockfiles are written as-is.
- *
- * The env document is preserved by re-reading it. Ideally it would be captured
- * during the initial lockfile read and passed through to the write functions,
- * but that would require threading it through 25+ call sites. Re-reading is
- * cheap since the file is likely still in the OS page cache.
- *
- * A byte-identical rewrite is skipped, so an up-to-date install — every
- * `--frozen-lockfile` run — leaves the lockfile and its mtime untouched, and a
- * symlinked lockfile that nothing changes is never refused
- * (https://github.com/pnpm/pnpm/issues/13073).
+ * Writes a serialized lockfile, re-reading the env document that leads
+ * `pnpm-lock.yaml` to preserve it. Ideally it would be captured during the
+ * initial lockfile read and passed through, but that would require threading it
+ * through 25+ call sites; re-reading is cheap since the file is likely still in
+ * the OS page cache.
  */
 async function writeLockfileDoc (lockfilePath: string, lockfileName: string, mainDoc: string): Promise<void> {
   if (lockfileName !== WANTED_LOCKFILE) {
@@ -109,14 +102,9 @@ async function writeLockfileDoc (lockfilePath: string, lockfileName: string, mai
 }
 
 /**
- * Replaces `pnpm-lock.yaml` through a temp file and `rename`, carrying the
- * target's ownership and mode onto the replacement.
- *
- * `rename` is what makes this safe: it replaces the final path component and
- * never resolves it, so a symlink swapped in after
- * {@link ensureLockfileIsNotSymlink} cannot redirect the write. The
- * `write-file-atomic` this file uses elsewhere resolves the destination with
- * `realpath`, which would follow such a swap.
+ * Publishes with `rename`, not the `write-file-atomic` used elsewhere here:
+ * `rename` never resolves the final path component, so a symlink swapped in
+ * after {@link ensureLockfileIsNotSymlink} cannot redirect the write.
  */
 async function writeWantedLockfileAtomic (lockfilePath: string, content: string): Promise<void> {
   await ensureLockfileIsNotSymlink(lockfilePath)
@@ -133,9 +121,8 @@ async function writeWantedLockfileAtomic (lockfilePath: string, content: string)
     tempFile = await fs.open(tempPath, 'wx', targetStat?.mode)
     await tempFile.writeFile(content)
     if (targetStat != null) {
-      // The rename replaces the target with this fresh file, so an install
-      // running as another user — root in a container over a bind-mounted repo —
-      // would hand the lockfile's owner a file they can no longer write.
+      // An install running as root, in a container over a bind-mounted repo,
+      // would otherwise leave the owner a lockfile they cannot write.
       await tempFile.chown(targetStat.uid, targetStat.gid).catch(ignoreUnprivilegedChown)
       await tempFile.chmod(targetStat.mode)
     }
