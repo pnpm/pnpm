@@ -760,3 +760,17 @@ where
 
 #[cfg(test)]
 mod tests;
+
+/// Extracts the author field from a manifest (either string or object with name).
+pub fn extract_author(manifest: &serde_json::Value) -> Option<String> {
+    let author = manifest.get("author")?;
+    if let Some(s) = author.as_str() {
+        return Some(s.to_string());
+    }
+    author.get("name").and_then(|n| n.as_str()).map(ToString::to_string)
+}
+
+/// Extracts the homepage field from a manifest.
+pub fn extract_homepage(manifest: &serde_json::Value) -> Option<String> {
+    manifest.get("homepage").and_then(|v| v.as_str()).map(ToString::to_string)
+}

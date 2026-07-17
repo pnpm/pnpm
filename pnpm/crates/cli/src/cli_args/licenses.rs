@@ -1,12 +1,12 @@
+use crate::cli_args::recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects};
 use clap::Args;
 use miette::IntoDiagnostic;
 use pacquet_config::Config;
 use pacquet_lockfile::{Lockfile, PackageKey, PkgName, ResolvedDependencyMap};
-use pacquet_package_manifest::safe_read_package_json_from_dir;
+use pacquet_package_manifest::{extract_author, extract_homepage, safe_read_package_json_from_dir};
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap, HashSet};
-use tabled::builder::Builder;
-use tabled::settings::Style;
+use tabled::{builder::Builder, settings::Style};
 
 #[derive(Debug, Args)]
 pub struct LicensesArgs {
@@ -83,26 +83,17 @@ pub struct LicenseInfo {
     pub description: Option<String>,
 }
 
-fn extract_author(manifest: &serde_json::Value) -> Option<String> {
-    let author = manifest.get("author")?;
-    if let Some(s) = author.as_str() {
-        return Some(s.to_string());
-    }
-    author.get("name").and_then(|n| n.as_str()).map(ToString::to_string)
-}
 
-fn extract_homepage(manifest: &serde_json::Value) -> Option<String> {
-    manifest.get("homepage").and_then(|v| v.as_str()).map(ToString::to_string)
-}
 
 impl LicensesArgs {
     pub async fn run(
         self,
         config: &Config,
         dir: &std::path::Path,
-        _recursive: bool,
+        recursive: bool,
     ) -> miette::Result<()> {
-        let lockfile = Lockfile::load_wanted_from_dir(dir).into_diagnostic()?;
+        let lockfile_dir = config.workspace_dir.as_deref().unwrap_or(dir);
+        let lockfile = Lockfile::load_wanted_from_dir(lockfile_dir).into_diagnostic()?;
         let Some(lockfile) = lockfile else {
             if self.json {
                 println!("{{}}");
@@ -110,11 +101,46 @@ impl LicensesArgs {
             return Ok(());
         };
 
+        let mut importer_ids = Vec::new();
+
+        if recursive {
+            let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
+            let (projects, _) = discover_workspace_projects(workspace_root)?;
+            let selection =
+                select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
+            for project_dir in selection.selected.keys() {
+                let id = if project_dir == lockfile_dir {
+                    ".".to_string()
+                } else {
+                    project_dir.strip_prefix(lockfile_dir)
+                        .ok()
+                        .map(|rel| rel.to_string_lossy().replace('\\', "/"))
+                        .filter(|id| !id.is_empty())
+                        .unwrap_or_else(|| ".".to_string())
+                };
+                importer_ids.push(id);
+            }
+        } else {
+            let importer_id = if dir == lockfile_dir {
+                ".".to_string()
+            } else {
+                dir.strip_prefix(lockfile_dir)
+                    .ok()
+                    .map(|rel| rel.to_string_lossy().replace('\\', "/"))
+                    .filter(|id| !id.is_empty())
+                    .unwrap_or_else(|| ".".to_string())
+            };
+            importer_ids.push(importer_id);
+        }
+
         let include = self.dependency_options.include();
         let mut belongs_to: HashMap<PackageKey, BelongsTo> = HashMap::new();
         let mut stack: Vec<(PackageKey, BelongsTo)> = Vec::new();
 
-        for importer in lockfile.importers.values() {
+        for id in importer_ids {
+            let Some(importer) = lockfile.importers.get(&id).or_else(|| lockfile.root_project()) else {
+                continue;
+            };
             let mut queue_deps = |deps: Option<&ResolvedDependencyMap>, kind: BelongsTo| {
                 if let Some(deps) = deps {
                     for (alias, spec) in deps {
@@ -291,3 +317,6 @@ impl LicensesArgs {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests;
