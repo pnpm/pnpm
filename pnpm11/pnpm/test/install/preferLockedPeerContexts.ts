@@ -74,7 +74,7 @@ test('a manifest edit does not propagate an unrelated optional peer context', as
 
   const installedLockfileText = fs.readFileSync(WANTED_LOCKFILE, 'utf8')
   const installedLockfile = readYamlFileSync<LockfileFile>(WANTED_LOCKFILE)
-  delete initialLockfile.importers.a.dependencies!['tiny-invariant']
+  delete initialLockfile.importers!.a.dependencies!['tiny-invariant']
   delete initialLockfile.packages!['tiny-invariant@1.3.3']
   delete initialLockfile.snapshots!['tiny-invariant@1.3.3']
   expect(installedLockfile).toEqual(initialLockfile)
