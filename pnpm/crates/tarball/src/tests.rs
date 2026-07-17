@@ -37,8 +37,11 @@ fn gzip_size_hint_enforces_untrusted_preallocation_limit() {
         bounded_gzip_size_hint(Some(MAX_UNTRUSTED_PREALLOC_BYTES)),
         Some(MAX_UNTRUSTED_PREALLOC_BYTES),
     );
-    assert_eq!(bounded_gzip_size_hint(Some(MAX_UNTRUSTED_PREALLOC_BYTES + 1)), None);
-    assert_eq!(bounded_gzip_size_hint(Some(usize::MAX)), None);
+    assert_eq!(
+        bounded_gzip_size_hint(Some(MAX_UNTRUSTED_PREALLOC_BYTES + 1)),
+        Some(MAX_UNTRUSTED_PREALLOC_BYTES),
+    );
+    assert_eq!(bounded_gzip_size_hint(Some(usize::MAX)), Some(MAX_UNTRUSTED_PREALLOC_BYTES));
 }
 
 /// `decompress_gzip` must route `dist.unpackedSize` through
@@ -47,7 +50,7 @@ fn gzip_size_hint_enforces_untrusted_preallocation_limit() {
 /// a failed reservation aborts the process and takes the install with
 /// it. A registry that overstates the size still decodes correctly.
 #[test]
-fn decompress_gzip_ignores_oversized_unpacked_size() {
+fn decompress_gzip_bounds_oversized_unpacked_size() {
     let payload = b"decompressed tar payload";
     let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
     std::io::Write::write_all(&mut encoder, payload).expect("gzip payload");

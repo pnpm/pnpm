@@ -35,6 +35,12 @@ use zune_inflate::{DeflateDecoder, DeflateOptions, errors::InflateDecodeErrors};
 /// attacker-controlled, and post-download work runs concurrently (see
 /// [`post_download_semaphore`]), so whatever one task reserves up front
 /// is multiplied across every task in flight.
+///
+/// An oversized figure is clamped to the ceiling rather than dropped.
+/// Both consumers grow their buffer on demand, so clamping still decodes
+/// a genuinely larger archive in full while keeping the reservation the
+/// hint exists for — dropping it instead would leave a large package
+/// growing from the decoder's 37 KB default in 4 KiB steps.
 const MAX_UNTRUSTED_PREALLOC_BYTES: usize = 64 * 1024 * 1024;
 
 /// Cap on concurrent post-download tarball work (SHA-512 of the whole
@@ -462,15 +468,12 @@ fn read_local_tarball_error(
     }
 }
 
-/// Keep a `dist.unpackedSize` hint only while it stays within
-/// [`MAX_UNTRUSTED_PREALLOC_BYTES`]. An oversized hint is dropped rather
-/// than clamped to the ceiling: zune-inflate turns the hint into an
-/// infallible zero-filled `vec![0; hint]`, so clamping would let every
-/// package that overstates its size pin the whole ceiling up front.
-/// Dropping the hint costs only buffer growth: the decoder resizes as
-/// it goes, so a genuinely larger archive still decompresses.
+/// Clamp a `dist.unpackedSize` hint to [`MAX_UNTRUSTED_PREALLOC_BYTES`].
+/// zune-inflate turns the hint into an infallible zero-filled
+/// `vec![0; hint]` that aborts the process when the allocation fails, so
+/// the registry's figure must never reach it unbounded.
 fn bounded_gzip_size_hint(unpacked_size: Option<usize>) -> Option<usize> {
-    unpacked_size.filter(|&size| size <= MAX_UNTRUSTED_PREALLOC_BYTES)
+    unpacked_size.map(|size| size.min(MAX_UNTRUSTED_PREALLOC_BYTES))
 }
 
 #[instrument(skip(gz_data), fields(gz_data_len = gz_data.len()))]
@@ -1029,10 +1032,6 @@ fn extract_zip_entries(
             continue;
         }
 
-        // Clamped here rather than dropped as in `bounded_gzip_size_hint`:
-        // the `try_reserve` below surfaces a refused reservation as an
-        // error instead of aborting, so a capped hint stays useful for a
-        // large legitimate entry.
         let prealloc_hint = entry.size().min(MAX_UNTRUSTED_PREALLOC_BYTES as u64) as usize;
         let mut buffer = Vec::new();
         buffer.try_reserve(prealloc_hint).map_err(|err| TarballError::ReadZipEntries {
