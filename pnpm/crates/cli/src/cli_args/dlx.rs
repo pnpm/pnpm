@@ -104,7 +104,7 @@ pub enum DlxError {
     BadPathDir { dir: String, delimiter: char },
 
     #[display("Failed to read the installed manifest at {path}: {source}")]
-    #[diagnostic(code(pacquet_cli::dlx_read_manifest))]
+    #[diagnostic(code(ERR_PNPM_CLI_DLX_READ_MANIFEST))]
     ReadManifest {
         path: String,
         #[error(source)]
@@ -112,7 +112,7 @@ pub enum DlxError {
     },
 
     #[display("Failed to prepare the dlx cache directory {dir}: {source}")]
-    #[diagnostic(code(pacquet_cli::dlx_cache))]
+    #[diagnostic(code(ERR_PNPM_CLI_DLX_CACHE))]
     Cache {
         dir: String,
         #[error(source)]
@@ -120,7 +120,7 @@ pub enum DlxError {
     },
 
     #[display("Failed to spawn command \"{command}\": {source}")]
-    #[diagnostic(code(pacquet_cli::dlx_spawn))]
+    #[diagnostic(code(ERR_PNPM_CLI_DLX_SPAWN))]
     Spawn {
         command: String,
         #[error(source)]

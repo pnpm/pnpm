@@ -23,7 +23,7 @@ const BARE_SPEC_PREFIX: &str = "runtime:";
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum DenoResolverError {
     #[display("Could not resolve Deno version specified as {spec}")]
-    #[diagnostic(code(DENO_RESOLUTION_FAILURE))]
+    #[diagnostic(code(ERR_PNPM_DENO_RESOLUTION_FAILURE))]
     ResolutionFailure {
         #[error(not(source))]
         spec: String,

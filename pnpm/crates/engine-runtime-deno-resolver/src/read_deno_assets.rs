@@ -30,14 +30,14 @@ use ssri::Integrity;
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum ReadDenoAssetsError {
     #[display("No assets found for Deno v{version}")]
-    #[diagnostic(code(DENO_MISSING_ASSETS))]
+    #[diagnostic(code(ERR_PNPM_DENO_MISSING_ASSETS))]
     MissingAssets {
         #[error(not(source))]
         version: String,
     },
 
     #[display("Failed to GET sha256 at {url}")]
-    #[diagnostic(code(DENO_GITHUB_FAILURE))]
+    #[diagnostic(code(ERR_PNPM_DENO_GITHUB_FAILURE))]
     GithubFailure {
         url: String,
         #[error(source)]
@@ -45,18 +45,18 @@ pub enum ReadDenoAssetsError {
     },
 
     #[display("Failed to GET sha256 at {url} (status: {status})")]
-    #[diagnostic(code(DENO_GITHUB_FAILURE))]
+    #[diagnostic(code(ERR_PNPM_DENO_GITHUB_FAILURE))]
     GithubStatus { url: String, status: u16 },
 
     #[display("No SHA256 in {url}")]
-    #[diagnostic(code(DENO_PARSE_HASH))]
+    #[diagnostic(code(ERR_PNPM_DENO_PARSE_HASH))]
     ParseHash {
         #[error(not(source))]
         url: String,
     },
 
     #[display("Failed to GET release index for Deno v{version}")]
-    #[diagnostic(code(DENO_GITHUB_FAILURE))]
+    #[diagnostic(code(ERR_PNPM_DENO_GITHUB_FAILURE))]
     FetchReleaseIndex {
         version: String,
         #[error(source)]
@@ -64,7 +64,7 @@ pub enum ReadDenoAssetsError {
     },
 
     #[display("Failed to decode release index for Deno v{version}")]
-    #[diagnostic(code(DENO_GITHUB_FAILURE))]
+    #[diagnostic(code(ERR_PNPM_DENO_GITHUB_FAILURE))]
     DecodeReleaseIndex {
         version: String,
         #[error(source)]
@@ -72,7 +72,7 @@ pub enum ReadDenoAssetsError {
     },
 
     #[display("Failed to parse integrity for {url}")]
-    #[diagnostic(code(DENO_PARSE_HASH))]
+    #[diagnostic(code(ERR_PNPM_DENO_PARSE_HASH))]
     Integrity {
         url: String,
         #[error(source)]

@@ -67,7 +67,7 @@ pub struct WorkspaceManifest {
 /// `serde_saphyr` rejects a non-array shape before this layer runs.
 /// Only the empty-string-entry check needs a dedicated variant.
 #[derive(Debug, Display, Error, Diagnostic)]
-#[diagnostic(code(pacquet_workspace::invalid_workspace_configuration))]
+#[diagnostic(code(ERR_PNPM_INVALID_WORKSPACE_CONFIGURATION))]
 #[non_exhaustive]
 pub enum InvalidWorkspaceManifestError {
     #[display("Missing or empty package")]

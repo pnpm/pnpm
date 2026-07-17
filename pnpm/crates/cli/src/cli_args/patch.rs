@@ -53,7 +53,7 @@ pub enum PatchError {
     EditDirNotEmpty { edit_dir: PathBuf },
 
     #[display("Unable to read the target directory '{}': {source}", edit_dir.display())]
-    #[diagnostic(code(pacquet::patch_edit_dir_read))]
+    #[diagnostic(code(ERR_PNPM_PATCH_EDIT_DIR_READ))]
     ReadEditDir {
         edit_dir: PathBuf,
         #[error(source)]
@@ -61,7 +61,7 @@ pub enum PatchError {
     },
 
     #[display("Unable to create the default patch edit directory '{}': {source}", edit_dir.display())]
-    #[diagnostic(code(pacquet::patch_edit_dir_create))]
+    #[diagnostic(code(ERR_PNPM_PATCH_EDIT_DIR_CREATE))]
     CreateEditDir {
         edit_dir: PathBuf,
         #[error(source)]
@@ -69,7 +69,7 @@ pub enum PatchError {
     },
 
     #[display("Unable to resolve the default patch edit directory '{}': {source}", edit_dir.display())]
-    #[diagnostic(code(pacquet::patch_edit_dir_resolve))]
+    #[diagnostic(code(ERR_PNPM_PATCH_EDIT_DIR_RESOLVE))]
     ResolveEditDir {
         edit_dir: PathBuf,
         #[error(source)]
@@ -77,11 +77,11 @@ pub enum PatchError {
     },
 
     #[display("The default patch edit directory is outside node_modules: '{}'", edit_dir.display())]
-    #[diagnostic(code(pacquet::patch_edit_dir_outside_modules_dir))]
+    #[diagnostic(code(ERR_PNPM_PATCH_EDIT_DIR_OUTSIDE_MODULES_DIR))]
     EditDirOutsideModulesDir { edit_dir: PathBuf },
 
     #[display("The default patch edit directory must not use a symbolic link: '{}'", edit_dir.display())]
-    #[diagnostic(code(pacquet::patch_edit_dir_symlink))]
+    #[diagnostic(code(ERR_PNPM_PATCH_EDIT_DIR_SYMLINK))]
     EditDirSymlink { edit_dir: PathBuf },
 
     #[display("Canceled")]
@@ -124,7 +124,7 @@ pub enum PatchError {
     PatchFileNotRegular { patch_file: String },
 
     #[display("Failed to read patch file metadata for {}: {source}", path.display())]
-    #[diagnostic(code(pacquet::patch_read_patch_file_metadata))]
+    #[diagnostic(code(ERR_PNPM_PATCH_READ_PATCH_FILE_METADATA))]
     ReadPatchFileMetadata {
         path: PathBuf,
         #[error(source)]

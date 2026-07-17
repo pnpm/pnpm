@@ -46,7 +46,7 @@ pub enum MinimumReleaseAgeError {
     Denied,
 
     #[display("Failed to read minimumReleaseAge approval: {_0}")]
-    #[diagnostic(code(pacquet_package_manager::minimum_release_age_prompt))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_MINIMUM_RELEASE_AGE_PROMPT))]
     Prompt(#[error(source)] dialoguer::Error),
 
     #[diagnostic(transparent)]

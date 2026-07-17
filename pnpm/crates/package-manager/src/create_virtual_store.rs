@@ -192,13 +192,13 @@ pub enum CreateVirtualStoreError {
     #[display(
         "Lockfile has a snapshot entry `{snapshot_key}` with no matching metadata entry (`{metadata_key}`) in `packages:`."
     )]
-    #[diagnostic(code(pacquet_package_manager::missing_package_metadata))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_MISSING_PACKAGE_METADATA))]
     MissingPackageMetadata { snapshot_key: String, metadata_key: String },
 
     #[display(
         "Lockfile has a `snapshots:` section but no `packages:` section; every entry in `snapshots:` must have a matching metadata entry. The lockfile is malformed."
     )]
-    #[diagnostic(code(pacquet_package_manager::missing_packages_section))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_MISSING_PACKAGES_SECTION))]
     MissingPackagesSection,
 }
 

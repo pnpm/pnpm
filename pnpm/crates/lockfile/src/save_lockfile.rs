@@ -17,19 +17,19 @@ use std::{
 #[non_exhaustive]
 pub enum SaveLockfileError {
     #[display("Failed to get current_dir: {_0}")]
-    #[diagnostic(code(pacquet_lockfile::current_dir))]
+    #[diagnostic(code(ERR_PNPM_LOCKFILE_CURRENT_DIR))]
     CurrentDir(io::Error),
 
     #[display("Failed to serialize lockfile to YAML: {_0}")]
-    #[diagnostic(code(pacquet_lockfile::serialize_yaml))]
+    #[diagnostic(code(ERR_PNPM_LOCKFILE_SERIALIZE_YAML))]
     SerializeYaml(serde_json::Error),
 
     #[display("Failed to write lockfile content: {_0}")]
-    #[diagnostic(code(pacquet_lockfile::write_file))]
+    #[diagnostic(code(ERR_PNPM_LOCKFILE_WRITE_FILE))]
     WriteFile(io::Error),
 
     #[display("Failed to create virtual-store directory {dir:?}: {error}")]
-    #[diagnostic(code(pacquet_lockfile::create_dir))]
+    #[diagnostic(code(ERR_PNPM_LOCKFILE_CREATE_DIR))]
     CreateDir {
         dir: PathBuf,
         #[error(source)]
@@ -37,7 +37,7 @@ pub enum SaveLockfileError {
     },
 
     #[display("Failed to remove existing current-lockfile at {path:?}: {error}")]
-    #[diagnostic(code(pacquet_lockfile::remove_file))]
+    #[diagnostic(code(ERR_PNPM_LOCKFILE_REMOVE_FILE))]
     RemoveFile {
         path: PathBuf,
         #[error(source)]
@@ -45,7 +45,7 @@ pub enum SaveLockfileError {
     },
 
     #[display("Failed to rename temp file {tmp:?} over {target:?}: {error}")]
-    #[diagnostic(code(pacquet_lockfile::rename_file))]
+    #[diagnostic(code(ERR_PNPM_LOCKFILE_RENAME_FILE))]
     RenameFile {
         tmp: PathBuf,
         target: PathBuf,

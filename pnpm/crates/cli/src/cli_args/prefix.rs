@@ -20,12 +20,12 @@ pub enum PrefixError {
     /// `@pnpm/global.commands`) is not ported to pacquet yet; refuse rather
     /// than print a wrong path.
     #[display("`pnpm prefix --global` is not supported yet.")]
-    #[diagnostic(code(pacquet_cli::prefix_global_unsupported))]
+    #[diagnostic(code(ERR_PNPM_CLI_PREFIX_GLOBAL_UNSUPPORTED))]
     GlobalUnsupported,
 
     /// IO error while looking up the prefix.
     #[display("failed to access {}: {source}", path.display())]
-    #[diagnostic(code(pacquet_cli::prefix_io_error))]
+    #[diagnostic(code(ERR_PNPM_CLI_PREFIX_IO_ERROR))]
     Io { path: PathBuf, source: std::io::Error },
 }
 

@@ -74,7 +74,7 @@ pub struct CreateVirtualDirBySnapshot<'a> {
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum CreateVirtualDirError {
     #[display("Failed to recursively create node_modules directory at {dir:?}: {error}")]
-    #[diagnostic(code(pacquet_package_manager::create_node_modules_dir))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_CREATE_NODE_MODULES_DIR))]
     CreateNodeModulesDir {
         dir: PathBuf,
         #[error(source)]
@@ -94,7 +94,7 @@ pub enum CreateVirtualDirError {
     InvalidAlias(#[error(source)] InvalidDependencyAliasError),
 
     #[display("Failed to remove obsolete child link at {path:?}: {error}")]
-    #[diagnostic(code(pacquet_package_manager::remove_obsolete_child))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_REMOVE_OBSOLETE_CHILD))]
     RemoveObsoleteChild {
         path: PathBuf,
         #[error(source)]

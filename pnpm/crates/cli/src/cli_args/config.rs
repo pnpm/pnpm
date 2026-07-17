@@ -152,7 +152,7 @@ pub enum ConfigError {
     // The rejected value is deliberately not echoed — it may be a credential
     // (e.g. a token with a stray newline pasted from an env var).
     #[display("Cannot write a value containing a control character to an INI config file")]
-    #[diagnostic(code(pacquet_cli::config_set_invalid_control_character))]
+    #[diagnostic(code(ERR_PNPM_CLI_CONFIG_SET_INVALID_CONTROL_CHARACTER))]
     SetIniControlCharacter,
 }
 

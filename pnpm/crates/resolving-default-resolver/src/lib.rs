@@ -109,7 +109,7 @@ impl Resolver for DefaultResolver {
 /// (either half omitted when absent) and quoted when non-empty.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display("{quoted} isn't supported by any available resolver.")]
-#[diagnostic(code(SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER))]
+#[diagnostic(code(ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER))]
 pub struct SpecNotSupportedByAnyResolverError {
     /// Quoted offending specifier, formatted at construction so the
     /// `Display` impl stays allocation-free. Empty string when both

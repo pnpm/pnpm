@@ -67,7 +67,7 @@ pub enum ExecError {
     CommandNotFound { command: String },
 
     #[display("Failed to spawn command \"{command}\": {source}")]
-    #[diagnostic(code(pacquet_cli::exec_spawn))]
+    #[diagnostic(code(ERR_PNPM_CLI_EXEC_SPAWN))]
     Spawn {
         command: String,
         #[error(source)]

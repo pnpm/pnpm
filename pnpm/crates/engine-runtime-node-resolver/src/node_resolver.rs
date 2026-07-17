@@ -50,11 +50,11 @@ const BARE_SPEC_PREFIX: &str = "runtime:";
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum NodeResolverError {
     #[display("Offline Node.js resolution is not supported")]
-    #[diagnostic(code(NO_OFFLINE_NODEJS_RESOLUTION))]
+    #[diagnostic(code(ERR_PNPM_NO_OFFLINE_NODEJS_RESOLUTION))]
     Offline,
 
     #[display("Could not find a Node.js version that satisfies {spec}")]
-    #[diagnostic(code(NODEJS_VERSION_NOT_FOUND))]
+    #[diagnostic(code(ERR_PNPM_NODEJS_VERSION_NOT_FOUND))]
     VersionNotFound {
         #[error(not(source))]
         spec: String,
@@ -73,7 +73,7 @@ pub enum NodeResolverError {
     FetchVerifiedNodeShasums(#[error(source)] FetchVerifiedNodeShasumsError),
 
     #[display("Failed to parse integrity {integrity} for {file_name}")]
-    #[diagnostic(code(NODE_INTEGRITY_PARSE_FAILED))]
+    #[diagnostic(code(ERR_PNPM_NODE_INTEGRITY_PARSE_FAILED))]
     ParseIntegrity {
         integrity: String,
         file_name: String,

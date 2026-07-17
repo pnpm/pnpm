@@ -114,7 +114,7 @@ pub enum ResolveLocalError {
     /// `file:` directory or tarball points at a path that doesn't
     /// exist. Carries the `LINKED_PKG_DIR_NOT_FOUND` code.
     #[display("Could not install from \"{path}\" as it does not exist.")]
-    #[diagnostic(code(LINKED_PKG_DIR_NOT_FOUND))]
+    #[diagnostic(code(ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND))]
     LinkedPkgDirNotFound {
         #[error(not(source))]
         path: String,
@@ -123,7 +123,7 @@ pub enum ResolveLocalError {
     /// `<spec.fetchSpec>` exists but isn't a directory (ENOTDIR).
     /// Carries the `NOT_PACKAGE_DIRECTORY` code.
     #[display("Could not install from \"{path}\" as it is not a directory.")]
-    #[diagnostic(code(NOT_PACKAGE_DIRECTORY))]
+    #[diagnostic(code(ERR_PNPM_NOT_PACKAGE_DIRECTORY))]
     NotPackageDirectory {
         #[error(not(source))]
         path: String,

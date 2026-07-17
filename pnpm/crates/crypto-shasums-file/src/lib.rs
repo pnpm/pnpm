@@ -51,11 +51,11 @@ pub struct ShasumsFileItem {
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum FetchShasumsFileError {
     #[display("Failed to fetch integrity file: {url} (status: {status})")]
-    #[diagnostic(code(FAILED_DOWNLOAD_SHASUM_FILE))]
+    #[diagnostic(code(ERR_PNPM_FAILED_DOWNLOAD_SHASUM_FILE))]
     StatusNotOk { url: String, status: u16 },
 
     #[display("Failed to fetch integrity file: {url}")]
-    #[diagnostic(code(FAILED_DOWNLOAD_SHASUM_FILE))]
+    #[diagnostic(code(ERR_PNPM_FAILED_DOWNLOAD_SHASUM_FILE))]
     Network {
         url: String,
         #[error(source)]
@@ -74,7 +74,7 @@ pub enum FetchShasumsFileError {
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum FetchVerifiedNodeShasumsError {
     #[display("Failed to fetch {what} ({url}) to verify the Node.js download (status: {status})")]
-    #[diagnostic(code(NODE_SHASUMS_FETCH_FAIL))]
+    #[diagnostic(code(ERR_PNPM_NODE_SHASUMS_FETCH_FAIL))]
     StatusNotOk {
         #[error(not(source))]
         what: &'static str,
@@ -84,7 +84,7 @@ pub enum FetchVerifiedNodeShasumsError {
     },
 
     #[display("Failed to fetch {what} ({url}) to verify the Node.js download")]
-    #[diagnostic(code(NODE_SHASUMS_FETCH_FAIL))]
+    #[diagnostic(code(ERR_PNPM_NODE_SHASUMS_FETCH_FAIL))]
     Network {
         #[error(not(source))]
         what: &'static str,
@@ -95,14 +95,14 @@ pub enum FetchVerifiedNodeShasumsError {
     },
 
     #[display("Could not read the Node.js SHASUMS signature: {error}")]
-    #[diagnostic(code(NODE_SHASUMS_SIGNATURE_INVALID))]
+    #[diagnostic(code(ERR_PNPM_NODE_SHASUMS_SIGNATURE_INVALID))]
     SignatureUnreadable {
         #[error(source)]
         error: Arc<pgp::errors::Error>,
     },
 
     #[display("The verified Node.js SHASUMS file at {url} is not valid UTF-8")]
-    #[diagnostic(code(NODE_SHASUMS_SIGNATURE_INVALID))]
+    #[diagnostic(code(ERR_PNPM_NODE_SHASUMS_SIGNATURE_INVALID))]
     InvalidUtf8 {
         #[error(not(source))]
         url: String,
@@ -113,7 +113,7 @@ pub enum FetchVerifiedNodeShasumsError {
     #[display(
         "Embedded Node.js release key fingerprint mismatch: expected {expected}, got {actual}"
     )]
-    #[diagnostic(code(NODE_SHASUMS_SIGNATURE_INVALID))]
+    #[diagnostic(code(ERR_PNPM_NODE_SHASUMS_SIGNATURE_INVALID))]
     EmbeddedKeyFingerprintMismatch {
         #[error(not(source))]
         expected: &'static str,
@@ -124,7 +124,7 @@ pub enum FetchVerifiedNodeShasumsError {
     #[display(
         "The OpenPGP signature of {url} does not match any trusted Node.js release key. The downloaded Node.js runtime cannot be verified as a genuine release."
     )]
-    #[diagnostic(code(NODE_SHASUMS_SIGNATURE_INVALID))]
+    #[diagnostic(code(ERR_PNPM_NODE_SHASUMS_SIGNATURE_INVALID))]
     SignatureInvalid {
         #[error(not(source))]
         url: String,
@@ -140,14 +140,14 @@ pub enum FetchVerifiedNodeShasumsError {
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum PickFileChecksumError {
     #[display("SHA-256 hash not found in SHASUMS256.txt for: {file_name}")]
-    #[diagnostic(code(NODE_INTEGRITY_HASH_NOT_FOUND))]
+    #[diagnostic(code(ERR_PNPM_NODE_INTEGRITY_HASH_NOT_FOUND))]
     NotFound {
         #[error(not(source))]
         file_name: String,
     },
 
     #[display("Malformed SHA-256 for {file_name}: {sha256}")]
-    #[diagnostic(code(NODE_MALFORMED_INTEGRITY_HASH))]
+    #[diagnostic(code(ERR_PNPM_NODE_MALFORMED_INTEGRITY_HASH))]
     Malformed { file_name: String, sha256: String },
 }
 

@@ -62,7 +62,7 @@ mod tests;
 #[non_exhaustive]
 pub enum PacklistError {
     #[display("I/O error while computing packlist for {pkg_dir}: {source}")]
-    #[diagnostic(code(pacquet_fs_packlist::io))]
+    #[diagnostic(code(ERR_PNPM_FS_PACKLIST_IO))]
     Io {
         pkg_dir: String,
         #[error(source)]

@@ -51,7 +51,7 @@ async fn offline_raises_no_offline_nodejs_resolution() {
         err.downcast_ref::<super::NodeResolverError>().expect("error is a NodeResolverError");
     assert_eq!(
         code.code().map(|code| code.to_string()).as_deref(),
-        Some("NO_OFFLINE_NODEJS_RESOLUTION"),
+        Some("ERR_PNPM_NO_OFFLINE_NODEJS_RESOLUTION"),
     );
 }
 
@@ -173,7 +173,7 @@ async fn resolve_save_specifier_errors_when_no_version_satisfies() {
     let code: &dyn miette::Diagnostic = &err;
     assert_eq!(
         code.code().map(|code| code.to_string()).as_deref(),
-        Some("NODEJS_VERSION_NOT_FOUND"),
+        Some("ERR_PNPM_NODEJS_VERSION_NOT_FOUND"),
     );
 }
 

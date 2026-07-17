@@ -189,7 +189,7 @@ pub enum InstallFrozenLockfileError {
     LockfileVerification(#[error(source)] VerifyError),
 
     #[display("external lockfile verification failed: {_0}")]
-    #[diagnostic(code(pacquet_package_manager::external_lockfile_verification))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_EXTERNAL_LOCKFILE_VERIFICATION))]
     ExternalLockfileVerification(#[error(not(source))] String),
 
     #[diagnostic(transparent)]
@@ -199,7 +199,7 @@ pub enum InstallFrozenLockfileError {
     /// A throwing pnpmfile aborts the install, matching the
     /// custom-resolver load on the fresh-lockfile path.
     #[display("{_0}")]
-    #[diagnostic(code(PNPMFILE_FAIL))]
+    #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     CustomFetcherHook(#[error(not(source))] pacquet_hooks::HookError),
 
     #[diagnostic(transparent)]
@@ -283,7 +283,7 @@ pub enum InstallFrozenLockfileError {
     LinkHoistedModules(#[error(source)] LinkHoistedModulesError),
 
     #[display("failed to write package map: {_0}")]
-    #[diagnostic(code(pacquet_package_manager::write_package_map))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_PACKAGE_MAP))]
     WritePackageMap(#[error(source)] crate::WritePackageMapError),
 
     #[diagnostic(transparent)]
@@ -1505,7 +1505,7 @@ pub(crate) enum HoistedLinkerError {
     #[diagnostic(transparent)]
     SymlinkDirectDependencies(#[error(source)] SymlinkDirectDependenciesError),
     #[display("failed to write package map: {_0}")]
-    #[diagnostic(code(pacquet_package_manager::write_package_map))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_PACKAGE_MAP))]
     WritePackageMap(#[error(source)] crate::WritePackageMapError),
 }
 

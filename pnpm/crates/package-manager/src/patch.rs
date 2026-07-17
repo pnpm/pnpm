@@ -74,20 +74,20 @@ pub enum PatchTargetError {
 #[non_exhaustive]
 pub enum WritePackageForPatchError {
     #[display("Package `{package_key}` is missing from the current lockfile packages map.")]
-    #[diagnostic(code(pacquet_package_manager::patch_package_missing_metadata))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_PATCH_PACKAGE_MISSING_METADATA))]
     MissingPackageMetadata { package_key: String },
 
     #[display(
         "Package `{package}` uses a `{resolution_kind}` resolution, which `pnpm patch` does not yet support."
     )]
-    #[diagnostic(code(pacquet_package_manager::patch_unsupported_resolution))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_PATCH_UNSUPPORTED_RESOLUTION))]
     UnsupportedResolution { package: String, resolution_kind: &'static str },
 
     #[diagnostic(transparent)]
     TarballResolution(#[error(source)] InstallPackageBySnapshotError),
 
     #[display("Failed to inspect patch edit directory {dest:?}: {source}")]
-    #[diagnostic(code(pacquet_package_manager::patch_dest_stat))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_PATCH_DEST_STAT))]
     PatchDestinationStat {
         dest: PathBuf,
         #[error(source)]
@@ -95,7 +95,7 @@ pub enum WritePackageForPatchError {
     },
 
     #[display("Refusing to write package files to unsafe patch edit directory {dest:?}: {reason}")]
-    #[diagnostic(code(pacquet_package_manager::unsafe_patch_dest))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_UNSAFE_PATCH_DEST))]
     UnsafePatchDestination { dest: PathBuf, reason: &'static str },
 
     #[diagnostic(transparent)]

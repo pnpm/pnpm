@@ -38,7 +38,7 @@ pub const WORKSPACE_MANIFEST_FILENAME: &str = "pnpm-workspace.yaml";
 #[non_exhaustive]
 pub enum UpdateWorkspaceManifestError {
     #[display("Failed to read {path:?}: {source}")]
-    #[diagnostic(code(pacquet_workspace_manifest_writer::read))]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_MANIFEST_WRITER_READ))]
     Read {
         path: std::path::PathBuf,
         #[error(source)]
@@ -46,7 +46,7 @@ pub enum UpdateWorkspaceManifestError {
     },
 
     #[display("Failed to parse {path:?} as YAML: {source}")]
-    #[diagnostic(code(pacquet_workspace_manifest_writer::parse))]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_MANIFEST_WRITER_PARSE))]
     Parse {
         path: std::path::PathBuf,
         #[error(source)]
@@ -54,7 +54,7 @@ pub enum UpdateWorkspaceManifestError {
     },
 
     #[display("Failed to apply a YAML edit to {path:?}: {source}")]
-    #[diagnostic(code(pacquet_workspace_manifest_writer::edit))]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_MANIFEST_WRITER_EDIT))]
     Edit {
         path: std::path::PathBuf,
         #[error(source)]
@@ -62,7 +62,7 @@ pub enum UpdateWorkspaceManifestError {
     },
 
     #[display("Failed to write {path:?}: {source}")]
-    #[diagnostic(code(pacquet_workspace_manifest_writer::write))]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_MANIFEST_WRITER_WRITE))]
     Write {
         path: std::path::PathBuf,
         #[error(source)]
@@ -70,7 +70,7 @@ pub enum UpdateWorkspaceManifestError {
     },
 
     #[display("Failed to remove {path:?}: {source}")]
-    #[diagnostic(code(pacquet_workspace_manifest_writer::remove))]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_MANIFEST_WRITER_REMOVE))]
     Remove {
         path: std::path::PathBuf,
         #[error(source)]
@@ -80,19 +80,19 @@ pub enum UpdateWorkspaceManifestError {
     #[display(
         "Cannot write the override for {key:?} in {path:?}: it already has a non-string value (a parent-scoped object). Resolve it manually."
     )]
-    #[diagnostic(code(pacquet_workspace_manifest_writer::override_conflict))]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_MANIFEST_WRITER_OVERRIDE_CONFLICT))]
     OverrideConflict { path: std::path::PathBuf, key: String },
 
     #[display(
         "Cannot edit {key:?} in {path:?}: it uses an inline (flow) YAML value. Reformat it to block style and try again."
     )]
-    #[diagnostic(code(pacquet_workspace_manifest_writer::unsupported_inline_block))]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_MANIFEST_WRITER_UNSUPPORTED_INLINE_BLOCK))]
     UnsupportedInlineBlock { path: std::path::PathBuf, key: String },
 
     #[display(
         "Cannot write {value:?} to {path:?}: it contains a control character that would corrupt the YAML."
     )]
-    #[diagnostic(code(pacquet_workspace_manifest_writer::invalid_control_character))]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_MANIFEST_WRITER_INVALID_CONTROL_CHARACTER))]
     InvalidControlCharacter { path: std::path::PathBuf, value: String },
 }
 

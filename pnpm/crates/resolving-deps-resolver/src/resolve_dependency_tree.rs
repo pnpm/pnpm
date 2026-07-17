@@ -228,7 +228,7 @@ pub enum ResolveDependencyTreeError {
     /// No resolver in the chain claimed the spec, raised with the
     /// `SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` code.
     #[display("\"{specifier}\" isn't supported by any available resolver.")]
-    #[diagnostic(code(SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER))]
+    #[diagnostic(code(ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER))]
     SpecNotSupported {
         #[error(not(source))]
         specifier: String,
@@ -255,7 +255,7 @@ pub enum ResolveDependencyTreeError {
     #[display(
         "Exotic dependency \"{specifier}\" (resolved via {resolved_via}) is not allowed in subdependencies when blockExoticSubdeps is enabled"
     )]
-    #[diagnostic(code(EXOTIC_SUBDEP))]
+    #[diagnostic(code(ERR_PNPM_EXOTIC_SUBDEP))]
     ExoticSubdep {
         #[error(not(source))]
         specifier: String,
@@ -279,7 +279,7 @@ pub enum ResolveDependencyTreeError {
     /// invalid package manifest. Carries the `PNPMFILE_FAIL` /
     /// `BAD_READ_PACKAGE_HOOK_RESULT` code: a bad hook aborts the install.
     #[display("{_0}")]
-    #[diagnostic(code(PNPMFILE_FAIL))]
+    #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     PnpmfileHook(#[error(not(source))] pacquet_hooks::HookError),
 }
 

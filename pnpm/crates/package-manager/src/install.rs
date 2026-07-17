@@ -285,7 +285,7 @@ pub enum InstallError {
     #[display(
         "Headless installation requires a pnpm-lock.yaml file, but none was found. Run `pnpm install` without --frozen-lockfile to create one."
     )]
-    #[diagnostic(code(pacquet_package_manager::no_lockfile))]
+    #[diagnostic(code(ERR_PNPM_NO_LOCKFILE))]
     NoLockfile,
 
     #[diagnostic(transparent)]
@@ -316,7 +316,7 @@ pub enum InstallError {
     /// frozen-path optimization may run. A throwing hook aborts the
     /// install.
     #[display("{_0}")]
-    #[diagnostic(code(PNPMFILE_FAIL))]
+    #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     CustomResolverForceResolve(#[error(not(source))] pacquet_hooks::HookError),
 
     /// `--no-runtime` (or `config.skip_runtimes`) is honored only on
@@ -328,7 +328,7 @@ pub enum InstallError {
     #[display(
         "--no-runtime / skipRuntimes is not supported without --frozen-lockfile yet. Re-run with --frozen-lockfile against an existing pnpm-lock.yaml, or drop the flag."
     )]
-    #[diagnostic(code(pacquet_package_manager::unsupported_fresh_install_skip_runtimes))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_UNSUPPORTED_FRESH_INSTALL_SKIP_RUNTIMES))]
     UnsupportedFreshInstallSkipRuntimes,
 
     #[diagnostic(transparent)]
@@ -369,7 +369,7 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     SaveWantedLockfile(#[error(source)] SaveLockfileError),
 
-    #[diagnostic(code(pacquet_package_manager::remove_modules_dir))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_REMOVE_MODULES_DIR))]
     #[display("Failed to remove modules directory contents: {_0}")]
     RemoveModulesDir(#[error(source)] std::io::Error),
 
@@ -388,7 +388,7 @@ pub enum InstallError {
         "Cannot install with \"frozen-lockfile\" because pnpm-lock.yaml is not up to date with package.json.\n\n  Failure reason:\n  {reason}"
     )]
     #[diagnostic(
-        code(pacquet_package_manager::outdated_lockfile),
+        code(ERR_PNPM_OUTDATED_LOCKFILE),
         help(
             "Regenerate the lockfile with `pnpm install --lockfile-only` so that pnpm-lock.yaml reflects the current package.json, then re-run `pnpm install --frozen-lockfile`."
         )
@@ -402,14 +402,19 @@ pub enum InstallError {
     #[display(
         r#"Cannot install with "frozen-lockfile" because pnpm-lock.yaml has no `importers["{importer_id}"]` entry. Regenerate the lockfile with `pnpm install --lockfile-only`."#
     )]
-    #[diagnostic(code(pacquet_package_manager::no_importer))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_NO_IMPORTER))]
     NoImporter { importer_id: String },
 
-    /// The `ERR_PNPM_FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE` error.
+    /// Two flags that cannot both hold: a frozen install never rewrites
+    /// `pnpm-lock.yaml`, which is the only thing `--update-checksums`
+    /// does. Not to be confused with pnpm's
+    /// `ERR_PNPM_FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE`, which is a
+    /// stale lockfile under `--frozen-lockfile` and lives in
+    /// `pacquet_env_installer`.
     #[display(
         "Cannot use --frozen-lockfile together with --update-checksums: frozen installs never rewrite pnpm-lock.yaml, but --update-checksums exists to do exactly that."
     )]
-    #[diagnostic(code(pacquet_package_manager::frozen_lockfile_with_outdated_lockfile))]
+    #[diagnostic(code(ERR_PNPM_CONFIG_CONFLICT_FROZEN_LOCKFILE_WITH_UPDATE_CHECKSUMS))]
     FrozenLockfileWithUpdateChecksums,
 
     #[diagnostic(transparent)]
@@ -459,7 +464,7 @@ pub enum InstallError {
     /// the package-map metadata Node consumes when the user opts into
     /// `--experimental-package-map`.
     #[display("Failed to write node_modules/.package-map.json: {_0}")]
-    #[diagnostic(code(pacquet_package_manager::write_package_map))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_PACKAGE_MAP))]
     WritePackageMap(#[error(source)] crate::WritePackageMapError),
 
     /// A value in `pnpm.overrides` couldn't be parsed — the selector
@@ -1982,7 +1987,7 @@ pub(crate) enum FreshnessCheckError {
     #[display(
         r#"Cannot install with "frozen-lockfile" because pnpm-lock.yaml has no `importers["{importer_id}"]` entry. Regenerate the lockfile with `pnpm install --lockfile-only`."#
     )]
-    #[diagnostic(code(pacquet_package_manager::no_importer))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_NO_IMPORTER))]
     NoImporter { importer_id: String },
 
     /// A value in `pnpm.overrides` couldn't be parsed.

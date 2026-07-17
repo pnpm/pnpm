@@ -325,7 +325,7 @@ impl StoreIndexWriter {
 #[non_exhaustive]
 pub enum StoreIndexError {
     #[display("Failed to create directory for index.db at {path:?}: {source}")]
-    #[diagnostic(code(pacquet_store_dir::store_index::create_dir))]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_CREATE_DIR))]
     CreateDir {
         path: PathBuf,
         #[error(source)]
@@ -333,7 +333,7 @@ pub enum StoreIndexError {
     },
 
     #[display("Failed to open index.db at {path:?}: {source}")]
-    #[diagnostic(code(pacquet_store_dir::store_index::open))]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_OPEN))]
     Open {
         path: PathBuf,
         #[error(source)]
@@ -343,7 +343,7 @@ pub enum StoreIndexError {
     /// The store path could not be turned into the `file:` URI that the
     /// immutable open requires (see [`StoreIndex::open_immutable`]).
     #[display("Failed to build a file: URI for index.db at {path:?}")]
-    #[diagnostic(code(pacquet_store_dir::store_index::file_uri))]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_FILE_URI))]
     FileUri {
         path: PathBuf,
         #[error(source)]
@@ -351,21 +351,21 @@ pub enum StoreIndexError {
     },
 
     #[display("Failed to initialize index.db schema: {source}")]
-    #[diagnostic(code(pacquet_store_dir::store_index::init_schema))]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_INIT_SCHEMA))]
     InitSchema {
         #[error(source)]
         source: rusqlite::Error,
     },
 
     #[display("Failed to read from index.db: {source}")]
-    #[diagnostic(code(pacquet_store_dir::store_index::read))]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_READ))]
     Read {
         #[error(source)]
         source: rusqlite::Error,
     },
 
     #[display("Failed to write to index.db: {source}")]
-    #[diagnostic(code(pacquet_store_dir::store_index::write))]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_WRITE))]
     Write {
         #[error(source)]
         source: rusqlite::Error,
@@ -379,7 +379,7 @@ pub enum StoreIndexError {
     },
 
     #[display("Failed to decode PackageFilesIndex from msgpack: {source}")]
-    #[diagnostic(code(pacquet_store_dir::store_index::decode))]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_DECODE))]
     Decode {
         #[error(source)]
         source: rmp_serde::decode::Error,

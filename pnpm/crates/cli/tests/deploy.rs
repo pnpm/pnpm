@@ -302,7 +302,8 @@ fn deploy_all_files_rejects_symlink_escape() {
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("path_escape") && stderr.contains("resolves outside"),
+        stderr.contains("ERR_PNPM_DIRECTORY_FETCHER_PATH_ESCAPE")
+            && stderr.contains("resolves outside"),
         "unexpected stderr:\n{stderr}",
     );
     assert!(

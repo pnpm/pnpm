@@ -198,11 +198,11 @@ pub enum PackError {
     Lifecycle(#[error(source)] LifecycleScriptError),
 
     #[display("The \"beforePacking\" hook from {pnpmfile} failed: {message}")]
-    #[diagnostic(code(pacquet_pack::before_packing))]
+    #[diagnostic(code(ERR_PNPM_PACK_BEFORE_PACKING))]
     BeforePacking { pnpmfile: String, message: String },
 
     #[display("Failed to read {path}: {source}")]
-    #[diagnostic(code(pacquet_pack::read_file))]
+    #[diagnostic(code(ERR_PNPM_PACK_READ_FILE))]
     ReadFile {
         path: String,
         #[error(source)]
@@ -210,7 +210,7 @@ pub enum PackError {
     },
 
     #[display("Failed to create directory {path}: {source}")]
-    #[diagnostic(code(pacquet_pack::create_dir))]
+    #[diagnostic(code(ERR_PNPM_PACK_CREATE_DIR))]
     CreateDir {
         path: String,
         #[error(source)]
@@ -218,7 +218,7 @@ pub enum PackError {
     },
 
     #[display("Failed to write tarball to {path}: {source}")]
-    #[diagnostic(code(pacquet_pack::write_tarball))]
+    #[diagnostic(code(ERR_PNPM_PACK_WRITE_TARBALL))]
     WriteTarball {
         path: String,
         #[error(source)]

@@ -23,7 +23,7 @@ use std::{
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum RegisterProjectError {
     #[display("Failed to create the projects registry directory at {dir:?}: {error}")]
-    #[diagnostic(code(pacquet_store_dir::register_project::create_registry_dir))]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_REGISTER_PROJECT_CREATE_REGISTRY_DIR))]
     CreateRegistryDir {
         dir: PathBuf,
         #[error(source)]
@@ -33,7 +33,7 @@ pub enum RegisterProjectError {
     #[display(
         "Failed to inspect the existing entry at {link_path:?} while registering project {project_dir:?}: {error}"
     )]
-    #[diagnostic(code(pacquet_store_dir::register_project::inspect_existing))]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_REGISTER_PROJECT_INSPECT_EXISTING))]
     InspectExisting {
         project_dir: PathBuf,
         link_path: PathBuf,
@@ -44,7 +44,7 @@ pub enum RegisterProjectError {
     #[display(
         "Failed to remove stale entry at {link_path:?} (pointed at {old_target:?}, expected {project_dir:?}): {error}"
     )]
-    #[diagnostic(code(pacquet_store_dir::register_project::remove_stale))]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_REGISTER_PROJECT_REMOVE_STALE))]
     RemoveStale {
         project_dir: PathBuf,
         link_path: PathBuf,
@@ -56,7 +56,7 @@ pub enum RegisterProjectError {
     #[display(
         "Failed to create the project registry symlink at {link_path:?} pointing to {project_dir:?}: {error}"
     )]
-    #[diagnostic(code(pacquet_store_dir::register_project::create_symlink))]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_REGISTER_PROJECT_CREATE_SYMLINK))]
     CreateSymlink {
         project_dir: PathBuf,
         link_path: PathBuf,
@@ -153,7 +153,7 @@ pub fn register_project(
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum GetRegisteredProjectsError {
     #[display("Failed to read the projects registry directory at {dir:?}: {error}")]
-    #[diagnostic(code(pacquet_store_dir::get_registered_projects::read_registry_dir))]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_GET_REGISTERED_PROJECTS_READ_REGISTRY_DIR))]
     ReadRegistryDir {
         dir: PathBuf,
         #[error(source)]
@@ -165,7 +165,7 @@ pub enum GetRegisteredProjectsError {
     /// `ENOENT` / `EINVAL` (those two are silently skipped).
     #[display("Cannot read project registry entry {link_path:?}: {error}")]
     #[diagnostic(
-        code(pacquet_store_dir::get_registered_projects::entry_inaccessible),
+        code(ERR_PNPM_STORE_DIR_GET_REGISTERED_PROJECTS_ENTRY_INACCESSIBLE),
         help("To remove this project from the registry, delete the entry at: {link_path:?}")
     )]
     EntryInaccessible {
@@ -182,7 +182,7 @@ pub enum GetRegisteredProjectsError {
     /// references.
     #[display("Cannot access registered project {project_dir:?} (via {link_path:?}): {error}")]
     #[diagnostic(
-        code(pacquet_store_dir::get_registered_projects::project_inaccessible),
+        code(ERR_PNPM_PROJECT_INACCESSIBLE),
         help("To remove this project from the registry, delete the entry at: {link_path:?}")
     )]
     ProjectInaccessible {
@@ -193,7 +193,7 @@ pub enum GetRegisteredProjectsError {
     },
 
     #[display("Failed to remove stale project registry entry at {link_path:?}: {error}")]
-    #[diagnostic(code(pacquet_store_dir::get_registered_projects::unlink_stale))]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_GET_REGISTERED_PROJECTS_UNLINK_STALE))]
     UnlinkStale {
         link_path: PathBuf,
         #[error(source)]

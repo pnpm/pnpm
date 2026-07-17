@@ -47,7 +47,7 @@ pub enum TrustViolation {
     /// a "could not be checked" violation reason at the verifier
     /// boundary.
     #[display("trust check failed: {reason}")]
-    #[diagnostic(code(pacquet_resolving_npm_resolver::trust_check_failed))]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_TRUST_CHECK_FAILED))]
     TrustCheckFailed {
         #[error(not(source))]
         reason: String,
@@ -58,7 +58,7 @@ pub enum TrustViolation {
     /// the `TRUST_DOWNGRADE` code.
     #[display("High-risk trust downgrade for \"{name}@{version}\" (possible package takeover)")]
     #[diagnostic(
-        code(pacquet_resolving_npm_resolver::trust_downgrade),
+        code(ERR_PNPM_TRUST_DOWNGRADE),
         help(
             "Trust checks are based solely on publish date, not semver. A package cannot be installed if any earlier-published version had stronger trust evidence. Earlier versions had {past_pretty}, but this version has {current_pretty}. A trust downgrade may indicate a supply chain incident."
         )

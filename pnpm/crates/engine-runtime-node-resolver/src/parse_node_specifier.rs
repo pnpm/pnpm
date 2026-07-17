@@ -27,7 +27,7 @@ pub struct NodeSpecifier {
 pub enum ParseNodeSpecifierError {
     #[display("\"{channel}\" is not a valid Node.js release channel")]
     #[diagnostic(
-        code(INVALID_NODE_RELEASE_CHANNEL),
+        code(ERR_PNPM_INVALID_NODE_RELEASE_CHANNEL),
         help("Valid release channels are: nightly, rc, test, v8-canary, release")
     )]
     InvalidReleaseChannel {

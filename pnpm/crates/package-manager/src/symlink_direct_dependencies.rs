@@ -123,7 +123,7 @@ pub enum SymlinkDirectDependenciesError {
     /// input.
     #[display("Refusing to install importer with unsafe path key {importer_id:?}")]
     #[diagnostic(
-        code(pacquet_package_manager::unsafe_importer_path),
+        code(ERR_PNPM_PACKAGE_MANAGER_UNSAFE_IMPORTER_PATH),
         help(
             "Importer keys in pnpm-lock.yaml must be POSIX paths relative to the workspace root (e.g. `packages/web`). Absolute paths, drive prefixes, and `..` components are rejected."
         )
@@ -136,7 +136,7 @@ pub enum SymlinkDirectDependenciesError {
     /// Surfaces a per-package symlink failure (e.g. permission denied,
     /// disk full, an existing non-symlink file).
     #[display("Failed to symlink {name:?} for importer {importer_id:?}: {source}")]
-    #[diagnostic(code(pacquet_package_manager::symlink_failed))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_SYMLINK_FAILED))]
     SymlinkPackage {
         importer_id: String,
         name: String,

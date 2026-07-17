@@ -366,7 +366,7 @@ async fn should_surface_a_non_interrupt_prompt_failure_as_a_prompt_error() {
     assert!(matches!(err, LoginError::Prompt { .. }), "got {err:?}");
     assert_eq!(
         err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
-        Some("pacquet_auth_commands::login_prompt_failed"),
+        Some("ERR_PNPM_AUTH_COMMANDS_LOGIN_PROMPT_FAILED"),
     );
     assert!(
         err.to_string().starts_with("Failed to read the login prompt:"),

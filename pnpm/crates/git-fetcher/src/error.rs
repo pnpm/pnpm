@@ -14,7 +14,7 @@ pub enum PreparePackageError {
         "The git-hosted package \"{name}@{version}\" needs to execute build scripts but is not in the \"allowBuilds\" allowlist."
     )]
     #[diagnostic(
-        code(GIT_DEP_PREPARE_NOT_ALLOWED),
+        code(ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED),
         help(
             "Add the package to \"allowBuilds\" in your project's pnpm-workspace.yaml to allow it to run scripts. For example:\nallowBuilds:\n  {name}: true",
         )
@@ -33,14 +33,14 @@ pub enum PreparePackageError {
     /// `path` field on the resolution pointed outside the cloned dir
     /// or to a non-directory, rejected with the `INVALID_PATH` code.
     #[display("Path {path:?} is not a valid sub-directory of the git checkout")]
-    #[diagnostic(code(INVALID_PATH))]
+    #[diagnostic(code(ERR_PNPM_INVALID_PATH))]
     InvalidPath { path: String },
 
     #[diagnostic(transparent)]
     ReadManifest(#[error(source)] pacquet_package_manifest::PackageManifestError),
 
     #[display("I/O error during preparePackage: {_0}")]
-    #[diagnostic(code(pacquet_git_fetcher::prepare_package::io))]
+    #[diagnostic(code(ERR_PNPM_GIT_FETCHER_PREPARE_PACKAGE_IO))]
     Io(#[error(source)] std::io::Error),
 }
 
@@ -51,20 +51,20 @@ pub enum GitFetcherError {
     /// `git` executable not found on `PATH`. Pacquet, like pnpm, does
     /// not bundle git — the user must install it themselves.
     #[display("`git` executable not found on PATH. Install git to fetch git-hosted packages.")]
-    #[diagnostic(code(pacquet_git_fetcher::git_not_found))]
+    #[diagnostic(code(ERR_PNPM_GIT_FETCHER_GIT_NOT_FOUND))]
     GitNotFound,
 
     /// `git` exited non-zero on `clone` / `fetch` / `checkout` /
     /// `rev-parse`. `operation` is the subcommand, `stderr` is captured
     /// from the child so the failure surfaces in the install log.
     #[display("`git {operation}` failed ({status}): {stderr}")]
-    #[diagnostic(code(pacquet_git_fetcher::git_exec_failed))]
+    #[diagnostic(code(ERR_PNPM_GIT_FETCHER_GIT_EXEC_FAILED))]
     GitExec { operation: &'static str, stderr: String, status: std::process::ExitStatus },
 
     /// `git rev-parse HEAD` did not return the pinned commit, rejected
     /// with the `GIT_CHECKOUT_FAILED` code.
     #[display("received commit {received} does not match expected value {expected}")]
-    #[diagnostic(code(GIT_CHECKOUT_FAILED))]
+    #[diagnostic(code(ERR_PNPM_GIT_CHECKOUT_FAILED))]
     CheckoutMismatch { expected: String, received: String },
 
     /// `resolution.commit` is not a 40-character hexadecimal SHA. A
@@ -75,11 +75,11 @@ pub enum GitFetcherError {
     #[display(
         "Invalid git commit hash {commit:?} for repository {repo:?}. Expected a 40-character hexadecimal SHA."
     )]
-    #[diagnostic(code(INVALID_GIT_COMMIT))]
+    #[diagnostic(code(ERR_PNPM_INVALID_GIT_COMMIT))]
     InvalidCommit { commit: String, repo: String },
 
     #[display("I/O error during git fetch: {_0}")]
-    #[diagnostic(code(pacquet_git_fetcher::io))]
+    #[diagnostic(code(ERR_PNPM_GIT_FETCHER_IO))]
     Io(#[error(source)] std::io::Error),
 
     #[diagnostic(transparent)]

@@ -40,7 +40,7 @@ pub enum PruneDirectDepsError {
     #[display(
         "Failed to read {path:?} while removing the bins of an excluded direct dependency: {error}"
     )]
-    #[diagnostic(code(pacquet_package_manager::prune_direct_deps_read_manifest))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_PRUNE_DIRECT_DEPS_READ_MANIFEST))]
     ReadManifest {
         path: PathBuf,
         #[error(source)]
@@ -50,7 +50,7 @@ pub enum PruneDirectDepsError {
     #[display(
         "Failed to remove the bin shim at {path:?} of an excluded direct dependency: {error}"
     )]
-    #[diagnostic(code(pacquet_package_manager::prune_direct_deps_remove_bin))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_PRUNE_DIRECT_DEPS_REMOVE_BIN))]
     RemoveBin {
         path: PathBuf,
         #[error(source)]
@@ -58,7 +58,7 @@ pub enum PruneDirectDepsError {
     },
 
     #[display("Failed to remove the excluded direct dependency at {path:?}: {error}")]
-    #[diagnostic(code(pacquet_package_manager::prune_direct_deps_remove_link))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_PRUNE_DIRECT_DEPS_REMOVE_LINK))]
     RemoveLink {
         path: PathBuf,
         #[error(source)]

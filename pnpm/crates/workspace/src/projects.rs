@@ -56,7 +56,7 @@ pub struct FindWorkspaceProjectsOpts {
 #[non_exhaustive]
 pub enum FindWorkspaceProjectsError {
     #[display("Invalid glob pattern in pnpm-workspace.yaml packages: {pattern:?}: {message}")]
-    #[diagnostic(code(pacquet_workspace::invalid_glob))]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_INVALID_GLOB))]
     InvalidGlob {
         pattern: String,
         // Built once at construction. wax errors carry a borrow of the
@@ -65,7 +65,7 @@ pub enum FindWorkspaceProjectsError {
     },
 
     #[display("Failed to walk workspace projects under {}: {source}", root.display())]
-    #[diagnostic(code(pacquet_workspace::walk_error))]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_WALK_ERROR))]
     Walk {
         root: PathBuf,
         #[error(source)]

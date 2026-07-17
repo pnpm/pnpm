@@ -47,7 +47,7 @@ struct RawNodeVersion {
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum ResolveNodeVersionError {
     #[display("Failed to fetch Node.js release index at {url}")]
-    #[diagnostic(code(FETCH_NODE_INDEX_FAILED))]
+    #[diagnostic(code(ERR_PNPM_FETCH_NODE_INDEX_FAILED))]
     FetchIndex {
         url: String,
         #[error(source)]
@@ -55,7 +55,7 @@ pub enum ResolveNodeVersionError {
     },
 
     #[display("Failed to decode Node.js release index at {url}")]
-    #[diagnostic(code(DECODE_NODE_INDEX_FAILED))]
+    #[diagnostic(code(ERR_PNPM_DECODE_NODE_INDEX_FAILED))]
     DecodeIndex {
         url: String,
         #[error(source)]

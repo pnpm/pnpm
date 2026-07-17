@@ -68,12 +68,12 @@ pub enum ResolveFromWorkspaceError {
     #[display(
         "Cannot resolve package from workspace because workspace packages were not loaded into the resolver"
     )]
-    #[diagnostic(code(pacquet_resolving_npm_resolver::workspace_packages_not_loaded))]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_WORKSPACE_PACKAGES_NOT_LOADED))]
     WorkspacePackagesNotLoaded,
 
     /// The npm parser refused the translated bare specifier.
     #[display("Invalid workspace: spec ({bare_specifier})")]
-    #[diagnostic(code(pacquet_resolving_npm_resolver::invalid_workspace_translated_spec))]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_INVALID_WORKSPACE_TRANSLATED_SPEC))]
     UnparsableSpec {
         #[error(not(source))]
         bare_specifier: String,

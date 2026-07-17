@@ -574,7 +574,7 @@ fn set_ini_value_with_control_char_is_rejected() {
 
     assert_eq!(
         err.code().unwrap().to_string(),
-        "pacquet_cli::config_set_invalid_control_character",
+        "ERR_PNPM_CLI_CONFIG_SET_INVALID_CONTROL_CHARACTER",
     );
     // The file must not have been written.
     assert!(!tmp.path().join(".npmrc").exists());
