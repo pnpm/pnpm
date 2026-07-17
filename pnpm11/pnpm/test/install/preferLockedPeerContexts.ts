@@ -1,10 +1,11 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { createPeerDepGraphHash } from '@pnpm/deps.path'
 import type { LockfileFile } from '@pnpm/lockfile.types'
-import { prepare } from '@pnpm/prepare'
+import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/testing.registry-mock'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
@@ -33,4 +34,51 @@ test('compatible existing peer contexts survive writable lockfile regeneration',
   const snapshots = Object.keys(lockfile.snapshots ?? {})
   expect(snapshots).toContain(`@pnpm.e2e/abc-parent-with-ab@1.0.0${createPeerDepGraphHash([{ name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
   expect(snapshots).toContain(`@pnpm.e2e/abc-parent-with-ab@1.0.0${createPeerDepGraphHash([{ name: '@pnpm.e2e/peer-c', version: '2.0.0' }])}`)
+})
+
+test('a manifest edit does not propagate an unrelated optional peer context', async () => {
+  const aManifest = {
+    name: 'a',
+    version: '1.0.0',
+    private: true,
+    dependencies: {
+      'agent-base': '6.0.2',
+      b: 'workspace:*',
+      'tiny-invariant': '1.3.3',
+    },
+  }
+  preparePackages([
+    aManifest,
+    {
+      name: 'b',
+      version: '1.0.0',
+      private: true,
+      dependencies: {
+        debug: '4.4.3',
+        'supports-color': '5.5.0',
+      },
+    },
+  ])
+  fs.writeFileSync('package.json', JSON.stringify({ private: true }))
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['a', 'b'],
+  })
+
+  await execPnpm(['install'])
+  const initialLockfile = readYamlFileSync<LockfileFile>(WANTED_LOCKFILE)
+
+  const editedManifest = structuredClone(aManifest)
+  Reflect.deleteProperty(editedManifest.dependencies, 'tiny-invariant')
+  fs.writeFileSync(path.join('a', 'package.json'), JSON.stringify(editedManifest))
+  await execPnpm(['install'])
+
+  const installedLockfileText = fs.readFileSync(WANTED_LOCKFILE, 'utf8')
+  const installedLockfile = readYamlFileSync<LockfileFile>(WANTED_LOCKFILE)
+  delete initialLockfile.importers.a.dependencies!['tiny-invariant']
+  delete initialLockfile.packages!['tiny-invariant@1.3.3']
+  delete initialLockfile.snapshots!['tiny-invariant@1.3.3']
+  expect(installedLockfile).toEqual(initialLockfile)
+
+  await execPnpm(['dedupe'])
+  expect(fs.readFileSync(WANTED_LOCKFILE, 'utf8')).toBe(installedLockfileText)
 })

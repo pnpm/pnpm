@@ -1307,9 +1307,14 @@ describe('dedupe-only locked peer regressions', () => {
     return { dedupeOnly, resolved }
   }
 
-  test.each(['unlocked-first', 'locked-first'] as const)(
-    'same-package parent retains the union with %s project order',
-    async (order) => {
+  test.each([
+    ['support-first', 'unlocked-first'],
+    ['support-first', 'locked-first'],
+    ['support-last', 'unlocked-first'],
+    ['support-last', 'locked-first'],
+  ] as const)(
+    'same-package parent retains the union with %s, %s project order',
+    async (supportOrder, order) => {
       const unlockedWrapper = 1 as NodeId
       const unlockedConsumer = 2 as NodeId
       const unlockedA = 3 as NodeId
@@ -1389,15 +1394,16 @@ describe('dedupe-only locked peer regressions', () => {
       const orderedParents = order === 'unlocked-first'
         ? [unlockedProject, lockedProject]
         : [lockedProject, unlockedProject]
+      const supportProject = project('support', [
+        ['consumer', supportingConsumer],
+        ['b', bNodeId],
+      ])
+      const projects = supportOrder === 'support-first'
+        ? [supportProject, ...orderedParents]
+        : [...orderedParents, supportProject]
       const { dedupeOnly, resolved } = await resolveTwoPass(
         dependenciesTree,
-        [
-          project('support', [
-            ['consumer', supportingConsumer],
-            ['b', bNodeId],
-          ]),
-          ...orderedParents,
-        ],
+        projects,
         ['a', 'b']
       )
       const union = 'consumer/1.0.0(a/1.0.0)(b/1.0.0)' as DepPath
