@@ -28,7 +28,7 @@ pub(crate) struct EditDirState {
 #[non_exhaustive]
 pub(crate) enum StateFileError {
     #[display("Failed to read patch state file {path:?}: {source}")]
-    #[diagnostic(code(pacquet::patch_state_read))]
+    #[diagnostic(code(ERR_PNPM_PATCH_STATE_READ))]
     Read {
         path: PathBuf,
         #[error(source)]
@@ -36,7 +36,7 @@ pub(crate) enum StateFileError {
     },
 
     #[display("Failed to parse patch state file {path:?}: {source}")]
-    #[diagnostic(code(pacquet::patch_state_parse))]
+    #[diagnostic(code(ERR_PNPM_PATCH_STATE_PARSE))]
     Parse {
         path: PathBuf,
         #[error(source)]
@@ -44,7 +44,7 @@ pub(crate) enum StateFileError {
     },
 
     #[display("Failed to serialize patch state file {path:?}: {source}")]
-    #[diagnostic(code(pacquet::patch_state_serialize))]
+    #[diagnostic(code(ERR_PNPM_PATCH_STATE_SERIALIZE))]
     Serialize {
         path: PathBuf,
         #[error(source)]
@@ -52,7 +52,7 @@ pub(crate) enum StateFileError {
     },
 
     #[display("Failed to write patch state file {path:?}: {source}")]
-    #[diagnostic(code(pacquet::patch_state_write))]
+    #[diagnostic(code(ERR_PNPM_PATCH_STATE_WRITE))]
     Write {
         path: PathBuf,
         #[error(source)]
@@ -60,15 +60,15 @@ pub(crate) enum StateFileError {
     },
 
     #[display("Unsafe patch state path {path:?}: {reason}")]
-    #[diagnostic(code(pacquet::patch_state_unsafe_path))]
+    #[diagnostic(code(ERR_PNPM_PATCH_STATE_UNSAFE_PATH))]
     UnsafePath { path: PathBuf, reason: &'static str },
 
     #[display("Patch state file {path:?} is larger than {limit} bytes")]
-    #[diagnostic(code(pacquet::patch_state_file_too_large))]
+    #[diagnostic(code(ERR_PNPM_PATCH_STATE_FILE_TOO_LARGE))]
     StateFileTooLarge { path: PathBuf, limit: usize },
 
     #[display("Failed to resolve patch edit directory {path:?}: {source}")]
-    #[diagnostic(code(pacquet::patch_state_resolve_edit_dir))]
+    #[diagnostic(code(ERR_PNPM_PATCH_STATE_RESOLVE_EDIT_DIR))]
     ResolveEditDir {
         path: PathBuf,
         #[error(source)]

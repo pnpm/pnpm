@@ -105,7 +105,7 @@ pub enum CreateExportableManifestError {
     Transform(#[error(source)] TransformError),
 
     #[display("Failed to read README from {dir}: {source}")]
-    #[diagnostic(code(pacquet_exportable_manifest::read_readme))]
+    #[diagnostic(code(ERR_PNPM_EXPORTABLE_MANIFEST_READ_README))]
     ReadReadme {
         dir: String,
         #[error(source)]

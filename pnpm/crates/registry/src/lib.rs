@@ -28,22 +28,22 @@ pub struct NetworkError {
 pub enum RegistryError {
     #[from(ignore)] // TODO: remove this after derive(From) has been removed
     #[display("Missing latest tag on {_0}")]
-    #[diagnostic(code(pacquet_registry::missing_latest_tag))]
+    #[diagnostic(code(ERR_PNPM_REGISTRY_MISSING_LATEST_TAG))]
     MissingLatestTag(#[error(not(source))] String),
 
     #[from(ignore)] // TODO: remove this after derive(From) has been removed
     #[display("Missing version {_0} on package {_1}")]
-    #[diagnostic(code(pacquet_registry::missing_version_release))]
+    #[diagnostic(code(ERR_PNPM_REGISTRY_MISSING_VERSION_RELEASE))]
     MissingVersionRelease(String, String),
 
-    #[diagnostic(code(pacquet_registry::network_error))]
+    #[diagnostic(code(ERR_PNPM_REGISTRY_NETWORK_ERROR))]
     Network(NetworkError), // TODO: remove derive(Error), split this variant
 
-    #[diagnostic(code(pacquet_registry::io_error))]
+    #[diagnostic(code(ERR_PNPM_REGISTRY_IO_ERROR))]
     Io(std::io::Error), // TODO: remove derive(Error), split this variant
 
     #[from(ignore)] // TODO: remove this after derive(From) has been removed
     #[display("Serialization failed: {_0}")]
-    #[diagnostic(code(pacquet_registry::serialization_error))]
+    #[diagnostic(code(ERR_PNPM_REGISTRY_SERIALIZATION_ERROR))]
     Serialization(#[error(not(source))] String),
 }

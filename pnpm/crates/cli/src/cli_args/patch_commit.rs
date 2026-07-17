@@ -43,11 +43,11 @@ pub enum PatchCommitError {
     InvalidPatchDir { patch_dir: PathBuf },
 
     #[display("Missing package manifest field `{field}` in {}", path.display())]
-    #[diagnostic(code(pacquet::patch_commit_missing_manifest_field))]
+    #[diagnostic(code(ERR_PNPM_PATCH_COMMIT_MISSING_MANIFEST_FIELD))]
     MissingManifestField { path: PathBuf, field: &'static str },
 
     #[display("Failed to read package manifest from {}: {source}", path.display())]
-    #[diagnostic(code(pacquet::patch_commit_read_manifest))]
+    #[diagnostic(code(ERR_PNPM_PATCH_COMMIT_READ_MANIFEST))]
     ReadManifest {
         path: PathBuf,
         #[error(source)]
@@ -59,7 +59,7 @@ pub enum PatchCommitError {
     PatchNoLockfile,
 
     #[display("Failed to create patches directory {}: {source}", path.display())]
-    #[diagnostic(code(pacquet::patch_commit_create_patches_dir))]
+    #[diagnostic(code(ERR_PNPM_PATCH_COMMIT_CREATE_PATCHES_DIR))]
     CreatePatchesDir {
         path: PathBuf,
         #[error(source)]
@@ -75,7 +75,7 @@ pub enum PatchCommitError {
     PatchFileOutsidePatchesDir { patch_file: String },
 
     #[display("Failed to read patch file metadata for {}: {source}", path.display())]
-    #[diagnostic(code(pacquet::patch_commit_read_patch_file_metadata))]
+    #[diagnostic(code(ERR_PNPM_PATCH_COMMIT_READ_PATCH_FILE_METADATA))]
     ReadPatchFileMetadata {
         path: PathBuf,
         #[error(source)]
@@ -83,7 +83,7 @@ pub enum PatchCommitError {
     },
 
     #[display("Failed to write patch file {}: {source}", path.display())]
-    #[diagnostic(code(pacquet::patch_commit_write_patch))]
+    #[diagnostic(code(ERR_PNPM_PATCH_COMMIT_WRITE_PATCH))]
     WritePatch {
         path: PathBuf,
         #[error(source)]
@@ -91,7 +91,7 @@ pub enum PatchCommitError {
     },
 
     #[display("Failed to clean up temporary patch directory {}: {source}", path.display())]
-    #[diagnostic(code(pacquet::patch_commit_cleanup_temp_dir))]
+    #[diagnostic(code(ERR_PNPM_PATCH_COMMIT_CLEANUP_TEMP_DIR))]
     CleanupTempDir {
         path: PathBuf,
         #[error(source)]

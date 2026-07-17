@@ -23,11 +23,11 @@ pub enum BuildSnapshotError {
     #[display(
         "Package `{name}@{version}` was returned from the registry without an `integrity` field; cannot build a lockfile entry for it."
     )]
-    #[diagnostic(code(pacquet_package_manager::build_snapshot::missing_integrity))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_BUILD_SNAPSHOT_MISSING_INTEGRITY))]
     MissingIntegrity { name: String, version: String },
 
     #[display("Failed to parse package name `{name}`: {source}")]
-    #[diagnostic(code(pacquet_package_manager::build_snapshot::parse_name))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_BUILD_SNAPSHOT_PARSE_NAME))]
     ParseName {
         name: String,
         #[error(source)]
@@ -37,7 +37,7 @@ pub enum BuildSnapshotError {
     #[display(
         "Package `{name}` reported version `{version}` that cannot be parsed as a PkgVerPeer: {source}"
     )]
-    #[diagnostic(code(pacquet_package_manager::build_snapshot::parse_version))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_BUILD_SNAPSHOT_PARSE_VERSION))]
     ParseVersion {
         name: String,
         version: String,

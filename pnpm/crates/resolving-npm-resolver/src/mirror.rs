@@ -93,14 +93,14 @@ pub struct MetaHeaders {
 #[non_exhaustive]
 pub enum SaveMetaError {
     #[display("Failed to create mirror directory {dir:?}: {error}")]
-    #[diagnostic(code(pacquet_resolving_npm_resolver::mirror::create_dir))]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_MIRROR_CREATE_DIR))]
     CreateDir {
         dir: PathBuf,
         #[error(source)]
         error: io::Error,
     },
     #[display("Failed to write mirror temp file {temp:?}: {error}")]
-    #[diagnostic(code(pacquet_resolving_npm_resolver::mirror::write_temp))]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_MIRROR_WRITE_TEMP))]
     WriteTemp {
         temp: PathBuf,
         #[error(source)]
@@ -110,7 +110,7 @@ pub enum SaveMetaError {
     #[diagnostic(transparent)]
     Encode(#[error(source)] EncodeMetaError),
     #[display("Failed to rename mirror temp {temp:?} → {target:?}: {error}")]
-    #[diagnostic(code(pacquet_resolving_npm_resolver::mirror::rename))]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_MIRROR_RENAME))]
     Rename {
         temp: PathBuf,
         target: PathBuf,
@@ -165,14 +165,14 @@ pub fn get_pkg_mirror_path(
 #[non_exhaustive]
 pub enum EncodeRegistryError {
     #[display("Failed to parse registry URL {url:?}: {error}")]
-    #[diagnostic(code(pacquet_resolving_npm_resolver::mirror::parse_registry))]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_MIRROR_PARSE_REGISTRY))]
     ParseUrl {
         #[error(not(source))]
         url: String,
         error: String,
     },
     #[display("Registry URL {url:?} has no host")]
-    #[diagnostic(code(pacquet_resolving_npm_resolver::mirror::missing_host))]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_MIRROR_MISSING_HOST))]
     MissingHost {
         #[error(not(source))]
         url: String,
@@ -235,7 +235,7 @@ struct MirrorIndex {
 /// Error from [`save_meta_indexed`]'s record-encoding step.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display("Failed to encode mirror records: {_0}")]
-#[diagnostic(code(pacquet_resolving_npm_resolver::mirror::encode))]
+#[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_MIRROR_ENCODE))]
 pub struct EncodeMetaError(#[error(source)] serde_json::Error);
 
 impl EncodeMetaError {

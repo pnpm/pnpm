@@ -140,7 +140,7 @@ async fn should_surface_a_web_login_transport_failure_as_a_request_error() {
     assert!(matches!(err, LoginError::Request { .. }), "got {err:?}");
     assert_eq!(
         err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
-        Some("pacquet_auth_commands::login_request_failed"),
+        Some("ERR_PNPM_AUTH_COMMANDS_LOGIN_REQUEST_FAILED"),
     );
     assert!(err.to_string().starts_with("The login request failed:"), "unexpected message: {err}");
 }
@@ -173,7 +173,7 @@ async fn should_fail_when_the_login_url_cannot_be_rendered_as_a_qr_code() {
     assert!(matches!(err, LoginError::QrCode(_)), "got {err:?}");
     assert_eq!(
         err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
-        Some("pacquet_auth_commands::login_qr_code"),
+        Some("ERR_PNPM_AUTH_COMMANDS_LOGIN_QR_CODE"),
     );
     assert!(
         err.to_string().starts_with("Failed to render the login QR code:"),
@@ -243,7 +243,7 @@ async fn rejects_a_login_url_containing_control_characters() {
     assert!(matches!(err, LoginError::UnsafeLoginUrl), "got {err:?}");
     assert_eq!(
         err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
-        Some("pacquet_auth_commands::login_unsafe_url"),
+        Some("ERR_PNPM_AUTH_COMMANDS_LOGIN_UNSAFE_URL"),
     );
     assert!(infos().iter().all(|message| !message.contains('\u{1b}')), "got {:?}", infos());
 }

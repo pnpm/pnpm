@@ -112,18 +112,18 @@ pub enum ResolveLocalError {
     Spec(#[error(source)] LocalSpecError),
 
     /// `file:` directory or tarball points at a path that doesn't
-    /// exist. Carries the `LINKED_PKG_DIR_NOT_FOUND` code.
+    /// exist. Carries the `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND` code.
     #[display("Could not install from \"{path}\" as it does not exist.")]
-    #[diagnostic(code(LINKED_PKG_DIR_NOT_FOUND))]
+    #[diagnostic(code(ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND))]
     LinkedPkgDirNotFound {
         #[error(not(source))]
         path: String,
     },
 
     /// `<spec.fetchSpec>` exists but isn't a directory (ENOTDIR).
-    /// Carries the `NOT_PACKAGE_DIRECTORY` code.
+    /// Carries the `ERR_PNPM_NOT_PACKAGE_DIRECTORY` code.
     #[display("Could not install from \"{path}\" as it is not a directory.")]
-    #[diagnostic(code(NOT_PACKAGE_DIRECTORY))]
+    #[diagnostic(code(ERR_PNPM_NOT_PACKAGE_DIRECTORY))]
     NotPackageDirectory {
         #[error(not(source))]
         path: String,
@@ -191,7 +191,7 @@ async fn resolve_spec(
     };
 
     if matches!(spec.kind, LocalSpecKind::File) {
-        // A missing tarball file raises the same `LINKED_PKG_DIR_NOT_FOUND`
+        // A missing tarball file raises the same `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`
         // code the directory branch uses for a missing `file:` target,
         // so both kinds of missing `file:` target share one error code.
         let integrity = match compute_tarball_integrity(&spec.fetch_spec).await {
@@ -249,7 +249,7 @@ async fn resolve_spec(
 }
 
 /// Decide the fall-back when `package.json` is missing. For `file:`
-/// specs (copy-shaped) this throws `LINKED_PKG_DIR_NOT_FOUND` when the
+/// specs (copy-shaped) this throws `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND` when the
 /// directory itself doesn't exist; for `link:` with a missing
 /// `package.json` it warns and substitutes a manifest with the
 /// directory basename and `version: '0.0.0'`.
@@ -280,7 +280,7 @@ fn synthesize_fallback_manifest(
         // slipped past tarball-shape detection because the spec used
         // the `link:` scheme). On Windows `read(<file>/package.json)`
         // returns `NotFound` rather than `NotADirectory`, so this
-        // explicit check surfaces `NOT_PACKAGE_DIRECTORY` on every
+        // explicit check surfaces `ERR_PNPM_NOT_PACKAGE_DIRECTORY` on every
         // platform.
         return Err(ResolveLocalError::NotPackageDirectory {
             path: spec.fetch_spec.display().to_string(),
@@ -297,7 +297,7 @@ fn synthesize_fallback_manifest(
 /// Map a [`PackageManifestError`] from
 /// [`safe_read_package_json_from_dir`] into the resolver's error
 /// surface, dispatching on the inner code: `ENOTDIR` →
-/// `NOT_PACKAGE_DIRECTORY`, `ENOENT` → fall-back manifest, anything
+/// `ERR_PNPM_NOT_PACKAGE_DIRECTORY`, `ENOENT` → fall-back manifest, anything
 /// else → re-throw.
 fn handle_manifest_read_failure(
     err: PackageManifestError,

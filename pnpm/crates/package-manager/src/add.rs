@@ -101,7 +101,7 @@ pub enum AddError {
     /// Fetching a brand-new dependency's `latest` tag from the registry
     /// failed while resolving the version to add.
     #[display("Failed to resolve the latest version of {name}: {error}")]
-    #[diagnostic(code(pacquet_package_manager::add_resolve_latest))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_ADD_RESOLVE_LATEST))]
     ResolveLatest {
         name: String,
         #[error(source)]

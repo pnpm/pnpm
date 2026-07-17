@@ -11,7 +11,7 @@
 //! - [`resolve_from_local_scheme`] — claims a wanted dep iff its bare
 //!   specifier starts with `link:`, `workspace:`, or `file:`. The
 //!   `path:` prefix is rejected with [`PathProtocolNotSupportedError`]
-//!   (the `PATH_IS_UNSUPPORTED_PROTOCOL` error).
+//!   (the `ERR_PNPM_PATH_IS_UNSUPPORTED_PROTOCOL` error).
 //! - [`resolve_from_local_path`] — claims a wanted dep purely by path
 //!   shape (relative path, absolute path, drive letter, tarball
 //!   filename). Bare-specifier dispatchers run this *after*

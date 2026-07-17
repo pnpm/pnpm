@@ -143,19 +143,19 @@ pub struct VerifyChecksumError {
 #[derive(Debug, Display, Error, Diagnostic, From)]
 #[non_exhaustive]
 pub enum TarballError {
-    #[diagnostic(code(pacquet_tarball::fetch_tarball))]
+    #[diagnostic(code(ERR_PNPM_TARBALL_FETCH_TARBALL))]
     FetchTarball(NetworkError),
 
-    #[diagnostic(code(pacquet_tarball::http_status))]
+    #[diagnostic(code(ERR_PNPM_TARBALL_HTTP_STATUS))]
     HttpStatus(HttpStatusError),
 
     #[from(ignore)]
-    #[diagnostic(code(pacquet_tarball::io_error))]
+    #[diagnostic(code(ERR_PNPM_TARBALL_IO_ERROR))]
     ReadTarballEntries(std::io::Error),
 
     #[from(ignore)]
     #[display("Failed to read local tarball {}: {source}", path.display())]
-    #[diagnostic(code(pacquet_tarball::read_local_tarball))]
+    #[diagnostic(code(ERR_PNPM_TARBALL_READ_LOCAL_TARBALL))]
     ReadLocalTarball {
         path: PathBuf,
         #[error(source)]
@@ -163,7 +163,7 @@ pub enum TarballError {
     },
 
     #[diagnostic(
-        code(pacquet_tarball::verify_checksum_error),
+        code(ERR_PNPM_TARBALL_INTEGRITY),
         help(
             "The downloaded tarball does not match the integrity recorded in the lockfile. If you trust the new content (legitimate republish, or stale local metadata cache), run `pnpm install --update-checksums`. Otherwise treat this as a potential supply-chain issue and verify the new content first."
         )
@@ -172,7 +172,7 @@ pub enum TarballError {
 
     #[from(ignore)]
     #[display("Failed to decode gzip: {_0}")]
-    #[diagnostic(code(pacquet_tarball::decode_gzip))]
+    #[diagnostic(code(ERR_PNPM_TARBALL_DECODE_GZIP))]
     DecodeGzip(InflateDecodeErrors),
 
     #[from(ignore)]
@@ -186,14 +186,14 @@ pub enum TarballError {
     WriteStoreIndex(StoreIndexError),
 
     #[from(ignore)]
-    #[diagnostic(code(pacquet_tarball::task_join_error))]
+    #[diagnostic(code(ERR_PNPM_TARBALL_TASK_JOIN_ERROR))]
     TaskJoin(tokio::task::JoinError),
 
     #[from(ignore)]
     #[display(
         "Archive at {url} advertised a Content-Length of {advertised_size} bytes, which exceeds what pnpm can allocate (either larger than `usize::MAX` on this target or memory pressure prevented a one-shot reservation)"
     )]
-    #[diagnostic(code(pacquet_tarball::tarball_too_large))]
+    #[diagnostic(code(ERR_PNPM_TARBALL_TOO_LARGE))]
     TarballTooLarge { url: String, advertised_size: u64 },
 
     /// A concurrent request for the same tarball URL went through
@@ -206,7 +206,7 @@ pub enum TarballError {
     #[display(
         "A concurrent fetch for {url} failed; this request waited on the shared mem cache and inherits the failure"
     )]
-    #[diagnostic(code(pacquet_tarball::sibling_fetch_failed))]
+    #[diagnostic(code(ERR_PNPM_TARBALL_SIBLING_FETCH_FAILED))]
     SiblingFetchFailed { url: String },
 
     /// Path-traversal rejection on a zip entry, carrying the
@@ -215,7 +215,7 @@ pub enum TarballError {
     /// directory is rejected before any bytes are written to the CAS.
     #[from(ignore)]
     #[display("Refusing to extract zip entry {entry_path:?} from {url} — {reason}")]
-    #[diagnostic(code(pacquet_tarball::path_traversal))]
+    #[diagnostic(code(ERR_PNPM_PATH_TRAVERSAL))]
     PathTraversal { url: String, entry_path: String, reason: &'static str },
 
     /// Zip-archive parse / read error. Wraps the underlying `zip`
@@ -223,7 +223,7 @@ pub enum TarballError {
     /// mode beyond surfacing the entry path that triggered it.
     #[from(ignore)]
     #[display("Failed to read zip archive {url}: {source}")]
-    #[diagnostic(code(pacquet_tarball::read_zip))]
+    #[diagnostic(code(ERR_PNPM_TARBALL_READ_ZIP))]
     ReadZipArchive {
         url: String,
         #[error(source)]
@@ -242,7 +242,7 @@ pub enum TarballError {
     /// rather than the tar-specific `ERR_PNPM_TARBALL_TAR`.
     #[from(ignore)]
     #[display("Failed to read zip entry {entry_path:?} from {url}: {source}")]
-    #[diagnostic(code(pacquet_tarball::read_zip_entry))]
+    #[diagnostic(code(ERR_PNPM_TARBALL_READ_ZIP_ENTRY))]
     ReadZipEntries {
         url: String,
         entry_path: String,

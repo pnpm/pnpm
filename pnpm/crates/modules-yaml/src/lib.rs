@@ -352,11 +352,11 @@ pub enum AllowBuildValue {
 #[non_exhaustive]
 pub enum ReadModulesError {
     #[display("Failed to read {path:?}: {source}")]
-    #[diagnostic(code(pacquet_modules_yaml::read_io))]
+    #[diagnostic(code(ERR_PNPM_MODULES_YAML_READ_IO))]
     ReadFile { path: PathBuf, source: io::Error },
 
     #[display("Failed to parse {path:?}: {source}")]
-    #[diagnostic(code(pacquet_modules_yaml::parse_yaml))]
+    #[diagnostic(code(ERR_PNPM_MODULES_YAML_PARSE_YAML))]
     ParseYaml { path: PathBuf, source: Box<serde_saphyr::Error> },
 }
 
@@ -365,15 +365,15 @@ pub enum ReadModulesError {
 #[non_exhaustive]
 pub enum WriteModulesError {
     #[display("Failed to create directory {path:?}: {source}")]
-    #[diagnostic(code(pacquet_modules_yaml::create_dir))]
+    #[diagnostic(code(ERR_PNPM_MODULES_YAML_CREATE_DIR))]
     CreateDir { path: PathBuf, source: io::Error },
 
     #[display("Failed to serialize manifest: {_0}")]
-    #[diagnostic(code(pacquet_modules_yaml::serialize_json))]
+    #[diagnostic(code(ERR_PNPM_MODULES_YAML_SERIALIZE_JSON))]
     SerializeJson(serde_json::Error),
 
     #[display("Failed to write {path:?}: {source}")]
-    #[diagnostic(code(pacquet_modules_yaml::write_io))]
+    #[diagnostic(code(ERR_PNPM_MODULES_YAML_WRITE_IO))]
     WriteFile { path: PathBuf, source: io::Error },
 }
 

@@ -117,15 +117,15 @@ pub enum VersioningError {
     MaxBumpExceeded { pkg_name: String, bump_type: String, max_bump: String, raised_by: String },
 
     #[display("Failed to read {}: {source}", path.display())]
-    #[diagnostic(code(pacquet_versioning::read_error))]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_READ_ERROR))]
     Read { path: PathBuf, source: std::io::Error },
 
     #[display("Failed to write {}: {source}", path.display())]
-    #[diagnostic(code(pacquet_versioning::write_error))]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_WRITE_ERROR))]
     Write { path: PathBuf, source: std::io::Error },
 
     #[display("Failed to remove {}: {source}", path.display())]
-    #[diagnostic(code(pacquet_versioning::remove_error))]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_REMOVE_ERROR))]
     Remove { path: PathBuf, source: std::io::Error },
 
     #[display("{_0}")]

@@ -172,7 +172,7 @@ pub enum LinkManifestLinkDepsError {
     /// under a project dir it would place symlinks outside the
     /// intended modules directory.
     #[display("Refusing to link into invalid modules directory name {modules_dir_name:?}")]
-    #[diagnostic(code(pacquet_package_manager::invalid_modules_dir_name))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_INVALID_MODULES_DIR_NAME))]
     InvalidModulesDirName {
         #[error(not(source))]
         modules_dir_name: String,
@@ -187,7 +187,7 @@ pub enum LinkManifestLinkDepsError {
     /// Creating one `link:` dep's symlink failed (permission denied,
     /// a real directory squatting the alias path, disk full, ...).
     #[display("Failed to link manifest `link:` dependency {alias:?}: {source}")]
-    #[diagnostic(code(pacquet_package_manager::link_manifest_link_dep_failed))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_LINK_MANIFEST_LINK_DEP_FAILED))]
     Symlink {
         alias: String,
         #[error(source)]

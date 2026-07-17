@@ -237,7 +237,7 @@ pub enum LogoutError {
     LogoutFailed { registry: String, config_path: PathBuf },
 
     #[display("Failed to read auth.ini at {}: {error}", path.display())]
-    #[diagnostic(code(pacquet_auth_commands::read_auth_ini))]
+    #[diagnostic(code(ERR_PNPM_AUTH_COMMANDS_READ_AUTH_INI))]
     ReadAuthIni {
         path: PathBuf,
         #[error(source)]
@@ -245,7 +245,7 @@ pub enum LogoutError {
     },
 
     #[display("Failed to write auth.ini at {}: {error}", path.display())]
-    #[diagnostic(code(pacquet_auth_commands::write_auth_ini))]
+    #[diagnostic(code(ERR_PNPM_AUTH_COMMANDS_WRITE_AUTH_INI))]
     WriteAuthIni {
         path: PathBuf,
         #[error(source)]

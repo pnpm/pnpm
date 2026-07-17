@@ -120,7 +120,7 @@ pub enum UpdateError {
     /// Fetching a package's `latest` tag from the registry failed while
     /// computing the new manifest range for `--latest`.
     #[display("Failed to resolve the latest version of {name}: {error}")]
-    #[diagnostic(code(pacquet_package_manager::update_resolve_latest))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_UPDATE_RESOLVE_LATEST))]
     ResolveLatest {
         name: String,
         #[error(source)]

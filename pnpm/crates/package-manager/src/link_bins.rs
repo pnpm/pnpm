@@ -151,7 +151,7 @@ fn read_bin_sources(
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum LinkVirtualStoreBinsError {
     #[display("Failed to read virtual store directory at {dir:?}: {error}")]
-    #[diagnostic(code(pacquet_package_manager::read_virtual_store))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_READ_VIRTUAL_STORE))]
     ReadVirtualStore {
         dir: PathBuf,
         #[error(source)]

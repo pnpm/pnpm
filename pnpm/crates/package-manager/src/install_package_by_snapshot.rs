@@ -84,7 +84,7 @@ pub struct InstallPackageBySnapshot<'a> {
     pub metadata: &'a PackageMetadata,
     pub snapshot: &'a SnapshotEntry,
     /// `allowBuilds` gate. Routed into the git fetcher for
-    /// `preparePackage`'s `GIT_DEP_PREPARE_NOT_ALLOWED` check.
+    /// `preparePackage`'s `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED` check.
     /// Computed once per install in
     /// [`crate::InstallFrozenLockfile::run`] and threaded through
     /// [`crate::CreateVirtualStore`].
@@ -144,13 +144,13 @@ pub enum InstallPackageBySnapshotError {
     #[display(
         "Package `{package_key}` has a tarball resolution without an `integrity` field; pnpm cannot verify the download and refuses to install it."
     )]
-    #[diagnostic(code(pacquet_package_manager::missing_tarball_integrity))]
+    #[diagnostic(code(ERR_PNPM_MISSING_TARBALL_INTEGRITY))]
     MissingTarballIntegrity { package_key: String },
 
     #[display(
         "Package `{package_key}` uses a `{resolution_kind}` resolution, which pnpm does not yet support."
     )]
-    #[diagnostic(code(pacquet_package_manager::unsupported_resolution))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_UNSUPPORTED_RESOLUTION))]
     UnsupportedResolution { package_key: String, resolution_kind: &'static str },
 
     /// Failure from either git fetcher: the git-CLI path for
@@ -173,7 +173,7 @@ pub enum InstallPackageBySnapshotError {
 
     /// A custom fetcher from the pnpmfile threw or returned an error.
     #[display("Custom fetcher failed: {_0}")]
-    #[diagnostic(code(pacquet_package_manager::custom_fetcher_failed))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_CUSTOM_FETCHER_FAILED))]
     CustomFetcher(#[error(not(source))] String),
 
     /// A custom-typed resolution reached the built-in dispatch — no
@@ -183,7 +183,7 @@ pub enum InstallPackageBySnapshotError {
     #[display(
         "Cannot fetch dependency with custom resolution type \"{resolution_type}\". Custom resolutions must be handled by custom fetchers."
     )]
-    #[diagnostic(code(UNSUPPORTED_RESOLUTION_TYPE))]
+    #[diagnostic(code(ERR_PNPM_UNSUPPORTED_RESOLUTION_TYPE))]
     UnsupportedResolutionType { resolution_type: String },
 
     /// No variant in a [`LockfileResolution::Variations`] matches the
@@ -195,7 +195,7 @@ pub enum InstallPackageBySnapshotError {
     #[display(
         "Package `{package_key}` is a runtime dependency, but none of its declared variants matches the host triple (os = `{host_os}`, cpu = `{host_cpu}`, libc = `{host_libc:?}`). Available variants: {available_targets}"
     )]
-    #[diagnostic(code(pacquet_package_manager::no_matching_platform_variant))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_NO_MATCHING_PLATFORM_VARIANT))]
     NoMatchingPlatformVariant {
         package_key: String,
         host_os: &'static str,
@@ -219,7 +219,7 @@ pub enum InstallPackageBySnapshotError {
     #[display(
         "Package `{package_key}` carries a runtime variant whose inner resolution is `{inner_kind}` rather than `binary`; pnpm only knows how to install binary-shaped variants."
     )]
-    #[diagnostic(code(pacquet_package_manager::variant_has_non_binary_resolution))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_VARIANT_HAS_NON_BINARY_RESOLUTION))]
     VariantHasNonBinaryResolution { package_key: String, inner_kind: &'static str },
 
     /// Serializing the synthesized runtime `package.json` failed.
@@ -232,7 +232,7 @@ pub enum InstallPackageBySnapshotError {
     #[display(
         "Failed to serialize the synthesized package.json for runtime entry `{package_key}`: {error}"
     )]
-    #[diagnostic(code(pacquet_package_manager::synthesize_runtime_manifest))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_SYNTHESIZE_RUNTIME_MANIFEST))]
     SynthesizeRuntimeManifest {
         package_key: String,
         #[error(source)]

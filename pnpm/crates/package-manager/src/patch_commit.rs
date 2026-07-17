@@ -25,7 +25,7 @@ pub enum PkgFilesForDiff {
 #[non_exhaustive]
 pub enum PatchCommitError {
     #[display("Failed to read package manifest in {}: {source}", dir.display())]
-    #[diagnostic(code(pacquet_package_manager::patch_commit_read_manifest))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_PATCH_COMMIT_READ_MANIFEST))]
     ReadManifest {
         dir: PathBuf,
         #[error(source)]
@@ -33,7 +33,7 @@ pub enum PatchCommitError {
     },
 
     #[display("Failed to compute package files for {}: {source}", dir.display())]
-    #[diagnostic(code(pacquet_package_manager::patch_commit_packlist))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_PATCH_COMMIT_PACKLIST))]
     Packlist {
         dir: PathBuf,
         #[error(source)]
@@ -41,7 +41,7 @@ pub enum PatchCommitError {
     },
 
     #[display("Failed to read directory {}: {source}", dir.display())]
-    #[diagnostic(code(pacquet_package_manager::patch_commit_read_dir))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_PATCH_COMMIT_READ_DIR))]
     ReadDir {
         dir: PathBuf,
         #[error(source)]
@@ -49,7 +49,7 @@ pub enum PatchCommitError {
     },
 
     #[display("Failed to create temporary patch directory {}: {source}", dir.display())]
-    #[diagnostic(code(pacquet_package_manager::patch_commit_create_temp_dir))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_PATCH_COMMIT_CREATE_TEMP_DIR))]
     CreateTempDir {
         dir: PathBuf,
         #[error(source)]
@@ -57,7 +57,7 @@ pub enum PatchCommitError {
     },
 
     #[display("Failed to remove temporary patch directory {}: {source}", dir.display())]
-    #[diagnostic(code(pacquet_package_manager::patch_commit_remove_temp_dir))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_PATCH_COMMIT_REMOVE_TEMP_DIR))]
     RemoveTempDir {
         dir: PathBuf,
         #[error(source)]
@@ -65,7 +65,7 @@ pub enum PatchCommitError {
     },
 
     #[display("Unsafe temporary patch directory {}: {reason}", dir.display())]
-    #[diagnostic(code(pacquet_package_manager::patch_commit_unsafe_temp_dir))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_PATCH_COMMIT_UNSAFE_TEMP_DIR))]
     UnsafeTempDir { dir: PathBuf, reason: &'static str },
 
     #[display(
@@ -73,7 +73,7 @@ pub enum PatchCommitError {
         source_path.display(),
         target.display()
     )]
-    #[diagnostic(code(pacquet_package_manager::patch_commit_link_file))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_PATCH_COMMIT_LINK_FILE))]
     LinkFile {
         source_path: PathBuf,
         target: PathBuf,
@@ -82,24 +82,24 @@ pub enum PatchCommitError {
     },
 
     #[display("Package file path escapes package directory: {path}")]
-    #[diagnostic(code(pacquet_package_manager::patch_commit_invalid_package_file_path))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_PATCH_COMMIT_INVALID_PACKAGE_FILE_PATH))]
     InvalidPackageFilePath { path: String },
 
     #[display(
         "Unable to diff directories. Make sure you have a recent version of 'git' available in PATH.\nThe following error was reported by 'git':\n{stderr}"
     )]
-    #[diagnostic(code(pacquet_package_manager::patch_commit_diff_failed))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_PATCH_COMMIT_DIFF_FAILED))]
     DiffFailed { stderr: String },
 
     #[display("Failed to run git diff: {source}")]
-    #[diagnostic(code(pacquet_package_manager::patch_commit_diff_spawn))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_PATCH_COMMIT_DIFF_SPAWN))]
     DiffSpawn {
         #[error(source)]
         source: io::Error,
     },
 
     #[display("git diff {stream} output exceeded {limit} bytes")]
-    #[diagnostic(code(pacquet_package_manager::patch_commit_diff_output_too_large))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_PATCH_COMMIT_DIFF_OUTPUT_TOO_LARGE))]
     DiffOutputTooLarge { stream: &'static str, limit: u64 },
 }
 

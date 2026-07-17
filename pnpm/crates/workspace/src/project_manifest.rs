@@ -21,7 +21,7 @@ pub enum ReadProjectManifestError {
     Read(#[error(source)] PackageManifestError),
 
     #[display("Failed to read {}: {source}", path.display())]
-    #[diagnostic(code(pacquet_workspace::read_project_manifest))]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_READ_PROJECT_MANIFEST))]
     ReadFile {
         path: PathBuf,
         #[error(source)]
@@ -29,7 +29,7 @@ pub enum ReadProjectManifestError {
     },
 
     #[display("Failed to parse {}: {source}", path.display())]
-    #[diagnostic(code(pacquet_workspace::parse_project_manifest))]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_PARSE_PROJECT_MANIFEST))]
     ParseYaml {
         path: PathBuf,
         #[error(source)]
@@ -37,7 +37,7 @@ pub enum ReadProjectManifestError {
     },
 
     #[display("Not supported manifest name {basename:?}")]
-    #[diagnostic(code(pacquet_workspace::unsupported_project_manifest))]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_UNSUPPORTED_PROJECT_MANIFEST))]
     UnsupportedName { basename: String },
 }
 
@@ -47,7 +47,7 @@ pub enum ReadProjectManifestError {
 #[non_exhaustive]
 pub enum ReadProjectManifestOnlyError {
     #[display("No package.json or package.yaml was found in {:?}", project_dir.display())]
-    #[diagnostic(code(pacquet_workspace::no_importer_manifest_found))]
+    #[diagnostic(code(ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND))]
     NoImporterManifestFound { project_dir: PathBuf },
 
     #[diagnostic(transparent)]

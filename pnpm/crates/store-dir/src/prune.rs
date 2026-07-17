@@ -40,7 +40,7 @@ pub enum PruneError {
     ListProjects(#[error(source)] GetRegisteredProjectsError),
 
     #[display("Failed to remove unreferenced slot at {path:?}: {error}")]
-    #[diagnostic(code(pacquet_store_dir::prune::remove_slot))]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_PRUNE_REMOVE_SLOT))]
     RemoveSlot {
         path: PathBuf,
         #[error(source)]
@@ -53,7 +53,7 @@ pub enum PruneError {
     /// "empty" would leave unreachable slot directories in place
     /// the next time the prune walker can't see them either.
     #[display("Failed to read sweep directory {path:?}: {error}")]
-    #[diagnostic(code(pacquet_store_dir::prune::read_sweep_dir))]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_PRUNE_READ_SWEEP_DIR))]
     ReadSweepDir {
         path: PathBuf,
         #[error(source)]

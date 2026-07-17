@@ -145,7 +145,7 @@ fn frozen_lockfile_only_rejects_a_stale_lockfile() {
     // so assert on the stable diagnostic code instead of the prose.
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
     assert!(
-        stderr.contains("outdated_lockfile"),
+        stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"),
         "stderr must name the outdated-lockfile diagnostic; got:\n{stderr}",
     );
 

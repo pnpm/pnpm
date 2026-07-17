@@ -145,7 +145,7 @@ fn normalize_entry_path(path: &Path) -> String {
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum ExtractManifestError {
     #[display("Failed to read the archive {tarball_path}: {source}")]
-    #[diagnostic(code(pacquet_publish::extract_manifest::read))]
+    #[diagnostic(code(ERR_PNPM_PUBLISH_EXTRACT_MANIFEST_READ))]
     Read {
         tarball_path: String,
         #[error(source)]
@@ -153,7 +153,7 @@ pub enum ExtractManifestError {
     },
 
     #[display("Failed to parse package.json in {tarball_path}: {source}")]
-    #[diagnostic(code(pacquet_publish::extract_manifest::parse))]
+    #[diagnostic(code(ERR_PNPM_PUBLISH_EXTRACT_MANIFEST_PARSE))]
     Parse {
         tarball_path: String,
         #[error(source)]

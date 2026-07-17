@@ -65,7 +65,7 @@ fn assert_frozen_outdated(workspace: &Path) {
         "frozen install accepted a stale importer\nstderr:\n{stderr}",
     );
     assert!(
-        stderr.contains("pacquet_package_manager::outdated_lockfile"),
+        stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"),
         "frozen install returned the wrong error\nstderr:\n{stderr}",
     );
 }
@@ -316,7 +316,7 @@ fn missing_workspace_importer_is_not_accepted_by_frozen_install() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(!output.status.success(), "frozen install accepted a missing importer");
     assert!(
-        stderr.contains("pacquet_package_manager::no_importer") && stderr.contains("pkg-a"),
+        stderr.contains("ERR_PNPM_PACKAGE_MANAGER_NO_IMPORTER") && stderr.contains("pkg-a"),
         "missing importer returned the wrong error\nstderr:\n{stderr}",
     );
 

@@ -257,7 +257,7 @@ pub enum LinkRootComponentMembersError {
     /// An injected member's manifest could not be read to learn which
     /// siblings it declares.
     #[display("Failed to read manifest of root-component member {member:?} at {path:?}: {source}")]
-    #[diagnostic(code(pacquet_package_manager::root_component_manifest_read_failed))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_ROOT_COMPONENT_MANIFEST_READ_FAILED))]
     ReadManifest {
         member: String,
         path: PathBuf,
@@ -268,7 +268,7 @@ pub enum LinkRootComponentMembersError {
     /// A sibling-into-member symlink failed (e.g. permission denied,
     /// disk full, an existing non-symlink file squatting the path).
     #[display("Failed to link root-component sibling {sibling:?} into member {member:?}: {source}")]
-    #[diagnostic(code(pacquet_package_manager::root_component_symlink_failed))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_ROOT_COMPONENT_SYMLINK_FAILED))]
     Symlink {
         member: String,
         sibling: String,

@@ -104,7 +104,7 @@ pub enum InstallPackageFromRegistryError {
     /// resolution carrying an integrity hash). Surfaces with a
     /// pacquet-internal code.
     #[display("Unsupported resolution shape for npm install path: {detail}")]
-    #[diagnostic(code(pacquet_package_manager::unsupported_resolution))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_UNSUPPORTED_RESOLUTION))]
     UnsupportedResolution {
         #[error(not(source))]
         detail: String,

@@ -18,7 +18,7 @@ pub enum RootError {
     /// `--global` is rejected because the global-dir machinery is not
     /// ported to pacquet yet; refuse rather than print a wrong path.
     #[display("`pnpm root --global` is not supported yet.")]
-    #[diagnostic(code(pacquet_cli::root_global_unsupported))]
+    #[diagnostic(code(ERR_PNPM_CLI_ROOT_GLOBAL_UNSUPPORTED))]
     GlobalUnsupported,
 }
 

@@ -133,7 +133,7 @@ pub struct CreateVirtualStore<'a> {
     pub store_index_writer: &'a std::sync::Arc<StoreIndexWriter>,
     /// `allowBuilds` gate, shared with `BuildModules`. The cold-batch
     /// path threads this into the git fetcher so `preparePackage` can
-    /// reject `GIT_DEP_PREPARE_NOT_ALLOWED` for packages that aren't
+    /// reject `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED` for packages that aren't
     /// allowlisted. Computed once per install in
     /// [`crate::InstallFrozenLockfile::run`].
     pub allow_build_policy: &'a crate::AllowBuildPolicy,
@@ -192,13 +192,13 @@ pub enum CreateVirtualStoreError {
     #[display(
         "Lockfile has a snapshot entry `{snapshot_key}` with no matching metadata entry (`{metadata_key}`) in `packages:`."
     )]
-    #[diagnostic(code(pacquet_package_manager::missing_package_metadata))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_MISSING_PACKAGE_METADATA))]
     MissingPackageMetadata { snapshot_key: String, metadata_key: String },
 
     #[display(
         "Lockfile has a `snapshots:` section but no `packages:` section; every entry in `snapshots:` must have a matching metadata entry. The lockfile is malformed."
     )]
-    #[diagnostic(code(pacquet_package_manager::missing_packages_section))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_MISSING_PACKAGES_SECTION))]
     MissingPackagesSection,
 }
 

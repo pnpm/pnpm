@@ -95,7 +95,7 @@ pub enum BinOrigin {
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum LinkBinsError {
     #[display("Failed to create bin directory at {dir:?}: {error}")]
-    #[diagnostic(code(pacquet_cmd_shim::create_bin_dir))]
+    #[diagnostic(code(ERR_PNPM_CMD_SHIM_CREATE_BIN_DIR))]
     CreateBinDir {
         dir: PathBuf,
         #[error(source)]
@@ -103,7 +103,7 @@ pub enum LinkBinsError {
     },
 
     #[display("Failed to read modules directory at {dir:?}: {error}")]
-    #[diagnostic(code(pacquet_cmd_shim::read_modules_dir))]
+    #[diagnostic(code(ERR_PNPM_CMD_SHIM_READ_MODULES_DIR))]
     ReadModulesDir {
         dir: PathBuf,
         #[error(source)]
@@ -111,7 +111,7 @@ pub enum LinkBinsError {
     },
 
     #[display("Failed to read package manifest at {path:?}: {error}")]
-    #[diagnostic(code(pacquet_cmd_shim::read_manifest))]
+    #[diagnostic(code(ERR_PNPM_CMD_SHIM_READ_MANIFEST))]
     ReadManifest {
         path: PathBuf,
         #[error(source)]
@@ -119,7 +119,7 @@ pub enum LinkBinsError {
     },
 
     #[display("Failed to parse package manifest at {path:?}: {error}")]
-    #[diagnostic(code(pacquet_cmd_shim::parse_manifest))]
+    #[diagnostic(code(ERR_PNPM_CMD_SHIM_PARSE_MANIFEST))]
     ParseManifest {
         path: PathBuf,
         #[error(source)]
@@ -127,7 +127,7 @@ pub enum LinkBinsError {
     },
 
     #[display("Failed to read shim source {path:?}: {error}")]
-    #[diagnostic(code(pacquet_cmd_shim::probe_shim_source))]
+    #[diagnostic(code(ERR_PNPM_CMD_SHIM_PROBE_SHIM_SOURCE))]
     ProbeShimSource {
         path: PathBuf,
         #[error(source)]
@@ -135,7 +135,7 @@ pub enum LinkBinsError {
     },
 
     #[display("Failed to write shim file at {path:?}: {error}")]
-    #[diagnostic(code(pacquet_cmd_shim::write_shim))]
+    #[diagnostic(code(ERR_PNPM_CMD_SHIM_WRITE_SHIM))]
     WriteShim {
         path: PathBuf,
         #[error(source)]
@@ -143,7 +143,7 @@ pub enum LinkBinsError {
     },
 
     #[display("Failed to chmod {path:?}: {error}")]
-    #[diagnostic(code(pacquet_cmd_shim::chmod))]
+    #[diagnostic(code(ERR_PNPM_CMD_SHIM_CHMOD))]
     Chmod {
         path: PathBuf,
         #[error(source)]
@@ -151,7 +151,7 @@ pub enum LinkBinsError {
     },
 
     #[display("Failed to remove stale bin at {path:?}: {error}")]
-    #[diagnostic(code(pacquet_cmd_shim::remove_stale_bin))]
+    #[diagnostic(code(ERR_PNPM_CMD_SHIM_REMOVE_STALE_BIN))]
     RemoveStaleBin {
         path: PathBuf,
         #[error(source)]
@@ -159,7 +159,7 @@ pub enum LinkBinsError {
     },
 
     #[display("Failed to link node runtime binary {src:?} -> {dst:?}: {error}")]
-    #[diagnostic(code(pacquet_cmd_shim::link_node_bin))]
+    #[diagnostic(code(ERR_PNPM_CMD_SHIM_LINK_NODE_BIN))]
     LinkNodeBin {
         src: PathBuf,
         dst: PathBuf,

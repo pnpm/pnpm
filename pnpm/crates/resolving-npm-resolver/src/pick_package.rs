@@ -1100,19 +1100,19 @@ pub fn persist_meta_to_mirror(
 #[non_exhaustive]
 pub enum MirrorPersistError {
     #[display("Failed to encode mirror path: {error}")]
-    #[diagnostic(code(pacquet_resolving_npm_resolver::pick_package::encode_path))]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_PICK_PACKAGE_ENCODE_PATH))]
     EncodePath {
         #[error(not(source))]
         error: String,
     },
     #[display("Failed to serialize mirror entry: {error}")]
-    #[diagnostic(code(pacquet_resolving_npm_resolver::pick_package::serialize))]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_PICK_PACKAGE_SERIALIZE))]
     Serialize {
         #[error(not(source))]
         error: String,
     },
     #[display("Failed to write mirror entry: {error}")]
-    #[diagnostic(code(pacquet_resolving_npm_resolver::pick_package::write))]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_PICK_PACKAGE_WRITE))]
     Write {
         #[error(not(source))]
         error: String,

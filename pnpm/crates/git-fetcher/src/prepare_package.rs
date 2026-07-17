@@ -90,7 +90,7 @@ pub fn prepare_package<Reporter: self::Reporter>(
     }
 
     // `allowBuild` check before any spawn. A dep path that isn't
-    // allowed throws GIT_DEP_PREPARE_NOT_ALLOWED. The manifest comes
+    // allowed throws ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED. The manifest comes
     // from the fetched artifact itself, so its name and version only
     // feed the error message; the dep path is the gated identity.
     let name = manifest.get("name").and_then(Value::as_str).unwrap_or("");

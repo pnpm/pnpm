@@ -262,7 +262,7 @@ pub enum InstallWithFreshLockfileError {
     LinkHoistedModules(#[error(source)] crate::LinkHoistedModulesError),
 
     #[display("failed to write package map: {_0}")]
-    #[diagnostic(code(pacquet_package_manager::write_package_map))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_PACKAGE_MAP))]
     WritePackageMap(#[error(source)] crate::WritePackageMapError),
 
     #[diagnostic(transparent)]
@@ -369,7 +369,7 @@ pub enum InstallWithFreshLockfileError {
     #[display(
         "First writer for virtual-store slot {virtual_store_name} dropped before signalling completion"
     )]
-    #[diagnostic(code(pacquet_package_manager::first_writer_aborted))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_FIRST_WRITER_ABORTED))]
     FirstWriterAborted {
         #[error(not(source))]
         virtual_store_name: String,
@@ -385,33 +385,33 @@ pub enum InstallWithFreshLockfileError {
     /// The `afterAllResolved` pnpmfile hook threw or otherwise failed.
     /// A throwing `afterAllResolved` aborts the install.
     #[display("{_0}")]
-    #[diagnostic(code(PNPMFILE_FAIL))]
+    #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     AfterAllResolvedHook(#[error(not(source))] pacquet_hooks::HookError),
 
     /// The freshly-built lockfile could not be serialized to JSON to pass to
     /// the `afterAllResolved` pnpmfile hook.
     #[display("Failed to serialize lockfile for the afterAllResolved hook: {_0}")]
-    #[diagnostic(code(pacquet_package_manager::after_all_resolved_serialize))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_AFTER_ALL_RESOLVED_SERIALIZE))]
     AfterAllResolvedSerialize(#[error(source)] serde_json::Error),
 
     /// The pnpmfile's `getCustomResolvers` hook threw while loading custom
     /// resolvers. A throwing custom-resolver hook aborts the install.
     #[display("{_0}")]
-    #[diagnostic(code(PNPMFILE_FAIL))]
+    #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     CustomResolverHook(#[error(not(source))] pacquet_hooks::HookError),
 
     /// The pnpmfile threw while loading its custom `fetchers` export.
     /// Same fatality rule as [`Self::CustomResolverHook`] and the
     /// frozen-lockfile path's custom-fetcher load.
     #[display("{_0}")]
-    #[diagnostic(code(PNPMFILE_FAIL))]
+    #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     CustomFetcherHook(#[error(not(source))] pacquet_hooks::HookError),
 
     /// A custom resolver's `shouldRefreshResolution` hook threw while
     /// checking whether to force re-resolution. A throwing hook aborts
     /// the install.
     #[display("{_0}")]
-    #[diagnostic(code(PNPMFILE_FAIL))]
+    #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     CustomResolverForceResolve(#[error(not(source))] pacquet_hooks::HookError),
 }
 

@@ -13,15 +13,15 @@ use std::{
 #[non_exhaustive]
 pub enum LoadLockfileError {
     #[display("Failed to get current_dir: {_0}")]
-    #[diagnostic(code(pacquet_lockfile::current_dir))]
+    #[diagnostic(code(ERR_PNPM_LOCKFILE_CURRENT_DIR))]
     CurrentDir(io::Error),
 
     #[display("Failed to read lockfile content: {_0}")]
-    #[diagnostic(code(pacquet_lockfile::read_file))]
+    #[diagnostic(code(ERR_PNPM_LOCKFILE_READ_FILE))]
     ReadFile(io::Error),
 
     #[display("Failed to parse lockfile content as YAML: {_0}")]
-    #[diagnostic(code(pacquet_lockfile::parse_yaml))]
+    #[diagnostic(code(ERR_PNPM_LOCKFILE_PARSE_YAML))]
     ParseYaml(serde_saphyr::Error),
 }
 

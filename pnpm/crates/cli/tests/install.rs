@@ -984,7 +984,7 @@ fn install_resolves_catalog_protocol() {
 
 /// A misconfigured catalog (specifier points at a missing entry) must
 /// fail the install with the upstream `ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC`
-/// rather than the chain's `SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`.
+/// rather than the chain's `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`.
 #[test]
 fn install_surfaces_catalog_misconfiguration() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -1017,6 +1017,10 @@ fn install_surfaces_catalog_misconfiguration() {
             "Nocatalogentry'@pnpm.e2e/hello-world-js-bin-parent'wasfoundforcatalog'default'.",
         ),
         "stderr did not mention the missing-catalog-entry error: {stderr}",
+    );
+    assert!(
+        stderr.contains("ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC"),
+        "the catalog error must surface upstream's code, not the resolver chain's: {stderr}",
     );
 
     drop((root, mock_instance));

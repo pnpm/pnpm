@@ -619,7 +619,7 @@ async fn fast_path_ignore_scripts_returns_input_without_queueing_row() {
 }
 
 /// A `..`-laden `resolution.path` must be rejected by
-/// `prepare_package`'s `safe_join_path` with `INVALID_PATH` before
+/// `prepare_package`'s `safe_join_path` with `ERR_PNPM_INVALID_PATH` before
 /// any extraction happens (directory-traversal guard).
 #[tokio::test(flavor = "multi_thread")]
 async fn tarball_path_traversal_attack_is_rejected() {
@@ -650,6 +650,14 @@ async fn tarball_path_traversal_attack_is_rejected() {
     .await
     .unwrap_err();
 
+    {
+        use miette::Diagnostic;
+        let code = err.code().map(|c| c.to_string()).unwrap_or_default();
+        assert_eq!(
+            code, "ERR_PNPM_INVALID_PATH",
+            "diagnostic code must match the upstream error contract",
+        );
+    }
     match err {
         GitFetcherError::Prepare(PreparePackageError::InvalidPath { path }) => {
             assert_eq!(path, "../escape");
@@ -659,7 +667,7 @@ async fn tarball_path_traversal_attack_is_rejected() {
 }
 
 /// A `path` pointing at a sub-directory the tarball doesn't contain
-/// must surface as `INVALID_PATH` — silently packing the root would
+/// must surface as `ERR_PNPM_INVALID_PATH` — silently packing the root would
 /// produce a working install for the wrong package.
 #[tokio::test(flavor = "multi_thread")]
 async fn tarball_path_to_missing_subdir_is_rejected() {
@@ -690,6 +698,14 @@ async fn tarball_path_to_missing_subdir_is_rejected() {
     .await
     .unwrap_err();
 
+    {
+        use miette::Diagnostic;
+        let code = err.code().map(|c| c.to_string()).unwrap_or_default();
+        assert_eq!(
+            code, "ERR_PNPM_INVALID_PATH",
+            "diagnostic code must match the upstream error contract",
+        );
+    }
     match err {
         GitFetcherError::Prepare(PreparePackageError::InvalidPath { path }) => {
             assert_eq!(path, "does/not/exist");
