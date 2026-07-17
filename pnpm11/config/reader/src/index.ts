@@ -57,6 +57,7 @@ export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concu
 export { getGlobalConfigPath } from './dirs.js'
 export { getDefaultCreds, getNetworkConfigs, type NetworkConfigs } from './getNetworkConfigs.js'
 export { getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
+export { getHomedir } from './homedir.js'
 export type { Creds } from './parseCreds.js'
 export {
   createProjectConfigRecord,

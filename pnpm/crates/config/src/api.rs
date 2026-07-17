@@ -129,6 +129,26 @@ impl EnvVarOs for Host {
 
 impl GetHomeDir for Host {
     fn home_dir() -> Option<PathBuf> {
+        if let Ok(sudo_user) = std::env::var("SUDO_USER") {
+            if sudo_user != "root" {
+                #[cfg(all(unix, not(target_os = "cygwin")))]
+                {
+                    use std::ffi::CString;
+                    if let Ok(c_user) = CString::new(sudo_user) {
+                        // SAFETY: calling getpwnam is safe and returns a pointer to a static struct or null.
+                        unsafe {
+                            let pw = libc::getpwnam(c_user.as_ptr());
+                            if !pw.is_null() {
+                                let c_str = std::ffi::CStr::from_ptr((*pw).pw_dir);
+                                if let Ok(s) = c_str.to_str() {
+                                    return Some(PathBuf::from(s));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         home::home_dir()
     }
 }

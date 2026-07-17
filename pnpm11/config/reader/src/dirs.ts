@@ -18,15 +18,15 @@ export function getCacheDir (
     return path.join(opts.env.XDG_CACHE_HOME, 'pnpm')
   }
   if (opts.platform === 'darwin') {
-    return path.join(getHomedir(opts.env), 'Library/Caches/pnpm')
+    return path.join(getHomedir(opts.env, opts.platform), 'Library/Caches/pnpm')
   }
   if (opts.platform !== 'win32') {
-    return path.join(getHomedir(opts.env), '.cache/pnpm')
+    return path.join(getHomedir(opts.env, opts.platform), '.cache/pnpm')
   }
   if (opts.env.LOCALAPPDATA) {
     return path.join(opts.env.LOCALAPPDATA, 'pnpm-cache')
   }
-  return path.join(getHomedir(opts.env), '.pnpm-cache')
+  return path.join(getHomedir(opts.env, opts.platform), '.pnpm-cache')
 }
 
 export function getStateDir (
@@ -39,12 +39,12 @@ export function getStateDir (
     return path.join(opts.env.XDG_STATE_HOME, 'pnpm')
   }
   if (opts.platform !== 'win32') {
-    return path.join(getHomedir(opts.env), '.local/state/pnpm')
+    return path.join(getHomedir(opts.env, opts.platform), '.local/state/pnpm')
   }
   if (opts.env.LOCALAPPDATA) {
     return path.join(opts.env.LOCALAPPDATA, 'pnpm-state')
   }
-  return path.join(getHomedir(opts.env), '.pnpm-state')
+  return path.join(getHomedir(opts.env, opts.platform), '.pnpm-state')
 }
 
 export function getDataDir (
@@ -60,15 +60,15 @@ export function getDataDir (
     return path.join(opts.env.XDG_DATA_HOME, 'pnpm')
   }
   if (opts.platform === 'darwin') {
-    return path.join(getHomedir(opts.env), 'Library/pnpm')
+    return path.join(getHomedir(opts.env, opts.platform), 'Library/pnpm')
   }
   if (opts.platform !== 'win32') {
-    return path.join(getHomedir(opts.env), '.local/share/pnpm')
+    return path.join(getHomedir(opts.env, opts.platform), '.local/share/pnpm')
   }
   if (opts.env.LOCALAPPDATA) {
     return path.join(opts.env.LOCALAPPDATA, 'pnpm')
   }
-  return path.join(getHomedir(opts.env), '.pnpm')
+  return path.join(getHomedir(opts.env, opts.platform), '.pnpm')
 }
 
 export function getConfigDir (
@@ -81,13 +81,13 @@ export function getConfigDir (
     return path.join(opts.env.XDG_CONFIG_HOME, 'pnpm')
   }
   if (opts.platform === 'darwin') {
-    return path.join(getHomedir(opts.env), 'Library/Preferences/pnpm')
+    return path.join(getHomedir(opts.env, opts.platform), 'Library/Preferences/pnpm')
   }
   if (opts.platform !== 'win32') {
-    return path.join(getHomedir(opts.env), '.config/pnpm')
+    return path.join(getHomedir(opts.env, opts.platform), '.config/pnpm')
   }
   if (opts.env.LOCALAPPDATA) {
     return path.join(opts.env.LOCALAPPDATA, 'pnpm/config')
   }
-  return path.join(getHomedir(opts.env), '.config/pnpm')
+  return path.join(getHomedir(opts.env, opts.platform), '.config/pnpm')
 }
