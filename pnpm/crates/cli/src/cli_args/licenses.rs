@@ -199,7 +199,12 @@ impl LicensesArgs {
         }
 
         let project_root_dir = dir.to_path_buf();
-        let virtual_store_dir = project_root_dir.join("node_modules").join(".pnpm");
+        let effective_vsd = config.effective_virtual_store_dir();
+        let virtual_store_dir = if effective_vsd.is_absolute() {
+            effective_vsd.to_path_buf()
+        } else {
+            project_root_dir.join(effective_vsd)
+        };
         let virtual_store_dir_max_length = config.virtual_store_dir_max_length as usize;
 
         let mut results_by_license: BTreeMap<String, BTreeMap<String, LicenseInfo>> =
@@ -218,8 +223,15 @@ impl LicensesArgs {
             }
 
             let store_name = key.to_virtual_store_name(virtual_store_dir_max_length);
+            
             let pkg_dir = virtual_store_dir.join(&store_name).join("node_modules").join(&name);
-            let manifest = safe_read_package_json_from_dir(&pkg_dir).unwrap_or(None);
+            let is_unsafe = store_name.contains("..") || name.contains("..") || std::path::Path::new(&store_name).is_absolute() || std::path::Path::new(&name).is_absolute();
+            let manifest = if is_unsafe {
+                None
+            } else {
+                safe_read_package_json_from_dir(&pkg_dir).unwrap_or(None)
+            };
+
 
             let license = manifest
                 .as_ref()
