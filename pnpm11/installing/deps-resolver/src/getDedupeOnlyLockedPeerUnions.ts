@@ -2,8 +2,10 @@ import type { DepPath, PkgIdWithPatchHash } from '@pnpm/types'
 
 import type { NodeId } from './nextNodeId.js'
 import type { DependenciesTree } from './resolveDependencies.js'
-import type { ResolvedPackage } from './resolveDependencyTree.js'
-import type { GenericDependenciesGraphWithResolvedChildren } from './resolvePeers.js'
+import type {
+  GenericDependenciesGraphWithResolvedChildren,
+  PartialResolvedPackage,
+} from './resolvePeers.js'
 
 interface FreshContext {
   children: Set<DepPath>
@@ -11,10 +13,10 @@ interface FreshContext {
   resolvedPeerNames: Set<string>
 }
 
-export function getDedupeOnlyLockedPeerUnions (
-  dependenciesTree: DependenciesTree<ResolvedPackage>,
+export function getDedupeOnlyLockedPeerUnions<T extends PartialResolvedPackage> (
+  dependenciesTree: DependenciesTree<T>,
   resolved: {
-    dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<ResolvedPackage>
+    dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<T>
     pathsByNodeId: Map<NodeId, DepPath>
   },
   candidatesByNodeId: Map<NodeId, Map<string, DepPath>>
@@ -30,14 +32,14 @@ export function getDedupeOnlyLockedPeerUnions (
   }
 
   const candidatePkgIds = new Set([...candidatesByNodeId.keys()]
-    .map((nodeId) => (dependenciesTree.get(nodeId)!.resolvedPackage as ResolvedPackage).pkgIdWithPatchHash))
+    .map((nodeId) => (dependenciesTree.get(nodeId)!.resolvedPackage as T).pkgIdWithPatchHash))
   const freshPeerContextsByPkgId = new Map<PkgIdWithPatchHash, Map<string, FreshContext[]>>()
   const freshPeerContextByNodeId = new Map<NodeId, FreshContext>()
   for (const [nodeId, depPath] of resolved.pathsByNodeId) {
     const node = dependenciesTree.get(nodeId)
     const resolvedNode = resolved.dependenciesGraph[depPath]
     if (node == null || node.depth === -1 || resolvedNode == null) continue
-    const pkg = node.resolvedPackage as ResolvedPackage
+    const pkg = node.resolvedPackage as T
     const pkgId = pkg.pkgIdWithPatchHash
     if (!candidatePkgIds.has(pkgId)) continue
     const peerContext = new Map(Object.keys(resolvedNode.peerDependencies ?? {})
@@ -73,7 +75,7 @@ export function getDedupeOnlyLockedPeerUnions (
   const allowedPeerNamesByNodeId = new Map<NodeId, Set<string>>()
   for (const [nodeId, candidate] of candidatesByNodeId) {
     const node = dependenciesTree.get(nodeId)!
-    const pkg = node.resolvedPackage as ResolvedPackage
+    const pkg = node.resolvedPackage as T
     const freshContext = freshPeerContextByNodeId.get(nodeId)
     if (
       freshContext == null ||
@@ -109,19 +111,19 @@ export function getDedupeOnlyLockedPeerUnions (
   }
 }
 
-export function getLockedOptionalPeerUnionCandidates (
-  dependenciesTree: DependenciesTree<ResolvedPackage>
+export function getLockedOptionalPeerUnionCandidates<T extends PartialResolvedPackage> (
+  dependenciesTree: DependenciesTree<T>
 ): Map<NodeId, Map<string, DepPath>> {
   const occurrencesByPkgId = new Map<PkgIdWithPatchHash, number>()
   for (const node of dependenciesTree.values()) {
     if (node.depth === -1) continue
-    const pkgId = (node.resolvedPackage as ResolvedPackage).pkgIdWithPatchHash
+    const pkgId = (node.resolvedPackage as T).pkgIdWithPatchHash
     occurrencesByPkgId.set(pkgId, (occurrencesByPkgId.get(pkgId) ?? 0) + 1)
   }
   const candidatesByNodeId = new Map<NodeId, Map<string, DepPath>>()
   for (const [nodeId, node] of dependenciesTree) {
     if (node.depth === -1 || node.lockedPeerContext == null) continue
-    const pkg = node.resolvedPackage as ResolvedPackage
+    const pkg = node.resolvedPackage as T
     if ((occurrencesByPkgId.get(pkg.pkgIdWithPatchHash) ?? 0) < 2) continue
     const candidate = new Map(Object.entries(node.lockedPeerContext)
       .filter(([peerName]) => pkg.peerDependencies[peerName]?.optional === true))
@@ -133,7 +135,7 @@ export function getLockedOptionalPeerUnionCandidates (
 }
 
 export function getPeersCacheBypassNodeIds (
-  dependenciesTree: DependenciesTree<ResolvedPackage>,
+  dependenciesTree: DependenciesTree<unknown>,
   nodeIds: Iterable<NodeId>
 ): Set<NodeId> {
   const pendingNodeIds = [...nodeIds]
