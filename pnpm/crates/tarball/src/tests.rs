@@ -2,10 +2,10 @@ use super::{
     DownloadTarballToStore, FetchTarballForResolution, HttpStatusError,
     MAX_UNTRUSTED_PREALLOC_BYTES, MemCache, NetworkError, PrefetchedCasPaths, RetryOpts,
     SharedReportedProgressKeys, TarballError, VerifyChecksumError, allocate_local_tarball_buffer,
-    allocate_tarball_buffer, apply_append_manifest, bounded_gzip_size_hint, download_priority,
-    extract_tarball_entries, extract_zip_entries, fetch_and_extract_with_retry, is_transient_error,
-    local_file_tarball_path, normalize_bundled_manifest, open_local_tarball, prefetch_cas_paths,
-    read_local_tarball_buffer,
+    allocate_tarball_buffer, apply_append_manifest, bounded_gzip_size_hint, decompress_gzip,
+    download_priority, extract_tarball_entries, extract_zip_entries, fetch_and_extract_with_retry,
+    is_transient_error, local_file_tarball_path, normalize_bundled_manifest, open_local_tarball,
+    prefetch_cas_paths, read_local_tarball_buffer,
 };
 use pacquet_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
 use pacquet_reporter::SilentReporter;
@@ -39,6 +39,23 @@ fn gzip_size_hint_enforces_untrusted_preallocation_limit() {
     );
     assert_eq!(bounded_gzip_size_hint(Some(MAX_UNTRUSTED_PREALLOC_BYTES + 1)), None);
     assert_eq!(bounded_gzip_size_hint(Some(usize::MAX)), None);
+}
+
+/// `decompress_gzip` must route `dist.unpackedSize` through
+/// [`bounded_gzip_size_hint`] instead of handing it to zune-inflate,
+/// which reserves it as an infallible zero-filled `vec![0; hint]` —
+/// a failed reservation aborts the process and takes the install with
+/// it. A registry that overstates the size still decodes correctly.
+#[test]
+fn decompress_gzip_ignores_oversized_unpacked_size() {
+    let payload = b"decompressed tar payload";
+    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+    std::io::Write::write_all(&mut encoder, payload).expect("gzip payload");
+    let gz_data = encoder.finish().expect("finish gzip");
+
+    let decompressed = decompress_gzip(&gz_data, Some(usize::MAX)).expect("decompress gzip");
+
+    assert_eq!(decompressed, payload);
 }
 
 /// Absent `Content-Length` (chunked transfer) returns an empty
