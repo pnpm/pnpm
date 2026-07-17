@@ -10,24 +10,28 @@ export function getHomedir (env: NodeJS.ProcessEnv = process.env, platform: stri
         const result = spawnSync('getent', ['passwd', env.SUDO_USER], { encoding: 'utf8' })
         if (result.status === 0 && result.stdout) {
           const parts = result.stdout.split(':')
-          if (parts.length >= 6 && parts[5]) {
-            return parts[5].trim()
+          if (parts.length >= 6) {
+            return parts[5]
           }
         }
-      } catch {}
-      return path.join('/home', env.SUDO_USER)
+        throw new Error(`Failed to resolve home directory for SUDO_USER '${env.SUDO_USER}' via getent.`)
+      } catch (err) {
+        throw new Error(`Failed to resolve home directory for SUDO_USER '${env.SUDO_USER}': ${err}`)
+      }
     }
     if (platform === 'darwin') {
       try {
         const result = spawnSync('dscl', ['.', '-read', `/Users/${env.SUDO_USER}`, 'NFSHomeDirectory'], { encoding: 'utf8' })
         if (result.status === 0 && result.stdout) {
           const match = result.stdout.match(/NFSHomeDirectory:\s*(.+)/)
-          if (match && match[1]) {
+          if (match) {
             return match[1].trim()
           }
         }
-      } catch {}
-      return path.join('/Users', env.SUDO_USER)
+        throw new Error(`Failed to resolve home directory for SUDO_USER '${env.SUDO_USER}' via dscl.`)
+      } catch (err) {
+        throw new Error(`Failed to resolve home directory for SUDO_USER '${env.SUDO_USER}': ${err}`)
+      }
     }
   }
   return os.homedir()

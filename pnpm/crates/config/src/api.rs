@@ -134,7 +134,7 @@ impl GetHomeDir for Host {
                 #[cfg(all(unix, not(target_os = "cygwin")))]
                 {
                     use std::ffi::CString;
-                    if let Ok(c_user) = CString::new(sudo_user) {
+                    if let Ok(c_user) = CString::new(sudo_user.clone()) {
                         // SAFETY: calling getpwnam is safe and returns a pointer to a static struct or null.
                         unsafe {
                             let pw = libc::getpwnam(c_user.as_ptr());
@@ -146,6 +146,7 @@ impl GetHomeDir for Host {
                             }
                         }
                     }
+                    panic!("Failed to resolve home directory for SUDO_USER '{}'", sudo_user);
                 }
             }
         }
