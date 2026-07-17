@@ -16,7 +16,7 @@ pub type ReadPackageResult = Arc<Value>;
 
 /// An error raised while running a pnpmfile hook in Node.js.
 ///
-/// Covers the `PNPMFILE_FAIL` / `BAD_READ_PACKAGE_HOOK_RESULT` conditions: a
+/// Covers the `ERR_PNPM_PNPMFILE_FAIL` / `ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT` conditions: a
 /// throwing or syntactically invalid pnpmfile, or a `readPackage` hook that
 /// returns something that is not a package manifest, aborts the install.
 #[derive(Debug, Display, Clone)]

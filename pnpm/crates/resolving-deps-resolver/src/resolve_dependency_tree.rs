@@ -226,7 +226,7 @@ pub enum ResolveDependencyTreeError {
     LockedOptionalResolutionFailure(#[error(not(source))] Box<ResolveDependencyTreeError>),
 
     /// No resolver in the chain claimed the spec, raised with the
-    /// `SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` code.
+    /// `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` code.
     #[display("\"{specifier}\" isn't supported by any available resolver.")]
     #[diagnostic(code(ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER))]
     SpecNotSupported {
@@ -251,7 +251,7 @@ pub enum ResolveDependencyTreeError {
 
     /// A transitive dependency was resolved through an exotic
     /// protocol (git, tarball, file, ...) while `block_exotic_subdeps`
-    /// is on, raised with the `EXOTIC_SUBDEP` code.
+    /// is on, raised with the `ERR_PNPM_EXOTIC_SUBDEP` code.
     #[display(
         "Exotic dependency \"{specifier}\" (resolved via {resolved_via}) is not allowed in subdependencies when blockExoticSubdeps is enabled"
     )]
@@ -276,8 +276,8 @@ pub enum ResolveDependencyTreeError {
     },
 
     /// A pnpmfile hook (`readPackage`) threw, timed out, or returned an
-    /// invalid package manifest. Carries the `PNPMFILE_FAIL` /
-    /// `BAD_READ_PACKAGE_HOOK_RESULT` code: a bad hook aborts the install.
+    /// invalid package manifest. Carries the `ERR_PNPM_PNPMFILE_FAIL` /
+    /// `ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT` code: a bad hook aborts the install.
     #[display("{_0}")]
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     PnpmfileHook(#[error(not(source))] pacquet_hooks::HookError),
@@ -2723,7 +2723,7 @@ fn is_optional_child(snapshot: Option<&SnapshotEntry>, alias: &str) -> bool {
 ///
 /// Catalog resolution runs only on importer-level deps. A misconfigured
 /// entry surfaces immediately rather than masquerading as a
-/// `SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`.
+/// `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`.
 pub(crate) fn resolve_catalog_specifiers(
     specs: Vec<WantedSpec>,
     catalogs: &Catalogs,

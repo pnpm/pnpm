@@ -130,7 +130,7 @@ pub async fn read_deno_assets(
         // `fetch_sha256` already validates that `sha256` is a 64-char
         // lower-case hex run via `extract_sha256`, so `decode_hex`
         // cannot fail here. Map the impossible-failure branch to
-        // `DENO_PARSE_HASH` rather than silently falling back to an
+        // `ERR_PNPM_DENO_PARSE_HASH` rather than silently falling back to an
         // empty byte slice so a future change to `extract_sha256`
         // that loosens the validator surfaces with the right error
         // code instead of an opaque integrity-parse failure.

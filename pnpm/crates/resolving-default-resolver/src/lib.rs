@@ -36,7 +36,7 @@ impl DefaultResolver {
 
     /// Walk the chain and return the first resolver's claim. Returns
     /// [`SpecNotSupportedByAnyResolverError`]
-    /// (`SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`) when no resolver claims
+    /// (`ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`) when no resolver claims
     /// the wanted dependency.
     pub async fn resolve(
         &self,
@@ -101,7 +101,7 @@ impl Resolver for DefaultResolver {
     }
 }
 
-/// The `SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` error code raised when
+/// The `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` error code raised when
 /// every resolver in the chain returned `Ok(None)` for a wanted
 /// dependency.
 ///

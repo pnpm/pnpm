@@ -133,7 +133,7 @@ pub struct CreateVirtualStore<'a> {
     pub store_index_writer: &'a std::sync::Arc<StoreIndexWriter>,
     /// `allowBuilds` gate, shared with `BuildModules`. The cold-batch
     /// path threads this into the git fetcher so `preparePackage` can
-    /// reject `GIT_DEP_PREPARE_NOT_ALLOWED` for packages that aren't
+    /// reject `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED` for packages that aren't
     /// allowlisted. Computed once per install in
     /// [`crate::InstallFrozenLockfile::run`].
     pub allow_build_policy: &'a crate::AllowBuildPolicy,

@@ -46,7 +46,7 @@ pub struct ShasumsFileItem {
 
 /// Errors raised by [`fetch_shasums_file`] and [`fetch_shasums_file_raw`].
 ///
-/// Mirrors upstream's `FAILED_DOWNLOAD_SHASUM_FILE` code, which the
+/// Mirrors upstream's `ERR_PNPM_FAILED_DOWNLOAD_SHASUM_FILE` code, which the
 /// install reporter parses as a network-stage failure.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum FetchShasumsFileError {
@@ -66,8 +66,8 @@ pub enum FetchShasumsFileError {
 /// Errors raised by [`fetch_verified_node_shasums`] and
 /// [`fetch_verified_node_shasums_file`].
 ///
-/// Mirrors pnpm's `NODE_SHASUMS_FETCH_FAIL` and
-/// `NODE_SHASUMS_SIGNATURE_INVALID` codes. These are specific to
+/// Mirrors pnpm's `ERR_PNPM_NODE_SHASUMS_FETCH_FAIL` and
+/// `ERR_PNPM_NODE_SHASUMS_SIGNATURE_INVALID` codes. These are specific to
 /// Node.js runtime verification, where a repository-configurable
 /// mirror cannot be trusted to supply both the binary and the hash
 /// list unchecked.
@@ -134,7 +134,7 @@ pub enum FetchVerifiedNodeShasumsError {
 /// Errors raised by [`pick_file_checksum_from_shasums_file`].
 ///
 /// Two upstream codes survive the port verbatim — they are the
-/// per-file equivalents of `FAILED_DOWNLOAD_SHASUM_FILE`'s download
+/// per-file equivalents of `ERR_PNPM_FAILED_DOWNLOAD_SHASUM_FILE`'s download
 /// failure and signal that the body the verifier already has does not
 /// answer the question being asked.
 #[derive(Debug, Display, Error, Diagnostic)]

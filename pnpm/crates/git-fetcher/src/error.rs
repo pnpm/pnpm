@@ -3,8 +3,8 @@ use pacquet_diagnostics::miette::{self, Diagnostic};
 
 /// Error type of [`crate::prepare_package()`].
 ///
-/// The error codes (`GIT_DEP_PREPARE_NOT_ALLOWED`,
-/// `ERR_PNPM_PREPARE_PACKAGE`, `INVALID_PATH`) match pnpm's, so
+/// The error codes (`ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`,
+/// `ERR_PNPM_PREPARE_PACKAGE`, `ERR_PNPM_INVALID_PATH`) match pnpm's, so
 /// `pnpm.io/errors/<code>` URL resolution keeps working.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
@@ -31,7 +31,7 @@ pub enum PreparePackageError {
     },
 
     /// `path` field on the resolution pointed outside the cloned dir
-    /// or to a non-directory, rejected with the `INVALID_PATH` code.
+    /// or to a non-directory, rejected with the `ERR_PNPM_INVALID_PATH` code.
     #[display("Path {path:?} is not a valid sub-directory of the git checkout")]
     #[diagnostic(code(ERR_PNPM_INVALID_PATH))]
     InvalidPath { path: String },
@@ -62,7 +62,7 @@ pub enum GitFetcherError {
     GitExec { operation: &'static str, stderr: String, status: std::process::ExitStatus },
 
     /// `git rev-parse HEAD` did not return the pinned commit, rejected
-    /// with the `GIT_CHECKOUT_FAILED` code.
+    /// with the `ERR_PNPM_GIT_CHECKOUT_FAILED` code.
     #[display("received commit {received} does not match expected value {expected}")]
     #[diagnostic(code(ERR_PNPM_GIT_CHECKOUT_FAILED))]
     CheckoutMismatch { expected: String, received: String },

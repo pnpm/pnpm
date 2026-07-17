@@ -44,8 +44,8 @@ const BARE_SPEC_PREFIX: &str = "runtime:";
 /// Errors emitted by [`NodeResolver::resolve`] / [`NodeResolver::resolve_latest`].
 ///
 /// Each variant maps to one of the node-resolver error codes
-/// (`NO_OFFLINE_NODEJS_RESOLUTION`, `NODEJS_VERSION_NOT_FOUND`,
-/// `INVALID_NODE_RELEASE_CHANNEL`, plus the network failure modes
+/// (`ERR_PNPM_NO_OFFLINE_NODEJS_RESOLUTION`, `ERR_PNPM_NODEJS_VERSION_NOT_FOUND`,
+/// `ERR_PNPM_INVALID_NODE_RELEASE_CHANNEL`, plus the network failure modes
 /// surfaced by the shasums-file and release-index fetchers).
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum NodeResolverError {

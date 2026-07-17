@@ -583,7 +583,7 @@ async fn fetcher_surfaces_prepare_failure() {
 
     // Variant match first so the failure message at the panic site
     // is informative on a `Prepare(InvalidPath {...})` regression
-    // (where the diagnostic code is `INVALID_PATH`, not the one we
+    // (where the diagnostic code is `ERR_PNPM_INVALID_PATH`, not the one we
     // want here).
     match &err {
         GitFetcherError::Prepare(crate::error::PreparePackageError::LifecycleFailed { .. }) => {}

@@ -380,7 +380,7 @@ async fn fail_when_resolving_from_not_existing_directory_an_injected_dependency(
 
 /// A `file:./missing.tgz` spec funnels through the tarball branch
 /// where `compute_tarball_integrity` raises ENOENT. The resolver must
-/// surface the same `LINKED_PKG_DIR_NOT_FOUND` code the directory
+/// surface the same `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND` code the directory
 /// branch raises for a missing `file:` target — both kinds of
 /// missing `file:` target share one error path.
 #[tokio::test]

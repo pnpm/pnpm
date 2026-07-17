@@ -84,7 +84,7 @@ pub struct InstallPackageBySnapshot<'a> {
     pub metadata: &'a PackageMetadata,
     pub snapshot: &'a SnapshotEntry,
     /// `allowBuilds` gate. Routed into the git fetcher for
-    /// `preparePackage`'s `GIT_DEP_PREPARE_NOT_ALLOWED` check.
+    /// `preparePackage`'s `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED` check.
     /// Computed once per install in
     /// [`crate::InstallFrozenLockfile::run`] and threaded through
     /// [`crate::CreateVirtualStore`].
