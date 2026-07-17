@@ -6,6 +6,7 @@ use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_registry::PinnedVersion;
 use pacquet_reporter::{LogEvent, LogLevel, Reporter, SilentReporter};
 use std::{
+    io::Write as _,
     sync::{Arc, Condvar, Mutex},
     time::Duration,
 };
@@ -252,6 +253,105 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
 }
 
 #[tokio::test]
+async fn add_reuses_shared_packument_state_for_overlapping_selectors() {
+    #[derive(Default)]
+    struct PackumentRequestState {
+        active: usize,
+        max_active: usize,
+        total: usize,
+    }
+
+    let dir = tempdir().unwrap();
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+    std::fs::create_dir_all(&project_root).unwrap();
+    let mut manifest = PackageManifest::create_if_needed(project_root.join("package.json"))
+        .expect("create manifest");
+
+    let package_name = "shared-package";
+    let tarball = minimal_tarball(package_name, "1.0.0");
+    let integrity = ssri::IntegrityOpts::new()
+        .algorithm(ssri::Algorithm::Sha512)
+        .chain(&tarball)
+        .result()
+        .to_string();
+    let mut server = mockito::Server::new_async().await;
+    let registry_url = format!("{}/", server.url());
+    let response_body = package_body_with_integrity(package_name, &registry_url, &integrity);
+    let request_state = Arc::new(Mutex::new(PackumentRequestState::default()));
+    let state = Arc::clone(&request_state);
+    let packument = server
+        .mock("GET", "/shared-package")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_chunked_body(move |writer| {
+            let mut requests = state.lock().unwrap();
+            requests.active += 1;
+            requests.max_active = requests.max_active.max(requests.active);
+            requests.total += 1;
+            drop(requests);
+            std::thread::sleep(Duration::from_millis(100));
+            let result = writer.write_all(response_body.as_bytes());
+            state.lock().unwrap().active -= 1;
+            result
+        })
+        .expect_at_least(1)
+        .create_async()
+        .await;
+    let tarball_mock = server
+        .mock("GET", "/shared-package/-/package-1.0.0.tgz")
+        .with_status(200)
+        .with_body(tarball)
+        .expect_at_least(1)
+        .create_async()
+        .await;
+
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.cache_dir = dir.path().join("cache");
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir;
+    config.registry = registry_url;
+    config.prefer_offline = true;
+    let config = config.leak();
+
+    let http_client = ThrottledClient::default();
+    let resolved_packages = ResolvedPackages::default();
+    let package_names = ["shared-package@^1.0.0".to_string(), "shared-package@1.0.0".to_string()];
+    Add {
+        tarball_mem_cache: Arc::default(),
+        resolved_packages: &resolved_packages,
+        http_client: &http_client,
+        http_client_arc: Arc::new(ThrottledClient::default()),
+        config,
+        manifest: &mut manifest,
+        lockfile: None,
+        lockfile_path: None,
+        list_dependency_groups: || [DependencyGroup::Prod],
+        package_names: &package_names,
+        pinned_version: PinnedVersion::Patch,
+        save_catalog_name: None,
+        supported_architectures: None,
+        lockfile_only: false,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("overlapping selectors should share their packument fetch");
+
+    {
+        let requests = request_state.lock().unwrap();
+        assert_eq!(
+            (requests.max_active, requests.total),
+            (1, 4),
+            "overlapping selector picks should add one non-overlapping fetch before the follow-up install",
+        );
+    }
+    packument.assert_async().await;
+    tarball_mock.assert_async().await;
+}
+
+#[tokio::test]
 async fn add_reports_resolution_errors_in_selector_order() {
     let dir = tempdir().unwrap();
     let project_root = dir.path().join("project");
@@ -324,6 +424,80 @@ async fn add_reports_resolution_errors_in_selector_order() {
     drop(servers);
 }
 
+#[tokio::test]
+async fn add_does_not_wait_for_a_slower_later_resolution_after_an_error() {
+    let dir = tempdir().unwrap();
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+    std::fs::create_dir_all(&project_root).unwrap();
+    let mut manifest = PackageManifest::create_if_needed(project_root.join("package.json"))
+        .expect("create manifest");
+
+    let packages = [("first", "a", 100), ("second", "b", 3_000)];
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir;
+    let mut servers = Vec::new();
+    let mut mocks = Vec::new();
+    let mut package_names = Vec::new();
+
+    for (scope, name, response_delay_ms) in packages {
+        let package_name = format!("@{scope}/{name}");
+        let mut server = mockito::Server::new_async().await;
+        config.registries.insert(format!("@{scope}"), format!("{}/", server.url()));
+        let latest_path = format!("/@{scope}%2F{name}/latest");
+        let latest = server
+            .mock("GET", latest_path.as_str())
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_chunked_body(move |writer| {
+                std::thread::sleep(Duration::from_millis(response_delay_ms));
+                writer.write_all(b"not valid package metadata")
+            })
+            .create_async()
+            .await;
+        package_names.push(package_name);
+        mocks.push(latest);
+        servers.push(server);
+    }
+
+    let config = config.leak();
+    let http_client = ThrottledClient::default();
+    let resolved_packages = ResolvedPackages::default();
+    let result = tokio::time::timeout(
+        Duration::from_secs(2),
+        Add {
+            tarball_mem_cache: Arc::default(),
+            resolved_packages: &resolved_packages,
+            http_client: &http_client,
+            http_client_arc: Arc::new(ThrottledClient::default()),
+            config,
+            manifest: &mut manifest,
+            lockfile: None,
+            lockfile_path: None,
+            list_dependency_groups: || [DependencyGroup::Prod],
+            package_names: &package_names,
+            pinned_version: PinnedVersion::Patch,
+            save_catalog_name: None,
+            supported_architectures: None,
+            lockfile_only: true,
+        }
+        .run::<SilentReporter>(),
+    )
+    .await
+    .expect("the first selector error should not wait for a slower later selector")
+    .expect_err("invalid package metadata should fail resolution");
+
+    match result {
+        AddError::ResolveLatest { name, .. } => assert_eq!(name, "@first/a"),
+        error => panic!("expected latest-resolution error, got {error:?}"),
+    }
+    mocks[0].assert_async().await;
+    drop(servers);
+}
+
 fn scoped_version_body(registry_url: &str) -> String {
     version_body("@private/foo", registry_url)
 }
@@ -346,6 +520,10 @@ fn scoped_package_body(registry_url: &str) -> String {
 }
 
 fn package_body(package_name: &str, registry_url: &str) -> String {
+    package_body_with_integrity(package_name, registry_url, SCOPED_TEST_INTEGRITY)
+}
+
+fn package_body_with_integrity(package_name: &str, registry_url: &str, integrity: &str) -> String {
     format!(
         r#"{{
   "name": "{package_name}",
@@ -355,13 +533,31 @@ fn package_body(package_name: &str, registry_url: &str) -> String {
       "name": "{package_name}",
       "version": "1.0.0",
       "dist": {{
-        "integrity": "{SCOPED_TEST_INTEGRITY}",
+        "integrity": "{integrity}",
         "tarball": "{registry_url}{package_name}/-/package-1.0.0.tgz"
       }}
     }}
   }}
 }}"#,
     )
+}
+
+fn minimal_tarball(name: &str, version: &str) -> Vec<u8> {
+    let manifest = serde_json::json!({ "name": name, "version": version }).to_string();
+    let manifest = manifest.as_bytes();
+
+    let mut builder = tar::Builder::new(Vec::new());
+    let mut header = tar::Header::new_gnu();
+    header.set_path("package/package.json").expect("set tar entry path");
+    header.set_size(manifest.len() as u64);
+    header.set_mode(0o644);
+    header.set_cksum();
+    builder.append(&header, manifest).expect("append package.json to tar");
+    let tar_bytes = builder.into_inner().expect("finish tar");
+
+    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    encoder.write_all(&tar_bytes).expect("gzip tar");
+    encoder.finish().expect("finish gzip")
 }
 
 #[test]

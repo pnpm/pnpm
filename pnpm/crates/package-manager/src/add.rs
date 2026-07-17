@@ -6,7 +6,7 @@ use crate::{
     resolve_latest::LatestPicker,
 };
 use derive_more::{Display, Error};
-use futures_util::future;
+use futures_util::{StreamExt, stream::FuturesOrdered};
 use miette::Diagnostic;
 use pacquet_catalogs_config::{
     InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest,
@@ -172,34 +172,37 @@ where
         let latest_picker = std::sync::OnceLock::new();
         let meta_cache = InMemoryPackageMetaCache::default();
         let fetch_locker = shared_packument_fetch_locker();
-        let resolution_results = future::join_all(package_names.iter().map(|package_name| {
-            resolve_added_dependency(
-                package_name,
-                config,
-                manifest,
-                lockfile,
-                http_client,
-                &http_client_arc,
-                &latest_picker,
-                pinned_version,
-                save_catalog_name.as_deref(),
-                &catalogs,
-                &prefix,
-                lockfile_only,
-                &dependency_groups,
-                &meta_cache,
-                &fetch_locker,
-            )
-        }))
-        .await;
-        let mut resolved_dependencies = Vec::with_capacity(resolution_results.len());
-        for result in resolution_results {
-            let dependency = result?;
-            if let Some(warning) = &dependency.warning {
-                Reporter::emit(warning);
+        let resolved_dependencies = {
+            let mut resolution_futures = FuturesOrdered::new();
+            for package_name in package_names {
+                resolution_futures.push_back(resolve_added_dependency(
+                    package_name,
+                    config,
+                    manifest,
+                    lockfile,
+                    http_client,
+                    &http_client_arc,
+                    &latest_picker,
+                    pinned_version,
+                    save_catalog_name.as_deref(),
+                    &catalogs,
+                    &prefix,
+                    lockfile_only,
+                    &dependency_groups,
+                    &meta_cache,
+                    &fetch_locker,
+                ));
             }
-            resolved_dependencies.push(dependency);
-        }
+            let mut dependencies = Vec::with_capacity(package_names.len());
+            while let Some(result) = resolution_futures.next().await {
+                let dependency = result?;
+                if let Some(warning) = &dependency.warning {
+                    Reporter::emit(warning);
+                }
+                dependencies.push(dependency);
+            }
+            dependencies
+        };
 
         emit_initial_package_manifest::<Reporter>(manifest);
 
