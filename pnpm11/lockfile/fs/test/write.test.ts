@@ -513,3 +513,52 @@ testOnNonWindows('writeWantedLockfile() refuses a real write through a symlink',
   await expect(writeWantedLockfile(projectPath, changed)).rejects.toThrow(/symlinked lockfile/)
   expect(fs.readFileSync(realLockfile, 'utf8')).toBe(targetBefore)
 })
+
+const changedLockfile = {
+  ...upToDateLockfile,
+  importers: {
+    '.': {
+      dependencies: { 'is-negative': '1.0.0' },
+      specifiers: { 'is-negative': '^1.0.0' },
+    },
+  },
+}
+
+// The replacement is a fresh file, so its mode has to be restored explicitly:
+// creating it honours the umask, which would strip bits the lockfile carried.
+testOnNonWindows('writeWantedLockfile() preserves the lockfile mode against the umask', async () => {
+  const projectPath = temporaryDirectory()
+  const lockfilePath = path.join(projectPath, WANTED_LOCKFILE)
+  await writeWantedLockfile(projectPath, upToDateLockfile)
+  fs.chmodSync(lockfilePath, 0o666)
+  const previousUmask = process.umask(0o022)
+  try {
+    await writeWantedLockfile(projectPath, changedLockfile)
+  } finally {
+    process.umask(previousUmask)
+  }
+
+  expect(fs.statSync(lockfilePath).mode & 0o777).toBe(0o666)
+})
+
+testOnNonWindows('writeWantedLockfile() preserves the lockfile ownership', async () => {
+  const projectPath = temporaryDirectory()
+  const lockfilePath = path.join(projectPath, WANTED_LOCKFILE)
+  await writeWantedLockfile(projectPath, upToDateLockfile)
+  const before = fs.statSync(lockfilePath)
+
+  await writeWantedLockfile(projectPath, changedLockfile)
+
+  // Only meaningful as a cross-user check, which needs root; this guards
+  // against the replacement landing on an unexpected owner.
+  const after = fs.statSync(lockfilePath)
+  expect(after.uid).toBe(before.uid)
+  expect(after.gid).toBe(before.gid)
+})
+
+testOnNonWindows('writeWantedLockfile() leaves no temp file behind', async () => {
+  const projectPath = temporaryDirectory()
+  await writeWantedLockfile(projectPath, upToDateLockfile)
+
+  expect(fs.readdirSync(projectPath)).toStrictEqual([WANTED_LOCKFILE])
+})

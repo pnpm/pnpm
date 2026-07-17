@@ -73,6 +73,11 @@ export async function streamReadFirstYamlDocument (filePath: string, readBufferS
 /**
  * Reads a whole lockfile, following a symlink. Returns null if it doesn't exist.
  * See {@link streamReadFirstYamlDocument} for why reads may follow symlinks.
+ *
+ * The BOM is stripped and CRLF normalized, matching what
+ * {@link streamReadFirstYamlDocument} yields, so a caller can compare the result
+ * against freshly serialized content without a lockfile's encoding alone
+ * counting as a change.
  */
 export async function readLockfileToString (filePath: string): Promise<string | null> {
   try {
