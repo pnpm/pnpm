@@ -309,10 +309,10 @@ export async function resolveDependencies (
     const resolvedImporter = resolvedImporters[project.id]
     linkedDependenciesByProjectId[project.id] = resolvedImporter.linkedDependencies
     // Capture previous importer refs before the lockfile importer is rebuilt,
-    // so a partial update that doesn't actually change a workspace dependency
-    // does not rewrite its `link:` entry to a peer-suffixed `file:`. This is the
-    // `pnpm update --recursive` path of pnpm/pnpm#10433 that dedupeInjectedDeps
-    // does not reach.
+    // so an install that doesn't actually change a workspace dependency (e.g.
+    // updating an unrelated dependency) does not rewrite its `link:` entry to a
+    // peer-suffixed `file:`. These are the pnpm/pnpm#10433 re-resolution paths
+    // that dedupeInjectedDeps does not reach.
     const previousImporterSnapshot = opts.wantedLockfile.importers[project.id]
     const previousDirectRefs: Record<string, string> = {
       ...previousImporterSnapshot?.dependencies,
@@ -386,9 +386,9 @@ export async function resolveDependencies (
       })
       // A workspace dependency resolved to `link:` has no version to update, so
       // it should stay `link:` unless this run specifically targets it (a spec
-      // change or `pnpm update <name>`). Preserving it stops a partial update
-      // (e.g. `pnpm update <other-pkg> --recursive`) from re-resolving an
-      // untouched injected workspace dep and flipping its `link:` to a
+      // change or `pnpm update <name>`). Preserving it stops an update of an
+      // unrelated dependency (e.g. `pnpm update <other-pkg>`) from re-resolving
+      // an untouched injected workspace dep and flipping its `link:` to a
       // peer-suffixed `file:` on paths dedupeInjectedDeps doesn't reach. See
       // pnpm/pnpm#10433.
       const previousRef = previousDirectRefs[alias]
