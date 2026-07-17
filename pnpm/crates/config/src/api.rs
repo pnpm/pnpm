@@ -137,13 +137,13 @@ impl GetHomeDir for Host {
                     use std::ffi::CString;
                     if let Ok(c_user) = CString::new(sudo_user.clone()) {
                         let mut pw_buf: libc::passwd = unsafe { std::mem::zeroed() };
-                        let mut buf = vec![0; 4096];
+                        let mut buf: Vec<libc::c_char> = vec![0; 4096];
                         let mut result_ptr = std::ptr::null_mut();
                         let status = unsafe {
                             libc::getpwnam_r(
                                 c_user.as_ptr(),
                                 &mut pw_buf,
-                                buf.as_mut_ptr() as *mut libc::c_char,
+                                buf.as_mut_ptr(),
                                 buf.len(),
                                 &mut result_ptr,
                             )
