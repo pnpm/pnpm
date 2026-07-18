@@ -190,6 +190,46 @@ fn fresh_resolve_walks_every_workspace_importer() {
     drop((root, mock_instance));
 }
 
+/// A workspace member that declares a `peerDependencies` entry gets
+/// that peer auto-installed (pnpm's default) and materialized into its
+/// lockfile importer `dependencies`. A subsequent `--frozen-lockfile`
+/// install must accept that lockfile instead of misreading the
+/// materialized peer as a removed dependency — the alpha.14
+/// workspace-importer freshness regression.
+#[test]
+fn frozen_install_accepts_auto_installed_workspace_peer() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
+        &serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "peerDependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" },
+        }),
+        &serde_json::json!({ "name": "pkg-b", "version": "1.0.0" }),
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    // Fresh resolve auto-installs the unmet peer into pkg-a's importer
+    // `dependencies`.
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    let a_section = lockfile
+        .split("  pkg-a:\n")
+        .nth(1)
+        .and_then(|tail| tail.split("\n  pkg-b:").next())
+        .expect("pnpm-lock.yaml missing pkg-a importer section");
+    assert!(
+        a_section.contains("hello-world-js-bin"),
+        "auto-installed peer not materialized into pkg-a; the test would not exercise the fix\n{lockfile}",
+    );
+
+    // The materialized peer must not read as lockfile drift.
+    pacquet_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn changed_workspace_importer_invalidates_lockfile() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
