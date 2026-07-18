@@ -203,14 +203,14 @@ impl AddArgs {
         let pinned_version =
             PinnedVersion::from_save_options(self.save_exact, self.save_prefix.as_deref());
 
-        add_packages::<Reporter, _, _>(
+        add_packages::<Reporter, _>(
             state,
             &self.package_names,
             pinned_version,
             save_catalog_name,
             self.lockfile_only,
             supported_architectures,
-            || self.dependency_options.dependency_groups(),
+            self.dependency_options.dependency_groups(),
         )
         .await
     }
@@ -254,46 +254,44 @@ impl AddArgs {
 /// points `state` at a cache directory (via a [`Config`] whose `modules_dir`
 /// is anchored there) and saves to `dependencies` so the package's bin lands
 /// in `<cacheDir>/node_modules/.bin`.
-pub(crate) async fn add_package<Reporter, ListDependencyGroups, DependencyGroupList>(
+pub(crate) async fn add_package<Reporter, DependencyGroupList>(
     state: State,
     package_name: &str,
     pinned_version: PinnedVersion,
     save_catalog_name: Option<String>,
     lockfile_only: bool,
     supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
-    list_dependency_groups: ListDependencyGroups,
+    dependency_groups: DependencyGroupList,
 ) -> miette::Result<()>
 where
     Reporter: self::Reporter + 'static,
-    ListDependencyGroups: Fn() -> DependencyGroupList,
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
     let package_names = [package_name.to_string()];
-    Box::pin(add_packages::<Reporter, _, _>(
+    Box::pin(add_packages::<Reporter, _>(
         state,
         &package_names,
         pinned_version,
         save_catalog_name,
         lockfile_only,
         supported_architectures,
-        list_dependency_groups,
+        dependency_groups,
     ))
     .await
 }
 
 /// Add packages to `state`'s manifest and install them in one operation.
-pub(crate) async fn add_packages<Reporter, ListDependencyGroups, DependencyGroupList>(
+pub(crate) async fn add_packages<Reporter, DependencyGroupList>(
     mut state: State,
     package_names: &[String],
     pinned_version: PinnedVersion,
     save_catalog_name: Option<String>,
     lockfile_only: bool,
     supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
-    list_dependency_groups: ListDependencyGroups,
+    dependency_groups: DependencyGroupList,
 ) -> miette::Result<()>
 where
     Reporter: self::Reporter + 'static,
-    ListDependencyGroups: Fn() -> DependencyGroupList,
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
     // TODO: if a package already exists in another dependency group, don't remove the existing entry.
@@ -312,7 +310,7 @@ where
         manifest,
         lockfile,
         lockfile_path: lockfile_path.as_deref(),
-        list_dependency_groups,
+        dependency_groups,
         package_names,
         pinned_version,
         save_catalog_name,

@@ -359,14 +359,14 @@ async fn run_group_install<Reporter: self::Reporter + 'static>(
         .collect::<miette::Result<Vec<_>>>()?;
     let state = State::init(manifest_path, config, false)
         .wrap_err("initialize the global install state")?;
-    add_packages::<Reporter, _, _>(
+    add_packages::<Reporter, _>(
         state,
         &selectors,
         pinned_version,
         None,
         false,
         config.supported_architectures.clone(),
-        || std::iter::once(DependencyGroup::Prod),
+        [DependencyGroup::Prod],
     )
     .await?;
 
