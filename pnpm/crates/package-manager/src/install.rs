@@ -1837,6 +1837,7 @@ fn check_lockfile_freshness(
             lockfile,
             manifest,
             &importer_id,
+            config.auto_install_peers,
             &ignored_optional_matcher,
             parsed_overrides_opt.as_deref(),
         )?;
@@ -1905,6 +1906,7 @@ pub(crate) fn check_importer_satisfies(
     lockfile: &Lockfile,
     manifest: &PackageManifest,
     importer_id: &str,
+    auto_install_peers: bool,
     ignored_optional_matcher: &pacquet_config::matcher::Matcher,
     parsed_overrides: Option<&[pacquet_config_parse_overrides::VersionOverride]>,
 ) -> Result<(), FreshnessCheckError> {
@@ -1946,8 +1948,13 @@ pub(crate) fn check_importer_satisfies(
         ignored_optional_dependency_names(manifest_for_freshness, ignored_optional_matcher);
     let is_ignored_optional: &dyn Fn(&str) -> bool = &|name: &str| ignored_set.contains(name);
 
-    satisfies_package_manifest(importer, manifest_for_freshness, is_ignored_optional)
-        .map_err(FreshnessCheckError::Stale)
+    satisfies_package_manifest(
+        importer,
+        manifest_for_freshness,
+        auto_install_peers,
+        is_ignored_optional,
+    )
+    .map_err(FreshnessCheckError::Stale)
 }
 
 fn ignored_optional_dependency_names(

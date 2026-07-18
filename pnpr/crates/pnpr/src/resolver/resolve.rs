@@ -272,7 +272,9 @@ pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) ->
     });
     std::fs::write(&manifest_path, serde_json::to_vec(&manifest_json).ok()?).ok()?;
     let manifest = PackageManifest::from_path(manifest_path).ok()?;
-    satisfies_package_manifest(importer, &manifest, &|_: &str| false).ok()?;
+    // The synthesized manifest carries no `peerDependencies`, so the
+    // auto-install-peers fold is a no-op; pass pnpm's default anyway.
+    satisfies_package_manifest(importer, &manifest, true, &|_: &str| false).ok()?;
 
     Some(lockfile.clone())
 }
