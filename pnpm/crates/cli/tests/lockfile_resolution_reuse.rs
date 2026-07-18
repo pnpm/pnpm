@@ -151,6 +151,126 @@ fn a_reused_tree_is_structurally_identical_to_a_fresh_resolve() {
     drop((reused, fresh));
 }
 
+/// An edge denied subtree reuse re-resolves from the registry instead of
+/// reading another edge's reused resolution out of the wanted-dep cache.
+///
+/// The synthesized `ResolveResult` a reused node is built from carries a
+/// manifest without `dependencies` (a reused node's children come from
+/// the snapshot graph), so it must never satisfy a fresh-resolve cache
+/// lookup: a fresh edge walks children from the manifest, and the
+/// dependency-less manifest would make it record the package as a leaf.
+/// When that leaf occurrence sits at a shallower depth than the healthy
+/// reused occurrence it wins children ownership, so the package's
+/// snapshot collapses to `{}`, its peer suffix is dropped, and its
+/// dependents re-point at the bare instance
+/// (`'@yarnpkg/shell@4.0.0': {}` in the original report).
+///
+/// Scenario, driven by the `@pnpm.e2e/reuse-chain-*` fixtures
+/// (`grand → parent → target`, where `target` deps `@pnpm.e2e/abc` +
+/// `@pnpm.e2e/dep-of-pkg-with-1-dep`):
+///
+/// * `pkg-a` deps `grand`, so its unchanged walk reuses `target` at
+///   depth 2 and caches the synthesized resolution under the exact-pin
+///   wanted key.
+/// * `pkg-b` deps `parent` plus `dep-of-pkg-with-1-dep` directly. The
+///   test bumps that direct dep; `target`'s snapshot also depends on
+///   it, so pkg-b's transitive edge to `target` (depth 1) is denied
+///   reuse by the changed-direct-dep gate and resolves fresh — with
+///   the same wanted key pkg-a already cached.
+///
+/// Importers resolve in order, so pkg-a's cache entry exists when
+/// pkg-b's denied edge looks up; the depth-1 occurrence out-ranks the
+/// depth-2 one for children ownership, making the corruption (before
+/// the fix) deterministic rather than a race.
+///
+/// `target`'s dep `@pnpm.e2e/abc` wants peers nothing in the subtree
+/// provides, so auto-install-peers suffixes `target` — the corrupted
+/// instance is then visible as a distinct bare-key `{}` snapshot rather
+/// than colliding with the healthy suffixed one.
+#[test]
+fn an_edge_denied_reuse_keeps_the_subtree_instead_of_reading_the_synthesized_reuse_result() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    let workspace = &fixture.workspace;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("packages:\n  - 'pkg-a'\n  - 'pkg-b'\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::create_dir(workspace.join("pkg-a")).expect("mkdir pkg-a");
+    fs::write(
+        workspace.join("pkg-a/package.json"),
+        serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/reuse-chain-grand": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write pkg-a/package.json");
+
+    let pkg_b_manifest = |dep_of_pkg_with_1_dep: &str| {
+        serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "dependencies": {
+                "@pnpm.e2e/reuse-chain-parent": "1.0.0",
+                "@pnpm.e2e/dep-of-pkg-with-1-dep": dep_of_pkg_with_1_dep,
+            },
+        })
+        .to_string()
+    };
+    fs::create_dir(workspace.join("pkg-b")).expect("mkdir pkg-b");
+    let pkg_b_manifest_path = workspace.join("pkg-b/package.json");
+    fs::write(&pkg_b_manifest_path, pkg_b_manifest("100.0.0")).expect("write pkg-b/package.json");
+
+    pacquet_at(workspace).with_arg("install").assert().success();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    assert!(
+        lockfile.contains("'@pnpm.e2e/reuse-chain-target@1.0.0(@pnpm.e2e/peer-a@"),
+        "the fresh install must suffix the target with the auto-installed peers:\n{lockfile}",
+    );
+
+    // Bump `dep-of-pkg-with-1-dep` in pkg-b only: `target`'s snapshot
+    // depends on it, so pkg-b's edge to `target` is denied reuse while
+    // pkg-a's (already-walked) edge reused it.
+    fs::write(&pkg_b_manifest_path, pkg_b_manifest("100.1.0"))
+        .expect("bump dep-of-pkg-with-1-dep in pkg-b");
+    let future = std::time::SystemTime::now() + std::time::Duration::from_secs(2);
+    fs::OpenOptions::new()
+        .write(true)
+        .open(&pkg_b_manifest_path)
+        .and_then(|file| file.set_times(std::fs::FileTimes::new().set_modified(future)))
+        .expect("bump manifest mtime");
+    pacquet_at(workspace).with_arg("install").assert().success();
+
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml after bump");
+    assert!(
+        !lockfile.contains("'@pnpm.e2e/reuse-chain-target@1.0.0': {}"),
+        "the denied edge must not record the target as an empty leaf:\n{lockfile}",
+    );
+    assert!(
+        lockfile.contains("'@pnpm.e2e/reuse-chain-target@1.0.0(@pnpm.e2e/peer-a@"),
+        "the target must keep its peer-suffixed snapshot:\n{lockfile}",
+    );
+    assert!(
+        lockfile.contains("'@pnpm.e2e/abc': 1.0.0("),
+        "the target's snapshot must keep its dependency on @pnpm.e2e/abc:\n{lockfile}",
+    );
+
+    drop(fixture);
+}
+
 /// Re-installing an unchanged manifest must leave `pnpm-lock.yaml`
 /// byte-identical: the lockfile maps are sorted at emit time, so the
 /// `importers` / `packages` / `snapshots` / dependency maps don't

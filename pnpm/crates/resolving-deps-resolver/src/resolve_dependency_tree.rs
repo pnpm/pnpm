@@ -2573,31 +2573,14 @@ where
     let ReusedNode { key, result } = reused;
     let result = Arc::new(result);
 
-    // A reused node carries the synthesized registry resolution into the
-    // same per-wanted cache bucket a fresh resolve would populate, so a
-    // later fresh-resolve of the identical wanted dep short-circuits to
-    // it without occupying an importer-independent bucket that normal
-    // workspace-mode semver specs must avoid.
-    let opts = ctx.opts_for_depth(depth);
-    let project_scope = project_relative_cache_scope(&wanted, opts);
-    let cache_key: WantedKey = (
-        wanted.alias.clone(),
-        wanted.bare_specifier.clone(),
-        wanted.optional,
-        wanted.injected,
-        opts.pick_lowest_version,
-        opts.published_by,
-        project_scope,
-        Some(key.clone()),
-        // Reused resolutions are exact pins — preference overlays
-        // can't change the pick, so the no-overlay bucket is right.
-        Vec::new(),
-        ctx.update_cache_scope(),
-        is_update_target(ctx.update_reuse_scope(), &wanted),
-    );
-    lock_recoverable(&ctx.workspace.resolved_by_wanted)
-        .entry(cache_key)
-        .or_insert_with(|| Arc::clone(&result));
+    // The synthesized result must stay out of `resolved_by_wanted`: its
+    // manifest deliberately omits `dependencies` (a reused node's
+    // children come from the snapshot graph), so if the fresh-resolve
+    // path ever read it back — e.g. an identical edge denied reuse by
+    // the changed-direct-dep gate or by `subtree_fully_reusable`'s
+    // provisional-`false` cycle guard — `extract_children` /
+    // `pkg_is_leaf` would misread the package as dependency-less and
+    // record it as a leaf, emptying its lockfile snapshot.
 
     let id = build_pkg_id_with_patch_hash(ctx, &result).await?;
 
