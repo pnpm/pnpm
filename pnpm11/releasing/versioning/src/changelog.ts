@@ -21,14 +21,14 @@ export function composeChangelogSection (release: PlannedRelease): string {
   }
   if (release.dependencyUpdates.length > 0) {
     const depLines = release.dependencyUpdates.map((dep) => `  - ${dep.name}@${dep.newVersion}`)
-    entriesByBump.patch.push(`- Updated dependencies:\n${depLines.join('\n')}`)
+    entriesByBump.patch.push(`- Updated dependencies\n${depLines.join('\n')}`)
   }
 
   const parts: string[] = [`## ${release.newVersion}`]
   for (const bumpType of ['major', 'minor', 'patch'] as const) {
     if (entriesByBump[bumpType].length === 0) continue
     parts.push(`### ${SECTION_TITLES[bumpType]}`)
-    parts.push(entriesByBump[bumpType].join('\n\n'))
+    parts.push(entriesByBump[bumpType].join('\n'))
   }
   return `${parts.join('\n\n')}\n`
 }

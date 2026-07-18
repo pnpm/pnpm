@@ -118,6 +118,107 @@ fn change_records_an_intent_and_version_applies_the_release_plan() {
 }
 
 #[test]
+fn change_check_requires_a_pending_bump_or_none_intent_for_every_changed_package() {
+    let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
+    write_workspace(&workspace);
+    add_pkg(&workspace, "lib", "1.0.0", "{}");
+    fs::write(workspace.join("packages/lib/index.js"), "module.exports = 0\n")
+        .expect("write initial file");
+    Command::new("git")
+        .args(["init", "--initial-branch=main"])
+        .current_dir(&workspace)
+        .assert()
+        .success();
+    Command::new("git")
+        .args(["config", "user.email", "x@y.z"])
+        .current_dir(&workspace)
+        .assert()
+        .success();
+    Command::new("git")
+        .args(["config", "user.name", "xyz"])
+        .current_dir(&workspace)
+        .assert()
+        .success();
+    Command::new("git").args(["add", "."]).current_dir(&workspace).assert().success();
+    Command::new("git")
+        .args(["commit", "-m", "initial", "--no-gpg-sign"])
+        .current_dir(&workspace)
+        .assert()
+        .success();
+    fs::write(workspace.join("packages/lib/index.js"), "module.exports = 1\n")
+        .expect("write changed file");
+
+    let uncovered = pnpm(&workspace)
+        .with_args(["change", "check", "HEAD"])
+        .output()
+        .expect("run pnpm change check");
+    assert!(!uncovered.status.success());
+    assert!(
+        String::from_utf8_lossy(&uncovered.stderr).contains("missing a pending change intent"),
+        "unexpected: {}",
+        String::from_utf8_lossy(&uncovered.stderr),
+    );
+    stdout_of(pnpm(&workspace).with_args([
+        "change",
+        "--bump",
+        "none",
+        "--summary",
+        "Internal refactor.",
+        "lib",
+    ]));
+    let covered = stdout_of(pnpm(&workspace).with_args(["change", "check", "HEAD"]));
+    assert!(covered.contains("All changed packages are covered"), "unexpected: {covered}");
+
+    drop(root);
+}
+
+#[test]
+fn change_migrate_translates_changesets_config_and_removes_it() {
+    let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
+    write_workspace(&workspace);
+    add_pkg(&workspace, "lib", "1.0.0", "{}");
+    fs::write(workspace.join("packages/lib/CHANGELOG.md"), "# lib\n").expect("write changelog");
+    fs::create_dir(workspace.join(".changeset")).expect("create .changeset");
+    fs::write(
+        workspace.join(".changeset/config.json"),
+        r#"{"fixed":[["lib","cli"]],"ignore":["private-pkg"],"linked":[]}"#,
+    )
+    .expect("write Changesets config");
+
+    let output = stdout_of(pnpm(&workspace).with_args(["change", "migrate"]));
+    assert!(output.contains("repository changelog storage"), "unexpected: {output}");
+    let workspace_yaml =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace yaml");
+    assert!(workspace_yaml.contains("fixed:"), "unexpected: {workspace_yaml}");
+    assert!(workspace_yaml.contains("private-pkg"), "unexpected: {workspace_yaml}");
+    assert!(workspace_yaml.contains("storage: repository"), "unexpected: {workspace_yaml}");
+    assert!(!workspace.join(".changeset/config.json").exists());
+
+    drop(root);
+}
+
+#[test]
+fn change_migrate_rejects_linked_groups_without_removing_the_config() {
+    let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
+    write_workspace(&workspace);
+    add_pkg(&workspace, "lib", "1.0.0", "{}");
+    fs::create_dir(workspace.join(".changeset")).expect("create .changeset");
+    let config_path = workspace.join(".changeset/config.json");
+    fs::write(&config_path, r#"{"linked":[["lib","cli"]]}"#).expect("write Changesets config");
+
+    let output = pnpm(&workspace).with_args(["change", "migrate"]).output().expect("run migration");
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_VERSIONING_LINKED_UNSUPPORTED"),
+        "unexpected: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert!(config_path.exists());
+
+    drop(root);
+}
+
+#[test]
 fn lanes_are_entered_released_and_graduated() {
     let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
     write_workspace(&workspace);

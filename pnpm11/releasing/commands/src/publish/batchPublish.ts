@@ -205,7 +205,7 @@ interface PublishDocument {
 function createPublishDocument (
   { publishedManifest, tarballData }: Pick<PackedPkg, 'publishedManifest' | 'tarballData'>,
   registry: string,
-  opts: Pick<BatchPublishOptions, 'access' | 'tag'>
+  opts: Pick<BatchPublishOptions, 'access' | 'lane' | 'tag'>
 ): PublishDocument {
   const name = publishedManifest.name as string
   const version = semver.clean(publishedManifest.version as string)
@@ -220,6 +220,7 @@ function createPublishDocument (
   const tarballName = `${name}-${version}.tgz`
   const manifest: ExportedManifest = {
     ...publishedManifest,
+    ...(opts.lane == null ? {} : { _pnpmLane: opts.lane }),
     _id: `${name}@${version}`,
     version,
     _nodeVersion: process.versions.node,

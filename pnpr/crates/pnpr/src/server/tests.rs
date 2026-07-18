@@ -1,6 +1,7 @@
 use super::{
     ConnectInfo, PeerAddr, bearer_credentials, canonical_ip, cidr_contains, cidr_whitelist_allows,
-    is_write_method, router_with_auth, token_timestamp_millis,
+    filter_registry_lane, is_write_method, router_with_auth, strip_registry_lane_dist_tags,
+    token_timestamp_millis,
 };
 use crate::{
     auth::{AuthState, TokenBackend, TokenRecord, UserStore},
@@ -19,6 +20,76 @@ use std::{
 };
 use tempfile::TempDir;
 use tower::ServiceExt;
+
+#[test]
+fn registry_lanes_are_hidden_unless_requested() {
+    let source = serde_json::json!({
+        "dist-tags": {
+            "latest": "1.0.0",
+            "next": "0.0.0-next-20260718120000",
+            "other": "0.0.0-other-20260718120000"
+        },
+        "versions": {
+            "1.0.0": { "name": "example", "version": "1.0.0" },
+            "0.0.0-next-20260718120000": {
+                "name": "example",
+                "version": "0.0.0-next-20260718120000",
+                "_pnpmLane": "next"
+            },
+            "0.0.0-other-20260718120000": {
+                "name": "example",
+                "version": "0.0.0-other-20260718120000",
+                "_pnpmLane": "other"
+            }
+        },
+        "time": {
+            "1.0.0": "2026-07-18T10:00:00Z",
+            "0.0.0-next-20260718120000": "2026-07-18T12:00:00Z",
+            "0.0.0-other-20260718120000": "2026-07-18T12:00:00Z"
+        }
+    });
+
+    let mut default_packument = source.clone();
+    filter_registry_lane(&mut default_packument, None);
+    assert_eq!(
+        default_packument["versions"].as_object().unwrap().keys().collect::<Vec<_>>(),
+        vec!["1.0.0"],
+    );
+    assert_eq!(default_packument["dist-tags"], serde_json::json!({ "latest": "1.0.0" }));
+    assert_eq!(default_packument["time"], serde_json::json!({ "1.0.0": "2026-07-18T10:00:00Z" }));
+
+    let mut next_packument = source;
+    filter_registry_lane(&mut next_packument, Some("next"));
+    assert_eq!(
+        next_packument["versions"].as_object().unwrap().keys().collect::<Vec<_>>(),
+        vec!["1.0.0", "0.0.0-next-20260718120000"],
+    );
+    assert_eq!(
+        next_packument["dist-tags"],
+        serde_json::json!({
+            "latest": "1.0.0",
+            "next": "0.0.0-next-20260718120000"
+        }),
+    );
+    assert!(next_packument["versions"]["0.0.0-next-20260718120000"].get("_pnpmLane").is_none());
+}
+
+#[test]
+fn registry_lane_publish_does_not_update_a_default_dist_tag() {
+    let mut incoming = serde_json::json!({
+        "dist-tags": { "next": "0.0.0-next-20260718120000" },
+        "versions": {
+            "0.0.0-next-20260718120000": {
+                "version": "0.0.0-next-20260718120000",
+                "_pnpmLane": "next"
+            }
+        }
+    });
+
+    strip_registry_lane_dist_tags(&mut incoming);
+
+    assert_eq!(incoming["dist-tags"], serde_json::json!({}));
+}
 
 #[test]
 fn token_timestamp_millis_saturates_before_i64_conversion() {

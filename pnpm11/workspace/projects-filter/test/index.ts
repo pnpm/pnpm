@@ -518,6 +518,35 @@ test('select changed packages', async () => {
   }
 })
 
+test('a changed catalog entry selects every project that references it', async () => {
+  const workspaceDir = temporaryDirectory()
+  await execa('git', ['init', '--initial-branch=main'], { cwd: workspaceDir })
+  await execa('git', ['config', 'user.email', 'x@y.z'], { cwd: workspaceDir })
+  await execa('git', ['config', 'user.name', 'xyz'], { cwd: workspaceDir })
+  fs.writeFileSync(path.join(workspaceDir, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\ncatalog:\n  foo: ^1.0.0\n  bar: ^1.0.0\n')
+  await execa('git', ['add', '.'], { cwd: workspaceDir })
+  await execa('git', ['commit', '-m', 'initial', '--no-gpg-sign'], { cwd: workspaceDir })
+  fs.writeFileSync(path.join(workspaceDir, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\ncatalog:\n  foo: ^2.0.0\n  bar: ^1.0.0\n')
+  await execa('git', ['add', '.'], { cwd: workspaceDir })
+  await execa('git', ['commit', '-m', 'catalog', '--no-gpg-sign'], { cwd: workspaceDir })
+
+  const fooDir = path.join(workspaceDir, 'packages/foo') as ProjectRootDir
+  const barDir = path.join(workspaceDir, 'packages/bar') as ProjectRootDir
+  const projectsGraph: ProjectGraph<BaseProject> = {
+    [fooDir]: {
+      dependencies: [],
+      package: { rootDir: fooDir, manifest: { name: 'foo', version: '1.0.0', dependencies: { foo: 'catalog:' } } },
+    },
+    [barDir]: {
+      dependencies: [],
+      package: { rootDir: barDir, manifest: { name: 'bar', version: '1.0.0', dependencies: { bar: 'catalog:' } } },
+    },
+  }
+
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(projectsGraph, [{ diff: 'HEAD~1' }], { workspaceDir })
+  expect(Object.keys(selectedProjectsGraph)).toStrictEqual([fooDir])
+})
+
 test('select changed packages when operating under a git worktree', async () => {
   if (isCI && isWindows()) {
     return

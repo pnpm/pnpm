@@ -6,7 +6,7 @@
 //! writing `pnpm-publish-summary.json`.
 
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -15,11 +15,16 @@ use miette::{Context, IntoDiagnostic};
 use pacquet_config::Config;
 use pacquet_network::{RetryOpts, ThrottledClient};
 use pacquet_publish::{
-    Host, PublishNetwork, PublishSummary, find_registry_info, resolve_otp_from_env,
+    Host, PublishNetwork, PublishSummary, find_registry_info, get_current_branch,
+    resolve_otp_from_env,
 };
 use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pacquet_resolving_npm_resolver::{
     FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata,
+};
+use pacquet_versioning::{
+    AssembleReleasePlanOptions, assemble_release_plan, read_change_intents, read_ledger,
+    to_project_dir,
 };
 use pipe_trait::Pipe;
 use serde_json::Value;
@@ -67,10 +72,20 @@ impl PublishArgs {
             return Ok(Vec::new());
         }
 
+        let snapshot_plan = self
+            .flags
+            .snapshot
+            .as_deref()
+            .map(|tag| build_snapshot_plan(tag, workspace_root, &projects, graph, config))
+            .transpose()?;
         let http_client = build_registry_client(config)?;
         let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
         let otp = resolve_otp_from_env::<Host>(self.flags.otp.clone());
-        let opts = self.publish_options(config, otp, stage);
+        let mut opts = self.publish_options(config, otp, stage);
+        if let Some(snapshot) = &snapshot_plan {
+            opts.tag = snapshot.tag.clone();
+            opts.lane = Some(snapshot.tag.clone());
+        }
         let retry_opts = retry_opts_from_config(config);
 
         // Filter the selected graph: keep only packages that have a name and
@@ -79,11 +94,17 @@ impl PublishArgs {
         // reads, so run them concurrently rather than one round-trip at a time
         // (the `ThrottledClient` still bounds the actual in-flight fan-out).
         let http_client_ref = &http_client;
+        let is_snapshot = snapshot_plan.is_some();
         let probes = graph.iter().filter_map(|(root, node)| {
+            if snapshot_plan.as_ref().is_some_and(|snapshot| !snapshot.project_roots.contains(root))
+            {
+                return None;
+            }
             let manifest = node.package.project.manifest.value();
             let (name, version) = publish_eligible(manifest)?;
             Some(async move {
-                let already = !self.flags.force
+                let already = !is_snapshot
+                    && !self.flags.force
                     && is_already_published(
                         name,
                         version,
@@ -125,8 +146,15 @@ impl PublishArgs {
                 if !to_publish.contains(&root) {
                     continue;
                 }
-                let summary =
-                    self.publish_directory::<Reporter>(&root, config, &opts, &network).await?;
+                let summary = self
+                    .publish_directory::<Reporter>(
+                        &root,
+                        config,
+                        &opts,
+                        &network,
+                        snapshot_plan.as_ref().map(|snapshot| &snapshot.workspace_versions),
+                    )
+                    .await?;
                 published.push(summary);
             }
         }
@@ -136,6 +164,72 @@ impl PublishArgs {
         }
         Ok(published)
     }
+}
+
+struct SnapshotPlan {
+    project_roots: HashSet<PathBuf>,
+    tag: String,
+    workspace_versions: HashMap<String, String>,
+}
+
+fn build_snapshot_plan(
+    requested_tag: &str,
+    workspace_root: &Path,
+    projects: &[pacquet_workspace::Project],
+    selected: &pacquet_workspace_projects_graph::ProjectGraph<crate::cli_args::recursive::GraphPkg>,
+    config: &Config,
+) -> miette::Result<SnapshotPlan> {
+    let raw_tag = if requested_tag.is_empty() {
+        get_current_branch::<Host>(workspace_root).unwrap_or_else(|| "snapshot".to_string())
+    } else {
+        requested_tag.to_string()
+    };
+    let tag = normalize_snapshot_tag(&raw_tag)?;
+    let suffix = format!("{}-{}", tag, chrono::Utc::now().format("%Y%m%d%H%M%S"));
+    let engine_projects = crate::cli_args::change::to_engine_projects(projects);
+    let filter = (!config.filter.is_empty()).then(|| {
+        selected.keys().map(|root| to_project_dir(workspace_root, root)).collect::<HashSet<_>>()
+    });
+    let plan = assemble_release_plan(
+        &engine_projects,
+        workspace_root,
+        &read_change_intents(workspace_root)?,
+        &read_ledger(workspace_root)?,
+        Some(&config.versioning),
+        &AssembleReleasePlanOptions {
+            filter,
+            snapshot_suffix: Some(suffix),
+            enforce_workspace_protocol: true,
+        },
+    )?;
+    Ok(SnapshotPlan {
+        project_roots: plan.releases.iter().map(|release| release.root_dir.clone()).collect(),
+        workspace_versions: plan
+            .releases
+            .iter()
+            .map(|release| (release.name.clone(), release.new_version.clone()))
+            .collect(),
+        tag,
+    })
+}
+
+fn normalize_snapshot_tag(tag: &str) -> miette::Result<String> {
+    let mut normalized = String::new();
+    let mut last_was_dash = false;
+    for character in tag.chars() {
+        if character.is_ascii_alphanumeric() || character == '-' {
+            normalized.push(character);
+            last_was_dash = character == '-';
+        } else if !last_was_dash && !normalized.is_empty() {
+            normalized.push('-');
+            last_was_dash = true;
+        }
+    }
+    let normalized = normalized.trim_matches('-').to_string();
+    if normalized.is_empty() {
+        return Err(miette::miette!(r#"Cannot derive a snapshot tag from "{tag}""#));
+    }
+    Ok(normalized)
 }
 
 /// A package's `(name, version)` when it is eligible to be published, or `None`

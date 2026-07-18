@@ -1,8 +1,12 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { checkbox, input, Separator } from '@inquirer/prompts'
 import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import {
   assembleReleasePlan,
+  buildConsumptionIndex,
   BUMP_TYPES,
   type ChangeIntent,
   indexProjectRefs,
@@ -16,6 +20,7 @@ import {
 } from '@pnpm/releasing.versioning'
 import type { Project, VersioningSettings } from '@pnpm/types'
 import { getChangedProjects } from '@pnpm/workspace.projects-filter'
+import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 import { safeExeca as execa } from 'execa'
 import { renderHelp } from 'render-help'
 import { valid } from 'semver'
@@ -40,6 +45,8 @@ export function help (): string {
     usages: [
       'pnpm change [--bump <type>] [--summary <text>] [<pkg>...]',
       'pnpm change status',
+      'pnpm change check [<since>]',
+      'pnpm change migrate',
     ],
     descriptionLists: [
       {
@@ -81,7 +88,122 @@ export async function handler (opts: ChangeCommandOptions, params: string[]): Pr
   if (params.length === 1 && params[0] === 'status' && opts.bump == null && opts.summary == null) {
     return renderStatus(workspaceDir, opts)
   }
+  if (params[0] === 'check' && opts.bump == null && opts.summary == null) {
+    return checkChangeCoverage(workspaceDir, opts, params.slice(1))
+  }
+  if (params.length === 1 && params[0] === 'migrate' && opts.bump == null && opts.summary == null) {
+    return migrateChangesetsConfig(workspaceDir, opts)
+  }
   return recordChange(workspaceDir, opts, params)
+}
+
+interface ChangesetsConfig {
+  fixed?: unknown
+  ignore?: unknown
+  linked?: unknown
+}
+
+async function migrateChangesetsConfig (workspaceDir: string, opts: ChangeCommandOptions): Promise<string> {
+  const configPath = path.join(workspaceDir, '.changeset', 'config.json')
+  let config: ChangesetsConfig
+  try {
+    config = JSON.parse(await fs.promises.readFile(configPath, 'utf8')) as ChangesetsConfig
+  } catch (err: unknown) {
+    if (err instanceof SyntaxError) {
+      throw new PnpmError('VERSIONING_INVALID_CHANGESETS_CONFIG', `Cannot parse ${configPath}: ${err.message}`)
+    }
+    if (err != null && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') {
+      throw new PnpmError('VERSIONING_CHANGESETS_CONFIG_NOT_FOUND', `No Changesets config found at ${configPath}`)
+    }
+    throw err
+  }
+  const linked = parseStringGroups(config.linked, 'linked', configPath)
+  if (linked != null && linked.length > 0) {
+    throw new PnpmError('VERSIONING_LINKED_UNSUPPORTED', 'Cannot migrate .changeset/config.json because linked groups are not supported. Convert them to fixed groups or remove them first.')
+  }
+  const fixed = parseStringGroups(config.fixed, 'fixed', configPath)
+  const ignore = parseStringArray(config.ignore, 'ignore', configPath)
+  const hasCommittedChangelog = await anyProjectHasChangelog(opts.allProjects ?? [])
+  const versioning: VersioningSettings = {
+    ...opts.versioning,
+    ...(fixed == null ? {} : { fixed }),
+    ...(ignore == null ? {} : { ignore }),
+    ...(hasCommittedChangelog ? { changelog: { storage: 'repository' as const } } : {}),
+  }
+  await updateWorkspaceManifest(workspaceDir, { updatedFields: { versioning } })
+  await fs.promises.rm(configPath)
+  return `Migrated .changeset/config.json to pnpm-workspace.yaml${hasCommittedChangelog ? ' with repository changelog storage' : ''}.`
+}
+
+function parseStringGroups (value: unknown, field: string, configPath: string): string[][] | undefined {
+  if (value == null) return undefined
+  if (!Array.isArray(value) || value.some((group) => !Array.isArray(group) || group.some((item) => typeof item !== 'string'))) {
+    throw new PnpmError('VERSIONING_INVALID_CHANGESETS_CONFIG', `The "${field}" field in ${configPath} must be an array of string arrays`)
+  }
+  return value as string[][]
+}
+
+function parseStringArray (value: unknown, field: string, configPath: string): string[] | undefined {
+  if (value == null) return undefined
+  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
+    throw new PnpmError('VERSIONING_INVALID_CHANGESETS_CONFIG', `The "${field}" field in ${configPath} must be an array of strings`)
+  }
+  return value as string[]
+}
+
+async function anyProjectHasChangelog (projects: Project[]): Promise<boolean> {
+  const results = await Promise.all(projects.map(async ({ rootDir }) => {
+    try {
+      return (await fs.promises.stat(path.join(rootDir, 'CHANGELOG.md'))).isFile()
+    } catch (err: unknown) {
+      if (err != null && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') return false
+      throw err
+    }
+  }))
+  return results.some(Boolean)
+}
+
+async function checkChangeCoverage (workspaceDir: string, opts: ChangeCommandOptions, params: string[]): Promise<string> {
+  if (params.length > 1) {
+    throw new PnpmError('VERSIONING_INVALID_CHECK_ARGS', 'pnpm change check accepts at most one base revision')
+  }
+  const baseCommit = params[0] ?? await detectBaseCommit(workspaceDir)
+  if (baseCommit == null) {
+    throw new PnpmError('VERSIONING_BASE_NOT_FOUND', 'Could not find a base revision for pnpm change check. Pass one explicitly, for example: pnpm change check origin/main')
+  }
+  const allProjects = opts.allProjects ?? []
+  const releasable = getReleasableProjects(allProjects, workspaceDir, opts.versioning)
+  const releasableByDir = new Map(releasable.map((project) => [project.dir, project]))
+  const [changedRootDirs] = await getChangedProjects(allProjects.map((project) => project.rootDir), baseCommit, {
+    workspaceDir,
+    workspaceRoot: workspaceDir,
+    projects: allProjects,
+    testPattern: opts.testPattern,
+    changedFilesIgnorePattern: opts.changedFilesIgnorePattern,
+  })
+  const touched = changedRootDirs
+    .map((rootDir) => toProjectDir(workspaceDir, rootDir))
+    .filter((dir) => releasableByDir.has(dir))
+  if (touched.length === 0) return 'All changed packages are covered by change intents.'
+
+  const refs = indexProjectRefs(allProjects, workspaceDir)
+  const intents = await readChangeIntents(workspaceDir)
+  const ledger = await readLedger(workspaceDir)
+  const consumptionFor = buildConsumptionIndex(ledger, refs.nameToDirs)
+  const covered = new Set<string>()
+  for (const intent of intents) {
+    for (const ref of Object.keys(intent.releases)) {
+      for (const dir of refs.refToDirs(ref)) {
+        if (!consumptionFor(dir).allIds.has(intent.id)) covered.add(dir)
+      }
+    }
+  }
+  const uncovered = touched.filter((dir) => !covered.has(dir))
+  if (uncovered.length > 0) {
+    const names = uncovered.map((dir) => releasableByDir.get(dir)!.ref).sort()
+    throw new PnpmError('VERSIONING_CHANGE_CHECK_FAILED', `Changed packages are missing a pending change intent: ${names.join(', ')}. Record a bump or an explicit none decline with pnpm change.`)
+  }
+  return 'All changed packages are covered by change intents.'
 }
 
 async function recordChange (workspaceDir: string, opts: ChangeCommandOptions, params: string[]): Promise<string> {
@@ -179,6 +301,8 @@ async function detectChangedDirs (
     const projectDirs = (opts.allProjects ?? []).map((project) => project.rootDir)
     const [changedRootDirs] = await getChangedProjects(projectDirs, baseCommit, {
       workspaceDir,
+      workspaceRoot: workspaceDir,
+      projects: opts.allProjects,
       testPattern: opts.testPattern,
       changedFilesIgnorePattern: opts.changedFilesIgnorePattern,
     })
@@ -195,7 +319,7 @@ async function detectChangedDirs (
 
 /** The merge-base of HEAD with the default branch, or `undefined`. */
 async function detectBaseCommit (cwd: string): Promise<string | undefined> {
-  for (const branch of ['main', 'master']) {
+  for (const branch of ['origin/main', 'main', 'origin/master', 'master']) {
     try {
       // eslint-disable-next-line no-await-in-loop
       const { stdout } = await execa('git', ['merge-base', 'HEAD', branch], { cwd })

@@ -11,7 +11,10 @@
 //!   `workspace:` segment in place so a compound `a || workspace:>=`
 //!   round-trips correctly.
 
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -46,6 +49,35 @@ pub enum ReplaceWorkspaceProtocolError {
     /// error other than ENOENT, ...). Propagated so the caller can
     /// surface the underlying cause.
     ReadManifest(#[error(source)] PackageManifestError),
+}
+
+/// Materialize a workspace dependency to an exact in-memory snapshot version.
+/// `None` means either the specifier is not `workspace:` or its target is not
+/// part of the snapshot plan, so the ordinary publish conversion should run.
+pub fn replace_workspace_protocol_with_snapshot_version(
+    workspace_versions: &HashMap<String, String>,
+    dep_name: &str,
+    dep_spec: &str,
+    dir: &Path,
+) -> Result<Option<String>, ReplaceWorkspaceProtocolError> {
+    let Some(rest) = dep_spec.strip_prefix("workspace:") else {
+        return Ok(None);
+    };
+    let target_name = if let Some(relative) = strip_workspace_relative_prefix(dep_spec) {
+        read_and_check_manifest(dep_name, &dir.join(relative))?.name
+    } else if let Some(separator) = rest.rfind('@').filter(|&separator| separator > 0) {
+        rest[..separator].to_string()
+    } else {
+        dep_name.to_string()
+    };
+    let Some(version) = workspace_versions.get(&target_name) else {
+        return Ok(None);
+    };
+    Ok(Some(if target_name == dep_name {
+        version.clone()
+    } else {
+        format!("npm:{target_name}@{version}")
+    }))
 }
 
 /// Rewrites a single `dependencies` / `devDependencies` /

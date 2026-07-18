@@ -243,6 +243,52 @@ async fn authenticated_publish_writes_manifest_and_tarball() {
 }
 
 #[tokio::test]
+async fn snapshot_lane_versions_are_hidden_from_default_packuments() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    for (version, lane) in [("1.0.0", None), ("0.0.0-pr-42-20260718120000", Some("pr-42"))] {
+        let mut body = sample_publish_body("lane-pkg", version, version.as_bytes());
+        if let Some(lane) = lane {
+            body["versions"][version]["_pnpmLane"] = json!(lane);
+        }
+        let request = Request::put("/lane-pkg")
+            .header("content-type", "application/json")
+            .header("Authorization", format!("Bearer {token}"))
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+        assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    }
+
+    let default_response =
+        app.clone().oneshot(Request::get("/lane-pkg").body(Body::empty()).unwrap()).await.unwrap();
+    let default_packument = body_json(default_response.into_body()).await;
+    assert_eq!(
+        default_packument["versions"].as_object().unwrap().keys().collect::<Vec<_>>(),
+        vec!["1.0.0"],
+    );
+    assert_eq!(default_packument["dist-tags"], json!({ "latest": "1.0.0" }));
+
+    let lane_response = app
+        .oneshot(
+            Request::get("/lane-pkg").header("pnpm-lane", "pr-42").body(Body::empty()).unwrap(),
+        )
+        .await
+        .unwrap();
+    let lane_packument = body_json(lane_response.into_body()).await;
+    assert_eq!(lane_packument["versions"].as_object().unwrap().len(), 2);
+    assert_eq!(
+        lane_packument["dist-tags"],
+        json!({
+            "latest": "1.0.0",
+            "pr-42": "0.0.0-pr-42-20260718120000"
+        }),
+    );
+    assert!(lane_packument["versions"]["0.0.0-pr-42-20260718120000"].get("_pnpmLane").is_none());
+}
+
+#[tokio::test]
 async fn republishing_an_existing_version_is_rejected_with_conflict() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();

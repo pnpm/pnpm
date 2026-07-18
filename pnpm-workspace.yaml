@@ -104,6 +104,7 @@ auditConfig:
 catalog:
   '@babel/core': ^7.29.7
   '@babel/plugin-transform-explicit-resource-management': ^7.29.7
+  '@changesets/cli': 2.31.1
   '@commitlint/cli': ^21.0.2
   '@commitlint/config-conventional': ^21.0.2
   '@commitlint/prompt-cli': ^21.0.2

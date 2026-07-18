@@ -118,6 +118,7 @@ test('batch publish sends all packages in a single batch publish request', async
   await publish.handler({
     ...batchPublishOpts(),
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    lane: 'next',
     tag: 'next',
   }, [])
 
@@ -130,7 +131,7 @@ test('batch publish sends all packages in a single batch publish request', async
       _id: string
       name: string
       'dist-tags': Record<string, string>
-      versions: Record<string, { dist: { integrity: string, shasum: string, tarball: string } }>
+      versions: Record<string, { _pnpmLane?: string, dist: { integrity: string, shasum: string, tarball: string } }>
       _attachments: Record<string, { content_type: string, data: string, length: number }>
     }>
   }
@@ -147,6 +148,7 @@ test('batch publish sends all packages in a single batch publish request', async
   const tarballData = Buffer.from(attachment.data, 'base64')
   expect(attachment).toHaveLength(tarballData.length)
   const { dist } = scopedPkg.versions['1.0.0']
+  expect(scopedPkg.versions['1.0.0']._pnpmLane).toBe('next')
   expect(dist.integrity).toBe(`sha512-${createHash('sha512').update(tarballData).digest('base64')}`)
   expect(dist.shasum).toBe(createHash('sha1').update(tarballData).digest('hex'))
   expect(dist.tarball).toBe(`${registry.url}@pnpmtest/batch-pkg-1/-/@pnpmtest/batch-pkg-1-1.0.0.tgz`)

@@ -2,8 +2,12 @@
 //! projects the git diff touches, upstream's `getChangedProjects`.
 
 use crate::filter::FilterError;
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
+use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
+use serde::Deserialize;
 use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -14,8 +18,30 @@ pub struct GetChangedProjectsOptions<'a> {
     /// Directory the `git diff` runs in and is path-restricted to: the
     /// selector's `{dir}` part when present, else the workspace root.
     pub workspace_dir: &'a Path,
+    pub workspace_root: &'a Path,
+    pub catalog_users: &'a CatalogUsers,
     pub test_pattern: &'a [String],
     pub changed_files_ignore_pattern: &'a [String],
+}
+
+pub type CatalogUsers = BTreeMap<(String, String), IndexSet<PathBuf>>;
+
+pub fn collect_catalog_users(
+    projects: impl IntoIterator<Item = (PathBuf, Vec<(String, String)>)>,
+) -> CatalogUsers {
+    let mut users = CatalogUsers::new();
+    for (project_dir, dependencies) in projects {
+        for (dependency_name, specifier) in dependencies {
+            let Some(catalog_name) = parse_catalog_protocol(&specifier) else {
+                continue;
+            };
+            users
+                .entry((catalog_name.to_string(), dependency_name))
+                .or_default()
+                .insert(project_dir.clone());
+        }
+    }
+    users
 }
 
 /// The two selection groups a `[<since>]` diff produces.
@@ -58,6 +84,9 @@ pub fn get_changed_projects(
             *entry = Some(change_type);
         }
     }
+    for project_dir in projects_using_changed_catalog_entries(commit, &repo_root, opts)? {
+        project_change_types.insert(project_dir, Some(ChangeType::Source));
+    }
 
     let mut changed_projects: Vec<PathBuf> = Vec::new();
     let mut ignore_dependent_for_projects: Vec<PathBuf> = Vec::new();
@@ -69,6 +98,91 @@ pub fn get_changed_projects(
         }
     }
     Ok(ChangedProjects { changed_projects, ignore_dependent_for_projects })
+}
+
+#[derive(Default, Deserialize)]
+struct CatalogManifest {
+    #[serde(default)]
+    catalog: Option<BTreeMap<String, String>>,
+    #[serde(default)]
+    catalogs: Option<BTreeMap<String, BTreeMap<String, String>>>,
+}
+
+fn projects_using_changed_catalog_entries(
+    commit: &str,
+    repo_root: &Path,
+    opts: &GetChangedProjectsOptions<'_>,
+) -> Result<IndexSet<PathBuf>, FilterError> {
+    let manifest_path = opts.workspace_root.join("pnpm-workspace.yaml");
+    let relative_manifest_path = manifest_path.strip_prefix(repo_root).unwrap_or(&manifest_path);
+    let before = read_catalogs_at_commit(repo_root, commit, relative_manifest_path);
+    let after = match fs::read_to_string(&manifest_path) {
+        Ok(source) => parse_catalogs(&source)?,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => BTreeMap::new(),
+        Err(err) => {
+            return Err(FilterError::FilterChanged {
+                stderr: format!("Failed to read {}: {err}", manifest_path.display()),
+            });
+        }
+    };
+    let changed = changed_catalog_entries(&before, &after);
+    let mut projects = IndexSet::new();
+    for key in changed {
+        if let Some(users) = opts.catalog_users.get(&key) {
+            projects.extend(users.iter().cloned());
+        }
+    }
+    Ok(projects)
+}
+
+fn read_catalogs_at_commit(
+    repo_root: &Path,
+    commit: &str,
+    relative_manifest_path: &Path,
+) -> BTreeMap<String, BTreeMap<String, String>> {
+    let revision = format!("{commit}:{}", relative_manifest_path.to_string_lossy());
+    let Ok(output) = Command::new("git").args(["show", &revision]).current_dir(repo_root).output()
+    else {
+        return BTreeMap::new();
+    };
+    if !output.status.success() {
+        return BTreeMap::new();
+    }
+    parse_catalogs(&String::from_utf8_lossy(&output.stdout)).unwrap_or_default()
+}
+
+fn parse_catalogs(source: &str) -> Result<BTreeMap<String, BTreeMap<String, String>>, FilterError> {
+    let manifest: CatalogManifest = serde_saphyr::from_str(source).map_err(|err| {
+        FilterError::FilterChanged { stderr: format!("Failed to parse pnpm-workspace.yaml: {err}") }
+    })?;
+    let mut catalogs = manifest.catalogs.unwrap_or_default();
+    if let Some(default) = manifest.catalog {
+        catalogs.insert("default".to_string(), default);
+    }
+    Ok(catalogs)
+}
+
+fn changed_catalog_entries(
+    before: &BTreeMap<String, BTreeMap<String, String>>,
+    after: &BTreeMap<String, BTreeMap<String, String>>,
+) -> BTreeSet<(String, String)> {
+    let mut changed = BTreeSet::new();
+    for catalog_name in before.keys().chain(after.keys()) {
+        let before_catalog = before.get(catalog_name);
+        let after_catalog = after.get(catalog_name);
+        let dependency_names = before_catalog
+            .into_iter()
+            .flat_map(|catalog| catalog.keys())
+            .chain(after_catalog.into_iter().flat_map(|catalog| catalog.keys()));
+        for dependency_name in dependency_names {
+            if before_catalog.and_then(|catalog| catalog.get(dependency_name))
+                != after_catalog.and_then(|catalog| catalog.get(dependency_name))
+            {
+                changed.insert((catalog_name.clone(), dependency_name.clone()));
+            }
+        }
+    }
+    changed
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

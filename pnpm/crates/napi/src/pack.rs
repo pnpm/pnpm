@@ -59,6 +59,7 @@ pub async fn pack(options: PackOptions, on_log: Option<LogSink>) -> napi::Result
         // Bit does not use catalog: specifiers; workspace catalog loading is
         // deferred until a consumer needs it. See pnpm/plans/NAPI.md.
         catalogs: Catalogs::default(),
+        workspace_versions: HashMap::new(),
         ignore_scripts: options.ignore_scripts.unwrap_or(false),
         unsafe_perm: false,
         embed_readme: options.embed_readme.unwrap_or(false),

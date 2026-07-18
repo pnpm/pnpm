@@ -31,6 +31,7 @@ use crate::{
     replace::{
         ReplaceWorkspaceProtocolError, replace_workspace_protocol,
         replace_workspace_protocol_peer_dependency,
+        replace_workspace_protocol_with_snapshot_version,
     },
     transform::{TransformError, transform},
 };
@@ -42,7 +43,7 @@ use pacquet_catalogs_resolver::{
 use pacquet_catalogs_types::Catalogs;
 use pacquet_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
 use serde_json::{Map, Value};
-use std::{fs, io, path::Path};
+use std::{collections::HashMap, fs, io, path::Path};
 
 /// Lifecycle scripts removed from the published manifest's `scripts`
 /// map during obfuscation, so they don't re-run when the package is
@@ -79,6 +80,8 @@ pub struct CreateExportableManifestOptions<'a> {
     /// Where workspace dependencies are installed. Defaults to
     /// `<dir>/node_modules` when `None`.
     pub modules_dir: Option<&'a Path>,
+    /// Planned in-memory workspace versions for snapshot publishing.
+    pub workspace_versions: Option<&'a HashMap<String, String>>,
     /// Keep `packageManager` and publish-lifecycle scripts in the
     /// packed manifest; only the `pnpm` field is stripped.
     pub skip_manifest_obfuscation: bool,
@@ -211,6 +214,17 @@ fn convert_dependency_for_publish(
     opts: &CreateExportableManifestOptions<'_>,
     kind: DependencyKind,
 ) -> Result<String, CreateExportableManifestError> {
+    if let Some(workspace_versions) = opts.workspace_versions
+        && let Some(snapshot) = replace_workspace_protocol_with_snapshot_version(
+            workspace_versions,
+            dep_name,
+            spec,
+            dir,
+        )
+        .map_err(CreateExportableManifestError::ReplaceWorkspaceProtocol)?
+    {
+        return Ok(snapshot);
+    }
     let after_workspace = match kind {
         DependencyKind::Regular => {
             replace_workspace_protocol(dep_name, spec, dir, opts.modules_dir)

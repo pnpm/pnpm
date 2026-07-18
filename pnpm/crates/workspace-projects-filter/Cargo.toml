@@ -11,14 +11,17 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
+pacquet-catalogs-protocol-parser = { workspace = true }
 pacquet-config                   = { workspace = true }
 pacquet-workspace-projects-graph = { workspace = true }
 
-derive_more = { workspace = true }
-indexmap    = { workspace = true }
-miette      = { workspace = true }
-pathdiff    = { workspace = true }
-wax         = { workspace = true }
+derive_more  = { workspace = true }
+indexmap     = { workspace = true }
+miette       = { workspace = true }
+pathdiff     = { workspace = true }
+serde        = { workspace = true }
+serde-saphyr = { workspace = true }
+wax          = { workspace = true }
 
 [dev-dependencies]
 pacquet-testing-utils = { workspace = true }

@@ -25,6 +25,7 @@ use pacquet_pack::{
 use pacquet_reporter::Reporter;
 use pacquet_workspace::read_workspace_manifest;
 use std::{
+    collections::HashMap,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -235,6 +236,7 @@ impl PackArgs {
         PackOptions {
             dir,
             catalogs,
+            workspace_versions: HashMap::new(),
             ignore_scripts: config.ignore_scripts,
             unsafe_perm: config.unsafe_perm,
             embed_readme: false,

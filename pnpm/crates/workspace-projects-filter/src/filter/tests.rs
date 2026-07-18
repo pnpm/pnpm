@@ -415,7 +415,7 @@ mod changed_packages {
         parse_project_selector::ProjectSelector,
     };
     use indexmap::IndexMap;
-    use pacquet_workspace_projects_graph::ProjectGraph;
+    use pacquet_workspace_projects_graph::{GraphProject, ProjectGraph, ProjectGraphNode};
     use std::{fs, path::Path, process::Command};
     use tempfile::TempDir;
 
@@ -563,6 +563,72 @@ mod changed_packages {
                 },
             ),
             [path_of(&pkg_1_dir), path_of(&pkg_kor_dir)],
+        );
+    }
+
+    #[test]
+    fn changed_catalog_entry_selects_every_project_that_references_it() {
+        let workspace = TempDir::new().expect("create tempdir");
+        let workspace_dir = workspace.path();
+        init_repo(workspace_dir);
+        fs::write(
+            workspace_dir.join("pnpm-workspace.yaml"),
+            "packages:\n  - packages/*\ncatalog:\n  foo: ^1.0.0\n  bar: ^1.0.0\n",
+        )
+        .expect("write workspace manifest");
+        commit_all(workspace_dir);
+        fs::write(
+            workspace_dir.join("pnpm-workspace.yaml"),
+            "packages:\n  - packages/*\ncatalog:\n  foo: ^2.0.0\n  bar: ^1.0.0\n",
+        )
+        .expect("write workspace manifest");
+        commit_all(workspace_dir);
+
+        let foo_dir = workspace_dir.join("packages/foo");
+        let bar_dir = workspace_dir.join("packages/bar");
+        let mut graph: ProjectGraph<TestPkg> = IndexMap::new();
+        graph.insert(
+            foo_dir.clone(),
+            ProjectGraphNode {
+                package: TestPkg {
+                    root_dir: foo_dir.clone(),
+                    name: Some("foo".to_string()),
+                    version: Some("1.0.0".to_string()),
+                    deps: vec![("foo".to_string(), "catalog:".to_string())],
+                    dev_deps: Vec::new(),
+                },
+                dependencies: Vec::new(),
+            },
+        );
+        graph.insert(
+            bar_dir.clone(),
+            ProjectGraphNode {
+                package: TestPkg {
+                    root_dir: bar_dir,
+                    name: Some("bar".to_string()),
+                    version: Some("1.0.0".to_string()),
+                    deps: vec![("bar".to_string(), "catalog:".to_string())],
+                    dev_deps: Vec::new(),
+                },
+                dependencies: Vec::new(),
+            },
+        );
+        let catalog_users =
+            crate::get_changed_projects::collect_catalog_users(graph.values().map(|node| {
+                (node.package.root_dir.clone(), node.package.merged_dependencies(false))
+            }));
+
+        assert_eq!(
+            selected(
+                &graph,
+                &[diff_selector("HEAD~1")],
+                &FilterWorkspaceProjectsOptions {
+                    workspace_dir: workspace_dir.to_path_buf(),
+                    catalog_users,
+                    ..Default::default()
+                },
+            ),
+            [foo_dir.to_string_lossy().into_owned()],
         );
     }
 

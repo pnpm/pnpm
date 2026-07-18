@@ -3,7 +3,11 @@ use super::{
 };
 use pacquet_catalogs_types::{Catalog, Catalogs};
 use serde_json::{Value, json};
-use std::{collections::BTreeMap, fs, path::Path};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 
 fn empty_catalogs() -> Catalogs {
@@ -18,6 +22,7 @@ fn default_opts(catalogs: &Catalogs) -> CreateExportableManifestOptions<'_> {
     CreateExportableManifestOptions {
         catalogs,
         modules_dir: None,
+        workspace_versions: None,
         skip_manifest_obfuscation: false,
         embed_readme: false,
     }
@@ -64,6 +69,7 @@ fn skip_obfuscation_keeps_scripts_and_package_manager() {
     let opts = CreateExportableManifestOptions {
         catalogs: &catalogs,
         modules_dir: None,
+        workspace_versions: None,
         skip_manifest_obfuscation: true,
         embed_readme: false,
     };
@@ -170,6 +176,38 @@ fn peer_workspace_protocol_dependency_is_rewritten() {
 }
 
 #[test]
+fn workspace_dependencies_use_in_memory_snapshot_versions() {
+    let dir = tempdir().unwrap();
+    let catalogs = empty_catalogs();
+    let workspace_versions =
+        HashMap::from([("core".to_string(), "0.0.0-preview-20260718000000".to_string())]);
+    let out = build(
+        dir.path(),
+        &json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": {
+                "core": "workspace:^",
+                "coreAlias": "workspace:core@*",
+            },
+            "peerDependencies": { "core": "workspace:^1.0.0" },
+        }),
+        &CreateExportableManifestOptions {
+            workspace_versions: Some(&workspace_versions),
+            ..default_opts(&catalogs)
+        },
+    );
+    assert_eq!(
+        out["dependencies"],
+        json!({
+            "core": "0.0.0-preview-20260718000000",
+            "coreAlias": "npm:core@0.0.0-preview-20260718000000",
+        }),
+    );
+    assert_eq!(out["peerDependencies"], json!({ "core": "0.0.0-preview-20260718000000" }));
+}
+
+#[test]
 fn publish_config_whitelisted_keys_are_hoisted() {
     let dir = tempdir().unwrap();
     let catalogs = empty_catalogs();
@@ -214,6 +252,7 @@ fn readme_is_embedded_when_requested() {
     let opts = CreateExportableManifestOptions {
         catalogs: &catalogs,
         modules_dir: None,
+        workspace_versions: None,
         skip_manifest_obfuscation: false,
         embed_readme: true,
     };
@@ -244,6 +283,7 @@ fn readme_symlink_is_not_embedded() {
     let opts = CreateExportableManifestOptions {
         catalogs: &catalogs,
         modules_dir: None,
+        workspace_versions: None,
         skip_manifest_obfuscation: false,
         embed_readme: true,
     };

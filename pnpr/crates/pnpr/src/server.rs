@@ -1650,6 +1650,7 @@ async fn serve_packument_via_upstream(
         tarball_base,
         state.inner.osv_index.as_ref(),
         wants_abbreviated(headers),
+        None,
     ) {
         Ok(response) => response,
         Err(err) => error_response(&err),
@@ -2096,6 +2097,7 @@ async fn serve_hosted_packument(
             tarball_base,
             state.inner.osv_index.as_ref(),
             wants_abbreviated(headers),
+            requested_lane(headers),
         ) {
             Ok(response) => response,
             Err(err) => error_response(&err),
@@ -2916,7 +2918,7 @@ async fn stage_publish(
     now_iso: &str,
     org: Option<&str>,
 ) -> Result<StagedPublish, RegistryError> {
-    let ValidatedPublish { name, incoming, prepared } = doc;
+    let ValidatedPublish { name, mut incoming, prepared } = doc;
     let storage = hosted_storage(state, org);
 
     let hosted_packument = storage.read_hosted_packument_for_update(&name).await?;
@@ -2977,6 +2979,8 @@ async fn stage_publish(
             }
         }
     }
+
+    strip_registry_lane_dist_tags(&mut incoming);
 
     // A hosted registry has no upstream, so a publish seeds the merge only from
     // the org's own hosted packument; a brand-new package starts from `None`.
@@ -4187,8 +4191,10 @@ fn packument_response(
     tarball_base: &str,
     osv_index: Option<&Arc<crate::resolver::OsvIndex>>,
     abbreviated: bool,
+    lane: Option<&str>,
 ) -> Result<Response, RegistryError> {
     let mut doc: Value = serde_json::from_slice(bytes)?;
+    filter_registry_lane(&mut doc, lane);
     filter_osv_vulnerable_versions(&mut doc, name, osv_index);
     rewrite_tarball_urls(&mut doc, name, tarball_base);
     let (body, content_type) = if abbreviated {
@@ -4198,6 +4204,65 @@ fn packument_response(
         (serde_json::to_vec(&doc)?, "application/json")
     };
     Ok(packument_bytes_response(body, content_type))
+}
+
+fn requested_lane(headers: &HeaderMap) -> Option<&str> {
+    headers.get("pnpm-lane").and_then(|value| value.to_str().ok()).filter(|lane| !lane.is_empty())
+}
+
+fn strip_registry_lane_dist_tags(packument: &mut Value) {
+    let lane_versions: HashSet<String> = packument
+        .get("versions")
+        .and_then(Value::as_object)
+        .into_iter()
+        .flat_map(|versions| versions.iter())
+        .filter(|(_, manifest)| manifest.get("_pnpmLane").and_then(Value::as_str).is_some())
+        .map(|(version, _)| version.clone())
+        .collect();
+    if !lane_versions.is_empty()
+        && let Some(tags) = packument.get_mut("dist-tags").and_then(Value::as_object_mut)
+    {
+        tags.retain(|_, version| {
+            version.as_str().is_none_or(|version| !lane_versions.contains(version))
+        });
+    }
+}
+
+fn filter_registry_lane(packument: &mut Value, requested_lane: Option<&str>) {
+    let mut removed = HashSet::new();
+    let mut matching = Vec::new();
+    if let Some(versions) = packument.get_mut("versions").and_then(Value::as_object_mut) {
+        versions.retain(|version, manifest| {
+            let lane = manifest.get("_pnpmLane").and_then(Value::as_str);
+            let keep = match (requested_lane, lane) {
+                (_, None) => true,
+                (Some(requested), Some(actual)) if requested == actual => {
+                    matching.push(version.clone());
+                    true
+                }
+                _ => false,
+            };
+            if keep {
+                if let Some(manifest) = manifest.as_object_mut() {
+                    manifest.remove("_pnpmLane");
+                }
+            } else {
+                removed.insert(version.clone());
+            }
+            keep
+        });
+    }
+    if let Some(tags) = packument.get_mut("dist-tags").and_then(Value::as_object_mut) {
+        tags.retain(|_, version| version.as_str().is_none_or(|version| !removed.contains(version)));
+        if let Some(lane) = requested_lane
+            && let Some(version) = matching.into_iter().max()
+        {
+            tags.insert(lane.to_string(), Value::String(version));
+        }
+    }
+    if let Some(time) = packument.get_mut("time").and_then(Value::as_object_mut) {
+        time.retain(|version, _| !removed.contains(version));
+    }
 }
 
 fn filter_osv_vulnerable_versions(

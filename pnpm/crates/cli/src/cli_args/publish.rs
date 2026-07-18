@@ -92,6 +92,11 @@ pub struct PublishFlags {
     #[clap(long)]
     pub batch: bool,
 
+    /// Publish the pending release plan under in-memory snapshot versions.
+    /// With no value, the current branch names the snapshot.
+    #[clap(long, num_args = 0..=1, default_missing_value = "")]
+    pub snapshot: Option<String>,
+
     /// Recursive only: write a `pnpm-publish-summary.json` report listing the
     /// packages that were published.
     #[clap(long = "report-summary")]
@@ -163,6 +168,12 @@ impl PublishArgs {
                 "--batch can only be used together with --recursive",
             ));
         }
+        if self.flags.snapshot.is_some() && !recursive {
+            return Err(miette::miette!(
+                code = "ERR_PNPM_SNAPSHOT_PUBLISH_REQUIRES_RECURSIVE",
+                "--snapshot can only be used together with --recursive",
+            ));
+        }
 
         // Upstream gates on `opts.gitChecks !== false`, which folds together
         // the `git-checks` config setting and the `--no-git-checks` flag.
@@ -180,13 +191,14 @@ impl PublishArgs {
         let http_client = build_registry_client(config)?;
         let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
 
-        let summary =
-            if let Some(package) = self.package.as_deref().filter(|path| is_tarball_path(path)) {
-                self.publish_tarball::<Reporter>(package, &opts, &network).await?
-            } else {
-                let project_dir = self.package.as_deref().map_or(dir, Path::new);
-                self.publish_directory::<Reporter>(project_dir, config, &opts, &network).await?
-            };
+        let summary = if let Some(package) =
+            self.package.as_deref().filter(|path| is_tarball_path(path))
+        {
+            self.publish_tarball::<Reporter>(package, &opts, &network).await?
+        } else {
+            let project_dir = self.package.as_deref().map_or(dir, Path::new);
+            self.publish_directory::<Reporter>(project_dir, config, &opts, &network, None).await?
+        };
         Ok(PublishedPackages::Single(Box::new(summary)))
     }
 
@@ -226,6 +238,7 @@ impl PublishArgs {
         config: &Config,
         opts: &PublishPackedPkgOptions,
         network: &PublishNetwork<'_>,
+        workspace_versions: Option<&HashMap<String, String>>,
     ) -> miette::Result<PublishSummary> {
         let manifest = pacquet_package_manifest::safe_read_package_json_from_dir(project_dir)
             .into_diagnostic()
@@ -248,8 +261,14 @@ impl PublishArgs {
         }
 
         let pack_destination = tempfile::tempdir().into_diagnostic().wrap_err("create temp dir")?;
-        let pack_result =
-            self.pack_for_publish::<Reporter>(project_dir, config, pack_destination.path()).await?;
+        let pack_result = self
+            .pack_for_publish::<Reporter>(
+                project_dir,
+                config,
+                pack_destination.path(),
+                workspace_versions,
+            )
+            .await?;
         let tarball_data = std::fs::read(&pack_result.tarball_path)
             .into_diagnostic()
             .wrap_err("read packed tarball")?;
@@ -294,6 +313,7 @@ impl PublishArgs {
         dir: &Path,
         config: &Config,
         pack_destination: &Path,
+        workspace_versions: Option<&HashMap<String, String>>,
     ) -> miette::Result<PackResult> {
         let pnpmfile_root = config.workspace_dir.as_deref().unwrap_or(dir);
         let before_packing_hooks =
@@ -301,6 +321,7 @@ impl PublishArgs {
         let mut options = PackOptions {
             dir: dir.to_path_buf(),
             catalogs: crate::cli_args::pack::pack_catalogs(config)?,
+            workspace_versions: workspace_versions.cloned().unwrap_or_default(),
             ignore_scripts: self.should_ignore_scripts(config),
             unsafe_perm: config.unsafe_perm,
             embed_readme: false,
@@ -317,7 +338,9 @@ impl PublishArgs {
             before_packing_hooks,
             injected_files: Vec::new(),
         };
-        crate::cli_args::pack::set_injected_changelog(&mut options, config, dir).await?;
+        if workspace_versions.is_none() {
+            crate::cli_args::pack::set_injected_changelog(&mut options, config, dir).await?;
+        }
         pack_api::<Reporter, PackHost>(&options)
             .await
             .map_err(miette::Report::new)
@@ -341,6 +364,7 @@ impl PublishArgs {
             provenance: self.flags.provenance.then_some(true),
             dry_run: self.flags.dry_run,
             stage,
+            lane: None,
             http: OidcHttpOptions {
                 fetch_retries: Some(config.fetch_retries),
                 fetch_retry_factor: Some(f64::from(config.fetch_retry_factor)),

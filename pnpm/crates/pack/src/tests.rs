@@ -25,6 +25,7 @@ fn fixture(manifest: &Value) -> (TempDir, PackOptions) {
     let opts = PackOptions {
         dir: dir.path().to_path_buf(),
         catalogs: BTreeMap::new(),
+        workspace_versions: HashMap::new(),
         ignore_scripts: true,
         unsafe_perm: true,
         embed_readme: false,
@@ -365,6 +366,7 @@ fn workspace_license_is_injected_into_a_sub_package() {
     let opts = PackOptions {
         dir: pkg_dir.clone(),
         catalogs: BTreeMap::new(),
+        workspace_versions: HashMap::new(),
         ignore_scripts: true,
         unsafe_perm: true,
         embed_readme: false,
@@ -410,6 +412,7 @@ fn symlinked_workspace_license_is_not_injected() {
     let opts = PackOptions {
         dir: pkg_dir.clone(),
         catalogs: BTreeMap::new(),
+        workspace_versions: HashMap::new(),
         ignore_scripts: true,
         unsafe_perm: true,
         embed_readme: false,
@@ -450,6 +453,7 @@ fn workspace_root_gitignore_excludes_workspace_package_files() {
     let opts = PackOptions {
         dir: pkg_dir.clone(),
         catalogs: BTreeMap::new(),
+        workspace_versions: HashMap::new(),
         ignore_scripts: true,
         unsafe_perm: true,
         embed_readme: false,

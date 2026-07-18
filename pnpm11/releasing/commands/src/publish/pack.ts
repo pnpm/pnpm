@@ -148,6 +148,7 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
   out?: string
   json?: boolean
   unicode?: boolean
+  workspaceVersions?: Readonly<Record<string, string>>
 }
 
 export interface PackResultJson {
@@ -266,8 +267,12 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     embedReadme: opts.embedReadme,
     catalogs: opts.catalogs ?? {},
     hooks: opts.hooks,
+    workspaceVersions: opts.workspaceVersions,
     skipManifestObfuscation: opts.skipManifestObfuscation,
   })
+  if (manifest.name in (opts.workspaceVersions ?? {})) {
+    publishManifest.version = opts.workspaceVersions![manifest.name]
+  }
   // Strip semver build metadata (the `+<build>` segment) from the published version so that
   // the tarball, the manifest packed inside it, and the metadata sent to the registry all agree.
   // libnpmpublish runs `semver.clean()` on `manifest.version` before computing the provenance
@@ -315,7 +320,9 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   // composed here on top of the previously published version's changelog and
   // packed in. A composed entry supersedes any stale committed CHANGELOG.md.
   const injectedEntries: Record<string, string> = {}
-  const composedChangelog = await composeRegistryChangelog(opts, manifest.name, manifest.version)
+  const composedChangelog = opts.workspaceVersions == null
+    ? await composeRegistryChangelog(opts, manifest.name, manifest.version)
+    : undefined
   if (composedChangelog != null) {
     delete filesMap['package/CHANGELOG.md']
     injectedEntries['package/CHANGELOG.md'] = composedChangelog
@@ -493,14 +500,16 @@ async function createPublishManifest (opts: {
   manifest: ProjectManifest
   catalogs: Catalogs
   hooks?: Hooks
+  workspaceVersions?: Readonly<Record<string, string>>
   skipManifestObfuscation?: boolean
 }): Promise<ExportedManifest> {
-  const { projectDir, embedReadme, modulesDir, manifest, catalogs, hooks, skipManifestObfuscation } = opts
+  const { projectDir, embedReadme, modulesDir, manifest, catalogs, hooks, workspaceVersions, skipManifestObfuscation } = opts
   return createExportableManifest(projectDir, manifest, {
     catalogs,
     hooks,
     embedReadme,
     modulesDir,
+    workspaceVersions,
     skipManifestObfuscation,
   })
 }

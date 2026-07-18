@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals'
+import { safeExeca as execa } from 'execa'
 
 import { change, lane, version } from '../../src/index.js'
 
@@ -59,11 +60,60 @@ describe('change command and intent-consuming version -r', () => {
     expect(status).toContain('cli: 2.0.0 → 2.0.1')
   })
 
+  it('change check requires a pending bump or explicit none intent for every changed package', async () => {
+    const lib = addPkg({ name: 'lib', version: '1.0.0' })
+    const opts = baseOpts([lib])
+    fs.writeFileSync(path.join(lib.rootDir, 'index.js'), 'module.exports = 0\n')
+    await execa('git', ['init', '--initial-branch=main'], { cwd: tempDir })
+    await execa('git', ['config', 'user.email', 'x@y.z'], { cwd: tempDir })
+    await execa('git', ['config', 'user.name', 'xyz'], { cwd: tempDir })
+    await execa('git', ['add', '.'], { cwd: tempDir })
+    await execa('git', ['commit', '-m', 'initial', '--no-gpg-sign'], { cwd: tempDir })
+    fs.writeFileSync(path.join(lib.rootDir, 'index.js'), 'module.exports = 1\n')
+
+    await expect(change.handler(opts as any, ['check', 'HEAD'])).rejects.toMatchObject({ // eslint-disable-line @typescript-eslint/no-explicit-any
+      code: 'ERR_PNPM_VERSIONING_CHANGE_CHECK_FAILED',
+    })
+    await change.handler({ ...opts, bump: 'none', summary: 'Internal refactor.' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    await expect(change.handler(opts as any, ['check', 'HEAD'])).resolves.toBe('All changed packages are covered by change intents.') // eslint-disable-line @typescript-eslint/no-explicit-any
+  })
+
   it('rejects an unknown package name', async () => {
     const lib = addPkg({ name: 'lib', version: '1.0.0' })
     await expect(
       change.handler({ ...baseOpts([lib]), bump: 'patch', summary: 'x' } as any, ['ghost']) // eslint-disable-line @typescript-eslint/no-explicit-any
     ).rejects.toMatchObject({ code: 'ERR_PNPM_VERSIONING_UNKNOWN_PACKAGE' })
+  })
+
+  it('migrates Changesets fixed and ignore config and selects repository changelogs', async () => {
+    const lib = addPkg({ name: 'lib', version: '1.0.0' })
+    fs.writeFileSync(path.join(lib.rootDir, 'CHANGELOG.md'), '# lib\n')
+    fs.mkdirSync(path.join(tempDir, '.changeset'))
+    fs.writeFileSync(path.join(tempDir, '.changeset', 'config.json'), JSON.stringify({
+      fixed: [['lib', 'cli']],
+      ignore: ['private-pkg'],
+      linked: [],
+    }))
+
+    await expect(change.handler(baseOpts([lib]) as any, ['migrate'])) // eslint-disable-line @typescript-eslint/no-explicit-any
+      .resolves.toContain('repository changelog storage')
+    const workspaceManifest = fs.readFileSync(path.join(tempDir, 'pnpm-workspace.yaml'), 'utf8')
+    expect(workspaceManifest).toContain('versioning:')
+    expect(workspaceManifest).toContain('storage: repository')
+    expect(workspaceManifest).toContain('private-pkg')
+    expect(fs.existsSync(path.join(tempDir, '.changeset', 'config.json'))).toBe(false)
+  })
+
+  it('refuses to migrate Changesets linked groups', async () => {
+    const lib = addPkg({ name: 'lib', version: '1.0.0' })
+    fs.mkdirSync(path.join(tempDir, '.changeset'))
+    const configPath = path.join(tempDir, '.changeset', 'config.json')
+    fs.writeFileSync(configPath, JSON.stringify({ linked: [['lib', 'cli']] }))
+
+    await expect(change.handler(baseOpts([lib]) as any, ['migrate'])).rejects.toMatchObject({ // eslint-disable-line @typescript-eslint/no-explicit-any
+      code: 'ERR_PNPM_VERSIONING_LINKED_UNSUPPORTED',
+    })
+    expect(fs.existsSync(configPath)).toBe(true)
   })
 
   it('bare version -r applies the release plan and cleans up the intent', async () => {
