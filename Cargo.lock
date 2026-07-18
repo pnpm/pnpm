@@ -4934,6 +4934,7 @@ dependencies = [
  "dashmap",
  "derive_more",
  "futures-util",
+ "httpdate",
  "indexmap 2.14.0",
  "miette 7.6.0",
  "mockito",

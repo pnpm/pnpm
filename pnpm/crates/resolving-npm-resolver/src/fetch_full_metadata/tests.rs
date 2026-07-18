@@ -262,6 +262,113 @@ async fn fetch_full_metadata_retries_transient_status() {
     second.assert_async().await;
 }
 
+/// The mirror's `modified` value is the packument's ISO-8601
+/// `time.modified`, but `If-Modified-Since` must carry an HTTP-date
+/// (RFC 9110 §8.8.3) — the same conversion the TypeScript CLI does with
+/// `toUTCString()`, keeping the two stacks byte-identical on the wire.
+#[tokio::test]
+async fn fetch_full_metadata_sends_if_modified_since_as_http_date() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .match_header("if-modified-since", "Wed, 15 Jan 2025 12:00:00 GMT")
+        .with_status(304)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        full_metadata: true,
+        etag: None,
+        modified: Some("2025-01-15T12:00:00.000Z"),
+        retry_opts: no_retry_opts(),
+    };
+
+    let outcome = fetch_full_metadata("acme", &opts).await.expect("server returns 304");
+    assert!(
+        matches!(outcome, FetchFullMetadataOutcome::NotModified),
+        "expected NotModified outcome, got: {outcome:?}",
+    );
+    mock.assert_async().await;
+}
+
+/// A `modified` value that is neither ISO-8601 nor an HTTP-date cannot be
+/// turned into a valid header, so it is dropped rather than sent — and it
+/// must not count as a validator, or an unsolicited 304 would be
+/// misattributed to it instead of triggering the no-cache retry.
+#[tokio::test]
+async fn fetch_full_metadata_drops_unparsable_modified_value() {
+    let mut server = mockito::Server::new_async().await;
+    let body = r#"{
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "dist": {
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": "https://registry/acme-1.0.0.tgz"
+                }
+            }
+        }
+    }"#;
+    let mock = server
+        .mock("GET", "/acme")
+        .match_header("if-modified-since", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        full_metadata: true,
+        etag: None,
+        modified: Some("not-a-date"),
+        retry_opts: no_retry_opts(),
+    };
+
+    let pkg =
+        expect_modified(fetch_full_metadata("acme", &opts).await.expect("server returns 200"));
+    assert_eq!(pkg.name, "acme");
+    mock.assert_async().await;
+}
+
+#[test]
+fn to_http_date_converts_iso_8601() {
+    assert_eq!(
+        super::to_http_date("2025-01-15T12:00:00.000Z").as_deref(),
+        Some("Wed, 15 Jan 2025 12:00:00 GMT"),
+    );
+}
+
+#[test]
+fn to_http_date_keeps_http_dates() {
+    assert_eq!(
+        super::to_http_date("Wed, 15 Jan 2025 12:00:00 GMT").as_deref(),
+        Some("Wed, 15 Jan 2025 12:00:00 GMT"),
+    );
+}
+
+#[test]
+fn to_http_date_rejects_unparsable_values() {
+    assert_eq!(super::to_http_date("not-a-date"), None);
+}
+
 /// A `Content-Encoding: gzip` header over a body that isn't gzip makes
 /// reqwest fail while *decoding the response body* — the same class of
 /// failure as a connection reset mid-transfer, surfacing as reqwest's

@@ -24,6 +24,7 @@ pacquet-workspace-spec                    = { workspace = true }
 chrono      = { workspace = true }
 dashmap     = { workspace = true }
 derive_more = { workspace = true }
+httpdate    = { workspace = true }
 indexmap    = { workspace = true }
 miette      = { workspace = true }
 node-semver = { workspace = true }

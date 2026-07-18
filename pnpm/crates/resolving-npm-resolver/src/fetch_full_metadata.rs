@@ -118,8 +118,11 @@ pub(crate) async fn send_metadata_request<'a>(
     opts: &MetadataRequestOptions<'a>,
 ) -> Result<(ThrottledClientGuard<'a>, Response), FetchMetadataError> {
     let etag = if opts.bypass_cache { None } else { opts.etag.filter(|value| !value.is_empty()) };
-    let modified =
-        if opts.bypass_cache { None } else { opts.modified.filter(|value| !value.is_empty()) };
+    let modified = if opts.bypass_cache {
+        None
+    } else {
+        opts.modified.filter(|value| !value.is_empty()).and_then(to_http_date)
+    };
     let has_validator = etag.is_some() || modified.is_some();
     let build_request = |client: &reqwest::Client, bypass_cache: bool| {
         let mut request = client.get(opts.url).header(header::ACCEPT, opts.accept);
@@ -129,7 +132,7 @@ pub(crate) async fn send_metadata_request<'a>(
         if let Some(etag) = etag {
             request = request.header(header::IF_NONE_MATCH, etag);
         }
-        if let Some(modified) = modified {
+        if let Some(modified) = modified.as_deref() {
             request = request.header(header::IF_MODIFIED_SINCE, modified);
         }
         if bypass_cache {
@@ -174,6 +177,19 @@ pub(crate) async fn send_metadata_request<'a>(
         });
     }
     Ok((client, response))
+}
+
+/// Convert a stored `modified` value — the packument's ISO-8601
+/// `time.modified` — to the HTTP-date form `If-Modified-Since` requires
+/// (RFC 9110 §8.8.3), the same conversion the TypeScript CLI applies with
+/// `toUTCString()`. A value already in HTTP-date form is kept. `None` when
+/// the value parses as neither, so it is dropped instead of sent — a
+/// recipient must ignore a malformed `If-Modified-Since` anyway.
+fn to_http_date(value: &str) -> Option<String> {
+    if let Ok(datetime) = chrono::DateTime::parse_from_rfc3339(value) {
+        return Some(httpdate::fmt_http_date(datetime.into()));
+    }
+    httpdate::parse_http_date(value).ok().map(httpdate::fmt_http_date)
 }
 
 /// Fetch the registry metadata document for `pkg_name`. The
