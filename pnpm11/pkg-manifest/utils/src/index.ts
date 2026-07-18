@@ -29,9 +29,9 @@ export function getAllDependenciesFromManifest (
   opts?: { autoInstallPeers?: boolean }
 ): Dependencies {
   return {
+    ...(opts?.autoInstallPeers ? manifest.peerDependencies : {}),
     ...manifest.devDependencies,
     ...manifest.dependencies,
     ...manifest.optionalDependencies,
-    ...(opts?.autoInstallPeers ? manifest.peerDependencies : {}),
   }
 }
