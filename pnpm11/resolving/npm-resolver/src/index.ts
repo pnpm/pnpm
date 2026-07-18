@@ -10,6 +10,7 @@ import type {
 } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
 import { rangeSpecGranularity, versionWithRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
+import { filterPkgMetadataByPublishDate } from '@pnpm/resolving.registry.pkg-metadata-filter'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type {
   DirectoryResolution,
@@ -67,7 +68,7 @@ import {
   pickPackage,
   type PickPackageOptions,
 } from './pickPackage.js'
-import { pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
+import { assertMetaHasTime, pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from './violationCodes.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
@@ -362,7 +363,10 @@ function stripLockfileVersionPins (selectors?: VersionSelectors): VersionSelecto
  * The baseline for "held back" is the pick with only the non-pin selectors
  * applied — `range`/`tag` selectors such as the `pnpm audit --fix`
  * vulnerability penalties steer the baseline too, so the warning never
- * recommends a version those selectors avoid.
+ * recommends a version those selectors avoid. The baseline also honors the
+ * `publishedBy` maturity cutoff the actual pick applied: a version blocked
+ * by `minimumReleaseAge` is not an update the manifests held back, and
+ * recommending an override for it would defeat the age gate.
  *
  * The recommended override is scoped to the declared range being resolved
  * (`name@<range>`), so applying it can never violate any consumer's range:
@@ -371,7 +375,7 @@ function stripLockfileVersionPins (selectors?: VersionSelectors): VersionSelecto
  */
 function warnOnceOnHeldBackUpdate (
   ctx: Pick<ResolveFromNpmContext, 'warnedHeldBackUpdates'>,
-  opts: Pick<ResolveFromNpmOptions, 'updateRequested' | 'preferredVersions'>,
+  opts: Pick<ResolveFromNpmOptions, 'updateRequested' | 'preferredVersions' | 'publishedBy' | 'publishedByExclude'>,
   spec: RegistryPackageSpec,
   meta: PackageMeta,
   pickedVersion: string
@@ -386,8 +390,20 @@ function warnOnceOnHeldBackUpdate (
     nonPinSelectors ??= Object.create(null) as VersionSelectors
     nonPinSelectors[selector] = value
   }
+  let baselineMeta = meta
+  if (opts.publishedBy != null) {
+    const excludeResult = opts.publishedByExclude?.(meta.name) ?? false
+    // When the metadata is abbreviated (no `time` field), the pick only
+    // succeeded because every version predates the cutoff (see
+    // `pickPackageFromMeta`), so there is nothing to filter out.
+    if (excludeResult !== true && meta.time != null) {
+      assertMetaHasTime(meta)
+      const trustedVersions = Array.isArray(excludeResult) ? excludeResult : undefined
+      baselineMeta = filterPkgMetadataByPublishDate(meta, opts.publishedBy, trustedVersions)
+    }
+  }
   const preferred = pickVersionByVersionRange({
-    meta,
+    meta: baselineMeta,
     versionRange: spec.fetchSpec,
     preferredVersionSelectors: nonPinSelectors,
   })
