@@ -10,6 +10,7 @@ use super::{
     global,
     import::ImportArgs,
     install::InstallArgs,
+    install_test,
     link::LinkArgs,
     patch::PatchArgs,
     patch_commit::PatchCommitArgs,
@@ -223,6 +224,43 @@ pub(super) fn install<'a>(
                 }
             }
         }
+        Ok(())
+    }))
+}
+
+pub(super) fn install_test<'a>(
+    ctx: &RunCtx<'a>,
+    args: install_test::InstallTestArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let install_args = args.install_args;
+    let run_args = super::run::RunArgs {
+        command: Some("test".to_string()),
+        args: args.args,
+        if_present: ctx.if_present,
+        resume_from: ctx.recursive_resume_from.map(str::to_string),
+        report_summary: ctx.recursive_report_summary,
+        no_bail: ctx.recursive_no_bail,
+        sort: ctx.recursive_sort,
+        sequential: false,
+    };
+
+    let install_future = install(ctx, install_args)?;
+
+    let dir = ctx.dir;
+    let recursive = ctx.recursive;
+    let config = ctx.config;
+    let reporter = ctx.reporter;
+
+    Ok(Box::pin(async move {
+        install_future.await?;
+
+        let cfg = config()?;
+        if recursive {
+            run_args.run_recursive(cfg, dir)?;
+        } else {
+            run_args.run(dir, cfg, matches!(reporter, ReporterType::Silent))?;
+        }
+
         Ok(())
     }))
 }
