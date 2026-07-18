@@ -202,7 +202,7 @@ async fn cache_loss_after_304_stops_after_one_fallback() {
         .match_header("if-none-match", r#"W/"stale""#)
         .with_status(304)
         .with_body_from_request(move |_| {
-            std::fs::remove_file(&raced_mirror).expect("remove raced mirror");
+            remove_raced_mirror_tolerant(&raced_mirror);
             Vec::new()
         })
         .expect(1)
@@ -251,7 +251,7 @@ async fn cache_loss_after_304_body_retry_remains_bypassed() {
         .match_header("if-none-match", r#"W/"stale""#)
         .with_status(304)
         .with_body_from_request(move |_| {
-            std::fs::remove_file(&raced_mirror).expect("remove raced mirror");
+            remove_raced_mirror_tolerant(&raced_mirror);
             Vec::new()
         })
         .expect(1)
@@ -315,7 +315,7 @@ async fn cache_loss_after_304_registry_error_propagates() {
         .match_header("if-none-match", r#"W/"stale""#)
         .with_status(304)
         .with_body_from_request(move |_| {
-            std::fs::remove_file(&raced_mirror).expect("remove raced mirror");
+            remove_raced_mirror_tolerant(&raced_mirror);
             Vec::new()
         })
         .expect(1)
@@ -368,7 +368,7 @@ async fn assert_cache_loss_after_304_recovers(
         .match_header("if-none-match", r#"W/"stale""#)
         .with_status(304)
         .with_body_from_request(move |_| {
-            std::fs::remove_file(&raced_mirror).expect("remove raced mirror");
+            remove_raced_mirror_tolerant(&raced_mirror);
             Vec::new()
         })
         .expect(1)
@@ -414,6 +414,20 @@ async fn assert_cache_loss_after_304_recovers(
     assert_eq!(headers.etag.as_deref(), Some(r#"W/"fresh""#));
     first.assert_async().await;
     second.assert_async().await;
+}
+
+/// Removes the cache mirror at `path` if it exists.
+///
+/// This helper avoids panicking with a `NotFound` error if the file has already
+/// been deleted (e.g. on a subsequent unexpected request hit to the mock server),
+/// which would otherwise panic the mockito server thread and lead to process-aborting
+/// lock poisoning (see issue #13105).
+fn remove_raced_mirror_tolerant(path: &std::path::Path) {
+    match std::fs::remove_file(path) {
+        Ok(()) => {}
+        Err(_) if !path.exists() => {}
+        Err(error) => panic!("remove raced mirror: {error}"),
+    }
 }
 
 fn write_stale_mirror(
