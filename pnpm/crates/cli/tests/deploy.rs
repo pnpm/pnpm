@@ -475,6 +475,27 @@ fn legacy_deploy_installs_selected_project() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn legacy_deploy_without_lockfile_installs_selected_project_at_root() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, false);
+
+    pacquet
+        .with_env("PNPM_CONFIG_LOCKFILE", "false")
+        .with_args(["--filter", "app", "deploy", "--legacy", "--prod", "legacy-deploy-no-lockfile"])
+        .assert()
+        .success();
+
+    let deploy_dir = workspace.join("legacy-deploy-no-lockfile");
+    assert!(deploy_dir.join("node_modules/lib").exists());
+    assert!(!deploy_dir.join("legacy-deploy-no-lockfile/node_modules").exists());
+    assert!(!deploy_dir.join("pnpm-lock.yaml").exists());
+
+    drop((root, mock_instance));
+}
+
 fn pacquet_cmd(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
 }

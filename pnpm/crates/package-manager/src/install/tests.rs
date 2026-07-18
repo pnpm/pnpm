@@ -4,12 +4,12 @@
 )]
 
 use super::{
-    Install, InstallError, UpToDateFastPathCheck, install_already_up_to_date,
-    load_workspace_projects, should_write_package_map,
+    Install, InstallError, UpToDateFastPathCheck, exclude_linked_dependencies,
+    install_already_up_to_date, load_workspace_projects, should_write_package_map,
 };
 use crate::{InstallWithFreshLockfileError, MinimumReleaseAgeError};
 use pacquet_config::{Config, NodePackageMapType};
-use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
+use pacquet_lockfile::{ComVer, Lockfile, LockfileVersion, MaybeLazyLockfile};
 use pacquet_modules_yaml::{
     DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, Host, LayoutVersion, Modules, NodeLinker,
     read_modules_manifest, write_modules_manifest,
@@ -32,6 +32,51 @@ use pipe_trait::Pipe;
 use std::{fs, sync::Mutex};
 use tempfile::tempdir;
 use text_block_macros::text_block;
+
+fn empty_test_lockfile() -> Lockfile {
+    Lockfile {
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer { major: 9, minor: 0 }).unwrap(),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        importers: std::collections::HashMap::new(),
+        packages: None,
+        snapshots: None,
+    }
+}
+
+#[test]
+fn exclude_linked_dependencies_drops_link_deps_from_every_group() {
+    let mut manifest = PackageManifest::from_value(
+        std::path::PathBuf::from("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "direct": "1.0.0",
+                "linked": "link:../linked"
+            },
+            "devDependencies": {
+                "declared-peer": "2.0.0",
+                "linked-dev": "link:../dev"
+            }
+        }),
+    );
+
+    exclude_linked_dependencies(&mut manifest);
+    assert_eq!(
+        manifest
+            .dependencies([DependencyGroup::Prod])
+            .collect::<std::collections::BTreeMap<_, _>>(),
+        std::collections::BTreeMap::from([("direct", "1.0.0")]),
+    );
+    assert_eq!(
+        manifest.dependencies([DependencyGroup::Dev]).collect::<Vec<_>>(),
+        vec![("declared-peer", "2.0.0")],
+    );
+}
 
 /// Reading wrapper over [`super::modules_consistent_with`] for the tests
 /// that exercise the `.modules.yaml`-absent and drift cases. Production
@@ -1559,6 +1604,7 @@ mod build_workspace_state_tests {
             IncludedDependencies::default(),
             &BTreeMap::default(),
             &[],
+            false,
         );
         assert!(state.projects.is_empty());
         assert!(state.last_validated_timestamp > 0);
@@ -1592,6 +1638,7 @@ mod build_workspace_state_tests {
             IncludedDependencies::default(),
             &BTreeMap::default(),
             &project_manifests,
+            false,
         );
 
         assert_eq!(state.projects.len(), packages.len());
@@ -1627,6 +1674,7 @@ mod build_workspace_state_tests {
             IncludedDependencies::default(),
             &BTreeMap::default(),
             &[],
+            false,
         );
         assert_eq!(state.config_dependencies, config.config_dependencies);
     }
@@ -6361,6 +6409,169 @@ fn unapproved_recorded_ignored_builds_surfaces_invalid_allow_builds() {
     assert!(super::unapproved_recorded_ignored_builds(&modules, config).is_err());
 }
 
+#[test]
+fn filtered_modules_metadata_preserves_only_retained_unselected_entries() {
+    let package_key = |name: &str, version: &str| {
+        pacquet_lockfile::PackageKey::new(
+            pacquet_lockfile::PkgName::parse(name).unwrap(),
+            version.parse::<pacquet_lockfile::PkgVerPeer>().unwrap(),
+        )
+    };
+    let retained = "retained@1.0.0";
+    let selected = "selected@2.0.0";
+    let shared = "shared@1.0.0";
+    let stale_selected = "selected@1.0.0";
+    let retained_file = package_key("retained-file", "file:packages/retained-source");
+    let selected_file = package_key("selected-file", "file:packages/selected-source");
+    let shared_file = package_key("shared-file", "file:packages/shared-source");
+    let current = Lockfile {
+        snapshots: Some(std::collections::HashMap::from([
+            (package_key("retained", "1.0.0"), Default::default()),
+            (package_key("selected", "2.0.0"), Default::default()),
+            (package_key("shared", "1.0.0"), Default::default()),
+            (retained_file, Default::default()),
+            (selected_file.clone(), Default::default()),
+            (shared_file.clone(), Default::default()),
+        ])),
+        ..empty_test_lockfile()
+    };
+    let selected_current = Lockfile {
+        snapshots: Some(std::collections::HashMap::from([
+            (package_key("selected", "2.0.0"), Default::default()),
+            (package_key("shared", "1.0.0"), Default::default()),
+            (selected_file, Default::default()),
+            (shared_file, Default::default()),
+        ])),
+        ..empty_test_lockfile()
+    };
+    let previous = Modules {
+        hoisted_dependencies: std::collections::BTreeMap::from([
+            (
+                retained.to_string(),
+                std::collections::BTreeMap::from([(
+                    "retained-alias".to_string(),
+                    pacquet_modules_yaml::HoistKind::Private,
+                )]),
+            ),
+            (
+                shared.to_string(),
+                std::collections::BTreeMap::from([(
+                    "stale-shared-alias".to_string(),
+                    pacquet_modules_yaml::HoistKind::Private,
+                )]),
+            ),
+            (
+                stale_selected.to_string(),
+                std::collections::BTreeMap::from([(
+                    "stale-selected-alias".to_string(),
+                    pacquet_modules_yaml::HoistKind::Private,
+                )]),
+            ),
+        ]),
+        hoisted_locations: Some(std::collections::BTreeMap::from([
+            (retained.to_string(), vec!["retained/location".to_string()]),
+            (shared.to_string(), vec!["stale/shared/location".to_string()]),
+        ])),
+        pending_builds: vec![retained.to_string(), shared.to_string(), stale_selected.to_string()],
+        ignored_builds: Some(
+            [retained, shared, stale_selected]
+                .into_iter()
+                .map(|value| pacquet_modules_yaml::DepPath::from(value.to_string()))
+                .collect(),
+        ),
+        skipped: vec![retained.to_string(), shared.to_string(), stale_selected.to_string()],
+        injected_deps: Some(std::collections::BTreeMap::from([
+            ("packages/retained-source".to_string(), vec!["retained/target".to_string()]),
+            ("packages/selected-source".to_string(), vec!["stale/selected/target".to_string()]),
+            ("packages/shared-source".to_string(), vec!["stale/shared/target".to_string()]),
+        ])),
+        ..Default::default()
+    };
+    let mut next = Modules {
+        hoisted_dependencies: std::collections::BTreeMap::from([(
+            selected.to_string(),
+            std::collections::BTreeMap::from([(
+                "selected-alias".to_string(),
+                pacquet_modules_yaml::HoistKind::Private,
+            )]),
+        )]),
+        hoisted_locations: Some(std::collections::BTreeMap::from([(
+            selected.to_string(),
+            vec!["selected/location".to_string()],
+        )])),
+        pending_builds: vec![selected.to_string()],
+        ignored_builds: Some(
+            std::iter::once(pacquet_modules_yaml::DepPath::from(selected.to_string())).collect(),
+        ),
+        skipped: vec![selected.to_string()],
+        injected_deps: Some(std::collections::BTreeMap::from([
+            ("packages/selected-source".to_string(), vec!["selected/target".to_string()]),
+            ("packages/shared-source".to_string(), vec!["shared/target".to_string()]),
+        ])),
+        ..Default::default()
+    };
+
+    super::merge_filtered_modules_metadata(&mut next, &previous, &current, &selected_current);
+
+    assert!(next.hoisted_dependencies.contains_key(retained));
+    assert!(next.hoisted_dependencies.contains_key(selected));
+    assert!(!next.hoisted_dependencies.contains_key(shared));
+    assert!(!next.hoisted_dependencies.contains_key(stale_selected));
+    assert_eq!(
+        next.hoisted_locations.as_ref().unwrap(),
+        &std::collections::BTreeMap::from([
+            (retained.to_string(), vec!["retained/location".to_string()]),
+            (selected.to_string(), vec!["selected/location".to_string()]),
+        ]),
+    );
+    assert_eq!(next.pending_builds, [retained.to_string(), selected.to_string()]);
+    assert_eq!(
+        next.ignored_builds
+            .as_ref()
+            .unwrap()
+            .iter()
+            .map(pacquet_modules_yaml::DepPath::as_str)
+            .collect::<Vec<_>>(),
+        [retained, selected],
+    );
+    assert_eq!(next.skipped, [retained.to_string(), selected.to_string()]);
+    assert_eq!(
+        next.injected_deps.as_ref().unwrap(),
+        &std::collections::BTreeMap::from([
+            ("packages/retained-source".to_string(), vec!["retained/target".to_string()],),
+            ("packages/selected-source".to_string(), vec!["selected/target".to_string()],),
+            ("packages/shared-source".to_string(), vec!["shared/target".to_string()],),
+        ]),
+    );
+}
+
+#[test]
+fn filtered_modules_metadata_keeps_empty_optional_maps_omitted() {
+    let current = empty_test_lockfile();
+    let previous = Modules {
+        hoisted_locations: Some(std::collections::BTreeMap::from([(
+            "stale@1.0.0".to_string(),
+            vec!["stale/location".to_string()],
+        )])),
+        ignored_builds: Some(
+            std::iter::once(pacquet_modules_yaml::DepPath::from("stale@1.0.0".to_string()))
+                .collect(),
+        ),
+        injected_deps: Some(std::collections::BTreeMap::from([(
+            "packages/stale".to_string(),
+            vec!["stale/target".to_string()],
+        )])),
+        ..Default::default()
+    };
+    let mut next = Modules::default();
+
+    super::merge_filtered_modules_metadata(&mut next, &previous, &current, &current);
+
+    assert!(next.hoisted_locations.is_none());
+    assert!(next.ignored_builds.is_none());
+    assert!(next.injected_deps.is_none());
+}
+
 /// [`is_modules_yaml_consistent`] returns `false` when
 /// `.modules.yaml` is missing, so a first install (no prior state)
 /// can't be mistaken for an up-to-date install.
@@ -7153,6 +7364,116 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
     // is off and no current lockfile exists), so the content re-check
     // cannot vouch for it either.
     assert_eq!(install_already_up_to_date(&check), None, "modified manifest must fall through");
+}
+
+#[test]
+fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path().join("workspace");
+    let project_root = workspace_root.join("packages/app");
+    let modules_dir = workspace_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pnpm");
+    std::fs::create_dir_all(&project_root).expect("create workspace member");
+    std::fs::create_dir_all(project_root.join("node_modules"))
+        .expect("create member modules directory");
+    std::fs::create_dir_all(&virtual_store_dir).expect("create virtual store");
+    std::fs::write(workspace_root.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    std::fs::write(
+        workspace_root.join("package.json"),
+        r#"{ "name": "workspace-root", "version": "1.0.0" }"#,
+    )
+    .expect("write root manifest");
+    let manifest_path = project_root.join("package.json");
+    std::fs::write(
+        &manifest_path,
+        r#"{ "name": "app", "version": "1.0.0", "dependencies": { "sibling": "link:../../sibling" } }"#,
+    )
+    .expect("write member manifest");
+    let manifest = PackageManifest::from_path(manifest_path).expect("read member manifest");
+
+    let current = "lockfileVersion: '9.0'\nimporters:\n  .: {}\n  packages/app:\n    dependencies:\n      sibling:\n        specifier: link:../../sibling\n        version: link:../../sibling\n";
+    std::fs::write(virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME), current)
+        .expect("write current lockfile");
+    std::fs::write(project_root.join(Lockfile::FILE_NAME), "not: [valid")
+        .expect("write invalid member lockfile");
+    let wanted_path = workspace_root.join(Lockfile::FILE_NAME);
+    std::fs::write(&wanted_path, current).expect("write wanted lockfile");
+
+    let mut config = Config::new();
+    config.workspace_dir = Some(workspace_root.clone());
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir;
+    let config = config.leak();
+    let included = pacquet_modules_yaml::IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: true,
+        optional_dependencies: true,
+    };
+    let mut projects = std::collections::BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        workspace_state::ProjectEntry {
+            name: Some("workspace-root".to_string()),
+            version: Some("1.0.0".to_string()),
+        },
+    );
+    projects.insert(
+        project_root.to_string_lossy().into_owned(),
+        workspace_state::ProjectEntry {
+            name: Some("app".to_string()),
+            version: Some("1.0.0".to_string()),
+        },
+    );
+    let validated_at = 0;
+    workspace_state::update_workspace_state(
+        &workspace_root,
+        &pacquet_workspace_state::WorkspaceState {
+            last_validated_timestamp: validated_at,
+            projects,
+            pnpmfiles: Vec::new(),
+            filtered_install: false,
+            config_dependencies: None,
+            settings: crate::optimistic_repeat_install::current_settings(
+                config,
+                pacquet_config::NodeLinker::Isolated,
+                included,
+            ),
+        },
+    )
+    .expect("seed workspace state");
+    let check = UpToDateFastPathCheck {
+        config,
+        manifest: &manifest,
+        dependency_groups: vec![
+            DependencyGroup::Prod,
+            DependencyGroup::Dev,
+            DependencyGroup::Optional,
+        ],
+        node_linker: pacquet_config::NodeLinker::Isolated,
+    };
+
+    assert_eq!(install_already_up_to_date(&check).as_deref(), Some(&*workspace_root));
+    assert_eq!(std::fs::read_to_string(&wanted_path).expect("reread wanted lockfile"), current);
+
+    std::fs::write(project_root.join(Lockfile::FILE_NAME), current).expect("write member lockfile");
+    std::fs::write(&wanted_path, "not: [valid").expect("write invalid root lockfile");
+    let mut per_project_config = config.clone();
+    per_project_config.shared_workspace_lockfile = false;
+    let per_project_config = Config::leak(per_project_config);
+    let per_project_check = UpToDateFastPathCheck {
+        config: per_project_config,
+        manifest: &manifest,
+        dependency_groups: vec![
+            DependencyGroup::Prod,
+            DependencyGroup::Dev,
+            DependencyGroup::Optional,
+        ],
+        node_linker: pacquet_config::NodeLinker::Isolated,
+    };
+
+    assert_eq!(install_already_up_to_date(&per_project_check).as_deref(), Some(&*workspace_root));
 }
 
 /// `--frozen-lockfile` disables the optimistic short-circuit because

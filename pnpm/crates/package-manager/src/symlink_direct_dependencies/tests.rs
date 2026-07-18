@@ -1,4 +1,4 @@
-use super::{SymlinkDirectDependencies, SymlinkDirectDependenciesError};
+use super::{SymlinkDirectDependencies, SymlinkDirectDependenciesError, validate_importer_id};
 use crate::SkippedSnapshots;
 use pacquet_config::Config;
 use pacquet_lockfile::{Lockfile, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec};
@@ -9,6 +9,25 @@ use pacquet_reporter::{
 use pacquet_testing_utils::fs::is_symlink_or_junction;
 use std::{collections::HashMap, fs, path::PathBuf, sync::Mutex};
 use tempfile::tempdir;
+
+#[test]
+fn validate_importer_id_accepts_root_and_relative_keys() {
+    for id in [".", "packages/foo", "packages/foo/bar", "a.b/c"] {
+        assert!(validate_importer_id(id).is_ok(), "expected {id:?} to be accepted");
+    }
+}
+
+#[test]
+fn validate_importer_id_rejects_escaping_keys() {
+    // A lockfile importer key is joined onto the lockfile dir to read the
+    // project's manifest; these forms would escape it, so they must be
+    // rejected before any on-disk read.
+    for id in
+        ["", "..", "../foo", "packages/../../etc", "/abs/path", r"packages\foo", "C:/x", "C:x"]
+    {
+        assert!(validate_importer_id(id).is_err(), "expected {id:?} to be rejected");
+    }
+}
 
 /// `pnpm:root added` fires once per direct dependency, after the
 /// symlink under `node_modules/` has been created. The captured

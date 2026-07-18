@@ -10089,6 +10089,9 @@ importers:
         specifier: workspace:*
         version: link:../../pnpm11/lockfile/types
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1
       '@pnpm/pnpr.client':
         specifier: workspace:*
         version: 'link:'

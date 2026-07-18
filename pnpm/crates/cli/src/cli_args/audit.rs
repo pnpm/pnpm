@@ -170,11 +170,7 @@ impl AuditArgs {
             .unwrap_or(ConfigAuditLevel::Low);
         let fix_method = self.resolve_fix_method()?;
 
-        let lockfile_dir = state
-            .manifest
-            .path()
-            .parent()
-            .map_or_else(|| state.manifest.path().to_path_buf(), std::path::Path::to_path_buf);
+        let lockfile_dir = state.lockfile_dir().to_path_buf();
         // pnpm writes settings to `workspaceDir ?? rootProjectManifestDir`.
         let settings_dir =
             state.config.workspace_dir.clone().unwrap_or_else(|| lockfile_dir.clone());
@@ -191,8 +187,7 @@ impl AuditArgs {
             let Some(lockfile) = lockfile else {
                 return Err(AuditError::NoLockfile.into());
             };
-            let env_lockfile_dir = state.config.workspace_dir.as_deref().unwrap_or(&lockfile_dir);
-            let env_lockfile = EnvLockfile::read(env_lockfile_dir)
+            let env_lockfile = EnvLockfile::read(&lockfile_dir)
                 .map_err(|err| miette::Report::new(err).wrap_err("load the env lockfile"))?;
             match audit(
                 lockfile,
@@ -325,11 +320,7 @@ impl AuditArgs {
     /// Ports pnpm's `auditSignatures`.
     async fn run_signatures(&self, state: State) -> miette::Result<AuditOutcome> {
         let include = self.dependency_options.include();
-        let lockfile_dir = state
-            .manifest
-            .path()
-            .parent()
-            .map_or_else(|| state.manifest.path().to_path_buf(), std::path::Path::to_path_buf);
+        let lockfile_dir = state.lockfile_dir().to_path_buf();
 
         let packages = {
             let lockfile = state
@@ -339,8 +330,7 @@ impl AuditArgs {
             let Some(lockfile) = lockfile else {
                 return Err(AuditError::NoLockfile.into());
             };
-            let env_lockfile_dir = state.config.workspace_dir.as_deref().unwrap_or(&lockfile_dir);
-            let env_lockfile = EnvLockfile::read(env_lockfile_dir)
+            let env_lockfile = EnvLockfile::read(&lockfile_dir)
                 .map_err(|err| miette::Report::new(err).wrap_err("load the env lockfile"))?;
             let audit_request = lockfile_to_audit_request(lockfile, env_lockfile.as_ref(), include);
             let registries: HashMap<String, String> =
@@ -1889,11 +1879,11 @@ async fn fix_with_update<Reporter: self::Reporter + 'static>(
     });
 
     {
+        let lockfile_path = state.lockfile_path();
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             state;
         let lockfile =
             lockfile.get().map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
-        let lockfile_path = manifest.path().parent().map(|parent| parent.join(Lockfile::FILE_NAME));
         Update {
             tarball_mem_cache: Arc::clone(tarball_mem_cache),
             resolved_packages,
@@ -1902,7 +1892,7 @@ async fn fix_with_update<Reporter: self::Reporter + 'static>(
             config,
             manifest,
             lockfile,
-            lockfile_path: lockfile_path.as_deref(),
+            lockfile_path: Some(&lockfile_path),
             packages: &[],
             latest: false,
             save_exact: false,

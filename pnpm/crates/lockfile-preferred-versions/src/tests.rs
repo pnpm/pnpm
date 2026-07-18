@@ -1,6 +1,9 @@
-use std::{collections::HashMap, str::FromStr};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+};
 
-use pacquet_lockfile::{PackageKey, SnapshotEntry};
+use pacquet_lockfile::{PackageKey, PkgName, SnapshotEntry};
 use pacquet_package_manifest::PackageManifest;
 use pacquet_resolving_resolver_base::{
     DIRECT_DEP_SELECTOR_WEIGHT, EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry,
@@ -8,7 +11,10 @@ use pacquet_resolving_resolver_base::{
 };
 use pretty_assertions::assert_eq;
 
-use super::get_preferred_versions_from_lockfile_and_manifests;
+use super::{
+    get_preferred_versions_from_lockfile_and_manifests,
+    get_preferred_versions_from_lockfile_and_manifests_excluding,
+};
 
 #[expect(
     clippy::needless_pass_by_value,
@@ -108,6 +114,34 @@ fn dual_source_match_bumps_weight() {
     let entry = preferred.get("foo").unwrap().get("1.0.0").unwrap();
     assert_eq!(selector_type_of(entry), VersionSelectorType::Version);
     assert_eq!(weight_of(entry), DIRECT_DEP_SELECTOR_WEIGHT + EXISTING_VERSION_SELECTOR_WEIGHT);
+}
+
+#[test]
+fn excluded_lockfile_pins_keep_preferences_from_every_manifest() {
+    let mut snapshots = HashMap::new();
+    snapshots.insert(PackageKey::from_str("foo@1.0.0").unwrap(), SnapshotEntry::default());
+    snapshots.insert(PackageKey::from_str("bar@2.0.0").unwrap(), SnapshotEntry::default());
+    let (_selected_tmp, selected) = fake_manifest(serde_json::json!({
+        "dependencies": { "foo": "^1.0.0" },
+    }));
+    let (_sibling_tmp, sibling) = fake_manifest(serde_json::json!({
+        "dependencies": { "foo": "1.0.0" },
+    }));
+    let excluded = HashSet::from([PkgName::from_str("foo").unwrap()]);
+
+    let preferred = get_preferred_versions_from_lockfile_and_manifests_excluding(
+        Some(&snapshots),
+        &[&selected, &sibling],
+        &excluded,
+    );
+
+    let foo = preferred.get("foo").expect("foo manifest preferences");
+    assert_eq!(weight_of(foo.get("^1.0.0").unwrap()), DIRECT_DEP_SELECTOR_WEIGHT);
+    assert_eq!(weight_of(foo.get("1.0.0").unwrap()), DIRECT_DEP_SELECTOR_WEIGHT);
+    assert_eq!(
+        weight_of(preferred.get("bar").unwrap().get("2.0.0").unwrap()),
+        EXISTING_VERSION_SELECTOR_WEIGHT,
+    );
 }
 
 #[test]

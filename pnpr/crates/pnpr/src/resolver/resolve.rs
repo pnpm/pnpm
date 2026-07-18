@@ -19,6 +19,7 @@ use pacquet_package_manager::{Install, ResolutionObserver, ResolvedPackages};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::SilentReporter;
 use pacquet_tarball::MemCache;
+use tokio::io::AsyncWriteExt;
 
 use super::protocol::ResolveRequest;
 
@@ -52,12 +53,11 @@ impl From<std::io::Error> for ResolveError {
 /// tarball downloads happen later from upstream URLs or an upstream's
 /// `/~<name>/` registry endpoint.
 ///
-/// A single-project request resolves one root (`.`) importer. A
-/// multi-project request is reconstructed as a real workspace in the
-/// temp dir — root manifest, `pnpm-workspace.yaml` listing the member
-/// dirs, and a `package.json` per member — so pacquet's install path
-/// discovers and resolves every importer in one pass, producing a
-/// lockfile keyed by the same POSIX importer dirs the client sent.
+/// A request is reconstructed as a real workspace in the temp dir — a
+/// `package.json` per requested project and, when there are members, a
+/// `pnpm-workspace.yaml` listing their dirs — so pacquet's install path
+/// discovers and resolves every importer in one pass, producing a lockfile
+/// keyed by the same POSIX importer dirs the client sent.
 pub async fn resolve(
     config: &'static Config,
     client: &Arc<ThrottledClient>,
@@ -89,25 +89,42 @@ pub async fn resolve(
             dir.join(rel)
         };
         tokio::fs::create_dir_all(&project_dir).await?;
+        let name = project.name.clone().unwrap_or_else(|| importer_manifest_name(rel));
+        let version = project.version.as_deref().unwrap_or("0.0.0");
         let manifest_json = serde_json::json!({
-            "name": importer_manifest_name(rel),
-            "version": "0.0.0",
+            "name": name,
+            "version": version,
             "dependencies": project.dependencies,
             "devDependencies": project.dev_dependencies,
             "optionalDependencies": project.optional_dependencies,
         });
         let manifest_bytes = serde_json::to_vec(&manifest_json)
             .map_err(|err| ResolveError::Install(err.to_string()))?;
-        tokio::fs::write(project_dir.join("package.json"), manifest_bytes).await?;
-    }
-
-    // A workspace needs a root manifest at its root even when the client
-    // didn't send a `.` importer (e.g. a member-only filtered install).
-    if !wrote_root {
-        let root_json = serde_json::json!({ "name": "pnpr-resolve", "version": "0.0.0" });
-        let root_bytes =
-            serde_json::to_vec(&root_json).map_err(|err| ResolveError::Install(err.to_string()))?;
-        tokio::fs::write(dir.join("package.json"), root_bytes).await?;
+        // The temp dir starts empty and the `seen_dirs` check above already
+        // rejected byte-equal dirs, so an existing `package.json` means two
+        // importer dirs addressed the same directory — `packages/Foo` and
+        // `packages/foo` on a case-insensitive filesystem. Creating the file
+        // exclusively lets the host's own path semantics catch that, which a
+        // string comparison here cannot do portably.
+        match tokio::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(project_dir.join("package.json"))
+            .await
+        {
+            Ok(mut file) => {
+                file.write_all(&manifest_bytes).await?;
+                // `tokio::fs::File` buffers and does not flush on drop, so
+                // the manifest has to be flushed before it is read back.
+                file.flush().await?;
+            }
+            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
+                return Err(ResolveError::Install(format!(
+                    "duplicate importer dir: {rel:?} resolves to a directory already written by another importer",
+                )));
+            }
+            Err(err) => return Err(err.into()),
+        }
     }
 
     // Only declare a workspace when there are members; a lone root
@@ -129,8 +146,18 @@ pub async fn resolve(
     }
 
     let manifest_path = dir.join("package.json");
-    let manifest = PackageManifest::from_path(manifest_path)
-        .map_err(|err| ResolveError::Manifest(err.to_string()))?;
+    let manifest = if wrote_root {
+        PackageManifest::from_path(manifest_path)
+            .map_err(|err| ResolveError::Manifest(err.to_string()))?
+    } else {
+        // Install needs an active manifest, but keeping this stand-in in
+        // memory prevents workspace discovery from inventing a `.` importer
+        // that the client did not request.
+        PackageManifest::from_value(
+            manifest_path,
+            serde_json::json!({ "name": "pnpr-resolve", "version": "0.0.0" }),
+        )
+    };
 
     // Seed resolution from the client's lockfile when present, matching
     // pnpm's resolution-reuse: frozen → use it as-is (already verified
@@ -257,15 +284,17 @@ pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) ->
         return None;
     }
     let project = projects.pop()?;
-    if project.dir != "." && !project.dir.is_empty() {
+    // `.` is the only root importer `sanitized_importer_dir` accepts, so
+    // this fast path must not recognize any other spelling of it.
+    if project.dir != "." {
         return None;
     }
     let importer = lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY)?;
     let temp = tempfile::Builder::new().prefix("pnpr-frozen-").tempdir().ok()?;
     let manifest_path = temp.path().join("package.json");
     let manifest_json = serde_json::json!({
-        "name": "pnpr-resolve",
-        "version": "0.0.0",
+        "name": project.name.as_deref().unwrap_or("pnpr-resolve"),
+        "version": project.version.as_deref().unwrap_or("0.0.0"),
         "dependencies": project.dependencies,
         "devDependencies": project.dev_dependencies,
         "optionalDependencies": project.optional_dependencies,
@@ -281,25 +310,25 @@ pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) ->
 
 /// Validate a client-supplied importer dir before joining it onto the
 /// server's temp dir. The client normalizes to POSIX relative paths, so
-/// anything absolute, backslash-bearing, or containing a `..`/empty
-/// component is rejected rather than risking a write outside the temp
-/// workspace. Returns the canonical `.` for the root.
+/// anything absolute, backslash- or colon-bearing, or containing a
+/// non-canonical component is rejected rather than risking a write outside
+/// the temp workspace or allowing two importer IDs to address the same path.
+/// The exact `.` value is the only accepted root importer.
 fn sanitized_importer_dir(dir: &str) -> Result<&str, ResolveError> {
-    if dir.is_empty() || dir == "." {
+    if dir == "." {
         return Ok(".");
     }
-    let trimmed = dir.trim_end_matches('/');
-    // A now-empty string means the input was only slashes (`/`, `////`):
-    // an absolute path, not the root — reject it rather than collapse it
-    // to `.` by trimming.
-    if trimmed.is_empty()
-        || trimmed.starts_with('/')
-        || trimmed.contains('\\')
-        || trimmed.split('/').any(|component| component == ".." || component.is_empty())
+    if dir.is_empty()
+        || dir.starts_with('/')
+        || dir.contains('\\')
+        || dir.contains(':')
+        || dir
+            .split('/')
+            .any(|component| component.is_empty() || component == "." || component == "..")
     {
         return Err(ResolveError::Install(format!("unsafe importer dir: {dir:?}")));
     }
-    Ok(trimmed)
+    Ok(dir)
 }
 
 /// A synthetic, unique `name` for an importer's throwaway manifest. The

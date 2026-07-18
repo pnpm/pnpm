@@ -1,11 +1,17 @@
-use super::{Add, AddError, node_runtime_version_spec, normalized_save_specifier};
+use super::{
+    Add, AddError, node_runtime_version_spec, normalized_save_specifier,
+    persist_selected_manifests, prepare_selected_manifests, selected_project_indices,
+};
 use crate::ResolvedPackages;
 use pacquet_config::Config;
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_registry::PinnedVersion;
 use pacquet_reporter::{LogEvent, LogLevel, Reporter, SilentReporter};
+use pacquet_workspace::Project;
+use serde_json::json;
 use std::{
+    collections::HashSet,
     sync::{Arc, Condvar, Mutex},
     time::Duration,
 };
@@ -583,4 +589,133 @@ fn node_runtime_version_spec_matches_only_explicit_node_runtime_requests() {
     // Deno and bun echo the requested spec back, so they save verbatim.
     assert_eq!(node_runtime_version_spec("deno", Some("runtime:2")), None);
     assert_eq!(node_runtime_version_spec("bun", Some("runtime:latest")), None);
+}
+
+#[tokio::test]
+async fn selected_add_prepares_and_persists_only_selected_projects() {
+    let dir = tempdir().expect("create tempdir");
+    std::fs::write(dir.path().join("pnpm-workspace.yaml"), "packages:\n  - '*'\n")
+        .expect("write workspace manifest");
+    let mut projects =
+        ["a", "b", "c"].into_iter().map(|name| empty_project(dir.path(), name)).collect::<Vec<_>>();
+    let ordered_dirs = [projects[1].root_dir.clone(), projects[0].root_dir.clone()];
+    let selected_dirs = ordered_dirs.iter().cloned().collect::<HashSet<_>>();
+    let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
+    let config = Config::new();
+    let http_client = ThrottledClient::default();
+    let http_client_arc = Arc::new(ThrottledClient::default());
+
+    prepare_selected_manifests::<SilentReporter>(
+        &mut projects,
+        &indices,
+        &http_client,
+        &http_client_arc,
+        &config,
+        None,
+        &[DependencyGroup::Prod],
+        std::slice::from_ref(&"foo@workspace:*".to_string()),
+        PinnedVersion::Major,
+        None,
+    )
+    .await
+    .expect("prepare selected manifests");
+    persist_selected_manifests::<SilentReporter>(&mut projects, &indices)
+        .expect("persist selected manifests");
+
+    assert_eq!(dependency_specifier(&projects[0].manifest, "foo"), Some("workspace:*"));
+    assert_eq!(dependency_specifier(&projects[1].manifest, "foo"), Some("workspace:*"));
+    assert_eq!(dependency_specifier(&projects[2].manifest, "foo"), None);
+    assert_eq!(
+        saved_dependency_specifier(&projects[0].manifest, "foo"),
+        Some("workspace:*".to_string()),
+    );
+    assert_eq!(
+        saved_dependency_specifier(&projects[1].manifest, "foo"),
+        Some("workspace:*".to_string()),
+    );
+    assert_eq!(saved_dependency_specifier(&projects[2].manifest, "foo"), None);
+}
+
+#[tokio::test]
+async fn selected_add_merges_catalog_updates_in_command_order() {
+    let dir = tempdir().expect("create tempdir");
+    std::fs::write(dir.path().join("pnpm-workspace.yaml"), "packages:\n  - '*'\n")
+        .expect("write workspace manifest");
+    let mut projects = vec![
+        project_with_foo(dir.path(), "a", "1.0.0"),
+        project_with_foo(dir.path(), "b", "2.0.0"),
+    ];
+    let ordered_dirs = [projects[1].root_dir.clone(), projects[0].root_dir.clone()];
+    let selected_dirs = ordered_dirs.iter().cloned().collect::<HashSet<_>>();
+    let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
+    let config = Config::new();
+    let http_client = ThrottledClient::default();
+    let http_client_arc = Arc::new(ThrottledClient::default());
+
+    let prepared = prepare_selected_manifests::<SilentReporter>(
+        &mut projects,
+        &indices,
+        &http_client,
+        &http_client_arc,
+        &config,
+        None,
+        &[DependencyGroup::Prod],
+        std::slice::from_ref(&"foo".to_string()),
+        PinnedVersion::Major,
+        Some("default"),
+    )
+    .await
+    .expect("prepare selected manifests");
+
+    assert_eq!(dependency_specifier(&projects[0].manifest, "foo"), Some("1.0.0"));
+    assert_eq!(dependency_specifier(&projects[1].manifest, "foo"), Some("catalog:"));
+    assert_eq!(
+        prepared
+            .updated_catalogs
+            .get("default")
+            .and_then(|catalog| catalog.get("foo"))
+            .map(String::as_str),
+        Some("2.0.0"),
+    );
+    assert_eq!(
+        prepared
+            .catalogs_override
+            .as_ref()
+            .and_then(|catalogs| catalogs.get("default"))
+            .and_then(|catalog| catalog.get("foo"))
+            .map(String::as_str),
+        Some("2.0.0"),
+    );
+}
+
+fn empty_project(root: &std::path::Path, name: &str) -> Project {
+    let root_dir = root.join(name);
+    std::fs::create_dir_all(&root_dir).expect("create project directory");
+    let package_json = root_dir.join("package.json");
+    std::fs::write(&package_json, json!({ "name": name }).to_string()).expect("write package.json");
+    Project {
+        root_dir,
+        manifest: PackageManifest::from_path(package_json).expect("read package.json"),
+    }
+}
+
+fn project_with_foo(root: &std::path::Path, name: &str, specifier: &str) -> Project {
+    let project = empty_project(root, name);
+    let mut manifest = project.manifest;
+    manifest.add_dependency("foo", specifier, DependencyGroup::Prod).expect("add foo dependency");
+    manifest.save().expect("save package.json");
+    Project { root_dir: project.root_dir, manifest }
+}
+
+fn dependency_specifier<'a>(manifest: &'a PackageManifest, name: &str) -> Option<&'a str> {
+    manifest
+        .dependencies([DependencyGroup::Prod])
+        .find(|(dependency, _)| *dependency == name)
+        .map(|(_, specifier)| specifier)
+}
+
+fn saved_dependency_specifier(manifest: &PackageManifest, name: &str) -> Option<String> {
+    let saved =
+        PackageManifest::from_path(manifest.path().to_path_buf()).expect("reread package.json");
+    dependency_specifier(&saved, name).map(str::to_string)
 }

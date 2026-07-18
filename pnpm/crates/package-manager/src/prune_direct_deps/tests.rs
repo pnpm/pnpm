@@ -6,7 +6,11 @@ use pacquet_lockfile::{
 };
 use pacquet_modules_yaml::IncludedDependencies;
 use pacquet_testing_utils::fs::is_symlink_or_junction;
-use std::{collections::HashMap, fs, path::Path};
+use std::{
+    collections::{HashMap, HashSet},
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 
 fn lockfile_with_root_importer(snapshot: ProjectSnapshot) -> Lockfile {
@@ -116,6 +120,7 @@ fn removes_only_excluded_direct_dep_links_and_their_bins() {
         PROD_ONLY,
         workspace_root,
         config,
+        None,
     )
     .expect("prune should succeed");
 
@@ -163,6 +168,7 @@ fn refuses_to_prune_through_a_modules_dir_escaping_the_workspace() {
         PROD_ONLY,
         &workspace_root,
         config,
+        None,
     )
     .expect("prune should succeed");
 
@@ -201,6 +207,7 @@ fn skips_shim_removal_through_a_symlinked_bin_dir() {
         PROD_ONLY,
         workspace_root,
         config,
+        None,
     )
     .expect("prune should succeed");
 
@@ -241,6 +248,7 @@ fn refuses_to_unlink_through_a_symlinked_scope_dir() {
         PROD_ONLY,
         workspace_root,
         config,
+        None,
     )
     .expect("prune should succeed");
 
@@ -274,8 +282,57 @@ fn widening_the_selection_removes_nothing() {
         FULL,
         workspace_root,
         config,
+        None,
     )
     .expect("prune should succeed");
 
     assert!(is_symlink_or_junction(&modules_dir.join("keep-me")).unwrap());
+}
+
+#[test]
+fn prune_direct_deps_respects_trusted_importer_allow_set() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let selected_modules = workspace_root.join("packages/selected/node_modules");
+    let unselected_modules = workspace_root.join("packages/unselected/node_modules");
+
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = workspace_root.join("node_modules");
+    config.virtual_store_dir = config.modules_dir.join(".pacquet");
+    let config = config.leak();
+
+    link_dep(&selected_modules, "selected-dev", None);
+    link_dep(&unselected_modules, "unselected-dev", None);
+    let mut current_lockfile = lockfile_with_root_importer(ProjectSnapshot::default());
+    current_lockfile.importers = HashMap::from([
+        (
+            "packages/selected".to_string(),
+            ProjectSnapshot {
+                dev_dependencies: Some(dep_map(&[("selected-dev", "1.0.0")])),
+                ..Default::default()
+            },
+        ),
+        (
+            "packages/unselected".to_string(),
+            ProjectSnapshot {
+                dev_dependencies: Some(dep_map(&[("unselected-dev", "1.0.0")])),
+                ..Default::default()
+            },
+        ),
+    ]);
+    let prunable_importer_ids = HashSet::from(["packages/selected".to_string()]);
+
+    prune_direct_deps_excluded_by_groups(
+        &current_lockfile,
+        FULL,
+        PROD_ONLY,
+        workspace_root,
+        config,
+        Some(&prunable_importer_ids),
+    )
+    .expect("prune should succeed");
+
+    assert!(selected_modules.join("selected-dev").symlink_metadata().is_err());
+    assert!(is_symlink_or_junction(&unselected_modules.join("unselected-dev")).unwrap());
 }

@@ -97,7 +97,27 @@ pub async fn collect_outdated(
     http_client: &ThrottledClient,
     query: &OutdatedQuery<'_>,
 ) -> miette::Result<Vec<OutdatedPackage>> {
-    let current_versions = current_versions_from_lockfile(lockfile, query.include_direct);
+    collect_outdated_for_importer(
+        manifest,
+        lockfile,
+        Lockfile::ROOT_IMPORTER_KEY,
+        config,
+        http_client,
+        query,
+    )
+    .await
+}
+
+pub(crate) async fn collect_outdated_for_importer(
+    manifest: &PackageManifest,
+    lockfile: Option<&Lockfile>,
+    importer_id: &str,
+    config: &Config,
+    http_client: &ThrottledClient,
+    query: &OutdatedQuery<'_>,
+) -> miette::Result<Vec<OutdatedPackage>> {
+    let current_versions =
+        current_versions_from_importer(lockfile, importer_id, query.include_direct);
     let current_versions = &current_versions;
 
     // Gather the lockfile-pinned direct dependencies to inspect, then
@@ -177,16 +197,15 @@ fn resolve_target(
     }
 }
 
-/// Map each direct dependency key to its lockfile-pinned semver version.
-/// Only the root importer is consulted (pacquet's single-project scope);
-/// entries whose resolved version is not a plain semver (`link:`,
-/// `file:`, non-semver runtimes) are omitted.
-fn current_versions_from_lockfile(
+fn current_versions_from_importer(
     lockfile: Option<&Lockfile>,
+    importer_id: &str,
     include_direct: &[DependencyGroup],
 ) -> HashMap<String, Version> {
     let mut map = HashMap::new();
-    let Some(importer) = lockfile.and_then(Lockfile::root_project) else { return map };
+    let Some(importer) = lockfile.and_then(|lockfile| lockfile.importers.get(importer_id)) else {
+        return map;
+    };
     for (name, spec) in importer.dependencies_by_groups(include_direct.iter().copied()) {
         if let Some(version) = spec.version.ver_peer().and_then(|ver| ver.version_semver()) {
             map.insert(name.to_string(), version.clone());
@@ -305,6 +324,7 @@ impl OutdatedArgs {
 
         let config = state.config;
         let manifest = &state.manifest;
+        let importer_id = state.active_importer_id();
         let lockfile = state
             .lockfile
             .get()
@@ -341,8 +361,15 @@ impl OutdatedArgs {
             match_names: matcher.as_ref(),
             include_deprecated: true,
         };
-        let mut outdated =
-            collect_outdated(manifest, lockfile, config, http_client, &query).await?;
+        let mut outdated = collect_outdated_for_importer(
+            manifest,
+            lockfile,
+            &importer_id,
+            config,
+            http_client,
+            &query,
+        )
+        .await?;
 
         sort_outdated(&mut outdated, self.sort_by);
 
@@ -372,6 +399,14 @@ impl OutdatedArgs {
                 "Unable to find the global packages directory"
             )
         })?;
+        // The pnpm home may contain a workspace config, but each global
+        // install group owns its package.json and lockfile. Keep project
+        // lookup anchored to the scanned group while retaining the global
+        // registry and network settings.
+        let mut isolated_config = config.clone();
+        isolated_config.workspace_dir = None;
+        isolated_config.shared_workspace_lockfile = false;
+        let config = Config::leak(isolated_config);
 
         let include = self.dependency_options.include();
         let target_version =

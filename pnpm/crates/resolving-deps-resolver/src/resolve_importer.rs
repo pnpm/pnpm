@@ -299,6 +299,7 @@ pub(crate) struct ImporterHoistState {
     dedupe_peers: bool,
     exclude_links_from_lockfile: bool,
     lockfile_dir: Option<std::path::PathBuf>,
+    project_dir: std::path::PathBuf,
     modules_dir: Option<std::path::PathBuf>,
 }
 
@@ -348,7 +349,10 @@ impl ImporterHoistState {
             auto_install_peers,
             &catalogs,
         )?;
+        let project_dir = base_opts.project_dir.clone();
+        let tree_lockfile_dir = lockfile_dir.clone().unwrap_or_else(|| project_dir.clone());
         let ctx = TreeCtx::with_workspace(workspace, base_opts)
+            .with_lockfile_dir(&tree_lockfile_dir)
             .with_importer_id(importer_id)
             .with_importer_order(importer_order)
             .with_patched_dependencies(patched_dependencies)
@@ -372,6 +376,7 @@ impl ImporterHoistState {
             dedupe_peers,
             exclude_links_from_lockfile,
             lockfile_dir,
+            project_dir,
             modules_dir,
         })
     }
@@ -382,6 +387,7 @@ impl ImporterHoistState {
             dedupe_peers: self.dedupe_peers,
             exclude_links_from_lockfile: self.exclude_links_from_lockfile,
             lockfile_dir: self.lockfile_dir.clone(),
+            project_dir: Some(self.project_dir.clone()),
             modules_dir: self.modules_dir.clone(),
             hoist_missing_scope: None,
             hoisted_peer_provider_node_ids: self.hoisted_peer_provider_node_ids.clone(),

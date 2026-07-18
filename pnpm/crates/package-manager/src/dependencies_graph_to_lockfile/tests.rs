@@ -1327,6 +1327,109 @@ fn workspace_link_child_renders_as_snapshot_link() {
 }
 
 #[test]
+fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "app",
+        "version": "1.0.0",
+        "dependencies": {
+            "consumer": "1.0.0",
+            "peer": "workspace:*",
+            "shared": "workspace:*",
+            "wrapper": "1.0.0",
+        },
+    }));
+    let shared = make_link_node("packages/shared", json!({ "name": "shared", "version": "1.0.0" }));
+    let peer = make_link_node("packages/peer", json!({ "name": "peer", "version": "1.0.0" }));
+    let wrapper = make_node(
+        "wrapper",
+        "1.0.0",
+        json!({ "name": "wrapper", "version": "1.0.0" }),
+        BTreeMap::from([("shared".to_string(), shared.dep_path.clone())]),
+        BTreeMap::new(),
+        HashSet::new(),
+    );
+    let mut consumer = make_node(
+        "consumer",
+        "1.0.0",
+        json!({
+            "name": "consumer",
+            "version": "1.0.0",
+            "peerDependencies": { "peer": "*" },
+        }),
+        BTreeMap::from([("peer".to_string(), peer.dep_path.clone())]),
+        BTreeMap::from([(
+            "peer".to_string(),
+            PeerDep { version: "*".to_string(), optional: false, meta_only: false },
+        )]),
+        HashSet::new(),
+    );
+    consumer.dep_path = DepPath::from("consumer@1.0.0(peer@packages+peer)");
+    consumer.resolved_peer_names.insert("peer".to_string());
+
+    let mut graph = DependenciesGraph::new();
+    for node in [shared, peer, wrapper, consumer] {
+        graph.insert(node.dep_path.clone(), node);
+    }
+    let direct = BTreeMap::from([
+        ("consumer".to_string(), DepPath::from("consumer@1.0.0(peer@packages+peer)")),
+        ("peer".to_string(), DepPath::from("link:../../../packages/peer")),
+        ("shared".to_string(), DepPath::from("link:../../../packages/shared")),
+        ("wrapper".to_string(), DepPath::from("wrapper@1.0.0")),
+    ]);
+    let importers = BTreeMap::from([(
+        "apps/nested/app".to_string(),
+        ImporterLockfileInput { manifest: &manifest, direct_dependencies_by_alias: direct },
+    )]);
+
+    let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        importers,
+        graph: &graph,
+        auto_install_peers: false,
+        dedupe_peers: false,
+        exclude_links_from_lockfile: false,
+        inject_workspace_packages: false,
+        peers_suffix_max_length: None,
+        overrides: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        catalogs: &EMPTY_CATALOGS,
+        registry: "https://registry.npmjs.org",
+        lockfile_include_tarball_url: false,
+    });
+
+    let importer = lockfile.importers.get("apps/nested/app").expect("nested importer");
+    let importer_dependencies = importer.dependencies.as_ref().expect("importer dependencies");
+    for name in ["shared", "peer"] {
+        let dependency = importer_dependencies.get(&PkgName::parse(name).unwrap()).unwrap();
+        match &dependency.version {
+            ImporterDepVersion::Link(target) => {
+                assert_eq!(target, &format!("../../../packages/{name}"));
+            }
+            other => panic!("expected importer Link(..), got {other:?}"),
+        }
+    }
+
+    let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
+    let wrapper_key: PackageKey = "wrapper@1.0.0".parse().unwrap();
+    let wrapper_dependencies = snapshots[&wrapper_key].dependencies.as_ref().unwrap();
+    assert_eq!(
+        wrapper_dependencies.get(&PkgName::parse("shared").unwrap()),
+        Some(&SnapshotDepRef::Link("packages/shared".to_string())),
+    );
+    let consumer_snapshot = snapshots
+        .iter()
+        .find(|(key, _)| key.to_string().starts_with("consumer@1.0.0("))
+        .map(|(_, snapshot)| snapshot)
+        .expect("consumer peer snapshot");
+    assert_eq!(
+        consumer_snapshot.dependencies.as_ref().unwrap().get(&PkgName::parse("peer").unwrap()),
+        Some(&SnapshotDepRef::Link("packages/peer".to_string())),
+    );
+}
+
+#[test]
 fn multi_importer_workspace_writes_per_project_lockfile_entries() {
     let (_a_tmp, a_manifest) = write_manifest(json!({
         "name": "a",

@@ -2675,6 +2675,8 @@ async function installViaPnprServer (
     const projectsList = allInstallProjects && allInstallProjects.length > 1
       ? allInstallProjects.map(p => ({
         dir: (path.relative(lockfileDir, p.rootDir) || '.').split(path.sep).join('/'),
+        name: p.manifest.name,
+        version: p.manifest.version,
         dependencies: p.manifest.dependencies,
         devDependencies: p.manifest.devDependencies,
         optionalDependencies: p.manifest.optionalDependencies,
@@ -2683,6 +2685,8 @@ async function installViaPnprServer (
 
     const { lockfile, stats: pnprStats } = await resolveViaPnprServer({
       registryUrl: opts.pnprServer!,
+      name: projectsList ? undefined : manifest.name,
+      version: projectsList ? undefined : manifest.version,
       dependencies: projectsList ? undefined : manifest.dependencies,
       devDependencies: projectsList ? undefined : manifest.devDependencies,
       optionalDependencies: projectsList ? undefined : manifest.optionalDependencies,

@@ -98,7 +98,7 @@ where
     /// they came from the install's own project list (the programmatic
     /// API's in-memory projects, or `pnpm-workspace.yaml` discovery),
     /// not from parsed lockfile input. These bypass
-    /// `validate_importer_id`: a declared project may legitimately
+    /// [`validate_importer_id`]: a declared project may legitimately
     /// live outside the lockfile dir (importer id `..` or `../foo`) —
     /// Bit's capsule installs do exactly that, and pnpm v11 linked
     /// such importers without complaint. Ids *not* in this set keep
@@ -269,9 +269,13 @@ where
 /// drive prefix, a `..` segment — is either malformed or hostile, so
 /// surface it as a typed error rather than silently letting
 /// `Path::join` produce an off-workspace path.
-pub(crate) fn validate_importer_id(
-    importer_id: &str,
-) -> Result<(), SymlinkDirectDependenciesError> {
+/// Reject a lockfile importer key that cannot be safely joined onto the
+/// lockfile dir: absolute paths, Windows drive prefixes, backslash
+/// separators, and `..` traversal segments. `.` (the root importer) and any
+/// ordinary POSIX-relative sub-path are accepted. Callers that turn an
+/// importer key into an on-disk path — via [`importer_root_dir`] — must run
+/// this first when the key comes from an untrusted lockfile.
+pub fn validate_importer_id(importer_id: &str) -> Result<(), SymlinkDirectDependenciesError> {
     let unsafe_path = || SymlinkDirectDependenciesError::UnsafeImporterPath {
         importer_id: importer_id.to_string(),
     };
@@ -366,7 +370,10 @@ where
 /// keeps lockfiles written by pacquet and pnpm interchangeable. The
 /// returned path is platform-native (`Path::join` handles the
 /// conversion on Windows).
-pub(crate) fn importer_root_dir(workspace_root: &Path, importer_id: &str) -> PathBuf {
+/// The on-disk root of the project a lockfile importer ID names, relative
+/// to `workspace_root` (which is normally the lockfile directory).
+#[must_use]
+pub fn importer_root_dir(workspace_root: &Path, importer_id: &str) -> PathBuf {
     if importer_id == "." {
         workspace_root.to_path_buf()
     } else {

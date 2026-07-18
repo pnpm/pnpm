@@ -34,13 +34,9 @@ impl PruneArgs {
     }
 
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
+        let lockfile_path = state.lockfile_path();
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &state;
-
-        let lockfile_path = manifest
-            .path()
-            .parent()
-            .map(|parent| parent.join(pacquet_lockfile::Lockfile::FILE_NAME));
 
         let dependency_groups: Vec<DependencyGroup> = self.dependency_groups().collect();
 
@@ -52,7 +48,7 @@ impl PruneArgs {
             manifest,
             emit_initial_manifest: true,
             lockfile: pacquet_lockfile::MaybeLazyLockfile::Lazy(lockfile),
-            lockfile_path: lockfile_path.as_deref(),
+            lockfile_path: Some(&lockfile_path),
             dependency_groups,
             frozen_lockfile: false,
             prefer_frozen_lockfile: None,

@@ -1,7 +1,7 @@
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
 use pacquet_config::Config;
-use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
+use pacquet_lockfile::MaybeLazyLockfile;
 use pacquet_modules_yaml::{Host, read_modules_layout, read_modules_manifest};
 use pacquet_package_manager::{
     Install, RebuildOptions, UpdateSeedPolicy, allow_build_key_from_ignored_build,
@@ -74,10 +74,9 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
     state: &State,
     selected_names: Option<Vec<String>>,
 ) -> miette::Result<()> {
+    let lockfile_path = state.lockfile_path();
     let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
         state;
-
-    let lockfile_path = manifest.path().parent().map(|parent| parent.join(Lockfile::FILE_NAME));
 
     let rebuild = RebuildOptions {
         selected_names: selected_names.map(|names| names.into_iter().collect::<HashSet<_>>()),
@@ -93,7 +92,7 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
         manifest,
         emit_initial_manifest: true,
         lockfile: MaybeLazyLockfile::Lazy(lockfile),
-        lockfile_path: lockfile_path.as_deref(),
+        lockfile_path: Some(&lockfile_path),
         // Reuse exactly the dependency groups the current `node_modules`
         // was materialized with, so a rebuild never widens the installed
         // set (see [`rebuild_dependency_groups`]).

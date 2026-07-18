@@ -3,12 +3,13 @@
 //! Ports pnpm's
 //! [`sbom` command](https://github.com/pnpm/pnpm/blob/2b4952e804/pnpm11/deps/compliance/commands/src/sbom/sbom.ts).
 
-use crate::State;
+use crate::{State, cli_args::recursive::RecursiveSharedLockfileUnsupported};
 use clap::Args;
 use indexmap::IndexMap;
 use pacquet_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotEntry,
 };
+use pacquet_package_manager::{importer_root_dir, validate_importer_id};
 use pacquet_package_manifest::{extract_author, extract_homepage, safe_read_package_json_from_dir};
 use std::{
     collections::{HashMap, HashSet},
@@ -146,6 +147,23 @@ struct SbomResult {
     root_bugs_url: Option<String>,
     components: Vec<SbomComponent>,
     relationships: Vec<SbomRelationship>,
+}
+
+/// Resolve a lockfile importer key to the on-disk directory whose
+/// `package.json` the SBOM reads, returning `None` when that directory does
+/// not stay inside the lockfile dir. Mirrors pnpm's SBOM importer handling
+/// (`sbom.ts`): `validate_importer_id` is the cheap lexical pre-filter, then
+/// both the lockfile dir and the importer dir are canonicalized so a
+/// *symlinked* importer directory can't resolve outside the workspace, and a
+/// resolved path outside the root is skipped rather than read. `importer_id`
+/// comes from an untrusted lockfile.
+fn confined_importer_dir(lockfile_dir: &Path, importer_id: &str) -> Option<PathBuf> {
+    if validate_importer_id(importer_id).is_err() {
+        return None;
+    }
+    let lockfile_root = std::fs::canonicalize(lockfile_dir).ok()?;
+    let importer_dir = std::fs::canonicalize(importer_root_dir(lockfile_dir, importer_id)).ok()?;
+    importer_dir.starts_with(&lockfile_root).then_some(importer_dir)
 }
 
 fn extract_repository(manifest: &serde_json::Value) -> Option<String> {
@@ -371,18 +389,31 @@ fn collect_components(
         ));
     };
 
-    let project_root_dir =
-        state.manifest.path().parent().unwrap_or_else(|| Path::new(".")).to_path_buf();
+    let lockfile_dir = state.lockfile_dir().to_path_buf();
 
     let manifest_value = match filter_importer_ids {
-        Some(&[single_id]) if single_id != "." => {
-            let importer_dir = project_root_dir.join(single_id);
-            safe_read_package_json_from_dir(&importer_dir)
-                .ok()
-                .flatten()
-                .unwrap_or_else(|| state.manifest.value().clone())
+        Some(&[single_id]) => {
+            // `single_id` is a raw lockfile importer key; confine it to the
+            // workspace before it turns into an on-disk path so neither a
+            // crafted `../foo`/absolute key nor a symlinked importer dir can
+            // read a `package.json` outside the workspace.
+            let manifest = confined_importer_dir(&lockfile_dir, single_id)
+                .and_then(|dir| safe_read_package_json_from_dir(&dir).ok().flatten());
+            manifest.unwrap_or_else(|| {
+                if single_id == state.active_importer_id() {
+                    state.manifest.value().clone()
+                } else {
+                    serde_json::json!({})
+                }
+            })
         }
-        _ => state.manifest.value().clone(),
+        _ => safe_read_package_json_from_dir(&lockfile_dir).ok().flatten().unwrap_or_else(|| {
+            if state.active_importer_id() == "." {
+                state.manifest.value().clone()
+            } else {
+                serde_json::json!({})
+            }
+        }),
     };
     let root_name =
         manifest_value.get("name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
@@ -400,7 +431,8 @@ fn collect_components(
 
     let dep_types = detect_dep_types(lockfile, include.optional_dependencies);
 
-    let virtual_store_dir = (!lockfile_only).then(|| project_root_dir.join("node_modules/.pnpm"));
+    let virtual_store_dir =
+        (!lockfile_only).then(|| state.config.effective_virtual_store_dir().to_path_buf());
 
     let ctx = WalkContext {
         snapshots: lockfile.snapshots.as_ref(),
@@ -439,14 +471,8 @@ fn collect_components(
             ws_purl_by_importer.get(&importer_id).cloned().unwrap_or_else(|| root_purl.clone());
 
         let importer_peer_names = if exclude_peers {
-            let importer_dir = if importer_id == "." {
-                project_root_dir.clone()
-            } else {
-                project_root_dir.join(&importer_id)
-            };
-            safe_read_package_json_from_dir(&importer_dir)
-                .ok()
-                .flatten()
+            confined_importer_dir(&lockfile_dir, &importer_id)
+                .and_then(|dir| safe_read_package_json_from_dir(&dir).ok().flatten())
                 .map(|m| peer_names_from_manifest(&m))
                 .unwrap_or_default()
         } else {
@@ -485,68 +511,63 @@ fn collect_components(
                 {
                     continue;
                 }
-                if let Some(link_target) = spec.version.as_link_target() {
-                    if let Some(target_id) = normalize_link_path(&importer_id, link_target)
-                        && lockfile.importers.contains_key(target_id.as_str())
-                    {
-                        let ws_dir = if target_id == "." {
-                            project_root_dir.clone()
-                        } else {
-                            project_root_dir.join(&target_id)
-                        };
-                        if let Ok(Some(ws_manifest)) = safe_read_package_json_from_dir(&ws_dir) {
-                            let ws_name = ws_manifest
-                                .get("name")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or(&name.to_string())
-                                .to_string();
-                            let ws_version = ws_manifest
-                                .get("version")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("0.0.0")
-                                .to_string();
-                            let ws_purl = build_purl(&ws_name, &ws_version);
-                            let name_str = name.to_string();
-                            let dev_only = dev_dep_names.contains(&name_str)
-                                && !prod_dep_names.contains(&name_str);
-                            relationships.push(SbomRelationship {
-                                from: parent_purl.clone(),
-                                to: ws_purl.clone(),
-                            });
-                            let ws_dep_type =
-                                if dev_only { DepType::DevOnly } else { DepType::ProdOnly };
-                            if let Some(existing) = components_map.get_mut(&ws_purl) {
-                                if !dev_only && existing.dep_type == DepType::DevOnly {
-                                    existing.dep_type = DepType::ProdOnly;
-                                }
-                            } else {
-                                components_map.insert(
-                                    ws_purl.clone(),
-                                    SbomComponent {
-                                        name: ws_name,
-                                        version: ws_version,
-                                        purl: ws_purl.clone(),
-                                        dep_type: ws_dep_type,
-                                        integrity: None,
-                                        tarball_url: None,
-                                        license: ws_manifest
-                                            .get("license")
-                                            .and_then(|v| v.as_str())
-                                            .map(ToString::to_string),
-                                        description: ws_manifest
-                                            .get("description")
-                                            .and_then(|v| v.as_str())
-                                            .map(ToString::to_string),
-                                        author: extract_author(&ws_manifest),
-                                        homepage: extract_homepage(&ws_manifest),
-                                        repository: extract_repository(&ws_manifest),
-                                        bugs_url: extract_bugs_url(&ws_manifest),
-                                    },
-                                );
+                if let Some(link_target) = spec.version.as_link_target()
+                    && let Some(target_id) = normalize_link_path(&importer_id, link_target)
+                    && lockfile.importers.contains_key(target_id.as_str())
+                    && let Some(ws_dir) = confined_importer_dir(&lockfile_dir, &target_id)
+                {
+                    if let Ok(Some(ws_manifest)) = safe_read_package_json_from_dir(&ws_dir) {
+                        let ws_name = ws_manifest
+                            .get("name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or(&name.to_string())
+                            .to_string();
+                        let ws_version = ws_manifest
+                            .get("version")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("0.0.0")
+                            .to_string();
+                        let ws_purl = build_purl(&ws_name, &ws_version);
+                        let name_str = name.to_string();
+                        let dev_only = dev_dep_names.contains(&name_str)
+                            && !prod_dep_names.contains(&name_str);
+                        relationships.push(SbomRelationship {
+                            from: parent_purl.clone(),
+                            to: ws_purl.clone(),
+                        });
+                        let ws_dep_type =
+                            if dev_only { DepType::DevOnly } else { DepType::ProdOnly };
+                        if let Some(existing) = components_map.get_mut(&ws_purl) {
+                            if !dev_only && existing.dep_type == DepType::DevOnly {
+                                existing.dep_type = DepType::ProdOnly;
                             }
-                            ws_purl_by_importer.insert(target_id.clone(), ws_purl);
-                            importer_queue.push(target_id);
+                        } else {
+                            components_map.insert(
+                                ws_purl.clone(),
+                                SbomComponent {
+                                    name: ws_name,
+                                    version: ws_version,
+                                    purl: ws_purl.clone(),
+                                    dep_type: ws_dep_type,
+                                    integrity: None,
+                                    tarball_url: None,
+                                    license: ws_manifest
+                                        .get("license")
+                                        .and_then(|v| v.as_str())
+                                        .map(ToString::to_string),
+                                    description: ws_manifest
+                                        .get("description")
+                                        .and_then(|v| v.as_str())
+                                        .map(ToString::to_string),
+                                    author: extract_author(&ws_manifest),
+                                    homepage: extract_homepage(&ws_manifest),
+                                    repository: extract_repository(&ws_manifest),
+                                    bugs_url: extract_bugs_url(&ws_manifest),
+                                },
+                            );
                         }
+                        ws_purl_by_importer.insert(target_id.clone(), ws_purl);
+                        importer_queue.push(target_id);
                     }
                 } else if let Some(snapshot_key) = spec.version.resolved_key(name) {
                     walk_snapshot(
@@ -691,6 +712,13 @@ fn walk_snapshot(
 
 impl SbomArgs {
     pub async fn run(self, state: State) -> miette::Result<()> {
+        if !state.config.shared_workspace_lockfile
+            && (state.config.recursive || self.split || !state.config.filter.is_empty())
+        {
+            return Err(
+                RecursiveSharedLockfileUnsupported::new("Filtered and split `pnpm sbom`").into()
+            );
+        }
         if let Some(ref spec_ver) = self.spec_version {
             if self.format != SbomFormat::CycloneDx {
                 return Err(miette::miette!(
@@ -729,7 +757,7 @@ impl SbomArgs {
         let importer_ids = if state.config.filter.is_empty() {
             all_importer_ids
         } else {
-            let project_root = state.manifest.path().parent().unwrap_or_else(|| Path::new("."));
+            let project_root = state.lockfile_dir();
             all_importer_ids
                 .into_iter()
                 .filter(|id| {

@@ -60,7 +60,7 @@ pub(super) fn outdated<'a>(
     args: OutdatedArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     if args.global {
-        let config = (ctx.config)()?;
+        let config = (ctx.global_config)()?;
         return Ok(Box::pin(async move {
             if args.run_global(config).await? == OutdatedOutcome::Outdated {
                 #[expect(

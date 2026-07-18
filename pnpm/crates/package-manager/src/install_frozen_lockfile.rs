@@ -103,6 +103,8 @@ where
     pub current_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     pub dependency_groups: DependencyGroupList,
     pub project_manifests: &'a [(PathBuf, &'a pacquet_package_manifest::PackageManifest)],
+    pub package_map_project_manifests:
+        &'a [(PathBuf, &'a pacquet_package_manifest::PackageManifest)],
     /// Install-scoped dedupe state for `pnpm:package-import-method`.
     /// See `link_file::log_method_once`.
     pub logged_methods: &'a AtomicU8,
@@ -583,6 +585,7 @@ where
             current_packages,
             dependency_groups,
             project_manifests,
+            package_map_project_manifests,
             logged_methods,
             workspace_root,
             requester,
@@ -1169,6 +1172,7 @@ where
                     importers,
                     dependency_groups: &dependency_groups,
                     project_manifests,
+                    package_map_project_manifests,
                     walker_lockfile_dir: workspace_root,
                     symlink_workspace_root: workspace_root,
                     host_node: host_node.as_ref(),
@@ -1470,7 +1474,14 @@ pub(crate) struct HoistedLinkerInputs<'a> {
     pub(crate) layout: &'a VirtualStoreLayout,
     pub(crate) importers: &'a HashMap<String, ProjectSnapshot>,
     pub(crate) dependency_groups: &'a [DependencyGroup],
+    /// Selected project anchors whose direct dependencies and workspace
+    /// links are written by this filtered run.
     pub(crate) project_manifests: &'a [(PathBuf, &'a pacquet_package_manifest::PackageManifest)],
+    /// Every real importer manifest represented in the full hoisted graph.
+    /// The shared package map needs all project names for self-reference
+    /// entries even though direct links are limited to selected anchors.
+    pub(crate) package_map_project_manifests:
+        &'a [(PathBuf, &'a pacquet_package_manifest::PackageManifest)],
     /// Lockfile root the walker resolves hoisted directories against.
     pub(crate) walker_lockfile_dir: &'a Path,
     /// Anchor for [`crate::SymlinkDirectDependencies`]'s per-importer
@@ -1552,6 +1563,7 @@ pub(crate) fn run_hoisted_linker<Reporter: self::Reporter>(
         importers,
         dependency_groups,
         project_manifests,
+        package_map_project_manifests,
         walker_lockfile_dir,
         symlink_workspace_root,
         host_node,
@@ -1639,6 +1651,12 @@ pub(crate) fn run_hoisted_linker<Reporter: self::Reporter>(
         requester,
     };
     link_hoisted_modules::<Reporter>(&link_opts).map_err(HoistedLinkerError::LinkHoistedModules)?;
+    link_selected_hoisted_direct_dependencies(
+        config,
+        walker_lockfile_dir,
+        project_manifests,
+        &walker_result.direct_dependencies_by_importer_id,
+    )?;
     crate::package_map::write_hoisted_package_map(
         lockfile,
         &walker_result,
@@ -1646,7 +1664,7 @@ pub(crate) fn run_hoisted_linker<Reporter: self::Reporter>(
             lockfile_dir: walker_lockfile_dir,
             modules_dir: &config.modules_dir,
             package_map_type: config.node_package_map_type,
-            project_manifests,
+            project_manifests: package_map_project_manifests,
         },
     )
     .map_err(HoistedLinkerError::WritePackageMap)?;
@@ -1701,6 +1719,58 @@ pub(crate) fn run_hoisted_linker<Reporter: self::Reporter>(
         hoisted_locations: walker_result.hoisted_locations,
         hoisted_pkg_root_by_key: Some(pkg_root_by_key),
     })
+}
+
+fn link_selected_hoisted_direct_dependencies(
+    config: &Config,
+    lockfile_dir: &Path,
+    project_manifests: &[(PathBuf, &pacquet_package_manifest::PackageManifest)],
+    direct_dependencies_by_importer_id: &crate::DirectDependenciesByImporterId,
+) -> Result<(), HoistedLinkerError> {
+    let modules_dir_name =
+        config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
+    for (project_dir, _) in project_manifests {
+        let importer_id = pacquet_workspace::importer_id_from_root_dir(lockfile_dir, project_dir);
+        let Some(direct_dependencies) = direct_dependencies_by_importer_id.get(&importer_id) else {
+            continue;
+        };
+        let modules_dir = project_dir.join(modules_dir_name);
+        let mut linked_names = Vec::new();
+        for (alias, target) in direct_dependencies {
+            let link_path =
+                crate::safe_join_modules_dir::safe_join_modules_dir(&modules_dir, alias).map_err(
+                    |source| {
+                        HoistedLinkerError::SymlinkDirectDependencies(
+                            SymlinkDirectDependenciesError::SymlinkPackage {
+                                importer_id: importer_id.clone(),
+                                name: alias.clone(),
+                                source: SymlinkPackageError::InvalidAlias(source),
+                            },
+                        )
+                    },
+                )?;
+            if pacquet_fs::lexical_normalize(&link_path) == pacquet_fs::lexical_normalize(target) {
+                linked_names.push(alias.clone());
+                continue;
+            }
+            crate::symlink_package(target, &link_path).map_err(|source| {
+                HoistedLinkerError::SymlinkDirectDependencies(
+                    SymlinkDirectDependenciesError::SymlinkPackage {
+                        importer_id: importer_id.clone(),
+                        name: alias.clone(),
+                        source,
+                    },
+                )
+            })?;
+            linked_names.push(alias.clone());
+        }
+        crate::link_direct_dep_bins(&modules_dir, &linked_names).map_err(|source| {
+            HoistedLinkerError::SymlinkDirectDependencies(SymlinkDirectDependenciesError::LinkBins(
+                source,
+            ))
+        })?;
+    }
+    Ok(())
 }
 
 /// Clone the lockfile with every importer's excluded dep groups

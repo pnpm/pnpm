@@ -1,10 +1,16 @@
 //! Up-front validation cases for the `remove` handler. Each case
 //! errors before any install runs, exercising [`validate_removable`].
 
-use super::{RemoveValidationError, validate_removable};
+use super::{
+    RemoveValidationError, persist_selected_manifests, prepare_selected_manifests,
+    selected_project_indices, validate_removable, validate_selected_remove,
+};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use pacquet_reporter::SilentReporter;
+use pacquet_workspace::Project;
 use pretty_assertions::assert_eq;
 use serde_json::json;
+use std::{collections::HashSet, path::PathBuf};
 use tempfile::TempDir;
 
 #[expect(
@@ -115,4 +121,80 @@ fn validate_removable_accepts_present_dependencies() {
     validate_removable(&manifest, &strings(&["foo", "bar"]), None).expect("both names present");
     validate_removable(&manifest, &strings(&["bar"]), Some(DependencyGroup::Dev))
         .expect("bar present in devDependencies");
+}
+
+#[test]
+fn selected_remove_prepares_and_persists_only_selected_projects() {
+    let dir = tempfile::tempdir().expect("create tempdir");
+    let mut projects = ["a", "b", "c"]
+        .into_iter()
+        .map(|name| project_with_dependencies(dir.path(), name, &["foo", "keep"]))
+        .collect::<Vec<_>>();
+    let ordered_dirs = [projects[1].root_dir.clone(), projects[0].root_dir.clone()];
+    let selected_dirs = ordered_dirs.iter().cloned().collect::<HashSet<_>>();
+    let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
+
+    validate_selected_remove(&strings(&["foo"])).expect("every selected manifest contains foo");
+    prepare_selected_manifests::<SilentReporter>(&mut projects, &indices, &strings(&["foo"]), None);
+    persist_selected_manifests::<SilentReporter>(&mut projects, &indices)
+        .expect("persist selected manifests");
+
+    assert_eq!(dependency_names(&projects[0].manifest), ["keep"]);
+    assert_eq!(dependency_names(&projects[1].manifest), ["keep"]);
+    assert_eq!(dependency_names(&projects[2].manifest), ["foo", "keep"]);
+    assert_eq!(saved_dependency_names(&projects[0].manifest), ["keep"]);
+    assert_eq!(saved_dependency_names(&projects[1].manifest), ["keep"]);
+    assert_eq!(saved_dependency_names(&projects[2].manifest), ["foo", "keep"]);
+}
+
+#[test]
+fn selected_remove_ignores_projects_without_the_requested_dependency() {
+    let dir = tempfile::tempdir().expect("create tempdir");
+    let mut projects = vec![
+        project_with_dependencies(dir.path(), "a", &["foo"]),
+        project_with_dependencies(dir.path(), "b", &["bar"]),
+    ];
+    let ordered_dirs = projects.iter().map(|project| project.root_dir.clone()).collect::<Vec<_>>();
+    let selected_dirs = ordered_dirs.iter().cloned().collect::<HashSet<_>>();
+    let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
+
+    validate_selected_remove(&strings(&["foo"]))
+        .expect("missing dependencies are ignored in recursive remove");
+    prepare_selected_manifests::<SilentReporter>(&mut projects, &indices, &strings(&["foo"]), None);
+
+    assert_eq!(dependency_names(&projects[0].manifest), Vec::<String>::new());
+    assert_eq!(dependency_names(&projects[1].manifest), ["bar"]);
+}
+
+#[test]
+fn selected_remove_still_requires_a_dependency_name() {
+    let error = validate_selected_remove(&[]).expect_err("empty recursive removal must fail");
+    assert!(matches!(error, RemoveValidationError::MustRemoveSomething));
+}
+
+fn project_with_dependencies(root: &std::path::Path, name: &str, dependencies: &[&str]) -> Project {
+    let root_dir = root.join(name);
+    std::fs::create_dir_all(&root_dir).expect("create project directory");
+    let package_json = root_dir.join("package.json");
+    let dependencies = dependencies
+        .iter()
+        .map(|dependency| ((*dependency).to_string(), json!("1.0.0")))
+        .collect::<serde_json::Map<_, _>>();
+    std::fs::write(
+        &package_json,
+        json!({ "name": name, "dependencies": dependencies }).to_string(),
+    )
+    .expect("write package.json");
+    Project {
+        root_dir,
+        manifest: PackageManifest::from_path(package_json).expect("read package.json"),
+    }
+}
+
+fn dependency_names(manifest: &PackageManifest) -> Vec<String> {
+    manifest.available_dependency_names(Some(DependencyGroup::Prod))
+}
+
+fn saved_dependency_names(manifest: &PackageManifest) -> Vec<String> {
+    dependency_names(&PackageManifest::from_path(PathBuf::from(manifest.path())).expect("reread"))
 }

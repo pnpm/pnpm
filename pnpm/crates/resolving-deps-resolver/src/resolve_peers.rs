@@ -80,6 +80,35 @@ fn link_node_id_as_dep_path(node_id: &NodeId) -> Option<DepPath> {
     id.starts_with("link:").then(|| DepPath::from(id.to_string()))
 }
 
+fn importer_relative_link_dep_path(
+    dep_path: &DepPath,
+    lockfile_dir: Option<&Path>,
+    project_dir: Option<&Path>,
+) -> DepPath {
+    let Some(target) = dep_path.as_str().strip_prefix("link:") else {
+        return dep_path.clone();
+    };
+    let (Some(lockfile_dir), Some(project_dir)) = (lockfile_dir, project_dir) else {
+        return dep_path.clone();
+    };
+    let target = Path::new(target);
+    let absolute_target = if target.is_absolute() {
+        pacquet_fs::lexical_normalize(target)
+    } else {
+        pacquet_fs::lexical_normalize(&lockfile_dir.join(target))
+    };
+    // `diff_paths` walks both paths component-wise, so a base still
+    // carrying `.` / `..` segments would consume them as real directories
+    // and count the wrong number of `..` hops back out.
+    let project_dir = pacquet_fs::lexical_normalize(project_dir);
+    let relative_target = pathdiff::diff_paths(&absolute_target, project_dir)
+        .unwrap_or(absolute_target)
+        .display()
+        .to_string()
+        .replace('\\', "/");
+    DepPath::from(format!("link:{relative_target}"))
+}
+
 fn node_id_sort_key(node_id: &NodeId) -> String {
     match node_id {
         NodeId::Counter(value) => format!("0:{value:020}"),
@@ -120,6 +149,10 @@ pub struct ResolvePeersOptions {
     /// and (b) as the base for the relative path the remapped link
     /// node id encodes. `None` disables the remap.
     pub lockfile_dir: Option<std::path::PathBuf>,
+
+    /// Absolute root of the importer whose direct dependency map is
+    /// being rendered. Snapshot graph edges remain lockfile-root-relative.
+    pub project_dir: Option<std::path::PathBuf>,
 
     /// Absolute path of the importer's `node_modules` directory. Used
     /// to compose `<modules_dir>/<alias>` as the remap target.
@@ -195,6 +228,7 @@ impl Default for ResolvePeersOptions {
             dedupe_peers: false,
             exclude_links_from_lockfile: false,
             lockfile_dir: None,
+            project_dir: None,
             modules_dir: None,
             hoist_missing_scope: None,
             hoisted_peer_provider_node_ids: std::collections::HashSet::new(),
@@ -397,7 +431,13 @@ pub fn resolve_peers_workspace(
             .direct
             .iter()
             .map(|dep| {
-                (dep.alias.clone(), walker.final_dep_path_of(&dep.node_id, &final_dep_paths))
+                let dep_path = walker.final_dep_path_of(&dep.node_id, &final_dep_paths);
+                let dep_path = importer_relative_link_dep_path(
+                    &dep_path,
+                    Some(lockfile_dir),
+                    Some(&importer.root_dir),
+                );
+                (dep.alias.clone(), dep_path)
             })
             .collect();
         direct_dependencies_by_importer.insert(importer.id.clone(), direct_by_alias);
@@ -687,8 +727,13 @@ impl Walker<'_> {
         // per-node records keyed by the corrected depPaths.
         let final_dep_paths = self.build_final_dep_paths();
         for dep in &direct {
-            direct_by_alias
-                .insert(dep.alias.clone(), self.final_dep_path_of(&dep.node_id, &final_dep_paths));
+            let dep_path = self.final_dep_path_of(&dep.node_id, &final_dep_paths);
+            let dep_path = importer_relative_link_dep_path(
+                &dep_path,
+                self.opts.lockfile_dir.as_deref(),
+                self.opts.project_dir.as_deref(),
+            );
+            direct_by_alias.insert(dep.alias.clone(), dep_path);
         }
         let graph = self.build_final_graph(&final_dep_paths);
         let resolved_peer_providers_by_alias = self.resolved_peer_providers_by_alias;

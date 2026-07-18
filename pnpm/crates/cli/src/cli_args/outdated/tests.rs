@@ -1,5 +1,5 @@
 use super::{
-    Change, OutdatedDependencyOptions, OutdatedPackage, classify, current_versions_from_lockfile,
+    Change, OutdatedDependencyOptions, OutdatedPackage, classify, current_versions_from_importer,
     render_json, render_latest, sort_outdated,
 };
 use node_semver::Version;
@@ -50,7 +50,11 @@ fn current_versions_omit_local_refs() {
         "        version: 1.0.0"
     })
     .expect("parse fixture lockfile");
-    let versions = current_versions_from_lockfile(Some(&lockfile), &[DependencyGroup::Dev]);
+    let versions = current_versions_from_importer(
+        Some(&lockfile),
+        Lockfile::ROOT_IMPORTER_KEY,
+        &[DependencyGroup::Dev],
+    );
     dbg!(&versions);
     assert_eq!(versions, HashMap::from([("is-positive".to_string(), v("1.0.0"))]));
 }

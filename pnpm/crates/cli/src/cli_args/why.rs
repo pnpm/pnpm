@@ -1,10 +1,21 @@
 //! `pnpm why` — show the packages that depend on `<pkg>`.
 
-use crate::{State, cli_args::sanitize::sanitize};
+use crate::{
+    State,
+    cli_args::{
+        recursive::{
+            AutoExcludeRoot, RecursiveSharedLockfileUnsupported, discover_workspace_projects,
+            select_recursive_projects,
+        },
+        sanitize::sanitize,
+    },
+};
 use clap::Args;
 use owo_colors::{OwoColorize, Stream};
 use pacquet_config::matcher::{Matcher, create_matcher};
 use pacquet_lockfile::{Lockfile, PackageKey, PackageMetadata, PkgNameVerPeer};
+use pacquet_modules_yaml::IncludedDependencies;
+use pacquet_package_manager::{SkippedSnapshots, materialization_closure};
 use pacquet_package_manifest::DependencyGroup;
 use std::{
     collections::{HashMap, HashSet},
@@ -76,7 +87,14 @@ impl WhyArgs {
                 "`pnpm why` requires a package name or pattern"
             ));
         }
+        if state.config.recursive && !state.config.shared_workspace_lockfile {
+            return Err(RecursiveSharedLockfileUnsupported::new(
+                "Recursive and filtered `pnpm why`",
+            )
+            .into());
+        }
 
+        let active_importer_id = state.active_importer_id();
         let lockfile = state
             .lockfile
             .get()
@@ -85,6 +103,37 @@ impl WhyArgs {
         let Some(lockfile) = lockfile else {
             return Ok(());
         };
+        let initial_importer_ids = if state.config.recursive
+            && (!state.config.filter.is_empty() || !state.config.filter_prod.is_empty())
+        {
+            let workspace_root = state.lockfile_dir();
+            let (projects, _) = discover_workspace_projects(workspace_root)?;
+            let prefix =
+                state.manifest.path().parent().expect("manifest path always has a parent dir");
+            select_recursive_projects(&projects, state.config, prefix, AutoExcludeRoot::Disabled)?
+                .selected
+                .keys()
+                .map(|project_dir| {
+                    pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir)
+                })
+                .collect()
+        } else if state.config.recursive {
+            lockfile.importers.keys().cloned().collect()
+        } else {
+            HashSet::from([active_importer_id.clone()])
+        };
+        let lockfile = materialization_closure(
+            lockfile,
+            state.lockfile_dir(),
+            &initial_importer_ids,
+            IncludedDependencies {
+                dependencies: true,
+                dev_dependencies: true,
+                optional_dependencies: true,
+            },
+            &SkippedSnapshots::new(),
+        )
+        .lockfile;
 
         let matcher = create_matcher(&self.packages);
 
@@ -99,7 +148,7 @@ impl WhyArgs {
 
         let mut importer_info = HashMap::new();
         for importer_id in lockfile.importers.keys() {
-            if importer_id == Lockfile::ROOT_IMPORTER_KEY {
+            if importer_id == &active_importer_id {
                 importer_info.insert(
                     importer_id.clone(),
                     ImporterInfo { name: root_name.clone(), version: root_version.clone() },
@@ -112,7 +161,7 @@ impl WhyArgs {
             }
         }
 
-        let results = build_dependents_tree(lockfile, &matcher, &importer_info, self.depth);
+        let results = build_dependents_tree(&lockfile, &matcher, &importer_info, self.depth);
 
         if results.is_empty() {
             return Ok(());

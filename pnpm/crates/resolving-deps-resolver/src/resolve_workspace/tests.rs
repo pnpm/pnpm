@@ -75,6 +75,18 @@ impl Resolver for ProjectRelativeWorkspaceResolver {
         let target_dir = self.target_dir.clone();
         let project_dir = opts.project_dir.clone();
         Box::pin(async move {
+            if alias == "wrapper" && range == "1.0.0" {
+                return Ok(Some(fake_result(
+                    "wrapper",
+                    "1.0.0",
+                    None,
+                    serde_json::json!({
+                        "name": "wrapper",
+                        "version": "1.0.0",
+                        "dependencies": { "shared": "^1.0.0" },
+                    }),
+                )));
+            }
             if alias != "shared" || range != "^1.0.0" {
                 return Ok(None);
             }
@@ -194,8 +206,240 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
         time_based,
         wanted_lockfile: None,
         update_reuse_scope: crate::UpdateReuseScope::All,
+        update_reuse_scopes_by_importer: BTreeMap::new(),
         auto_install_peers: false,
         registries: HashMap::new(),
+    }
+}
+
+fn importer_scoped_update_lockfile(
+    importer_ids: &[&str],
+    direct_name: &str,
+    direct_specifier: &str,
+    direct_version: &str,
+    transitive: Option<(&str, &str)>,
+) -> pacquet_lockfile::Lockfile {
+    use pacquet_lockfile::{
+        ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PackageMetadata, PkgName,
+        PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, RegistryResolution, ResolvedDependencySpec,
+        SnapshotDepRef, SnapshotEntry,
+    };
+
+    let direct_name = PkgName::parse(direct_name).expect("parse direct package name");
+    let direct_version = direct_version.parse::<PkgVerPeer>().expect("parse direct version");
+    let direct_key = PkgNameVerPeer::new(direct_name.clone(), direct_version.clone());
+    let importers = importer_ids
+        .iter()
+        .map(|importer_id| {
+            let dependencies = HashMap::from([(
+                direct_name.clone(),
+                ResolvedDependencySpec {
+                    specifier: direct_specifier.to_string(),
+                    version: ImporterDepVersion::Regular(direct_version.clone()),
+                },
+            )]);
+            (
+                (*importer_id).to_string(),
+                ProjectSnapshot { dependencies: Some(dependencies), ..ProjectSnapshot::default() },
+            )
+        })
+        .collect();
+    let metadata = || {
+        PackageMetadata {
+        resolution: LockfileResolution::Registry(RegistryResolution {
+            integrity: "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
+                .parse()
+                .expect("parse integrity"),
+        }),
+        version: None,
+        engines: None,
+        cpu: None,
+        os: None,
+        libc: None,
+        deprecated: None,
+        has_bin: None,
+        prepare: None,
+        bundled_dependencies: None,
+        peer_dependencies: None,
+        peer_dependencies_meta: None,
+    }
+    };
+    let mut packages = HashMap::from([(direct_key.clone(), metadata())]);
+    let mut snapshots = HashMap::from([(direct_key.clone(), SnapshotEntry::default())]);
+    if let Some((child_name, child_version)) = transitive {
+        let child_name = PkgName::parse(child_name).expect("parse child package name");
+        let child_version = child_version.parse::<PkgVerPeer>().expect("parse child version");
+        let child_key = PkgNameVerPeer::new(child_name.clone(), child_version.clone());
+        packages.insert(child_key.clone(), metadata());
+        snapshots.insert(child_key, SnapshotEntry::default());
+        snapshots.insert(
+            direct_key,
+            SnapshotEntry {
+                dependencies: Some(HashMap::from([(
+                    child_name,
+                    SnapshotDepRef::Plain(child_version),
+                )])),
+                ..SnapshotEntry::default()
+            },
+        );
+    }
+    Lockfile {
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).expect("lockfile v9"),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        importers,
+        packages: Some(packages),
+        snapshots: Some(snapshots),
+    }
+}
+
+async fn resolve_importer_scoped_update_direct(
+    order: [&str; 2],
+    selected_scope: crate::UpdateReuseScope,
+) -> HashMap<String, String> {
+    let (_selected_tmp, selected_manifest) =
+        fake_manifest(serde_json::json!({ "pkg": "^100.0.0" }));
+    let (_unselected_tmp, unselected_manifest) =
+        fake_manifest(serde_json::json!({ "pkg": "^100.0.0" }));
+    let manifests =
+        HashMap::from([("selected", &selected_manifest), ("unselected", &unselected_manifest)]);
+    let importers = order
+        .iter()
+        .map(|id| WorkspaceImporter { id: (*id).to_string(), manifest: manifests[id] })
+        .collect::<Vec<_>>();
+    let resolver = RecordingResolver {
+        table: HashMap::from([(
+            ("pkg".to_string(), "^100.0.0".to_string()),
+            fake_result(
+                "pkg",
+                "100.1.0",
+                None,
+                serde_json::json!({ "name": "pkg", "version": "100.1.0" }),
+            ),
+        )]),
+        seen: Mutex::new(HashMap::new()),
+    };
+    let mut opts = workspace_opts(false, false);
+    opts.wanted_lockfile = Some(std::sync::Arc::new(importer_scoped_update_lockfile(
+        &["selected", "unselected"],
+        "pkg",
+        "^100.0.0",
+        "100.0.0",
+        None,
+    )));
+    opts.update_reuse_scopes_by_importer =
+        BTreeMap::from([("selected".to_string(), selected_scope)]);
+    let result =
+        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+            importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
+        })
+        .await
+        .expect("resolve importer-scoped update");
+    result
+        .peers
+        .direct_dependencies_by_importer
+        .into_iter()
+        .map(|(importer_id, dependencies)| (importer_id, dependencies["pkg"].as_str().to_string()))
+        .collect()
+}
+
+#[tokio::test]
+async fn importer_scoped_update_drop_only_is_order_independent() {
+    for order in [["selected", "unselected"], ["unselected", "selected"]] {
+        let direct = resolve_importer_scoped_update_direct(
+            order,
+            crate::UpdateReuseScope::Except(std::collections::HashSet::from(["pkg".to_string()])),
+        )
+        .await;
+        assert_eq!(direct["selected"], "pkg@100.1.0");
+        assert_eq!(direct["unselected"], "pkg@100.0.0");
+    }
+}
+
+#[tokio::test]
+async fn importer_scoped_update_drop_all_is_order_independent() {
+    for order in [["selected", "unselected"], ["unselected", "selected"]] {
+        let direct =
+            resolve_importer_scoped_update_direct(order, crate::UpdateReuseScope::None).await;
+        assert_eq!(direct["selected"], "pkg@100.1.0");
+        assert_eq!(direct["unselected"], "pkg@100.0.0");
+    }
+}
+
+#[tokio::test]
+async fn importer_scoped_update_route_owns_shared_parent_children_in_either_order() {
+    for order in [["selected", "unselected"], ["unselected", "selected"]] {
+        let (_selected_tmp, selected_manifest) =
+            fake_manifest(serde_json::json!({ "parent": "^1.0.0" }));
+        let (_unselected_tmp, unselected_manifest) =
+            fake_manifest(serde_json::json!({ "parent": "^1.0.0" }));
+        let manifests =
+            HashMap::from([("selected", &selected_manifest), ("unselected", &unselected_manifest)]);
+        let importers = order
+            .iter()
+            .map(|id| WorkspaceImporter { id: (*id).to_string(), manifest: manifests[id] })
+            .collect::<Vec<_>>();
+        let resolver = RecordingResolver {
+            table: HashMap::from([
+                (
+                    ("parent".to_string(), "^1.0.0".to_string()),
+                    fake_result(
+                        "parent",
+                        "1.0.0",
+                        None,
+                        serde_json::json!({
+                            "name": "parent",
+                            "version": "1.0.0",
+                            "dependencies": { "pkg": "^100.0.0" },
+                        }),
+                    ),
+                ),
+                (
+                    ("pkg".to_string(), "^100.0.0".to_string()),
+                    fake_result(
+                        "pkg",
+                        "100.1.0",
+                        None,
+                        serde_json::json!({ "name": "pkg", "version": "100.1.0" }),
+                    ),
+                ),
+            ]),
+            seen: Mutex::new(HashMap::new()),
+        };
+        let mut opts = workspace_opts(false, false);
+        opts.wanted_lockfile = Some(std::sync::Arc::new(importer_scoped_update_lockfile(
+            &["selected", "unselected"],
+            "parent",
+            "^1.0.0",
+            "1.0.0",
+            Some(("pkg", "100.0.0")),
+        )));
+        opts.update_reuse_scopes_by_importer = BTreeMap::from([(
+            "selected".to_string(),
+            crate::UpdateReuseScope::Except(std::collections::HashSet::from(["pkg".to_string()])),
+        )]);
+        let result =
+            resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+                importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
+            })
+            .await
+            .expect("resolve shared parent update");
+
+        for importer_id in ["selected", "unselected"] {
+            assert_eq!(
+                result.peers.direct_dependencies_by_importer[importer_id]["parent"].as_str(),
+                "parent@1.0.0",
+            );
+        }
+        let parent_children =
+            result.merged_tree.children_by_id.get("parent@1.0.0").expect("parent children");
+        assert_eq!(parent_children.len(), 1);
+        assert_eq!(parent_children[0].pkg_id, "pkg@100.1.0");
     }
 }
 
@@ -210,26 +454,26 @@ async fn workspace_link_results_are_cached_per_importer_project_dir() {
         WorkspaceImporter { id: "packages/a".to_string(), manifest: &a_manifest },
         WorkspaceImporter { id: "apps/b".to_string(), manifest: &b_manifest },
     ];
+    let lockfile_dir = std::path::PathBuf::from("/repo");
+    let mut opts = workspace_opts(false, false);
+    opts.lockfile_dir.clone_from(&lockfile_dir);
 
-    let result = resolve_workspace(
-        &resolver,
-        &importers,
-        &[DependencyGroup::Prod],
-        workspace_opts(false, false),
-        |importer| {
+    let result =
+        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
             let project_dir = match importer.id.as_str() {
                 "packages/a" => std::path::PathBuf::from("/repo/packages/a"),
                 "apps/b" => std::path::PathBuf::from("/repo/apps/b"),
                 _ => unreachable!("unexpected importer"),
             };
             let mut opts = importer_opts(project_dir, None);
+            opts.lockfile_dir = Some(lockfile_dir.clone());
+            opts.base_opts.lockfile_dir.clone_from(&lockfile_dir);
             opts.base_opts.always_try_workspace_packages = true;
             opts.base_opts.workspace_packages = Some(std::collections::BTreeMap::default());
             opts
-        },
-    )
-    .await
-    .expect("resolve workspace");
+        })
+        .await
+        .expect("resolve workspace");
 
     assert_eq!(
         result.peers.direct_dependencies_by_importer["packages/a"]["shared"].as_str(),
@@ -239,6 +483,58 @@ async fn workspace_link_results_are_cached_per_importer_project_dir() {
         result.peers.direct_dependencies_by_importer["apps/b"]["shared"].as_str(),
         "link:../../packages/shared",
     );
+}
+
+#[tokio::test]
+async fn canonical_snapshot_link_keeps_direct_links_relative_to_each_importer() {
+    let (_nested_tmp, nested_manifest) = fake_manifest(serde_json::json!({
+        "shared": "^1.0.0",
+        "wrapper": "1.0.0",
+    }));
+    let (_shallow_tmp, shallow_manifest) = fake_manifest(serde_json::json!({
+        "shared": "^1.0.0",
+        "wrapper": "1.0.0",
+    }));
+    let lockfile_dir = std::path::PathBuf::from("/repo");
+    let resolver =
+        ProjectRelativeWorkspaceResolver { target_dir: lockfile_dir.join("packages/shared") };
+    let importers = vec![
+        WorkspaceImporter { id: "apps/nested/app".to_string(), manifest: &nested_manifest },
+        WorkspaceImporter { id: "packages/consumer".to_string(), manifest: &shallow_manifest },
+    ];
+    let mut opts = workspace_opts(false, false);
+    opts.lockfile_dir.clone_from(&lockfile_dir);
+
+    let result =
+        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+            let project_dir = match importer.id.as_str() {
+                "apps/nested/app" => std::path::PathBuf::from("/repo/apps/nested/app"),
+                "packages/consumer" => std::path::PathBuf::from("/repo/packages/consumer"),
+                _ => unreachable!("unexpected importer"),
+            };
+            let mut opts = importer_opts(project_dir, None);
+            opts.lockfile_dir = Some(lockfile_dir.clone());
+            opts.base_opts.lockfile_dir.clone_from(&lockfile_dir);
+            opts.base_opts.always_try_workspace_packages = true;
+            opts.base_opts.workspace_packages = Some(std::collections::BTreeMap::default());
+            opts
+        })
+        .await
+        .expect("resolve workspace");
+
+    assert_eq!(
+        result.peers.direct_dependencies_by_importer["apps/nested/app"]["shared"].as_str(),
+        "link:../../../packages/shared",
+    );
+    assert_eq!(
+        result.peers.direct_dependencies_by_importer["packages/consumer"]["shared"].as_str(),
+        "link:../shared",
+    );
+    let wrapper =
+        result.peers.graph.get(&crate::DepPath::from("wrapper@1.0.0")).expect("wrapper graph node");
+    assert_eq!(wrapper.children.get("shared"), Some(&crate::DepPath::from("link:packages/shared")));
+    assert!(result.merged_tree.packages.contains_key("link:packages/shared"));
+    assert!(!result.merged_tree.packages.contains_key("link:../../../packages/shared"));
 }
 
 #[tokio::test]

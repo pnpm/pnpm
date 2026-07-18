@@ -5,9 +5,9 @@
 //! entry, and an entry that appears in both buckets has its weight bumped
 //! by the lockfile weight so it outranks single-source matches.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use pacquet_lockfile::{PackageKey, SnapshotEntry};
+use pacquet_lockfile::{PackageKey, PkgName, SnapshotEntry};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_resolver_base::{
     DIRECT_DEP_SELECTOR_WEIGHT, EXISTING_VERSION_SELECTOR_WEIGHT, PreferredVersions,
@@ -29,6 +29,21 @@ pub fn get_preferred_versions_from_lockfile_and_manifests(
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
     manifests: &[&PackageManifest],
 ) -> PreferredVersions {
+    get_preferred_versions_from_lockfile_and_manifests_excluding(
+        snapshots,
+        manifests,
+        &HashSet::new(),
+    )
+}
+
+/// Build a [`PreferredVersions`] map while withholding lockfile pins for
+/// `excluded_names`. Manifest-derived preferences remain workspace-wide.
+#[must_use]
+pub fn get_preferred_versions_from_lockfile_and_manifests_excluding(
+    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+    manifests: &[&PackageManifest],
+    excluded_names: &HashSet<PkgName>,
+) -> PreferredVersions {
     let mut preferred: PreferredVersions = PreferredVersions::new();
     for manifest in manifests {
         for (name, spec) in manifest.dependencies([
@@ -47,7 +62,7 @@ pub fn get_preferred_versions_from_lockfile_and_manifests(
         }
     }
     if let Some(snapshots) = snapshots {
-        add_preferred_versions_from_lockfile(snapshots, &mut preferred);
+        add_preferred_versions_from_lockfile(snapshots, excluded_names, &mut preferred);
     }
     preferred
 }
@@ -57,11 +72,15 @@ pub fn get_preferred_versions_from_lockfile_and_manifests(
 /// rather than overwriting them.
 fn add_preferred_versions_from_lockfile(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    excluded_names: &HashSet<PkgName>,
     preferred: &mut PreferredVersions,
 ) {
     let mut unique_name_versions: HashMap<String, std::collections::HashSet<String>> =
         HashMap::new();
     for key in snapshots.keys() {
+        if excluded_names.contains(&key.name) {
+            continue;
+        }
         let name = key.name.to_string();
         // The lockfile records `file:`-protocol deps with a non-semver
         // version part. The preferred-versions map only feeds the semver

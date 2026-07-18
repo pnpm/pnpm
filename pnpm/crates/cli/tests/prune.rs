@@ -35,6 +35,31 @@ fn prune_writes_lockfile() {
 }
 
 #[test]
+fn prune_from_workspace_member_writes_the_workspace_lockfile() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), r#"{ "name": "workspace-root" }"#)
+        .expect("write root package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    let member = workspace.join("packages/app");
+    fs::create_dir_all(&member).expect("create workspace member");
+    fs::write(
+        member.join("package.json"),
+        r#"{ "name": "app", "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" } }"#,
+    )
+    .expect("write member package.json");
+
+    pacquet.with_current_dir(&member).with_arg("prune").assert().success();
+
+    assert!(workspace.join("pnpm-lock.yaml").is_file());
+    assert!(!member.join("pnpm-lock.yaml").exists());
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn prune_with_prod_only_omits_dev_deps() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

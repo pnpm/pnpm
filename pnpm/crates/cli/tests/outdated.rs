@@ -49,6 +49,36 @@ fn outdated_reports_newer_version() {
     drop((root, anchor));
 }
 
+#[test]
+fn outdated_from_workspace_member_reads_member_importer() {
+    let (root, workspace, anchor) = setup();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    write_manifest(&workspace, "{}");
+    let member = workspace.join("packages/app");
+    fs::create_dir_all(&member).expect("create workspace member");
+    fs::write(
+        member.join("package.json"),
+        format!(
+            r#"{{ "name": "app", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write member package.json");
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output = pacquet(&member, ["outdated"]).output().expect("run member outdated");
+
+    assert_eq!(output.status.code(), Some(1), "member dependency should be outdated");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains(DEP), "report should use the member importer: {stdout}");
+    assert!(
+        stdout.contains("100.1.0"),
+        "report should show the member's current version: {stdout}",
+    );
+
+    drop((root, anchor));
+}
+
 /// `--compatible` compares against the highest in-range version, so a
 /// dependency already at the top of its range is not reported even when a
 /// newer major exists.

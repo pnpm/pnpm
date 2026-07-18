@@ -466,7 +466,9 @@ pub(crate) async fn handle_resolve(
     let footprint_for_store = Arc::clone(&footprint);
     let cache_secret = Arc::clone(&runtime.resolution_cache_secret);
     tokio::spawn(async move {
-        match resolve::resolve(config, &client, &request, &request_auth, Some(observer)).await {
+        match Box::pin(resolve::resolve(config, &client, &request, &request_auth, Some(observer)))
+            .await
+        {
             Ok(lockfile) => {
                 let lockfile = tarball_router.route_lockfile(config, &lockfile);
                 if let Some(osv_index) = final_osv_index.as_ref() {
@@ -719,6 +721,8 @@ fn resolution_cache_key(config: &PacquetConfig, request: &ResolveRequest) -> Opt
         .map(|project| {
             serde_json::json!({
                 "dir": project.dir,
+                "name": project.name,
+                "version": project.version,
                 "dependencies": project.dependencies,
                 "devDependencies": project.dev_dependencies,
                 "optionalDependencies": project.optional_dependencies,

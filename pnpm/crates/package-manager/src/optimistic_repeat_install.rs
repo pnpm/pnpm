@@ -281,6 +281,11 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
             // repeat of the content check, so it degrades rather than
             // fails.
             if is_workspace_install {
+                // This path refreshes the timestamp without materializing
+                // anything, so it carries the previous run's
+                // `filtered_install` forward: clearing it would claim every
+                // importer is materialized when a filtered install left the
+                // unselected ones untouched.
                 let new_state = crate::install::build_workspace_state(
                     workspace_root,
                     config,
@@ -288,6 +293,7 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
                     included,
                     catalogs,
                     project_manifests,
+                    state.filtered_install,
                 );
                 if let Err(error) = update_workspace_state(workspace_root, &new_state) {
                     tracing::warn!(
@@ -607,7 +613,7 @@ fn modified_manifests_match_lockfile(
             wanted,
             project.manifest,
             &importer_id,
-            config.auto_install_peers,
+            config,
             &ignored_optional_matcher,
             parsed_overrides.as_deref(),
         ) {
@@ -1598,6 +1604,7 @@ pub fn check_deps_status_before_run(
                     included,
                     catalogs,
                     project_manifests,
+                    state.filtered_install,
                 );
                 // The gate ignored `dev`/`optional`/`production` drift
                 // above; writing today's (default-group) values here
