@@ -427,11 +427,21 @@ fn write_stale_mirror(
     mirror_path
 }
 
+#[test]
+fn raced_mirror_removal_is_idempotent() {
+    let cache = TempDir::new().expect("tempdir");
+    let mirror_path = cache.path().join("mirror.json");
+    std::fs::write(&mirror_path, "").expect("write mirror");
+
+    remove_raced_mirror(&mirror_path);
+    remove_raced_mirror(&mirror_path);
+}
+
 fn remove_raced_mirror(mirror_path: &std::path::Path) {
     match std::fs::remove_file(mirror_path) {
         Ok(()) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => panic!("remove raced mirror: {error}"),
+        Err(error) => panic!("remove raced mirror at {}: {error}", mirror_path.display()),
     }
 }
 
