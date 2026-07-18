@@ -423,6 +423,10 @@ jobs:
         # sensitive and softprops/action-gh-release is widely battle-tested.
         uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.0 # zizmor: ignore[superfluous-actions]
         with:
+          # Draft so a maintainer publishes it deliberately, like the Rust and
+          # pnpr releases: the repository uses immutable releases, so a
+          # published release cannot be corrected, only deleted — and deleting
+          # it burns its tag for releases forever.
           draft: true
           # Explicit so the release's identity comes from the plan job like
           # every other step here, never from the github.ref fallback.
@@ -430,7 +434,7 @@ jobs:
           name: pnpm ${{ needs.plan.outputs.ts_version }}
           files: dist/*
           body_path: RELEASE.md
-      - name: Verify and publish release
+      - name: Verify draft release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_ID: ${{ steps.github-release.outputs.id }}
@@ -445,7 +449,6 @@ jobs:
           const expected = normalizeNewlines(fs.readFileSync('RELEASE.md', 'utf8'))
           if (actual !== expected) throw new Error('GitHub draft release body does not match RELEASE.md')
           NODE
-          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" -F draft=false > /dev/null
 
   build-rust:
     needs: plan
@@ -824,6 +827,11 @@ jobs:
       - build-rust
       - publish-rust
     steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
       - name: Assert the version tag points at this commit
         # Same tag↔commit invariant as the TypeScript release job's guard: the
         # binaries below were built from this run's commit, and `target_commitish`
@@ -845,6 +853,23 @@ jobs:
           pattern: binaries-rust-*
           merge-multiple: true
 
+      - name: Generate release description
+        # The pending changelog written by `pnpm version -r` holds exactly this
+        # version's entry; its first line is a `## <version>` heading, redundant
+        # under the release title. A missing changelog only warns: the draft is
+        # still worth having for its artifacts, and a maintainer can fill in
+        # the description before publishing.
+        env:
+          VERSION: ${{ needs.plan.outputs.rust_version }}
+        run: |
+          changelog=".changeset/changelogs/pacquet@${VERSION}.md"
+          if [ -f "$changelog" ]; then
+            tail -n +2 "$changelog" | sed '/./,$!d' > RELEASE.md
+          else
+            echo "::warning::No pending changelog at ${changelog}; drafting the release with an empty description"
+            : > RELEASE.md
+          fi
+
       - name: Release
         # The build job's archives already carry the release layout (a `pnpm`
         # binary at the root of `pnpm-<target>.tar.gz` / `.zip`), so they're
@@ -861,6 +886,7 @@ jobs:
           tag_name: v${{ needs.plan.outputs.rust_version }}
           target_commitish: ${{ github.sha }}
           name: pnpm ${{ needs.plan.outputs.rust_version }}
+          body_path: RELEASE.md
           files: |
             pnpm-*.tar.gz
             pnpm-*.zip
@@ -1285,6 +1311,11 @@ jobs:
       - build-pnpr
       - publish-pnpr
     steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
       - name: Assert the version tag points at this commit
         # Same tag↔commit invariant as the TypeScript release job's guard.
         env:
@@ -1303,6 +1334,20 @@ jobs:
           pattern: binaries-pnpr-*
           merge-multiple: true
 
+      - name: Generate release description
+        # Same shape as the Rust job's description step; pnpr's changelog file
+        # name carries the `@pnpm!` scope prefix (`!` escapes `/`).
+        env:
+          VERSION: ${{ needs.plan.outputs.pnpr_version }}
+        run: |
+          changelog=".changeset/changelogs/@pnpm!pnpr@${VERSION}.md"
+          if [ -f "$changelog" ]; then
+            tail -n +2 "$changelog" | sed '/./,$!d' > RELEASE.md
+          else
+            echo "::warning::No pending changelog at ${changelog}; drafting the release with an empty description"
+            : > RELEASE.md
+          fi
+
       - name: Release
         # The build job's archives carry a target-qualified `pnpr-<target>`
         # binary and ship with its build-time checksum, so they're uploaded
@@ -1316,6 +1361,7 @@ jobs:
           make_latest: false
           tag_name: pnpr@${{ needs.plan.outputs.pnpr_version }}
           name: pnpr ${{ needs.plan.outputs.pnpr_version }}
+          body_path: RELEASE.md
           files: |
             pnpr-*.tar.gz
             pnpr-*.zip
