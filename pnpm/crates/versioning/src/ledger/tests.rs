@@ -58,6 +58,37 @@ fn control_characters_are_escaped_and_round_trip() {
 }
 
 #[test]
+fn empty_intent_lists_render_as_flow_sequences_and_round_trip() {
+    let mut ledger = Ledger::new();
+    ledger.insert(
+        "pacquet@12.0.0-alpha.13".to_string(),
+        LedgerEntry::Attributed { dir: "pnpm/npm/pnpm".to_string(), intents: Vec::new() },
+    );
+    ledger.insert("pkg@1.0.0".to_string(), LedgerEntry::Ids(Vec::new()));
+    let rendered = render_ledger(&ledger);
+    assert_eq!(
+        rendered,
+        "pacquet@12.0.0-alpha.13:\n  dir: pnpm/npm/pnpm\n  intents: []\npkg@1.0.0: []\n",
+    );
+    let parsed: Ledger = serde_saphyr::from_str(&rendered).expect("render output parses back");
+    assert_eq!(parsed, ledger);
+}
+
+#[test]
+fn null_entries_and_null_intents_parse_as_empty_lists() {
+    // The shape ledgers written before empty lists rendered as `[]` contain.
+    let parsed: Ledger = serde_saphyr::from_str(
+        "pacquet@12.0.0-alpha.13:\n  dir: pnpm/npm/pnpm\n  intents:\npkg@1.0.0:\n",
+    )
+    .expect("bare keys parse");
+    assert_eq!(
+        parsed.get("pacquet@12.0.0-alpha.13"),
+        Some(&LedgerEntry::Attributed { dir: "pnpm/npm/pnpm".to_string(), intents: Vec::new() }),
+    );
+    assert_eq!(parsed.get("pkg@1.0.0"), Some(&LedgerEntry::Ids(Vec::new())));
+}
+
+#[test]
 fn yaml_scalar_quotes_only_when_needed() {
     assert_eq!(yaml_scalar("packages/util"), "packages/util");
     assert_eq!(yaml_scalar("pkg@1.0.0"), "pkg@1.0.0");

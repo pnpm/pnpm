@@ -1,11 +1,17 @@
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    fs,
+    fmt, fs,
     io::ErrorKind,
     path::Path,
 };
 
-use serde::Deserialize;
+use serde::{
+    Deserialize, Deserializer,
+    de::{
+        MapAccess, SeqAccess, Visitor,
+        value::{MapAccessDeserializer, SeqAccessDeserializer},
+    },
+};
 
 use crate::{error::VersioningError, intents::CHANGES_DIR};
 
@@ -17,11 +23,61 @@ pub const LEDGER_FILENAME: &str = "ledger.yaml";
 /// consumed. The bare id-list shape is accepted when read, for hand-written
 /// entries; its project is then resolved by the package name in the entry
 /// key, which must be unambiguous.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(untagged)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LedgerEntry {
     Ids(Vec<String>),
     Attributed { dir: String, intents: Vec<String> },
+}
+
+/// Null where a list belongs reads as an empty list: a bare `pkg@1.0.0:` or
+/// `intents:` key parses as YAML null, and ledgers written before the
+/// serializers rendered empty lists as `[]` contain exactly that shape.
+impl<'de> Deserialize<'de> for LedgerEntry {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct LedgerEntryVisitor;
+
+        impl<'de> Visitor<'de> for LedgerEntryVisitor {
+            type Value = LedgerEntry;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter
+                    .write_str("a list of intent ids, or a mapping with \"dir\" and \"intents\"")
+            }
+
+            fn visit_unit<E>(self) -> Result<Self::Value, E> {
+                Ok(LedgerEntry::Ids(Vec::new()))
+            }
+
+            fn visit_seq<A>(self, seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: SeqAccess<'de>,
+            {
+                Deserialize::deserialize(SeqAccessDeserializer::new(seq)).map(LedgerEntry::Ids)
+            }
+
+            fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
+            where
+                A: MapAccess<'de>,
+            {
+                #[derive(Deserialize)]
+                struct AttributedEntry {
+                    dir: String,
+                    intents: Option<Vec<String>>,
+                }
+                let entry: AttributedEntry =
+                    Deserialize::deserialize(MapAccessDeserializer::new(map))?;
+                Ok(LedgerEntry::Attributed {
+                    dir: entry.dir,
+                    intents: entry.intents.unwrap_or_default(),
+                })
+            }
+        }
+
+        deserializer.deserialize_any(LedgerEntryVisitor)
+    }
 }
 
 impl LedgerEntry {
@@ -88,21 +144,33 @@ pub fn append_to_ledger(
 /// Renders the ledger in the same YAML shape the TypeScript side's
 /// `yaml.stringify` produces: sorted `package@version` keys (quoted when the
 /// name is scoped, since a leading `@` is a YAML indicator), each with the
-/// released project directory and a two-space-indented id list.
+/// released project directory and a two-space-indented id list. An empty id
+/// list renders as `[]` — a bare key would read back as null, not a list.
 fn render_ledger(ledger: &Ledger) -> String {
     use std::fmt::Write as _;
     let mut output = String::new();
     for (key, entry) in ledger {
-        writeln!(output, "{}:", yaml_scalar(key)).expect("write to string");
-        if let LedgerEntry::Attributed { dir, .. } = entry {
-            writeln!(output, "  dir: {}", yaml_scalar(dir)).expect("write to string");
-            writeln!(output, "  intents:").expect("write to string");
-            for id in entry.intent_ids() {
-                writeln!(output, "    - {}", yaml_scalar(id)).expect("write to string");
+        match entry {
+            LedgerEntry::Attributed { dir, intents } => {
+                writeln!(output, "{}:", yaml_scalar(key)).expect("write to string");
+                writeln!(output, "  dir: {}", yaml_scalar(dir)).expect("write to string");
+                if intents.is_empty() {
+                    writeln!(output, "  intents: []").expect("write to string");
+                } else {
+                    writeln!(output, "  intents:").expect("write to string");
+                    for id in intents {
+                        writeln!(output, "    - {}", yaml_scalar(id)).expect("write to string");
+                    }
+                }
             }
-        } else {
-            for id in entry.intent_ids() {
-                writeln!(output, "  - {}", yaml_scalar(id)).expect("write to string");
+            LedgerEntry::Ids(ids) if ids.is_empty() => {
+                writeln!(output, "{}: []", yaml_scalar(key)).expect("write to string");
+            }
+            LedgerEntry::Ids(ids) => {
+                writeln!(output, "{}:", yaml_scalar(key)).expect("write to string");
+                for id in ids {
+                    writeln!(output, "  - {}", yaml_scalar(id)).expect("write to string");
+                }
             }
         }
     }
