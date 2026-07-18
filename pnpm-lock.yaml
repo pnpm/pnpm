@@ -364,8 +364,8 @@ catalogs:
       specifier: ^2.0.1
       version: 2.0.1
     adm-zip:
-      specifier: ^0.5.17
-      version: 0.5.18
+      specifier: ^0.6.0
+      version: 0.6.0
     amaro:
       specifier: ^1.1.9
       version: 1.1.10
@@ -862,6 +862,7 @@ catalogs:
 overrides:
   '@cypress/request@3.0.9>qs': ^6.14.1
   '@yarnpkg/fslib@2': '3'
+  adm-zip@<0.6.0: ^0.6.0
   ajv@>=7.0.0-alpha.0 <8.18.0: '>=8.18.0'
   body-parser@<2.2.1: ^2.2.1
   brace-expansion@<5.0.5: '>=5.0.5'
@@ -4403,7 +4404,7 @@ importers:
         version: link:../../worker
       adm-zip:
         specifier: 'catalog:'
-        version: 0.5.18
+        version: 0.6.0
       is-subdir:
         specifier: 'catalog:'
         version: 2.0.0
@@ -12592,9 +12593,9 @@ packages:
     engines: {node: '>=0.4.0'}
     hasBin: true
 
-  adm-zip@0.5.18:
-    resolution: {integrity: sha512-ufJnssQGbxzLNS1Ho9bCtX4rQKCCvoVuDLHoJyc3F9dOGDB4BkWs2Ci0kv53lqocAEQ/Cbi+I2XCsNYGqVYqng==}
-    engines: {node: '>=12.0'}
+  adm-zip@0.6.0:
+    resolution: {integrity: sha512-XleryMhbuksdKtofnWZ9Sk+4CUTbms4Mb/EU32SZwToAyZ5RgVos/ki8n+yr0LWHOGKuakbXTuuYNHLQjhddgg==}
+    engines: {node: '>=14.0'}
 
   agent-base@7.1.4:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
@@ -18639,7 +18640,7 @@ snapshots:
       '@pnpm/fetcher-base': 1001.2.2
       '@pnpm/fetching-types': 1000.2.1
       '@pnpm/worker': 1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.1)
-      adm-zip: 0.5.18
+      adm-zip: 0.6.0
       is-subdir: 1.2.0
       rename-overwrite: 6.0.6
       ssri: 10.0.5
@@ -20257,7 +20258,7 @@ snapshots:
 
   acorn@8.17.0: {}
 
-  adm-zip@0.5.18: {}
+  adm-zip@0.6.0: {}
 
   agent-base@7.1.4: {}
 
