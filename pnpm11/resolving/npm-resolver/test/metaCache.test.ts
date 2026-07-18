@@ -279,3 +279,117 @@ test('a disk-promoted cache entry that cannot satisfy the spec falls back to the
   expect(second.pickedPackage?.version).toBe('2.0.0')
   expect(fetchedNames).toEqual(['foo'])
 })
+
+test('pickPackage retries once without validators when a 304 loses its cache body', async () => {
+  const meta = fooMeta()
+  meta.versions['1.0.0'].scripts = { postinstall: 'echo cache-race-marker' }
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, '"stale"'))
+
+  type CacheBypassFetchMetadataOptions = FetchMetadataOptions & { cacheBypass?: boolean }
+  const fetchCalls: CacheBypassFetchMetadataOptions[] = []
+  const ctx = {
+    fetch: async (_pkgName: string, opts: FetchMetadataOptions) => {
+      fetchCalls.push(opts)
+      if (fetchCalls.length === 1) {
+        rmSync(pkgMirror)
+        return { notModified: true as const }
+      }
+      return { meta, jsonText: JSON.stringify(meta), etag: '"fresh"' }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+    filterMetadata: true,
+  }
+  const spec: RegistryPackageSpec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }
+
+  const result = await pickPackage(ctx, spec, {
+    registry: REGISTRY,
+    dryRun: false,
+    preferredVersionSelectors: undefined,
+  })
+
+  expect(result.pickedPackage?.version).toBe('1.0.0')
+  expect(fetchCalls).toHaveLength(2)
+  expect(fetchCalls[0]).toMatchObject({ etag: '"stale"' })
+  expect(fetchCalls[1]).toMatchObject({ cacheBypass: true })
+  expect(fetchCalls[1].etag).toBeUndefined()
+  expect(fetchCalls[1].modified).toBeUndefined()
+  expect(result.meta.etag).toBe('"fresh"')
+  expect(result.meta.versions['1.0.0'].scripts).toBeUndefined()
+  expect(ctx.metaCache.get(getPkgMetaCacheKey(REGISTRY, 'foo', false, true))).toBe(result.meta)
+
+  const mirror = await readMirrorWithRetry(pkgMirror, 100)
+  expect(mirror).toBeDefined()
+  if (mirror == null) throw new Error('fresh mirror was not persisted')
+  const newlineIdx = mirror.indexOf('\n')
+  const persistedHeaders = JSON.parse(mirror.slice(0, newlineIdx))
+  const persistedMeta = JSON.parse(mirror.slice(newlineIdx + 1))
+  expect(persistedHeaders.etag).toBe('"fresh"')
+  expect(persistedMeta.versions['1.0.0'].scripts).toBeUndefined()
+})
+
+test('pickPackage stops after one cache-loss fallback', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, '"stale"'))
+
+  type CacheBypassFetchMetadataOptions = FetchMetadataOptions & { cacheBypass?: boolean }
+  const fetchCalls: CacheBypassFetchMetadataOptions[] = []
+  const ctx = {
+    fetch: async (_pkgName: string, opts: FetchMetadataOptions) => {
+      fetchCalls.push(opts)
+      if (fetchCalls.length === 1) rmSync(pkgMirror)
+      return { notModified: true as const }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+  const spec: RegistryPackageSpec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }
+
+  await expect(pickPackage(ctx, spec, {
+    registry: REGISTRY,
+    dryRun: false,
+    preferredVersionSelectors: undefined,
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_META_NOT_MODIFIED_WITHOUT_CACHE' })
+  expect(fetchCalls).toHaveLength(2)
+  expect(fetchCalls[1]).toMatchObject({ cacheBypass: true })
+  expect(fetchCalls[1].etag).toBeUndefined()
+  expect(fetchCalls[1].modified).toBeUndefined()
+})
+
+test('pickPackage propagates a cache-loss fallback error', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, '"stale"'))
+
+  type CacheBypassFetchMetadataOptions = FetchMetadataOptions & { cacheBypass?: boolean }
+  const fetchCalls: CacheBypassFetchMetadataOptions[] = []
+  const fallbackError = new Error('fallback failed')
+  const ctx = {
+    fetch: async (_pkgName: string, opts: FetchMetadataOptions) => {
+      fetchCalls.push(opts)
+      if (fetchCalls.length === 1) {
+        rmSync(pkgMirror)
+        return { notModified: true as const }
+      }
+      throw fallbackError
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+  const spec: RegistryPackageSpec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }
+
+  await expect(pickPackage(ctx, spec, {
+    registry: REGISTRY,
+    dryRun: false,
+    preferredVersionSelectors: undefined,
+  })).rejects.toBe(fallbackError)
+  expect(fetchCalls).toHaveLength(2)
+  expect(fetchCalls[1]).toMatchObject({ cacheBypass: true })
+  expect(fetchCalls[1].etag).toBeUndefined()
+  expect(fetchCalls[1].modified).toBeUndefined()
+})

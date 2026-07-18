@@ -7,7 +7,7 @@ use crate::{
     FetchMetadataError,
     mirror::{
         ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, get_pkg_mirror_path,
-        load_meta, load_meta_headers,
+        load_meta, load_meta_headers, save_meta_indexed,
     },
 };
 
@@ -178,6 +178,253 @@ async fn repeated_unsolicited_304_reports_missing_cache() {
     ));
     first.assert_async().await;
     second.assert_async().await;
+}
+
+#[tokio::test]
+async fn full_metadata_cache_loss_after_304_retries_once_without_validators() {
+    assert_cache_loss_after_304_recovers(true, FULL_META_DIR, true).await;
+}
+
+#[tokio::test]
+async fn abbreviated_metadata_cache_loss_after_304_retries_once_without_validators() {
+    assert_cache_loss_after_304_recovers(false, ABBREVIATED_META_DIR, false).await;
+}
+
+#[tokio::test]
+async fn cache_loss_after_304_stops_after_one_fallback() {
+    let mut server = mockito::Server::new_async().await;
+    let cache = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let mirror_path = write_stale_mirror(cache.path(), FULL_META_DIR, &registry);
+    let raced_mirror = mirror_path.clone();
+    let first = server
+        .mock("GET", "/acme")
+        .match_header("if-none-match", r#"W/"stale""#)
+        .with_status(304)
+        .with_body_from_request(move |_| {
+            std::fs::remove_file(&raced_mirror).expect("remove raced mirror");
+            Vec::new()
+        })
+        .expect(1)
+        .create_async()
+        .await;
+    let second = server
+        .mock("GET", "/acme")
+        .match_header("if-none-match", Matcher::Missing)
+        .match_header("if-modified-since", Matcher::Missing)
+        .match_header("cache-control", "no-cache")
+        .with_status(304)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataCachedOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        cache_dir: Some(cache.path()),
+        full_metadata: true,
+        filter_metadata: false,
+        retry_opts: no_retry_opts(),
+    };
+
+    let error = fetch_full_metadata_cached("acme", &opts).await.expect_err("fallback 304 fails");
+    assert!(matches!(
+        error,
+        FetchMetadataError::NotModifiedWithoutCache { ref pkg_name } if pkg_name == "acme"
+    ));
+    first.assert_async().await;
+    second.assert_async().await;
+}
+
+#[tokio::test]
+async fn cache_loss_after_304_body_retry_remains_bypassed() {
+    let mut server = mockito::Server::new_async().await;
+    let cache = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let mirror_path = write_stale_mirror(cache.path(), FULL_META_DIR, &registry);
+    let raced_mirror = mirror_path.clone();
+    let first = server
+        .mock("GET", "/acme")
+        .match_header("if-none-match", r#"W/"stale""#)
+        .with_status(304)
+        .with_body_from_request(move |_| {
+            std::fs::remove_file(&raced_mirror).expect("remove raced mirror");
+            Vec::new()
+        })
+        .expect(1)
+        .create_async()
+        .await;
+    let broken = server
+        .mock("GET", "/acme")
+        .match_header("if-none-match", Matcher::Missing)
+        .match_header("if-modified-since", Matcher::Missing)
+        .match_header("cache-control", "no-cache")
+        .with_status(200)
+        .with_header("content-encoding", "gzip")
+        .with_body("this is not valid gzip")
+        .expect(1)
+        .create_async()
+        .await;
+    let recovered = server
+        .mock("GET", "/acme")
+        .match_header("if-none-match", Matcher::Missing)
+        .match_header("if-modified-since", Matcher::Missing)
+        .match_header("cache-control", "no-cache")
+        .with_status(200)
+        .with_header("etag", r#"W/"after-retry""#)
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataCachedOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        cache_dir: Some(cache.path()),
+        full_metadata: true,
+        filter_metadata: false,
+        retry_opts: fast_retry_opts(),
+    };
+
+    let pkg = fetch_full_metadata_cached("acme", &opts).await.expect("body retry succeeds");
+    assert_eq!(pkg.name, "acme");
+    first.assert_async().await;
+    broken.assert_async().await;
+    recovered.assert_async().await;
+    let persisted = load_meta(&mirror_path).expect("mirror readable");
+    assert_eq!(persisted.name, "acme");
+    let headers = load_meta_headers(&mirror_path).expect("headers readable");
+    assert_eq!(headers.etag.as_deref(), Some(r#"W/"after-retry""#));
+}
+
+#[tokio::test]
+async fn cache_loss_after_304_registry_error_propagates() {
+    let mut server = mockito::Server::new_async().await;
+    let cache = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let mirror_path = write_stale_mirror(cache.path(), FULL_META_DIR, &registry);
+    let raced_mirror = mirror_path.clone();
+    let first = server
+        .mock("GET", "/acme")
+        .match_header("if-none-match", r#"W/"stale""#)
+        .with_status(304)
+        .with_body_from_request(move |_| {
+            std::fs::remove_file(&raced_mirror).expect("remove raced mirror");
+            Vec::new()
+        })
+        .expect(1)
+        .create_async()
+        .await;
+    let forbidden = server
+        .mock("GET", "/acme")
+        .match_header("if-none-match", Matcher::Missing)
+        .match_header("if-modified-since", Matcher::Missing)
+        .match_header("cache-control", "no-cache")
+        .with_status(403)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataCachedOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        cache_dir: Some(cache.path()),
+        full_metadata: true,
+        filter_metadata: false,
+        retry_opts: no_retry_opts(),
+    };
+
+    let error = fetch_full_metadata_cached("acme", &opts).await.expect_err("403 propagates");
+    assert!(matches!(
+        error,
+        FetchMetadataError::Network { ref error, .. }
+            if error.status() == Some(reqwest::StatusCode::FORBIDDEN)
+    ));
+    first.assert_async().await;
+    forbidden.assert_async().await;
+}
+
+async fn assert_cache_loss_after_304_recovers(
+    full_metadata: bool,
+    meta_dir: &str,
+    scripts_expected: bool,
+) {
+    let mut server = mockito::Server::new_async().await;
+    let cache = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let mirror_path = write_stale_mirror(cache.path(), meta_dir, &registry);
+    let raced_mirror = mirror_path.clone();
+    let first = server
+        .mock("GET", "/acme")
+        .match_header("if-none-match", r#"W/"stale""#)
+        .with_status(304)
+        .with_body_from_request(move |_| {
+            std::fs::remove_file(&raced_mirror).expect("remove raced mirror");
+            Vec::new()
+        })
+        .expect(1)
+        .create_async()
+        .await;
+    let response_body = PACKAGE_BODY.replace(
+        r#""dist": {"#,
+        r#""scripts": { "postinstall": "echo cache-race-marker" }, "dist": {"#,
+    );
+    let second = server
+        .mock("GET", "/acme")
+        .match_header("if-none-match", Matcher::Missing)
+        .match_header("if-modified-since", Matcher::Missing)
+        .match_header("cache-control", "no-cache")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_header("etag", r#"W/"fresh""#)
+        .with_body(response_body)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataCachedOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        cache_dir: Some(cache.path()),
+        full_metadata,
+        filter_metadata: false,
+        retry_opts: no_retry_opts(),
+    };
+
+    let pkg = fetch_full_metadata_cached("acme", &opts).await.expect("fallback returns metadata");
+    assert_eq!(pkg.name, "acme");
+    let manifest = pkg.versions.get("1.0.0").expect("version");
+    assert_eq!(manifest.other.contains_key("scripts"), scripts_expected);
+    let persisted = load_meta(&mirror_path).expect("mirror readable");
+    let persisted_manifest = persisted.versions.get("1.0.0").expect("persisted version");
+    assert_eq!(persisted_manifest.other.contains_key("scripts"), scripts_expected);
+    let headers = load_meta_headers(&mirror_path).expect("headers readable");
+    assert_eq!(headers.etag.as_deref(), Some(r#"W/"fresh""#));
+    first.assert_async().await;
+    second.assert_async().await;
+}
+
+fn write_stale_mirror(
+    cache_dir: &std::path::Path,
+    meta_dir: &str,
+    registry: &str,
+) -> std::path::PathBuf {
+    let mirror_path = get_pkg_mirror_path(cache_dir, meta_dir, registry, "acme").expect("path");
+    let meta = serde_json::from_str(PACKAGE_BODY).expect("package body");
+    save_meta_indexed(&mirror_path, &meta, Some(r#"W/"stale""#)).expect("write stale mirror");
+    mirror_path
 }
 
 #[tokio::test]

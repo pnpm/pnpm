@@ -1,6 +1,7 @@
-use node_semver::{Range, Version};
+use node_semver::Version;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_registry::PinnedVersion;
+use pacquet_resolving_resolver_base::is_valid_peer_range;
 use serde_json::{Map, Value};
 
 /// The dependency fields, in their canonical order. A direct dependency
@@ -122,13 +123,6 @@ fn create_version_spec_from_resolved_version(
     }
     let prefix = pinned_version.unwrap_or(PinnedVersion::Major).range_prefix();
     Some(format!("{prefix}{resolved_version}"))
-}
-
-/// Whether `version` is acceptable as a `peerDependencies` range: a valid
-/// semver range, or a `workspace:` / `catalog:` reference. The protocol can
-/// appear inside a wider range expression.
-fn is_valid_peer_range(version: &str) -> bool {
-    Range::parse(version).is_ok() || version.contains("workspace:") || version.contains("catalog:")
 }
 
 /// The alias's currently-declared spec, looked up in the first field that

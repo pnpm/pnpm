@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.inspection.peers-checker",
-  "version": "1100.0.20",
+  "version": "1100.0.21",
   "description": "Check for unmet and missing peer dependency issues from the lockfile",
   "keywords": [
     "pnpm",
@@ -35,6 +35,7 @@
     "@pnpm/config.matcher": "workspace:*",
     "@pnpm/config.parse-overrides": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
+    "@pnpm/deps.peer-range": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.walker": "workspace:*",

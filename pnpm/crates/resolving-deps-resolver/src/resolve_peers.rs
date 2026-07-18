@@ -47,7 +47,7 @@ use pacquet_deps_path::{
     DepPath, PeerId, create_peer_dep_graph_hash, index_of_dep_path_suffix,
     link_path_to_peer_version,
 };
-use pacquet_resolving_resolver_base::ResolveResult;
+use pacquet_resolving_resolver_base::{ResolveResult, get_peer_version_range};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     path::{Path, PathBuf},
@@ -975,7 +975,8 @@ impl Walker<'_> {
                         continue;
                     }
                     self.issues.missing.entry(peer_name.clone()).or_default().push(MissingPeer {
-                        wanted_range: info.range.clone(),
+                        wanted_range: get_peer_version_range(&info.range),
+                        raw_range: info.range.clone(),
                         optional: info.optional,
                         meta_only: info.meta_only,
                         parents: parents_from_chain(parent_chain_names, &pkg_name),
@@ -1266,7 +1267,13 @@ impl Walker<'_> {
         missing: &mut HashMap<String, MissingPeerInfo>,
     ) {
         let raw_range = peer_dep.version.as_str();
+        // The stored range keeps the original scheme (only `workspace:` is
+        // stripped) so it still selects the package to auto-install for a
+        // missing peer, e.g. `work:5.x.x` fetches from the `work` registry.
         let range_for_match = raw_range.strip_prefix("workspace:").unwrap_or(raw_range);
+        // The satisfaction check needs a comparable semver range, so
+        // named-registry/`npm:` bodies are extracted and opaque specs become `*`.
+        let range_for_satisfies = get_peer_version_range(raw_range);
         let optional = peer_dep.optional;
         let meta_only = peer_dep.meta_only;
 
@@ -1279,7 +1286,8 @@ impl Walker<'_> {
                 if !self.missing_issue_suppressed(ancestor_pkg_ids, peer_name) {
                     self.issues.missing.entry(peer_name.to_string()).or_default().push(
                         MissingPeer {
-                            wanted_range: range_for_match.to_string(),
+                            wanted_range: range_for_satisfies,
+                            raw_range: range_for_match.to_string(),
                             optional,
                             meta_only,
                             parents: parents_from_chain(chain, pkg_name),
@@ -1288,10 +1296,10 @@ impl Walker<'_> {
                 }
             }
             Some(parent) => {
-                if !satisfies_with_prereleases(&parent.version, range_for_match) {
+                if !satisfies_with_prereleases(&parent.version, &range_for_satisfies) {
                     self.issues.bad.entry(peer_name.to_string()).or_default().push(
                         PeerDependencyIssue {
-                            wanted_range: range_for_match.to_string(),
+                            wanted_range: range_for_satisfies,
                             found_version: parent.version.clone(),
                             optional,
                             parents: parents_from_chain(chain, pkg_name),

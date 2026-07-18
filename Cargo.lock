@@ -4388,6 +4388,7 @@ dependencies = [
  "pacquet-diagnostics",
  "pacquet-fs",
  "pacquet-package-manifest",
+ "pacquet-resolving-parse-wanted-dependency",
  "pipe-trait",
  "pretty_assertions",
  "serde",
@@ -4970,6 +4971,7 @@ version = "0.0.1"
 dependencies = [
  "chrono",
  "derive_more",
+ "node-semver",
  "pacquet-config",
  "pacquet-lockfile",
  "serde",

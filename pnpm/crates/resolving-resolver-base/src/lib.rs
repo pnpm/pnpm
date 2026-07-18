@@ -17,10 +17,12 @@
 //! (a verifier needs [`pacquet_lockfile::LockfileResolution`]; a
 //! resolver result *also* carries one).
 
+mod peer_range;
 mod publish_time;
 mod resolve;
 mod verifier;
 
+pub use peer_range::{get_peer_version_range, is_acceptable_peer_spec, is_valid_peer_range};
 pub use publish_time::parse_packument_timestamp;
 pub use resolve::{
     CurrentPkg, DIRECT_DEP_SELECTOR_WEIGHT, DependencyManifest, EXISTING_VERSION_SELECTOR_WEIGHT,

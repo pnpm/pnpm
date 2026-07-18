@@ -17,6 +17,7 @@ use crate::{Lockfile, ProjectSnapshot};
 use derive_more::{Display, Error};
 use pacquet_catalogs_types::Catalogs;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use pacquet_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 #[derive(Clone, Copy)]
@@ -369,8 +370,10 @@ fn all_catalogs_are_up_to_date(
 ) -> bool {
     snapshot.iter().flat_map(|catalogs| catalogs.iter()).all(|(catalog_name, catalog)| {
         catalog.iter().all(|(alias, entry)| {
-            catalogs_config.get(catalog_name).and_then(|catalog| catalog.get(alias))
-                == Some(&entry.specifier)
+            catalogs_config
+                .get(catalog_name)
+                .and_then(|catalog| catalog.get(alias))
+                .is_some_and(|specifier| dependency_specifiers_equal(&entry.specifier, specifier))
         })
     })
 }
@@ -483,7 +486,7 @@ pub fn satisfies_package_manifest(
                 .and_then(|name| importer_field.and_then(|map| map.get(name)))
                 .map(|spec| spec.specifier.as_str());
             match importer_spec {
-                Some(spec) if spec == *manifest_spec => {}
+                Some(spec) if dependency_specifiers_equal(spec, manifest_spec) => {}
                 Some(spec) => {
                     return Err(StalenessReason::DepSpecifierMismatch {
                         field: field_name,
@@ -627,11 +630,15 @@ fn diff_flat_records(
     for k in lhs_keys.intersection(&rhs_keys) {
         let lhs_spec = &lockfile_specs[*k];
         let rhs_spec = &manifest_specs[*k];
-        if lhs_spec != rhs_spec {
+        if !dependency_specifiers_equal(lhs_spec, rhs_spec) {
             diff.modified.insert((**k).clone(), (lhs_spec.clone(), rhs_spec.clone()));
         }
     }
     diff
+}
+
+fn dependency_specifiers_equal(left: &str, right: &str) -> bool {
+    left == right || git_specifiers_are_equivalent(left, right)
 }
 
 #[cfg(test)]

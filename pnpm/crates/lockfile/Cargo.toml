@@ -11,11 +11,12 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-catalogs-types   = { workspace = true }
-pacquet-crypto-hash      = { workspace = true }
-pacquet-diagnostics      = { workspace = true }
-pacquet-fs               = { workspace = true }
-pacquet-package-manifest = { workspace = true }
+pacquet-catalogs-types                    = { workspace = true }
+pacquet-crypto-hash                       = { workspace = true }
+pacquet-diagnostics                       = { workspace = true }
+pacquet-fs                                = { workspace = true }
+pacquet-package-manifest                  = { workspace = true }
+pacquet-resolving-parse-wanted-dependency = { workspace = true }
 
 derive_more      = { workspace = true }
 indexmap         = { workspace = true }
