@@ -205,6 +205,26 @@ pub struct SkippedOptionalDependencyParent {
 /// [`crate::WorkspaceResolveOptions::skipped_optional_log`].
 pub type SkippedOptionalLogFn = Arc<dyn Fn(SkippedOptionalDependency) + Send + Sync>;
 
+/// One deprecation notification from the tree walker: a newly-resolved
+/// package carries a non-empty `deprecated` field in its registry
+/// manifest and is not covered by `allowedDeprecatedVersions`. Mirrors
+/// the package payload of the `pnpm:deprecation` debug log so the
+/// install layer can forward it to the reporter wire.
+#[derive(Debug, Clone)]
+pub struct Deprecation {
+    pub pkg_name: String,
+    pub pkg_version: String,
+    pub pkg_id: String,
+    pub prefix: String,
+    pub deprecated: String,
+    pub depth: i32,
+}
+
+/// Sink for [`Deprecation`] notifications, pre-bound to the install's
+/// reporter so the resolver stays reporter-agnostic. See
+/// [`crate::WorkspaceResolveOptions::deprecation_log`].
+pub type DeprecationLogFn = Arc<dyn Fn(Deprecation) + Send + Sync>;
+
 /// Error envelope returned by the tree walker.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum ResolveDependencyTreeError {
@@ -623,6 +643,16 @@ pub struct WorkspaceTreeCtx {
     /// keeps the skip behavior but drops the notification. See
     /// [`SkippedOptionalLogFn`].
     skipped_optional_log: Option<SkippedOptionalLogFn>,
+    /// Package-name → semver-range map from the
+    /// `pnpm.allowedDeprecatedVersions` setting. When a newly-resolved
+    /// package is deprecated and its `name@version` satisfies an entry
+    /// here, the deprecation warning is suppressed. See
+    /// [`WorkspaceTreeCtx::with_allowed_deprecated_versions`].
+    allowed_deprecated_versions: BTreeMap<String, String>,
+    /// Sink for deprecation notifications. `None` keeps the
+    /// deprecation check but drops the notification. See
+    /// [`DeprecationLogFn`].
+    deprecation_log: Option<DeprecationLogFn>,
     /// The install's `autoInstallPeers` setting. When `true`,
     /// [`fn@resolve_node`] drops a resolved package's `dependencies`
     /// entries that are shadowed by its own `peerDependencies`, so the
@@ -699,6 +729,8 @@ impl Default for WorkspaceTreeCtx {
             pnpmfile_hook: None,
             read_package_log: None,
             skipped_optional_log: None,
+            allowed_deprecated_versions: BTreeMap::new(),
+            deprecation_log: None,
             auto_install_peers: false,
             registries: HashMap::new(),
             first_importer_by_pkg: Mutex::new(HashMap::new()),
@@ -855,6 +887,26 @@ impl WorkspaceTreeCtx {
         skipped_optional_log: Option<SkippedOptionalLogFn>,
     ) -> Self {
         self.skipped_optional_log = skipped_optional_log;
+        self
+    }
+
+    /// Attach the `pnpm.allowedDeprecatedVersions` map. When a
+    /// newly-resolved package is deprecated and its `name@version`
+    /// satisfies an entry here, the deprecation warning is suppressed.
+    #[must_use]
+    pub fn with_allowed_deprecated_versions(
+        mut self,
+        allowed_deprecated_versions: BTreeMap<String, String>,
+    ) -> Self {
+        self.allowed_deprecated_versions = allowed_deprecated_versions;
+        self
+    }
+
+    /// Attach the sink deprecation notifications are forwarded to.
+    /// See [`DeprecationLogFn`].
+    #[must_use]
+    pub fn with_deprecation_log(mut self, deprecation_log: Option<DeprecationLogFn>) -> Self {
+        self.deprecation_log = deprecation_log;
         self
     }
 
@@ -1628,6 +1680,38 @@ where
                     is_leaf,
                 },
             );
+
+            // Deprecation check: emit `pnpm:deprecation` for newly-resolved
+            // packages whose registry manifest carries a non-empty `deprecated`
+            // field, unless the package name+version is covered by
+            // `allowedDeprecatedVersions`. Matches the TS implementation at
+            // `pnpm11/installing/deps-resolver/src/resolveDependencies.ts:2119`.
+            if let Some(deprecated) = extract_deprecated_from_manifest(result.manifest.as_deref())
+                && !deprecated.is_empty()
+            {
+                let pkg_name = result
+                    .name_ver
+                    .as_ref()
+                    .map_or_else(|| alias.clone(), |nv| nv.name.to_string());
+                let pkg_version =
+                    result.name_ver.as_ref().map(|nv| nv.suffix.to_string()).unwrap_or_default();
+
+                if !is_deprecation_allowed(
+                    &pkg_name,
+                    &pkg_version,
+                    &ctx.workspace.allowed_deprecated_versions,
+                ) && let Some(log) = ctx.workspace.deprecation_log.as_ref()
+                {
+                    log(Deprecation {
+                        pkg_name,
+                        pkg_version,
+                        pkg_id: id.clone(),
+                        prefix: ctx.base_opts.project_dir.display().to_string(),
+                        deprecated,
+                        depth,
+                    });
+                }
+            }
         }
     }
 
@@ -3067,6 +3151,39 @@ fn pkg_is_leaf(result: &pacquet_resolving_resolver_base::ResolveResult) -> bool 
 
 fn is_empty_or_absent(value: Option<&Value>) -> bool {
     value.and_then(Value::as_object).is_none_or(serde_json::Map::is_empty)
+}
+
+/// Extract the `deprecated` string from a registry manifest `Value`.
+///
+/// Returns `None` when the manifest is absent or the field is missing
+/// or not a string — both cases mean "not deprecated" and the caller
+/// skips the deprecation check.
+fn extract_deprecated_from_manifest(manifest: Option<&Value>) -> Option<String> {
+    manifest?.get("deprecated")?.as_str().map(str::to_string)
+}
+
+/// Check whether a deprecated package is covered by the
+/// `pnpm.allowedDeprecatedVersions` setting.
+///
+/// Returns `true` when `allowed_deprecated_versions` contains an entry
+/// for `pkg_name` whose semver range satisfies `pkg_version`. The
+/// deprecation warning is suppressed in that case. Matches the TS
+/// check at `pnpm11/installing/deps-resolver/src/resolveDependencies.ts:2122`.
+fn is_deprecation_allowed(
+    pkg_name: &str,
+    pkg_version: &str,
+    allowed_deprecated_versions: &BTreeMap<String, String>,
+) -> bool {
+    let Some(range_str) = allowed_deprecated_versions.get(pkg_name) else {
+        return false;
+    };
+    let Ok(range) = range_str.parse::<node_semver::Range>() else {
+        return false;
+    };
+    let Ok(version) = pkg_version.parse::<node_semver::Version>() else {
+        return false;
+    };
+    range.satisfies(&version)
 }
 
 /// Provenance tags that count as non-exotic for `blockExoticSubdeps`.

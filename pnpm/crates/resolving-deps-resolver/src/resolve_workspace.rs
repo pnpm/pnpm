@@ -116,6 +116,18 @@ pub struct WorkspaceResolveOptions {
     /// log). `None` keeps the skip behavior but drops the notification.
     pub skipped_optional_log: Option<crate::SkippedOptionalLogFn>,
 
+    /// Package-name → semver-range map from the
+    /// `pnpm.allowedDeprecatedVersions` setting. When a newly-resolved
+    /// package is deprecated and its `name@version` satisfies an entry
+    /// here, the deprecation warning is suppressed.
+    pub allowed_deprecated_versions: BTreeMap<String, String>,
+
+    /// Sink for deprecation notifications, pre-bound to the install's
+    /// reporter (the install layer forwards each one as a
+    /// `pnpm:deprecation` debug log). `None` keeps the deprecation
+    /// check but drops the notification.
+    pub deprecation_log: Option<crate::DeprecationLogFn>,
+
     /// The install's `autoInstallPeers` setting, threaded onto the
     /// shared [`WorkspaceTreeCtx`] so the tree walk drops
     /// peer-shadowed `dependencies` entries. Also overrides every
@@ -170,6 +182,8 @@ where
         pnpmfile_hook,
         read_package_log,
         skipped_optional_log,
+        allowed_deprecated_versions,
+        deprecation_log,
         pick_lowest_direct,
         time_based,
         wanted_lockfile,
@@ -187,6 +201,8 @@ where
             .with_pnpmfile_hook(pnpmfile_hook)
             .with_read_package_log(read_package_log)
             .with_skipped_optional_log(skipped_optional_log)
+            .with_allowed_deprecated_versions(allowed_deprecated_versions)
+            .with_deprecation_log(deprecation_log)
             .with_auto_install_peers(auto_install_peers)
             .with_registries(registries),
     );

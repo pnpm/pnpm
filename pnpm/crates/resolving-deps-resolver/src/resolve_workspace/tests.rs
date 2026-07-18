@@ -202,6 +202,8 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
         pnpmfile_hook: None,
         read_package_log: None,
         skipped_optional_log: None,
+        allowed_deprecated_versions: BTreeMap::new(),
+        deprecation_log: None,
         pick_lowest_direct,
         time_based,
         wanted_lockfile: None,

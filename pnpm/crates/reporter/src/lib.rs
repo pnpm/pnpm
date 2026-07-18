@@ -182,6 +182,15 @@ pub enum LogEvent {
     /// it as the `Done in <time> using <pkg> v<version>` footer.
     #[serde(rename = "pnpm:execution-time")]
     ExecutionTime(ExecutionTimeLog),
+
+    /// Deprecated-package warning (`pnpm:deprecation`). Emitted once per
+    /// newly-resolved package whose registry manifest carries a `deprecated`
+    /// field and whose name/version is not covered by
+    /// `allowedDeprecatedVersions`. Direct dependencies (`depth == 0`) are
+    /// rendered immediately; transitive ones are buffered and summarized at
+    /// `pnpm:stage` time.
+    #[serde(rename = "pnpm:deprecation")]
+    Deprecation(DeprecationLog),
 }
 
 /// `pnpm:context` payload.
@@ -806,6 +815,25 @@ pub struct ExecutionTimeLog {
     pub level: LogLevel,
     pub started_at: u128,
     pub ended_at: u128,
+}
+
+/// `pnpm:deprecation` payload. Emitted once per newly-resolved package
+/// whose registry manifest carries a `deprecated` field and whose
+/// name/version is not covered by `allowedDeprecatedVersions`. Field
+/// names match pnpm's [`DeprecationMessage`] wire shape so
+/// `@pnpm/cli.default-reporter` dispatches on them unchanged.
+///
+/// [`DeprecationMessage`]: https://github.com/pnpm/pnpm/blob/main/core/core-loggers/src/deprecationLogger.ts
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeprecationLog {
+    pub level: LogLevel,
+    pub pkg_name: String,
+    pub pkg_version: String,
+    pub pkg_id: String,
+    pub prefix: String,
+    pub deprecated: String,
+    pub depth: i32,
 }
 
 /// Severity level on the [bunyan]-shaped envelope.
