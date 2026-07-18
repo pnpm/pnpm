@@ -35,7 +35,7 @@ const ABBREVIATED_VERSION_FIELDS = [
  * to themselves, making a repeat condense of an already-condensed document
  * the identity instead of another copy.
  */
-const condensedMetas = new WeakMap<PackageMeta, PackageMeta>()
+const condensedPackuments = new WeakMap<PackageMeta, PackageMeta>()
 
 /**
  * Reduces a package metadata document to the abbreviated field set that the
@@ -56,7 +56,7 @@ const condensedMetas = new WeakMap<PackageMeta, PackageMeta>()
  *   retains after settlement.
  *
  * Returns the same condensed object for the same input (see
- * {@link condensedMetas}), so callers may compare by identity to detect
+ * {@link condensedPackuments}), so callers may compare by identity to detect
  * whether condensing changed anything. `etag` is carried over when the input
  * has one (disk-loaded documents), so a condensed document can still answer
  * conditional-request headers.
@@ -65,7 +65,7 @@ const condensedMetas = new WeakMap<PackageMeta, PackageMeta>()
  * versions), which the abbreviated path can reach.
  */
 export function clearMeta (pkg: PackageMeta): PackageMeta {
-  const memoized = condensedMetas.get(pkg)
+  const memoized = condensedPackuments.get(pkg)
   if (memoized != null) return memoized
 
   // A null prototype so that a registry-controlled version key named
@@ -86,8 +86,8 @@ export function clearMeta (pkg: PackageMeta): PackageMeta {
   if (pkg.etag != null) {
     condensed.etag = pkg.etag
   }
-  condensedMetas.set(pkg, condensed)
-  condensedMetas.set(condensed, condensed)
+  condensedPackuments.set(pkg, condensed)
+  condensedPackuments.set(condensed, condensed)
   return condensed
 }
 

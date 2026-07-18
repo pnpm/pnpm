@@ -716,7 +716,7 @@ export function getPkgMirrorPath (cacheDir: string, metaDir: string, registry: s
  *   `jsonText` is given, a re-serialization of `meta` otherwise
  *
  * The etag lives only in the headers line: `loadMeta` re-attaches it from
- * there, and a serialized `meta` may carry one (metas are shared and get
+ * there, and a serialized `meta` may carry one (meta objects are shared and get
  * their `etag` assigned after a fetch), so it is dropped from the body here
  * rather than at every call site.
  */
