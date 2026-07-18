@@ -322,12 +322,14 @@ export async function resolveDependencies (
     // Aliases this run actually targets (added, spec-changed, or matched by a
     // `pnpm update <name>`). Only these may legitimately change their
     // `link:`/`file:` form; the preserve-prior-link guard below is limited to
-    // dependencies outside this set.
+    // dependencies outside this set. `updateSpec` is deliberately not
+    // consulted: a plain install marks every manifest dependency with it, so
+    // it signals "re-check the spec", not "the user targeted this dependency".
     const importer = importers[index]
     const updateMatching = importer.updateMatching
     const updateTargetedAliases = new Set(
-      project.wantedDependencies.flatMap(({ alias, bareSpecifier, isNew, prevSpecifier, updateSpec }) =>
-        alias != null && (isNew === true || updateSpec === true || (prevSpecifier != null && bareSpecifier !== prevSpecifier))
+      project.wantedDependencies.flatMap(({ alias, bareSpecifier, isNew, prevSpecifier }) =>
+        alias != null && (isNew === true || (prevSpecifier != null && bareSpecifier !== prevSpecifier))
           ? [alias]
           : []
       )
