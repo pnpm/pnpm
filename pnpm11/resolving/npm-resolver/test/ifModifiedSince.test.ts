@@ -100,6 +100,44 @@ test('use local cache when registry returns 304 Not Modified', async () => {
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
 })
 
+test('if-modified-since is sent as an HTTP-date derived from the stored ISO-8601 modified value', async () => {
+  const cacheDir = temporaryDirectory()
+  const metaDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
+  fs.mkdirSync(metaDir, { recursive: true })
+  // The mirror stores the packument's `time.modified`, which is ISO-8601. The
+  // wire header must be the HTTP-date form (RFC 9110 §8.8.3) — pinned here so
+  // the TypeScript CLI and pacquet stay byte-identical on the wire.
+  const headers = JSON.stringify({ modified: '2025-01-15T12:00:00.000Z' })
+  fs.writeFileSync(
+    path.join(metaDir, 'is-positive.jsonl'),
+    `${headers}\n${JSON.stringify(isPositiveMeta)}`,
+    'utf8'
+  )
+
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: {
+        'if-modified-since': 'Wed, 15 Jan 2025 12:00:00 GMT',
+      },
+    })
+    .reply(304, '')
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registries,
+  })
+  const resolveResult = await resolveFromNpm(
+    { alias: 'is-positive', bareSpecifier: '^3.0.0' },
+    {}
+  )
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+})
+
 test('a 304 Not Modified renews the metadata file mtime so the publishedBy freshness shortcut can fire again', async () => {
   const cacheDir = temporaryDirectory()
   const metaDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
