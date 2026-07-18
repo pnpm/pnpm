@@ -141,12 +141,6 @@ pub struct PeerDep {
     /// is set — a missing peer with `optional` true is recorded as an
     /// issue but does not block resolution.
     pub optional: bool,
-    /// `true` when the peer exists only via `peerDependenciesMeta`
-    /// (no `peerDependencies` entry). The resolution-stage missing-peer
-    /// scan reads `peerDependencies` only, so a meta-only peer never
-    /// feeds the optional-peer hoist — it still resolves in the peer
-    /// pass when a provider is genuinely in scope.
-    pub meta_only: bool,
 }
 
 /// One per-occurrence node in the dependencies tree.

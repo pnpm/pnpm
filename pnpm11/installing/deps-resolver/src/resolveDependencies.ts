@@ -2201,7 +2201,7 @@ async function resolveDependency (
       childrenResolutionId: childrenResolution.id,
       pkgId: pkgResponse.body.id,
       rootDir,
-      missingPeers: getMissingPeers(pkg),
+      missingPeers: getMissingPeers(resolvedPkg.peerDependencies),
       optional: resolvedPkg.optional,
       version: resolvedPkg.version,
       saveCatalogName: wantedDependency.saveCatalogName,
@@ -2269,12 +2269,16 @@ export function getManifestFromResponse (
   }
 }
 
-function getMissingPeers (pkg: PackageManifest): MissingPeers {
+// The materialized peer set is used (not the manifest's raw peerDependencies)
+// so that peers implied by a peerDependenciesMeta-only declaration participate
+// in missing-peer collection — and therefore in optional-peer hoisting — the
+// same way explicitly declared peers do.
+function getMissingPeers (peerDependencies: PeerDependencies): MissingPeers {
   const missingPeers = {} as MissingPeers
-  for (const [peerName, peerVersion] of Object.entries(pkg.peerDependencies ?? {})) {
+  for (const [peerName, peerDep] of Object.entries(peerDependencies)) {
     missingPeers[peerName] = {
-      range: peerVersion,
-      optional: pkg.peerDependenciesMeta?.[peerName]?.optional === true,
+      range: peerDep.version,
+      optional: peerDep.optional === true,
     }
   }
   return missingPeers

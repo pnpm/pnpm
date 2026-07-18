@@ -268,7 +268,6 @@ fn peer_issues_to_json_derives_conflicts_and_intersections() {
         wanted_range: range.to_string(),
         raw_range: range.to_string(),
         optional,
-        meta_only: false,
         parents: vec![parent.clone()],
     };
     let mut issues = PeerDependencyIssues::default();

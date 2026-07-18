@@ -2985,8 +2985,8 @@ fn render_parent(result: &pacquet_resolving_resolver_base::ResolveResult) -> Str
 /// peer-shadowed names from `dependencies`, so those peers survive
 /// here. A `peerDependenciesMeta` entry without a matching
 /// `peerDependencies` entry only counts when `optional: true` — it is
-/// treated as an optional `"*"` peer, and non-optional meta-only
-/// entries are ignored.
+/// treated as an optional `"*"` peer exactly like an explicitly
+/// declared one, and non-optional meta-only entries are ignored.
 fn extract_peer_dependencies(
     result: &pacquet_resolving_resolver_base::ResolveResult,
 ) -> BTreeMap<String, PeerDep> {
@@ -3015,7 +3015,7 @@ fn extract_peer_dependencies(
             if let Some(range_str) = range.as_str() {
                 peers.insert(
                     name.clone(),
-                    PeerDep { version: range_str.to_string(), optional: false, meta_only: false },
+                    PeerDep { version: range_str.to_string(), optional: false },
                 );
             }
         }
@@ -3028,9 +3028,10 @@ fn extract_peer_dependencies(
             {
                 continue;
             }
-            peers.entry(name.clone()).and_modify(|entry| entry.optional = true).or_insert_with(
-                || PeerDep { version: "*".to_string(), optional: true, meta_only: true },
-            );
+            peers
+                .entry(name.clone())
+                .and_modify(|entry| entry.optional = true)
+                .or_insert_with(|| PeerDep { version: "*".to_string(), optional: true });
         }
     }
 

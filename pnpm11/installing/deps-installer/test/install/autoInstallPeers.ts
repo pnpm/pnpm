@@ -38,6 +38,28 @@ test('auto install non-optional peer dependencies', async () => {
   project.hasNot('@pnpm.e2e/peer-a')
 })
 
+test('resolve an optional peer dependency declared only via peerDependenciesMeta from a version present in the dependency graph', async () => {
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, [
+    '@pnpm.e2e/abc-optional-peers-meta-only@1.0.0',
+    '@pnpm.e2e/has-peer-c-in-deps@1.0.0',
+  ], testDefaults({ autoInstallPeers: true }))
+  const lockfile = project.readLockfile()
+  // peer-c is an implied optional peer (declared only in peerDependenciesMeta),
+  // so it is resolved from the version that has-peer-c-in-deps brings into the
+  // graph. peer-b is also an implied optional peer, but no version of it is in
+  // the graph, so it stays unresolved. peer-a is a required peer and gets
+  // auto-installed.
+  expect(Object.keys(lockfile.snapshots).sort()).toStrictEqual([
+    '@pnpm.e2e/abc-optional-peers-meta-only@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-c@2.0.0)',
+    '@pnpm.e2e/has-peer-c-in-deps@1.0.0',
+    '@pnpm.e2e/peer-a@1.0.0',
+    '@pnpm.e2e/peer-c@2.0.0',
+  ])
+  project.hasNot('@pnpm.e2e/peer-c')
+})
+
 test('auto install the common peer dependency', async () => {
   await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.1', distTag: 'latest' })
   const project = prepareEmpty()

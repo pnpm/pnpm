@@ -83,11 +83,6 @@ pub struct MissingPeer {
     /// source.
     pub raw_range: String,
     pub optional: bool,
-    /// `true` when the requiring package declares the peer only via
-    /// `peerDependenciesMeta`. The importer hoist loop uses it to keep
-    /// meta-only peers out of the optional-peer hoist, since the hoist
-    /// is fed from `peerDependencies` entries only.
-    pub meta_only: bool,
     /// Chain of `(name, version)` from the root importer down to the
     /// parent that declared the peer requirement.
     pub parents: Vec<ParentPackageRef>,

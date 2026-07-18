@@ -1819,10 +1819,7 @@ fn package_with_peer_dependencies(
     let peer_dependencies = peer_dependencies
         .iter()
         .map(|(name, version, optional)| {
-            (
-                (*name).to_string(),
-                PeerDep { version: (*version).to_string(), optional: *optional, meta_only: false },
-            )
+            ((*name).to_string(), PeerDep { version: (*version).to_string(), optional: *optional })
         })
         .collect();
     ResolvedPackage {
