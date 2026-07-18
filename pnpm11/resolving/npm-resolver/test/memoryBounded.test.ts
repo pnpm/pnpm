@@ -1,8 +1,9 @@
 import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import util from 'node:util'
 
-import { expect, test } from '@jest/globals'
+import { test } from '@jest/globals'
 
 /**
  * Regression guard for https://github.com/pnpm/pnpm/issues/8441: resolving
@@ -20,12 +21,18 @@ import { expect, test } from '@jest/globals'
 test('resolution completes within a small heap while registry documents carry megabytes of bulk', () => {
   const fixture = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures/resolve-bloated-metadata.mjs')
   // execFileSync throws on a non-zero exit — an OOM-killed child (V8 aborts
-  // with "Ineffective mark-compacts near heap limit") fails the test, with
-  // the child's stderr attached for diagnosis.
-  expect(() => {
+  // with "Ineffective mark-compacts near heap limit") fails the test. The
+  // child's stderr is folded into the error message because jest only prints
+  // the message, not extra properties like `stderr`.
+  try {
     execFileSync(process.execPath, ['--max-old-space-size=100', fixture], {
       stdio: ['ignore', 'ignore', 'pipe'],
       timeout: 100_000,
     })
-  }).not.toThrow()
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'stderr' in err && err.stderr != null) {
+      err.message += `\n\nChild stderr:\n${String(err.stderr)}`
+    }
+    throw err
+  }
 }, 120_000)

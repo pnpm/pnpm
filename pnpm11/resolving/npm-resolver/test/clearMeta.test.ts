@@ -3,29 +3,6 @@ import type { PackageMeta } from '@pnpm/resolving.registry.types'
 
 import { clearMeta, retainsFullMeta } from '../src/clearMeta.js'
 
-function fullMeta (): PackageMeta {
-  return {
-    name: 'foo',
-    'dist-tags': { latest: '1.0.0' },
-    versions: {
-      '1.0.0': {
-        name: 'foo',
-        version: '1.0.0',
-        libc: ['glibc'],
-        scripts: { postinstall: 'node scripts/build.js' },
-        description: 'dropped',
-        dist: {
-          tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz',
-          integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==',
-        },
-      },
-    },
-    time: { '1.0.0': '2020-01-01T00:00:00.000Z' },
-    modified: '2020-01-01T00:00:00.000Z',
-    readme: '# dropped',
-  } as unknown as PackageMeta
-}
-
 test('clearMeta keeps the install-relevant field set and drops the rest', () => {
   const condensed = clearMeta(fullMeta())
   expect(condensed.versions['1.0.0'].libc).toEqual(['glibc'])
@@ -60,3 +37,26 @@ test('retainsFullMeta only holds for full-metadata resolvers without filterMetad
   expect(retainsFullMeta({})).toBe(false)
   expect(retainsFullMeta({ filterMetadata: true })).toBe(false)
 })
+
+function fullMeta (): PackageMeta {
+  return {
+    name: 'foo',
+    'dist-tags': { latest: '1.0.0' },
+    versions: {
+      '1.0.0': {
+        name: 'foo',
+        version: '1.0.0',
+        libc: ['glibc'],
+        scripts: { postinstall: 'node scripts/build.js' },
+        description: 'dropped',
+        dist: {
+          tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz',
+          integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==',
+        },
+      },
+    },
+    time: { '1.0.0': '2020-01-01T00:00:00.000Z' },
+    modified: '2020-01-01T00:00:00.000Z',
+    readme: '# dropped',
+  } as unknown as PackageMeta
+}

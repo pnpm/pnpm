@@ -284,7 +284,7 @@ export async function pickPackage (
     // publishedBy and the package was modified recently, upgrade to full
     // metadata so the maturity check runs properly.
     const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, spec, opts, cachedMeta)
-    const metaForCache = upgradeMetaForCache(ctx, pkgMirror, opts.dryRun, upgrade)
+    const metaForCache = upgradeMetaForCache(ctx, upgrade, { pkgMirror, dryRun: opts.dryRun })
     if (upgrade.upgradedFrom != null) {
       ctx.metaCache.set(cacheKey, metaForCache)
     }
@@ -331,7 +331,7 @@ export async function pickPackage (
         // Disk-cached meta may be abbreviated; upgrade for the maturity check
         // before letting pickMatchingVersionFinal warn-and-skip on missing time.
         const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, spec, opts, diskMeta)
-        diskMeta = upgradeMetaForCache(ctx, pkgMirror, opts.dryRun, upgrade)
+        diskMeta = upgradeMetaForCache(ctx, upgrade, { pkgMirror, dryRun: opts.dryRun })
         if (upgrade.upgradedFrom != null) {
           ctx.metaCache.set(cacheKey, diskMeta)
         }
@@ -462,7 +462,7 @@ export async function pickPackage (
       // this, repeat installs of recently-modified packages would silently
       // bypass the maturity check via the warn-and-skip fallback.
       const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, spec, opts, cached)
-      const meta = upgradeMetaForCache(ctx, pkgMirror, opts.dryRun, upgrade)
+      const meta = upgradeMetaForCache(ctx, upgrade, { pkgMirror, dryRun: opts.dryRun })
       ctx.metaCache.set(cacheKey, meta)
       return {
         meta,
@@ -497,15 +497,7 @@ export async function pickPackage (
         if (!isModifiedValid || modifiedDate > opts.publishedBy) {
           // Save the abbreviated metadata to the abbreviated cache before re-fetching full.
           if (!opts.dryRun) {
-            const abbreviatedJson = prepareJsonForDisk(resultToSave.meta, resultToSave.etag, resultToSave.jsonText)
-            // Fire-and-forget save to the abbreviated cache path (pkgMirror).
-            runLimited(pkgMirror, (limit) => limit(async () => {
-              try {
-                await saveMeta(pkgMirror, abbreviatedJson)
-              } catch (err: any) { // eslint-disable-line
-                // We don't care if this file was not written to the cache
-              }
-            }))
+            saveMetaBestEffort(pkgMirror, prepareJsonForDisk(resultToSave.meta, resultToSave.etag, resultToSave.jsonText))
           }
           const fullFetchResult = await ctx.fetch(spec.name, {
             authHeaderValue: opts.authHeaderValue,
@@ -531,13 +523,7 @@ export async function pickPackage (
         const jsonForDisk = writeCondensed
           ? prepareJsonForDisk(meta, resultToSave.etag)
           : prepareJsonForDisk(resultToSave.meta, resultToSave.etag, resultToSave.jsonText)
-        runLimited(pkgMirror, (limit) => limit(async () => {
-          try {
-            await saveMeta(pkgMirror, jsonForDisk)
-          } catch (err: any) { // eslint-disable-line
-            // We don't care if this file was not written to the cache
-          }
-        }))
+        saveMetaBestEffort(pkgMirror, jsonForDisk)
       }
       meta.etag = resultToSave.etag
       // only save meta to cache, when it is fresh
@@ -624,13 +610,12 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
  */
 function upgradeMetaForCache (
   ctx: { fullMetadata?: boolean, filterMetadata?: boolean },
-  pkgMirror: string,
-  dryRun: boolean,
-  upgrade: { meta: PackageMeta, upgradedFrom?: FetchMetadataResult }
+  upgrade: { meta: PackageMeta, upgradedFrom?: FetchMetadataResult },
+  opts: { pkgMirror: string, dryRun: boolean }
 ): PackageMeta {
   if (upgrade.upgradedFrom == null) return upgrade.meta
-  if (dryRun) return condenseMetaForCache(ctx, upgrade.meta)
-  return persistUpgradedMeta(ctx, pkgMirror, upgrade.upgradedFrom)
+  if (opts.dryRun) return condenseMetaForCache(ctx, upgrade.meta)
+  return persistUpgradedMeta(ctx, opts.pkgMirror, upgrade.upgradedFrom)
 }
 
 // Persists upgraded full metadata to the on-disk cache mirror and returns
@@ -647,14 +632,25 @@ function persistUpgradedMeta (
   const jsonForDisk = metaForCache === upgradedFrom.meta
     ? prepareJsonForDisk(upgradedFrom.meta, upgradedFrom.etag, upgradedFrom.jsonText)
     : prepareJsonForDisk(metaForCache, upgradedFrom.etag)
-  runLimited(pkgMirror, (l) => l(async () => {
+  saveMetaBestEffort(pkgMirror, jsonForDisk)
+  return metaForCache
+}
+
+/**
+ * Write a mirror file without letting a failure escape: the mirror is an
+ * optimization (the next install falls back to an unconditional fetch), so
+ * the install continues — but the failure is debug-logged with the mirror
+ * path so a broken cache dir (permissions, disk full) stays diagnosable.
+ * Writes to the same mirror are serialized through its refcounted limiter.
+ */
+function saveMetaBestEffort (pkgMirror: string, json: string): void {
+  void runLimited(pkgMirror, (limit) => limit(async () => {
     try {
-      await saveMeta(pkgMirror, jsonForDisk)
-    } catch (err: any) { // eslint-disable-line
-      // We don't care if this file was not written to the cache
+      await saveMeta(pkgMirror, json)
+    } catch (err: unknown) {
+      logger.debug({ message: `Failed to write the package metadata mirror at ${pkgMirror}`, err })
     }
   }))
-  return metaForCache
 }
 
 export function encodePkgName (pkgName: string): string {

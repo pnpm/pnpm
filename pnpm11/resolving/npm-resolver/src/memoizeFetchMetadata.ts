@@ -64,14 +64,7 @@ export function memoizeFetchMetadata (fetch: FetchMetadata, memoOpts?: MemoizeFe
       void pending.then(
         (result) => {
           if (cache.get(key) !== pending) return
-          cache.set(
-            key,
-            Promise.resolve(
-              result.notModified
-                ? result
-                : { ...result, jsonText: undefined, meta: condense ? condense(result.meta) : result.meta }
-            )
-          )
+          cache.set(key, Promise.resolve(settledEntry(result)))
         },
         () => {
           if (cache.get(key) === pending) cache.delete(key)
@@ -82,5 +75,23 @@ export function memoizeFetchMetadata (fetch: FetchMetadata, memoOpts?: MemoizeFe
     clear: () => {
       cache.clear()
     },
+  }
+
+  // The entry retained after settlement: body dropped, meta condensed. Runs
+  // inside a fire-and-forget then-callback, so it must not throw — an error
+  // there would surface as an unhandled rejection and kill the process. The
+  // condenser runs on a parsed but otherwise untrusted registry document; if
+  // it fails, fall back to retaining the uncondensed meta (correct, just
+  // bigger), and leave surfacing the document's problem to the resolution
+  // path, which condenses the same document with proper error propagation.
+  function settledEntry (result: FetchMetadataResult | FetchMetadataNotModifiedResult): FetchMetadataResult | FetchMetadataNotModifiedResult {
+    if (result.notModified) return result
+    let meta = result.meta
+    if (condense != null) {
+      try {
+        meta = condense(result.meta)
+      } catch {}
+    }
+    return { ...result, jsonText: undefined, meta }
   }
 }

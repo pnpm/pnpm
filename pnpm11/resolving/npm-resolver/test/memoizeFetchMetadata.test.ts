@@ -149,6 +149,25 @@ test('notModified results pass through unchanged', async () => {
   expect(second).toBe(first)
 })
 
+test('a throwing condenseSettledMeta falls back to retaining the uncondensed meta', async () => {
+  const result = fooFetchResult()
+  const { fetch } = memoizeFetchMetadata(async () => result, {
+    condenseSettledMeta: () => {
+      throw new Error('malformed document')
+    },
+  })
+
+  const first = await fetch('foo', { registry: REGISTRY })
+  expect(first).toBe(result)
+
+  // The settlement swap must survive the condenser: no unhandled rejection,
+  // and the retained entry still serves the (uncondensed) meta.
+  const second = await fetch('foo', { registry: REGISTRY })
+  if (second.notModified) throw new Error('expected a cached fetch result')
+  expect(second.meta).toBe(result.meta)
+  expect(second.jsonText).toBeUndefined()
+})
+
 test('condenseSettledMeta narrows the retained meta while the initiating caller sees the original', async () => {
   const result = fooFetchResult()
   const condensed = { name: 'foo' } as PackageMeta

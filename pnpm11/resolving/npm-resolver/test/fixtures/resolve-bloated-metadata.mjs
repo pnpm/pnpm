@@ -3,8 +3,8 @@
 // install-irrelevant bulk — under the small heap the parent capped this
 // process to (see the test for the sizing arithmetic). Imports the compiled
 // lib because it runs outside jest's TS transform.
+import { mkdtempSync, rmSync } from 'node:fs'
 import http from 'node:http'
-import { mkdtempSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -50,8 +50,9 @@ await new Promise((resolve) => {
 })
 const registry = `http://127.0.0.1:${server.address().port}/`
 
+const cacheDir = mkdtempSync(path.join(os.tmpdir(), 'pnpm-memory-bounded-'))
 const { resolveFromNpm } = createNpmResolver(createFetchFromRegistry({}), () => undefined, {
-  cacheDir: mkdtempSync(path.join(os.tmpdir(), 'pnpm-memory-bounded-')),
+  cacheDir,
   registries: { default: registry },
 })
 
@@ -69,3 +70,4 @@ for (let i = 0; i < PACKAGE_COUNT; i++) {
 }
 
 server.close()
+rmSync(cacheDir, { recursive: true, force: true })
