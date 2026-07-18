@@ -2163,3 +2163,75 @@ fn injected_workspace_dep_flips_to_file_when_specifier_changed() {
         entry.version,
     );
 }
+
+// Bare `pacquet update` (UpdateReuseScope::None) re-resolves the whole
+// graph, so every workspace dependency is targeted and its divergent
+// `file:` resolution stands — exercises the `None` arm of the guard.
+#[test]
+fn injected_workspace_dep_flips_to_file_on_scope_wide_update() {
+    let (_tmp, manifest, graph, direct) = injected_link_fixture();
+    let previous = previous_importers_with_link("n", "workspace:*", "../n");
+
+    let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        previous_importers: Some(&previous),
+        update_reuse_scope: UpdateReuseScope::None,
+        ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
+    });
+
+    let importer = lockfile.root_project().expect("root importer");
+    let entry = importer
+        .dependencies
+        .as_ref()
+        .and_then(|deps| deps.get(&PkgName::parse("n").unwrap()))
+        .expect("n entry");
+    assert!(
+        matches!(&entry.version, ImporterDepVersion::File(_)),
+        "a scope-wide update must keep the fresh file: resolution, got {:?}",
+        entry.version,
+    );
+}
+
+// Same `pacquet update <name>` targeting as
+// `injected_workspace_dep_flips_to_file_when_update_targets_it`, but the
+// injected node carries a structured `name_ver` (rather than learning its
+// name from the manifest) — exercises the `name_ver` arm of
+// `node_pkg_name` used to match the update scope.
+#[test]
+fn injected_workspace_dep_flips_to_file_when_update_targets_named_node() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "consumer",
+        "version": "1.0.0",
+        "dependencies": { "n": "workspace:*" },
+    }));
+    // A file: injected node whose resolver produced a structured name.
+    let mut file_node = make_file_node("packages/n", json!({ "name": "n", "version": "1.0.0" }));
+    let resolve_result = ResolveResult {
+        name_ver: Some("n@1.0.0".parse().expect("parse PkgNameVer")),
+        ..(*file_node.resolve_result).clone()
+    };
+    file_node.resolve_result = std::sync::Arc::new(resolve_result);
+    let mut graph = DependenciesGraph::new();
+    graph.insert(file_node.dep_path.clone(), file_node.clone());
+    let mut direct = BTreeMap::new();
+    direct.insert("n".to_string(), file_node.dep_path);
+
+    let previous = previous_importers_with_link("n", "workspace:*", "../n");
+
+    let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        previous_importers: Some(&previous),
+        update_reuse_scope: UpdateReuseScope::Except(HashSet::from(["n".to_string()])),
+        ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
+    });
+
+    let importer = lockfile.root_project().expect("root importer");
+    let entry = importer
+        .dependencies
+        .as_ref()
+        .and_then(|deps| deps.get(&PkgName::parse("n").unwrap()))
+        .expect("n entry");
+    assert!(
+        matches!(&entry.version, ImporterDepVersion::File(_)),
+        "an update targeting a name_ver-bearing node must keep file:, got {:?}",
+        entry.version,
+    );
+}
