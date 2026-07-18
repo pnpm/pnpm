@@ -67,6 +67,10 @@
   dir: pnpm11/exec/lifecycle
   intents:
     - windows-kill-tracked-process-trees
+"@pnpm/fetching.binary-fetcher@1102.0.4":
+  dir: pnpm11/fetching/binary-fetcher
+  intents:
+    - clean-zip-memory
 "@pnpm/fs.packlist@1100.0.2":
   dir: pnpm11/fs/packlist
   intents:
@@ -95,6 +99,10 @@
   dir: pnpm11/installing/deps-installer
   intents:
     - olive-pandas-converge
+"@pnpm/installing.deps-installer@1102.3.3":
+  dir: pnpm11/installing/deps-installer
+  intents:
+    - pnpr-workspace-identity
 "@pnpm/installing.deps-resolver@1100.2.11":
   dir: pnpm11/installing/deps-resolver
   intents:
@@ -104,6 +112,10 @@
   intents:
     - dedupe-injected-deps-unrelated-peer-suffix
     - steady-lockfile-children
+"@pnpm/installing.deps-resolver@1100.3.0":
+  dir: pnpm11/installing/deps-resolver
+  intents:
+    - meta-only-optional-peer-hoist
 "@pnpm/lockfile.fs@1100.1.12":
   dir: pnpm11/lockfile/fs
   intents:
@@ -113,10 +125,18 @@
   dir: pnpm11/lockfile/verification
   intents:
     - fresh-gits-agree
+"@pnpm/napi@12.0.0-alpha.15":
+  dir: pnpm/npm/napi
+  intents:
+    - pacquet-licenses
 "@pnpm/network.auth-header@1101.1.4":
   dir: pnpm11/network/auth-header
   intents:
     - token-helper-timeout
+"@pnpm/pnpr.client@1.3.5":
+  dir: pnpr/client
+  intents:
+    - pnpr-workspace-identity
 "@pnpm/pnpr@0.1.0-alpha.1":
   dir: pnpr/npm/pnpr
   intents:
@@ -129,6 +149,11 @@
   dir: pnpr/npm/pnpr
   intents:
     - pacquet-clap-help-markdown
+"@pnpm/pnpr@0.1.0-alpha.4":
+  dir: pnpr/npm/pnpr
+  intents:
+    - pacquet-install-filters
+    - pnpr-workspace-identity
 "@pnpm/registry-access.commands@1100.5.0":
   dir: pnpm11/registry-access/commands
   intents:
@@ -160,6 +185,10 @@
   intents:
     - epics-monorepo-versioning
     - native-monorepo-versioning-core
+"@pnpm/releasing.versioning@1100.1.3":
+  dir: pnpm11/releasing/versioning
+  intents:
+    - ledger-empty-intents-roundtrip
 "@pnpm/resolving.npm-resolver@1102.1.3":
   dir: pnpm11/resolving/npm-resolver
   intents:
@@ -200,7 +229,7 @@ pacquet@12.0.0-alpha.12:
     - pacquet-symlink-dangling-junction-parent
 pacquet@12.0.0-alpha.13:
   dir: pnpm/npm/pnpm
-  intents: []
+  intents:
 pacquet@12.0.0-alpha.14:
   dir: pnpm/npm/pnpm
   intents:
@@ -227,6 +256,15 @@ pacquet@12.0.0-alpha.14:
     - safe-broken-lockfile-errors
     - self-update-verify-installed-pnpm
     - update-preserve-exact-pins
+pacquet@12.0.0-alpha.15:
+  dir: pnpm/npm/pnpm
+  intents:
+    - ledger-empty-intents-roundtrip
+    - meta-only-optional-peer-hoist
+    - pacquet-frozen-auto-install-peers
+    - pacquet-install-filters
+    - pacquet-licenses
+    - reuse-denied-edge-empty-snapshot
 pacquet@12.0.0-alpha.9:
   dir: pnpm/npm/pnpm
   intents:
@@ -296,3 +334,10 @@ pnpm@11.14.0:
     - self-update-verify-installed-pnpm
     - share-inflight-packuments
     - update-preserve-exact-pins
+pnpm@11.15.0:
+  dir: pnpm11/pnpm
+  intents:
+    - clean-zip-memory
+    - ledger-empty-intents-roundtrip
+    - meta-only-optional-peer-hoist
+    - pnpr-workspace-identity
