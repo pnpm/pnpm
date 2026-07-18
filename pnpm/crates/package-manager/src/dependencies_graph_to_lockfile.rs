@@ -347,6 +347,26 @@ fn build_importer(
             // preserved. Matches the TS resolver's `updateTargetedAliases`
             // / `updateMatching` guard, where a plain install's blanket
             // spec re-check must not count as targeting.
+            //
+            // Known parity gap with the TS side (`pnpm update <name>
+            // --recursive`): this reads the *global* update scope, not the
+            // per-importer scope from `update_reuse_scope_for`. A recursive
+            // update lowers to a `ByImporter` policy whose global scope is
+            // `All` (the named packages live in the per-importer map), so a
+            // workspace-link dep that the user named *and* whose peer
+            // context flips on re-resolve is preserved as `link:` here,
+            // whereas TS's per-importer `updateMatching(<name>)` would keep
+            // the fresh `file:`. Threading the per-importer scope instead is
+            // not a fix: `UpdateReuseScope` conflates "the user asked to
+            // update this importer" (`DropAll` -> `None`) with "re-resolve
+            // this importer as a side effect of a recursive update", and a
+            // non-target importer's `None` would re-target the untouched
+            // workspace edge and reintroduce pnpm/pnpm#10433. Expressing the
+            // narrower by-name targeting would need a separate signal (as TS
+            // keeps `update` and `updateMatching` distinct). The gap is
+            // limited to recursively updating a workspace-link dep by name
+            // that also diverges its peer context — where keeping `link:`
+            // for a workspace package is a defensible outcome anyway.
             let targeted_by_update = match update_reuse_scope {
                 UpdateReuseScope::All => false,
                 UpdateReuseScope::None => true,
