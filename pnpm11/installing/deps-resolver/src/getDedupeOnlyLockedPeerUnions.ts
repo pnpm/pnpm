@@ -86,8 +86,9 @@ export function getDedupeOnlyLockedPeerUnions<T extends PartialResolvedPackage> 
     const candidatePeerNames = new Set([...freshContext.resolvedPeerNames, ...candidate.keys()])
     const freshContexts = [...(freshPeerContextsByPkgId.get(pkg.pkgIdWithPatchHash)?.values() ?? [])]
     // Admit only a genuinely new union: this occurrence must contribute a
-    // non-empty exact subset, at least one other fresh context must contribute,
-    // and the combined provider map must equal the locked context.
+    // non-empty exact subset, at least one other fresh context with a distinct
+    // peer-context signature must contribute, and the combined provider map
+    // must equal the locked context.
     if (freshContexts.some((contexts) => contexts.some(({ peerContext }) => mapsEqual(peerContext, candidate)))) continue
     const contributingContexts = freshContexts.flatMap((contexts) => {
       const context = contexts.find((context) =>
