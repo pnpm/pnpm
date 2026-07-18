@@ -4,10 +4,11 @@ name: Release
 # TypeScript pnpm CLI (v11), the Rust pnpm CLI + NAPI addon (v12), and the
 # pnpr registry server. Versions are committed (bumped by `pnpm bump` via the
 # release PR that create-release-pr.yml opens); pushing a version tag runs the
-# `plan` job, which asks the npm registry which committed versions are not
-# published yet, and only those products' jobs run. Tagging e.g. a v12
-# prerelease therefore skips the TypeScript jobs whose version is already on
-# npm, and vice versa.
+# `plan` job, which releases exactly the product whose committed version the
+# tag names, so tags pushed together release their products in parallel runs.
+# The plan job also asks the npm registry whether that version is already
+# published: rerunning a tag resumes a partial release, and a completed one
+# skips every job.
 on:
   push:
     tags:
@@ -28,13 +29,15 @@ on:
         default: false
 
 # A release PR that bumps several products auto-tags each one (tag-release.yml),
-# so several version tags can land together and start a run apiece. Serialize
-# them: the plan job gates every publish on what npm reports as unpublished, so
-# once the first run publishes a product the rest skip it — but only if they
-# don't run concurrently and all read "unpublished" at once. Never cancel a
-# run mid-publish.
+# so several version tags can land together and start a run apiece. Each run
+# releases only the product its tag names (see the plan job), so simultaneous
+# runs publish disjoint packages and may proceed in parallel. The group is
+# scoped per ref because GitHub keeps at most one *pending* run per group and
+# cancels the rest — a shared group would silently drop one product's release
+# whenever several tags land together. Reruns of the same tag still serialize.
+# Never cancel a run mid-publish.
 concurrency:
-  group: release
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -79,12 +82,15 @@ jobs:
 
       - name: Read committed versions and query the registry
         id: decide
-        # A product is released when its committed version is not on npm yet.
-        # `needs_release` treats only E404 as "not published"; any other npm
-        # failure aborts the plan so a registry outage can't be misread as a
-        # pending release. The gate packages are the ones each publish job
-        # publishes last (`pnpm` for both CLIs, `@pnpm/pnpr` for pnpr), so a
-        # rerun after a partial failure resumes instead of skipping.
+        # The tag names the product to release: the one whose committed
+        # version it matches. A tag matching no product's committed version
+        # is an error, never a fallback release. The matched product is then
+        # released only if its version is not on npm yet. `needs_release`
+        # treats only E404 as "not published"; any other npm failure aborts
+        # the plan so a registry outage can't be misread as a pending release.
+        # The gate packages are the ones each publish job publishes last
+        # (`pnpm` for both CLIs, `@pnpm/pnpr` for pnpr), so a rerun after a
+        # partial failure resumes instead of skipping.
         run: |
           set -eu
           needs_release() {
@@ -124,14 +130,40 @@ jobs:
             *) PNPR_TAG="latest" ;;
           esac
 
-          # Assign first so `set -e` aborts the plan on a `needs_release`
-          # failure. Inside `echo "$(needs_release …)"` the non-zero exit is
-          # the subshell's, discarded by echo, so a registry outage would
-          # otherwise be written out as an empty (falsy) value and silently
-          # skip the release.
-          TS_NEEDS=$(needs_release "pnpm@$TS_VERSION")
-          RUST_NEEDS=$(needs_release "pnpm@$RUST_VERSION")
-          PNPR_NEEDS=$(needs_release "@pnpm/pnpr@$PNPR_VERSION")
+          # `needs_release` results land in plain assignments so `set -e`
+          # aborts the plan on a failure. Inside `echo "$(needs_release …)"`
+          # the non-zero exit is the subshell's, discarded by echo, so a
+          # registry outage would otherwise be written out as an empty (falsy)
+          # value and silently skip the release.
+          TS_NEEDS=false
+          RUST_NEEDS=false
+          PNPR_NEEDS=false
+          case "$GITHUB_REF" in
+            refs/tags/pnpr@*)
+              TAG_VERSION="${GITHUB_REF#refs/tags/pnpr@}"
+              if [ "$TAG_VERSION" != "$PNPR_VERSION" ]; then
+                echo "::error::Tag pnpr@${TAG_VERSION} matches no product: the committed @pnpm/pnpr version is ${PNPR_VERSION}"
+                exit 1
+              fi
+              PNPR_NEEDS=$(needs_release "@pnpm/pnpr@$PNPR_VERSION")
+              ;;
+            refs/tags/v*)
+              TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+              if [ "$TAG_VERSION" = "$TS_VERSION" ]; then
+                TS_NEEDS=$(needs_release "pnpm@$TS_VERSION")
+              elif [ "$TAG_VERSION" = "$RUST_VERSION" ]; then
+                RUST_NEEDS=$(needs_release "pnpm@$RUST_VERSION")
+              else
+                echo "::error::Tag v${TAG_VERSION} matches no product: the committed TypeScript pnpm version is ${TS_VERSION} and the committed Rust pnpm version is ${RUST_VERSION}"
+                exit 1
+              fi
+              ;;
+            *)
+              # Only reachable via the verify_ts_release dispatch —
+              # validate-release-ref rejects every other non-tag ref. Nothing
+              # is released.
+              ;;
+          esac
 
           {
             echo "ts=$TS_NEEDS"
@@ -307,13 +339,11 @@ jobs:
         with:
           persist-credentials: false
       - name: Assert the version tag points at this commit
-        # The plan job resumes any unpublished product from whichever tag's run
-        # survives the release concurrency queue, so this job's triggering tag
-        # is not necessarily v<ts_version> — but the commit it publishes from
-        # must be the one v<ts_version> names, both for the artifacts built
-        # below and for the GitHub release that lands on that tag. On a
-        # mismatch (the tags of two release commits ended up in one run's
-        # plan), rerun the release workflow from the v<ts_version> tag instead.
+        # The plan job dispatches on the tag's version string, which cannot
+        # prove the tag points at this commit — a retagged release, or another
+        # commit carrying the same committed version, would still dispatch.
+        # The artifacts built below and the GitHub release that lands on
+        # v<ts_version> must both come from the commit that tag names.
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.plan.outputs.ts_version }}
@@ -394,9 +424,8 @@ jobs:
         uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.0 # zizmor: ignore[superfluous-actions]
         with:
           draft: true
-          # Pinned because the triggering tag may belong to another product
-          # (see "Assert the version tag points at this commit" above); without
-          # tag_name the action falls back to github.ref.
+          # Explicit so the release's identity comes from the plan job like
+          # every other step here, never from the github.ref fallback.
           tag_name: v${{ needs.plan.outputs.ts_version }}
           name: pnpm ${{ needs.plan.outputs.ts_version }}
           files: dist/*
