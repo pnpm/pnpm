@@ -1357,7 +1357,7 @@ fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
         BTreeMap::from([("peer".to_string(), peer.dep_path.clone())]),
         BTreeMap::from([(
             "peer".to_string(),
-            PeerDep { version: "*".to_string(), optional: false, meta_only: false },
+            PeerDep { version: "*".to_string(), optional: false },
         )]),
         HashSet::new(),
     );
