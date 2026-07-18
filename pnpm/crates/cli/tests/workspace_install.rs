@@ -219,6 +219,7 @@ fn frozen_install_accepts_auto_installed_workspace_peer() {
         .nth(1)
         .and_then(|tail| tail.split("\n  pkg-b:").next())
         .expect("pnpm-lock.yaml missing pkg-a importer section");
+    eprintln!("pkg-a importer section:\n{a_section}");
     assert!(
         a_section.contains("hello-world-js-bin"),
         "auto-installed peer not materialized into pkg-a; the test would not exercise the fix\n{lockfile}",
