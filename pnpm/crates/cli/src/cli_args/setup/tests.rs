@@ -3,8 +3,8 @@
 //! shell config, so it is exercised on a real host rather than here.
 
 use super::{
-    ConfigFileChangeType, ConfigReport, PathExtenderReport, create_alias_scripts,
-    render_setup_output,
+    ConfigFileChangeType, ConfigReport, LEGACY_HOME_DIR_SHIM_NAMES, PathExtenderReport,
+    create_alias_scripts, remove_legacy_homedir_shims, render_setup_output,
 };
 use pretty_assertions::assert_eq;
 use std::path::PathBuf;
@@ -71,4 +71,29 @@ fn alias_scripts_are_written_and_executable() {
         let mode = std::fs::metadata(&pn).expect("stat pn").permissions().mode();
         assert_eq!(mode & 0o777, 0o755);
     }
+}
+
+#[test]
+fn remove_legacy_homedir_shims_unlinks_all_v10_names() {
+    // pnpm/pnpm#12496: setup must clean up the v10-layout shims at the top
+    // of pnpm_home_dir, otherwise self-update keeps warning about a v10
+    // layout forever.
+    let dir = tempfile::tempdir().expect("create temp dir");
+    for name in LEGACY_HOME_DIR_SHIM_NAMES {
+        std::fs::write(dir.path().join(name), "stale shim\n").expect("write stale shim");
+    }
+
+    remove_legacy_homedir_shims(dir.path());
+
+    for name in LEGACY_HOME_DIR_SHIM_NAMES {
+        assert!(!dir.path().join(name).exists(), "{name} should have been removed");
+    }
+}
+
+#[test]
+fn remove_legacy_homedir_shims_tolerates_missing_files() {
+    // On a fresh v11 install there is nothing to clean up; the helper must
+    // not treat absent files as an error.
+    let dir = tempfile::tempdir().expect("create temp dir");
+    remove_legacy_homedir_shims(dir.path());
 }

@@ -138,6 +138,22 @@ function createShellScript (targetDir: string, name: string, command: string): v
   }
 }
 
+// v10-layout shim names that v11 writes under pnpmHomeDir/bin instead.
+const LEGACY_HOME_DIR_SHIM_NAMES = [
+  'pnpm', 'pnpm.cmd', 'pnpm.ps1',
+  'pn', 'pn.cmd', 'pn.ps1',
+  'pnpx', 'pnpx.cmd', 'pnpx.ps1',
+  'pnx', 'pnx.cmd', 'pnx.ps1',
+]
+
+function removeLegacyHomeDirShims (pnpmHomeDir: string): void {
+  for (const name of LEGACY_HOME_DIR_SHIM_NAMES) {
+    try {
+      fs.rmSync(path.join(pnpmHomeDir, name), { force: true })
+    } catch {}
+  }
+}
+
 export async function handler (
   opts: {
     force?: boolean
@@ -158,6 +174,7 @@ export async function handler (
       overwrite: opts.force,
       position: 'start',
     })
+    removeLegacyHomeDirShims(opts.pnpmHomeDir)
     return renderSetupOutput(report)
   } catch (err: any) { // eslint-disable-line
     switch (err.code) {
