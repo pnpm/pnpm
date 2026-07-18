@@ -202,7 +202,7 @@ async fn cache_loss_after_304_stops_after_one_fallback() {
         .match_header("if-none-match", r#"W/"stale""#)
         .with_status(304)
         .with_body_from_request(move |_| {
-            std::fs::remove_file(&raced_mirror).expect("remove raced mirror");
+            remove_raced_mirror(&raced_mirror);
             Vec::new()
         })
         .expect(1)
@@ -251,7 +251,7 @@ async fn cache_loss_after_304_body_retry_remains_bypassed() {
         .match_header("if-none-match", r#"W/"stale""#)
         .with_status(304)
         .with_body_from_request(move |_| {
-            std::fs::remove_file(&raced_mirror).expect("remove raced mirror");
+            remove_raced_mirror(&raced_mirror);
             Vec::new()
         })
         .expect(1)
@@ -315,7 +315,7 @@ async fn cache_loss_after_304_registry_error_propagates() {
         .match_header("if-none-match", r#"W/"stale""#)
         .with_status(304)
         .with_body_from_request(move |_| {
-            std::fs::remove_file(&raced_mirror).expect("remove raced mirror");
+            remove_raced_mirror(&raced_mirror);
             Vec::new()
         })
         .expect(1)
@@ -368,7 +368,7 @@ async fn assert_cache_loss_after_304_recovers(
         .match_header("if-none-match", r#"W/"stale""#)
         .with_status(304)
         .with_body_from_request(move |_| {
-            std::fs::remove_file(&raced_mirror).expect("remove raced mirror");
+            remove_raced_mirror(&raced_mirror);
             Vec::new()
         })
         .expect(1)
@@ -425,6 +425,14 @@ fn write_stale_mirror(
     let meta = serde_json::from_str(PACKAGE_BODY).expect("package body");
     save_meta_indexed(&mirror_path, &meta, Some(r#"W/"stale""#)).expect("write stale mirror");
     mirror_path
+}
+
+fn remove_raced_mirror(mirror_path: &std::path::Path) {
+    match std::fs::remove_file(mirror_path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => panic!("remove raced mirror: {error}"),
+    }
 }
 
 #[tokio::test]
