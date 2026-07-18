@@ -176,7 +176,7 @@ jobs:
               --start-point-reset \
               --start-point-clone-thresholds \
               --err \
-              --adapter shell_hyperfine \
+              --adapter json \
               --file "$file" \
               --ci-number "$PR_NUMBER" \
               --github-actions "$GITHUB_TOKEN"

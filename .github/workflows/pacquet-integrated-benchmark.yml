@@ -416,6 +416,8 @@ jobs:
             echo
             echo 'Each scenario reports direct installs and pnpr installs. Bencher consumes pacquet@HEAD and pnpr@HEAD.'
             echo
+            echo 'The tables below show mean ± σ; Bencher thresholds on the **minimum** latency, which is far less perturbed by shared-runner contention (noise only adds time).'
+            echo
             echo '### Scenario: Isolated linker: fresh restore, cold cache + cold store'
             echo
             cat bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE.md
@@ -502,16 +504,33 @@ jobs:
           ) > bench-work-env/SUMMARY.md
 
       - name: Build Bencher-shaped report
-        # Combine the scenario JSONs into hyperfine-shaped files that
-        # Bencher's shell_hyperfine adapter accepts, one per testbed. For
-        # each, keep only the chosen target's result from each scenario
-        # and rename `.command` to the scenario name, so Bencher names the
-        # benchmark after the scenario. Both tools run every scenario,
-        # so the `pacquet` testbed gets `pacquet@HEAD` and the `pnpr`
-        # testbed gets `pnpr@HEAD`, each across the same scenario set.
+        # Convert the scenario JSONs into a Bencher Metric Format (BMF) file
+        # per testbed, keeping only the chosen target's result from each
+        # scenario and naming each benchmark after the scenario. Both tools run
+        # every scenario, so the `pacquet` testbed gets `pacquet@HEAD` and the
+        # `pnpr` testbed gets `pnpr@HEAD`, each across the same scenario set.
+        #
+        # We report each scenario's *minimum* latency as the metric value, so
+        # Bencher's threshold tracks the min rather than the mean. On a shared
+        # CI runner, contention only ever *adds* time, so the minimum is the run
+        # least perturbed by a noisy neighbour and the truest signal of a real
+        # code regression — the mean drifts run-to-run with whatever else the
+        # machine is doing (the latency-free offline scenario is pure CPU/disk
+        # and swung ~30% between runs, tripping a spurious alert on a control
+        # run whose HEAD and main binaries were byte-identical). Because the
+        # minimum only needs one uncontended run, hyperfine's default sampling
+        # suffices — no extra warmup or runs. The human-readable comment still
+        # reports mean ± σ; only the alerting signal moves to the min.
+        #
+        # BMF rather than the `shell_hyperfine` adapter with a doctored `mean`:
+        # this reports the min honestly as the value instead of relabelling it.
+        # `value` is in nanoseconds (`min` seconds × 1e9) to match the unit the
+        # `shell_hyperfine` adapter established for the `latency` measure, so
+        # the existing baseline stays comparable. The uploads that consume
+        # these files therefore use `--adapter json`.
         shell: bash
         run: |
-          # Build one bencher-results file: $1 = output path, $2 = the
+          # Build one BMF bencher-results file: $1 = output path, $2 = the
           # hyperfine command name to keep, $3.. = `FILE_TAG:scenario-name`
           # entries.
           build_bencher_file() {
@@ -525,11 +544,13 @@ jobs:
               src="bench-work-env/BENCHMARK_REPORT_${file_tag}.json"
               dst="bench-work-env/${name}-${command}-bencher.json"
               jq --arg s "$name" --arg c "$command" \
-                '.results |= [.[] | select(.command == $c) | .command = $s]' \
+                '(first(.results[] | select(.command == $c))
+                  // error("missing hyperfine result for \($c) in \($s)"))
+                  | {($s): {latency: {value: (.min * 1e9)}}}' \
                 "$src" > "$dst"
               inputs+=("$dst")
             done
-            jq -s '{results: map(.results) | add}' "${inputs[@]}" > "$out"
+            jq -s 'add' "${inputs[@]}" > "$out"
           }
 
           build_bencher_file bench-work-env/bencher-results.json pacquet@HEAD \
@@ -607,7 +628,7 @@ jobs:
             local args=(
               --project pnpm
               --testbed "$testbed"
-              --adapter shell_hyperfine
+              --adapter json
               --file "$file"
               --github-actions "$GITHUB_TOKEN"
             )
