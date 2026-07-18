@@ -430,3 +430,89 @@ test('injected workspace dependency keeps link: when an unrelated dependency is 
   // The untouched workspace dependency must keep its link:.
   expect(lockfileAfterUpdate.importers.consumer.dependencies!.d.version).toBe('link:../d')
 })
+
+// Same protection on the plain `pnpm install` path (pnpm/pnpm#10433), for the
+// genuine peer-context divergence that dedupeInjectedDeps rightly refuses to
+// collapse. `q` peer-depends `@pnpm.e2e/foo`; `n` depends on `q` but does not
+// pin `foo` itself, so `q`'s peer is provided by an ancestor. Initially only
+// `foo@100.0.0` exists (via the root), so `q`'s peer resolves to it in both
+// `n`'s own context and `n`'s injected-under-consumer context — the occurrences
+// match and `consumer` -> `n` dedupes to `link:`.
+//
+// Then `foo@100.1.0` is added to the consumer and a plain install is run. Now
+// the injected `q` under the consumer resolves its `foo` peer to the consumer's
+// `100.1.0`, while `n`'s own context still resolves it to the root's `100.0.0`
+// — a real divergence, so dedupeInjectedDeps correctly keeps the injected copy
+// `file:`. The `consumer` -> `n` importer entry itself was not targeted by the
+// change and must be preserved as `link:` rather than rewritten to a
+// peer-suffixed `file:`.
+//
+// This is exactly the case the criterion depends on: a plain install marks
+// every consumer manifest dependency (including `n`) with `updateSpec: true`,
+// which must NOT count as targeting `n`.
+test('injected workspace dependency keeps link: on a plain install when a consumer change makes an ancestor-provided peer diverge', async () => {
+  const pkgQ = {
+    name: 'q',
+    version: '1.0.0',
+    peerDependencies: { '@pnpm.e2e/foo': '*' },
+  }
+  const pkgN = {
+    name: 'n',
+    version: '1.0.0',
+    dependencies: { 'q': 'workspace:^' },
+  }
+  const consumerManifest: { name: string, version: string, dependencies: Record<string, string> } = {
+    name: 'consumer',
+    version: '1.0.0',
+    dependencies: { 'n': 'workspace:*' },
+  }
+  const rootManifest = {
+    name: 'root',
+    version: '0.0.0',
+    dependencies: { '@pnpm.e2e/foo': '100.0.0' },
+  }
+
+  preparePackages([
+    { location: 'q', package: pkgQ },
+    { location: 'n', package: pkgN },
+    { location: 'consumer', package: consumerManifest },
+  ])
+  writeFileSync('package.json', `${JSON.stringify(rootManifest, null, 2)}\n`)
+
+  const allProjects: ProjectOptions[] = [
+    { buildIndex: 0, manifest: rootManifest, rootDir: path.resolve('.') as ProjectRootDir },
+    { buildIndex: 0, manifest: pkgQ, rootDir: path.resolve('q') as ProjectRootDir },
+    { buildIndex: 0, manifest: pkgN, rootDir: path.resolve('n') as ProjectRootDir },
+    { buildIndex: 0, manifest: consumerManifest, rootDir: path.resolve('consumer') as ProjectRootDir },
+  ]
+
+  const sharedOpts = {
+    allProjects,
+    injectWorkspacePackages: true,
+    linkWorkspacePackages: 'deep' as const,
+    preferWorkspacePackages: true,
+    dedupeInjectedDeps: true,
+    dedupePeerDependents: true,
+  }
+  const installMutations = allProjects.map(({ rootDir }) => ({ mutation: 'install' as const, rootDir }))
+
+  // Initial install: peers match at 100.0.0, so consumer -> n dedupes to link:.
+  await mutateModules(installMutations, testDefaults(sharedOpts))
+
+  const rootModules = assertProject(process.cwd())
+  expect(rootModules.readLockfile().importers.consumer.dependencies!.n.version).toBe('link:../n')
+
+  // Add a competing foo@100.1.0 to the consumer and run a plain install. n
+  // itself is untouched.
+  consumerManifest.dependencies['@pnpm.e2e/foo'] = '100.1.0'
+  const allProjectsAfter = allProjects.map((p) =>
+    p.rootDir === path.resolve('consumer') ? { ...p, manifest: consumerManifest } : p
+  )
+  await mutateModules(installMutations, testDefaults({ ...sharedOpts, allProjects: allProjectsAfter }))
+
+  const lockfileAfterInstall = rootModules.readLockfile()
+  // The consumer change itself must be reflected.
+  expect(lockfileAfterInstall.importers.consumer.dependencies!['@pnpm.e2e/foo'].version).toBe('100.1.0')
+  // The untouched workspace dependency must keep its link:.
+  expect(lockfileAfterInstall.importers.consumer.dependencies!.n.version).toBe('link:../n')
+})
