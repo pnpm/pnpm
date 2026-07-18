@@ -35,18 +35,78 @@ use std::{
 /// `cmd` must be the same [`Command`] the returned argv is parsed with
 /// (including the [`crate::boolean_negations`] augmentation), so the
 /// hidden `--no-<flag>` negations relocate like their positive forms.
-pub fn relocate_pre_subcommand_flags(cmd: &Command, argv: Vec<OsString>) -> Vec<OsString> {
+fn find_positional(
+    argv: &[OsString],
+    mut index: usize,
+    top_level: &ArgTable,
+    subcommand_union: &ArgTable,
+) -> Option<usize> {
+    loop {
+        let token = argv.get(index).and_then(|token| token.to_str())?;
+        if token == "--" {
+            return None;
+        }
+        if let Some(rest) = token.strip_prefix("--") {
+            let (name, has_inline_value) =
+                rest.split_once('=').map_or((rest, false), |(name, _)| (name, true));
+            if let Some(consumes_value) = top_level.long_consumes_value(name) {
+                index += token_width(consumes_value, has_inline_value);
+            } else {
+                let consumes_value = subcommand_union.long_consumes_value(name).unwrap_or(false);
+                index += token_width(consumes_value, has_inline_value);
+            }
+        } else if let Some(rest) = token.strip_prefix('-').filter(|rest| !rest.is_empty()) {
+            let short = rest.chars().next().expect("checked non-empty");
+            let is_bare_short = rest.chars().count() == 1;
+            if let Some(consumes_value) = top_level.short_consumes_value(short) {
+                index += token_width(consumes_value && is_bare_short, false);
+            } else {
+                let consumes_value = subcommand_union.short_consumes_value(short).unwrap_or(false);
+                index += token_width(consumes_value && is_bare_short, false);
+            }
+        } else {
+            return Some(index);
+        }
+    }
+}
+
+/// Move pre-subcommand option tokens that belong to a subcommand's
+/// grammar to directly after the subcommand token. See the module docs.
+///
+/// `cmd` must be the same [`Command`] the returned argv is parsed with
+/// (including the [`crate::boolean_negations`] augmentation), so the
+/// hidden `--no-<flag>` negations relocate like their positive forms.
+pub fn relocate_pre_subcommand_flags(cmd: &Command, mut argv: Vec<OsString>) -> Vec<OsString> {
     let top_level = ArgTable::top_level(cmd);
     let subcommand_union = ArgTable::subcommand_union(cmd);
 
+    let mut current_idx = 1;
+    while let Some(pos_idx) = find_positional(&argv, current_idx, &top_level, &subcommand_union) {
+        if let Some(token) = argv.get(pos_idx).and_then(|t| t.to_str())
+            && matches!(token, "recursive" | "multi" | "m")
+            && find_positional(&argv, pos_idx + 1, &top_level, &subcommand_union).is_some()
+        {
+            argv[pos_idx] = OsString::from("--recursive");
+            current_idx = pos_idx + 1;
+            continue;
+        }
+        break;
+    }
+
     let mut moved_indexes: HashSet<usize> = HashSet::new();
+    let subcommand_index = find_positional(&argv, 1, &top_level, &subcommand_union);
+    let Some(subcommand_index) = subcommand_index else {
+        return argv;
+    };
+
+    // Now we must re-calculate moved_indexes, because find_positional just skipped.
     let mut index = 1;
-    let subcommand_index = loop {
-        let Some(token) = argv.get(index).and_then(|token| token.to_str()) else {
-            return argv;
+    while index < subcommand_index {
+        let Some(token) = argv.get(index).and_then(|t| t.to_str()) else {
+            break;
         };
         if token == "--" {
-            return argv;
+            break;
         }
         if let Some(rest) = token.strip_prefix("--") {
             let (name, has_inline_value) =
@@ -63,9 +123,6 @@ pub fn relocate_pre_subcommand_flags(cmd: &Command, argv: Vec<OsString>) -> Vec<
             }
         } else if let Some(rest) = token.strip_prefix('-').filter(|rest| !rest.is_empty()) {
             let short = rest.chars().next().expect("checked non-empty");
-            // A multi-character short token (`-Cdir`, combined bools) has
-            // its value / siblings attached, so it never consumes the
-            // next token regardless of the short's arity.
             let is_bare_short = rest.chars().count() == 1;
             if let Some(consumes_value) = top_level.short_consumes_value(short) {
                 index += token_width(consumes_value && is_bare_short, false);
@@ -78,9 +135,9 @@ pub fn relocate_pre_subcommand_flags(cmd: &Command, argv: Vec<OsString>) -> Vec<
                 index += width;
             }
         } else {
-            break index;
+            break;
         }
-    };
+    }
 
     if moved_indexes.is_empty() || cmd.find_subcommand(&argv[subcommand_index]).is_none() {
         return argv;

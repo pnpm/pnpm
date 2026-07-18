@@ -316,6 +316,7 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
     match command {
         CliCommand::Access(args) => dispatch_query::access(ctx, args),
         CliCommand::Init => dispatch_script::init(ctx),
+        CliCommand::Recursive => dispatch_query::recursive(ctx),
         CliCommand::Add(args) => dispatch_install::add(ctx, args),
         CliCommand::Install(args) => dispatch_install::install(ctx, args),
         CliCommand::InstallTest(args) => dispatch_install::install_test(ctx, args),

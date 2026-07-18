@@ -267,6 +267,9 @@ pub enum CliCommand {
     Access(AccessArgs),
     /// Initialize a package.json
     Init,
+    /// Concurrently runs a command in all subdirectory projects.
+    #[clap(visible_aliases = ["multi", "m"])]
+    Recursive,
     /// Add a package
     Add(AddArgs),
     /// Install packages
