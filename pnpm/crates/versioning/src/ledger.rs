@@ -33,9 +33,9 @@ pub enum LedgerEntry {
 /// `intents:` key parses as YAML null, and ledgers written before the
 /// serializers rendered empty lists as `[]` contain exactly that shape.
 impl<'de> Deserialize<'de> for LedgerEntry {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
     where
-        D: Deserializer<'de>,
+        De: Deserializer<'de>,
     {
         struct LedgerEntryVisitor;
 
@@ -44,23 +44,23 @@ impl<'de> Deserialize<'de> for LedgerEntry {
 
             fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter
-                    .write_str("a list of intent ids, or a mapping with \"dir\" and \"intents\"")
+                    .write_str(r#"a list of intent ids, or a mapping with "dir" and "intents""#)
             }
 
-            fn visit_unit<E>(self) -> Result<Self::Value, E> {
+            fn visit_unit<DeError>(self) -> Result<Self::Value, DeError> {
                 Ok(LedgerEntry::Ids(Vec::new()))
             }
 
-            fn visit_seq<A>(self, seq: A) -> Result<Self::Value, A::Error>
+            fn visit_seq<Seq>(self, seq: Seq) -> Result<Self::Value, Seq::Error>
             where
-                A: SeqAccess<'de>,
+                Seq: SeqAccess<'de>,
             {
                 Deserialize::deserialize(SeqAccessDeserializer::new(seq)).map(LedgerEntry::Ids)
             }
 
-            fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
+            fn visit_map<Map>(self, map: Map) -> Result<Self::Value, Map::Error>
             where
-                A: MapAccess<'de>,
+                Map: MapAccess<'de>,
             {
                 #[derive(Deserialize)]
                 struct AttributedEntry {
