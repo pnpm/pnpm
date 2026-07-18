@@ -1,5 +1,3 @@
-import path from 'node:path'
-
 import { describe, expect, it } from '@jest/globals'
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 import { calcGraphNodeHash, type DepsGraph, type DepsStateCache, type PkgMeta } from '@pnpm/deps.graph-hasher'
@@ -29,7 +27,7 @@ describe('calcGraphNodeHash', () => {
     const result = calcGraphNodeHash({ graph, cache }, pkgMeta)
 
     // Unscoped packages should have @/ prefix
-    expect(result).toMatch(/^@[/\\]foo[/\\]1\.0\.0[/\\][a-f0-9]+$/)
+    expect(result).toMatch(/^@\/foo\/1\.0\.0\/[a-f0-9]+$/)
   })
 
   it('should return correct hash format for scoped package', () => {
@@ -49,8 +47,8 @@ describe('calcGraphNodeHash', () => {
     const result = calcGraphNodeHash({ graph, cache }, pkgMeta)
 
     // Scoped packages should not have @/ prefix (they already start with @)
-    expect(result).toMatch(/^@scope[/\\]bar[/\\]2\.0\.0[/\\][a-f0-9]+$/)
-    expect(result).not.toMatch(/^@[/\\]@scope/)
+    expect(result).toMatch(/^@scope\/bar\/2\.0\.0\/[a-f0-9]+$/)
+    expect(result).not.toMatch(/^@\/@scope/)
   })
 
   it('should compute correct hash based on engine and deps', () => {
@@ -79,7 +77,7 @@ describe('calcGraphNodeHash', () => {
       { encoding: 'hex' }
     )
 
-    expect(result).toBe(path.join('@', 'pkg', '1.0.0', expectedHash))
+    expect(result).toBe(`@/pkg/1.0.0/${expectedHash}`)
   })
 
   it('should include dependency hashes in the computation', () => {
@@ -120,7 +118,7 @@ describe('calcGraphNodeHash', () => {
       { encoding: 'hex' }
     )
 
-    expect(result).toBe(path.join('@', 'parent', '1.0.0', expectedHash))
+    expect(result).toBe(`@/parent/1.0.0/${expectedHash}`)
   })
 
   it('should use cache for repeated calculations', () => {
@@ -170,7 +168,7 @@ describe('calcGraphNodeHash', () => {
     // Should not throw or infinite loop
     const result = calcGraphNodeHash({ graph, cache }, pkgMeta)
 
-    expect(result).toMatch(/^@[/\\]a[/\\]1\.0\.0[/\\][a-f0-9]+$/)
+    expect(result).toMatch(/^@\/a\/1\.0\.0\/[a-f0-9]+$/)
   })
 
   it('should handle deeply nested dependencies', () => {
@@ -201,7 +199,7 @@ describe('calcGraphNodeHash', () => {
 
     const result = calcGraphNodeHash({ graph, cache }, pkgMeta)
 
-    expect(result).toMatch(/^@[/\\]level1[/\\]1\.0\.0[/\\][a-f0-9]+$/)
+    expect(result).toMatch(/^@\/level1\/1\.0\.0\/[a-f0-9]+$/)
   })
 
   it('should produce different hashes for different dependency structures', () => {
@@ -292,7 +290,7 @@ describe('calcGraphNodeHash', () => {
 
     const result = calcGraphNodeHash({ graph, cache }, pkgMeta)
 
-    expect(result).toMatch(/^@[/\\]root[/\\]1\.0\.0[/\\][a-f0-9]+$/)
+    expect(result).toMatch(/^@\/root\/1\.0\.0\/[a-f0-9]+$/)
   })
 
   it('should use pkgIdWithPatchHash and resolution when fullPkgId is not defined', () => {
@@ -314,7 +312,7 @@ describe('calcGraphNodeHash', () => {
 
     const result = calcGraphNodeHash({ graph, cache }, pkgMeta)
 
-    expect(result).toMatch(/^@[/\\]pkg[/\\]1\.0\.0[/\\][a-f0-9]+$/)
+    expect(result).toMatch(/^@\/pkg\/1\.0\.0\/[a-f0-9]+$/)
   })
 
   it('should handle resolution without integrity (hashes the resolution object)', () => {
@@ -336,7 +334,7 @@ describe('calcGraphNodeHash', () => {
 
     const result = calcGraphNodeHash({ graph, cache }, pkgMeta)
 
-    expect(result).toMatch(/^@[/\\]git-pkg[/\\]1\.0\.0[/\\][a-f0-9]+$/)
+    expect(result).toMatch(/^@\/git-pkg\/1\.0\.0\/[a-f0-9]+$/)
   })
 
   it('should handle complex scoped package names', () => {
@@ -355,7 +353,7 @@ describe('calcGraphNodeHash', () => {
 
     const result = calcGraphNodeHash({ graph, cache }, pkgMeta)
 
-    expect(result).toMatch(/^@my-org[/\\]my-package[/\\]1\.2\.3[/\\][a-f0-9]+$/)
+    expect(result).toMatch(/^@my-org\/my-package\/1\.2\.3\/[a-f0-9]+$/)
   })
 
   it('uses the snapshot\'s own engines.runtime pin over an install-wide fallback', () => {
@@ -394,7 +392,7 @@ describe('calcGraphNodeHash', () => {
       { engine: `${process.platform};${process.arch};node22`, deps: depsHash },
       { encoding: 'hex' }
     )
-    expect(ownPinHash).toBe(path.join('@', 'pinned', '1.0.0', expected))
+    expect(ownPinHash).toBe(`@/pinned/1.0.0/${expected}`)
   })
 
   it('falls back to the install-wide nodeVersion when the snapshot has no own pin', () => {
@@ -430,7 +428,7 @@ describe('calcGraphNodeHash', () => {
       { engine: `${process.platform};${process.arch};node20`, deps: depsHash },
       { encoding: 'hex' }
     )
-    expect(fallbackHash).toBe(path.join('@', 'sibling', '1.0.0', expected))
+    expect(fallbackHash).toBe(`@/sibling/1.0.0/${expected}`)
   })
 
   it('cross-pinning siblings produce distinct engine prefixes in the same install', () => {
@@ -473,8 +471,8 @@ describe('calcGraphNodeHash', () => {
     // install-wide fallback is the same — the engine portion of the
     // hash diverges via each snapshot's own pin.
     expect(hash22).not.toBe(hash20)
-    expect(hash22.startsWith(path.join('@', 'pins-22', '1.0.0'))).toBe(true)
-    expect(hash20.startsWith(path.join('@', 'pins-20', '1.0.0'))).toBe(true)
+    expect(hash22.startsWith('@/pins-22/1.0.0/')).toBe(true)
+    expect(hash20.startsWith('@/pins-20/1.0.0/')).toBe(true)
   })
 
   it('should handle prerelease versions', () => {
@@ -493,7 +491,7 @@ describe('calcGraphNodeHash', () => {
 
     const result = calcGraphNodeHash({ graph, cache }, pkgMeta)
 
-    expect(result).toMatch(/^@[/\\]pkg[/\\]1\.0\.0-beta\.1[/\\][a-f0-9]+$/)
+    expect(result).toMatch(/^@\/pkg\/1\.0\.0-beta\.1\/[a-f0-9]+$/)
   })
 
   it('should produce consistent results across multiple calls with same input', () => {

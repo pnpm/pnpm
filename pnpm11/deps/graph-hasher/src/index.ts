@@ -1,5 +1,3 @@
-import path from 'node:path'
-
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/deps.path'
 import { engineName } from '@pnpm/engine.runtime.system-version'
@@ -292,10 +290,7 @@ function formatGlobalVirtualStorePath (name: string, version: string, hexDigest:
   // downstream by `safeJoinModulesDir`). Reject it at this single choke point.
   assertNoPathTraversal(version)
   const prefix = name.startsWith('@') ? '' : '@/'
-  // Normalize to native path separators so that slot paths passed straight
-  // to fs.mkdir / fs.symlink (without an intermediate path.join) don't
-  // trigger ERROR_DIRECTORY (os error 267) on Windows.
-  return path.normalize(`${prefix}${name}/${version}/${hexDigest}`)
+  return `${prefix}${name}/${version}/${hexDigest}`
 }
 
 function assertNoPathTraversal (version: string): void {
