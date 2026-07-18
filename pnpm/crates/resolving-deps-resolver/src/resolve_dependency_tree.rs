@@ -1447,7 +1447,7 @@ where
             Err(
                 err @ (ResolveDependencyTreeError::Resolve(_)
                 | ResolveDependencyTreeError::SpecNotSupported { .. }),
-            ) if wanted.optional.unwrap_or(false) => {
+            ) if current_is_optional => {
                 if wanted_lockfile_contains_satisfying_entry(
                     ctx.workspace.wanted_lockfile.as_deref(),
                     &wanted,

@@ -731,6 +731,12 @@ struct FailingAliasResolver {
     failing: std::collections::HashSet<String>,
 }
 
+#[derive(Clone, Copy, Debug)]
+enum TransitiveFailure {
+    Resolve,
+    SpecNotSupported,
+}
+
 impl Resolver for FailingAliasResolver {
     fn resolve<'a>(
         &'a self,
@@ -782,6 +788,49 @@ fn optional_failure_fixture() -> (tempfile::TempDir, PackageManifest, FailingAli
             ),
         )]),
         failing: std::collections::HashSet::from(["broken".to_string()]),
+    };
+    (tmp, manifest, resolver)
+}
+
+fn transitive_failure_fixture(
+    parent_optional: bool,
+    failure: TransitiveFailure,
+) -> (tempfile::TempDir, PackageManifest, FailingAliasResolver) {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let path = tmp.path().join("package.json");
+    let json = if parent_optional {
+        serde_json::json!({
+            "name": "root",
+            "version": "0.0.0",
+            "optionalDependencies": { "parent": "1.0.0" },
+        })
+    } else {
+        serde_json::json!({
+            "name": "root",
+            "version": "0.0.0",
+            "dependencies": { "parent": "1.0.0" },
+        })
+    };
+    std::fs::write(&path, serde_json::to_string(&json).unwrap()).expect("write package.json");
+    let manifest = PackageManifest::from_path(path).expect("parse package.json");
+    let resolver = FailingAliasResolver {
+        table: HashMap::from([(
+            ("parent".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "parent",
+                "1.0.0",
+                None,
+                serde_json::json!({
+                    "name": "parent",
+                    "version": "1.0.0",
+                    "dependencies": { "broken": "1.0.0" },
+                }),
+            ),
+        )]),
+        failing: match failure {
+            TransitiveFailure::Resolve => std::collections::HashSet::from(["broken".to_string()]),
+            TransitiveFailure::SpecNotSupported => std::collections::HashSet::new(),
+        },
     };
     (tmp, manifest, resolver)
 }
@@ -918,4 +967,83 @@ async fn skips_an_optional_dependency_when_the_locked_entry_does_not_satisfy_the
 
     let direct = &result.peers.direct_dependencies_by_importer["."];
     assert!(!direct.contains_key("broken"), "the failing optional edge is dropped: {direct:?}");
+}
+
+#[tokio::test]
+async fn skips_supported_resolution_failures_below_optional_dependency() {
+    for failure in [TransitiveFailure::Resolve, TransitiveFailure::SpecNotSupported] {
+        let (_tmp, manifest, resolver) = transitive_failure_fixture(true, failure);
+        let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+        let skipped = std::sync::Arc::new(Mutex::new(Vec::new()));
+        let mut opts = workspace_opts(false, false);
+        opts.skipped_optional_log = Some(std::sync::Arc::new({
+            let skipped = std::sync::Arc::clone(&skipped);
+            move |notification| skipped.lock().unwrap().push(notification)
+        }));
+        let result = resolve_workspace(
+            &resolver,
+            &importers,
+            &[DependencyGroup::Prod, DependencyGroup::Optional],
+            opts,
+            |_| importer_opts(std::path::PathBuf::from("/repo"), None),
+        )
+        .await
+        .unwrap_or_else(|err| {
+            panic!("{failure:?} below an optional parent must be skipped: {err}")
+        });
+
+        let direct = &result.peers.direct_dependencies_by_importer["."];
+        assert!(direct.contains_key("parent"), "the optional parent remains resolved: {direct:?}");
+        assert_eq!(result.merged_tree.packages.len(), 1);
+        let parent = result.merged_tree.packages.get("parent@1.0.0").expect("resolved parent");
+        assert!(parent.optional, "the retained parent remains optional: {parent:?}");
+
+        let skipped = skipped.lock().unwrap();
+        assert_eq!(skipped.len(), 1);
+        assert_eq!(skipped[0].name.as_deref(), Some("broken"));
+        assert_eq!(skipped[0].parents.len(), 1);
+        assert_eq!(skipped[0].parents[0].id, "parent@1.0.0");
+        match failure {
+            TransitiveFailure::Resolve => assert!(
+                skipped[0].details.contains("No matching version found for broken@1.0.0"),
+                "resolver error is reported: {}",
+                skipped[0].details,
+            ),
+            TransitiveFailure::SpecNotSupported => assert!(
+                skipped[0].details.contains("isn't supported by any available resolver"),
+                "unsupported-spec error is reported: {}",
+                skipped[0].details,
+            ),
+        }
+    }
+}
+
+#[tokio::test]
+async fn propagates_supported_resolution_failures_below_required_dependency() {
+    for failure in [TransitiveFailure::Resolve, TransitiveFailure::SpecNotSupported] {
+        let (_tmp, manifest, resolver) = transitive_failure_fixture(false, failure);
+        let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+        let result = resolve_workspace(
+            &resolver,
+            &importers,
+            &[DependencyGroup::Prod, DependencyGroup::Optional],
+            workspace_opts(false, false),
+            |_| importer_opts(std::path::PathBuf::from("/repo"), None),
+        )
+        .await;
+
+        let Err(crate::ResolveImporterError::Resolve(err)) = result else {
+            panic!("{failure:?} below a required parent must fail resolution");
+        };
+        match failure {
+            TransitiveFailure::Resolve => assert!(
+                matches!(err, crate::ResolveDependencyTreeError::Resolve(_)),
+                "unexpected resolver error: {err}",
+            ),
+            TransitiveFailure::SpecNotSupported => assert!(
+                matches!(err, crate::ResolveDependencyTreeError::SpecNotSupported { .. }),
+                "unexpected unsupported-spec error: {err}",
+            ),
+        }
+    }
 }

@@ -94,8 +94,8 @@ Supporting tests:
 - [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:419` `optional dependency has bigger priority than regular dependency`
 - [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:436` `only skip optional dependencies`
 - [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:470` `skip optional dependency that does not support the current OS, when doing install on a subset of workspace projects`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:540` `do not fail on unsupported dependency of optional dependency`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:552` `fail on unsupported dependency of optional dependency`
+- [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:540` `do not fail on unsupported dependency of optional dependency` — `resolve_workspace::tests::skips_supported_resolution_failures_below_optional_dependency` covers both supported resolver-error variants and preserves the optional parent.
+- [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:552` `fail on unsupported dependency of optional dependency` — `resolve_workspace::tests::propagates_supported_resolution_failures_below_required_dependency` keeps both resolver-error variants fatal below a required parent.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:563` `do not fail on an optional dependency that has a non-optional dependency with a failing postinstall script`
 - [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:574` `fail on a package with failing postinstall if the package is both an optional and non-optional dependency`
 - [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:618` `remove optional dependencies that are not used`
