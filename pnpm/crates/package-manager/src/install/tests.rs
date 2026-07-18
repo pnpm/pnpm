@@ -1841,7 +1841,7 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
 /// Scenario: a warning is not reported when an optional peer
 /// dependency (specified by meta field only) cannot be resolved.
 #[tokio::test]
-async fn auto_install_peers_skips_meta_only_optional_peers() {
+async fn meta_only_optional_peers_absent_from_the_graph_are_not_installed() {
     let mock_instance = TestRegistry::start();
 
     let dir = tempdir().unwrap();
@@ -1906,9 +1906,10 @@ async fn auto_install_peers_skips_meta_only_optional_peers() {
         .collect();
 
     // peer-a is declared in `peerDependencies` so it stays required and
-    // gets auto-installed; peer-b and peer-c are declared *only* in
-    // `peerDependenciesMeta` with `optional: true` and stay out of the
-    // tree.
+    // gets auto-installed; peer-b and peer-c are implied optional peers
+    // (declared *only* in `peerDependenciesMeta`) — an optional peer is
+    // never fetched, only deduped onto a version already in the graph,
+    // and no version of either is in this graph.
     assert!(
         virtual_store_slots.iter().any(|name| name.starts_with("@pnpm.e2e+peer-a@")),
         "required peer `peer-a` must be auto-installed; \

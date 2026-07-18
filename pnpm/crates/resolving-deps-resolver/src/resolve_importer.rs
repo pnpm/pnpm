@@ -620,9 +620,6 @@ fn partition_missing_peers(
             let mut seen: BTreeSet<String> = BTreeSet::new();
             let mut ordered: Vec<String> = Vec::new();
             for entry in entries {
-                if entry.meta_only {
-                    continue;
-                }
                 if seen.insert(entry.wanted_range.clone()) {
                     ordered.push(entry.wanted_range.clone());
                 }

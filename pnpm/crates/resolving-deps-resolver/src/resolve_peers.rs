@@ -611,8 +611,6 @@ struct MissingPeerInfo {
     range: String,
     #[allow(dead_code, reason = "future peersCache validation")]
     optional: bool,
-    /// See [`crate::dependencies_graph::MissingPeer::meta_only`].
-    meta_only: bool,
 }
 
 /// Output of [`Walker::resolve_node`] — the per-node result the parent
@@ -978,7 +976,6 @@ impl Walker<'_> {
                         wanted_range: get_peer_version_range(&info.range),
                         raw_range: info.range.clone(),
                         optional: info.optional,
-                        meta_only: info.meta_only,
                         parents: parents_from_chain(parent_chain_names, &pkg_name),
                     });
                 }
@@ -1054,9 +1051,7 @@ impl Walker<'_> {
                 &mut own_resolved_peers,
                 &mut own_missing_peers,
             );
-            if !peer_dep.meta_only
-                && let Some(peer_node_id) = own_resolved_peers.get(peer_name)
-            {
+            if let Some(peer_node_id) = own_resolved_peers.get(peer_name) {
                 auto_install_resolved_peers.insert(peer_name.clone(), peer_node_id.clone());
             }
         }
@@ -1275,13 +1270,12 @@ impl Walker<'_> {
         // named-registry/`npm:` bodies are extracted and opaque specs become `*`.
         let range_for_satisfies = get_peer_version_range(raw_range);
         let optional = peer_dep.optional;
-        let meta_only = peer_dep.meta_only;
 
         match parent_refs.get(peer_name) {
             None => {
                 missing.insert(
                     peer_name.to_string(),
-                    MissingPeerInfo { range: range_for_match.to_string(), optional, meta_only },
+                    MissingPeerInfo { range: range_for_match.to_string(), optional },
                 );
                 if !self.missing_issue_suppressed(ancestor_pkg_ids, peer_name) {
                     self.issues.missing.entry(peer_name.to_string()).or_default().push(
@@ -1289,7 +1283,6 @@ impl Walker<'_> {
                             wanted_range: range_for_satisfies,
                             raw_range: range_for_match.to_string(),
                             optional,
-                            meta_only,
                             parents: parents_from_chain(chain, pkg_name),
                         },
                     );
