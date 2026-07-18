@@ -27,3 +27,11 @@ test('getAllDependenciesFromManifest() excludes peerDependencies when autoInstal
     peerDependencies: { react: '^19.0.0' },
   }, { autoInstallPeers: false })).toStrictEqual({ react: '19.0.0' })
 })
+
+test('getAllDependenciesFromManifest() lets optionalDependencies win over a same-named peerDependencies entry', () => {
+  expect(getAllDependenciesFromManifest({
+    optionalDependencies: { react: '~19.0.0' },
+    peerDependencies: { react: '^19.0.0' },
+  }, { autoInstallPeers: true })).toStrictEqual({ react: '~19.0.0' })
+})
+
