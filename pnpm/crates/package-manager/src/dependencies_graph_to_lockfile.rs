@@ -105,14 +105,14 @@ pub struct GraphToLockfileOptions<'a> {
     /// `importers:` map), keyed by the same importer ids as
     /// [`Self::importers`]. Used to preserve a workspace dependency's
     /// prior `link:` entry when this install does not target it — see
-    /// [`build_importer`] and pnpm/pnpm#10433. `None` when there is no
+    /// `build_importer` and pnpm/pnpm#10433. `None` when there is no
     /// previous lockfile (a first install).
     pub previous_importers: Option<&'a HashMap<String, ProjectSnapshot>>,
     /// How this install reuses the prior resolution, mapped from the
     /// `pacquet update` seed policy. Together with a spec change it
     /// decides whether an importer's workspace dependency is *targeted*
     /// by the run (and so may legitimately change its `link:`/`file:`
-    /// form) — see [`build_importer`].
+    /// form) — see `build_importer`.
     pub update_reuse_scope: UpdateReuseScope,
 }
 
