@@ -48,6 +48,7 @@ import semver from 'semver'
 import ssri from 'ssri'
 import versionSelectorType from 'version-selector-type'
 
+import { clearMeta, retainsFullMeta } from './clearMeta.js'
 import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOptions, RegistryResponseError } from './fetch.js'
 import { memoizeFetchMetadata } from './memoizeFetchMetadata.js'
 import { normalizeRegistryUrl } from './normalizeRegistryUrl.js'
@@ -217,7 +218,9 @@ export function createNpmResolver (
     timeout: opts.timeout ?? 60000,
     fetchWarnTimeoutMs: opts.fetchWarnTimeoutMs ?? 10 * 1000, // 10 sec
   }
-  const { fetch, clear: clearFetchCache } = memoizeFetchMetadata(fetchMetadataFromFromRegistry.bind(null, fetchOpts))
+  const { fetch, clear: clearFetchCache } = memoizeFetchMetadata(fetchMetadataFromFromRegistry.bind(null, fetchOpts), {
+    condenseSettledMeta: retainsFullMeta(opts) ? undefined : clearMeta,
+  })
   // Track ownership so `clearCache()` below only wipes the in-memory
   // cache when this factory created it. A caller-supplied
   // `opts.metaCache` may be shared with another resolver instance (or

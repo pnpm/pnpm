@@ -2,7 +2,7 @@ import { rmSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
 import { expect, jest, test } from '@jest/globals'
-import { ABBREVIATED_META_DIR } from '@pnpm/constants'
+import { ABBREVIATED_META_DIR, FULL_META_DIR } from '@pnpm/constants'
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
 import { temporaryDirectory } from 'tempy'
 
@@ -237,6 +237,63 @@ test('projects sharing one in-flight fetch mirror the fetched body instead of re
   } finally {
     stringifySpy.mockRestore()
   }
+})
+
+test('a full document fetched for an optional dependency is condensed in memory while the mirror keeps the raw body', async () => {
+  const meta = fooMeta()
+  meta.versions['1.0.0'].libc = ['glibc']
+  meta.versions['1.0.0'].scripts = { postinstall: 'node scripts/build.js' }
+  ;(meta as PackageMeta & { readme: string }).readme = '# a readme the size of a novel'
+  meta.time = { '1.0.0': '2020-01-01T00:00:00.000Z' }
+  const rawBody = JSON.stringify(meta)
+  const cacheDir = temporaryDirectory()
+
+  const ctx = {
+    fetch: async () => ({ meta, jsonText: rawBody, etag: undefined }),
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+  const spec: RegistryPackageSpec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }
+
+  const res = await pickPackage(ctx, spec, { registry: REGISTRY, dryRun: false, optional: true, preferredVersionSelectors: undefined })
+  // The install-relevant full-document fields survive condensing…
+  expect(res.pickedPackage?.libc).toEqual(['glibc'])
+  expect(res.meta.time).toEqual({ '1.0.0': '2020-01-01T00:00:00.000Z' })
+  // …while the bulk that nothing on the install path reads is dropped.
+  expect(res.pickedPackage?.scripts).toBeUndefined()
+  expect((res.meta as PackageMeta & { readme?: string }).readme).toBeUndefined()
+  expect(ctx.metaCache.get(getPkgMetaCacheKey(REGISTRY, 'foo', true, false))).toBe(res.meta)
+
+  // The full-metadata mirror still receives the raw response body.
+  const pkgMirror = getPkgMirrorPath(cacheDir, FULL_META_DIR, REGISTRY, 'foo')
+  const mirror = await readMirrorWithRetry(pkgMirror, 100)
+  expect(mirror?.slice(mirror.indexOf('\n') + 1)).toBe(rawBody)
+})
+
+test('a mirror holding a full document is condensed when promoted into the in-memory cache', async () => {
+  const meta = fooMeta()
+  meta.versions['1.0.0'].scripts = { postinstall: 'node scripts/build.js' }
+  ;(meta as PackageMeta & { readme: string }).readme = '# a readme the size of a novel'
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, undefined))
+
+  const ctx = {
+    fetch: async () => {
+      throw new Error('offline resolution must not hit the network')
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+    offline: true,
+  }
+  const spec: RegistryPackageSpec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }
+
+  const res = await pickPackage(ctx, spec, { registry: REGISTRY, dryRun: false, preferredVersionSelectors: undefined })
+  expect(res.pickedPackage?.version).toBe('1.0.0')
+  expect(res.pickedPackage?.scripts).toBeUndefined()
+  const cached = ctx.metaCache.get(getPkgMetaCacheKey(REGISTRY, 'foo', false, false))
+  expect(cached).toBe(res.meta)
+  expect((cached as PackageMeta & { readme?: string }).readme).toBeUndefined()
 })
 
 test('a disk-promoted cache entry that cannot satisfy the spec falls back to the registry under prefer-offline', async () => {

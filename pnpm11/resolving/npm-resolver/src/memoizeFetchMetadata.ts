@@ -1,3 +1,5 @@
+import type { PackageMeta } from '@pnpm/resolving.registry.types'
+
 import type {
   FetchMetadataNotModifiedResult,
   FetchMetadataOptions,
@@ -9,6 +11,19 @@ export type FetchMetadata = (pkgName: string, opts: FetchMetadataOptions) => Pro
 export interface MemoizedFetchMetadata {
   fetch: FetchMetadata
   clear: () => void
+}
+
+export interface MemoizeFetchMetadataOptions {
+  /**
+   * Applied to a settled result's `meta` before the entry is retained for the
+   * rest of the resolution phase. Callers awaiting the in-flight request still
+   * receive the original document; only the retained entry is condensed. Pass
+   * `clearMeta` on resolvers whose consumers never read past the abbreviated
+   * field set, so a full document — fetched for an optional dependency's
+   * `libc` or a release-age `time` upgrade — doesn't stay pinned at full size
+   * here for the whole phase.
+   */
+  condenseSettledMeta?: (meta: PackageMeta) => PackageMeta
 }
 
 /**
@@ -24,7 +39,9 @@ export interface MemoizedFetchMetadata {
  * `meta`. Retaining bodies past settlement would pin hundreds of MB on large
  * cold-cache graphs, so a later cache-hit caller that writes the mirror falls
  * back to `JSON.stringify(meta)` in `prepareJsonForDisk`, which is equivalent
- * on read: `loadMeta` re-derives `etag` from the headers line.
+ * on read: `loadMeta` re-derives `etag` from the headers line. The retained
+ * `meta` is condensed by the same swap when `condenseSettledMeta` is set —
+ * see {@link MemoizeFetchMetadataOptions}.
  *
  * Because that swap lands a turn after the request settles, both settlement
  * paths write back only while the entry is still their own promise — a `clear`
@@ -34,7 +51,8 @@ export interface MemoizedFetchMetadata {
  * A rejected fetch is evicted so a transient network failure is retried by
  * the next request instead of being cached for the rest of the phase.
  */
-export function memoizeFetchMetadata (fetch: FetchMetadata): MemoizedFetchMetadata {
+export function memoizeFetchMetadata (fetch: FetchMetadata, memoOpts?: MemoizeFetchMetadataOptions): MemoizedFetchMetadata {
+  const condense = memoOpts?.condenseSettledMeta
   const cache = new Map<string, ReturnType<FetchMetadata>>()
   return {
     fetch: (pkgName, opts) => {
@@ -49,7 +67,9 @@ export function memoizeFetchMetadata (fetch: FetchMetadata): MemoizedFetchMetada
           cache.set(
             key,
             Promise.resolve(
-              result.notModified ? result : { ...result, jsonText: undefined }
+              result.notModified
+                ? result
+                : { ...result, jsonText: undefined, meta: condense ? condense(result.meta) : result.meta }
             )
           )
         },

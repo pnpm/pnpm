@@ -148,3 +148,23 @@ test('notModified results pass through unchanged', async () => {
   expect(first.notModified).toBe(true)
   expect(second).toBe(first)
 })
+
+test('condenseSettledMeta narrows the retained meta while the initiating caller sees the original', async () => {
+  const result = fooFetchResult()
+  const condensed = { name: 'foo' } as PackageMeta
+  const { fetch } = memoizeFetchMetadata(async () => result, {
+    condenseSettledMeta: (meta) => {
+      expect(meta).toBe(result.meta)
+      return condensed
+    },
+  })
+
+  const first = await fetch('foo', { registry: REGISTRY })
+  expect(first).toBe(result)
+
+  const second = await fetch('foo', { registry: REGISTRY })
+  if (second.notModified) throw new Error('expected a cached fetch result')
+  expect(second.meta).toBe(condensed)
+  // The initiating caller's result object is left untouched.
+  expect(result.meta).not.toBe(condensed)
+})

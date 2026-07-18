@@ -13,7 +13,7 @@ import { fastPathTemp as pathTemp } from 'path-temp'
 import { renameOverwrite } from 'rename-overwrite'
 import semver from 'semver'
 
-import { clearMeta } from './clearMeta.js'
+import { clearMeta, retainsFullMeta } from './clearMeta.js'
 import {
   type FetchMetadataNotModifiedResult,
   type FetchMetadataResult,
@@ -217,6 +217,24 @@ function cacheDiskLoadedMeta (metaCache: PackageMetaCache, cacheKey: string, met
   metaCache.set(cacheKey, meta)
 }
 
+/**
+ * The form in which a packument is retained in memory (the `metaCache`, and
+ * through it every returned pick). Full documents reach a plain install via
+ * optional dependencies (fetched full for `libc`), release-age `time`
+ * upgrades, and mirror files that hold a full body — retaining them
+ * unstripped pins tens of MB per popular package for the whole install and
+ * drove large workspaces out of memory
+ * (https://github.com/pnpm/pnpm/issues/8441). Condensing is skipped only for
+ * resolvers whose consumers read past the abbreviated field set (see
+ * {@link retainsFullMeta}).
+ */
+function condenseMetaForCache (
+  ctx: { fullMetadata?: boolean, filterMetadata?: boolean },
+  meta: PackageMeta
+): PackageMeta {
+  return retainsFullMeta(ctx) ? meta : clearMeta(meta)
+}
+
 export async function pickPackage (
   ctx: {
     fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, cacheBypass?: boolean, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
@@ -266,14 +284,8 @@ export async function pickPackage (
     // publishedBy and the package was modified recently, upgrade to full
     // metadata so the maturity check runs properly.
     const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, spec, opts, cachedMeta)
-    let metaForCache = upgrade.meta
+    const metaForCache = upgradeMetaForCache(ctx, pkgMirror, opts.dryRun, upgrade)
     if (upgrade.upgradedFrom != null) {
-      // Persist the upgraded meta to disk too: the on-disk mirror still holds
-      // the abbreviated form, so without this a fresh process would re-trigger
-      // the upgrade fetch on its next install.
-      metaForCache = opts.dryRun
-        ? upgrade.meta
-        : persistUpgradedMeta(ctx, pkgMirror, upgrade.upgradedFrom)
       ctx.metaCache.set(cacheKey, metaForCache)
     }
     const pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, metaForCache)
@@ -288,9 +300,17 @@ export async function pickPackage (
   }
 
   return runLimited(pkgMirror, async (limit) => {
+    // Condensed on load (see condenseMetaForCache): the mirror may hold a
+    // full body — optional deps' full mirrors, or an abbreviated mirror a
+    // release-age upgrade rewrote — and every path below either caches or
+    // returns what it loads here.
+    const loadMetaCondensed = async (): Promise<PackageMeta | null> => {
+      const meta = await loadMeta(pkgMirror)
+      return meta == null ? null : condenseMetaForCache(ctx, meta)
+    }
     let diskMeta: PackageMeta | null | undefined
     if (ctx.offline === true || ctx.preferOffline === true || opts.pickLowestVersion) {
-      diskMeta = await limit(async () => loadMeta(pkgMirror))
+      diskMeta = await limit(loadMetaCondensed)
 
       if (ctx.offline) {
         if (diskMeta != null) {
@@ -311,12 +331,8 @@ export async function pickPackage (
         // Disk-cached meta may be abbreviated; upgrade for the maturity check
         // before letting pickMatchingVersionFinal warn-and-skip on missing time.
         const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, spec, opts, diskMeta)
-        diskMeta = upgrade.meta
+        diskMeta = upgradeMetaForCache(ctx, pkgMirror, opts.dryRun, upgrade)
         if (upgrade.upgradedFrom != null) {
-          // Persist so the next install skips this upgrade fetch entirely.
-          if (!opts.dryRun) {
-            diskMeta = persistUpgradedMeta(ctx, pkgMirror, upgrade.upgradedFrom)
-          }
           ctx.metaCache.set(cacheKey, diskMeta)
         }
         const pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, diskMeta)
@@ -338,7 +354,7 @@ export async function pickPackage (
     }
 
     if (!opts.includeLatestTag && !opts.updateChecksums && spec.type === 'version') {
-      diskMeta = diskMeta ?? await limit(async () => loadMeta(pkgMirror))
+      diskMeta = diskMeta ?? await limit(loadMetaCondensed)
       // use the cached meta only if it has the required package version
       // otherwise it is probably out of date
       if ((diskMeta?.versions?.[spec.fetchSpec]) != null) {
@@ -362,7 +378,7 @@ export async function pickPackage (
     if (opts.publishedBy && opts.publishedByExclude?.(spec.name) !== true) {
       const mtime = await limit(async () => getFileMtime(pkgMirror))
       if (mtime != null && mtime >= opts.publishedBy) {
-        diskMeta = diskMeta ?? await limit(async () => loadMeta(pkgMirror))
+        diskMeta = diskMeta ?? await limit(loadMetaCondensed)
         if (diskMeta != null) {
           try {
             const pickedPackage = pickMatchingVersionFast(pickerOpts, spec, diskMeta)
@@ -398,7 +414,7 @@ export async function pickPackage (
       if (!conditional.notModified) return await persistFreshMeta(conditional)
 
       // 304: the cached mirror is still current.
-      diskMeta = diskMeta ?? await limit(async () => loadMeta(pkgMirror))
+      diskMeta = diskMeta ?? await limit(loadMetaCondensed)
       if (diskMeta != null) return await serveValidatedMeta(diskMeta)
 
       // The mirror vanished between the headers read and this read (concurrent
@@ -415,7 +431,7 @@ export async function pickPackage (
       return await persistFreshMeta(refetched)
     } catch (err: any) { // eslint-disable-line
       err.spec = spec
-      const meta = await loadMeta(pkgMirror) // TODO: add test for this usecase
+      const meta = await loadMetaCondensed() // TODO: add test for this usecase
       if (meta == null) throw err
       logger.error(err, err)
       logger.debug({ message: `Using cached meta from ${pkgMirror}` })
@@ -446,13 +462,7 @@ export async function pickPackage (
       // this, repeat installs of recently-modified packages would silently
       // bypass the maturity check via the warn-and-skip fallback.
       const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, spec, opts, cached)
-      let meta = upgrade.meta
-      if (upgrade.upgradedFrom != null && !opts.dryRun) {
-        // Persist the upgraded full metadata to disk so subsequent installs
-        // skip this upgrade fetch entirely (the cached meta will then have
-        // `time` populated, so the upgrade condition won't trigger).
-        meta = persistUpgradedMeta(ctx, pkgMirror, upgrade.upgradedFrom)
-      }
+      const meta = upgradeMetaForCache(ctx, pkgMirror, opts.dryRun, upgrade)
       ctx.metaCache.set(cacheKey, meta)
       return {
         meta,
@@ -509,12 +519,16 @@ export async function pickPackage (
         }
       }
 
-      if (ctx.filterMetadata) {
-        meta = clearMeta(meta)
-      }
+      meta = condenseMetaForCache(ctx, meta)
       if (!opts.dryRun) {
-        // Serialize before setting meta.etag so it only lives in the headers line, not the body.
-        const jsonForDisk = ctx.filterMetadata
+        // The mirror keeps the raw registry body, except when the retained
+        // form is deliberately narrower: a `filterMetadata` resolver always
+        // mirrors the stripped document, and a release-age upgrade
+        // (`resultToSave !== fetched`) on a condensing resolver mirrors the
+        // condensed form — it keeps `time`, which is all the next install
+        // needs from this slot, instead of megabytes of full-document bulk.
+        const writeCondensed = ctx.filterMetadata === true || (resultToSave !== fetched && meta !== resultToSave.meta)
+        const jsonForDisk = writeCondensed
           ? prepareJsonForDisk(meta, resultToSave.etag)
           : prepareJsonForDisk(resultToSave.meta, resultToSave.etag, resultToSave.jsonText)
         runLimited(pkgMirror, (limit) => limit(async () => {
@@ -600,19 +614,39 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
   return { meta: fullFetchResult.meta, upgradedFrom: fullFetchResult }
 }
 
+/**
+ * The meta to retain after a release-age upgrade fetch: the upgrade result in
+ * its cache form (see {@link condenseMetaForCache}), persisted to the mirror
+ * unless this is a dry run. Persisting matters because the mirror otherwise
+ * still holds the pre-upgrade abbreviated form (no `time`), so every future
+ * install would re-trigger the upgrade fetch. When no upgrade happened, the
+ * input meta passes through untouched.
+ */
+function upgradeMetaForCache (
+  ctx: { fullMetadata?: boolean, filterMetadata?: boolean },
+  pkgMirror: string,
+  dryRun: boolean,
+  upgrade: { meta: PackageMeta, upgradedFrom?: FetchMetadataResult }
+): PackageMeta {
+  if (upgrade.upgradedFrom == null) return upgrade.meta
+  if (dryRun) return condenseMetaForCache(ctx, upgrade.meta)
+  return persistUpgradedMeta(ctx, pkgMirror, upgrade.upgradedFrom)
+}
+
 // Persists upgraded full metadata to the on-disk cache mirror and returns
-// the meta to store in the in-memory cache. When `filterMetadata` is on, the
-// in-memory and on-disk forms are both stripped via `clearMeta`; otherwise
-// the original raw response body is written and the unstripped meta is kept.
+// the meta to store in the in-memory cache. A condensing resolver (see
+// condenseMetaForCache) keeps and mirrors the condensed form — the mirror
+// only has to carry `time` into the next install; otherwise the original raw
+// response body is written and the unstripped meta is kept.
 function persistUpgradedMeta (
-  ctx: { filterMetadata?: boolean },
+  ctx: { fullMetadata?: boolean, filterMetadata?: boolean },
   pkgMirror: string,
   upgradedFrom: FetchMetadataResult
 ): PackageMeta {
-  const metaForCache = ctx.filterMetadata ? clearMeta(upgradedFrom.meta) : upgradedFrom.meta
-  const jsonForDisk = ctx.filterMetadata
-    ? prepareJsonForDisk(metaForCache, upgradedFrom.etag)
-    : prepareJsonForDisk(upgradedFrom.meta, upgradedFrom.etag, upgradedFrom.jsonText)
+  const metaForCache = condenseMetaForCache(ctx, upgradedFrom.meta)
+  const jsonForDisk = metaForCache === upgradedFrom.meta
+    ? prepareJsonForDisk(upgradedFrom.meta, upgradedFrom.etag, upgradedFrom.jsonText)
+    : prepareJsonForDisk(metaForCache, upgradedFrom.etag)
   runLimited(pkgMirror, (l) => l(async () => {
     try {
       await saveMeta(pkgMirror, jsonForDisk)
@@ -678,12 +712,18 @@ export function getPkgMirrorPath (cacheDir: string, metaDir: string, registry: s
 /**
  * Formats metadata for disk storage as two-line NDJSON:
  *   Line 1: cache headers (etag, modified) — small, fast to read
- *   Line 2: the full registry metadata JSON — unchanged from the registry response
+ *   Line 2: the registry metadata JSON — the raw response body when
+ *   `jsonText` is given, a re-serialization of `meta` otherwise
+ *
+ * The etag lives only in the headers line: `loadMeta` re-attaches it from
+ * there, and a serialized `meta` may carry one (metas are shared and get
+ * their `etag` assigned after a fetch), so it is dropped from the body here
+ * rather than at every call site.
  */
 export function prepareJsonForDisk (meta: PackageMeta, etag: string | undefined, jsonText?: string): string {
   const modified = meta.modified ?? meta.time?.modified
   const headers = JSON.stringify({ etag, modified })
-  const body = jsonText ?? JSON.stringify(meta)
+  const body = jsonText ?? JSON.stringify(meta.etag == null ? meta : { ...meta, etag: undefined })
   return `${headers}\n${body}`
 }
 
