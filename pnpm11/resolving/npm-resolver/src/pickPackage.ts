@@ -641,7 +641,7 @@ function persistUpgradedMeta (
  * optimization (the next install falls back to an unconditional fetch), so
  * the install continues — but the failure is debug-logged with the mirror
  * path so a broken cache dir (permissions, disk full) stays diagnosable.
- * Writes to the same mirror are serialized through its refcounted limiter.
+ * Writes to the same mirror are serialized through its per-mirror limiter.
  */
 function saveMetaBestEffort (pkgMirror: string, json: string): void {
   void runLimited(pkgMirror, (limit) => limit(async () => {
