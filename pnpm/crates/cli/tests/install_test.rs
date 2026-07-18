@@ -62,7 +62,7 @@ fn install_test_failure_prevents_test() {
     println!("stdout:\n{stdout}");
     assert!(
         !stdout.contains("test ran successfully"),
-        "test script should not run on install failure"
+        "test script should not run on install failure",
     );
 
     drop((root, npmrc_info));
