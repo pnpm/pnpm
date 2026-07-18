@@ -75,17 +75,22 @@ fn empty_intent_lists_render_as_flow_sequences_and_round_trip() {
 }
 
 #[test]
-fn null_entries_and_null_intents_parse_as_empty_lists() {
-    // The shape ledgers written before empty lists rendered as `[]` contain.
-    let parsed: Ledger = serde_saphyr::from_str(
-        "pacquet@12.0.0-alpha.13:\n  dir: pnpm/npm/pnpm\n  intents:\npkg@1.0.0:\n",
-    )
-    .expect("bare keys parse");
+fn null_and_missing_intent_lists_parse_as_empty() {
+    let parsed: Ledger = serde_saphyr::from_str(concat!(
+        "pacquet@12.0.0-alpha.13:\n  dir: pnpm/npm/pnpm\n  intents:\n",
+        "pkg@1.0.0:\n",
+        "other@2.0.0:\n  dir: packages/other\n",
+    ))
+    .expect("bare and intents-less keys parse");
     assert_eq!(
         parsed.get("pacquet@12.0.0-alpha.13"),
         Some(&LedgerEntry::Attributed { dir: "pnpm/npm/pnpm".to_string(), intents: Vec::new() }),
     );
     assert_eq!(parsed.get("pkg@1.0.0"), Some(&LedgerEntry::Ids(Vec::new())));
+    assert_eq!(
+        parsed.get("other@2.0.0"),
+        Some(&LedgerEntry::Attributed { dir: "packages/other".to_string(), intents: Vec::new() }),
+    );
 }
 
 #[test]

@@ -30,8 +30,9 @@ pub enum LedgerEntry {
 }
 
 /// Null where a list belongs reads as an empty list: a bare `pkg@1.0.0:` or
-/// `intents:` key parses as YAML null, and ledgers written before the
-/// serializers rendered empty lists as `[]` contain exactly that shape.
+/// `intents:` key parses as YAML null, and a mapping entry may omit
+/// `intents` entirely. Committed ledgers contain such entries for releases
+/// that consumed no intents.
 impl<'de> Deserialize<'de> for LedgerEntry {
     fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
     where

@@ -65,9 +65,10 @@ export async function readLedger (workspaceDir: string): Promise<Ledger> {
 
 /**
  * Null where a list belongs reads as an empty list: a bare `pkg@1.0.0:` or
- * `intents:` key parses as YAML null, and ledgers written before the
- * serializers rendered empty lists as `[]` contain exactly that shape.
- * Returns undefined for entries that are invalid in any shape.
+ * `intents:` key parses as YAML null, and a mapping entry may omit
+ * `intents` entirely. Committed ledgers contain such entries for releases
+ * that consumed no intents. Returns undefined for entries that are invalid
+ * in any shape.
  */
 function normalizeLedgerEntry (entry: unknown): LedgerEntry | undefined {
   if (entry == null) return []
