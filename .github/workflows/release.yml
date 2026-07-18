@@ -4,10 +4,11 @@ name: Release
 # TypeScript pnpm CLI (v11), the Rust pnpm CLI + NAPI addon (v12), and the
 # pnpr registry server. Versions are committed (bumped by `pnpm bump` via the
 # release PR that create-release-pr.yml opens); pushing a version tag runs the
-# `plan` job, which asks the npm registry which committed versions are not
-# published yet, and only those products' jobs run. Tagging e.g. a v12
-# prerelease therefore skips the TypeScript jobs whose version is already on
-# npm, and vice versa.
+# `plan` job, which releases exactly the product whose committed version the
+# tag names, so tags pushed together release their products in parallel runs.
+# The plan job also asks the npm registry whether that version is already
+# published: rerunning a tag resumes a partial release, and a completed one
+# skips every job.
 on:
   push:
     tags:
@@ -28,13 +29,15 @@ on:
         default: false
 
 # A release PR that bumps several products auto-tags each one (tag-release.yml),
-# so several version tags can land together and start a run apiece. Serialize
-# them: the plan job gates every publish on what npm reports as unpublished, so
-# once the first run publishes a product the rest skip it — but only if they
-# don't run concurrently and all read "unpublished" at once. Never cancel a
-# run mid-publish.
+# so several version tags can land together and start a run apiece. Each run
+# releases only the product its tag names (see the plan job), so simultaneous
+# runs publish disjoint packages and may proceed in parallel. The group is
+# scoped per ref because GitHub keeps at most one *pending* run per group and
+# cancels the rest — a shared group would silently drop one product's release
+# whenever several tags land together. Reruns of the same tag still serialize.
+# Never cancel a run mid-publish.
 concurrency:
-  group: release
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -79,12 +82,15 @@ jobs:
 
       - name: Read committed versions and query the registry
         id: decide
-        # A product is released when its committed version is not on npm yet.
-        # `needs_release` treats only E404 as "not published"; any other npm
-        # failure aborts the plan so a registry outage can't be misread as a
-        # pending release. The gate packages are the ones each publish job
-        # publishes last (`pnpm` for both CLIs, `@pnpm/pnpr` for pnpr), so a
-        # rerun after a partial failure resumes instead of skipping.
+        # The tag names the product to release: the one whose committed
+        # version it matches. A tag matching no product's committed version
+        # is an error, never a fallback release. The matched product is then
+        # released only if its version is not on npm yet. `needs_release`
+        # treats only E404 as "not published"; any other npm failure aborts
+        # the plan so a registry outage can't be misread as a pending release.
+        # The gate packages are the ones each publish job publishes last
+        # (`pnpm` for both CLIs, `@pnpm/pnpr` for pnpr), so a rerun after a
+        # partial failure resumes instead of skipping.
         run: |
           set -eu
           needs_release() {
@@ -124,14 +130,40 @@ jobs:
             *) PNPR_TAG="latest" ;;
           esac
 
-          # Assign first so `set -e` aborts the plan on a `needs_release`
-          # failure. Inside `echo "$(needs_release …)"` the non-zero exit is
-          # the subshell's, discarded by echo, so a registry outage would
-          # otherwise be written out as an empty (falsy) value and silently
-          # skip the release.
-          TS_NEEDS=$(needs_release "pnpm@$TS_VERSION")
-          RUST_NEEDS=$(needs_release "pnpm@$RUST_VERSION")
-          PNPR_NEEDS=$(needs_release "@pnpm/pnpr@$PNPR_VERSION")
+          # `needs_release` results land in plain assignments so `set -e`
+          # aborts the plan on a failure. Inside `echo "$(needs_release …)"`
+          # the non-zero exit is the subshell's, discarded by echo, so a
+          # registry outage would otherwise be written out as an empty (falsy)
+          # value and silently skip the release.
+          TS_NEEDS=false
+          RUST_NEEDS=false
+          PNPR_NEEDS=false
+          case "$GITHUB_REF" in
+            refs/tags/pnpr@*)
+              TAG_VERSION="${GITHUB_REF#refs/tags/pnpr@}"
+              if [ "$TAG_VERSION" != "$PNPR_VERSION" ]; then
+                echo "::error::Tag pnpr@${TAG_VERSION} matches no product: the committed @pnpm/pnpr version is ${PNPR_VERSION}"
+                exit 1
+              fi
+              PNPR_NEEDS=$(needs_release "@pnpm/pnpr@$PNPR_VERSION")
+              ;;
+            refs/tags/v*)
+              TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+              if [ "$TAG_VERSION" = "$TS_VERSION" ]; then
+                TS_NEEDS=$(needs_release "pnpm@$TS_VERSION")
+              elif [ "$TAG_VERSION" = "$RUST_VERSION" ]; then
+                RUST_NEEDS=$(needs_release "pnpm@$RUST_VERSION")
+              else
+                echo "::error::Tag v${TAG_VERSION} matches no product: the committed TypeScript pnpm version is ${TS_VERSION} and the committed Rust pnpm version is ${RUST_VERSION}"
+                exit 1
+              fi
+              ;;
+            *)
+              # Only reachable via the verify_ts_release dispatch —
+              # validate-release-ref rejects every other non-tag ref. Nothing
+              # is released.
+              ;;
+          esac
 
           {
             echo "ts=$TS_NEEDS"
@@ -306,6 +338,21 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+      - name: Assert the version tag points at this commit
+        # The plan job dispatches on the tag's version string, which cannot
+        # prove the tag points at this commit — a retagged release, or another
+        # commit carrying the same committed version, would still dispatch.
+        # The artifacts built below and the GitHub release that lands on
+        # v<ts_version> must both come from the commit that tag names.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.plan.outputs.ts_version }}
+        run: |
+          tag_commit=$(gh api "repos/${GITHUB_REPOSITORY}/commits/v${VERSION}" --jq .sha)
+          if [ "$tag_commit" != "$GITHUB_SHA" ]; then
+            echo "::error::Tag v${VERSION} points at ${tag_commit}, but this run would release commit ${GITHUB_SHA}. Rerun the release workflow from the v${VERSION} tag."
+            exit 1
+          fi
       - uses: garnet-org/action@2b7fc9d79b54f551b43358c27424a36064b3e078 # v2.0.2
         with:
           api_token: ${{ secrets.GARNET_API_TOKEN }}
@@ -376,10 +423,18 @@ jobs:
         # sensitive and softprops/action-gh-release is widely battle-tested.
         uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.0 # zizmor: ignore[superfluous-actions]
         with:
+          # Draft so a maintainer publishes it deliberately, like the Rust and
+          # pnpr releases: the repository uses immutable releases, so a
+          # published release cannot be corrected, only deleted — and deleting
+          # it burns its tag for releases forever.
           draft: true
+          # Explicit so the release's identity comes from the plan job like
+          # every other step here, never from the github.ref fallback.
+          tag_name: v${{ needs.plan.outputs.ts_version }}
+          name: pnpm ${{ needs.plan.outputs.ts_version }}
           files: dist/*
           body_path: RELEASE.md
-      - name: Verify and publish release
+      - name: Verify draft release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_ID: ${{ steps.github-release.outputs.id }}
@@ -394,7 +449,6 @@ jobs:
           const expected = normalizeNewlines(fs.readFileSync('RELEASE.md', 'utf8'))
           if (actual !== expected) throw new Error('GitHub draft release body does not match RELEASE.md')
           NODE
-          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" -F draft=false > /dev/null
 
   build-rust:
     needs: plan
@@ -773,11 +827,48 @@ jobs:
       - build-rust
       - publish-rust
     steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Assert the version tag points at this commit
+        # Same tag↔commit invariant as the TypeScript release job's guard: the
+        # binaries below were built from this run's commit, and `target_commitish`
+        # cannot pin the release to it — GitHub ignores it whenever the tag
+        # already exists.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.plan.outputs.rust_version }}
+        run: |
+          tag_commit=$(gh api "repos/${GITHUB_REPOSITORY}/commits/v${VERSION}" --jq .sha)
+          if [ "$tag_commit" != "$GITHUB_SHA" ]; then
+            echo "::error::Tag v${VERSION} points at ${tag_commit}, but this run built commit ${GITHUB_SHA}. Rerun the release workflow from the v${VERSION} tag."
+            exit 1
+          fi
+
       - name: Download Artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: binaries-rust-*
           merge-multiple: true
+
+      - name: Generate release description
+        # The pending changelog written by `pnpm version -r` holds exactly this
+        # version's entry; its first line is a `## <version>` heading, redundant
+        # under the release title. A missing changelog only warns: the draft is
+        # still worth having for its artifacts, and a maintainer can fill in
+        # the description before publishing.
+        env:
+          VERSION: ${{ needs.plan.outputs.rust_version }}
+        run: |
+          changelog=".changeset/changelogs/pacquet@${VERSION}.md"
+          if [ -f "$changelog" ]; then
+            tail -n +2 "$changelog" | sed '/./,$!d' > RELEASE.md
+          else
+            echo "::warning::No pending changelog at ${changelog}; drafting the release with an empty description"
+            : > RELEASE.md
+          fi
 
       - name: Release
         # The build job's archives already carry the release layout (a `pnpm`
@@ -795,6 +886,7 @@ jobs:
           tag_name: v${{ needs.plan.outputs.rust_version }}
           target_commitish: ${{ github.sha }}
           name: pnpm ${{ needs.plan.outputs.rust_version }}
+          body_path: RELEASE.md
           files: |
             pnpm-*.tar.gz
             pnpm-*.zip
@@ -1208,3 +1300,69 @@ jobs:
             PNPR_SHA256_ARM64=${{ steps.stage.outputs.sha_arm64 }}
           provenance: mode=max
           sbom: true
+
+  github-release-pnpr:
+    name: Draft GitHub release for pnpr
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: write # create the draft release on the pnpr tag
+    needs:
+      - plan
+      - build-pnpr
+      - publish-pnpr
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Assert the version tag points at this commit
+        # Same tag↔commit invariant as the TypeScript release job's guard.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.plan.outputs.pnpr_version }}
+        run: |
+          tag_commit=$(gh api "repos/${GITHUB_REPOSITORY}/commits/pnpr@${VERSION}" --jq .sha)
+          if [ "$tag_commit" != "$GITHUB_SHA" ]; then
+            echo "::error::Tag pnpr@${VERSION} points at ${tag_commit}, but this run built commit ${GITHUB_SHA}. Rerun the release workflow from the pnpr@${VERSION} tag."
+            exit 1
+          fi
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: binaries-pnpr-*
+          merge-multiple: true
+
+      - name: Generate release description
+        # Same shape as the Rust job's description step; pnpr's changelog file
+        # name carries the `@pnpm!` scope prefix (`!` escapes `/`).
+        env:
+          VERSION: ${{ needs.plan.outputs.pnpr_version }}
+        run: |
+          changelog=".changeset/changelogs/@pnpm!pnpr@${VERSION}.md"
+          if [ -f "$changelog" ]; then
+            tail -n +2 "$changelog" | sed '/./,$!d' > RELEASE.md
+          else
+            echo "::warning::No pending changelog at ${changelog}; drafting the release with an empty description"
+            : > RELEASE.md
+          fi
+
+      - name: Release
+        # The build job's archives carry a target-qualified `pnpr-<target>`
+        # binary and ship with its build-time checksum, so they're uploaded
+        # byte-for-byte as attested there. Draft so a maintainer publishes it
+        # deliberately; `make_latest: false` keeps a pnpr release off the
+        # repository's "Latest" badge, which tracks the stable pnpm CLI.
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.0 # zizmor: ignore[superfluous-actions]
+        with:
+          draft: true
+          prerelease: ${{ contains(needs.plan.outputs.pnpr_version, '-') }}
+          make_latest: false
+          tag_name: pnpr@${{ needs.plan.outputs.pnpr_version }}
+          name: pnpr ${{ needs.plan.outputs.pnpr_version }}
+          body_path: RELEASE.md
+          files: |
+            pnpr-*.tar.gz
+            pnpr-*.zip
+            pnpr-*.sha256
