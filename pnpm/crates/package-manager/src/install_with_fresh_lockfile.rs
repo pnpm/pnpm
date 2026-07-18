@@ -1455,6 +1455,15 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             None
         };
 
+        // Captured for the pnpm/pnpm#10433 guard in the fresh-lockfile
+        // builder (`build_importer`): it needs the previous run's importer
+        // entries and this run's final update scope, but `update_reuse_scope`
+        // is moved into the resolver options below and `wanted_lockfile` is
+        // later shadowed by the freshly built lockfile.
+        let guard_previous_importers: Option<&HashMap<String, pacquet_lockfile::ProjectSnapshot>> =
+            wanted_lockfile.map(|lockfile| &lockfile.importers);
+        let guard_update_reuse_scope = update_reuse_scope.clone();
+
         // Hand the resolver the prior lockfile so it can reuse
         // already-resolved subtrees instead of re-resolving from the
         // registry (see pnpm/plans/LOCKFILE_RESOLUTION_REUSE.md).
@@ -1742,6 +1751,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 catalogs: &catalogs,
                 pnpmfile_checksum: pnpmfile_checksum.as_deref(),
                 patched_dependency_hashes: patched_dependency_hashes.as_ref(),
+                previous_importers: guard_previous_importers,
+                update_reuse_scope: guard_update_reuse_scope.clone(),
             })
             .map_err(|error| {
                 InstallWithFreshLockfileError::DependenciesGraphToLockfile(Box::new(error))
@@ -1906,6 +1917,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             catalogs: &catalogs,
             pnpmfile_checksum: pnpmfile_checksum.as_deref(),
             patched_dependency_hashes: patched_dependency_hashes.as_ref(),
+            previous_importers: guard_previous_importers,
+            update_reuse_scope: guard_update_reuse_scope.clone(),
         })
         .map_err(|error| {
             InstallWithFreshLockfileError::DependenciesGraphToLockfile(Box::new(error))
@@ -2986,6 +2999,13 @@ struct FreshLockfileBuildOptions<'a> {
     catalogs: &'a pacquet_catalogs_types::Catalogs,
     pnpmfile_checksum: Option<&'a str>,
     patched_dependency_hashes: Option<&'a BTreeMap<String, String>>,
+    /// The previous run's lockfile importer entries, threaded into the
+    /// pnpm/pnpm#10433 guard so an untouched workspace dependency keeps
+    /// its prior `link:` entry. `None` on a first install.
+    previous_importers: Option<&'a HashMap<String, pacquet_lockfile::ProjectSnapshot>>,
+    /// How this install reuses the prior resolution (from the `pacquet
+    /// update` seed policy), also consumed by the pnpm/pnpm#10433 guard.
+    update_reuse_scope: pacquet_resolving_deps_resolver::UpdateReuseScope,
 }
 
 fn build_fresh_lockfile(
@@ -3000,6 +3020,8 @@ fn build_fresh_lockfile(
         catalogs,
         pnpmfile_checksum,
         patched_dependency_hashes,
+        previous_importers,
+        update_reuse_scope,
     } = opts;
     let mut importers = BTreeMap::new();
     for (id, manifest) in importer_manifests {
@@ -3027,6 +3049,8 @@ fn build_fresh_lockfile(
         catalogs,
         registry: &config.registry,
         lockfile_include_tarball_url: config.lockfile_include_tarball_url,
+        previous_importers,
+        update_reuse_scope,
     })
 }
 
