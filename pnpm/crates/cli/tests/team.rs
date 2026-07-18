@@ -56,7 +56,7 @@ fn fails_when_auth_is_missing() {
     assert!(!output.status.success(), "team must fail when auth is missing");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("Authentication required for registry access"),
+        stderr.contains("You must be logged in to"),
         "stderr must contain auth error; got:\n{stderr}",
     );
     drop((root, server));
