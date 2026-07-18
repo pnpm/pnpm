@@ -47,9 +47,19 @@ use super::{
     why::WhyArgs,
     with::WithArgs,
 };
+use clap::CommandFactory;
 use pacquet_config::Config;
 use pacquet_default_reporter::DefaultReporter;
 use pacquet_reporter::{NdjsonReporter, SilentReporter};
+
+pub(super) fn recursive<'a>(_ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
+    Ok(Box::pin(async move {
+        let mut cmd = crate::cli_args::CliArgs::command();
+        let _ = cmd.find_subcommand_mut("recursive").expect("recursive subcommand").print_help();
+        #[expect(clippy::exit, reason = "`recursive` exits non-zero, mirroring pnpm")]
+        std::process::exit(1);
+    }))
+}
 
 // `outdated` is a read-only query: it prints a report to stdout and never
 // installs, so it has no reporter-typed install pipeline to dispatch on. It
