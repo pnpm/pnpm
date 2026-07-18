@@ -468,6 +468,7 @@ fn command_name(command: &CliCommand) -> &'static str {
         CliCommand::Bugs(_) => "bugs",
         CliCommand::List(_) => "list",
         CliCommand::Ll(_) => "ll",
+        CliCommand::Licenses(_) => "licenses",
         CliCommand::Why(_) => "why",
         CliCommand::Sbom(_) => "sbom",
         CliCommand::Whoami => "whoami",

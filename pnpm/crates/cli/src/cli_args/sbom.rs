@@ -9,7 +9,7 @@ use indexmap::IndexMap;
 use pacquet_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotEntry,
 };
-use pacquet_package_manifest::safe_read_package_json_from_dir;
+use pacquet_package_manifest::{extract_author, extract_homepage, safe_read_package_json_from_dir};
 use std::{
     collections::{HashMap, HashSet},
     io::Write,
@@ -148,14 +148,6 @@ struct SbomResult {
     relationships: Vec<SbomRelationship>,
 }
 
-fn extract_author(manifest: &serde_json::Value) -> Option<String> {
-    let author = manifest.get("author")?;
-    if let Some(s) = author.as_str() {
-        return Some(s.to_string());
-    }
-    author.get("name").and_then(|n| n.as_str()).map(ToString::to_string)
-}
-
 fn extract_repository(manifest: &serde_json::Value) -> Option<String> {
     let repo = manifest.get("repository")?;
     if let Some(s) = repo.as_str() {
@@ -187,10 +179,6 @@ fn extract_bugs_url(manifest: &serde_json::Value) -> Option<String> {
         return None;
     }
     Some(strip_url_credentials(&url))
-}
-
-fn extract_homepage(manifest: &serde_json::Value) -> Option<String> {
-    manifest.get("homepage").and_then(|v| v.as_str()).map(ToString::to_string)
 }
 
 fn registry_tarball_url(registry: &str, name: &str, version: &str) -> String {

@@ -27,6 +27,7 @@ use super::{
     import::ImportArgs,
     install::InstallArgs,
     lane::LaneArgs,
+    licenses::LicensesArgs,
     link::LinkArgs,
     list::ListArgs,
     login::LoginArgs,
@@ -293,6 +294,9 @@ pub enum CliCommand {
     /// List installed packages in long format.
     #[clap(visible_alias = "la")]
     Ll(ListArgs),
+    /// Check the licenses of the installed packages.
+    #[clap(visible_aliases = ["licences"])]
+    Licenses(LicensesArgs),
     /// Shows the packages that depend on `pkg`
     Why(WhyArgs),
     /// Generate a Software Bill of Materials (SBOM).
