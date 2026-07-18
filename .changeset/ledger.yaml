@@ -200,7 +200,7 @@ pacquet@12.0.0-alpha.12:
     - pacquet-symlink-dangling-junction-parent
 pacquet@12.0.0-alpha.13:
   dir: pnpm/npm/pnpm
-  intents:
+  intents: []
 pacquet@12.0.0-alpha.14:
   dir: pnpm/npm/pnpm
   intents:

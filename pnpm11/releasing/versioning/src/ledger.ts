@@ -54,21 +54,33 @@ export async function readLedger (workspaceDir: string): Promise<Ledger> {
   // instead of mutating the prototype.
   const ledger: Ledger = Object.create(null) as Ledger
   for (const [key, entry] of Object.entries(parsed)) {
-    if (!isValidLedgerEntry(entry)) {
+    const normalized = normalizeLedgerEntry(entry)
+    if (normalized == null) {
       throw new PnpmError('INVALID_VERSIONING_LEDGER', `Invalid entry for ${key} in ${ledgerPath}. Expected a list of intent ids, or a mapping with "dir" and "intents"`)
     }
-    ledger[key] = entry as LedgerEntry
+    ledger[key] = normalized
   }
   return ledger
 }
 
-function isValidLedgerEntry (entry: unknown): boolean {
+/**
+ * Null where a list belongs reads as an empty list: a bare `pkg@1.0.0:` or
+ * `intents:` key parses as YAML null, and a mapping entry may omit
+ * `intents` entirely. Committed ledgers contain such entries for releases
+ * that consumed no intents. Returns undefined for entries that are invalid
+ * in any shape.
+ */
+function normalizeLedgerEntry (entry: unknown): LedgerEntry | undefined {
+  if (entry == null) return []
   if (Array.isArray(entry)) {
-    return entry.every((id) => typeof id === 'string')
+    return entry.every((id) => typeof id === 'string') ? (entry as string[]) : undefined
   }
-  if (typeof entry !== 'object' || entry === null) return false
+  if (typeof entry !== 'object') return undefined
   const { dir, intents } = entry as { dir?: unknown, intents?: unknown }
-  return typeof dir === 'string' && Array.isArray(intents) && intents.every((id) => typeof id === 'string')
+  if (typeof dir !== 'string') return undefined
+  if (intents == null) return { dir, intents: [] }
+  if (!Array.isArray(intents) || !intents.every((id) => typeof id === 'string')) return undefined
+  return { dir, intents: intents as string[] }
 }
 
 export async function appendToLedger (
