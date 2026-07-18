@@ -37,6 +37,17 @@ Multi-importer parity coverage:
 
 Pacquet also keeps the issue-specific add-and-recover flow in `changed_workspace_importer_invalidates_lockfile`: adding a `workspace:*` dependency to a member makes a frozen install fail and a normal install refresh and link it.
 
+### `satisfiesPackageManifest` unit-level coverage
+
+`crates/lockfile/src/freshness.rs::satisfies_package_manifest` ports `lockfile/verification/src/satisfiesPackageManifest.ts`; unit tests live in `crates/lockfile/src/freshness/tests.rs`.
+
+- [x] `TypeScript repo: lockfile/verification/test/satisfiesPackageManifest.ts:255` / `:278` `autoInstallPeers` — peers auto-installed into the importer's `dependencies` (pnpm's default) must not read as drift — ported as `peer_only_dependency_is_satisfied_when_auto_install_peers`, `peers_also_declared_as_regular_deps_still_satisfy`, plus `frozen_install_accepts_auto_installed_workspace_peer` in `crates/cli/tests/workspace_install.rs`. Pacquet-only `peer_only_dependency_is_stale_without_auto_install_peers` pins the `auto_install_peers = false` branch.
+- [x] `TypeScript repo: lockfile/verification/test/satisfiesPackageManifest.ts:55` optional-only manifest vs prod-only lockfile → stale — ported as `manifest_optional_only_but_lockfile_records_prod_is_stale`.
+- [x] dev-only / optional-only field matches — `dev_only_dependency_match_satisfies`, `optional_only_dependency_match_satisfies`.
+- [ ] `TypeScript repo: lockfile/verification/test/satisfiesPackageManifest.ts:362` `excludeLinksFromLockfile: true` drops `link:`-protocol deps from both the flat diff and the per-field check — NOT IMPLEMENTED in the freshness check. Gated behind the non-default `exclude-links-from-lockfile: true`; `workspace:` deps are recorded regardless, so default installs and the pnpm monorepo are unaffected. The matching default-opts `link:`/`file:` tolerance (`countOfNonLinkedDeps`, `satisfiesPackageManifest.ts:191`) is likewise unmodeled. Follow-up.
+
+The v6/v7-shape scenarios (a top-level `importer.specifiers` map diverging from the dependency fields, `satisfiesPackageManifest.ts:103` / `:169`) are not representable in pacquet's inline-specifier v9 model; the equivalent v9 drift is covered by `manifest_adds_dep_returns_specifier_diff` / `manifest_drops_dep_returns_specifier_diff`. The `no importer` case (`:203`) is enforced at the caller (`check_importer_satisfies`) and covered by `missing_workspace_importer_is_not_accepted_by_frozen_install`.
+
 ## `.modules.yaml` Write And Verify
 
 Primary tests:

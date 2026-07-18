@@ -616,6 +616,85 @@ fn resolved_version_outside_manifest_range_is_stale() {
     );
 }
 
+#[test]
+fn dev_only_dependency_match_satisfies() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    devDependencies:"
+        "      foo:"
+        "        specifier: 1.0.0"
+        "        version: 1.0.0"
+    })
+    .expect("parse fixture lockfile");
+    let importer = lockfile.root_project().expect("root importer present");
+    let (_dir, manifest) = manifest_from_json(
+        r#"{
+        "name": "x",
+        "version": "1.0.0",
+        "devDependencies": { "foo": "1.0.0" }
+    }"#,
+    );
+    assert!(satisfies_package_manifest(importer, &manifest, true, &|_: &str| false).is_ok());
+}
+
+#[test]
+fn optional_only_dependency_match_satisfies() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    optionalDependencies:"
+        "      foo:"
+        "        specifier: 1.0.0"
+        "        version: 1.0.0"
+    })
+    .expect("parse fixture lockfile");
+    let importer = lockfile.root_project().expect("root importer present");
+    let (_dir, manifest) = manifest_from_json(
+        r#"{
+        "name": "x",
+        "version": "1.0.0",
+        "optionalDependencies": { "foo": "1.0.0" }
+    }"#,
+    );
+    assert!(satisfies_package_manifest(importer, &manifest, true, &|_: &str| false).is_ok());
+}
+
+/// A dependency the manifest lists only under `optionalDependencies`
+/// but the lockfile records under `dependencies` is drift: the flat
+/// diff agrees on the specifier, so the per-field check must catch the
+/// field move. Mirrors the `optionalDependencies` mismatch case in
+/// `satisfiesPackageManifest.ts`.
+#[test]
+fn manifest_optional_only_but_lockfile_records_prod_is_stale() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies:"
+        "      foo:"
+        "        specifier: 1.0.0"
+        "        version: 1.0.0"
+    })
+    .expect("parse fixture lockfile");
+    let importer = lockfile.root_project().expect("root importer present");
+    let (_dir, manifest) = manifest_from_json(
+        r#"{
+        "name": "x",
+        "version": "1.0.0",
+        "optionalDependencies": { "foo": "1.0.0" }
+    }"#,
+    );
+    let err = satisfies_package_manifest(importer, &manifest, true, &|_: &str| false)
+        .expect_err("a dep the manifest lists only as optional but the lockfile records under dependencies must be stale");
+    assert!(
+        matches!(err, StalenessReason::DepSpecifierMismatch { field: "dependencies", .. }),
+        "got: {err:?}",
+    );
+}
+
 // ---------------------------------------------------------------------------
 // `auto-install-peers` — peers materialized into the importer's
 // `dependencies` must not read as lockfile drift. Ports
