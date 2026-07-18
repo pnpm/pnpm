@@ -459,6 +459,7 @@ fn command_name(command: &CliCommand) -> &'static str {
         CliCommand::Init => "init",
         CliCommand::Add(_) => "add",
         CliCommand::Install(_) => "install",
+        CliCommand::InstallTest(_) => "install-test",
         CliCommand::Update(_) => "update",
         CliCommand::Outdated(_) => "outdated",
         CliCommand::Audit(_) => "audit",

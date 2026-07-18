@@ -26,6 +26,7 @@ use super::{
     ignored_builds::IgnoredBuildsArgs,
     import::ImportArgs,
     install::InstallArgs,
+    install_test::InstallTestArgs,
     lane::LaneArgs,
     licenses::LicensesArgs,
     link::LinkArgs,
@@ -271,6 +272,9 @@ pub enum CliCommand {
     /// Install packages
     #[clap(visible_alias = "i")]
     Install(InstallArgs),
+    /// Runs a `pnpm install` followed immediately by a `pnpm test`. It takes exactly the same arguments as `pnpm install`.
+    #[clap(name = "install-test", visible_alias = "it")]
+    InstallTest(InstallTestArgs),
     /// Update packages to their newest version based on the specified range
     #[clap(visible_aliases = ["up", "upgrade"])]
     Update(UpdateArgs),
