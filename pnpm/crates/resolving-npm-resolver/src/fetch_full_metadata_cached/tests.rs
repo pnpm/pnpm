@@ -425,7 +425,7 @@ async fn assert_cache_loss_after_304_recovers(
 fn remove_raced_mirror_tolerant(path: &std::path::Path) {
     match std::fs::remove_file(path) {
         Ok(()) => {}
-        Err(_) if !path.exists() => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => panic!("remove raced mirror: {error}"),
     }
 }
