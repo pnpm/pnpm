@@ -111,3 +111,31 @@ test('still warns about a held-back update when a manifest pin is the reason the
   expect(heldBackWarnings).toHaveLength(1)
   expect(heldBackWarnings[0]).toContain('was updated to 2.1.3, not 2.1.4')
 })
+
+test('keeps the unfiltered baseline for a package excluded from the age gate via publishedByExclude', async () => {
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/foo', method: 'GET' })
+    .reply(200, fooMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    fullMetadata: true,
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'foo', bareSpecifier: '^2.1.3' }, {
+    updateRequested: true,
+    publishedBy: new Date('2026-07-01T00:00:00.000Z'),
+    publishedByExclude: () => true,
+    preferredVersions: {
+      foo: { '2.1.3': { selectorType: 'version', weight: 1000 } },
+    },
+  })
+
+  // The pin holds the pick at 2.1.3, and the exclusion keeps 2.1.4 in the
+  // baseline despite the publishedBy cutoff, so the warning is printed.
+  expect(resolveResult!.id).toBe('foo@2.1.3')
+  const heldBackWarnings = collectedWarnings.filter(warning => warning.includes('was updated to'))
+  expect(heldBackWarnings).toHaveLength(1)
+  expect(heldBackWarnings[0]).toContain('was updated to 2.1.3, not 2.1.4')
+})

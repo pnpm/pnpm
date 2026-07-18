@@ -80,7 +80,7 @@ fn update_opts() -> ResolveOptions {
     ResolveOptions { update_requested: true, ..ResolveOptions::default() }
 }
 
-// https://github.com/pnpm/pnpm/issues/13071
+// <https://github.com/pnpm/pnpm/issues/13071>
 #[test]
 fn no_warning_when_minimum_release_age_is_the_reason_for_the_held_back_pick() {
     let opts = ResolveOptions {
