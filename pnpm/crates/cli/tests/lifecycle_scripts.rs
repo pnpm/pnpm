@@ -1132,7 +1132,7 @@ mod pending_builds {
         let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
         let package_json = serde_json::json!({
-            "scripts": { "install": "node -e \"process.exit(1)\"" },
+            "scripts": { "install": r#"node -e "process.exit(1)""# },
             "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" },
         });
         fs::write(workspace.join("package.json"), package_json.to_string())
