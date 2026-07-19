@@ -700,24 +700,12 @@ fn workspace_hoist_only_in_selected_projects_with_subdeps() {
     );
     fixture.run(["install", "--lockfile-only"]);
 
-    let lockfile_path = fixture.workspace.join("pnpm-lock.yaml");
-    let mut wanted = read_lockfile(&lockfile_path);
-    let snapshots = wanted.snapshots.as_mut().expect("lockfile has snapshots");
-    let unselected_parent = snapshots
-        .keys()
-        .find(|key| key.to_string() == format!("{PARENT}@100.0.0"))
-        .cloned()
-        .expect("the unselected parent has a snapshot");
-    let subdependency = snapshots
-        .get_mut(&unselected_parent)
-        .expect("snapshot entry exists")
-        .dependencies
-        .as_mut()
-        .expect("the parent snapshot has dependencies")
-        .get_mut(&DEP.parse().expect("parse the subdependency name"))
-        .expect("the parent snapshot pins the subdependency");
-    *subdependency = serde_saphyr::from_str("101.0.0").expect("parse the repinned version");
-    wanted.save_to_path(&lockfile_path).expect("write the repinned lockfile");
+    repin_snapshot_dependency(
+        &fixture.workspace.join("pnpm-lock.yaml"),
+        &format!("{PARENT}@100.0.0"),
+        DEP,
+        "101.0.0",
+    );
 
     fixture.run(["--filter", "root", "--filter", "project-2", "install"]);
 

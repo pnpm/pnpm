@@ -351,6 +351,36 @@ pub fn read_lockfile(path: &Path) -> Lockfile {
         .unwrap_or_else(|error| panic!("parse lockfile {}: {error}\n{contents}", path.display()))
 }
 
+/// Rewrite one snapshot's dependency pin in the lockfile at
+/// `lockfile_path` — the structured stand-in for the hand-written
+/// lockfiles the upstream tests use to stage wanted/current divergence.
+/// `new_ref` takes any `snapshots:` dependency shape (`100.0.0`,
+/// `link:packages/foo`, ...).
+pub fn repin_snapshot_dependency(
+    lockfile_path: &Path,
+    snapshot_key: &str,
+    dependency: &str,
+    new_ref: &str,
+) {
+    let mut lockfile = read_lockfile(lockfile_path);
+    let snapshots = lockfile.snapshots.as_mut().expect("lockfile has snapshots");
+    let key = snapshots
+        .keys()
+        .find(|key| key.to_string() == snapshot_key)
+        .cloned()
+        .unwrap_or_else(|| panic!("missing snapshot {snapshot_key}"));
+    let pin = snapshots
+        .get_mut(&key)
+        .expect("snapshot entry exists")
+        .dependencies
+        .as_mut()
+        .expect("snapshot has dependencies")
+        .get_mut(&dependency.parse().expect("parse the dependency name"))
+        .unwrap_or_else(|| panic!("snapshot {snapshot_key} does not pin {dependency}"));
+    *pin = serde_saphyr::from_str(new_ref).expect("parse the new dependency ref");
+    lockfile.save_to_path(lockfile_path).expect("write the rewritten lockfile");
+}
+
 pub fn assert_success(output: &Output) {
     assert!(
         output.status.success(),

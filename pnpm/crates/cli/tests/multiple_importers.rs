@@ -263,12 +263,12 @@ fn partial_frozen_install_does_not_remove_dependencies_of_other_workspace_projec
     // project-1's direct dependency already locked — the upstream test
     // rewrites the lockfile to the same effect, leaving the 100.1.0
     // materialization orphaned.
-    let lockfile_path = fixture.workspace.join("pnpm-lock.yaml");
-    let lockfile_text = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
-    let repinned =
-        lockfile_text.replace(&format!("'{DEP}': 100.1.0"), &format!("'{DEP}': 101.0.0"));
-    assert_ne!(repinned, lockfile_text, "expected the transitive pin in the snapshots section");
-    fs::write(&lockfile_path, repinned).expect("write pnpm-lock.yaml");
+    repin_snapshot_dependency(
+        &fixture.workspace.join("pnpm-lock.yaml"),
+        &format!("{PARENT}@100.0.0"),
+        DEP,
+        "101.0.0",
+    );
 
     fixture.run(["--filter", "project-1", "install", "--frozen-lockfile"]);
 
@@ -412,14 +412,12 @@ fn subset_headless_install_deeply_materializes_workspace_linked_dependencies() {
     // the upstream (lockfile-relative) shape — the subject under test
     // is the headless materialization of snapshot-level links, and
     // upstream drives it from a hand-authored lockfile too.
-    let lockfile_path = fixture.workspace.join("pnpm-lock.yaml");
-    let lockfile_text = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
-    let rewritten = lockfile_text.replace("link:packages/g/packages/f", "link:packages/f");
-    assert_ne!(
-        rewritten, lockfile_text,
-        "expected the external package's snapshot to record the workspace link",
+    repin_snapshot_dependency(
+        &fixture.workspace.join("pnpm-lock.yaml"),
+        "@pnpm.e2e/external-depend-on-internal-dep@1.0.0",
+        "@pnpm.e2e/internal-f",
+        "link:packages/f",
     );
-    fs::write(&lockfile_path, rewritten).expect("write pnpm-lock.yaml");
 
     fixture.run(["--filter", "@pnpm.e2e/internal-g", "install", "--frozen-lockfile"]);
 
