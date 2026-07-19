@@ -406,4 +406,37 @@ describe('logout', () => {
     )
     expect(savedSettings).not.toHaveProperty(['//example.com/npm/:_authToken'])
   })
+
+  it('should handle a registry under a subpath when the URL has no trailing slash', async () => {
+    const fetch = jest.fn<LogoutContext['fetch']>(async () => createMockResponse({ ok: true, status: 200 }))
+    let savedSettings: Record<string, unknown> = {}
+
+    const context = createMockContext({
+      fetch,
+      readIniFile: async () => ({
+        '//example.com/npm/registry/:_authToken': 'subpath-token',
+      }),
+      writeIniFile: async (_configPath, settings) => {
+        savedSettings = settings
+      },
+    })
+
+    const opts = {
+      configDir: '/config',
+      dir: '/mock',
+      authConfig: {
+        '//example.com/npm/registry/:_authToken': 'subpath-token',
+      },
+      registry: 'https://example.com/npm/registry',
+    }
+
+    const result = await logout({ context, opts })
+
+    expect(result).toBe('Logged out of https://example.com/npm/registry/')
+    expect(fetch).toHaveBeenCalledWith(
+      'https://example.com/npm/registry/-/user/token/subpath-token',
+      expect.anything()
+    )
+    expect(savedSettings).not.toHaveProperty(['//example.com/npm/registry/:_authToken'])
+  })
 })

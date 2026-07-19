@@ -915,6 +915,7 @@ pnpmfileChecksum: sha256-C2XY6+pe0kqyHiBBFj5dX5DnhJzLAwdcic3kR7l3o5w=
 
 patchedDependencies:
   graceful-fs@4.2.11: 68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1
+  normalize-registry-url@2.0.1: e80227ac379f28c9f982c0588f5dfbcd517912bdd3a5c77a75e944c328fd8932
 
 importers:
 
@@ -1412,7 +1413,7 @@ importers:
         version: link:../../registry-access/client
       normalize-registry-url:
         specifier: 'catalog:'
-        version: 2.0.1
+        version: 2.0.1(patch_hash=e80227ac379f28c9f982c0588f5dfbcd517912bdd3a5c77a75e944c328fd8932)
       read-ini-file:
         specifier: 'catalog:'
         version: 5.0.0
@@ -2372,7 +2373,7 @@ importers:
         version: link:../../core/types
       normalize-registry-url:
         specifier: 'catalog:'
-        version: 2.0.1
+        version: 2.0.1(patch_hash=e80227ac379f28c9f982c0588f5dfbcd517912bdd3a5c77a75e944c328fd8932)
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -2541,7 +2542,7 @@ importers:
         version: 4.1.1
       normalize-registry-url:
         specifier: 'catalog:'
-        version: 2.0.1
+        version: 2.0.1(patch_hash=e80227ac379f28c9f982c0588f5dfbcd517912bdd3a5c77a75e944c328fd8932)
       path-absolute:
         specifier: 'catalog:'
         version: 2.0.0
@@ -8293,7 +8294,7 @@ importers:
         version: 3.0.0
       normalize-registry-url:
         specifier: 'catalog:'
-        version: 2.0.1
+        version: 2.0.1(patch_hash=e80227ac379f28c9f982c0588f5dfbcd517912bdd3a5c77a75e944c328fd8932)
       npm-registry-fetch:
         specifier: 'catalog:'
         version: 19.1.1(supports-color@10.2.2)
@@ -18413,7 +18414,7 @@ snapshots:
       is-subdir: 1.2.0
       is-windows: 1.0.2
       lodash.kebabcase: 4.1.1
-      normalize-registry-url: 2.0.1
+      normalize-registry-url: 2.0.1(patch_hash=e80227ac379f28c9f982c0588f5dfbcd517912bdd3a5c77a75e944c328fd8932)
       path-absolute: 1.0.1
       path-name: 1.0.0
       ramda: '@pnpm/ramda@0.28.1'
@@ -23402,7 +23403,7 @@ snapshots:
 
   normalize-path@3.0.0: {}
 
-  normalize-registry-url@2.0.1: {}
+  normalize-registry-url@2.0.1(patch_hash=e80227ac379f28c9f982c0588f5dfbcd517912bdd3a5c77a75e944c328fd8932): {}
 
   normalize-url@6.1.0: {}
 

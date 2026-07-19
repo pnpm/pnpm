@@ -63,6 +63,45 @@ async fn should_fall_back_to_classic_login_when_web_login_returns_404() {
 }
 
 #[tokio::test]
+async fn should_fall_back_to_classic_login_on_a_subpath_registry_without_a_trailing_slash() {
+    web_auth_fake!();
+    login_fake!(FakeHost, set_prompt_input, set_prompt_password, login_writes);
+    reset();
+    reset_login();
+    set_prompt_input(credential_prompts("john", "john@example.com"));
+    set_prompt_password(Box::new(|_| Ok("secret".to_owned())));
+
+    let mut server = mockito::Server::new_async().await;
+    let login_mock = server
+        .mock("POST", "/npm/registry/-/v1/login")
+        .with_status(404)
+        .with_body("Not Found")
+        .create_async()
+        .await;
+    let add_user_mock = server
+        .mock("PUT", "/npm/registry/-/user/org.couchdb.user:john")
+        .with_status(201)
+        .with_body(json!({"ok": true, "token": "subpath-classic-token"}).to_string())
+        .create_async()
+        .await;
+    let registry = format!("{}/npm/registry", server.url());
+    let config_dir = Path::new("/mock/config");
+
+    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .expect("classic login succeeds on a subpath registry");
+
+    login_mock.assert_async().await;
+    add_user_mock.assert_async().await;
+    assert_eq!(result, format!("Logged in on {registry}/"));
+
+    let writes = login_writes();
+    let token_key = format!("{}:_authToken", nerf_dart(&format!("{registry}/")));
+    assert_eq!(written_settings(&writes).get(&token_key), Some("subpath-classic-token"));
+    assert_eq!(infos(), ["Logged in as john"]);
+}
+
+#[tokio::test]
 async fn should_fall_back_to_classic_login_when_web_login_returns_405() {
     web_auth_fake!();
     login_fake!(FakeHost, set_prompt_input, set_prompt_password, login_writes);
