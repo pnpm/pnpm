@@ -296,7 +296,7 @@ async fn private_https_repo_with_an_auth_token_keeps_the_authenticated_url() {
     assert_eq!(result.resolved_via, "git-repository");
     assert_eq!(
         result.normalized_bare_specifier.as_deref(),
-        Some(format!("git+{AUTH_URL}").as_str())
+        Some(format!("git+{AUTH_URL}").as_str()),
     );
     match &result.resolution {
         LockfileResolution::Git(git) => {
