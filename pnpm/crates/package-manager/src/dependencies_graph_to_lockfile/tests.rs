@@ -2208,7 +2208,7 @@ fn injected_workspace_dep_flips_to_file_when_recursive_update_targets_it_per_imp
     );
 }
 
-// The #10433 scenario for the recursive path: `pacquet update <other>
+// The pnpm/pnpm#10433 scenario for the recursive path: `pacquet update <other>
 // --recursive` records `<other>` (not `n`) in the per-importer scope, so
 // `n` is untargeted and its `link:` must be preserved even though it
 // re-resolved to a divergent `file:`. Without honoring the per-importer
