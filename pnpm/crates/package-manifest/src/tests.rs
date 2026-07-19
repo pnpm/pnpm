@@ -359,6 +359,23 @@ fn runtime_on_fail_ignore_removes_only_synthesized_runtime_dependencies() {
 }
 
 #[test]
+fn runtime_on_fail_ignore_preserves_explicit_runtime_dependencies() {
+    let mut manifest = json!({
+        "devEngines": {
+            "runtime": { "name": "bun", "version": "1.2.0", "onFail": "download" },
+        },
+        "devDependencies": {
+            "node": "runtime:22.20.0",
+        },
+    });
+    apply_runtime_on_fail_override(&mut manifest, "ignore");
+    assert_eq!(
+        manifest.get("devDependencies").and_then(|value| value.get("node")),
+        Some(&json!("runtime:22.20.0")),
+    );
+}
+
+#[test]
 fn node_version_uses_devengines_then_engines_and_returns_the_range_minimum() {
     assert_eq!(
         node_version_from_engines_runtime(&json!({
@@ -384,6 +401,14 @@ fn node_version_uses_devengines_then_engines_and_returns_the_range_minimum() {
             },
         })),
         Some("22.20.0".to_string()),
+    );
+    assert_eq!(
+        node_version_from_engines_runtime(&json!({
+            "engines": {
+                "runtime": { "name": "node", "version": " 24.6.0 " },
+            },
+        })),
+        Some("24.6.0".to_string()),
     );
 }
 
