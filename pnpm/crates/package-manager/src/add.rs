@@ -44,7 +44,13 @@ where
     pub manifest: &'a mut PackageManifest,
     pub lockfile: Option<&'a Lockfile>,
     pub lockfile_path: Option<&'a std::path::Path>,
-    pub dependency_groups: DependencyGroupList,
+    /// The manifest group(s) the added packages are saved into. `None`
+    /// means pnpm's default: an already-declared package is updated in
+    /// the group it occupies (`guessDependencyType` — checked in
+    /// `optionalDependencies`, `dependencies`, `devDependencies`,
+    /// `peerDependencies` order, with a peer-only entry left untouched),
+    /// and a new package lands in `dependencies`.
+    pub dependency_groups: Option<DependencyGroupList>,
     /// Package selectors, each of which may carry an `@<version>` suffix.
     pub package_names: &'a [String],
     /// How the freshly-resolved version is pinned into the manifest range,
@@ -149,7 +155,8 @@ where
             supported_architectures,
             lockfile_only,
         } = self;
-        let dependency_groups = dependency_groups.into_iter().collect::<Vec<_>>();
+        let dependency_groups: Option<Vec<DependencyGroup>> =
+            dependency_groups.map(|groups| groups.into_iter().collect());
 
         let latest_picker = tokio::sync::OnceCell::new();
         let meta_cache = std::sync::Arc::new(InMemoryPackageMetaCache::default());
@@ -161,7 +168,7 @@ where
             &http_client_arc,
             config,
             lockfile,
-            &dependency_groups,
+            dependency_groups.as_deref(),
             package_names,
             &latest_picker,
             pinned_version,
@@ -268,7 +275,8 @@ where
             supported_architectures,
             lockfile_only,
         } = self;
-        let dependency_groups = dependency_groups.into_iter().collect::<Vec<_>>();
+        let dependency_groups: Option<Vec<DependencyGroup>> =
+            dependency_groups.map(|groups| groups.into_iter().collect());
         let selected_indices = selected_project_indices(projects, ordered_dirs, selected_dirs);
         if selected_indices.is_empty() {
             return Ok(());
@@ -280,7 +288,7 @@ where
             &http_client_arc,
             config,
             lockfile,
-            &dependency_groups,
+            dependency_groups.as_deref(),
             package_names,
             pinned_version,
             save_catalog_name.as_deref(),
@@ -364,7 +372,7 @@ async fn prepare_selected_manifests<'a, Reporter: self::Reporter>(
     http_client_arc: &std::sync::Arc<ThrottledClient>,
     config: &'a Config,
     lockfile: Option<&Lockfile>,
-    dependency_groups: &[DependencyGroup],
+    dependency_groups: Option<&[DependencyGroup]>,
     package_names: &[String],
     pinned_version: PinnedVersion,
     save_catalog_name: Option<&str>,
@@ -421,6 +429,14 @@ async fn prepare_selected_manifests<'a, Reporter: self::Reporter>(
 /// applied dependencies in selector order. The `latest_picker`,
 /// `meta_cache`, and `fetch_locker` are threaded in so one selected-add pass
 /// shares packument state across every project it touches.
+/// The manifest group `name` already occupies, in pnpm's
+/// `guessDependencyType` scan order.
+fn guess_dependency_group(manifest: &PackageManifest, name: &str) -> Option<DependencyGroup> {
+    [DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Peer]
+        .into_iter()
+        .find(|&group| manifest.dependencies([group]).any(|(dep, _)| dep == name))
+}
+
 #[expect(
     clippy::too_many_arguments,
     reason = "manifest preparation consumes the add command's resolution inputs"
@@ -431,7 +447,7 @@ async fn prepare_manifest<'a, Reporter: self::Reporter>(
     http_client_arc: &std::sync::Arc<ThrottledClient>,
     config: &'a Config,
     lockfile: Option<&Lockfile>,
-    dependency_groups: &[DependencyGroup],
+    dependency_groups: Option<&[DependencyGroup]>,
     package_names: &[String],
     latest_picker: &tokio::sync::OnceCell<LatestPicker<'a>>,
     pinned_version: PinnedVersion,
@@ -474,7 +490,23 @@ async fn prepare_manifest<'a, Reporter: self::Reporter>(
     emit_initial_package_manifest::<Reporter>(manifest);
 
     for dependency in &resolved_dependencies {
-        for &dependency_group in dependency_groups {
+        let inferred;
+        let groups: &[DependencyGroup] = match dependency_groups {
+            Some(groups) => groups,
+            // pnpm's `guessDependencyType`: keep an already-declared
+            // package in its group; a peer-only entry stays untouched
+            // (the install still resolves it); a new package lands in
+            // `dependencies`.
+            None => match guess_dependency_group(manifest, &dependency.package_name) {
+                Some(DependencyGroup::Peer) => &[],
+                Some(group) => {
+                    inferred = [group];
+                    &inferred
+                }
+                None => &[DependencyGroup::Prod],
+            },
+        };
+        for &dependency_group in groups {
             manifest
                 .add_dependency(
                     &dependency.package_name,

@@ -152,6 +152,12 @@ pub struct WorkspaceStateSettings {
     pub production: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub public_hoist_pattern: Option<Vec<String>>,
+    /// The `supportedArchitectures` the install ran with, as pnpm's
+    /// config JSON (`{ os, cpu, libc }`). A change must invalidate the
+    /// repeat-install fast path so previously skipped platform packages
+    /// are re-evaluated.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supported_architectures: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_package_patterns: Option<Vec<String>>,
 }

@@ -1602,6 +1602,7 @@ mod build_workspace_state_tests {
             &config,
             pacquet_config::NodeLinker::default(),
             IncludedDependencies::default(),
+            None,
             &BTreeMap::default(),
             &[],
             false,
@@ -1636,6 +1637,7 @@ mod build_workspace_state_tests {
             &config,
             pacquet_config::NodeLinker::default(),
             IncludedDependencies::default(),
+            None,
             &BTreeMap::default(),
             &project_manifests,
             false,
@@ -1672,6 +1674,7 @@ mod build_workspace_state_tests {
             &config,
             pacquet_config::NodeLinker::default(),
             IncludedDependencies::default(),
+            None,
             &BTreeMap::default(),
             &[],
             false,
@@ -7212,6 +7215,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
         config,
         pacquet_config::NodeLinker::Isolated,
         included,
+        None,
     );
     workspace_state::update_workspace_state(
         &project_root,
@@ -7332,6 +7336,7 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
         config,
         pacquet_config::NodeLinker::Isolated,
         included,
+        None,
     );
     workspace_state::update_workspace_state(
         &project_root,
@@ -7445,6 +7450,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
                 config,
                 pacquet_config::NodeLinker::Isolated,
                 included,
+                None,
             ),
         },
     )
@@ -7566,6 +7572,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
         config,
         pacquet_config::NodeLinker::Isolated,
         included,
+        None,
     );
     workspace_state::update_workspace_state(
         &project_root,
@@ -7717,6 +7724,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
         config,
         pacquet_config::NodeLinker::Isolated,
         included,
+        None,
     );
     workspace_state::update_workspace_state(
         &project_root,
@@ -7860,6 +7868,7 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
         config,
         pacquet_config::NodeLinker::Isolated,
         included,
+        None,
     );
     workspace_state::update_workspace_state(
         &project_root,

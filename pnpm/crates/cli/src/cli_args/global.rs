@@ -366,7 +366,7 @@ async fn run_group_install<Reporter: self::Reporter + 'static>(
         None,
         false,
         config.supported_architectures.clone(),
-        [DependencyGroup::Prod],
+        Some([DependencyGroup::Prod]),
     )
     .await?;
 
