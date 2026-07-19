@@ -1,6 +1,6 @@
 //! Local git repositories for tests that install a git-hosted dependency.
 //!
-//! A test points its manifest at a repo on disk (`git+file://…`) rather
+//! A test points its manifest at a repo on disk (`git+file://...`) rather
 //! than a real forge, so the whole git install path — `ls-remote`
 //! resolution, clone, `prepare`, packlist, link — runs without network
 //! access. The TypeScript suite uses the same technique for its
@@ -97,7 +97,7 @@ impl GitRepoFixture {
     /// specifier, and the `repo` field a `type: git` resolution records.
     #[must_use]
     pub fn file_url(&self) -> String {
-        // `dunce` keeps Windows paths in their `C:\…` form rather than
+        // `dunce` keeps Windows paths in their `C:\...` form rather than
         // the `\\?\` UNC prefix, which `Url::from_file_path` would
         // otherwise carry into the URL and `git` would reject.
         let canonical = dunce::canonicalize(&self.bare).expect("canonicalize bare repo path");
@@ -106,7 +106,7 @@ impl GitRepoFixture {
             .to_string()
     }
 
-    /// The `git+file://…#<committish>` specifier a manifest declares to
+    /// The `git+file://...#<committish>` specifier a manifest declares to
     /// install this repo at `committish` (a SHA, tag, or branch).
     #[must_use]
     pub fn git_url_at(&self, committish: &str) -> String {

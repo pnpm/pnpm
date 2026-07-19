@@ -124,8 +124,8 @@ fn install_from_a_git_repo() {
     assert_eq!(resolution.commit, commit);
     assert_eq!(resolution.repo, repo.file_url());
     assert_eq!(resolution.path, None);
-    // A non-host git dep with no alias records the bare `git+…#<commit>`
-    // ref in the importer, not `is-negative@git+…` — byte-for-byte what
+    // A non-host git dep with no alias records the bare `git+...#<commit>`
+    // ref in the importer, not `is-negative@git+...` — byte-for-byte what
     // pnpm 11 writes.
     assert_eq!(importer_version(&lockfile, ".", "is-negative"), repo.git_url_at(&commit));
 
