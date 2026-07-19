@@ -1530,6 +1530,10 @@ where
             // build must rebuild it, even though the lockfile and layout are
             // unchanged.
             && !has_newly_allowed_ignored_builds(modules, config)
+            // The mirror image: an approval the user has since withdrawn
+            // must be re-evaluated, or a strict install would exit 0 on a
+            // package it is no longer allowed to build.
+            && !has_revoked_allowed_builds(modules, config)
             // An explicit `pacquet rebuild` always re-runs the build phase,
             // so it never short-circuits here.
             && rebuild.is_none()
@@ -1608,6 +1612,10 @@ where
         // injected-deps map) to avoid a `clippy::type_complexity`
         // annotation.
         let ignored_builds: Vec<String>;
+        // Dep paths whose build `--ignore-scripts` deferred; assigned by
+        // whichever path runs and folded into `.modules.yaml`'s
+        // `pendingBuilds` at the tail.
+        let deferred_builds: Vec<String>;
         // Per-source-project virtual-store copies of injected `file:`
         // deps, for `.modules.yaml`'s `injectedDeps`; assigned by
         // whichever path runs. See [`crate::collect_injected_deps`].
@@ -1750,6 +1758,7 @@ where
             .map_err(map_frozen_lockfile_error)?;
 
             ignored_builds = frozen_result.ignored_builds;
+            deferred_builds = frozen_result.deferred_builds;
             injected_deps = frozen_result.injected_deps;
             (
                 frozen_result.hoisted_dependencies,
@@ -1890,6 +1899,7 @@ where
             }
 
             ignored_builds = fresh_result.ignored_builds;
+            deferred_builds = fresh_result.deferred_builds;
             injected_deps = fresh_result.injected_deps;
             (
                 fresh_result.hoisted_dependencies,
@@ -2142,6 +2152,37 @@ where
         // patterns, included dependency groups, store dir, and registries
         // so a later install (or another tool) can detect a layout change
         // and prune accordingly.
+        // The projects whose own install scripts `--ignore-scripts`
+        // skipped are owed a build just like the dependencies the build
+        // phase deferred, and are recorded by importer id.
+        let deferred_projects = config.ignore_scripts.then(|| {
+            materialized_project_manifests
+                .iter()
+                .filter(|(_, manifest)| declares_deferred_project_scripts(manifest))
+                .map(|(project_dir, _)| {
+                    pacquet_workspace::importer_id_from_root_dir(&workspace_root, project_dir)
+                })
+                .collect::<Vec<_>>()
+        });
+        let previous_pending_builds =
+            prior_modules.map_or(&[][..], |modules| modules.pending_builds.as_slice());
+        // The build phase settles a dependency only when it actually
+        // rebuilt it, so a `pnpm rebuild --pending` that the policy still
+        // blocks (`allowBuilds: None`/`false`) leaves the debt in place.
+        // Reuse the same policy `BuildModules` ran under; on a rebuild a
+        // selected, approved dependency always runs (force-rebuild
+        // bypasses the side-effects cache gate), so policy approval is a
+        // faithful stand-in for "was rebuilt".
+        let rebuild_build_policy =
+            rebuild.as_ref().and_then(|_| crate::AllowBuildPolicy::from_config(config).ok());
+        let pending_builds = merge_pending_builds(
+            previous_pending_builds,
+            deferred_projects.into_iter().flatten().chain(deferred_builds),
+            materialized_current_lockfile.as_ref(),
+            rebuild.as_ref(),
+            rebuild_build_policy.as_ref(),
+        );
+
         let mut next_modules = build_modules_manifest(
             config,
             node_linker,
@@ -2151,6 +2192,7 @@ where
             injected_deps,
             &install_skipped,
             &ignored_builds,
+            pending_builds,
             pruned_at,
         );
         if filtered_install
@@ -2225,13 +2267,42 @@ where
         //
         // And under `virtualStoreOnly`, which stops before any linking
         // the project's scripts would expect to find in place.
-        if is_full_install && !config.ignore_scripts && !config.virtual_store_only {
+        //
+        // A `pnpm rebuild --pending` is the exception to the
+        // full-install gate: it is not a full install, but the projects
+        // it names are exactly the ones whose scripts an earlier
+        // `--ignore-scripts` install deferred, and running them is what
+        // lets the install drop those entries from `pendingBuilds` (see
+        // [`merge_pending_builds`]).
+        let projects_to_run: Vec<(std::path::PathBuf, &PackageManifest)> = if config.ignore_scripts
+            || config.virtual_store_only
+        {
+            Vec::new()
+        } else if is_full_install {
+            materialized_project_manifests.clone()
+        } else if let Some(rebuild) = rebuild.as_ref() {
+            materialized_project_manifests
+                .iter()
+                .filter(|(project_dir, _)| {
+                    let importer_id =
+                        pacquet_workspace::importer_id_from_root_dir(&workspace_root, project_dir);
+                    rebuild.pending_projects.contains(&importer_id)
+                })
+                .cloned()
+                .collect()
+        } else {
+            Vec::new()
+        };
+        if !projects_to_run.is_empty() {
             run_projects_lifecycle_scripts::<Reporter>(
-                &materialized_project_manifests,
+                &projects_to_run,
                 config,
                 node_linker,
                 &workspace_root,
             )?;
+            if let Some(rebuild) = rebuild.as_ref() {
+                drain_settled_projects::<Host>(&config.modules_dir, &rebuild.pending_projects)?;
+            }
         }
 
         // Write `node_modules/.pnpm-workspace-state-v1.json`.
@@ -2766,6 +2837,28 @@ fn has_newly_allowed_ignored_builds(
     ignored.iter().any(|dep_path| policy.check(dep_path.as_str()) == Some(true))
 }
 
+/// Whether the current `allowBuilds` policy withdraws an approval that
+/// `.modules.yaml` recorded, leaving the package undecided again.
+///
+/// The counterpart to [`has_newly_allowed_ignored_builds`]: a build the
+/// previous install ran is absent from `ignoredBuilds`, so nothing else
+/// on the frozen no-op fast path notices it is no longer approved
+/// (<https://github.com/pnpm/pnpm/issues/11035>).
+///
+/// Only a withdrawal to *undecided* counts. An entry the user flipped to
+/// an explicit `false` is silently skipped rather than reported, so it
+/// leaves the fast path intact — matching `BuildModules`.
+fn has_revoked_allowed_builds(
+    modules: &pacquet_modules_yaml::ModulesLayout,
+    config: &Config,
+) -> bool {
+    let Some(recorded) = modules.allow_builds.as_ref() else { return false };
+    recorded
+        .iter()
+        .filter(|(_, value)| matches!(value, pacquet_modules_yaml::AllowBuildValue::Bool(true)))
+        .any(|(spec, _)| !config.allow_builds.contains_key(spec))
+}
+
 /// The sorted `name@version` keys `.modules.yaml` recorded as ignored
 /// builds that the current `allowBuilds` policy still leaves unapproved
 /// (`None`), or `None` when there are none.
@@ -2801,9 +2894,6 @@ fn unapproved_recorded_ignored_builds(
 }
 
 /// Assemble the [`Modules`] payload for [`write_modules_manifest`].
-///
-/// Fields pacquet does not populate yet (`pendingBuilds`) default to
-/// empty / unset.
 ///
 /// `hoistedDependencies` is produced by the isolated-linker hoist
 /// pass in [`crate::InstallFrozenLockfile::run`] and threaded in
@@ -2846,6 +2936,7 @@ fn build_modules_manifest(
     injected_deps: BTreeMap<String, Vec<String>>,
     skipped: &crate::SkippedSnapshots,
     ignored_builds: &[String],
+    pending_builds: Vec<String>,
     pruned_at: String,
 ) -> Modules {
     Modules {
@@ -2875,6 +2966,7 @@ fn build_modules_manifest(
         // reaches disk, and the crate version is not the release
         // version.
         package_manager: format!("pnpm@{PNPM_VERSION}"),
+        pending_builds,
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         // RFC 1123 / `toUTCString()` format. The caller decides whether
         // this is a fresh timestamp (a prune ran or first install) or the
@@ -2904,6 +2996,90 @@ fn build_modules_manifest(
         virtual_store_only: config.virtual_store_only.then_some(true),
         ..Default::default()
     }
+}
+
+/// Drop `settled` from the `pendingBuilds` the install just wrote, now
+/// that the projects' scripts have run.
+///
+/// A project's debt outlives the `.modules.yaml` write — its scripts run
+/// after it — so clearing the record there would forget the debt when a
+/// script fails. Re-reading rather than reusing the in-memory value
+/// keeps every other field exactly as it was written.
+fn drain_settled_projects<Sys>(modules_dir: &Path, settled: &[String]) -> Result<(), InstallError>
+where
+    Sys: pacquet_modules_yaml::FsReadToString
+        + pacquet_modules_yaml::Clock
+        + pacquet_modules_yaml::FsCreateDirAll
+        + pacquet_modules_yaml::FsWrite,
+{
+    if settled.is_empty() {
+        return Ok(());
+    }
+    let Some(mut modules) = pacquet_modules_yaml::read_modules_manifest::<Sys>(modules_dir)
+        .map_err(InstallError::ReadModules)?
+    else {
+        return Ok(());
+    };
+    let before = modules.pending_builds.len();
+    modules.pending_builds.retain(|entry| !settled.contains(entry));
+    if modules.pending_builds.len() == before {
+        return Ok(());
+    }
+    write_modules_manifest::<Sys>(modules_dir, modules).map_err(InstallError::WriteModules)
+}
+
+/// Whether `--ignore-scripts` left this project with a script it still
+/// owes.
+///
+/// Asks [`PROJECT_LIFECYCLE_STAGES`] rather than repeating the stage
+/// list, so a project can never be recorded — or missed — for a stage
+/// [`run_project_lifecycle_scripts`] would not run.
+///
+/// [`PROJECT_LIFECYCLE_STAGES`]: pacquet_executor::PROJECT_LIFECYCLE_STAGES
+fn declares_deferred_project_scripts(manifest: &PackageManifest) -> bool {
+    pacquet_executor::PROJECT_LIFECYCLE_STAGES
+        .iter()
+        .any(|stage| matches!(manifest.script(stage, true), Ok(Some(_))))
+}
+
+/// The `pendingBuilds` list for this install: the builds still owed,
+/// carried-over entries first, then the ones this install deferred.
+///
+/// A build stays owed until something runs it, so a carried-over entry
+/// survives unless its subject left the current lockfile or this run is
+/// the `pnpm rebuild` that discharged it.
+fn merge_pending_builds<Deferred>(
+    previous: &[String],
+    deferred: Deferred,
+    current: Option<&Lockfile>,
+    rebuild: Option<&crate::RebuildOptions>,
+    rebuild_build_policy: Option<&crate::AllowBuildPolicy>,
+) -> Vec<String>
+where
+    Deferred: IntoIterator<Item = String>,
+{
+    // An importer id and a dep path are both plain strings on disk, so
+    // the current lockfile's `importers` — not the shape of the string —
+    // decides which one an entry is.
+    //
+    // Only dependencies are settled here: the build phase has already
+    // run by the time this file is written, while a project's scripts
+    // run after it. `drain_settled_projects` discharges those once they
+    // have actually succeeded. A dependency is settled only when the
+    // rebuild both selected it and was allowed to build it — a selected
+    // package the policy still blocks stays owed, matching pnpm's "drop
+    // only what was actually rebuilt".
+    let settled = |entry: &str| {
+        let (Some(rebuild), Some(policy)) = (rebuild, rebuild_build_policy) else { return false };
+        !current.is_some_and(|current| current.importers.contains_key(entry))
+            && rebuild.settles_dependency(entry)
+            && policy.check(pacquet_deps_path::remove_suffix(entry)) == Some(true)
+    };
+    let retained = previous.iter().filter(|entry| {
+        current.is_some_and(|current| current_contains_dep_path(current, entry)) && !settled(entry)
+    });
+    let mut seen = HashSet::new();
+    retained.cloned().chain(deferred).filter(|entry| seen.insert(entry.clone())).collect()
 }
 
 fn merge_filtered_modules_metadata(

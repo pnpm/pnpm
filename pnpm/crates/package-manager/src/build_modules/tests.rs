@@ -369,7 +369,8 @@ fn build_modules_collects_ignored_builds() {
         rebuild: None,
     }
     .run::<SilentReporter>()
-    .expect("run BuildModules");
+    .expect("run BuildModules")
+    .ignored_builds;
     dbg!(&ignored);
 
     assert_eq!(
@@ -434,7 +435,8 @@ fn ignore_scripts_skips_build_without_collecting_ignored() {
         rebuild: None,
     }
     .run::<SilentReporter>()
-    .expect("run BuildModules");
+    .expect("run BuildModules")
+    .ignored_builds;
     dbg!(&ignored);
 
     assert!(ignored.is_empty(), "ignore_scripts must not collect ignored builds: {ignored:?}");
@@ -488,7 +490,8 @@ fn cached_requires_build_false_skips_package_dir_probe() {
         rebuild: None,
     }
     .run::<SilentReporter>()
-    .expect("run BuildModules");
+    .expect("run BuildModules")
+    .ignored_builds;
 
     assert!(ignored.is_empty());
 }
@@ -562,7 +565,8 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
         rebuild: None,
     }
     .run::<SilentReporter>()
-    .expect("run BuildModules under concurrency");
+    .expect("run BuildModules under concurrency")
+    .ignored_builds;
     dbg!(&ignored);
 
     // Same expected output as the sequential test — both members of
@@ -628,7 +632,8 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
         rebuild: None,
     }
     .run::<SilentReporter>()
-    .expect("run BuildModules");
+    .expect("run BuildModules")
+    .ignored_builds;
     dbg!(&ignored);
 
     assert_eq!(
@@ -1295,7 +1300,7 @@ fn frozen_backstop_run(
     layout: &VirtualStoreLayout,
     frozen_store: bool,
     optional: bool,
-) -> Result<Vec<String>, crate::build_modules::BuildModulesError> {
+) -> Result<crate::BuildModulesOutput, crate::build_modules::BuildModulesError> {
     let pkg_key = key("is-positive", "1.0.0");
     let snapshots =
         HashMap::from([(pkg_key.clone(), SnapshotEntry { optional, ..SnapshotEntry::default() })]);
@@ -1365,7 +1370,8 @@ fn frozen_store_gvs_optional_not_seeded_skips() {
     let layout = gvs_layout(store_dir.path());
 
     let ignored = frozen_backstop_run(layout, true, true)
-        .expect("an optional un-seeded build must be skipped, not refused");
+        .expect("an optional un-seeded build must be skipped, not refused")
+        .ignored_builds;
     assert!(ignored.is_empty(), "no scripts to ignore for a patched-only snapshot: {ignored:?}");
 }
 
@@ -1380,7 +1386,8 @@ fn gvs_without_frozen_store_does_not_trip_backstop() {
     let layout = gvs_layout(store_dir.path());
 
     let ignored = frozen_backstop_run(layout, false, false)
-        .expect("without frozen_store the backstop must not fire");
+        .expect("without frozen_store the backstop must not fire")
+        .ignored_builds;
     assert!(ignored.is_empty(), "no scripts to ignore for a patched-only snapshot: {ignored:?}");
 }
 
@@ -1397,7 +1404,8 @@ fn frozen_store_without_gvs_does_not_trip_backstop() {
     );
 
     let ignored = frozen_backstop_run(&layout, true, false)
-        .expect("the non-GVS layout writes to the project store, so the backstop must not fire");
+        .expect("the non-GVS layout writes to the project store, so the backstop must not fire")
+        .ignored_builds;
     assert!(ignored.is_empty(), "no scripts to ignore for a patched-only snapshot: {ignored:?}");
 }
 
@@ -2681,8 +2689,10 @@ fn rebuild_selection_runs_only_selected_scripts() {
     let aaa_dir = create_marker_pkg(virtual_store_dir.path(), &key("aaa", "1.0.0"));
     let zzz_dir = create_marker_pkg(virtual_store_dir.path(), &key("zzz", "1.0.0"));
 
-    let rebuild =
-        RebuildOptions { selected_names: Some(std::iter::once("aaa".to_string()).collect()) };
+    let rebuild = RebuildOptions {
+        selected_names: Some(std::iter::once("aaa".to_string()).collect()),
+        pending_projects: Vec::new(),
+    };
 
     BuildModules {
         layout: &VirtualStoreLayout::legacy(

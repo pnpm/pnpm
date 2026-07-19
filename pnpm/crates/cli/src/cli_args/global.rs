@@ -415,7 +415,11 @@ async fn prompt_approve_global_builds<Reporter: self::Reporter + 'static>(
     if let Some((rebuild_state, build_packages)) =
         args.prepare(global_pkg_dir, &config_fn, &state_fn)?
     {
-        run_rebuild::<Reporter>(&rebuild_state, Some(build_packages)).await?;
+        let selection = crate::cli_args::rebuild::RebuildSelection {
+            names: Some(build_packages),
+            projects: Vec::new(),
+        };
+        run_rebuild::<Reporter>(&rebuild_state, selection).await?;
     }
     Ok(())
 }

@@ -571,6 +571,12 @@ pub struct InstallWithFreshLockfileResult {
     /// is on (the default). Empty on the `lockfile_only` path, which
     /// never materializes or builds.
     pub ignored_builds: Vec<String>,
+    /// Dep paths whose build `--ignore-scripts` deferred — see
+    /// [`crate::BuildModulesOutput::deferred_builds`]. The caller folds
+    /// them into `.modules.yaml.pendingBuilds`. Empty on the
+    /// `lockfile_only` path for the same reason as
+    /// [`Self::ignored_builds`].
+    pub deferred_builds: Vec<String>,
     /// Installability-skipped optional snapshots. The outer install
     /// writer persists these into `.modules.yaml.skipped`.
     pub skipped: SkippedSnapshots,
@@ -1632,8 +1638,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 wanted_lockfile,
                 can_record_lockfile_verification,
                 // `lockfile_only` never materializes node_modules, so no
-                // build phase ran and nothing was ignored.
+                // build phase ran and nothing was ignored or deferred.
                 ignored_builds: Vec::new(),
+                deferred_builds: Vec::new(),
                 skipped: SkippedSnapshots::new(),
             });
         }
@@ -2415,36 +2422,37 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // is the real lockfile dir (sets each script's `INIT_CWD`); the
         // post-build bin link anchors on `symlink_root` to match where
         // this path placed `node_modules`.
-        let ignored_builds = crate::install_frozen_lockfile::run_build_phase::<Reporter>(
-            &crate::install_frozen_lockfile::BuildPhaseInputs {
-                config,
-                workspace_root: lockfile_dir,
-                top_level_bin_root: symlink_root,
-                layout: &layout,
-                snapshots: materialization_lockfile.snapshots.as_ref(),
-                packages: materialization_lockfile.packages.as_ref(),
-                importers: &materialization_lockfile.importers,
-                dependency_groups: &dependency_groups,
-                // Reuse the record resolved earlier for the resolver so the
-                // patch files aren't hashed a second time.
-                patch_groups: patched_dependencies.as_deref(),
-                allow_build_policy: &allow_build_policy,
-                side_effects_maps_by_snapshot: &side_effects_maps_by_snapshot,
-                requires_build_by_snapshot: &requires_build_by_snapshot,
-                engine_name: engine_name.as_deref(),
-                extra_env: &build_extra_env,
-                store_index_writer: &store_index_writer,
-                skipped: &skipped,
-                hoisted_pkg_roots_by_key: hoisted_pkg_roots_by_key.as_ref(),
-                is_hoisted,
-                publicly_hoisted_for_post_build: &publicly_hoisted_for_post_build,
-                logged_methods,
-                // The fresh-resolve path never serves an explicit
-                // `pacquet rebuild`; rebuilds always take the frozen path.
-                rebuild: None,
-            },
-        )
-        .map_err(InstallWithFreshLockfileError::BuildPhase)?;
+        let crate::BuildModulesOutput { ignored_builds, deferred_builds } =
+            crate::install_frozen_lockfile::run_build_phase::<Reporter>(
+                &crate::install_frozen_lockfile::BuildPhaseInputs {
+                    config,
+                    workspace_root: lockfile_dir,
+                    top_level_bin_root: symlink_root,
+                    layout: &layout,
+                    snapshots: materialization_lockfile.snapshots.as_ref(),
+                    packages: materialization_lockfile.packages.as_ref(),
+                    importers: &materialization_lockfile.importers,
+                    dependency_groups: &dependency_groups,
+                    // Reuse the record resolved earlier for the resolver so the
+                    // patch files aren't hashed a second time.
+                    patch_groups: patched_dependencies.as_deref(),
+                    allow_build_policy: &allow_build_policy,
+                    side_effects_maps_by_snapshot: &side_effects_maps_by_snapshot,
+                    requires_build_by_snapshot: &requires_build_by_snapshot,
+                    engine_name: engine_name.as_deref(),
+                    extra_env: &build_extra_env,
+                    store_index_writer: &store_index_writer,
+                    skipped: &skipped,
+                    hoisted_pkg_roots_by_key: hoisted_pkg_roots_by_key.as_ref(),
+                    is_hoisted,
+                    publicly_hoisted_for_post_build: &publicly_hoisted_for_post_build,
+                    logged_methods,
+                    // The fresh-resolve path never serves an explicit
+                    // `pacquet rebuild`; rebuilds always take the frozen path.
+                    rebuild: None,
+                },
+            )
+            .map_err(InstallWithFreshLockfileError::BuildPhase)?;
 
         // Drop the orchestration's writer handle so the channel closes,
         // then wait for the final batch flush — now including any
@@ -2520,6 +2528,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             wanted_lockfile,
             can_record_lockfile_verification,
             ignored_builds,
+            deferred_builds,
             skipped,
         })
     }

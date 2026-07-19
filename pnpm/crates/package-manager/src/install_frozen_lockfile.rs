@@ -448,7 +448,7 @@ pub(crate) struct BuildPhaseInputs<'a> {
 /// renders a consistent state.
 pub(crate) fn run_build_phase<Reporter: self::Reporter>(
     inputs: &BuildPhaseInputs,
-) -> Result<Vec<String>, BuildPhaseError> {
+) -> Result<crate::BuildModulesOutput, BuildPhaseError> {
     // Every field is a `Copy` reference / scalar, so destructuring
     // through the shared borrow copies them out without a move.
     let &BuildPhaseInputs {
@@ -491,7 +491,7 @@ pub(crate) fn run_build_phase<Reporter: self::Reporter>(
     // Under isolated, the directories live under the virtual-store slot
     // layout; under hoisted, they live at the project-tree paths the
     // walker assigned — threaded in via `pkg_roots_by_key`.
-    let ignored_builds = BuildModules {
+    let build_output = BuildModules {
         layout,
         modules_dir: &config.modules_dir,
         lockfile_dir: workspace_root,
@@ -534,7 +534,7 @@ pub(crate) fn run_build_phase<Reporter: self::Reporter>(
     // display is gated on `!strictDepBuilds`; the strict path throws.
     Reporter::emit(&LogEvent::IgnoredScripts(IgnoredScriptsLog {
         level: LogLevel::Debug,
-        package_names: ignored_builds.clone(),
+        package_names: build_output.ignored_builds.clone(),
         strict_dep_builds: config.strict_dep_builds,
     }));
 
@@ -542,7 +542,7 @@ pub(crate) fn run_build_phase<Reporter: self::Reporter>(
     // the pass below to re-resolve. Dependency *build* scripts still ran
     // above — only the linking stops, matching `pnpm fetch`.
     if config.virtual_store_only {
-        return Ok(ignored_builds);
+        return Ok(build_output);
     }
 
     // Post-`BuildModules` per-importer top-level bin link
@@ -575,7 +575,7 @@ pub(crate) fn run_build_phase<Reporter: self::Reporter>(
             .map_err(BuildPhaseError::TopLevelBinLink)?;
     }
 
-    Ok(ignored_builds)
+    Ok(build_output)
 }
 
 impl<DependencyGroupList> InstallFrozenLockfile<'_, DependencyGroupList>
@@ -1416,32 +1416,33 @@ where
         // lossy `requester` string so non-UTF-8 filenames survive.
         // `allow_build_policy` was constructed up-front (before
         // `CreateVirtualStore`) so the git fetcher could consult it.
-        let ignored_builds = run_build_phase::<Reporter>(&BuildPhaseInputs {
-            config,
-            workspace_root,
-            top_level_bin_root: workspace_root,
-            layout: &layout,
-            snapshots,
-            packages,
-            importers,
-            dependency_groups: &dependency_groups,
-            // Resolved once inside `resolve_snapshot_patches`; the frozen
-            // path has no earlier patch resolution to reuse.
-            patch_groups: None,
-            allow_build_policy: &allow_build_policy,
-            side_effects_maps_by_snapshot: &side_effects_maps_by_snapshot,
-            requires_build_by_snapshot: &requires_build_by_snapshot,
-            engine_name: engine_name.as_deref(),
-            extra_env: &build_extra_env,
-            store_index_writer: &store_index_writer,
-            skipped: &skipped,
-            hoisted_pkg_roots_by_key: hoisted_pkg_roots_by_key.as_ref(),
-            is_hoisted,
-            publicly_hoisted_for_post_build: &publicly_hoisted_for_post_build,
-            logged_methods,
-            rebuild,
-        })
-        .map_err(InstallFrozenLockfileError::BuildPhase)?;
+        let crate::BuildModulesOutput { ignored_builds, deferred_builds } =
+            run_build_phase::<Reporter>(&BuildPhaseInputs {
+                config,
+                workspace_root,
+                top_level_bin_root: workspace_root,
+                layout: &layout,
+                snapshots,
+                packages,
+                importers,
+                dependency_groups: &dependency_groups,
+                // Resolved once inside `resolve_snapshot_patches`; the frozen
+                // path has no earlier patch resolution to reuse.
+                patch_groups: None,
+                allow_build_policy: &allow_build_policy,
+                side_effects_maps_by_snapshot: &side_effects_maps_by_snapshot,
+                requires_build_by_snapshot: &requires_build_by_snapshot,
+                engine_name: engine_name.as_deref(),
+                extra_env: &build_extra_env,
+                store_index_writer: &store_index_writer,
+                skipped: &skipped,
+                hoisted_pkg_roots_by_key: hoisted_pkg_roots_by_key.as_ref(),
+                is_hoisted,
+                publicly_hoisted_for_post_build: &publicly_hoisted_for_post_build,
+                logged_methods,
+                rebuild,
+            })
+            .map_err(InstallFrozenLockfileError::BuildPhase)?;
 
         // Drop the orchestrator's clone of the writer so the channel
         // closes once every per-snapshot clone has also been dropped;
@@ -1485,6 +1486,7 @@ where
             injected_deps,
             skipped,
             ignored_builds,
+            deferred_builds,
         })
     }
 }
@@ -1524,6 +1526,10 @@ pub struct InstallFrozenLockfileOutput {
     /// `ERR_PNPM_IGNORED_BUILDS` from this list when `strictDepBuilds`
     /// is on (the default).
     pub ignored_builds: Vec<String>,
+    /// Dep paths whose build `--ignore-scripts` deferred — see
+    /// [`crate::BuildModulesOutput::deferred_builds`]. The caller folds
+    /// them into `.modules.yaml.pendingBuilds`.
+    pub deferred_builds: Vec<String>,
 }
 
 /// Internal handoff between the hoisted-linker walker/linker pass
