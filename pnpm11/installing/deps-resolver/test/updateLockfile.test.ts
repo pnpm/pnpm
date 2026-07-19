@@ -85,3 +85,39 @@ test('a stale integrity is not attached when the tarball URL changed', () => {
   })
   expect(lockfile.packages![newDepPath].resolution).toStrictEqual({ tarball: newUrl })
 })
+
+test('empty bundledDependencies or bundleDependencies arrays are normalized away and not written to the lockfile packages list', () => {
+  const lockfile = updateLockfile({
+    dependenciesGraph: {
+      [DEP_PATH]: {
+        ...tarballGraph({ tarball: TARBALL_URL })[DEP_PATH],
+        additionalInfo: {
+          bundledDependencies: [],
+          bundleDependencies: [],
+        },
+      },
+    } as unknown as DependenciesGraph,
+    lockfile: lockfileWith({ resolution: { tarball: TARBALL_URL, integrity: INTEGRITY } }),
+    prefix: '.',
+    registries: REGISTRIES,
+  })
+  expect(lockfile.packages![DEP_PATH].bundledDependencies).toBeUndefined()
+})
+
+test('non-empty bundledDependencies array or boolean bundledDependencies is kept in the lockfile', () => {
+  const lockfile = updateLockfile({
+    dependenciesGraph: {
+      [DEP_PATH]: {
+        ...tarballGraph({ tarball: TARBALL_URL })[DEP_PATH],
+        additionalInfo: {
+          bundledDependencies: ['some-dep'],
+        },
+      },
+    } as unknown as DependenciesGraph,
+    lockfile: lockfileWith({ resolution: { tarball: TARBALL_URL, integrity: INTEGRITY } }),
+    prefix: '.',
+    registries: REGISTRIES,
+  })
+  expect(lockfile.packages![DEP_PATH].bundledDependencies).toStrictEqual(['some-dep'])
+})
+

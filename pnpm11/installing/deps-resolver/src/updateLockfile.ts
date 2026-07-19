@@ -150,12 +150,14 @@ function toLockfileDependency (
     result['libc'] = pkg.additionalInfo.libc
   }
   if (
-    Array.isArray(pkg.additionalInfo.bundledDependencies) ||
+    (Array.isArray(pkg.additionalInfo.bundledDependencies) &&
+      pkg.additionalInfo.bundledDependencies.length > 0) ||
     pkg.additionalInfo.bundledDependencies === true
   ) {
     result['bundledDependencies'] = pkg.additionalInfo.bundledDependencies
   } else if (
-    Array.isArray(pkg.additionalInfo.bundleDependencies) ||
+    (Array.isArray(pkg.additionalInfo.bundleDependencies) &&
+      pkg.additionalInfo.bundleDependencies.length > 0) ||
     pkg.additionalInfo.bundleDependencies === true
   ) {
     result['bundledDependencies'] = pkg.additionalInfo.bundleDependencies
