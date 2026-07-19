@@ -58,7 +58,10 @@ async function fetchPublishedVersions (
   }
 ): Promise<string[] | undefined> {
   const registry = pickRegistryForPackage(opts.registries, packageName)
-  const url = `${registry.replace(/\/$/, '')}/${packageName.replace('/', '%2F')}`
+  // Scoped names are escaped the way registries expect them, with the leading
+  // "@" left as is, so "@scope/name" becomes "@scope%2Fname".
+  const escapedName = encodeURIComponent(packageName).replace(/^%40/, '@')
+  const url = `${registry.replace(/\/$/, '')}/${escapedName}`
   try {
     const res = await opts.fetchFromRegistry(url, {
       authHeaderValue: opts.getAuthHeader(registry, { pkgName: packageName }),
