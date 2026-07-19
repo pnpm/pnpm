@@ -102,7 +102,9 @@ impl Package {
         auth_headers: &AuthHeaders,
     ) -> Result<Self, RegistryError> {
         let encoded_name = pacquet_network::encode_package_name(name);
-        let url = format!("{registry}{encoded_name}"); // TODO: use reqwest URL directly
+        let url = reqwest::Url::parse(registry)
+            .and_then(|base| base.join(&encoded_name))
+            .map_or_else(|_| format!("{registry}{encoded_name}"), |u| u.to_string());
         let network_error = |error| NetworkError { error, url: url.clone() };
         // Hold the semaphore permit across send + body consumption so the
         // socket-bound stays effective under concurrent fan-out. See the
@@ -127,7 +129,9 @@ impl Package {
 
     #[must_use]
     pub fn pinned_version(&self, version_range: &str) -> Option<Arc<PackageVersion>> {
-        let range: node_semver::Range = version_range.parse().unwrap(); // TODO: this step should have happened in PackageManifest
+        let Ok(range) = version_range.parse::<node_semver::Range>() else {
+            return None;
+        };
         // Match on the version *strings* so only winning manifests
         // hydrate from their raw fragments.
         let mut satisfying = self

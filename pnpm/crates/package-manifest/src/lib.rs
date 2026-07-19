@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use derive_more::{Display, Error, From};
+use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Range;
 use serde::{Deserialize, Serialize};
@@ -12,14 +12,14 @@ use serde_json::{Map, Value, json};
 use strum::IntoStaticStr;
 use tempfile::NamedTempFile;
 
-#[derive(Debug, Display, Error, Diagnostic, From)]
+#[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum PackageManifestError {
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANIFEST_SERIALIZATION_ERROR))]
-    Serialization(serde_json::Error), // TODO: remove derive(From), split this variant
+    Serialization(serde_json::Error),
 
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANIFEST_IO_ERROR))]
-    Io(std::io::Error), // TODO: remove derive(From), split this variant
+    Io(std::io::Error),
 
     #[display("package.json file already exists")]
     #[diagnostic(
@@ -28,20 +28,29 @@ pub enum PackageManifestError {
     )]
     AlreadyExist,
 
-    #[from(ignore)] // TODO: remove this after derive(From) has been removed
     #[display("invalid attribute: {_0}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANIFEST_INVALID_ATTRIBUTE))]
     InvalidAttribute(#[error(not(source))] String),
 
-    #[from(ignore)] // TODO: remove this after derive(From) has been removed
     #[display("No package.json was found in {_0}")]
     #[diagnostic(code(ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND))]
     NoImporterManifestFound(#[error(not(source))] String),
 
-    #[from(ignore)] // TODO: remove this after derive(From) has been removed
     #[display("Missing script: {_0:?}")]
     #[diagnostic(code(ERR_PNPM_NO_SCRIPT))]
     NoScript(#[error(not(source))] String),
+}
+
+impl From<serde_json::Error> for PackageManifestError {
+    fn from(err: serde_json::Error) -> Self {
+        Self::Serialization(err)
+    }
+}
+
+impl From<std::io::Error> for PackageManifestError {
+    fn from(err: std::io::Error) -> Self {
+        Self::Io(err)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, IntoStaticStr)]
@@ -54,6 +63,10 @@ pub enum DependencyGroup {
     Optional,
     #[strum(serialize = "peerDependencies")]
     Peer,
+}
+
+impl DependencyGroup {
+    const ALL: &'static [Self] = &[Self::Prod, Self::Dev, Self::Optional, Self::Peer];
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -74,10 +87,10 @@ const DEFAULT_INDENT: &str = "  ";
 /// [`Self::save`] preserves the file's style and skips the write entirely
 /// when nothing changed — the same contract as pnpm's project-manifest
 /// reader/writer pair.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PackageManifest {
     path: PathBuf,
-    value: Value, // TODO: convert this into a proper struct + an array of keys order
+    value: Value, // FIXME: replace with a typed struct that preserves JSON key order
     /// Whether a save ends the file with a newline. New and in-memory
     /// manifests get one.
     insert_final_newline: bool,
@@ -108,9 +121,12 @@ impl PackageManifest {
     }
 
     fn write_to_file(path: &Path) -> Result<String, PackageManifestError> {
+        if path.exists() {
+            return Err(PackageManifestError::AlreadyExist);
+        }
         let manifest = PackageManifest::init_value_for(path);
         let contents = serialize_with_indent(&manifest, DEFAULT_INDENT)?;
-        fs::write(path, format!("{contents}\n"))?; // TODO: forbid overwriting existing files
+        fs::write(path, format!("{contents}\n"))?;
         Ok(contents)
     }
 
@@ -151,6 +167,7 @@ impl PackageManifest {
     fn read_from_file(path: PathBuf) -> Result<PackageManifest, PackageManifestError> {
         let contents = fs::read_to_string(&path)?;
         let mut value: Value = serde_json::from_str(&contents)?;
+        validate_dependency_shapes(&value)?;
         let mut on_disk = value.clone();
         normalize_dependency_fields(&mut on_disk);
         convert_engines_runtime_to_dependencies(&mut value, "devEngines", "devDependencies");
@@ -280,8 +297,6 @@ impl PackageManifest {
         &'a self,
         groups: impl IntoIterator<Item = DependencyGroup> + 'a,
     ) -> impl Iterator<Item = (&'a str, &'a str)> + 'a {
-        // TODO: add error when `dependencies` is found to not be an object
-        // TODO: add error when `version` is found to not be a string
         groups
             .into_iter()
             .filter_map(|group| self.value.get::<&str>(group.into()))
@@ -437,11 +452,12 @@ impl PackageManifest {
         }
     }
 
-    pub fn script(
-        &self,
-        command: &str,
-        if_present: bool, // TODO: split this function into 2, one with --if-present, one without
-    ) -> Result<Option<&str>, PackageManifestError> {
+    pub fn script(&self, command: &str) -> Result<&str, PackageManifestError> {
+        self.script_if_present(command)?
+            .ok_or_else(|| PackageManifestError::NoScript(command.to_string()))
+    }
+
+    pub fn script_if_present(&self, command: &str) -> Result<Option<&str>, PackageManifestError> {
         if let Some(script_str) = self
             .value
             .get("scripts")
@@ -451,7 +467,7 @@ impl PackageManifest {
             return Ok(Some(script_str));
         }
 
-        if if_present { Ok(None) } else { Err(PackageManifestError::NoScript(command.to_string())) }
+        Ok(None)
     }
 }
 
@@ -630,6 +646,32 @@ pub fn node_version_from_engines_runtime(manifest: &Value) -> Option<String> {
         }
     }
     None
+}
+
+/// Validate that every dependency group is an object and every entry is a
+/// string, matching the TypeScript CLI's shape check at read time.
+fn validate_dependency_shapes(manifest: &Value) -> Result<(), PackageManifestError> {
+    let Some(root) = manifest.as_object() else {
+        return Ok(());
+    };
+    for group in DependencyGroup::ALL {
+        let field: &str = (*group).into();
+        if let Some(value) = root.get(field) {
+            if !value.is_object() {
+                return Err(PackageManifestError::InvalidAttribute(format!(
+                    "the {field} field must be an object"
+                )));
+            }
+            for (name, version) in value.as_object().unwrap() {
+                if !version.is_string() {
+                    return Err(PackageManifestError::InvalidAttribute(format!(
+                        "the {field}.{name} entry must be a string"
+                    )));
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 /// pnpm's on-write manifest normalization: within each dependency field,

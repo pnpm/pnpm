@@ -58,10 +58,7 @@ where
     pub dependency_groups: Option<DependencyGroupList>,
     /// Package selectors, each of which may carry an `@<version>` suffix.
     pub package_names: &'a [String],
-    /// How the freshly-resolved version is pinned into the manifest range,
-    /// derived from `--save-exact` / `--save-prefix`. See
-    /// [`PinnedVersion::from_save_options`].
-    // TODO: read `save-exact` / `save-prefix` from `.npmrc`, merge configs, and derive this there.
+    /// Derived from `--save-exact` / `--save-prefix` or `.npmrc` settings.
     pub pinned_version: PinnedVersion,
     /// `--save-catalog-name=<name>` (with `--save-catalog` a shorthand for
     /// `default`), or the `saveCatalogName` config default. When `Some`,

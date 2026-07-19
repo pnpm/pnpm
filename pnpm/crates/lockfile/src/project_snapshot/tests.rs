@@ -42,7 +42,7 @@ fn dependencies_by_groups() {
                     (name.to_string(), specifier.to_string(), version.to_string())
                 })
                 .collect();
-            received.sort(); // TODO: remove this line after switching to IndexMap
+            received.sort(); // FIXME: remove after switching ResolvedDependencyMap to IndexMap
             let expected = $output.map(|(name, specifier, version): (&str, &str, &str)| {
                 (name.to_string(), specifier.to_string(), version.to_string())
             });

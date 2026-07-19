@@ -134,7 +134,7 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
     for chunk in &chunks {
         for root in chunk {
             let manifest = &graph[root].package.project.manifest;
-            let Some(script) = manifest.script(script_name, true)? else {
+            let Some(script) = manifest.script_if_present(script_name)? else {
                 result[root].status = Status::Skipped;
                 continue;
             };

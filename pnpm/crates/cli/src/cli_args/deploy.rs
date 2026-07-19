@@ -436,7 +436,7 @@ enum SharedDeployOutcome {
 
 fn cannot_deploy_error(dir: &Path) -> miette::Report {
     let has_deploy_script = PackageManifest::from_path(dir.join("package.json"))
-        .is_ok_and(|manifest| manifest.script("deploy", false).is_ok());
+        .is_ok_and(|manifest| manifest.script("deploy").is_ok());
     if has_deploy_script {
         DeployError::CannotDeployScript.into()
     } else {

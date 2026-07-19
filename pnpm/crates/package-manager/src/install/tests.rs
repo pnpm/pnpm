@@ -267,8 +267,8 @@ async fn should_install_dependencies() {
     let dir = tempdir().unwrap();
     let store_dir = dir.path().join("pacquet-store");
     let project_root = dir.path().join("project");
-    let modules_dir = project_root.join("node_modules"); // TODO: we shouldn't have to define this
-    let virtual_store_dir = modules_dir.join(".pacquet"); // TODO: we shouldn't have to define this
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
 
     let manifest_path = dir.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
@@ -5221,7 +5221,6 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
     drop((dir, mock_instance));
 }
 
-// ----------------------------------------------------------------------------
 // Fresh-install lockfile generation
 //
 // These tests exercise a *fresh* install — the path that converts the

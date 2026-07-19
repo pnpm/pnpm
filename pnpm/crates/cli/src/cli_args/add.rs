@@ -117,8 +117,8 @@ pub struct AddArgs {
     pub lockfile_only: bool,
     /// The directory with links to the store (default is `node_modules/.pnpm`).
     /// All direct and indirect dependencies of the project are linked into this directory
-    #[clap(long = "virtual-store-dir", default_value = "node_modules/.pnpm")]
-    pub virtual_store_dir: Option<PathBuf>, // TODO: make use of this
+    #[clap(long = "virtual-store-dir")]
+    pub virtual_store_dir: Option<PathBuf>,
 
     /// Install the package globally, linking its bins into the global bin directory.
     #[clap(short = 'g', long)]
@@ -145,6 +145,9 @@ impl AddArgs {
             config.ignore_scripts,
         );
         config.force = self.force || config.force;
+        if let Some(vsd) = &self.virtual_store_dir {
+            config.virtual_store_dir.clone_from(vsd);
+        }
     }
 
     /// The `--config` selectors parsed into the `name → specifier` pairs to
@@ -222,10 +225,12 @@ impl AddArgs {
             .or_else(|| state.config.save_catalog_name.clone());
 
         // Collapse the `--save-exact` / `--save-prefix` flags into the pinned
-        // version that decides the saved range, mirroring pnpm's
-        // `getPinnedVersion`.
+        // CLI flags take priority over .npmrc / pnpm-workspace.yaml settings.
+        let effective_save_exact = self.save_exact || state.config.save_exact;
+        let effective_save_prefix =
+            self.save_prefix.as_deref().or(state.config.save_prefix.as_deref());
         let pinned_version =
-            PinnedVersion::from_save_options(self.save_exact, self.save_prefix.as_deref());
+            PinnedVersion::from_save_options(effective_save_exact, effective_save_prefix);
 
         add_packages::<Reporter, _>(
             state,
@@ -251,8 +256,12 @@ impl AddArgs {
             .clone()
             .or_else(|| self.save_catalog.then(|| "default".to_string()))
             .or_else(|| state.config.save_catalog_name.clone());
+        let effective_save_exact = self.save_exact || state.config.save_exact;
+        let effective_save_prefix =
+            self.save_prefix.as_deref().or(state.config.save_prefix.as_deref());
         let pinned_version =
-            PinnedVersion::from_save_options(self.save_exact, self.save_prefix.as_deref());
+            PinnedVersion::from_save_options(effective_save_exact, effective_save_prefix);
+
         let InstallFamilySelection {
             workspace_root: _,
             mut projects,

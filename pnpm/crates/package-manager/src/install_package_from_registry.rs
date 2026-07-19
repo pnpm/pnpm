@@ -169,7 +169,7 @@ impl InstallPackageFromRegistry<'_> {
                 },
             }));
 
-            // TODO: skip when it already exists in store?
+            // Store cache hit is handled inside DownloadTarballToStore.
             let cas_paths = DownloadTarballToStore {
                 http_client,
                 store_dir: &config.store_dir,
