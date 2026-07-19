@@ -11,17 +11,12 @@ const JUNK_BYTES = 6 * 1024 * 1024
 
 /**
  * End-to-end regression guard for https://github.com/pnpm/pnpm/issues/8441:
- * a whole `pnpm install` (the bundled CLI, not just the resolver package)
- * must not retain full-document bulk, so it completes inside a small heap.
- *
- * The registry documents — served by a local server, one per optional
- * dependency so the CLI fetches full metadata — each carry 6 MB of
- * install-irrelevant bulk, 240 MB total. Retaining the parsed documents,
- * as the resolver did before condensing, overflows the 256 MB cap by
- * ~100 MB regardless of which cache pins them; the condensed working set
- * plus the CLI's baseline fits with roughly 100 MB to spare (the fixed
- * install passes even a 192 MB cap). That margin in both directions keeps the
- * guard deterministic rather than timing-sensitive.
+ * the bundled CLI installs 40 optional dependencies (so it fetches full
+ * metadata) whose documents carry 240 MB of install-irrelevant bulk under a
+ * 256 MB heap cap. Retaining the parsed documents overshoots the cap by
+ * ~100 MB regardless of which cache pins them, while the condensed install
+ * passes even a 192 MB cap, so the guard is deterministic rather than
+ * timing-sensitive.
  */
 test('install --lockfile-only completes within a small heap while registry documents carry megabytes of bulk', async () => {
   const server = await startBloatedRegistry()
@@ -35,10 +30,8 @@ test('install --lockfile-only completes within a small heap while registry docum
       env: {
         NODE_OPTIONS: '--max-old-space-size=256',
         pnpm_config_registry: server.url,
-        // Bounds the post-fix transient footprint (response body + freshly
-        // parsed document per in-flight request) so the heap cap measures
-        // what is RETAINED across the resolution, which no concurrency
-        // setting can shrink.
+        // So the heap cap measures what is retained across the resolution
+        // rather than in-flight transients.
         pnpm_config_network_concurrency: '4',
       },
     })
@@ -57,9 +50,7 @@ interface BloatedRegistry {
 }
 
 // Serves a full packument for any package name requested. The junk string is
-// shared server-side; JSON.parse in the CLI gives each document its own copy —
-// the copy whose retention this test bounds. Tarball URLs point back at this
-// server but are never fetched: --lockfile-only resolves without downloading.
+// shared server-side; JSON.parse in the CLI gives each document its own copy.
 async function startBloatedRegistry (): Promise<BloatedRegistry> {
   const junk = 'x'.repeat(JUNK_BYTES / 2)
   const server = http.createServer((req, res) => {

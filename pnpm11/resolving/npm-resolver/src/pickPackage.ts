@@ -218,15 +218,10 @@ function cacheDiskLoadedMeta (metaCache: PackageMetaCache, cacheKey: string, met
 }
 
 /**
- * The form in which a packument is retained in memory (the `metaCache`, and
- * through it every returned pick). Full documents reach a plain install via
- * optional dependencies (fetched full for `libc`), release-age `time`
- * upgrades, and mirror files that hold a full body — retaining them
- * unstripped pins tens of MB per popular package for the whole install and
- * drove large workspaces out of memory
- * (https://github.com/pnpm/pnpm/issues/8441). Condensing is skipped only for
- * resolvers whose consumers read past the abbreviated field set (see
- * {@link retainsFullMeta}).
+ * The form in which a packument is retained in memory (see {@link clearMeta}
+ * for why). Full documents reach even a plain install via optional
+ * dependencies (fetched full for `libc`), release-age `time` upgrades, and
+ * mirror files that hold a full body.
  */
 function condenseMetaForCache (
   ctx: { fullMetadata?: boolean, filterMetadata?: boolean },
@@ -300,10 +295,6 @@ export async function pickPackage (
   }
 
   return runLimited(pkgMirror, async (limit) => {
-    // Condensed on load (see condenseMetaForCache): the mirror may hold a
-    // full body — optional deps' full mirrors, or an abbreviated mirror a
-    // release-age upgrade rewrote — and every path below either caches or
-    // returns what it loads here.
     const loadMetaCondensed = async (): Promise<PackageMeta | null> => {
       const meta = await loadMeta(pkgMirror)
       return meta == null ? null : condenseMetaForCache(ctx, meta)
@@ -513,12 +504,10 @@ export async function pickPackage (
 
       meta = condenseMetaForCache(ctx, meta)
       if (!opts.dryRun) {
-        // The mirror keeps the raw registry body, except when the retained
-        // form is deliberately narrower: a `filterMetadata` resolver always
-        // mirrors the stripped document, and a release-age upgrade
-        // (`resultToSave !== fetched`) on a condensing resolver mirrors the
-        // condensed form — it keeps `time`, which is all the next install
-        // needs from this slot, instead of megabytes of full-document bulk.
+        // Mirror the raw registry body, unless the retained form is
+        // deliberately narrower: `filterMetadata` always mirrors the stripped
+        // document, and an upgraded-to-full document mirrors the condensed
+        // form — `time` is all the next install needs from this slot.
         const writeCondensed = ctx.filterMetadata === true || (resultToSave !== fetched && meta !== resultToSave.meta)
         const jsonForDisk = writeCondensed
           ? prepareJsonForDisk(meta, resultToSave.etag)
@@ -601,12 +590,10 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
 }
 
 /**
- * The meta to retain after a release-age upgrade fetch: the upgrade result in
- * its cache form (see {@link condenseMetaForCache}), persisted to the mirror
- * unless this is a dry run. Persisting matters because the mirror otherwise
- * still holds the pre-upgrade abbreviated form (no `time`), so every future
- * install would re-trigger the upgrade fetch. When no upgrade happened, the
- * input meta passes through untouched.
+ * The meta to retain after a release-age upgrade check, persisted to the
+ * mirror (unless dry-run) because the mirror otherwise still holds the
+ * pre-upgrade abbreviated form without `time`, and every future install
+ * would re-trigger the upgrade fetch.
  */
 function upgradeMetaForCache (
   ctx: { fullMetadata?: boolean, filterMetadata?: boolean },
@@ -618,11 +605,9 @@ function upgradeMetaForCache (
   return persistUpgradedMeta(ctx, opts.pkgMirror, upgrade.upgradedFrom)
 }
 
-// Persists upgraded full metadata to the on-disk cache mirror and returns
-// the meta to store in the in-memory cache. A condensing resolver (see
-// condenseMetaForCache) keeps and mirrors the condensed form — the mirror
-// only has to carry `time` into the next install; otherwise the original raw
-// response body is written and the unstripped meta is kept.
+// A condensing resolver keeps and mirrors the condensed form — the mirror
+// only has to carry `time` into the next install; otherwise the raw response
+// body is written and the unstripped meta is kept.
 function persistUpgradedMeta (
   ctx: { fullMetadata?: boolean, filterMetadata?: boolean },
   pkgMirror: string,
@@ -637,11 +622,8 @@ function persistUpgradedMeta (
 }
 
 /**
- * Write a mirror file without letting a failure escape: the mirror is an
- * optimization (the next install falls back to an unconditional fetch), so
- * the install continues — but the failure is debug-logged with the mirror
- * path so a broken cache dir (permissions, disk full) stays diagnosable.
- * Writes to the same mirror are serialized through its per-mirror limiter.
+ * The mirror is an optimization, so a write failure only gets a debug log
+ * with the mirror path and the install continues.
  */
 function saveMetaBestEffort (pkgMirror: string, json: string): void {
   void runLimited(pkgMirror, (limit) => limit(async () => {
@@ -708,13 +690,10 @@ export function getPkgMirrorPath (cacheDir: string, metaDir: string, registry: s
 /**
  * Formats metadata for disk storage as two-line NDJSON:
  *   Line 1: cache headers (etag, modified) — small, fast to read
- *   Line 2: the registry metadata JSON — the raw response body when
- *   `jsonText` is given, a re-serialization of `meta` otherwise
+ *   Line 2: the registry metadata JSON
  *
- * The etag lives only in the headers line: `loadMeta` re-attaches it from
- * there, and a serialized `meta` may carry one (meta objects are shared and get
- * their `etag` assigned after a fetch), so it is dropped from the body here
- * rather than at every call site.
+ * The etag lives only in the headers line (`loadMeta` re-attaches it from
+ * there), so a `meta` that carries one is serialized without it.
  */
 export function prepareJsonForDisk (meta: PackageMeta, etag: string | undefined, jsonText?: string): string {
   const modified = meta.modified ?? meta.time?.modified

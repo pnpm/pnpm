@@ -256,10 +256,8 @@ test('a full document fetched for an optional dependency is condensed in memory 
   const spec: RegistryPackageSpec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }
 
   const res = await pickPackage(ctx, spec, { registry: REGISTRY, dryRun: false, optional: true, preferredVersionSelectors: undefined })
-  // The install-relevant full-document fields survive condensing…
   expect(res.pickedPackage?.libc).toEqual(['glibc'])
   expect(res.meta.time).toEqual({ '1.0.0': '2020-01-01T00:00:00.000Z' })
-  // …while the bulk that nothing on the install path reads is dropped.
   expect(res.pickedPackage?.scripts).toBeUndefined()
   expect((res.meta as PackageMeta & { readme?: string }).readme).toBeUndefined()
   expect(ctx.metaCache.get(getPkgMetaCacheKey(REGISTRY, 'foo', true, false))).toBe(res.meta)

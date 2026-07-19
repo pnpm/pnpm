@@ -71,12 +71,9 @@ describe('optional dependencies', () => {
   })
 
   test('abbreviated and full metadata are cached separately', async () => {
-    // The npm registry's abbreviated metadata omits `libc`; only the full
-    // document carries it. When resolving the same package first as regular,
-    // then as optional, the optional resolution must hit its own cache slot
-    // and see the full document's libc field. (`libc` — not a field like
-    // `scripts` — is the observable difference because the resolver condenses
-    // every retained packument down to the install-relevant field set.)
+    // `libc` (which abbreviated metadata omits) is the observable difference
+    // between the two slots: a field like `scripts` wouldn't do because the
+    // resolver condenses every retained packument via clearMeta.
     const abbreviatedMeta = {
       name: 'cache-test',
       'dist-tags': { latest: '1.0.0' },

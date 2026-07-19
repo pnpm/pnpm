@@ -1,8 +1,5 @@
-// Child of memoryBounded.test.ts: resolves PACKAGE_COUNT optional
-// dependencies — each served as a full document carrying JUNK_BYTES of
-// install-irrelevant bulk — under the small heap the parent capped this
-// process to (see the test for the sizing arithmetic). Imports the compiled
-// lib because it runs outside jest's TS transform.
+// Child of memoryBounded.test.ts. Imports the compiled lib because it runs
+// outside jest's TS transform.
 import { mkdtempSync, rmSync } from 'node:fs'
 import http from 'node:http'
 import os from 'node:os'
@@ -15,9 +12,8 @@ import { createNpmResolver } from '../../lib/index.js'
 const PACKAGE_COUNT = 30
 const JUNK_BYTES = 4 * 1024 * 1024
 
-// One shared junk string keeps the server side of this process cheap; each
-// response embeds it, and JSON.parse gives the resolver its own copy per
-// document — the copy whose retention this test exists to bound.
+// One shared junk string keeps the server side cheap; JSON.parse gives the
+// resolver its own copy per document.
 const junk = 'x'.repeat(JUNK_BYTES / 2)
 
 function packumentFor (name) {
@@ -56,9 +52,8 @@ const { resolveFromNpm } = createNpmResolver(createFetchFromRegistry({}), () => 
   registries: { default: registry },
 })
 
-// Sequential on purpose: transient memory (response body + freshly parsed
-// document) then stays around one document, so the heap cap measures what is
-// RETAINED across resolutions, not the fetch concurrency.
+// Sequential on purpose, so the heap cap measures what is retained across
+// resolutions rather than in-flight transients.
 for (let i = 0; i < PACKAGE_COUNT; i++) {
   const result = await resolveFromNpm(
     { alias: `bloated-pkg-${i}`, bareSpecifier: '1.0.0', optional: true },

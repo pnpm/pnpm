@@ -160,8 +160,6 @@ test('a throwing condenseSettledMeta falls back to retaining the uncondensed met
   const first = await fetch('foo', { registry: REGISTRY })
   expect(first).toBe(result)
 
-  // The settlement swap must survive the condenser: no unhandled rejection,
-  // and the retained entry still serves the (uncondensed) meta.
   const second = await fetch('foo', { registry: REGISTRY })
   if (second.notModified) throw new Error('expected a cached fetch result')
   expect(second.meta).toBe(result.meta)
@@ -184,6 +182,5 @@ test('condenseSettledMeta narrows the retained meta while the initiating caller 
   const second = await fetch('foo', { registry: REGISTRY })
   if (second.notModified) throw new Error('expected a cached fetch result')
   expect(second.meta).toBe(condensed)
-  // The initiating caller's result object is left untouched.
   expect(result.meta).not.toBe(condensed)
 })

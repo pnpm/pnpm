@@ -6,24 +6,17 @@ import util from 'node:util'
 import { test } from '@jest/globals'
 
 /**
- * Regression guard for https://github.com/pnpm/pnpm/issues/8441: resolving
- * must not retain full-document bulk, so it completes inside a small heap.
- *
- * The child process resolves 30 optional dependencies (the plain-install
- * route that fetches full metadata) whose documents each carry 4 MB of
- * install-irrelevant bulk — 120 MB total. Retaining the parsed documents,
- * as the resolver did before condensing, overflows the 100 MB cap after a
- * dozen packages; the condensed working set is a few KB per package, which
- * leaves the child roughly a 3x headroom over its ~30 MB baseline. That
- * margin is what keeps this deterministic rather than timing-sensitive: a
- * retention regression overshoots the cap by 100+ MB, not by noise.
+ * Regression guard for https://github.com/pnpm/pnpm/issues/8441: the child
+ * resolves 30 optional dependencies whose full documents carry 120 MB of
+ * install-irrelevant bulk under a 100 MB heap cap. Retaining the parsed
+ * documents overshoots the cap by 100+ MB while the condensed working set
+ * leaves ~3x headroom, so the guard is deterministic rather than
+ * timing-sensitive.
  */
 test('resolution completes within a small heap while registry documents carry megabytes of bulk', () => {
   const fixture = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures/resolve-bloated-metadata.mjs')
-  // execFileSync throws on a non-zero exit — an OOM-killed child (V8 aborts
-  // with "Ineffective mark-compacts near heap limit") fails the test. The
-  // child's stderr is folded into the error message because jest only prints
-  // the message, not extra properties like `stderr`.
+  // The child's stderr (the V8 heap-limit abort trace) is folded into the
+  // error message because jest only prints the message, not properties.
   try {
     execFileSync(process.execPath, ['--max-old-space-size=100', fixture], {
       stdio: ['ignore', 'ignore', 'pipe'],
