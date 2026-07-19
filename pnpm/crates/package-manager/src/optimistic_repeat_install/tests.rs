@@ -1,8 +1,9 @@
 use super::{
-    Decision, FileMtime, LinkedPackagesContext, OptimisticRepeatInstallCheck,
-    check_optimistic_repeat_install, check_optimistic_repeat_install_ignoring, current_pnpmfiles,
-    current_settings, current_settings_with_catalogs, linked_packages_are_up_to_date,
-    lockfile_modified_since, modified_at_or_after,
+    Decision, FileMtime, LinkedPackagesContext, MAX_LOCKFILE_CONFLICT_SCAN_BYTES,
+    OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
+    check_optimistic_repeat_install_ignoring, current_pnpmfiles, current_settings,
+    current_settings_with_catalogs, linked_packages_are_up_to_date, lockfile_modified_since,
+    modified_at_or_after,
 };
 use indexmap::IndexMap;
 use pacquet_catalogs_types::Catalogs;
@@ -1901,6 +1902,7 @@ fn returns_up_to_date_in_workspace_mode_without_lockfile() {
 fn returns_skipped_when_wanted_lockfile_has_merge_conflict_markers() {
     let (dir, config, manifest) =
         setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+    sleep(Duration::from_millis(20));
     fs::write(
         dir.path().join(Lockfile::FILE_NAME),
         "<<<<<<< ours\nlockfileVersion: '9.0'\n=======\nlockfileVersion: '10.0'\n>>>>>>> theirs\n",
@@ -1930,6 +1932,7 @@ fn returns_skipped_when_project_lockfile_has_merge_conflict_markers() {
     fs::create_dir_all(&project_root).expect("create project");
     fs::write(project_root.join("package.json"), r#"{"name":"project","version":"1.0.0"}"#)
         .expect("write project manifest");
+    sleep(Duration::from_millis(20));
     fs::write(
         project_root.join(Lockfile::FILE_NAME),
         "<<<<<<< ours\nlockfileVersion: '9.0'\n=======\nlockfileVersion: '10.0'\n>>>>>>> theirs\n",
@@ -1947,6 +1950,76 @@ fn returns_skipped_when_project_lockfile_has_merge_conflict_markers() {
     );
 
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("conflict")));
+}
+
+#[test]
+fn returns_skipped_when_lockfile_is_not_a_regular_file() {
+    let (dir, config, manifest) =
+        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    fs::remove_file(&lockfile_path).expect("remove lockfile");
+    fs::create_dir(&lockfile_path).expect("replace lockfile with directory");
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+
+    assert!(matches!(
+        decision,
+        Decision::Skipped { reason } if reason.contains("cannot be checked"),
+    ),);
+}
+
+#[cfg(unix)]
+#[test]
+fn returns_skipped_without_following_a_lockfile_symlink() {
+    use std::os::unix::fs::symlink;
+
+    let (dir, config, manifest) =
+        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    fs::remove_file(&lockfile_path).expect("remove lockfile");
+    symlink("/dev/zero", &lockfile_path).expect("replace lockfile with symlink");
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+
+    assert!(matches!(
+        decision,
+        Decision::Skipped { reason } if reason.contains("cannot be checked"),
+    ),);
+}
+
+#[test]
+fn returns_skipped_without_scanning_an_oversized_changed_lockfile() {
+    let (dir, config, manifest) =
+        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+    sleep(Duration::from_millis(20));
+    let lockfile = fs::OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(dir.path().join(Lockfile::FILE_NAME))
+        .expect("open lockfile");
+    lockfile.set_len(MAX_LOCKFILE_CONFLICT_SCAN_BYTES).expect("resize lockfile");
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+
+    assert!(matches!(
+        decision,
+        Decision::Skipped { reason } if reason.contains("cannot be checked"),
+    ),);
 }
 
 /// Minimal valid lockfile matching a manifest with
