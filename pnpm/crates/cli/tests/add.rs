@@ -775,7 +775,7 @@ fn add_updates_dependency_in_the_group_it_already_occupies() {
             .map(|(_, spec)| spec.to_string())
     };
     assert_eq!(group_spec(DependencyGroup::Dev, "@pnpm.e2e/foo").as_deref(), Some("^100.1.0"));
-    assert_eq!(group_spec(DependencyGroup::Optional, "@pnpm.e2e/bar").as_deref(), Some("^100.1.0"),);
+    assert_eq!(group_spec(DependencyGroup::Optional, "@pnpm.e2e/bar").as_deref(), Some("^100.1.0"));
     assert_eq!(group_spec(DependencyGroup::Prod, "@pnpm.e2e/foo"), None);
     assert_eq!(group_spec(DependencyGroup::Prod, "@pnpm.e2e/bar"), None);
 
