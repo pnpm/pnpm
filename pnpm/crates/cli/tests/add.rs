@@ -422,6 +422,43 @@ fn add_existing_dependency_moves_it_to_the_target_group() {
     drop((root, npmrc_info)); // cleanup
 }
 
+/// A package declared in both a real group and `peerDependencies` takes
+/// its previous specifier from the real group — `peerDependencies` is
+/// last in the `findSpec` scan — so the peer range's caret must not
+/// replace the exact pin of the `devDependencies` entry being re-added
+/// (pnpm/pnpm#13108).
+#[test]
+fn add_existing_dependency_ignores_pin_from_peer_range() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    std::fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "p", "version": "1.0.0", "devDependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "100.0.0" }, "peerDependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "^100.0.0" } }"#,
+    )
+    .unwrap();
+
+    pacquet
+        .with_args([
+            "add",
+            "@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0",
+            "--save-dev",
+            "--lockfile-only",
+        ])
+        .assert()
+        .success();
+
+    let manifest = PackageManifest::from_path(workspace.join("package.json")).unwrap();
+    let group_spec = |group| {
+        manifest
+            .dependencies([group])
+            .find(|(key, _)| *key == "@pnpm.e2e/dep-of-pkg-with-1-dep")
+            .map(|(_, spec)| spec.to_string())
+    };
+    assert_eq!(group_spec(DependencyGroup::Dev).as_deref(), Some("100.1.0"));
+    assert_eq!(group_spec(DependencyGroup::Peer).as_deref(), Some("^100.0.0"));
+    drop((root, npmrc_info)); // cleanup
+}
+
 /// `add <pkg>@<range>` records the range resolved to a concrete version
 /// with the input's operator, matching pnpm. `^100.0.0` resolves to the
 /// highest in-range version (100.1.0; 101.0.0 is a different major), so the
