@@ -64,11 +64,11 @@ Frozen/headless install coverage:
 
 - [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:54` `installing a simple project` verifies headless install writes a modules manifest.
 - [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:819` `installing with no symlinks but with PnP` verifies `.modules.yaml` still exists when symlinks are disabled.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:24` `should hoist dependencies` verifies `hoistedDependencies` is preserved on repeat frozen install.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:24` `should hoist dependencies` verifies `hoistedDependencies` is preserved on repeat frozen install — the preservation half is the `known_failures::should_hoist_dependencies_repeat_install_preserves_map` stub (partial install, pnpm/pacquet#433); `modules_yaml_records_hoisted_dependencies` in `crates/cli/tests/hoist.rs` already pins that a frozen install records `hoistedDependencies`.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/modulesCache.ts:52` `the modules cache is pruned when it expires and headless install is used` verifies `prunedAt` is read, rewritten, and honored by headless install.
 - [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:74` `skip optional dependency that does not support the current OS` verifies `skipped` survives frozen reinstall — ported as `skip_optional_dependency_that_does_not_support_the_current_os` in `crates/cli/tests/optional_dependencies.rs`.
 - [ ] `TypeScript repo: installing/deps-installer/test/lockfile.ts:614` `pendingBuilds gets updated if install removes packages` verifies `.modules.yaml.pendingBuilds` is rewritten after pruning.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:205` `GVS re-links when allowBuilds changes` verifies GVS-related `allowBuilds` state is updated in `.modules.yaml`.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:205` `GVS re-links when allowBuilds changes` verifies GVS-related `allowBuilds` state is updated in `.modules.yaml`. Adjacent non-GVS coverage exists (`rebuild_after_allow_builds_changes` in `crates/cli/tests/lifecycle_scripts.rs`), but nothing asserts the GVS `.modules.yaml` state.
 - [ ] `TypeScript repo: pnpm/test/monorepo/index.ts:1467` `custom virtual store directory in a workspace with not shared lockfile` verifies frozen reinstall preserves custom `virtualStoreDir` serialization.
 - [ ] `TypeScript repo: pnpm/test/monorepo/index.ts:1514` `custom virtual store directory in a workspace with shared lockfile` verifies frozen reinstall preserves root `virtualStoreDir` serialization.
 
@@ -116,9 +116,9 @@ Supporting tests:
 - [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:648` `remove optional dependencies if supported architectures have changed and a new dependency is added` — ported as `remove_optional_dependencies_when_architectures_change_and_a_dependency_is_added` in `crates/cli/tests/optional_dependencies.rs`.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:703` `complex scenario with same optional dependencies appearing in many places of the dependency graph` — deferred: needs the real `storybook` / `vite` graphs (hundreds of packages); a fixture-scale equivalent still needs designing.
 - [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:712` `dependency that is both optional and non-optional is installed, when optional dependencies should be skipped` — ported as `both_optional_and_non_optional_dependency_is_installed_when_optionals_are_skipped` in `crates/cli/tests/optional_dependencies.rs` (registry-mock fixtures stand in for `@babel/cli` + `del`).
-- [ ] `TypeScript repo: resolving/npm-resolver/test/optionalDependencies.test.ts:27` `optional dependencies receive full metadata with libc field` ensures optional dependency metadata includes platform/libc fields.
-- [ ] `TypeScript repo: resolving/npm-resolver/test/optionalDependencies.test.ts:73` `abbreviated and full metadata are cached separately` prevents regular dependency metadata cache from hiding optional metadata.
-- [ ] `TypeScript repo: installing/package-requester/test/index.ts:852` `do not fetch an optional package that is not installable` covers cold-store requester behavior for unsupported optional packages.
+- [ ] `TypeScript repo: resolving/npm-resolver/test/optionalDependencies.test.ts:27` `optional dependencies receive full metadata with libc field` ensures optional dependency metadata includes platform/libc fields. The full-metadata mechanism is ported (`optional_opt_forces_full_metadata_endpoint` in `crates/resolving-npm-resolver/src/pick_package/tests.rs`); the explicit libc-field assertion is not.
+- [x] `TypeScript repo: resolving/npm-resolver/test/optionalDependencies.test.ts:73` `abbreviated and full metadata are cached separately` prevents regular dependency metadata cache from hiding optional metadata — ported as `cache_key_separates_abbreviated_from_full` in `crates/resolving-npm-resolver/src/pick_package/tests.rs`.
+- [x] `TypeScript repo: installing/package-requester/test/index.ts:852` `do not fetch an optional package that is not installable` covers cold-store requester behavior for unsupported optional packages — ported as `skips_prefetch_for_unsupported_optional_manifest` (plus its sibling cases) in `crates/package-manager/src/prefetching_resolver/tests.rs`.
 - [ ] `TypeScript repo: installing/package-requester/test/index.ts:1205` `should pass optional flag to resolve function` ensures resolver receives `optional: true`.
 
 Rust port notes:
@@ -144,7 +144,7 @@ Primary tests:
 
 - [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:24` `should hoist dependencies` repeats install with `hoistPattern: '*'` and `frozenLockfile: true`. Single-importer subset ported as `private_hoist_default_pattern_hoists_transitives` in `crates/cli/tests/hoist.rs`. Repeat-install map preservation lives in the `known_failures` module (blocked on partial install, pnpm/pacquet#433).
 - [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:53` `should hoist dependencies to the root of node_modules when publicHoistPattern is used` covers baseline public hoist behavior. Ported as `public_hoist_star_hoists_to_root_node_modules`.
-- [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:71` `public hoist should not override directories that are already in the root of node_modules`. Stubbed in `known_failures::public_hoist_preserves_existing_root_directories` — pacquet's `symlink_package` does the conservative EEXIST swallow but not upstream's external-symlink introspection.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:71` `public hoist should not override directories that are already in the root of node_modules`. Not covered — the `known_failures::public_hoist_preserves_existing_root_directories` stub this entry used to cite no longer exists; pacquet's `symlink_package` does the conservative EEXIST swallow but not upstream's external-symlink introspection.
 - [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:89` `should hoist some dependencies to the root of node_modules when publicHoistPattern is used and others to the virtual store directory` covers combined private and public hoist patterns. Stubbed in `known_failures::combined_public_and_private_hoist_patterns_split_targets` — pacquet's algo handles it (covered by `public_pattern_wins_ties` unit test) but the upstream test uses package set the registry mock doesn't carry.
 - [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:107` `should hoist dependencies by pattern` covers pattern-specific private hoisting. Ported as `private_hoist_pattern_filters_aliases`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:121` `should remove hoisted dependencies`. Stubbed in `known_failures::should_remove_hoisted_dependencies` (partial install, #433).
@@ -163,13 +163,13 @@ Primary tests:
 - [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:341` `hoist-pattern: hoist all dependencies to the virtual store node_modules` covers workspace install followed by frozen reinstall. Basic workspace shape ported as `workspace_hoist_walks_every_importer`; the upstream test additionally asserts preservation across re-installs which still needs partial install (#433) — stubbed in `known_failures::workspace_hoist_all_to_virtual_store_node_modules`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:423` `hoist when updating in one of the workspace projects`. Stubbed in `known_failures::workspace_hoist_when_updating_one_project` — needs `pnpm add`-equivalent manifest mutation.
 - [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:514` `should recreate node_modules with hoisting`. Stubbed (#433).
-- [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:540` `hoisting should not create a broken symlink to a skipped optional dependency` covers hoisting with skipped optional packages. Stubbed in `known_failures::hoisting_skips_broken_symlink_for_skipped_optional` — pacquet doesn't yet skip optional deps on platform constraints.
+- [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:540` `hoisting should not create a broken symlink to a skipped optional dependency` covers hoisting with skipped optional packages. Ported as the real `hoisting_skips_broken_symlink_for_skipped_optional` in `crates/cli/tests/hoist.rs` (previously a `known_failures` stub).
 - [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:567` `the hoisted packages should not override the bin files of the direct dependencies` covers public hoist bin precedence after frozen reinstall. Stubbed in `known_failures::hoisted_packages_dont_override_direct_dep_bins` — bin-conflict resolution rules not implemented.
 - [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:587` `hoist packages which is in the dependencies tree of the selected projects`. Stubbed in `known_failures::workspace_hoist_packages_in_selected_projects_tree` — needs `--filter` selected-projects install, which workspace install (#443) didn't implement.
 - [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:682` `only hoist packages which is in the dependencies tree of the selected projects with sub dependencies`. Stubbed (`--filter` selected-projects install).
 - [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:790` `should add extra node paths to command shims`. Stubbed in `known_failures::should_add_extra_node_paths_to_command_shims` — `extendNodePath` not implemented.
 - [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:799` `should not add extra node paths to command shims, when extend-node-path is set to false`. Stubbed (extendNodePath).
-- [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:813` `hoistWorkspacePackages should hoist all workspace projects` covers workspace package hoisting and frozen reinstall. Stubbed in `known_failures::hoist_workspace_packages_hoists_all_workspace_projects` — needs the `hoistedWorkspacePackages` shape pacquet doesn't model yet (links workspace projects themselves into the hoist tree).
+- [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:813` `hoistWorkspacePackages should hoist all workspace projects` covers workspace package hoisting and frozen reinstall. Ported as `hoist_workspace_packages_links_projects_by_name` in `crates/cli/tests/hoist.rs` (loops `hoistWorkspacePackages` on/off and asserts the name-links into `.pnpm/node_modules`); the frozen-reinstall preservation tail still needs partial install (pnpm/pacquet#433).
 
 Headless module-manifest checks:
 
@@ -186,8 +186,8 @@ Rust port notes:
 
 Primary frozen/headless tests:
 
-- [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:24` `patch package with exact version` verifies patched package lockfile/snapshot/side-effects, then frozen reinstall and frozen hoisted reinstall.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:120` `patch package with version range` covers range selector patches with frozen and hoisted frozen reinstalls.
+- [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:24` `patch package with exact version` — core scenario ported as `install_level_exact_version_patch_applies_with_frozen_reinstall` in `crates/cli/tests/patch.rs` (patched file + lockfile `patchedDependencies` entry + frozen replay); the frozen hoisted reinstall and side-effects-cache assertions are not ported yet.
+- [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:120` `patch package with version range` — core scenario ported as `install_level_range_patch_applies_with_frozen_reinstall` in `crates/cli/tests/patch.rs`; the hoisted frozen reinstall is not ported yet.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:297` `patch package when scripts are ignored` covers patches with ignored scripts and frozen reinstall.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:386` `patch package when the package is not in allowBuilds list` verifies patches apply even when builds are disallowed, including frozen and hoisted frozen paths.
 
@@ -207,32 +207,33 @@ Rust port notes:
 - The primary tests are enough for the frozen installer milestone.
 - The supporting tests belong with patch parser/application correctness and should be ported when Rust has a patching subsystem.
 - Ported `allowUnusedPatches` warning test and `ERR_PNPM_UNUSED_PATCH` error test in `crates/cli/tests/patch.rs` as part of the `allow_unused_patches` config wiring.
+- Patch-application failure is pinned at unit level (`unmatching_hunk_errors_patch_failed`, `missing_target_file_errors_patch_failed` in `crates/patching/src/apply/tests.rs`); the install-level exact/range/name-only failure variants above are still unported.
 
 ## Support Building Dependencies
 
 Primary frozen/headless tests:
 
-- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:331` `lifecycle scripts run before linking bins` removes `node_modules`, reinstalls frozen, and verifies generated bins are executable.
+- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:331` `lifecycle scripts run before linking bins` removes `node_modules`, reinstalls frozen, and verifies generated bins are executable — ported as `lifecycle_scripts_run_before_linking_bins` in `crates/cli/tests/lifecycle_scripts.rs`.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:351` `hoisting does not fail on commands that will be created by lifecycle scripts on a later stage` covers `hoistPattern: '*'` and frozen install.
-- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:372` `bins are linked even if lifecycle scripts are ignored` verifies bin linking after frozen reinstall with ignored scripts.
+- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:372` `bins are linked even if lifecycle scripts are ignored` — ported as `bins_linked_even_if_scripts_ignored` in `crates/cli/tests/lifecycle_scripts.rs`; the port runs a single fresh install, so the upstream frozen-reinstall tail is still missing.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:408` `dependency should not be added to current lockfile if it was not built successfully during headless install` covers failed build during frozen/headless install.
-- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:445` `selectively ignore scripts in some dependencies by allowBuilds (not others)` covers frozen reinstall with selective build policy.
-- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:466` `selectively allow scripts in some dependencies by allowBuilds` covers frozen reinstall and ignored script reporting.
-- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:504` `selectively allow scripts in some dependencies by allowBuilds using exact versions` covers exact-version allow list.
-- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:552` `lifecycle scripts run after linking root dependencies` verifies builds can require root dependencies during frozen install.
-- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:724` `build dependencies that were not previously built after allowBuilds changes` covers rebuilding newly allowed dependencies with frozen install.
+- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:445` `selectively ignore scripts in some dependencies by allowBuilds (not others)` — ported as `selectively_ignore_scripts_by_allow_builds` in `crates/cli/tests/lifecycle_scripts.rs`; the port runs a single fresh install, so the upstream frozen-reinstall tail is still missing.
+- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:466` `selectively allow scripts in some dependencies by allowBuilds` — ported as `selectively_allow_scripts_by_allow_builds` in `crates/cli/tests/lifecycle_scripts.rs` (frozen reinstall included; the ignored-script reporting assertion is still a TODO in the port).
+- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:504` `selectively allow scripts in some dependencies by allowBuilds using exact versions` covers exact-version allow list — ported as `selectively_allow_scripts_by_allow_builds_exact_versions` in `crates/cli/tests/lifecycle_scripts.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:552` `lifecycle scripts run after linking root dependencies` verifies builds can require root dependencies during frozen install — ported as `lifecycle_scripts_run_after_linking_root_deps` in `crates/cli/tests/lifecycle_scripts.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:724` `build dependencies that were not previously built after allowBuilds changes` covers rebuilding newly allowed dependencies with frozen install — ported as `rebuild_after_allow_builds_changes` in `crates/cli/tests/lifecycle_scripts.rs`.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:1902` `link the bin file of a workspace project that is created by a lifecycle script` covers workspace build-created bin behavior and frozen reinstall.
 
 Supporting tests:
 
-- [x] `TypeScript repo: installing/deps-restorer/test/index.ts:362` `run pre/postinstall scripts` verifies headless build execution and `pendingBuilds` when scripts are ignored.
+- [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:362` `run pre/postinstall scripts` verifies headless build execution and `pendingBuilds` when scripts are ignored — `headless_run_pre_postinstall_scripts` in `crates/cli/tests/lifecycle_scripts.rs` covers the script execution but runs a plain install and asserts nothing about `pendingBuilds` (pacquet does not populate `pendingBuilds` yet).
 - [ ] `TypeScript repo: pnpm/test/install/lifecycleScripts.ts:245` `the list of ignored builds is preserved after a repeat install` covers CLI-level `.modules.yaml.ignoredBuilds` persistence.
 - [ ] `TypeScript repo: pnpm/test/install/lifecycleScripts.ts:303` `strictDepBuilds fails for packages with cached side-effects (#11035)` ensures cached side effects do not bypass build approval.
-- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:26` `run pre/postinstall scripts`
+- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:26` `run pre/postinstall scripts` — ported as `run_pre_and_postinstall_scripts` in `crates/cli/tests/lifecycle_scripts.rs`.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:60` `return the list of packages that should be build`
-- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:121` `run install scripts`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:175` `installation fails if lifecycle script fails`
-- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:303` `run lifecycle scripts of dependent packages after running scripts of their deps`
+- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:121` `run install scripts` — ported as `run_install_scripts` in `crates/cli/tests/lifecycle_scripts.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:175` `installation fails if lifecycle script fails` — ported at unit level as `fail_when_failing_postinstall_is_required` in `crates/package-manager/src/build_modules/tests.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:303` `run lifecycle scripts of dependent packages after running scripts of their deps` — ported as `lifecycle_scripts_run_in_dependency_order` in `crates/cli/tests/lifecycle_scripts.rs`.
 
 Rust port notes:
 
@@ -243,19 +244,19 @@ Rust port notes:
 
 Primary side-effects tests:
 
-- [ ] `TypeScript repo: installing/deps-installer/test/install/sideEffects.ts:79` `using side effects cache` covers side-effects read/write. The test intentionally removes `pnpm-lock.yaml` to avoid headless, so it is cache-first rather than frozen-first.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/sideEffects.ts:166` `uploading errors do not interrupt installation` verifies cache upload errors do not fail install.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/sideEffects.ts:189` `a postinstall script does not modify the original sources added to the store` verifies side effects stay separate from original CAFS files.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/sideEffects.ts:225` `a corrupted side-effects cache is ignored` verifies fallback when cache contents are invalid.
+- [x] `TypeScript repo: installing/deps-installer/test/install/sideEffects.ts:79` `using side effects cache` covers side-effects read/write — ported at unit level as `using_side_effects_cache_skips_rebuild` (read) and `write_path_populates_side_effects_row` (write) in `crates/package-manager/src/build_modules/tests.rs`, plus the end-to-end `side_effects_materialized_on_warm_frozen_reinstall` in `crates/cli/tests/side_effects_cache.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/sideEffects.ts:166` `uploading errors do not interrupt installation` verifies cache upload errors do not fail install — ported as `upload_error_does_not_interrupt_install` in `crates/package-manager/src/build_modules/tests.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/sideEffects.ts:189` `a postinstall script does not modify the original sources added to the store` verifies side effects stay separate from original CAFS files — covered by `write_path_populates_side_effects_row` in `crates/package-manager/src/build_modules/tests.rs` (drives a source-modifying postinstall and asserts the originals stay intact).
+- [x] `TypeScript repo: installing/deps-installer/test/install/sideEffects.ts:225` `a corrupted side-effects cache is ignored` verifies fallback when cache contents are invalid — ported as `corrupt_side_effects_cache_falls_back_to_rebuild` in `crates/package-manager/src/build_modules/tests.rs`.
 
 Frozen/headless cross-coverage:
 
 - [ ] `TypeScript repo: installing/deps-installer/test/install/sideEffects.ts:50` `caching side effects of native package when hoisting is used` is skipped upstream but relevant to hoisting plus side-effects cache.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:24` `patch package with exact version`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:120` `patch package with version range`
+- [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:24` `patch package with exact version` — the core patch scenario is now ported (see Support `patchedDependencies`); its side-effects-cache assertions are not.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:120` `patch package with version range` — same status as the exact-version entry above.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:297` `patch package when scripts are ignored`
 - [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:386` `patch package when the package is not in allowBuilds list`
-- [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:706` `using side effects cache with nodeLinker=%s` covers headless side-effects behavior for isolated and hoisted linkers.
+- [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:706` `using side effects cache with nodeLinker=%s` covers headless side-effects behavior for isolated and hoisted linkers. `side_effects_materialized_on_warm_frozen_reinstall` in `crates/cli/tests/side_effects_cache.rs` covers the isolated linker; the hoisted variant is unported.
 - [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:761` `using side effects cache and hoistPattern=*` is skipped upstream but documents intended headless plus hoisting coverage.
 - [ ] `TypeScript repo: pnpm/test/install/lifecycleScripts.ts:303` `strictDepBuilds fails for packages with cached side-effects (#11035)` verifies build approval semantics even when side effects are cached.
 
@@ -279,13 +280,13 @@ Primary frozen/headless tests:
 - [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:1563` `resolve a subdependency from the workspace, when it uses the workspace protocol` includes frozen reinstall.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:1768` `symlink local package from the location described in its publishConfig.directory when linkDirectory is true` includes frozen reinstall.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:1902` `link the bin file of a workspace project that is created by a lifecycle script` includes frozen reinstall.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:341` `hoist-pattern: hoist all dependencies to the virtual store node_modules` covers workspace hoisting and frozen reinstall.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:813` `hoistWorkspacePackages should hoist all workspace projects` covers workspace package hoisting and frozen reinstall.
+- [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:341` `hoist-pattern: hoist all dependencies to the virtual store node_modules` covers workspace hoisting and frozen reinstall — basic shape ported as `workspace_hoist_walks_every_importer`; the reinstall-preservation tail is stubbed (see the Hoisting section).
+- [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:813` `hoistWorkspacePackages should hoist all workspace projects` covers workspace package hoisting and frozen reinstall — ported as `hoist_workspace_packages_links_projects_by_name` in `crates/cli/tests/hoist.rs` (frozen-reinstall preservation still stubbed; see the Hoisting section).
 
 Headless restorer tests:
 
 - [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:789` `installing in a workspace`
-- [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:873` `installing in a workspace with node-linker=hoisted`
+- [x] `TypeScript repo: installing/deps-restorer/test/index.ts:873` `installing in a workspace with node-linker=hoisted` — ported as `installing_in_a_workspace_with_hoisted_node_linker_frozen` in `crates/cli/tests/hoisted_node_linker.rs`.
 - [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:897` `installing a package deeply installs all required dependencies`
 
 CLI-level frozen workspace tests:
@@ -382,7 +383,7 @@ Primary tests:
 
 Frozen/headless cross-coverage:
 
-- [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:594` `install optional dependency for the supported architecture set by the user (nodeLinker=%s)` includes hoisted frozen install.
+- [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:594` `install optional dependency for the supported architecture set by the user (nodeLinker=%s)` includes hoisted frozen install — covered by `install_optional_dependency_for_the_supported_architectures` in `crates/cli/tests/optional_dependencies.rs`, which loops both linkers and replays via `--frozen-lockfile`.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:24` `patch package with exact version` includes frozen hoisted reinstall.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:120` `patch package with version range` includes frozen hoisted reinstall.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:297` `patch package when scripts are ignored` includes frozen hoisted reinstall.
@@ -435,19 +436,19 @@ Rust port notes:
 
 Primary frozen/headless tests:
 
-- [ ] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:331` `lifecycle scripts run before linking bins` verifies generated bins after frozen reinstall.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:372` `bins are linked even if lifecycle scripts are ignored` verifies direct and nested bins after frozen reinstall.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:567` `the hoisted packages should not override the bin files of the direct dependencies` verifies public hoist bin precedence after frozen reinstall.
+- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:331` `lifecycle scripts run before linking bins` verifies generated bins after frozen reinstall — ported as `lifecycle_scripts_run_before_linking_bins` in `crates/cli/tests/lifecycle_scripts.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:372` `bins are linked even if lifecycle scripts are ignored` — ported as `bins_linked_even_if_scripts_ignored` in `crates/cli/tests/lifecycle_scripts.rs` (single fresh install; the frozen-reinstall tail is still missing).
+- [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:567` `the hoisted packages should not override the bin files of the direct dependencies` verifies public hoist bin precedence after frozen reinstall. Stubbed in `known_failures::hoisted_packages_dont_override_direct_dep_bins` (see the Hoisting section).
 - [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:1902` `link the bin file of a workspace project that is created by a lifecycle script` verifies workspace bin link after frozen reinstall.
 
 Supporting tests:
 
 - [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:54` `installing a simple project` verifies `.bin/rimraf` in headless install.
-- [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:569` `installing with hoistPattern=*` verifies private hoisted `.bin/hello-world-js-bin`.
-- [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:628` `installing with publicHoistPattern=*` verifies public `.bin/hello-world-js-bin`.
+- [x] `TypeScript repo: installing/deps-restorer/test/index.ts:569` `installing with hoistPattern=*` verifies private hoisted `.bin/hello-world-js-bin` — covered by `private_hoist_links_bins` in `crates/cli/tests/hoist.rs` (asserts the private `.bin` under `.pnpm/node_modules` after a frozen install).
+- [x] `TypeScript repo: installing/deps-restorer/test/index.ts:628` `installing with publicHoistPattern=*` verifies public `.bin/hello-world-js-bin` — covered by `public_hoist_bin_is_linked_via_root_bin_dir` in `crates/cli/tests/hoist.rs`.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/misc.ts:1130` `installing with no symlinks with PnP` verifies `.bin` exists with no symlink layout.
-- [ ] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:187` `run pre/postinstall scripts. bin files should be linked in a hoisted node_modules`
-- [ ] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:264` `linking bins of local projects when node-linker is set to hoisted`
+- [x] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:187` `run pre/postinstall scripts. bin files should be linked in a hoisted node_modules`. Stubbed in `known_failures::run_pre_and_postinstall_scripts_and_link_bins` (see the `nodeLinker=hoisted` section).
+- [x] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:264` `linking bins of local projects when node-linker is set to hoisted`. Stubbed in `known_failures::linking_bins_of_local_projects` (see the `nodeLinker=hoisted` section).
 
 Rust port notes:
 
@@ -484,13 +485,13 @@ Primary tests:
 - [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:21` `using a global virtual store` verifies `node_modules/.pnpm/lock.yaml` exists after install and frozen reinstall.
 - [x] `TypeScript repo: installing/deps-installer/test/install/packageExtensions.ts:16` `manifests are extended with fields specified by packageExtensions` — split into pacquet's `install::tests::fresh_install_applies_package_extensions_to_dependency_manifest` (verifies the extension lands in the lockfile's `packages` block AND `packageExtensionsChecksum` is written) and `install::tests::frozen_lockfile_errors_when_package_extensions_drift_from_lockfile` (frozen-install drift gate). Current-lockfile round-trip parity is covered by `current_lockfile`'s clone of `package_extensions_checksum`.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:408` `dependency should not be added to current lockfile if it was not built successfully during headless install` verifies failed build does not update current lockfile.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:74` `skip optional dependency that does not support the current OS` verifies current lockfile package set matches wanted lockfile while skipped packages are tracked.
+- [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:74` `skip optional dependency that does not support the current OS` verifies current lockfile package set matches wanted lockfile while skipped packages are tracked — covered by `skip_optional_dependency_that_does_not_support_the_current_os` in `crates/cli/tests/optional_dependencies.rs`, which asserts both the current-lockfile package set and the skip set.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:208` `install only the dependencies of the specified importer. The current lockfile has importers that do not exist anymore` covers stale current-lockfile importers.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:730` `current lockfile contains only installed dependencies when adding a new importer to workspace with shared lockfile` verifies filtered current lockfile content.
 - [ ] `TypeScript repo: installing/deps-installer/test/packageImportMethods.ts:31` `packages are updated in node_modules, when packageImportMethod is set to copy and modules manifest and current lockfile are incorrect` covers incorrect current lockfile repair.
 - [ ] `TypeScript repo: installing/deps-installer/test/lockfile.ts:368` `subdeps are updated on repeat install if outer pnpm-lock.yaml does not match the inner one` tests wanted/current lockfile divergence.
 - [ ] `TypeScript repo: installing/deps-installer/test/lockfile.ts:547` `repeat install with no inner lockfile should not rewrite packages in node_modules` covers missing current lockfile on repeat install.
-- [ ] `TypeScript repo: installing/deps-installer/test/lockfile.ts:1007` `use current pnpm-lock.yaml as initial wanted one, when wanted was removed` covers recovering from current lockfile when wanted lockfile is gone.
+- [ ] `TypeScript repo: installing/deps-installer/test/lockfile.ts:1007` `use current pnpm-lock.yaml as initial wanted one, when wanted was removed` covers recovering from current lockfile when wanted lockfile is gone. `install_regenerates_lockfile_from_node_modules_when_wanted_is_missing` in `crates/cli/tests/install.rs` covers the recovery behavior, but via the `node_modules` snapshot rather than promoting the current lockfile to wanted.
 - [ ] `TypeScript repo: installing/deps-installer/test/lockfile.ts:1351` `a broken private lockfile is ignored` covers malformed `node_modules/.pnpm/lock.yaml`.
 - [ ] `TypeScript repo: installing/deps-installer/test/lockfile.ts:1324` `a lockfile with duplicate keys causes an exception, when frozenLockfile is true` covers frozen lockfile parse/validation failure.
 
@@ -519,7 +520,7 @@ Reporter unit tests:
 - [ ] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:200` `prints progress beginning during recursive install`
 - [ ] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:228` `prints progress on first download`
 - [ ] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:262` `moves fixed line to the end`
-- [ ] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:307` `prints "Already up to date"`
+- [x] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:307` `prints "Already up to date"` — ported as `already_up_to_date_pnpm_log_renders` in `crates/default-reporter/tests/render.rs`.
 - [ ] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:324` `prints progress of big files download`
 
 Install reporter coverage:
@@ -530,6 +531,7 @@ Rust port notes:
 
 - Port event-shape tests separately from terminal rendering.
 - For terminal rendering, snapshot exact text only after event parity exists.
+- Landed scaffolding: `progress_line_counts_each_status` / `stats_render_packages_line_and_bar` (`crates/default-reporter/tests/render.rs`) and `progress_event_matches_pnpm_wire_shape` / `fetching_progress_event_matches_pnpm_wire_shape` (`crates/reporter/src/tests.rs`) cover the wire shape and basic rendering; the unchecked items above are the remaining upstream-specific scenarios.
 
 ## Support Proper Auth
 
@@ -562,7 +564,7 @@ Auth header tests:
 
 Auth config parsing and precedence tests:
 
-- [ ] `TypeScript repo: config/reader/test/index.ts:481` `auth tokens from pnpm auth file override ~/.npmrc`
+- [x] `TypeScript repo: config/reader/test/index.ts:481` `auth tokens from pnpm auth file override ~/.npmrc` — ported as `npmrc_auth_file_outranks_userconfig` (plus `npmrc_auth_file_override_supplies_auth` and `user_auth_token_pins_to_its_own_file_registry`) in `crates/config/src/tests.rs`.
 - [ ] `TypeScript repo: config/reader/test/index.ts:523` `workspace .npmrc overrides pnpm auth file`
 - [x] `TypeScript repo: config/reader/test/parseCreds.test.ts:15` `authToken`
 - [x] `TypeScript repo: config/reader/test/parseCreds.test.ts:23` `authPairBase64`
@@ -586,30 +588,30 @@ Rust port notes:
 
 Proxy dispatcher tests:
 
-- [ ] `TypeScript repo: network/fetch/test/dispatcher.test.ts:62` `returns ProxyAgent for httpProxy with http target`
-- [ ] `TypeScript repo: network/fetch/test/dispatcher.test.ts:69` `returns ProxyAgent for httpsProxy with https target`
-- [ ] `TypeScript repo: network/fetch/test/dispatcher.test.ts:76` `adds protocol prefix when proxy URL has none`
-- [ ] `TypeScript repo: network/fetch/test/dispatcher.test.ts:84` `throws PnpmError for invalid proxy URL`
-- [ ] `TypeScript repo: network/fetch/test/dispatcher.test.ts:92` `proxy with authentication credentials`
-- [ ] `TypeScript repo: network/fetch/test/dispatcher.test.ts:101` `returns Agent (not ProxyAgent) for socks5 proxy`
-- [ ] `TypeScript repo: network/fetch/test/dispatcher.test.ts:111` `returns Agent for socks4 proxy`
-- [ ] `TypeScript repo: network/fetch/test/dispatcher.test.ts:119` `returns Agent for socks proxy with https target`
+- [x] `TypeScript repo: network/fetch/test/dispatcher.test.ts:62` `returns ProxyAgent for httpProxy with http target` — behavioral equivalent `mockito_integration_http_proxy_forwards_request_with_basic_auth` in `crates/network/src/tests.rs` (proves the http proxy actually carries the request; undici's Agent/ProxyAgent split has no Rust analog).
+- [ ] `TypeScript repo: network/fetch/test/dispatcher.test.ts:69` `returns ProxyAgent for httpsProxy with https target` — no https-target integration test yet.
+- [x] `TypeScript repo: network/fetch/test/dispatcher.test.ts:76` `adds protocol prefix when proxy URL has none` — `parse_proxy_url_auto_prefixes_missing_scheme` in `crates/network/src/tests.rs`.
+- [x] `TypeScript repo: network/fetch/test/dispatcher.test.ts:84` `throws PnpmError for invalid proxy URL` — `parse_proxy_url_invalid_returns_invalid_proxy_error` plus `for_installs_with_invalid_proxy_url_errors` in `crates/network/src/tests.rs`.
+- [x] `TypeScript repo: network/fetch/test/dispatcher.test.ts:92` `proxy with authentication credentials` — `strip_userinfo_decodes_user_and_password` plus `mockito_integration_http_proxy_forwards_request_with_basic_auth` in `crates/network/src/tests.rs`.
+- [x] `TypeScript repo: network/fetch/test/dispatcher.test.ts:101` `returns Agent (not ProxyAgent) for socks5 proxy` — behavioral equivalents `parse_proxy_url_socks_schemes_pass_through` and `for_installs_with_socks_proxy_url_builds` in `crates/network/src/tests.rs` (the Agent/ProxyAgent distinction has no Rust analog).
+- [x] `TypeScript repo: network/fetch/test/dispatcher.test.ts:111` `returns Agent for socks4 proxy` — same coverage as the socks5 entry.
+- [x] `TypeScript repo: network/fetch/test/dispatcher.test.ts:119` `returns Agent for socks proxy with https target` — same coverage as the socks5 entry.
 - [ ] `TypeScript repo: network/fetch/test/dispatcher.test.ts:127` `SOCKS proxy dispatchers are cached`
 - [ ] `TypeScript repo: network/fetch/test/dispatcher.test.ts:134` `SOCKS proxy can connect through a real SOCKS5 server`
-- [ ] `TypeScript repo: network/fetch/test/dispatcher.test.ts:192` `bypasses proxy when noProxy matches hostname`
-- [ ] `TypeScript repo: network/fetch/test/dispatcher.test.ts:202` `bypasses proxy when noProxy matches domain suffix`
-- [ ] `TypeScript repo: network/fetch/test/dispatcher.test.ts:211` `does not bypass proxy when noProxy does not match`
-- [ ] `TypeScript repo: network/fetch/test/dispatcher.test.ts:219` `bypasses proxy when noProxy is true`
-- [ ] `TypeScript repo: network/fetch/test/dispatcher.test.ts:228` `handles comma-separated noProxy list`
+- [x] `TypeScript repo: network/fetch/test/dispatcher.test.ts:192` `bypasses proxy when noProxy matches hostname` — `no_proxy_matcher_reverse_dot_match` in `crates/network/src/tests.rs` (exact-host probe).
+- [x] `TypeScript repo: network/fetch/test/dispatcher.test.ts:202` `bypasses proxy when noProxy matches domain suffix` — `no_proxy_matcher_reverse_dot_match` (subdomain probes).
+- [x] `TypeScript repo: network/fetch/test/dispatcher.test.ts:211` `does not bypass proxy when noProxy does not match` — negative probes in `no_proxy_matcher_reverse_dot_match` and `no_proxy_matcher_multiple_entries`.
+- [x] `TypeScript repo: network/fetch/test/dispatcher.test.ts:219` `bypasses proxy when noProxy is true` — `no_proxy_bypass_short_circuits_every_host` in `crates/network/src/tests.rs`.
+- [x] `TypeScript repo: network/fetch/test/dispatcher.test.ts:228` `handles comma-separated noProxy list` — `no_proxy_matcher_multiple_entries` in `crates/network/src/tests.rs` plus `cascade_no_proxy_comma_list_trimmed` in `crates/config/src/npmrc_auth/tests.rs`.
 
 Config tests:
 
-- [ ] `TypeScript repo: config/reader/test/index.ts:978` `getConfig() converts noproxy to noProxy`
+- [x] `TypeScript repo: config/reader/test/index.ts:978` `getConfig() converts noproxy to noProxy` — covered by `no_proxy_and_noproxy_aliases_last_wins` in `crates/config/src/npmrc_auth/tests.rs`.
 - [ ] `TypeScript repo: config/reader/test/index.ts:1514` `reads proxy settings from global config.yaml`
 - [ ] `TypeScript repo: config/reader/test/index.ts:1540` `proxy settings from global config.yaml override .npmrc`
 - [ ] `TypeScript repo: config/reader/test/index.ts:1567` `CLI flags override proxy settings from global config.yaml`
 - [ ] `TypeScript repo: config/reader/test/index.ts:1592` `proxy settings are still read from .npmrc`
-- [ ] `TypeScript repo: config/commands/test/configSet.test.ts:875` `config set --global https-proxy writes to config.yaml, not auth.ini`
+- [x] `TypeScript repo: config/commands/test/configSet.test.ts:875` `config set --global https-proxy writes to config.yaml, not auth.ini` — ported as `set_global_https_proxy_writes_config_yaml_not_auth_ini` in `crates/cli/src/cli_args/config/tests.rs`.
 - [ ] `TypeScript repo: config/commands/test/configSet.test.ts:902` `config set --global httpProxy writes to config.yaml`
 - [ ] `TypeScript repo: config/commands/test/configSet.test.ts:928` `config set --global no-proxy writes to config.yaml`
 
@@ -639,7 +641,7 @@ local `file:` runtime-archive fixture).
 Node runtime tests:
 
 - [ ] `TypeScript repo: installing/deps-installer/test/install/nodeRuntime.ts:209` `installing Node.js runtime` includes frozen/offline reinstall after deleting `node_modules`. _(Regression core — the offline reinstall re-materializing the synthesized `package.json` — is covered by `installing_a_runtime_persists_the_synthesized_manifest_into_the_store_index_row`; the real-download lockfile-shape / musl-variant / npm+corepack-filter assertions remain unported.)_
-- [ ] `TypeScript repo: installing/deps-installer/test/install/nodeRuntime.ts:332` `installing node.js runtime fails if offline mode is used and node.js not found locally`
+- [ ] `TypeScript repo: installing/deps-installer/test/install/nodeRuntime.ts:332` `installing node.js runtime fails if offline mode is used and node.js not found locally` — the offline-fail error (`ERR_PNPM_NO_OFFLINE_NODEJS_RESOLUTION`) is pinned at resolver level by `offline_raises_no_offline_nodejs_resolution` in `crates/engine-runtime-node-resolver/src/node_resolver/tests.rs`; the install-level flow is unported.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/nodeRuntime.ts:339` `installing Node.js runtime from RC channel`
 - [ ] `TypeScript repo: installing/deps-installer/test/install/nodeRuntime.ts:346` `installing Node.js runtime fails if integrity check fails` verifies frozen integrity failure.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/nodeRuntime.ts:400` `installing Node.js runtime for the given supported architecture` includes frozen reinstall for target architecture.
@@ -659,7 +661,7 @@ Bun runtime tests:
 
 Command-level tests:
 
-- [ ] `TypeScript repo: installing/commands/test/install.ts:124` `install Node.js when devEngines runtime is set with onFail=download`
+- [ ] `TypeScript repo: installing/commands/test/install.ts:124` `install Node.js when devEngines runtime is set with onFail=download` — the `onFail=download` reification gate is pinned at helper level by `convert_engines_runtime_only_reifies_onfail_download` in `crates/package-manifest/src/tests.rs`; the command-level flow is unported.
 - [ ] `TypeScript repo: installing/commands/test/install.ts:160` `do not install Node.js when devEngines runtime is not set to onFail=download`
 - [ ] `TypeScript repo: pnpm/test/install/runtimeOnFail.ts:8` `runtimeOnFail=download causes Node.js to be downloaded even when the manifest does not set onFail`
 - [ ] `TypeScript repo: pnpm/test/install/runtimeOnFail.ts:31` `runtimeOnFail=ignore prevents Node.js download even when manifest sets onFail=download`
@@ -669,8 +671,8 @@ Runtime manifest/config conversion tests:
 - [ ] `TypeScript repo: config/reader/test/index.ts:85` `nodeVersion from config takes priority over devEngines.runtime`
 - [ ] `TypeScript repo: config/reader/test/index.ts:109` `runtimeOnFail=download overrides devEngines.runtime.onFail and adds node to devDependencies`
 - [ ] `TypeScript repo: config/reader/test/index.ts:138` `runtimeOnFail=ignore overrides an existing onFail=download and removes node from devDependencies`
-- [ ] `TypeScript repo: workspace/project-manifest-reader/test/index.ts:37` `readProjectManifest() converts devEngines runtime to devDependencies`
-- [ ] `TypeScript repo: workspace/project-manifest-reader/test/index.ts:68` `readProjectManifest() converts engines runtime to dependencies`
+- [x] `TypeScript repo: workspace/project-manifest-reader/test/index.ts:37` `readProjectManifest() converts devEngines runtime to devDependencies` — ported as `from_path_applies_convert_engines_runtime` (read path) and `convert_engines_runtime_lifts_devengines_runtime_into_devdependencies` (helper) in `crates/package-manifest/src/tests.rs`.
+- [x] `TypeScript repo: workspace/project-manifest-reader/test/index.ts:68` `readProjectManifest() converts engines runtime to dependencies` — covered at helper level by `convert_engines_runtime_targets_dependencies_for_engines_field` in `crates/package-manifest/src/tests.rs` (the `from_path` read-path test asserts only the `devEngines` direction).
 
 Rust port notes:
 
@@ -714,11 +716,11 @@ Fetcher/resolver/store tests:
 - [ ] `TypeScript repo: fetching/tarball-fetcher/test/fetch.ts:455` `fetch a big repository` — perf benchmark, not a correctness test; skip.
 - [ ] `TypeScript repo: fetching/tarball-fetcher/test/fetch.ts:472` `fail when preparing a git-hosted package` — needs a real failing prepare script. Deferred.
 - [x] `TypeScript repo: fetching/tarball-fetcher/test/fetch.ts:490` `take only the files included in the package, when fetching a git-hosted package` — `tarball_fetcher::tests::filters_files_outside_files_field`.
-- [ ] `TypeScript repo: fetching/tarball-fetcher/test/fetch.ts:534` `do not build the package when scripts are ignored` — git-fetcher equivalent covered (`fetcher_skips_build_when_ignore_scripts`); a tarball-side mirror is straightforward but not yet written.
+- [x] `TypeScript repo: fetching/tarball-fetcher/test/fetch.ts:534` `do not build the package when scripts are ignored` — git-fetcher equivalent covered (`fetcher_skips_build_when_ignore_scripts`); the tarball-side mirror is `fast_path_ignore_scripts_returns_input_without_queueing_row` in `crates/git-fetcher/src/tarball_fetcher/tests.rs`.
 - [x] `TypeScript repo: fetching/tarball-fetcher/test/fetch.ts:580` `use the subfolder when path is present` — `tarball_fetcher::tests::path_field_packs_only_subdirectory`.
 - [x] `TypeScript repo: fetching/tarball-fetcher/test/fetch.ts:610` `prevent directory traversal attack when path is present` — `tarball_path_traversal_attack_is_rejected`.
 - [x] `TypeScript repo: fetching/tarball-fetcher/test/fetch.ts:637` `fail when path is not exists` — `tarball_path_to_missing_subdir_is_rejected`.
-- [ ] `TypeScript repo: resolving/git-resolver/test/index.ts:188` `resolveFromGit() with sub folder`
+- [x] `TypeScript repo: resolving/git-resolver/test/index.ts:188` `resolveFromGit() with sub folder` — ported as `path_suffix_appended_to_id_and_resolution` in `crates/resolving-git-resolver/src/git_resolver/tests.rs`.
 - [ ] `TypeScript repo: resolving/git-resolver/test/index.ts:211` `resolveFromGit() with both sub folder and branch`
 - [ ] `TypeScript repo: resolving/git-resolver/test/index.ts:482` `resolve a private repository using the HTTPS protocol without auth token`
 - [ ] `TypeScript repo: resolving/git-resolver/test/index.ts:526` `resolve a private repository using the HTTPS protocol and an auth token`
@@ -765,8 +767,8 @@ weaker policy. Spans three new crates
 - [x] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:421` `throws an error when version time is missing` — `trust_checks::tests::missing_time_surfaces_trust_check_failed`.
 - [x] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:459` `allows downgrade when package@version is in exclude list` — `trust_checks::tests::exclude_exact_version_short_circuits_check`.
 - [x] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:501` `allows downgrade when package name is in exclude list (all versions)` — `trust_checks::tests::exclude_any_version_short_circuits_check`.
-- [ ] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:542` `does not fail with ERR_PNPM_MISSING_TIME when package@version is excluded and time field is missing` — exclude-then-missing-time interplay isn't pinned yet; an upstream-style test still needs to land in `trust_checks::tests`.
-- [ ] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:564` `does not fail with ERR_PNPM_MISSING_TIME when package name is excluded and time field is missing` — same as above (name-pattern variant).
+- [x] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:542` `does not fail with ERR_PNPM_MISSING_TIME when package@version is excluded and time field is missing` — `trust_checks::tests::exclude_exact_version_with_missing_time_does_not_fail`.
+- [x] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:564` `does not fail with ERR_PNPM_MISSING_TIME when package name is excluded and time field is missing` — `trust_checks::tests::exclude_package_name_with_missing_time_does_not_fail`.
 
 ### Attestation publish-time fetcher
 
@@ -780,10 +782,10 @@ weaker policy. Spans three new crates
 
 ### `createNpmResolutionVerifier`
 
-- [x] `TypeScript repo: resolving/npm-resolver/test/createNpmResolutionVerifier.test.ts:48` `createNpmResolutionVerifier() returns undefined when no policy is active` — `create_npm_resolution_verifier::tests::returns_none_when_no_policy_active` (plus the `returns_none_when_min_age_is_zero` / `returns_none_when_trust_policy_off` siblings that pin the off-by-one cases).
+- [x] `TypeScript repo: resolving/npm-resolver/test/createNpmResolutionVerifier.test.ts:48` `createNpmResolutionVerifier() returns undefined when no policy is active` — `create_npm_resolution_verifier::tests::verifies_tarball_url_when_no_policy_active` / `registry_resolution_with_no_active_policy_skips_metadata_lookup` (plus the `min_age_zero_keeps_age_check_inactive` / `trust_off_keeps_trust_check_inactive` siblings that pin the off-by-one cases).
 - [x] `TypeScript repo: resolving/npm-resolver/test/createNpmResolutionVerifier.test.ts:52` `createNpmResolutionVerifier() flags a trustedPublisher → provenance downgrade` — `create_npm_resolution_verifier::tests::trust_downgrade_publisher_to_provenance_fails`.
 - [x] `TypeScript repo: resolving/npm-resolver/test/createNpmResolutionVerifier.test.ts:99` `createNpmResolutionVerifier() passes a same-evidence-level version` — `create_npm_resolution_verifier::tests::trust_downgrade_pass_when_no_weaker_evidence`.
-- [ ] `TypeScript repo: resolving/npm-resolver/test/createNpmResolutionVerifier.test.ts:141` `abbreviated shortcut requires the pinned version to be in metadata` — the abbreviated-modified shortcut is deferred (Phase 4 stubs that layer); rerun when Phase 5+ ports `fetchAbbreviatedMetadataCached`.
+- [x] `TypeScript repo: resolving/npm-resolver/test/createNpmResolutionVerifier.test.ts:141` `abbreviated shortcut requires the pinned version to be in metadata` — `create_npm_resolution_verifier::tests::min_age_shortcut_falls_through_when_version_not_listed` (plus the `min_age_pass_via_abbreviated_modified_shortcut` / `min_age_shortcut_falls_through_when_modified_within_cutoff` siblings).
 - [x] `TypeScript repo: resolving/npm-resolver/test/createNpmResolutionVerifier.test.ts:187` `ignoreMissingTimeField passes the entry when no source surfaces a timestamp` — `create_npm_resolution_verifier::tests::min_age_missing_time_passes_when_ignored` (plus the fail-closed sibling `min_age_missing_time_fails_closed_by_default`).
 - [x] `TypeScript repo: resolving/npm-resolver/test/createNpmResolutionVerifier.test.ts:220` `canTrustPastCheck rejects when the trust-exclude list shrinks` — `create_npm_resolution_verifier::tests::can_trust_past_check_rejects_changed_exclude_list` (covers any shape change, not only shrinkage; matches the stricter upstream contract).
 
@@ -855,7 +857,7 @@ weaker policy. Spans three new crates
 
 Rust port notes:
 
-- The abbreviated-modified shortcut and the on-disk `local_meta` layer are stubbed in Phase 4 / Phase 5 (no `fetchAbbreviatedMetadataCached` port yet). Upstream tests that depend on those layers stay unchecked until the abbreviated-cache fetcher lands.
+- The abbreviated-modified shortcut has landed (`try_abbreviated_modified_shortcut` / `fetch_abbreviated_meta` in `create_npm_resolution_verifier.rs`, pinned by the `min_age_*_shortcut_*` tests).
 - The cache cross-stack contract is content-divergent on hash format only — pacquet writes sha256-**hex** where pnpm writes sha256-**base64** (object-hash's default). Each stack reads its own records out of the shared JSONL; cross-stack hits aren't expected and aren't tested.
 - The end-to-end CLI test uses a 100-year `minimumReleaseAge` to sidestep the mocked registry's real-world `time` field. A finer-grained fixture with controlled `time` values lives in the unit tests (`fetch_full_metadata_cached::tests`, `create_npm_resolution_verifier::tests`).
 
@@ -870,13 +872,13 @@ Tracks pnpm/pnpm#11940. Pacquet's port (`pacquet-package-manager::optimistic_rep
 - [x] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:145` `returns upToDate: false when patchedDependencies have changed` — `optimistic_repeat_install::tests::returns_skipped_when_patched_dependencies_drift`.
 - [x] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:205` `returns upToDate: false when allowBuilds have changed` — `optimistic_repeat_install::tests::returns_skipped_when_allow_builds_drift`.
 - [x] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:85` `returns upToDate: false when packageExtensions have changed` — split out as `optimistic_repeat_install::tests::returns_skipped_when_package_extensions_drift` once the yaml field landed in `Config`.
-- [ ] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:175` `returns upToDate: false when peersSuffixMaxLength has changed` — still bundled under `returns_up_to_date_when_state_carries_unported_pnpm_settings`. Pacquet doesn't yet read `peersSuffixMaxLength` into `Config`; split out once it lands.
+- [x] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:175` `returns upToDate: false when peersSuffixMaxLength has changed` — `optimistic_repeat_install::tests::returns_skipped_when_peers_suffix_max_length_drift` (`peersSuffixMaxLength` now lives in `Config` and drift-checks like the other settings).
+- [x] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:328` `returns upToDate: false when a patch was modified and manifests were not modified` — `optimistic_repeat_install::tests::returns_skipped_when_patch_file_modified_after_validation` (the patch-mtime branch of `patchesOrHooksAreModified`; companion `returns_up_to_date_when_patch_file_unchanged`).
 
 ### Not yet ported
 
 - [ ] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:234` `skips the allowBuilds change detection when allowBuilds is in ignoredWorkspaceStateSettings` — `ignoredWorkspaceStateSettings` is a per-call ignore list (`opts.ignoredWorkspaceStateSettings`) that pacquet's `check_optimistic_repeat_install` does not accept yet. The second consumer (`verifyDepsBeforeRun`, `check_deps_status_before_run`) landed with a fixed `dev`/`optional`/`production` ignore (`first_setting_drift`'s `ignore_included_groups`), which is the only ignore set any pnpm caller uses today besides the always-ignored `catalogs`; porting this test still needs the general per-call list.
 - [ ] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:270` `returns upToDate: false when a pnpmfile was modified` — pacquet doesn't run pnpmfiles and writes `pnpmfiles: []` unconditionally. Port alongside the pnpmfile pipeline.
-- [ ] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:328` `returns upToDate: false when a patch was modified and manifests were not modified` — needs `patchesOrHooksAreModified` (stats `patches/<name>.patch` files against `lastValidatedTimestamp`). Falls outside the MVP scope of the mtime-only branch.
 - [ ] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:405` `returns upToDate: false when the wanted lockfile has merge conflict markers` and `:438` `returns upToDate: false when a project lockfile has merge conflict markers and sharedWorkspaceLockfile is false` — needs `findConflictedLockfileDir` (scans lockfile bytes for `<<<<<<<` markers). Outside MVP scope.
 
 Each unported entry above gates the optimistic short-circuit on a code path pacquet does not yet have. The fall-through is safe — when the optimistic check returns `Skipped`, the install runs the regular pipeline, which still has its own freshness guards. None of the unported branches can silently mask drift; they only become relevant once pacquet *enables* the feature in question.
@@ -939,9 +941,9 @@ lockfile-parity peer fixes (pnpm/pnpm#12266, pnpm/pnpm#12267).
 ### `resolvePeers.ts` — not yet ported
 
 - [ ] `multi-project: different peer versions produce different instances` — needs the multi-importer `resolve_peers_workspace` harness; general workspace peer-separation, partially covered by `dedupes_when_the_same_package_appears_in_two_subtrees`.
-- [ ] `resolve peer dependencies with npm aliases` — npm-alias peer suffixes.
+- [ ] `resolve peer dependencies with npm aliases` — npm-alias peer suffixes. Related alias-during-peer-resolution coverage exists (`alias_child_resolves_peer_by_real_package_name`, `own_peer_is_resolved_from_aliased_sibling_real_name` in `resolve_peers/tests.rs`), but the upstream alias-suffix case itself is unported.
 - [ ] `should find peer dependency conflicts when the peer is an optional peer of one of the dependencies`, `should ignore conflicts between missing optional peer dependencies`, `should pick the single wanted peer dependency range`, `should return the intersection of two compatible ranges`, the two prerelease-warning cases — peer-issue reporting edge cases.
-- [ ] The `lockedPeerContext` / `resolvedPeerProviderPaths` series (`prefers a compatible locked provider …`, the six `does not replace …` cases, `does not reuse a locked provider outside the current peer range`) — pacquet hasn't ported `lockedPeerContext`/`resolvedPeerProviderPaths`, so these gate on that feature, not on the lockfile-parity peer fixes.
+- [ ] The `lockedPeerContext` / `resolvedPeerProviderPaths` series (`prefers a compatible locked provider …`, the six `does not replace …` cases, `does not reuse a locked provider outside the current peer range`) — pacquet hasn't ported `lockedPeerContext`/`resolvedPeerProviderPaths`, so these gate on that feature, not on the lockfile-parity peer fixes. The closest landed coverage is the pnpm/pnpm#12075 regression `keeps_locked_optional_peer_over_lower_sibling_version`, which is not this series.
 
 ## `pnpm logout` (`@pnpm/auth.commands`)
 
