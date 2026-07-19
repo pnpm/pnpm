@@ -71,9 +71,9 @@ describe('optional dependencies', () => {
   })
 
   test('abbreviated and full metadata are cached separately', async () => {
-    // Abbreviated metadata doesn't include scripts, full metadata does.
-    // When resolving the same package first as regular, then as optional,
-    // we should get different metadata from each request.
+    // `libc` (which abbreviated metadata omits) is the observable difference
+    // between the two slots: a field like `scripts` wouldn't do because the
+    // resolver condenses every retained packument via clearMeta.
     const abbreviatedMeta = {
       name: 'cache-test',
       'dist-tags': { latest: '1.0.0' },
@@ -95,10 +95,7 @@ describe('optional dependencies', () => {
         '1.0.0': {
           name: 'cache-test',
           version: '1.0.0',
-          scripts: {
-            test: 'jest',
-            build: 'tsc',
-          },
+          libc: ['glibc'],
           dist: {
             tarball: 'https://registry.npmjs.org/cache-test/-/cache-test-1.0.0.tgz',
             integrity: 'sha512-test1234567890123456789012345678901234567890123456789012345678',
@@ -134,13 +131,13 @@ describe('optional dependencies', () => {
       { alias: 'cache-test', bareSpecifier: '1.0.0' },
       {}
     )
-    expect(regularResult!.manifest!.scripts).toBeUndefined()
+    expect(regularResult!.manifest!.libc).toBeUndefined()
 
     // Resolve as optional dependency - should get full metadata (separate cache entry)
     const optionalResult = await resolveFromNpm(
       { alias: 'cache-test', bareSpecifier: '1.0.0', optional: true },
       {}
     )
-    expect(optionalResult!.manifest!.scripts).toEqual({ test: 'jest', build: 'tsc' })
+    expect(optionalResult!.manifest!.libc).toEqual(['glibc'])
   })
 })

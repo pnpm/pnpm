@@ -1,3 +1,5 @@
+import type { PackageMeta } from '@pnpm/resolving.registry.types'
+
 import type {
   FetchMetadataNotModifiedResult,
   FetchMetadataOptions,
@@ -9,6 +11,16 @@ export type FetchMetadata = (pkgName: string, opts: FetchMetadataOptions) => Pro
 export interface MemoizedFetchMetadata {
   fetch: FetchMetadata
   clear: () => void
+}
+
+export interface MemoizeFetchMetadataOptions {
+  /**
+   * Applied to a settled result's `meta` before the entry is retained for the
+   * rest of the resolution phase, so a full document doesn't stay pinned here
+   * at full size. Callers awaiting the in-flight request still receive the
+   * original document.
+   */
+  condenseSettledMeta?: (meta: PackageMeta) => PackageMeta
 }
 
 /**
@@ -34,7 +46,8 @@ export interface MemoizedFetchMetadata {
  * A rejected fetch is evicted so a transient network failure is retried by
  * the next request instead of being cached for the rest of the phase.
  */
-export function memoizeFetchMetadata (fetch: FetchMetadata): MemoizedFetchMetadata {
+export function memoizeFetchMetadata (fetch: FetchMetadata, memoOpts?: MemoizeFetchMetadataOptions): MemoizedFetchMetadata {
+  const condense = memoOpts?.condenseSettledMeta
   const cache = new Map<string, ReturnType<FetchMetadata>>()
   return {
     fetch: (pkgName, opts) => {
@@ -46,12 +59,7 @@ export function memoizeFetchMetadata (fetch: FetchMetadata): MemoizedFetchMetada
       void pending.then(
         (result) => {
           if (cache.get(key) !== pending) return
-          cache.set(
-            key,
-            Promise.resolve(
-              result.notModified ? result : { ...result, jsonText: undefined }
-            )
-          )
+          cache.set(key, Promise.resolve(settledEntry(result)))
         },
         () => {
           if (cache.get(key) === pending) cache.delete(key)
@@ -62,5 +70,20 @@ export function memoizeFetchMetadata (fetch: FetchMetadata): MemoizedFetchMetada
     clear: () => {
       cache.clear()
     },
+  }
+
+  // Runs inside a fire-and-forget then-callback where a throw would become an
+  // unhandled rejection, so a failed condense falls back to the uncondensed
+  // meta; the resolution path condenses the same document with proper error
+  // propagation.
+  function settledEntry (result: FetchMetadataResult | FetchMetadataNotModifiedResult): FetchMetadataResult | FetchMetadataNotModifiedResult {
+    if (result.notModified) return result
+    let meta = result.meta
+    if (condense != null) {
+      try {
+        meta = condense(result.meta)
+      } catch {}
+    }
+    return { ...result, jsonText: undefined, meta }
   }
 }
