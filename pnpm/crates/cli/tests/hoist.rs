@@ -722,13 +722,6 @@ fn workspace_hoist_only_in_selected_projects_with_subdeps() {
     }
 }
 
-/// Fresh `pnpm` invocation anchored in `workspace`, for tests that run
-/// the binary more than once (the `CommandTempCwd` command is consumed
-/// by its first use).
-fn pacquet_in(workspace: &Path) -> Command {
-    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
-}
-
 /// The `hoistedDependencies` map from `node_modules/.modules.yaml`.
 fn hoisted_dependencies(workspace: &Path) -> serde_json::Value {
     let text = fs::read_to_string(workspace.join("node_modules/.modules.yaml"))

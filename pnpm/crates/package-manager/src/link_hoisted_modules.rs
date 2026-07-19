@@ -26,7 +26,7 @@ use miette::Diagnostic;
 use pacquet_cmd_shim::LinkBinsError;
 use pacquet_config::PackageImportMethod;
 use pacquet_lockfile::PkgIdWithPatchHash;
-use pacquet_reporter::Reporter;
+use pacquet_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
 use rayon::prelude::*;
 use std::{
     collections::HashMap,
@@ -122,7 +122,15 @@ pub enum LinkHoistedModulesError {
 pub fn link_hoisted_modules<Reporter: self::Reporter>(
     opts: &LinkHoistedModulesOpts<'_>,
 ) -> Result<(), LinkHoistedModulesError> {
-    remove_orphans(opts.graph, opts.prev_graph);
+    let removed = remove_orphans(opts.graph, opts.prev_graph);
+    // The hoisted linker owns the install's `pnpm:stats` `removed`
+    // emission — pnpm emits it from `linkHoistedModules` with the
+    // orphan-directory count, and the isolated linker's count comes
+    // from `PruneStaleModules` at the installer layer instead.
+    Reporter::emit(&LogEvent::Stats(StatsLog {
+        level: LogLevel::Debug,
+        message: StatsMessage::Removed { prefix: opts.requester.to_owned(), removed },
+    }));
 
     // Drive each importer's hierarchy in parallel — workspace
     // installs (Slice 9) will have multiple importers; the
@@ -142,13 +150,16 @@ pub fn link_hoisted_modules<Reporter: self::Reporter>(
 /// install's graph but isn't in the new one. Errors are swallowed
 /// silently with the same `EPERM`/`EBUSY` tolerance — a directory
 /// we can't remove right now is no worse than leaving a stale
-/// entry, and the next install will retry.
-fn remove_orphans(graph: &DependenciesGraph, prev_graph: Option<&DependenciesGraph>) {
-    let Some(prev) = prev_graph else { return };
+/// entry, and the next install will retry. Returns the orphan count
+/// (attempted, not necessarily removed — the same number pnpm's
+/// `dirsToRemove.length` reports).
+fn remove_orphans(graph: &DependenciesGraph, prev_graph: Option<&DependenciesGraph>) -> u64 {
+    let Some(prev) = prev_graph else { return 0 };
     let orphan_dirs: Vec<&PathBuf> = prev.keys().filter(|dir| !graph.contains_key(*dir)).collect();
     orphan_dirs.par_iter().for_each(|dir| {
         let _ = try_remove_dir(dir);
     });
+    orphan_dirs.len() as u64
 }
 
 /// Single-directory rimraf with error-swallowing semantics.

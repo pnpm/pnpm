@@ -1095,28 +1095,34 @@ where
         // Reconcile before linking: stale direct-dep links and
         // orphaned hoist links must vacate their slots so the relink +
         // rehoist below can claim them. The hoisted linker is excluded
-        // — its own previous-graph diff removes orphans (see
-        // `run_hoisted_linker`) — but the `pnpm:stats` `removed` event
-        // still fires so every install carries exactly one, pairing
-        // the `added` emitted in `CreateVirtualStore`.
-        let removed_count = match current_lockfile {
-            Some(current) if !is_hoisted => crate::PruneStaleModules {
-                config,
-                workspace_root,
-                wanted_lockfile: lockfile,
-                current_lockfile: current,
-                prior_hoisted_dependencies,
-                included_groups: &dependency_groups,
-                prune_orphans,
-            }
-            .run::<Reporter>()
-            .map_err(InstallFrozenLockfileError::PruneStaleModules)?,
-            _ => 0,
-        };
-        Reporter::emit(&LogEvent::Stats(StatsLog {
-            level: LogLevel::Debug,
-            message: StatsMessage::Removed { prefix: requester.to_owned(), removed: removed_count },
-        }));
+        // — its previous-graph diff removes orphans and emits the
+        // `pnpm:stats` `removed` event itself (see
+        // [`crate::link_hoisted_modules()`]); on the isolated linker
+        // the event fires here, so every install carries exactly one,
+        // pairing the `added` emitted in `CreateVirtualStore`.
+        if !is_hoisted {
+            let removed_count = match current_lockfile {
+                Some(current) => crate::PruneStaleModules {
+                    config,
+                    workspace_root,
+                    wanted_lockfile: lockfile,
+                    current_lockfile: current,
+                    prior_hoisted_dependencies,
+                    included_groups: &dependency_groups,
+                    prune_orphans,
+                }
+                .run::<Reporter>()
+                .map_err(InstallFrozenLockfileError::PruneStaleModules)?,
+                None => 0,
+            };
+            Reporter::emit(&LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Removed {
+                    prefix: requester.to_owned(),
+                    removed: removed_count,
+                },
+            }));
+        }
 
         if !is_hoisted {
             // Importer ids backed by the install's own declared

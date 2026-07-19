@@ -1514,6 +1514,12 @@ where
             && rebuild.is_none()
             && frozen_tree_intact(wanted_lockfile, modules, config, &workspace_root, node_linker)
         {
+            // The full frozen path runs the offline structural
+            // name gate before any materialization; the up-to-date
+            // early return must not skip it (the resolution-verifier
+            // fan-out below is policy-gated and can be empty).
+            pacquet_lockfile_verification::verify_lockfile_dependency_names(wanted_lockfile)
+                .map_err(InstallError::LockfileVerification)?;
             // Nothing to materialize means no fetch to overlap; verify
             // eagerly before the up-to-date early return.
             if let Some(lockfile_verification_override) = lockfile_verification_override {
@@ -2572,8 +2578,21 @@ fn frozen_tree_intact(
             config.virtual_store_dir_max_length as usize,
         );
         let all_slots_present = snapshots.keys().all(|key| {
-            skipped.contains(key)
-                || layout.slot_dir(key).join("node_modules").join(key.name.to_string()).is_dir()
+            if skipped.contains(key) {
+                return true;
+            }
+            // The name is lockfile-controlled: join it with the same
+            // traversal-rejecting helper the linkers use, and treat a
+            // malformed name as not-intact so the full path's
+            // structural lockfile gate rejects it.
+            let slot_node_modules = layout.slot_dir(key).join("node_modules");
+            match crate::safe_join_modules_dir::safe_join_modules_dir(
+                &slot_node_modules,
+                &key.name.to_string(),
+            ) {
+                Ok(dir) => dir.is_dir(),
+                Err(_) => false,
+            }
         });
         if !all_slots_present {
             return false;

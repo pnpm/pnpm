@@ -13,14 +13,7 @@ pub use _utils::*;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, os::unix::fs::MetadataExt, path::Path, process::Command};
-
-/// Fresh `pnpm` invocation anchored in `workspace`, for tests that run
-/// the binary more than once (the `CommandTempCwd` command is consumed
-/// by its first use).
-fn pacquet_in(workspace: &Path) -> Command {
-    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
-}
+use std::{fs, os::unix::fs::MetadataExt, path::Path};
 
 /// `version` field of the `package.json` under `workspace/relative`.
 fn version_of(workspace: &Path, relative: &str) -> String {
