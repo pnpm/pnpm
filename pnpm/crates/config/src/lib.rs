@@ -2201,7 +2201,9 @@ impl Config {
         if let Some(global_settings) = global_settings.as_ref() {
             self.package_manager_bootstrap.http_proxy_is_explicit |=
                 has_nonempty_string(global_settings.http_proxy.as_deref());
-            global_settings.apply_proxy_to(&mut self.package_manager_bootstrap.proxy);
+            let http_proxy_is_explicit = self.package_manager_bootstrap.http_proxy_is_explicit;
+            global_settings
+                .apply_proxy_to(&mut self.package_manager_bootstrap.proxy, http_proxy_is_explicit);
         }
 
         npmrc_auth.apply_registry_and_warn(&mut self);
@@ -2343,7 +2345,12 @@ impl Config {
         self.http_proxy_is_explicit |= env_http_proxy_is_explicit;
         self.package_manager_bootstrap.http_proxy_is_explicit |= env_http_proxy_is_explicit;
         collect_explicit_settings(&mut self.explicit_settings, &env_settings);
-        env_settings.apply_proxy_to(&mut self.package_manager_bootstrap.proxy);
+        let bootstrap_http_proxy_is_explicit =
+            self.package_manager_bootstrap.http_proxy_is_explicit;
+        env_settings.apply_proxy_to(
+            &mut self.package_manager_bootstrap.proxy,
+            bootstrap_http_proxy_is_explicit,
+        );
         let saved_workspace_dir = self.workspace_dir.clone();
         env_settings.apply_to(&mut self, start_dir);
         self.workspace_dir = saved_workspace_dir;

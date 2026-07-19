@@ -771,7 +771,8 @@ impl WorkspaceSettings {
     /// are resolved against `base_dir` if relative — anchored at the
     /// workspace root where the yaml was found, matching pnpm.
     pub fn apply_to(self, config: &mut Config, base_dir: &Path) {
-        self.apply_proxy_to(&mut config.proxy);
+        let http_proxy_is_explicit = config.http_proxy_is_explicit;
+        self.apply_proxy_to(&mut config.proxy, http_proxy_is_explicit);
 
         macro_rules! apply {
             ($($field:ident),* $(,)?) => {$(
@@ -976,13 +977,17 @@ impl WorkspaceSettings {
         }
     }
 
-    pub(crate) fn apply_proxy_to(&self, proxy_config: &mut pacquet_network::ProxyConfig) {
+    pub(crate) fn apply_proxy_to(
+        &self,
+        proxy_config: &mut pacquet_network::ProxyConfig,
+        http_proxy_is_explicit: bool,
+    ) {
         if let Some(value) = self.https_proxy.as_ref().or(self.proxy.as_ref()) {
             proxy_config.https_proxy = Some(value.clone());
         }
         if let Some(value) = &self.http_proxy {
             proxy_config.http_proxy = Some(value.clone());
-        } else if self.https_proxy.is_some() || self.proxy.is_some() {
+        } else if (self.https_proxy.is_some() || self.proxy.is_some()) && !http_proxy_is_explicit {
             proxy_config.http_proxy.clone_from(&proxy_config.https_proxy);
         }
         if let Some(value) = self.no_proxy.as_ref().or(self.noproxy.as_ref()) {

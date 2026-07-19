@@ -1,6 +1,7 @@
 pub const BIG_MANIFEST: &str = include_str!("fixtures/big/package.json");
 pub const BIG_LOCKFILE: &str = include_str!("fixtures/big/pnpm-lock.yaml");
 
+/// Returns a gzipped package tarball containing a manifest with the given identity.
 #[must_use]
 pub fn minimal_tarball(name: &str, version: &str) -> Vec<u8> {
     use std::io::Write;
@@ -21,6 +22,7 @@ pub fn minimal_tarball(name: &str, version: &str) -> Vec<u8> {
     encoder.finish().expect("finish gzip")
 }
 
+/// Returns the SHA-512 SSRI string for `bytes`.
 #[must_use]
 pub fn sha512_integrity(bytes: &[u8]) -> String {
     ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512).chain(bytes).result().to_string()
