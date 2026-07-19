@@ -1720,6 +1720,7 @@ pub(crate) fn run_hoisted_linker<Reporter: self::Reporter>(
         import_method: config.package_import_method,
         logged_methods,
         requester,
+        confine_root: walker_lockfile_dir,
     };
     link_hoisted_modules::<Reporter>(&link_opts).map_err(HoistedLinkerError::LinkHoistedModules)?;
     link_selected_hoisted_direct_dependencies(

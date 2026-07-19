@@ -73,6 +73,13 @@ pub struct LinkHoistedModulesOpts<'a> {
     /// `requester`. Same value as the `prefix` in
     /// [`pacquet_reporter::StageLog`].
     pub requester: &'a str,
+    /// Containment root for orphan removal: an orphan directory that
+    /// does not sit lexically inside this root is skipped, never
+    /// deleted. The walker builds every graph dir through
+    /// [`crate::safe_join_modules_dir::safe_join_modules_dir`], so a
+    /// confined path is the invariant — this keeps the deletion site
+    /// from depending on the constructor's discipline.
+    pub confine_root: &'a Path,
 }
 
 /// Failure modes of [`link_hoisted_modules`]. Marked
@@ -122,7 +129,7 @@ pub enum LinkHoistedModulesError {
 pub fn link_hoisted_modules<Reporter: self::Reporter>(
     opts: &LinkHoistedModulesOpts<'_>,
 ) -> Result<(), LinkHoistedModulesError> {
-    let removed = remove_orphans(opts.graph, opts.prev_graph);
+    let removed = remove_orphans(opts.graph, opts.prev_graph, opts.confine_root);
     // The hoisted linker owns the install's `pnpm:stats` `removed`
     // emission — pnpm emits it from `linkHoistedModules` with the
     // orphan-directory count, and the isolated linker's count comes
@@ -153,9 +160,28 @@ pub fn link_hoisted_modules<Reporter: self::Reporter>(
 /// entry, and the next install will retry. Returns the orphan count
 /// (attempted, not necessarily removed — the same number pnpm's
 /// `dirsToRemove.length` reports).
-fn remove_orphans(graph: &DependenciesGraph, prev_graph: Option<&DependenciesGraph>) -> u64 {
+fn remove_orphans(
+    graph: &DependenciesGraph,
+    prev_graph: Option<&DependenciesGraph>,
+    confine_root: &Path,
+) -> u64 {
     let Some(prev) = prev_graph else { return 0 };
-    let orphan_dirs: Vec<&PathBuf> = prev.keys().filter(|dir| !graph.contains_key(*dir)).collect();
+    let orphan_dirs: Vec<&PathBuf> = prev
+        .keys()
+        .filter(|dir| !graph.contains_key(*dir))
+        .filter(|dir| {
+            let confined = dir.starts_with(confine_root)
+                && dir.components().all(|part| !matches!(part, std::path::Component::ParentDir));
+            if !confined {
+                tracing::warn!(
+                    ?dir,
+                    ?confine_root,
+                    "refusing to remove an orphan directory outside the install root",
+                );
+            }
+            confined
+        })
+        .collect();
     orphan_dirs.par_iter().for_each(|dir| {
         let _ = try_remove_dir(dir);
     });
