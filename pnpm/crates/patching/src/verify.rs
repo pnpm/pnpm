@@ -29,8 +29,7 @@ pub struct UnusedPatchError {
     pub unused_patches: Vec<String>,
 }
 
-/// Result of [`verify_patches`] when `allow_unused_patches` is true:
-/// the caller emits a warning instead of failing.
+/// Warning payload when `allow_unused_patches` is true.
 #[derive(Debug, Display, Clone, PartialEq, Eq)]
 #[display("The following patches were not used: {}", unused_patches.join(", "))]
 pub struct UnusedPatches {

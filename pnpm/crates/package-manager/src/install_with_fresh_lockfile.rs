@@ -1396,9 +1396,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         )
         .await
         .map_err(InstallWithFreshLockfileError::MinimumReleaseAge)?;
-        // Verify that every configured patch was applied at least once.
-        // Only checked during full resolution (fresh lockfile path) — the
-        // frozen lockfile path trusts the lockfile's recorded patches.
+        // Only in the fresh-lockfile path — frozen lockfile trusts recorded patches.
         if let Some(ref deps) = patched_dependencies {
             match pacquet_patching::verify_patches(
                 deps,
