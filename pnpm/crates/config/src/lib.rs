@@ -1674,6 +1674,33 @@ impl Config {
         Self::default()
     }
 
+    /// Overlays proxy options after file and environment settings have been
+    /// resolved. An HTTPS proxy also serves HTTP unless a lower-priority source
+    /// explicitly configured the HTTP proxy.
+    pub fn apply_proxy_cli_overrides(
+        &mut self,
+        https_proxy: Option<&str>,
+        http_proxy: Option<&str>,
+        no_proxy: Option<&str>,
+    ) {
+        let has_explicit_http_proxy = self.explicit_settings.contains_key("httpProxy")
+            || self.raw_auth_config.contains_key("http-proxy");
+        for proxy in [&mut self.proxy, &mut self.package_manager_bootstrap.proxy] {
+            if let Some(value) = https_proxy {
+                proxy.https_proxy = Some(value.to_string());
+                if http_proxy.is_none() && !has_explicit_http_proxy {
+                    proxy.http_proxy = Some(value.to_string());
+                }
+            }
+            if let Some(value) = http_proxy {
+                proxy.http_proxy = Some(value.to_string());
+            }
+            if let Some(value) = no_proxy {
+                proxy.no_proxy = Some(crate::npmrc_auth::parse_no_proxy(value));
+            }
+        }
+    }
+
     /// Effective value of [`Self::minimum_release_age_strict`].
     /// Returns the user-supplied value when set, else `false`.
     ///
@@ -2159,6 +2186,9 @@ impl Config {
         crate::npmrc_auth::enforce_token_helper_trust(&npmrc_auth, &trusted_auth)?;
 
         self.package_manager_bootstrap = build_package_manager_bootstrap::<Sys>(trusted_auth)?;
+        if let Some(global_settings) = global_settings.as_ref() {
+            global_settings.apply_proxy_to(&mut self.package_manager_bootstrap.proxy);
+        }
 
         npmrc_auth.apply_registry_and_warn(&mut self);
         // Proxy cascade fires unconditionally — even when no `.npmrc`
@@ -2293,6 +2323,7 @@ impl Config {
         // repository, so it overrides the bootstrap default registry too.
         let env_registry_override = env_settings.registry.clone();
         collect_explicit_settings(&mut self.explicit_settings, &env_settings);
+        env_settings.apply_proxy_to(&mut self.package_manager_bootstrap.proxy);
         let saved_workspace_dir = self.workspace_dir.clone();
         env_settings.apply_to(&mut self, start_dir);
         self.workspace_dir = saved_workspace_dir;

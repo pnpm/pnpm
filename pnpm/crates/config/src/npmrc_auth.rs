@@ -897,7 +897,7 @@ fn load_cafile(path: &Path) -> Vec<String> {
 ///
 /// `"true"` (after trimming) means "bypass every proxy". Anything else is
 /// comma-split, trimmed, empties dropped.
-fn parse_no_proxy(raw: &str) -> NoProxySetting {
+pub(crate) fn parse_no_proxy(raw: &str) -> NoProxySetting {
     if raw.trim() == "true" {
         return NoProxySetting::Bypass;
     }

@@ -143,6 +143,15 @@ impl WorkspaceSettings {
         json_field!(lockfile_include_tarball_url, "LOCKFILE_INCLUDE_TARBALL_URL");
         string_field!(registry, "REGISTRY");
         string_field!(pnpr_server, "PNPR_SERVER");
+        string_field!(https_proxy, "HTTPS_PROXY");
+        string_field!(http_proxy, "HTTP_PROXY");
+        string_field!(proxy, "PROXY");
+        if let Some(value) = read_env::<Sys>("NO_PROXY") {
+            settings.no_proxy = Some(serde_json::Value::String(value));
+        }
+        if let Some(value) = read_env::<Sys>("NOPROXY") {
+            settings.noproxy = Some(serde_json::Value::String(value));
+        }
         json_field!(auto_install_peers, "AUTO_INSTALL_PEERS");
         json_field!(auto_install_peers_from_highest_match, "AUTO_INSTALL_PEERS_FROM_HIGHEST_MATCH");
         json_field!(exclude_links_from_lockfile, "EXCLUDE_LINKS_FROM_LOCKFILE");

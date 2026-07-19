@@ -540,13 +540,13 @@ Rust port notes:
 
 Install tests:
 
-- [ ] `TypeScript repo: installing/deps-installer/test/install/auth.ts:14` `a package that need authentication`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/auth.ts:52` `installing a package that need authentication, using password`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/auth.ts:73` `a package that need authentication, legacy way`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/auth.ts:94` `a scoped package that need authentication specific to scope`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/auth.ts:142` `a scoped package that need legacy authentication specific to scope`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/auth.ts:190` `a package that need authentication reuses authorization tokens for tarball fetching`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/auth.ts:216` `a package that need authentication reuses authorization tokens for tarball fetching when meta info is cached`
+- [x] `TypeScript repo: installing/deps-installer/test/install/auth.ts:14` `a package that need authentication` — `bearer_auth_is_used_for_metadata_tarballs_and_cold_frozen_reinstall` in `crates/cli/tests/auth.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/auth.ts:52` `installing a package that need authentication, using password` — `username_and_password_authenticates_install` in `crates/cli/tests/auth.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/auth.ts:73` `a package that need authentication, legacy way` — `legacy_basic_auth_authenticates_install` in `crates/cli/tests/auth.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/auth.ts:94` `a scoped package that need authentication specific to scope` — `package_scope_bearer_auth_wins_for_scoped_install` in `crates/cli/tests/auth.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/auth.ts:142` `a scoped package that need legacy authentication specific to scope` — `package_scope_legacy_auth_wins_for_scoped_install` in `crates/cli/tests/auth.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/auth.ts:190` `a package that need authentication reuses authorization tokens for tarball fetching` — the authenticated tarball assertion in `bearer_auth_is_used_for_metadata_tarballs_and_cold_frozen_reinstall`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/auth.ts:216` `a package that need authentication reuses authorization tokens for tarball fetching when meta info is cached` — the cold-store frozen reinstall in `bearer_auth_is_used_for_metadata_tarballs_and_cold_frozen_reinstall`.
 
 Auth header tests:
 
@@ -568,7 +568,7 @@ Auth header tests:
 Auth config parsing and precedence tests:
 
 - [x] `TypeScript repo: config/reader/test/index.ts:481` `auth tokens from pnpm auth file override ~/.npmrc` — ported as `npmrc_auth_file_outranks_userconfig` (plus `npmrc_auth_file_override_supplies_auth` and `user_auth_token_pins_to_its_own_file_registry`) in `crates/config/src/tests.rs`.
-- [ ] `TypeScript repo: config/reader/test/index.ts:523` `workspace .npmrc overrides pnpm auth file`
+- [x] `TypeScript repo: config/reader/test/index.ts:523` `workspace .npmrc overrides pnpm auth file` — `workspace_npmrc_overrides_global_auth_file` in `crates/config/src/tests.rs`.
 - [x] `TypeScript repo: config/reader/test/parseCreds.test.ts:15` `authToken`
 - [x] `TypeScript repo: config/reader/test/parseCreds.test.ts:23` `authPairBase64`
 - [x] `TypeScript repo: config/reader/test/parseCreds.test.ts:49` `authUsername and authPassword`
@@ -576,31 +576,31 @@ Auth config parsing and precedence tests:
 
 Fetcher tests:
 
-- [ ] `TypeScript repo: fetching/tarball-fetcher/test/fetch.ts:349` `throw error when accessing private package w/o authorization`
-- [ ] `TypeScript repo: fetching/tarball-fetcher/test/fetch.ts:409` `accessing private packages`
-- [ ] `TypeScript repo: network/fetch/test/fetchFromRegistry.test.ts:62` `authorization headers are removed before redirection if the target is on a different host`
-- [ ] `TypeScript repo: network/fetch/test/fetchFromRegistry.test.ts:90` `authorization headers are not removed before redirection if the target is on the same host`
-- [ ] `TypeScript repo: resolving/npm-resolver/test/index.ts:934` `error is thrown when package needs authorization`
+- [x] `TypeScript repo: fetching/tarball-fetcher/test/fetch.ts:349` `throw error when accessing private package w/o authorization` — `tarball_authorization_failure_is_reported` in `crates/cli/tests/auth.rs`.
+- [x] `TypeScript repo: fetching/tarball-fetcher/test/fetch.ts:409` `accessing private packages` — the authenticated tarball assertions in `crates/cli/tests/auth.rs`.
+- [x] `TypeScript repo: network/fetch/test/fetchFromRegistry.test.ts:62` `authorization headers are removed before redirection if the target is on a different host` — `authorization_is_removed_on_cross_origin_redirect` in `crates/network/src/tests.rs`.
+- [x] `TypeScript repo: network/fetch/test/fetchFromRegistry.test.ts:90` `authorization headers are not removed before redirection if the target is on the same host` — `authorization_is_retained_on_same_origin_redirect` in `crates/network/src/tests.rs`.
+- [x] `TypeScript repo: resolving/npm-resolver/test/index.ts:934` `error is thrown when package needs authorization` — `metadata_authorization_failure_is_reported` in `crates/cli/tests/auth.rs`.
 
 Rust port notes:
 
-- Frozen install still fetches tarballs when the store is cold, so auth applies even without resolution.
-- Header matching and token helper behavior should be ported below install-level tests.
+- Frozen install still fetches tarballs when the store is cold, so auth applies even without resolution; `bearer_auth_is_used_for_metadata_tarballs_and_cold_frozen_reinstall` exercises that path.
+- Header matching, token helpers, install authentication, and fetch failures are covered at their corresponding layers.
 
 ## Support pnpm Proxy Settings
 
 Proxy dispatcher tests:
 
 - [x] `TypeScript repo: network/fetch/test/dispatcher.test.ts:62` `returns ProxyAgent for httpProxy with http target` — behavioral equivalent `mockito_integration_http_proxy_forwards_request_with_basic_auth` in `crates/network/src/tests.rs` (proves the http proxy actually carries the request; undici's Agent/ProxyAgent split has no Rust analog).
-- [ ] `TypeScript repo: network/fetch/test/dispatcher.test.ts:69` `returns ProxyAgent for httpsProxy with https target` — no https-target integration test yet.
+- [x] `TypeScript repo: network/fetch/test/dispatcher.test.ts:69` `returns ProxyAgent for httpsProxy with https target` — `https_target_uses_configured_proxy` in `crates/network/src/tests.rs` proves the HTTPS target reaches the configured proxy with CONNECT.
 - [x] `TypeScript repo: network/fetch/test/dispatcher.test.ts:76` `adds protocol prefix when proxy URL has none` — `parse_proxy_url_auto_prefixes_missing_scheme` in `crates/network/src/tests.rs`.
 - [x] `TypeScript repo: network/fetch/test/dispatcher.test.ts:84` `throws PnpmError for invalid proxy URL` — `parse_proxy_url_invalid_returns_invalid_proxy_error` plus `for_installs_with_invalid_proxy_url_errors` in `crates/network/src/tests.rs`.
 - [x] `TypeScript repo: network/fetch/test/dispatcher.test.ts:92` `proxy with authentication credentials` — `strip_userinfo_decodes_user_and_password` plus `mockito_integration_http_proxy_forwards_request_with_basic_auth` in `crates/network/src/tests.rs`.
 - [x] `TypeScript repo: network/fetch/test/dispatcher.test.ts:101` `returns Agent (not ProxyAgent) for socks5 proxy` — behavioral equivalents `parse_proxy_url_socks_schemes_pass_through` and `for_installs_with_socks_proxy_url_builds` in `crates/network/src/tests.rs` (the Agent/ProxyAgent distinction has no Rust analog).
 - [x] `TypeScript repo: network/fetch/test/dispatcher.test.ts:111` `returns Agent for socks4 proxy` — same coverage as the socks5 entry.
 - [x] `TypeScript repo: network/fetch/test/dispatcher.test.ts:119` `returns Agent for socks proxy with https target` — same coverage as the socks5 entry.
-- [ ] `TypeScript repo: network/fetch/test/dispatcher.test.ts:127` `SOCKS proxy dispatchers are cached`
-- [ ] `TypeScript repo: network/fetch/test/dispatcher.test.ts:134` `SOCKS proxy can connect through a real SOCKS5 server`
+- [x] `TypeScript repo: network/fetch/test/dispatcher.test.ts:127` `SOCKS proxy dispatchers are cached` — pacquet builds the proxy dispatcher once inside the `reqwest::Client` retained by `ThrottledClient`, so there is no separate dispatcher-cache identity to test.
+- [x] `TypeScript repo: network/fetch/test/dispatcher.test.ts:134` `SOCKS proxy can connect through a real SOCKS5 server` — `socks5_proxy_connects_to_real_target` in `crates/network/src/tests.rs`.
 - [x] `TypeScript repo: network/fetch/test/dispatcher.test.ts:192` `bypasses proxy when noProxy matches hostname` — `no_proxy_matcher_reverse_dot_match` in `crates/network/src/tests.rs` (exact-host probe).
 - [x] `TypeScript repo: network/fetch/test/dispatcher.test.ts:202` `bypasses proxy when noProxy matches domain suffix` — `no_proxy_matcher_reverse_dot_match` (subdomain probes).
 - [x] `TypeScript repo: network/fetch/test/dispatcher.test.ts:211` `does not bypass proxy when noProxy does not match` — negative probes in `no_proxy_matcher_reverse_dot_match` and `no_proxy_matcher_multiple_entries`.
@@ -610,13 +610,13 @@ Proxy dispatcher tests:
 Config tests:
 
 - [x] `TypeScript repo: config/reader/test/index.ts:978` `getConfig() converts noproxy to noProxy` — covered by `no_proxy_and_noproxy_aliases_last_wins` in `crates/config/src/npmrc_auth/tests.rs`.
-- [ ] `TypeScript repo: config/reader/test/index.ts:1514` `reads proxy settings from global config.yaml`
-- [ ] `TypeScript repo: config/reader/test/index.ts:1540` `proxy settings from global config.yaml override .npmrc`
-- [ ] `TypeScript repo: config/reader/test/index.ts:1567` `CLI flags override proxy settings from global config.yaml`
-- [ ] `TypeScript repo: config/reader/test/index.ts:1592` `proxy settings are still read from .npmrc`
+- [x] `TypeScript repo: config/reader/test/index.ts:1514` `reads proxy settings from global config.yaml` — `global_config_yaml_supplies_proxy_settings` in `crates/config/src/tests.rs`.
+- [x] `TypeScript repo: config/reader/test/index.ts:1540` `proxy settings from global config.yaml override .npmrc` — `global_config_yaml_proxy_overrides_project_npmrc` in `crates/config/src/tests.rs`.
+- [x] `TypeScript repo: config/reader/test/index.ts:1567` `CLI flags override proxy settings from global config.yaml` — `pnpm_config_proxy_overrides_global_config_yaml` in `crates/config/src/tests.rs`, plus plain and dotted flag coverage in `crates/cli/src`.
+- [x] `TypeScript repo: config/reader/test/index.ts:1592` `proxy settings are still read from .npmrc` — `project_npmrc_proxy_settings_are_preserved` in `crates/config/src/tests.rs`.
 - [x] `TypeScript repo: config/commands/test/configSet.test.ts:875` `config set --global https-proxy writes to config.yaml, not auth.ini` — ported as `set_global_https_proxy_writes_config_yaml_not_auth_ini` in `crates/cli/src/cli_args/config/tests.rs`.
-- [ ] `TypeScript repo: config/commands/test/configSet.test.ts:902` `config set --global httpProxy writes to config.yaml`
-- [ ] `TypeScript repo: config/commands/test/configSet.test.ts:928` `config set --global no-proxy writes to config.yaml`
+- [x] `TypeScript repo: config/commands/test/configSet.test.ts:902` `config set --global httpProxy writes to config.yaml` — `set_global_http_proxy_writes_config_yaml` in `crates/cli/src/cli_args/config/tests.rs`.
+- [x] `TypeScript repo: config/commands/test/configSet.test.ts:928` `config set --global no-proxy writes to config.yaml` — `set_global_no_proxy_writes_config_yaml` in `crates/cli/src/cli_args/config/tests.rs`.
 
 Rust port notes:
 
