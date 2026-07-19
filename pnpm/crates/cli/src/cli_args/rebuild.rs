@@ -8,7 +8,7 @@ use pacquet_package_manager::{
 };
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_reporter::Reporter;
-use std::collections::HashSet;
+use std::{collections::HashSet, path::Path};
 
 use crate::State;
 
@@ -72,10 +72,15 @@ fn resolve_selection(
     // `.modules.yaml` sits in the root `node_modules`, so its importer
     // ids are relative to that directory's parent.
     let lockfile_dir = config.modules_dir.parent().unwrap_or(&config.modules_dir);
-    let (projects, dep_paths): (Vec<&String>, Vec<&String>) = modules
-        .pending_builds
-        .iter()
-        .partition(|entry| lockfile_dir.join(entry).join("package.json").is_file());
+    // An importer id is always a relative path; a dep path can be
+    // absolute-looking (`/lodash@1.0.0`), and Rust's `Path::join`
+    // replaces the base on an absolute component, so probe only for
+    // relative entries — an absolute one is a dependency by construction.
+    let is_project = |entry: &String| {
+        !Path::new(entry).is_absolute() && lockfile_dir.join(entry).join("package.json").is_file()
+    };
+    let (projects, dep_paths): (Vec<&String>, Vec<&String>) =
+        modules.pending_builds.iter().partition(|entry| is_project(entry));
     Ok(RebuildSelection {
         names: Some(
             dep_paths
