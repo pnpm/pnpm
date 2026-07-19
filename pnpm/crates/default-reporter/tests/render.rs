@@ -6,6 +6,7 @@
 use pacquet_default_reporter::{
     SummaryScope,
     colors::Colors,
+    format::pretty_bytes,
     state::{Output, ReporterOptions, ReporterState},
 };
 use pacquet_reporter::{
@@ -18,6 +19,12 @@ use pacquet_reporter::{
 };
 
 const CWD: &str = "/repo";
+
+#[test]
+fn pretty_bytes_truncates_without_floating_point_drift() {
+    assert_eq!(pretty_bytes(1_130), "1.13 kB");
+    assert_eq!(pretty_bytes(1_130_000), "1.13 MB");
+}
 
 fn state(colors: bool) -> ReporterState {
     ReporterState::new(CWD.to_string(), 80, Colors { enabled: colors }, false)

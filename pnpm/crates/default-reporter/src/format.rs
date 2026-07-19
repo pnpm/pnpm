@@ -12,14 +12,16 @@ pub const PREFIX_MAX_LENGTH: usize = 40;
 #[must_use]
 pub fn pretty_bytes(n: u64) -> String {
     const UNITS: [&str; 9] = ["B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
-    let mut value = n as f64;
+    let n = u128::from(n);
+    let mut divisor = 1;
     let mut idx = 0;
-    while value >= 1000.0 && idx < UNITS.len() - 1 {
-        value /= 1000.0;
+    while n >= divisor * 1000 && idx < UNITS.len() - 1 {
+        divisor *= 1000;
         idx += 1;
     }
-    value = (value * 100.0).floor() / 100.0;
-    format!("{value:.2} {}", UNITS[idx])
+    let whole = n / divisor;
+    let fraction = (n % divisor) * 100 / divisor;
+    format!("{whole}.{fraction:02} {}", UNITS[idx])
 }
 
 /// Port of `pretty-ms` for the magnitudes the reporter renders (sub-second

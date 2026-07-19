@@ -180,7 +180,7 @@ async fn should_install_dependencies() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(event.clone());
         }
     }
 
