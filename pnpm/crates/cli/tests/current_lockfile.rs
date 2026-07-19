@@ -29,9 +29,7 @@ fn package_names(lockfile: &pacquet_lockfile::Lockfile) -> Vec<String> {
 }
 
 /// TS: `installing a simple project` (`deps-restorer/test/index.ts:54`),
-/// the current-lockfile half. A frozen install materializes from
-/// `pnpm-lock.yaml` and leaves behind a current lockfile naming what it
-/// put on disk.
+/// the current-lockfile half.
 #[test]
 fn a_frozen_install_writes_the_current_lockfile() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -195,7 +193,9 @@ fn a_wanted_lockfile_with_duplicate_keys_fails_a_frozen_install() {
 /// group drops it from `packages:` even though the wanted lockfile still
 /// carries it. The dev-only variant (`:213`) is covered by
 /// `headless_install_include_filtering_excludes_production_group` in
-/// `optional_dependencies.rs`.
+/// `optional_dependencies.rs`, which asserts on disk rather than on the
+/// current lockfile — a dev-only importer reads as empty to
+/// `Lockfile::is_empty`, so no file is written.
 #[test]
 fn the_current_lockfile_is_filtered_to_the_installed_groups() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -289,10 +289,8 @@ fn stale_state_files_do_not_stop_node_modules_from_being_repaired() {
 
 /// TS: `using a global virtual store`
 /// (`deps-installer/test/install/globalVirtualStore.ts:21`), the
-/// current-lockfile half: the project keeps its own
-/// `node_modules/.pnpm/lock.yaml` even though the packages themselves
-/// live in the shared store, on both the first install and a frozen
-/// reinstall from a wiped `node_modules`.
+/// current-lockfile half: the record stays with the project even when
+/// the packages it names live in the shared store.
 #[test]
 fn a_global_virtual_store_install_still_writes_the_current_lockfile() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =

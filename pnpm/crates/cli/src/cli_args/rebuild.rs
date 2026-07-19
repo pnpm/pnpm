@@ -1,7 +1,7 @@
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
 use pacquet_config::Config;
-use pacquet_lockfile::{MaybeLazyLockfile, PackageKey};
+use pacquet_lockfile::MaybeLazyLockfile;
 use pacquet_modules_yaml::{Host, read_modules_layout, read_modules_manifest};
 use pacquet_package_manager::{
     Install, RebuildOptions, UpdateSeedPolicy, allow_build_key_from_ignored_build,
@@ -39,9 +39,7 @@ pub(crate) struct RebuildSelection {
     /// Allow-build keys of the dependencies to rebuild, or `None` for
     /// every build-needing package.
     pub(crate) names: Option<Vec<String>>,
-    /// Importer ids whose own deferred install scripts to run. Only
-    /// `--pending` populates this — see
-    /// [`RebuildOptions::pending_projects`].
+    /// [`RebuildOptions::pending_projects`]; only `--pending` populates it.
     pub(crate) projects: Vec<String>,
 }
 
@@ -50,8 +48,12 @@ pub(crate) struct RebuildSelection {
 /// otherwise every build-needing package.
 ///
 /// A `pendingBuilds` record is a dep path for a dependency and an
-/// importer id for a workspace project, so the two are told apart by
-/// whether the entry parses as a package key.
+/// importer id for a workspace project, and both are plain strings on
+/// disk. They are told apart by whether the entry resolves to a
+/// directory with a manifest, which is what an importer id means —
+/// asking the string's shape instead would misread a workspace
+/// directory named `foo@1.0.0` as a dependency and then drop its debt
+/// without running anything.
 fn resolve_selection(
     packages: &[String],
     pending: bool,
@@ -67,8 +69,13 @@ fn resolve_selection(
     else {
         return Ok(RebuildSelection { names: Some(Vec::new()), projects: Vec::new() });
     };
-    let (dep_paths, projects): (Vec<&String>, Vec<&String>) =
-        modules.pending_builds.iter().partition(|entry| entry.parse::<PackageKey>().is_ok());
+    // `.modules.yaml` sits in the root `node_modules`, so its importer
+    // ids are relative to that directory's parent.
+    let lockfile_dir = config.modules_dir.parent().unwrap_or(&config.modules_dir);
+    let (projects, dep_paths): (Vec<&String>, Vec<&String>) = modules
+        .pending_builds
+        .iter()
+        .partition(|entry| lockfile_dir.join(entry).join("package.json").is_file());
     Ok(RebuildSelection {
         names: Some(
             dep_paths

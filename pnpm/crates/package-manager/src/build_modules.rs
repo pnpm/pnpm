@@ -369,22 +369,26 @@ impl RebuildOptions {
         self.selected_names.as_ref().is_none_or(|names| names.contains(name))
     }
 
-    /// Whether this rebuild discharges `pending_entry`, a
-    /// `.modules.yaml` `pendingBuilds` record, so the install can drop it
-    /// from the rewritten list.
-    ///
-    /// Importer ids qualify only through [`Self::pending_projects`]:
+    /// Whether this rebuild discharges the workspace project recorded
+    /// under `importer_id`, which only running its own scripts can do —
     /// dropping one the rebuild never ran would forget the debt rather
     /// than settle it.
     #[must_use]
-    pub fn settles(&self, pending_entry: &str) -> bool {
-        if self.pending_projects.iter().any(|id| id == pending_entry) {
-            return true;
-        }
-        let Ok(key) = pending_entry.parse::<PackageKey>() else { return false };
-        let (name, _) = parse_name_version_from_key(&key.without_peer().to_string());
-        self.is_selected(&name)
-            || self.is_selected(&allow_build_key_from_ignored_build(pending_entry))
+    pub fn settles_project(&self, importer_id: &str) -> bool {
+        self.pending_projects.iter().any(|id| id == importer_id)
+    }
+
+    /// Whether this rebuild discharges the dependency recorded under
+    /// `dep_path`, which it does by rebuilding it.
+    ///
+    /// The caller decides which of the two a `.modules.yaml`
+    /// `pendingBuilds` entry is — an importer id and a dep path are both
+    /// plain strings on disk, and a workspace directory named
+    /// `foo@1.0.0` parses as either.
+    #[must_use]
+    pub fn settles_dependency(&self, dep_path: &str) -> bool {
+        let (name, _) = parse_name_version_from_key(&remove_suffix(dep_path));
+        self.is_selected(&name) || self.is_selected(&allow_build_key_from_ignored_build(dep_path))
     }
 }
 

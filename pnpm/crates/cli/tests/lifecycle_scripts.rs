@@ -951,9 +951,7 @@ mod pending_builds {
     }
 
     /// TS: `run pre/postinstall scripts` (`deps-restorer/test/index.ts:362`),
-    /// the `ignoreScripts` tail. A deferred install records both the
-    /// project whose own install scripts were skipped and the dependency
-    /// whose build was skipped, project first.
+    /// the `ignoreScripts` tail. Ordering is pnpm's: projects first.
     #[test]
     fn ignore_scripts_records_the_project_and_its_deferred_dependency() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =

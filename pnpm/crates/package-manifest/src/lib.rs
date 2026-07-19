@@ -446,20 +446,6 @@ impl PackageManifest {
 
         if if_present { Ok(None) } else { Err(PackageManifestError::NoScript(command.to_string())) }
     }
-
-    /// Whether this workspace project has an install-time script of its
-    /// own, which `--ignore-scripts` leaves owed.
-    ///
-    /// Wider than [`manifest_requires_build`], which answers the same
-    /// question for a *dependency*: a project also runs `prepublish`
-    /// and `prepare` during install.
-    #[must_use]
-    pub fn declares_install_scripts(&self) -> bool {
-        declares_any_script(
-            &self.value,
-            &["preinstall", "prepublish", "install", "postinstall", "prepare"],
-        )
-    }
 }
 
 /// Runtime aliases recognised by `devEngines.runtime` /
@@ -865,14 +851,11 @@ pub fn pkg_requires_build(pkg_root: &Path) -> bool {
 /// make its package a build candidate.
 #[must_use]
 pub fn manifest_requires_build(manifest: &Value) -> bool {
-    declares_any_script(manifest, &["preinstall", "install", "postinstall"])
-}
-
-fn declares_any_script(manifest: &Value, hooks: &[&str]) -> bool {
-    manifest
-        .get("scripts")
-        .and_then(Value::as_object)
-        .is_some_and(|scripts| hooks.iter().any(|hook| scripts.contains_key(*hook)))
+    manifest.get("scripts").and_then(Value::as_object).is_some_and(|scripts| {
+        scripts.contains_key("preinstall")
+            || scripts.contains_key("install")
+            || scripts.contains_key("postinstall")
+    })
 }
 
 /// Decide whether a store-index file key implies build hooks.

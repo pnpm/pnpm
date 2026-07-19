@@ -2158,7 +2158,7 @@ where
         let deferred_projects = config.ignore_scripts.then(|| {
             materialized_project_manifests
                 .iter()
-                .filter(|(_, manifest)| manifest.declares_install_scripts())
+                .filter(|(_, manifest)| declares_deferred_project_scripts(manifest))
                 .map(|(project_dir, _)| {
                     pacquet_workspace::importer_id_from_root_dir(&workspace_root, project_dir)
                 })
@@ -2829,12 +2829,7 @@ fn has_newly_allowed_ignored_builds(
 ///
 /// The counterpart to [`has_newly_allowed_ignored_builds`]: a build the
 /// previous install ran is absent from `ignoredBuilds`, so nothing else
-/// on the frozen no-op fast path notices that it is no longer approved,
-/// and a `strictDepBuilds` install would wrongly exit 0 on a package the
-/// user just un-approved. Returning `true` hands the decision to the
-/// full install, whose `BuildModules` re-evaluates the policy per
-/// package before consulting the side-effects cache — a cached build is
-/// an optimization, never an approval
+/// on the frozen no-op fast path notices it is no longer approved
 /// (<https://github.com/pnpm/pnpm/issues/11035>).
 ///
 /// Only a withdrawal to *undecided* counts. An entry the user flipped to
@@ -2990,15 +2985,26 @@ fn build_modules_manifest(
     }
 }
 
+/// Whether `--ignore-scripts` left this project with a script it still
+/// owes.
+///
+/// Asks [`PROJECT_LIFECYCLE_STAGES`] rather than repeating the stage
+/// list, so a project can never be recorded — or missed — for a stage
+/// [`run_project_lifecycle_scripts`] would not run.
+///
+/// [`PROJECT_LIFECYCLE_STAGES`]: pacquet_executor::PROJECT_LIFECYCLE_STAGES
+fn declares_deferred_project_scripts(manifest: &PackageManifest) -> bool {
+    pacquet_executor::PROJECT_LIFECYCLE_STAGES
+        .iter()
+        .any(|stage| matches!(manifest.script(stage, true), Ok(Some(_))))
+}
+
 /// The `pendingBuilds` list for this install: the builds still owed,
 /// carried-over entries first, then the ones this install deferred.
 ///
 /// A build stays owed until something runs it, so a carried-over entry
-/// is dropped in exactly two cases: its subject is gone from the current
-/// lockfile (what makes an install that removes packages shrink the
-/// list), or this run is the `pnpm rebuild` that discharged it (what
-/// makes `pnpm rebuild --pending` converge instead of reselecting the
-/// same work forever).
+/// survives unless its subject left the current lockfile or this run is
+/// the `pnpm rebuild` that discharged it.
 fn merge_pending_builds<Deferred>(
     previous: &[String],
     deferred: Deferred,
@@ -3008,9 +3014,19 @@ fn merge_pending_builds<Deferred>(
 where
     Deferred: IntoIterator<Item = String>,
 {
+    // An importer id and a dep path are both plain strings on disk, so
+    // the current lockfile's `importers` — not the shape of the string —
+    // decides which one an entry is.
+    let settled = |entry: &str| {
+        let Some(rebuild) = rebuild else { return false };
+        if current.is_some_and(|current| current.importers.contains_key(entry)) {
+            rebuild.settles_project(entry)
+        } else {
+            rebuild.settles_dependency(entry)
+        }
+    };
     let retained = previous.iter().filter(|entry| {
-        current.is_some_and(|current| current_contains_dep_path(current, entry))
-            && !rebuild.is_some_and(|rebuild| rebuild.settles(entry))
+        current.is_some_and(|current| current_contains_dep_path(current, entry)) && !settled(entry)
     });
     let mut seen = HashSet::new();
     retained.cloned().chain(deferred).filter(|entry| seen.insert(entry.clone())).collect()
