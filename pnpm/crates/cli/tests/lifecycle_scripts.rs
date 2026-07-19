@@ -1133,6 +1133,46 @@ mod pending_builds {
         drop((root, mock_instance, rebuild_root));
     }
 
+    /// A `rebuild --pending` that the `allowBuilds` policy still blocks
+    /// runs nothing, so it must leave the debt in place — dropping it
+    /// would let a later `--pending` report success on a build that never
+    /// ran.
+    #[test]
+    fn rebuild_pending_keeps_a_dependency_the_policy_still_blocks() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+
+        pacquet.with_args(["install", "--ignore-scripts"]).assert().success();
+        let pending = read_pending_builds(&workspace);
+        assert_eq!(pending, ["@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"]);
+
+        // No `allowBuilds` entry, so `rebuild --pending` cannot build it.
+        // Its exit code is beside the point — the assertion is that the
+        // debt survives whether it exits 0 (warn) or 1 (strict).
+        let CommandTempCwd { pacquet: rebuild, root: rebuild_root, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let _ = rebuild
+            .with_current_dir(&workspace)
+            .with_args(["rebuild", "--pending"])
+            .output()
+            .expect("run pacquet rebuild --pending");
+
+        assert_eq!(
+            read_pending_builds(&workspace),
+            pending,
+            "a build the policy blocked stays owed",
+        );
+
+        drop((root, mock_instance, rebuild_root));
+    }
+
     /// A project's scripts run after `.modules.yaml` is written, so its
     /// entry can only be cleared once they have actually succeeded —
     /// otherwise a failing script would lose the debt it just failed to

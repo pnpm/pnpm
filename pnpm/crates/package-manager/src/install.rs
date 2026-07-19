@@ -2166,11 +2166,21 @@ where
         });
         let previous_pending_builds =
             prior_modules.map_or(&[][..], |modules| modules.pending_builds.as_slice());
+        // The build phase settles a dependency only when it actually
+        // rebuilt it, so a `pnpm rebuild --pending` that the policy still
+        // blocks (`allowBuilds: None`/`false`) leaves the debt in place.
+        // Reuse the same policy `BuildModules` ran under; on a rebuild a
+        // selected, approved dependency always runs (force-rebuild
+        // bypasses the side-effects cache gate), so policy approval is a
+        // faithful stand-in for "was rebuilt".
+        let rebuild_build_policy =
+            rebuild.as_ref().and_then(|_| crate::AllowBuildPolicy::from_config(config).ok());
         let pending_builds = merge_pending_builds(
             previous_pending_builds,
             deferred_projects.into_iter().flatten().chain(deferred_builds),
             materialized_current_lockfile.as_ref(),
             rebuild.as_ref(),
+            rebuild_build_policy.as_ref(),
         );
 
         let mut next_modules = build_modules_manifest(
@@ -3043,6 +3053,7 @@ fn merge_pending_builds<Deferred>(
     deferred: Deferred,
     current: Option<&Lockfile>,
     rebuild: Option<&crate::RebuildOptions>,
+    rebuild_build_policy: Option<&crate::AllowBuildPolicy>,
 ) -> Vec<String>
 where
     Deferred: IntoIterator<Item = String>,
@@ -3054,11 +3065,15 @@ where
     // Only dependencies are settled here: the build phase has already
     // run by the time this file is written, while a project's scripts
     // run after it. `drain_settled_projects` discharges those once they
-    // have actually succeeded.
+    // have actually succeeded. A dependency is settled only when the
+    // rebuild both selected it and was allowed to build it — a selected
+    // package the policy still blocks stays owed, matching pnpm's "drop
+    // only what was actually rebuilt".
     let settled = |entry: &str| {
-        let Some(rebuild) = rebuild else { return false };
+        let (Some(rebuild), Some(policy)) = (rebuild, rebuild_build_policy) else { return false };
         !current.is_some_and(|current| current.importers.contains_key(entry))
             && rebuild.settles_dependency(entry)
+            && policy.check(pacquet_deps_path::remove_suffix(entry)) == Some(true)
     };
     let retained = previous.iter().filter(|entry| {
         current.is_some_and(|current| current_contains_dep_path(current, entry)) && !settled(entry)
