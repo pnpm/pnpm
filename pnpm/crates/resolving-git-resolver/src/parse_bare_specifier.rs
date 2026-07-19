@@ -258,7 +258,15 @@ async fn from_hosted_git<Probe: GitProbe + ?Sized>(
             let params = parse_git_params(hosted.committish.as_deref());
             return HostedPackageSpec {
                 fetch_spec: https_url.clone(),
-                hosted: Some(strip_committish(hosted)),
+                // `hosted: None` drops the host-archive option, so the
+                // resolution stays `type: git` against the URL that
+                // just probed reachable. A host's archive endpoint
+                // carries none of this URL's credentials, so a private
+                // repo resolved to its `codeload`-style archive would
+                // record a URL nothing can fetch. Mirrors upstream
+                // returning `hosted: { ...hosted, tarball: undefined }`
+                // here.
+                hosted: None,
                 normalized_bare_specifier: format!("git+{https_url}"),
                 git_committish: params.git_committish,
                 git_range: params.git_range,
@@ -293,11 +301,6 @@ async fn from_hosted_git<Probe: GitProbe + ?Sized>(
         git_range: params.git_range,
         path: params.path,
     }
-}
-
-fn strip_committish(mut hosted: HostedGit) -> HostedGit {
-    hosted.committish = None;
-    hosted
 }
 
 fn percent_decode_str(input: &str) -> String {

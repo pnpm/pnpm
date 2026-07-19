@@ -13,6 +13,7 @@ repository.workspace = true
 [dependencies]
 assert_cmd        = { workspace = true }
 command-extra     = { workspace = true }
+dunce             = { workspace = true }
 flate2            = { workspace = true }
 pnpr              = { workspace = true }
 serde_json        = { workspace = true }
@@ -20,6 +21,7 @@ ssri              = { workspace = true }
 tar               = { workspace = true }
 tempfile          = { workspace = true }
 tokio             = { workspace = true }
+url               = { workspace = true }
 walkdir           = { workspace = true }
 text-block-macros = { workspace = true }
 pnpr-fixtures     = { workspace = true }
