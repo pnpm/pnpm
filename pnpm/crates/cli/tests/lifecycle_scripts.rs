@@ -821,7 +821,12 @@ mod dependency_build_scripts {
 
         fs::write(workspace.join("package.json"), "{}\n").expect("write package.json");
 
-        pacquet
+        // Both commands exit non-zero: under the default `strictDepBuilds`
+        // an ignored build is `ERR_PNPM_IGNORED_BUILDS`, not a warning. The
+        // add still materializes the packages and records them, and the
+        // point under test is that the repeat install re-reports the same
+        // set rather than a stale rerun looking clean.
+        let add_out = pacquet
             .with_args([
                 "add",
                 "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0",
@@ -830,6 +835,12 @@ mod dependency_build_scripts {
             ])
             .output()
             .expect("run pacquet add");
+        assert!(
+            !add_out.status.success(),
+            "a strict add with ignored builds must fail; got:\n{}{}",
+            String::from_utf8_lossy(&add_out.stdout),
+            String::from_utf8_lossy(&add_out.stderr),
+        );
 
         let CommandTempCwd { pacquet: rerun, root: rerun_root, .. } =
             CommandTempCwd::init().add_mocked_registry();
@@ -844,6 +855,7 @@ mod dependency_build_scripts {
             String::from_utf8_lossy(&rerun_out.stderr),
         );
         eprintln!("repeat install output:\n{combined}");
+        assert!(!rerun_out.status.success(), "the strict repeat install must keep failing");
         assert!(
             combined.contains("Ignored build scripts"),
             "the repeat install must report the ignored builds again; got:\n{combined}",
