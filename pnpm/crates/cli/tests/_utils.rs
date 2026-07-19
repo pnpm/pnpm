@@ -90,3 +90,12 @@ pub fn index_file_contents(store_dir: &Path) -> BTreeMap<String, BTreeMap<String
     }
     out
 }
+
+/// Parse `<workspace>/node_modules/.pnpm/lock.yaml` — the current
+/// lockfile describing what the last install materialized.
+#[must_use]
+pub fn read_current_lockfile(workspace: &Path) -> pacquet_lockfile::Lockfile {
+    let text = fs::read_to_string(workspace.join("node_modules/.pnpm/lock.yaml"))
+        .expect("read the current lockfile");
+    serde_saphyr::from_str(&text).expect("parse the current lockfile")
+}

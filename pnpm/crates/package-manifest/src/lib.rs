@@ -338,6 +338,13 @@ impl PackageManifest {
             .and_then(Value::as_str)
     }
 
+    /// Record `name@version` under `dependency_group`. Saving into one
+    /// of the install groups (`dependencies` / `devDependencies` /
+    /// `optionalDependencies`) drops `name` from the other two: a
+    /// dependency has one home there, so saving it as a different type
+    /// moves it, matching pnpm's `updateProjectManifestObject`. A
+    /// [`DependencyGroup::Peer`] save is additive — pnpm's `--save-peer`
+    /// writes `peerDependencies` alongside the `devDependencies` entry.
     pub fn add_dependency(
         &mut self,
         name: &str,
@@ -357,6 +364,16 @@ impl PackageManifest {
             let mut dependencies = Map::<String, Value>::new();
             dependencies.insert(name.to_string(), Value::String(version.to_string()));
             self.value[dependency_type] = Value::Object(dependencies);
+        }
+        const INSTALL_GROUPS: [DependencyGroup; 3] =
+            [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+        if INSTALL_GROUPS.contains(&dependency_group) {
+            let removed = [name.to_string()];
+            for group in INSTALL_GROUPS {
+                if group != dependency_group {
+                    self.remove_from_object(group.into(), &removed);
+                }
+            }
         }
         Ok(())
     }

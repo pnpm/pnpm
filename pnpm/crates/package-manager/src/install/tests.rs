@@ -5975,7 +5975,12 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
         .pipe_as_ref(read_modules_manifest::<Host>)
         .expect("read .modules.yaml")
         .expect("modules manifest exists");
-    assert_eq!(written.skipped, [skipped_key.to_string()]);
+    // The recorded skip set is the reachability closure: the skipped
+    // optional's own dependency is not materialized either.
+    assert_eq!(
+        written.skipped,
+        ["@pnpm.e2e/dep-of-optional-pkg@1.0.0".to_string(), skipped_key.to_string()],
+    );
 
     let current_lockfile_path = virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
     let current_content =

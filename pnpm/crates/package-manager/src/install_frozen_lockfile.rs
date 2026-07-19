@@ -819,6 +819,27 @@ where
             }
         }
 
+        // The recorded skip set must be the reachability closure of the
+        // direct skips (see
+        // [`crate::extend_skipped_with_dependency_closure`]); extend it
+        // before `CreateVirtualStore`, the hoist pass, and the symlink /
+        // bin passes consume it.
+        {
+            let importer_ids: std::collections::HashSet<String> =
+                importers.keys().cloned().collect();
+            crate::extend_skipped_with_dependency_closure(
+                &mut skipped,
+                lockfile,
+                workspace_root,
+                &importer_ids,
+                pacquet_modules_yaml::IncludedDependencies {
+                    dependencies: dependency_groups.contains(&DependencyGroup::Prod),
+                    dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
+                    optional_dependencies: include_optional,
+                },
+            );
+        }
+
         // `engine_name` feeds two sites:
         //
         // - The GVS-aware `VirtualStoreLayout` needs it *before*

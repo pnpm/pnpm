@@ -192,11 +192,22 @@ impl SkippedSnapshots {
             && self.optional_excluded.is_empty()
     }
 
-    /// Insert into the installability set. Used by
-    /// [`compute_skipped_snapshots`] when the per-snapshot
-    /// installability check fails.
+    /// Insert into the installability set — the persisted subset
+    /// written to `.modules.yaml.skipped`.
     pub(crate) fn insert_installability(&mut self, key: PackageKey) {
         self.installability.insert(key);
+    }
+
+    #[must_use]
+    pub(crate) fn contains_installability(&self, key: &PackageKey) -> bool {
+        self.installability.contains(key)
+    }
+
+    /// Drop a seeded installability skip whose package passes the
+    /// current installability check — e.g. after `--os` / `--cpu` /
+    /// `supportedArchitectures` changed between installs.
+    pub(crate) fn remove_installability(&mut self, key: &PackageKey) {
+        self.installability.remove(key);
     }
 
     /// Iterate over the **installability** subset only — the entries
@@ -476,7 +487,13 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
     let mut check_cache: HashMap<(PackageKey, bool), Option<InstallabilityError>> = HashMap::new();
 
     for (snapshot_key, snapshot) in snapshots {
-        if skipped.contains(snapshot_key) {
+        // A seeded installability skip is re-evaluated below — the
+        // host, `supportedArchitectures`, or the package's constraints
+        // may have changed since the skip was recorded, and pnpm
+        // recomputes installability fresh on every install. The other
+        // categories carry per-run state, not a verdict to re-check.
+        let seeded = skipped.contains_installability(snapshot_key);
+        if !seeded && skipped.contains(snapshot_key) {
             continue;
         }
 
@@ -500,7 +517,12 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
             result
         };
 
-        let Some(warn) = warn else { continue };
+        let Some(warn) = warn else {
+            if seeded {
+                skipped.remove_installability(snapshot_key);
+            }
+            continue;
+        };
 
         if snapshot.optional {
             skipped.insert_installability(snapshot_key.clone());
