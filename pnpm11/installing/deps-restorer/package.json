@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.deps-restorer",
-  "version": "1102.1.7",
+  "version": "1102.1.8",
   "description": "Fast installation using only pnpm-lock.yaml",
   "keywords": [
     "pnpm",
