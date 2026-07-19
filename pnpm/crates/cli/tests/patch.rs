@@ -1571,12 +1571,14 @@ mod known_failures {
 
     fn enable_modules_dir_setting() -> KnownResult<()> {
         Err(KnownFailure::new(
-            "`enableModulesDir: false` is not a pacquet config setting. \
-             The NAPI binding accepts it and aliases it onto the \
-             lockfile-only path (`crates/napi/src/install.rs`), but \
-             `pacquet_config::Config` has no `enable_modules_dir` field, \
-             so the CLI cannot express \"resolve and write the lockfile, \
-             materialize nothing\" — with or without a patched dependency.",
+            "`enableModulesDir: false` is not a pacquet config setting \
+             (tracked in pnpm/pnpm#12042 with the other unsupported \
+             installation settings). The NAPI binding accepts it and \
+             aliases it onto the lockfile-only path \
+             (`crates/napi/src/install.rs`), but `pacquet_config::Config` \
+             has no `enable_modules_dir` field, so the CLI cannot express \
+             \"resolve and write the lockfile, materialize nothing\" — \
+             with or without a patched dependency.",
         ))
     }
 
