@@ -662,7 +662,7 @@ fn transitive_deprecations_flush_as_a_summary_at_resolution_done() {
     );
     assert!(
         frame.is_empty(),
-        "transitive deprecations must buffer until resolution_done: {frame:?}"
+        "transitive deprecations must buffer until resolution_done: {frame:?}",
     );
 
     let frame = render(&mut reporter, vec![resolution_done()]);
