@@ -241,8 +241,6 @@ pub struct ReporterState {
     warnings_counter: usize,
     collapsed_warn_slot: BlockSlot,
 
-    /// Buffered transitive-deprecation events, accumulated until
-    /// `resolution_done` fires and rendered as a single summary line.
     deprecated_subdeps: Vec<DeprecationLog>,
     deprecated_slot: BlockSlot,
 }
@@ -1075,9 +1073,9 @@ impl ReporterState {
         ));
     }
 
-    /// Handle a `pnpm:deprecation` event. Direct dependencies
-    /// (`depth == 0`) are rendered immediately; transitive ones are
-    /// buffered and summarized at `resolution_done`.
+    /// Matches pnpm's `reportDeprecations.ts`: only direct-dependency
+    /// deprecations render immediately; transitive ones wait for the
+    /// `resolution_done` summary.
     fn on_deprecation(&mut self, log: &DeprecationLog) {
         if log.depth == 0 {
             let msg = format!(
@@ -1099,9 +1097,6 @@ impl ReporterState {
         }
     }
 
-    /// Flush buffered transitive-deprecation events into a single
-    /// summary line, matching pnpm's `reportDeprecations.ts` behavior:
-    /// `<N> deprecated subdependencies found: <list>`.
     fn flush_deprecated_subdeps(&mut self) {
         if self.deprecated_subdeps.is_empty() {
             return;

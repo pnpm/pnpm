@@ -643,11 +643,8 @@ pub struct WorkspaceTreeCtx {
     /// keeps the skip behavior but drops the notification. See
     /// [`SkippedOptionalLogFn`].
     skipped_optional_log: Option<SkippedOptionalLogFn>,
-    /// Package-name → semver-range map from the
-    /// `pnpm.allowedDeprecatedVersions` setting. When a newly-resolved
-    /// package is deprecated and its `name@version` satisfies an entry
-    /// here, the deprecation warning is suppressed. See
-    /// [`WorkspaceTreeCtx::with_allowed_deprecated_versions`].
+    /// The `pnpm.allowedDeprecatedVersions` map. See
+    /// [`crate::WorkspaceResolveOptions::allowed_deprecated_versions`].
     allowed_deprecated_versions: BTreeMap<String, String>,
     /// Sink for deprecation notifications. `None` keeps the
     /// deprecation check but drops the notification. See
@@ -890,9 +887,8 @@ impl WorkspaceTreeCtx {
         self
     }
 
-    /// Attach the `pnpm.allowedDeprecatedVersions` map. When a
-    /// newly-resolved package is deprecated and its `name@version`
-    /// satisfies an entry here, the deprecation warning is suppressed.
+    /// Attach the `pnpm.allowedDeprecatedVersions` map. See
+    /// [`crate::WorkspaceResolveOptions::allowed_deprecated_versions`].
     #[must_use]
     pub fn with_allowed_deprecated_versions(
         mut self,
@@ -1681,10 +1677,7 @@ where
                 },
             );
 
-            // Deprecation check: emit `pnpm:deprecation` for newly-resolved
-            // packages whose registry manifest carries a non-empty `deprecated`
-            // field, unless the package name+version is covered by
-            // `allowedDeprecatedVersions`. Matches the TS implementation at
+            // Matches the TS deprecation warning at
             // `pnpm11/installing/deps-resolver/src/resolveDependencies.ts:2119`.
             if let Some(deprecated) = extract_deprecated_from_manifest(result.manifest.as_deref())
                 && !deprecated.is_empty()
@@ -3153,22 +3146,15 @@ fn is_empty_or_absent(value: Option<&Value>) -> bool {
     value.and_then(Value::as_object).is_none_or(serde_json::Map::is_empty)
 }
 
-/// Extract the `deprecated` string from a registry manifest `Value`.
-///
-/// Returns `None` when the manifest is absent or the field is missing
-/// or not a string — both cases mean "not deprecated" and the caller
-/// skips the deprecation check.
+/// A missing manifest, an absent `deprecated` field, and a non-string
+/// one all count as not deprecated.
 fn extract_deprecated_from_manifest(manifest: Option<&Value>) -> Option<String> {
     manifest?.get("deprecated")?.as_str().map(str::to_string)
 }
 
-/// Check whether a deprecated package is covered by the
-/// `pnpm.allowedDeprecatedVersions` setting.
-///
-/// Returns `true` when `allowed_deprecated_versions` contains an entry
-/// for `pkg_name` whose semver range satisfies `pkg_version`. The
-/// deprecation warning is suppressed in that case. Matches the TS
-/// check at `pnpm11/installing/deps-resolver/src/resolveDependencies.ts:2122`.
+/// Whether `pkg_name@pkg_version` satisfies its entry in the
+/// `pnpm.allowedDeprecatedVersions` map, matching the TS check at
+/// `pnpm11/installing/deps-resolver/src/resolveDependencies.ts:2122`.
 fn is_deprecation_allowed(
     pkg_name: &str,
     pkg_version: &str,

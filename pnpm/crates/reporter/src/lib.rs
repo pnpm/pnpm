@@ -817,11 +817,9 @@ pub struct ExecutionTimeLog {
     pub ended_at: u128,
 }
 
-/// `pnpm:deprecation` payload. Emitted once per newly-resolved package
-/// whose registry manifest carries a `deprecated` field and whose
-/// name/version is not covered by `allowedDeprecatedVersions`. Field
-/// names match pnpm's [`DeprecationMessage`] wire shape so
-/// `@pnpm/cli.default-reporter` dispatches on them unchanged.
+/// `pnpm:deprecation` payload. Field names match pnpm's
+/// [`DeprecationMessage`] wire shape so `@pnpm/cli.default-reporter`
+/// dispatches on them unchanged.
 ///
 /// [`DeprecationMessage`]: https://github.com/pnpm/pnpm/blob/main/core/core-loggers/src/deprecationLogger.ts
 #[derive(Debug, Clone, Serialize)]
