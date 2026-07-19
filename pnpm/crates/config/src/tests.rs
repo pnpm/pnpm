@@ -1133,6 +1133,60 @@ pub fn project_npmrc_proxy_settings_are_preserved() {
     );
 }
 
+#[test]
+pub fn cli_https_proxy_preserves_project_npmrc_http_proxy_only_for_project_requests() {
+    let project = tempdir().expect("project tempdir");
+    fs::write(
+        project.path().join(".npmrc"),
+        "http-proxy=http://project-http-proxy.example.com:8080\n",
+    )
+    .expect("write project .npmrc");
+    set_fake_env(&[]);
+
+    let mut config = load_with_fake_env(project.path());
+    config.apply_proxy_cli_overrides(Some("http://cli-https-proxy.example.com:8443"), None, None);
+
+    assert_eq!(
+        config.proxy.http_proxy.as_deref(),
+        Some("http://project-http-proxy.example.com:8080"),
+    );
+    assert_eq!(
+        config.package_manager_bootstrap.proxy.http_proxy.as_deref(),
+        Some("http://cli-https-proxy.example.com:8443"),
+    );
+}
+
+#[test]
+pub fn cli_https_proxy_preserves_trusted_npmrc_http_proxy_for_bootstrap_requests() {
+    let project = tempdir().expect("project tempdir");
+    let auth = tempdir().expect("auth tempdir");
+    let user_file = auth.path().join("user-npmrc");
+    write_file(&user_file, "http-proxy=http://user-http-proxy.example.com:8080\n");
+
+    let mut config = Config { npmrc_auth_file: Some(user_file), ..Config::default() }
+        .current::<HostNoHome>(project.path())
+        .expect("load config");
+    config.apply_proxy_cli_overrides(Some("http://cli-https-proxy.example.com:8443"), None, None);
+
+    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://user-http-proxy.example.com:8080"));
+    assert_eq!(
+        config.package_manager_bootstrap.proxy.http_proxy.as_deref(),
+        Some("http://user-http-proxy.example.com:8080"),
+    );
+}
+
+#[test]
+pub fn cli_https_proxy_precedes_standard_http_proxy_environment_fallback() {
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[("HTTP_PROXY", "http://environment-http-proxy.example.com:8080")]);
+
+    let mut config = load_with_fake_env(project.path());
+    config.apply_proxy_cli_overrides(Some("http://cli-https-proxy.example.com:8443"), None, None);
+
+    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://cli-https-proxy.example.com:8443"));
+    assert_eq!(config.package_manager_bootstrap.proxy, config.proxy);
+}
+
 /// Explicitly URL-scoped credentials pass through unchanged — they
 /// are never rescoped, so they stay on exactly the registry the user
 /// wrote, regardless of a workspace registry override.
