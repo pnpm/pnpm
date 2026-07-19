@@ -518,6 +518,7 @@ packageExtensions:
 
 patchedDependencies:
   graceful-fs@4.2.11: __patches__/graceful-fs@4.2.11.patch
+  normalize-registry-url@2.0.1: __patches__/normalize-registry-url@2.0.1.patch
 
 patchesDir: __patches__
 

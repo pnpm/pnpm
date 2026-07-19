@@ -143,6 +143,97 @@ describe('login', () => {
     ])
   })
 
+  it('should log in to a registry under a subpath when the URL has no trailing slash', async () => {
+    const fetchedUrls: string[] = []
+    let savedSettings: Record<string, unknown> = {}
+    const context = createMockContext({
+      globalInfo: jest.fn(),
+      readIniFile: async () => ({}),
+      writeIniFile: async (_configPath, settings) => {
+        savedSettings = settings
+      },
+      fetch: async url => {
+        fetchedUrls.push(url)
+        if (url === 'https://example.com/npm/registry/-/v1/login') {
+          return createMockResponse({
+            ok: true,
+            status: 200,
+            json: {
+              loginUrl: 'https://example.com/auth/login',
+              doneUrl: 'https://example.com/auth/done',
+            },
+          })
+        }
+        if (url === 'https://example.com/auth/done') {
+          return createMockResponse({
+            ok: true,
+            status: 200,
+            json: { token: 'subpath-token' },
+          })
+        }
+        throw new Error(`Unexpected call to fetch: ${url}`)
+      },
+    })
+    const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://example.com/npm/registry' }
+    const result = await login({ context, opts })
+    expect(result).toBe('Logged in on https://example.com/npm/registry/')
+    expect(fetchedUrls[0]).toBe('https://example.com/npm/registry/-/v1/login')
+    expect(savedSettings).toMatchObject({
+      '//example.com/npm/registry/:_authToken': 'subpath-token',
+    })
+  })
+
+  it('should fall back to classic login on a registry under a subpath when the URL has no trailing slash', async () => {
+    const fetchedUrls: string[] = []
+    let savedSettings: Record<string, unknown> = {}
+    const context = createMockContext({
+      globalInfo: jest.fn(),
+      readIniFile: async () => ({}),
+      writeIniFile: async (_configPath, settings) => {
+        savedSettings = settings
+      },
+      fetch: async url => {
+        fetchedUrls.push(url)
+        if (url === 'https://example.com/npm/registry/-/v1/login') {
+          return createMockResponse({
+            ok: false,
+            status: 404,
+            text: 'Not Found',
+          })
+        }
+        if (url === 'https://example.com/npm/registry/-/user/org.couchdb.user:john') {
+          return createMockResponse({
+            ok: true,
+            status: 201,
+            json: { ok: true, token: 'subpath-classic-token' },
+          })
+        }
+        throw new Error(`Unexpected call to fetch: ${url}`)
+      },
+      enquirer: {
+        input: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Username:') return 'john'
+          if (opts.message === 'Email (this IS public):') return 'john@example.com'
+          throw new Error(`Unexpected call to enquirer.input: ${opts.message}`)
+        },
+        password: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Password:') return 'secret'
+          throw new Error(`Unexpected call to enquirer.password: ${opts.message}`)
+        },
+      },
+    })
+    const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://example.com/npm/registry' }
+    const result = await login({ context, opts })
+    expect(result).toBe('Logged in on https://example.com/npm/registry/')
+    expect(fetchedUrls).toEqual([
+      'https://example.com/npm/registry/-/v1/login',
+      'https://example.com/npm/registry/-/user/org.couchdb.user:john',
+    ])
+    expect(savedSettings).toMatchObject({
+      '//example.com/npm/registry/:_authToken': 'subpath-classic-token',
+    })
+  })
+
   it('should persist a scoped auth token and scope registry mapping when --scope is provided', async () => {
     let savedSettings: Record<string, unknown> = {}
     const context = createMockContext({

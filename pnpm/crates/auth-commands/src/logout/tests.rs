@@ -509,6 +509,38 @@ async fn handles_registry_with_a_path() {
 }
 
 #[tokio::test]
+async fn handles_registry_under_a_subpath_without_a_trailing_slash() {
+    recording_reporter!(Rep, EVENTS);
+    sys_fake!(
+        Sys,
+        writes = WRITES,
+        revokes = REVOKES,
+        read = { Ok("//example.com/npm/registry/:_authToken=subpath-token\n".to_string()) },
+        revoke = RevokeOutcome::Revoked,
+    );
+    let auth = auth_config(&[("//example.com/npm/registry/:_authToken", "subpath-token")]);
+    let result = logout::<Sys, Rep>(
+        &unused_client(),
+        LogoutOptions {
+            registry: Some("https://example.com/npm/registry"),
+            auth_config: &auth,
+            config_dir: Path::new("/config"),
+            retry: no_retry(),
+            prefix: "/mock",
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(result, "Logged out of https://example.com/npm/registry/");
+    assert_eq!(
+        REVOKES.lock().unwrap()[0].0,
+        "https://example.com/npm/registry/-/user/token/subpath-token"
+    );
+    assert_eq!(WRITES.lock().unwrap()[0].1, "");
+}
+
+#[tokio::test]
 async fn propagates_auth_ini_write_errors() {
     recording_reporter!(Rep, EVENTS);
     // `sys_fake!`'s write always succeeds, so this branch needs a
