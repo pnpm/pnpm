@@ -1396,8 +1396,13 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         )
         .await
         .map_err(InstallWithFreshLockfileError::MinimumReleaseAge)?;
-        // Only in the fresh-lockfile path — frozen lockfile trusts recorded patches.
-        if let Some(ref deps) = patched_dependencies {
+        // Only in the fresh-lockfile path — frozen lockfile trusts recorded
+        // patches. Skipped for a filtered install (`--filter`), matching
+        // pnpm's importer-count gate: pnpm only verifies patches when every
+        // workspace importer was part of the resolution.
+        if let Some(ref deps) = patched_dependencies
+            && !is_partial_workspace_selection(real_importer_ids, selected_importer_ids)
+        {
             match pacquet_patching::verify_patches(
                 deps,
                 &workspace_result.merged_tree.applied_patches,
