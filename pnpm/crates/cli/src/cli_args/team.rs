@@ -126,6 +126,10 @@ pub enum TeamError {
         body: String,
     },
 
+    #[display("Authentication required for registry access")]
+    #[diagnostic(code(ERR_PNPM_TEAM_MISSING_AUTH))]
+    MissingAuthToken,
+
     #[display("Organization or team not found. {body}")]
     #[diagnostic(code(ERR_PNPM_NOT_FOUND))]
     NotFound {
@@ -314,7 +318,7 @@ async fn team_create(context: &TeamContext<'_>, params: &[String]) -> miette::Re
     let team = st.team.as_deref().ok_or(TeamError::CreateNameRequired)?;
 
     let registry_url = registry_for_scope(context, &st.scope);
-    let auth_header = auth_header_for_registry(context, &st.scope);
+    let auth_header = auth_header_for_registry(context, &st.scope)?;
     let url = org_team_url(&registry_url, &st.scope);
     let body = serde_json::json!({ "name": team }).to_string();
 
@@ -322,7 +326,7 @@ async fn team_create(context: &TeamContext<'_>, params: &[String]) -> miette::Re
         send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
             let builder =
                 client.put(&url).header("content-type", "application/json").body(body.clone());
-            apply_auth_and_otp(builder, auth_header.as_deref(), context.otp.as_deref())
+            apply_auth_and_otp(builder, Some(&auth_header), context.otp.as_deref())
         })
         .await
         .map_err(|source| registry_operation_error("creating team", source))?;
@@ -340,13 +344,13 @@ async fn team_destroy(context: &TeamContext<'_>, params: &[String]) -> miette::R
     let team = st.team.as_deref().ok_or(TeamError::DestroyNameRequired)?;
 
     let registry_url = registry_for_scope(context, &st.scope);
-    let auth_header = auth_header_for_registry(context, &st.scope);
+    let auth_header = auth_header_for_registry(context, &st.scope)?;
     let url = team_url(&registry_url, &st.scope, team);
 
     let (_guard, response) =
         send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
             let builder = client.delete(&url);
-            apply_auth_and_otp(builder, auth_header.as_deref(), context.otp.as_deref())
+            apply_auth_and_otp(builder, Some(&auth_header), context.otp.as_deref())
         })
         .await
         .map_err(|source| registry_operation_error("destroying team", source))?;
@@ -367,7 +371,7 @@ async fn team_add(context: &TeamContext<'_>, params: &[String]) -> miette::Resul
     let username = &params[1];
 
     let registry_url = registry_for_scope(context, &st.scope);
-    let auth_header = auth_header_for_registry(context, &st.scope);
+    let auth_header = auth_header_for_registry(context, &st.scope)?;
     let url = team_user_url(&registry_url, &st.scope, team);
     let body = serde_json::json!({ "user": username }).to_string();
 
@@ -375,7 +379,7 @@ async fn team_add(context: &TeamContext<'_>, params: &[String]) -> miette::Resul
         send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
             let builder =
                 client.put(&url).header("content-type", "application/json").body(body.clone());
-            apply_auth_and_otp(builder, auth_header.as_deref(), context.otp.as_deref())
+            apply_auth_and_otp(builder, Some(&auth_header), context.otp.as_deref())
         })
         .await
         .map_err(|source| registry_operation_error("adding user to team", source))?;
@@ -399,7 +403,7 @@ async fn team_rm(context: &TeamContext<'_>, params: &[String]) -> miette::Result
     let username = &params[1];
 
     let registry_url = registry_for_scope(context, &st.scope);
-    let auth_header = auth_header_for_registry(context, &st.scope);
+    let auth_header = auth_header_for_registry(context, &st.scope)?;
     let url = team_user_url(&registry_url, &st.scope, team);
     let body = serde_json::json!({ "user": username }).to_string();
 
@@ -407,7 +411,7 @@ async fn team_rm(context: &TeamContext<'_>, params: &[String]) -> miette::Result
         send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
             let builder =
                 client.delete(&url).header("content-type", "application/json").body(body.clone());
-            apply_auth_and_otp(builder, auth_header.as_deref(), context.otp.as_deref())
+            apply_auth_and_otp(builder, Some(&auth_header), context.otp.as_deref())
         })
         .await
         .map_err(|source| registry_operation_error("removing user from team", source))?;
@@ -426,13 +430,13 @@ async fn team_ls(context: &TeamContext<'_>, params: &[String]) -> miette::Result
     let spec = params.first().ok_or(TeamError::LsScopeRequired)?;
     let st = parse_scope_team(spec)?;
 
-    let auth_header = auth_header_for_registry(context, &st.scope);
+    let auth_header = auth_header_for_registry(context, &st.scope)?;
 
     if let Some(team) = &st.team {
-        let members = fetch_team_members(context, &st.scope, team, auth_header.as_deref()).await?;
+        let members = fetch_team_members(context, &st.scope, team, Some(&auth_header)).await?;
         render_members(&st.scope, team, &members, context.parseable, context.json)
     } else {
-        let teams = fetch_teams(context, &st.scope, auth_header.as_deref()).await?;
+        let teams = fetch_teams(context, &st.scope, Some(&auth_header)).await?;
         render_teams(&st.scope, &teams, context.parseable, context.json)
     }
 }
@@ -578,10 +582,14 @@ fn registry_for_scope(context: &TeamContext<'_>, scope: &str) -> String {
     pick_registry_for_package(&context.registries, &pkg_name, None)
 }
 
-fn auth_header_for_registry(context: &TeamContext<'_>, scope: &str) -> Option<String> {
+fn auth_header_for_registry(context: &TeamContext<'_>, scope: &str) -> miette::Result<String> {
     let registry_url = registry_for_scope(context, scope);
     let pkg_name = format!("@{scope}/_");
-    context.config.auth_headers.for_url_with_package(&registry_url, Some(&pkg_name))
+    context
+        .config
+        .auth_headers
+        .for_url_with_package(&registry_url, Some(&pkg_name))
+        .ok_or_else(|| TeamError::MissingAuthToken.into())
 }
 
 fn apply_auth_and_otp(

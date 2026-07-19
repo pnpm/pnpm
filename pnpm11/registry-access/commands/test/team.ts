@@ -1,9 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals'
+import { PnpmError } from '@pnpm/error'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 
 import { team } from '../src/index.js'
 
 const REGISTRY_URL = 'https://registry.npmjs.org/'
+
+const CONFIG_BY_URI = {
+  '//registry.npmjs.org/': {
+    '@': { authToken: 'test-token' },
+  },
+}
 
 describe('team command', () => {
   beforeEach(async () => {
@@ -47,6 +54,7 @@ describe('team command', () => {
 
       const result = await team.handler({
         cliOptions: {},
+        configByUri: CONFIG_BY_URI,
         registries: { default: REGISTRY_URL },
       }, ['create', '@myorg:newteam'])
 
@@ -79,6 +87,7 @@ describe('team command', () => {
 
       const result = await team.handler({
         cliOptions: { otp: '123456' },
+        configByUri: CONFIG_BY_URI,
         registries: { default: REGISTRY_URL },
       }, ['create', '@myorg:newteam'])
 
@@ -94,6 +103,7 @@ describe('team command', () => {
       await expect(async () => {
         await team.handler({
           cliOptions: {},
+          configByUri: CONFIG_BY_URI,
           registries: { default: REGISTRY_URL },
         }, ['create', '@myorg:newteam'])
       }).rejects.toThrow('logged in')
@@ -108,6 +118,7 @@ describe('team command', () => {
       await expect(async () => {
         await team.handler({
           cliOptions: {},
+          configByUri: CONFIG_BY_URI,
           registries: { default: REGISTRY_URL },
         }, ['create', '@myorg:newteam'])
       }).rejects.toThrow('permission')
@@ -150,6 +161,7 @@ describe('team command', () => {
 
       const result = await team.handler({
         cliOptions: {},
+        configByUri: CONFIG_BY_URI,
         registries: { default: REGISTRY_URL },
       }, ['destroy', '@myorg:oldteam'])
 
@@ -173,6 +185,51 @@ describe('team command', () => {
         }, ['destroy', '@myorg'])
       }).rejects.toThrow('Team name is required')
     })
+
+    it('should throw on 401 (unauthorized)', async () => {
+      getMockAgent().get('https://registry.npmjs.org').intercept({
+        method: 'DELETE',
+        path: '/-/team/myorg/oldteam',
+      }).reply(401, { error: 'Unauthorized' })
+
+      await expect(async () => {
+        await team.handler({
+          cliOptions: {},
+          configByUri: CONFIG_BY_URI,
+          registries: { default: REGISTRY_URL },
+        }, ['destroy', '@myorg:oldteam'])
+      }).rejects.toThrow('logged in')
+    })
+
+    it('should throw on 403 (forbidden)', async () => {
+      getMockAgent().get('https://registry.npmjs.org').intercept({
+        method: 'DELETE',
+        path: '/-/team/myorg/oldteam',
+      }).reply(403, { error: 'Forbidden' })
+
+      await expect(async () => {
+        await team.handler({
+          cliOptions: {},
+          configByUri: CONFIG_BY_URI,
+          registries: { default: REGISTRY_URL },
+        }, ['destroy', '@myorg:oldteam'])
+      }).rejects.toThrow('permission')
+    })
+
+    it('should pass otp header when provided', async () => {
+      getMockAgent().get('https://registry.npmjs.org').intercept({
+        method: 'DELETE',
+        path: '/-/team/myorg/oldteam',
+      }).reply(200, { ok: true })
+
+      const result = await team.handler({
+        cliOptions: { otp: '654321' },
+        configByUri: CONFIG_BY_URI,
+        registries: { default: REGISTRY_URL },
+      }, ['destroy', '@myorg:oldteam'])
+
+      expect(result).toBe('-myorg:oldteam')
+    })
   })
 
   describe('add', () => {
@@ -185,6 +242,7 @@ describe('team command', () => {
 
       const result = await team.handler({
         cliOptions: {},
+        configByUri: CONFIG_BY_URI,
         registries: { default: REGISTRY_URL },
       }, ['add', '@myorg:team1', 'alice'])
 
@@ -217,6 +275,51 @@ describe('team command', () => {
         }, ['add', '@myorg', 'alice'])
       }).rejects.toThrow('Team name is required')
     })
+
+    it('should throw on 401 (unauthorized)', async () => {
+      getMockAgent().get('https://registry.npmjs.org').intercept({
+        method: 'PUT',
+        path: '/-/team/myorg/team1/user',
+      }).reply(401, { error: 'Unauthorized' })
+
+      await expect(async () => {
+        await team.handler({
+          cliOptions: {},
+          configByUri: CONFIG_BY_URI,
+          registries: { default: REGISTRY_URL },
+        }, ['add', '@myorg:team1', 'alice'])
+      }).rejects.toThrow('logged in')
+    })
+
+    it('should throw on 403 (forbidden)', async () => {
+      getMockAgent().get('https://registry.npmjs.org').intercept({
+        method: 'PUT',
+        path: '/-/team/myorg/team1/user',
+      }).reply(403, { error: 'Forbidden' })
+
+      await expect(async () => {
+        await team.handler({
+          cliOptions: {},
+          configByUri: CONFIG_BY_URI,
+          registries: { default: REGISTRY_URL },
+        }, ['add', '@myorg:team1', 'alice'])
+      }).rejects.toThrow('permission')
+    })
+
+    it('should pass otp header when provided', async () => {
+      getMockAgent().get('https://registry.npmjs.org').intercept({
+        method: 'PUT',
+        path: '/-/team/myorg/team1/user',
+      }).reply(200, { ok: true })
+
+      const result = await team.handler({
+        cliOptions: { otp: '123456' },
+        configByUri: CONFIG_BY_URI,
+        registries: { default: REGISTRY_URL },
+      }, ['add', '@myorg:team1', 'alice'])
+
+      expect(result).toBe('+alice added to @myorg:team1')
+    })
   })
 
   describe('rm', () => {
@@ -229,6 +332,7 @@ describe('team command', () => {
 
       const result = await team.handler({
         cliOptions: {},
+        configByUri: CONFIG_BY_URI,
         registries: { default: REGISTRY_URL },
       }, ['rm', '@myorg:team1', 'bob'])
 
@@ -252,6 +356,51 @@ describe('team command', () => {
         }, ['rm', '@myorg:team1'])
       }).rejects.toThrow('Team scope and user are required')
     })
+
+    it('should throw on 401 (unauthorized)', async () => {
+      getMockAgent().get('https://registry.npmjs.org').intercept({
+        method: 'DELETE',
+        path: '/-/team/myorg/team1/user',
+      }).reply(401, { error: 'Unauthorized' })
+
+      await expect(async () => {
+        await team.handler({
+          cliOptions: {},
+          configByUri: CONFIG_BY_URI,
+          registries: { default: REGISTRY_URL },
+        }, ['rm', '@myorg:team1', 'bob'])
+      }).rejects.toThrow('logged in')
+    })
+
+    it('should throw on 403 (forbidden)', async () => {
+      getMockAgent().get('https://registry.npmjs.org').intercept({
+        method: 'DELETE',
+        path: '/-/team/myorg/team1/user',
+      }).reply(403, { error: 'Forbidden' })
+
+      await expect(async () => {
+        await team.handler({
+          cliOptions: {},
+          configByUri: CONFIG_BY_URI,
+          registries: { default: REGISTRY_URL },
+        }, ['rm', '@myorg:team1', 'bob'])
+      }).rejects.toThrow('permission')
+    })
+
+    it('should pass otp header when provided', async () => {
+      getMockAgent().get('https://registry.npmjs.org').intercept({
+        method: 'DELETE',
+        path: '/-/team/myorg/team1/user',
+      }).reply(200, { ok: true })
+
+      const result = await team.handler({
+        cliOptions: { otp: '123456' },
+        configByUri: CONFIG_BY_URI,
+        registries: { default: REGISTRY_URL },
+      }, ['rm', '@myorg:team1', 'bob'])
+
+      expect(result).toBe('-bob removed from @myorg:team1')
+    })
   })
 
   describe('ls', () => {
@@ -266,6 +415,7 @@ describe('team command', () => {
 
       const result = await team.handler({
         cliOptions: {},
+        configByUri: CONFIG_BY_URI,
         registries: { default: REGISTRY_URL },
       }, ['ls', '@myorg'])
 
@@ -285,6 +435,7 @@ describe('team command', () => {
 
       const result = await team.handler({
         cliOptions: {},
+        configByUri: CONFIG_BY_URI,
         registries: { default: REGISTRY_URL },
       }, ['ls', '@myorg:developers'])
 
@@ -304,6 +455,7 @@ describe('team command', () => {
 
       const result = await team.handler({
         cliOptions: { parseable: true },
+        configByUri: CONFIG_BY_URI,
         registries: { default: REGISTRY_URL },
       }, ['ls', '@myorg'])
 
@@ -321,6 +473,7 @@ describe('team command', () => {
 
       const result = await team.handler({
         cliOptions: { json: true },
+        configByUri: CONFIG_BY_URI,
         registries: { default: REGISTRY_URL },
       }, ['ls', '@myorg'])
 
@@ -336,6 +489,7 @@ describe('team command', () => {
 
       const result = await team.handler({
         cliOptions: {},
+        configByUri: CONFIG_BY_URI,
         registries: { default: REGISTRY_URL },
       }, ['ls', '@myorg'])
 
@@ -350,6 +504,7 @@ describe('team command', () => {
 
       const result = await team.handler({
         cliOptions: {},
+        configByUri: CONFIG_BY_URI,
         registries: { default: REGISTRY_URL },
       }, ['ls', '@myorg:empty-team'])
 
@@ -365,6 +520,7 @@ describe('team command', () => {
       await expect(async () => {
         await team.handler({
           cliOptions: {},
+          configByUri: CONFIG_BY_URI,
           registries: { default: REGISTRY_URL },
         }, ['ls', '@nonexistent'])
       }).rejects.toThrow('not found')
@@ -379,6 +535,7 @@ describe('team command', () => {
       await expect(async () => {
         await team.handler({
           cliOptions: {},
+          configByUri: CONFIG_BY_URI,
           registries: { default: REGISTRY_URL },
         }, ['ls', '@myorg:nonexistent'])
       }).rejects.toThrow('not found')
@@ -401,6 +558,7 @@ describe('team command', () => {
 
       const result = await team.handler({
         cliOptions: {},
+        configByUri: CONFIG_BY_URI,
         registries: { default: REGISTRY_URL },
       }, ['list', '@myorg'])
 
@@ -417,6 +575,7 @@ describe('team command', () => {
 
       const result = await team.handler({
         cliOptions: {},
+        configByUri: CONFIG_BY_URI,
         registries: { default: REGISTRY_URL },
       }, ['@myorg'])
 
@@ -431,6 +590,7 @@ describe('team command', () => {
 
       const result = await team.handler({
         cliOptions: {},
+        configByUri: CONFIG_BY_URI,
         registries: { default: REGISTRY_URL },
       }, ['@myorg:developers'])
 
@@ -457,6 +617,34 @@ describe('team command', () => {
       }).rejects.toThrow('Team spec must start with @scope')
     })
 
+    it('should throw missing-auth when no token is configured', async () => {
+      try {
+        await team.handler({
+          cliOptions: {},
+          configByUri: {},
+          registries: { default: REGISTRY_URL },
+        }, ['ls', '@myorg'])
+        throw new Error('Expected error to be thrown')
+      } catch (err: unknown) {
+        expect(err).toBeInstanceOf(PnpmError)
+        expect((err as PnpmError).code).toBe('ERR_PNPM_TEAM_MISSING_AUTH')
+        expect((err as PnpmError).message).toContain('Authentication required')
+      }
+    })
+
+    it('should throw missing-auth when configByUri is absent', async () => {
+      try {
+        await team.handler({
+          cliOptions: {},
+          registries: { default: REGISTRY_URL },
+        }, ['ls', '@myorg'])
+        throw new Error('Expected error to be thrown')
+      } catch (err: unknown) {
+        expect(err).toBeInstanceOf(PnpmError)
+        expect((err as PnpmError).code).toBe('ERR_PNPM_TEAM_MISSING_AUTH')
+      }
+    })
+
     it('should throw on inappropriate parseable ls with just scope', async () => {
       getMockAgent().get('https://registry.npmjs.org').intercept({
         method: 'GET',
@@ -465,6 +653,7 @@ describe('team command', () => {
 
       const result = await team.handler({
         cliOptions: { parseable: true },
+        configByUri: CONFIG_BY_URI,
         registries: { default: REGISTRY_URL },
       }, ['ls', '@myorg'])
 
