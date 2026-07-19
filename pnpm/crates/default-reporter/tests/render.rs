@@ -239,10 +239,22 @@ fn prints_progress_beginning_in_append_only_mode() {
 
 #[test]
 fn prints_progress_beginning_during_recursive_install() {
+    let first_requester = "/repo/foo";
+    let second_requester = "/repo/bar";
     let mut reporter = state(false);
-    let frame =
-        render(&mut reporter, vec![stage_at(CWD, Stage::ResolutionStarted), progress("resolved")]);
-    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 0, added 0");
+    let frame = render(
+        &mut reporter,
+        vec![
+            stage_at(first_requester, Stage::ResolutionStarted),
+            progress_at(first_requester, "resolved"),
+            stage_at(second_requester, Stage::ResolutionStarted),
+            progress_at(second_requester, "resolved"),
+        ],
+    );
+    assert_eq!(
+        frame,
+        "foo                                      | Progress: resolved 1, reused 0, downloaded 0, added 0\nbar                                      | Progress: resolved 1, reused 0, downloaded 0, added 0",
+    );
 }
 
 #[test]
