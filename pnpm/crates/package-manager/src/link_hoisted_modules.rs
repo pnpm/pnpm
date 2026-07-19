@@ -76,9 +76,9 @@ pub struct LinkHoistedModulesOpts<'a> {
     /// Containment root for orphan removal: an orphan directory that
     /// does not sit lexically inside this root is skipped, never
     /// deleted. The walker builds every graph dir through
-    /// [`crate::safe_join_modules_dir::safe_join_modules_dir`], so a
-    /// confined path is the invariant — this keeps the deletion site
-    /// from depending on the constructor's discipline.
+    /// `safe_join_modules_dir`, so a confined path is the invariant —
+    /// this keeps the deletion site from depending on the
+    /// constructor's discipline.
     pub confine_root: &'a Path,
 }
 
