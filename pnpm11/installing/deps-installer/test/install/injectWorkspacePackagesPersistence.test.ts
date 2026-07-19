@@ -513,6 +513,16 @@ test('injected workspace dependency keeps link: on a plain install when a consum
   const lockfileAfterInstall = rootModules.readLockfile()
   // The consumer change itself must be reflected.
   expect(lockfileAfterInstall.importers.consumer.dependencies!['@pnpm.e2e/foo'].version).toBe('100.1.0')
+  // The peer context genuinely diverged: both foo versions resolved — the
+  // consumer's direct 100.1.0 (what q's peer resolves to in n's injected
+  // context) and the root-provided 100.0.0 (what q's peer resolves to in n's
+  // own context). Without both present there would be no divergence for
+  // dedupeInjectedDeps to keep as file:, and the link: assertion below would
+  // pass vacuously.
+  const fooVersions = Object.keys(lockfileAfterInstall.packages ?? {})
+    .filter((key) => key.startsWith('@pnpm.e2e/foo@'))
+    .sort()
+  expect(fooVersions).toStrictEqual(['@pnpm.e2e/foo@100.0.0', '@pnpm.e2e/foo@100.1.0'])
   // The untouched workspace dependency must keep its link:.
   expect(lockfileAfterInstall.importers.consumer.dependencies!.n.version).toBe('link:../n')
 })
