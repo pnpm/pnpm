@@ -620,6 +620,32 @@ pub struct Config {
     #[default(_code = "default_virtual_store_dir()")]
     pub global_virtual_store_dir: PathBuf,
 
+    /// `virtualStoreOnly`: populate the virtual store but perform no
+    /// post-import linking — no importer symlinks, no `.bin` entries,
+    /// no hoisting, and no project lifecycle scripts. `pnpm fetch` is
+    /// the canonical consumer.
+    ///
+    /// [`Self::apply_virtual_store_only_derivation`] clears both hoist
+    /// patterns when this is set. Combining it with
+    /// `enable_modules_dir: false` while the global virtual store is
+    /// off is a config conflict, rejected by
+    /// `pacquet_package_manager::Install::run`.
+    pub virtual_store_only: bool,
+
+    /// `enableModulesDir`: pnpm's setting for suppressing the
+    /// `node_modules` directory entirely. Default `true`.
+    ///
+    /// Only partially wired in pacquet: it gates the
+    /// [`virtual_store_only`] config conflict (a store-only install with
+    /// no modules dir needs the global virtual store to have anywhere to
+    /// put packages). The standalone "create no `node_modules` at all"
+    /// behavior is not implemented yet — a `false` value on its own does
+    /// not suppress materialization.
+    ///
+    /// [`virtual_store_only`]: Self::virtual_store_only
+    #[default(true)]
+    pub enable_modules_dir: bool,
+
     /// User override for the global packages root (`global-dir` setting /
     /// `PNPM_CONFIG_GLOBAL_DIR`). When unset, [`Config::current`] derives
     /// the root from the pnpm home directory.
@@ -1828,6 +1854,22 @@ impl Config {
             };
     }
 
+    /// Clear both hoist patterns when [`virtual_store_only`] is set.
+    ///
+    /// A `virtualStoreOnly` install does no hoisting, so the patterns it
+    /// records in `.modules.yaml` must be empty — that is how the next
+    /// ordinary install learns hoisting still has to be done from
+    /// scratch rather than reading a pattern it never applied.
+    ///
+    /// [`virtual_store_only`]: Self::virtual_store_only
+    pub fn apply_virtual_store_only_derivation(&mut self) {
+        if !self.virtual_store_only {
+            return;
+        }
+        self.hoist_pattern = Some(Vec::new());
+        self.public_hoist_pattern = Some(Vec::new());
+    }
+
     /// Restore the smart default store after a higher-precedence config
     /// source explicitly clears `storeDir`.
     pub fn reset_store_dir_to_default<Sys>(&mut self, start_dir: &Path)
@@ -2337,6 +2379,8 @@ impl Config {
             virtual_store_dir_explicit,
             global_virtual_store_dir_explicit,
         );
+
+        self.apply_virtual_store_only_derivation();
 
         // Resolve the global install directories:
         // `globalPkgDir = (globalDir ?? <pnpm-home>/global)/v11` and

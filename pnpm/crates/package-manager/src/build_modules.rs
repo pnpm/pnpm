@@ -921,7 +921,23 @@ fn build_one_snapshot<Reporter: self::Reporter>(
         // missing after a failed materialization, skip an optional
         // dependency (as for any optional build failure) and surface a
         // hard error otherwise.
-        let satisfied_by_cache = if layout.enable_global_virtual_store() {
+        //
+        // Under the global virtual store the slot usually *is* the seeded
+        // build — it persists inside the store across installs — so the
+        // overlay is already on disk and re-linking it would be pure
+        // overhead. That only holds while the slot survives, though: a
+        // failed build discards it
+        // ([`discard_failed_global_virtual_store_slot`]), and a prune or a
+        // manual removal can too. The store index keeps the side-effects
+        // row either way, so the next install re-imports the slot pristine
+        // and still hits the cache. Trusting the hit there would skip the
+        // build and leave the package unbuilt, so the slot has to be
+        // checked rather than assumed.
+        let gvs_slot_already_seeded = layout.enable_global_virtual_store()
+            && pkg_root_for_key(layout, pkg_roots_by_key, snapshot_key)
+                .is_some_and(|pkg_dir| slot_carries_overlay(&pkg_dir, overlay));
+
+        let satisfied_by_cache = if gvs_slot_already_seeded {
             true
         } else {
             // The overlay carries the patched / built contents, so it
@@ -1060,6 +1076,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
                 continue;
             }
             apply_patch_to_dir(&patched_dir, patch_file_path)
+                .inspect_err(|_| discard_failed_global_virtual_store_slot(layout, snapshot_key))
                 .map_err(BuildModulesError::PatchApply)?;
         }
         true
@@ -1089,6 +1106,9 @@ fn build_one_snapshot<Reporter: self::Reporter>(
         match result {
             Ok(ran) => ran,
             Err(err) => {
+                // Before the optional-skip return, so a failed optional
+                // build leaves no half-built slot behind either.
+                discard_failed_global_virtual_store_slot(layout, snapshot_key);
                 if optional {
                     Reporter::emit(&LogEvent::SkippedOptionalDependency(
                         SkippedOptionalDependencyLog {
@@ -1188,6 +1208,85 @@ fn virtual_store_dir_for_key(layout: &crate::VirtualStoreLayout, key: &PackageKe
     let name = &name_version[..at_idx];
 
     layout.slot_dir(key).join("node_modules").join(name)
+}
+
+/// Whether `pkg_dir` already holds every file of a side-effects-cache
+/// overlay — i.e. the cached build is on disk rather than merely recorded
+/// in the store index.
+///
+/// The overlay is the resolved post-build file set, so a slot still
+/// carrying only the pristine tarball is missing whatever the build
+/// added and fails the check. A build that *only deleted* files is
+/// indistinguishable from an unbuilt slot here and reads as seeded;
+/// pnpm's `.pnpm-needs-build` marker is what closes that gap, and
+/// pacquet has not ported it yet.
+///
+/// Only reached for packages that both pass the build-allow policy and
+/// have a cache entry — a handful per install, not the whole tree.
+fn slot_carries_overlay(pkg_dir: &Path, overlay: &HashMap<String, PathBuf>) -> bool {
+    pkg_dir.is_dir() && overlay.keys().all(|relative| pkg_dir.join(relative).exists())
+}
+
+/// Whether `slot_dir` is a strict descendant of `root` reached only
+/// through `..`-free path components.
+///
+/// The gate for [`discard_failed_global_virtual_store_slot`]'s recursive
+/// delete: `slot_dir` is derived from a lockfile-controlled package
+/// name, so a crafted `..` segment must not let the delete escape the
+/// store root.
+fn is_contained_descendant(root: &Path, slot_dir: &Path) -> bool {
+    slot_dir.strip_prefix(root).is_ok_and(|suffix| {
+        let mut components = suffix.components().peekable();
+        components.peek().is_some()
+            && components.all(|component| matches!(component, std::path::Component::Normal(_)))
+    })
+}
+
+/// Remove a snapshot's whole global-virtual-store hash directory after
+/// its patch application or build script failed.
+///
+/// The hash directory is shared across every project that resolves to
+/// the same dependency graph, so leaving a half-built one behind would
+/// serve broken files to all of them: the next install finds the
+/// directory present, takes the warm fast path, and never re-fetches.
+/// Removing it restores the cold path.
+///
+/// No-op when the global virtual store is off — a project-local
+/// `node_modules/.pnpm` slot is rebuilt from scratch by the next
+/// install anyway. Removal failures are logged and swallowed; the build
+/// error the caller is already returning is the one worth surfacing.
+fn discard_failed_global_virtual_store_slot(layout: &crate::VirtualStoreLayout, key: &PackageKey) {
+    if !layout.enable_global_virtual_store() {
+        return;
+    }
+    let slot_dir = layout.slot_dir(key);
+    // Defense-in-depth: the slot path is built from a lockfile-controlled
+    // package name, which is not validated against `..` segments. Refuse
+    // to recurse-delete anything that isn't a plain descendant of the GVS
+    // root, so a crafted name can't turn cleanup into a path traversal
+    // that removes directories outside the store.
+    let root = layout.package_store_dir();
+    if !is_contained_descendant(root, &slot_dir) {
+        tracing::warn!(
+            target: "pacquet::build",
+            dep_path = %key,
+            slot_dir = %slot_dir.display(),
+            store_root = %root.display(),
+            "refusing to remove a build slot outside the store root",
+        );
+        return;
+    }
+    if let Err(err) = std::fs::remove_dir_all(&slot_dir)
+        && err.kind() != std::io::ErrorKind::NotFound
+    {
+        tracing::warn!(
+            target: "pacquet::build",
+            ?err,
+            dep_path = %key,
+            slot_dir = %slot_dir.display(),
+            "failed to remove the global virtual store slot of a failed build",
+        );
+    }
 }
 
 /// Resolve the canonical on-disk package directory for a snapshot — the

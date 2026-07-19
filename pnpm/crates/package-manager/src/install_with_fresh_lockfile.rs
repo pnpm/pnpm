@@ -2089,7 +2089,11 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // [`crate::link_hoisted_modules()`]); on the isolated linker
         // the event fires here, so every install carries exactly one,
         // pairing the `added` emitted in `CreateVirtualStore`.
-        if !is_hoisted {
+        //
+        // `virtual_store_only` skips reconciliation for the same reason
+        // it skips linking below: it never creates importer or hoist
+        // links, so there is nothing of its own to reconcile.
+        if !is_hoisted && !config.virtual_store_only {
             let removed_count = match current_lockfile {
                 Some(current) => crate::PruneStaleModules {
                     config,
@@ -2113,7 +2117,12 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             }));
         }
 
-        let (hoisted_dependencies, hoisted_locations) = if is_hoisted {
+        // `virtual_store_only` stops after the virtual store is
+        // populated: neither linker arm runs, so nothing is hoisted and
+        // no importer symlinks or bins are created.
+        let (hoisted_dependencies, hoisted_locations) = if config.virtual_store_only {
+            (HoistedDependencies::new(), BTreeMap::new())
+        } else if is_hoisted {
             let project_manifests = importer_manifests
                 .iter()
                 .filter(|(id, _)| project_anchor_importer_ids.contains(id.as_str()))

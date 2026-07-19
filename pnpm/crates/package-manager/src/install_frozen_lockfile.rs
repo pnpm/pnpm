@@ -534,6 +534,13 @@ pub(crate) fn run_build_phase<Reporter: self::Reporter>(
         strict_dep_builds: config.strict_dep_builds,
     }));
 
+    // `virtual_store_only` links no bins at all, so there is nothing for
+    // the pass below to re-resolve. Dependency *build* scripts still ran
+    // above — only the linking stops, matching `pnpm fetch`.
+    if config.virtual_store_only {
+        return Ok(ignored_builds);
+    }
+
     // Post-`BuildModules` per-importer top-level bin link
     // (pnpm/pacquet#342). Resolves direct-over-hoisted precedence and
     // shims lifecycle-script-created bins that didn't exist at extract
@@ -1100,7 +1107,11 @@ where
         // [`crate::link_hoisted_modules()`]); on the isolated linker
         // the event fires here, so every install carries exactly one,
         // pairing the `added` emitted in `CreateVirtualStore`.
-        if !is_hoisted {
+        //
+        // `virtual_store_only` skips reconciliation for the same reason
+        // it skips linking below: it never creates importer or hoist
+        // links, so there is nothing of its own to reconcile.
+        if !is_hoisted && !config.virtual_store_only {
             let removed_count = match current_lockfile {
                 Some(current) => crate::PruneStaleModules {
                     config,
@@ -1124,7 +1135,10 @@ where
             }));
         }
 
-        if !is_hoisted {
+        // `virtual_store_only` stops here: the virtual store is
+        // populated, but nothing downstream of it — importer symlinks,
+        // per-slot bins, root components — gets linked.
+        if !is_hoisted && !config.virtual_store_only {
             // Importer ids backed by the install's own declared
             // projects. These may legitimately live outside the
             // lockfile dir (Bit's capsule installs pass such
@@ -1231,31 +1245,32 @@ where
         // [`crate::BuildModules::pkg_roots_by_key`] for why a snapshot
         // can map to more than one directory and which writes have to
         // reach all of them.
-        let HoistedLinkerOutput { hoisted_locations, hoisted_pkg_roots_by_key } = if is_hoisted {
-            run_hoisted_linker::<Reporter>(
-                HoistedLinkerInputs {
-                    config,
-                    lockfile,
-                    current_lockfile,
-                    layout: &layout,
-                    importers,
-                    dependency_groups: &dependency_groups,
-                    project_manifests,
-                    package_map_project_manifests,
-                    walker_lockfile_dir: workspace_root,
-                    symlink_workspace_root: workspace_root,
-                    host_node: host_node.as_ref(),
-                    supported_architectures,
-                    cas_paths_by_pkg_id,
-                    logged_methods,
-                    requester,
-                },
-                &mut skipped,
-            )
-            .map_err(InstallFrozenLockfileError::from)?
-        } else {
-            HoistedLinkerOutput::default()
-        };
+        let HoistedLinkerOutput { hoisted_locations, hoisted_pkg_roots_by_key } =
+            if is_hoisted && !config.virtual_store_only {
+                run_hoisted_linker::<Reporter>(
+                    HoistedLinkerInputs {
+                        config,
+                        lockfile,
+                        current_lockfile,
+                        layout: &layout,
+                        importers,
+                        dependency_groups: &dependency_groups,
+                        project_manifests,
+                        package_map_project_manifests,
+                        walker_lockfile_dir: workspace_root,
+                        symlink_workspace_root: workspace_root,
+                        host_node: host_node.as_ref(),
+                        supported_architectures,
+                        cas_paths_by_pkg_id,
+                        logged_methods,
+                        requester,
+                    },
+                    &mut skipped,
+                )
+                .map_err(InstallFrozenLockfileError::from)?
+            } else {
+                HoistedLinkerOutput::default()
+            };
 
         // Hoist transitive deps into `<virtual_store>/node_modules`
         // (private hoist) and/or `<root>/node_modules` (public hoist).
@@ -1916,6 +1931,13 @@ pub(crate) fn compute_hoist_plan(
     hoisted_workspace_packages: Option<&std::collections::BTreeMap<String, PathBuf>>,
 ) -> Option<HoistPlan> {
     if is_hoisted {
+        return None;
+    }
+    // Independent of the empty patterns
+    // [`Config::apply_virtual_store_only_derivation`] leaves behind, so a
+    // caller that sets the flag without going through `Config::current`
+    // still gets no hoisting.
+    if config.virtual_store_only {
         return None;
     }
     if config.hoist_pattern.is_none() && config.public_hoist_pattern.is_none() {
