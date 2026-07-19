@@ -9,8 +9,8 @@ use pacquet_default_reporter::{
     state::{Output, ReporterState},
 };
 use pacquet_reporter::{
-    AddedRoot, ContextLog, DependencyType, ExecutionTimeLog, GlobalLog, HookLog, LifecycleLog,
-    LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, PackageImportMethod,
+    AddedRoot, ContextLog, DependencyType, DeprecationLog, ExecutionTimeLog, GlobalLog, HookLog,
+    LifecycleLog, LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, PackageImportMethod,
     PackageImportMethodLog, PackageManifestLog, PackageManifestMessage, PnpmLog, ProgressLog,
     ProgressMessage, RootLog, RootMessage, SkippedOptionalDependencyLog, SkippedOptionalPackage,
     SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage,
@@ -607,4 +607,64 @@ fn hook_log_renders_with_magenta_hook_name() {
         })],
     );
     assert_eq!(frame, "preResolution: Starting resolution");
+}
+
+fn deprecation(name: &str, version: &str, depth: i32, prefix: &str) -> LogEvent {
+    LogEvent::Deprecation(DeprecationLog {
+        level: LogLevel::Debug,
+        pkg_name: name.to_string(),
+        pkg_version: version.to_string(),
+        pkg_id: format!("{name}@{version}"),
+        prefix: prefix.to_string(),
+        deprecated: "no longer supported".to_string(),
+        depth,
+    })
+}
+
+fn resolution_done() -> LogEvent {
+    LogEvent::Stage(StageLog {
+        level: LogLevel::Debug,
+        prefix: CWD.to_string(),
+        stage: Stage::ResolutionDone,
+    })
+}
+
+#[test]
+fn direct_deprecation_renders_immediately_with_the_message() {
+    let mut reporter = state(false);
+    let frame = render(&mut reporter, vec![deprecation("express", "0.14.1", 0, CWD)]);
+    assert_eq!(frame, "[WARN] deprecated express@0.14.1: no longer supported");
+}
+
+/// Upstream's zoomed variant carries only `deprecated name@version` — the
+/// deprecation text is dropped.
+#[test]
+fn zoomed_direct_deprecation_omits_the_message() {
+    let mut reporter = state(false);
+    let frame =
+        render(&mut reporter, vec![deprecation("express", "0.14.1", 0, "/repo/packages/app")]);
+    assert_eq!(
+        frame,
+        pacquet_default_reporter::format::zoom_out(
+            CWD,
+            "/repo/packages/app",
+            "[WARN] deprecated express@0.14.1",
+        ),
+    );
+}
+
+#[test]
+fn transitive_deprecations_flush_as_a_summary_at_resolution_done() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![deprecation("uuid", "3.4.0", 2, CWD), deprecation("request", "2.88.2", 3, CWD)],
+    );
+    assert!(
+        frame.is_empty(),
+        "transitive deprecations must buffer until resolution_done: {frame:?}",
+    );
+
+    let frame = render(&mut reporter, vec![resolution_done()]);
+    assert_eq!(frame, "[WARN] 2 deprecated subdependencies found: request@2.88.2, uuid@3.4.0");
 }

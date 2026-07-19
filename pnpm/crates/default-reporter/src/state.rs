@@ -11,11 +11,11 @@ use std::{
 };
 
 use pacquet_reporter::{
-    AddedRoot, ContextLog, DependencyType, ExecutionTimeLog, FetchingProgressMessage, HookLog,
-    IgnoredScriptsLog, InstallingConfigDepsLog, InstallingConfigDepsStatus, LifecycleMessage,
-    LifecycleStdio, LockfileVerificationMessage, LogEvent, LogLevel, PackageImportMethod,
-    PackageManifestMessage, ProgressMessage, RemovedRoot, RequestRetryLog,
-    SkippedOptionalDependencyLog, SkippedOptionalPackage, Stage, StatsMessage,
+    AddedRoot, ContextLog, DependencyType, DeprecationLog, ExecutionTimeLog,
+    FetchingProgressMessage, HookLog, IgnoredScriptsLog, InstallingConfigDepsLog,
+    InstallingConfigDepsStatus, LifecycleMessage, LifecycleStdio, LockfileVerificationMessage,
+    LogEvent, LogLevel, PackageImportMethod, PackageManifestMessage, ProgressMessage, RemovedRoot,
+    RequestRetryLog, SkippedOptionalDependencyLog, SkippedOptionalPackage, Stage, StatsMessage,
 };
 use serde_json::Value;
 
@@ -240,6 +240,9 @@ pub struct ReporterState {
 
     warnings_counter: usize,
     collapsed_warn_slot: BlockSlot,
+
+    deprecated_subdeps: Vec<DeprecationLog>,
+    deprecated_slot: BlockSlot,
 }
 
 const MAX_SHOWN_WARNINGS: usize = 5;
@@ -305,6 +308,8 @@ impl ReporterState {
             exec_slot: BlockSlot::default(),
             warnings_counter: 0,
             collapsed_warn_slot: BlockSlot::default(),
+            deprecated_subdeps: Vec::new(),
+            deprecated_slot: BlockSlot::default(),
         }
     }
 
@@ -337,6 +342,7 @@ impl ReporterState {
             LogEvent::Global(log) => self.on_pnpm(log.level, &log.message, ""),
             LogEvent::ExecutionTime(log) => self.on_execution_time(log),
             LogEvent::Hook(log) => self.on_hook(log),
+            LogEvent::Deprecation(log) => self.on_deprecation(log),
             // Debug-only / non-rendered channels in pnpm's default reporter.
             LogEvent::BrokenModules(_) => {}
         }
@@ -435,16 +441,21 @@ impl ReporterState {
     }
 
     fn on_stage(&mut self, prefix: &str, stage: Stage) {
-        if stage != Stage::ImportingDone {
-            return;
+        match stage {
+            Stage::ResolutionDone => {
+                self.flush_deprecated_subdeps();
+            }
+            Stage::ImportingDone => {
+                if !self.progress.contains_key(prefix) {
+                    return;
+                }
+                let msg = self.progress_message(prefix, true);
+                let mut slot = std::mem::take(&mut self.progress.get_mut(prefix).unwrap().slot);
+                self.frame.emit(&mut slot, msg, false);
+                self.progress.get_mut(prefix).unwrap().slot = slot;
+            }
+            _ => {}
         }
-        if !self.progress.contains_key(prefix) {
-            return;
-        }
-        let msg = self.progress_message(prefix, true);
-        let mut slot = std::mem::take(&mut self.progress.get_mut(prefix).unwrap().slot);
-        self.frame.emit(&mut slot, msg, false);
-        self.progress.get_mut(prefix).unwrap().slot = slot;
     }
 
     // --- big tarballs -----------------------------------------------------
@@ -1060,6 +1071,59 @@ impl ReporterState {
         self.push_block(format!(
             "info: {pkg} is an optional dependency and failed compatibility check. Excluding it from installation.",
         ));
+    }
+
+    /// Matches pnpm's `reportDeprecations.ts`: only direct-dependency
+    /// deprecations render immediately; transitive ones wait for the
+    /// `resolution_done` summary.
+    fn on_deprecation(&mut self, log: &DeprecationLog) {
+        if log.depth == 0 {
+            if log.prefix.is_empty() || log.prefix == self.cwd {
+                self.push_block(format!(
+                    "{} {} {}@{}: {}",
+                    self.colors.warn_label(),
+                    self.colors.red("deprecated"),
+                    log.pkg_name,
+                    log.pkg_version,
+                    log.deprecated,
+                ));
+            } else {
+                // The zoomed line drops the deprecation text, as
+                // `reportDeprecations.ts` does.
+                let msg = format!(
+                    "{} {} {}@{}",
+                    self.colors.warn_label(),
+                    self.colors.red("deprecated"),
+                    log.pkg_name,
+                    log.pkg_version,
+                );
+                self.push_block(zoom_out(&self.cwd, &log.prefix, &msg));
+            }
+        } else {
+            self.deprecated_subdeps.push(log.clone());
+        }
+    }
+
+    fn flush_deprecated_subdeps(&mut self) {
+        if self.deprecated_subdeps.is_empty() {
+            return;
+        }
+        let mut names: Vec<String> = self
+            .deprecated_subdeps
+            .iter()
+            .map(|log| format!("{}@{}", log.pkg_name, log.pkg_version))
+            .collect();
+        names.sort();
+        names.dedup();
+        let count = names.len();
+        let msg = format!(
+            "{} {} {}",
+            self.colors.warn_label(),
+            self.colors.red(&format!("{count} deprecated subdependencies found:")),
+            names.join(", "),
+        );
+        self.frame.emit(&mut self.deprecated_slot, msg, false);
+        self.deprecated_subdeps.clear();
     }
 
     /// Renders a `pnpm:hook` event as `hook: message`, matching pnpm's

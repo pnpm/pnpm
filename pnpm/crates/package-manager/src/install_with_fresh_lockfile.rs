@@ -23,8 +23,8 @@ use pacquet_modules_yaml::IncludedDependencies;
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{
-    HookLog, LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
-    SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog,
+    DeprecationLog, HookLog, LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog,
+    SkippedOptionalPackage, SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog,
 };
 use pacquet_resolving_default_resolver::DefaultResolver;
 use pacquet_resolving_deps_resolver::{
@@ -1300,11 +1300,18 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             update_reuse_scopes_by_importer,
             auto_install_peers: config.auto_install_peers,
             registries,
+            allowed_deprecated_versions: config.allowed_deprecated_versions.clone(),
+            deprecation_log: Some(deprecation_log_fn::<Reporter>()),
         };
         let modules_basename = config.modules_dir.file_name().map_or_else(
             || std::ffi::OsString::from("node_modules"),
             std::ffi::OsStr::to_os_string,
         );
+        Reporter::emit(&LogEvent::Stage(StageLog {
+            level: LogLevel::Debug,
+            prefix: lockfile_dir.display().to_string(),
+            stage: Stage::ResolutionStarted,
+        }));
         let workspace_result = pacquet_resolving_deps_resolver::resolve_workspace(
             &*resolver,
             &workspace_importers,
@@ -1469,6 +1476,14 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         drop(meta_cache);
         drop(fetch_locker);
         drop(picked_manifest_cache);
+
+        // Must come after every `pnpm:deprecation` emit — the default
+        // reporter flushes its transitive-deprecation buffer on this event.
+        Reporter::emit(&LogEvent::Stage(StageLog {
+            level: LogLevel::Debug,
+            prefix: lockfile_dir.display().to_string(),
+            stage: Stage::ResolutionDone,
+        }));
 
         // Compute the `pnpmfileChecksum` once for both lockfile-build
         // paths below: the hash of the project's `.pnpmfile.{cjs,mjs}`
@@ -2507,6 +2522,24 @@ fn skipped_optional_log_fn<Reporter: self::Reporter>()
             ),
             prefix: skipped.prefix,
             reason: SkippedOptionalReason::ResolutionFailure,
+        }));
+    })
+}
+
+/// Build the resolver's deprecation sink: each notification emits a
+/// `pnpm:deprecation` debug event through the install's reporter,
+/// matching pnpm's `deprecationLogger.debug` payload.
+fn deprecation_log_fn<Reporter: self::Reporter>()
+-> pacquet_resolving_deps_resolver::DeprecationLogFn {
+    Arc::new(|deprecation: pacquet_resolving_deps_resolver::Deprecation| {
+        Reporter::emit(&LogEvent::Deprecation(DeprecationLog {
+            level: LogLevel::Debug,
+            pkg_name: deprecation.pkg_name,
+            pkg_version: deprecation.pkg_version,
+            pkg_id: deprecation.pkg_id,
+            prefix: deprecation.prefix,
+            deprecated: deprecation.deprecated,
+            depth: deprecation.depth,
         }));
     })
 }

@@ -205,6 +205,26 @@ pub struct SkippedOptionalDependencyParent {
 /// [`crate::WorkspaceResolveOptions::skipped_optional_log`].
 pub type SkippedOptionalLogFn = Arc<dyn Fn(SkippedOptionalDependency) + Send + Sync>;
 
+/// One deprecation notification from the tree walker: a newly-resolved
+/// package carries a non-empty `deprecated` field in its registry
+/// manifest and is not covered by `allowedDeprecatedVersions`. Mirrors
+/// the package payload of the `pnpm:deprecation` debug log so the
+/// install layer can forward it to the reporter wire.
+#[derive(Debug, Clone)]
+pub struct Deprecation {
+    pub pkg_name: String,
+    pub pkg_version: String,
+    pub pkg_id: String,
+    pub prefix: String,
+    pub deprecated: String,
+    pub depth: i32,
+}
+
+/// Sink for [`Deprecation`] notifications, pre-bound to the install's
+/// reporter so the resolver stays reporter-agnostic. See
+/// [`crate::WorkspaceResolveOptions::deprecation_log`].
+pub type DeprecationLogFn = Arc<dyn Fn(Deprecation) + Send + Sync>;
+
 /// Error envelope returned by the tree walker.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum ResolveDependencyTreeError {
@@ -623,6 +643,17 @@ pub struct WorkspaceTreeCtx {
     /// keeps the skip behavior but drops the notification. See
     /// [`SkippedOptionalLogFn`].
     skipped_optional_log: Option<SkippedOptionalLogFn>,
+    /// The `pnpm.allowedDeprecatedVersions` map. See
+    /// [`crate::WorkspaceResolveOptions::allowed_deprecated_versions`].
+    allowed_deprecated_versions: BTreeMap<String, String>,
+    /// Sink for deprecation notifications. `None` keeps the
+    /// deprecation check but drops the notification. See
+    /// [`DeprecationLogFn`].
+    deprecation_log: Option<DeprecationLogFn>,
+    /// Per-package shallowest depth at which a deprecation was emitted.
+    /// Re-emits when the same package appears at a shallower depth so a
+    /// direct dependency is never misclassified as transitive.
+    deprecation_depths: Mutex<HashMap<String, i32>>,
     /// The install's `autoInstallPeers` setting. When `true`,
     /// [`fn@resolve_node`] drops a resolved package's `dependencies`
     /// entries that are shadowed by its own `peerDependencies`, so the
@@ -699,6 +730,9 @@ impl Default for WorkspaceTreeCtx {
             pnpmfile_hook: None,
             read_package_log: None,
             skipped_optional_log: None,
+            allowed_deprecated_versions: BTreeMap::new(),
+            deprecation_depths: Mutex::new(HashMap::new()),
+            deprecation_log: None,
             auto_install_peers: false,
             registries: HashMap::new(),
             first_importer_by_pkg: Mutex::new(HashMap::new()),
@@ -855,6 +889,25 @@ impl WorkspaceTreeCtx {
         skipped_optional_log: Option<SkippedOptionalLogFn>,
     ) -> Self {
         self.skipped_optional_log = skipped_optional_log;
+        self
+    }
+
+    /// Attach the `pnpm.allowedDeprecatedVersions` map. See
+    /// [`crate::WorkspaceResolveOptions::allowed_deprecated_versions`].
+    #[must_use]
+    pub fn with_allowed_deprecated_versions(
+        mut self,
+        allowed_deprecated_versions: BTreeMap<String, String>,
+    ) -> Self {
+        self.allowed_deprecated_versions = allowed_deprecated_versions;
+        self
+    }
+
+    /// Attach the sink deprecation notifications are forwarded to.
+    /// See [`DeprecationLogFn`].
+    #[must_use]
+    pub fn with_deprecation_log(mut self, deprecation_log: Option<DeprecationLogFn>) -> Self {
+        self.deprecation_log = deprecation_log;
         self
     }
 
@@ -1603,33 +1656,31 @@ where
     let is_leaf = is_link || pkg_is_leaf(&result);
     let node_id = if is_leaf { NodeId::leaf(&id) } else { NodeId::next() };
 
-    {
-        let mut packages = lock_recoverable(&ctx.workspace.packages);
-        if let Some(existing) = packages.get_mut(&id) {
-            existing.optional = existing.optional && current_is_optional;
-        } else {
-            let peer_dependencies =
-                if is_link { BTreeMap::new() } else { extract_peer_dependencies(&result) };
-            // Collect peer names for the peer-resolution stage's
-            // `parentPkgs` filter (only peers count as parents).
-            {
-                let mut all_peers = lock_recoverable(&ctx.workspace.all_peer_dep_names);
-                for name in peer_dependencies.keys() {
-                    all_peers.insert(name.clone());
-                }
+    let mut packages = lock_recoverable(&ctx.workspace.packages);
+    if let Some(existing) = packages.get_mut(&id) {
+        existing.optional = existing.optional && current_is_optional;
+    } else {
+        let peer_dependencies =
+            if is_link { BTreeMap::new() } else { extract_peer_dependencies(&result) };
+        {
+            let mut all_peers = lock_recoverable(&ctx.workspace.all_peer_dep_names);
+            for name in peer_dependencies.keys() {
+                all_peers.insert(name.clone());
             }
-            packages.insert(
-                id.clone(),
-                ResolvedPackage {
-                    id: id.clone(),
-                    result: Arc::clone(&result),
-                    peer_dependencies,
-                    optional: current_is_optional,
-                    is_leaf,
-                },
-            );
         }
+        packages.insert(
+            id.clone(),
+            ResolvedPackage {
+                id: id.clone(),
+                result: Arc::clone(&result),
+                peer_dependencies,
+                optional: current_is_optional,
+                is_leaf,
+            },
+        );
     }
+
+    emit_deprecation_if_needed(ctx, &result, &id, depth);
 
     let next_ancestors: Vec<String> =
         ancestor_ids.iter().cloned().chain(std::iter::once(id.clone())).collect();
@@ -2637,6 +2688,8 @@ where
         }
     }
 
+    emit_deprecation_if_needed(ctx, &result, &id, depth);
+
     let next_ancestors: Vec<String> =
         ancestor_ids.iter().cloned().chain(std::iter::once(id.clone())).collect();
     let next_ancestors = Arc::new(next_ancestors);
@@ -3067,6 +3120,95 @@ fn pkg_is_leaf(result: &pacquet_resolving_resolver_base::ResolveResult) -> bool 
 
 fn is_empty_or_absent(value: Option<&Value>) -> bool {
     value.and_then(Value::as_object).is_none_or(serde_json::Map::is_empty)
+}
+
+/// Emits a [`Deprecation`] when the manifest carries a non-empty
+/// `deprecated` field not covered by `allowedDeprecatedVersions`.
+/// Re-emits at a shallower depth so a direct dependency is never
+/// misclassified as transitive.
+fn emit_deprecation_if_needed(
+    ctx: &TreeCtx,
+    result: &pacquet_resolving_resolver_base::ResolveResult,
+    id: &str,
+    depth: i32,
+) {
+    let Some(deprecated) = extract_deprecated_from_manifest(result.manifest.as_deref()) else {
+        return;
+    };
+    if deprecated.is_empty() {
+        return;
+    }
+    let Some((pkg_name, pkg_version)) = deprecated_pkg_name_ver(result) else {
+        return;
+    };
+    if is_deprecation_allowed(&pkg_name, &pkg_version, &ctx.workspace.allowed_deprecated_versions) {
+        return;
+    }
+    {
+        let mut depths = lock_recoverable(&ctx.workspace.deprecation_depths);
+        if let Some(prev) = depths.get(id)
+            && depth >= *prev
+        {
+            return;
+        }
+        depths.insert(id.to_string(), depth);
+    }
+    let Some(log) = ctx.workspace.deprecation_log.as_ref() else {
+        return;
+    };
+    log(Deprecation {
+        pkg_name,
+        pkg_version,
+        pkg_id: id.to_string(),
+        prefix: ctx.base_opts.project_dir.display().to_string(),
+        deprecated,
+        depth,
+    });
+}
+
+/// A missing manifest, an absent `deprecated` field, and a non-string
+/// one all count as not deprecated.
+fn extract_deprecated_from_manifest(manifest: Option<&Value>) -> Option<String> {
+    manifest?.get("deprecated")?.as_str().map(str::to_string)
+}
+
+/// The name/version a `pnpm:deprecation` payload reports:
+/// [`ResolveResult::name_ver`] when the resolver filled it, otherwise
+/// the manifest's `name`/`version` — the canonical source for non-npm
+/// resolutions (see the `name_ver` field doc). `None`, suppressing the
+/// warning, when neither carries both fields.
+///
+/// [`ResolveResult::name_ver`]: pacquet_resolving_resolver_base::ResolveResult::name_ver
+fn deprecated_pkg_name_ver(
+    result: &pacquet_resolving_resolver_base::ResolveResult,
+) -> Option<(String, String)> {
+    if let Some(nv) = result.name_ver.as_ref() {
+        return Some((nv.name.to_string(), nv.suffix.to_string()));
+    }
+    let manifest = result.manifest.as_deref()?;
+    let name = manifest.get("name")?.as_str()?;
+    let version = manifest.get("version")?.as_str()?;
+    Some((name.to_string(), version.to_string()))
+}
+
+/// Whether `pkg_name@pkg_version` satisfies its entry in the
+/// `pnpm.allowedDeprecatedVersions` map, matching the TS check at
+/// `pnpm11/installing/deps-resolver/src/resolveDependencies.ts:2122`.
+fn is_deprecation_allowed(
+    pkg_name: &str,
+    pkg_version: &str,
+    allowed_deprecated_versions: &BTreeMap<String, String>,
+) -> bool {
+    let Some(range_str) = allowed_deprecated_versions.get(pkg_name) else {
+        return false;
+    };
+    let Ok(range) = range_str.parse::<node_semver::Range>() else {
+        return false;
+    };
+    let Ok(version) = pkg_version.parse::<node_semver::Version>() else {
+        return false;
+    };
+    range.satisfies(&version)
 }
 
 /// Provenance tags that count as non-exotic for `blockExoticSubdeps`.
