@@ -422,11 +422,7 @@ fn add_existing_dependency_moves_it_to_the_target_group() {
     drop((root, npmrc_info)); // cleanup
 }
 
-/// A package declared in both a real group and `peerDependencies` takes
-/// its previous specifier from the real group — `peerDependencies` is
-/// last in the `findSpec` scan — so the peer range's caret must not
-/// replace the exact pin of the `devDependencies` entry being re-added
-/// (pnpm/pnpm#13108).
+// Regression test for pnpm/pnpm#13108
 #[test]
 fn add_existing_dependency_ignores_pin_from_peer_range() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
