@@ -302,6 +302,9 @@ impl InstallArgs {
             manifest: &manifest,
             dependency_groups: self.dependency_options.dependency_groups().collect(),
             node_linker,
+            supported_architectures: self
+                .supported_architectures
+                .apply_to(config.supported_architectures.clone()),
         }) else {
             return false;
         };

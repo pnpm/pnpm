@@ -7356,6 +7356,7 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
         manifest: &manifest,
         dependency_groups: vec![DependencyGroup::Prod],
         node_linker: pacquet_config::NodeLinker::Isolated,
+        supported_architectures: None,
     };
     let root = install_already_up_to_date(&check);
     assert_eq!(root.as_deref(), Some(&*project_root), "fresh state must short-circuit");
@@ -7464,6 +7465,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
             DependencyGroup::Optional,
         ],
         node_linker: pacquet_config::NodeLinker::Isolated,
+        supported_architectures: None,
     };
 
     assert_eq!(install_already_up_to_date(&check).as_deref(), Some(&*workspace_root));
@@ -7483,6 +7485,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
             DependencyGroup::Optional,
         ],
         node_linker: pacquet_config::NodeLinker::Isolated,
+        supported_architectures: None,
     };
 
     assert_eq!(install_already_up_to_date(&per_project_check).as_deref(), Some(&*workspace_root));

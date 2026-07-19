@@ -263,7 +263,11 @@ mod known_failures {
 
     fn workspace_filter_selection() -> KnownResult<()> {
         Err(KnownFailure::new(
-            "Pacquet doesn't yet implement `--filter` selected-projects              installs, so installing a subset of workspace projects (the              shape upstream drives through `mutateModulesInSingleProject`              with a shared lockfile dir) can't be expressed end to end.",
+            "Pacquet doesn't yet implement `--filter` selected-projects \
+             installs, so installing a subset of workspace projects \
+             (the shape upstream drives through \
+             `mutateModulesInSingleProject` with a shared lockfile dir) \
+             can't be expressed end to end.",
         ))
     }
 
@@ -1030,6 +1034,46 @@ fn optional_subdependency_stays_in_current_lockfile_when_new_dependency_added() 
         current_has_not_compatible(&read_current_lockfile(&workspace)),
         "an add in a sibling project must not drop the skipped optional's metadata",
     );
+
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// The CLI-flag variant of the `supportedArchitectures` invalidation:
+/// `install --os` / `--cpu` after a broader install must not report
+/// "Already up to date" — every up-to-date gate compares the CLI-merged
+/// value — and the platform packages the narrowed set no longer needs
+/// are re-evaluated and pruned.
+#[test]
+fn cli_architecture_flags_invalidate_the_up_to_date_fast_path() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    append_workspace_yaml_key(&workspace, "modulesCacheMaxAge", "0");
+
+    pacquet
+        .with_args([
+            "add",
+            "@pnpm.e2e/has-many-optional-deps@1.0.0",
+            "--os",
+            "darwin,linux,win32",
+            "--cpu",
+            "arm64,x64",
+        ])
+        .assert()
+        .success();
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--os", "darwin", "--cpu", "x64"])
+        .assert()
+        .success();
+
+    let virtual_store = workspace.join("node_modules/.pnpm");
+    assert!(virtual_store.join("@pnpm.e2e+darwin-x64@1.0.0").exists());
+    for name in ["darwin-arm64", "linux-x64", "windows-x64"] {
+        assert!(
+            !virtual_store.join(format!("@pnpm.e2e+{name}@1.0.0")).exists(),
+            "{name} must be pruned once the flag-narrowed architecture set no longer needs it",
+        );
+    }
 
     drop((root, npmrc_info)); // cleanup
 }

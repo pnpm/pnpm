@@ -2841,6 +2841,10 @@ pub struct UpToDateFastPathCheck<'a> {
     pub manifest: &'a PackageManifest,
     pub dependency_groups: Vec<DependencyGroup>,
     pub node_linker: NodeLinker,
+    /// The CLI-merged effective `supportedArchitectures` (yaml plus
+    /// `--cpu` / `--os` / `--libc`) — the fast path must not report
+    /// "Already up to date" when a flag changed the target platforms.
+    pub supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
 }
 
 /// Pre-runtime twin of the repeat-install short-circuit inside
@@ -2857,7 +2861,13 @@ pub struct UpToDateFastPathCheck<'a> {
 /// established error shape.
 #[must_use]
 pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<PathBuf> {
-    let UpToDateFastPathCheck { config, manifest, dependency_groups, node_linker } = check;
+    let UpToDateFastPathCheck {
+        config,
+        manifest,
+        dependency_groups,
+        node_linker,
+        supported_architectures,
+    } = check;
     let included = IncludedDependencies {
         dependencies: dependency_groups.contains(&DependencyGroup::Prod),
         dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
@@ -2915,7 +2925,7 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<P
         config,
         node_linker: *node_linker,
         included,
-        supported_architectures: config.supported_architectures.as_ref(),
+        supported_architectures: supported_architectures.as_ref(),
         project_manifests: &project_manifests,
         is_workspace_install: workspace_manifest.is_some(),
         lockfile: MaybeLazyLockfile::Lazy(&lockfile),
