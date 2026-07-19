@@ -176,9 +176,8 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// A full workspace install versus a partial one (`pacquet add` and the
     /// package installs built on it — `dlx`, global add, the engine install).
     /// See [`crate::Install::is_full_install`]. Gates the `--no-optional`
-    /// exclusion: a partial add's `dependency_groups` names the manifest
-    /// group to save into, not a `--no-optional` intent, so it must not
-    /// drop the added package's transitive optionals.
+    /// exclusion: only a full install's `dependency_groups` carries that
+    /// intent, so a partial run must not drop transitive optionals.
     pub is_full_install: bool,
     /// Which lockfile pins to withhold from the preferred-versions seed
     /// so the affected names re-resolve to the highest version
@@ -1843,11 +1842,12 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // it out of materialization and `.modules.yaml.skipped` yet leaves it
         // in the lockfile, so a later install without the flag restores it.
         //
-        // Gated on `is_full_install`: for a partial `add` (and the package
-        // installs built on it — `dlx`, global add, the engine install)
-        // `dependency_groups` names the manifest group to save into, not a
-        // `--no-optional` intent, so those must keep their transitive
-        // optionals (e.g. `@pnpm/exe`'s platform binary).
+        // Gated on `is_full_install`: only a full install's
+        // `dependency_groups` carries a `--no-optional` intent. Partial
+        // runs either pass every direct group (`add`, `remove`, `update`)
+        // or narrow the groups for reasons of their own (`fetch --dev`,
+        // `rebuild`), and must keep their transitive optionals (e.g.
+        // `@pnpm/exe`'s platform binary on the engine install).
         if is_full_install
             && !dependency_groups.contains(&DependencyGroup::Optional)
             && let Some(snapshots) = initial_materialization_lockfile.snapshots.as_ref()

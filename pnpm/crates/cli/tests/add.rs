@@ -599,3 +599,65 @@ fn add_without_version_respects_minimum_release_age() {
 
     drop((root, npmrc_info)); // cleanup
 }
+
+/// `add` saves into one dependency group, but its install must keep every
+/// group: the added package's transitive optionals must be materialized in
+/// the virtual store and recorded in the current lockfile, and the alias
+/// symlink inside the dependent package must resolve. A missing slot here
+/// is what breaks a globally installed bin at runtime with "Missing
+/// optional dependency" (e.g. `@openai/codex`'s platform binary).
+#[test]
+fn add_materializes_transitive_optional_dependencies() {
+    let (root, workspace, anchor) =
+        exec_pacquet_in_temp_cwd(["add", "@pnpm.e2e/pkg-with-good-optional"]);
+
+    let virtual_store = workspace.join("node_modules").join(".pnpm");
+    assert!(
+        virtual_store.join("is-positive@1.0.0").exists(),
+        "the transitive optional dependency must be materialized",
+    );
+    assert!(
+        virtual_store
+            .join("@pnpm.e2e+pkg-with-good-optional@1.0.0/node_modules/is-positive/package.json")
+            .exists(),
+        "the optional dependency alias symlink must resolve",
+    );
+
+    let current_lockfile = std::fs::read_to_string(virtual_store.join("lock.yaml"))
+        .expect("read the current lockfile");
+    assert!(
+        current_lockfile.contains("is-positive@1.0.0"),
+        "the current lockfile must record the materialized optional:\n{current_lockfile}",
+    );
+
+    drop((root, anchor)); // cleanup
+}
+
+/// `add` into one dependency group must leave the other groups' entries in
+/// the wanted lockfile and `node_modules`: a prod `add` must not erase the
+/// project's devDependencies from either.
+#[test]
+fn add_keeps_entries_of_other_dependency_groups() {
+    let (root, workspace, anchor) =
+        exec_pacquet_in_temp_cwd(["add", "--save-dev", "@pnpm.e2e/hello-world-js-bin"]);
+
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["add", "@pnpm.e2e/hello-world-js-bin-parent"])
+        .assert()
+        .success();
+
+    let lockfile = std::fs::read_to_string(workspace.join("pnpm-lock.yaml"))
+        .expect("read the wanted lockfile");
+    assert!(
+        lockfile.contains("devDependencies"),
+        "the wanted lockfile must keep the dev dependency after a prod add:\n{lockfile}",
+    );
+    assert!(
+        workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin/package.json").exists(),
+        "the dev dependency's node_modules link must survive a prod add",
+    );
+
+    drop((root, anchor)); // cleanup
+}

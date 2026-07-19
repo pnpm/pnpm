@@ -1,8 +1,9 @@
 use crate::{
-    CatalogDecision, CatalogModeDep, CatalogVersionMismatchError, ImporterUpdateSeedPolicy,
-    Install, InstallError, ResolvedPackages, UpdateSeedPolicy, WorkspaceInstallSelection,
-    decide_catalog, emit_initial_package_manifest, package_manifest_prefix,
-    resolution_policy::PickPolicy, resolve_latest::LatestPicker, selected_project_indices,
+    CatalogDecision, CatalogModeDep, CatalogVersionMismatchError, DIRECT_GROUPS,
+    ImporterUpdateSeedPolicy, Install, InstallError, ResolvedPackages, UpdateSeedPolicy,
+    WorkspaceInstallSelection, decide_catalog, emit_initial_package_manifest,
+    package_manifest_prefix, resolution_policy::PickPolicy, resolve_latest::LatestPicker,
+    selected_project_indices,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -25,11 +26,6 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-
-/// The three dependency groups `pacquet update` considers as "direct"
-/// targets, in the order pnpm's `updateProjectManifest` walks them.
-const DIRECT_GROUPS: [DependencyGroup; 3] =
-    [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
 
 /// Everything `pacquet update` (alias `up` / `upgrade`) does.
 ///

@@ -1,6 +1,7 @@
 use crate::{
-    Install, InstallError, ResolvedPackages, UpdateSeedPolicy, WorkspaceInstallSelection,
-    emit_initial_package_manifest, package_manifest_prefix, selected_project_indices,
+    DIRECT_GROUPS, Install, InstallError, ResolvedPackages, UpdateSeedPolicy,
+    WorkspaceInstallSelection, emit_initial_package_manifest, package_manifest_prefix,
+    selected_project_indices,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -224,9 +225,6 @@ impl Remove<'_> {
         Ok(())
     }
 }
-
-const DIRECT_GROUPS: [DependencyGroup; 3] =
-    [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
 
 fn validate_selected_remove(package_names: &[String]) -> Result<(), RemoveValidationError> {
     if package_names.is_empty() {

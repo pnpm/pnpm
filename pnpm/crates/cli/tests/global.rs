@@ -125,6 +125,48 @@ fn global_add_list_remove_round_trip() {
     drop(root);
 }
 
+/// A global add must materialize the added package's transitive
+/// `optionalDependencies` in the group's virtual store: a missing slot
+/// dangles the alias symlink, and the globally installed bin then fails at
+/// runtime with "Missing optional dependency" (e.g. `@openai/codex`'s
+/// platform binary).
+#[cfg(unix)]
+#[test]
+fn global_add_materializes_transitive_optional_dependencies() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_pkg_dir = pnpm_home.join("global").join("v11");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@pnpm.e2e/pkg-with-good-optional"])
+        .assert()
+        .success();
+
+    let links = symlink_entries(&global_pkg_dir);
+    assert_eq!(links.len(), 1, "exactly one cache-keyed hash symlink should exist: {links:?}");
+    // The hash symlink's target is relative to the global packages dir.
+    let install_dir = global_pkg_dir.join(fs::read_link(&links[0]).expect("read the hash symlink"));
+    let virtual_store = install_dir.join("node_modules").join(".pnpm");
+    assert!(
+        virtual_store.join("is-positive@1.0.0").exists(),
+        "the transitive optional dependency must be materialized",
+    );
+    assert!(
+        virtual_store
+            .join("@pnpm.e2e+pkg-with-good-optional@1.0.0/node_modules/is-positive/package.json")
+            .exists(),
+        "the optional dependency alias symlink must resolve",
+    );
+
+    drop(npmrc_info);
+    drop(root);
+}
+
 /// `pnpm setup` installs the standalone executable through this exact
 /// command shape. The local directory's package name must be inferred
 /// without treating the `file:` selector as a registry package.

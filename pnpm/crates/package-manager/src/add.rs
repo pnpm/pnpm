@@ -1,7 +1,7 @@
 use crate::{
-    CatalogDecision, CatalogModeDep, CatalogVersionMismatchError, Install, InstallError,
-    ResolvedPackages, UpdateSeedPolicy, WorkspaceInstallSelection, decide_catalog_outcome,
-    emit_initial_package_manifest, package_manifest_prefix,
+    CatalogDecision, CatalogModeDep, CatalogVersionMismatchError, DIRECT_GROUPS, Install,
+    InstallError, ResolvedPackages, UpdateSeedPolicy, WorkspaceInstallSelection,
+    decide_catalog_outcome, emit_initial_package_manifest, package_manifest_prefix,
     resolution_policy::{PickPolicy, pick_package_context},
     resolve_latest::LatestPicker,
     selected_project_indices,
@@ -195,7 +195,12 @@ where
             emit_initial_manifest: false,
             lockfile: MaybeLazyLockfile::Loaded(lockfile),
             lockfile_path,
-            dependency_groups,
+            // `dependency_groups` names the manifest group the new
+            // package is saved into (`prepare_manifest` above), not an
+            // include filter: like `remove`, the re-resolve walks every
+            // dependency group so the other groups' entries stay in the
+            // lockfile, the virtual store, and `node_modules`.
+            dependency_groups: DIRECT_GROUPS,
             frozen_lockfile: false,
             // `pacquet add` mutates the manifest, so the lockfile is
             // necessarily stale by the time the install dispatch
@@ -296,7 +301,10 @@ where
                 emit_initial_manifest: false,
                 lockfile: MaybeLazyLockfile::Loaded(lockfile),
                 lockfile_path,
-                dependency_groups,
+                // See the `dependency_groups` comment in [`Self::run`]:
+                // the save target must not narrow the install's include
+                // set.
+                dependency_groups: DIRECT_GROUPS,
                 frozen_lockfile: false,
                 prefer_frozen_lockfile: Some(false),
                 ignore_manifest_check: false,
