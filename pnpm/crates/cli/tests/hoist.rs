@@ -65,6 +65,61 @@ fn write_manifest(workspace: &Path, deps: serde_json::Value) {
     fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
 }
 
+/// TS: `hoisting should not create a broken symlink to a skipped optional
+/// dependency` (`hoist.ts:540`): with `publicHoistPattern: '*'`, neither
+/// the skipped platform-incompatible optional nor its dependency may
+/// appear — as a working or dangling symlink — at either hoist target, on
+/// the fresh install and on the frozen reinstall.
+#[test]
+fn hoisting_skips_broken_symlink_for_skipped_optional() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_yaml(
+        &workspace,
+        "enableGlobalVirtualStore: false\npublicHoistPattern:\n  - '*'\n",
+    );
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "is-positive": "1.0.0" },
+            "optionalDependencies": { "@pnpm.e2e/not-compatible-with-any-os": "*" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let assert_no_broken_hoist_links = |phase: &str| {
+        for hoist_dir in ["node_modules/@pnpm.e2e", "node_modules/.pnpm/node_modules/@pnpm.e2e"] {
+            for name in ["dep-of-optional-pkg", "not-compatible-with-any-os"] {
+                let path = workspace.join(hoist_dir).join(name);
+                assert!(
+                    fs::symlink_metadata(&path).is_err(),
+                    "[{phase}] no symlink (dangling or otherwise) may be created for the \
+                     skipped optional subtree at {path:?}; .modules.yaml: {}",
+                    fs::read_to_string(workspace.join("node_modules/.modules.yaml"))
+                        .unwrap_or_default(),
+                );
+            }
+        }
+    };
+
+    pacquet.with_arg("install").assert().success();
+    assert_no_broken_hoist_links("fresh");
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert_no_broken_hoist_links("frozen");
+
+    drop((root, mock_instance));
+}
+
 /// Default hoist patterns hoist every transitive into
 /// `<vs>/node_modules/`.
 /// Single-importer subset — asserting the persisted map is preserved
@@ -652,19 +707,6 @@ mod known_failures {
         ))
     }
 
-    fn skipped_optional_deps() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "The hoist pass already honors `SkippedSnapshots` from \
-             #439's `compute_skipped_snapshots` (threaded through \
-             `HoistInputs.skipped`), but the end-to-end test needs \
-             an OS/arch-incompatible package in the registry mock to \
-             actually exercise the skip path. Upstream's fixture \
-             (`@pnpm.e2e/not-compatible-with-any-os`) isn't in \
-             pacquet's mocked registry yet — a fixture-add is the \
-             missing piece, not the hoist behavior.",
-        ))
-    }
-
     fn direct_dep_bin_precedence() -> KnownResult<()> {
         Err(KnownFailure::new(
             "Bin-link ordering for hoisted-vs-direct collisions \
@@ -801,11 +843,6 @@ mod known_failures {
     #[test]
     fn should_recreate_node_modules_with_hoisting() {
         allow_known_failure!(partial_install_persists_hoisted_map());
-    }
-
-    #[test]
-    fn hoisting_skips_broken_symlink_for_skipped_optional() {
-        allow_known_failure!(skipped_optional_deps());
     }
 
     #[test]

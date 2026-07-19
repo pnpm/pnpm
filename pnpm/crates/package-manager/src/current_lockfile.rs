@@ -252,6 +252,40 @@ pub(crate) fn merge_filtered_current_lockfile(
     final_lockfile
 }
 
+/// Extend `skipped` with every snapshot the importers can only reach
+/// through an installability-skipped snapshot. pnpm's `.modules.yaml`
+/// `skipped` list records this full closure: when a platform-incompatible
+/// optional package is skipped, its own dependency subtree is not
+/// materialized either, and both stacks must record the same set.
+///
+/// Only the persisted `installability` subset seeds the closure — and
+/// only that subset receives the additions. Transient skips
+/// (`--no-optional`, `--no-runtime`, a failed optional fetch) must not
+/// leak into `.modules.yaml`, or a later install's seed would keep their
+/// subtrees skipped after the transient condition is gone; their
+/// subtrees are already cut from materialization by the reachability
+/// walks that consume the full skip-set union.
+pub(crate) fn extend_skipped_with_dependency_closure(
+    skipped: &mut SkippedSnapshots,
+    lockfile: &Lockfile,
+    workspace_root: &Path,
+    importer_ids: &HashSet<String>,
+    included: IncludedDependencies,
+) {
+    if skipped.iter_installability().next().is_none() {
+        return;
+    }
+    let full = collect_reachable(lockfile, workspace_root, importer_ids, included, |_| false);
+    let kept = collect_reachable(lockfile, workspace_root, importer_ids, included, |key| {
+        skipped.contains_installability(key)
+    });
+    for key in full.snapshot_keys {
+        if !kept.snapshot_keys.contains(&key) && !skipped.contains(&key) {
+            skipped.insert_installability(key);
+        }
+    }
+}
+
 fn all_dependencies() -> IncludedDependencies {
     IncludedDependencies { dependencies: true, dev_dependencies: true, optional_dependencies: true }
 }

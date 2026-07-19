@@ -1237,3 +1237,76 @@ fn merge_filtered_current_lockfile_replaces_link_reached_importers() {
     assert!(merged.snapshots.as_ref().unwrap().contains_key(&key("linked-new", "2.0.0")));
     assert!(!merged.snapshots.as_ref().unwrap().contains_key(&key("linked-old", "1.0.0")));
 }
+
+#[test]
+fn skip_closure_extends_installability_roots() {
+    let importer_id = ".".to_string();
+    let lockfile = Lockfile {
+        importers: HashMap::from([(
+            importer_id.clone(),
+            ProjectSnapshot {
+                dependencies: Some(importer_map(&[("parent", "1.0.0")])),
+                ..Default::default()
+            },
+        )]),
+        snapshots: Some(HashMap::from([
+            (key("parent", "1.0.0"), snapshot_with_deps(&[("child", "1.0.0")])),
+            (key("child", "1.0.0"), SnapshotEntry::default()),
+        ])),
+        ..empty_lockfile()
+    };
+
+    let mut skipped = SkippedSnapshots::from_strings(["parent@1.0.0"]);
+    super::extend_skipped_with_dependency_closure(
+        &mut skipped,
+        &lockfile,
+        Path::new("/workspace"),
+        &HashSet::from([importer_id]),
+        include_all(),
+    );
+
+    assert!(
+        skipped.iter_installability().any(|key| key.to_string() == "child@1.0.0"),
+        "a snapshot only reachable through an installability skip joins the persisted set",
+    );
+}
+
+/// Transient exclusions (`--no-optional`, `--no-runtime`, failed fetches)
+/// must not seed the persisted closure: a later install's `.modules.yaml`
+/// seed would otherwise keep their subtrees skipped after the transient
+/// condition is gone.
+#[test]
+fn skip_closure_ignores_transient_roots() {
+    let importer_id = ".".to_string();
+    let lockfile = Lockfile {
+        importers: HashMap::from([(
+            importer_id.clone(),
+            ProjectSnapshot {
+                dependencies: Some(importer_map(&[("parent", "1.0.0")])),
+                ..Default::default()
+            },
+        )]),
+        snapshots: Some(HashMap::from([
+            (key("parent", "1.0.0"), snapshot_with_deps(&[("child", "1.0.0")])),
+            (key("child", "1.0.0"), SnapshotEntry::default()),
+        ])),
+        ..empty_lockfile()
+    };
+
+    let mut skipped = SkippedSnapshots::new();
+    skipped.add_optional_excluded(key("parent", "1.0.0"));
+    super::extend_skipped_with_dependency_closure(
+        &mut skipped,
+        &lockfile,
+        Path::new("/workspace"),
+        &HashSet::from([importer_id]),
+        include_all(),
+    );
+
+    assert_eq!(
+        skipped.iter_installability().count(),
+        0,
+        "a transient exclusion must contribute nothing to the persisted skip set",
+    );
+    assert!(!skipped.contains(&key("child", "1.0.0")));
+}

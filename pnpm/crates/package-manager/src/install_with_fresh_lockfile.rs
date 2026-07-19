@@ -1874,6 +1874,23 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             }
         }
 
+        // The recorded skip set must be the reachability closure of the
+        // direct skips (see
+        // [`crate::extend_skipped_with_dependency_closure`]); extend it
+        // before the materialization closure, hoist, symlink, and bin
+        // passes consume it.
+        {
+            let importer_ids: std::collections::HashSet<String> =
+                built_lockfile.importers.keys().cloned().collect();
+            crate::extend_skipped_with_dependency_closure(
+                &mut skipped,
+                &built_lockfile,
+                lockfile_dir,
+                &importer_ids,
+                included,
+            );
+        }
+
         let final_materialization = initial_materialization_ids.as_ref().map(|importer_ids| {
             crate::materialization_closure(
                 &built_lockfile,

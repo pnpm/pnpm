@@ -208,6 +208,16 @@ Warnings are errors (`--deny warnings` in lint). Do not silence them with
   subject under test to verify the ported test actually catches the
   regression. Consult it before adding ported tests, and update its
   checkboxes as items land.
+- When temporarily breaking an implementation (to prove a test catches the
+  regression, or for any other experiment), revert with `git restore <file>`,
+  never by moving a saved backup copy into place. Cargo's freshness check is
+  mtime-based, and an mtime-preserving restore leaves the binary compiled
+  from the broken source looking fresh — later test runs then fail in
+  impossible-looking, "flaky" ways with nothing pointing at the stale
+  artifact. Details in the "Test the tests" section of
+  [`plans/TEST_PORTING.md`](./plans/TEST_PORTING.md). If test outcomes ever
+  flip with no code change, `touch` the implementation file and rerun before
+  debugging anything else.
 
 ### No "tolerant" tests for missing tools
 

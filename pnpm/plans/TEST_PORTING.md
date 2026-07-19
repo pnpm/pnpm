@@ -15,6 +15,8 @@ Expected-failing test ports should live under a `known_failures` test module and
 
 Test the tests before marking them ported. After porting a test, temporarily modify the relevant implementation path so the test should fail, run that test, and verify it fails for the expected reason. Revert the temporary breakage before committing. This guards against porting tests that execute but do not actually detect the behavior they claim to cover. See https://github.com/pnpm/pacquet/issues/299#issuecomment-4323032648.
 
+**Revert the breakage with `git restore <file>` (or by editing the file), never by moving a saved backup copy into place.** Cargo's freshness check is mtime-based: a restore that carries the backup's old mtime (`mv`, `cp -p`, Python's `shutil.move`, …) leaves the artifact compiled from the *broken* source looking newer than the source, so every later `cargo test` / `cargo nextest` run keeps executing the broken binary. The resulting failures look flaky — unrelated tests fail with impossible states, single runs and full runs disagree — and nothing points back at the stale artifact. `git restore` writes the file fresh (current mtime) and triggers the rebuild; if you must restore some other way, follow it with `touch <file>`. When test outcomes ever flip with no code change, suspect a stale artifact first: `touch` the implementation file and rerun.
+
 Having more tests than pnpm is a plus, but it is not strictly required. The lists in this plan are a floor, not a ceiling. Porting the upstream coverage is the minimum bar for behavioral parity. Beyond that minimum, pacquet-only tests that exercise edge cases, regressions, or invariants the upstream suite does not cover are welcome and encouraged, but contributors are not obligated to add them. Do not hold back extra coverage just to keep the two suites symmetric.
 
 ## Workspace Lockfile Freshness
@@ -64,7 +66,7 @@ Frozen/headless install coverage:
 - [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:819` `installing with no symlinks but with PnP` verifies `.modules.yaml` still exists when symlinks are disabled.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:24` `should hoist dependencies` verifies `hoistedDependencies` is preserved on repeat frozen install.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/modulesCache.ts:52` `the modules cache is pruned when it expires and headless install is used` verifies `prunedAt` is read, rewritten, and honored by headless install.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:74` `skip optional dependency that does not support the current OS` verifies `skipped` survives frozen reinstall.
+- [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:74` `skip optional dependency that does not support the current OS` verifies `skipped` survives frozen reinstall — ported as `skip_optional_dependency_that_does_not_support_the_current_os` in `crates/cli/tests/optional_dependencies.rs`.
 - [ ] `TypeScript repo: installing/deps-installer/test/lockfile.ts:614` `pendingBuilds gets updated if install removes packages` verifies `.modules.yaml.pendingBuilds` is rewritten after pruning.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:205` `GVS re-links when allowBuilds changes` verifies GVS-related `allowBuilds` state is updated in `.modules.yaml`.
 - [ ] `TypeScript repo: pnpm/test/monorepo/index.ts:1467` `custom virtual store directory in a workspace with not shared lockfile` verifies frozen reinstall preserves custom `virtualStoreDir` serialization.
@@ -80,25 +82,25 @@ Rust port notes:
 
 Primary frozen/headless tests:
 
-- [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:74` `skip optional dependency that does not support the current OS` removes `node_modules`, reinstalls with `frozenLockfile: true`, and verifies skipped packages remain skipped.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:283` `optional subdependency is skipped` includes forced headless install with `force: true, frozenLockfile: true` and verifies incompatible optional subdependency handling.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:359` `only that package is skipped which is an optional dependency only and not installable` removes `node_modules`, reinstalls frozen, and guards optional/non-optional overlap.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:594` `install optional dependency for the supported architecture set by the user (nodeLinker=%s)` includes `nodeLinker` variants and frozen reinstall.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:665` `optional dependency is hardlinked to the store if it does not require a build` includes frozen reinstall and import-method parity.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:540` `hoisting should not create a broken symlink to a skipped optional dependency` covers public hoist plus skipped optional dependency in headless behavior.
+- [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:74` `skip optional dependency that does not support the current OS` removes `node_modules`, reinstalls with `frozenLockfile: true`, and verifies skipped packages remain skipped — ported as `skip_optional_dependency_that_does_not_support_the_current_os` in `crates/cli/tests/optional_dependencies.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:283` `optional subdependency is skipped` includes forced headless install with `force: true, frozenLockfile: true` and verifies incompatible optional subdependency handling — ported as `optional_subdependency_is_skipped` in `crates/cli/tests/optional_dependencies.rs`; the forced-headless tail is a `known_failures` stub until `install --force` exists on the CLI (pnpm/pnpm#13142).
+- [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:359` `only that package is skipped which is an optional dependency only and not installable` removes `node_modules`, reinstalls frozen, and guards optional/non-optional overlap — ported as `only_optional_only_and_not_installable_package_is_skipped` in `crates/cli/tests/optional_dependencies.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:594` `install optional dependency for the supported architecture set by the user (nodeLinker=%s)` includes `nodeLinker` variants and frozen reinstall — ported as `install_optional_dependency_for_the_supported_architectures` in `crates/cli/tests/optional_dependencies.rs` (both linkers in one test; isolated-variant resolution is asserted through the `.pnpm/node_modules` fallback, matching upstream's `deepRequireCwd`).
+- [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:665` `optional dependency is hardlinked to the store if it does not require a build` includes frozen reinstall and import-method parity — ported (Unix) as `optional_dependency_is_hardlinked_to_the_store_if_it_does_not_require_a_build` in `crates/cli/tests/optional_dependencies.rs`, asserting the on-disk inode sharing instead of the `pnpm:progress` emission.
+- [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:540` `hoisting should not create a broken symlink to a skipped optional dependency` covers public hoist plus skipped optional dependency in headless behavior — ported as `hoisting_skips_broken_symlink_for_skipped_optional` in `crates/cli/tests/hoist.rs` (previously a `known_failures` stub).
 
 Supporting tests:
 
-- [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:300` `installing only optional deps` covers headless include filtering when only optional dependencies are selected.
-- [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:323` `not installing optional deps` covers headless include filtering.
-- [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:340` `skipping optional dependency if it cannot be fetched` verifies a failed optional fetch does not fail headless install and still writes install state.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:21` `successfully install optional dependency with subdependencies`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:27` `skip failing optional dependencies`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:34` `skip failing optional peer dependencies`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:45` `skip non-existing optional dependency`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:143` `skip optional dependency that does not support the current Node version`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:169` `do not skip optional dependency that does not support the current pnpm version`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:199` `don't skip optional dependency that does not support the current OS when forcing`
+- [x] `TypeScript repo: installing/deps-restorer/test/index.ts:300` `installing only optional deps` covers headless include filtering when only optional dependencies are selected — ported as `headless_install_include_filtering_excludes_production_group` in `crates/cli/tests/optional_dependencies.rs` via the CLI-expressible `--dev` include set (upstream's dependencies-and-dev-both-false set exists only in the programmatic API).
+- [x] `TypeScript repo: installing/deps-restorer/test/index.ts:323` `not installing optional deps` covers headless include filtering — ported as `headless_install_without_optional_deps` in `crates/cli/tests/optional_dependencies.rs`.
+- [x] `TypeScript repo: installing/deps-restorer/test/index.ts:340` `skipping optional dependency if it cannot be fetched` verifies a failed optional fetch does not fail headless install and still writes install state — ported as `headless_install_skips_unfetchable_optional_dependency` in `crates/cli/tests/optional_dependencies.rs` (integrity corruption stands in for upstream's unresolvable-tarball fixture).
+- [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:21` `successfully install optional dependency with subdependencies` — ported as `install_optional_dependency_with_subdependencies` in `crates/cli/tests/optional_dependencies.rs` (registry-mock fixture stands in for `fsevents`).
+- [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:27` `skip failing optional dependencies` — ported as `skip_failing_optional_dependencies` in `crates/cli/tests/optional_dependencies.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:34` `skip failing optional peer dependencies` — ported as `skip_failing_optional_peer_dependencies` in `crates/cli/tests/optional_dependencies.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:45` `skip non-existing optional dependency` — ported as `skip_non_existing_optional_dependency` in `crates/cli/tests/optional_dependencies.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:143` `skip optional dependency that does not support the current Node version` — ported as `skip_optional_dependency_that_does_not_support_the_current_node_version` in `crates/cli/tests/optional_dependencies.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:169` `do not skip optional dependency that does not support the current pnpm version` — ported as `do_not_skip_optional_dependency_that_does_not_support_the_current_pnpm_version` in `crates/cli/tests/optional_dependencies.rs`.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:199` `don't skip optional dependency that does not support the current OS when forcing` — `known_failures` stub in `crates/cli/tests/optional_dependencies.rs` until `install --force` exists on the CLI (pnpm/pnpm#13142).
 - [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:213` `optional subdependency is not removed from current lockfile when new dependency added`
 - [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:344` `optional subdependency of newly added optional dependency is skipped`
 - [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:391` `not installing optional dependencies when optional is false`
@@ -123,6 +125,18 @@ Rust port notes:
 
 - Separate platform/architecture skip semantics from the generic optional dependency group filtering.
 - These tests depend on `.modules.yaml.skipped`, so port that field first.
+
+## Manifest Group Mutations (`add` / `installSome`)
+
+The `installSome` suites in `installing/deps-installer/test/install/updatingPkgJson.ts` and `install/misc.ts` were not previously enumerated here; this list is their audit. They cover how `pnpm add` writes the manifest and how the install that follows treats the other dependency groups.
+
+- [x] `TypeScript repo: installing/deps-installer/test/install/updatingPkgJson.ts:112` `dependency should be removed from the old field when installing it as a different type of dependency` — ported as `add_moves_dependency_to_new_group_and_keeps_other_groups` in `crates/cli/tests/add.rs` (explicit `@^100.0.0` selectors stand in for upstream's `latest` dist-tag setup).
+- [ ] `TypeScript repo: installing/deps-installer/test/install/updatingPkgJson.ts:13` `save to package.json (is-positive@^1.0.0)` — overlaps `should_add_to_package_json`; audit for full-fidelity coverage.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/updatingPkgJson.ts:23` `don't override existing spec in package.json on named installation`
+- [ ] `TypeScript repo: installing/deps-installer/test/install/updatingPkgJson.ts:57` `dependency should not be added to package.json if it is already there`
+- [ ] `TypeScript repo: installing/deps-installer/test/install/updatingPkgJson.ts:88` `dependencies should be updated in the fields where they already are`
+- [ ] `TypeScript repo: installing/deps-installer/test/install/updatingPkgJson.ts:198` `an update bumps the versions in the manifest`
+- [ ] `TypeScript repo: installing/deps-installer/test/install/misc.ts:527` re-add of a dev dependency at a dist-tag keeps the `devDependencies` home.
 
 ## Hoisting (`hoistPattern`, `publicHoistPattern`)
 

@@ -456,7 +456,6 @@ async fn prepare_manifest<'a, Reporter: self::Reporter>(
                 save_catalog_name,
                 catalogs,
                 prefix,
-                dependency_groups,
                 meta_cache,
                 fetch_locker,
             ));
@@ -571,20 +570,26 @@ async fn resolve_added_dependency<'a>(
     save_catalog_name: Option<&str>,
     catalogs: &Catalogs,
     prefix: &str,
-    dependency_groups: &[DependencyGroup],
     meta_cache: &std::sync::Arc<InMemoryPackageMetaCache>,
     fetch_locker: &PackumentFetchLocker,
 ) -> Result<ResolvedAddedDependency, AddError> {
     let (package_name, explicit_spec) = split_name_spec(package_selector);
 
-    // The dependency's current specifier *in the group(s) this add
-    // targets*, so a re-add keeps the existing range / `catalog:`
-    // reference of the bucket being written. Scanning only the target
-    // groups (rather than every group) avoids preserving a different
-    // group's specifier when the same package exists in more than one
-    // bucket with different specs.
+    // The dependency's current specifier, so a re-add keeps the
+    // existing range / `catalog:` reference rather than re-pinning to
+    // `^<latest>`. The scan order matches pnpm's `findSpec` /
+    // `guessDependencyType` (`DEPENDENCIES_OR_PEER_FIELDS`):
+    // `optionalDependencies`, `dependencies`, `devDependencies`,
+    // `peerDependencies` — the first-found specifier wins even when the
+    // add targets a different group ([`PackageManifest::add_dependency`]
+    // then removes the entry from its old group).
     let prev_specifier = manifest
-        .dependencies(dependency_groups.iter().copied())
+        .dependencies([
+            DependencyGroup::Optional,
+            DependencyGroup::Prod,
+            DependencyGroup::Dev,
+            DependencyGroup::Peer,
+        ])
         .find(|(name, _)| *name == package_name)
         .map(|(_, spec)| spec.to_string());
 
