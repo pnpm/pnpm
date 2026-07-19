@@ -239,6 +239,21 @@ test('self-update does not write shims to pnpmHomeDir on a clean v11 layout', as
   expect(fs.existsSync(path.join(opts.pnpmHomeDir, 'pnpm.cmd'))).toBe(false)
 })
 
+test('self-update resolves relative legacy shim targets from pnpmHomeDir', async () => {
+  const opts = prepare()
+  const relativeTarget = path.join('global', 'v11', 'old', 'node_modules', 'pnpm', 'bin.js')
+  fs.mkdirSync(path.dirname(path.join(opts.pnpmHomeDir, relativeTarget)), { recursive: true })
+  fs.writeFileSync(path.join(opts.pnpmHomeDir, relativeTarget), 'old pnpm\n')
+  const shimPath = path.join(opts.pnpmHomeDir, 'pnpm')
+  const shimBody = `#!/bin/sh\n# cmd-shim-target=${relativeTarget}\n`
+  fs.writeFileSync(shimPath, shimBody, { mode: 0o755 })
+  mockRegistryForUpdate(opts.registries.default, '9.1.0', createMetadata('9.1.0', opts.registries.default))
+
+  await selfUpdate.handler(opts, [])
+
+  expect(fs.readFileSync(shimPath, 'utf8')).not.toBe(shimBody)
+})
+
 test('self-update ignores a dangling legacy shim at pnpmHomeDir', async () => {
   // pnpm/pnpm#12496: a v10-layout shim whose install target was later
   // garbage-collected is dead weight, not a real v10 layout. self-update

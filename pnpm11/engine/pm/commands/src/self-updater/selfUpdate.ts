@@ -291,7 +291,7 @@ function hasLegacyHomeDirShim (pnpmHomeDir: string): boolean {
     // Old-format shim we can't introspect → treat as real.
     if (target === undefined) return true
     // Dangling → treat as absent.
-    return fs.existsSync(target)
+    return fs.existsSync(path.resolve(path.dirname(shShim), target))
   }
   return fs.existsSync(path.join(pnpmHomeDir, 'pnpm.cmd'))
 }
