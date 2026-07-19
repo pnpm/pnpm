@@ -203,9 +203,7 @@ pub struct WorkspaceSettings {
 
     pub patches_dir: Option<String>,
 
-    /// `allowUnusedPatches` from `pnpm-workspace.yaml`. When `true`,
-    /// patches that don't match any installed dependency produce a
-    /// warning instead of failing the install. Default `false`.
+    /// `allowUnusedPatches` from `pnpm-workspace.yaml`. Default `false`.
     pub allow_unused_patches: Option<bool>,
 
     /// `configDependencies` from `pnpm-workspace.yaml`: package name →
