@@ -104,7 +104,7 @@ test('empty bundledDependencies or bundleDependencies arrays are normalized away
   expect(lockfile.packages![DEP_PATH].bundledDependencies).toBeUndefined()
 })
 
-test('non-empty bundledDependencies array or boolean bundledDependencies is kept in the lockfile', () => {
+test('non-empty bundledDependencies array is kept in the lockfile', () => {
   const lockfile = updateLockfile({
     dependenciesGraph: {
       [DEP_PATH]: {
@@ -119,5 +119,22 @@ test('non-empty bundledDependencies array or boolean bundledDependencies is kept
     registries: REGISTRIES,
   })
   expect(lockfile.packages![DEP_PATH].bundledDependencies).toStrictEqual(['some-dep'])
+})
+
+test('boolean true bundledDependencies is kept in the lockfile', () => {
+  const lockfile = updateLockfile({
+    dependenciesGraph: {
+      [DEP_PATH]: {
+        ...tarballGraph({ tarball: TARBALL_URL })[DEP_PATH],
+        additionalInfo: {
+          bundledDependencies: true,
+        },
+      },
+    } as unknown as DependenciesGraph,
+    lockfile: lockfileWith({ resolution: { tarball: TARBALL_URL, integrity: INTEGRITY } }),
+    prefix: '.',
+    registries: REGISTRIES,
+  })
+  expect(lockfile.packages![DEP_PATH].bundledDependencies).toBe(true)
 })
 
