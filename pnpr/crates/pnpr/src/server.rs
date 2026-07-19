@@ -617,11 +617,9 @@ async fn shutdown_signal() {
     tracing::info!("shutdown signal received");
 }
 
-// --------------------------------------------------------------------
 // GET handlers — packument, version manifest, tarball.
 // Same overall shape as before, with an access-policy check added
 // up front so protected packages return 401 to anonymous callers.
-// --------------------------------------------------------------------
 
 async fn get_packument_unscoped(
     State(state): State<AppState>,
@@ -822,9 +820,7 @@ async fn get_six_segments(
     not_found()
 }
 
-// --------------------------------------------------------------------
 // PUT handlers — adduser, publish, dist-tag write.
-// --------------------------------------------------------------------
 
 /// `PUT /{name}` — publish an unscoped package.
 async fn put_one_segment(
@@ -1099,7 +1095,6 @@ async fn delete_seven_segments(
     not_found()
 }
 
-// --------------------------------------------------------------------
 // Account routes — adduser/login, whoami, profile, token list and
 // revocation, logout. Mounted on every tier (see the router construction
 // in `router_with_auth_and_osv`). Each has a `/~<prefix>/`-addressed twin
@@ -1107,7 +1102,6 @@ async fn delete_seven_segments(
 // segment; that shape is not an account URL, so the handler 404s it —
 // though route-level layers still run first (an oversized body to a
 // non-`~` login path is the body cap's 413, not a 404).
-// --------------------------------------------------------------------
 
 /// Whether `prefix` is a `/~<prefix>/`-style first segment — the only
 /// shape the prefixed account routes serve.
@@ -1223,9 +1217,7 @@ async fn delete_token_by_key_prefixed(
     private_no_cache(revoke_token_by_key(&state, &identity, &key).await)
 }
 
-// --------------------------------------------------------------------
 // Handler bodies.
-// --------------------------------------------------------------------
 
 async fn serve_packument(
     state: &AppState,
@@ -1825,7 +1817,6 @@ async fn cached_upstream_tarball(
     }
 }
 
-// --------------------------------------------------------------------
 // Registry dispatch. A `/~<name>/` request resolves the package to
 // exactly one concrete origin through the validated registry graph
 // ([`crate::registry`]) and serves it there — authoritatively. Every concrete
@@ -1837,7 +1828,6 @@ async fn cached_upstream_tarball(
 // (the via-upstream path returns `UpstreamUnavailable`), so a down private
 // source can never be reported as "not found" and pushed onto a public origin
 // one layer out.
-// --------------------------------------------------------------------
 
 /// The concrete origin a `/~<name>/` request resolved to, owned so it can be
 /// held across an `await` without borrowing the config.
@@ -3754,12 +3744,10 @@ where
         .expect("static-shape response always builds")
 }
 
-// --------------------------------------------------------------------
 // npm team API — read-only views over the config-declared `teams:` maps.
 // Team membership is part of the registry configuration (it feeds the
 // compiled access lists), so the API serves listings and rejects
 // mutations with an explicit "config-managed" error.
-// --------------------------------------------------------------------
 
 /// The hosted registry whose teams `@{scope}` addresses: the scope routes
 /// through the addressed registry (an explicit `/~<name>/`, or the
@@ -3854,9 +3842,7 @@ fn reject_team_mutation(
     error_response(&RegistryError::TeamsConfigManaged { action })
 }
 
-// --------------------------------------------------------------------
 // Helpers.
-// --------------------------------------------------------------------
 
 /// Resolve the hosted storage namespace a non-publish write (dist-tag,
 /// unpublish, packument update) targets, or the [`Response`] to return. A

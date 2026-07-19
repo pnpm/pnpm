@@ -987,9 +987,7 @@ fn splice(text: &str, offset: usize, insertion: &str) -> String {
     out
 }
 
-// ---------------------------------------------------------------------------
 // Line-oriented scanning of the block-style YAML pnpm writes.
-// ---------------------------------------------------------------------------
 
 /// A located mapping and its direct child entries.
 struct Mapping {

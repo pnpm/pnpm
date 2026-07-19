@@ -284,9 +284,7 @@ async fn reuses_preferred_version_instead_of_resolving_fresh() {
     assert!(direct.contains(&"react-dom"));
 }
 
-// ---------------------------------------------------------------------------
 // `autoInstallPeers` test cases, each covering a single-importer scenario.
-// ---------------------------------------------------------------------------
 
 #[tokio::test]
 async fn auto_install_skips_optional_peers_without_preferred_versions() {

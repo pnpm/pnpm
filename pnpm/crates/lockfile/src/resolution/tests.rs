@@ -507,9 +507,7 @@ fn serialize_variations_resolution() {
     assert_eq!(received, expected);
 }
 
-// -----------------------------------------------------------------------------
 // `select_platform_variant` / `libc_matches` — Slice B
-// -----------------------------------------------------------------------------
 
 fn binary_resolution(url: &str) -> LockfileResolution {
     LockfileResolution::Binary(BinaryResolution {

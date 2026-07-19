@@ -165,9 +165,8 @@ pub struct Modules {
     #[serde(default)]
     pub pruned_at: String,
 
-    // TODO: the strict manifest shape that the write path takes tightens
-    // this to a required `Registries`. Revisit when the install-pipeline
-    // port supplies a producer that always populates `default`.
+    // FIXME: tighten to required BTreeMap when the install-pipeline port
+    // always populates `registries`
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub registries: Option<BTreeMap<String, String>>,
 
