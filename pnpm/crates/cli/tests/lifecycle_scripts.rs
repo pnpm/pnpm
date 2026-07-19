@@ -776,6 +776,139 @@ mod dependency_build_scripts {
 
         drop((root, mock_instance, rerun_root));
     }
+
+    /// TS: `the list of ignored builds is preserved after a repeat
+    /// install` (`pnpm/test/install/lifecycleScripts.ts:245`). A repeat
+    /// install re-reports every ignored build and leaves the recorded
+    /// set intact — dropping an entry would make an approved-nothing
+    /// rerun look clean.
+    #[test]
+    fn ignored_builds_are_preserved_after_a_repeat_install() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        fs::write(workspace.join("package.json"), "{}\n").expect("write package.json");
+
+        pacquet
+            .with_args([
+                "add",
+                "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0",
+                "@pnpm.e2e/install-script-example@1.0.0",
+                "--config.optimistic-repeat-install=false",
+            ])
+            .output()
+            .expect("run pacquet add");
+
+        let CommandTempCwd { pacquet: rerun, root: rerun_root, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let rerun_out = rerun
+            .with_current_dir(&workspace)
+            .with_args(["install", "--config.optimistic-repeat-install=false"])
+            .output()
+            .expect("run pacquet install again");
+        let combined = format!(
+            "{}{}",
+            String::from_utf8_lossy(&rerun_out.stdout),
+            String::from_utf8_lossy(&rerun_out.stderr),
+        );
+        eprintln!("repeat install output:\n{combined}");
+        assert!(
+            combined.contains("Ignored build scripts"),
+            "the repeat install must report the ignored builds again; got:\n{combined}",
+        );
+
+        let recorded = read_ignored_builds(&workspace);
+        assert_eq!(
+            recorded,
+            [
+                "@pnpm.e2e/install-script-example@1.0.0",
+                "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0",
+            ],
+        );
+
+        drop((root, mock_instance, rerun_root));
+    }
+
+    /// TS: `strictDepBuilds fails for packages with cached side-effects`
+    /// (`pnpm/test/install/lifecycleScripts.ts:380`,
+    /// https://github.com/pnpm/pnpm/issues/11035). Revoking a build
+    /// approval must fail the strict gate even though the store already
+    /// holds that package's build output — the side-effects cache is an
+    /// optimization, never an approval.
+    #[test]
+    fn strict_dep_builds_fails_for_packages_with_cached_side_effects() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+        let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+        fs::write(
+            &workspace_yaml,
+            "enableGlobalVirtualStore: false\n\
+             allowBuilds:\n  '@pnpm.e2e/pre-and-postinstall-scripts-example': true\n",
+        )
+        .expect("write pnpm-workspace.yaml");
+
+        pacquet.with_arg("install").assert().success();
+        let built_marker = workspace.join(
+            "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
+             /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js",
+        );
+        assert!(built_marker.exists(), "the approved build must run and populate the cache");
+
+        fs::write(
+            &workspace_yaml,
+            "enableGlobalVirtualStore: false\n\
+             strictDepBuilds: true\n\
+             optimisticRepeatInstall: false\n",
+        )
+        .expect("revoke the build approval");
+
+        let CommandTempCwd { pacquet: rerun, root: rerun_root, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let rerun_out = rerun
+            .with_current_dir(&workspace)
+            .with_arg("install")
+            .output()
+            .expect("run pacquet install after revoking approval");
+        let combined = format!(
+            "{}{}",
+            String::from_utf8_lossy(&rerun_out.stdout),
+            String::from_utf8_lossy(&rerun_out.stderr),
+        );
+        eprintln!("revoked-approval install output:\n{combined}");
+        assert!(
+            !rerun_out.status.success(),
+            "a cached build must not satisfy the strict gate; got:\n{combined}",
+        );
+        assert!(
+            combined.contains("Ignored build scripts"),
+            "the revoked package must be reported as ignored; got:\n{combined}",
+        );
+
+        drop((root, mock_instance, rerun_root));
+    }
+
+    fn read_ignored_builds(workspace: &Path) -> Vec<String> {
+        let mut recorded: Vec<String> = pacquet_modules_yaml::read_modules_manifest::<
+            pacquet_modules_yaml::Host,
+        >(&workspace.join("node_modules"))
+        .expect("read .modules.yaml")
+        .expect(".modules.yaml exists")
+        .ignored_builds
+        .unwrap_or_default()
+        .into_iter()
+        .map(|dep_path| dep_path.as_str().to_string())
+        .collect();
+        recorded.sort();
+        recorded
+    }
 }
 
 /// `.modules.yaml`'s `pendingBuilds` — the record of builds

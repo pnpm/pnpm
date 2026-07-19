@@ -1530,6 +1530,10 @@ where
             // build must rebuild it, even though the lockfile and layout are
             // unchanged.
             && !has_newly_allowed_ignored_builds(modules, config)
+            // The mirror image: an approval the user has since withdrawn
+            // must be re-evaluated, or a strict install would exit 0 on a
+            // package it is no longer allowed to build.
+            && !has_revoked_allowed_builds(modules, config)
             // An explicit `pacquet rebuild` always re-runs the build phase,
             // so it never short-circuits here.
             && rebuild.is_none()
@@ -2791,6 +2795,33 @@ fn has_newly_allowed_ignored_builds(
     ignored.iter().any(|dep_path| policy.check(dep_path.as_str()) == Some(true))
 }
 
+/// Whether the current `allowBuilds` policy withdraws an approval that
+/// `.modules.yaml` recorded, leaving the package undecided again.
+///
+/// The counterpart to [`has_newly_allowed_ignored_builds`]: a build the
+/// previous install ran is absent from `ignoredBuilds`, so nothing else
+/// on the frozen no-op fast path notices that it is no longer approved,
+/// and a `strictDepBuilds` install would wrongly exit 0 on a package the
+/// user just un-approved. Returning `true` hands the decision to the
+/// full install, whose `BuildModules` re-evaluates the policy per
+/// package before consulting the side-effects cache — a cached build is
+/// an optimization, never an approval
+/// (<https://github.com/pnpm/pnpm/issues/11035>).
+///
+/// Only a withdrawal to *undecided* counts. An entry the user flipped to
+/// an explicit `false` is silently skipped rather than reported, so it
+/// leaves the fast path intact — matching `BuildModules`.
+fn has_revoked_allowed_builds(
+    modules: &pacquet_modules_yaml::ModulesLayout,
+    config: &Config,
+) -> bool {
+    let Some(recorded) = modules.allow_builds.as_ref() else { return false };
+    recorded
+        .iter()
+        .filter(|(_, value)| matches!(value, pacquet_modules_yaml::AllowBuildValue::Bool(true)))
+        .any(|(spec, _)| !config.allow_builds.contains_key(spec))
+}
+
 /// The sorted `name@version` keys `.modules.yaml` recorded as ignored
 /// builds that the current `allowBuilds` policy still leaves unapproved
 /// (`None`), or `None` when there are none.
@@ -2872,6 +2903,19 @@ fn build_modules_manifest(
     pruned_at: String,
 ) -> Modules {
     Modules {
+        // The build policy this install ran under, so the next one can
+        // tell an approval the user has since withdrawn from a package
+        // that was never approved (see [`has_revoked_allowed_builds`]).
+        // Omitted when empty, matching pnpm's omit-when-empty encoding.
+        allow_builds: (!config.allow_builds.is_empty()).then(|| {
+            config
+                .allow_builds
+                .iter()
+                .map(|(spec, &allowed)| {
+                    (spec.clone(), pacquet_modules_yaml::AllowBuildValue::Bool(allowed))
+                })
+                .collect()
+        }),
         // The `name@version` keys whose build scripts were blocked, so a
         // later install can re-run any that an `allowBuilds` change now
         // allows (see [`has_newly_allowed_ignored_builds`]). `None` when
