@@ -2617,7 +2617,11 @@ fn frozen_tree_intact(
         .iter()
         .all(|name| {
             match crate::safe_join_modules_dir::safe_join_modules_dir(&modules_dir, name) {
-                Ok(link) => std::fs::symlink_metadata(link).is_ok(),
+                // `metadata` follows the link, so a dangling direct-dep
+                // symlink (a wiped GVS store, a hand-deleted target)
+                // reads as broken and falls through to the repairing
+                // full path.
+                Ok(link) => std::fs::metadata(link).is_ok(),
                 // A malformed alias never probes the disk; the full
                 // path rejects it with its own typed error.
                 Err(_) => true,
