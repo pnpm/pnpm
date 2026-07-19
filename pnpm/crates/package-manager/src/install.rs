@@ -2666,8 +2666,15 @@ fn modules_layout_consistent_with(
 ) -> bool {
     modules.layout_version == Some(LayoutVersion)
         && modules.node_linker == Some(map_node_linker(node_linker))
-        && modules.hoist_pattern == config.hoist_pattern
-        && modules.public_hoist_pattern == config.public_hoist_pattern
+        // Patterns compare normalized (upstream's `?? []`): `None` and
+        // an empty list are the same disabled state, so the pair must
+        // not read as layout drift — a purge every install for
+        // `hoistPattern: []` projects, and a spurious `*_DIFF` error
+        // for `add` / `remove`.
+        && normalized_pattern(modules.hoist_pattern.as_deref())
+            == normalized_pattern(config.hoist_pattern.as_deref())
+        && normalized_pattern(modules.public_hoist_pattern.as_deref())
+            == normalized_pattern(config.public_hoist_pattern.as_deref())
         && modules.virtual_store_dir_max_length == config.virtual_store_dir_max_length
         && modules.store_dir == config.store_dir.display().to_string()
         && modules.virtual_store_dir
