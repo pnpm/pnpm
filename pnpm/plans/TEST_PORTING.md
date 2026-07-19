@@ -69,8 +69,8 @@ Frozen/headless install coverage:
 - [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:74` `skip optional dependency that does not support the current OS` verifies `skipped` survives frozen reinstall — ported as `skip_optional_dependency_that_does_not_support_the_current_os` in `crates/cli/tests/optional_dependencies.rs`.
 - [ ] `TypeScript repo: installing/deps-installer/test/lockfile.ts:614` `pendingBuilds gets updated if install removes packages` verifies `.modules.yaml.pendingBuilds` is rewritten after pruning.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:205` `GVS re-links when allowBuilds changes` verifies GVS-related `allowBuilds` state is updated in `.modules.yaml`. Adjacent non-GVS coverage exists (`rebuild_after_allow_builds_changes` in `crates/cli/tests/lifecycle_scripts.rs`), but nothing asserts the GVS `.modules.yaml` state.
-- [ ] `TypeScript repo: pnpm/test/monorepo/index.ts:1467` `custom virtual store directory in a workspace with not shared lockfile` verifies frozen reinstall preserves custom `virtualStoreDir` serialization.
-- [ ] `TypeScript repo: pnpm/test/monorepo/index.ts:1514` `custom virtual store directory in a workspace with shared lockfile` verifies frozen reinstall preserves root `virtualStoreDir` serialization.
+- [ ] `TypeScript repo: pnpm/test/monorepo/index.ts:1467` `custom virtual store directory in a workspace with not shared lockfile` verifies frozen reinstall preserves custom `virtualStoreDir` serialization — stubbed in `known_failures::custom_virtual_store_directory_with_dedicated_lockfiles` (`crates/cli/tests/multiple_importers.rs`; needs `sharedWorkspaceLockfile: false`).
+- [x] `TypeScript repo: pnpm/test/monorepo/index.ts:1514` `custom virtual store directory in a workspace with shared lockfile` verifies frozen reinstall preserves root `virtualStoreDir` serialization — ported as `custom_virtual_store_directory_in_a_workspace_with_shared_lockfile` in `crates/cli/tests/multiple_importers.rs`.
 
 Rust port notes:
 
@@ -106,7 +106,7 @@ Supporting tests:
 - [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:391` `not installing optional dependencies when optional is false` — ported as `not_installing_optional_dependencies_when_optional_is_false` in `crates/cli/tests/optional_dependencies.rs`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:419` `optional dependency has bigger priority than regular dependency` — ported as `optional_dependency_has_bigger_priority_than_regular_dependency` in `crates/cli/tests/optional_dependencies.rs`.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:436` `only skip optional dependencies` — deferred: the scenario needs `firebase-tools` + `@google-cloud/functions-emulator` scale dependency graphs (upstream carries a TODO to shrink them); a fixture-scale equivalent still needs designing.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:470` `skip optional dependency that does not support the current OS, when doing install on a subset of workspace projects` — `known_failures` stub in `crates/cli/tests/optional_dependencies.rs` until `--filter` selected-project installs land.
+- [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:470` `skip optional dependency that does not support the current OS, when doing install on a subset of workspace projects` — ported as the real `skip_unsupported_optional_when_installing_a_workspace_subset` in `crates/cli/tests/optional_dependencies.rs` (previously a `known_failures` stub; `--filter` selected-projects installs landed in pnpm/pnpm#13030).
 - [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:540` `do not fail on unsupported dependency of optional dependency` — ported as `do_not_fail_on_unsupported_dependency_of_optional_dependency` in `crates/cli/tests/optional_dependencies.rs`.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:552` `fail on unsupported dependency of optional dependency` — `known_failures` stub in `crates/cli/tests/optional_dependencies.rs`: pacquet's `engineStrict` keys on snapshot-level optionality where upstream evaluates per edge (pnpm/pnpm#13143).
 - [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:563` `do not fail on an optional dependency that has a non-optional dependency with a failing postinstall script` — ported as `do_not_fail_on_optional_dependency_with_failing_non_optional_postinstall` in `crates/cli/tests/optional_dependencies.rs`.
@@ -165,8 +165,8 @@ Primary tests:
 - [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:514` `should recreate node_modules with hoisting`. Stubbed (#433).
 - [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:540` `hoisting should not create a broken symlink to a skipped optional dependency` covers hoisting with skipped optional packages. Ported as the real `hoisting_skips_broken_symlink_for_skipped_optional` in `crates/cli/tests/hoist.rs` (previously a `known_failures` stub).
 - [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:567` `the hoisted packages should not override the bin files of the direct dependencies` covers public hoist bin precedence after frozen reinstall. Stubbed in `known_failures::hoisted_packages_dont_override_direct_dep_bins` — bin-conflict resolution rules not implemented.
-- [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:587` `hoist packages which is in the dependencies tree of the selected projects`. Stubbed in `known_failures::workspace_hoist_packages_in_selected_projects_tree` — needs `--filter` selected-projects install, which workspace install (#443) didn't implement.
-- [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:682` `only hoist packages which is in the dependencies tree of the selected projects with sub dependencies`. Stubbed (`--filter` selected-projects install).
+- [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:587` `hoist packages which is in the dependencies tree of the selected projects`. Ported as the real `workspace_hoist_packages_in_selected_projects_tree` in `crates/cli/tests/hoist.rs` (previously a `known_failures` stub — `--filter` selected-projects installs landed in pnpm/pnpm#13030).
+- [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:682` `only hoist packages which is in the dependencies tree of the selected projects with sub dependencies`. Ported as the real `workspace_hoist_only_in_selected_projects_with_subdeps` in `crates/cli/tests/hoist.rs` (the divergent per-parent subdependency pins are produced by repinning the generated lockfile, standing in for upstream's hand-written one).
 - [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:790` `should add extra node paths to command shims`. Stubbed in `known_failures::should_add_extra_node_paths_to_command_shims` — `extendNodePath` not implemented.
 - [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:799` `should not add extra node paths to command shims, when extend-node-path is set to false`. Stubbed (extendNodePath).
 - [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:813` `hoistWorkspacePackages should hoist all workspace projects` covers workspace package hoisting and frozen reinstall. Ported as `hoist_workspace_packages_links_projects_by_name` in `crates/cli/tests/hoist.rs` (loops `hoistWorkspacePackages` on/off and asserts the name-links into `.pnpm/node_modules`); the frozen-reinstall preservation tail still needs partial install (pnpm/pacquet#433).
@@ -223,7 +223,7 @@ Primary frozen/headless tests:
 - [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:504` `selectively allow scripts in some dependencies by allowBuilds using exact versions` covers exact-version allow list — ported as `selectively_allow_scripts_by_allow_builds_exact_versions` in `crates/cli/tests/lifecycle_scripts.rs`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:552` `lifecycle scripts run after linking root dependencies` verifies builds can require root dependencies during frozen install — ported as `lifecycle_scripts_run_after_linking_root_deps` in `crates/cli/tests/lifecycle_scripts.rs`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:724` `build dependencies that were not previously built after allowBuilds changes` covers rebuilding newly allowed dependencies with frozen install — ported as `rebuild_after_allow_builds_changes` in `crates/cli/tests/lifecycle_scripts.rs`.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:1902` `link the bin file of a workspace project that is created by a lifecycle script` covers workspace build-created bin behavior and frozen reinstall.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:1902` `link the bin file of a workspace project that is created by a lifecycle script` covers workspace build-created bin behavior and frozen reinstall — stubbed in `known_failures::link_bin_of_workspace_project_created_by_lifecycle_script` (`crates/cli/tests/multiple_importers.rs`; needs `buildIndex`-ordered project scripts plus bin re-linking between build groups).
 
 Supporting tests:
 
@@ -270,38 +270,38 @@ Rust port notes:
 
 Primary frozen/headless tests:
 
-- [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:438` `dependencies of other importers are not pruned when (headless) installing for a subset of importers`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:208` `install only the dependencies of the specified importer. The current lockfile has importers that do not exist anymore` covers stale importer entries in the current lockfile.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:730` `current lockfile contains only installed dependencies when adding a new importer to workspace with shared lockfile` asserts filtered current lockfile contents.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:540` `headless install is used when package linked to another package in the workspace`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:598` `headless install is used with an up-to-date lockfile when package references another package via workspace: protocol`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:656` `headless install is used when packages are not linked from the workspace (unless workspace ranges are used)`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:865` `partial installation in a monorepo does not remove dependencies of other workspace projects when lockfile is frozen`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:1427` `resolve a subdependency from the workspace` includes frozen reinstall.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:1563` `resolve a subdependency from the workspace, when it uses the workspace protocol` includes frozen reinstall.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:1768` `symlink local package from the location described in its publishConfig.directory when linkDirectory is true` includes frozen reinstall.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:1902` `link the bin file of a workspace project that is created by a lifecycle script` includes frozen reinstall.
+- [x] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:438` `dependencies of other importers are not pruned when (headless) installing for a subset of importers` — ported as `deps_of_other_importers_are_not_pruned_when_headless_installing_a_subset` in `crates/cli/tests/multiple_importers.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:208` `install only the dependencies of the specified importer. The current lockfile has importers that do not exist anymore` — ported as `stale_current_lockfile_importers_are_retained_on_subset_install` in `crates/cli/tests/multiple_importers.rs` (the project leaves the workspace on disk; upstream shrinks the mutated-importer set instead).
+- [x] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:730` `current lockfile contains only installed dependencies when adding a new importer to workspace with shared lockfile` — ported as `current_lockfile_contains_only_installed_dependencies` in `crates/cli/tests/multiple_importers.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:540` `headless install is used when package linked to another package in the workspace` — ported as `headless_install_is_used_when_package_is_linked_to_another_workspace_package` in `crates/cli/tests/multiple_importers.rs`. The upstream tail (the unselected link target's own deps stay uninstalled) is stubbed in `known_failures::subset_install_does_not_install_unselected_link_targets_dependencies`: pacquet's subset closure deep-installs importer-level link targets, upstream keeps them shallow — a cross-stack decision is needed.
+- [x] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:598` `headless install is used with an up-to-date lockfile when package references another package via workspace: protocol` — ported as `headless_install_is_used_with_workspace_protocol_references` in `crates/cli/tests/multiple_importers.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:656` `headless install is used when packages are not linked from the workspace (unless workspace ranges are used)` — ported as `headless_install_is_used_when_packages_are_not_linked_from_the_workspace` in `crates/cli/tests/multiple_importers.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:865` `partial installation in a monorepo does not remove dependencies of other workspace projects when lockfile is frozen` — ported as `partial_frozen_install_does_not_remove_dependencies_of_other_workspace_projects` in `crates/cli/tests/multiple_importers.rs` (the divergent transitive pin is produced by repinning the generated lockfile rather than hand-writing one).
+- [x] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:1427` `resolve a subdependency from the workspace` — ported as `resolve_a_subdependency_from_the_workspace` in `crates/cli/tests/multiple_importers.rs` (snapshot `link:` + frozen reinstall).
+- [x] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:1563` `resolve a subdependency from the workspace, when it uses the workspace protocol` — ported as `resolve_a_subdependency_from_the_workspace_via_workspace_protocol_override` in `crates/cli/tests/multiple_importers.rs` (the `workspace:*` pin arrives through `overrides`).
+- [x] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:1768` `symlink local package from the location described in its publishConfig.directory when linkDirectory is true` — stubbed in `known_failures::symlink_local_package_from_publish_config_directory` (`crates/cli/tests/multiple_importers.rs`): install-time `publishConfig.directory` linking is not implemented.
+- [x] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:1902` `link the bin file of a workspace project that is created by a lifecycle script` — stubbed in `known_failures::link_bin_of_workspace_project_created_by_lifecycle_script` (`crates/cli/tests/multiple_importers.rs`): needs `buildIndex`-ordered project lifecycle scripts plus bin re-linking between build groups.
 - [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:341` `hoist-pattern: hoist all dependencies to the virtual store node_modules` covers workspace hoisting and frozen reinstall — basic shape ported as `workspace_hoist_walks_every_importer`; the reinstall-preservation tail is stubbed (see the Hoisting section).
 - [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:813` `hoistWorkspacePackages should hoist all workspace projects` covers workspace package hoisting and frozen reinstall — ported as `hoist_workspace_packages_links_projects_by_name` in `crates/cli/tests/hoist.rs` (frozen-reinstall preservation still stubbed; see the Hoisting section).
 
 Headless restorer tests:
 
-- [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:789` `installing in a workspace`
+- [x] `TypeScript repo: installing/deps-restorer/test/index.ts:789` `installing in a workspace` — ported as `subset_headless_install_keeps_other_projects_packages_in_current_lockfile` in `crates/cli/tests/multiple_importers.rs`.
 - [x] `TypeScript repo: installing/deps-restorer/test/index.ts:873` `installing in a workspace with node-linker=hoisted` — ported as `installing_in_a_workspace_with_hoisted_node_linker_frozen` in `crates/cli/tests/hoisted_node_linker.rs`.
-- [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:897` `installing a package deeply installs all required dependencies`
+- [x] `TypeScript repo: installing/deps-restorer/test/index.ts:897` `installing a package deeply installs all required dependencies` — ported as `subset_headless_install_deeply_materializes_workspace_linked_dependencies` in `crates/cli/tests/multiple_importers.rs`. The snapshot-level `link:` is rewritten to upstream's lockfile-relative shape before the frozen install: pacquet's resolver records a registry manifest's `link:` dep relative to the dependent importer, upstream's fixture records it relative to the lockfile dir.
 
 CLI-level frozen workspace tests:
 
-- [ ] `TypeScript repo: pnpm/test/monorepo/index.ts:734` `recursive install with shared-workspace-lockfile builds workspace projects in correct order` includes recursive frozen reinstall.
-- [ ] `TypeScript repo: pnpm/test/monorepo/index.ts:1281` `dependencies of workspace projects are built during headless installation` runs CLI `install --frozen-lockfile` after lockfile-only generation.
-- [ ] `TypeScript repo: pnpm/test/monorepo/index.ts:1317` `linking the package's bin to another workspace package in a monorepo` deletes workspace `node_modules` and runs frozen reinstall.
-- [ ] `TypeScript repo: pnpm/test/monorepo/index.ts:1467` `custom virtual store directory in a workspace with not shared lockfile` verifies workspace-local custom virtual store on frozen reinstall.
-- [ ] `TypeScript repo: pnpm/test/monorepo/index.ts:1514` `custom virtual store directory in a workspace with shared lockfile` verifies root custom virtual store on frozen reinstall.
+- [x] `TypeScript repo: pnpm/test/monorepo/index.ts:734` `recursive install with shared-workspace-lockfile builds workspace projects in correct order` — stubbed in `known_failures::recursive_install_builds_workspace_projects_in_correct_order` (`crates/cli/tests/multiple_importers.rs`): project lifecycle scripts run root-first, not in `buildIndex` order.
+- [x] `TypeScript repo: pnpm/test/monorepo/index.ts:1281` `dependencies of workspace projects are built during headless installation` — stubbed in `known_failures::workspace_project_dependencies_built_during_headless_install_with_dedicated_lockfiles` (`crates/cli/tests/multiple_importers.rs`): the upstream fixture requires `sharedWorkspaceLockfile: false`, which pacquet's install family rejects.
+- [x] `TypeScript repo: pnpm/test/monorepo/index.ts:1317` `linking the package's bin to another workspace package in a monorepo` — ported as `links_workspace_package_bin_into_dependent_project` in `crates/cli/tests/multiple_importers.rs`.
+- [x] `TypeScript repo: pnpm/test/monorepo/index.ts:1467` `custom virtual store directory in a workspace with not shared lockfile` — stubbed in `known_failures::custom_virtual_store_directory_with_dedicated_lockfiles` (`crates/cli/tests/multiple_importers.rs`): needs `sharedWorkspaceLockfile: false`.
+- [x] `TypeScript repo: pnpm/test/monorepo/index.ts:1514` `custom virtual store directory in a workspace with shared lockfile` — ported as `custom_virtual_store_directory_in_a_workspace_with_shared_lockfile` in `crates/cli/tests/multiple_importers.rs`.
 
 Rust port notes:
 
-- Start with single root workspace lockfile and direct workspace links.
-- Add subset/partial install tests only after Rust has project selection semantics.
+- Subset (`--filter`) install tests live in `crates/cli/tests/multiple_importers.rs` and drive the CLI selection that upstream expresses through `mutateModules` subsets.
+- Pacquet's subset closure deep-installs importer-level link targets where upstream keeps them shallow (only `--filter <project>...` widens the selection upstream); the divergence is pinned by the `known_failures` stub on the `multipleImporters.ts:540` tail and needs a cross-stack decision.
 
 ## Workspace Script `PATH` (`extraBinPaths`)
 
@@ -314,11 +314,13 @@ Ported into the new `pacquet-workspace-projects-filter` and
 `pacquet-workspace-projects-graph` crates (the Rust ports of
 `@pnpm/workspace.projects-filter` and `@pnpm/workspace.projects-graph`).
 The CLI `--filter` / `--filter-prod` flags are parsed into
-`Config::filter` / `Config::filter_prod`. Recursive `run` / `exec` now
+`Config::filter` / `Config::filter_prod`. Recursive `run` / `exec`
 narrow their selected set through these selectors (via
-`cli_args::recursive::select_recursive_projects`); narrowing the install
-to the selected projects is still a follow-up (the install fan-out is
-unfiltered, so the two `known_failures` hoist stubs below stay).
+`cli_args::recursive::select_recursive_projects`), and the install
+family honors the selection too (pnpm/pnpm#13030): subset installs are
+covered end to end in `crates/cli/tests/install_filters.rs` and
+`crates/cli/tests/multiple_importers.rs`, and the formerly stubbed
+selected-projects hoist / optional-dependency cases are real tests now.
 
 `parseProjectSelector` (ported as `parse_project_selector::tests`):
 
@@ -380,7 +382,7 @@ Primary tests:
 - [x] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:264` `linking bins of local projects when node-linker is set to hoisted`. Stubbed in `known_failures::linking_bins_of_local_projects` (#11870 — bin linking on the fresh path).
 - [x] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:314` `peerDependencies should be installed when autoInstallPeers is set to true and nodeLinker is set to hoisted`. Ported as `peer_dependencies_installed_with_auto_install_peers`.
 - [x] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:329` `installing with hoisted node-linker a package that is a peer dependency of itself`. Stubbed in `known_failures::package_that_is_peer_dependency_of_itself` — needs `pnpm add --save` + lockfile `peerDependencies` introspection (#433).
-- [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:87` `install only the dependencies of the specified importer, when node-linker is hoisted` is workspace subset coverage for hoisted linker.
+- [x] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:87` `install only the dependencies of the specified importer, when node-linker is hoisted` — ported as `install_only_dependencies_of_specified_importer_with_hoisted_linker` in `crates/cli/tests/hoisted_node_linker.rs` (matching upstream, only the positive assertions are pinned — upstream's "unselected dependency is absent" tail is a TODO there too).
 
 Frozen/headless cross-coverage:
 
@@ -391,7 +393,7 @@ Frozen/headless cross-coverage:
 - [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:386` `patch package when the package is not in allowBuilds list` includes frozen hoisted reinstall — same coverage.
 
 Pacquet also keeps `hoisted_patch_reaches_every_nested_copy_of_a_package` in `crates/cli/tests/patch.rs`: a package the walker nests under several consumers must be patched at every one of them, on both the fresh and the cache-warm frozen path. See the Rust port note under Support `patchedDependencies` for the bug it pins.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:579` `run pre/postinstall scripts in a workspace that uses node-linker=hoisted`
+- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:579` `run pre/postinstall scripts in a workspace that uses node-linker=hoisted` — ported as `run_pre_and_postinstall_scripts_in_a_workspace_with_hoisted_linker` in `crates/cli/tests/hoisted_node_linker.rs`, driven through the frozen path (fresh-path scripts are still pnpm/pnpm#11870). The layout tail — no nested copy for consumers of the version that won the root slot — is stubbed in `known_failures::hoisted_workspace_layout_does_not_duplicate_root_version`: pacquet materializes every project's direct dep under the project as well.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:686` `run pre/postinstall scripts in a project that uses node-linker=hoisted. Should not fail on repeat install`
 - [x] `TypeScript repo: installing/deps-restorer/test/index.ts:859` `installing with node-linker=hoisted`. Ported as `installing_with_hoisted_node_linker_frozen` in `crates/cli/tests/hoisted_node_linker.rs` — seeds the lockfile with a fresh install, tears down `node_modules`, then replays via `--frozen-lockfile` and asserts the real-dir + version-conflict-nesting layout.
 - [x] `TypeScript repo: installing/deps-restorer/test/index.ts:873` `installing in a workspace with node-linker=hoisted`. Ported as `installing_in_a_workspace_with_hoisted_node_linker_frozen` — a frozen workspace replay where the root importer's `ms@2.1.3` wins the top-level slot and a project's conflicting `ms@2.0.0` nests under the project (the root-deps-rank-first preference landed in `real-hoist`).
@@ -442,7 +444,7 @@ Primary frozen/headless tests:
 - [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:331` `lifecycle scripts run before linking bins` verifies generated bins after frozen reinstall — ported as `lifecycle_scripts_run_before_linking_bins` in `crates/cli/tests/lifecycle_scripts.rs`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:372` `bins are linked even if lifecycle scripts are ignored` — ported as `bins_linked_even_if_scripts_ignored` in `crates/cli/tests/lifecycle_scripts.rs` (single fresh install; the frozen-reinstall tail is still missing).
 - [x] `TypeScript repo: installing/deps-installer/test/install/hoist.ts:567` `the hoisted packages should not override the bin files of the direct dependencies` verifies public hoist bin precedence after frozen reinstall. Stubbed in `known_failures::hoisted_packages_dont_override_direct_dep_bins` (see the Hoisting section).
-- [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:1902` `link the bin file of a workspace project that is created by a lifecycle script` verifies workspace bin link after frozen reinstall.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:1902` `link the bin file of a workspace project that is created by a lifecycle script` verifies workspace bin link after frozen reinstall — stubbed in `known_failures::link_bin_of_workspace_project_created_by_lifecycle_script` (`crates/cli/tests/multiple_importers.rs`). The pre-existing-bin variant is covered by `links_workspace_package_bin_into_dependent_project` there.
 
 Supporting tests:
 
@@ -489,8 +491,8 @@ Primary tests:
 - [x] `TypeScript repo: installing/deps-installer/test/install/packageExtensions.ts:16` `manifests are extended with fields specified by packageExtensions` — split into pacquet's `install::tests::fresh_install_applies_package_extensions_to_dependency_manifest` (verifies the extension lands in the lockfile's `packages` block AND `packageExtensionsChecksum` is written) and `install::tests::frozen_lockfile_errors_when_package_extensions_drift_from_lockfile` (frozen-install drift gate). Current-lockfile round-trip parity is covered by `current_lockfile`'s clone of `package_extensions_checksum`.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:408` `dependency should not be added to current lockfile if it was not built successfully during headless install` verifies failed build does not update current lockfile.
 - [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:74` `skip optional dependency that does not support the current OS` verifies current lockfile package set matches wanted lockfile while skipped packages are tracked — covered by `skip_optional_dependency_that_does_not_support_the_current_os` in `crates/cli/tests/optional_dependencies.rs`, which asserts both the current-lockfile package set and the skip set.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:208` `install only the dependencies of the specified importer. The current lockfile has importers that do not exist anymore` covers stale current-lockfile importers.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:730` `current lockfile contains only installed dependencies when adding a new importer to workspace with shared lockfile` verifies filtered current lockfile content.
+- [x] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:208` `install only the dependencies of the specified importer. The current lockfile has importers that do not exist anymore` — ported as `stale_current_lockfile_importers_are_retained_on_subset_install` in `crates/cli/tests/multiple_importers.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:730` `current lockfile contains only installed dependencies when adding a new importer to workspace with shared lockfile` — ported as `current_lockfile_contains_only_installed_dependencies` in `crates/cli/tests/multiple_importers.rs`.
 - [ ] `TypeScript repo: installing/deps-installer/test/packageImportMethods.ts:31` `packages are updated in node_modules, when packageImportMethod is set to copy and modules manifest and current lockfile are incorrect` covers incorrect current lockfile repair.
 - [ ] `TypeScript repo: installing/deps-installer/test/lockfile.ts:368` `subdeps are updated on repeat install if outer pnpm-lock.yaml does not match the inner one` tests wanted/current lockfile divergence.
 - [ ] `TypeScript repo: installing/deps-installer/test/lockfile.ts:547` `repeat install with no inner lockfile should not rewrite packages in node_modules` covers missing current lockfile on repeat install.
@@ -504,7 +506,7 @@ Supporting tests:
 - [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:165` `installing with package manifest ignored` verifies filtered current lockfile package contents.
 - [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:189` `installing only prod package with package manifest ignored` verifies filtered current lockfile package contents.
 - [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:213` `installing only dev package with package manifest ignored` verifies filtered current lockfile package contents.
-- [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:789` `installing in a workspace` verifies current lockfile is filtered after subset workspace headless install.
+- [x] `TypeScript repo: installing/deps-restorer/test/index.ts:789` `installing in a workspace` verifies current lockfile is filtered after subset workspace headless install — covered by `subset_headless_install_keeps_other_projects_packages_in_current_lockfile` in `crates/cli/tests/multiple_importers.rs`.
 
 Rust port notes:
 
