@@ -246,15 +246,24 @@ async fn should_install_dependencies() {
 
     let captured = EVENTS.lock().unwrap();
     let expected_manifest = manifest.value();
-    assert!(
-        captured.iter().any(|event| matches!(
-            event,
-            LogEvent::PackageManifest(PackageManifestLog {
-                message: PackageManifestMessage::Initial { initial, .. },
-                ..
-            }) if initial == expected_manifest
-        )),
-        "install must report the input package manifest; events={captured:#?}",
+    let manifest_indices: Vec<_> = captured
+        .iter()
+        .enumerate()
+        .filter_map(|(index, event)| {
+            matches!(
+                event,
+                LogEvent::PackageManifest(PackageManifestLog {
+                    message: PackageManifestMessage::Initial { initial, .. },
+                    ..
+                }) if initial == expected_manifest,
+            )
+            .then_some(index)
+        })
+        .collect();
+    assert_eq!(
+        manifest_indices.len(),
+        1,
+        "install must report the input package manifest exactly once; events={captured:#?}",
     );
     assert!(
         captured.iter().any(|event| matches!(
@@ -273,22 +282,42 @@ async fn should_install_dependencies() {
         )),
         "install must report that it removed no packages; events={captured:#?}",
     );
-    assert!(
-        captured.iter().any(|event| matches!(
-            event,
-            LogEvent::Stage(StageLog { stage: Stage::ImportingDone, .. })
-        )),
-        "install must close the importing stage; events={captured:#?}",
+    let importing_done_indices: Vec<_> = captured
+        .iter()
+        .enumerate()
+        .filter_map(|(index, event)| {
+            matches!(event, LogEvent::Stage(StageLog { stage: Stage::ImportingDone, .. }))
+                .then_some(index)
+        })
+        .collect();
+    assert_eq!(
+        importing_done_indices.len(),
+        1,
+        "install must close the importing stage exactly once; events={captured:#?}",
+    );
+    let resolved_indices: Vec<_> = captured
+        .iter()
+        .enumerate()
+        .filter_map(|(index, event)| {
+            matches!(
+                event,
+                LogEvent::Progress(ProgressLog {
+                    message: ProgressMessage::Resolved { package_id, .. },
+                    ..
+                }) if package_id == "@pnpm.e2e/hello-world-js-bin@1.0.0",
+            )
+            .then_some(index)
+        })
+        .collect();
+    assert_eq!(
+        resolved_indices.len(),
+        1,
+        "install must report the resolved direct dependency exactly once; events={captured:#?}",
     );
     assert!(
-        captured.iter().any(|event| matches!(
-            event,
-            LogEvent::Progress(ProgressLog {
-                message: ProgressMessage::Resolved { package_id, .. },
-                ..
-            }) if package_id == "@pnpm.e2e/hello-world-js-bin@1.0.0"
-        )),
-        "install must report the resolved direct dependency; events={captured:#?}",
+        manifest_indices[0] < resolved_indices[0]
+            && resolved_indices[0] < importing_done_indices[0],
+        "install events must report the manifest, resolve the dependency, then close importing; events={captured:#?}",
     );
     drop(captured);
 
