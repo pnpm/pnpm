@@ -355,7 +355,7 @@ fn runtime_on_fail_ignore_removes_only_synthesized_runtime_dependencies() {
         Some(&json!("ignore")),
     );
     assert!(manifest.get("devDependencies").and_then(|v| v.get("node")).is_none());
-    assert_eq!(manifest.get("devDependencies").and_then(|v| v.get("bun")), Some(&json!("1.2.0")),);
+    assert_eq!(manifest.get("devDependencies").and_then(|v| v.get("bun")), Some(&json!("1.2.0")));
 }
 
 #[test]
