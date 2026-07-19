@@ -1121,6 +1121,53 @@ mod pending_builds {
         drop((root, mock_instance, rebuild_root));
     }
 
+    /// A project's scripts run after `.modules.yaml` is written, so its
+    /// entry can only be cleared once they have actually succeeded —
+    /// otherwise a failing script would lose the debt it just failed to
+    /// discharge.
+    #[test]
+    fn a_failed_project_script_keeps_its_pending_entry() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "scripts": { "install": "node -e \"process.exit(1)\"" },
+            "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+        allow_builds(&workspace, &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
+
+        pacquet.with_args(["install", "--ignore-scripts"]).assert().success();
+        assert_eq!(
+            read_pending_builds(&workspace),
+            [".", "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"],
+        );
+
+        let CommandTempCwd { pacquet: rebuild, root: rebuild_root, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let output = rebuild
+            .with_current_dir(&workspace)
+            .with_args(["rebuild", "--pending"])
+            .output()
+            .expect("run pacquet rebuild --pending");
+        eprintln!(
+            "rebuild --pending output:\n{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        assert!(!output.status.success(), "a failing project script must fail the rebuild");
+
+        assert_eq!(
+            read_pending_builds(&workspace),
+            ["."],
+            "the dependency was rebuilt, the project was not",
+        );
+
+        drop((root, mock_instance, rebuild_root));
+    }
+
     /// A build stays owed until something runs it: an install that does
     /// not defer anything new must not drop what an earlier
     /// `--ignore-scripts` install recorded.

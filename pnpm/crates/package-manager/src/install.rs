@@ -2290,6 +2290,9 @@ where
                 node_linker,
                 &workspace_root,
             )?;
+            if let Some(rebuild) = rebuild.as_ref() {
+                drain_settled_projects::<Host>(&config.modules_dir, &rebuild.pending_projects)?;
+            }
         }
 
         // Write `node_modules/.pnpm-workspace-state-v1.json`.
@@ -2985,6 +2988,36 @@ fn build_modules_manifest(
     }
 }
 
+/// Drop `settled` from the `pendingBuilds` the install just wrote, now
+/// that the projects' scripts have run.
+///
+/// A project's debt outlives the `.modules.yaml` write — its scripts run
+/// after it — so clearing the record there would forget the debt when a
+/// script fails. Re-reading rather than reusing the in-memory value
+/// keeps every other field exactly as it was written.
+fn drain_settled_projects<Sys>(modules_dir: &Path, settled: &[String]) -> Result<(), InstallError>
+where
+    Sys: pacquet_modules_yaml::FsReadToString
+        + pacquet_modules_yaml::Clock
+        + pacquet_modules_yaml::FsCreateDirAll
+        + pacquet_modules_yaml::FsWrite,
+{
+    if settled.is_empty() {
+        return Ok(());
+    }
+    let Some(mut modules) = pacquet_modules_yaml::read_modules_manifest::<Sys>(modules_dir)
+        .map_err(InstallError::ReadModules)?
+    else {
+        return Ok(());
+    };
+    let before = modules.pending_builds.len();
+    modules.pending_builds.retain(|entry| !settled.contains(entry));
+    if modules.pending_builds.len() == before {
+        return Ok(());
+    }
+    write_modules_manifest::<Sys>(modules_dir, modules).map_err(InstallError::WriteModules)
+}
+
 /// Whether `--ignore-scripts` left this project with a script it still
 /// owes.
 ///
@@ -3017,13 +3050,15 @@ where
     // An importer id and a dep path are both plain strings on disk, so
     // the current lockfile's `importers` — not the shape of the string —
     // decides which one an entry is.
+    //
+    // Only dependencies are settled here: the build phase has already
+    // run by the time this file is written, while a project's scripts
+    // run after it. `drain_settled_projects` discharges those once they
+    // have actually succeeded.
     let settled = |entry: &str| {
         let Some(rebuild) = rebuild else { return false };
-        if current.is_some_and(|current| current.importers.contains_key(entry)) {
-            rebuild.settles_project(entry)
-        } else {
-            rebuild.settles_dependency(entry)
-        }
+        !current.is_some_and(|current| current.importers.contains_key(entry))
+            && rebuild.settles_dependency(entry)
     };
     let retained = previous.iter().filter(|entry| {
         current.is_some_and(|current| current_contains_dep_path(current, entry)) && !settled(entry)
