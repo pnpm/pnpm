@@ -165,10 +165,8 @@ pub struct Modules {
     #[serde(default)]
     pub pruned_at: String,
 
-    // FIXME: tighten to required BTreeMap when the install-pipeline port
-    // always populates `registries`
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub registries: Option<BTreeMap<String, String>>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub registries: BTreeMap<String, String>,
 
     /// Legacy: the v5-era flag used to mean "hoist everything publicly."
     /// Replaced by [`Self::public_hoist_pattern`].
@@ -242,8 +240,8 @@ pub struct ModulesLayout {
     pub ignored_builds: Option<IndexSet<DepPath>>,
     #[serde(default)]
     pub pruned_at: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub registries: Option<BTreeMap<String, String>>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub registries: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub public_hoist_pattern: Option<Vec<String>>,
     /// Legacy: the v5-era flag used to mean "hoist everything publicly."

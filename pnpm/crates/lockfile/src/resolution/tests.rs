@@ -709,7 +709,7 @@ fn to_lockfile_form_keeps_tarball_with_trailing_scheme_separator() {
     );
 }
 
-// --- Custom resolutions ---
+//  Custom resolutions
 
 fn custom_cdn_resolution() -> LockfileResolution {
     let mut extra = serde_json::Map::new();

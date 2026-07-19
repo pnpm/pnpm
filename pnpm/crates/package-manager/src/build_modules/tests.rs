@@ -1257,7 +1257,7 @@ fn fail_when_failing_postinstall_is_required() {
     assert!(matches!(err, crate::build_modules::BuildModulesError::LifecycleScript(_)));
 }
 
-// --- frozen-store build backstop ---------------------------------------
+//  frozen-store build backstop ------------------------------------
 
 /// A `pnpm-workspace.yaml`-shaped patch entry for one package. The
 /// `patch_file_path` is left `None` because the frozen-store backstop
@@ -2476,7 +2476,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
     assert!(matches!(err, super::BuildModulesError::PatchFilePathMissing { .. }), "got: {err:?}");
 }
 
-// --- bin_dirs_in_all_parent_dirs ----------------------------------------
+//  bin_dirs_in_all_parent_dirs -------------------------------------
 
 /// Top-level hoisted package: the helper must produce one entry per
 /// ancestor `node_modules/.bin` from `pkg_root` up to (and including)
@@ -2547,7 +2547,7 @@ fn bin_dirs_scoped_pkg_pushes_every_step() {
     );
 }
 
-// --- pkg_root_for_key ---------------------------------------------------
+//  pkg_root_for_key ------------------------------------------------
 
 /// Without an override map (the isolated linker), the helper falls
 /// through to `virtual_store_dir_for_key` and returns

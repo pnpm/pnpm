@@ -1606,12 +1606,9 @@ async fn install_writes_modules_yaml() {
         virtual_store_dir_max_length,
         pacquet_config::default_virtual_store_dir_max_length(),
     );
+    assert_eq!(registries.get("default").map(String::as_str), Some(config.registry.as_str()),);
     assert_eq!(
-        registries.as_ref().and_then(|r| r.get("default")).map(String::as_str),
-        Some(config.registry.as_str()),
-    );
-    assert_eq!(
-        registries.as_ref().and_then(|r| r.get("@private")).map(String::as_str),
+        registries.get("@private").map(String::as_str),
         Some("https://private.example.com/npm/"),
     );
     assert_eq!(package_manager, format!("pnpm@{}", pacquet_config::PNPM_VERSION));

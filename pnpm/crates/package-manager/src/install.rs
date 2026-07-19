@@ -3146,7 +3146,7 @@ fn build_modules_manifest(
         // this is a fresh timestamp (a prune ran or first install) or the
         // preserved prior value.
         pruned_at,
-        registries: Some(config.resolved_registries()),
+        registries: config.resolved_registries(),
         // `iter_installability` excludes fetch-failure entries so they
         // don't get persisted across installs — optional fetch failures
         // are silently swallowed.

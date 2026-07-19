@@ -13,7 +13,7 @@
 //! frozen-lockfile dispatcher surfaces this as
 //! `ERR_PNPM_OUTDATED_LOCKFILE`, which is the CI-correctness contract.
 
-use crate::{Lockfile, ProjectSnapshot};
+use crate::{DependencyMeta, Lockfile, ProjectSnapshot};
 use derive_more::{Display, Error};
 use pacquet_catalogs_types::Catalogs;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
@@ -447,15 +447,16 @@ pub fn satisfies_package_manifest(
         });
     }
 
-    // Phase 3: `dependenciesMeta` parity. JSON-equality of the two
-    // maps (or both absent), so an absent map and an empty map are
-    // equivalent.
+    // Phase 3: `dependenciesMeta` parity. Two maps are equal when both
+    // are absent / empty or both contain the same entries.
     let manifest_meta = manifest.value().get("dependenciesMeta");
     let importer_meta = importer.dependencies_meta.as_ref();
     if !dependencies_meta_equal(importer_meta, manifest_meta) {
         return Err(StalenessReason::DependenciesMetaMismatch {
-            lockfile: importer_meta
-                .map_or_else(|| "{}".to_string(), std::string::ToString::to_string),
+            lockfile: importer_meta.map_or_else(
+                || "{}".to_string(),
+                |m| serde_json::to_string(m).unwrap_or_else(|_| "{}".to_string()),
+            ),
             manifest: manifest_meta
                 .map_or_else(|| "{}".to_string(), std::string::ToString::to_string),
         });
@@ -564,12 +565,14 @@ pub fn satisfies_package_manifest(
 }
 
 /// Two `dependenciesMeta` maps are equal when both are absent / empty
-/// or both render to the same JSON.
+/// or both contain the same entries. The importer side is a typed
+/// `BTreeMap<String, DependencyMeta>` while the manifest side is raw
+/// JSON from `package.json`.
 fn dependencies_meta_equal(
-    importer: Option<&serde_json::Value>,
+    importer: Option<&HashMap<String, DependencyMeta>>,
     manifest: Option<&serde_json::Value>,
 ) -> bool {
-    fn is_empty_object(value: Option<&serde_json::Value>) -> bool {
+    fn is_empty(value: Option<&serde_json::Value>) -> bool {
         match value {
             None => true,
             Some(serde_json::Value::Object(map)) => map.is_empty(),
@@ -577,10 +580,25 @@ fn dependencies_meta_equal(
             _ => false,
         }
     }
+    fn is_empty_importer(map: Option<&HashMap<String, DependencyMeta>>) -> bool {
+        map.is_none_or(HashMap::is_empty)
+    }
     match (importer, manifest) {
         (None, None) => true,
-        (a, b) if is_empty_object(a) && is_empty_object(b) => true,
-        (Some(a), Some(b)) => a == b,
+        (a, b) if is_empty_importer(a) && is_empty(b) => true,
+        (Some(importer_map), Some(serde_json::Value::Object(manifest_obj))) => {
+            if importer_map.len() != manifest_obj.len() {
+                return false;
+            }
+            importer_map.iter().all(|(name, meta)| {
+                manifest_obj.get(name).is_some_and(|entry| {
+                    meta.injected == entry.get("injected").and_then(serde_json::Value::as_bool)
+                        && meta.patch
+                            == entry.get("patch").and_then(|v| v.as_str()).map(str::to_string)
+                })
+            })
+        }
+        (Some(_), None) | (None, Some(_)) => false,
         _ => false,
     }
 }

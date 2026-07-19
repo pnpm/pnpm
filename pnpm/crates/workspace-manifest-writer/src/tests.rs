@@ -1019,7 +1019,7 @@ fn remove_overrides_leaves_flow_style_block_with_non_string_entries_untouched() 
     assert_eq!(out, original);
 }
 
-// --- generic top-level field set/delete (pnpm config set / delete) ---
+//  generic top-level field set/delete (pnpm config set / delete)
 
 fn run_update_field(
     original: Option<&str>,

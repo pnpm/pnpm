@@ -418,7 +418,7 @@ impl ReporterState {
         }
     }
 
-    // --- context ----------------------------------------------------------
+    //  context -------------------------------------------------------
 
     fn on_context(&mut self, log: &ContextLog) {
         self.context = Some(log.clone());
@@ -453,7 +453,7 @@ impl ReporterState {
         self.context_slot = slot;
     }
 
-    // --- progress ---------------------------------------------------------
+    //  progress ------------------------------------------------------
 
     fn on_progress(&mut self, message: &ProgressMessage) {
         let requester = match message {
@@ -515,7 +515,7 @@ impl ReporterState {
         }
     }
 
-    // --- big tarballs -----------------------------------------------------
+    //  big tarballs --------------------------------------------------
 
     fn on_fetching(&mut self, message: &FetchingProgressMessage) {
         const BIG_TARBALL_SIZE: u64 = 1024 * 1024 * 5;
@@ -552,7 +552,7 @@ impl ReporterState {
         )
     }
 
-    // --- stats ------------------------------------------------------------
+    //  stats ---------------------------------------------------------
 
     fn on_stats(&mut self, message: &StatsMessage) {
         let prefix = match message {
@@ -628,7 +628,7 @@ impl ReporterState {
         out
     }
 
-    // --- summary ----------------------------------------------------------
+    //  summary -------------------------------------------------------
 
     fn on_root(&mut self, message: &pacquet_reporter::RootMessage) {
         use pacquet_reporter::RootMessage;
@@ -810,7 +810,7 @@ impl ReporterState {
         result
     }
 
-    // --- lifecycle --------------------------------------------------------
+    //  lifecycle -----------------------------------------------------
 
     fn on_lifecycle(&mut self, message: &LifecycleMessage) {
         if self.append_only {
@@ -981,7 +981,7 @@ impl ReporterState {
         format!("{} {line}", self.colors.magenta_bright("│"))
     }
 
-    // --- misc one-liners --------------------------------------------------
+    //  misc one-liners -----------------------------------------------
 
     fn on_ignored_scripts(&mut self, log: &IgnoredScriptsLog) {
         if log.package_names.is_empty() {

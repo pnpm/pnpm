@@ -219,7 +219,13 @@ fn fresh_install_records_importer_manifest_metadata() {
     ));
     let importer = lockfile.root_project().expect("root importer exists");
 
-    assert_eq!(importer.dependencies_meta, Some(json!({ "pkg-a": { "injected": true } })));
+    assert_eq!(
+        importer.dependencies_meta,
+        Some(HashMap::from([(
+            "pkg-a".to_string(),
+            pacquet_lockfile::DependencyMeta { injected: Some(true), patch: None }
+        )]))
+    );
     assert_eq!(importer.publish_directory.as_deref(), Some("dist"));
 }
 

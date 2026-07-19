@@ -661,7 +661,7 @@ test('when using --global, linkWorkspacePackages, sharedWorkspaceLockfile and lo
     })
     expect(config.linkWorkspacePackages).toBeFalsy()
     expect(config.sharedWorkspaceLockfile).toBeFalsy()
-    // FIXME: it supposed to return null but is undefined
+    // lockfileDir is undefined when no lockfile is found (not null)
     expect(config.lockfileDir).toBeUndefined()
   }
 })

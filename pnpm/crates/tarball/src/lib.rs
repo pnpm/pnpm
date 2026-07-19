@@ -2165,7 +2165,10 @@ impl<'a> DownloadTarballToStore<'a> {
             return Ok(cas_paths);
         }
 
-        // FIXME: verify whether store-dir copying from an existing store is handled upstream
+        // Store-dir existence checking (via index.db + file integrity
+        // verification) happens inside run_without_mem_cache() — the
+        // subroutine called if both the prefetched paths and the
+        // mem-cache miss.
 
         // `DashMap::get` returns a `Ref` that holds a shard read guard for
         // its entire lifetime. Holding it across `.await` deadlocks: while
