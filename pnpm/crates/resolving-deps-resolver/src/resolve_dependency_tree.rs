@@ -1656,30 +1656,28 @@ where
     let is_leaf = is_link || pkg_is_leaf(&result);
     let node_id = if is_leaf { NodeId::leaf(&id) } else { NodeId::next() };
 
-    {
-        let mut packages = lock_recoverable(&ctx.workspace.packages);
-        if let Some(existing) = packages.get_mut(&id) {
-            existing.optional = existing.optional && current_is_optional;
-        } else {
-            let peer_dependencies =
-                if is_link { BTreeMap::new() } else { extract_peer_dependencies(&result) };
-            {
-                let mut all_peers = lock_recoverable(&ctx.workspace.all_peer_dep_names);
-                for name in peer_dependencies.keys() {
-                    all_peers.insert(name.clone());
-                }
+    let mut packages = lock_recoverable(&ctx.workspace.packages);
+    if let Some(existing) = packages.get_mut(&id) {
+        existing.optional = existing.optional && current_is_optional;
+    } else {
+        let peer_dependencies =
+            if is_link { BTreeMap::new() } else { extract_peer_dependencies(&result) };
+        {
+            let mut all_peers = lock_recoverable(&ctx.workspace.all_peer_dep_names);
+            for name in peer_dependencies.keys() {
+                all_peers.insert(name.clone());
             }
-            packages.insert(
-                id.clone(),
-                ResolvedPackage {
-                    id: id.clone(),
-                    result: Arc::clone(&result),
-                    peer_dependencies,
-                    optional: current_is_optional,
-                    is_leaf,
-                },
-            );
         }
+        packages.insert(
+            id.clone(),
+            ResolvedPackage {
+                id: id.clone(),
+                result: Arc::clone(&result),
+                peer_dependencies,
+                optional: current_is_optional,
+                is_leaf,
+            },
+        );
     }
 
     emit_deprecation_if_needed(ctx, &result, &id, depth);
@@ -2688,7 +2686,7 @@ where
                 },
             );
         }
-    };
+    }
 
     emit_deprecation_if_needed(ctx, &result, &id, depth);
 
