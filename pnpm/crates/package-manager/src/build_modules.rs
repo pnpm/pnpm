@@ -522,13 +522,29 @@ pub struct BuildModules<'a> {
     pub rebuild: Option<&'a RebuildOptions>,
 }
 
-impl BuildModules<'_> {
-    /// Run the build, returning the sorted set of `name@version` keys whose
-    /// scripts were skipped because the package was not in `allowBuilds`.
+/// What a [`BuildModules`] run decided about the packages it visited
+/// but did not build.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct BuildModulesOutput {
+    /// Sorted, peer-stripped `name@version` keys whose scripts were
+    /// skipped because the package was not in `allowBuilds`. The caller
+    /// folds these into a single `pnpm:ignored-scripts` event.
+    pub ignored_builds: Vec<String>,
+
+    /// Sorted dep paths of the snapshots that need a build which
+    /// `--ignore-scripts` deferred. Empty when scripts were not
+    /// ignored. These become `.modules.yaml`'s `pendingBuilds`, which
+    /// `pnpm rebuild --pending` later drains.
     ///
-    /// The caller is expected to fold the returned set into a single
-    /// `pnpm:ignored-scripts` event.
-    pub fn run<Reporter: self::Reporter>(self) -> Result<Vec<String>, BuildModulesError> {
+    /// Peers are kept here — unlike `ignored_builds`, whose keys are an
+    /// `allowBuilds` lookup, these address a materialized slot.
+    pub deferred_builds: Vec<String>,
+}
+
+impl BuildModules<'_> {
+    /// Run the build, reporting the packages that needed one but did
+    /// not get it — see [`BuildModulesOutput`].
+    pub fn run<Reporter: self::Reporter>(self) -> Result<BuildModulesOutput, BuildModulesError> {
         let BuildModules {
             layout,
             modules_dir,
@@ -559,7 +575,7 @@ impl BuildModules<'_> {
             rebuild,
         } = self;
 
-        let Some(snapshots) = snapshots else { return Ok(Vec::new()) };
+        let Some(snapshots) = snapshots else { return Ok(BuildModulesOutput::default()) };
 
         // Compute `requiresBuild` per snapshot. Warm store-index rows
         // already carry a precomputed answer, so only misses need to
@@ -714,8 +730,33 @@ impl BuildModules<'_> {
         // so the canonical poison-recovery pattern is safe.
         let ignored_builds =
             ignored_builds.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner);
-        Ok(ignored_builds.into_iter().collect())
+        Ok(BuildModulesOutput {
+            ignored_builds: ignored_builds.into_iter().collect(),
+            deferred_builds: deferred_builds(&requires_build_map, ignore_scripts),
+        })
     }
+}
+
+/// The snapshots `--ignore-scripts` kept from building, sorted for a
+/// stable `.modules.yaml`.
+///
+/// Every `requires_build` snapshot qualifies, not just the ones this
+/// install newly materialized: a build stays owed until something
+/// actually runs it, and only `pnpm rebuild` clears the record.
+fn deferred_builds(
+    requires_build_map: &HashMap<PackageKey, bool>,
+    ignore_scripts: bool,
+) -> Vec<String> {
+    if !ignore_scripts {
+        return Vec::new();
+    }
+    let mut deferred: Vec<String> = requires_build_map
+        .iter()
+        .filter(|&(_, &requires_build)| requires_build)
+        .map(|(key, _)| key.to_string())
+        .collect();
+    deferred.sort();
+    deferred
 }
 
 /// Per-snapshot build work, called once per chunk member by the

@@ -3765,6 +3765,7 @@ fn build_modules_manifest_serializes_skipped_set() {
         Default::default(),
         &skipped,
         &[],
+        Vec::new(),
         "Thu, 01 Jan 1970 00:00:00 GMT".to_string(),
     );
 
@@ -3802,6 +3803,7 @@ fn build_modules_manifest_skipped_is_empty_on_empty_set() {
         Default::default(),
         &SkippedSnapshots::new(),
         &[],
+        Vec::new(),
         "Thu, 01 Jan 1970 00:00:00 GMT".to_string(),
     );
     assert!(manifest.skipped.is_empty());

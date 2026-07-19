@@ -778,6 +778,184 @@ mod dependency_build_scripts {
     }
 }
 
+/// `.modules.yaml`'s `pendingBuilds` — the record of builds
+/// `--ignore-scripts` deferred, which `pacquet rebuild --pending`
+/// later drains.
+mod pending_builds {
+    use assert_cmd::prelude::*;
+    use command_extra::CommandExtra;
+    use pacquet_modules_yaml::{Host, read_modules_manifest};
+    use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+    use std::{fs, path::Path};
+
+    fn read_pending_builds(workspace: &Path) -> Vec<String> {
+        read_modules_manifest::<Host>(&workspace.join("node_modules"))
+            .expect("read .modules.yaml")
+            .expect(".modules.yaml exists")
+            .pending_builds
+    }
+
+    /// TS: `run pre/postinstall scripts` (`deps-restorer/test/index.ts:362`),
+    /// the `ignoreScripts` tail. A deferred install records both the
+    /// project whose own install scripts were skipped and the dependency
+    /// whose build was skipped, project first.
+    #[test]
+    fn ignore_scripts_records_the_project_and_its_deferred_dependency() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "scripts": { "install": "node -e \"\"", "postinstall": "node -e \"\"" },
+            "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+
+        pacquet.with_args(["install", "--ignore-scripts"]).assert().success();
+
+        assert_eq!(
+            read_pending_builds(&workspace),
+            [".", "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"],
+        );
+
+        drop((root, mock_instance));
+    }
+
+    /// A project without install-time scripts of its own contributes no
+    /// importer entry — only the deferred dependency builds are recorded.
+    #[test]
+    fn a_project_without_install_scripts_records_only_dependencies() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+
+        pacquet.with_args(["install", "--ignore-scripts"]).assert().success();
+
+        assert_eq!(
+            read_pending_builds(&workspace),
+            ["@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"],
+        );
+
+        drop((root, mock_instance));
+    }
+
+    /// An install that runs the build scripts owes nothing, so the list
+    /// stays empty — this is what makes a populated list mean "deferred".
+    #[test]
+    fn an_install_that_runs_the_scripts_records_nothing() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+        fs::write(
+            workspace.join("pnpm-workspace.yaml"),
+            "allowBuilds:\n  '@pnpm.e2e/pre-and-postinstall-scripts-example': true\n",
+        )
+        .expect("write pnpm-workspace.yaml");
+
+        pacquet.with_arg("install").assert().success();
+
+        assert_eq!(read_pending_builds(&workspace), Vec::<String>::new());
+
+        drop((root, mock_instance));
+    }
+
+    /// TS: `pendingBuilds gets updated if install removes packages`
+    /// (`deps-installer/test/lockfile.ts:614`). Dropping one of two
+    /// deferred dependencies shrinks the recorded list.
+    #[test]
+    fn removing_a_package_shrinks_the_list() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let manifest_path = workspace.join("package.json");
+        let both = serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
+                "@pnpm.e2e/install-script-example": "1.0.0",
+            },
+        });
+        fs::write(&manifest_path, both.to_string()).expect("write package.json");
+
+        pacquet.with_args(["install", "--ignore-scripts"]).assert().success();
+        let before = read_pending_builds(&workspace);
+        assert_eq!(
+            before,
+            [
+                "@pnpm.e2e/install-script-example@1.0.0",
+                "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0",
+            ],
+        );
+
+        let one = serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" },
+        });
+        fs::write(&manifest_path, one.to_string()).expect("rewrite package.json");
+
+        let CommandTempCwd { pacquet: rerun, root: rerun_root, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        rerun
+            .with_current_dir(&workspace)
+            .with_args(["install", "--ignore-scripts"])
+            .assert()
+            .success();
+
+        let after = read_pending_builds(&workspace);
+        assert_eq!(after, ["@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"]);
+        assert!(after.len() < before.len(), "removing a package must shrink {before:?}");
+
+        drop((root, mock_instance, rerun_root));
+    }
+
+    /// A build stays owed until something runs it: an install that does
+    /// not defer anything new must not drop what an earlier
+    /// `--ignore-scripts` install recorded.
+    #[test]
+    fn a_later_install_preserves_what_an_earlier_one_deferred() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+        // Approved, so the second install's build phase reports nothing
+        // deferred — the entry can only survive by being carried over.
+        fs::write(
+            workspace.join("pnpm-workspace.yaml"),
+            "allowBuilds:\n  '@pnpm.e2e/pre-and-postinstall-scripts-example': true\n",
+        )
+        .expect("write pnpm-workspace.yaml");
+
+        pacquet.with_args(["install", "--ignore-scripts"]).assert().success();
+        let deferred = read_pending_builds(&workspace);
+        assert_eq!(deferred, ["@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"]);
+
+        let CommandTempCwd { pacquet: rerun, root: rerun_root, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        rerun.with_current_dir(&workspace).with_arg("install").assert().success();
+
+        assert_eq!(read_pending_builds(&workspace), deferred);
+
+        drop((root, mock_instance, rerun_root));
+    }
+}
+
 /// Project (workspace/root) lifecycle scripts run during
 /// `pacquet install` — preinstall, install, postinstall, preprepare,
 /// prepare, postprepare — as opposed to the dependency build scripts

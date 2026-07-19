@@ -1608,6 +1608,10 @@ where
         // injected-deps map) to avoid a `clippy::type_complexity`
         // annotation.
         let ignored_builds: Vec<String>;
+        // Dep paths whose build `--ignore-scripts` deferred; assigned by
+        // whichever path runs and folded into `.modules.yaml`'s
+        // `pendingBuilds` at the tail.
+        let deferred_builds: Vec<String>;
         // Per-source-project virtual-store copies of injected `file:`
         // deps, for `.modules.yaml`'s `injectedDeps`; assigned by
         // whichever path runs. See [`crate::collect_injected_deps`].
@@ -1750,6 +1754,7 @@ where
             .map_err(map_frozen_lockfile_error)?;
 
             ignored_builds = frozen_result.ignored_builds;
+            deferred_builds = frozen_result.deferred_builds;
             injected_deps = frozen_result.injected_deps;
             (
                 frozen_result.hoisted_dependencies,
@@ -1890,6 +1895,7 @@ where
             }
 
             ignored_builds = fresh_result.ignored_builds;
+            deferred_builds = fresh_result.deferred_builds;
             injected_deps = fresh_result.injected_deps;
             (
                 fresh_result.hoisted_dependencies,
@@ -2142,6 +2148,24 @@ where
         // patterns, included dependency groups, store dir, and registries
         // so a later install (or another tool) can detect a layout change
         // and prune accordingly.
+        // The projects whose own install scripts `--ignore-scripts`
+        // skipped are owed a build just like the dependencies the build
+        // phase deferred, and are recorded by importer id.
+        let deferred_projects = config.ignore_scripts.then(|| {
+            materialized_project_manifests
+                .iter()
+                .filter(|(_, manifest)| manifest.declares_install_scripts())
+                .map(|(project_dir, _)| {
+                    pacquet_workspace::importer_id_from_root_dir(&workspace_root, project_dir)
+                })
+                .collect::<Vec<_>>()
+        });
+        let pending_builds = merge_pending_builds(
+            prior_modules.map_or(&[], |modules| modules.pending_builds.as_slice()),
+            deferred_projects.into_iter().flatten().chain(deferred_builds),
+            materialized_current_lockfile.as_ref(),
+        );
+
         let mut next_modules = build_modules_manifest(
             config,
             node_linker,
@@ -2151,6 +2175,7 @@ where
             injected_deps,
             &install_skipped,
             &ignored_builds,
+            pending_builds,
             pruned_at,
         );
         if filtered_install
@@ -2802,9 +2827,6 @@ fn unapproved_recorded_ignored_builds(
 
 /// Assemble the [`Modules`] payload for [`write_modules_manifest`].
 ///
-/// Fields pacquet does not populate yet (`pendingBuilds`) default to
-/// empty / unset.
-///
 /// `hoistedDependencies` is produced by the isolated-linker hoist
 /// pass in [`crate::InstallFrozenLockfile::run`] and threaded in
 /// here — empty for the no-lockfile path, for installs where both
@@ -2846,6 +2868,7 @@ fn build_modules_manifest(
     injected_deps: BTreeMap<String, Vec<String>>,
     skipped: &crate::SkippedSnapshots,
     ignored_builds: &[String],
+    pending_builds: Vec<String>,
     pruned_at: String,
 ) -> Modules {
     Modules {
@@ -2875,6 +2898,7 @@ fn build_modules_manifest(
         // reaches disk, and the crate version is not the release
         // version.
         package_manager: format!("pnpm@{PNPM_VERSION}"),
+        pending_builds,
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         // RFC 1123 / `toUTCString()` format. The caller decides whether
         // this is a fresh timestamp (a prune ran or first install) or the
@@ -2904,6 +2928,33 @@ fn build_modules_manifest(
         virtual_store_only: config.virtual_store_only.then_some(true),
         ..Default::default()
     }
+}
+
+/// The `pendingBuilds` list for this install: the builds still owed,
+/// carried-over entries first, then the ones this install deferred.
+///
+/// A build stays owed until something runs it — only `pnpm rebuild`
+/// drains the list — so a previous entry is dropped only when its
+/// subject is gone from the current lockfile, which is what makes an
+/// install that removes packages shrink the list.
+fn merge_pending_builds<Deferred>(
+    previous: &[String],
+    deferred: Deferred,
+    current: Option<&Lockfile>,
+) -> Vec<String>
+where
+    Deferred: IntoIterator<Item = String>,
+{
+    let retained = previous
+        .iter()
+        .filter(|entry| current.is_some_and(|current| current_contains_dep_path(current, entry)));
+    let mut pending: Vec<String> = Vec::new();
+    for entry in retained.cloned().chain(deferred) {
+        if !pending.contains(&entry) {
+            pending.push(entry);
+        }
+    }
+    pending
 }
 
 fn merge_filtered_modules_metadata(

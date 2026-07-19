@@ -21,8 +21,7 @@ pub struct RebuildArgs {
     pub packages: Vec<String>,
 
     /// Rebuild packages that were not built during installation, such as
-    /// under `--ignore-scripts`. Currently has no effect: no packages are
-    /// recorded as pending yet.
+    /// under `--ignore-scripts`.
     #[clap(long)]
     pub pending: bool,
 }
@@ -48,11 +47,6 @@ fn resolve_selection(
     if !pending {
         return Ok(None);
     }
-    // `pacquet`'s install pipeline does not populate `.modules.yaml`'s
-    // `pendingBuilds` yet (see [`RebuildArgs::pending`]), so this is
-    // effectively empty today. Reading it is forward-compatible: once the
-    // install pipeline records pending builds, `--pending` starts working
-    // without a change here.
     let modules = read_modules_manifest::<Host>(&config.modules_dir).into_diagnostic()?;
     let pending_names = modules
         .map(|manifest| {
