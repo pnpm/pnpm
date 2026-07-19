@@ -520,7 +520,7 @@ fn run_pre_and_postinstall_scripts_in_a_workspace_with_hoisted_linker() {
     const SCRIPTS: &str = "@pnpm.e2e/pre-and-postinstall-scripts-example";
     let fixture = WorkspaceFixture::new();
     fixture.append_workspace_yaml(&format!(
-        "nodeLinker: hoisted\nallowBuilds:\n  '{SCRIPTS}': true\n"
+        "nodeLinker: hoisted\nallowBuilds:\n  '{SCRIPTS}': true\n",
     ));
     let mut projects = Vec::new();
     for (dir, spec) in

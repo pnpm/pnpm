@@ -324,7 +324,7 @@ fn resolve_a_subdependency_from_the_workspace() {
 fn resolve_a_subdependency_from_the_workspace_via_workspace_protocol_override() {
     let fixture = WorkspaceFixture::new();
     fixture.append_workspace_yaml(&format!(
-        "linkWorkspacePackages: false\noverrides:\n  '{DEP}': 'workspace:*'\n"
+        "linkWorkspacePackages: false\noverrides:\n  '{DEP}': 'workspace:*'\n",
     ));
     fixture.project(
         "project",
