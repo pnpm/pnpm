@@ -36,14 +36,7 @@ jest.unstable_mockModule('fs', () => {
 const { addDirToEnvPath } = await import('@pnpm/os.env.path-extender')
 const { detectIfCurrentPkgIsExecutable } = await import('@pnpm/cli.meta')
 const { spawnSync } = await import('node:child_process')
-const { setup } = await import('@pnpm/engine.pm.commands')
-
-const LEGACY_HOME_DIR_SHIM_NAMES = [
-  'pnpm', 'pnpm.cmd', 'pnpm.ps1',
-  'pn', 'pn.cmd', 'pn.ps1',
-  'pnpx', 'pnpx.cmd', 'pnpx.ps1',
-  'pnx', 'pnx.cmd', 'pnx.ps1',
-]
+const { setup, LEGACY_HOME_DIR_SHIM_NAMES } = await import('@pnpm/engine.pm.commands')
 
 test('setup makes no changes', async () => {
   jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({

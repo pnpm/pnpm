@@ -139,7 +139,7 @@ function createShellScript (targetDir: string, name: string, command: string): v
 }
 
 // v10-layout shim names that v11 writes under pnpmHomeDir/bin instead.
-const LEGACY_HOME_DIR_SHIM_NAMES = [
+export const LEGACY_HOME_DIR_SHIM_NAMES = [
   'pnpm', 'pnpm.cmd', 'pnpm.ps1',
   'pn', 'pn.cmd', 'pn.ps1',
   'pnpx', 'pnpx.cmd', 'pnpx.ps1',
