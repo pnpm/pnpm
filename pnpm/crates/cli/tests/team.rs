@@ -40,14 +40,8 @@ fn run_team(
 #[test]
 fn fails_when_auth_is_missing() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-    let mut server = mockito::Server::new();
+    let server = mockito::Server::new();
     let registry = format!("{}/", server.url());
-
-    let _mock = server
-        .mock("GET", "/-/team/myscope/myteam/user")
-        .with_status(401)
-        .with_body("Unauthorized")
-        .create();
 
     let auth_file = empty_auth_file(root.path());
 
@@ -56,8 +50,8 @@ fn fails_when_auth_is_missing() {
     assert!(!output.status.success(), "team must fail when auth is missing");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("You must be logged in to"),
-        "stderr must contain auth error; got:\n{stderr}",
+        stderr.contains("Authentication required for registry access"),
+        "stderr must contain missing-auth error; got:\n{stderr}",
     );
     drop((root, server));
 }
