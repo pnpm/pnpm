@@ -38,6 +38,30 @@ pub enum Output {
     Lines(Vec<String>),
 }
 
+/// Rendering settings that cannot be recovered from the event stream.
+#[derive(Debug, Clone, Copy)]
+pub struct ReporterOptions {
+    /// Emit each update as a new line instead of replacing the current frame.
+    pub append_only: bool,
+    /// Omit the `added` counter from dependency progress lines.
+    pub hide_added_pkgs_progress: bool,
+    /// Omit the workspace-project prefix from progress lines.
+    pub hide_progress_prefix: bool,
+    /// Select which project prefixes contribute to the package summary.
+    pub summary_scope: SummaryScope,
+}
+
+impl Default for ReporterOptions {
+    fn default() -> Self {
+        Self {
+            append_only: false,
+            hide_added_pkgs_progress: false,
+            hide_progress_prefix: false,
+            summary_scope: SummaryScope::CurrentPrefix,
+        }
+    }
+}
+
 /// Lazily-assigned block indices for one logical output stream — its
 /// non-fixed (`block`) and fixed (`fixed`) slots in the frame — the
 /// per-stream `currentBlockNo` / `currentFixedBlockNo` pair.
@@ -206,6 +230,8 @@ pub struct ReporterState {
     width: usize,
     colors: Colors,
     append_only: bool,
+    hide_added_pkgs_progress: bool,
+    hide_progress_prefix: bool,
     frame: Frame,
     last_frame: Option<String>,
 
@@ -262,7 +288,12 @@ const COLOR_WHEEL: [fn(&Colors, &str) -> String; 6] = [
 impl ReporterState {
     #[must_use]
     pub fn new(cwd: String, width: usize, colors: Colors, append_only: bool) -> Self {
-        Self::new_with_summary_scope(cwd, width, colors, append_only, SummaryScope::CurrentPrefix)
+        Self::new_with_options(
+            cwd,
+            width,
+            colors,
+            ReporterOptions { append_only, ..ReporterOptions::default() },
+        )
     }
 
     #[must_use]
@@ -273,6 +304,27 @@ impl ReporterState {
         append_only: bool,
         summary_scope: SummaryScope,
     ) -> Self {
+        Self::new_with_options(
+            cwd,
+            width,
+            colors,
+            ReporterOptions { append_only, summary_scope, ..ReporterOptions::default() },
+        )
+    }
+
+    #[must_use]
+    pub fn new_with_options(
+        cwd: String,
+        width: usize,
+        colors: Colors,
+        options: ReporterOptions,
+    ) -> Self {
+        let ReporterOptions {
+            append_only,
+            hide_added_pkgs_progress,
+            hide_progress_prefix,
+            summary_scope,
+        } = options;
         let mut diff = HashMap::new();
         for kind in SUMMARY_ORDER {
             diff.insert(diff_key(kind), HashMap::new());
@@ -282,6 +334,8 @@ impl ReporterState {
             width,
             colors,
             append_only,
+            hide_added_pkgs_progress,
+            hide_progress_prefix,
             frame: Frame::new(append_only),
             last_frame: None,
             progress: HashMap::new(),
@@ -425,16 +479,19 @@ impl ReporterState {
         let stats = self.progress.get(requester).map(|entry| entry.stats).unwrap_or_default();
         let hl = |count: u64| self.colors.cyan_bright(&count.to_string());
         let mut msg = format!(
-            "Progress: resolved {}, reused {}, downloaded {}, added {}",
+            "Progress: resolved {}, reused {}, downloaded {}",
             hl(stats.resolved),
             hl(stats.reused),
             hl(stats.fetched),
-            hl(stats.imported),
         );
+        if !self.hide_added_pkgs_progress {
+            msg.push_str(", added ");
+            msg.push_str(&hl(stats.imported));
+        }
         if done {
             msg.push_str(", done");
         }
-        if requester != self.cwd {
+        if !self.hide_progress_prefix && requester != self.cwd {
             msg = zoom_out(&self.cwd, requester, &msg);
         }
         msg

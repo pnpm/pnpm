@@ -6,21 +6,25 @@
 use pacquet_default_reporter::{
     SummaryScope,
     colors::Colors,
-    state::{Output, ReporterState},
+    state::{Output, ReporterOptions, ReporterState},
 };
 use pacquet_reporter::{
-    AddedRoot, ContextLog, DependencyType, DeprecationLog, ExecutionTimeLog, GlobalLog, HookLog,
-    LifecycleLog, LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, PackageImportMethod,
-    PackageImportMethodLog, PackageManifestLog, PackageManifestMessage, PnpmLog, ProgressLog,
-    ProgressMessage, RootLog, RootMessage, SkippedOptionalDependencyLog, SkippedOptionalPackage,
-    SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage,
-    SummaryLog,
+    AddedRoot, ContextLog, DependencyType, DeprecationLog, ExecutionTimeLog, FetchingProgressLog,
+    FetchingProgressMessage, GlobalLog, HookLog, LifecycleLog, LifecycleMessage, LifecycleStdio,
+    LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog, PackageManifestLog,
+    PackageManifestMessage, PnpmLog, ProgressLog, ProgressMessage, RootLog, RootMessage,
+    SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalParent,
+    SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
 };
 
 const CWD: &str = "/repo";
 
 fn state(colors: bool) -> ReporterState {
     ReporterState::new(CWD.to_string(), 80, Colors { enabled: colors }, false)
+}
+
+fn state_with_options(options: ReporterOptions) -> ReporterState {
+    ReporterState::new_with_options(CWD.to_string(), 80, Colors { enabled: false }, options)
 }
 
 fn state_without_summary_prefix_filter() -> ReporterState {
@@ -45,7 +49,11 @@ fn render(state: &mut ReporterState, events: Vec<LogEvent>) -> String {
 }
 
 fn progress(status: &str) -> LogEvent {
-    let requester = CWD.to_string();
+    progress_at(CWD, status)
+}
+
+fn progress_at(requester: &str, status: &str) -> LogEvent {
+    let requester = requester.to_string();
     let package_id = "registry.npmjs.org/foo/1.0.0".to_string();
     let message = match status {
         "resolved" => ProgressMessage::Resolved { package_id, requester },
@@ -59,6 +67,31 @@ fn progress(status: &str) -> LogEvent {
         other => panic!("unknown status {other}"),
     };
     LogEvent::Progress(ProgressLog { level: LogLevel::Debug, message })
+}
+
+fn stage_at(prefix: &str, stage: Stage) -> LogEvent {
+    LogEvent::Stage(StageLog { level: LogLevel::Debug, prefix: prefix.to_string(), stage })
+}
+
+fn fetching_started(package_id: &str, size: u64, attempt: u32) -> LogEvent {
+    LogEvent::FetchingProgress(FetchingProgressLog {
+        level: LogLevel::Debug,
+        message: FetchingProgressMessage::Started {
+            attempt,
+            package_id: package_id.to_string(),
+            size: Some(size),
+        },
+    })
+}
+
+fn fetching_in_progress(package_id: &str, downloaded: u64) -> LogEvent {
+    LogEvent::FetchingProgress(FetchingProgressLog {
+        level: LogLevel::Debug,
+        message: FetchingProgressMessage::InProgress {
+            downloaded,
+            package_id: package_id.to_string(),
+        },
+    })
 }
 
 fn importing_done() -> LogEvent {
@@ -128,6 +161,190 @@ fn progress_line_counts_each_status() {
         ],
     );
     assert_eq!(frame, "Progress: resolved 3, reused 2, downloaded 0, added 1");
+}
+
+#[test]
+fn prints_progress_beginning() {
+    let mut reporter = state(false);
+    let frame =
+        render(&mut reporter, vec![stage_at(CWD, Stage::ResolutionStarted), progress("resolved")]);
+    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 0, added 0");
+}
+
+#[test]
+fn prints_progress_without_added_packages_stats() {
+    let mut reporter = state_with_options(ReporterOptions {
+        hide_added_pkgs_progress: true,
+        ..ReporterOptions::default()
+    });
+    let frame =
+        render(&mut reporter, vec![stage_at(CWD, Stage::ResolutionStarted), progress("resolved")]);
+    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 0");
+}
+
+#[test]
+fn prints_all_progress_stats() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            stage_at(CWD, Stage::ResolutionStarted),
+            progress("resolved"),
+            progress("fetched"),
+            progress("found_in_store"),
+            progress("imported"),
+        ],
+    );
+    assert_eq!(frame, "Progress: resolved 1, reused 1, downloaded 1, added 1");
+}
+
+#[test]
+fn prints_progress_beginning_for_node_modules_outside_cwd() {
+    let requester = "/repo/foo";
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![stage_at(requester, Stage::ResolutionStarted), progress_at(requester, "resolved")],
+    );
+    assert_eq!(
+        frame,
+        "foo                                      | Progress: resolved 1, reused 0, downloaded 0, added 0",
+    );
+}
+
+#[test]
+fn hides_progress_prefix_for_node_modules_outside_cwd() {
+    let requester = "/repo/foo";
+    let mut reporter = state_with_options(ReporterOptions {
+        hide_progress_prefix: true,
+        ..ReporterOptions::default()
+    });
+    let frame = render(
+        &mut reporter,
+        vec![stage_at(requester, Stage::ResolutionStarted), progress_at(requester, "resolved")],
+    );
+    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 0, added 0");
+}
+
+#[test]
+fn prints_progress_beginning_in_append_only_mode() {
+    let mut reporter =
+        state_with_options(ReporterOptions { append_only: true, ..ReporterOptions::default() });
+    assert!(matches!(reporter.handle(&stage_at(CWD, Stage::ResolutionStarted)), Output::None,));
+    let Output::Lines(lines) = reporter.handle(&progress("resolved")) else {
+        panic!("append-only progress must emit a line");
+    };
+    assert_eq!(lines, vec!["Progress: resolved 1, reused 0, downloaded 0, added 0"]);
+}
+
+#[test]
+fn prints_progress_beginning_during_recursive_install() {
+    let mut reporter = state(false);
+    let frame =
+        render(&mut reporter, vec![stage_at(CWD, Stage::ResolutionStarted), progress("resolved")]);
+    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 0, added 0");
+}
+
+#[test]
+fn prints_progress_on_first_download() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![stage_at(CWD, Stage::ResolutionStarted), progress("resolved"), progress("fetched")],
+    );
+    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 1, added 0");
+}
+
+#[test]
+fn moves_fixed_progress_line_to_the_end() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            stage_at(CWD, Stage::ResolutionStarted),
+            progress("resolved"),
+            progress("fetched"),
+            LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Warn,
+                message: "foo".to_string(),
+                prefix: CWD.to_string(),
+            }),
+            stage_at(CWD, Stage::ResolutionDone),
+            stage_at(CWD, Stage::ImportingDone),
+        ],
+    );
+    assert_eq!(frame, "[WARN] foo\nProgress: resolved 1, reused 0, downloaded 1, added 0, done");
+}
+
+#[test]
+fn prints_progress_of_big_files_download() {
+    const MIB: u64 = 1024 * 1024;
+    let pkg_1 = "registry.npmjs.org/foo/1.0.0";
+    let pkg_3 = "registry.npmjs.org/qar/3.0.0";
+    let mut reporter = state(false);
+    let events = vec![
+        stage_at(CWD, Stage::ResolutionStarted),
+        progress("resolved"),
+        fetching_started(pkg_1, 10 * MIB, 1),
+        fetching_in_progress(pkg_1, 11 * MIB / 2),
+        progress_at(CWD, "resolved"),
+        fetching_started(pkg_1, 10, 1),
+        fetching_in_progress(pkg_1, 7 * MIB),
+        progress_at(CWD, "resolved"),
+        fetching_started(pkg_3, 20 * MIB, 1),
+        fetching_in_progress(pkg_3, 19 * MIB),
+        fetching_in_progress(pkg_1, 10 * MIB),
+    ];
+    let mut frames = Vec::new();
+    for event in events {
+        if let Output::Frame(frame) = reporter.handle(&event)
+            && !frame.is_empty()
+        {
+            frames.push(frame);
+        }
+    }
+
+    assert_eq!(
+        frames,
+        vec![
+            "Progress: resolved 1, reused 0, downloaded 0, added 0".to_string(),
+            format!(
+                "Progress: resolved 1, reused 0, downloaded 0, added 0\n\
+                 Downloading {pkg_1}: 0.00 B/10.48 MB",
+            ),
+            format!(
+                "Progress: resolved 1, reused 0, downloaded 0, added 0\n\
+                 Downloading {pkg_1}: 5.76 MB/10.48 MB",
+            ),
+            format!(
+                "Progress: resolved 2, reused 0, downloaded 0, added 0\n\
+                 Downloading {pkg_1}: 5.76 MB/10.48 MB",
+            ),
+            format!(
+                "Progress: resolved 2, reused 0, downloaded 0, added 0\n\
+                 Downloading {pkg_1}: 7.34 MB/10.48 MB",
+            ),
+            format!(
+                "Progress: resolved 3, reused 0, downloaded 0, added 0\n\
+                 Downloading {pkg_1}: 7.34 MB/10.48 MB",
+            ),
+            format!(
+                "Progress: resolved 3, reused 0, downloaded 0, added 0\n\
+                 Downloading {pkg_1}: 7.34 MB/10.48 MB\n\
+                 Downloading {pkg_3}: 0.00 B/20.97 MB",
+            ),
+            format!(
+                "Progress: resolved 3, reused 0, downloaded 0, added 0\n\
+                 Downloading {pkg_1}: 7.34 MB/10.48 MB\n\
+                 Downloading {pkg_3}: 19.92 MB/20.97 MB",
+            ),
+            format!(
+                "Downloading {pkg_1}: 10.48 MB/10.48 MB, done\n\
+                 Progress: resolved 3, reused 0, downloaded 0, added 0\n\
+                 Downloading {pkg_3}: 19.92 MB/20.97 MB",
+            ),
+        ],
+    );
 }
 
 #[test]

@@ -514,21 +514,21 @@ Rust port notes:
 
 Reporter unit tests:
 
-- [ ] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:25` `prints progress beginning`
-- [ ] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:50` `prints progress without added packages stats`
-- [ ] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:78` `prints all progress stats`
-- [ ] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:119` `prints progress beginning of node_modules from not cwd`
-- [ ] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:144` `prints progress beginning of node_modules from not cwd, when progress prefix is hidden`
-- [ ] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:172` `prints progress beginning when appendOnly is true`
-- [ ] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:200` `prints progress beginning during recursive install`
-- [ ] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:228` `prints progress on first download`
-- [ ] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:262` `moves fixed line to the end`
+- [x] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:25` `prints progress beginning` — ported as `prints_progress_beginning` in `crates/default-reporter/tests/render.rs`.
+- [x] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:50` `prints progress without added packages stats` — ported as `prints_progress_without_added_packages_stats` in `crates/default-reporter/tests/render.rs`.
+- [x] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:78` `prints all progress stats` — ported as `prints_all_progress_stats` in `crates/default-reporter/tests/render.rs`.
+- [x] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:119` `prints progress beginning of node_modules from not cwd` — ported as `prints_progress_beginning_for_node_modules_outside_cwd` in `crates/default-reporter/tests/render.rs`.
+- [x] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:144` `prints progress beginning of node_modules from not cwd, when progress prefix is hidden` — ported as `hides_progress_prefix_for_node_modules_outside_cwd` in `crates/default-reporter/tests/render.rs`.
+- [x] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:172` `prints progress beginning when appendOnly is true` — ported as `prints_progress_beginning_in_append_only_mode` in `crates/default-reporter/tests/render.rs`.
+- [x] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:200` `prints progress beginning during recursive install` — ported as `prints_progress_beginning_during_recursive_install` in `crates/default-reporter/tests/render.rs`.
+- [x] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:228` `prints progress on first download` — ported as `prints_progress_on_first_download` in `crates/default-reporter/tests/render.rs`.
+- [x] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:262` `moves fixed line to the end` — ported as `moves_fixed_progress_line_to_the_end` in `crates/default-reporter/tests/render.rs`.
 - [x] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:307` `prints "Already up to date"` — ported as `already_up_to_date_pnpm_log_renders` in `crates/default-reporter/tests/render.rs`.
-- [ ] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:324` `prints progress of big files download`
+- [x] `TypeScript repo: cli/default-reporter/test/reportingProgress.ts:324` `prints progress of big files download` — ported as `prints_progress_of_big_files_download` in `crates/default-reporter/tests/render.rs`.
 
 Install reporter coverage:
 
-- [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:54` `installing a simple project` asserts headless reporter events: stats, stage, package-manifest, and resolved logs.
+- [x] `TypeScript repo: installing/deps-restorer/test/index.ts:54` `installing a simple project` asserts headless reporter events: stats, stage, package-manifest, and resolved logs — ported in `crates/package-manager/src/install/tests.rs::should_install_dependencies`.
 
 Rust port notes:
 

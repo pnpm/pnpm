@@ -7,19 +7,18 @@ pub const PREFIX_MAX_LENGTH: usize = 40;
 
 /// Port of `pretty-bytes` with `{ minimumFractionDigits: 2,
 /// maximumFractionDigits: 2 }` — base-1000 units, always two decimals, a
-/// space before the unit. `0` short-circuits to `"0 B"` like the library.
+/// space before the unit. pnpm's pinned version truncates at two fractional
+/// digits for these progress values.
 #[must_use]
 pub fn pretty_bytes(n: u64) -> String {
     const UNITS: [&str; 9] = ["B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
-    if n == 0 {
-        return "0 B".to_string();
-    }
     let mut value = n as f64;
     let mut idx = 0;
     while value >= 1000.0 && idx < UNITS.len() - 1 {
         value /= 1000.0;
         idx += 1;
     }
+    value = (value * 100.0).floor() / 100.0;
     format!("{value:.2} {}", UNITS[idx])
 }
 
