@@ -15,8 +15,8 @@ const REGISTRIES: Registries = { default: 'https://registry.npmjs.org/' }
 function tarballGraph (
   resolution: { tarball: string, integrity?: string },
   additionalInfo: {
-    bundledDependencies?: string[] | boolean
-    bundleDependencies?: string[] | boolean
+    bundledDependencies?: readonly string[] | boolean
+    bundleDependencies?: readonly string[] | boolean
   } = {}
 ): DependenciesGraph {
   return {
