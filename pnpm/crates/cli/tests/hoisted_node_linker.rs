@@ -577,7 +577,7 @@ fn overwriting_is_positive_with_latest() {
     pacquet.with_args(["add", "@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0"]).assert().success();
     assert_eq!(
         read_pkg_version(&workspace, "node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep"),
-        "100.0.0"
+        "100.0.0",
     );
 
     pacquet_at(&workspace)
@@ -720,7 +720,7 @@ fn installing_same_package_with_alias_and_no_alias() {
 
     assert_eq!(
         read_pkg_version(&workspace, "node_modules/@pnpm.e2e/pkg-with-1-aliased-dep"),
-        "100.0.0"
+        "100.0.0",
     );
     let direct = read_pkg_version(&workspace, "node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep");
     let aliased = read_pkg_version(&workspace, "node_modules/dep");
