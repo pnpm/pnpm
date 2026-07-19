@@ -320,7 +320,6 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
   await Promise.all(pkgs.map(async (pkgName) => addDistTag({ package: pkgName, version: '100.0.0', distTag: 'latest' })))
 
   let { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/foo'], testDefaults({ save: true, reporter }))
-  // t.equal(reporter.withArgs(fooProgress).callCount, 1, 'reported foo once')
   manifest = (await addDependenciesToPackage(manifest, ['@pnpm.e2e/bar'], testDefaults({ targetDependenciesField: 'optionalDependencies' }))).updatedManifest
   manifest = (await addDependenciesToPackage(manifest, ['@pnpm.e2e/qar'], testDefaults({ addDependenciesToPackage: 'devDependencies' }))).updatedManifest
   manifest = (await addDependenciesToPackage(manifest, ['@pnpm.e2e/foobar'], testDefaults({ save: true }))).updatedManifest
@@ -347,8 +346,6 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
     registry: 'https://registry.npmjs.org',
     reporter,
   }))
-
-  // t.equal(reporter.withArgs(fooProgress).callCount, 0, 'not reported foo')
 
   project.storeHasNot('@pnpm.e2e/foo', '100.1.0')
   expect((await readPackageJsonFromDir(path.resolve('node_modules', '@pnpm.e2e/foo'))).version).toBe('100.0.0')
