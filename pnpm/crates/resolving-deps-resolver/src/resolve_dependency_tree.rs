@@ -9,7 +9,9 @@ use pacquet_catalogs_resolver::{
 };
 use pacquet_catalogs_types::Catalogs;
 use pacquet_hooks::PnpmfileHooks;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use pacquet_package_manifest::{
+    DependencyGroup, PackageManifest, convert_engines_runtime_to_dependencies,
+};
 use pacquet_patching::{PatchGroupRecord, PatchKeyConflictError, get_patch_info};
 use pacquet_resolving_resolver_base::{
     PreferredVersionsOverlay, ResolveError, ResolveOptions, Resolver, WantedDependency,
@@ -2977,8 +2979,15 @@ fn extract_children(
     let Some(manifest) = result.manifest.as_ref() else { return Ok(Vec::new()) };
     let parent = render_parent(result);
     let mut out = Vec::new();
-    collect_deps(manifest, "dependencies", false, &parent, &mut out)?;
-    collect_deps(manifest, "optionalDependencies", true, &parent, &mut out)?;
+    if manifest.get("engines").and_then(|engines| engines.get("runtime")).is_some() {
+        let mut manifest = (**manifest).clone();
+        convert_engines_runtime_to_dependencies(&mut manifest, "engines", "dependencies");
+        collect_deps(&manifest, "dependencies", false, &parent, &mut out)?;
+        collect_deps(&manifest, "optionalDependencies", true, &parent, &mut out)?;
+    } else {
+        collect_deps(manifest, "dependencies", false, &parent, &mut out)?;
+        collect_deps(manifest, "optionalDependencies", true, &parent, &mut out)?;
+    }
     Ok(out)
 }
 

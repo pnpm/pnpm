@@ -630,57 +630,51 @@ The runtime lockfile *format* (importer `version: runtime:<ver>`, the
 `variants[].resolution.bin: { node: … }` map asserted in
 `nodeRuntime.ts:236-269`) is covered at pacquet's adapter/resolver layer by
 `dependencies_graph_to_lockfile::tests::runtime_dependency_strips_importer_prefix_and_records_package_version`
-and `node_resolver::tests::bin_spec_is_a_named_map`. The full
-install-and-reinstall integration tests below are still unported end-to-end
-against a real mirror (they download real runtime artifacts), but the
-*cold-install → wipe → offline-reinstall* regression at their core — a
-runtime archive ships no `package.json`, so the synthesized manifest must
-be baked into the persisted store-index row for the warm reinstall to
-re-materialize it (pnpm/pnpm#12811) — is covered without the network by
-`install_package_by_snapshot::tests::installing_a_runtime_persists_the_synthesized_manifest_into_the_store_index_row`
-(drives `InstallPackageBySnapshot` on a `Binary` resolution pointing at a
-local `file:` runtime-archive fixture).
+and `node_resolver::tests::bin_spec_is_a_named_map`. The command-level ports
+use local HTTP runtime archives so they exercise fetching, integrity checks,
+runtime manifest synthesis, bin linking, and frozen/offline reinstall without
+depending on external release services.
 
 Node runtime tests:
 
-- [ ] `TypeScript repo: installing/deps-installer/test/install/nodeRuntime.ts:209` `installing Node.js runtime` includes frozen/offline reinstall after deleting `node_modules`. _(Regression core — the offline reinstall re-materializing the synthesized `package.json` — is covered by `installing_a_runtime_persists_the_synthesized_manifest_into_the_store_index_row`; the real-download lockfile-shape / musl-variant / npm+corepack-filter assertions remain unported.)_
-- [ ] `TypeScript repo: installing/deps-installer/test/install/nodeRuntime.ts:332` `installing node.js runtime fails if offline mode is used and node.js not found locally` — the offline-fail error (`ERR_PNPM_NO_OFFLINE_NODEJS_RESOLUTION`) is pinned at resolver level by `offline_raises_no_offline_nodejs_resolution` in `crates/engine-runtime-node-resolver/src/node_resolver/tests.rs`; the install-level flow is unported.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/nodeRuntime.ts:339` `installing Node.js runtime from RC channel`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/nodeRuntime.ts:346` `installing Node.js runtime fails if integrity check fails` verifies frozen integrity failure.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/nodeRuntime.ts:400` `installing Node.js runtime for the given supported architecture` includes frozen reinstall for target architecture.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/nodeRuntime.ts:422` `installing Node.js runtime, when it is set via the engines field of a dependency`
+- [x] `TypeScript repo: installing/deps-installer/test/install/nodeRuntime.ts:209` `installing Node.js runtime` includes frozen/offline reinstall after deleting `node_modules`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/nodeRuntime.ts:332` `installing node.js runtime fails if offline mode is used and node.js not found locally`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/nodeRuntime.ts:339` `installing Node.js runtime from RC channel`
+- [x] `TypeScript repo: installing/deps-installer/test/install/nodeRuntime.ts:346` `installing Node.js runtime fails if integrity check fails` verifies frozen integrity failure.
+- [x] `TypeScript repo: installing/deps-installer/test/install/nodeRuntime.ts:400` `installing Node.js runtime for the given supported architecture` includes frozen reinstall for target architecture.
+- [x] `TypeScript repo: installing/deps-installer/test/install/nodeRuntime.ts:422` `installing Node.js runtime, when it is set via the engines field of a dependency`
 
 Deno runtime tests:
 
-- [ ] `TypeScript repo: installing/deps-installer/test/install/denoRuntime.ts:111` `installing Deno runtime` includes frozen/offline reinstall.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/denoRuntime.ts:217` `installing Deno runtime fails if offline mode is used and Deno not found locally`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/denoRuntime.ts:224` `installing Deno runtime fails if integrity check fails`
+- [x] `TypeScript repo: installing/deps-installer/test/install/denoRuntime.ts:111` `installing Deno runtime` includes frozen/offline reinstall.
+- [x] `TypeScript repo: installing/deps-installer/test/install/denoRuntime.ts:217` `installing Deno runtime fails if offline mode is used and Deno not found locally`
+- [x] `TypeScript repo: installing/deps-installer/test/install/denoRuntime.ts:224` `installing Deno runtime fails if integrity check fails`
 
 Bun runtime tests:
 
-- [ ] `TypeScript repo: installing/deps-installer/test/install/bunRuntime.ts:128` `installing Bun runtime` includes frozen/offline reinstall.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/bunRuntime.ts:215` `installing Bun runtime fails if offline mode is used and Bun not found locally`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/bunRuntime.ts:222` `installing Bun runtime fails if integrity check fails`
+- [x] `TypeScript repo: installing/deps-installer/test/install/bunRuntime.ts:128` `installing Bun runtime` includes frozen/offline reinstall.
+- [x] `TypeScript repo: installing/deps-installer/test/install/bunRuntime.ts:215` `installing Bun runtime fails if offline mode is used and Bun not found locally`
+- [x] `TypeScript repo: installing/deps-installer/test/install/bunRuntime.ts:222` `installing Bun runtime fails if integrity check fails`
 
 Command-level tests:
 
-- [ ] `TypeScript repo: installing/commands/test/install.ts:124` `install Node.js when devEngines runtime is set with onFail=download` — the `onFail=download` reification gate is pinned at helper level by `convert_engines_runtime_only_reifies_onfail_download` in `crates/package-manifest/src/tests.rs`; the command-level flow is unported.
-- [ ] `TypeScript repo: installing/commands/test/install.ts:160` `do not install Node.js when devEngines runtime is not set to onFail=download`
-- [ ] `TypeScript repo: pnpm/test/install/runtimeOnFail.ts:8` `runtimeOnFail=download causes Node.js to be downloaded even when the manifest does not set onFail`
-- [ ] `TypeScript repo: pnpm/test/install/runtimeOnFail.ts:31` `runtimeOnFail=ignore prevents Node.js download even when manifest sets onFail=download`
+- [x] `TypeScript repo: installing/commands/test/install.ts:124` `install Node.js when devEngines runtime is set with onFail=download`
+- [x] `TypeScript repo: installing/commands/test/install.ts:160` `do not install Node.js when devEngines runtime is not set to onFail=download`
+- [x] `TypeScript repo: pnpm/test/install/runtimeOnFail.ts:8` `runtimeOnFail=download causes Node.js to be downloaded even when the manifest does not set onFail`
+- [x] `TypeScript repo: pnpm/test/install/runtimeOnFail.ts:31` `runtimeOnFail=ignore prevents Node.js download even when manifest sets onFail=download`
 
 Runtime manifest/config conversion tests:
 
-- [ ] `TypeScript repo: config/reader/test/index.ts:85` `nodeVersion from config takes priority over devEngines.runtime`
-- [ ] `TypeScript repo: config/reader/test/index.ts:109` `runtimeOnFail=download overrides devEngines.runtime.onFail and adds node to devDependencies`
-- [ ] `TypeScript repo: config/reader/test/index.ts:138` `runtimeOnFail=ignore overrides an existing onFail=download and removes node from devDependencies`
+- [x] `TypeScript repo: config/reader/test/index.ts:85` `nodeVersion from config takes priority over devEngines.runtime`
+- [x] `TypeScript repo: config/reader/test/index.ts:109` `runtimeOnFail=download overrides devEngines.runtime.onFail and adds node to devDependencies`
+- [x] `TypeScript repo: config/reader/test/index.ts:138` `runtimeOnFail=ignore overrides an existing onFail=download and removes node from devDependencies`
 - [x] `TypeScript repo: workspace/project-manifest-reader/test/index.ts:37` `readProjectManifest() converts devEngines runtime to devDependencies` — ported as `from_path_applies_convert_engines_runtime` (read path) and `convert_engines_runtime_lifts_devengines_runtime_into_devdependencies` (helper) in `crates/package-manifest/src/tests.rs`.
 - [x] `TypeScript repo: workspace/project-manifest-reader/test/index.ts:68` `readProjectManifest() converts engines runtime to dependencies` — covered at helper level by `convert_engines_runtime_targets_dependencies_for_engines_field` in `crates/package-manifest/src/tests.rs` (the `from_path` read-path test asserts only the `devEngines` direction).
 
 Rust port notes:
 
-- Treat Node, Deno, and Bun as separate subfeatures.
-- Frozen/offline reinstall is the most relevant Stage 1 assertion.
+- Ported in `crates/cli/tests/install_runtimes.rs`, with conversion and resolver
+  details pinned by the focused unit tests named above.
 
 ## Installation Of Git-Hosted Packages
 

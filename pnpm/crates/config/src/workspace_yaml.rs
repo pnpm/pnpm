@@ -1,6 +1,6 @@
 use crate::{
     AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, LinkWorkspacePackages,
-    NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode,
+    NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail,
     ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun, api::EnvVar,
     resolve_child_concurrency,
 };
@@ -256,6 +256,12 @@ pub struct WorkspaceSettings {
     /// `nodeVersion` from `pnpm-workspace.yaml` / global `config.yaml`.
     /// See [`Config::node_version`]. Default unset (auto-detect).
     pub node_version: Option<String>,
+
+    /// `runtimeOnFail` from `pnpm-workspace.yaml` / global `config.yaml`.
+    pub runtime_on_fail: Option<RuntimeOnFail>,
+
+    /// Per-release-channel Node.js download mirrors.
+    pub node_download_mirrors: Option<HashMap<String, String>>,
 
     /// `scriptsPrependNodePath` from `pnpm-workspace.yaml`. Tri-state
     /// — yaml accepts `true` / `false` / `"warn-only"`. Custom serde
@@ -869,6 +875,12 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.node_version {
             config.node_version = Some(v);
+        }
+        if let Some(v) = self.runtime_on_fail {
+            config.runtime_on_fail = Some(v);
+        }
+        if let Some(v) = self.node_download_mirrors {
+            config.node_download_mirrors = v;
         }
         if let Some(v) = self.max_sockets {
             config.max_sockets = Some(v);

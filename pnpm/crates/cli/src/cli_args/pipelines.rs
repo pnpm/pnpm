@@ -48,7 +48,15 @@ fn select_install_family_projects(
     }
 
     let workspace_root = cfg.workspace_dir.as_deref().unwrap_or(prefix).to_path_buf();
-    let (projects, workspace_patterns) = discover_workspace_projects(&workspace_root)?;
+    let (mut projects, workspace_patterns) = discover_workspace_projects(&workspace_root)?;
+    if let Some(runtime_on_fail) = cfg.runtime_on_fail {
+        for project in &mut projects {
+            pacquet_package_manifest::apply_runtime_on_fail_override(
+                project.manifest.value_mut(),
+                runtime_on_fail.as_str(),
+            );
+        }
+    }
     let (ordered_dirs, selected_dirs) = {
         let selection = select_recursive_projects(
             &projects,

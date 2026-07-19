@@ -6,6 +6,7 @@ use std::{
 
 use derive_more::{Display, Error, From};
 use miette::Diagnostic;
+use node_semver::Range;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use strum::IntoStaticStr;
@@ -506,7 +507,7 @@ pub fn convert_engines_runtime_to_dependencies(
         let Some(version) = runtime.get("version").and_then(Value::as_str) else {
             continue;
         };
-        to_insert.push((runtime_name, format!("runtime:{version}")));
+        to_insert.push((runtime_name, format!("runtime:{}", version.trim())));
     }
     if to_insert.is_empty() {
         return;
@@ -522,6 +523,86 @@ pub fn convert_engines_runtime_to_dependencies(
     for (name, spec) in to_insert {
         deps_obj.insert(name.to_string(), Value::String(spec));
     }
+}
+
+/// Apply the configured runtime failure policy to both engine fields.
+///
+/// A non-download policy removes only dependency entries synthesized from a
+/// `runtime:` specifier; an explicit ordinary dependency with the same name is
+/// preserved. `download` re-runs the normal engine-to-dependency conversion.
+pub fn apply_runtime_on_fail_override(manifest: &mut Value, on_fail_override: &str) {
+    for (engines_field, deps_field) in
+        [("devEngines", "devDependencies"), ("engines", "dependencies")]
+    {
+        let Some(runtime_entry) =
+            manifest.get_mut(engines_field).and_then(|engines| engines.get_mut("runtime"))
+        else {
+            continue;
+        };
+        match runtime_entry {
+            Value::Array(runtimes) => {
+                for runtime in runtimes {
+                    if let Some(runtime) = runtime.as_object_mut() {
+                        runtime.insert(
+                            "onFail".to_string(),
+                            Value::String(on_fail_override.to_string()),
+                        );
+                    }
+                }
+            }
+            Value::Object(runtime) => {
+                runtime.insert("onFail".to_string(), Value::String(on_fail_override.to_string()));
+            }
+            _ => continue,
+        }
+        if on_fail_override == "download" {
+            convert_engines_runtime_to_dependencies(manifest, engines_field, deps_field);
+            continue;
+        }
+        let Some(deps) = manifest.get_mut(deps_field).and_then(Value::as_object_mut) else {
+            continue;
+        };
+        for runtime_name in RUNTIME_NAMES {
+            if deps
+                .get(runtime_name)
+                .and_then(Value::as_str)
+                .is_some_and(|specifier| specifier.starts_with("runtime:"))
+            {
+                deps.remove(runtime_name);
+            }
+        }
+    }
+}
+
+/// Return the minimum Node.js version declared by `devEngines.runtime` or
+/// `engines.runtime`, in that precedence order.
+#[must_use]
+pub fn node_version_from_engines_runtime(manifest: &Value) -> Option<String> {
+    for engines_field in ["devEngines", "engines"] {
+        let Some(runtime_entry) =
+            manifest.get(engines_field).and_then(|value| value.get("runtime"))
+        else {
+            continue;
+        };
+        let runtimes = match runtime_entry {
+            Value::Array(runtimes) => runtimes.as_slice(),
+            runtime @ Value::Object(_) => std::slice::from_ref(runtime),
+            _ => continue,
+        };
+        let Some(version) = runtimes.iter().find_map(|runtime| {
+            (runtime.get("name").and_then(Value::as_str) == Some("node"))
+                .then(|| runtime.get("version").and_then(Value::as_str))
+                .flatten()
+        }) else {
+            continue;
+        };
+        if let Ok(range) = Range::parse(version)
+            && let Some(version) = range.min_version()
+        {
+            return Some(version.to_string());
+        }
+    }
+    None
 }
 
 /// pnpm's on-write manifest normalization: within each dependency field,
