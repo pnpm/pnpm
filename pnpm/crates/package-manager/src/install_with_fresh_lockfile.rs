@@ -2039,13 +2039,13 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let symlink_root: &Path = config.modules_dir.parent().unwrap_or(lockfile_dir);
 
         // Captured out of the link branches below for the shared build
-        // phase: `hoisted_pkg_root_by_key` lets `BuildModules` `cd` into
+        // phase: `hoisted_pkg_roots_by_key` lets `BuildModules` `cd` into
         // the hoisted on-disk dir (`None`/empty for the isolated
         // linker), and `publicly_hoisted_for_post_build` carries the
         // public-hoist alias list into the post-build top-level bin
         // link so a direct dep's bin wins over a hoisted one.
-        let mut hoisted_pkg_root_by_key: Option<
-            HashMap<pacquet_lockfile::PackageKey, std::path::PathBuf>,
+        let mut hoisted_pkg_roots_by_key: Option<
+            HashMap<pacquet_lockfile::PackageKey, Vec<std::path::PathBuf>>,
         > = None;
         let mut publicly_hoisted_for_post_build: Vec<String> = Vec::new();
 
@@ -2099,7 +2099,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 &mut skipped,
             )
             .map_err(InstallWithFreshLockfileError::from)?;
-            hoisted_pkg_root_by_key = output.hoisted_pkg_root_by_key;
+            hoisted_pkg_roots_by_key = output.hoisted_pkg_roots_by_key;
             (HoistedDependencies::new(), output.hoisted_locations)
         } else {
             // Pre-compute the hoist plan so the dedupe pass in
@@ -2370,7 +2370,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 extra_env: &build_extra_env,
                 store_index_writer: &store_index_writer,
                 skipped: &skipped,
-                hoisted_pkg_root_by_key: hoisted_pkg_root_by_key.as_ref(),
+                hoisted_pkg_roots_by_key: hoisted_pkg_roots_by_key.as_ref(),
                 is_hoisted,
                 publicly_hoisted_for_post_build: &publicly_hoisted_for_post_build,
                 logged_methods,

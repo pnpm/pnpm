@@ -407,7 +407,7 @@ pub(crate) struct BuildPhaseInputs<'a> {
     pub(crate) extra_env: &'a HashMap<String, String>,
     pub(crate) store_index_writer: &'a Arc<StoreIndexWriter>,
     pub(crate) skipped: &'a SkippedSnapshots,
-    pub(crate) hoisted_pkg_root_by_key: Option<&'a HashMap<PackageKey, PathBuf>>,
+    pub(crate) hoisted_pkg_roots_by_key: Option<&'a HashMap<PackageKey, Vec<PathBuf>>>,
     pub(crate) is_hoisted: bool,
     /// Publicly-hoisted aliases (with bins) competing for the root
     /// importer's `node_modules/.bin`. Empty under the hoisted linker
@@ -450,7 +450,7 @@ pub(crate) fn run_build_phase<Reporter: self::Reporter>(
         extra_env,
         store_index_writer,
         skipped,
-        hoisted_pkg_root_by_key,
+        hoisted_pkg_roots_by_key,
         is_hoisted,
         publicly_hoisted_for_post_build,
         logged_methods,
@@ -472,7 +472,7 @@ pub(crate) fn run_build_phase<Reporter: self::Reporter>(
     // `preinstall` / `install` / `postinstall` lifecycle scripts.
     // Under isolated, the directories live under the virtual-store slot
     // layout; under hoisted, they live at the project-tree paths the
-    // walker assigned — threaded in via `pkg_root_by_key`.
+    // walker assigned — threaded in via `pkg_roots_by_key`.
     let ignored_builds = BuildModules {
         layout,
         modules_dir: &config.modules_dir,
@@ -494,7 +494,7 @@ pub(crate) fn run_build_phase<Reporter: self::Reporter>(
         unsafe_perm: config.unsafe_perm,
         child_concurrency: config.child_concurrency,
         skipped,
-        pkg_root_by_key: hoisted_pkg_root_by_key,
+        pkg_roots_by_key: hoisted_pkg_roots_by_key,
         gather_ancestor_bin_paths: is_hoisted,
         frozen_store: config.frozen_store,
         ignore_scripts: config.ignore_scripts,
@@ -1173,17 +1173,17 @@ where
         // `.modules.yaml.hoisted_locations` (rebuild reads it back
         // and surfaces `MISSING_HOISTED_LOCATIONS` if it's gone).
         //
-        // `pkg_root_by_key` is a per-snapshot override for
+        // `pkg_roots_by_key` is a per-snapshot override for
         // `BuildModules`'s `pkgRoot` lookup. Populated from the
         // walker's [`crate::DependenciesGraphNode::dir`] values so
         // the build phase can `cd` into the on-disk hoisted
         // directory instead of computing a virtual-store slot path
-        // that doesn't exist under hoisted. The first recorded
-        // location wins for snapshots the walker emitted multiple
-        // times (a single physical package nested under siblings) —
-        // the first `pkgRoot` pick. `None` (and an empty
-        // `hoisted_locations`) for the isolated linker.
-        let HoistedLinkerOutput { hoisted_locations, hoisted_pkg_root_by_key } = if is_hoisted {
+        // that doesn't exist under hoisted. `None` (and an empty
+        // `hoisted_locations`) for the isolated linker. See
+        // [`crate::BuildModules::pkg_roots_by_key`] for why a snapshot
+        // can map to more than one directory and which writes have to
+        // reach all of them.
+        let HoistedLinkerOutput { hoisted_locations, hoisted_pkg_roots_by_key } = if is_hoisted {
             run_hoisted_linker::<Reporter>(
                 HoistedLinkerInputs {
                     config,
@@ -1366,7 +1366,7 @@ where
             extra_env: &build_extra_env,
             store_index_writer: &store_index_writer,
             skipped: &skipped,
-            hoisted_pkg_root_by_key: hoisted_pkg_root_by_key.as_ref(),
+            hoisted_pkg_roots_by_key: hoisted_pkg_roots_by_key.as_ref(),
             is_hoisted,
             publicly_hoisted_for_post_build: &publicly_hoisted_for_post_build,
             logged_methods,
@@ -1469,11 +1469,13 @@ pub(crate) struct HoistedLinkerOutput {
     /// 4 walker. Persisted into `.modules.yaml.hoisted_locations`
     /// when non-empty.
     pub(crate) hoisted_locations: BTreeMap<String, Vec<String>>,
-    /// Per-snapshot `pkgRoot` override for the build phase —
-    /// snapshot key → its first recorded directory in the hoisted
-    /// graph. `None` for the isolated linker (the layout-based
-    /// lookup in `BuildModules` is used instead).
-    pub(crate) hoisted_pkg_root_by_key: Option<HashMap<PackageKey, std::path::PathBuf>>,
+    /// Per-snapshot `pkgRoot` override for the build phase — snapshot
+    /// key → every directory the hoisted graph placed it in, in walker
+    /// order. `None` for the isolated linker (the layout-based lookup in
+    /// `BuildModules` is used instead). See
+    /// [`crate::BuildModules::pkg_roots_by_key`] for how the list is
+    /// consumed.
+    pub(crate) hoisted_pkg_roots_by_key: Option<HashMap<PackageKey, Vec<std::path::PathBuf>>>,
 }
 
 /// Inputs to [`run_hoisted_linker`]. Bundled so the two install
@@ -1571,7 +1573,7 @@ impl From<HoistedLinkerError> for InstallFrozenLockfileError {
 /// walker's newly-discovered installability skips into `skipped`.
 ///
 /// Shared by both install paths so the hoisted layout, skip-set
-/// accounting, and `pkg_root_by_key` derivation stay identical.
+/// accounting, and `pkg_roots_by_key` derivation stay identical.
 pub(crate) fn run_hoisted_linker<Reporter: self::Reporter>(
     inputs: HoistedLinkerInputs<'_>,
     skipped: &mut SkippedSnapshots,
@@ -1723,22 +1725,22 @@ pub(crate) fn run_hoisted_linker<Reporter: self::Reporter>(
     }
     .run::<Reporter>()
     .map_err(HoistedLinkerError::SymlinkDirectDependencies)?;
-    // Map snapshot key → first recorded directory. The walker can emit
-    // multiple [`crate::DependenciesGraphNode`]s with the same
-    // `dep_path` when the package nests under a sibling (version
-    // conflict). Postinstall scripts and the side-effects-cache key
-    // both depend only on the package contents (identical across
-    // locations), so running once at the first dir matches the
-    // first `pkgRoot` pick.
-    let mut pkg_root_by_key: HashMap<PackageKey, std::path::PathBuf> = HashMap::new();
+    // Map snapshot key → every recorded directory, in walker order. The
+    // walker emits multiple [`crate::DependenciesGraphNode`]s with the
+    // same `dep_path` when the package nests under a sibling (version
+    // conflict). Postinstall scripts and the side-effects-cache key both
+    // depend only on the package contents (identical across locations),
+    // so `BuildModules` runs those once at the head of the list; patch
+    // application and cache-overlay re-imports walk the whole list.
+    let mut pkg_roots_by_key: HashMap<PackageKey, Vec<std::path::PathBuf>> = HashMap::new();
     for node in walker_result.graph.values() {
         if let Ok(key) = node.dep_path.as_str().parse::<PackageKey>() {
-            pkg_root_by_key.entry(key).or_insert_with(|| node.dir.clone());
+            pkg_roots_by_key.entry(key).or_default().push(node.dir.clone());
         }
     }
     Ok(HoistedLinkerOutput {
         hoisted_locations: walker_result.hoisted_locations,
-        hoisted_pkg_root_by_key: Some(pkg_root_by_key),
+        hoisted_pkg_roots_by_key: Some(pkg_roots_by_key),
     })
 }
 
