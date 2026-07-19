@@ -139,6 +139,33 @@ pub enum PmOnFail {
     Ignore,
 }
 
+/// What to do when a runtime declared through `devEngines.runtime` or
+/// `engines.runtime` does not match the current process.
+///
+/// The `runtimeOnFail` setting overrides the manifest-level `onFail` value.
+/// `download` reifies the runtime as a dependency; the other modes leave it
+/// as an engine constraint only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RuntimeOnFail {
+    Download,
+    Error,
+    Warn,
+    Ignore,
+}
+
+impl RuntimeOnFail {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Download => "download",
+            Self::Error => "error",
+            Self::Warn => "warn",
+            Self::Ignore => "ignore",
+        }
+    }
+}
+
 /// What `pnpm run` / `pnpm exec` do when `node_modules` is out of sync
 /// with the lockfile before running a script.
 ///
@@ -742,6 +769,14 @@ pub struct Config {
     /// `node` is found). An explicit value is treated as authoritative — no
     /// `node --version` probe runs.
     pub node_version: Option<String>,
+
+    /// Override for `devEngines.runtime.onFail` / `engines.runtime.onFail`.
+    /// Unset by default so each manifest keeps its own policy.
+    pub runtime_on_fail: Option<RuntimeOnFail>,
+
+    /// Per-release-channel Node.js download mirrors. Keys are `release`,
+    /// `rc`, `nightly`, `test`, or `v8-canary`.
+    pub node_download_mirrors: HashMap<String, String>,
 
     /// Copy every project file during `pnpm deploy` instead of the publish
     /// packlist. The `deployAllFiles` setting; default `false`.

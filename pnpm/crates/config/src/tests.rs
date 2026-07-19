@@ -2080,6 +2080,14 @@ pub fn engine_strict_node_version_and_max_sockets_from_workspace_yaml() {
 }
 
 #[test]
+pub fn runtime_on_fail_from_workspace_yaml() {
+    let dir = tempdir().unwrap();
+    std::fs::write(dir.path().join("pnpm-workspace.yaml"), "runtimeOnFail: download\n").unwrap();
+    let config = Config::default().current::<Host>(dir.path()).unwrap();
+    assert_eq!(config.runtime_on_fail, Some(crate::RuntimeOnFail::Download));
+}
+
+#[test]
 pub fn virtual_store_dir_max_length_env_var_overrides_yaml() {
     let tmp = tempdir().unwrap();
     fs::write(tmp.path().join("pnpm-workspace.yaml"), "virtualStoreDirMaxLength: 90\n")

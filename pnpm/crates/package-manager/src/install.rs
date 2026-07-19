@@ -29,7 +29,9 @@ use pacquet_modules_yaml::{
     ReadModulesError, WriteModulesError, write_modules_manifest,
 };
 use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use pacquet_package_manifest::{
+    DependencyGroup, PackageManifest, node_version_from_engines_runtime,
+};
 use pacquet_reporter::{
     ContextLog, LogEvent, LogLevel, PnpmLog, Reporter, Stage, StageLog, SummaryLog,
 };
@@ -1591,6 +1593,10 @@ where
         // deps, for `.modules.yaml`'s `injectedDeps`; assigned by
         // whichever path runs. See [`crate::collect_injected_deps`].
         let injected_deps: BTreeMap<String, Vec<String>>;
+        let effective_node_version = config
+            .node_version
+            .clone()
+            .or_else(|| node_version_from_engines_runtime(manifest.value()));
         let (hoisted_dependencies, hoisted_locations, install_skipped, fresh_lockfile): (
             HoistedDependencies,
             BTreeMap<String, Vec<String>>,
@@ -1708,6 +1714,7 @@ where
                 requester: &prefix,
                 supported_architectures: supported_architectures.as_ref(),
                 skip_runtimes,
+                node_version: effective_node_version.clone(),
                 node_linker,
                 tarball_mem_cache: Some(&tarball_mem_cache),
                 seed_skipped: modules_manifest.map(|manifest| manifest.skipped.clone()),
@@ -1825,6 +1832,7 @@ where
                 // entries keep their pins on rewrite (the `update: false`
                 // mode). State 4 (no lockfile) passes `None`.
                 wanted_lockfile: lockfile,
+                node_version: effective_node_version,
                 node_linker,
                 supported_architectures: supported_architectures.as_ref(),
                 lockfile_only: resolve_only,

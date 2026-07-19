@@ -54,6 +54,8 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         skip_runtimes: false,
         engine_strict: false,
         node_version: None,
+        runtime_on_fail: None,
+        node_download_mirrors: Default::default(),
         deploy_all_files: false,
         force_legacy_deploy: false,
         shared_workspace_lockfile: true,

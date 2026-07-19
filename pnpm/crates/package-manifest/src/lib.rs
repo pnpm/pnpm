@@ -6,6 +6,7 @@ use std::{
 
 use derive_more::{Display, Error, From};
 use miette::Diagnostic;
+use node_semver::Range;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use strum::IntoStaticStr;
@@ -476,14 +477,35 @@ pub fn convert_engines_runtime_to_dependencies(
     engines_field: &str,
     deps_field: &str,
 ) {
-    // Collect first, mutate after — avoids a simultaneous shared+mutable
-    // borrow of the manifest while reading `engines_field` and writing
-    // `deps_field`.
-    let mut to_insert: Vec<(&'static str, String)> = Vec::new();
+    let to_insert = engines_runtime_dependencies(manifest, engines_field, deps_field);
+    if to_insert.is_empty() {
+        return;
+    }
+    let Some(manifest_obj) = manifest.as_object_mut() else {
+        return;
+    };
+    let deps =
+        manifest_obj.entry(deps_field.to_string()).or_insert_with(|| Value::Object(Map::new()));
+    let Some(deps_obj) = deps.as_object_mut() else {
+        return;
+    };
+    for (name, spec) in to_insert {
+        deps_obj.insert(name.to_string(), Value::String(spec));
+    }
+}
+
+/// Return runtime dependency edges synthesized from an engines field.
+#[must_use]
+pub fn engines_runtime_dependencies(
+    manifest: &Value,
+    engines_field: &str,
+    deps_field: &str,
+) -> Vec<(&'static str, String)> {
+    let mut dependencies = Vec::new();
     let Some(runtime_entry) =
         manifest.get(engines_field).and_then(|engines| engines.get("runtime"))
     else {
-        return;
+        return dependencies;
     };
     for runtime_name in RUNTIME_NAMES {
         if manifest.get(deps_field).and_then(|deps| deps.get(runtime_name)).is_some() {
@@ -506,22 +528,101 @@ pub fn convert_engines_runtime_to_dependencies(
         let Some(version) = runtime.get("version").and_then(Value::as_str) else {
             continue;
         };
-        to_insert.push((runtime_name, format!("runtime:{version}")));
+        dependencies.push((runtime_name, format!("runtime:{}", version.trim())));
     }
-    if to_insert.is_empty() {
-        return;
+    dependencies
+}
+
+/// Apply the configured runtime failure policy to both engine fields.
+///
+/// A non-download policy removes `runtime:` dependency entries only for names
+/// managed by the corresponding engines field. `download` re-runs the normal
+/// engine-to-dependency conversion.
+pub fn apply_runtime_on_fail_override(manifest: &mut Value, on_fail_override: &str) {
+    for (engines_field, deps_field) in
+        [("devEngines", "devDependencies"), ("engines", "dependencies")]
+    {
+        let Some(runtime_entry) =
+            manifest.get_mut(engines_field).and_then(|engines| engines.get_mut("runtime"))
+        else {
+            continue;
+        };
+        let managed_runtime_names: Vec<_> = RUNTIME_NAMES
+            .into_iter()
+            .filter(|runtime_name| match &*runtime_entry {
+                Value::Array(runtimes) => runtimes.iter().any(|runtime| {
+                    runtime.get("name").and_then(Value::as_str) == Some(*runtime_name)
+                }),
+                Value::Object(runtime) => {
+                    runtime.get("name").and_then(Value::as_str) == Some(*runtime_name)
+                }
+                _ => false,
+            })
+            .collect();
+        match runtime_entry {
+            Value::Array(runtimes) => {
+                for runtime in runtimes {
+                    if let Some(runtime) = runtime.as_object_mut() {
+                        runtime.insert(
+                            "onFail".to_string(),
+                            Value::String(on_fail_override.to_string()),
+                        );
+                    }
+                }
+            }
+            Value::Object(runtime) => {
+                runtime.insert("onFail".to_string(), Value::String(on_fail_override.to_string()));
+            }
+            _ => continue,
+        }
+        if on_fail_override == "download" {
+            convert_engines_runtime_to_dependencies(manifest, engines_field, deps_field);
+            continue;
+        }
+        let Some(deps) = manifest.get_mut(deps_field).and_then(Value::as_object_mut) else {
+            continue;
+        };
+        for runtime_name in managed_runtime_names {
+            if deps
+                .get(runtime_name)
+                .and_then(Value::as_str)
+                .is_some_and(|specifier| specifier.starts_with("runtime:"))
+            {
+                deps.remove(runtime_name);
+            }
+        }
     }
-    let Some(manifest_obj) = manifest.as_object_mut() else {
-        return;
-    };
-    let deps =
-        manifest_obj.entry(deps_field.to_string()).or_insert_with(|| Value::Object(Map::new()));
-    let Some(deps_obj) = deps.as_object_mut() else {
-        return;
-    };
-    for (name, spec) in to_insert {
-        deps_obj.insert(name.to_string(), Value::String(spec));
+}
+
+/// Return the minimum Node.js version declared by `devEngines.runtime` or
+/// `engines.runtime`, in that precedence order.
+#[must_use]
+pub fn node_version_from_engines_runtime(manifest: &Value) -> Option<String> {
+    for engines_field in ["devEngines", "engines"] {
+        let Some(runtime_entry) =
+            manifest.get(engines_field).and_then(|value| value.get("runtime"))
+        else {
+            continue;
+        };
+        let runtimes = match runtime_entry {
+            Value::Array(runtimes) => runtimes.as_slice(),
+            runtime @ Value::Object(_) => std::slice::from_ref(runtime),
+            _ => continue,
+        };
+        let Some(version) = runtimes.iter().find_map(|runtime| {
+            (runtime.get("name").and_then(Value::as_str) == Some("node"))
+                .then(|| runtime.get("version").and_then(Value::as_str))
+                .flatten()
+        }) else {
+            continue;
+        };
+        if let Ok(range) = Range::parse(version.trim())
+            && let Some(version) = range.min_version()
+        {
+            return Some(version.to_string());
+        }
     }
+    None
 }
 
 /// pnpm's on-write manifest normalization: within each dependency field,

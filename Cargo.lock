@@ -3976,6 +3976,8 @@ dependencies = [
  "serde",
  "serde-saphyr",
  "serde_json",
+ "sha2",
+ "ssri",
  "tabled",
  "tar",
  "tempfile",
@@ -3987,6 +3989,7 @@ dependencies = [
  "wax",
  "which 8.0.4",
  "windows-sys 0.61.2",
+ "zip",
 ]
 
 [[package]]
@@ -4694,6 +4697,7 @@ dependencies = [
  "derive_more",
  "insta",
  "miette 7.6.0",
+ "node-semver",
  "pipe-trait",
  "pretty_assertions",
  "serde",

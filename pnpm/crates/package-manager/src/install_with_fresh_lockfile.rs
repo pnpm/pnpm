@@ -141,6 +141,9 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// pins. `None` on the no-lockfile path. Corresponds to the
     /// `update: false` resolver mode.
     pub wanted_lockfile: Option<&'a Lockfile>,
+    /// Effective `nodeVersion`: an explicit config value, otherwise the
+    /// minimum version declared by the root manifest's runtime engine.
+    pub node_version: Option<String>,
     /// Per-install packument cache shared with the lockfile-verifier
     /// constructed in [`Install::run`](crate::Install::run). The
     /// resolver writes to it during `pick_package`; the verifier reads
@@ -605,6 +608,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             workspace_packages,
             update_checksums,
             wanted_lockfile,
+            node_version,
             meta_cache,
             node_linker,
             supported_architectures,
@@ -855,6 +859,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let local_scheme_resolver = LocalSchemeResolver::new(local_ctx);
         let local_path_resolver = LocalPathResolver::new(local_ctx);
         let mut node_resolver = NodeResolver::new(Arc::clone(&http_client_arc));
+        node_resolver.node_download_mirrors.clone_from(&config.node_download_mirrors);
         node_resolver.offline = config.offline;
         let deno_resolver =
             DenoResolver::new(Arc::clone(&http_client_arc), Arc::clone(&npm_resolver));
@@ -1783,7 +1788,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             });
         let installability_host = if needs_installability_check {
             let engine_strict = config.engine_strict;
-            let mut host = match config.node_version.clone() {
+            let mut host = match node_version {
                 // An explicit `nodeVersion` needs no `node --version` probe, so
                 // build the host directly off the reactor thread.
                 node_version @ Some(_) => {
@@ -2001,6 +2006,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             store_index_writer: &store_index_writer,
             allow_build_policy: &allow_build_policy,
             skipped: &skipped,
+            supported_architectures,
             workspace_root: lockfile_dir,
             node_linker,
             progress_reported: &progress_reported,

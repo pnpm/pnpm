@@ -151,6 +151,10 @@ where
     /// `config.skip_runtimes || --no-runtime`.
     pub skip_runtimes: bool,
 
+    /// Effective `nodeVersion`: an explicit config value, otherwise the
+    /// minimum version declared by the root manifest's runtime engine.
+    pub node_version: Option<String>,
+
     /// `nodeLinker` value to honor for *this* invocation. Threaded
     /// from the [`crate::Install`] caller (which has already
     /// applied any `--node-linker` CLI override on top of
@@ -605,6 +609,7 @@ where
             requester,
             supported_architectures,
             skip_runtimes,
+            node_version,
             node_linker,
             tarball_mem_cache,
             seed_skipped,
@@ -713,7 +718,7 @@ where
         // the reactor thread.
         let (mut skipped, host_node) = if needs_installability_check {
             let engine_strict = config.engine_strict;
-            let mut host = match config.node_version.clone() {
+            let mut host = match node_version {
                 // An explicit `nodeVersion` needs no `node --version` probe, so
                 // build the host directly off the reactor thread.
                 node_version @ Some(_) => {
@@ -1005,6 +1010,7 @@ where
                 store_index_writer: &store_index_writer,
                 allow_build_policy: &allow_build_policy,
                 skipped: &skipped,
+                supported_architectures,
                 workspace_root,
                 node_linker,
                 progress_reported: &progress_reported,

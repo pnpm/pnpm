@@ -103,6 +103,9 @@ pub struct InstallPackageBySnapshot<'a> {
     /// exclusion, or swallowed optional fetch failure). See
     /// [`crate::SkippedSnapshots`] for how it is built.
     pub skipped: &'a crate::SkippedSnapshots,
+    /// Platform triple used to select a runtime archive. This is the host
+    /// triple unless `supportedArchitectures` targets another platform.
+    pub runtime_platform_selector: &'a PlatformSelector,
     /// Selects between the isolated and hoisted install layouts.
     /// `Isolated` runs [`CreateVirtualDirBySnapshot`] at the end of
     /// the per-snapshot fetch to populate the virtual-store slot;
@@ -187,20 +190,18 @@ pub enum InstallPackageBySnapshotError {
     UnsupportedResolutionType { resolution_type: String },
 
     /// No variant in a [`LockfileResolution::Variations`] matches the
-    /// host triple `(os, cpu, libc?)`. Surfaces with the host triple
+    /// selected triple `(os, cpu, libc?)`. Surfaces with that triple
     /// plus the list of advertised target triples so the user can see
     /// at a glance whether they're running on an unsupported platform
     /// or whether the lockfile was generated without the host's
     /// architecture in mind.
     #[display(
-        "Package `{package_key}` is a runtime dependency, but none of its declared variants matches the host triple (os = `{host_os}`, cpu = `{host_cpu}`, libc = `{host_libc:?}`). Available variants: {available_targets}"
+        "Package `{package_key}` is a runtime dependency, but none of its declared variants matches the selected triple ({selected_target}). Available variants: {available_targets}"
     )]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_NO_MATCHING_PLATFORM_VARIANT))]
     NoMatchingPlatformVariant {
         package_key: String,
-        host_os: &'static str,
-        host_cpu: &'static str,
-        host_libc: Option<&'static str>,
+        selected_target: String,
         /// Pre-rendered list of the lockfile's advertised target
         /// triples, formatted as `os/cpu[+libc]`. Lives in the error
         /// payload rather than the lockfile (which is borrowed from
@@ -275,6 +276,7 @@ impl InstallPackageBySnapshot<'_> {
             snapshot,
             allow_build_policy,
             skipped,
+            runtime_platform_selector,
             workspace_root,
             node_linker,
             custom_fetcher_picker,
@@ -502,16 +504,17 @@ impl InstallPackageBySnapshot<'_> {
                 .await?
             }
             LockfileResolution::Variations(variations) => {
-                let selector = host_platform_selector();
-                let Some(variant) = select_platform_variant(&variations.variants, &selector) else {
+                let Some(variant) =
+                    select_platform_variant(&variations.variants, runtime_platform_selector)
+                else {
                     return Err(InstallPackageBySnapshotError::NoMatchingPlatformVariant {
                         package_key: package_key.to_string(),
-                        host_os: host_platform(),
-                        host_cpu: host_arch(),
-                        host_libc: match host_libc() {
-                            "unknown" => None,
-                            other => Some(other),
-                        },
+                        selected_target: format!(
+                            "os = `{}`, cpu = `{}`, libc = `{:?}`",
+                            runtime_platform_selector.os,
+                            runtime_platform_selector.cpu,
+                            runtime_platform_selector.libc,
+                        ),
                         available_targets: render_variant_targets(&variations.variants),
                     });
                 };
@@ -727,6 +730,35 @@ pub(crate) fn host_platform_selector() -> PlatformSelector {
         other => Some(other.to_string()),
     };
     PlatformSelector { os: host_platform().to_string(), cpu: host_arch().to_string(), libc }
+}
+
+/// Resolve the runtime archive selector from `supportedArchitectures`, using
+/// the first requested value on each axis and expanding `current` to the host.
+#[must_use]
+pub(crate) fn runtime_platform_selector(
+    supported: Option<&pacquet_package_is_installable::SupportedArchitectures>,
+) -> PlatformSelector {
+    let host = host_platform_selector();
+    let pick = |values: Option<&Vec<String>>, current: &str| {
+        values.and_then(|values| values.first()).map_or_else(
+            || current.to_string(),
+            |value| {
+                if value == "current" { current.to_string() } else { value.clone() }
+            },
+        )
+    };
+    PlatformSelector {
+        os: pick(supported.and_then(|value| value.os.as_ref()), &host.os),
+        cpu: pick(supported.and_then(|value| value.cpu.as_ref()), &host.cpu),
+        libc: match supported
+            .and_then(|value| value.libc.as_ref())
+            .and_then(|values| values.first())
+        {
+            None => host.libc,
+            Some(value) if value == "current" => host.libc,
+            Some(value) => Some(value.clone()),
+        },
+    }
 }
 
 /// Hand-coded matcher for the

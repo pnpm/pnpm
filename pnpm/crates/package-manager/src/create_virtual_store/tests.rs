@@ -3,6 +3,7 @@ use super::{
     emit_warm_snapshot_progress, integrity_equal, removed_child_aliases, snapshot_cache_key,
     snapshot_deps_equal,
 };
+use crate::install_package_by_snapshot::host_platform_selector;
 use pacquet_lockfile::{
     GitResolution, LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgVerPeer,
     RegistryResolution, SnapshotDepRef, SnapshotEntry, TarballResolution,
@@ -181,6 +182,7 @@ async fn cold_batch_links_slots_in_parallel() {
         store_index_writer: &store_index_writer,
         allow_build_policy: &allow_build_policy,
         skipped: &skipped,
+        supported_architectures: None,
         workspace_root: &workspace_root,
         node_linker: NodeLinker::Isolated,
         progress_reported: &progress_reported,
@@ -428,8 +430,8 @@ fn snapshot_cache_key_for_git_resolution_uses_git_hosted_key() {
     let pkg = key("ts-pipe-compose", "0.2.1");
     let packages = HashMap::from([(pkg.clone(), git_metadata())]);
 
-    let received =
-        snapshot_cache_key(&pkg, &packages, false).expect("snapshot_cache_key must not error");
+    let received = snapshot_cache_key(&pkg, &packages, false, &host_platform_selector())
+        .expect("snapshot_cache_key must not error");
     assert_eq!(
         received,
         Some(format!("{pkg}\tbuilt")),
@@ -442,8 +444,8 @@ fn snapshot_cache_key_for_git_hosted_tarball_uses_git_hosted_key() {
     let pkg = key("foo", "1.0.0");
     let packages = HashMap::from([(pkg.clone(), git_hosted_tarball_metadata())]);
 
-    let received =
-        snapshot_cache_key(&pkg, &packages, false).expect("snapshot_cache_key must not error");
+    let received = snapshot_cache_key(&pkg, &packages, false, &host_platform_selector())
+        .expect("snapshot_cache_key must not error");
     assert_eq!(
         received,
         Some(format!("{pkg}\tbuilt")),
@@ -460,7 +462,7 @@ fn snapshot_cache_key_rejects_tarball_without_integrity() {
     let pkg = key("foo", "1.0.0");
     let packages = HashMap::from([(pkg.clone(), tarball_metadata_without_integrity())]);
 
-    let err = snapshot_cache_key(&pkg, &packages, false)
+    let err = snapshot_cache_key(&pkg, &packages, false, &host_platform_selector())
         .expect_err("missing integrity must reject upfront");
     assert!(
         matches!(

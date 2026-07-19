@@ -13,8 +13,8 @@
 
 use crate::{
     AuditLevel, CatalogMode, HoistingLimits, NodeLinker, NodePackageMapType, PackageImportMethod,
-    PmOnFail, ResolutionMode, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
-    WorkspaceSettings, api::EnvVar,
+    PmOnFail, ResolutionMode, RuntimeOnFail, ScriptsPrependNodePath, TrustPolicy,
+    VerifyDepsBeforeRun, WorkspaceSettings, api::EnvVar,
 };
 use serde::de::DeserializeOwned;
 
@@ -178,6 +178,8 @@ impl WorkspaceSettings {
         json_field!(git_checks, "GIT_CHECKS");
         json_field!(engine_strict, "ENGINE_STRICT");
         string_field!(node_version, "NODE_VERSION");
+        enum_field!(runtime_on_fail, "RUNTIME_ON_FAIL", RuntimeOnFail);
+        json_field!(node_download_mirrors, "NODE_DOWNLOAD_MIRRORS");
         enum_field!(scripts_prepend_node_path, "SCRIPTS_PREPEND_NODE_PATH", ScriptsPrependNodePath);
         json_field!(enable_pre_post_scripts, "ENABLE_PRE_POST_SCRIPTS");
         tri_string_field!(script_shell, "SCRIPT_SHELL");
