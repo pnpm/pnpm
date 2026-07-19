@@ -1308,6 +1308,11 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             || std::ffi::OsString::from("node_modules"),
             std::ffi::OsStr::to_os_string,
         );
+        Reporter::emit(&LogEvent::Stage(StageLog {
+            level: LogLevel::Debug,
+            prefix: lockfile_dir.display().to_string(),
+            stage: Stage::ResolutionStarted,
+        }));
         let workspace_result = pacquet_resolving_deps_resolver::resolve_workspace(
             &*resolver,
             &workspace_importers,
@@ -1472,6 +1477,14 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         drop(meta_cache);
         drop(fetch_locker);
         drop(picked_manifest_cache);
+
+        // Must come after every `pnpm:deprecation` emit — the default
+        // reporter flushes its transitive-deprecation buffer on this event.
+        Reporter::emit(&LogEvent::Stage(StageLog {
+            level: LogLevel::Debug,
+            prefix: lockfile_dir.display().to_string(),
+            stage: Stage::ResolutionDone,
+        }));
 
         // Compute the `pnpmfileChecksum` once for both lockfile-build
         // paths below: the hash of the project's `.pnpmfile.{cjs,mjs}`

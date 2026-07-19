@@ -1651,10 +1651,11 @@ where
     let is_leaf = is_link || pkg_is_leaf(&result);
     let node_id = if is_leaf { NodeId::leaf(&id) } else { NodeId::next() };
 
-    {
+    let package_is_new = {
         let mut packages = lock_recoverable(&ctx.workspace.packages);
         if let Some(existing) = packages.get_mut(&id) {
             existing.optional = existing.optional && current_is_optional;
+            false
         } else {
             let peer_dependencies =
                 if is_link { BTreeMap::new() } else { extract_peer_dependencies(&result) };
@@ -1676,35 +1677,37 @@ where
                     is_leaf,
                 },
             );
+            true
+        }
+    };
 
-            // Matches the TS deprecation warning at
-            // `pnpm11/installing/deps-resolver/src/resolveDependencies.ts:2119`.
-            if let Some(deprecated) = extract_deprecated_from_manifest(result.manifest.as_deref())
-                && !deprecated.is_empty()
-            {
-                let pkg_name = result
-                    .name_ver
-                    .as_ref()
-                    .map_or_else(|| alias.clone(), |nv| nv.name.to_string());
-                let pkg_version =
-                    result.name_ver.as_ref().map(|nv| nv.suffix.to_string()).unwrap_or_default();
+    // Matches the TS deprecation warning at
+    // `pnpm11/installing/deps-resolver/src/resolveDependencies.ts:2119`;
+    // runs outside the `packages` lock to keep the semver check and the
+    // emit out of the critical section.
+    if package_is_new
+        && let Some(deprecated) = extract_deprecated_from_manifest(result.manifest.as_deref())
+        && !deprecated.is_empty()
+    {
+        let pkg_name =
+            result.name_ver.as_ref().map_or_else(|| alias.clone(), |nv| nv.name.to_string());
+        let pkg_version =
+            result.name_ver.as_ref().map(|nv| nv.suffix.to_string()).unwrap_or_default();
 
-                if !is_deprecation_allowed(
-                    &pkg_name,
-                    &pkg_version,
-                    &ctx.workspace.allowed_deprecated_versions,
-                ) && let Some(log) = ctx.workspace.deprecation_log.as_ref()
-                {
-                    log(Deprecation {
-                        pkg_name,
-                        pkg_version,
-                        pkg_id: id.clone(),
-                        prefix: ctx.base_opts.project_dir.display().to_string(),
-                        deprecated,
-                        depth,
-                    });
-                }
-            }
+        if !is_deprecation_allowed(
+            &pkg_name,
+            &pkg_version,
+            &ctx.workspace.allowed_deprecated_versions,
+        ) && let Some(log) = ctx.workspace.deprecation_log.as_ref()
+        {
+            log(Deprecation {
+                pkg_name,
+                pkg_version,
+                pkg_id: id.clone(),
+                prefix: ctx.base_opts.project_dir.display().to_string(),
+                deprecated,
+                depth,
+            });
         }
     }
 

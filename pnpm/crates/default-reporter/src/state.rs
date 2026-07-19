@@ -1078,19 +1078,26 @@ impl ReporterState {
     /// `resolution_done` summary.
     fn on_deprecation(&mut self, log: &DeprecationLog) {
         if log.depth == 0 {
-            let msg = format!(
-                "{} {} {}@{}: {}",
-                self.colors.warn_label(),
-                self.colors.red("deprecated"),
-                log.pkg_name,
-                log.pkg_version,
-                log.deprecated,
-            );
             if log.prefix.is_empty() || log.prefix == self.cwd {
-                self.push_block(msg);
+                self.push_block(format!(
+                    "{} {} {}@{}: {}",
+                    self.colors.warn_label(),
+                    self.colors.red("deprecated"),
+                    log.pkg_name,
+                    log.pkg_version,
+                    log.deprecated,
+                ));
             } else {
-                let zoomed = zoom_out(&self.cwd, &log.prefix, &msg);
-                self.push_block(zoomed);
+                // The zoomed line drops the deprecation text, as
+                // `reportDeprecations.ts` does.
+                let msg = format!(
+                    "{} {} {}@{}",
+                    self.colors.warn_label(),
+                    self.colors.red("deprecated"),
+                    log.pkg_name,
+                    log.pkg_version,
+                );
+                self.push_block(zoom_out(&self.cwd, &log.prefix, &msg));
             }
         } else {
             self.deprecated_subdeps.push(log.clone());
