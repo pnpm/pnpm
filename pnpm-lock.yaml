@@ -2881,6 +2881,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../../core/error
+      '@pnpm/fetching.types':
+        specifier: workspace:*
+        version: link:../../../fetching/types
       '@pnpm/installing.commands':
         specifier: workspace:*
         version: link:../../../installing/commands
@@ -2899,6 +2902,9 @@ importers:
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../../network/auth-header
+      '@pnpm/network.fetch':
+        specifier: workspace:*
+        version: link:../../../network/fetch
       '@pnpm/object.key-sorting':
         specifier: workspace:*
         version: link:../../../object/key-sorting
