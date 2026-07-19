@@ -388,6 +388,7 @@ impl DeployArgs {
             trust_lockfile,
             update_checksums: false,
             is_full_install: true,
+            installs_only: true,
             resolved_packages,
             supported_architectures,
             node_linker,

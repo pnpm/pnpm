@@ -25,6 +25,7 @@ use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{
     DeprecationLog, GlobalLog, HookLog, LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog,
     SkippedOptionalPackage, SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog,
+    StatsLog, StatsMessage,
 };
 use pacquet_resolving_default_resolver::DefaultResolver;
 use pacquet_resolving_deps_resolver::{
@@ -201,6 +202,18 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     pub pnpmfile_hook_override: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
     pub real_importer_ids: Option<&'a std::collections::HashSet<String>>,
     pub selected_importer_ids: Option<&'a std::collections::HashSet<String>>,
+    /// What the previous install materialized
+    /// (`<virtual_store_dir>/lock.yaml`). Drives the pre-link
+    /// [`crate::PruneStaleModules`] reconciliation and the hoisted
+    /// linker's previous-graph orphan diff. `None` on a first install.
+    pub current_lockfile: Option<&'a Lockfile>,
+    /// `hoistedDependencies` recorded by the previous install's
+    /// `.modules.yaml`, for [`crate::PruneStaleModules`]'s orphan
+    /// hoist-link cleanup. `None` on a first install or when the file
+    /// couldn't be fully parsed.
+    pub prior_hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
+    /// See [`crate::PruneStaleModules::prune_orphans`].
+    pub prune_orphans: bool,
 }
 
 /// Which lockfile-pinned `(name, version)` pairs to *withhold* from the
@@ -299,6 +312,11 @@ pub enum InstallWithFreshLockfileError {
 
     #[diagnostic(transparent)]
     SymlinkDirectDependencies(#[error(source)] SymlinkDirectDependenciesError),
+
+    /// Surfaces a failure while removing stale direct-dep or hoist
+    /// links during the pre-link reconciliation pass.
+    #[diagnostic(transparent)]
+    PruneStaleModules(#[error(source)] crate::PruneDirectDepsError),
 
     /// Surfaces a failure to cross-link a Bit root component's injected
     /// members into one another's virtual-store slot. Only reachable
@@ -601,6 +619,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             pnpmfile_hook_override,
             real_importer_ids,
             selected_importer_ids,
+            current_lockfile,
+            prior_hoisted_dependencies,
+            prune_orphans,
         } = self;
 
         // The pnpr override when supplied, else the config's npmrc headers;
@@ -2060,6 +2081,32 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // empty (the hoisted linker has no isolated-mode alias→kind
         // adapter shape); `hoisted_locations` carries the walker's
         // placements so `.modules.yaml` round-trips them.
+        // Reconcile before linking: stale direct-dep links and
+        // orphaned hoist links must vacate their slots so the relink +
+        // rehoist below can claim them. The hoisted linker is excluded
+        // — its own previous-graph diff removes orphans (see
+        // `run_hoisted_linker`) — but the `pnpm:stats` `removed` event
+        // still fires so every install carries exactly one, pairing
+        // the `added` emitted in `CreateVirtualStore`.
+        let removed_count = match current_lockfile {
+            Some(current) if !is_hoisted => crate::PruneStaleModules {
+                config,
+                workspace_root: symlink_root,
+                wanted_lockfile: materialization_lockfile,
+                current_lockfile: current,
+                prior_hoisted_dependencies,
+                included_groups: &dependency_groups,
+                prune_orphans,
+            }
+            .run::<Reporter>()
+            .map_err(InstallWithFreshLockfileError::PruneStaleModules)?,
+            _ => 0,
+        };
+        Reporter::emit(&LogEvent::Stats(StatsLog {
+            level: LogLevel::Debug,
+            message: StatsMessage::Removed { prefix: requester.to_owned(), removed: removed_count },
+        }));
+
         let (hoisted_dependencies, hoisted_locations) = if is_hoisted {
             let project_manifests = importer_manifests
                 .iter()
@@ -2079,10 +2126,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 crate::install_frozen_lockfile::HoistedLinkerInputs {
                     config,
                     lockfile: materialization_lockfile,
-                    // No previous-install `<virtual_store_dir>/lock.yaml`
-                    // is threaded into the fresh path yet, so the
-                    // walker runs without an orphan diff.
-                    current_lockfile: None,
+                    current_lockfile,
                     layout: &layout,
                     importers: &materialization_lockfile.importers,
                     dependency_groups: &dependency_groups,

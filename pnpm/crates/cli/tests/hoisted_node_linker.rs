@@ -563,25 +563,217 @@ fn run_pre_and_postinstall_scripts_in_a_workspace_with_hoisted_linker() {
     }
 }
 
+/// TS: `overwriting (…@3.0.0 with …@latest)`
+/// (`hoistedNodeLinker/install.ts:61`), on registry-mock fixtures:
+/// re-adding at `@latest` replaces the on-disk hoisted directory with
+/// the newly resolved version.
+#[test]
+fn overwriting_is_positive_with_latest() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
+
+    pacquet.with_args(["add", "@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0"]).assert().success();
+    assert_eq!(
+        read_pkg_version(&workspace, "node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep"),
+        "100.0.0"
+    );
+
+    pacquet_at(&workspace)
+        .with_args(["add", "@pnpm.e2e/dep-of-pkg-with-1-dep@latest"])
+        .assert()
+        .success();
+    let on_disk = read_pkg_version(&workspace, "node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep");
+    assert_ne!(on_disk, "100.0.0", "the hoisted directory must be overwritten with `latest`");
+    let manifest = fs::read_to_string(workspace.join("package.json")).expect("read package.json");
+    let manifest: serde_json::Value = serde_json::from_str(&manifest).expect("parse package.json");
+    let spec = manifest["dependencies"]["@pnpm.e2e/dep-of-pkg-with-1-dep"]
+        .as_str()
+        .expect("dep recorded in the manifest");
+    assert!(spec.contains(&on_disk), "manifest spec {spec:?} must pin the on-disk {on_disk}");
+
+    drop((root, mock_instance));
+}
+
+/// TS: `overwriting existing files in node_modules`
+/// (`hoistedNodeLinker/install.ts:83`): a pre-existing wrong occupant
+/// (a symlink squatting the package's path) is replaced by the real
+/// package.
+#[test]
+fn overwriting_existing_files_in_node_modules() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
+
+    fs::create_dir_all(workspace.join("node_modules")).expect("create node_modules");
+    std::os::unix::fs::symlink(&workspace, workspace.join("node_modules/is-positive"))
+        .expect("plant a wrong occupant symlink");
+
+    pacquet.with_args(["add", "is-positive@1.0.0"]).assert().success();
+    assert_eq!(read_pkg_version(&workspace, "node_modules/is-positive"), "1.0.0");
+    assert!(
+        is_real_dir(&workspace, "node_modules/is-positive"),
+        "the squatting symlink must be replaced by the real package directory",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// TS: `preserve subdeps on update` (`hoistedNodeLinker/install.ts:97`):
+/// updating the parent replaces its directory but keeps the untouched
+/// nested conflict copy.
+#[test]
+fn preserve_subdeps_on_update() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
+
+    pacquet
+        .with_args(["add", "@pnpm.e2e/foobarqar@1.0.0", "@pnpm.e2e/bar@100.1.0"])
+        .assert()
+        .success();
+    assert_eq!(read_pkg_version(&workspace, "node_modules/@pnpm.e2e/bar"), "100.1.0");
+    assert_eq!(
+        read_pkg_version(&workspace, "node_modules/@pnpm.e2e/foobarqar/node_modules/@pnpm.e2e/bar"),
+        "100.0.0",
+    );
+
+    pacquet_at(&workspace).with_args(["add", "@pnpm.e2e/foobarqar@1.0.1"]).assert().success();
+    assert_eq!(read_pkg_version(&workspace, "node_modules/@pnpm.e2e/bar"), "100.1.0");
+    assert_eq!(read_pkg_version(&workspace, "node_modules/@pnpm.e2e/foobarqar"), "1.0.1");
+    assert_eq!(
+        read_pkg_version(&workspace, "node_modules/@pnpm.e2e/foobarqar/node_modules/@pnpm.e2e/bar"),
+        "100.0.0",
+        "the nested conflict copy must survive the parent's update",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// TS: `adding a new dependency to one of the workspace projects`
+/// (`hoistedNodeLinker/install.ts:119`): the added dep hoists into the
+/// shared root `node_modules` and only the targeted member's manifest
+/// changes.
+#[test]
+fn adding_a_new_dependency_to_a_workspace_project() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_yaml(
+        &workspace,
+        "nodeLinker: hoisted\npackages:\n  - project-1\n  - project-2\n",
+    );
+    fs::write(workspace.join("package.json"), serde_json::json!({ "name": "root" }).to_string())
+        .expect("write root package.json");
+    for (name, deps) in [
+        ("project-1", serde_json::json!({ "@pnpm.e2e/bar": "100.0.0" })),
+        ("project-2", serde_json::json!({ "@pnpm.e2e/foobarqar": "1.0.0" })),
+    ] {
+        fs::create_dir_all(workspace.join(name)).expect("create member dir");
+        fs::write(
+            workspace.join(name).join("package.json"),
+            serde_json::json!({ "name": name, "version": "1.0.0", "dependencies": deps })
+                .to_string(),
+        )
+        .expect("write member package.json");
+    }
+    pacquet.with_arg("install").assert().success();
+
+    pacquet_at(&workspace.join("project-1"))
+        .with_args(["add", "--save-dev", "is-negative@1.0.0"])
+        .assert()
+        .success();
+
+    let manifest = fs::read_to_string(workspace.join("project-1/package.json"))
+        .expect("read project-1 package.json");
+    let manifest: serde_json::Value = serde_json::from_str(&manifest).expect("parse manifest");
+    assert_eq!(manifest["dependencies"], serde_json::json!({ "@pnpm.e2e/bar": "100.0.0" }));
+    assert_eq!(manifest["devDependencies"], serde_json::json!({ "is-negative": "1.0.0" }));
+    assert_eq!(read_pkg_version(&workspace, "node_modules/@pnpm.e2e/bar"), "100.0.0");
+    assert_eq!(read_pkg_version(&workspace, "node_modules/is-negative"), "1.0.0");
+
+    drop((root, mock_instance));
+}
+
+/// TS: `installing the same package with alias and no alias`
+/// (`hoistedNodeLinker/install.ts:172`): the aliased dir, the
+/// real-named dir, and the aliasing package all materialize, at one
+/// underlying version.
+#[test]
+fn installing_same_package_with_alias_and_no_alias() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
+
+    pacquet
+        .with_args([
+            "add",
+            "@pnpm.e2e/pkg-with-1-aliased-dep@100.0.0",
+            "@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0",
+        ])
+        .assert()
+        .success();
+
+    assert_eq!(
+        read_pkg_version(&workspace, "node_modules/@pnpm.e2e/pkg-with-1-aliased-dep"),
+        "100.0.0"
+    );
+    let direct = read_pkg_version(&workspace, "node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep");
+    let aliased = read_pkg_version(&workspace, "node_modules/dep");
+    assert_eq!(direct, aliased, "alias and real name must resolve to one version");
+    assert_eq!(direct, "100.1.0");
+
+    drop((root, mock_instance));
+}
+
+/// TS: `installing with hoisted node-linker a package that is a peer
+/// dependency of itself` (`hoistedNodeLinker/install.ts:329`,
+/// pnpm/pnpm#8854): the self-peer must not be recorded as a
+/// `peerDependencies` entry in the lockfile.
+#[test]
+fn package_that_is_peer_dependency_of_itself() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
+
+    pacquet.with_args(["add", "@pnpm.e2e/peer-of-itself@1.0.0"]).assert().success();
+    assert!(workspace.join("node_modules/@pnpm.e2e/peer-of-itself").exists());
+
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    let lockfile: pacquet_lockfile::Lockfile =
+        serde_saphyr::from_str(&lockfile).expect("parse pnpm-lock.yaml");
+    let packages = lockfile.packages.expect("lockfile has a packages section");
+    let (_, metadata) = packages
+        .iter()
+        .find(|(key, _)| key.to_string() == "@pnpm.e2e/peer-of-itself@1.0.0")
+        .expect("peer-of-itself is recorded in packages");
+    assert!(
+        metadata.peer_dependencies.is_none(),
+        "a self-peer must not be recorded as a peerDependencies entry: {:?}",
+        metadata.peer_dependencies,
+    );
+
+    drop((root, mock_instance));
+}
+
 mod known_failures {
     //! Hoisted-node-linker cases blocked on features pacquet hasn't
     //! built yet. Each stubs the not-yet-built subject through
     //! [`pacquet_testing_utils::allow_known_failure`] so the test exits
-    //! early rather than masking a real bug.
+    //! early rather than masking a real bug. The `pnpm add` / update
+    //! manifest-mutation cases formerly stubbed here are real tests in
+    //! the parent module since the prune-stale-modules reconciliation
+    //! landed.
 
     use pacquet_testing_utils::{
         allow_known_failure,
         known_failure::{KnownFailure, KnownResult},
     };
-
-    fn manifest_mutation_via_pnpm_add() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "Pacquet doesn't yet implement the `pnpm add` / update \
-             manifest-mutation flow these tests exercise (add a dep, or \
-             bump a dist-tag, then reinstall). Partial install / re-hoist \
-             across runs is tracked by pnpm/pacquet#433.",
-        ))
-    }
 
     fn hoisted_workspace_duplicate_materialization() -> KnownResult<()> {
         Err(KnownFailure::new(
@@ -612,41 +804,6 @@ mod known_failures {
              pre/postinstall-script and local-bin assertions under the \
              hoisted linker can't be exercised on the fresh path.",
         ))
-    }
-
-    #[test]
-    fn overwriting_is_positive_with_latest() {
-        allow_known_failure!(manifest_mutation_via_pnpm_add());
-    }
-
-    #[test]
-    fn overwriting_existing_files_in_node_modules() {
-        allow_known_failure!(manifest_mutation_via_pnpm_add());
-    }
-
-    #[test]
-    fn preserve_subdeps_on_update() {
-        allow_known_failure!(manifest_mutation_via_pnpm_add());
-    }
-
-    #[test]
-    fn adding_a_new_dependency_to_a_workspace_project() {
-        allow_known_failure!(manifest_mutation_via_pnpm_add());
-    }
-
-    /// Relies on `pnpm add` of multiple specifiers plus a dist-tag
-    /// bump to pin the aliased and unaliased copies to the same
-    /// version.
-    #[test]
-    fn installing_same_package_with_alias_and_no_alias() {
-        allow_known_failure!(manifest_mutation_via_pnpm_add());
-    }
-
-    /// Adds the dep via `pnpm add --save` and then introspects the
-    /// written lockfile's `peerDependencies` entry.
-    #[test]
-    fn package_that_is_peer_dependency_of_itself() {
-        allow_known_failure!(manifest_mutation_via_pnpm_add());
     }
 
     #[test]

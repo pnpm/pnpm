@@ -501,20 +501,15 @@ impl CreateVirtualStore<'_> {
         // count so a warm reinstall against an unchanged lockfile
         // reports `added: 0`.
         //
-        // `pnpm:stats removed: 0` emits a placeholder `0` when there's
-        // nothing to prune so consumers don't render a stale "removed"
-        // count from a previous install. Pacquet has no pruning
-        // pipeline yet, so the placeholder is the truthful value today.
+        // The paired `pnpm:stats removed` event is emitted by the
+        // caller from [`crate::PruneStaleModules`]'s result, so each
+        // install carries exactly one `added` and one `removed`.
         Reporter::emit(&LogEvent::Stats(StatsLog {
             level: LogLevel::Debug,
             message: StatsMessage::Added {
                 prefix: requester.to_owned(),
                 added: snapshot_entries.len() as u64,
             },
-        }));
-        Reporter::emit(&LogEvent::Stats(StatsLog {
-            level: LogLevel::Debug,
-            message: StatsMessage::Removed { prefix: requester.to_owned(), removed: 0 },
         }));
 
         // Union the cache keys from survivors and skipped snapshots

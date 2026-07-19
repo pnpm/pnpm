@@ -164,7 +164,7 @@ pub fn prune_direct_deps_excluded_by_groups(
 /// removals should operate on, or `None` when there is nothing to
 /// prune (the directory doesn't exist) or when the resolution escapes
 /// the workspace — never delete through an escape.
-fn confined_modules_dir(modules_dir: &Path, workspace_root: &Path) -> Option<PathBuf> {
+pub(crate) fn confined_modules_dir(modules_dir: &Path, workspace_root: &Path) -> Option<PathBuf> {
     let modules_canon = std::fs::canonicalize(modules_dir).ok()?;
     let root_canon = std::fs::canonicalize(workspace_root).ok()?;
     if modules_canon.starts_with(&root_canon) {
@@ -188,7 +188,7 @@ fn is_real_dir(path: &Path) -> bool {
         && read_symlink_dir(path).is_err()
 }
 
-fn selected_groups(included: IncludedDependencies) -> Vec<DependencyGroup> {
+pub(crate) fn selected_groups(included: IncludedDependencies) -> Vec<DependencyGroup> {
     let mut groups = Vec::with_capacity(3);
     if included.dependencies {
         groups.push(DependencyGroup::Prod);
@@ -202,7 +202,10 @@ fn selected_groups(included: IncludedDependencies) -> Vec<DependencyGroup> {
     groups
 }
 
-fn remove_direct_dep_link(modules_dir: &Path, name: &str) -> Result<(), PruneDirectDepsError> {
+pub(crate) fn remove_direct_dep_link(
+    modules_dir: &Path,
+    name: &str,
+) -> Result<(), PruneDirectDepsError> {
     let link =
         safe_join_modules_dir(modules_dir, name).map_err(PruneDirectDepsError::InvalidAlias)?;
     // For a scoped alias the join passes through `@scope/`; refuse to

@@ -106,6 +106,7 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
         // `rebuild` re-runs dependency build scripts, not the root
         // project's own lifecycle scripts.
         is_full_install: false,
+        installs_only: true,
         resolved_packages,
         supported_architectures: config.supported_architectures.clone(),
         node_linker: config.node_linker,
