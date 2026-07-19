@@ -601,9 +601,11 @@ fn add_without_version_respects_minimum_release_age() {
 }
 
 /// `add` saves into one dependency group, but its install must keep every
-/// group: the transitive optionals of the added package have to be
-/// materialized (not swept as surplus right after linking, which left the
-/// alias symlink dangling — the `pnpm add -g @openai/codex` failure).
+/// group: the added package's transitive optionals must be materialized in
+/// the virtual store and recorded in the current lockfile, and the alias
+/// symlink inside the dependent package must resolve. A missing slot here
+/// is what breaks a globally installed bin at runtime with "Missing
+/// optional dependency" (e.g. `@openai/codex`'s platform binary).
 #[test]
 fn add_materializes_transitive_optional_dependencies() {
     let (root, workspace, anchor) =
@@ -632,8 +634,8 @@ fn add_materializes_transitive_optional_dependencies() {
 }
 
 /// `add` into one dependency group must leave the other groups' entries in
-/// the wanted lockfile and `node_modules` — a prod `add` used to erase the
-/// project's devDependencies from both.
+/// the wanted lockfile and `node_modules`: a prod `add` must not erase the
+/// project's devDependencies from either.
 #[test]
 fn add_keeps_entries_of_other_dependency_groups() {
     let (root, workspace, anchor) =

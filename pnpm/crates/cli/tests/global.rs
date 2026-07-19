@@ -126,10 +126,10 @@ fn global_add_list_remove_round_trip() {
 }
 
 /// A global add must materialize the added package's transitive
-/// `optionalDependencies` in the group's virtual store. They used to be
-/// swept as surplus right after linking, leaving a dangling alias symlink —
-/// the `pnpm add -g @openai/codex` "missing optional dependency
-/// `@openai/codex-darwin-arm64`" failure.
+/// `optionalDependencies` in the group's virtual store: a missing slot
+/// dangles the alias symlink, and the globally installed bin then fails at
+/// runtime with "Missing optional dependency" (e.g. `@openai/codex`'s
+/// platform binary).
 #[cfg(unix)]
 #[test]
 fn global_add_materializes_transitive_optional_dependencies() {
