@@ -535,7 +535,7 @@ async fn handles_registry_under_a_subpath_without_a_trailing_slash() {
     assert_eq!(result, "Logged out of https://example.com/npm/registry/");
     assert_eq!(
         REVOKES.lock().unwrap()[0].0,
-        "https://example.com/npm/registry/-/user/token/subpath-token"
+        "https://example.com/npm/registry/-/user/token/subpath-token",
     );
     assert_eq!(WRITES.lock().unwrap()[0].1, "");
 }
