@@ -226,6 +226,7 @@ where
             // own lifecycle scripts must not run — they fire only for a
             // full install.
             is_full_install: false,
+            installs_only: false,
             resolved_packages,
             supported_architectures,
             node_linker: config.node_linker,
@@ -320,6 +321,7 @@ where
                 trust_lockfile: config.trust_lockfile,
                 update_checksums: false,
                 is_full_install: false,
+                installs_only: false,
                 resolved_packages,
                 supported_architectures,
                 node_linker: config.node_linker,

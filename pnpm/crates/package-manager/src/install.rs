@@ -208,6 +208,15 @@ where
     /// install such as `pacquet add foo` does not fire the root
     /// project's preinstall/postinstall/prepare/etc.
     pub is_full_install: bool,
+    /// Whether every mutation this run performs is a plain install
+    /// (upstream's `installsOnly`, true for `pacquet install` /
+    /// `pacquet update`). A plain install may recreate a modules
+    /// directory whose layout settings drifted; `add` / `remove` set
+    /// this `false` and fail with the upstream `*_DIFF` errors
+    /// instead — pnpm's `validateModules` contract. Distinct from
+    /// [`Self::is_full_install`], which stays `false` for a named
+    /// `update`.
+    pub installs_only: bool,
     /// `supportedArchitectures` after merging
     /// `Config::supported_architectures` from `pnpm-workspace.yaml`
     /// with the CLI per-axis overrides (`--cpu` / `--os` / `--libc`).
@@ -317,6 +326,27 @@ pub enum InstallError {
     )]
     #[diagnostic(code(ERR_PNPM_NO_LOCKFILE))]
     NoLockfile,
+
+    // The three `*_DIFF` errors below mirror pnpm's `validateModules`:
+    // a non-plain-install mutation refuses to touch a modules directory
+    // whose persisted layout settings disagree with the current config.
+    #[display(
+        r#"This modules directory was created using a different hoist-pattern value. Run "pnpm install" to recreate the modules directory."#
+    )]
+    #[diagnostic(code(ERR_PNPM_HOIST_PATTERN_DIFF))]
+    HoistPatternDiff,
+
+    #[display(
+        r#"This modules directory was created using a different public-hoist-pattern value. Run "pnpm install" to recreate the modules directory."#
+    )]
+    #[diagnostic(code(ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF))]
+    PublicHoistPatternDiff,
+
+    #[display(
+        r#"This modules directory was created using a different virtual-store-dir-max-length value. Run "pnpm install" to recreate the modules directory."#
+    )]
+    #[diagnostic(code(ERR_PNPM_VIRTUAL_STORE_DIR_MAX_LENGTH_DIFF))]
+    VirtualStoreDirMaxLengthDiff,
 
     #[diagnostic(transparent)]
     WithFreshLockfile(#[error(source)] InstallWithFreshLockfileError),
@@ -672,6 +702,7 @@ where
             trust_lockfile,
             update_checksums,
             is_full_install,
+            installs_only,
             supported_architectures,
             node_linker,
             lockfile_only,
@@ -1277,12 +1308,32 @@ where
         // skipped — but a file whose layout parses while some later field
         // does not would otherwise merge against `None` and silently prune
         // those entries, so that case fails instead.
-        let previous_modules_metadata = if filtered_install && !resolve_only && !read_failed {
-            pacquet_modules_yaml::read_modules_manifest::<Host>(&config.modules_dir)
-                .map_err(InstallError::ReadModules)?
+        let previous_modules_metadata = if !resolve_only && !read_failed {
+            match pacquet_modules_yaml::read_modules_manifest::<Host>(&config.modules_dir) {
+                Ok(modules) => modules,
+                // A filtered install merges the unselected importers'
+                // entries out of this file, so it cannot proceed
+                // without it; an unfiltered install only loses the
+                // orphan hoist-link cleanup.
+                Err(error) if filtered_install => return Err(InstallError::ReadModules(error)),
+                Err(error) => {
+                    tracing::warn!(
+                        target: "pacquet::install",
+                        ?error,
+                        "failed to fully parse .modules.yaml; skipping orphan hoist-link cleanup",
+                    );
+                    None
+                }
+            }
         } else {
             None
         };
+        let prior_hoisted_dependencies =
+            previous_modules_metadata.as_ref().map(|modules| &modules.hoisted_dependencies);
+        // On a filtered install the wanted lockfile only covers the
+        // selected importers; a snapshot diff against it would misread
+        // every unselected importer's packages as orphans.
+        let prune_orphans = !filtered_install;
 
         // The purge keys off *layout* drift only, not `included`: an
         // included (`--prod`<->full) change is handled by relinking, so it
@@ -1300,6 +1351,13 @@ where
             };
 
         if !resolve_only && is_inconsistent {
+            // A plain install may recreate the drifted modules dir;
+            // `add` / `remove` must surface the drift instead
+            // (upstream `validateModules` with `forceNewModules =
+            // installsOnly`).
+            if !installs_only && let Some(modules) = modules_manifest {
+                check_modules_settings_diff(modules, config)?;
+            }
             // Settings mismatch forces a rewrite of node_modules.
             let (is_safe, target_dir) = if config.modules_dir.exists() {
                 match (
@@ -1454,7 +1512,14 @@ where
             // An explicit `pacquet rebuild` always re-runs the build phase,
             // so it never short-circuits here.
             && rebuild.is_none()
+            && frozen_tree_intact(wanted_lockfile, modules, config, &workspace_root, node_linker)
         {
+            // The full frozen path runs the offline structural
+            // name gate before any materialization; the up-to-date
+            // early return must not skip it (the resolution-verifier
+            // fan-out below is policy-gated and can be empty).
+            pacquet_lockfile_verification::verify_lockfile_dependency_names(wanted_lockfile)
+                .map_err(InstallError::LockfileVerification)?;
             // Nothing to materialize means no fetch to overlap; verify
             // eagerly before the up-to-date early return.
             if let Some(lockfile_verification_override) = lockfile_verification_override {
@@ -1647,6 +1712,8 @@ where
                 tarball_mem_cache: Some(&tarball_mem_cache),
                 seed_skipped: modules_manifest.map(|manifest| manifest.skipped.clone()),
                 rebuild: rebuild.as_ref(),
+                prior_hoisted_dependencies,
+                prune_orphans,
             }
             .run::<Reporter>()
             .await
@@ -1771,6 +1838,9 @@ where
                 pnpmfile_hook_override,
                 real_importer_ids: requested_importer_ids.as_ref().map(|_| &real_importer_ids),
                 selected_importer_ids: requested_importer_ids.as_ref(),
+                current_lockfile: current_lockfile.as_ref(),
+                prior_hoisted_dependencies,
+                prune_orphans,
             }
             .run::<Reporter>()
             .await
@@ -2480,6 +2550,119 @@ fn modules_consistent_with(
 /// vendored directory, stray files) on a routine flag change. The
 /// up-to-date fast path still compares `included` via
 /// [`modules_consistent_with`], so the relink it triggers stays correct.
+/// On-disk probe backing the frozen no-op short-circuit: the
+/// short-circuit skips the materialization walk entirely, so it must
+/// first prove the tree it would skip is still whole — pnpm's headless
+/// path stats every package dir on every run, which is what repairs a
+/// hand-deleted package. One metadata call per snapshot slot plus one
+/// per direct-dep link; any missing entry falls through to the full
+/// frozen path, which re-materializes it (emitting
+/// `pnpm:_broken_node_modules`).
+///
+/// Under a global virtual store the slot paths depend on graph hashes
+/// the short-circuit doesn't compute, and the hoisted linker has no
+/// virtual-store slots; both probe only the importer links.
+fn frozen_tree_intact(
+    wanted: &Lockfile,
+    modules: &pacquet_modules_yaml::ModulesLayout,
+    config: &Config,
+    workspace_root: &Path,
+    node_linker: NodeLinker,
+) -> bool {
+    let skipped = crate::SkippedSnapshots::from_strings(&modules.skipped);
+    let probe_slots =
+        !matches!(node_linker, NodeLinker::Hoisted) && !config.enable_global_virtual_store;
+    if probe_slots && let Some(snapshots) = wanted.snapshots.as_ref() {
+        let layout = crate::VirtualStoreLayout::legacy(
+            config.virtual_store_dir.clone(),
+            config.virtual_store_dir_max_length as usize,
+        );
+        let all_slots_present = snapshots.keys().all(|key| {
+            if skipped.contains(key) {
+                return true;
+            }
+            // The name is lockfile-controlled: join it with the same
+            // traversal-rejecting helper the linkers use, and treat a
+            // malformed name as not-intact so the full path's
+            // structural lockfile gate rejects it.
+            let slot_node_modules = layout.slot_dir(key).join("node_modules");
+            match crate::safe_join_modules_dir::safe_join_modules_dir(
+                &slot_node_modules,
+                &key.name.to_string(),
+            ) {
+                Ok(dir) => dir.is_dir(),
+                Err(_) => false,
+            }
+        });
+        if !all_slots_present {
+            return false;
+        }
+    }
+    let groups = crate::prune_direct_deps::selected_groups(modules.included);
+    let modules_dir_name: &std::ffi::OsStr =
+        config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"));
+    wanted.importers.iter().all(|(importer_id, snapshot)| {
+        if crate::symlink_direct_dependencies::validate_importer_id(importer_id).is_err() {
+            return true;
+        }
+        let modules_dir =
+            crate::symlink_direct_dependencies::importer_root_dir(workspace_root, importer_id)
+                .join(modules_dir_name);
+        crate::symlink_direct_dependencies::direct_dep_names_for_importer(
+            snapshot,
+            groups.iter().copied(),
+            &skipped,
+            false,
+        )
+        .iter()
+        .all(|name| {
+            match crate::safe_join_modules_dir::safe_join_modules_dir(&modules_dir, name) {
+                // `metadata` follows the link, so a dangling direct-dep
+                // symlink (a wiped GVS store, a hand-deleted target)
+                // reads as broken and falls through to the repairing
+                // full path.
+                Ok(link) => std::fs::metadata(link).is_ok(),
+                // A malformed alias never probes the disk; the full
+                // path rejects it with its own typed error.
+                Err(_) => true,
+            }
+        })
+    })
+}
+
+/// The `validateModules` half pacquet enforces: when the mutation is
+/// not a plain install (upstream `installsOnly === false`), a drift in
+/// the persisted layout settings fails with the upstream `*_DIFF`
+/// error instead of silently recreating the modules directory. Check
+/// order matches upstream `validateModules`. Drift in the fields this
+/// does not cover (store dir, node linker, layout version) still takes
+/// the recreate path.
+fn check_modules_settings_diff(
+    modules: &pacquet_modules_yaml::ModulesLayout,
+    config: &Config,
+) -> Result<(), InstallError> {
+    if modules.virtual_store_dir_max_length != config.virtual_store_dir_max_length {
+        return Err(InstallError::VirtualStoreDirMaxLengthDiff);
+    }
+    if normalized_pattern(modules.public_hoist_pattern.as_deref())
+        != normalized_pattern(config.public_hoist_pattern.as_deref())
+    {
+        return Err(InstallError::PublicHoistPatternDiff);
+    }
+    if normalized_pattern(modules.hoist_pattern.as_deref())
+        != normalized_pattern(config.hoist_pattern.as_deref())
+    {
+        return Err(InstallError::HoistPatternDiff);
+    }
+    Ok(())
+}
+
+/// Upstream compares patterns with `?? []`: `None` and an empty list
+/// are the same disabled state.
+fn normalized_pattern(pattern: Option<&[String]>) -> &[String] {
+    pattern.unwrap_or(&[])
+}
+
 fn modules_layout_consistent_with(
     modules: &pacquet_modules_yaml::ModulesLayout,
     config: &Config,
@@ -2487,8 +2670,15 @@ fn modules_layout_consistent_with(
 ) -> bool {
     modules.layout_version == Some(LayoutVersion)
         && modules.node_linker == Some(map_node_linker(node_linker))
-        && modules.hoist_pattern == config.hoist_pattern
-        && modules.public_hoist_pattern == config.public_hoist_pattern
+        // Patterns compare normalized (upstream's `?? []`): `None` and
+        // an empty list are the same disabled state, so the pair must
+        // not read as layout drift — a purge every install for
+        // `hoistPattern: []` projects, and a spurious `*_DIFF` error
+        // for `add` / `remove`.
+        && normalized_pattern(modules.hoist_pattern.as_deref())
+            == normalized_pattern(config.hoist_pattern.as_deref())
+        && normalized_pattern(modules.public_hoist_pattern.as_deref())
+            == normalized_pattern(config.public_hoist_pattern.as_deref())
         && modules.virtual_store_dir_max_length == config.virtual_store_dir_max_length
         && modules.store_dir == config.store_dir.display().to_string()
         && modules.virtual_store_dir

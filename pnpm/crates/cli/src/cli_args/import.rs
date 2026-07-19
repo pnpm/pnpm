@@ -77,6 +77,7 @@ impl ImportArgs {
                 trust_lockfile: false,
                 update_checksums: false,
                 is_full_install: false,
+                installs_only: true,
                 resolved_packages,
                 supported_architectures: config.supported_architectures.clone(),
                 node_linker: config.node_linker,

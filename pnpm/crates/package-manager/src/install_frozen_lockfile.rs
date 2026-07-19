@@ -28,7 +28,9 @@ use pacquet_package_manifest::DependencyGroup;
 use pacquet_patching::{
     ExtendedPatchInfo, PatchKeyConflictError, ResolvePatchedDependenciesError, get_patch_info,
 };
-use pacquet_reporter::{IgnoredScriptsLog, LogEvent, LogLevel, Reporter, Stage, StageLog};
+use pacquet_reporter::{
+    IgnoredScriptsLog, LogEvent, LogLevel, Reporter, Stage, StageLog, StatsLog, StatsMessage,
+};
 use pacquet_resolving_resolver_base::ResolutionVerifier;
 use pacquet_store_dir::StoreIndexWriter;
 use pacquet_tarball::{MemCache, SharedReportedProgressKeys};
@@ -182,6 +184,13 @@ where
     /// `run_build_phase`'s `BuildPhaseInputs`. See
     /// [`crate::RebuildOptions`].
     pub rebuild: Option<&'a crate::RebuildOptions>,
+    /// `hoistedDependencies` recorded by the previous install's
+    /// `.modules.yaml`, for [`crate::PruneStaleModules`]'s orphan
+    /// hoist-link cleanup. `None` on a first install or when the file
+    /// couldn't be fully parsed.
+    pub prior_hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
+    /// See [`crate::PruneStaleModules::prune_orphans`].
+    pub prune_orphans: bool,
 }
 
 /// Error type of [`InstallFrozenLockfile`].
@@ -206,6 +215,11 @@ pub enum InstallFrozenLockfileError {
 
     #[diagnostic(transparent)]
     SymlinkDirectDependencies(#[error(source)] SymlinkDirectDependenciesError),
+
+    /// Surfaces a failure while removing stale direct-dep or hoist
+    /// links during the pre-link reconciliation pass.
+    #[diagnostic(transparent)]
+    PruneStaleModules(#[error(source)] crate::PruneDirectDepsError),
 
     /// Surfaces a failure to cross-link a Bit root component's injected
     /// members into one another's virtual-store slot. Only reachable
@@ -595,6 +609,8 @@ where
             tarball_mem_cache,
             seed_skipped,
             rebuild,
+            prior_hoisted_dependencies,
+            prune_orphans,
         } = self;
 
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
@@ -1075,6 +1091,38 @@ where
             pre_hoist.as_ref().map(|plan| {
                 collect_public_hoist_targets(&plan.result, &plan.graph, &layout, &plan.skipped)
             });
+
+        // Reconcile before linking: stale direct-dep links and
+        // orphaned hoist links must vacate their slots so the relink +
+        // rehoist below can claim them. The hoisted linker is excluded
+        // — its previous-graph diff removes orphans and emits the
+        // `pnpm:stats` `removed` event itself (see
+        // [`crate::link_hoisted_modules()`]); on the isolated linker
+        // the event fires here, so every install carries exactly one,
+        // pairing the `added` emitted in `CreateVirtualStore`.
+        if !is_hoisted {
+            let removed_count = match current_lockfile {
+                Some(current) => crate::PruneStaleModules {
+                    config,
+                    workspace_root,
+                    wanted_lockfile: lockfile,
+                    current_lockfile: current,
+                    prior_hoisted_dependencies,
+                    included_groups: &dependency_groups,
+                    prune_orphans,
+                }
+                .run::<Reporter>()
+                .map_err(InstallFrozenLockfileError::PruneStaleModules)?,
+                None => 0,
+            };
+            Reporter::emit(&LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Removed {
+                    prefix: requester.to_owned(),
+                    removed: removed_count,
+                },
+            }));
+        }
 
         if !is_hoisted {
             // Importer ids backed by the install's own declared
@@ -1672,6 +1720,7 @@ pub(crate) fn run_hoisted_linker<Reporter: self::Reporter>(
         import_method: config.package_import_method,
         logged_methods,
         requester,
+        confine_root: walker_lockfile_dir,
     };
     link_hoisted_modules::<Reporter>(&link_opts).map_err(HoistedLinkerError::LinkHoistedModules)?;
     link_selected_hoisted_direct_dependencies(

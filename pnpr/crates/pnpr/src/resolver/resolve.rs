@@ -208,6 +208,7 @@ pub async fn resolve(
         trust_lockfile: true,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: NodeLinker::Isolated,
         lockfile_only: true,

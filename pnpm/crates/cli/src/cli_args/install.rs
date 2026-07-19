@@ -471,6 +471,7 @@ impl InstallArgs {
             // package arguments), so the project's own lifecycle
             // scripts run. `pacquet add` sets this to `false`.
             is_full_install: true,
+            installs_only: true,
             resolved_packages,
             supported_architectures,
             node_linker,
@@ -827,6 +828,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
             trust_lockfile: true,
             update_checksums: false,
             is_full_install: true,
+            installs_only: true,
             resolved_packages: &state.resolved_packages,
             supported_architectures: link.supported_architectures,
             node_linker: link.node_linker,
@@ -990,6 +992,7 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         trust_lockfile: true,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         resolved_packages: &state.resolved_packages,
         supported_architectures: link.supported_architectures,
         node_linker: link.node_linker,

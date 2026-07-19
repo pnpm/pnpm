@@ -278,6 +278,7 @@ impl Update<'_> {
             // (pnpm's `installSome`); a bare `pacquet update` is a full
             // install that runs the project's own lifecycle scripts.
             is_full_install: packages.is_empty(),
+            installs_only: true,
             resolved_packages,
             supported_architectures,
             node_linker: config.node_linker,
@@ -385,6 +386,7 @@ impl Update<'_> {
             trust_lockfile: config.trust_lockfile,
             update_checksums: false,
             is_full_install: packages.is_empty(),
+            installs_only: true,
             resolved_packages,
             supported_architectures,
             node_linker: config.node_linker,

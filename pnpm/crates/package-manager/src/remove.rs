@@ -121,6 +121,7 @@ impl Remove<'_> {
             // lifecycle scripts must not run — they fire only on a full
             // install.
             is_full_install: false,
+            installs_only: false,
             resolved_packages,
             supported_architectures,
             node_linker: config.node_linker,
@@ -198,6 +199,7 @@ impl Remove<'_> {
             trust_lockfile: config.trust_lockfile,
             update_checksums: false,
             is_full_install: false,
+            installs_only: false,
             resolved_packages,
             supported_architectures,
             node_linker: config.node_linker,

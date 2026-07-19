@@ -9,11 +9,7 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_lockfile::{Lockfile, PkgName};
 use pacquet_testing_utils::bin::CommandTempCwd;
-use std::{fs, path::Path, process::Command};
-
-fn pacquet_in(workspace: &Path) -> Command {
-    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
-}
+use std::{fs, path::Path};
 
 fn read_wanted_lockfile(workspace: &Path) -> Lockfile {
     let text =

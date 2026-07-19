@@ -153,6 +153,7 @@ impl LinkArgs {
             trust_lockfile: config.trust_lockfile,
             update_checksums: false,
             is_full_install: false,
+            installs_only: false,
             resolved_packages,
             supported_architectures: config.supported_architectures.clone(),
             node_linker: config.node_linker,

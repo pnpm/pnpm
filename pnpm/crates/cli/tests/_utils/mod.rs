@@ -19,6 +19,14 @@ use std::{
 };
 use tempfile::TempDir;
 
+/// Fresh `pnpm` invocation anchored in `workspace`, for tests that run
+/// the binary more than once (an `assert_cmd` command is consumed by
+/// its first `.assert()`).
+#[must_use]
+pub fn pacquet_in(workspace: &Path) -> Command {
+    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
+}
+
 /// Flip the `enableGlobalVirtualStore` key in the `pnpm-workspace.yaml`
 /// that [`pacquet_testing_utils::bin::CommandTempCwd::add_mocked_registry`]
 /// populated with `storeDir` / `cacheDir` / `enableGlobalVirtualStore: false`.

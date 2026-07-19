@@ -370,6 +370,7 @@ fn run_install_inner(
                 trust_lockfile: config.trust_lockfile,
                 update_checksums: false,
                 is_full_install,
+                installs_only: true,
                 supported_architectures: None,
                 node_linker: config.node_linker,
                 lockfile_only,
