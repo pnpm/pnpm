@@ -2002,10 +2002,11 @@ fn returns_skipped_when_lockfile_is_not_a_regular_file() {
         &[(dir.path().to_path_buf(), &manifest)],
     );
 
+    dbg!(&decision);
     assert!(matches!(
         decision,
-        Decision::Skipped { reason } if reason.contains("cannot be checked"),
-    ),);
+        Decision::Skipped { reason } if reason.contains("cannot be checked")
+    ));
 }
 
 #[cfg(unix)]
@@ -2026,10 +2027,11 @@ fn returns_skipped_without_following_a_lockfile_symlink() {
         &[(dir.path().to_path_buf(), &manifest)],
     );
 
+    dbg!(&decision);
     assert!(matches!(
         decision,
-        Decision::Skipped { reason } if reason.contains("cannot be checked"),
-    ),);
+        Decision::Skipped { reason } if reason.contains("cannot be checked")
+    ));
 }
 
 #[test]
@@ -2051,10 +2053,11 @@ fn returns_skipped_without_scanning_an_oversized_changed_lockfile() {
         &[(dir.path().to_path_buf(), &manifest)],
     );
 
+    dbg!(&decision);
     assert!(matches!(
         decision,
-        Decision::Skipped { reason } if reason.contains("cannot be checked"),
-    ),);
+        Decision::Skipped { reason } if reason.contains("cannot be checked")
+    ));
 }
 
 /// Minimal valid lockfile matching a manifest with
