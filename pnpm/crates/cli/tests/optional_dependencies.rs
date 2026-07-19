@@ -217,11 +217,11 @@ mod known_failures {
     fn install_force_flag() -> KnownResult<()> {
         Err(KnownFailure::new(
             "`pnpm install --force` is not wired on pacquet's install \
-             command yet. `Config::force` exists and the installability \
-             check honors it (`pnpm deploy --force` uses that path), but \
-             the install/add CLI does not expose the flag, so the \
-             force-installs-incompatible-optionals behavior is \
-             unreachable end to end.",
+             command yet (pnpm/pnpm#13142). `Config::force` exists and \
+             the installability check honors it (`pnpm deploy --force` \
+             uses that path), but the install/add CLI does not expose \
+             the flag, so the force-installs-incompatible-optionals \
+             behavior is unreachable end to end.",
         ))
     }
 
