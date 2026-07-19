@@ -1533,6 +1533,26 @@ where
             Option<Lockfile>,
         ) = if take_frozen_path {
             let lockfile = lockfile.expect("dispatch verified lockfile is present");
+            // pnpm's headless installer announces itself whenever it is
+            // entered — also on a cold `node_modules` and on subset
+            // (`--filter`) installs — not only when nothing needs to be
+            // materialized. `pnpm fetch` (`ignore_manifest_check`) gets
+            // the ignorePackageManifest wording instead. Upstream's
+            // headless entry returns before the announcement for an
+            // empty lockfile (`isEmptyLockfile`), and an explicit
+            // `pnpm rebuild` is not an install, so both stay silent.
+            if rebuild.is_none() && !lockfile.is_empty() {
+                let message = if ignore_manifest_check {
+                    "Importing packages to virtual store"
+                } else {
+                    "Lockfile is up to date, resolution step is skipped"
+                };
+                Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                    level: LogLevel::Info,
+                    message: message.to_string(),
+                    prefix: prefix.clone(),
+                }));
+            }
             let initial_materialization_ids = requested_importer_ids.as_ref().map(|selected| {
                 if matches!(node_linker, NodeLinker::Hoisted) {
                     lockfile.importers.keys().cloned().collect()
