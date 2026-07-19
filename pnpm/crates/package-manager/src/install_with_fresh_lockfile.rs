@@ -23,7 +23,7 @@ use pacquet_modules_yaml::IncludedDependencies;
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{
-    DeprecationLog, HookLog, LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog,
+    DeprecationLog, GlobalLog, HookLog, LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog,
     SkippedOptionalPackage, SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog,
 };
 use pacquet_resolving_default_resolver::DefaultResolver;
@@ -404,6 +404,12 @@ pub enum InstallWithFreshLockfileError {
     /// lockfile's top-level `patchedDependencies` block.
     #[diagnostic(transparent)]
     CalcPatchHashes(#[error(source)] pacquet_patching::CalcPatchHashError),
+
+    /// One or more configured patches were never applied because no
+    /// package matched their key. Surfaced as `ERR_PNPM_UNUSED_PATCH`
+    /// unless `allowUnusedPatches` is `true`.
+    #[diagnostic(transparent)]
+    UnusedPatch(#[error(source)] pacquet_patching::UnusedPatchError),
 
     /// A user-defined `namedRegistries` entry mapped an alias to a
     /// non-http(s) URL. Surfaced at resolver construction so the
@@ -1390,6 +1396,30 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         )
         .await
         .map_err(InstallWithFreshLockfileError::MinimumReleaseAge)?;
+        // Verify that every configured patch was applied at least once.
+        // Only checked during full resolution (fresh lockfile path) — the
+        // frozen lockfile path trusts the lockfile's recorded patches.
+        if let Some(ref deps) = patched_dependencies {
+            match pacquet_patching::verify_patches(
+                deps,
+                &workspace_result.merged_tree.applied_patches,
+                config.allow_unused_patches,
+            ) {
+                Ok(None) => {}
+                Ok(Some(warning)) => {
+                    Reporter::emit(&LogEvent::Global(GlobalLog {
+                        level: LogLevel::Warn,
+                        message: format!(
+                            "The following patches were not used: {}",
+                            warning.unused_patches.join(", ")
+                        ),
+                    }));
+                }
+                Err(err) => {
+                    return Err(InstallWithFreshLockfileError::UnusedPatch(err));
+                }
+            }
+        }
         let total_nodes = workspace_result.peers.graph.len();
         // Hand the per-importer issues to the programmatic caller
         // before the graph is consumed below.

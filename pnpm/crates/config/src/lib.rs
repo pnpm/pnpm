@@ -1155,6 +1155,13 @@ pub struct Config {
     /// (`patches`) applies.
     pub patches_dir: Option<String>,
 
+    /// `allowUnusedPatches` from `pnpm-workspace.yaml`. When `true`,
+    /// configured patches that don't match any installed dependency
+    /// produce a warning instead of failing the install with
+    /// `ERR_PNPM_UNUSED_PATCH`. Default `false` — unused patches are
+    /// an error.
+    pub allow_unused_patches: bool,
+
     /// Raw `configDependencies` from `pnpm-workspace.yaml`: package
     /// name → version-with-integrity spec. Recorded verbatim in the
     /// workspace-state file so pnpm's `checkDepsStatus` sees the same

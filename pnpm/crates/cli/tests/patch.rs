@@ -1028,3 +1028,98 @@ fn patch_remove_unlinks_final_symlink_without_touching_target() {
 
     drop((root, mock_instance));
 }
+
+fn setup_configured_patch_with_allow_unused(
+    entries: &[(&str, &str)],
+    allow_unused: bool,
+) -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "is-positive": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
+    for (_key, file_name) in entries {
+        fs::write(workspace.join("patches").join(file_name), IS_POSITIVE_PATCH)
+            .expect("write patch file");
+    }
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("patchedDependencies:\n");
+    for (key, file_name) in entries {
+        writeln!(&mut workspace_yaml, "  {key}: patches/{file_name}")
+            .expect("append patchedDependencies entry");
+    }
+    if allow_unused {
+        workspace_yaml.push_str("allowUnusedPatches: true\n");
+    }
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+    (root, workspace, npmrc_info)
+}
+
+#[test]
+fn unused_patch_fails_with_err_pnpm_unused_patch() {
+    let (root, workspace, npmrc_info) = setup_configured_patch_with_allow_unused(
+        &[
+            ("is-positive@1.0.0", "is-positive@1.0.0.patch"),
+            ("is-negative@1.0.0", "is-positive@1.0.0.patch"),
+        ],
+        false,
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let output = pacquet(&workspace, ["install"]).output().expect("run install");
+
+    assert!(!output.status.success(), "install with unused patch should fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_UNUSED_PATCH"),
+        "stderr should contain ERR_PNPM_UNUSED_PATCH: {stderr}",
+    );
+    assert!(
+        stderr.contains("is-negative@1.0.0"),
+        "stderr should mention the unused patch key: {stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn unused_patch_warns_when_allow_unused_patches_is_set() {
+    let (root, workspace, npmrc_info) = setup_configured_patch_with_allow_unused(
+        &[
+            ("is-positive@1.0.0", "is-positive@1.0.0.patch"),
+            ("is-negative@1.0.0", "is-positive@1.0.0.patch"),
+        ],
+        true,
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let output = pacquet(&workspace, ["install"]).output().expect("run install");
+
+    assert!(output.status.success(), "install should succeed with allowUnusedPatches");
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert!(
+        combined.contains("not used"),
+        "output should warn about unused patches: stdout={stdout}, stderr={stderr}",
+        stdout = String::from_utf8_lossy(&output.stdout),
+        stderr = String::from_utf8_lossy(&output.stderr),
+    );
+
+    drop((root, mock_instance));
+}
