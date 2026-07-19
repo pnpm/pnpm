@@ -186,28 +186,29 @@ Rust port notes:
 
 Primary frozen/headless tests:
 
-- [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:24` `patch package with exact version` — core scenario ported as `install_level_exact_version_patch_applies_with_frozen_reinstall` in `crates/cli/tests/patch.rs` (patched file + lockfile `patchedDependencies` entry + frozen replay); the frozen hoisted reinstall and side-effects-cache assertions are not ported yet.
-- [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:120` `patch package with version range` — core scenario ported as `install_level_range_patch_applies_with_frozen_reinstall` in `crates/cli/tests/patch.rs`; the hoisted frozen reinstall is not ported yet.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:297` `patch package when scripts are ignored` covers patches with ignored scripts and frozen reinstall.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:386` `patch package when the package is not in allowBuilds list` verifies patches apply even when builds are disallowed, including frozen and hoisted frozen paths.
+The four scenarios below share `assert_patch_install_scenario` in `crates/cli/tests/patch.rs`, which ports the whole upstream shape: patched file on disk, lockfile `patchedDependencies` entry and `(patch_hash=…)` snapshot key, the `;patch=<hash>` side-effects-cache row, the frozen reinstall, the frozen *hoisted* reinstall, and the offline unpatched-sibling project. Like upstream it pins `packageImportMethod: hardlink`, without which the sibling check cannot catch a patch that corrupts the shared store copy.
+
+- [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:24` `patch package with exact version` — `install_level_exact_version_patch_applies_with_frozen_reinstall`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:120` `patch package with version range` — `install_level_range_patch_applies_with_frozen_reinstall`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:297` `patch package when scripts are ignored` — `install_level_patch_applies_when_scripts_are_ignored`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:386` `patch package when the package is not in allowBuilds list` — `install_level_patch_applies_when_the_package_is_not_in_allow_builds`.
 
 Supporting tests:
 
-- [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:848` `installing with no modules directory and a patched dependency` covers headless patched dependency behavior when `enableModulesDir: false`.
+- [x] `TypeScript repo: installing/deps-restorer/test/index.ts:848` `installing with no modules directory and a patched dependency` — stubbed in `known_failures::installing_with_no_modules_directory_and_a_patched_dependency`: `enableModulesDir: false` is not a pacquet config setting, tracked in [pnpm/pnpm#12042](https://github.com/pnpm/pnpm/issues/12042) with the other unsupported installation settings. The NAPI binding accepts it and aliases it onto the lockfile-only path (`crates/napi/src/install.rs`), but `pacquet_config::Config` has no `enable_modules_dir` field, so the CLI cannot express it. Unstub once that setting lands.
 - [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:216` `patch package reports warning if not all patches are applied and allowUnusedPatches is set`
 - [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:246` `patch package throws an exception if not all patches are applied`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:269` `the patched package is updated if the patch is modified`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:475` `patch package when the patched package has no dependencies and appears multiple times`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:508` `patch package should fail when the exact version patch fails to apply`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:530` `patch package should fail when the version range patch fails to apply`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:552` `patch package should fail when the name-only range patch fails to apply`
+- [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:269` `the patched package is updated if the patch is modified` — `install_level_modified_patch_is_reapplied`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:475` `patch package when the patched package has no dependencies and appears multiple times` — `install_level_patch_applies_to_a_package_reached_multiple_times`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:508` `patch package should fail when the exact version patch fails to apply` — `install_level_exact_version_patch_that_does_not_apply_fails`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:530` `patch package should fail when the version range patch fails to apply` — `install_level_range_patch_that_does_not_apply_fails`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:552` `patch package should fail when the name-only range patch fails to apply` — `install_level_name_only_patch_that_does_not_apply_fails`.
 
 Rust port notes:
 
-- The primary tests are enough for the frozen installer milestone.
-- The supporting tests belong with patch parser/application correctness and should be ported when Rust has a patching subsystem.
 - Ported `allowUnusedPatches` warning test and `ERR_PNPM_UNUSED_PATCH` error test in `crates/cli/tests/patch.rs` as part of the `allow_unused_patches` config wiring.
-- Patch-application failure is pinned at unit level (`unmatching_hunk_errors_patch_failed`, `missing_target_file_errors_patch_failed` in `crates/patching/src/apply/tests.rs`); the install-level exact/range/name-only failure variants above are still unported.
+- The three install-level apply-failure variants assert `ERR_PNPM_PATCH_FAILED` plus upstream's `Could not apply patch` prefix. Unit-level coverage stays in `crates/patching/src/apply/tests.rs` (`unmatching_hunk_errors_patch_failed`, `missing_target_file_errors_patch_failed`).
+- The hoisted ports surfaced a pacquet-only bug: `BuildModules` resolved one `pkgRoot` per snapshot, so a package the hoisted walker nests under several consumers (version conflict) was patched at only one of them, and a warm reinstall re-imported the cached overlay at only one of them. `pkg_roots_by_key` now carries every location; the head still runs scripts and seeds the cache, while patch application and overlay re-imports walk the list. Pinned by `hoisted_patch_reaches_every_nested_copy_of_a_package`.
 
 ## Support Building Dependencies
 
@@ -252,10 +253,10 @@ Primary side-effects tests:
 Frozen/headless cross-coverage:
 
 - [ ] `TypeScript repo: installing/deps-installer/test/install/sideEffects.ts:50` `caching side effects of native package when hoisting is used` is skipped upstream but relevant to hoisting plus side-effects cache.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:24` `patch package with exact version` — the core patch scenario is now ported (see Support `patchedDependencies`); its side-effects-cache assertions are not.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:120` `patch package with version range` — same status as the exact-version entry above.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:297` `patch package when scripts are ignored`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:386` `patch package when the package is not in allowBuilds list`
+- [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:24` `patch package with exact version` — the side-effects-cache half is ported with the scenario (see Support `patchedDependencies`): `assert_patched_side_effects_cached` pins the `;patch=<hash>` row and that the cached `index.js` digest differs from the pristine one.
+- [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:120` `patch package with version range` — same coverage as the exact-version entry above.
+- [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:297` `patch package when scripts are ignored` — same, and pins that `--ignore-scripts` still produces a patched side-effects row (the key drops its `;deps=` segment but keeps `;patch=`).
+- [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:386` `patch package when the package is not in allowBuilds list` — same coverage.
 - [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:706` `using side effects cache with nodeLinker=%s` covers headless side-effects behavior for isolated and hoisted linkers. `side_effects_materialized_on_warm_frozen_reinstall` in `crates/cli/tests/side_effects_cache.rs` covers the isolated linker; the hoisted variant is unported.
 - [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:761` `using side effects cache and hoistPattern=*` is skipped upstream but documents intended headless plus hoisting coverage.
 - [ ] `TypeScript repo: pnpm/test/install/lifecycleScripts.ts:303` `strictDepBuilds fails for packages with cached side-effects (#11035)` verifies build approval semantics even when side effects are cached.
@@ -384,10 +385,12 @@ Primary tests:
 Frozen/headless cross-coverage:
 
 - [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:594` `install optional dependency for the supported architecture set by the user (nodeLinker=%s)` includes hoisted frozen install — covered by `install_optional_dependency_for_the_supported_architectures` in `crates/cli/tests/optional_dependencies.rs`, which loops both linkers and replays via `--frozen-lockfile`.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:24` `patch package with exact version` includes frozen hoisted reinstall.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:120` `patch package with version range` includes frozen hoisted reinstall.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:297` `patch package when scripts are ignored` includes frozen hoisted reinstall.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:386` `patch package when the package is not in allowBuilds list` includes frozen hoisted reinstall.
+- [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:24` `patch package with exact version` includes frozen hoisted reinstall — ported with the scenario (see Support `patchedDependencies`), which replays the frozen install under both linkers and asserts the layout each one produces (symlink vs. real directory) so the hoisted leg cannot pass as an isolated install.
+- [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:120` `patch package with version range` includes frozen hoisted reinstall — same coverage.
+- [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:297` `patch package when scripts are ignored` includes frozen hoisted reinstall — same coverage.
+- [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:386` `patch package when the package is not in allowBuilds list` includes frozen hoisted reinstall — same coverage.
+
+Pacquet also keeps `hoisted_patch_reaches_every_nested_copy_of_a_package` in `crates/cli/tests/patch.rs`: a package the walker nests under several consumers must be patched at every one of them, on both the fresh and the cache-warm frozen path. See the Rust port note under Support `patchedDependencies` for the bug it pins.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:579` `run pre/postinstall scripts in a workspace that uses node-linker=hoisted`
 - [ ] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:686` `run pre/postinstall scripts in a project that uses node-linker=hoisted. Should not fail on repeat install`
 - [x] `TypeScript repo: installing/deps-restorer/test/index.ts:859` `installing with node-linker=hoisted`. Ported as `installing_with_hoisted_node_linker_frozen` in `crates/cli/tests/hoisted_node_linker.rs` — seeds the lockfile with a fresh install, tears down `node_modules`, then replays via `--frozen-lockfile` and asserts the real-dir + version-conflict-nesting layout.

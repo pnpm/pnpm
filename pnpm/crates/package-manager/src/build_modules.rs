@@ -462,8 +462,16 @@ pub struct BuildModules<'a> {
     /// `None` for the isolated linker — its slot directories are
     /// recovered from [`crate::VirtualStoreLayout::slot_dir`]. The
     /// two-mode `pkgRoot` selection (override map vs. layout slot)
-    /// is handled by `pkg_root_for_key`.
-    pub pkg_root_by_key: Option<&'a HashMap<PackageKey, PathBuf>>,
+    /// is handled by `pkg_root_for_key` and `pkg_roots_for_key`.
+    ///
+    /// One snapshot can occupy several directories: the walker nests a
+    /// second copy of a package under a sibling when a version conflict
+    /// keeps it out of the root. The first entry is the canonical
+    /// `pkgRoot` — scripts run there once and the side-effects cache is
+    /// written from it, because the contents are identical everywhere.
+    /// Writes that must land in *every* copy (patch application,
+    /// re-importing a cached overlay) iterate the whole list.
+    pub pkg_roots_by_key: Option<&'a HashMap<PackageKey, Vec<PathBuf>>>,
 
     /// When `true`, compute per-snapshot `extra_bin_paths` via
     /// `bin_dirs_in_all_parent_dirs` (private helper in this module)
@@ -542,7 +550,7 @@ impl BuildModules<'_> {
             unsafe_perm,
             child_concurrency,
             skipped,
-            pkg_root_by_key,
+            pkg_roots_by_key,
             gather_ancestor_bin_paths,
             frozen_store,
             ignore_scripts,
@@ -565,7 +573,7 @@ impl BuildModules<'_> {
             // optional fan-out.
             .filter(|key| !skipped.contains(key))
             .map(|key| {
-                let pkg_root = pkg_root_for_key(layout, pkg_root_by_key, key);
+                let pkg_root = pkg_root_for_key(layout, pkg_roots_by_key, key);
                 let requires = match (
                     pkg_root.as_deref(),
                     requires_build_by_snapshot.and_then(|map| map.get(key).copied()),
@@ -680,7 +688,7 @@ impl BuildModules<'_> {
                         &deps_state_cache,
                         &ignored_builds,
                         layout,
-                        pkg_root_by_key,
+                        pkg_roots_by_key,
                         gather_ancestor_bin_paths,
                         modules_dir,
                         lockfile_dir,
@@ -734,7 +742,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     deps_state_cache: &Mutex<pacquet_graph_hasher::DepsStateCache<PackageKey>>,
     ignored_builds: &Mutex<BTreeSet<String>>,
     layout: &crate::VirtualStoreLayout,
-    pkg_root_by_key: Option<&HashMap<PackageKey, PathBuf>>,
+    pkg_roots_by_key: Option<&HashMap<PackageKey, Vec<PathBuf>>>,
     gather_ancestor_bin_paths: bool,
     modules_dir: &Path,
     lockfile_dir: &Path,
@@ -916,51 +924,57 @@ fn build_one_snapshot<Reporter: self::Reporter>(
         let satisfied_by_cache = if layout.enable_global_virtual_store() {
             true
         } else {
-            match pkg_root_for_key(layout, pkg_root_by_key, snapshot_key) {
-                Some(pkg_dir) if pkg_dir.exists() => {
-                    match materialize_side_effects::<Reporter>(
-                        logged_methods,
-                        import_method,
-                        &pkg_dir,
-                        overlay,
-                    ) {
-                        Ok(()) => true,
-                        Err(error) if pkg_dir.join("package.json").exists() => {
-                            tracing::warn!(
-                                target: "pacquet::build",
-                                ?snapshot_key,
-                                cache_key = key,
-                                %error,
-                                "failed to materialize side-effects cache overlay; rebuilding",
-                            );
-                            false
-                        }
-                        Err(error) => {
-                            if snapshots.get(snapshot_key).is_some_and(|entry| entry.optional) {
-                                Reporter::emit(&LogEvent::SkippedOptionalDependency(
-                                    SkippedOptionalDependencyLog {
-                                        level: LogLevel::Debug,
-                                        details: Some(error.to_string()),
-                                        package: SkippedOptionalPackage::Installed {
-                                            id: pkg_dir.to_string_lossy().into_owned(),
-                                            name,
-                                            version,
-                                        },
-                                        parents: None,
-                                        prefix: lockfile_dir.to_string_lossy().into_owned(),
-                                        reason: SkippedOptionalReason::BuildFailure,
-                                    },
-                                ));
-                                return Ok(());
-                            }
-                            return Err(error);
-                        }
-                    }
-                }
+            // The overlay carries the patched / built contents, so it
+            // has to reach every hoisted copy for the same reason patch
+            // application does.
+            let mut satisfied = true;
+            for pkg_dir in pkg_roots_for_key(layout, pkg_roots_by_key, snapshot_key) {
                 // No slot to materialize into (skipped / never linked) —
                 // nothing for the build phase to do either.
-                _ => true,
+                if !pkg_dir.exists() {
+                    continue;
+                }
+                match materialize_side_effects::<Reporter>(
+                    logged_methods,
+                    import_method,
+                    &pkg_dir,
+                    overlay,
+                ) {
+                    Ok(()) => {}
+                    Err(error) if pkg_dir.join("package.json").exists() => {
+                        tracing::warn!(
+                            target: "pacquet::build",
+                            ?snapshot_key,
+                            cache_key = key,
+                            %error,
+                            "failed to materialize side-effects cache overlay; rebuilding",
+                        );
+                        satisfied = false;
+                        break;
+                    }
+                    Err(error) => {
+                        if snapshots.get(snapshot_key).is_some_and(|entry| entry.optional) {
+                            Reporter::emit(&LogEvent::SkippedOptionalDependency(
+                                SkippedOptionalDependencyLog {
+                                    level: LogLevel::Debug,
+                                    details: Some(error.to_string()),
+                                    package: SkippedOptionalPackage::Installed {
+                                        id: pkg_dir.to_string_lossy().into_owned(),
+                                        name,
+                                        version,
+                                    },
+                                    parents: None,
+                                    prefix: lockfile_dir.to_string_lossy().into_owned(),
+                                    reason: SkippedOptionalReason::BuildFailure,
+                                },
+                            ));
+                            return Ok(());
+                        }
+                        return Err(error);
+                    }
+                }
             }
+            satisfied
         };
         if satisfied_by_cache {
             return Ok(());
@@ -990,7 +1004,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
                     "The read-only store (frozenStore) is missing the build output of {name}@{version}.",
                 )),
                 package: SkippedOptionalPackage::Installed {
-                    id: pkg_root_for_key(layout, pkg_root_by_key, snapshot_key).map_or_else(
+                    id: pkg_root_for_key(layout, pkg_roots_by_key, snapshot_key).map_or_else(
                         || snapshot_key.to_string(),
                         |dir| dir.to_string_lossy().into_owned(),
                     ),
@@ -1011,7 +1025,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     // Hoisted snapshots without a recorded `pkgRoot` (the walker
     // dropped them — pre-skipped, optional skip, etc.) take the
     // same exit as the isolated path's `!pkg_dir.exists()` skip.
-    let Some(pkg_dir) = pkg_root_for_key(layout, pkg_root_by_key, snapshot_key) else {
+    let Some(pkg_dir) = pkg_root_for_key(layout, pkg_roots_by_key, snapshot_key) else {
         return Ok(());
     };
     if !pkg_dir.exists() {
@@ -1037,7 +1051,17 @@ fn build_one_snapshot<Reporter: self::Reporter>(
         let patch_file_path = p.patch_file_path.as_deref().ok_or_else(|| {
             BuildModulesError::PatchFilePathMissing { dep_path: snapshot_key.to_string() }
         })?;
-        apply_patch_to_dir(&pkg_dir, patch_file_path).map_err(BuildModulesError::PatchApply)?;
+        // Every copy is patched, not just `pkg_dir`. Under the hoisted
+        // linker a version conflict nests further copies under their
+        // consumers; leaving those unpatched would silently run the very
+        // code the patch replaces.
+        for patched_dir in pkg_roots_for_key(layout, pkg_roots_by_key, snapshot_key) {
+            if !patched_dir.exists() {
+                continue;
+            }
+            apply_patch_to_dir(&patched_dir, patch_file_path)
+                .map_err(BuildModulesError::PatchApply)?;
+        }
         true
     } else {
         false
@@ -1166,27 +1190,49 @@ fn virtual_store_dir_for_key(layout: &crate::VirtualStoreLayout, key: &PackageKe
     layout.slot_dir(key).join("node_modules").join(name)
 }
 
-/// Resolve the on-disk package directory for a snapshot.
+/// Resolve the canonical on-disk package directory for a snapshot — the
+/// one whose lifecycle scripts run and whose contents seed the
+/// side-effects cache.
 ///
 /// Two-mode lookup:
 ///
-/// - **Isolated** (`pkg_root_by_key.is_none()`) — fall through to
+/// - **Isolated** (`pkg_roots_by_key.is_none()`) — fall through to
 ///   [`virtual_store_dir_for_key`], which routes through the
 ///   install-scoped [`crate::VirtualStoreLayout`].
-/// - **Hoisted** (`pkg_root_by_key.is_some()`) — look the snapshot up
-///   in the per-key map populated from the slice 4 walker's
-///   [`crate::DependenciesGraphNode::dir`] values. `None` here means
-///   the snapshot is absent from the hoisted graph (pre-skipped, or
+/// - **Hoisted** (`pkg_roots_by_key.is_some()`) — take the first
+///   directory the slice 4 walker recorded for the snapshot. `None` here
+///   means the snapshot is absent from the hoisted graph (pre-skipped, or
 ///   the walker decided not to record it); the caller should treat
 ///   that the same as the isolated `pkg_dir.exists() == false` skip.
+///
+/// Use [`pkg_roots_for_key`] instead for a write that has to reach every
+/// copy of the package.
 fn pkg_root_for_key(
     layout: &crate::VirtualStoreLayout,
-    pkg_root_by_key: Option<&HashMap<PackageKey, PathBuf>>,
+    pkg_roots_by_key: Option<&HashMap<PackageKey, Vec<PathBuf>>>,
     key: &PackageKey,
 ) -> Option<PathBuf> {
-    match pkg_root_by_key {
-        Some(map) => map.get(key).cloned(),
+    match pkg_roots_by_key {
+        Some(map) => map.get(key).and_then(|dirs| dirs.first()).cloned(),
         None => Some(virtual_store_dir_for_key(layout, key)),
+    }
+}
+
+/// Every on-disk directory holding a snapshot's package.
+///
+/// The isolated linker gives each snapshot exactly one virtual-store
+/// slot, so this is [`pkg_root_for_key`] in a one-element list. The
+/// hoisted linker can place the same snapshot at several paths — a
+/// version conflict keeps a package out of the root and the walker nests
+/// a copy under each consumer that needs it.
+fn pkg_roots_for_key(
+    layout: &crate::VirtualStoreLayout,
+    pkg_roots_by_key: Option<&HashMap<PackageKey, Vec<PathBuf>>>,
+    key: &PackageKey,
+) -> Vec<PathBuf> {
+    match pkg_roots_by_key {
+        Some(map) => map.get(key).cloned().unwrap_or_default(),
+        None => vec![virtual_store_dir_for_key(layout, key)],
     }
 }
 
