@@ -1,7 +1,9 @@
 use super::{
-    Decision, FileMtime, LinkedPackagesContext, OptimisticRepeatInstallCheck,
-    check_optimistic_repeat_install, current_settings, current_settings_with_catalogs,
-    linked_packages_are_up_to_date, lockfile_modified_since, modified_at_or_after,
+    Decision, FileMtime, LinkedPackagesContext, MAX_LOCKFILE_CONFLICT_SCAN_BYTES,
+    OptimisticRepeatInstallCheck, RunDepsStatus, check_deps_status_before_run,
+    check_optimistic_repeat_install, check_optimistic_repeat_install_ignoring, current_pnpmfiles,
+    current_settings, current_settings_with_catalogs, linked_packages_are_up_to_date,
+    lockfile_modified_since, modified_at_or_after,
 };
 use indexmap::IndexMap;
 use pacquet_catalogs_types::Catalogs;
@@ -10,7 +12,8 @@ use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_modules_yaml::IncludedDependencies;
 use pacquet_package_manifest::PackageManifest;
 use pacquet_workspace_state::{
-    ProjectEntry, WorkspaceState, WorkspaceStateSettings, now_millis, update_workspace_state,
+    ProjectEntry, WorkspaceState, WorkspaceStateSettings, load_workspace_state, now_millis,
+    update_workspace_state,
 };
 use std::{collections::BTreeMap, fs, thread::sleep, time::Duration};
 use tempfile::tempdir;
@@ -83,15 +86,60 @@ fn write_state(
     settings: WorkspaceStateSettings,
     projects: BTreeMap<String, ProjectEntry>,
 ) {
+    write_state_with_pnpmfiles(workspace_root, timestamp, settings, projects, Vec::new());
+}
+
+fn write_state_with_pnpmfiles(
+    workspace_root: &std::path::Path,
+    timestamp: i64,
+    settings: WorkspaceStateSettings,
+    projects: BTreeMap<String, ProjectEntry>,
+    pnpmfiles: Vec<String>,
+) {
     let state = WorkspaceState {
         last_validated_timestamp: timestamp,
         projects,
-        pnpmfiles: Vec::new(),
+        pnpmfiles,
         filtered_install: false,
         config_dependencies: None,
         settings,
     };
     update_workspace_state(workspace_root, &state).expect("write workspace state");
+}
+
+#[test]
+fn returns_skipped_when_a_pnpmfile_is_modified() {
+    let (dir, config, manifest) =
+        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+    let pnpmfile = dir.path().join(".pnpmfile.cjs");
+    fs::write(&pnpmfile, "module.exports = {}\n").expect("write pnpmfile");
+    sleep(Duration::from_millis(20));
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        dir.path().to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state_with_pnpmfiles(
+        dir.path(),
+        now_millis(),
+        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None),
+        projects,
+        current_pnpmfiles(dir.path()),
+    );
+    sleep(Duration::from_millis(20));
+    fs::write(&pnpmfile, "module.exports = { hooks: {} }\n").expect("modify pnpmfile");
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+
+    assert!(matches!(
+        decision,
+        Decision::Skipped { reason } if reason.contains("pnpmfile changed")
+    ));
 }
 
 /// Setup a workspace with a manifest written *before* the recorded
@@ -1451,6 +1499,7 @@ fn returns_skipped_when_allow_builds_drift() {
     let manifest_path = workspace_root.join("package.json");
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
+    write_empty_lockfile(workspace_root);
 
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
@@ -1481,6 +1530,22 @@ fn returns_skipped_when_allow_builds_drift() {
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
+
+    let decision = check_optimistic_repeat_install_ignoring(
+        &OptimisticRepeatInstallCheck {
+            workspace_root,
+            config,
+            node_linker: pacquet_config::NodeLinker::Isolated,
+            included: isolated_included(),
+            supported_architectures: None,
+            project_manifests: &[(workspace_root.to_path_buf(), &manifest)],
+            is_workspace_install: false,
+            lockfile: MaybeLazyLockfile::Loaded(None),
+            catalogs: &BTreeMap::default(),
+        },
+        &["allowBuilds"],
+    );
+    assert_eq!(decision, Decision::UpToDate);
 }
 
 /// Drift in `dedupeDirectDeps` invalidates the cached state. The
@@ -1832,6 +1897,167 @@ fn returns_up_to_date_in_workspace_mode_without_lockfile() {
         catalogs: &BTreeMap::default(),
     });
     assert_eq!(decision, Decision::UpToDate);
+}
+
+#[test]
+fn returns_skipped_when_wanted_lockfile_has_merge_conflict_markers() {
+    let (dir, config, manifest) =
+        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+    sleep(Duration::from_millis(20));
+    fs::write(
+        dir.path().join(Lockfile::FILE_NAME),
+        "<<<<<<< ours\nlockfileVersion: '9.0'\n=======\nlockfileVersion: '10.0'\n>>>>>>> theirs\n",
+    )
+    .expect("write conflicted lockfile");
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("conflict")));
+}
+
+#[test]
+fn run_status_reports_wanted_lockfile_merge_conflicts() {
+    let (dir, config, manifest) =
+        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+    sleep(Duration::from_millis(20));
+    fs::write(
+        dir.path().join(Lockfile::FILE_NAME),
+        "<<<<<<< ours\nlockfileVersion: '9.0'\n=======\nlockfileVersion: '10.0'\n>>>>>>> theirs\n",
+    )
+    .expect("write conflicted lockfile");
+    let state = load_workspace_state(dir.path()).expect("load workspace state").unwrap();
+
+    let status = check_deps_status_before_run(
+        &OptimisticRepeatInstallCheck {
+            workspace_root: dir.path(),
+            config,
+            node_linker: pacquet_config::NodeLinker::Isolated,
+            included: isolated_included(),
+            supported_architectures: None,
+            project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+            is_workspace_install: false,
+            lockfile: MaybeLazyLockfile::Loaded(None),
+            catalogs: &BTreeMap::default(),
+        },
+        &state,
+    );
+
+    assert!(matches!(
+        status,
+        RunDepsStatus::Outdated { issue, .. }
+            if issue == format!("The lockfile in {} has merge conflicts", dir.path().display()),
+    ),);
+}
+
+#[test]
+fn returns_skipped_when_project_lockfile_has_merge_conflict_markers() {
+    let (dir, config, root_manifest) = setup_fresh_install_with_config(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        "",
+        |config| config.shared_workspace_lockfile = false,
+    );
+    let project_root = dir.path().join("packages/project");
+    fs::create_dir_all(&project_root).expect("create project");
+    fs::write(project_root.join("package.json"), r#"{"name":"project","version":"1.0.0"}"#)
+        .expect("write project manifest");
+    sleep(Duration::from_millis(20));
+    fs::write(
+        project_root.join(Lockfile::FILE_NAME),
+        "<<<<<<< ours\nlockfileVersion: '9.0'\n=======\nlockfileVersion: '10.0'\n>>>>>>> theirs\n",
+    )
+    .expect("write project lockfile");
+    let project_manifest =
+        PackageManifest::from_path(project_root.join("package.json")).expect("read manifest");
+
+    let decision = check_workspace(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &root_manifest), (project_root, &project_manifest)],
+        &BTreeMap::default(),
+    );
+
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("conflict")));
+}
+
+#[test]
+fn returns_skipped_when_lockfile_is_not_a_regular_file() {
+    let (dir, config, manifest) =
+        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    fs::remove_file(&lockfile_path).expect("remove lockfile");
+    fs::create_dir(&lockfile_path).expect("replace lockfile with directory");
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+
+    dbg!(&decision);
+    assert!(matches!(
+        decision,
+        Decision::Skipped { reason } if reason.contains("cannot be checked")
+    ));
+}
+
+#[cfg(unix)]
+#[test]
+fn returns_skipped_without_following_a_lockfile_symlink() {
+    use std::os::unix::fs::symlink;
+
+    let (dir, config, manifest) =
+        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    fs::remove_file(&lockfile_path).expect("remove lockfile");
+    symlink("/dev/zero", &lockfile_path).expect("replace lockfile with symlink");
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+
+    dbg!(&decision);
+    assert!(matches!(
+        decision,
+        Decision::Skipped { reason } if reason.contains("cannot be checked")
+    ));
+}
+
+#[test]
+fn returns_skipped_without_scanning_an_oversized_changed_lockfile() {
+    let (dir, config, manifest) =
+        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+    sleep(Duration::from_millis(20));
+    let lockfile = fs::OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(dir.path().join(Lockfile::FILE_NAME))
+        .expect("open lockfile");
+    lockfile.set_len(MAX_LOCKFILE_CONFLICT_SCAN_BYTES).expect("resize lockfile");
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+
+    dbg!(&decision);
+    assert!(matches!(
+        decision,
+        Decision::Skipped { reason } if reason.contains("cannot be checked")
+    ));
 }
 
 /// Minimal valid lockfile matching a manifest with

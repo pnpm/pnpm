@@ -464,6 +464,32 @@ fn add_explicit_dist_tag_resolves_with_caret() {
     drop((root, anchor)); // cleanup
 }
 
+#[test]
+fn readding_a_dev_dependency_at_a_dist_tag_keeps_its_group() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let name = "@pnpm.e2e/dep-of-pkg-with-1-dep";
+    std::fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "devDependencies": { (name): "^100.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet.with_args(["add", &format!("{name}@latest"), "--lockfile-only"]).assert().success();
+
+    let manifest =
+        PackageManifest::from_path(workspace.join("package.json")).expect("read package.json");
+    assert_eq!(
+        manifest.dependencies([DependencyGroup::Dev]).collect::<Vec<_>>(),
+        vec![(name, "^101.0.0")],
+    );
+    assert!(
+        manifest.dependencies([DependencyGroup::Prod]).all(|(dependency, _)| dependency != name),
+    );
+
+    drop((root, npmrc_info));
+}
+
 /// On a re-add with an explicit version, the existing entry biases the pick
 /// (it is a preferred version): re-adding `~100.0.0` with `@^100.0.0` keeps
 /// the existing `100.0.0` rather than bumping to the highest in range

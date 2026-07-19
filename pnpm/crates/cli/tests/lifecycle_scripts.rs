@@ -72,7 +72,7 @@ mod dependency_build_scripts {
     use command_extra::CommandExtra;
     use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
     use pipe_trait::Pipe;
-    use std::{fs, path::Path};
+    use std::{fs, path::Path, process::Command};
 
     #[test]
     fn run_pre_and_postinstall_scripts() {
@@ -249,6 +249,40 @@ mod dependency_build_scripts {
         }
 
         drop((root, mock_instance, frozen_root));
+    }
+
+    #[test]
+    fn hoisting_tolerates_bins_created_by_a_later_lifecycle_stage() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        fs::write(
+            workspace.join("package.json"),
+            serde_json::json!({
+                "dependencies": { "@pnpm.e2e/has-generated-bins-as-dep": "1.0.0" },
+            })
+            .to_string(),
+        )
+        .expect("write package.json");
+        let yaml_path = workspace.join("pnpm-workspace.yaml");
+        let mut yaml = fs::read_to_string(&yaml_path).expect("read workspace manifest");
+        yaml.push_str("hoistPattern:\n  - '*'\n");
+        fs::write(&yaml_path, yaml).expect("write workspace manifest");
+        allow_builds(
+            &workspace,
+            &[("@pnpm.e2e/has-generated-bins-as-dep", true), ("@pnpm.e2e/generated-bins", true)],
+        );
+
+        pacquet.with_arg("install").assert().success();
+        fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+        Command::cargo_bin("pnpm")
+            .expect("find pnpm binary")
+            .with_current_dir(&workspace)
+            .with_args(["install", "--frozen-lockfile"])
+            .assert()
+            .success();
+
+        drop((root, mock_instance));
     }
 
     #[test]

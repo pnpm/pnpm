@@ -4,7 +4,11 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_lockfile::Lockfile;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pacquet_testing_utils::{
+    allow_known_failure,
+    bin::{AddMockedRegistry, CommandTempCwd},
+    known_failure::{KnownFailure, KnownResult},
+};
 use pretty_assertions::assert_eq;
 use std::{ffi::OsStr, fs, path::Path, process::Command};
 use tempfile::TempDir;
@@ -177,6 +181,63 @@ fn add_mismatched_version_strict_errors() {
     drop((root, anchor));
 }
 
+#[test]
+fn save_catalog_flag_writes_the_default_catalog() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, "{}");
+
+    run_ok(&workspace, &["add", "--lockfile-only", "--save-catalog", &format!("{FOO}@1.0.0")]);
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:"));
+    assert!(read(&workspace, "pnpm-workspace.yaml").contains(&format!("'{FOO}': 1.0.0")));
+    assert_eq!(catalog_snapshot(&workspace, FOO), ("1.0.0".to_string(), "1.0.0".to_string()));
+
+    drop((root, anchor));
+}
+
+#[test]
+fn save_catalog_name_preserves_the_dependency_group() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, "{}");
+
+    run_ok(
+        &workspace,
+        &[
+            "add",
+            "--lockfile-only",
+            "--save-dev",
+            "--save-catalog-name",
+            "tools",
+            &format!("{FOO}@1.0.0"),
+        ],
+    );
+
+    let manifest = PackageManifest::from_path(workspace.join("package.json")).unwrap();
+    assert_eq!(
+        manifest.dependencies([DependencyGroup::Dev]).collect::<Vec<_>>(),
+        vec![(FOO, "catalog:tools")],
+    );
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(workspace_yaml.contains("tools:"));
+    assert!(workspace_yaml.contains(&format!("'{FOO}': 1.0.0")));
+
+    drop((root, anchor));
+}
+
+#[test]
+fn install_with_catalog_reference_writes_catalog_snapshot() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "catalog:" }}"#));
+    append_workspace_yaml(&workspace, &format!("catalog:\n  '{FOO}': 1.0.0\n"));
+
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:"));
+    assert_eq!(catalog_snapshot(&workspace, FOO), ("1.0.0".to_string(), "1.0.0".to_string()));
+
+    drop((root, anchor));
+}
+
 /// `update --latest` on a dependency pinned to a *named* catalog keeps the
 /// `catalog:<name>` reference in the manifest and bumps the catalog entry
 /// (and the lockfile snapshot) to the freshly-resolved version.
@@ -209,6 +270,21 @@ fn update_latest_named_catalog_bumps_the_entry() {
         !lockfile.contains("specifier: 1.0.0"),
         "the lockfile catalog snapshot should have been bumped off 1.0.0:\n{lockfile}",
     );
+
+    drop((root, anchor));
+}
+
+#[test]
+fn update_latest_keeps_catalog_reference_in_manual_mode() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "catalog:" }}"#));
+    append_workspace_yaml(&workspace, &format!("catalog:\n  '{FOO}': 1.0.0\n"));
+
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+    run_ok(&workspace, &["update", "--latest", "--lockfile-only", FOO]);
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:"));
+    assert_ne!(catalog_snapshot(&workspace, FOO).0, "1.0.0");
 
     drop((root, anchor));
 }
@@ -307,4 +383,15 @@ fn install_reruns_when_catalog_entry_changes() {
     assert_eq!(catalog_snapshot(&workspace, FOO), ("2.0.0".to_string(), "2.0.0".to_string()));
 
     drop((root, anchor));
+}
+
+fn cleanup_unused_catalogs() -> KnownResult<()> {
+    Err(KnownFailure::new(
+        "pacquet's workspace-manifest writer can add and update catalog entries but does not yet remove entries that no importer uses",
+    ))
+}
+
+#[test]
+fn removes_unused_entries_from_the_workspace_catalog() {
+    allow_known_failure!(cleanup_unused_catalogs());
 }

@@ -256,6 +256,22 @@ mod known_failures {
     fn fail_on_unsupported_dependency_of_optional_dependency() {
         allow_known_failure!(edge_aware_engine_strict());
     }
+
+    fn fixture_scale_optional_graph() -> KnownResult<()> {
+        Err(KnownFailure::new(
+            "the upstream scenario relies on a production-scale dependency graph; a minimal registry fixture that preserves the optional-edge topology is not available yet",
+        ))
+    }
+
+    #[test]
+    fn only_optional_dependencies_are_skipped_in_a_mixed_graph() {
+        allow_known_failure!(fixture_scale_optional_graph());
+    }
+
+    #[test]
+    fn repeated_optional_dependencies_across_a_complex_graph_are_classified_per_edge() {
+        allow_known_failure!(fixture_scale_optional_graph());
+    }
 }
 
 /// TS: `skip optional dependency that does not support the current OS,

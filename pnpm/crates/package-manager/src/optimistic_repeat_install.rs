@@ -5,8 +5,10 @@
 //! before any of the install setup runs. The check keys off
 //! `<workspace_root>/node_modules/.pnpm-workspace-state-v1.json`'s
 //! `lastValidatedTimestamp` against each project's `package.json`
-//! mtime — never touching the lockfile, the verifier cache, or any
-//! resolver state.
+//! mtime without parsing the lockfile or touching the verifier cache or
+//! resolver state. A lockfile modified after the last validation is
+//! scanned with a bounded buffer for merge conflict markers before the
+//! shortcut may continue.
 //!
 //! Scope: the mtime-vs-`lastValidatedTimestamp` branch (the
 //! up-to-date exit when no project is modified), the patch-file branch
@@ -44,6 +46,7 @@
 
 use std::{
     fs,
+    io::{ErrorKind, Read},
     path::{Path, PathBuf},
     time::SystemTime,
 };
@@ -103,9 +106,10 @@ pub struct OptimisticRepeatInstallCheck<'a> {
     pub is_workspace_install: bool,
     /// The wanted lockfile (`None` once loaded when `pnpm-lock.yaml`
     /// is absent or empty). Consulted only by the modified-manifests
-    /// content re-check; the pure-mtime fast path never reads it —
+    /// content re-check; the pure-mtime fast path never parses it —
     /// which is why it arrives lazily, so the common repeat-install
-    /// run skips the YAML parse entirely. When absent and
+    /// run skips the YAML parse entirely. A separately bounded byte
+    /// scan only runs when lockfile metadata changed. When absent and
     /// `<virtual_store_dir>/lock.yaml` exists, the current lockfile
     /// stands in as the wanted one — it records exactly what the
     /// previous install materialized — and `pnpm-lock.yaml` is
@@ -122,7 +126,17 @@ pub struct OptimisticRepeatInstallCheck<'a> {
 ///
 /// Always returns `Decision::Skipped` when
 /// `config.optimistic_repeat_install` is `false`.
+#[must_use]
 pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>) -> Decision {
+    check_optimistic_repeat_install_ignoring(check, &[])
+}
+
+/// Run the workspace-state freshness fast path while excluding selected
+/// pnpm workspace-state setting keys from the drift comparison.
+pub(crate) fn check_optimistic_repeat_install_ignoring(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    ignored_workspace_state_settings: &[&str],
+) -> Decision {
     let &OptimisticRepeatInstallCheck {
         workspace_root,
         config,
@@ -144,6 +158,14 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
     let Ok(Some(state)) = load_workspace_state(workspace_root) else {
         return Decision::Skipped { reason: "no workspace state on disk" };
     };
+
+    if first_lockfile_requiring_conflict_safe_install(check, state.last_validated_timestamp)
+        .is_some()
+    {
+        return Decision::Skipped {
+            reason: "a changed lockfile contains or cannot be checked for merge conflict markers",
+        };
+    }
 
     // Unconditional here because the only caller is the install
     // command, which always treats local file deps as outdated.
@@ -167,7 +189,14 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
         };
     }
 
-    if !settings_match(&state, config, node_linker, included, supported_architectures) {
+    if !settings_match(
+        &state,
+        config,
+        node_linker,
+        included,
+        supported_architectures,
+        ignored_workspace_state_settings,
+    ) {
         return Decision::Skipped { reason: "settings drift" };
     }
 
@@ -313,6 +342,105 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
             Decision::UpToDate
         }
         Err(reason) => Decision::Skipped { reason },
+    }
+}
+
+#[derive(Clone, Copy)]
+enum LockfileConflictCheckFailure {
+    MergeConflict,
+    Unsafe,
+}
+
+fn first_lockfile_requiring_conflict_safe_install(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    last_validated_timestamp: i64,
+) -> Option<(PathBuf, LockfileConflictCheckFailure)> {
+    let shared_lockfile = check.workspace_root.join(Lockfile::FILE_NAME);
+    if let Some(failure) =
+        lockfile_conflict_check_failure(&shared_lockfile, last_validated_timestamp)
+    {
+        return Some((shared_lockfile, failure));
+    }
+    if check.config.shared_workspace_lockfile {
+        return None;
+    }
+    for (root_dir, _) in check.project_manifests {
+        let lockfile_path = root_dir.join(Lockfile::FILE_NAME);
+        if lockfile_path != shared_lockfile
+            && let Some(failure) =
+                lockfile_conflict_check_failure(&lockfile_path, last_validated_timestamp)
+        {
+            return Some((lockfile_path, failure));
+        }
+    }
+    None
+}
+
+const CONFLICT_MARKER: &[u8] = b"<<<<<<<";
+const LOCKFILE_CONFLICT_SCAN_BUFFER_SIZE: usize = 8 * 1024;
+const MAX_LOCKFILE_CONFLICT_SCAN_BYTES: u64 = 16 * 1024 * 1024;
+
+fn lockfile_conflict_check_failure(
+    path: &Path,
+    last_validated_timestamp: i64,
+) -> Option<LockfileConflictCheckFailure> {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == ErrorKind::NotFound => return None,
+        Err(_) => return Some(LockfileConflictCheckFailure::Unsafe),
+    };
+    if !metadata.file_type().is_file() {
+        return Some(LockfileConflictCheckFailure::Unsafe);
+    }
+    let Some(mtime) = file_mtime_from_metadata(&metadata) else {
+        return Some(LockfileConflictCheckFailure::Unsafe);
+    };
+    if !lockfile_modified_since(mtime, last_validated_timestamp) {
+        return None;
+    }
+    if metadata.len() >= MAX_LOCKFILE_CONFLICT_SCAN_BYTES {
+        return Some(LockfileConflictCheckFailure::Unsafe);
+    }
+    modified_lockfile_conflict_check_failure(path)
+}
+
+fn modified_lockfile_conflict_check_failure(path: &Path) -> Option<LockfileConflictCheckFailure> {
+    let Ok(mut file) = fs::File::open(path) else {
+        return Some(LockfileConflictCheckFailure::Unsafe);
+    };
+    let Ok(metadata) = file.metadata() else {
+        return Some(LockfileConflictCheckFailure::Unsafe);
+    };
+    if !metadata.file_type().is_file() || metadata.len() >= MAX_LOCKFILE_CONFLICT_SCAN_BYTES {
+        return Some(LockfileConflictCheckFailure::Unsafe);
+    }
+
+    let mut buffer = [0; LOCKFILE_CONFLICT_SCAN_BUFFER_SIZE + CONFLICT_MARKER.len() - 1];
+    let mut carried = 0;
+    let mut scanned = 0_u64;
+    loop {
+        let remaining = MAX_LOCKFILE_CONFLICT_SCAN_BYTES.saturating_sub(scanned);
+        if remaining == 0 {
+            return Some(LockfileConflictCheckFailure::Unsafe);
+        }
+        let read_capacity = LOCKFILE_CONFLICT_SCAN_BUFFER_SIZE.min(remaining as usize);
+        match file.read(&mut buffer[carried..carried + read_capacity]) {
+            Ok(0) => return None,
+            Ok(read) => {
+                scanned += read as u64;
+                let end = carried + read;
+                if buffer[..end]
+                    .windows(CONFLICT_MARKER.len())
+                    .any(|bytes| bytes == CONFLICT_MARKER)
+                {
+                    return Some(LockfileConflictCheckFailure::MergeConflict);
+                }
+                carried = end.min(CONFLICT_MARKER.len() - 1);
+                buffer.copy_within(end - carried..end, 0);
+            }
+            Err(error) if error.kind() == ErrorKind::Interrupted => {}
+            Err(_) => return Some(LockfileConflictCheckFailure::Unsafe),
+        }
     }
 }
 
@@ -890,7 +1018,12 @@ struct FileMtime {
 
 /// [`FileMtime`] of `path`, `None` when it can't be stat'd.
 fn file_mtime(path: &Path) -> Option<FileMtime> {
-    let modified = fs::metadata(path).and_then(|metadata| metadata.modified()).ok()?;
+    let metadata = fs::metadata(path).ok()?;
+    file_mtime_from_metadata(&metadata)
+}
+
+fn file_mtime_from_metadata(metadata: &fs::Metadata) -> Option<FileMtime> {
+    let modified = metadata.modified().ok()?;
     let elapsed = modified.duration_since(SystemTime::UNIX_EPOCH).ok()?;
     Some(FileMtime {
         ms: i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX),
@@ -1061,115 +1194,122 @@ fn settings_match(
     node_linker: NodeLinker,
     included: IncludedDependencies,
     supported_architectures: Option<&SupportedArchitectures>,
+    ignored_workspace_state_settings: &[&str],
 ) -> bool {
-    first_setting_drift(state, config, node_linker, included, supported_architectures, false)
-        .is_none()
+    first_setting_drift(
+        state,
+        config,
+        node_linker,
+        included,
+        supported_architectures,
+        ignored_workspace_state_settings,
+    )
+    .is_none()
 }
 
 /// The camelCase name (pnpm's workspace-state setting key) of the first
 /// recorded setting that differs from today's config, or `None` when
-/// they all match. `ignore_included_groups` skips `dev` / `optional` /
-/// `production`: `pnpm run` / `pnpm exec` always execute with the
-/// default dependency groups, so those never match the state written by
-/// a `--production` / `--no-optional` install (pnpm's
-/// `ignoredWorkspaceStateSettings`).
+/// they all match. `ignored_workspace_state_settings` lets callers skip
+/// keys such as `dev` / `optional` / `production`: `pnpm run` / `pnpm
+/// exec` always execute with the default dependency groups, so those
+/// never match the state written by a `--production` / `--no-optional`
+/// install (pnpm's `ignoredWorkspaceStateSettings`).
 fn first_setting_drift(
     state: &WorkspaceState,
     config: &Config,
     node_linker: NodeLinker,
     included: IncludedDependencies,
     supported_architectures: Option<&SupportedArchitectures>,
-    ignore_included_groups: bool,
+    ignored_workspace_state_settings: &[&str],
 ) -> Option<&'static str> {
     let current = current_settings(config, node_linker, included, supported_architectures);
     let recorded = &state.settings;
     let live = &current;
-    if !allow_builds_match(recorded.allow_builds.as_ref(), live.allow_builds.as_ref()) {
-        return Some("allowBuilds");
+    macro_rules! return_drift_if {
+        ($key:literal, $differs:expr $(,)?) => {
+            if !ignored_workspace_state_settings.contains(&$key) && $differs {
+                return Some($key);
+            }
+        };
     }
-    if recorded.auto_install_peers != live.auto_install_peers {
-        return Some("autoInstallPeers");
-    }
-    if recorded.dedupe_direct_deps != live.dedupe_direct_deps {
-        return Some("dedupeDirectDeps");
-    }
-    if recorded.dedupe_injected_deps != live.dedupe_injected_deps {
-        return Some("dedupeInjectedDeps");
-    }
-    if recorded.dedupe_peer_dependents != live.dedupe_peer_dependents {
-        return Some("dedupePeerDependents");
-    }
-    if recorded.dedupe_peers != live.dedupe_peers {
-        return Some("dedupePeers");
-    }
-    if !ignore_included_groups && recorded.dev != live.dev {
-        return Some("dev");
-    }
-    if !enable_global_virtual_store_match(
+
+    let allow_builds_drift =
+        !allow_builds_match(recorded.allow_builds.as_ref(), live.allow_builds.as_ref());
+    return_drift_if!("allowBuilds", allow_builds_drift);
+    return_drift_if!("autoInstallPeers", recorded.auto_install_peers != live.auto_install_peers);
+    return_drift_if!("dedupeDirectDeps", recorded.dedupe_direct_deps != live.dedupe_direct_deps);
+    return_drift_if!(
+        "dedupeInjectedDeps",
+        recorded.dedupe_injected_deps != live.dedupe_injected_deps,
+    );
+    return_drift_if!(
+        "dedupePeerDependents",
+        recorded.dedupe_peer_dependents != live.dedupe_peer_dependents,
+    );
+    return_drift_if!("dedupePeers", recorded.dedupe_peers != live.dedupe_peers);
+    return_drift_if!("dev", recorded.dev != live.dev);
+    let enable_global_virtual_store_drift = !enable_global_virtual_store_match(
         recorded.enable_global_virtual_store,
         live.enable_global_virtual_store,
-    ) {
-        return Some("enableGlobalVirtualStore");
-    }
-    if recorded.exclude_links_from_lockfile != live.exclude_links_from_lockfile {
-        return Some("excludeLinksFromLockfile");
-    }
-    if recorded.hoist_pattern != live.hoist_pattern {
-        return Some("hoistPattern");
-    }
-    if recorded.hoist_workspace_packages != live.hoist_workspace_packages {
-        return Some("hoistWorkspacePackages");
-    }
-    if recorded.ignored_optional_dependencies != live.ignored_optional_dependencies {
-        return Some("ignoredOptionalDependencies");
-    }
-    if recorded.inject_workspace_packages != live.inject_workspace_packages {
-        return Some("injectWorkspacePackages");
-    }
-    if recorded.link_workspace_packages != live.link_workspace_packages {
-        return Some("linkWorkspacePackages");
-    }
-    if recorded.minimum_release_age != live.minimum_release_age {
-        return Some("minimumReleaseAge");
-    }
-    if recorded.minimum_release_age_ignore_missing_time
-        != live.minimum_release_age_ignore_missing_time
-    {
-        return Some("minimumReleaseAgeIgnoreMissingTime");
-    }
-    if recorded.node_linker != live.node_linker {
-        return Some("nodeLinker");
-    }
-    if !ignore_included_groups && recorded.optional != live.optional {
-        return Some("optional");
-    }
-    if recorded.overrides != live.overrides {
-        return Some("overrides");
-    }
-    if !package_extensions_match(
+    );
+    return_drift_if!("enableGlobalVirtualStore", enable_global_virtual_store_drift);
+    return_drift_if!(
+        "excludeLinksFromLockfile",
+        recorded.exclude_links_from_lockfile != live.exclude_links_from_lockfile,
+    );
+    return_drift_if!("hoistPattern", recorded.hoist_pattern != live.hoist_pattern);
+    return_drift_if!(
+        "hoistWorkspacePackages",
+        recorded.hoist_workspace_packages != live.hoist_workspace_packages,
+    );
+    return_drift_if!(
+        "ignoredOptionalDependencies",
+        recorded.ignored_optional_dependencies != live.ignored_optional_dependencies,
+    );
+    return_drift_if!(
+        "injectWorkspacePackages",
+        recorded.inject_workspace_packages != live.inject_workspace_packages,
+    );
+    return_drift_if!(
+        "linkWorkspacePackages",
+        recorded.link_workspace_packages != live.link_workspace_packages,
+    );
+    return_drift_if!("minimumReleaseAge", recorded.minimum_release_age != live.minimum_release_age,);
+    return_drift_if!(
+        "minimumReleaseAgeIgnoreMissingTime",
+        recorded.minimum_release_age_ignore_missing_time
+            != live.minimum_release_age_ignore_missing_time,
+    );
+    return_drift_if!("nodeLinker", recorded.node_linker != live.node_linker);
+    return_drift_if!("optional", recorded.optional != live.optional);
+    return_drift_if!("overrides", recorded.overrides != live.overrides);
+    let package_extensions_drift = !package_extensions_match(
         recorded.package_extensions.as_ref(),
         live.package_extensions.as_ref(),
-    ) {
-        return Some("packageExtensions");
-    }
-    if recorded.patched_dependencies != live.patched_dependencies {
-        return Some("patchedDependencies");
-    }
-    if recorded.peers_suffix_max_length != live.peers_suffix_max_length {
-        return Some("peersSuffixMaxLength");
-    }
-    if recorded.prefer_workspace_packages != live.prefer_workspace_packages {
-        return Some("preferWorkspacePackages");
-    }
-    if !ignore_included_groups && recorded.production != live.production {
-        return Some("production");
-    }
-    if recorded.public_hoist_pattern != live.public_hoist_pattern {
-        return Some("publicHoistPattern");
-    }
-    if recorded.supported_architectures != live.supported_architectures {
-        return Some("supportedArchitectures");
-    }
+    );
+    return_drift_if!("packageExtensions", package_extensions_drift);
+    return_drift_if!(
+        "patchedDependencies",
+        recorded.patched_dependencies != live.patched_dependencies,
+    );
+    return_drift_if!(
+        "peersSuffixMaxLength",
+        recorded.peers_suffix_max_length != live.peers_suffix_max_length,
+    );
+    return_drift_if!(
+        "preferWorkspacePackages",
+        recorded.prefer_workspace_packages != live.prefer_workspace_packages,
+    );
+    return_drift_if!("production", recorded.production != live.production);
+    return_drift_if!(
+        "publicHoistPattern",
+        recorded.public_hoist_pattern != live.public_hoist_pattern,
+    );
+    return_drift_if!(
+        "supportedArchitectures",
+        recorded.supported_architectures != live.supported_architectures,
+    );
+
     None
     // Deliberately *not* compared in this generic settings loop:
     // `catalogs` is ignored here and checked separately in
@@ -1566,9 +1706,29 @@ pub fn check_deps_status_before_run(
         return RunDepsStatus::SkippedPnp;
     }
 
-    if let Some(setting) =
-        first_setting_drift(state, config, node_linker, included, supported_architectures, true)
+    if let Some((lockfile_path, failure)) =
+        first_lockfile_requiring_conflict_safe_install(check, state.last_validated_timestamp)
     {
+        let lockfile_dir = lockfile_path.parent().unwrap_or(workspace_root).display();
+        let issue = match failure {
+            LockfileConflictCheckFailure::MergeConflict => {
+                format!("The lockfile in {lockfile_dir} has merge conflicts")
+            }
+            LockfileConflictCheckFailure::Unsafe => {
+                format!("The lockfile in {lockfile_dir} cannot be checked for merge conflicts")
+            }
+        };
+        return outdated(issue);
+    }
+
+    if let Some(setting) = first_setting_drift(
+        state,
+        config,
+        node_linker,
+        included,
+        supported_architectures,
+        &["dev", "optional", "production"],
+    ) {
         return outdated(format!("The value of the {setting} setting has changed"));
     }
     if config_dependencies_drifted(config, state) {
