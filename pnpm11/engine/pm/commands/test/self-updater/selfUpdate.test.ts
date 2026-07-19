@@ -239,6 +239,59 @@ test('self-update does not write shims to pnpmHomeDir on a clean v11 layout', as
   expect(fs.existsSync(path.join(opts.pnpmHomeDir, 'pnpm.cmd'))).toBe(false)
 })
 
+test('self-update resolves relative legacy shim targets from pnpmHomeDir', async () => {
+  const opts = prepare()
+  const relativeTarget = path.join('global', 'v11', 'old', 'node_modules', 'pnpm', 'bin.js')
+  fs.mkdirSync(path.dirname(path.join(opts.pnpmHomeDir, relativeTarget)), { recursive: true })
+  fs.writeFileSync(path.join(opts.pnpmHomeDir, relativeTarget), 'old pnpm\n')
+  const shimPath = path.join(opts.pnpmHomeDir, 'pnpm')
+  const shimBody = `#!/bin/sh\n# cmd-shim-target=${relativeTarget}\n`
+  fs.writeFileSync(shimPath, shimBody, { mode: 0o755 })
+  mockRegistryForUpdate(opts.registries.default, '9.1.0', createMetadata('9.1.0', opts.registries.default))
+
+  await selfUpdate.handler(opts, [])
+
+  expect(fs.readFileSync(shimPath, 'utf8')).not.toBe(shimBody)
+})
+
+test('self-update ignores a dangling legacy shim at pnpmHomeDir', async () => {
+  // pnpm/pnpm#12496: a v10-layout shim whose install target was later
+  // garbage-collected is dead weight, not a real v10 layout. self-update
+  // must not refresh it or warn about it — that warning would never stop,
+  // because the dangling shim would never be cleaned up by `pnpm setup`.
+  const opts = prepare()
+  // Write a shim that looks like a real cmd-shim product (carries the
+  // marker) but points at a path that does not exist on disk.
+  const danglingTarget = path.join(opts.pnpmHomeDir, 'global', 'v11', 'gone', 'node_modules', 'pnpm', 'bin.js')
+  const shimBody = `#!/bin/sh\n# cmd-shim-target=${danglingTarget}\n`
+  fs.writeFileSync(path.join(opts.pnpmHomeDir, 'pnpm'), shimBody, { mode: 0o755 })
+  // On Windows, v10 cmd-shim wrote a sibling .cmd without a marker. Its
+  // presence must not defeat the dangling-shim detection on the sh shim.
+  if (process.platform === 'win32') {
+    fs.writeFileSync(path.join(opts.pnpmHomeDir, 'pnpm.cmd'), '@echo off\ncall "gone\\pnpm.cmd" %*\n')
+  }
+  mockRegistryForUpdate(opts.registries.default, '9.1.0', createMetadata('9.1.0', opts.registries.default))
+
+  await selfUpdate.handler(opts, [])
+
+  // The dangling shim must not have been refreshed — its body still
+  // references the dead target, because linkBins was not called against
+  // pnpmHomeDir. (When the legacy detector fires, linkBins overwrites the
+  // shim with one pointing at the freshly-installed pnpm.)
+  const refreshed = fs.readFileSync(path.join(opts.pnpmHomeDir, 'pnpm'), 'utf8')
+  expect(refreshed).toBe(shimBody)
+  // The v11 bin layout is still served correctly.
+  const pnpmEnv = prependDirsToPath([path.join(opts.pnpmHomeDir, 'bin')])
+  const { status, stdout } = spawn.sync('pnpm', ['-v'], {
+    env: {
+      ...process.env,
+      [pnpmEnv.name]: pnpmEnv.value,
+    },
+  })
+  expect(status).toBe(0)
+  expect(stdout.toString().trim()).toBe('9.1.0')
+})
+
 test('self-update by exact version', async () => {
   const opts = prepare()
   const metadata = createMetadata('9.2.0', opts.registries.default, ['9.1.0'])

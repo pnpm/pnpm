@@ -67,6 +67,7 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
             position: AddingPosition::Start,
         },
     )?;
+    remove_legacy_homedir_shims(&pnpm_home_dir);
     Ok(render_setup_output(&report))
 }
 
@@ -173,6 +174,19 @@ fn create_shell_script(target_dir: &Path, name: &str, command: &str) -> std::io:
         fs::write(target_dir.join(format!("{name}.ps1")), format!("{command} @args\n"))?;
     }
     Ok(())
+}
+
+/// v10-layout shim names that v11 writes under `pnpm_home_dir/bin` instead.
+const LEGACY_HOME_DIR_SHIM_NAMES: &[&str] = &[
+    "pnpm", "pnpm.cmd", "pnpm.ps1", "pn", "pn.cmd", "pn.ps1", "pnpx", "pnpx.cmd", "pnpx.ps1",
+    "pnx", "pnx.cmd", "pnx.ps1",
+];
+
+fn remove_legacy_homedir_shims(pnpm_home_dir: &Path) {
+    for name in LEGACY_HOME_DIR_SHIM_NAMES {
+        // A leftover shim is harmless once PATH points at bin/, so failure here is fine.
+        let _ = fs::remove_file(pnpm_home_dir.join(name));
+    }
 }
 
 /// Render the user-facing summary of what changed.

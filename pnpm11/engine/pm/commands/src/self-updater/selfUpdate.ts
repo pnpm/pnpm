@@ -279,14 +279,29 @@ export async function handler (
   return `Successfully updated pnpm to v${resolution.manifest.version}`
 }
 
-// A fresh v11 setup never writes a `pnpm` shim at pnpmHomeDir itself — only
-// under pnpmHomeDir/bin. The presence of a `pnpm` (or `pnpm.cmd`) file
-// directly at pnpmHomeDir is therefore a reliable v10-layout marker.
+// A leftover shim whose install target was garbage-collected is dead weight,
+// not a real v10 layout — treat it as absent so the warning below stays
+// accurate. The marker only exists on the POSIX sh shim, so introspect that;
+// fall back to .cmd existence only when the sh shim is absent.
+// See pnpm/pnpm#12496.
 function hasLegacyHomeDirShim (pnpmHomeDir: string): boolean {
-  for (const name of ['pnpm', 'pnpm.cmd']) {
-    if (fs.existsSync(path.join(pnpmHomeDir, name))) return true
+  const shShim = path.join(pnpmHomeDir, 'pnpm')
+  if (fs.existsSync(shShim)) {
+    const target = readShimTarget(shShim)
+    // Old-format shim we can't introspect → treat as real.
+    if (target === undefined) return true
+    // Dangling → treat as absent.
+    return fs.existsSync(path.resolve(path.dirname(shShim), target))
   }
-  return false
+  return fs.existsSync(path.join(pnpmHomeDir, 'pnpm.cmd'))
+}
+
+// The marker is absent when the shim is not from cmd-shim or pre-dates it.
+function readShimTarget (shimPath: string): string | undefined {
+  try {
+    return fs.readFileSync(shimPath, 'utf8').match(/^#\s*cmd-shim-target=(.+)$/m)?.[1]
+  } catch {}
+  return undefined
 }
 
 /**

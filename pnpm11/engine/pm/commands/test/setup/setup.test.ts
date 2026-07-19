@@ -36,7 +36,7 @@ jest.unstable_mockModule('fs', () => {
 const { addDirToEnvPath } = await import('@pnpm/os.env.path-extender')
 const { detectIfCurrentPkgIsExecutable } = await import('@pnpm/cli.meta')
 const { spawnSync } = await import('node:child_process')
-const { setup } = await import('@pnpm/engine.pm.commands')
+const { setup, LEGACY_HOME_DIR_SHIM_NAMES } = await import('@pnpm/engine.pm.commands')
 
 test('setup makes no changes', async () => {
   jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
@@ -121,4 +121,60 @@ test('global install of the standalone executable skips its build scripts', asyn
   const args = jest.mocked(spawnSync).mock.calls[0][1] as string[]
   expect(args).toContain('--ignore-scripts')
   expect(args).toEqual(['add', '-g', '--ignore-scripts', `file:${tmpDir}`])
+})
+
+test('setup removes leftover v10-layout shims at the top of pnpmHomeDir', async () => {
+  // Reproduces pnpm/pnpm#12496: `pnpm setup` migrated PATH to
+  // pnpmHomeDir/bin but left the v10-layout shims (pnpm/pn/pnpx/pnx and
+  // .cmd/.ps1 siblings) at pnpmHomeDir itself. self-update keyed off their
+  // mere existence and re-warned about a v10 layout forever.
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  jest.mocked(detectIfCurrentPkgIsExecutable).mockReturnValue(true)
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-test-'))
+  const pnpmHomeDir = path.join(tmpDir, 'home')
+  actualFs.mkdirSync(pnpmHomeDir, { recursive: true })
+  // Pre-create the full set of v10-layout shim names. The cleanup must
+  // tolerate names that don't exist (e.g. .ps1 on POSIX) without error.
+  for (const name of LEGACY_HOME_DIR_SHIM_NAMES) {
+    actualFs.writeFileSync(path.join(pnpmHomeDir, name), 'stale shim\n')
+  }
+  const execPath = path.join(tmpDir, 'pnpm')
+  const originalExecPath = process.execPath
+  Object.defineProperty(process, 'execPath', { value: execPath, configurable: true })
+  try {
+    await setup.handler({ pnpmHomeDir })
+    for (const name of LEGACY_HOME_DIR_SHIM_NAMES) {
+      expect(actualFs.existsSync(path.join(pnpmHomeDir, name))).toBe(false)
+    }
+  } finally {
+    Object.defineProperty(process, 'execPath', { value: originalExecPath, configurable: true })
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('setup ignores legacy shim cleanup failures', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  jest.mocked(detectIfCurrentPkgIsExecutable).mockReturnValue(true)
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-test-'))
+  const pnpmHomeDir = path.join(tmpDir, 'home')
+  actualFs.mkdirSync(pnpmHomeDir, { recursive: true })
+  actualFs.mkdirSync(path.join(pnpmHomeDir, LEGACY_HOME_DIR_SHIM_NAMES[0]))
+  const removableName = LEGACY_HOME_DIR_SHIM_NAMES[1]
+  actualFs.writeFileSync(path.join(pnpmHomeDir, removableName), 'stale shim\n')
+  const execPath = path.join(tmpDir, 'pnpm')
+  const originalExecPath = process.execPath
+  Object.defineProperty(process, 'execPath', { value: execPath, configurable: true })
+  try {
+    await setup.handler({ pnpmHomeDir })
+    expect(actualFs.existsSync(path.join(pnpmHomeDir, removableName))).toBe(false)
+  } finally {
+    Object.defineProperty(process, 'execPath', { value: originalExecPath, configurable: true })
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
 })
