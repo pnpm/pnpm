@@ -2689,8 +2689,10 @@ fn rebuild_selection_runs_only_selected_scripts() {
     let aaa_dir = create_marker_pkg(virtual_store_dir.path(), &key("aaa", "1.0.0"));
     let zzz_dir = create_marker_pkg(virtual_store_dir.path(), &key("zzz", "1.0.0"));
 
-    let rebuild =
-        RebuildOptions { selected_names: Some(std::iter::once("aaa".to_string()).collect()) };
+    let rebuild = RebuildOptions {
+        selected_names: Some(std::iter::once("aaa".to_string()).collect()),
+        pending_projects: Vec::new(),
+    };
 
     BuildModules {
         layout: &VirtualStoreLayout::legacy(

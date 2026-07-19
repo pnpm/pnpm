@@ -695,6 +695,9 @@ fn run_rebuild_blocking(
         selected_names: selected_names
             .filter(|names| !names.is_empty())
             .map(|names| names.into_iter().collect()),
+        // The engine API rebuilds dependencies only; running a workspace
+        // project's own deferred scripts is `pnpm rebuild --pending`.
+        pending_projects: Vec::new(),
     };
     let outcome = run_install_inner(options, None, EngineMode::Rebuild(rebuild_options));
     outcome.map(|_| ())

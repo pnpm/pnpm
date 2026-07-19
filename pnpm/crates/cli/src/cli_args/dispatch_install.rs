@@ -564,7 +564,8 @@ pub(super) fn approve_builds<'a>(
     else {
         return Ok(Box::pin(std::future::ready(Ok(()))));
     };
-    let selected = Some(build_packages);
+    let selected =
+        super::rebuild::RebuildSelection { names: Some(build_packages), projects: Vec::new() };
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
             super::rebuild::run_rebuild::<DefaultReporter>(&rebuild_state, selected).await

@@ -353,6 +353,13 @@ pub struct RebuildOptions {
     /// when either its name or its allow-build key is in the set, so a
     /// `pnpm rebuild <name>` and an `approve-builds` key both select it.
     pub selected_names: Option<HashSet<String>>,
+
+    /// Importer ids whose own deferred install scripts this rebuild
+    /// should run — `pnpm rebuild --pending` reads them out of
+    /// `.modules.yaml`'s `pendingBuilds`. A dependency's build is settled
+    /// by the rebuild itself; a project's is only settled by running its
+    /// scripts, which nothing else in the rebuild path does.
+    pub pending_projects: Vec<String>,
 }
 
 impl RebuildOptions {
@@ -360,6 +367,24 @@ impl RebuildOptions {
     /// absent selection (`None`) matches every package.
     fn is_selected(&self, name: &str) -> bool {
         self.selected_names.as_ref().is_none_or(|names| names.contains(name))
+    }
+
+    /// Whether this rebuild discharges `pending_entry`, a
+    /// `.modules.yaml` `pendingBuilds` record, so the install can drop it
+    /// from the rewritten list.
+    ///
+    /// Importer ids qualify only through [`Self::pending_projects`]:
+    /// dropping one the rebuild never ran would forget the debt rather
+    /// than settle it.
+    #[must_use]
+    pub fn settles(&self, pending_entry: &str) -> bool {
+        if self.pending_projects.iter().any(|id| id == pending_entry) {
+            return true;
+        }
+        let Ok(key) = pending_entry.parse::<PackageKey>() else { return false };
+        let (name, _) = parse_name_version_from_key(&key.without_peer().to_string());
+        self.is_selected(&name)
+            || self.is_selected(&allow_build_key_from_ignored_build(pending_entry))
     }
 }
 

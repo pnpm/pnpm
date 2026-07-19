@@ -2164,10 +2164,13 @@ where
                 })
                 .collect::<Vec<_>>()
         });
+        let previous_pending_builds =
+            prior_modules.map_or(&[][..], |modules| modules.pending_builds.as_slice());
         let pending_builds = merge_pending_builds(
-            prior_modules.map_or(&[], |modules| modules.pending_builds.as_slice()),
+            previous_pending_builds,
             deferred_projects.into_iter().flatten().chain(deferred_builds),
             materialized_current_lockfile.as_ref(),
+            rebuild.as_ref(),
         );
 
         let mut next_modules = build_modules_manifest(
@@ -2254,9 +2257,35 @@ where
         //
         // And under `virtualStoreOnly`, which stops before any linking
         // the project's scripts would expect to find in place.
-        if is_full_install && !config.ignore_scripts && !config.virtual_store_only {
+        //
+        // A `pnpm rebuild --pending` is the exception to the
+        // full-install gate: it is not a full install, but the projects
+        // it names are exactly the ones whose scripts an earlier
+        // `--ignore-scripts` install deferred, and running them is what
+        // lets the install drop those entries from `pendingBuilds` (see
+        // [`merge_pending_builds`]).
+        let projects_to_run: Vec<(std::path::PathBuf, &PackageManifest)> = if config.ignore_scripts
+            || config.virtual_store_only
+        {
+            Vec::new()
+        } else if is_full_install {
+            materialized_project_manifests.clone()
+        } else if let Some(rebuild) = rebuild.as_ref() {
+            materialized_project_manifests
+                .iter()
+                .filter(|(project_dir, _)| {
+                    let importer_id =
+                        pacquet_workspace::importer_id_from_root_dir(&workspace_root, project_dir);
+                    rebuild.pending_projects.contains(&importer_id)
+                })
+                .cloned()
+                .collect()
+        } else {
+            Vec::new()
+        };
+        if !projects_to_run.is_empty() {
             run_projects_lifecycle_scripts::<Reporter>(
-                &materialized_project_manifests,
+                &projects_to_run,
                 config,
                 node_linker,
                 &workspace_root,
@@ -2964,28 +2993,27 @@ fn build_modules_manifest(
 /// The `pendingBuilds` list for this install: the builds still owed,
 /// carried-over entries first, then the ones this install deferred.
 ///
-/// A build stays owed until something runs it — only `pnpm rebuild`
-/// drains the list — so a previous entry is dropped only when its
-/// subject is gone from the current lockfile, which is what makes an
-/// install that removes packages shrink the list.
+/// A build stays owed until something runs it, so a carried-over entry
+/// is dropped in exactly two cases: its subject is gone from the current
+/// lockfile (what makes an install that removes packages shrink the
+/// list), or this run is the `pnpm rebuild` that discharged it (what
+/// makes `pnpm rebuild --pending` converge instead of reselecting the
+/// same work forever).
 fn merge_pending_builds<Deferred>(
     previous: &[String],
     deferred: Deferred,
     current: Option<&Lockfile>,
+    rebuild: Option<&crate::RebuildOptions>,
 ) -> Vec<String>
 where
     Deferred: IntoIterator<Item = String>,
 {
-    let retained = previous
-        .iter()
-        .filter(|entry| current.is_some_and(|current| current_contains_dep_path(current, entry)));
-    let mut pending: Vec<String> = Vec::new();
-    for entry in retained.cloned().chain(deferred) {
-        if !pending.contains(&entry) {
-            pending.push(entry);
-        }
-    }
-    pending
+    let retained = previous.iter().filter(|entry| {
+        current.is_some_and(|current| current_contains_dep_path(current, entry))
+            && !rebuild.is_some_and(|rebuild| rebuild.settles(entry))
+    });
+    let mut seen = HashSet::new();
+    retained.cloned().chain(deferred).filter(|entry| seen.insert(entry.clone())).collect()
 }
 
 fn merge_filtered_modules_metadata(

@@ -88,6 +88,11 @@ fn a_failed_build_writes_no_current_lockfile() {
         .with_args(["install", "--frozen-lockfile"])
         .output()
         .expect("run the frozen install");
+    eprintln!(
+        "frozen install output:\n{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
     assert!(!output.status.success(), "a failing postinstall must fail the install");
 
     assert!(

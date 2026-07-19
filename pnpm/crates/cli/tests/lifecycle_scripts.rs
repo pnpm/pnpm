@@ -1,17 +1,19 @@
-mod dependency_build_scripts {
-    use assert_cmd::prelude::*;
-    use command_extra::CommandExtra;
-    use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-    use pipe_trait::Pipe;
+/// Helpers for editing the `pnpm-workspace.yaml` that
+/// [`CommandTempCwd::add_mocked_registry`] wrote. Both edit in place
+/// rather than replacing the file: the harness's `storeDir`, `cacheDir`,
+/// and `enableGlobalVirtualStore: false` keys have to survive, or the
+/// test installs into the real store and the global virtual store moves
+/// every package out of `node_modules/.pnpm`.
+mod workspace_yaml {
     use std::{fmt::Write as _, fs, path::Path};
 
-    /// Set `strictDepBuilds` in the workspace's `pnpm-workspace.yaml`.
-    /// Tests that intentionally leave some builds ignored and then
-    /// inspect the filesystem set it to `false` so the install completes
-    /// instead of failing with `ERR_PNPM_IGNORED_BUILDS` (the default).
-    /// Must be called before [`allow_builds`] so its block survives the
-    /// `allowBuilds:` truncation on re-calls.
-    fn set_strict_dep_builds(workspace: &Path, strict: bool) {
+    /// Set `strictDepBuilds`. Tests that intentionally leave builds
+    /// ignored and then inspect the filesystem set it to `false` so the
+    /// install completes instead of failing with
+    /// `ERR_PNPM_IGNORED_BUILDS` (the default). Must be called before
+    /// [`allow_builds`] so its line survives the `allowBuilds:`
+    /// truncation on re-calls.
+    pub fn set_strict_dep_builds(workspace: &Path, strict: bool) {
         let yaml_path = workspace.join("pnpm-workspace.yaml");
         let mut yaml = fs::read_to_string(&yaml_path).unwrap_or_default();
         if !yaml.is_empty() && !yaml.ends_with('\n') {
@@ -21,13 +23,29 @@ mod dependency_build_scripts {
         fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
     }
 
-    /// Set an `allowBuilds:` block in the workspace's
-    /// `pnpm-workspace.yaml`, replacing any block a previous phase
-    /// wrote. pnpm v11 (and pacquet) read build approval from
+    /// Append a top-level `key: value` line. Only valid for keys the
+    /// harness never writes; the assert fails loudly if that changes.
+    pub fn append_workspace_yaml_key(workspace: &Path, key: &str, value: impl std::fmt::Display) {
+        let yaml_path = workspace.join("pnpm-workspace.yaml");
+        let mut yaml = fs::read_to_string(&yaml_path).unwrap_or_default();
+        let key_prefix = format!("{key}:");
+        assert!(
+            !yaml.lines().any(|line| line.starts_with(&key_prefix)),
+            "pnpm-workspace.yaml already has a `{key}:` key",
+        );
+        if !yaml.is_empty() && !yaml.ends_with('\n') {
+            yaml.push('\n');
+        }
+        writeln!(yaml, "{key}: {value}").expect("format workspace key");
+        fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+    }
+
+    /// Set the `allowBuilds:` block, replacing any block a previous
+    /// phase wrote. pnpm v11 (and pacquet) read build approval from
     /// `pnpm-workspace.yaml`, not from `package.json#pnpm` — this
     /// mirrors upstream tests passing `allowBuilds` through
-    /// `testDefaults`.
-    fn allow_builds(workspace: &Path, entries: &[(&str, bool)]) {
+    /// `testDefaults`. An empty `entries` withdraws every approval.
+    pub fn allow_builds(workspace: &Path, entries: &[(&str, bool)]) {
         let yaml_path = workspace.join("pnpm-workspace.yaml");
         let mut yaml = fs::read_to_string(&yaml_path).unwrap_or_default();
         if let Some(idx) = yaml.find("allowBuilds:") {
@@ -36,12 +54,25 @@ mod dependency_build_scripts {
         if !yaml.is_empty() && !yaml.ends_with('\n') {
             yaml.push('\n');
         }
+        if entries.is_empty() {
+            fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+            return;
+        }
         yaml.push_str("allowBuilds:\n");
         for (spec, value) in entries {
             writeln!(yaml, "  '{spec}': {value}").expect("format allowBuilds entry");
         }
         fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
     }
+}
+
+mod dependency_build_scripts {
+    use super::workspace_yaml::{allow_builds, append_workspace_yaml_key, set_strict_dep_builds};
+    use assert_cmd::prelude::*;
+    use command_extra::CommandExtra;
+    use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+    use pipe_trait::Pipe;
+    use std::{fs, path::Path};
 
     #[test]
     fn run_pre_and_postinstall_scripts() {
@@ -847,13 +878,9 @@ mod dependency_build_scripts {
         });
         fs::write(workspace.join("package.json"), package_json.to_string())
             .expect("write package.json");
-        let workspace_yaml = workspace.join("pnpm-workspace.yaml");
-        fs::write(
-            &workspace_yaml,
-            "enableGlobalVirtualStore: false\n\
-             allowBuilds:\n  '@pnpm.e2e/pre-and-postinstall-scripts-example': true\n",
-        )
-        .expect("write pnpm-workspace.yaml");
+        set_strict_dep_builds(&workspace, true);
+        append_workspace_yaml_key(&workspace, "optimisticRepeatInstall", false);
+        allow_builds(&workspace, &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
 
         pacquet.with_arg("install").assert().success();
         let built_marker = workspace.join(
@@ -862,13 +889,7 @@ mod dependency_build_scripts {
         );
         assert!(built_marker.exists(), "the approved build must run and populate the cache");
 
-        fs::write(
-            &workspace_yaml,
-            "enableGlobalVirtualStore: false\n\
-             strictDepBuilds: true\n\
-             optimisticRepeatInstall: false\n",
-        )
-        .expect("revoke the build approval");
+        allow_builds(&workspace, &[]);
 
         let CommandTempCwd { pacquet: rerun, root: rerun_root, .. } =
             CommandTempCwd::init().add_mocked_registry();
@@ -915,6 +936,7 @@ mod dependency_build_scripts {
 /// `--ignore-scripts` deferred, which `pacquet rebuild --pending`
 /// later drains.
 mod pending_builds {
+    use super::workspace_yaml::allow_builds;
     use assert_cmd::prelude::*;
     use command_extra::CommandExtra;
     use pacquet_modules_yaml::{Host, read_modules_manifest};
@@ -992,11 +1014,7 @@ mod pending_builds {
         });
         fs::write(workspace.join("package.json"), package_json.to_string())
             .expect("write package.json");
-        fs::write(
-            workspace.join("pnpm-workspace.yaml"),
-            "allowBuilds:\n  '@pnpm.e2e/pre-and-postinstall-scripts-example': true\n",
-        )
-        .expect("write pnpm-workspace.yaml");
+        allow_builds(&workspace, &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
 
         pacquet.with_arg("install").assert().success();
 
@@ -1053,6 +1071,58 @@ mod pending_builds {
         drop((root, mock_instance, rerun_root));
     }
 
+    /// `pnpm rebuild --pending` is what settles the debt: it runs both
+    /// the deferred dependency builds and the project's own deferred
+    /// install scripts, then leaves the list empty so a second run has
+    /// nothing to do.
+    #[test]
+    fn rebuild_pending_runs_the_deferred_work_and_empties_the_list() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let marker = workspace.join("project-install-ran.txt");
+        let package_json = serde_json::json!({
+            "scripts": {
+                "install": r#"node -e "require('fs').writeFileSync('project-install-ran.txt','ran')""#,
+            },
+            "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+        allow_builds(&workspace, &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
+
+        pacquet.with_args(["install", "--ignore-scripts"]).assert().success();
+        assert_eq!(
+            read_pending_builds(&workspace),
+            [".", "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"],
+        );
+        assert!(!marker.exists(), "--ignore-scripts must defer the project's own script");
+
+        let CommandTempCwd { pacquet: rebuild, root: rebuild_root, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        rebuild.with_current_dir(&workspace).with_args(["rebuild", "--pending"]).assert().success();
+
+        assert!(marker.exists(), "the deferred project script must run");
+        assert!(
+            workspace
+                .join(
+                    "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
+                     /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example\
+                     /generated-by-postinstall.js"
+                )
+                .exists(),
+            "the deferred dependency build must run",
+        );
+        assert_eq!(
+            read_pending_builds(&workspace),
+            Vec::<String>::new(),
+            "a rebuild settles the debt it was asked to run",
+        );
+
+        drop((root, mock_instance, rebuild_root));
+    }
+
     /// A build stays owed until something runs it: an install that does
     /// not defer anything new must not drop what an earlier
     /// `--ignore-scripts` install recorded.
@@ -1069,11 +1139,7 @@ mod pending_builds {
             .expect("write package.json");
         // Approved, so the second install's build phase reports nothing
         // deferred — the entry can only survive by being carried over.
-        fs::write(
-            workspace.join("pnpm-workspace.yaml"),
-            "allowBuilds:\n  '@pnpm.e2e/pre-and-postinstall-scripts-example': true\n",
-        )
-        .expect("write pnpm-workspace.yaml");
+        allow_builds(&workspace, &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
 
         pacquet.with_args(["install", "--ignore-scripts"]).assert().success();
         let deferred = read_pending_builds(&workspace);
