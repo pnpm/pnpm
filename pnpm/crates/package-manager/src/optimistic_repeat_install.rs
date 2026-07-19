@@ -122,7 +122,17 @@ pub struct OptimisticRepeatInstallCheck<'a> {
 ///
 /// Always returns `Decision::Skipped` when
 /// `config.optimistic_repeat_install` is `false`.
+#[must_use]
 pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>) -> Decision {
+    check_optimistic_repeat_install_ignoring(check, &[])
+}
+
+/// Run the workspace-state freshness fast path while excluding selected
+/// pnpm workspace-state setting keys from the drift comparison.
+pub(crate) fn check_optimistic_repeat_install_ignoring(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    ignored_workspace_state_settings: &[&str],
+) -> Decision {
     let &OptimisticRepeatInstallCheck {
         workspace_root,
         config,
@@ -136,6 +146,10 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
     } = check;
     if !config.optimistic_repeat_install {
         return Decision::Skipped { reason: "optimistic_repeat_install disabled" };
+    }
+
+    if has_conflicted_lockfile(check) {
+        return Decision::Skipped { reason: "a lockfile contains merge conflict markers" };
     }
 
     // No workspace state means no previous install has completed
@@ -167,7 +181,14 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
         };
     }
 
-    if !settings_match(&state, config, node_linker, included, supported_architectures) {
+    if !settings_match(
+        &state,
+        config,
+        node_linker,
+        included,
+        supported_architectures,
+        ignored_workspace_state_settings,
+    ) {
         return Decision::Skipped { reason: "settings drift" };
     }
 
@@ -314,6 +335,23 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
         }
         Err(reason) => Decision::Skipped { reason },
     }
+}
+
+fn has_conflicted_lockfile(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
+    let shared_lockfile = check.workspace_root.join(Lockfile::FILE_NAME);
+    if lockfile_contains_conflict_markers(&shared_lockfile) {
+        return true;
+    }
+    !check.config.shared_workspace_lockfile
+        && check.project_manifests.iter().any(|(root_dir, _)| {
+            let lockfile_path = root_dir.join(Lockfile::FILE_NAME);
+            lockfile_path != shared_lockfile && lockfile_contains_conflict_markers(&lockfile_path)
+        })
+}
+
+fn lockfile_contains_conflict_markers(path: &Path) -> bool {
+    fs::read(path)
+        .is_ok_and(|contents| contents.windows(b"<<<<<<<".len()).any(|line| line == b"<<<<<<<"))
 }
 
 /// Whether any project declares a dependency with a local file
@@ -1061,9 +1099,17 @@ fn settings_match(
     node_linker: NodeLinker,
     included: IncludedDependencies,
     supported_architectures: Option<&SupportedArchitectures>,
+    ignored_workspace_state_settings: &[&str],
 ) -> bool {
-    first_setting_drift(state, config, node_linker, included, supported_architectures, false)
-        .is_none()
+    first_setting_drift(
+        state,
+        config,
+        node_linker,
+        included,
+        supported_architectures,
+        ignored_workspace_state_settings,
+    )
+    .is_none()
 }
 
 /// The camelCase name (pnpm's workspace-state setting key) of the first
@@ -1079,98 +1125,80 @@ fn first_setting_drift(
     node_linker: NodeLinker,
     included: IncludedDependencies,
     supported_architectures: Option<&SupportedArchitectures>,
-    ignore_included_groups: bool,
+    ignored_workspace_state_settings: &[&str],
 ) -> Option<&'static str> {
     let current = current_settings(config, node_linker, included, supported_architectures);
     let recorded = &state.settings;
     let live = &current;
-    if !allow_builds_match(recorded.allow_builds.as_ref(), live.allow_builds.as_ref()) {
-        return Some("allowBuilds");
-    }
-    if recorded.auto_install_peers != live.auto_install_peers {
-        return Some("autoInstallPeers");
-    }
-    if recorded.dedupe_direct_deps != live.dedupe_direct_deps {
-        return Some("dedupeDirectDeps");
-    }
-    if recorded.dedupe_injected_deps != live.dedupe_injected_deps {
-        return Some("dedupeInjectedDeps");
-    }
-    if recorded.dedupe_peer_dependents != live.dedupe_peer_dependents {
-        return Some("dedupePeerDependents");
-    }
-    if recorded.dedupe_peers != live.dedupe_peers {
-        return Some("dedupePeers");
-    }
-    if !ignore_included_groups && recorded.dev != live.dev {
-        return Some("dev");
-    }
-    if !enable_global_virtual_store_match(
-        recorded.enable_global_virtual_store,
-        live.enable_global_virtual_store,
-    ) {
-        return Some("enableGlobalVirtualStore");
-    }
-    if recorded.exclude_links_from_lockfile != live.exclude_links_from_lockfile {
-        return Some("excludeLinksFromLockfile");
-    }
-    if recorded.hoist_pattern != live.hoist_pattern {
-        return Some("hoistPattern");
-    }
-    if recorded.hoist_workspace_packages != live.hoist_workspace_packages {
-        return Some("hoistWorkspacePackages");
-    }
-    if recorded.ignored_optional_dependencies != live.ignored_optional_dependencies {
-        return Some("ignoredOptionalDependencies");
-    }
-    if recorded.inject_workspace_packages != live.inject_workspace_packages {
-        return Some("injectWorkspacePackages");
-    }
-    if recorded.link_workspace_packages != live.link_workspace_packages {
-        return Some("linkWorkspacePackages");
-    }
-    if recorded.minimum_release_age != live.minimum_release_age {
-        return Some("minimumReleaseAge");
-    }
-    if recorded.minimum_release_age_ignore_missing_time
-        != live.minimum_release_age_ignore_missing_time
-    {
-        return Some("minimumReleaseAgeIgnoreMissingTime");
-    }
-    if recorded.node_linker != live.node_linker {
-        return Some("nodeLinker");
-    }
-    if !ignore_included_groups && recorded.optional != live.optional {
-        return Some("optional");
-    }
-    if recorded.overrides != live.overrides {
-        return Some("overrides");
-    }
-    if !package_extensions_match(
-        recorded.package_extensions.as_ref(),
-        live.package_extensions.as_ref(),
-    ) {
-        return Some("packageExtensions");
-    }
-    if recorded.patched_dependencies != live.patched_dependencies {
-        return Some("patchedDependencies");
-    }
-    if recorded.peers_suffix_max_length != live.peers_suffix_max_length {
-        return Some("peersSuffixMaxLength");
-    }
-    if recorded.prefer_workspace_packages != live.prefer_workspace_packages {
-        return Some("preferWorkspacePackages");
-    }
-    if !ignore_included_groups && recorded.production != live.production {
-        return Some("production");
-    }
-    if recorded.public_hoist_pattern != live.public_hoist_pattern {
-        return Some("publicHoistPattern");
-    }
-    if recorded.supported_architectures != live.supported_architectures {
-        return Some("supportedArchitectures");
-    }
-    None
+    [
+        (
+            "allowBuilds",
+            !allow_builds_match(recorded.allow_builds.as_ref(), live.allow_builds.as_ref()),
+        ),
+        ("autoInstallPeers", recorded.auto_install_peers != live.auto_install_peers),
+        ("dedupeDirectDeps", recorded.dedupe_direct_deps != live.dedupe_direct_deps),
+        ("dedupeInjectedDeps", recorded.dedupe_injected_deps != live.dedupe_injected_deps),
+        ("dedupePeerDependents", recorded.dedupe_peer_dependents != live.dedupe_peer_dependents),
+        ("dedupePeers", recorded.dedupe_peers != live.dedupe_peers),
+        ("dev", recorded.dev != live.dev),
+        (
+            "enableGlobalVirtualStore",
+            !enable_global_virtual_store_match(
+                recorded.enable_global_virtual_store,
+                live.enable_global_virtual_store,
+            ),
+        ),
+        (
+            "excludeLinksFromLockfile",
+            recorded.exclude_links_from_lockfile != live.exclude_links_from_lockfile,
+        ),
+        ("hoistPattern", recorded.hoist_pattern != live.hoist_pattern),
+        (
+            "hoistWorkspacePackages",
+            recorded.hoist_workspace_packages != live.hoist_workspace_packages,
+        ),
+        (
+            "ignoredOptionalDependencies",
+            recorded.ignored_optional_dependencies != live.ignored_optional_dependencies,
+        ),
+        (
+            "injectWorkspacePackages",
+            recorded.inject_workspace_packages != live.inject_workspace_packages,
+        ),
+        ("linkWorkspacePackages", recorded.link_workspace_packages != live.link_workspace_packages),
+        ("minimumReleaseAge", recorded.minimum_release_age != live.minimum_release_age),
+        (
+            "minimumReleaseAgeIgnoreMissingTime",
+            recorded.minimum_release_age_ignore_missing_time
+                != live.minimum_release_age_ignore_missing_time,
+        ),
+        ("nodeLinker", recorded.node_linker != live.node_linker),
+        ("optional", recorded.optional != live.optional),
+        ("overrides", recorded.overrides != live.overrides),
+        (
+            "packageExtensions",
+            !package_extensions_match(
+                recorded.package_extensions.as_ref(),
+                live.package_extensions.as_ref(),
+            ),
+        ),
+        ("patchedDependencies", recorded.patched_dependencies != live.patched_dependencies),
+        ("peersSuffixMaxLength", recorded.peers_suffix_max_length != live.peers_suffix_max_length),
+        (
+            "preferWorkspacePackages",
+            recorded.prefer_workspace_packages != live.prefer_workspace_packages,
+        ),
+        ("production", recorded.production != live.production),
+        ("publicHoistPattern", recorded.public_hoist_pattern != live.public_hoist_pattern),
+        (
+            "supportedArchitectures",
+            recorded.supported_architectures != live.supported_architectures,
+        ),
+    ]
+    .into_iter()
+    .find_map(|(key, differs)| {
+        (differs && !ignored_workspace_state_settings.contains(&key)).then_some(key)
+    })
     // Deliberately *not* compared in this generic settings loop:
     // `catalogs` is ignored here and checked separately in
     // `check_optimistic_repeat_install` so catalogs from either
@@ -1566,9 +1594,14 @@ pub fn check_deps_status_before_run(
         return RunDepsStatus::SkippedPnp;
     }
 
-    if let Some(setting) =
-        first_setting_drift(state, config, node_linker, included, supported_architectures, true)
-    {
+    if let Some(setting) = first_setting_drift(
+        state,
+        config,
+        node_linker,
+        included,
+        supported_architectures,
+        &["dev", "optional", "production"],
+    ) {
         return outdated(format!("The value of the {setting} setting has changed"));
     }
     if config_dependencies_drifted(config, state) {

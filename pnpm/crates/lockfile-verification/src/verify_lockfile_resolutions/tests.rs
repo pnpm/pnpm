@@ -432,6 +432,88 @@ async fn one_packages_entry_yields_one_verification() {
 }
 
 #[tokio::test]
+async fn same_name_and_version_with_different_resolutions_are_both_verified() {
+    let lockfile = parse(
+        "lockfileVersion: '9.0'
+
+packages:
+
+  react@17.0.2(peer@1.0.0):
+    resolution: {integrity: sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==}
+
+  react@17.0.2(peer@2.0.0):
+    resolution: {integrity: sha512-s4h96KtLDUQlsENhMn1ar8t2bEa+q/YAtj8pPPdIjPDGBDIVNsrD9aXNWqspUe6AzKCIG0C1HZZLqLV7qpOBGA==}
+",
+    );
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let verifier: Arc<dyn ResolutionVerifier> =
+        Arc::new(CapturingVerifier { seen: Arc::clone(&seen), policy: serde_json::Map::new() });
+
+    verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[verifier],
+        &VerifyLockfileResolutionsOptions::default(),
+    )
+    .await
+    .expect("both resolutions verify");
+
+    let resolutions = seen.lock().expect("seen lock");
+    assert_eq!(resolutions.len(), 2);
+    assert_ne!(resolutions[0], resolutions[1]);
+}
+
+#[tokio::test]
+async fn verifier_receives_the_lockfile_resolution_verbatim() {
+    let lockfile = parse(SINGLE_PKG_LOCKFILE);
+    let expected = lockfile
+        .packages
+        .as_ref()
+        .expect("packages")
+        .values()
+        .next()
+        .expect("package")
+        .resolution
+        .clone();
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let verifier: Arc<dyn ResolutionVerifier> =
+        Arc::new(CapturingVerifier { seen: Arc::clone(&seen), policy: serde_json::Map::new() });
+
+    verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[verifier],
+        &VerifyLockfileResolutionsOptions::default(),
+    )
+    .await
+    .expect("resolution verifies");
+
+    assert_eq!(*seen.lock().expect("seen lock"), vec![expected]);
+}
+
+#[tokio::test]
+async fn rejected_verification_does_not_write_a_cache_record() {
+    let dir = TempDir::new().expect("tempdir");
+    let lockfile_path = dir.path().join("pnpm-lock.yaml");
+    std::fs::write(&lockfile_path, SINGLE_PKG_LOCKFILE).expect("write lockfile");
+    let lockfile = parse(SINGLE_PKG_LOCKFILE);
+    let cache_dir = dir.path().join("cache");
+    let verifier = AlwaysFail::new("MINIMUM_RELEASE_AGE_VIOLATION", "too new");
+
+    verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[verifier as Arc<dyn ResolutionVerifier>],
+        &VerifyLockfileResolutionsOptions {
+            lockfile_path: Some(&lockfile_path),
+            cache_dir: Some(&cache_dir),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect_err("verification must reject");
+
+    assert!(!cache_dir.join(crate::CACHE_FILE_NAME).exists());
+}
+
+#[tokio::test]
 async fn uninterested_verifier_skips_candidate_fan_out() {
     static CALLS: AtomicUsize = AtomicUsize::new(0);
     CALLS.store(0, Ordering::SeqCst);
@@ -646,6 +728,30 @@ async fn ctx_borrows_have_expected_lifetimes() {
     )
     .await;
     assert!(result.is_ok());
+}
+
+struct CapturingVerifier {
+    seen: Arc<Mutex<Vec<LockfileResolution>>>,
+    policy: serde_json::Map<String, serde_json::Value>,
+}
+
+impl ResolutionVerifier for CapturingVerifier {
+    fn verify<'a>(
+        &'a self,
+        resolution: &'a LockfileResolution,
+        _ctx: VerifyCtx<'a>,
+    ) -> VerifyFuture<'a> {
+        self.seen.lock().expect("seen lock").push(resolution.clone());
+        Box::pin(async { ResolutionVerification::Ok })
+    }
+
+    fn policy(&self) -> &serde_json::Map<String, serde_json::Value> {
+        &self.policy
+    }
+
+    fn can_trust_past_check(&self, _cached: &serde_json::Map<String, serde_json::Value>) -> bool {
+        true
+    }
 }
 
 #[tokio::test]

@@ -22,6 +22,9 @@ use crate::{
     verify_lockfile_resolutions::with_offline_check_cache_identities,
 };
 
+#[cfg(test)]
+mod tests;
+
 /// Persist the post-resolution lockfile as already-verified.
 /// `cache_dir` enables the cache, `lockfile_path` is the absolute
 /// path of the file the next install will read, `lockfile` is the

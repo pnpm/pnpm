@@ -834,11 +834,16 @@ async fn default_pick_targets_abbreviated_endpoint_and_mirror() {
 #[tokio::test]
 async fn optional_opt_forces_full_metadata_endpoint() {
     let mut server = mockito::Server::new_async().await;
+    let package_body = PACKAGE_BODY.replacen(
+        r#""version": "1.0.0","#,
+        r#""version": "1.0.0", "libc": ["glibc"],"#,
+        1,
+    );
     let mock = server
         .mock("GET", "/acme")
         .match_header("accept", "application/json; q=1.0, */*")
         .with_status(200)
-        .with_body(PACKAGE_BODY)
+        .with_body(package_body)
         .expect(1)
         .create_async()
         .await;
@@ -865,8 +870,13 @@ async fn optional_opt_forces_full_metadata_endpoint() {
 
     let mut opts = default_opts(&registry);
     opts.optional = true;
-    let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("ok");
+    let result = pick_package(&ctx, &version_spec("acme", "1.0.0"), &opts).await.expect("ok");
     mock.assert_async().await;
+
+    assert_eq!(
+        result.picked_package.expect("picked package").other.get("libc"),
+        Some(&serde_json::json!(["glibc"])),
+    );
 
     let full_path =
         get_pkg_mirror_path(cache_dir.path(), FULL_META_DIR, &registry, "acme").expect("path");

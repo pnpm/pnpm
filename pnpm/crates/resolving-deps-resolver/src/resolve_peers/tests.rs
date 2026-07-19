@@ -223,6 +223,51 @@ fn named_registry_peer_reports_bad_when_extracted_range_unmet() {
     assert!(result.peer_dependency_issues.bad.contains_key("types"));
 }
 
+#[test]
+fn reports_a_conflict_for_an_optional_peer_with_an_incompatible_provider() {
+    let provider = NodeId::leaf("peer@2.0.0");
+    let consumer = NodeId::next();
+    let mut tree = ResolvedTree {
+        direct: vec![
+            DirectDep {
+                alias: "consumer".to_string(),
+                node_id: consumer.clone(),
+                id: "consumer@1.0.0".to_string(),
+            },
+            DirectDep {
+                alias: "peer".to_string(),
+                node_id: provider.clone(),
+                id: "peer@2.0.0".to_string(),
+            },
+        ],
+        packages: HashMap::from([
+            ("peer@2.0.0".to_string(), package("peer", "2.0.0", &[], true)),
+            (
+                "consumer@1.0.0".to_string(),
+                package_with_peer_dependencies(
+                    "consumer",
+                    "1.0.0",
+                    &[("peer", "^1.0.0", true)],
+                    false,
+                ),
+            ),
+        ]),
+        dependencies_tree: HashMap::from([
+            (provider, tree_node("peer@2.0.0", BTreeMap::new(), 0)),
+            (consumer, tree_node("consumer@1.0.0", BTreeMap::new(), 0)),
+        ]),
+        all_peer_dep_names: HashSet::from(["peer".to_string()]),
+        policy_violations: Vec::new(),
+        applied_patches: HashSet::new(),
+        children_by_id: HashMap::new(),
+    };
+
+    let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+
+    assert_eq!(result.peer_dependency_issues.bad["peer"].len(), 1);
+    assert!(result.peer_dependency_issues.bad["peer"][0].optional);
+}
+
 /// A tree with a `consumer` whose peer on `types@1.0.0` is declared with the
 /// given named-registry specifier. Returns the tree and the expected dep path.
 fn named_registry_peer_tree(peer_spec: &str) -> (ResolvedTree, DepPath) {
@@ -1448,6 +1493,87 @@ fn pruned_hoisted_provider_falls_back_in_workspace_pass() {
         result.graph.contains_key(&DepPath::from("consumer@1.0.0(prov@1.0.0)")),
         "the consumer must bind the fallback-resolved provider: {:#?}",
         result.graph.keys().collect::<Vec<_>>(),
+    );
+}
+
+#[test]
+fn workspace_importers_get_distinct_instances_for_different_peer_versions() {
+    let peer_v1 = NodeId::leaf("peer@1.0.0");
+    let peer_v2 = NodeId::leaf("peer@2.0.0");
+    let consumer_v1 = NodeId::next();
+    let consumer_v2 = NodeId::next();
+    let importers = [
+        ImporterPeerInput {
+            id: "project-a".to_string(),
+            direct: vec![
+                DirectDep {
+                    alias: "consumer".to_string(),
+                    node_id: consumer_v1.clone(),
+                    id: "consumer@1.0.0".to_string(),
+                },
+                DirectDep {
+                    alias: "peer".to_string(),
+                    node_id: peer_v1.clone(),
+                    id: "peer@1.0.0".to_string(),
+                },
+            ],
+            root_dir: std::path::PathBuf::from("/repo/project-a"),
+            modules_dir: None,
+        },
+        ImporterPeerInput {
+            id: "project-b".to_string(),
+            direct: vec![
+                DirectDep {
+                    alias: "consumer".to_string(),
+                    node_id: consumer_v2.clone(),
+                    id: "consumer@1.0.0".to_string(),
+                },
+                DirectDep {
+                    alias: "peer".to_string(),
+                    node_id: peer_v2.clone(),
+                    id: "peer@2.0.0".to_string(),
+                },
+            ],
+            root_dir: std::path::PathBuf::from("/repo/project-b"),
+            modules_dir: None,
+        },
+    ];
+    let mut tree = ResolvedTree {
+        direct: Vec::new(),
+        packages: HashMap::from([
+            ("peer@1.0.0".to_string(), package("peer", "1.0.0", &[], true)),
+            ("peer@2.0.0".to_string(), package("peer", "2.0.0", &[], true)),
+            ("consumer@1.0.0".to_string(), package("consumer", "1.0.0", &[("peer", "*")], false)),
+        ]),
+        dependencies_tree: HashMap::from([
+            (peer_v1, tree_node("peer@1.0.0", BTreeMap::new(), 0)),
+            (peer_v2, tree_node("peer@2.0.0", BTreeMap::new(), 0)),
+            (consumer_v1, tree_node("consumer@1.0.0", BTreeMap::new(), 0)),
+            (consumer_v2, tree_node("consumer@1.0.0", BTreeMap::new(), 0)),
+        ]),
+        all_peer_dep_names: HashSet::from(["peer".to_string()]),
+        policy_violations: Vec::new(),
+        applied_patches: HashSet::new(),
+        children_by_id: HashMap::new(),
+    };
+
+    let result = resolve_peers_workspace(
+        &mut tree,
+        &importers,
+        std::path::Path::new("/repo"),
+        false,
+        false,
+        false,
+        ResolvePeersOptions::default(),
+    );
+
+    assert_eq!(
+        result.direct_dependencies_by_importer["project-a"]["consumer"],
+        DepPath::from("consumer@1.0.0(peer@1.0.0)"),
+    );
+    assert_eq!(
+        result.direct_dependencies_by_importer["project-b"]["consumer"],
+        DepPath::from("consumer@1.0.0(peer@2.0.0)"),
     );
 }
 

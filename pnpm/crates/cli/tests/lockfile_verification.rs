@@ -15,7 +15,11 @@ pub mod _utils;
 pub use _utils::*;
 
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pacquet_testing_utils::{
+    allow_known_failure,
+    bin::{AddMockedRegistry, CommandTempCwd},
+    known_failure::{KnownFailure, KnownResult},
+};
 use std::fs;
 
 /// `minimumReleaseAge` set to 100 years rejects every version the
@@ -85,6 +89,17 @@ fn install_fails_under_huge_minimum_release_age() {
     );
 
     drop((root, mock_instance));
+}
+
+fn immature_version_fallback() -> KnownResult<()> {
+    Err(KnownFailure::new(
+        "pacquet does not yet implement the resolver path that falls back to an immature version when non-strict minimumReleaseAge has no mature match",
+    ))
+}
+
+#[test]
+fn non_strict_minimum_release_age_falls_back_when_no_mature_version_matches() {
+    allow_known_failure!(immature_version_fallback());
 }
 
 /// `trustLockfile: true` short-circuits the verification gate so a

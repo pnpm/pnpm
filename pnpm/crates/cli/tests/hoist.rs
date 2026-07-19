@@ -191,6 +191,30 @@ fn public_hoist_star_hoists_to_root_node_modules() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn public_hoist_does_not_override_an_existing_root_directory() {
+    let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(
+        &workspace,
+        serde_json::json!({ "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" }),
+    );
+    generate_lockfile(pnpm);
+    write_workspace_yaml(&workspace, "publicHoistPattern:\n  - '*'\nhoistPattern: []\n");
+    let occupied = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin");
+    fs::create_dir_all(&occupied).expect("create occupied public-hoist slot");
+    fs::write(occupied.join("keep.txt"), "external").expect("write marker");
+
+    pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
+
+    assert_eq!(fs::read_to_string(occupied.join("keep.txt")).unwrap(), "external");
+    assert!(!is_symlink_or_junction(&occupied).unwrap());
+
+    drop((root, mock_instance));
+}
+
 /// Both patterns empty → no hoist symlinks anywhere. An empty pattern
 /// list compiles to a never-matches matcher, so the hoist pass still
 /// runs (the `is_some()` guard sees `Some([])`); it just produces no
