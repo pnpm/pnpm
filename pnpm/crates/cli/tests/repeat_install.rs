@@ -22,13 +22,6 @@ fn pacquet_in(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
 }
 
-fn write_workspace_yaml(workspace: &Path, extra: &str) {
-    let yaml = format!(
-        "storeDir: ../pacquet-store\ncacheDir: ../pacquet-cache\nenableGlobalVirtualStore: false\n{extra}"
-    );
-    fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write pnpm-workspace.yaml");
-}
-
 /// `version` field of the `package.json` under `workspace/relative`.
 fn version_of(workspace: &Path, relative: &str) -> String {
     let text = fs::read_to_string(workspace.join(relative).join("package.json"))

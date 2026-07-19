@@ -842,6 +842,10 @@ fn should_rehoist_when_uninstalling_a_package() {
     );
 
     pacquet_in(&workspace).with_args(["remove", "@pnpm.e2e/bar"]).assert().success();
+    assert!(
+        !workspace.join("node_modules/@pnpm.e2e/bar").exists(),
+        "the removed direct dep's root link must be gone",
+    );
     assert_eq!(version_of(&hoisted_bar), "100.0.0");
     assert_eq!(version_of(&workspace.join("node_modules/@pnpm.e2e/foobarqar")), "1.0.0");
     let hoisted = hoisted_dependencies(&workspace);
