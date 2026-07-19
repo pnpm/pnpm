@@ -1,22 +1,14 @@
-use assert_cmd::prelude::*;
-use command_extra::CommandExtra;
-use pacquet_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotEntry};
-use pacquet_modules_yaml::{Host, Modules, read_modules_manifest, write_modules_manifest};
-use pacquet_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
-    fs::is_symlink_or_junction,
-};
-use pacquet_workspace_state::WorkspaceState;
+pub mod _utils;
+pub use _utils::*;
+
+use pacquet_lockfile::{PkgName, SnapshotEntry};
 use pretty_assertions::assert_eq;
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 use std::{
     collections::{BTreeSet, HashMap},
-    ffi::OsStr,
     fs,
-    path::{Path, PathBuf},
-    process::{Command, Output},
+    path::Path,
 };
-use tempfile::TempDir;
 
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 const CATALOG_FOO: &str = "@pnpm.e2e/foo";
@@ -24,233 +16,6 @@ const HELLO: &str = "@pnpm.e2e/hello-world-js-bin";
 const HELLO_PARENT: &str = "@pnpm.e2e/hello-world-js-bin-parent";
 const NO_DEPS: &str = "@foo/no-deps";
 const PARENT: &str = "@pnpm.e2e/pkg-with-1-dep";
-
-#[derive(Default, Clone, Copy)]
-struct ManifestDeps<'a> {
-    prod: &'a [(&'a str, &'a str)],
-    dev: &'a [(&'a str, &'a str)],
-    optional: &'a [(&'a str, &'a str)],
-    peer: &'a [(&'a str, &'a str)],
-}
-
-struct FilteredWorkspace {
-    _root: TempDir,
-    workspace: PathBuf,
-    registry: AddMockedRegistry,
-}
-
-impl FilteredWorkspace {
-    fn new() -> Self {
-        let CommandTempCwd { root, workspace, npmrc_info, .. } =
-            CommandTempCwd::init().add_mocked_registry();
-        let fixture = Self { _root: root, workspace, registry: npmrc_info };
-        fixture.append_workspace_yaml("packages:\n  - 'packages/*'\n");
-        fixture
-    }
-
-    fn append_workspace_yaml(&self, text: &str) {
-        let path = self.workspace.join("pnpm-workspace.yaml");
-        let mut yaml = fs::read_to_string(&path).expect("read pnpm-workspace.yaml");
-        if !yaml.ends_with('\n') {
-            yaml.push('\n');
-        }
-        yaml.push_str(text);
-        fs::write(path, yaml).expect("write pnpm-workspace.yaml");
-    }
-
-    fn write_root_manifest(&self, name: &str, deps: ManifestDeps<'_>) {
-        write_manifest(&self.workspace, name, deps);
-    }
-
-    fn project(&self, dir: &str, name: &str, deps: ManifestDeps<'_>) -> PathBuf {
-        let project = self.workspace.join("packages").join(dir);
-        write_manifest(&project, name, deps);
-        project
-    }
-
-    fn command_at<Args, Arg>(&self, cwd: &Path, args: Args) -> Output
-    where
-        Args: IntoIterator<Item = Arg>,
-        Arg: AsRef<OsStr>,
-    {
-        Command::cargo_bin("pnpm")
-            .expect("find the pnpm binary")
-            .with_current_dir(cwd)
-            .env("PNPM_CONFIG_REGISTRY", self.registry.mock_instance.url())
-            .arg("--reporter=ndjson")
-            .args(args)
-            .output()
-            .expect("run pacquet")
-    }
-
-    fn run<Args, Arg>(&self, args: Args) -> Vec<Value>
-    where
-        Args: IntoIterator<Item = Arg>,
-        Arg: AsRef<OsStr>,
-    {
-        self.run_at(&self.workspace, args)
-    }
-
-    fn run_at<Args, Arg>(&self, cwd: &Path, args: Args) -> Vec<Value>
-    where
-        Args: IntoIterator<Item = Arg>,
-        Arg: AsRef<OsStr>,
-    {
-        let output = self.command_at(cwd, args);
-        assert_success(&output);
-        ndjson_records(&output)
-    }
-
-    fn wanted(&self) -> Lockfile {
-        read_lockfile(&self.workspace.join("pnpm-lock.yaml"))
-    }
-
-    fn current(&self) -> Lockfile {
-        read_lockfile(&self.workspace.join("node_modules/.pnpm/lock.yaml"))
-    }
-
-    fn modules(&self) -> Modules {
-        read_modules_manifest::<Host>(&self.workspace.join("node_modules"))
-            .expect("read .modules.yaml")
-            .expect(".modules.yaml exists")
-    }
-
-    fn write_modules(&self, modules: Modules) {
-        write_modules_manifest::<Host>(&self.workspace.join("node_modules"), modules)
-            .expect("write .modules.yaml");
-    }
-
-    fn state(&self) -> WorkspaceState {
-        let path = self.workspace.join("node_modules/.pnpm-workspace-state-v1.json");
-        serde_json::from_str(&fs::read_to_string(path).expect("read workspace state"))
-            .expect("parse workspace state")
-    }
-
-    fn package_map(&self) -> Value {
-        let path = self.workspace.join("node_modules/.package-map.json");
-        serde_json::from_str(&fs::read_to_string(path).expect("read package map"))
-            .expect("parse package map")
-    }
-
-    fn slot(&self, name: &str, version: &str) -> PathBuf {
-        self.workspace
-            .join("node_modules/.pnpm")
-            .join(format!("{}@{version}", name.replace('/', "+")))
-    }
-}
-
-fn write_manifest(project: &Path, name: &str, deps: ManifestDeps<'_>) {
-    fs::create_dir_all(project).expect("create project directory");
-    let mut manifest = Map::from_iter([
-        ("name".to_string(), Value::String(name.to_string())),
-        ("version".to_string(), Value::String("1.0.0".to_string())),
-        ("private".to_string(), Value::Bool(true)),
-    ]);
-    insert_dependency_group(&mut manifest, "dependencies", deps.prod);
-    insert_dependency_group(&mut manifest, "devDependencies", deps.dev);
-    insert_dependency_group(&mut manifest, "optionalDependencies", deps.optional);
-    insert_dependency_group(&mut manifest, "peerDependencies", deps.peer);
-    fs::write(
-        project.join("package.json"),
-        serde_json::to_string_pretty(&Value::Object(manifest)).expect("serialize package.json"),
-    )
-    .expect("write package.json");
-}
-
-fn insert_dependency_group(manifest: &mut Map<String, Value>, group: &str, deps: &[(&str, &str)]) {
-    if deps.is_empty() {
-        return;
-    }
-    manifest.insert(
-        group.to_string(),
-        Value::Object(
-            deps.iter()
-                .map(|(name, spec)| (name.to_string(), Value::String(spec.to_string())))
-                .collect(),
-        ),
-    );
-}
-
-fn read_manifest(project: &Path) -> Value {
-    serde_json::from_str(
-        &fs::read_to_string(project.join("package.json")).expect("read package.json"),
-    )
-    .expect("parse package.json")
-}
-
-fn write_manifest_value(project: &Path, manifest: &Value) {
-    fs::write(
-        project.join("package.json"),
-        serde_json::to_string_pretty(manifest).expect("serialize package.json"),
-    )
-    .expect("write package.json");
-}
-
-fn set_dependency(project: &Path, group: &str, name: &str, spec: &str) {
-    let mut manifest = read_manifest(project);
-    let object = manifest.as_object_mut().expect("manifest is an object");
-    let dependencies = object.entry(group).or_insert_with(|| json!({}));
-    dependencies
-        .as_object_mut()
-        .expect("dependency group is an object")
-        .insert(name.to_string(), Value::String(spec.to_string()));
-    write_manifest_value(project, &manifest);
-}
-
-fn set_version(project: &Path, version: &str) {
-    let path = project.join("package.json");
-    let mut manifest: Value =
-        serde_json::from_str(&fs::read_to_string(&path).expect("read package.json"))
-            .expect("parse package.json");
-    manifest["version"] = Value::String(version.to_string());
-    fs::write(path, serde_json::to_string_pretty(&manifest).expect("serialize package.json"))
-        .expect("write package.json");
-}
-
-fn replace_dependencies(project: &Path, deps: &[(&str, &str)]) {
-    let mut manifest = read_manifest(project);
-    manifest["dependencies"] = Value::Object(
-        deps.iter()
-            .map(|(name, spec)| (name.to_string(), Value::String(spec.to_string())))
-            .collect(),
-    );
-    write_manifest_value(project, &manifest);
-}
-
-fn dependency_spec(project: &Path, group: &str, name: &str) -> Option<String> {
-    read_manifest(project)
-        .get(group)
-        .and_then(Value::as_object)
-        .and_then(|dependencies| dependencies.get(name))
-        .and_then(Value::as_str)
-        .map(str::to_string)
-}
-
-fn read_lockfile(path: &Path) -> Lockfile {
-    let contents = fs::read_to_string(path)
-        .unwrap_or_else(|error| panic!("read lockfile {}: {error}", path.display()));
-    serde_saphyr::from_str(&contents)
-        .unwrap_or_else(|error| panic!("parse lockfile {}: {error}\n{contents}", path.display()))
-}
-
-fn assert_success(output: &Output) {
-    assert!(
-        output.status.success(),
-        "command failed\nstdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr),
-    );
-}
-
-fn ndjson_records(output: &Output) -> Vec<Value> {
-    [&output.stderr[..], &output.stdout[..]]
-        .into_iter()
-        .flat_map(|stream| {
-            String::from_utf8_lossy(stream).lines().map(str::to_string).collect::<Vec<_>>()
-        })
-        .filter_map(|line| serde_json::from_str(&line).ok())
-        .collect()
-}
 
 fn importing_started_count(records: &[Value]) -> usize {
     records
@@ -273,92 +38,13 @@ fn initial_manifest_prefixes(records: &[Value]) -> Vec<String> {
         .collect()
 }
 
-fn importer<'a>(lockfile: &'a Lockfile, id: &str) -> &'a ProjectSnapshot {
-    lockfile
-        .importers
-        .get(id)
-        .unwrap_or_else(|| panic!("missing importer {id:?}: {:?}", lockfile.importers.keys()))
-}
-
-fn importer_version(lockfile: &Lockfile, id: &str, name: &str) -> String {
-    let name: PkgName = name.parse().expect("parse package name");
-    let snapshot = importer(lockfile, id);
-    snapshot
-        .dependencies
-        .as_ref()
-        .and_then(|dependencies| dependencies.get(&name))
-        .or_else(|| {
-            snapshot.dev_dependencies.as_ref().and_then(|dependencies| dependencies.get(&name))
-        })
-        .or_else(|| {
-            snapshot.optional_dependencies.as_ref().and_then(|dependencies| dependencies.get(&name))
-        })
-        .unwrap_or_else(|| panic!("missing dependency {name} in importer {id}"))
-        .version
-        .to_string()
-}
-
-fn importer_specifier(lockfile: &Lockfile, id: &str, name: &str) -> String {
-    let name: PkgName = name.parse().expect("parse package name");
-    importer(lockfile, id)
-        .dependencies
-        .as_ref()
-        .and_then(|dependencies| dependencies.get(&name))
-        .unwrap_or_else(|| panic!("missing dependency {name} in importer {id}"))
-        .specifier
-        .clone()
-}
-
-fn importer_ids(lockfile: &Lockfile) -> BTreeSet<String> {
-    lockfile.importers.keys().cloned().collect()
-}
-
-fn snapshot_entries(lockfile: &Lockfile, name: &str) -> Vec<(String, SnapshotEntry)> {
-    lockfile
-        .snapshots
-        .as_ref()
-        .into_iter()
-        .flatten()
-        .filter(|(key, _)| key.to_string().starts_with(&format!("{name}@")))
-        .map(|(key, snapshot)| (key.to_string(), snapshot.clone()))
-        .collect()
-}
-
-fn has_snapshot(lockfile: &Lockfile, name: &str, version: &str) -> bool {
-    lockfile.snapshots.as_ref().is_some_and(|snapshots| {
-        snapshots.keys().any(|key| {
-            let key = key.to_string();
-            key == format!("{name}@{version}") || key.starts_with(&format!("{name}@{version}("))
-        })
-    })
-}
-
-fn has_link(project: &Path, name: &str) -> bool {
-    is_symlink_or_junction(&project.join("node_modules").join(name)).unwrap_or(false)
-}
-
-fn canonical_path(path: &Path) -> String {
-    dunce::canonicalize(path)
-        .unwrap_or_else(|error| panic!("canonicalize {}: {error}", path.display()))
-        .to_string_lossy()
-        .into_owned()
-}
-
 fn assert_stage_once(records: &[Value]) {
     assert_eq!(importing_started_count(records), 1, "one install pipeline must import once");
 }
 
-fn assert_full_wanted(lockfile: &Lockfile, ids: &[&str]) {
-    assert_eq!(
-        importer_ids(lockfile),
-        ids.iter().map(ToString::to_string).collect(),
-        "wanted lockfile must retain every real importer",
-    );
-}
-
 #[test]
 fn full_recursive_install_keeps_the_unfiltered_up_to_date_path() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     fixture.project("app", "app", ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() });
     fixture.project(
         "lib",
@@ -386,7 +72,7 @@ fn full_recursive_install_keeps_the_unfiltered_up_to_date_path() {
 
 #[test]
 fn filtered_add_mutates_only_selected_importers() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     let selected_a = fixture.project("selected-a", "selected-a", ManifestDeps::default());
     let selected_b = fixture.project("selected-b", "selected-b", ManifestDeps::default());
     let unselected = fixture.project(
@@ -424,7 +110,7 @@ fn filtered_add_mutates_only_selected_importers() {
 
 #[test]
 fn filtered_update_mutates_only_selected_importers() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     let selected_a = fixture.project(
         "selected-a",
         "selected-a",
@@ -475,7 +161,7 @@ fn filtered_update_mutates_only_selected_importers() {
 
 #[test]
 fn filtered_remove_mutates_only_selected_importers() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     let selected_a = fixture.project(
         "selected-a",
         "selected-a",
@@ -522,7 +208,7 @@ fn filtered_remove_mutates_only_selected_importers() {
 
 #[test]
 fn filtered_update_from_selected_child_uses_discovered_manifest_as_source_of_truth() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     let selected = fixture.project(
         "selected",
         "selected",
@@ -549,7 +235,7 @@ fn filtered_update_from_selected_child_uses_discovered_manifest_as_source_of_tru
 
 #[test]
 fn filtered_update_preserves_prior_importer_when_unselected_manifest_changed_externally() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     let selected = fixture.project(
         "selected",
         "selected",
@@ -583,7 +269,7 @@ fn filtered_update_preserves_prior_importer_when_unselected_manifest_changed_ext
 }
 
 fn compatible_update_scenario(selected_dir: &str, unselected_dir: &str) {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     let selected = fixture.project(
         selected_dir,
         "selected",
@@ -617,7 +303,7 @@ fn filtered_compatible_update_does_not_cross_importer_cache_boundaries() {
 
 #[test]
 fn filtered_compatible_update_keeps_workspace_manifest_preferences() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     let selected = fixture.project(
         "selected",
         "selected",
@@ -647,7 +333,7 @@ fn transitive_update_scenario(
     selected_dir: &str,
     unselected_dir: &str,
 ) -> (HashMap<pacquet_lockfile::PackageKey, SnapshotEntry>, String) {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     let deps = || ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() };
     let selected = fixture.project(selected_dir, "selected", deps());
     let unselected = fixture.project(unselected_dir, "unselected", deps());
@@ -695,7 +381,7 @@ fn filtered_transitive_update_keeps_one_canonical_shared_snapshot() {
 }
 
 fn assert_selected_isolated_closure(
-    fixture: &FilteredWorkspace,
+    fixture: &WorkspaceFixture,
     selected: &Path,
     unselected: &Path,
 ) {
@@ -722,7 +408,7 @@ fn assert_selected_isolated_closure(
 
 #[test]
 fn filtered_fresh_install_materializes_only_selected_isolated_closure() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     let selected = fixture.project(
         "selected",
         "selected",
@@ -739,7 +425,7 @@ fn filtered_fresh_install_materializes_only_selected_isolated_closure() {
 
 #[test]
 fn filtered_frozen_install_materializes_only_selected_isolated_closure() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     let selected = fixture.project(
         "selected",
         "selected",
@@ -757,7 +443,7 @@ fn filtered_frozen_install_materializes_only_selected_isolated_closure() {
 
 #[test]
 fn unfiltered_install_after_filtered_install_restores_all_projects() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     let selected = fixture.project(
         "selected",
         "selected",
@@ -782,7 +468,7 @@ fn unfiltered_install_after_filtered_install_restores_all_projects() {
 
 #[test]
 fn filtered_frozen_install_checks_only_selected_manifest_specifiers() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     let selected = fixture.project(
         "selected",
         "selected",
@@ -839,7 +525,7 @@ fn map_contains(value: &Value, needle: &str) -> bool {
 
 #[test]
 fn filtered_install_after_full_install_preserves_unselected_materialization() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     fixture.append_workspace_yaml(
         "nodeExperimentalPackageMap: true\nhoistPattern:\n  - '*'\nmodulesCacheMaxAge: 0\n",
     );
@@ -922,26 +608,9 @@ fn filtered_install_after_full_install_preserves_unselected_materialization() {
     assert_eq!(importer_version(&after_current, "packages/selected", NO_DEPS), "1.0.0");
 }
 
-fn importer_has_group_dependency(
-    lockfile: &Lockfile,
-    id: &str,
-    group: &str,
-    dependency: &str,
-) -> bool {
-    let name: PkgName = dependency.parse().expect("parse package name");
-    let importer = importer(lockfile, id);
-    match group {
-        "dependencies" => importer.dependencies.as_ref(),
-        "devDependencies" => importer.dev_dependencies.as_ref(),
-        "optionalDependencies" => importer.optional_dependencies.as_ref(),
-        _ => panic!("unsupported dependency group {group}"),
-    }
-    .is_some_and(|dependencies| dependencies.contains_key(&name))
-}
-
 #[test]
 fn filtered_prod_install_prunes_direct_links_only_in_selected_projects() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     let deps = || ManifestDeps {
         prod: &[(HELLO, "1.0.0")],
         dev: &[(NO_DEPS, "1.0.0")],
@@ -974,7 +643,7 @@ fn filtered_prod_install_prunes_direct_links_only_in_selected_projects() {
 
 #[test]
 fn sequential_filtered_prod_installs_prune_each_selected_project() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     let deps = || ManifestDeps {
         prod: &[(HELLO, "1.0.0")],
         dev: &[(NO_DEPS, "1.0.0")],
@@ -996,7 +665,7 @@ fn sequential_filtered_prod_installs_prune_each_selected_project() {
 
 #[test]
 fn filtered_prod_install_prunes_workspace_link_closure_projects() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     fixture.append_workspace_yaml("linkWorkspacePackages: true\n");
     let selected = fixture.project(
         "selected",
@@ -1024,7 +693,7 @@ fn filtered_prod_install_prunes_workspace_link_closure_projects() {
 
 #[test]
 fn filtered_install_keeps_full_cleanup_for_shared_layout_drift() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     let selected = fixture.project(
         "selected",
         "selected",
@@ -1065,7 +734,7 @@ fn filtered_install_keeps_full_cleanup_for_shared_layout_drift() {
 
 #[test]
 fn filtered_hoisted_install_materializes_full_shared_graph_but_links_only_selected_projects() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     fixture.append_workspace_yaml("nodeLinker: hoisted\nnodeExperimentalPackageMap: true\n");
     let selected = fixture.project(
         "selected",
@@ -1101,7 +770,7 @@ fn filtered_hoisted_install_materializes_full_shared_graph_but_links_only_select
 
 #[test]
 fn filtered_isolated_install_expands_workspace_link_closure() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     fixture.append_workspace_yaml("linkWorkspacePackages: deep\n");
     let selected = fixture.project(
         "selected",
@@ -1140,7 +809,7 @@ fn filtered_isolated_install_expands_workspace_link_closure() {
 
 #[test]
 fn filtered_pnp_install_uses_isolated_placeholder_scope() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     fixture.append_workspace_yaml("nodeLinker: pnp\n");
     let selected = fixture.project(
         "selected",
@@ -1165,7 +834,7 @@ fn filtered_pnp_install_uses_isolated_placeholder_scope() {
 
 #[test]
 fn install_selection_uses_post_update_config_workspace_graph() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     let app = fixture.project(
         "app",
         "app",
@@ -1187,7 +856,7 @@ fn install_selection_uses_post_update_config_workspace_graph() {
 }
 
 fn recursive_add_prefixes(no_sort: bool) -> (Vec<String>, String, String) {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     let app = fixture.project(
         "app",
         "app",
@@ -1213,7 +882,7 @@ fn recursive_no_sort_preserves_selector_discovery_order() {
 
 #[test]
 fn workspace_without_root_manifest_does_not_create_root_importer() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     let selected = fixture.project(
         "selected",
         "selected",
@@ -1240,7 +909,7 @@ fn workspace_without_root_manifest_does_not_create_root_importer() {
 
 #[test]
 fn workspace_non_project_subdirectory_does_not_create_active_importer() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     fixture.write_root_manifest("workspace-root", ManifestDeps::default());
     let selected = fixture.project(
         "selected",
@@ -1273,7 +942,7 @@ fn workspace_non_project_subdirectory_does_not_create_active_importer() {
 
 #[test]
 fn filtered_install_rejects_per_project_workspace_lockfiles() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     fixture.append_workspace_yaml("sharedWorkspaceLockfile: false\n");
     fixture.project("app", "app", ManifestDeps::default());
 
@@ -1292,7 +961,7 @@ fn filtered_install_rejects_per_project_workspace_lockfiles() {
 
 #[test]
 fn recursive_add_auto_excludes_workspace_root() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     fixture.write_root_manifest("workspace-root", ManifestDeps::default());
     let member_a = fixture.project("member-a", "member-a", ManifestDeps::default());
     let member_b = fixture.project("member-b", "member-b", ManifestDeps::default());
@@ -1309,7 +978,7 @@ fn recursive_add_auto_excludes_workspace_root() {
 
 #[test]
 fn filter_matching_every_real_project_is_not_partial() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     let member_a = fixture.project(
         "member-a",
         "member-a",
@@ -1336,7 +1005,7 @@ fn filter_matching_every_real_project_is_not_partial() {
 
 #[test]
 fn filtered_install_refreshes_unselected_catalog_importers_when_catalog_changes() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     fixture.append_workspace_yaml(&format!("catalog:\n  '{CATALOG_FOO}': 1.0.0\n"));
     fixture.project("app", "app", ManifestDeps::default());
     fixture.project(
@@ -1374,14 +1043,14 @@ fn filtered_install_refreshes_unselected_catalog_importers_when_catalog_changes(
 
 #[test]
 fn active_manifest_outside_workspace_patterns_keeps_install_filtered() {
-    let fixture = FilteredWorkspace::new();
+    let fixture = WorkspaceFixture::new();
     let member = fixture.project(
         "member",
         "member",
         ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
     );
     let local = fixture.workspace.join("tools/local");
-    write_manifest(
+    write_project_manifest(
         &local,
         "local",
         ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },

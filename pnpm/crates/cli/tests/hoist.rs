@@ -642,6 +642,98 @@ fn fresh_install_hoisted_node_linker_lands_real_directories() {
     drop((root, mock_instance));
 }
 
+/// TS: `hoist packages which is in the dependencies tree of the
+/// selected projects` (`hoist.ts:587`): with `hoistPattern: '*'` and a
+/// lockfile that pins a different `@pnpm.e2e/foo` per project, a subset
+/// install of the root plus project-2 must hoist project-2's version —
+/// not the unselected project-1's, which sorts first among importers.
+#[test]
+fn workspace_hoist_packages_in_selected_projects_tree() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("hoistPattern:\n  - '*'\n");
+    fixture.write_root_manifest("root", ManifestDeps::default());
+    fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[("@pnpm.e2e/foo", "1.0.0")], ..Default::default() },
+    );
+    fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[("@pnpm.e2e/foo", "2.0.0")], ..Default::default() },
+    );
+    fixture.run(["install", "--lockfile-only"]);
+
+    fixture.run(["--filter", "root", "--filter", "project-2", "install"]);
+
+    let hoisted = fixture.workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/foo");
+    let manifest: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(hoisted.join("package.json")).expect("read the hoisted manifest"),
+    )
+    .expect("parse the hoisted manifest");
+    assert_eq!(manifest["version"], "2.0.0", "the selected project's version must win the hoist");
+}
+
+/// TS: `only hoist packages which is in the dependencies tree of the
+/// selected projects with sub dependencies` (`hoist.ts:682`): the
+/// hoisted transitives must come from the selected project's tree too.
+/// The upstream test hand-writes a lockfile whose two parent versions
+/// pin different subdependency versions; the port gets the same shape
+/// by locking a third `dep-of-pkg-with-1-dep` version through a direct
+/// dependency and repinning the unselected parent's edge to it.
+#[test]
+fn workspace_hoist_only_in_selected_projects_with_subdeps() {
+    const PARENT: &str = "@pnpm.e2e/pkg-with-1-dep";
+    const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("hoistPattern:\n  - '*'\n");
+    fixture.write_root_manifest("root", ManifestDeps::default());
+    fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[(PARENT, "100.0.0"), (DEP, "101.0.0")], ..Default::default() },
+    );
+    fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[(PARENT, "100.1.0")], ..Default::default() },
+    );
+    fixture.run(["install", "--lockfile-only"]);
+
+    let lockfile_path = fixture.workspace.join("pnpm-lock.yaml");
+    let mut wanted = read_lockfile(&lockfile_path);
+    let snapshots = wanted.snapshots.as_mut().expect("lockfile has snapshots");
+    let unselected_parent = snapshots
+        .keys()
+        .find(|key| key.to_string() == format!("{PARENT}@100.0.0"))
+        .cloned()
+        .expect("the unselected parent has a snapshot");
+    let subdependency = snapshots
+        .get_mut(&unselected_parent)
+        .expect("snapshot entry exists")
+        .dependencies
+        .as_mut()
+        .expect("the parent snapshot has dependencies")
+        .get_mut(&DEP.parse().expect("parse the subdependency name"))
+        .expect("the parent snapshot pins the subdependency");
+    *subdependency = serde_saphyr::from_str("101.0.0").expect("parse the repinned version");
+    wanted.save_to_path(&lockfile_path).expect("write the repinned lockfile");
+
+    fixture.run(["--filter", "root", "--filter", "project-2", "install"]);
+
+    for (name, version) in [(PARENT, "100.1.0"), (DEP, "100.1.0")] {
+        let hoisted = fixture.workspace.join("node_modules/.pnpm/node_modules").join(name);
+        let manifest: serde_json::Value = serde_json::from_str(
+            &fs::read_to_string(hoisted.join("package.json")).expect("read the hoisted manifest"),
+        )
+        .expect("parse the hoisted manifest");
+        assert_eq!(
+            manifest["version"], version,
+            "{name} must be hoisted from the selected project's tree",
+        );
+    }
+}
+
 mod known_failures {
     //! Hoist cases blocked on features pacquet hasn't built yet. Each
     //! entry stubs the not-yet-built subject under test through
@@ -655,8 +747,6 @@ mod known_failures {
     //! - **`pnpm add` / `pnpm remove`**: re-running install after
     //!   adding or removing a dep requires the manifest-mutation
     //!   path pacquet doesn't expose yet.
-    //! - **`--filter` selected-projects install**: pacquet doesn't
-    //!   yet implement the workspace-projects-filter selection.
     //! - **`hoistWorkspacePackages`**: links workspace projects
     //!   themselves into the hoist tree (separate from snapshot
     //!   hoisting); pacquet doesn't model the
@@ -694,16 +784,6 @@ mod known_failures {
             "Pacquet doesn't yet implement `pnpm add` / `pnpm remove` \
              manifest mutation. Upstream tests that mutate the manifest \
              between installs aren't directly portable until that lands.",
-        ))
-    }
-
-    fn workspace_filter_selection() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "Pacquet doesn't yet implement `--filter` selected-projects \
-             installs. Workspace install (pnpm/pacquet#431) landed in \
-             #443 but only as the unfiltered \"install all importers\" \
-             flow; selecting a subset of workspace projects is a \
-             follow-up.",
         ))
     }
 
@@ -848,20 +928,6 @@ mod known_failures {
     #[test]
     fn hoisted_packages_dont_override_direct_dep_bins() {
         allow_known_failure!(direct_dep_bin_precedence());
-    }
-
-    /// Installs a subset of workspace projects by selected project
-    /// dirs. Pacquet doesn't yet implement `--filter` selected-projects
-    /// installs.
-    #[test]
-    fn workspace_hoist_packages_in_selected_projects_tree() {
-        allow_known_failure!(workspace_filter_selection());
-    }
-
-    /// Same selected-project-dirs shape as above.
-    #[test]
-    fn workspace_hoist_only_in_selected_projects_with_subdeps() {
-        allow_known_failure!(workspace_filter_selection());
     }
 
     #[test]

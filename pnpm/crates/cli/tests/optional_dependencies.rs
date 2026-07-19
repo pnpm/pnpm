@@ -260,24 +260,37 @@ mod known_failures {
     fn fail_on_unsupported_dependency_of_optional_dependency() {
         allow_known_failure!(edge_aware_engine_strict());
     }
+}
 
-    fn workspace_filter_selection() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "Pacquet doesn't yet implement `--filter` selected-projects \
-             installs, so installing a subset of workspace projects \
-             (the shape upstream drives through \
-             `mutateModulesInSingleProject` with a shared lockfile dir) \
-             can't be expressed end to end.",
-        ))
-    }
+/// TS: `skip optional dependency that does not support the current OS,
+/// when doing install on a subset of workspace projects`
+/// (`optionalDependencies.ts:644`). The subset resolve-path install
+/// records the skipped optional subtree in the workspace root's
+/// `.modules.yaml`.
+#[test]
+fn skip_unsupported_optional_when_installing_a_workspace_subset() {
+    let fixture = WorkspaceFixture::new();
+    fixture.project(
+        "project1",
+        "project1",
+        ManifestDeps {
+            optional: &[("@pnpm.e2e/not-compatible-with-any-os", "*")],
+            ..Default::default()
+        },
+    );
+    fixture.project(
+        "project2",
+        "project2",
+        ManifestDeps { prod: &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")], ..Default::default() },
+    );
+    fixture.run(["install", "--lockfile-only"]);
 
-    /// TS: `skip optional dependency that does not support the current
-    /// OS, when doing install on a subset of workspace projects`
-    /// (`optionalDependencies.ts:470`).
-    #[test]
-    fn skip_unsupported_optional_when_installing_a_workspace_subset() {
-        allow_known_failure!(workspace_filter_selection());
-    }
+    fixture.run(["--filter", "project1", "install", "--no-prefer-frozen-lockfile"]);
+
+    assert_eq!(
+        read_skipped(&fixture.workspace),
+        ["@pnpm.e2e/dep-of-optional-pkg@1.0.0", "@pnpm.e2e/not-compatible-with-any-os@1.0.0"],
+    );
 }
 
 /// TS: `skip optional dependency that does not support the current OS`

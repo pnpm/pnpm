@@ -475,6 +475,94 @@ fn node_major() -> u32 {
         .expect("node major is numeric")
 }
 
+/// TS: `install only the dependencies of the specified importer, when
+/// node-linker is hoisted` (`multipleImporters.ts:87`). The subset
+/// install lands the selected project's dependency at the workspace
+/// root, and the wanted lockfile keeps the unselected importer's
+/// entries. (Upstream leaves "the unselected dependency is absent" as a
+/// TODO — the hoisted linker materializes the full shared graph — so
+/// only the positive assertions are pinned, matching upstream.)
+#[test]
+fn install_only_dependencies_of_specified_importer_with_hoisted_linker() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("nodeLinker: hoisted\n");
+    fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[("@pnpm.e2e/foo", "1.0.0")], ..Default::default() },
+    );
+    fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[("@foo/no-deps", "1.0.0")], ..Default::default() },
+    );
+
+    fixture.run(["--filter", "project-1", "install"]);
+
+    assert!(
+        is_real_dir(&fixture.workspace, "node_modules/@pnpm.e2e/foo"),
+        "the selected project's dependency must be hoisted to the workspace root",
+    );
+    let wanted = fixture.wanted();
+    assert_eq!(importer_version(&wanted, "packages/project-2", "@foo/no-deps"), "1.0.0");
+}
+
+/// TS: `run pre/postinstall scripts in a workspace that uses
+/// node-linker=hoisted` (`lifecycleScripts.ts:718`). Two projects pin
+/// `@pnpm.e2e/pre-and-postinstall-scripts-example@1` and two pin `@2`;
+/// the hoisted layout keeps one version at the workspace root and
+/// nests the other under its consumers, and the build step must run
+/// the scripts at every materialized copy. Driven through the frozen
+/// path — lifecycle scripts on the fresh hoisted path are still
+/// blocked on pnpm/pnpm#11870 (see [`known_failures`]).
+#[test]
+fn run_pre_and_postinstall_scripts_in_a_workspace_with_hoisted_linker() {
+    const SCRIPTS: &str = "@pnpm.e2e/pre-and-postinstall-scripts-example";
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml(&format!(
+        "nodeLinker: hoisted\nallowBuilds:\n  '{SCRIPTS}': true\n"
+    ));
+    let mut projects = Vec::new();
+    for (dir, spec) in
+        [("project-1", "1"), ("project-2", "1"), ("project-3", "2"), ("project-4", "2")]
+    {
+        projects.push(fixture.project(
+            dir,
+            dir,
+            ManifestDeps { prod: &[(SCRIPTS, spec)], ..Default::default() },
+        ));
+    }
+    fixture.run(["install", "--lockfile-only"]);
+
+    fixture.run(["install", "--frozen-lockfile"]);
+
+    assert_eq!(
+        read_pkg_version(
+            &fixture.workspace,
+            "node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example"
+        ),
+        "1.0.0",
+        "the majority-tie version must win the workspace-root slot, matching upstream",
+    );
+    for generated in ["generated-by-preinstall.js", "generated-by-postinstall.js"] {
+        assert!(
+            fixture.workspace.join("node_modules").join(SCRIPTS).join(generated).exists(),
+            "the hoisted root copy must be built ({generated})",
+        );
+        // Pacquet's hoisted linker materializes each project's direct
+        // dep under the project as well — upstream nests a copy only
+        // for the version that lost the root slot (see
+        // `known_failures::hoisted_workspace_layout_does_not_duplicate_root_version`).
+        // Every copy that is materialized must be built.
+        for project in &projects {
+            assert!(
+                project.join("node_modules").join(SCRIPTS).join(generated).exists(),
+                "every materialized copy must be built ({generated})",
+            );
+        }
+    }
+}
+
 mod known_failures {
     //! Hoisted-node-linker cases blocked on features pacquet hasn't
     //! built yet. Each stubs the not-yet-built subject through
@@ -493,6 +581,27 @@ mod known_failures {
              bump a dist-tag, then reinstall). Partial install / re-hoist \
              across runs is tracked by pnpm/pacquet#433.",
         ))
+    }
+
+    fn hoisted_workspace_duplicate_materialization() -> KnownResult<()> {
+        Err(KnownFailure::new(
+            "Pacquet's hoisted linker materializes each workspace \
+             project's direct dependency under the project's own \
+             `node_modules` even when the same version already won the \
+             workspace-root slot. Upstream nests a copy only for \
+             versions that lost the root slot \
+             (`lifecycleScripts.ts:718` asserts the hoisted-version \
+             consumers have no nested copy).",
+        ))
+    }
+
+    /// The layout tail of TS `run pre/postinstall scripts in a
+    /// workspace that uses node-linker=hoisted`
+    /// (`lifecycleScripts.ts:718`); the script-execution half is the
+    /// real [`super::run_pre_and_postinstall_scripts_in_a_workspace_with_hoisted_linker`].
+    #[test]
+    fn hoisted_workspace_layout_does_not_duplicate_root_version() {
+        allow_known_failure!(hoisted_workspace_duplicate_materialization());
     }
 
     fn lifecycle_scripts_on_fresh_path() -> KnownResult<()> {

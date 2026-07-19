@@ -1,5 +1,23 @@
+use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
+use pacquet_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotEntry};
+use pacquet_modules_yaml::{Host as ModulesHost, Modules, read_modules_manifest};
 use pacquet_store_dir::{CafsFileInfo, StoreDir, StoreIndex};
-use std::{collections::BTreeMap, fmt::Write as _, fs, path::Path};
+use pacquet_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    fs::is_symlink_or_junction,
+};
+use pacquet_workspace_state::WorkspaceState;
+use serde_json::{Map, Value, json};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    ffi::OsStr,
+    fmt::Write as _,
+    fs,
+    path::{Path, PathBuf},
+    process::{Command, Output},
+};
+use tempfile::TempDir;
 
 /// Flip the `enableGlobalVirtualStore` key in the `pnpm-workspace.yaml`
 /// that [`pacquet_testing_utils::bin::CommandTempCwd::add_mocked_registry`]
@@ -98,4 +116,374 @@ pub fn read_current_lockfile(workspace: &Path) -> pacquet_lockfile::Lockfile {
     let text = fs::read_to_string(workspace.join("node_modules/.pnpm/lock.yaml"))
         .expect("read the current lockfile");
     serde_saphyr::from_str(&text).expect("parse the current lockfile")
+}
+
+/// Dependency groups for [`write_project_manifest`] /
+/// [`WorkspaceFixture::project`].
+#[derive(Default, Clone, Copy)]
+pub struct ManifestDeps<'a> {
+    pub prod: &'a [(&'a str, &'a str)],
+    pub dev: &'a [(&'a str, &'a str)],
+    pub optional: &'a [(&'a str, &'a str)],
+    pub peer: &'a [(&'a str, &'a str)],
+}
+
+/// A `packages/*` workspace against the mocked registry: project
+/// scaffolding, CLI invocation with NDJSON capture, and readers for
+/// the lockfiles and install-state files.
+pub struct WorkspaceFixture {
+    /// RAII guard for the temporary directory the workspace lives in.
+    _root: TempDir,
+    pub workspace: PathBuf,
+    pub registry: AddMockedRegistry,
+}
+
+impl WorkspaceFixture {
+    #[must_use]
+    pub fn new() -> Self {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let fixture = Self { _root: root, workspace, registry: npmrc_info };
+        fixture.append_workspace_yaml("packages:\n  - 'packages/*'\n");
+        fixture
+    }
+
+    pub fn append_workspace_yaml(&self, text: &str) {
+        let path = self.workspace.join("pnpm-workspace.yaml");
+        let mut yaml = fs::read_to_string(&path).expect("read pnpm-workspace.yaml");
+        if !yaml.ends_with('\n') {
+            yaml.push('\n');
+        }
+        yaml.push_str(text);
+        fs::write(path, yaml).expect("write pnpm-workspace.yaml");
+    }
+
+    pub fn write_root_manifest(&self, name: &str, deps: ManifestDeps<'_>) {
+        write_project_manifest(&self.workspace, name, deps);
+    }
+
+    #[expect(
+        clippy::must_use_candidate,
+        reason = "many callers scaffold a project for its side effect and never need the returned path"
+    )]
+    pub fn project(&self, dir: &str, name: &str, deps: ManifestDeps<'_>) -> PathBuf {
+        let project = self.workspace.join("packages").join(dir);
+        write_project_manifest(&project, name, deps);
+        project
+    }
+
+    pub fn command_at<Args, Arg>(&self, cwd: &Path, args: Args) -> Output
+    where
+        Args: IntoIterator<Item = Arg>,
+        Arg: AsRef<OsStr>,
+    {
+        Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(cwd)
+            .env("PNPM_CONFIG_REGISTRY", self.registry.mock_instance.url())
+            .arg("--reporter=ndjson")
+            .args(args)
+            .output()
+            .expect("run pacquet")
+    }
+
+    pub fn run<Args, Arg>(&self, args: Args) -> Vec<Value>
+    where
+        Args: IntoIterator<Item = Arg>,
+        Arg: AsRef<OsStr>,
+    {
+        self.run_at(&self.workspace, args)
+    }
+
+    pub fn run_at<Args, Arg>(&self, cwd: &Path, args: Args) -> Vec<Value>
+    where
+        Args: IntoIterator<Item = Arg>,
+        Arg: AsRef<OsStr>,
+    {
+        let output = self.command_at(cwd, args);
+        assert_success(&output);
+        ndjson_records(&output)
+    }
+
+    #[must_use]
+    pub fn wanted(&self) -> Lockfile {
+        read_lockfile(&self.workspace.join("pnpm-lock.yaml"))
+    }
+
+    #[must_use]
+    pub fn current(&self) -> Lockfile {
+        read_lockfile(&self.workspace.join("node_modules/.pnpm/lock.yaml"))
+    }
+
+    #[must_use]
+    pub fn modules(&self) -> Modules {
+        read_modules_manifest::<ModulesHost>(&self.workspace.join("node_modules"))
+            .expect("read .modules.yaml")
+            .expect(".modules.yaml exists")
+    }
+
+    pub fn write_modules(&self, modules: Modules) {
+        pacquet_modules_yaml::write_modules_manifest::<ModulesHost>(
+            &self.workspace.join("node_modules"),
+            modules,
+        )
+        .expect("write .modules.yaml");
+    }
+
+    #[must_use]
+    pub fn state(&self) -> WorkspaceState {
+        let path = self.workspace.join("node_modules/.pnpm-workspace-state-v1.json");
+        serde_json::from_str(&fs::read_to_string(path).expect("read workspace state"))
+            .expect("parse workspace state")
+    }
+
+    #[must_use]
+    pub fn package_map(&self) -> Value {
+        let path = self.workspace.join("node_modules/.package-map.json");
+        serde_json::from_str(&fs::read_to_string(path).expect("read package map"))
+            .expect("parse package map")
+    }
+
+    #[must_use]
+    pub fn slot(&self, name: &str, version: &str) -> PathBuf {
+        self.workspace
+            .join("node_modules/.pnpm")
+            .join(format!("{}@{version}", name.replace('/', "+")))
+    }
+}
+
+impl Default for WorkspaceFixture {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub fn write_project_manifest(project: &Path, name: &str, deps: ManifestDeps<'_>) {
+    fs::create_dir_all(project).expect("create project directory");
+    let mut manifest = Map::from_iter([
+        ("name".to_string(), Value::String(name.to_string())),
+        ("version".to_string(), Value::String("1.0.0".to_string())),
+        ("private".to_string(), Value::Bool(true)),
+    ]);
+    insert_dependency_group(&mut manifest, "dependencies", deps.prod);
+    insert_dependency_group(&mut manifest, "devDependencies", deps.dev);
+    insert_dependency_group(&mut manifest, "optionalDependencies", deps.optional);
+    insert_dependency_group(&mut manifest, "peerDependencies", deps.peer);
+    fs::write(
+        project.join("package.json"),
+        serde_json::to_string_pretty(&Value::Object(manifest)).expect("serialize package.json"),
+    )
+    .expect("write package.json");
+}
+
+fn insert_dependency_group(manifest: &mut Map<String, Value>, group: &str, deps: &[(&str, &str)]) {
+    if deps.is_empty() {
+        return;
+    }
+    manifest.insert(
+        group.to_string(),
+        Value::Object(
+            deps.iter()
+                .map(|(name, spec)| (name.to_string(), Value::String(spec.to_string())))
+                .collect(),
+        ),
+    );
+}
+
+#[must_use]
+pub fn read_manifest(project: &Path) -> Value {
+    serde_json::from_str(
+        &fs::read_to_string(project.join("package.json")).expect("read package.json"),
+    )
+    .expect("parse package.json")
+}
+
+pub fn write_manifest_value(project: &Path, manifest: &Value) {
+    fs::write(
+        project.join("package.json"),
+        serde_json::to_string_pretty(manifest).expect("serialize package.json"),
+    )
+    .expect("write package.json");
+}
+
+pub fn set_dependency(project: &Path, group: &str, name: &str, spec: &str) {
+    let mut manifest = read_manifest(project);
+    let object = manifest.as_object_mut().expect("manifest is an object");
+    let dependencies = object.entry(group).or_insert_with(|| json!({}));
+    dependencies
+        .as_object_mut()
+        .expect("dependency group is an object")
+        .insert(name.to_string(), Value::String(spec.to_string()));
+    write_manifest_value(project, &manifest);
+}
+
+pub fn set_version(project: &Path, version: &str) {
+    let mut manifest = read_manifest(project);
+    manifest["version"] = Value::String(version.to_string());
+    write_manifest_value(project, &manifest);
+}
+
+pub fn replace_dependencies(project: &Path, deps: &[(&str, &str)]) {
+    let mut manifest = read_manifest(project);
+    manifest["dependencies"] = Value::Object(
+        deps.iter()
+            .map(|(name, spec)| (name.to_string(), Value::String(spec.to_string())))
+            .collect(),
+    );
+    write_manifest_value(project, &manifest);
+}
+
+#[must_use]
+pub fn dependency_spec(project: &Path, group: &str, name: &str) -> Option<String> {
+    read_manifest(project)
+        .get(group)
+        .and_then(Value::as_object)
+        .and_then(|dependencies| dependencies.get(name))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
+#[must_use]
+pub fn read_lockfile(path: &Path) -> Lockfile {
+    let contents = fs::read_to_string(path)
+        .unwrap_or_else(|error| panic!("read lockfile {}: {error}", path.display()));
+    serde_saphyr::from_str(&contents)
+        .unwrap_or_else(|error| panic!("parse lockfile {}: {error}\n{contents}", path.display()))
+}
+
+pub fn assert_success(output: &Output) {
+    assert!(
+        output.status.success(),
+        "command failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+}
+
+#[must_use]
+pub fn ndjson_records(output: &Output) -> Vec<Value> {
+    [&output.stderr[..], &output.stdout[..]]
+        .into_iter()
+        .flat_map(|stream| {
+            String::from_utf8_lossy(stream).lines().map(str::to_string).collect::<Vec<_>>()
+        })
+        .filter_map(|line| serde_json::from_str(&line).ok())
+        .collect()
+}
+
+/// The `name: "pnpm" / level: "info"` log pnpm's headless installer
+/// emits when it is entered with an up-to-date lockfile.
+#[must_use]
+pub fn has_up_to_date_log(records: &[Value]) -> bool {
+    records.iter().any(|record| {
+        record.get("name").and_then(Value::as_str) == Some("pnpm")
+            && record.get("level").and_then(Value::as_str) == Some("info")
+            && record.get("message").and_then(Value::as_str)
+                == Some("Lockfile is up to date, resolution step is skipped")
+    })
+}
+
+#[must_use]
+pub fn importer<'a>(lockfile: &'a Lockfile, id: &str) -> &'a ProjectSnapshot {
+    lockfile
+        .importers
+        .get(id)
+        .unwrap_or_else(|| panic!("missing importer {id:?}: {:?}", lockfile.importers.keys()))
+}
+
+#[must_use]
+pub fn importer_version(lockfile: &Lockfile, id: &str, name: &str) -> String {
+    let name: PkgName = name.parse().expect("parse package name");
+    let snapshot = importer(lockfile, id);
+    snapshot
+        .dependencies
+        .as_ref()
+        .and_then(|dependencies| dependencies.get(&name))
+        .or_else(|| {
+            snapshot.dev_dependencies.as_ref().and_then(|dependencies| dependencies.get(&name))
+        })
+        .or_else(|| {
+            snapshot.optional_dependencies.as_ref().and_then(|dependencies| dependencies.get(&name))
+        })
+        .unwrap_or_else(|| panic!("missing dependency {name} in importer {id}"))
+        .version
+        .to_string()
+}
+
+#[must_use]
+pub fn importer_specifier(lockfile: &Lockfile, id: &str, name: &str) -> String {
+    let name: PkgName = name.parse().expect("parse package name");
+    importer(lockfile, id)
+        .dependencies
+        .as_ref()
+        .and_then(|dependencies| dependencies.get(&name))
+        .unwrap_or_else(|| panic!("missing dependency {name} in importer {id}"))
+        .specifier
+        .clone()
+}
+
+#[must_use]
+pub fn importer_ids(lockfile: &Lockfile) -> BTreeSet<String> {
+    lockfile.importers.keys().cloned().collect()
+}
+
+#[must_use]
+pub fn snapshot_entries(lockfile: &Lockfile, name: &str) -> Vec<(String, SnapshotEntry)> {
+    lockfile
+        .snapshots
+        .as_ref()
+        .into_iter()
+        .flatten()
+        .filter(|(key, _)| key.to_string().starts_with(&format!("{name}@")))
+        .map(|(key, snapshot)| (key.to_string(), snapshot.clone()))
+        .collect()
+}
+
+#[must_use]
+pub fn has_snapshot(lockfile: &Lockfile, name: &str, version: &str) -> bool {
+    lockfile.snapshots.as_ref().is_some_and(|snapshots| {
+        snapshots.keys().any(|key| {
+            let key = key.to_string();
+            key == format!("{name}@{version}") || key.starts_with(&format!("{name}@{version}("))
+        })
+    })
+}
+
+#[must_use]
+pub fn has_link(project: &Path, name: &str) -> bool {
+    is_symlink_or_junction(&project.join("node_modules").join(name)).unwrap_or(false)
+}
+
+#[must_use]
+pub fn canonical_path(path: &Path) -> String {
+    dunce::canonicalize(path)
+        .unwrap_or_else(|error| panic!("canonicalize {}: {error}", path.display()))
+        .to_string_lossy()
+        .into_owned()
+}
+
+pub fn assert_full_wanted(lockfile: &Lockfile, ids: &[&str]) {
+    assert_eq!(
+        importer_ids(lockfile),
+        ids.iter().map(ToString::to_string).collect(),
+        "wanted lockfile must retain every real importer",
+    );
+}
+
+#[must_use]
+pub fn importer_has_group_dependency(
+    lockfile: &Lockfile,
+    id: &str,
+    group: &str,
+    dependency: &str,
+) -> bool {
+    let name: PkgName = dependency.parse().expect("parse package name");
+    let importer = importer(lockfile, id);
+    match group {
+        "dependencies" => importer.dependencies.as_ref(),
+        "devDependencies" => importer.dev_dependencies.as_ref(),
+        "optionalDependencies" => importer.optional_dependencies.as_ref(),
+        _ => panic!("unsupported dependency group {group}"),
+    }
+    .is_some_and(|dependencies| dependencies.contains_key(&name))
 }
