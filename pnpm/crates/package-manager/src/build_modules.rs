@@ -387,7 +387,7 @@ impl RebuildOptions {
     /// `foo@1.0.0` parses as either.
     #[must_use]
     pub fn settles_dependency(&self, dep_path: &str) -> bool {
-        let (name, _) = parse_name_version_from_key(&remove_suffix(dep_path));
+        let (name, _) = parse_name_version_from_key(remove_suffix(dep_path));
         self.is_selected(&name) || self.is_selected(&allow_build_key_from_ignored_build(dep_path))
     }
 }
