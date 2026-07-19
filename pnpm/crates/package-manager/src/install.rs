@@ -873,6 +873,7 @@ where
                 config,
                 node_linker,
                 included,
+                supported_architectures: supported_architectures.as_ref(),
                 project_manifests: &project_manifests,
                 is_workspace_install: workspace_manifest.is_some(),
                 lockfile,
@@ -1438,6 +1439,14 @@ where
             && wanted_lockfile == current
             && let Some(modules) = modules_manifest.as_ref()
             && modules_consistent_with(modules, config, node_linker, included)
+            // A `supportedArchitectures` change alters the skip set
+            // without touching the lockfile or `.modules.yaml`, so the
+            // unchanged-layout premise doesn't hold and the platform
+            // packages must be re-evaluated.
+            && crate::optimistic_repeat_install::recorded_supported_architectures_match(
+                &workspace_root,
+                supported_architectures.as_ref(),
+            )
             // An `allowBuilds` change that now permits a previously-ignored
             // build must rebuild it, even though the lockfile and layout are
             // unchanged.
@@ -1496,6 +1505,7 @@ where
                     config,
                     node_linker,
                     included,
+                    supported_architectures.as_ref(),
                     &catalogs,
                     &project_manifests,
                     filtered_install,
@@ -2106,6 +2116,7 @@ where
                 config,
                 node_linker,
                 included,
+                supported_architectures.as_ref(),
                 &catalogs,
                 &project_manifests,
                 filtered_install,
@@ -2830,6 +2841,10 @@ pub struct UpToDateFastPathCheck<'a> {
     pub manifest: &'a PackageManifest,
     pub dependency_groups: Vec<DependencyGroup>,
     pub node_linker: NodeLinker,
+    /// The CLI-merged effective `supportedArchitectures` (yaml plus
+    /// `--cpu` / `--os` / `--libc`) — the fast path must not report
+    /// "Already up to date" when a flag changed the target platforms.
+    pub supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
 }
 
 /// Pre-runtime twin of the repeat-install short-circuit inside
@@ -2846,7 +2861,13 @@ pub struct UpToDateFastPathCheck<'a> {
 /// established error shape.
 #[must_use]
 pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<PathBuf> {
-    let UpToDateFastPathCheck { config, manifest, dependency_groups, node_linker } = check;
+    let UpToDateFastPathCheck {
+        config,
+        manifest,
+        dependency_groups,
+        node_linker,
+        supported_architectures,
+    } = check;
     let included = IncludedDependencies {
         dependencies: dependency_groups.contains(&DependencyGroup::Prod),
         dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
@@ -2904,6 +2925,7 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<P
         config,
         node_linker: *node_linker,
         included,
+        supported_architectures: supported_architectures.as_ref(),
         project_manifests: &project_manifests,
         is_workspace_install: workspace_manifest.is_some(),
         lockfile: MaybeLazyLockfile::Lazy(&lockfile),
@@ -2994,6 +3016,7 @@ pub fn check_deps_status_before_run_at(
             workspace_root: &workspace_root,
             config,
             node_linker: config.node_linker,
+            supported_architectures: config.supported_architectures.as_ref(),
             // The gate ignores dependency-group drift, so the groups only
             // shape the settings snapshot written back after a passing
             // content check — where the recorded values win anyway.
@@ -3221,11 +3244,16 @@ fn build_projects_map(
 /// are omitted; pnpm's `checkDepsStatus`
 /// only iterates fields present in the serialized object, so an
 /// absent key is silently skipped rather than treated as a drift.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the workspace-state writer records the install run's resolved inputs"
+)]
 pub(crate) fn build_workspace_state(
     workspace_root: &Path,
     config: &Config,
     node_linker: NodeLinker,
     included: IncludedDependencies,
+    supported_architectures: Option<&pacquet_package_is_installable::SupportedArchitectures>,
     catalogs: &Catalogs,
     project_manifests: &[(std::path::PathBuf, &PackageManifest)],
     filtered_install: bool,
@@ -3263,6 +3291,7 @@ pub(crate) fn build_workspace_state(
             config,
             node_linker,
             included,
+            supported_architectures,
             catalogs,
         ),
     }

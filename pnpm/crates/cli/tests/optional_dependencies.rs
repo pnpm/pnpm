@@ -240,6 +240,44 @@ mod known_failures {
     fn forced_frozen_install_materializes_incompatible_optionals() {
         allow_known_failure!(install_force_flag());
     }
+
+    fn edge_aware_engine_strict() -> KnownResult<()> {
+        Err(KnownFailure::new(
+            "pacquet's `engineStrict` dispatch keys on the lockfile's \
+             snapshot-level `optional: true` flag, so an incompatible \
+             package that is only optionally *reachable* is skipped even \
+             when its inbound edge is a regular dependency. Upstream \
+             evaluates installability per edge at resolve time and fails \
+             this shape (pnpm/pnpm#13143).",
+        ))
+    }
+
+    /// TS: `fail on unsupported dependency of optional dependency`
+    /// (`optionalDependencies.ts:552`). Under `engineStrict`, an
+    /// installable optional whose *regular* dependency is incompatible
+    /// fails the install upstream.
+    #[test]
+    fn fail_on_unsupported_dependency_of_optional_dependency() {
+        allow_known_failure!(edge_aware_engine_strict());
+    }
+
+    fn workspace_filter_selection() -> KnownResult<()> {
+        Err(KnownFailure::new(
+            "Pacquet doesn't yet implement `--filter` selected-projects \
+             installs, so installing a subset of workspace projects \
+             (the shape upstream drives through \
+             `mutateModulesInSingleProject` with a shared lockfile dir) \
+             can't be expressed end to end.",
+        ))
+    }
+
+    /// TS: `skip optional dependency that does not support the current
+    /// OS, when doing install on a subset of workspace projects`
+    /// (`optionalDependencies.ts:470`).
+    #[test]
+    fn skip_unsupported_optional_when_installing_a_workspace_subset() {
+        allow_known_failure!(workspace_filter_selection());
+    }
 }
 
 /// TS: `skip optional dependency that does not support the current OS`
@@ -633,6 +671,409 @@ fn optional_dependency_is_hardlinked_to_the_store_if_it_does_not_require_a_build
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
     pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
     assert_hardlinked();
+
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// TS: `optional subdependency of newly added optional dependency is
+/// skipped` (`optionalDependencies.ts:344`, pnpm/pnpm issue 2663).
+#[test]
+fn optional_subdependency_of_newly_added_optional_dependency_is_skipped() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    pacquet.with_args(["add", "--save-optional", "@pnpm.e2e/pkg-with-optional"]).assert().success();
+
+    assert_eq!(
+        read_skipped(&workspace),
+        ["@pnpm.e2e/dep-of-optional-pkg@1.0.0", "@pnpm.e2e/not-compatible-with-any-os@1.0.0"],
+    );
+    let lockfile = read_wanted_lockfile(&workspace);
+    let packages = lockfile.packages.as_ref().expect("lockfile has packages");
+    assert_eq!(packages.len(), 3, "packages: {:?}", sorted_keys(packages));
+
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// TS: `not installing optional dependencies when optional is false`
+/// (`optionalDependencies.ts:391`). The root's own optional is dropped,
+/// the regular dependency installs with its regular subdependency, and
+/// its transitive optional is dropped too.
+#[test]
+fn not_installing_optional_dependencies_when_optional_is_false() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    write_manifest(
+        &workspace,
+        &serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pkg-with-good-optional": "*" },
+            "optionalDependencies": { "is-positive": "1.0.0" },
+        }),
+    );
+
+    pacquet.with_args(["install", "--no-optional"]).assert().success();
+
+    assert!(!workspace.join("node_modules/is-positive").exists());
+    assert!(workspace.join("node_modules/@pnpm.e2e/pkg-with-good-optional/package.json").exists());
+    let good_optional_modules = workspace
+        .join("node_modules/.pnpm/@pnpm.e2e+pkg-with-good-optional@1.0.0/node_modules/@pnpm.e2e");
+    assert!(
+        good_optional_modules.join("dep-of-pkg-with-1-dep/package.json").exists(),
+        "the regular subdependency must be installed",
+    );
+    assert!(
+        !workspace
+            .join(
+                "node_modules/.pnpm/@pnpm.e2e+pkg-with-good-optional@1.0.0/node_modules/is-positive"
+            )
+            .exists(),
+        "the transitive optional must not be linked",
+    );
+
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// TS: `optional dependency has bigger priority than regular dependency`
+/// (`optionalDependencies.ts:419`): the same name in `dependencies` and
+/// `optionalDependencies` resolves to the optional entry's version.
+#[test]
+fn optional_dependency_has_bigger_priority_than_regular_dependency() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    write_manifest(
+        &workspace,
+        &serde_json::json!({
+            "dependencies": { "is-positive": "1.0.0" },
+            "optionalDependencies": { "is-positive": "3.1.0" },
+        }),
+    );
+
+    pacquet.with_arg("install").assert().success();
+
+    let manifest: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(workspace.join("node_modules/is-positive/package.json"))
+            .expect("read the installed manifest"),
+    )
+    .expect("parse the installed manifest");
+    assert_eq!(manifest["version"], "3.1.0");
+
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// TS: `dependency that is both optional and non-optional is installed,
+/// when optional dependencies should be skipped`
+/// (`optionalDependencies.ts:712`, pnpm/pnpm issue 8066). Registry-mock
+/// fixtures stand in for upstream's `@babel/cli` + `del` pair: the package
+/// is a direct regular dependency *and* another dependency's optional.
+#[test]
+fn both_optional_and_non_optional_dependency_is_installed_when_optionals_are_skipped() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    write_manifest(
+        &workspace,
+        &serde_json::json!({
+            "dependencies": {
+                "is-positive": "1.0.0",
+                "@pnpm.e2e/pkg-with-good-optional": "*",
+            },
+        }),
+    );
+
+    pacquet.with_args(["install", "--no-optional"]).assert().success();
+
+    assert!(
+        workspace.join("node_modules/.pnpm/is-positive@1.0.0").exists(),
+        "a package that is also a regular dependency must be materialized",
+    );
+    assert!(workspace.join("node_modules/is-positive/package.json").exists());
+
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// TS: `do not fail on unsupported dependency of optional dependency`
+/// (`optionalDependencies.ts:540`). Under `engineStrict`, an incompatible
+/// package inside a skipped optional's subtree must not fail the install.
+#[test]
+fn do_not_fail_on_unsupported_dependency_of_optional_dependency() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    append_workspace_yaml_key(&workspace, "engineStrict", "true");
+
+    pacquet
+        .with_args([
+            "add",
+            "--save-optional",
+            "@pnpm.e2e/not-compatible-with-not-compatible-dep@1.0.0",
+        ])
+        .assert()
+        .success();
+
+    let lockfile = read_wanted_lockfile(&workspace);
+    let snapshots = lockfile.snapshots.as_ref().expect("lockfile has snapshots");
+    let not_compatible = snapshots
+        .iter()
+        .find(|(key, _)| key.to_string() == "@pnpm.e2e/not-compatible-with-any-os@1.0.0")
+        .expect("the transitive incompatible package stays in the lockfile")
+        .1;
+    assert!(not_compatible.optional);
+    assert!(
+        snapshots.keys().any(|key| key.to_string() == "@pnpm.e2e/dep-of-optional-pkg@1.0.0"),
+        "the whole optional subtree stays resolved in the lockfile",
+    );
+
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// TS: `do not fail on an optional dependency that has a non-optional
+/// dependency with a failing postinstall script`
+/// (`optionalDependencies.ts:563`).
+#[test]
+fn do_not_fail_on_optional_dependency_with_failing_non_optional_postinstall() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    append_workspace_yaml_key(&workspace, "dangerouslyAllowAllBuilds", "true");
+
+    pacquet
+        .with_args(["add", "--save-optional", "@pnpm.e2e/has-failing-postinstall-dep@1.0.0"])
+        .assert()
+        .success();
+
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// TS: `fail on a package with failing postinstall if the package is both
+/// an optional and non-optional dependency` (`optionalDependencies.ts:574`).
+#[test]
+fn fail_on_failing_postinstall_when_package_is_both_optional_and_non_optional() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    append_workspace_yaml_key(&workspace, "dangerouslyAllowAllBuilds", "true");
+    write_manifest(
+        &workspace,
+        &serde_json::json!({
+            "dependencies": { "@pnpm.e2e/failing-postinstall": "1.0.0" },
+            "optionalDependencies": { "@pnpm.e2e/has-failing-postinstall-dep": "1.0.0" },
+        }),
+    );
+
+    pacquet.with_arg("install").assert().failure();
+
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// Rewrite `pnpm-workspace.yaml` with the harness anchors plus
+/// `supportedArchitectures` and `extra` — upstream drives the
+/// architecture change through configuration, which also invalidates the
+/// repeat-install fast path the way a config edit does for pnpm.
+fn write_arch_workspace_yaml(workspace: &Path, os: &str, cpu: &str, extra: &str) {
+    let yaml = format!(
+        "storeDir: ../pacquet-store\ncacheDir: ../pacquet-cache\nenableGlobalVirtualStore: false\n{extra}supportedArchitectures:\n  os: [{os}]\n  cpu: [{cpu}]\n",
+    );
+    fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write pnpm-workspace.yaml");
+}
+
+/// TS: `remove optional dependencies that are not used`
+/// (`optionalDependencies.ts:618`). Narrowing `supportedArchitectures`
+/// on a later install prunes the platform packages the new set no longer
+/// needs (`modulesCacheMaxAge: 0` makes the sweep run every install).
+#[test]
+fn remove_optional_dependencies_that_are_not_used() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    write_arch_workspace_yaml(
+        &workspace,
+        "darwin, linux, win32",
+        "arm64, x64",
+        "modulesCacheMaxAge: 0\n",
+    );
+
+    pacquet.with_args(["add", "@pnpm.e2e/has-many-optional-deps@1.0.0"]).assert().success();
+    let virtual_store = workspace.join("node_modules/.pnpm");
+    for name in ["darwin-arm64", "darwin-x64", "linux-x64", "windows-x64"] {
+        assert!(
+            virtual_store.join(format!("@pnpm.e2e+{name}@1.0.0")).exists(),
+            "{name} must be materialized under the broad architecture set",
+        );
+    }
+
+    write_arch_workspace_yaml(&workspace, "darwin", "x64", "modulesCacheMaxAge: 0\n");
+    pacquet_in(&workspace).with_arg("install").assert().success();
+    assert!(virtual_store.join("@pnpm.e2e+darwin-x64@1.0.0").exists());
+    for name in ["darwin-arm64", "linux-x64", "windows-x64"] {
+        assert!(
+            !virtual_store.join(format!("@pnpm.e2e+{name}@1.0.0")).exists(),
+            "{name} must be pruned once the architecture set no longer needs it",
+        );
+    }
+
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// TS: `remove optional dependencies that are not used, when hoisted node
+/// linker is used` (`optionalDependencies.ts:633`).
+#[test]
+fn remove_optional_dependencies_that_are_not_used_with_hoisted_linker() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    write_arch_workspace_yaml(
+        &workspace,
+        "darwin, linux, win32",
+        "arm64, x64",
+        "nodeLinker: hoisted\n",
+    );
+
+    pacquet.with_args(["add", "@pnpm.e2e/has-many-optional-deps@1.0.0"]).assert().success();
+
+    write_arch_workspace_yaml(&workspace, "darwin", "x64", "nodeLinker: hoisted\n");
+    pacquet_in(&workspace).with_arg("install").assert().success();
+
+    let mut entries: Vec<String> = fs::read_dir(workspace.join("node_modules/@pnpm.e2e"))
+        .expect("read node_modules/@pnpm.e2e")
+        .map(|entry| entry.expect("read dir entry").file_name().to_string_lossy().into_owned())
+        .collect();
+    entries.sort();
+    assert_eq!(entries, ["darwin-x64", "has-many-optional-deps"]);
+
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// TS: `remove optional dependencies if supported architectures have
+/// changed and a new dependency is added` (`optionalDependencies.ts:648`).
+#[test]
+fn remove_optional_dependencies_when_architectures_change_and_a_dependency_is_added() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    append_workspace_yaml_key(&workspace, "modulesCacheMaxAge", "0");
+
+    pacquet
+        .with_args([
+            "add",
+            "@pnpm.e2e/parent-of-has-many-optional-deps@1.0.0",
+            "--os",
+            "darwin,linux,win32",
+            "--cpu",
+            "arm64,x64",
+        ])
+        .assert()
+        .success();
+
+    pacquet_in(&workspace)
+        .with_args(["add", "is-positive@1.0.0", "--os", "darwin", "--cpu", "x64"])
+        .assert()
+        .success();
+
+    let virtual_store = workspace.join("node_modules/.pnpm");
+    for name in ["parent-of-has-many-optional-deps", "has-many-optional-deps", "darwin-x64"] {
+        assert!(
+            virtual_store.join(format!("@pnpm.e2e+{name}@1.0.0")).exists(),
+            "{name} must survive the narrowed architecture set",
+        );
+    }
+    assert!(virtual_store.join("is-positive@1.0.0").exists());
+    for name in ["darwin-arm64", "linux-x64", "windows-x64"] {
+        assert!(
+            !virtual_store.join(format!("@pnpm.e2e+{name}@1.0.0")).exists(),
+            "{name} must be pruned once the architecture set no longer needs it",
+        );
+    }
+
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// TS: `optional subdependency is not removed from current lockfile when
+/// new dependency added` (`optionalDependencies.ts:213`, pnpm/pnpm issue
+/// 2636): in a workspace with a shared lockfile, an `add` in one project
+/// must keep the other project's skipped-optional metadata in the current
+/// lockfile.
+#[test]
+fn optional_subdependency_stays_in_current_lockfile_when_new_dependency_added() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    append_workspace_yaml_key(&workspace, "packages", "['project-1', 'project-2']");
+    write_manifest(&workspace, &serde_json::json!({ "name": "root", "private": true }));
+    for (name, manifest) in [
+        (
+            "project-1",
+            serde_json::json!({
+                "name": "project-1",
+                "version": "1.0.0",
+                "dependencies": { "@pnpm.e2e/pkg-with-optional": "1.0.0" },
+            }),
+        ),
+        ("project-2", serde_json::json!({ "name": "project-2", "version": "1.0.0" })),
+    ] {
+        fs::create_dir_all(workspace.join(name)).expect("create project dir");
+        fs::write(workspace.join(name).join("package.json"), manifest.to_string())
+            .expect("write project manifest");
+    }
+
+    pacquet.with_arg("install").assert().success();
+
+    assert_eq!(
+        read_skipped(&workspace),
+        ["@pnpm.e2e/dep-of-optional-pkg@1.0.0", "@pnpm.e2e/not-compatible-with-any-os@1.0.0"],
+    );
+    let current_has_not_compatible = |current: &Lockfile| {
+        current.packages.as_ref().is_some_and(|packages| {
+            packages
+                .keys()
+                .any(|key| key.to_string() == "@pnpm.e2e/not-compatible-with-any-os@1.0.0")
+        })
+    };
+    assert!(
+        current_has_not_compatible(&read_current_lockfile(&workspace)),
+        "the skipped optional's metadata must be in the current lockfile",
+    );
+
+    pacquet_in(&workspace.join("project-1"))
+        .with_args(["add", "is-positive@1.0.0"])
+        .assert()
+        .success();
+
+    assert!(
+        current_has_not_compatible(&read_current_lockfile(&workspace)),
+        "an add in a sibling project must not drop the skipped optional's metadata",
+    );
+
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// The CLI-flag variant of the `supportedArchitectures` invalidation:
+/// `install --os` / `--cpu` after a broader install must not report
+/// "Already up to date" — every up-to-date gate compares the CLI-merged
+/// value — and the platform packages the narrowed set no longer needs
+/// are re-evaluated and pruned.
+#[test]
+fn cli_architecture_flags_invalidate_the_up_to_date_fast_path() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    append_workspace_yaml_key(&workspace, "modulesCacheMaxAge", "0");
+
+    pacquet
+        .with_args([
+            "add",
+            "@pnpm.e2e/has-many-optional-deps@1.0.0",
+            "--os",
+            "darwin,linux,win32",
+            "--cpu",
+            "arm64,x64",
+        ])
+        .assert()
+        .success();
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--os", "darwin", "--cpu", "x64"])
+        .assert()
+        .success();
+
+    let virtual_store = workspace.join("node_modules/.pnpm");
+    assert!(virtual_store.join("@pnpm.e2e+darwin-x64@1.0.0").exists());
+    for name in ["darwin-arm64", "linux-x64", "windows-x64"] {
+        assert!(
+            !virtual_store.join(format!("@pnpm.e2e+{name}@1.0.0")).exists(),
+            "{name} must be pruned once the flag-narrowed architecture set no longer needs it",
+        );
+    }
 
     drop((root, npmrc_info)); // cleanup
 }

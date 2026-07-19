@@ -67,6 +67,16 @@ impl AddDependencyOptions {
             .chain(self.save_optional().then_some(DependencyGroup::Optional))
             .chain(self.save_peer().then_some(DependencyGroup::Peer))
     }
+
+    /// The save target for the install layer: `Some` when a `--save-*`
+    /// flag names it explicitly, `None` when pnpm infers it per package
+    /// (an already-declared dependency is updated in the group it
+    /// occupies; a new one lands in `dependencies`).
+    fn save_target(&self) -> Option<Vec<DependencyGroup>> {
+        let &AddDependencyOptions { save_prod, save_dev, save_optional, save_peer } = self;
+        (save_prod || save_dev || save_optional || save_peer)
+            .then(|| self.dependency_groups().collect())
+    }
 }
 
 #[derive(Debug, Args)]
@@ -211,7 +221,7 @@ impl AddArgs {
             save_catalog_name,
             self.lockfile_only,
             supported_architectures,
-            self.dependency_options.dependency_groups(),
+            self.dependency_options.save_target(),
         )
         .await
     }
@@ -251,7 +261,7 @@ impl AddArgs {
             manifest,
             lockfile,
             lockfile_path: Some(&lockfile_path),
-            dependency_groups: self.dependency_options.dependency_groups(),
+            dependency_groups: self.dependency_options.save_target(),
             package_names: &self.package_names,
             pinned_version,
             save_catalog_name,
@@ -329,7 +339,7 @@ where
         save_catalog_name,
         lockfile_only,
         supported_architectures,
-        dependency_groups,
+        Some(dependency_groups),
     ))
     .await
 }
@@ -342,13 +352,12 @@ pub(crate) async fn add_packages<Reporter, DependencyGroupList>(
     save_catalog_name: Option<String>,
     lockfile_only: bool,
     supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
-    dependency_groups: DependencyGroupList,
+    dependency_groups: Option<DependencyGroupList>,
 ) -> miette::Result<()>
 where
     Reporter: self::Reporter + 'static,
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
-    // TODO: if a package already exists in another dependency group, don't remove the existing entry.
     let lockfile_path = state.lockfile_path();
     let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
         &mut state;

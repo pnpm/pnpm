@@ -53,6 +53,7 @@ use pacquet_catalogs_types::Catalogs;
 use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker};
 use pacquet_lockfile::{ImporterDepVersion, Lockfile, MaybeLazyLockfile, ProjectSnapshot};
 use pacquet_modules_yaml::IncludedDependencies;
+use pacquet_package_is_installable::SupportedArchitectures;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_workspace_state::{
     NodeLinker as WorkspaceStateNodeLinker, WorkspaceState, WorkspaceStateSettings,
@@ -80,6 +81,10 @@ pub struct OptimisticRepeatInstallCheck<'a> {
     pub config: &'a Config,
     pub node_linker: NodeLinker,
     pub included: IncludedDependencies,
+    /// The CLI-merged effective `supportedArchitectures` this run would
+    /// install with (yaml plus `--cpu` / `--os` / `--libc`), compared
+    /// against the recorded value like `included`.
+    pub supported_architectures: Option<&'a SupportedArchitectures>,
     /// Every importer's `(root_dir, manifest)` pair. For a
     /// single-project install it's just the root manifest; for a
     /// workspace install it's every project the resolver would
@@ -123,6 +128,7 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
         config,
         node_linker,
         included,
+        supported_architectures,
         project_manifests,
         is_workspace_install,
         catalogs,
@@ -161,7 +167,7 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
         };
     }
 
-    if !settings_match(&state, config, node_linker, included) {
+    if !settings_match(&state, config, node_linker, included, supported_architectures) {
         return Decision::Skipped { reason: "settings drift" };
     }
 
@@ -291,6 +297,7 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
                     config,
                     node_linker,
                     included,
+                    supported_architectures,
                     catalogs,
                     project_manifests,
                     state.filtered_install,
@@ -1029,13 +1036,34 @@ fn current_lockfile_file_has_content(virtual_store_dir: &Path) -> bool {
 /// absent value as an empty map on the read side, matching pnpm's
 /// tolerance of an absent `allowBuilds` key in the recorded state on
 /// the write side.
+/// Whether the `supportedArchitectures` recorded by the last install
+/// matches `live` (today's CLI-merged value). Read from the workspace
+/// state for the frozen path's lockfile-up-to-date early return, whose
+/// other guards (`wanted == current`, `.modules.yaml` consistency) cannot
+/// see an architecture change: the skip set it would produce differs, so
+/// the shortcut must not fire. A missing state file or an unreadable one
+/// reports a match only when `live` is also unset — the conservative
+/// direction is a full install.
+pub(crate) fn recorded_supported_architectures_match(
+    workspace_root: &Path,
+    live: Option<&SupportedArchitectures>,
+) -> bool {
+    let recorded = match load_workspace_state(workspace_root) {
+        Ok(Some(state)) => state.settings.supported_architectures,
+        _ => None,
+    };
+    recorded == live.and_then(|value| serde_json::to_value(value).ok())
+}
+
 fn settings_match(
     state: &WorkspaceState,
     config: &Config,
     node_linker: NodeLinker,
     included: IncludedDependencies,
+    supported_architectures: Option<&SupportedArchitectures>,
 ) -> bool {
-    first_setting_drift(state, config, node_linker, included, false).is_none()
+    first_setting_drift(state, config, node_linker, included, supported_architectures, false)
+        .is_none()
 }
 
 /// The camelCase name (pnpm's workspace-state setting key) of the first
@@ -1050,9 +1078,10 @@ fn first_setting_drift(
     config: &Config,
     node_linker: NodeLinker,
     included: IncludedDependencies,
+    supported_architectures: Option<&SupportedArchitectures>,
     ignore_included_groups: bool,
 ) -> Option<&'static str> {
-    let current = current_settings(config, node_linker, included);
+    let current = current_settings(config, node_linker, included, supported_architectures);
     let recorded = &state.settings;
     let live = &current;
     if !allow_builds_match(recorded.allow_builds.as_ref(), live.allow_builds.as_ref()) {
@@ -1138,6 +1167,9 @@ fn first_setting_drift(
     if recorded.public_hoist_pattern != live.public_hoist_pattern {
         return Some("publicHoistPattern");
     }
+    if recorded.supported_architectures != live.supported_architectures {
+        return Some("supportedArchitectures");
+    }
     None
     // Deliberately *not* compared in this generic settings loop:
     // `catalogs` is ignored here and checked separately in
@@ -1221,6 +1253,7 @@ pub(crate) fn current_settings(
     config: &Config,
     node_linker: NodeLinker,
     included: IncludedDependencies,
+    supported_architectures: Option<&SupportedArchitectures>,
 ) -> WorkspaceStateSettings {
     let allow_builds = (!config.allow_builds.is_empty()).then(|| {
         config.allow_builds.iter().map(|(k, v)| (k.clone(), serde_json::Value::Bool(*v))).collect()
@@ -1267,6 +1300,11 @@ pub(crate) fn current_settings(
         prefer_workspace_packages: Some(config.prefer_workspace_packages),
         production: Some(included.dependencies),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
+        // The CLI-merged effective value (yaml plus `--cpu` / `--os` /
+        // `--libc`), like `included` above: a change through either
+        // channel re-evaluates the skipped optionals on the next run.
+        supported_architectures: supported_architectures
+            .and_then(|value| serde_json::to_value(value).ok()),
         ..Default::default()
     }
 }
@@ -1275,9 +1313,10 @@ pub(crate) fn current_settings_with_catalogs(
     config: &Config,
     node_linker: NodeLinker,
     included: IncludedDependencies,
+    supported_architectures: Option<&SupportedArchitectures>,
     catalogs: &Catalogs,
 ) -> WorkspaceStateSettings {
-    let mut settings = current_settings(config, node_linker, included);
+    let mut settings = current_settings(config, node_linker, included, supported_architectures);
     settings.catalogs = Some(catalogs_to_json(catalogs));
     settings
 }
@@ -1512,6 +1551,7 @@ pub fn check_deps_status_before_run(
         config,
         node_linker,
         included,
+        supported_architectures,
         project_manifests,
         is_workspace_install,
         catalogs,
@@ -1526,7 +1566,9 @@ pub fn check_deps_status_before_run(
         return RunDepsStatus::SkippedPnp;
     }
 
-    if let Some(setting) = first_setting_drift(state, config, node_linker, included, true) {
+    if let Some(setting) =
+        first_setting_drift(state, config, node_linker, included, supported_architectures, true)
+    {
         return outdated(format!("The value of the {setting} setting has changed"));
     }
     if config_dependencies_drifted(config, state) {
@@ -1602,6 +1644,7 @@ pub fn check_deps_status_before_run(
                     config,
                     node_linker,
                     included,
+                    supported_architectures,
                     catalogs,
                     project_manifests,
                     state.filtered_install,

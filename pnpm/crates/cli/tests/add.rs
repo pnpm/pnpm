@@ -668,7 +668,7 @@ fn add_moves_dependency_to_new_group_and_keeps_other_groups() {
             .success();
     };
     pacquet.with_args(["add", "--save-optional", "@pnpm.e2e/foo@^100.0.0"]).assert().success();
-    run_add(&["@pnpm.e2e/bar@^100.0.0"]);
+    run_add(&["--save-prod", "@pnpm.e2e/bar@^100.0.0"]);
     run_add(&["--save-dev", "@pnpm.e2e/qar@^100.0.0"]);
 
     let group_members = |group: DependencyGroup| -> Vec<String> {
@@ -683,7 +683,12 @@ fn add_moves_dependency_to_new_group_and_keeps_other_groups() {
     assert_eq!(group_members(DependencyGroup::Dev), ["@pnpm.e2e/qar"]);
     assert_eq!(group_members(DependencyGroup::Optional), ["@pnpm.e2e/foo"]);
 
-    run_add(&["@pnpm.e2e/bar@^100.0.0", "@pnpm.e2e/foo@^100.0.0", "@pnpm.e2e/qar@^100.0.0"]);
+    run_add(&[
+        "--save-prod",
+        "@pnpm.e2e/bar@^100.0.0",
+        "@pnpm.e2e/foo@^100.0.0",
+        "@pnpm.e2e/qar@^100.0.0",
+    ]);
     assert_eq!(
         group_members(DependencyGroup::Prod),
         ["@pnpm.e2e/bar", "@pnpm.e2e/foo", "@pnpm.e2e/qar"],
@@ -736,4 +741,43 @@ fn add_keeps_entries_of_other_dependency_groups() {
     );
 
     drop((root, anchor)); // cleanup
+}
+
+/// TS: `dependencies should be updated in the fields where they already
+/// are` (`updatingPkgJson.ts:88`): `add name@version` without a save flag
+/// updates each entry in the group it already occupies instead of moving
+/// it to `dependencies`.
+#[test]
+fn add_updates_dependency_in_the_group_it_already_occupies() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    std::fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "devDependencies": { "@pnpm.e2e/foo": "^100.0.0" },
+            "optionalDependencies": { "@pnpm.e2e/bar": "^100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_args(["add", "@pnpm.e2e/foo@100.1.0", "@pnpm.e2e/bar@100.1.0", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let manifest =
+        PackageManifest::from_path(workspace.join("package.json")).expect("read package.json");
+    let group_spec = |group: DependencyGroup, name: &str| {
+        manifest
+            .dependencies([group])
+            .find(|(dep, _)| *dep == name)
+            .map(|(_, spec)| spec.to_string())
+    };
+    assert_eq!(group_spec(DependencyGroup::Dev, "@pnpm.e2e/foo").as_deref(), Some("^100.1.0"));
+    assert_eq!(group_spec(DependencyGroup::Optional, "@pnpm.e2e/bar").as_deref(), Some("^100.1.0"));
+    assert_eq!(group_spec(DependencyGroup::Prod, "@pnpm.e2e/foo"), None);
+    assert_eq!(group_spec(DependencyGroup::Prod, "@pnpm.e2e/bar"), None);
+
+    drop((root, npmrc_info)); // cleanup
 }
