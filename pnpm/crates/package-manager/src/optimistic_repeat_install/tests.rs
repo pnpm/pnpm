@@ -1,9 +1,9 @@
 use super::{
     Decision, FileMtime, LinkedPackagesContext, MAX_LOCKFILE_CONFLICT_SCAN_BYTES,
-    OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
-    check_optimistic_repeat_install_ignoring, current_pnpmfiles, current_settings,
-    current_settings_with_catalogs, linked_packages_are_up_to_date, lockfile_modified_since,
-    modified_at_or_after,
+    OptimisticRepeatInstallCheck, RunDepsStatus, check_deps_status_before_run,
+    check_optimistic_repeat_install, check_optimistic_repeat_install_ignoring, current_pnpmfiles,
+    current_settings, current_settings_with_catalogs, linked_packages_are_up_to_date,
+    lockfile_modified_since, modified_at_or_after,
 };
 use indexmap::IndexMap;
 use pacquet_catalogs_types::Catalogs;
@@ -12,7 +12,8 @@ use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_modules_yaml::IncludedDependencies;
 use pacquet_package_manifest::PackageManifest;
 use pacquet_workspace_state::{
-    ProjectEntry, WorkspaceState, WorkspaceStateSettings, now_millis, update_workspace_state,
+    ProjectEntry, WorkspaceState, WorkspaceStateSettings, load_workspace_state, now_millis,
+    update_workspace_state,
 };
 use std::{collections::BTreeMap, fs, thread::sleep, time::Duration};
 use tempfile::tempdir;
@@ -1917,6 +1918,40 @@ fn returns_skipped_when_wanted_lockfile_has_merge_conflict_markers() {
     );
 
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("conflict")));
+}
+
+#[test]
+fn run_status_reports_wanted_lockfile_merge_conflicts() {
+    let (dir, config, manifest) =
+        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+    sleep(Duration::from_millis(20));
+    fs::write(
+        dir.path().join(Lockfile::FILE_NAME),
+        "<<<<<<< ours\nlockfileVersion: '9.0'\n=======\nlockfileVersion: '10.0'\n>>>>>>> theirs\n",
+    )
+    .expect("write conflicted lockfile");
+    let state = load_workspace_state(dir.path()).expect("load workspace state").unwrap();
+
+    let status = check_deps_status_before_run(
+        &OptimisticRepeatInstallCheck {
+            workspace_root: dir.path(),
+            config,
+            node_linker: pacquet_config::NodeLinker::Isolated,
+            included: isolated_included(),
+            supported_architectures: None,
+            project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+            is_workspace_install: false,
+            lockfile: MaybeLazyLockfile::Loaded(None),
+            catalogs: &BTreeMap::default(),
+        },
+        &state,
+    );
+
+    assert!(matches!(
+        status,
+        RunDepsStatus::Outdated { issue, .. }
+            if issue == format!("The lockfile in {} has merge conflicts", dir.path().display()),
+    ),);
 }
 
 #[test]

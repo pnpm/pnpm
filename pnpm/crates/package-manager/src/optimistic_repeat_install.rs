@@ -159,7 +159,9 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
         return Decision::Skipped { reason: "no workspace state on disk" };
     };
 
-    if lockfiles_require_conflict_safe_install(check, state.last_validated_timestamp) {
+    if first_lockfile_requiring_conflict_safe_install(check, state.last_validated_timestamp)
+        .is_some()
+    {
         return Decision::Skipped {
             reason: "a changed lockfile contains or cannot be checked for merge conflict markers",
         };
@@ -343,56 +345,74 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
     }
 }
 
-fn lockfiles_require_conflict_safe_install(
+#[derive(Clone, Copy)]
+enum LockfileConflictCheckFailure {
+    MergeConflict,
+    Unsafe,
+}
+
+fn first_lockfile_requiring_conflict_safe_install(
     check: &OptimisticRepeatInstallCheck<'_>,
     last_validated_timestamp: i64,
-) -> bool {
+) -> Option<(PathBuf, LockfileConflictCheckFailure)> {
     let shared_lockfile = check.workspace_root.join(Lockfile::FILE_NAME);
-    if lockfile_requires_conflict_safe_install(&shared_lockfile, last_validated_timestamp) {
-        return true;
+    if let Some(failure) =
+        lockfile_conflict_check_failure(&shared_lockfile, last_validated_timestamp)
+    {
+        return Some((shared_lockfile, failure));
     }
-    !check.config.shared_workspace_lockfile
-        && check.project_manifests.iter().any(|(root_dir, _)| {
-            let lockfile_path = root_dir.join(Lockfile::FILE_NAME);
-            lockfile_path != shared_lockfile
-                && lockfile_requires_conflict_safe_install(&lockfile_path, last_validated_timestamp)
-        })
+    if check.config.shared_workspace_lockfile {
+        return None;
+    }
+    for (root_dir, _) in check.project_manifests {
+        let lockfile_path = root_dir.join(Lockfile::FILE_NAME);
+        if lockfile_path != shared_lockfile
+            && let Some(failure) =
+                lockfile_conflict_check_failure(&lockfile_path, last_validated_timestamp)
+        {
+            return Some((lockfile_path, failure));
+        }
+    }
+    None
 }
 
 const CONFLICT_MARKER: &[u8] = b"<<<<<<<";
 const LOCKFILE_CONFLICT_SCAN_BUFFER_SIZE: usize = 8 * 1024;
 const MAX_LOCKFILE_CONFLICT_SCAN_BYTES: u64 = 16 * 1024 * 1024;
 
-fn lockfile_requires_conflict_safe_install(path: &Path, last_validated_timestamp: i64) -> bool {
+fn lockfile_conflict_check_failure(
+    path: &Path,
+    last_validated_timestamp: i64,
+) -> Option<LockfileConflictCheckFailure> {
     let metadata = match fs::symlink_metadata(path) {
         Ok(metadata) => metadata,
-        Err(error) if error.kind() == ErrorKind::NotFound => return false,
-        Err(_) => return true,
+        Err(error) if error.kind() == ErrorKind::NotFound => return None,
+        Err(_) => return Some(LockfileConflictCheckFailure::Unsafe),
     };
     if !metadata.file_type().is_file() {
-        return true;
+        return Some(LockfileConflictCheckFailure::Unsafe);
     }
     let Some(mtime) = file_mtime_from_metadata(&metadata) else {
-        return true;
+        return Some(LockfileConflictCheckFailure::Unsafe);
     };
     if !lockfile_modified_since(mtime, last_validated_timestamp) {
-        return false;
+        return None;
     }
     if metadata.len() >= MAX_LOCKFILE_CONFLICT_SCAN_BYTES {
-        return true;
+        return Some(LockfileConflictCheckFailure::Unsafe);
     }
-    modified_lockfile_contains_conflict_markers(path)
+    modified_lockfile_conflict_check_failure(path)
 }
 
-fn modified_lockfile_contains_conflict_markers(path: &Path) -> bool {
+fn modified_lockfile_conflict_check_failure(path: &Path) -> Option<LockfileConflictCheckFailure> {
     let Ok(mut file) = fs::File::open(path) else {
-        return true;
+        return Some(LockfileConflictCheckFailure::Unsafe);
     };
     let Ok(metadata) = file.metadata() else {
-        return true;
+        return Some(LockfileConflictCheckFailure::Unsafe);
     };
     if !metadata.file_type().is_file() || metadata.len() >= MAX_LOCKFILE_CONFLICT_SCAN_BYTES {
-        return true;
+        return Some(LockfileConflictCheckFailure::Unsafe);
     }
 
     let mut buffer = [0; LOCKFILE_CONFLICT_SCAN_BUFFER_SIZE + CONFLICT_MARKER.len() - 1];
@@ -401,11 +421,11 @@ fn modified_lockfile_contains_conflict_markers(path: &Path) -> bool {
     loop {
         let remaining = MAX_LOCKFILE_CONFLICT_SCAN_BYTES.saturating_sub(scanned);
         if remaining == 0 {
-            return true;
+            return Some(LockfileConflictCheckFailure::Unsafe);
         }
         let read_capacity = LOCKFILE_CONFLICT_SCAN_BUFFER_SIZE.min(remaining as usize);
         match file.read(&mut buffer[carried..carried + read_capacity]) {
-            Ok(0) => return false,
+            Ok(0) => return None,
             Ok(read) => {
                 scanned += read as u64;
                 let end = carried + read;
@@ -413,13 +433,13 @@ fn modified_lockfile_contains_conflict_markers(path: &Path) -> bool {
                     .windows(CONFLICT_MARKER.len())
                     .any(|bytes| bytes == CONFLICT_MARKER)
                 {
-                    return true;
+                    return Some(LockfileConflictCheckFailure::MergeConflict);
                 }
                 carried = end.min(CONFLICT_MARKER.len() - 1);
                 buffer.copy_within(end - carried..end, 0);
             }
             Err(error) if error.kind() == ErrorKind::Interrupted => {}
-            Err(_) => return true,
+            Err(_) => return Some(LockfileConflictCheckFailure::Unsafe),
         }
     }
 }
@@ -1684,6 +1704,21 @@ pub fn check_deps_status_before_run(
 
     if node_linker == NodeLinker::Pnp {
         return RunDepsStatus::SkippedPnp;
+    }
+
+    if let Some((lockfile_path, failure)) =
+        first_lockfile_requiring_conflict_safe_install(check, state.last_validated_timestamp)
+    {
+        let lockfile_dir = lockfile_path.parent().unwrap_or(workspace_root).display();
+        let issue = match failure {
+            LockfileConflictCheckFailure::MergeConflict => {
+                format!("The lockfile in {lockfile_dir} has merge conflicts")
+            }
+            LockfileConflictCheckFailure::Unsafe => {
+                format!("The lockfile in {lockfile_dir} cannot be checked for merge conflicts")
+            }
+        };
+        return outdated(issue);
     }
 
     if let Some(setting) = first_setting_drift(
