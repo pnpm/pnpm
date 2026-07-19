@@ -695,19 +695,21 @@ Rust port notes:
 
 Install tests:
 
-- [ ] `TypeScript repo: installing/deps-installer/test/install/fromRepo.ts:31` `from a github repo`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/fromRepo.ts:48` `from a github repo through URL`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/fromRepo.ts:61` `from a github repo with different name via named installation`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/fromRepo.ts:105` `from a github repo with different name`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/fromRepo.ts:150` `a subdependency is from a github repo with different name`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/fromRepo.ts:174` `from a git repo`
+The install-level ports build a local repo per test and reference it over `git+file://` (`GitRepoFixture` in `pacquet-testing-utils`), so the whole git install path runs without network access — the same technique upstream's `createGitPreparePackage` uses. That trades away the *host* archive identity (`gitHosted: true` tarball resolution), which is pinned separately at the resolver level; a `file:` repo resolves to `type: git`. They live in `crates/cli/tests/git_hosted_install.rs`.
+
+- [ ] `TypeScript repo: installing/deps-installer/test/install/fromRepo.ts:31` `from a github repo` — `pnpm add <shorthand>` (no alias) is a `known_failures` stub (`add_from_a_github_repo_shorthand`): `add`'s `split_name_spec` treats the whole argument as a package name, so an alias-less git specifier is sent to the registry as a package name. The aliased and manifest-declared forms work.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/fromRepo.ts:48` `from a github repo through URL` — same alias-less `pnpm add` gap, stubbed as `add_from_a_github_repo_through_url`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/fromRepo.ts:61` `from a github repo with different name via named installation` — ported as `install_from_a_git_repo_with_a_different_name_via_named_installation`. Asserts the alias/`realName`/`dependencyType` on the `pnpm:root` event and both linked bins; the `added.version` half (upstream expects `1.0.0`) is the `known_failures` stub `root_log_reports_the_package_version_for_a_git_dependency`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/fromRepo.ts:105` `from a github repo with different name` — ported as `install_from_a_git_repo_with_a_different_name`.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/fromRepo.ts:150` `a subdependency is from a github repo with different name` — `known_failures` stub `a_subdependency_is_from_a_git_repo_with_a_different_name`: needs a registry fixture whose manifest declares a git dependency, but a committed fixture cannot name a per-run `git+file://` repo. Unblocking needs the `pnpr-fixtures` builder to substitute a per-run repo URL.
+- [x] `TypeScript repo: installing/deps-installer/test/install/fromRepo.ts:174` `from a git repo` — ported as `install_from_a_git_repo` (upstream reaches github over `git+ssh://` and self-skips on CI; the `file:` repo exercises the same non-host `type: git` branch). Also pins the bare-`git+…#<commit>` importer ref against pnpm 11.
 - [x] `TypeScript repo: installing/deps-installer/test/install/fromRepo.ts:206` `from a github repo that has no package.json file` — covered at fetcher level by `crates/git-fetcher/src/fetcher/tests.rs::fetcher_handles_repo_without_package_json`. Full install-level test deferred until a non-resolver lockfile fixture lands.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/fromRepo.ts:276` `re-adding a git repo with a different tag`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/fromRepo.ts:323` `should not update when adding unrelated dependency`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/fromRepo.ts:354` `git-hosted repository is not added to the store if it fails to be built`
-- [x] `TypeScript repo: installing/deps-installer/test/install/fromRepo.ts:366` `from subdirectories of a git repo` — covered at fetcher level by `fetcher_packs_subfolder_when_path_set`. Full install-level test deferred (Stage 2 resolver dependency).
-- [ ] `TypeScript repo: installing/deps-installer/test/install/fromRepo.ts:389` `no hash character for github subdirectory install`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:311` `run prepare script for git-hosted dependencies`
+- [x] `TypeScript repo: installing/deps-installer/test/install/fromRepo.ts:276` `re-adding a git repo with a different tag` — ported as `re_adding_a_git_repo_with_a_different_tag`.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/fromRepo.ts:323` `should not update when adding unrelated dependency` — `known_failures` stub `should_not_update_when_adding_unrelated_dependency`: a git dependency's locked commit is not reused from the wanted lockfile — every resolution re-runs `git ls-remote`, so an unrelated `pnpm add` relocks a moving ref (verified against pnpm 11.13.1, which keeps the commit). The reuse map keys on integrity, which git resolutions lack.
+- [x] `TypeScript repo: installing/deps-installer/test/install/fromRepo.ts:354` `git-hosted repository is not added to the store if it fails to be built` — ported as `git_hosted_repository_is_not_added_to_the_store_if_it_fails_to_be_built`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/fromRepo.ts:366` `from subdirectories of a git repo` — ported as the install-level `install_from_subdirectories_of_a_git_repo` (two `#path:` subdirectories of one repo); the fetcher-level `fetcher_packs_subfolder_when_path_set` remains.
+- [x] `TypeScript repo: installing/deps-installer/test/install/fromRepo.ts:389` `no hash character for github subdirectory install` — ported as `no_hash_character_for_subdirectory_install` (`#path:/&<ref>` splits the ref out of the `path:` fragment).
+- [x] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:311` `run prepare script for git-hosted dependencies` — ported as `run_prepare_script_for_git_hosted_dependencies` (asserts the full `preinstall,install,postinstall,prepare,preinstall,install,postinstall` order).
 
 Fetcher/resolver/store tests:
 
@@ -733,12 +735,12 @@ Fetcher/resolver/store tests:
 - [x] `TypeScript repo: fetching/tarball-fetcher/test/fetch.ts:610` `prevent directory traversal attack when path is present` — `tarball_path_traversal_attack_is_rejected`.
 - [x] `TypeScript repo: fetching/tarball-fetcher/test/fetch.ts:637` `fail when path is not exists` — `tarball_path_to_missing_subdir_is_rejected`.
 - [x] `TypeScript repo: resolving/git-resolver/test/index.ts:188` `resolveFromGit() with sub folder` — ported as `path_suffix_appended_to_id_and_resolution` in `crates/resolving-git-resolver/src/git_resolver/tests.rs`.
-- [ ] `TypeScript repo: resolving/git-resolver/test/index.ts:211` `resolveFromGit() with both sub folder and branch`
-- [ ] `TypeScript repo: resolving/git-resolver/test/index.ts:482` `resolve a private repository using the HTTPS protocol without auth token`
-- [ ] `TypeScript repo: resolving/git-resolver/test/index.ts:526` `resolve a private repository using the HTTPS protocol and an auth token`
+- [x] `TypeScript repo: resolving/git-resolver/test/index.ts:211` `resolveFromGit() with both sub folder and branch` — ported as `sub_folder_and_branch_resolve_to_a_tarball_carrying_the_path` in `crates/resolving-git-resolver/src/git_resolver/tests.rs`.
+- [x] `TypeScript repo: resolving/git-resolver/test/index.ts:482` `resolve a private repository using the HTTPS protocol without auth token` — ported as `private_https_repo_without_auth_falls_back_to_the_ssh_url` (the `FakeProbe::private_reachable_over` seam makes exactly one transport reachable).
+- [x] `TypeScript repo: resolving/git-resolver/test/index.ts:526` `resolve a private repository using the HTTPS protocol and an auth token` — ported as `private_https_repo_with_an_auth_token_keeps_the_authenticated_url`. Fixing this found a divergence: pacquet resolved an auth-bearing private repo to the host's public `codeload` archive URL (`gitHosted: true` tarball) — a URL that carries none of the URL's credentials. Now `hosted: None` in the private-repo branch of `from_hosted_git` keeps it a `type: git` resolution against the authenticated remote, matching upstream's `tarball: undefined`.
 - [x] `TypeScript repo: installing/package-requester/test/index.ts:884` `fetch a git package without a package.json` — covered alongside `fetching/git-fetcher/test/index.ts:150` via `fetcher_handles_repo_without_package_json`.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/peerDependencies.ts:30` `don't fail when peer dependency is fetched from GitHub`
-- [ ] `TypeScript repo: installing/deps-installer/test/lockfile.ts:600` `updating package that has a github-hosted dependency`
+- [ ] `TypeScript repo: installing/deps-installer/test/lockfile.ts:600` `updating package that has a github-hosted dependency` — `known_failures` stub `updating_package_that_has_a_git_hosted_dependency` in `crates/cli/tests/git_hosted_install.rs`: same registry-fixture-with-a-git-dependency blocker as `fromRepo.ts:150`.
 - [x] `TypeScript repo: store/pkg-finder/test/readPackageFileMap.test.ts:67` `should resolve git-hosted tarball packages (no type, has tarball)` — write side covered by `tarball_fetcher::tests::writes_index_row_when_writer_provided`; read side reuses the existing tarball-warm prefetch (no git-specific code path).
 - [x] `TypeScript repo: store/pkg-finder/test/readPackageFileMap.test.ts:84` `should resolve git dependencies with type "git" and return readable file paths` — same coverage: the write side produces a `gitHostedStoreIndexKey` row at `pkg_id\tbuilt` (see `create_virtual_store::tests::snapshot_cache_key_for_git_resolution_uses_git_hosted_key` for the read-side key shape pin).
 

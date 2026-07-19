@@ -5067,6 +5067,7 @@ version = "0.0.0"
 dependencies = [
  "assert_cmd",
  "command-extra",
+ "dunce",
  "flate2",
  "junction",
  "pnpr",
@@ -5077,6 +5078,7 @@ dependencies = [
  "tempfile",
  "text-block-macros",
  "tokio",
+ "url",
  "walkdir",
 ]
 

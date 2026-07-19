@@ -5,8 +5,9 @@ use super::{
 use indexmap::IndexMap;
 use pacquet_deps_path::DepPath;
 use pacquet_lockfile::{
-    DirectoryResolution, ImporterDepVersion, LockfileResolution, PackageKey, PkgName, PkgNameVer,
-    RegistryResolution, SnapshotDepRef, TarballResolution, VariationsResolution,
+    DirectoryResolution, GitResolution, ImporterDepVersion, LockfileResolution, PackageKey,
+    PkgName, PkgNameVer, RegistryResolution, SnapshotDepRef, TarballResolution,
+    VariationsResolution,
 };
 use pacquet_package_manifest::PackageManifest;
 use pacquet_resolving_deps_resolver::{
@@ -714,6 +715,90 @@ fn aliased_git_hosted_dependency_keeps_package_name_in_importer_ref() {
     let package_key: PackageKey = format!("is-negative@{GIT_TARBALL_URL}").parse().unwrap();
     assert!(lockfile.packages.as_ref().expect("packages").contains_key(&package_key));
     assert!(lockfile.snapshots.as_ref().expect("snapshots").contains_key(&package_key));
+}
+
+/// A non-host git dep (ssh / self-hosted / `git+file:`) resolves to a
+/// `type: git` snapshot whose id *is* its depPath, and whose name lives
+/// only in the fetched manifest. When the manifest alias matches that
+/// name, the importer entry drops the `<name>@` prefix and records the
+/// bare `git+<repo>#<commit>` ref — the shape pnpm v11 writes, verified
+/// byte-for-byte against pnpm 11.13.1.
+#[test]
+fn non_host_git_dependency_records_bare_git_url_in_importer() {
+    const GIT_REF: &str =
+        "git+ssh://git@example.com/org/is-negative.git#0123456789012345678901234567890123456789";
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "is-negative": GIT_REF },
+    }));
+
+    // The install pipeline keys a git dep's depPath by `<name>@<ref>`
+    // once the name is read from the fetched manifest, so the `<name>@`
+    // prefix is present here — the exact shape `real_name` has to strip
+    // back off for the importer entry.
+    let dep_path = DepPath::from(format!("is-negative@{GIT_REF}"));
+    let resolve_result = ResolveResult {
+        id: PkgResolutionId::from(GIT_REF),
+        name_ver: None,
+        latest: None,
+        published_at: None,
+        manifest: Some(Arc::new(json!({ "name": "is-negative", "version": "1.0.0" }))),
+        resolution: LockfileResolution::Git(GitResolution {
+            repo: "ssh://git@example.com/org/is-negative.git".to_string(),
+            commit: "0123456789012345678901234567890123456789".to_string(),
+            path: None,
+        }),
+        resolved_via: "git-repository".to_string(),
+        normalized_bare_specifier: Some(GIT_REF.to_string()),
+        alias: Some("is-negative".to_string()),
+        policy_violation: None,
+    };
+    let node = DependenciesGraphNode {
+        dep_path: dep_path.clone(),
+        resolved_package_id: dep_path.to_string(),
+        resolve_result: Arc::new(resolve_result),
+        children: BTreeMap::new(),
+        optional_children: HashSet::new(),
+        peer_dependencies: BTreeMap::new(),
+        transitive_peer_dependencies: HashSet::new(),
+        resolved_peer_names: HashSet::new(),
+        depth: 1,
+        installable: true,
+        is_pure: true,
+        optional: false,
+    };
+    let mut graph = DependenciesGraph::new();
+    graph.insert(dep_path.clone(), node);
+    let direct = BTreeMap::from([("is-negative".to_string(), dep_path)]);
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, false, false, None, None,
+    ));
+
+    let importer = lockfile.root_project().expect("root importer");
+    let entry = importer
+        .dependencies
+        .as_ref()
+        .expect("dependencies")
+        .get(&PkgName::parse("is-negative").unwrap())
+        .expect("git dependency");
+    match &entry.version {
+        // The `is-negative@` prefix is stripped: the bare git ref, not
+        // `is-negative@git+...`.
+        ImporterDepVersion::Regular(version) => assert_eq!(version.to_string(), GIT_REF),
+        other => panic!("expected Regular({GIT_REF}), got {other:?}"),
+    }
+
+    let packages = lockfile.packages.as_ref().expect("packages");
+    let (package_key, metadata) =
+        packages.iter().find(|(key, _)| key.to_string().contains("is-negative")).expect("package");
+    assert!(matches!(metadata.resolution, LockfileResolution::Git(_)));
+    assert_eq!(metadata.version.as_deref(), Some("1.0.0"));
+    assert!(
+        lockfile.snapshots.as_ref().expect("snapshots").contains_key(package_key),
+        "the snapshot is keyed by the same depPath",
+    );
 }
 
 #[test]

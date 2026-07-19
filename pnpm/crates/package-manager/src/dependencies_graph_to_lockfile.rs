@@ -441,13 +441,16 @@ fn real_name(result: &ResolveResult) -> Option<String> {
     //   (`<name>@<tarball-url>` -> `version: <url>`), which a git-hosted
     //   dep's host archive URL also is,
     // - a runtime dep (`<name>@runtime:<ver>`, a Variations resolution ->
-    //   `version: runtime:<ver>`).
+    //   `version: runtime:<ver>`),
+    // - a git dep with no host archive (`<name>@git+<repo>#<commit>` ->
+    //   `version: git+<repo>#<commit>`), the shape every non-host repo
+    //   resolves to (ssh, self-hosted, `file:`).
     // `file:` resolutions are deliberately left to the `None` path so
     // their importer entries keep pacquet's current prefixed shape —
     // bringing those in line is separate from
     // <https://github.com/pnpm/pnpm/issues/12053>.
     let reads_name_from_manifest = match &result.resolution {
-        LockfileResolution::Variations(_) => true,
+        LockfileResolution::Variations(_) | LockfileResolution::Git(_) => true,
         LockfileResolution::Tarball(tarball) => is_remote_http_tarball(&tarball.tarball),
         _ => false,
     };
