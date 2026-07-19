@@ -1023,6 +1023,241 @@ pub fn workspace_unscoped_creds_pin_to_workspace_registry() {
     );
 }
 
+#[test]
+pub fn workspace_npmrc_overrides_global_auth_file() {
+    let project = tempdir().expect("project tempdir");
+    fs::write(project.path().join(".npmrc"), "//registry.npmjs.org/:_authToken=workspace-token\n")
+        .expect("write workspace .npmrc");
+
+    let xdg = tempdir().expect("config tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create global config dir");
+    fs::write(config_dir.join("auth.ini"), "//registry.npmjs.org/:_authToken=global-token\n")
+        .expect("write global auth file");
+
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(
+        config.auth_headers.for_url("https://registry.npmjs.org/pkg").as_deref(),
+        Some("Bearer workspace-token"),
+    );
+}
+
+#[test]
+pub fn global_config_yaml_supplies_proxy_settings() {
+    let project = tempdir().expect("project tempdir");
+    let xdg = tempdir().expect("config tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create global config dir");
+    fs::write(
+        config_dir.join("config.yaml"),
+        "httpProxy: http://proxy.example.com:8080\n\
+         httpsProxy: http://proxy.example.com:8443\n\
+         noProxy: localhost,127.0.0.1\n",
+    )
+    .expect("write global config.yaml");
+
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://proxy.example.com:8080"));
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://proxy.example.com:8443"));
+    assert_eq!(
+        config.proxy.no_proxy,
+        Some(pacquet_network::NoProxySetting::List(vec![
+            "localhost".to_string(),
+            "127.0.0.1".to_string(),
+        ])),
+    );
+    assert_eq!(config.package_manager_bootstrap.proxy, config.proxy);
+}
+
+#[test]
+pub fn global_config_yaml_proxy_overrides_project_npmrc() {
+    let project = tempdir().expect("project tempdir");
+    fs::write(project.path().join(".npmrc"), "https-proxy=http://npmrc-proxy.example.com:8080\n")
+        .expect("write project .npmrc");
+    let xdg = tempdir().expect("config tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create global config dir");
+    fs::write(config_dir.join("config.yaml"), "httpsProxy: http://yaml-proxy.example.com:9090\n")
+        .expect("write global config.yaml");
+
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://yaml-proxy.example.com:9090"));
+    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://yaml-proxy.example.com:9090"));
+}
+
+#[test]
+pub fn global_config_yaml_https_proxy_preserves_project_npmrc_http_proxy() {
+    let project = tempdir().expect("project tempdir");
+    fs::write(
+        project.path().join(".npmrc"),
+        "http-proxy=http://project-http-proxy.example.com:8080\n",
+    )
+    .expect("write project .npmrc");
+    let xdg = tempdir().expect("config tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create global config dir");
+    fs::write(config_dir.join("config.yaml"), "httpsProxy: http://yaml-proxy.example.com:9090\n")
+        .expect("write global config.yaml");
+
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://yaml-proxy.example.com:9090"));
+    assert_eq!(
+        config.proxy.http_proxy.as_deref(),
+        Some("http://project-http-proxy.example.com:8080"),
+    );
+    assert_eq!(
+        config.package_manager_bootstrap.proxy.http_proxy.as_deref(),
+        Some("http://yaml-proxy.example.com:9090"),
+    );
+}
+
+#[test]
+pub fn workspace_yaml_proxy_is_not_trusted_for_package_manager_bootstrap() {
+    let project = tempdir().expect("project tempdir");
+    fs::write(
+        project.path().join("pnpm-workspace.yaml"),
+        "httpsProxy: http://workspace-proxy.example.com:9090\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    let xdg = tempdir().expect("config tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create global config dir");
+    fs::write(
+        config_dir.join("config.yaml"),
+        "httpsProxy: http://trusted-proxy.example.com:8080\n\
+         httpProxy: http://trusted-http-proxy.example.com:8080\n",
+    )
+    .expect("write global config.yaml");
+
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(
+        config.proxy.https_proxy.as_deref(),
+        Some("http://workspace-proxy.example.com:9090"),
+    );
+    assert_eq!(
+        config.proxy.http_proxy.as_deref(),
+        Some("http://trusted-http-proxy.example.com:8080"),
+    );
+    assert_eq!(
+        config.package_manager_bootstrap.proxy.https_proxy.as_deref(),
+        Some("http://trusted-proxy.example.com:8080"),
+    );
+    assert_eq!(
+        config.package_manager_bootstrap.proxy.http_proxy.as_deref(),
+        Some("http://trusted-http-proxy.example.com:8080"),
+    );
+}
+
+#[test]
+pub fn pnpm_config_https_proxy_preserves_global_http_proxy() {
+    let project = tempdir().expect("project tempdir");
+    let xdg = tempdir().expect("config tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create global config dir");
+    fs::write(
+        config_dir.join("config.yaml"),
+        "httpsProxy: http://yaml-proxy.example.com:9090\n\
+         httpProxy: http://yaml-http-proxy.example.com:8080\n",
+    )
+    .expect("write global config.yaml");
+
+    set_fake_env(&[
+        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        ("PNPM_CONFIG_HTTPS_PROXY", "http://cli-proxy.example.com:7070"),
+    ]);
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://cli-proxy.example.com:7070"));
+    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://yaml-http-proxy.example.com:8080"));
+    assert_eq!(config.package_manager_bootstrap.proxy, config.proxy);
+}
+
+#[test]
+pub fn project_npmrc_proxy_settings_are_preserved() {
+    let project = tempdir().expect("project tempdir");
+    fs::write(
+        project.path().join(".npmrc"),
+        "https-proxy=http://npmrc-proxy.example.com:8080\n\
+         proxy=http://npmrc-http-proxy.example.com:3128\n\
+         no-proxy=internal.example.com\n",
+    )
+    .expect("write project .npmrc");
+    set_fake_env(&[]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://npmrc-proxy.example.com:8080"));
+    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://npmrc-proxy.example.com:8080"));
+    assert_eq!(
+        config.proxy.no_proxy,
+        Some(pacquet_network::NoProxySetting::List(vec!["internal.example.com".to_string()])),
+    );
+}
+
+#[test]
+pub fn cli_https_proxy_preserves_project_npmrc_http_proxy_only_for_project_requests() {
+    let project = tempdir().expect("project tempdir");
+    fs::write(
+        project.path().join(".npmrc"),
+        "http-proxy=http://project-http-proxy.example.com:8080\n",
+    )
+    .expect("write project .npmrc");
+    set_fake_env(&[]);
+
+    let mut config = load_with_fake_env(project.path());
+    config.apply_proxy_cli_overrides(Some("http://cli-https-proxy.example.com:8443"), None, None);
+
+    assert_eq!(
+        config.proxy.http_proxy.as_deref(),
+        Some("http://project-http-proxy.example.com:8080"),
+    );
+    assert_eq!(
+        config.package_manager_bootstrap.proxy.http_proxy.as_deref(),
+        Some("http://cli-https-proxy.example.com:8443"),
+    );
+}
+
+#[test]
+pub fn cli_https_proxy_preserves_trusted_npmrc_http_proxy_for_bootstrap_requests() {
+    let project = tempdir().expect("project tempdir");
+    let auth = tempdir().expect("auth tempdir");
+    let user_file = auth.path().join("user-npmrc");
+    write_file(&user_file, "http-proxy=http://user-http-proxy.example.com:8080\n");
+
+    let mut config = Config { npmrc_auth_file: Some(user_file), ..Config::default() }
+        .current::<HostNoHome>(project.path())
+        .expect("load config");
+    config.apply_proxy_cli_overrides(Some("http://cli-https-proxy.example.com:8443"), None, None);
+
+    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://user-http-proxy.example.com:8080"));
+    assert_eq!(
+        config.package_manager_bootstrap.proxy.http_proxy.as_deref(),
+        Some("http://user-http-proxy.example.com:8080"),
+    );
+}
+
+#[test]
+pub fn cli_https_proxy_precedes_standard_http_proxy_environment_fallback() {
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[("HTTP_PROXY", "http://environment-http-proxy.example.com:8080")]);
+
+    let mut config = load_with_fake_env(project.path());
+    config.apply_proxy_cli_overrides(Some("http://cli-https-proxy.example.com:8443"), None, None);
+
+    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://cli-https-proxy.example.com:8443"));
+    assert_eq!(config.package_manager_bootstrap.proxy, config.proxy);
+}
+
 /// Explicitly URL-scoped credentials pass through unchanged — they
 /// are never rescoped, so they stay on exactly the registry the user
 /// wrote, regardless of a workspace registry override.

@@ -91,6 +91,11 @@ impl CliArgs {
             return false;
         };
         config_overrides.apply(&mut config);
+        config.apply_proxy_cli_overrides(
+            self.https_proxy.as_deref(),
+            self.http_proxy.as_deref(),
+            self.no_proxy.as_deref(),
+        );
         if let Some(store_dir) = self.store_dir.as_deref()
             && apply_store_dir_override::<Host>(&mut config, store_dir, &dir).is_err()
         {
@@ -128,6 +133,9 @@ impl CliArgs {
             dir,
             store_dir,
             npmrc_auth_file,
+            https_proxy,
+            http_proxy,
+            no_proxy,
             recursive,
             reporter,
             filter,
@@ -204,6 +212,11 @@ impl CliArgs {
                 .wrap_err("load configuration")
                 .and_then(|mut cfg| {
                     config_overrides.apply(&mut cfg);
+                    cfg.apply_proxy_cli_overrides(
+                        https_proxy.as_deref(),
+                        http_proxy.as_deref(),
+                        no_proxy.as_deref(),
+                    );
                     if let Some(store_dir) = store_dir.as_deref() {
                         apply_store_dir_override::<Host>(&mut cfg, store_dir, anchor)?;
                     }

@@ -42,6 +42,24 @@ fn store_dir_accepts_an_explicit_empty_value() {
 }
 
 #[test]
+fn proxy_flags_are_global_and_parse_on_either_side_of_the_subcommand() {
+    let before =
+        CliArgs::try_parse_from(["pacquet", "--https-proxy=http://proxy.example:8443", "install"])
+            .expect("parse HTTPS proxy before subcommand");
+    assert_eq!(before.https_proxy.as_deref(), Some("http://proxy.example:8443"));
+
+    let after = CliArgs::try_parse_from([
+        "pacquet",
+        "install",
+        "--http-proxy=http://proxy.example:8080",
+        "--no-proxy=localhost,127.0.0.1",
+    ])
+    .expect("parse proxy settings after subcommand");
+    assert_eq!(after.http_proxy.as_deref(), Some("http://proxy.example:8080"));
+    assert_eq!(after.no_proxy.as_deref(), Some("localhost,127.0.0.1"));
+}
+
+#[test]
 fn recursive_default_is_false() {
     let parsed = CliArgs::try_parse_from(["pacquet", "install"]).expect("parses");
     assert!(!parsed.recursive, "flag absent → false");

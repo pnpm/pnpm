@@ -880,6 +880,10 @@ pub struct Config {
     /// Default is empty (`None` for every field) — i.e. no proxy.
     pub proxy: pacquet_network::ProxyConfig,
 
+    /// Whether `http_proxy` came from a non-empty `http-proxy` setting,
+    /// rather than falling back to the resolved HTTPS proxy.
+    pub http_proxy_is_explicit: bool,
+
     /// Resolved TLS + `local-address` configuration — `ca`, `cafile`,
     /// `cert`, `key`, `strict-ssl`, `local-address` from `.npmrc`. The
     /// type lives in `pacquet-network` for the same reason as
@@ -1713,6 +1717,9 @@ pub struct PackageManagerBootstrap {
     /// Scoped registry routes (keyed by `@scope`), excluding `default`.
     pub registries: BTreeMap<String, String>,
     pub proxy: pacquet_network::ProxyConfig,
+    /// Whether `proxy.http_proxy` came from a non-empty trusted
+    /// `http-proxy` setting rather than the HTTPS-proxy fallback.
+    pub http_proxy_is_explicit: bool,
     pub tls: pacquet_network::TlsConfig,
     pub tls_by_uri: pacquet_network::PerRegistryTls,
     pub auth_headers: std::sync::Arc<pacquet_network::AuthHeaders>,
@@ -1733,6 +1740,37 @@ impl Config {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Overlays proxy options after file and environment settings have been
+    /// resolved. An HTTPS proxy also serves HTTP unless a lower-priority source
+    /// explicitly configured the HTTP proxy.
+    pub fn apply_proxy_cli_overrides(
+        &mut self,
+        https_proxy: Option<&str>,
+        http_proxy: Option<&str>,
+        no_proxy: Option<&str>,
+    ) {
+        for (proxy, http_proxy_is_explicit) in [
+            (&mut self.proxy, self.http_proxy_is_explicit),
+            (
+                &mut self.package_manager_bootstrap.proxy,
+                self.package_manager_bootstrap.http_proxy_is_explicit,
+            ),
+        ] {
+            if let Some(value) = https_proxy {
+                proxy.https_proxy = Some(value.to_string());
+                if http_proxy.is_none() && !http_proxy_is_explicit {
+                    proxy.http_proxy = Some(value.to_string());
+                }
+            }
+            if let Some(value) = http_proxy {
+                proxy.http_proxy = Some(value.to_string());
+            }
+            if let Some(value) = no_proxy {
+                proxy.no_proxy = Some(crate::npmrc_auth::parse_no_proxy(value));
+            }
+        }
     }
 
     /// Effective value of [`Self::minimum_release_age_strict`].
@@ -2218,6 +2256,7 @@ impl Config {
         for lower in sources {
             npmrc_auth.merge_under(lower);
         }
+        self.http_proxy_is_explicit = has_nonempty_string(npmrc_auth.http_proxy.as_deref());
         // Retain the merged raw `.npmrc` / `auth.ini` config keys for
         // `pnpm config get` / `pnpm config list` before the structured fields
         // are consumed below.
@@ -2236,6 +2275,13 @@ impl Config {
         crate::npmrc_auth::enforce_token_helper_trust(&npmrc_auth, &trusted_auth)?;
 
         self.package_manager_bootstrap = build_package_manager_bootstrap::<Sys>(trusted_auth)?;
+        if let Some(global_settings) = global_settings.as_ref() {
+            self.package_manager_bootstrap.http_proxy_is_explicit |=
+                has_nonempty_string(global_settings.http_proxy.as_deref());
+            let http_proxy_is_explicit = self.package_manager_bootstrap.http_proxy_is_explicit;
+            global_settings
+                .apply_proxy_to(&mut self.package_manager_bootstrap.proxy, http_proxy_is_explicit);
+        }
 
         npmrc_auth.apply_registry_and_warn(&mut self);
         // Proxy cascade fires unconditionally — even when no `.npmrc`
@@ -2279,6 +2325,8 @@ impl Config {
         // path. See [`crate::store_path::resolve_store_dir`].
         let mut store_dir_explicit = false;
         if let Some(global_settings) = global_settings {
+            self.http_proxy_is_explicit |=
+                has_nonempty_string(global_settings.http_proxy.as_deref());
             virtual_store_dir_explicit |= global_settings.virtual_store_dir.is_some();
             global_virtual_store_dir_explicit |= global_settings.global_virtual_store_dir.is_some();
             store_dir_explicit |= global_settings.store_dir.is_some();
@@ -2337,6 +2385,7 @@ impl Config {
                 global_virtual_store_dir_explicit |= settings.global_virtual_store_dir.is_some();
                 store_dir_explicit |= settings.store_dir.is_some();
                 settings.substitute_env_untrusted::<Sys>();
+                self.http_proxy_is_explicit |= has_nonempty_string(settings.http_proxy.as_deref());
                 collect_explicit_settings(&mut self.explicit_settings, &settings);
                 settings.apply_to(&mut self, &base_dir);
             }
@@ -2369,7 +2418,16 @@ impl Config {
         // `PNPM_CONFIG_REGISTRY` comes from the environment, not the
         // repository, so it overrides the bootstrap default registry too.
         let env_registry_override = env_settings.registry.clone();
+        let env_http_proxy_is_explicit = has_nonempty_string(env_settings.http_proxy.as_deref());
+        self.http_proxy_is_explicit |= env_http_proxy_is_explicit;
+        self.package_manager_bootstrap.http_proxy_is_explicit |= env_http_proxy_is_explicit;
         collect_explicit_settings(&mut self.explicit_settings, &env_settings);
+        let bootstrap_http_proxy_is_explicit =
+            self.package_manager_bootstrap.http_proxy_is_explicit;
+        env_settings.apply_proxy_to(
+            &mut self.package_manager_bootstrap.proxy,
+            bootstrap_http_proxy_is_explicit,
+        );
         let saved_workspace_dir = self.workspace_dir.clone();
         env_settings.apply_to(&mut self, start_dir);
         self.workspace_dir = saved_workspace_dir;
@@ -2479,6 +2537,10 @@ fn collect_explicit_settings(
     }
 }
 
+fn has_nonempty_string(value: Option<&str>) -> bool {
+    value.is_some_and(|value| !value.is_empty())
+}
+
 /// Build the [`PackageManagerBootstrap`] from the already-folded trusted
 /// sources, running them through the same registry/proxy/TLS/auth steps the
 /// full config uses so the bootstrap cascade matches the project cascade
@@ -2489,6 +2551,7 @@ fn build_package_manager_bootstrap<Sys: EnvVar>(
     // The full-config fold already surfaced these sources' `${VAR}` warnings;
     // drop the duplicates this second pass would log.
     trusted_auth.warnings.clear();
+    let http_proxy_is_explicit = has_nonempty_string(trusted_auth.http_proxy.as_deref());
     let mut config = Config::default();
     trusted_auth.apply_registry_and_warn(&mut config);
     trusted_auth.apply_json_env_registries(&mut config);
@@ -2499,6 +2562,7 @@ fn build_package_manager_bootstrap<Sys: EnvVar>(
         registry: config.registry,
         registries: config.registries,
         proxy: config.proxy,
+        http_proxy_is_explicit,
         tls: config.tls,
         tls_by_uri: config.tls_by_uri,
         auth_headers: config.auth_headers,

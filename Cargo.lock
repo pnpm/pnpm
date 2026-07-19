@@ -5067,9 +5067,13 @@ version = "0.0.0"
 dependencies = [
  "assert_cmd",
  "command-extra",
+ "flate2",
  "junction",
  "pnpr",
  "pnpr-fixtures",
+ "serde_json",
+ "ssri",
+ "tar",
  "tempfile",
  "text-block-macros",
  "tokio",

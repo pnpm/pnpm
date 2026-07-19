@@ -124,6 +124,18 @@ pub struct CliArgs {
     #[clap(long = "npmrc-auth-file", visible_alias = "userconfig", global = true)]
     pub npmrc_auth_file: Option<PathBuf>,
 
+    /// Proxy for HTTPS registry and tarball requests.
+    #[clap(long = "https-proxy", global = true)]
+    pub https_proxy: Option<String>,
+
+    /// Proxy for HTTP registry and tarball requests.
+    #[clap(long = "http-proxy", global = true)]
+    pub http_proxy: Option<String>,
+
+    /// Hosts that bypass configured proxies.
+    #[clap(long = "no-proxy", global = true)]
+    pub no_proxy: Option<String>,
+
     /// Run the command for every project in the workspace instead of only
     /// the project in `--dir`.
     #[clap(short = 'r', long, global = true)]

@@ -153,6 +153,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         auth_headers: Default::default(),
         auth_tokens_by_uri: Default::default(),
         proxy: Default::default(),
+        http_proxy_is_explicit: false,
         tls: Default::default(),
         tls_by_uri: Default::default(),
         package_manager_bootstrap: Default::default(),

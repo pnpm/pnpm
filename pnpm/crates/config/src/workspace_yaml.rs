@@ -2,7 +2,7 @@ use crate::{
     AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, LinkWorkspacePackages,
     NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail,
     ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun, api::EnvVar,
-    resolve_child_concurrency,
+    npmrc_auth::parse_no_proxy, resolve_child_concurrency,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -110,6 +110,11 @@ pub struct WorkspaceSettings {
     pub registry: Option<String>,
     pub registries: Option<BTreeMap<String, String>>,
     pub pnpr_server: Option<String>,
+    pub https_proxy: Option<String>,
+    pub http_proxy: Option<String>,
+    pub no_proxy: Option<serde_json::Value>,
+    pub proxy: Option<String>,
+    pub noproxy: Option<serde_json::Value>,
 
     /// User-defined named-registry aliases. Outer key is the alias
     /// name (`gh`, `work`, ...); inner string is the registry URL the
@@ -710,6 +715,11 @@ impl WorkspaceSettings {
         self.substitute_env_scalars::<Sys>();
         substitute_optional_string::<Sys>(&mut self.pnpr_server);
         substitute_optional_string::<Sys>(&mut self.registry);
+        substitute_optional_string::<Sys>(&mut self.https_proxy);
+        substitute_optional_string::<Sys>(&mut self.http_proxy);
+        substitute_optional_string::<Sys>(&mut self.proxy);
+        substitute_json_string::<Sys>(&mut self.no_proxy);
+        substitute_json_string::<Sys>(&mut self.noproxy);
         substitute_optional_string_map::<Sys>(&mut self.registries);
         substitute_optional_string_map::<Sys>(&mut self.named_registries);
     }
@@ -738,6 +748,20 @@ impl WorkspaceSettings {
         if self.pnpr_server.as_deref().is_some_and(has_env_placeholder) {
             self.pnpr_server = None;
         }
+        for proxy in [&mut self.https_proxy, &mut self.http_proxy, &mut self.proxy] {
+            if proxy.as_deref().is_some_and(has_env_placeholder) {
+                *proxy = None;
+            }
+        }
+        for no_proxy in [&mut self.no_proxy, &mut self.noproxy] {
+            if no_proxy
+                .as_ref()
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(has_env_placeholder)
+            {
+                *no_proxy = None;
+            }
+        }
     }
 
     fn substitute_env_scalars<Sys: EnvVar>(&mut self) {
@@ -759,6 +783,9 @@ impl WorkspaceSettings {
     /// are resolved against `base_dir` if relative — anchored at the
     /// workspace root where the yaml was found, matching pnpm.
     pub fn apply_to(self, config: &mut Config, base_dir: &Path) {
+        let http_proxy_is_explicit = config.http_proxy_is_explicit;
+        self.apply_proxy_to(&mut config.proxy, http_proxy_is_explicit);
+
         macro_rules! apply {
             ($($field:ident),* $(,)?) => {$(
                 if let Some(v) = self.$field {
@@ -968,6 +995,29 @@ impl WorkspaceSettings {
             config.trust_policy_ignore_after = Some(v);
         }
     }
+
+    pub(crate) fn apply_proxy_to(
+        &self,
+        proxy_config: &mut pacquet_network::ProxyConfig,
+        http_proxy_is_explicit: bool,
+    ) {
+        if let Some(value) = self.https_proxy.as_ref().or(self.proxy.as_ref()) {
+            proxy_config.https_proxy = Some(value.clone());
+        }
+        if let Some(value) = &self.http_proxy {
+            proxy_config.http_proxy = Some(value.clone());
+        } else if (self.https_proxy.is_some() || self.proxy.is_some()) && !http_proxy_is_explicit {
+            proxy_config.http_proxy.clone_from(&proxy_config.https_proxy);
+        }
+        if let Some(value) = self.no_proxy.as_ref().or(self.noproxy.as_ref()) {
+            proxy_config.no_proxy = match value {
+                serde_json::Value::Bool(true) => Some(pacquet_network::NoProxySetting::Bypass),
+                serde_json::Value::Bool(false) | serde_json::Value::Null => None,
+                serde_json::Value::String(value) => Some(parse_no_proxy(value)),
+                _ => None,
+            };
+        }
+    }
 }
 
 fn has_env_placeholder(value: &str) -> bool {
@@ -978,6 +1028,13 @@ fn has_env_placeholder(value: &str) -> bool {
 
 fn substitute_optional_string<Sys: EnvVar>(value: &mut Option<String>) {
     if let Some(value) = value {
+        let (substituted, _) = env_replace_lossy::<Sys>(value);
+        *value = substituted;
+    }
+}
+
+fn substitute_json_string<Sys: EnvVar>(value: &mut Option<serde_json::Value>) {
+    if let Some(serde_json::Value::String(value)) = value {
         let (substituted, _) = env_replace_lossy::<Sys>(value);
         *value = substituted;
     }

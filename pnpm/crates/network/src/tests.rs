@@ -30,7 +30,10 @@ use std::{
     },
     time::Duration,
 };
-use tokio::sync::Semaphore;
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    sync::Semaphore,
+};
 
 struct RecordingResolver {
     active: Arc<AtomicUsize>,
@@ -389,6 +392,201 @@ async fn mockito_integration_no_proxy_bypasses_proxy() {
     assert_eq!(resp.text().await.expect("body"), "direct");
     proxy_mock.assert_async().await;
     target_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn authorization_is_removed_on_cross_origin_redirect() {
+    let mut target = mockito::Server::new_async().await;
+    let target_mock = target
+        .mock("GET", "/final")
+        .match_header("authorization", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_body("ok")
+        .expect(1)
+        .create_async()
+        .await;
+    let mut registry = mockito::Server::new_async().await;
+    let registry_mock = registry
+        .mock("GET", "/start")
+        .match_header("authorization", "Bearer 123")
+        .with_status(302)
+        .with_header("location", &format!("{}/final", target.url()))
+        .expect(1)
+        .create_async()
+        .await;
+
+    let client = ThrottledClient::default();
+    let response = client
+        .acquire()
+        .await
+        .get(format!("{}/start", registry.url()))
+        .header("authorization", "Bearer 123")
+        .send()
+        .await
+        .expect("follow cross-origin redirect");
+
+    assert_eq!(response.status(), 200);
+    registry_mock.assert_async().await;
+    target_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn authorization_is_retained_on_same_origin_redirect() {
+    let mut registry = mockito::Server::new_async().await;
+    let start_mock = registry
+        .mock("GET", "/start")
+        .match_header("authorization", "Bearer 123")
+        .with_status(302)
+        .with_header("location", "/final")
+        .expect(1)
+        .create_async()
+        .await;
+    let final_mock = registry
+        .mock("GET", "/final")
+        .match_header("authorization", "Bearer 123")
+        .with_status(200)
+        .with_body("ok")
+        .expect(1)
+        .create_async()
+        .await;
+
+    let client = ThrottledClient::default();
+    let response = client
+        .acquire()
+        .await
+        .get(format!("{}/start", registry.url()))
+        .header("authorization", "Bearer 123")
+        .send()
+        .await
+        .expect("follow same-origin redirect");
+
+    assert_eq!(response.status(), 200);
+    start_mock.assert_async().await;
+    final_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn https_target_uses_configured_proxy() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind proxy");
+    let proxy_addr = listener.local_addr().expect("proxy address");
+    let proxy = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.expect("accept proxy connection");
+        let mut request = vec![0; 1024];
+        let size = stream.read(&mut request).await.expect("read CONNECT request");
+        stream
+            .write_all(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n")
+            .await
+            .expect("reject tunnel after recording it");
+        String::from_utf8(request[..size].to_vec()).expect("CONNECT request is ASCII")
+    });
+    let config = ProxyConfig {
+        https_proxy: Some(format!("http://{proxy_addr}")),
+        http_proxy: None,
+        no_proxy: None,
+    };
+    let client = ThrottledClient::for_installs(
+        &config,
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect("build HTTPS proxy client");
+
+    client
+        .acquire()
+        .await
+        .get("https://target.example/package")
+        .send()
+        .await
+        .expect_err("the recording proxy rejects the tunnel");
+    let connect = proxy.await.expect("proxy task");
+
+    assert!(connect.starts_with("CONNECT target.example:443 HTTP/1.1\r\n"), "got {connect:?}");
+}
+
+#[tokio::test]
+async fn socks5_proxy_connects_to_real_target() {
+    let target_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind target");
+    let target_addr = target_listener.local_addr().expect("target address");
+    let target = tokio::spawn(async move {
+        let (mut stream, _) = target_listener.accept().await.expect("accept target connection");
+        let mut request = vec![0; 1024];
+        let size = stream.read(&mut request).await.expect("read target request");
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+            .await
+            .expect("write target response");
+        String::from_utf8(request[..size].to_vec()).expect("HTTP request is ASCII")
+    });
+
+    let socks_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind SOCKS5");
+    let socks_addr = socks_listener.local_addr().expect("SOCKS5 address");
+    let socks = tokio::spawn(async move {
+        let (mut inbound, _) = socks_listener.accept().await.expect("accept SOCKS5 connection");
+        let mut greeting = [0; 2];
+        inbound.read_exact(&mut greeting).await.expect("read SOCKS5 greeting");
+        assert_eq!(greeting[0], 5);
+        let mut methods = vec![0; usize::from(greeting[1])];
+        inbound.read_exact(&mut methods).await.expect("read SOCKS5 methods");
+        inbound.write_all(&[5, 0]).await.expect("accept no-auth method");
+
+        let mut request = [0; 4];
+        inbound.read_exact(&mut request).await.expect("read SOCKS5 request");
+        assert_eq!(&request[..3], &[5, 1, 0]);
+        match request[3] {
+            1 => {
+                let mut address = [0; 4];
+                inbound.read_exact(&mut address).await.expect("read IPv4 target");
+            }
+            3 => {
+                let length = inbound.read_u8().await.expect("read domain length");
+                let mut address = vec![0; usize::from(length)];
+                inbound.read_exact(&mut address).await.expect("read domain target");
+            }
+            4 => {
+                let mut address = [0; 16];
+                inbound.read_exact(&mut address).await.expect("read IPv6 target");
+            }
+            atyp => panic!("unsupported SOCKS5 address type {atyp}"),
+        }
+        let port = inbound.read_u16().await.expect("read target port");
+        assert_eq!(port, target_addr.port());
+        let mut outbound =
+            tokio::net::TcpStream::connect(target_addr).await.expect("connect target");
+        inbound
+            .write_all(&[5, 0, 0, 1, 127, 0, 0, 1, (port >> 8) as u8, port as u8])
+            .await
+            .expect("accept SOCKS5 connect");
+        tokio::io::copy_bidirectional(&mut inbound, &mut outbound)
+            .await
+            .expect("forward SOCKS5 traffic");
+    });
+
+    let config = ProxyConfig {
+        https_proxy: None,
+        http_proxy: Some(format!("socks5://{socks_addr}")),
+        no_proxy: None,
+    };
+    let client = ThrottledClient::for_installs(
+        &config,
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect("build SOCKS5 client");
+    let response = client
+        .acquire()
+        .await
+        .get(format!("http://{target_addr}/package"))
+        .send()
+        .await
+        .expect("request through SOCKS5");
+
+    assert_eq!(response.status(), 200);
+    assert_eq!(response.text().await.expect("target body"), "ok");
+    let request = target.await.expect("target task");
+    assert!(request.starts_with("GET /package HTTP/1.1\r\n"), "got {request:?}");
+    socks.await.expect("SOCKS5 task");
 }
 
 // --- TLS / local-address tests ---
