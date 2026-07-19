@@ -194,8 +194,8 @@ Primary frozen/headless tests:
 Supporting tests:
 
 - [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:848` `installing with no modules directory and a patched dependency` covers headless patched dependency behavior when `enableModulesDir: false`.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:216` `patch package reports warning if not all patches are applied and allowUnusedPatches is set`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:246` `patch package throws an exception if not all patches are applied`
+- [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:216` `patch package reports warning if not all patches are applied and allowUnusedPatches is set`
+- [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:246` `patch package throws an exception if not all patches are applied`
 - [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:269` `the patched package is updated if the patch is modified`
 - [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:475` `patch package when the patched package has no dependencies and appears multiple times`
 - [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:508` `patch package should fail when the exact version patch fails to apply`
@@ -206,6 +206,7 @@ Rust port notes:
 
 - The primary tests are enough for the frozen installer milestone.
 - The supporting tests belong with patch parser/application correctness and should be ported when Rust has a patching subsystem.
+- Ported `allowUnusedPatches` warning test and `ERR_PNPM_UNUSED_PATCH` error test in `crates/cli/tests/patch.rs` as part of the `allow_unused_patches` config wiring.
 
 ## Support Building Dependencies
 

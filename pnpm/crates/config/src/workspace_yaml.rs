@@ -203,6 +203,9 @@ pub struct WorkspaceSettings {
 
     pub patches_dir: Option<String>,
 
+    /// `allowUnusedPatches` from `pnpm-workspace.yaml`. Default `false`.
+    pub allow_unused_patches: Option<bool>,
+
     /// `configDependencies` from `pnpm-workspace.yaml`: package name →
     /// version-with-integrity spec. pnpm records this verbatim in the
     /// workspace-state file so that `checkDepsStatus` can detect when a
@@ -648,6 +651,7 @@ impl WorkspaceSettings {
         self.package_extensions = None;
         self.test_pattern = None;
         self.changed_files_ignore_pattern = None;
+        self.allow_unused_patches = None;
     }
 
     /// Walk up from `start_dir` looking for a readable `pnpm-workspace.yaml`.
@@ -784,6 +788,7 @@ impl WorkspaceSettings {
             resolution_mode, catalog_mode, registry_supports_time_field,
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,
+            allow_unused_patches,
         }
 
         if let Some(inner) = self.hoist_pattern {
