@@ -653,6 +653,7 @@ impl WorkspaceSettings {
         self.package_extensions = None;
         self.test_pattern = None;
         self.changed_files_ignore_pattern = None;
+        self.allow_unused_patches = None;
     }
 
     /// Walk up from `start_dir` looking for a readable `pnpm-workspace.yaml`.
