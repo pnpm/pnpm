@@ -1681,34 +1681,8 @@ where
         }
     };
 
-    // Matches the TS deprecation warning at
-    // `pnpm11/installing/deps-resolver/src/resolveDependencies.ts:2119`;
-    // runs outside the `packages` lock to keep the semver check and the
-    // emit out of the critical section.
-    if package_is_new
-        && let Some(deprecated) = extract_deprecated_from_manifest(result.manifest.as_deref())
-        && !deprecated.is_empty()
-    {
-        let pkg_name =
-            result.name_ver.as_ref().map_or_else(|| alias.clone(), |nv| nv.name.to_string());
-        let pkg_version =
-            result.name_ver.as_ref().map(|nv| nv.suffix.to_string()).unwrap_or_default();
-
-        if !is_deprecation_allowed(
-            &pkg_name,
-            &pkg_version,
-            &ctx.workspace.allowed_deprecated_versions,
-        ) && let Some(log) = ctx.workspace.deprecation_log.as_ref()
-        {
-            log(Deprecation {
-                pkg_name,
-                pkg_version,
-                pkg_id: id.clone(),
-                prefix: ctx.base_opts.project_dir.display().to_string(),
-                deprecated,
-                depth,
-            });
-        }
+    if package_is_new {
+        emit_deprecation_if_needed(ctx, &result, &id, depth);
     }
 
     let next_ancestors: Vec<String> =
@@ -2693,10 +2667,11 @@ where
     let is_leaf = child_refs.is_empty() && peer_dependencies.is_empty();
     let node_id = if is_leaf { NodeId::leaf(&id) } else { NodeId::next() };
 
-    {
+    let package_is_new = {
         let mut packages = lock_recoverable(&ctx.workspace.packages);
         if let Some(existing) = packages.get_mut(&id) {
             existing.optional = existing.optional && current_is_optional;
+            false
         } else {
             {
                 let mut all_peers = lock_recoverable(&ctx.workspace.all_peer_dep_names);
@@ -2714,7 +2689,16 @@ where
                     is_leaf,
                 },
             );
+            true
         }
+    };
+
+    // The synthesized manifest round-trips the lockfile's `deprecated`
+    // metadata so reused entries keep warning on warm installs, the
+    // same way pnpm's requester serves cached manifests to its
+    // deprecation check.
+    if package_is_new {
+        emit_deprecation_if_needed(ctx, &result, &id, depth);
     }
 
     let next_ancestors: Vec<String> =
@@ -3149,10 +3133,67 @@ fn is_empty_or_absent(value: Option<&Value>) -> bool {
     value.and_then(Value::as_object).is_none_or(serde_json::Map::is_empty)
 }
 
+/// Emits one [`Deprecation`] notification when a newly-recorded
+/// package's manifest carries a non-empty `deprecated` field not
+/// covered by `allowedDeprecatedVersions`. Matches the TS warning at
+/// `pnpm11/installing/deps-resolver/src/resolveDependencies.ts:2119`,
+/// which fires once per package id per install — both call sites gate
+/// on the first `packages`-map insert and run outside its lock to keep
+/// the semver check and the emit out of the critical section.
+fn emit_deprecation_if_needed(
+    ctx: &TreeCtx,
+    result: &pacquet_resolving_resolver_base::ResolveResult,
+    id: &str,
+    depth: i32,
+) {
+    let Some(deprecated) = extract_deprecated_from_manifest(result.manifest.as_deref()) else {
+        return;
+    };
+    if deprecated.is_empty() {
+        return;
+    }
+    let Some((pkg_name, pkg_version)) = deprecated_pkg_name_ver(result) else {
+        return;
+    };
+    if is_deprecation_allowed(&pkg_name, &pkg_version, &ctx.workspace.allowed_deprecated_versions) {
+        return;
+    }
+    let Some(log) = ctx.workspace.deprecation_log.as_ref() else {
+        return;
+    };
+    log(Deprecation {
+        pkg_name,
+        pkg_version,
+        pkg_id: id.to_string(),
+        prefix: ctx.base_opts.project_dir.display().to_string(),
+        deprecated,
+        depth,
+    });
+}
+
 /// A missing manifest, an absent `deprecated` field, and a non-string
 /// one all count as not deprecated.
 fn extract_deprecated_from_manifest(manifest: Option<&Value>) -> Option<String> {
     manifest?.get("deprecated")?.as_str().map(str::to_string)
+}
+
+/// The name/version a `pnpm:deprecation` payload reports:
+/// [`ResolveResult::name_ver`] when the resolver filled it, otherwise
+/// the manifest's `name`/`version` — the canonical source for non-npm
+/// resolutions (see the `name_ver` field doc). `None`, suppressing the
+/// warning, when neither carries both fields.
+///
+/// [`ResolveResult::name_ver`]: pacquet_resolving_resolver_base::ResolveResult::name_ver
+fn deprecated_pkg_name_ver(
+    result: &pacquet_resolving_resolver_base::ResolveResult,
+) -> Option<(String, String)> {
+    if let Some(nv) = result.name_ver.as_ref() {
+        return Some((nv.name.to_string(), nv.suffix.to_string()));
+    }
+    let manifest = result.manifest.as_deref()?;
+    let name = manifest.get("name")?.as_str()?;
+    let version = manifest.get("version")?.as_str()?;
+    Some((name.to_string(), version.to_string()))
 }
 
 /// Whether `pkg_name@pkg_version` satisfies its entry in the

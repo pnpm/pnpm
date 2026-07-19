@@ -1217,3 +1217,108 @@ async fn skips_an_optional_dependency_when_the_locked_entry_does_not_satisfy_the
     let direct = &result.peers.direct_dependencies_by_importer["."];
     assert!(!direct.contains_key("broken"), "the failing optional edge is dropped: {direct:?}");
 }
+
+/// A newly-resolved package whose manifest carries `deprecated` is
+/// forwarded to the deprecation sink once, and an
+/// `allowedDeprecatedVersions` entry satisfied by the resolved version
+/// suppresses the notification.
+#[tokio::test]
+async fn deprecated_manifests_notify_the_deprecation_sink_unless_allowed() {
+    for (allowed_range, expect_notification) in
+        [(None, true), (Some("^1.0.0"), false), (Some("^2.0.0"), true)]
+    {
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "old": "^1.0.0" }));
+        let importers = [WorkspaceImporter { id: "root".to_string(), manifest: &manifest }];
+        let resolver = RecordingResolver {
+            table: HashMap::from([(
+                ("old".to_string(), "^1.0.0".to_string()),
+                fake_result(
+                    "old",
+                    "1.2.0",
+                    None,
+                    serde_json::json!({
+                        "name": "old",
+                        "version": "1.2.0",
+                        "deprecated": "use new instead",
+                    }),
+                ),
+            )]),
+            seen: Mutex::new(HashMap::new()),
+        };
+        let notifications = std::sync::Arc::new(Mutex::new(Vec::new()));
+        let sink = std::sync::Arc::clone(&notifications);
+        let mut opts = workspace_opts(false, false);
+        if let Some(range) = allowed_range {
+            opts.allowed_deprecated_versions =
+                BTreeMap::from([("old".to_string(), range.to_string())]);
+        }
+        opts.deprecation_log = Some(std::sync::Arc::new(move |deprecation: crate::Deprecation| {
+            sink.lock().unwrap().push(deprecation);
+        }));
+        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+            importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
+        })
+        .await
+        .expect("resolve workspace with a deprecated dependency");
+
+        let notifications = notifications.lock().unwrap();
+        if expect_notification {
+            let [deprecation] = notifications.as_slice() else {
+                panic!("expected one deprecation for range {allowed_range:?}: {notifications:?}");
+            };
+            assert_eq!(deprecation.pkg_name, "old");
+            assert_eq!(deprecation.pkg_version, "1.2.0");
+            assert_eq!(deprecation.deprecated, "use new instead");
+            assert_eq!(deprecation.depth, 0);
+            assert_eq!(
+                deprecation.prefix,
+                std::path::PathBuf::from("/repo").join("root").display().to_string(),
+            );
+        } else {
+            assert!(
+                notifications.is_empty(),
+                "range {allowed_range:?} must suppress the warning: {notifications:?}",
+            );
+        }
+    }
+}
+
+/// A dependency reused from the wanted lockfile still notifies the
+/// deprecation sink: the synthesized manifest round-trips the
+/// lockfile's `deprecated` metadata precisely so warm installs keep
+/// warning, matching pnpm's repeat-install behavior.
+#[tokio::test]
+async fn reused_lockfile_entries_still_notify_the_deprecation_sink() {
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({ "old": "^1.0.0" }));
+    let importers = [WorkspaceImporter { id: "root".to_string(), manifest: &manifest }];
+    let resolver = RecordingResolver { table: HashMap::new(), seen: Mutex::new(HashMap::new()) };
+    let mut lockfile = importer_scoped_update_lockfile(&["root"], "old", "^1.0.0", "1.2.0", None);
+    lockfile
+        .packages
+        .as_mut()
+        .expect("lockfile carries packages")
+        .get_mut(&"old@1.2.0".parse::<pacquet_lockfile::PkgNameVerPeer>().expect("parse key"))
+        .expect("direct entry")
+        .deprecated = Some("use new instead".to_string());
+    let notifications = std::sync::Arc::new(Mutex::new(Vec::new()));
+    let sink = std::sync::Arc::clone(&notifications);
+    let mut opts = workspace_opts(false, false);
+    opts.wanted_lockfile = Some(std::sync::Arc::new(lockfile));
+    opts.deprecation_log = Some(std::sync::Arc::new(move |deprecation: crate::Deprecation| {
+        sink.lock().unwrap().push(deprecation);
+    }));
+    resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+        importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
+    })
+    .await
+    .expect("resolve workspace reusing the lockfile");
+
+    let notifications = notifications.lock().unwrap();
+    let [deprecation] = notifications.as_slice() else {
+        panic!("expected one deprecation from the reused entry: {notifications:?}");
+    };
+    assert_eq!(deprecation.pkg_name, "old");
+    assert_eq!(deprecation.pkg_version, "1.2.0");
+    assert_eq!(deprecation.deprecated, "use new instead");
+    assert_eq!(deprecation.depth, 0);
+}

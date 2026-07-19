@@ -461,3 +461,36 @@ mod is_update_target {
         assert!(!is_update_target(&except(&["foo"]), &wanted_with(None, None),));
     }
 }
+
+/// With `name_ver` unset (git / tarball / local resolutions), the
+/// deprecation payload's name and version come from the manifest, and a
+/// manifest missing either field suppresses the warning instead of
+/// emitting a malformed `name@` payload.
+#[test]
+fn deprecated_pkg_name_ver_falls_back_to_the_manifest() {
+    let result = |manifest: serde_json::Value| ResolveResult {
+        id: PkgResolutionId::from("git-pkg@https://example.com/repo.tgz"),
+        name_ver: None,
+        latest: None,
+        published_at: None,
+        manifest: Some(std::sync::Arc::new(manifest)),
+        resolution: LockfileResolution::Directory(DirectoryResolution {
+            directory: ".".to_string(),
+        }),
+        resolved_via: "git-repository".to_string(),
+        normalized_bare_specifier: None,
+        alias: Some("git-pkg".to_string()),
+        policy_violation: None,
+    };
+
+    assert_eq!(
+        super::deprecated_pkg_name_ver(&result(
+            serde_json::json!({ "name": "git-pkg", "version": "2.0.0" })
+        )),
+        Some(("git-pkg".to_string(), "2.0.0".to_string())),
+    );
+    assert_eq!(
+        super::deprecated_pkg_name_ver(&result(serde_json::json!({ "name": "git-pkg" }))),
+        None,
+    );
+}
