@@ -832,7 +832,7 @@ mod dependency_build_scripts {
 
     /// TS: `strictDepBuilds fails for packages with cached side-effects`
     /// (`pnpm/test/install/lifecycleScripts.ts:380`,
-    /// https://github.com/pnpm/pnpm/issues/11035). Revoking a build
+    /// <https://github.com/pnpm/pnpm/issues/11035>). Revoking a build
     /// approval must fail the strict gate even though the store already
     /// holds that package's build output — the side-effects cache is an
     /// optimization, never an approval.
@@ -939,7 +939,7 @@ mod pending_builds {
         let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
         let package_json = serde_json::json!({
-            "scripts": { "install": "node -e \"\"", "postinstall": "node -e \"\"" },
+            "scripts": { "install": r#"node -e """#, "postinstall": r#"node -e """# },
             "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" },
         });
         fs::write(workspace.join("package.json"), package_json.to_string())
