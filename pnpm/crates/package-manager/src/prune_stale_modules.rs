@@ -72,7 +72,7 @@ impl PruneStaleModules<'_> {
     /// deduped down to `name@version`, matching pnpm's
     /// `orphanPkgIds`), for the caller's single `pnpm:stats`
     /// `removed` emission. `0` when the orphan diff is skipped.
-    pub fn run<R: Reporter>(self) -> Result<u64, PruneDirectDepsError> {
+    pub fn run<Reporter: self::Reporter>(self) -> Result<u64, PruneDirectDepsError> {
         let PruneStaleModules {
             config,
             workspace_root,
@@ -111,7 +111,7 @@ impl PruneStaleModules<'_> {
                     continue;
                 }
                 remove_direct_dep_link(&modules_dir, &alias.to_string())?;
-                R::emit(&LogEvent::Root(RootLog {
+                Reporter::emit(&LogEvent::Root(RootLog {
                     level: LogLevel::Debug,
                     message: RootMessage::Removed {
                         prefix: prefix.clone(),

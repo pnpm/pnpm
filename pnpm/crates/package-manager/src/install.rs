@@ -331,19 +331,19 @@ pub enum InstallError {
     // a non-plain-install mutation refuses to touch a modules directory
     // whose persisted layout settings disagree with the current config.
     #[display(
-        "This modules directory was created using a different hoist-pattern value. Run \"pnpm install\" to recreate the modules directory."
+        r#"This modules directory was created using a different hoist-pattern value. Run "pnpm install" to recreate the modules directory."#
     )]
     #[diagnostic(code(ERR_PNPM_HOIST_PATTERN_DIFF))]
     HoistPatternDiff,
 
     #[display(
-        "This modules directory was created using a different public-hoist-pattern value. Run \"pnpm install\" to recreate the modules directory."
+        r#"This modules directory was created using a different public-hoist-pattern value. Run "pnpm install" to recreate the modules directory."#
     )]
     #[diagnostic(code(ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF))]
     PublicHoistPatternDiff,
 
     #[display(
-        "This modules directory was created using a different virtual-store-dir-max-length value. Run \"pnpm install\" to recreate the modules directory."
+        r#"This modules directory was created using a different virtual-store-dir-max-length value. Run "pnpm install" to recreate the modules directory."#
     )]
     #[diagnostic(code(ERR_PNPM_VIRTUAL_STORE_DIR_MAX_LENGTH_DIFF))]
     VirtualStoreDirMaxLengthDiff,
