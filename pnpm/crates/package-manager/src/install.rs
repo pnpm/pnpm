@@ -570,6 +570,18 @@ pub enum InstallError {
     )]
     #[diagnostic(code(ERR_PNPM_CONFIG_CONFLICT_FROZEN_STORE_WITH_FORCE))]
     ConfigConflictFrozenStoreWithForce,
+
+    /// `virtualStoreOnly` was requested with `enableModulesDir: false`
+    /// while the global virtual store is off. The standard virtual
+    /// store lives at `node_modules/.pnpm`, so suppressing
+    /// `node_modules` leaves nowhere to populate. The global virtual
+    /// store lives outside the project, which is why enabling it makes
+    /// the same combination legal.
+    #[display(
+        "Cannot use virtualStoreOnly when enableModulesDir is false (the standard virtual store requires node_modules/.pnpm)"
+    )]
+    #[diagnostic(code(ERR_PNPM_CONFIG_CONFLICT_VIRTUAL_STORE_ONLY_WITH_NO_MODULES_DIR))]
+    ConfigConflictVirtualStoreOnlyWithNoModulesDir,
 }
 
 #[derive(Default)]
@@ -738,6 +750,13 @@ where
 
         if config.frozen_store && config.force {
             return Err(InstallError::ConfigConflictFrozenStoreWithForce);
+        }
+
+        if config.virtual_store_only
+            && !config.enable_modules_dir
+            && !config.enable_global_virtual_store
+        {
+            return Err(InstallError::ConfigConflictVirtualStoreOnlyWithNoModulesDir);
         }
 
         // Resolve the effective `preferFrozenLockfile` for the
@@ -2017,17 +2036,24 @@ where
         // regardless. Aliases the wanted lockfile *does* track are
         // skipped — those belong to the lockfile passes (and their
         // dedupe decisions). See [`crate::link_manifest_link_deps`].
-        crate::link_manifest_link_deps::<Reporter>(
-            &workspace_root,
-            &materialized_project_manifests,
-            fresh_lockfile.as_ref().or(lockfile).and_then(|lockfile| {
-                (!lockfile.importers.is_empty()).then_some(&lockfile.importers)
-            }),
-            // Honor a `modulesDir` override the same way the
-            // lockfile-driven symlink pass does.
-            config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules")),
-        )
-        .map_err(InstallError::LinkManifestLinkDeps)?;
+        // These are importer symlinks like any other, so
+        // `virtualStoreOnly` skips them too.
+        if !config.virtual_store_only {
+            crate::link_manifest_link_deps::<Reporter>(
+                &workspace_root,
+                &materialized_project_manifests,
+                fresh_lockfile.as_ref().or(lockfile).and_then(|lockfile| {
+                    (!lockfile.importers.is_empty()).then_some(&lockfile.importers)
+                }),
+                // Honor a `modulesDir` override the same way the
+                // lockfile-driven symlink pass does.
+                config
+                    .modules_dir
+                    .file_name()
+                    .unwrap_or_else(|| std::ffi::OsStr::new("node_modules")),
+            )
+            .map_err(InstallError::LinkManifestLinkDeps)?;
+        }
 
         // `Stage::ImportingDone` is emitted inside the install paths
         // (`InstallFrozenLockfile` between symlink and build, and
@@ -2196,7 +2222,10 @@ where
         // Also skipped under `--ignore-scripts`: pnpm suppresses the
         // project's own lifecycle scripts alongside dependency build
         // scripts when `ignoreScripts` is set.
-        if is_full_install && !config.ignore_scripts {
+        //
+        // And under `virtualStoreOnly`, which stops before any linking
+        // the project's scripts would expect to find in place.
+        if is_full_install && !config.ignore_scripts && !config.virtual_store_only {
             run_projects_lifecycle_scripts::<Reporter>(
                 &materialized_project_manifests,
                 config,
@@ -2542,6 +2571,14 @@ fn modules_consistent_with(
     node_linker: NodeLinker,
     included: IncludedDependencies,
 ) -> bool {
+    // A `virtualStoreOnly` install populates the virtual store and stops,
+    // so the modules directory it leaves behind has no importer symlinks,
+    // bins, or hoisted packages. It can never satisfy an ordinary
+    // install, however well its recorded settings line up — the no-op
+    // short-circuit would leave the linking permanently undone.
+    if modules.virtual_store_only == Some(true) && !config.virtual_store_only {
+        return false;
+    }
     modules.included == included && modules_layout_consistent_with(modules, config, node_linker)
 }
 
@@ -2676,17 +2713,27 @@ fn modules_layout_consistent_with(
     config: &Config,
     node_linker: NodeLinker,
 ) -> bool {
+    // A `virtualStoreOnly` install (`pnpm fetch`) records empty hoist
+    // patterns because it deliberately did no hoisting. Diffing those
+    // against the follow-up install's real patterns would read as drift
+    // and purge the directory the fetch just populated, so the
+    // comparison is skipped and the follow-up completes the linking
+    // instead.
+    // Patterns compare normalized (upstream's `?? []`): `None` and an
+    // empty list are the same disabled state, so the pair must not read
+    // as layout drift — a purge every install for `hoistPattern: []`
+    // projects, and a spurious `*_DIFF` error for `add` / `remove`. A
+    // `virtualStoreOnly` install records empty patterns deliberately, so
+    // it skips the comparison entirely and lets the follow-up install
+    // complete the linking instead of purging.
+    let hoist_patterns_match = modules.virtual_store_only == Some(true)
+        || (normalized_pattern(modules.hoist_pattern.as_deref())
+            == normalized_pattern(config.hoist_pattern.as_deref())
+            && normalized_pattern(modules.public_hoist_pattern.as_deref())
+                == normalized_pattern(config.public_hoist_pattern.as_deref()));
     modules.layout_version == Some(LayoutVersion)
         && modules.node_linker == Some(map_node_linker(node_linker))
-        // Patterns compare normalized (upstream's `?? []`): `None` and
-        // an empty list are the same disabled state, so the pair must
-        // not read as layout drift — a purge every install for
-        // `hoistPattern: []` projects, and a spurious `*_DIFF` error
-        // for `add` / `remove`.
-        && normalized_pattern(modules.hoist_pattern.as_deref())
-            == normalized_pattern(config.hoist_pattern.as_deref())
-        && normalized_pattern(modules.public_hoist_pattern.as_deref())
-            == normalized_pattern(config.public_hoist_pattern.as_deref())
+        && hoist_patterns_match
         && modules.virtual_store_dir_max_length == config.virtual_store_dir_max_length
         && modules.store_dir == config.store_dir.display().to_string()
         && modules.virtual_store_dir
@@ -2755,8 +2802,8 @@ fn unapproved_recorded_ignored_builds(
 
 /// Assemble the [`Modules`] payload for [`write_modules_manifest`].
 ///
-/// Fields pacquet does not populate yet (`pendingBuilds`,
-/// `allowBuilds`) default to empty / unset.
+/// Fields pacquet does not populate yet (`pendingBuilds`) default to
+/// empty / unset.
 ///
 /// `hoistedDependencies` is produced by the isolated-linker hoist
 /// pass in [`crate::InstallFrozenLockfile::run`] and threaded in
@@ -2841,6 +2888,20 @@ fn build_modules_manifest(
         store_dir: config.store_dir.display().to_string(),
         virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
+        // The build-approval set this install ran under. A GVS install
+        // hashes engine-specific slots for allowed builders, so the
+        // recorded set is what a later install diffs against to decide
+        // whether its slots need re-linking.
+        allow_builds: Some(
+            config
+                .allow_builds
+                .iter()
+                .map(|(spec, allowed)| {
+                    (spec.clone(), pacquet_modules_yaml::AllowBuildValue::Bool(*allowed))
+                })
+                .collect(),
+        ),
+        virtual_store_only: config.virtual_store_only.then_some(true),
         ..Default::default()
     }
 }
@@ -3431,8 +3492,8 @@ fn build_workspace_packages_map(
     Some(map)
 }
 
-pub(crate) fn should_write_package_map(_config: &Config, node_linker: NodeLinker) -> bool {
-    node_linker == NodeLinker::Isolated
+pub(crate) fn should_write_package_map(config: &Config, node_linker: NodeLinker) -> bool {
+    node_linker == NodeLinker::Isolated && !config.virtual_store_only
 }
 
 /// Build the `projects` map for [`WorkspaceState`] from the

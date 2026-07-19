@@ -68,7 +68,7 @@ Frozen/headless install coverage:
 - [ ] `TypeScript repo: installing/deps-installer/test/install/modulesCache.ts:52` `the modules cache is pruned when it expires and headless install is used` verifies `prunedAt` is read, rewritten, and honored by headless install.
 - [x] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:74` `skip optional dependency that does not support the current OS` verifies `skipped` survives frozen reinstall — ported as `skip_optional_dependency_that_does_not_support_the_current_os` in `crates/cli/tests/optional_dependencies.rs`.
 - [ ] `TypeScript repo: installing/deps-installer/test/lockfile.ts:614` `pendingBuilds gets updated if install removes packages` verifies `.modules.yaml.pendingBuilds` is rewritten after pruning.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:205` `GVS re-links when allowBuilds changes` verifies GVS-related `allowBuilds` state is updated in `.modules.yaml`. Adjacent non-GVS coverage exists (`rebuild_after_allow_builds_changes` in `crates/cli/tests/lifecycle_scripts.rs`), but nothing asserts the GVS `.modules.yaml` state.
+- [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:205` `GVS re-links when allowBuilds changes` verifies GVS-related `allowBuilds` state is updated in `.modules.yaml` — ported as `gvs_relinks_when_allow_builds_changes` in `crates/cli/tests/global_virtual_store.rs`, which also drove populating `Modules::allow_builds` (previously always unset). Adjacent non-GVS coverage is `rebuild_after_allow_builds_changes` in `crates/cli/tests/lifecycle_scripts.rs`.
 - [ ] `TypeScript repo: pnpm/test/monorepo/index.ts:1467` `custom virtual store directory in a workspace with not shared lockfile` verifies frozen reinstall preserves custom `virtualStoreDir` serialization — stubbed in `known_failures::custom_virtual_store_directory_with_dedicated_lockfiles` (`crates/cli/tests/multiple_importers.rs`; needs `sharedWorkspaceLockfile: false`).
 - [x] `TypeScript repo: pnpm/test/monorepo/index.ts:1514` `custom virtual store directory in a workspace with shared lockfile` verifies frozen reinstall preserves root `virtualStoreDir` serialization — ported as `custom_virtual_store_directory_in_a_workspace_with_shared_lockfile` in `crates/cli/tests/multiple_importers.rs`.
 
@@ -404,38 +404,51 @@ Rust port notes:
 
 ## Support The Global Virtual Store Dir
 
+Ported in `crates/cli/tests/global_virtual_store.rs`. Upstream drives the
+primary suite through the programmatic `install()` API; pacquet's
+equivalent surface is the CLI, so the ports assert the same on-disk
+contract instead of the call counts upstream can reach by patching
+`storeController.fetchPackage`.
+
 Primary tests:
 
-- [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:21` `using a global virtual store` includes reinstall with `frozenLockfile: true`.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:63` `reinstall from warm global virtual store after deleting node_modules` deletes `node_modules`, keeps GVS warm, and reinstalls frozen.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:107` `modules are correctly updated when using a global virtual store`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:132` `GVS hashes are engine-agnostic for packages not in allowBuilds`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:172` `GVS hashes are stable when allowBuilds targets an unrelated package`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:205` `GVS re-links when allowBuilds changes`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:250` `GVS successful build creates package directory with build artifacts`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:290` `GVS: approve-builds scenario — install with no builds, then reinstall with allowBuilds`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:338` `GVS build failure cleans up broken package directory`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:367` `GVS rebuilds successfully after simulated build failure cleanup`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:411` `GVS .pnpm-needs-build marker triggers re-import on next install`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:461` `injected local packages work with global virtual store`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:539` `virtualStoreOnly populates standard virtual store without importer symlinks` is the standard-store counterpart for virtual-store-only behavior.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:559` `virtualStoreOnly with enableModulesDir=false throws config error (standard virtual store)` is the negative counterpart to GVS behavior.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:571` `virtualStoreOnly with enableModulesDir=false works when GVS is enabled`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:605` `virtualStoreOnly with GVS populates global virtual store without importer links`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:635` `virtualStoreOnly with frozenLockfile populates virtual store without importer symlinks`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:677` `virtualStoreOnly with frozenLockfile populates standard virtual store without importer symlinks`
-- [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:708` `virtualStoreOnly suppresses hoisting even with explicit hoistPattern`
+- [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:21` `using a global virtual store` includes reinstall with `frozenLockfile: true` — ported as `using_a_global_virtual_store` (covers the CLI-level `:11` case too).
+- [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:63` `reinstall from warm global virtual store after deleting node_modules` deletes `node_modules`, keeps GVS warm, and reinstalls frozen — ported as `reinstall_from_warm_global_virtual_store_after_deleting_node_modules`. Upstream's `fetchPackage` spy has no CLI equivalent; the port asserts the observable consequence instead (the warm slot is reused rather than materialized beside a second hash directory, and the whole project tree including `.bin` is restored from it).
+- [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:107` `modules are correctly updated when using a global virtual store` — ported as `modules_are_correctly_updated_when_using_a_global_virtual_store`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:132` `GVS hashes are engine-agnostic for packages not in allowBuilds` — ported as `gvs_hashes_are_engine_agnostic_for_packages_not_in_allow_builds`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:172` `GVS hashes are stable when allowBuilds targets an unrelated package` — ported as `gvs_hashes_are_stable_when_allow_builds_targets_an_unrelated_package`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:205` `GVS re-links when allowBuilds changes` — ported as `gvs_relinks_when_allow_builds_changes`, including the `.modules.yaml` half (pacquet now persists `allowBuilds`, which it previously left unset).
+- [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:250` `GVS successful build creates package directory with build artifacts` — ported as `gvs_successful_build_creates_package_directory_with_build_artifacts`. The `.pnpm-needs-build` tail is a `known_failures` stub (see `:411`).
+- [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:290` `GVS: approve-builds scenario — install with no builds, then reinstall with allowBuilds` — ported as `gvs_approve_builds_scenario_moves_artifacts_to_a_new_hash_dir`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:338` `GVS build failure cleans up broken package directory` — ported as `gvs_build_failure_cleans_up_broken_package_directory`; the cleanup itself is new in pacquet (`discard_failed_global_virtual_store_slot`).
+- [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:367` `GVS rebuilds successfully after simulated build failure cleanup` — ported as `gvs_rebuilds_successfully_after_simulated_build_failure_cleanup`.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:411` `GVS .pnpm-needs-build marker triggers re-import on next install` — `known_failures` stub: pacquet does not implement the marker at all. pnpm writes it into a GVS slot between import and build, removes it on success, and treats its presence on a later install as "half-built, re-fetch and re-build"; pacquet's import pipeline never writes it, the warm-slot fast path never looks for it, and the side-effects upload does not exclude it. Porting it means all three sites at once.
+- [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:461` `injected local packages work with global virtual store` — ported as `injected_local_packages_work_with_global_virtual_store` (the `.modules.yaml.injectedDeps` half; the materialization half is `injected_workspace_dep_with_dedupe_off_materialises_under_gvs` in `crates/cli/tests/dedupe_injected_deps.rs`).
+- [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:539` `virtualStoreOnly populates standard virtual store without importer symlinks` — ported as `virtual_store_only_populates_standard_virtual_store_without_importer_symlinks`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:559` `virtualStoreOnly with enableModulesDir=false throws config error (standard virtual store)` — ported as `virtual_store_only_with_no_modules_dir_is_a_config_conflict`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:571` `virtualStoreOnly with enableModulesDir=false works when GVS is enabled` — ported as `virtual_store_only_with_no_modules_dir_works_when_gvs_is_enabled`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:605` `virtualStoreOnly with GVS populates global virtual store without importer links` — ported as `virtual_store_only_with_gvs_populates_the_store_without_importer_links`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:635` `virtualStoreOnly with frozenLockfile populates virtual store without importer symlinks` — ported as `virtual_store_only_with_frozen_lockfile_populates_the_gvs_without_importer_symlinks`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:677` `virtualStoreOnly with frozenLockfile populates standard virtual store without importer symlinks` — ported as `virtual_store_only_with_frozen_lockfile_populates_the_standard_store`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:708` `virtualStoreOnly suppresses hoisting even with explicit hoistPattern` — ported as `virtual_store_only_suppresses_hoisting_even_with_explicit_hoist_pattern`.
+
+The seven `virtualStoreOnly` items required implementing the setting: it
+had no `Config` field before (nor did `enableModulesDir`), so none of the
+behavior was reachable end to end. Pacquet-only
+`ordinary_install_after_virtual_store_only_completes_the_linking` pins the
+follow-up contract upstream encodes as the `!modules.virtualStoreOnly`
+guards in `validateModules.ts` and has no test for.
 
 CLI-level tests:
 
-- [ ] `TypeScript repo: pnpm/test/install/globalVirtualStore.ts:11` `using a global virtual store`
-- [ ] `TypeScript repo: pnpm/test/install/globalVirtualStore.ts:34` `approve-builds updates GVS symlinks and runs builds at correct hash directory`
-- [ ] `TypeScript repo: pnpm/test/install/globalVirtualStore.ts:80` `warm GVS reinstall skips internal linking`
+- [x] `TypeScript repo: pnpm/test/install/globalVirtualStore.ts:11` `using a global virtual store` — same scenario as the primary `:21`; covered by `using_a_global_virtual_store`.
+- [x] `TypeScript repo: pnpm/test/install/globalVirtualStore.ts:34` `approve-builds updates GVS symlinks and runs builds at correct hash directory` — ported as `approve_builds_updates_gvs_symlinks_and_runs_builds_at_the_new_hash_dir`, driving the real `approve-builds` command.
+- [x] `TypeScript repo: pnpm/test/install/globalVirtualStore.ts:80` `warm GVS reinstall skips internal linking` — same scenario as the primary `:63`; covered by `reinstall_from_warm_global_virtual_store_after_deleting_node_modules`.
 
-Rust port notes:
-
-- Separate GVS path layout from build/allowBuilds behavior.
-- The first frozen target should be warm GVS reinstall after deleting `node_modules`.
+The two remaining upstream CLI cases (`switching from non-GVS to GVS
+replaces stale hoisted symlinks`, `the post-install build step preserves
+the global virtual store directory of a workspace package`) are not listed
+above and remain unported.
 
 ## Link Dependency Binaries
 

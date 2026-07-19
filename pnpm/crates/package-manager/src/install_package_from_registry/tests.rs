@@ -39,6 +39,8 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         symlink: false,
         virtual_store_dir: virtual_store_dir.to_path_buf(),
         enable_global_virtual_store: false,
+        virtual_store_only: false,
+        enable_modules_dir: true,
         global_virtual_store_dir: virtual_store_dir.to_path_buf(),
         global_dir: None,
         global_bin_dir: None,

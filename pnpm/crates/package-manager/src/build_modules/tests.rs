@@ -1,5 +1,6 @@
 use super::{
-    AllowBuildPolicy, BuildModules, allow_build_key_from_ignored_build, parse_name_version_from_key,
+    AllowBuildPolicy, BuildModules, allow_build_key_from_ignored_build, is_contained_descendant,
+    parse_name_version_from_key,
 };
 // Only the `#[cfg(unix)]` rebuild-selection test uses this; importing it
 // unconditionally would be an unused import on Windows.
@@ -2723,4 +2724,28 @@ fn rebuild_selection_runs_only_selected_scripts() {
         !zzz_dir.join("built-marker").exists(),
         "the non-selected package's script must not run",
     );
+}
+
+/// The GVS build-failure cleanup only recurse-deletes a slot that sits
+/// strictly inside the store root through `..`-free components, so a
+/// crafted package name cannot turn the cleanup into a path traversal.
+#[test]
+fn is_contained_descendant_rejects_traversal_and_escapes() {
+    let root = Path::new("/store/v11/links");
+
+    // A normal GVS slot suffix is accepted.
+    assert!(is_contained_descendant(root, &root.join("@pnpm.e2e/foo/1.0.0/deadbeef")));
+    assert!(is_contained_descendant(root, &root.join("foo/1.0.0/deadbeef")));
+
+    // A `..` segment that climbs out of the root is rejected even though
+    // the path still textually starts with the root.
+    assert!(!is_contained_descendant(root, &root.join("../../../etc/passwd")));
+    assert!(!is_contained_descendant(root, &root.join("foo/../../../escape")));
+
+    // The root itself is not a descendant — deleting it wholesale is not
+    // a per-slot cleanup.
+    assert!(!is_contained_descendant(root, root));
+
+    // A sibling that merely shares a name prefix is not contained.
+    assert!(!is_contained_descendant(root, Path::new("/store/v11/links-evil/foo")));
 }

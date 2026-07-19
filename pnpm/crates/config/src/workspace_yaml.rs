@@ -85,6 +85,12 @@ pub struct WorkspaceSettings {
     /// has no `--global` flow). See
     /// [`Config::enable_global_virtual_store`].
     pub enable_global_virtual_store: Option<bool>,
+    /// `virtualStoreOnly` from `pnpm-workspace.yaml`. See
+    /// [`Config::virtual_store_only`].
+    pub virtual_store_only: Option<bool>,
+    /// `enableModulesDir` from `pnpm-workspace.yaml`. See
+    /// [`Config::enable_modules_dir`].
+    pub enable_modules_dir: Option<bool>,
     /// `globalVirtualStoreDir` from `pnpm-workspace.yaml`. Resolved
     /// against the workspace dir like the other path-valued fields.
     /// When set, overrides the derived `<store_dir>/links` path.
@@ -789,6 +795,7 @@ impl WorkspaceSettings {
             fetch_retry_mintimeout, fetch_retry_maxtimeout,
             network_concurrency, fetch_timeout, user_agent,
             enable_global_virtual_store,
+            virtual_store_only, enable_modules_dir,
             git_shallow_hosts,
             test_pattern, changed_files_ignore_pattern,
             resolution_mode, catalog_mode, registry_supports_time_field,

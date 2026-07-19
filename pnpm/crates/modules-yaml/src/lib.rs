@@ -209,6 +209,15 @@ pub struct Modules {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub allow_builds: Option<BTreeMap<String, AllowBuildValue>>,
+
+    /// `true` when this modules directory was populated by a
+    /// `virtualStoreOnly` install (`pnpm fetch`). Such an install
+    /// records empty hoist patterns because it did no hoisting, so the
+    /// next ordinary install must finish the linking rather than read
+    /// the pattern mismatch as drift and purge. Omitted when false,
+    /// matching pnpm's delete-when-falsy encoding.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub virtual_store_only: Option<bool>,
 }
 
 /// A lightweight version of [`Modules`] that skips deserializing the potentially
@@ -253,6 +262,10 @@ pub struct ModulesLayout {
     pub virtual_store_dir_max_length: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub allow_builds: Option<BTreeMap<String, AllowBuildValue>>,
+    /// See [`Modules::virtual_store_only`]. Read by the layout-drift
+    /// check, which skips the hoist-pattern comparison when it is set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub virtual_store_only: Option<bool>,
 }
 
 /// Which dependency groups the install pipeline included.
