@@ -2903,19 +2903,6 @@ fn build_modules_manifest(
     pruned_at: String,
 ) -> Modules {
     Modules {
-        // The build policy this install ran under, so the next one can
-        // tell an approval the user has since withdrawn from a package
-        // that was never approved (see [`has_revoked_allowed_builds`]).
-        // Omitted when empty, matching pnpm's omit-when-empty encoding.
-        allow_builds: (!config.allow_builds.is_empty()).then(|| {
-            config
-                .allow_builds
-                .iter()
-                .map(|(spec, &allowed)| {
-                    (spec.clone(), pacquet_modules_yaml::AllowBuildValue::Bool(allowed))
-                })
-                .collect()
-        }),
         // The `name@version` keys whose build scripts were blocked, so a
         // later install can re-run any that an `allowBuilds` change now
         // allows (see [`has_newly_allowed_ignored_builds`]). `None` when
