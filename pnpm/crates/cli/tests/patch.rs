@@ -1120,6 +1120,12 @@ fn unused_patch_warns_when_allow_unused_patches_is_set() {
         stdout = String::from_utf8_lossy(&output.stdout),
         stderr = String::from_utf8_lossy(&output.stderr),
     );
+    assert!(
+        combined.contains("is-negative@1.0.0"),
+        "warning should mention the unused patch key: stdout={stdout}, stderr={stderr}",
+        stdout = String::from_utf8_lossy(&output.stdout),
+        stderr = String::from_utf8_lossy(&output.stderr),
+    );
 
     drop((root, mock_instance));
 }

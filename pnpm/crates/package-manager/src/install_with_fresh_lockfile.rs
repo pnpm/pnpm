@@ -1409,10 +1409,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 Ok(Some(warning)) => {
                     Reporter::emit(&LogEvent::Global(GlobalLog {
                         level: LogLevel::Warn,
-                        message: format!(
-                            "The following patches were not used: {}",
-                            warning.unused_patches.join(", ")
-                        ),
+                        message: warning.to_string(),
                     }));
                 }
                 Err(err) => {
