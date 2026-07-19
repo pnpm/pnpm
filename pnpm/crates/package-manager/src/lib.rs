@@ -110,6 +110,19 @@ pub use validate_lockfile_paths::*;
 pub use version_policy::*;
 pub use virtual_store_layout::*;
 
+/// The dependency groups a project installs directly — `dependencies`,
+/// `devDependencies`, `optionalDependencies` — in the order pnpm's
+/// `updateProjectManifest` walks them. This is also the install `include`
+/// set for runs whose `dependency_groups` carries no user filter intent
+/// (`add`, `remove`, `update`): those mutations pick a manifest group to
+/// save into separately, and the install itself must keep resolving and
+/// materializing every group.
+pub(crate) const DIRECT_GROUPS: [pacquet_package_manifest::DependencyGroup; 3] = [
+    pacquet_package_manifest::DependencyGroup::Prod,
+    pacquet_package_manifest::DependencyGroup::Dev,
+    pacquet_package_manifest::DependencyGroup::Optional,
+];
+
 pub(crate) fn package_manifest_prefix(
     manifest: &pacquet_package_manifest::PackageManifest,
 ) -> String {
