@@ -170,7 +170,7 @@ fn installs_node_runtime_declared_by_a_dependency_engine() {
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
     assert!(
         lockfile.contains(format!("node@runtime:{version}").as_str()),
-        "lockfile was:\n{lockfile}"
+        "lockfile was:\n{lockfile}",
     );
 }
 
@@ -300,7 +300,7 @@ fn prepare_workspace(root: &TempDir, extra_yaml: &str) -> PathBuf {
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         format!(
-            "storeDir: ../store\ncacheDir: ../cache\nenableGlobalVirtualStore: false\n{extra_yaml}"
+            "storeDir: ../store\ncacheDir: ../cache\nenableGlobalVirtualStore: false\n{extra_yaml}",
         ),
     )
     .unwrap();
