@@ -1314,6 +1314,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let guard_previous_importers: Option<&HashMap<String, pacquet_lockfile::ProjectSnapshot>> =
             wanted_lockfile.map(|lockfile| &lockfile.importers);
         let guard_update_reuse_scope = update_reuse_scope.clone();
+        let guard_update_reuse_scopes_by_importer = update_reuse_scopes_by_importer.clone();
 
         // Hand the resolver the prior lockfile so it can reuse
         // already-resolved subtrees instead of re-resolving from the
@@ -1593,6 +1594,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 patched_dependency_hashes: patched_dependency_hashes.as_ref(),
                 previous_importers: guard_previous_importers,
                 update_reuse_scope: guard_update_reuse_scope.clone(),
+                update_reuse_scopes_by_importer: guard_update_reuse_scopes_by_importer.clone(),
             })
             .map_err(|error| {
                 InstallWithFreshLockfileError::DependenciesGraphToLockfile(Box::new(error))
@@ -1759,6 +1761,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             patched_dependency_hashes: patched_dependency_hashes.as_ref(),
             previous_importers: guard_previous_importers,
             update_reuse_scope: guard_update_reuse_scope.clone(),
+            update_reuse_scopes_by_importer: guard_update_reuse_scopes_by_importer.clone(),
         })
         .map_err(|error| {
             InstallWithFreshLockfileError::DependenciesGraphToLockfile(Box::new(error))
@@ -2852,6 +2855,11 @@ struct FreshLockfileBuildOptions<'a> {
     /// How this install reuses the prior resolution (from the `pacquet
     /// update` seed policy), also consumed by the pnpm/pnpm#10433 guard.
     update_reuse_scope: pacquet_resolving_deps_resolver::UpdateReuseScope,
+    /// Per-importer update scopes (the `ByImporter` policy of a recursive
+    /// update), so the guard honors `pacquet update <name> --recursive`
+    /// targeting per importer rather than the workspace-wide default.
+    update_reuse_scopes_by_importer:
+        BTreeMap<String, pacquet_resolving_deps_resolver::UpdateReuseScope>,
 }
 
 fn build_fresh_lockfile(
@@ -2868,6 +2876,7 @@ fn build_fresh_lockfile(
         patched_dependency_hashes,
         previous_importers,
         update_reuse_scope,
+        update_reuse_scopes_by_importer,
     } = opts;
     let mut importers = BTreeMap::new();
     for (id, manifest) in importer_manifests {
@@ -2897,6 +2906,7 @@ fn build_fresh_lockfile(
         lockfile_include_tarball_url: config.lockfile_include_tarball_url,
         previous_importers,
         update_reuse_scope,
+        update_reuse_scopes_by_importer,
     })
 }
 

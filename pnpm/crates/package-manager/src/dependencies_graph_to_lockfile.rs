@@ -112,8 +112,18 @@ pub struct GraphToLockfileOptions<'a> {
     /// `pacquet update` seed policy. Together with a spec change it
     /// decides whether an importer's workspace dependency is *targeted*
     /// by the run (and so may legitimately change its `link:`/`file:`
-    /// form) — see `build_importer`.
+    /// form) — see `build_importer`. This is the workspace-wide default;
+    /// [`Self::update_reuse_scopes_by_importer`] overrides it per importer.
     pub update_reuse_scope: UpdateReuseScope,
+    /// Per-importer update scopes, mirroring the resolver's
+    /// `update_reuse_scope_for`: a `pacquet update <name> --recursive`
+    /// lowers to a `ByImporter` policy whose workspace-wide scope is `All`
+    /// with the named packages recorded per importer here. The guard
+    /// resolves each importer's effective scope as: global when the global
+    /// is `None`, else this map's entry, else the global — so a recursive
+    /// update targets the named dependency in the importer that declares
+    /// it while leaving untouched importers' `link:` entries intact.
+    pub update_reuse_scopes_by_importer: BTreeMap<String, UpdateReuseScope>,
 }
 
 /// Error returned while converting a resolver graph into a lockfile.
@@ -168,6 +178,7 @@ pub fn dependencies_graph_to_lockfile(
         lockfile_include_tarball_url,
         previous_importers,
         update_reuse_scope,
+        update_reuse_scopes_by_importer,
     } = opts;
 
     let optional_overrides = compute_corrected_optional(&importer_inputs, graph);
@@ -182,6 +193,17 @@ pub fn dependencies_graph_to_lockfile(
         HashMap::with_capacity(importer_inputs.len());
     for (id, input) in &importer_inputs {
         let previous_importer = previous_importers.and_then(|imps| imps.get(id));
+        // Effective update scope for this importer, mirroring the resolver's
+        // `update_reuse_scope_for`: a global `None` (bare `update`) applies to
+        // every importer; otherwise the per-importer entry wins, falling back
+        // to the global. This is what lets a `pacquet update <name> --recursive`
+        // target the named dependency in the importer that declares it while
+        // leaving untouched importers on their global scope.
+        let effective_update_reuse_scope = if matches!(update_reuse_scope, UpdateReuseScope::None) {
+            &update_reuse_scope
+        } else {
+            update_reuse_scopes_by_importer.get(id).unwrap_or(&update_reuse_scope)
+        };
         importers.insert(
             id.clone(),
             build_importer(
@@ -189,7 +211,7 @@ pub fn dependencies_graph_to_lockfile(
                 graph,
                 exclude_links_from_lockfile,
                 previous_importer,
-                &update_reuse_scope,
+                effective_update_reuse_scope,
             )?,
         );
     }
@@ -339,34 +361,19 @@ fn build_importer(
             && let ImporterDepVersion::Link(_) = &previous.version
         {
             // A workspace dependency the run doesn't target keeps its
-            // `link:`. It is targeted when the update scope names it (a
-            // `pacquet update <name>`, or a scope-wide `update` / forced
-            // re-resolve) or when its specifier changed (a new or edited
-            // manifest entry). `KeepAll` (plain install / add) never
-            // targets on its own, so an untouched workspace dep is
-            // preserved. Matches the TS resolver's `updateTargetedAliases`
-            // / `updateMatching` guard, where a plain install's blanket
-            // spec re-check must not count as targeting.
-            //
-            // Known parity gap with the TS side (`pnpm update <name>
-            // --recursive`): this reads the *global* update scope, not the
-            // per-importer scope from `update_reuse_scope_for`. A recursive
-            // update lowers to a `ByImporter` policy whose global scope is
-            // `All` (the named packages live in the per-importer map), so a
-            // workspace-link dep that the user named *and* whose peer
-            // context flips on re-resolve is preserved as `link:` here,
-            // whereas TS's per-importer `updateMatching(<name>)` would keep
-            // the fresh `file:`. Threading the per-importer scope instead is
-            // not a fix: `UpdateReuseScope` conflates "the user asked to
-            // update this importer" (`DropAll` -> `None`) with "re-resolve
-            // this importer as a side effect of a recursive update", and a
-            // non-target importer's `None` would re-target the untouched
-            // workspace edge and reintroduce pnpm/pnpm#10433. Expressing the
-            // narrower by-name targeting would need a separate signal (as TS
-            // keeps `update` and `updateMatching` distinct). The gap is
-            // limited to recursively updating a workspace-link dep by name
-            // that also diverges its peer context — where keeping `link:`
-            // for a workspace package is a defensible outcome anyway.
+            // `link:`. It is targeted when this importer's update scope names
+            // it (`pacquet update <name>`, including the per-importer scope of
+            // a `--recursive` run), when the scope is `None` (a scope-wide
+            // bare `update` / forced re-resolve), or when its specifier
+            // changed (a new or edited manifest entry). `KeepAll` (plain
+            // install / add) never targets on its own, so an untouched
+            // workspace dep is preserved. `update_reuse_scope` here is already
+            // resolved for this importer (see `update_reuse_scope_for` in the
+            // caller), so `pacquet update <name> --recursive` targets the
+            // named dep in the importer that declares it while untouched
+            // importers keep their `link:`. Matches the TS resolver's
+            // `updateTargetedAliases` / `updateMatching` guard, where a plain
+            // install's blanket spec re-check must not count as targeting.
             let targeted_by_update = match update_reuse_scope {
                 UpdateReuseScope::All => false,
                 UpdateReuseScope::None => true,

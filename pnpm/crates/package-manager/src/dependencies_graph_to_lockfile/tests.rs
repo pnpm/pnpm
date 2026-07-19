@@ -67,6 +67,7 @@ fn single_importer_opts<'a>(
         lockfile_include_tarball_url: false,
         previous_importers: None,
         update_reuse_scope: UpdateReuseScope::All,
+        update_reuse_scopes_by_importer: BTreeMap::new(),
     }
 }
 
@@ -258,6 +259,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         lockfile_include_tarball_url: false,
         previous_importers: None,
         update_reuse_scope: UpdateReuseScope::All,
+        update_reuse_scopes_by_importer: BTreeMap::new(),
     });
     let on_settings = on.settings.as_ref().expect("settings written");
     assert_eq!(on_settings.dedupe_peers, Some(true));
@@ -287,6 +289,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         lockfile_include_tarball_url: false,
         previous_importers: None,
         update_reuse_scope: UpdateReuseScope::All,
+        update_reuse_scopes_by_importer: BTreeMap::new(),
     });
     let off_settings = off.settings.as_ref().expect("settings written");
     assert_eq!(off_settings.dedupe_peers, None);
@@ -370,6 +373,7 @@ fn patched_dependencies_flow_into_lockfile_and_empty_is_omitted() {
             lockfile_include_tarball_url: false,
             previous_importers: None,
             update_reuse_scope: UpdateReuseScope::All,
+            update_reuse_scopes_by_importer: BTreeMap::new(),
         })
     };
 
@@ -526,6 +530,7 @@ fn aliased_catalog_dependency_records_catalog_snapshot() {
         lockfile_include_tarball_url: false,
         previous_importers: None,
         update_reuse_scope: UpdateReuseScope::All,
+        update_reuse_scopes_by_importer: BTreeMap::new(),
     });
 
     let snapshots = lockfile.catalogs.as_ref().expect("catalogs snapshot present");
@@ -1493,6 +1498,7 @@ fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
         lockfile_include_tarball_url: false,
         previous_importers: None,
         update_reuse_scope: UpdateReuseScope::All,
+        update_reuse_scopes_by_importer: BTreeMap::new(),
     });
 
     let importer = lockfile.importers.get("apps/nested/app").expect("nested importer");
@@ -1582,6 +1588,7 @@ fn multi_importer_workspace_writes_per_project_lockfile_entries() {
         lockfile_include_tarball_url: false,
         previous_importers: None,
         update_reuse_scope: UpdateReuseScope::All,
+        update_reuse_scopes_by_importer: BTreeMap::new(),
     });
 
     let a_snap = lockfile.importers.get("packages/a").expect("importer a");
@@ -1689,6 +1696,7 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
         lockfile_include_tarball_url: false,
         previous_importers: None,
         update_reuse_scope: UpdateReuseScope::All,
+        update_reuse_scopes_by_importer: BTreeMap::new(),
     });
 
     let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
@@ -1822,6 +1830,7 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
         lockfile_include_tarball_url: false,
         previous_importers: None,
         update_reuse_scope: UpdateReuseScope::All,
+        update_reuse_scopes_by_importer: BTreeMap::new(),
     });
 
     let a_snap = lockfile.importers.get("packages/a").expect("importer a");
@@ -2162,6 +2171,76 @@ fn injected_workspace_dep_flips_to_file_when_specifier_changed() {
         "a spec change must keep the fresh file: resolution, got {:?}",
         entry.version,
     );
+}
+
+// `pacquet update n --recursive` lowers to a `ByImporter` policy whose
+// global scope is `All`, with the named package recorded per importer.
+// The guard resolves the effective per-importer scope, so `n` in the
+// importer that declares it is targeted and its divergent `file:` stands.
+#[test]
+fn injected_workspace_dep_flips_to_file_when_recursive_update_targets_it_per_importer() {
+    let (_tmp, manifest, graph, direct) = injected_link_fixture();
+    let previous = previous_importers_with_link("n", "workspace:*", "../n");
+    // Global All (recursive updates never withhold globally); the named
+    // package lives in the per-importer scope for the root importer (".").
+    let scopes_by_importer = BTreeMap::from([(
+        ".".to_string(),
+        UpdateReuseScope::Except(HashSet::from(["n".to_string()])),
+    )]);
+
+    let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        previous_importers: Some(&previous),
+        update_reuse_scope: UpdateReuseScope::All,
+        update_reuse_scopes_by_importer: scopes_by_importer,
+        ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
+    });
+
+    let importer = lockfile.root_project().expect("root importer");
+    let entry = importer
+        .dependencies
+        .as_ref()
+        .and_then(|deps| deps.get(&PkgName::parse("n").unwrap()))
+        .expect("n entry");
+    assert!(
+        matches!(&entry.version, ImporterDepVersion::File(_)),
+        "a recursive update naming n must keep the fresh file: resolution, got {:?}",
+        entry.version,
+    );
+}
+
+// The #10433 scenario for the recursive path: `pacquet update <other>
+// --recursive` records `<other>` (not `n`) in the per-importer scope, so
+// `n` is untargeted and its `link:` must be preserved even though it
+// re-resolved to a divergent `file:`. Without honoring the per-importer
+// scope the guard would read the global `All` and (correctly, here) also
+// preserve — so to prove the per-importer scope is actually consulted, the
+// companion test above names `n` and asserts the opposite outcome.
+#[test]
+fn injected_workspace_dep_keeps_link_when_recursive_update_targets_other_pkg() {
+    let (_tmp, manifest, graph, direct) = injected_link_fixture();
+    let previous = previous_importers_with_link("n", "workspace:*", "../n");
+    let scopes_by_importer = BTreeMap::from([(
+        ".".to_string(),
+        UpdateReuseScope::Except(HashSet::from(["some-other-pkg".to_string()])),
+    )]);
+
+    let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        previous_importers: Some(&previous),
+        update_reuse_scope: UpdateReuseScope::All,
+        update_reuse_scopes_by_importer: scopes_by_importer,
+        ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
+    });
+
+    let importer = lockfile.root_project().expect("root importer");
+    let entry = importer
+        .dependencies
+        .as_ref()
+        .and_then(|deps| deps.get(&PkgName::parse("n").unwrap()))
+        .expect("n entry");
+    match &entry.version {
+        ImporterDepVersion::Link(target) => assert_eq!(target, "../n"),
+        other => panic!("a recursive update of another package must keep n's link:, got {other:?}"),
+    }
 }
 
 // Bare `pacquet update` (UpdateReuseScope::None) re-resolves the whole
