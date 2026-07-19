@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.env-installer",
-  "version": "1102.0.9",
+  "version": "1102.0.10",
   "description": "Installer for configurational dependencies",
   "keywords": [
     "pnpm",
