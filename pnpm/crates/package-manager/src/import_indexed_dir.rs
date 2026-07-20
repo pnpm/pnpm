@@ -251,19 +251,19 @@ fn populate_dir<Reporter: self::Reporter>(
 /// `package.json` when present, else a fallback file for old store entries
 /// indexed before the synthetic manifest. pnpm picks the first inserted
 /// key; `cas_paths` is unordered, so we pick the lexicographically
-/// smallest one instead — deterministic, which is all the gate and the
-/// write need. `None` only for an empty map.
+/// smallest non-build-marker entry instead — deterministic, which is all
+/// the gate and the write need. `None` only when no package file is present.
 fn marker_file(cas_paths: &HashMap<String, PathBuf>) -> Option<&str> {
     const PACKAGE_JSON: &str = "package.json";
     if cas_paths.contains_key(PACKAGE_JSON) {
         return Some(PACKAGE_JSON);
     }
-    cas_paths.keys().map(String::as_str).min()
+    cas_paths.keys().map(String::as_str).filter(|path| *path != crate::NEEDS_BUILD_MARKER).min()
 }
 
 /// Whether `dir_path` holds the completion marker. An empty map has no
 /// marker, so it counts as present — there is nothing to import.
-fn marker_present(dir_path: &Path, cas_paths: &HashMap<String, PathBuf>) -> bool {
+pub(crate) fn marker_present(dir_path: &Path, cas_paths: &HashMap<String, PathBuf>) -> bool {
     match marker_file(cas_paths) {
         Some(marker) => dir_path.join(marker).exists(),
         None => true,

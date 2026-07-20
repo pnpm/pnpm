@@ -1,6 +1,7 @@
 use crate::{
-    ImportIndexedDirError, ImportIndexedDirOpts, SkippedSnapshots, SymlinkPackageError,
-    VirtualStoreLayout, create_symlink_layout, import_indexed_dir,
+    ImportIndexedDirError, ImportIndexedDirOpts, NEEDS_BUILD_MARKER, SkippedSnapshots,
+    SymlinkPackageError, VirtualStoreLayout, create_symlink_layout, import_indexed_dir,
+    import_indexed_dir::marker_present,
     safe_join_modules_dir::{InvalidDependencyAliasError, safe_join_modules_dir},
 };
 use derive_more::{Display, Error};
@@ -66,6 +67,9 @@ pub struct CreateVirtualDirBySnapshot<'a> {
     /// doesn't leave a dangling child behind. Empty for fresh packages
     /// and for survivors whose dependency set only changed by addition.
     pub removed_aliases: &'a [PkgName],
+    /// Empty source file imported as `.pnpm-needs-build` before the package's
+    /// atomic completion marker when the package needs a build or patch.
+    pub needs_build_marker_source: Option<&'a Path>,
     #[cfg(test)]
     pub(crate) link_concurrency_probe: Option<&'a tests::LinkConcurrencyProbe>,
 }
@@ -116,6 +120,7 @@ impl CreateVirtualDirBySnapshot<'_> {
             snapshot,
             skipped,
             removed_aliases,
+            needs_build_marker_source,
             #[cfg(test)]
             link_concurrency_probe,
         } = self;
@@ -136,6 +141,29 @@ impl CreateVirtualDirBySnapshot<'_> {
             safe_join_modules_dir(&virtual_node_modules_dir, &package_key.name.to_string())
                 .map_err(CreateVirtualDirError::InvalidAlias)?;
 
+        let interrupted_build = save_path.join(NEEDS_BUILD_MARKER).is_file();
+        let should_mark_build = needs_build_marker_source.is_some()
+            && (interrupted_build || !marker_present(&save_path, cas_paths));
+        let marked_cas_paths;
+        let cas_paths = if should_mark_build {
+            marked_cas_paths = {
+                let mut paths = cas_paths.clone();
+                paths.insert(
+                    NEEDS_BUILD_MARKER.to_string(),
+                    needs_build_marker_source.expect("checked above").to_path_buf(),
+                );
+                paths
+            };
+            &marked_cas_paths
+        } else {
+            cas_paths
+        };
+        let import_opts = if interrupted_build {
+            ImportIndexedDirOpts { force: true, keep_modules_dir: true }
+        } else {
+            ImportIndexedDirOpts::default()
+        };
+
         // `rayon::join` runs both closures in parallel on rayon's pool,
         // returning only once both finish. `import_indexed_dir` is itself
         // a rayon par_iter over CAS entries; `create_symlink_layout` is
@@ -150,7 +178,7 @@ impl CreateVirtualDirBySnapshot<'_> {
                     import_method,
                     &save_path,
                     cas_paths,
-                    ImportIndexedDirOpts::default(),
+                    import_opts,
                 )
                 .map_err(CreateVirtualDirError::ImportIndexedDir)
             },

@@ -82,6 +82,41 @@ fn existing_target_short_circuits_under_default_opts() {
 }
 
 #[test]
+fn needs_build_marker_is_not_used_as_the_completion_marker() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let marker = write_source(&src_root, "needs-build", b"");
+    let index = write_source(&src_root, "index.js", b"original");
+    let cas = cas_map(&[(crate::NEEDS_BUILD_MARKER, marker), ("index.js", index)]);
+
+    let target = tmp.path().join("pkg");
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        ImportIndexedDirOpts::default(),
+    )
+    .expect("fresh import should succeed");
+
+    fs::remove_file(target.join(crate::NEEDS_BUILD_MARKER)).unwrap();
+    fs::write(target.join("index.js"), b"built").unwrap();
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        ImportIndexedDirOpts::default(),
+    )
+    .expect("completed import should stay warm");
+
+    assert_eq!(fs::read(target.join("index.js")).unwrap(), b"built");
+    assert!(!target.join(crate::NEEDS_BUILD_MARKER).exists());
+}
+
+#[test]
 fn force_keep_replaces_files_and_preserves_node_modules() {
     let tmp = tempdir().unwrap();
     let src_root = tmp.path().join("cas");

@@ -71,6 +71,7 @@ reflink-copy    = { workspace = true }
 serde           = { workspace = true }
 serde_json      = { workspace = true }
 ssri            = { workspace = true }
+tempfile        = { workspace = true }
 tokio           = { workspace = true }
 tracing         = { workspace = true }
 miette          = { workspace = true }
@@ -90,7 +91,6 @@ serde-saphyr      = { workspace = true }
 sha2              = { workspace = true }
 ssri              = { workspace = true }
 tar               = { workspace = true }
-tempfile          = { workspace = true }
 text-block-macros = { workspace = true }
 walkdir           = { workspace = true }
 

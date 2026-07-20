@@ -1223,7 +1223,8 @@ fn frozen_install_short_circuits_when_node_modules_is_up_to_date() {
 /// OCI layer). A complete store plus an up-to-date lockfile is all a
 /// `--frozen-lockfile` install needs, yet the install would still fail
 /// because opening the WAL-mode `index.db` tries to create `-wal`/`-shm`
-/// sidecars in the store directory. `--frozen-store` opens the index through
+/// sidecars in the store directory. This test enables the global virtual store
+/// so its marker setup is covered too. `--frozen-store` opens the index through
 /// the `immutable=1` URI ([`StoreIndex::open_immutable`]) and replaces the
 /// store-index writer with a drain-and-drop stub
 /// ([`StoreIndexWriter::spawn_disabled`]), so the install reads from the
@@ -1240,10 +1241,12 @@ fn frozen_install_short_circuits_when_node_modules_is_up_to_date() {
 /// install *succeeds* against a genuinely read-only store and mutates nothing.
 #[cfg(unix)]
 #[test]
-fn frozen_store_installs_against_a_read_only_store() {
+fn frozen_store_installs_against_a_read_only_global_virtual_store() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    enable_gvs_in_workspace_yaml(&workspace, "");
 
     eprintln!("Creating package.json...");
     let manifest_path = workspace.join("package.json");
@@ -1269,6 +1272,7 @@ fn frozen_store_installs_against_a_read_only_store() {
     // The store root is `<store-dir>/v11` (the `STORE_VERSION` suffix), which
     // is where `index.db` and the CAFS shards live.
     let store_root = store_dir.join("v11");
+    assert!(store_root.join("links").is_dir(), "the priming install must populate the GVS");
 
     // Guard: prove the chmod actually took. A green result below would be a
     // false pass if the store dir were somehow still writable.
@@ -1294,9 +1298,12 @@ fn frozen_store_installs_against_a_read_only_store() {
         is_symlink_or_junction(&symlink_path).expect("stat the dependency symlink"),
         "the direct dependency must be linked into node_modules",
     );
+    let package_dir = fs::canonicalize(&symlink_path).expect("resolve the dependency symlink");
+    let canonical_gvs_root =
+        fs::canonicalize(store_root.join("links")).expect("resolve the GVS root");
     assert!(
-        workspace.join("node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0").exists(),
-        "the virtual-store entry must be present",
+        package_dir.starts_with(&canonical_gvs_root),
+        "the dependency must be linked from the read-only GVS: {package_dir:?}",
     );
 
     eprintln!("No WAL/SHM/journal sidecars may have been created under the store...");

@@ -16,8 +16,19 @@ pub struct FetchArgs {
 impl FetchArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
         let lockfile_path = state.lockfile_path();
-        let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
-            &state;
+        let mut fetch_config = (*state.config).clone();
+        fetch_config.virtual_store_only = true;
+        fetch_config.enable_modules_dir = true;
+        fetch_config.apply_virtual_store_only_derivation();
+        let fetch_config = fetch_config.leak();
+        let State {
+            tarball_mem_cache,
+            http_client,
+            config: _,
+            manifest,
+            lockfile,
+            resolved_packages,
+        } = &state;
 
         let &FetchArgs { prod, dev } = &self;
         let has_both = prod == dev;
@@ -28,7 +39,7 @@ impl FetchArgs {
             tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
             http_client,
             http_client_arc: std::sync::Arc::clone(http_client),
-            config,
+            config: fetch_config,
             manifest,
             emit_initial_manifest: true,
             lockfile: pacquet_lockfile::MaybeLazyLockfile::Lazy(lockfile),
@@ -45,14 +56,14 @@ impl FetchArgs {
             // Honor the yaml/npmrc `skipRuntimes` / `trustLockfile`. Fetch
             // exposes no CLI override for either, so the config value is
             // the resolved value, mirroring `pacquet install`.
-            skip_runtimes: config.skip_runtimes,
-            trust_lockfile: config.trust_lockfile,
+            skip_runtimes: fetch_config.skip_runtimes,
+            trust_lockfile: fetch_config.trust_lockfile,
             update_checksums: false,
             is_full_install: false,
             installs_only: true,
             resolved_packages,
-            supported_architectures: config.supported_architectures.clone(),
-            node_linker: config.node_linker,
+            supported_architectures: fetch_config.supported_architectures.clone(),
+            node_linker: fetch_config.node_linker,
             lockfile_only: false,
             dry_run: false,
             update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::KeepAll,

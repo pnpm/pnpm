@@ -126,6 +126,14 @@ pub(crate) const DIRECT_GROUPS: [pacquet_package_manifest::DependencyGroup; 3] =
     pacquet_package_manifest::DependencyGroup::Optional,
 ];
 
+pub(crate) const NEEDS_BUILD_MARKER: &str = ".pnpm-needs-build";
+
+pub(crate) fn snapshot_has_patch(snapshot_key: &pacquet_lockfile::PackageKey) -> bool {
+    pacquet_deps_path::index_of_dep_path_suffix(&snapshot_key.to_string())
+        .patch_hash_index
+        .is_some()
+}
+
 pub(crate) fn package_manifest_prefix(
     manifest: &pacquet_package_manifest::PackageManifest,
 ) -> String {
