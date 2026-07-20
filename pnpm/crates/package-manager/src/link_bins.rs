@@ -593,12 +593,12 @@ where
             if let Some(manifest) = package_manifests.get(&self_metadata_key) {
                 bin_sources.push(
                     PackageBinSource::new(self_pkg_dir.clone(), Arc::clone(manifest))
-                        .with_resolved_location(self_pkg_dir.clone()),
+                        .with_resolved_location(self_pkg_dir),
                 );
             } else {
                 match read_package::<Sys>(&self_pkg_dir) {
                     Ok(Some(pkg)) => {
-                        bin_sources.push(pkg.with_resolved_location(self_pkg_dir.clone()));
+                        bin_sources.push(pkg.with_resolved_location(self_pkg_dir));
                     }
                     Ok(None) => {}
                     Err(error) => return Err(LinkVirtualStoreBinsError::LinkBins(error)),
