@@ -209,6 +209,7 @@ fn run_imports_needs_build_marker_with_a_fresh_package() {
         package_id: "react@18.0.0",
         package_key: &package_key,
         snapshot: &snapshot,
+        symlink: true,
         skipped: &skipped,
         removed_aliases: &[],
         needs_build_marker_source: Some(&marker_source),
