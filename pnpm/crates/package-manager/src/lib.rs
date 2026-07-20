@@ -3,6 +3,7 @@ mod build_modules;
 mod build_resolution_verifiers;
 mod build_sequence;
 mod build_snapshot;
+mod catalog_cleanup;
 mod catalog_mode;
 mod check_custom_resolver_force_resolve;
 mod compat_package_extensions;

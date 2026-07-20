@@ -469,6 +469,68 @@ async fn auto_install_dedupes_via_range_intersection_when_identical() {
     assert_eq!(peer_c_entries.len(), 1, "expected one peer-c entry, got: {peer_c_entries:?}");
 }
 
+/// TS: `should return the intersection of two compatible ranges`
+/// (`resolvePeers.ts:513`). Consumers wanting `2` and `^2.2.0` share
+/// the intersected range `>=2.2.0 <3.0.0-0` — the resolver stub keys on
+/// that exact specifier, so the single hoisted provider proves both the
+/// intersection and its canonical rendering.
+#[tokio::test]
+async fn auto_installed_peer_uses_the_intersection_of_compatible_ranges() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("wants-peer-c-2".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "wants-peer-c-2",
+            "1.0.0",
+            serde_json::json!({
+                "name": "wants-peer-c-2",
+                "version": "1.0.0",
+                "peerDependencies": { "peer-c": "2" },
+            }),
+        ),
+    );
+    table.insert(
+        ("wants-peer-c-2.2".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "wants-peer-c-2.2",
+            "1.0.0",
+            serde_json::json!({
+                "name": "wants-peer-c-2.2",
+                "version": "1.0.0",
+                "peerDependencies": { "peer-c": "^2.2.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("peer-c".to_string(), ">=2.2.0 <3.0.0-0".to_string()),
+        fake_result("peer-c", "2.2.5", serde_json::json!({ "name": "peer-c", "version": "2.2.5" })),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({
+        "wants-peer-c-2": "1.0.0",
+        "wants-peer-c-2.2": "1.0.0",
+    }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    let direct: Vec<&str> =
+        result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
+    assert!(direct.contains(&"peer-c"), "single intersected peer-c should be hoisted: {direct:?}");
+    let peer_c_entries: Vec<&DepPath> = result
+        .peers_result
+        .graph
+        .keys()
+        .filter(|dp| dp.to_string().starts_with("peer-c@"))
+        .collect();
+    assert_eq!(peer_c_entries.len(), 1, "expected one peer-c entry, got: {peer_c_entries:?}");
+    assert!(
+        peer_c_entries[0].to_string().starts_with("peer-c@2.2.5"),
+        "the provider must resolve through the intersected range: {peer_c_entries:?}",
+    );
+}
+
 #[tokio::test]
 async fn auto_install_does_not_install_when_no_intersection() {
     let mut table = HashMap::new();

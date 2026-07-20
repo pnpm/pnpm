@@ -20,6 +20,8 @@ use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use pacquet_catalogs_types::Catalogs;
+use pacquet_config_parse_overrides::parse_pkg_and_parent_selector;
+use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 
 mod edit;
 mod model;
@@ -105,11 +107,28 @@ fn has_control_char(value: &str) -> bool {
     value.chars().any(char::is_control)
 }
 
-/// Merge `updated_catalogs` into `dir`'s `pnpm-workspace.yaml`, writing the
-/// file back only when something actually changed.
+/// Inputs of [`update_workspace_manifest`].
+#[derive(Default)]
+pub struct UpdateWorkspaceManifestOptions<'a> {
+    /// Catalog entries to merge into the `catalog:` / `catalogs:` blocks.
+    pub updated_catalogs: Option<&'a Catalogs>,
+    /// Run the `cleanupUnusedCatalogs` pass after the merge: drop catalog
+    /// entries no manifest in [`Self::all_projects`] references.
+    pub cleanup_unused_catalogs: bool,
+    /// Every workspace project manifest (with in-memory dependency edits
+    /// applied), consulted by the cleanup pass to decide which catalog
+    /// entries are still referenced. An empty list disables the cleanup
+    /// pass, mirroring upstream's `allProjects ?? []` guard.
+    pub all_projects: &'a [&'a PackageManifest],
+}
+
+/// Merge `opts.updated_catalogs` into `dir`'s `pnpm-workspace.yaml` and run
+/// the `cleanupUnusedCatalogs` pass when requested, writing the file back
+/// only when something actually changed (and removing it when the edits
+/// empty the document).
 pub fn update_workspace_manifest(
     dir: &Path,
-    updated_catalogs: &Catalogs,
+    opts: &UpdateWorkspaceManifestOptions<'_>,
 ) -> Result<(), UpdateWorkspaceManifestError> {
     let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
 
@@ -122,13 +141,54 @@ pub fn update_workspace_manifest(
     let mut manifest = Manifest::parse(original.as_deref())
         .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
 
-    let changed = edit::add_catalogs(&mut manifest, updated_catalogs)
-        .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
+    let mut changed = match opts.updated_catalogs {
+        Some(updated_catalogs) => edit::add_catalogs(&mut manifest, updated_catalogs)
+            .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?,
+        None => false,
+    };
+    if opts.cleanup_unused_catalogs && !opts.all_projects.is_empty() {
+        let references = collect_catalog_references(opts.all_projects, &manifest);
+        changed |= edit::remove_unused_catalogs(&mut manifest, &references);
+    }
     if !changed {
         return Ok(());
     }
 
     write_or_remove_manifest(&path, manifest)
+}
+
+/// The upstream `packageReferences` map: every raw dependency specifier per
+/// package name across `dependencies`, `devDependencies`,
+/// `optionalDependencies`, and `peerDependencies` of every project, plus the
+/// workspace manifest's own `catalog:`-valued `overrides:` (whose selector
+/// names the referenced package). Selectors that fail to parse are skipped,
+/// matching upstream.
+fn collect_catalog_references(
+    all_projects: &[&PackageManifest],
+    manifest: &Manifest,
+) -> edit::CatalogReferences {
+    const GROUPS: [DependencyGroup; 4] = [
+        DependencyGroup::Prod,
+        DependencyGroup::Dev,
+        DependencyGroup::Optional,
+        DependencyGroup::Peer,
+    ];
+    let mut references = edit::CatalogReferences::new();
+    for project in all_projects {
+        for (name, specifier) in project.dependencies(GROUPS) {
+            references.entry(name.to_string()).or_default().insert(specifier.to_string());
+        }
+    }
+    for (selector, specifier) in manifest.overrides.iter().flatten() {
+        if !specifier.starts_with("catalog:") {
+            continue;
+        }
+        let Ok((_, target_pkg)) = parse_pkg_and_parent_selector(selector) else {
+            continue;
+        };
+        references.entry(target_pkg.name).or_default().insert(specifier.clone());
+    }
+    references
 }
 
 /// Write `name → specifier` entries into `dir`'s `pnpm-workspace.yaml`

@@ -183,6 +183,32 @@ pub struct ResolvePeersOptions {
     /// was pruned (an ancestor hit the peers cache) and nothing else
     /// resolved them.
     pub hoisted_peer_provider_node_ids: std::collections::HashSet<NodeId>,
+
+    /// Final `NodeId → DepPath` map produced by a previous
+    /// peer-resolution pass over the same tree
+    /// ([`ResolvePeersResult::paths_by_node_id`]). `Some` activates
+    /// locked-peer-provider reuse: a node whose
+    /// [`locked_peer_context`](crate::DependenciesTreeNode::locked_peer_context)
+    /// names a provider is re-pinned to it when the provider is still
+    /// reachable, resolved to the same path, and inside the current
+    /// peer range. The upstream `resolvedPeerProviderPaths` option.
+    pub resolved_peer_provider_paths: Option<HashMap<NodeId, DepPath>>,
+
+    /// Populate [`ResolvePeersResult::paths_by_node_id`]. Off by
+    /// default: the map is only consumed by a follow-up
+    /// locked-peer-provider pass, and building it costs an extra pass
+    /// over every walked node inside the hoist loop's hot path.
+    pub collect_paths_by_node_id: bool,
+
+    /// Direct-dependency aliases the importer's manifest declares.
+    /// Input to the must-win guard: a declared current provider that
+    /// has no wanted-lockfile resolution beats a locked one.
+    pub declared_direct_dependencies: std::collections::HashSet<String>,
+
+    /// Direct-dependency aliases the user explicitly requested on the
+    /// command line (`pnpm add foo`). Input to the must-win guard: an
+    /// explicitly requested current provider always beats a locked one.
+    pub explicitly_requested_direct_dependencies: std::collections::HashSet<String>,
 }
 
 /// See [`ResolvePeersOptions::hoist_missing_scope`].
@@ -232,6 +258,10 @@ impl Default for ResolvePeersOptions {
             modules_dir: None,
             hoist_missing_scope: None,
             hoisted_peer_provider_node_ids: std::collections::HashSet::new(),
+            resolved_peer_provider_paths: None,
+            collect_paths_by_node_id: false,
+            declared_direct_dependencies: std::collections::HashSet::new(),
+            explicitly_requested_direct_dependencies: std::collections::HashSet::new(),
         }
     }
 }
@@ -252,6 +282,11 @@ pub struct ResolvePeersResult {
     /// can tell which descendant misses the owner resolver's context
     /// already satisfied. See [`HoistMissingScope`].
     pub missing_names_by_pkg: HashMap<String, std::collections::HashSet<String>>,
+    /// Final `DepPath` of every walked node — the upstream
+    /// `pathsByNodeId`. Feed it back through
+    /// [`ResolvePeersOptions::resolved_peer_provider_paths`] to run a
+    /// locked-peer-provider reuse pass.
+    pub paths_by_node_id: HashMap<NodeId, DepPath>,
 }
 
 /// One importer's input to the multi-importer [`fn@resolve_peers_workspace`]
@@ -278,6 +313,9 @@ pub struct WorkspaceResolvePeersResult {
     pub graph: DependenciesGraph,
     pub direct_dependencies_by_importer: BTreeMap<String, BTreeMap<String, DepPath>>,
     pub peer_dependency_issues_by_importer: BTreeMap<String, PeerDependencyIssues>,
+    /// Final `DepPath` of every walked node — the upstream
+    /// `pathsByNodeId`. See [`ResolvePeersResult::paths_by_node_id`].
+    pub paths_by_node_id: HashMap<NodeId, DepPath>,
 }
 
 /// Resolve peer dependencies for `tree` and emit a depPath-keyed graph.
@@ -290,6 +328,18 @@ pub struct WorkspaceResolvePeersResult {
 /// that the resolver short-circuits via its `purePkgs` set never get
 /// realised.
 pub fn resolve_peers(tree: &mut ResolvedTree, opts: ResolvePeersOptions) -> ResolvePeersResult {
+    let node_ids_by_previous_dep_path = build_node_ids_by_previous_dep_path(tree, &opts);
+    let current_provider_sources = vec![CurrentProviderSource {
+        direct_node_ids_by_alias: tree
+            .direct
+            .iter()
+            .map(|dep| (dep.alias.clone(), dep.node_id.clone()))
+            .collect(),
+        declared_direct_dependencies: opts.declared_direct_dependencies.clone(),
+        explicitly_requested_direct_dependencies: opts
+            .explicitly_requested_direct_dependencies
+            .clone(),
+    }];
     let walker = Walker {
         tree,
         opts,
@@ -307,8 +357,60 @@ pub fn resolve_peers(tree: &mut ResolvedTree, opts: ResolvePeersOptions) -> Reso
         parent_pkgs_of_node: HashMap::new(),
         node_records: HashMap::new(),
         next_record_order: 0,
+        node_ids_by_previous_dep_path,
+        current_provider_sources,
     };
     walker.walk()
+}
+
+/// The current-provider sources visible while walking `importer`: its
+/// own direct dependencies, plus the workspace root importer's when
+/// that is a different project. The workspace path carries no
+/// declared/explicitly-requested alias sets yet, so those guards stay
+/// empty here.
+fn importer_provider_sources(
+    importer: &ImporterPeerInput,
+    root_importer: Option<&ImporterPeerInput>,
+) -> Vec<CurrentProviderSource> {
+    let source_of = |importer: &ImporterPeerInput| CurrentProviderSource {
+        direct_node_ids_by_alias: importer
+            .direct
+            .iter()
+            .map(|dep| (dep.alias.clone(), dep.node_id.clone()))
+            .collect(),
+        declared_direct_dependencies: std::collections::HashSet::new(),
+        explicitly_requested_direct_dependencies: std::collections::HashSet::new(),
+    };
+    let mut sources = vec![source_of(importer)];
+    if let Some(root) = root_importer
+        && root.id != importer.id
+    {
+        sources.push(source_of(root));
+    }
+    sources
+}
+
+/// The upstream `getNodeIdsByPreviousDepPath`: first node (in
+/// deterministic id order) claiming each `previous_dep_path`. Empty
+/// unless a locked-peer reuse pass was requested.
+fn build_node_ids_by_previous_dep_path(
+    tree: &ResolvedTree,
+    opts: &ResolvePeersOptions,
+) -> HashMap<DepPath, NodeId> {
+    let mut map = HashMap::new();
+    if opts.resolved_peer_provider_paths.is_none() {
+        return map;
+    }
+    let mut node_ids: Vec<&NodeId> = tree.dependencies_tree.keys().collect();
+    node_ids.sort_by_key(|node_id| node_id_sort_key(node_id));
+    for node_id in node_ids {
+        if let Some(previous) = tree.dependencies_tree[node_id].previous_dep_path.as_ref()
+            && !map.contains_key(previous)
+        {
+            map.insert(previous.clone(), node_id.clone());
+        }
+    }
+    map
 }
 
 /// Resolve peer dependencies for every importer in `importers` against
@@ -328,6 +430,7 @@ pub fn resolve_peers_workspace(
     resolve_peers_from_workspace_root: bool,
     opts: ResolvePeersOptions,
 ) -> WorkspaceResolvePeersResult {
+    let node_ids_by_previous_dep_path = build_node_ids_by_previous_dep_path(tree, &opts);
     let mut walker = Walker {
         tree,
         opts,
@@ -345,6 +448,8 @@ pub fn resolve_peers_workspace(
         parent_pkgs_of_node: HashMap::new(),
         node_records: HashMap::new(),
         next_record_order: 0,
+        node_ids_by_previous_dep_path,
+        current_provider_sources: Vec::new(),
     };
 
     let mut direct_dependencies_by_importer: BTreeMap<String, BTreeMap<String, DepPath>> =
@@ -368,6 +473,7 @@ pub fn resolve_peers_workspace(
         // the `excludeLinksFromLockfile` link-remap inside
         // `resolve_node` uses the correct importer-scoped target.
         walker.opts.modules_dir.clone_from(&importer.modules_dir);
+        walker.current_provider_sources = importer_provider_sources(importer, root_importer);
         let importer_parents = if root_importer.is_some_and(|root| root.id != importer.id) {
             let mut refs = root_parents.clone().unwrap_or_default();
             refs.extend(walker.build_importer_parents_from(&importer.direct));
@@ -443,6 +549,7 @@ pub fn resolve_peers_workspace(
         direct_dependencies_by_importer.insert(importer.id.clone(), direct_by_alias);
     }
     let mut graph = walker.build_final_graph(&final_dep_paths);
+    let paths_by_node_id = walker.final_paths_by_node_id(&final_dep_paths);
 
     if dedupe_injected_deps_enabled {
         dedupe_injected_deps(
@@ -461,6 +568,7 @@ pub fn resolve_peers_workspace(
         graph,
         direct_dependencies_by_importer,
         peer_dependency_issues_by_importer,
+        paths_by_node_id,
     }
 }
 
@@ -494,6 +602,14 @@ struct ParentRef {
 /// requirement against the alias and `peerDependencies.next` against
 /// the real name.
 type ParentRefs = HashMap<String, ParentRef>;
+
+/// One importer whose direct dependencies count as "current" peer
+/// providers for the must-win guard of locked-peer-provider reuse.
+struct CurrentProviderSource {
+    direct_node_ids_by_alias: HashMap<String, NodeId>,
+    declared_direct_dependencies: std::collections::HashSet<String>,
+    explicitly_requested_direct_dependencies: std::collections::HashSet<String>,
+}
 
 #[derive(Clone, Copy)]
 struct FinalPeerContext<'a> {
@@ -572,6 +688,14 @@ struct Walker<'tree> {
     /// [`Walker::build_final_graph`] pass. See [`NodeRecord`].
     node_records: HashMap<NodeId, NodeRecord>,
     next_record_order: u64,
+    /// Reverse index over the tree nodes' `previous_dep_path`, built
+    /// only when [`ResolvePeersOptions::resolved_peer_provider_paths`]
+    /// is set. The upstream `nodeIdsByPreviousDepPath`.
+    node_ids_by_previous_dep_path: HashMap<DepPath, NodeId>,
+    /// Importers whose direct dependencies count as "current" peer
+    /// providers for the must-win guard. Swapped per importer by the
+    /// workspace entry point.
+    current_provider_sources: Vec<CurrentProviderSource>,
 }
 
 /// Per-peer-name snapshot stored on [`Walker::parent_pkgs_of_node`].
@@ -734,6 +858,7 @@ impl Walker<'_> {
             direct_by_alias.insert(dep.alias.clone(), dep_path);
         }
         let graph = self.build_final_graph(&final_dep_paths);
+        let paths_by_node_id = self.final_paths_by_node_id(&final_dep_paths);
         let resolved_peer_providers_by_alias = self.resolved_peer_providers_by_alias;
         let mut missing_names_by_pkg: HashMap<String, std::collections::HashSet<String>> =
             HashMap::new();
@@ -750,7 +875,24 @@ impl Walker<'_> {
             resolved_peer_providers_by_alias,
             peer_dependency_issues: self.issues,
             missing_names_by_pkg,
+            paths_by_node_id,
         }
+    }
+
+    /// The upstream `pathsByNodeId`: every walked node's final
+    /// `DepPath`. Empty unless
+    /// [`ResolvePeersOptions::collect_paths_by_node_id`] asked for it.
+    fn final_paths_by_node_id(
+        &self,
+        final_dep_paths: &HashMap<NodeId, DepPath>,
+    ) -> HashMap<NodeId, DepPath> {
+        if !self.opts.collect_paths_by_node_id {
+            return HashMap::new();
+        }
+        self.node_dep_paths
+            .keys()
+            .map(|node_id| (node_id.clone(), self.final_dep_path_of(node_id, final_dep_paths)))
+            .collect()
     }
 
     /// Fill in `graph_children` edges that were skipped during the main
@@ -975,6 +1117,8 @@ impl Walker<'_> {
                 child_parent_refs.insert(name, new_parent_ref);
             }
         }
+
+        self.apply_locked_peer_context(&tree_node, &pkg, &mut child_parent_refs, parent_node_ids);
 
         // Record this node's parent context for the descendants'
         // [`peers_cache`] lookups. We compute and store the snapshot
@@ -1286,6 +1430,135 @@ impl Walker<'_> {
     /// `true` when a missing-peer issue for `peer_name` under the
     /// given ancestor chain must not be emitted for the hoist input.
     /// See [`ResolvePeersOptions::hoist_missing_scope`].
+    /// The upstream locked-peer-provider reuse block
+    /// (`resolvePeers.ts:594`): for each `peer name → provider DepPath`
+    /// the wanted lockfile recorded on this node, re-pin the provider
+    /// into `parent_refs` when it is still reachable in the current
+    /// tree, resolved to the same path in the previous pass, carries no
+    /// peer suffix of its own, has not diverged in this pass, is not
+    /// overridden by a current provider that must win, and satisfies
+    /// the node's current peer range.
+    fn apply_locked_peer_context(
+        &self,
+        tree_node: &DependenciesTreeNode,
+        pkg: &ResolvedPackage,
+        parent_refs: &mut ParentRefs,
+        parent_node_ids: &[NodeId],
+    ) {
+        let (Some(locked_peer_context), Some(provider_paths)) = (
+            tree_node.locked_peer_context.as_ref(),
+            self.opts.resolved_peer_provider_paths.as_ref(),
+        ) else {
+            return;
+        };
+        for (peer_name, previous_dep_path) in locked_peer_context {
+            let Some(peer_node_id) = self.node_ids_by_previous_dep_path.get(previous_dep_path)
+            else {
+                continue;
+            };
+            let Some(peer_dep) = pkg.peer_dependencies.get(peer_name) else { continue };
+            if provider_paths.get(peer_node_id) != Some(previous_dep_path) {
+                continue;
+            }
+            // Only pin providers that have no peer context of their
+            // own — a suffixed path depends on the very bindings this
+            // pass is still computing.
+            if index_of_dep_path_suffix(previous_dep_path.as_str()).peers_index.is_some() {
+                continue;
+            }
+            // A provider that already resolved to a different path
+            // this pass must not be rebound.
+            if self
+                .node_dep_paths
+                .get(peer_node_id)
+                .is_some_and(|current| current != previous_dep_path)
+            {
+                continue;
+            }
+            if self.has_current_peer_provider_that_must_win(peer_name, parent_refs, parent_node_ids)
+            {
+                continue;
+            }
+            let Some(peer_tree_node) = self.tree.dependencies_tree.get(peer_node_id) else {
+                continue;
+            };
+            let Some(peer_pkg) = self.tree.packages.get(&peer_tree_node.resolved_package_id) else {
+                continue;
+            };
+            let (_, peer_version) = pkg_name_version(&peer_pkg.result);
+            if !satisfies_with_prereleases(
+                &peer_version,
+                &get_peer_version_range(&peer_dep.version),
+            ) {
+                continue;
+            }
+            // Upstream builds the pinned ref through `toPkgByName`,
+            // which always starts at occurrence 0; the shadow counter
+            // only tracks child-level replacements.
+            parent_refs.insert(
+                peer_name.clone(),
+                ParentRef {
+                    version: peer_version,
+                    node_id: Some(peer_node_id.clone()),
+                    alias: Some(peer_name.clone()),
+                    depth: peer_tree_node.depth,
+                    occurrence: 0,
+                },
+            );
+        }
+    }
+
+    /// The upstream `hasCurrentPeerProviderThatMustWin`: the current
+    /// provider bound for `peer_name` wins over a locked one when it is
+    /// an importer direct dep under a *different* alias, one the user
+    /// explicitly requested, one the manifest declares with no
+    /// wanted-lockfile resolution, or a child an ancestor re-resolved
+    /// away from the lockfile.
+    fn has_current_peer_provider_that_must_win(
+        &self,
+        peer_name: &str,
+        parent_refs: &ParentRefs,
+        parent_node_ids: &[NodeId],
+    ) -> bool {
+        let Some(peer_node_id) =
+            parent_refs.get(peer_name).and_then(|parent| parent.node_id.as_ref())
+        else {
+            return false;
+        };
+        for source in &self.current_provider_sources {
+            for (alias, direct_node_id) in &source.direct_node_ids_by_alias {
+                if direct_node_id == peer_node_id
+                    && (alias != peer_name
+                        || source.explicitly_requested_direct_dependencies.contains(alias)
+                        || (source.declared_direct_dependencies.contains(alias)
+                            && self
+                                .tree
+                                .dependencies_tree
+                                .get(peer_node_id)
+                                .is_none_or(|node| node.previous_dep_path.is_none())))
+                {
+                    return true;
+                }
+            }
+        }
+        for parent_node_id in parent_node_ids {
+            let Some(parent_node) = self.tree.dependencies_tree.get(parent_node_id) else {
+                continue;
+            };
+            let Some(must_win) =
+                parent_node.dependency_names_whose_current_provider_must_win.as_ref()
+            else {
+                continue;
+            };
+            // Ancestors on the walk path always have realized children.
+            let TreeChildren::Realized(children) = &parent_node.children else { continue };
+            if must_win.iter().any(|alias| children.get(alias) == Some(peer_node_id)) {
+                return true;
+            }
+        }
+        false
+    }
+
     fn missing_issue_suppressed(&self, ancestor_pkg_ids: &[String], peer_name: &str) -> bool {
         let Some(scope) = self.opts.hoist_missing_scope.as_ref() else { return false };
         scope.suppresses(ancestor_pkg_ids, peer_name)
@@ -2075,11 +2348,13 @@ impl Walker<'_> {
                         n.depth = child_depth;
                     }
                 })
-                .or_insert_with(|| DependenciesTreeNode {
-                    resolved_package_id: edge.pkg_id.clone(),
-                    children: TreeChildren::Lazy { parent_ids: child_parent_ids },
-                    depth: child_depth,
-                    installable: true,
+                .or_insert_with(|| {
+                    DependenciesTreeNode::new(
+                        edge.pkg_id.clone(),
+                        TreeChildren::Lazy { parent_ids: child_parent_ids },
+                        child_depth,
+                        true,
+                    )
                 });
             realized.insert(edge.alias.clone(), child_node_id);
         }

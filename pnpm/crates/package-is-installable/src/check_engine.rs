@@ -74,8 +74,8 @@ pub struct InvalidNodeVersionError {
 /// The semver `satisfies` call uses `includePrerelease: true` upstream
 /// (so a `21.0.0-nightly...` host satisfies `^14.18.0 || >=16.0.0`).
 /// `node-semver`'s Rust port doesn't expose that flag, so this port
-/// approximates the behavior — see `satisfies_with_prerelease` in
-/// this module for the strategy + known divergences.
+/// reimplements it — see `satisfies_with_prerelease` in this module
+/// for the strategy + the one remaining divergence.
 pub fn check_engine(
     package_id: &str,
     wanted: &WantedEngine,
@@ -120,7 +120,7 @@ fn node_satisfies(current: &str, wanted: &str) -> Result<bool, InvalidVersion> {
     Ok(satisfies_with_prerelease(&version, wanted))
 }
 
-/// Approximation of npm-semver's `satisfies(version, range, { includePrerelease: true })`.
+/// Rust port of npm-semver's `satisfies(version, range, { includePrerelease: true })`.
 ///
 /// `node-semver` (the Rust crate) doesn't expose `includePrerelease`;
 /// its `Range::satisfies` enforces strict semver prerelease compat,
@@ -129,45 +129,133 @@ fn node_satisfies(current: &str, wanted: &str) -> Result<bool, InvalidVersion> {
 /// always wants prereleases to count for engine checks, so a
 /// `21.0.0-nightly...` host should satisfy `>=16.0.0`.
 ///
-/// Strategy:
-/// 1. Try the strict check first. Most callers ship release versions
-///    and this is the correct, byte-for-byte path.
-/// 2. If the strict check fails AND the version is a prerelease,
-///    re-check with the prerelease stripped (i.e. `21.0.0-nightly`
-///    becomes `21.0.0`). This permits a prerelease to satisfy any
-///    range its semantically-equivalent release would.
+/// With `includePrerelease: true` npm-semver's behavior splits by how
+/// each comparator was written:
 ///
-/// The fallback is a controlled over-acceptance: a prerelease
-/// `X.Y.Z-rc1` is taken as `X.Y.Z` for the bounded comparison. The
-/// realistic engine ranges that use just a major (`>=N`, `^N`, plain
-/// `N`) all behave correctly because `node-semver` expands those to
-/// a partial-version range that already accepts prereleases of N at
-/// the lower bound.
+/// - Comparators with a fully specified version — `>=9.0.0`, `<9.0.0`,
+///   a bare `9.0.0` — keep that exact bound and compare by pure semver
+///   ordering, so `9.0.0-alpha.1` does *not* satisfy `>=9.0.0`
+///   (`alpha.1 < 9.0.0`), while it does satisfy `<9.0.0`.
+/// - Everything that npm expands (`9`, `>=9`, `9.x`, `^9.0.0`,
+///   `~9.0.0`, hyphen ranges) gets an implicit `-0` floor on its lower
+///   bound, so `9.0.0-alpha.1` *does* satisfy `9`, `>=9`, and
+///   `^9.0.0`.
 ///
-/// One divergence from upstream's `includePrerelease: true` has no
-/// regression test: a `<X.Y.Z` strict upper bound with a fully
-/// specified major.minor.patch. Upstream accepts `X.Y.Z-rc1`
-/// (semver-less-than), but the strip turns it into `X.Y.Z`, which is
-/// not `<X.Y.Z` — under-acceptance. Ranges of this exact shape are
-/// vanishingly rare in real `package.json` files.
+/// The parsed `Range` can't distinguish the two shapes (`>=9` and
+/// `>=9.0.0` parse identically), so for prerelease versions this is
+/// evaluated per `||` alternative against the range *string*:
+///
+/// 1. The strict check runs first — byte-for-byte correct, and the
+///    only path release versions ever take.
+/// 2. If the alternative contains a comparator that pins prerelease
+///    ordering at the version's own base triple (a fully specified
+///    primitive or bare exact, or a `^`/`~` spec that itself carries a
+///    prerelease), the alternative is decided by pure semver ordering.
+/// 3. Otherwise every comparator either has an implicit `-0` floor or
+///    its bound sits at a different base triple, where pure ordering
+///    and base-version ordering agree — so the check runs with the
+///    prerelease stripped (`21.0.0-nightly` becomes `21.0.0`).
+///
+/// One divergence remains: a conjunction mixing an *expansion* and a
+/// *pinning comparator* at the same base triple (e.g.
+/// `^9.0.0 >9.0.0-alpha`) drops the expansion's `-0` floor. Ranges of
+/// that shape are vanishingly rare in real `package.json` files.
 fn satisfies_with_prerelease(version: &Version, wanted_range: &str) -> bool {
     let Ok(range) = Range::parse(wanted_range) else {
         // Match upstream `semver.satisfies` returning `false` for
         // an unparsable range rather than throwing.
         return false;
     };
+    if version.pre_release.is_empty() {
+        // The strict check only diverges from `includePrerelease: true`
+        // on prerelease versions.
+        return range.satisfies(version);
+    }
+    wanted_range
+        .split("||")
+        .any(|alternative| alternative_satisfies_prerelease(version, alternative.trim()))
+}
+
+fn alternative_satisfies_prerelease(version: &Version, alternative: &str) -> bool {
+    let Ok(range) = Range::parse(alternative) else {
+        return false;
+    };
     if range.satisfies(version) {
         return true;
     }
-    if !version.pre_release.is_empty() {
-        let stripped = Version {
-            major: version.major,
-            minor: version.minor,
-            patch: version.patch,
-            pre_release: Vec::new(),
-            build: version.build.clone(),
+    if has_base_pinning_comparator(alternative, version) {
+        return satisfies_by_pure_ordering(version, &range);
+    }
+    let base = base_version(version);
+    range.satisfies(&base)
+}
+
+/// Pure semver-ordering satisfaction — the comparator test npm runs
+/// once `includePrerelease: true` lifts its prerelease-tuple gate.
+/// Encoded as interval overlap between the range and the degenerate
+/// `[version, version]` range, which `node-semver` evaluates on raw
+/// bound ordering without the gate.
+fn satisfies_by_pure_ordering(version: &Version, range: &Range) -> bool {
+    let mut exact = version.clone();
+    exact.build = Vec::new();
+    Range::parse(exact.to_string()).is_ok_and(|exact| range.allows_any(&exact))
+}
+
+fn base_version(version: &Version) -> Version {
+    Version {
+        major: version.major,
+        minor: version.minor,
+        patch: version.patch,
+        pre_release: Vec::new(),
+        build: Vec::new(),
+    }
+}
+
+/// Whether `alternative` contains a comparator that pins prerelease
+/// ordering at `version`'s base triple: a primitive (`>=`, `>`, `<`,
+/// `<=`, `=`) or bare exact with a fully specified version, or a
+/// `^`/`~` spec that itself carries a prerelease. npm gives none of
+/// these an implicit `-0` floor under `includePrerelease: true`, so
+/// when one sits at the version's own base triple the outcome must
+/// come from pure semver ordering, not from the stripped-prerelease
+/// fallback.
+///
+/// Hyphen-range endpoints do get the implicit floor, so alternatives
+/// containing a hyphen range never pin.
+fn has_base_pinning_comparator(alternative: &str, version: &Version) -> bool {
+    if alternative.split_whitespace().any(|token| token == "-") {
+        return false;
+    }
+    let mut tokens = alternative.split_whitespace();
+    while let Some(token) = tokens.next() {
+        // The parser allows spaces between an operator (or `^`/`~`)
+        // and its version (`>= 9.0.0`), in which case the version is
+        // the next token.
+        let (comparator, requires_prerelease) = if let Some(rest) = strip_primitive_operator(token)
+        {
+            (if rest.is_empty() { tokens.next().unwrap_or("") } else { rest }, false)
+        } else if let Some(rest) =
+            token.strip_prefix("~>").or_else(|| token.strip_prefix(['~', '^']))
+        {
+            (if rest.is_empty() { tokens.next().unwrap_or("") } else { rest }, true)
+        } else {
+            (token, false)
         };
-        return range.satisfies(&stripped);
+        let Ok(parsed) = Version::parse(comparator.trim_start_matches(['v', 'V'])) else {
+            continue;
+        };
+        if requires_prerelease && parsed.pre_release.is_empty() {
+            continue;
+        }
+        if (parsed.major, parsed.minor, parsed.patch)
+            == (version.major, version.minor, version.patch)
+        {
+            return true;
+        }
     }
     false
+}
+
+fn strip_primitive_operator(token: &str) -> Option<&str> {
+    [">=", "<=", ">", "<", "="].iter().find_map(|operator| token.strip_prefix(operator))
 }

@@ -755,6 +755,7 @@ where
                 host.supported_architectures = Some(supp.clone());
             }
             let skipped = compute_skipped_snapshots::<Reporter>(
+                importers,
                 snapshots.expect("guarded by needs_installability_check"),
                 packages.expect("guarded by needs_installability_check"),
                 &host,

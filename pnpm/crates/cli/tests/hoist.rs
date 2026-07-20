@@ -13,7 +13,7 @@
 //!
 //! Tests that depend on features pacquet hasn't built yet (partial
 //! install / re-hoist — pnpm/pacquet#433, GVS — pnpm/pacquet#432,
-//! peer-dep details, hoisted node-linker,
+//! hoisted node-linker,
 //! `extendNodePath`) live in [`known_failures`] below with
 //! [`pacquet_testing_utils::allow_known_failure`] gating the assertion
 //! against the not-yet-implemented subject under test.
@@ -1077,6 +1077,82 @@ fn should_rehoist_after_pruning() {
     drop((root, mock_instance));
 }
 
+/// TS: `should hoist correctly peer dependencies` (`hoist.ts:320`):
+/// `@pnpm.e2e/using-ajv` depends on both `ajv` and `ajv-keywords`;
+/// `ajv-keywords`'s peer `ajv` resolves to the sibling, producing the
+/// peer-variant snapshot `ajv-keywords@1.5.0(ajv@4.10.4)`, which must
+/// be the target of the private hoist link.
+#[test]
+fn should_hoist_correctly_peer_dependencies() {
+    let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_yaml(
+        &workspace,
+        "enableGlobalVirtualStore: false\nhoistPattern:\n  - '*'\nautoInstallPeers: true\n",
+    );
+    write_manifest(&workspace, serde_json::json!({ "@pnpm.e2e/using-ajv": "1.0.0" }));
+    generate_lockfile(pnpm);
+
+    pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
+
+    let hoisted = workspace.join("node_modules/.pnpm/node_modules/ajv-keywords");
+    assert!(
+        is_symlink_or_junction(&hoisted).unwrap(),
+        "`ajv-keywords` must be privately hoisted at {hoisted:?}",
+    );
+    let variant_dir = workspace
+        .join("node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv-keywords");
+    assert!(variant_dir.is_dir(), "peer-variant slot missing at {variant_dir:?}");
+    assert_eq!(
+        fs::canonicalize(&hoisted).unwrap(),
+        fs::canonicalize(&variant_dir).unwrap(),
+        "the hoist link must resolve to the peer-variant slot",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// TS: `should uninstall correctly peer dependencies` (`hoist.ts:327`):
+/// dropping `@pnpm.e2e/using-ajv` from the manifest and re-installing
+/// removes the peer-variant hoist link.
+#[test]
+fn should_uninstall_correctly_peer_dependencies() {
+    let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_yaml(
+        &workspace,
+        "enableGlobalVirtualStore: false\nhoistPattern:\n  - '*'\nautoInstallPeers: true\n",
+    );
+    write_manifest(&workspace, serde_json::json!({ "@pnpm.e2e/using-ajv": "1.0.0" }));
+    generate_lockfile(pnpm);
+    pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
+    assert!(
+        is_symlink_or_junction(&workspace.join("node_modules/.pnpm/node_modules/ajv-keywords"))
+            .unwrap(),
+        "`ajv-keywords` must be privately hoisted before the uninstall",
+    );
+
+    write_manifest(&workspace, serde_json::json!({}));
+    generate_lockfile(Command::new("pnpm").with_current_dir(&workspace));
+    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+
+    assert!(
+        fs::symlink_metadata(workspace.join("node_modules/ajv-keywords")).is_err(),
+        "no symlink to the peer dep may remain in root node_modules",
+    );
+    assert!(
+        fs::symlink_metadata(workspace.join("node_modules/.pnpm/node_modules/ajv-keywords"))
+            .is_err(),
+        "the peer-variant hoist link must be removed with its owner",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// TS: `should recreate node_modules with hoisting` (`hoist.ts:514`):
 /// a plain install may recreate a modules dir installed without
 /// hoisting, and the recreated tree is hoisted.
@@ -1273,10 +1349,6 @@ mod known_failures {
     //! exits early rather than masking a real bug. The cases here
     //! cover:
     //!
-    //! - **Multi-variant peer hoisting**: hoisting the right
-    //!   peer-resolution variant per importer needs a registry-mock
-    //!   fixture pair with an auto-installed peer (upstream uses the
-    //!   real `ajv` / `ajv-keywords`, which the mock doesn't carry).
     //! - **Direct-dep bin precedence**: the bin link order matters
     //!   when hoisted aliases collide with direct deps; pacquet's
     //!   bin-link pipeline doesn't yet mirror upstream's full
@@ -1292,15 +1364,6 @@ mod known_failures {
         known_failure::{KnownFailure, KnownResult},
     };
 
-    fn peer_variant_fixtures_missing() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "The registry mock has no fixture pair matching upstream's \
-             `@pnpm.e2e/using-ajv` + `ajv-keywords` auto-installed-peer \
-             shape, so the peer-variant hoist tests can't run end-to-end \
-             yet.",
-        ))
-    }
-
     fn direct_dep_bin_precedence() -> KnownResult<()> {
         Err(KnownFailure::new(
             "Bin-link ordering for hoisted-vs-direct collisions \
@@ -1315,19 +1378,6 @@ mod known_failures {
             "`extendNodePath` config (and its `false` variant) is not \
              read or applied to command shims by pacquet yet.",
         ))
-    }
-
-    /// Peer deps split into multiple snapshot keys (one per
-    /// peer-resolution variant). Hoist must pick the right variant
-    /// per importer.
-    #[test]
-    fn should_hoist_correctly_peer_dependencies() {
-        allow_known_failure!(peer_variant_fixtures_missing());
-    }
-
-    #[test]
-    fn should_uninstall_correctly_peer_dependencies() {
-        allow_known_failure!(peer_variant_fixtures_missing());
     }
 
     #[test]

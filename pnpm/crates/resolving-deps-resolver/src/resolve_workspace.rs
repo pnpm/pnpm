@@ -315,6 +315,7 @@ where
         modules_dir: None,
         hoist_missing_scope: None,
         hoisted_peer_provider_node_ids,
+        ..ResolvePeersOptions::default()
     };
     let peers = resolve_peers_workspace(
         &mut merged_tree,

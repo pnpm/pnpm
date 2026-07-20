@@ -1903,12 +1903,7 @@ where
                 node.depth = node_depth;
             }
         })
-        .or_insert_with(|| DependenciesTreeNode {
-            resolved_package_id: id.clone(),
-            children,
-            depth: node_depth,
-            installable: true,
-        });
+        .or_insert_with(|| DependenciesTreeNode::new(id.clone(), children, node_depth, true));
     if children_owner.owns_children && is_current_children_owner(ctx, &id, &children_owner.owner) {
         make_non_owner_nodes_lazy(ctx, &id, &node_id);
     }
@@ -2758,12 +2753,7 @@ where
                 node.depth = depth;
             }
         })
-        .or_insert_with(|| DependenciesTreeNode {
-            resolved_package_id: id.clone(),
-            children,
-            depth,
-            installable: true,
-        });
+        .or_insert_with(|| DependenciesTreeNode::new(id.clone(), children, depth, true));
     if children_owner.owns_children && is_current_children_owner(ctx, &id, &children_owner.owner) {
         make_non_owner_nodes_lazy(ctx, &id, &node_id);
     }

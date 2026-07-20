@@ -7,9 +7,12 @@ use std::{fs, path::PathBuf};
 
 use indexmap::IndexMap;
 use pacquet_catalogs_types::Catalogs;
+use pacquet_package_manifest::PackageManifest;
 use tempfile::TempDir;
 
-use crate::{WORKSPACE_MANIFEST_FILENAME, update_workspace_manifest};
+use crate::{
+    UpdateWorkspaceManifestOptions, WORKSPACE_MANIFEST_FILENAME, update_workspace_manifest,
+};
 
 fn catalogs(entries: &[(&str, &[(&str, &str)])]) -> Catalogs {
     entries
@@ -24,13 +27,41 @@ fn catalogs(entries: &[(&str, &[(&str, &str)])]) -> Catalogs {
 /// Run `update_workspace_manifest` against `original` (when `Some`) and return
 /// the resulting file contents, or `None` when no file exists afterward.
 fn run(original: Option<&str>, updated: &Catalogs) -> Option<String> {
+    run_with(
+        original,
+        &UpdateWorkspaceManifestOptions { updated_catalogs: Some(updated), ..Default::default() },
+    )
+}
+
+fn run_with(original: Option<&str>, opts: &UpdateWorkspaceManifestOptions<'_>) -> Option<String> {
     let dir = TempDir::new().expect("temp dir");
     let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
     if let Some(text) = original {
         fs::write(&path, text).expect("seed manifest");
     }
-    update_workspace_manifest(dir.path(), updated).expect("update succeeds");
+    update_workspace_manifest(dir.path(), opts).expect("update succeeds");
     fs::read_to_string(&path).ok()
+}
+
+/// [`run_with`] for the cleanup cases: merge `updated` (when `Some`), then
+/// run the `cleanupUnusedCatalogs` pass over `projects`.
+fn run_cleanup(
+    original: Option<&str>,
+    updated: Option<&Catalogs>,
+    projects: &[&PackageManifest],
+) -> Option<String> {
+    run_with(
+        original,
+        &UpdateWorkspaceManifestOptions {
+            updated_catalogs: updated,
+            cleanup_unused_catalogs: true,
+            all_projects: projects,
+        },
+    )
+}
+
+fn project(manifest: serde_json::Value) -> PackageManifest {
+    PackageManifest::from_value(PathBuf::from("project/package.json"), manifest)
 }
 
 #[test]
@@ -1030,4 +1061,163 @@ fn delete_unset_field_is_noop() {
         serde_saphyr::from_str(&out).expect("parse");
     assert_eq!(parsed.len(), 1);
     assert_eq!(parsed["cacheDir"], serde_json::json!("~/cache"));
+}
+
+/// Ported from upstream `removeCatalogs.test.ts`. The upstream tests
+/// assert the parsed shape; these assert the format-preserving text the
+/// pacquet writer produces for the same inputs.
+mod remove_unused_catalogs {
+    use super::{PackageManifest, catalogs, project, run_cleanup};
+
+    /// TS: `remove the default catalog if it is empty`.
+    #[test]
+    fn removes_the_default_catalog_when_nothing_references_it() {
+        let consumer = project(serde_json::json!({ "dependencies": { "foo": "^0.1.2" } }));
+        let out = run_cleanup(Some("catalog:\n  foo: ^0.1.2\n"), None, &[&consumer]);
+        assert_eq!(out, None, "an emptied manifest file must be deleted");
+    }
+
+    /// TS: `remove the unused default catalog`.
+    #[test]
+    fn removes_the_unused_default_catalog_entries() {
+        let consumer = project(serde_json::json!({
+            "dependencies": { "foo": "^0.1.2", "bar": "catalog:" },
+        }));
+        let out = run_cleanup(Some("catalog:\n  bar: 3.2.1\n  foo: ^0.1.2\n"), None, &[&consumer]);
+        assert_eq!(out.as_deref(), Some("catalog:\n  bar: 3.2.1\n"));
+    }
+
+    /// TS: `remove the unused default catalog with catalogs`.
+    #[test]
+    fn removes_the_unused_entries_under_catalogs_default() {
+        let consumer = project(serde_json::json!({
+            "dependencies": { "foo": "^0.1.2", "bar": "catalog:" },
+        }));
+        let out = run_cleanup(
+            Some("catalogs:\n  default:\n    bar: 3.2.1\n    foo: ^0.1.2\n"),
+            None,
+            &[&consumer],
+        );
+        assert_eq!(out.as_deref(), Some("catalogs:\n  default:\n    bar: 3.2.1\n"));
+    }
+
+    /// TS: `remove the unused named catalog`.
+    #[test]
+    fn removes_an_entirely_unused_named_catalog() {
+        let consumer = project(serde_json::json!({
+            "dependencies": { "abc": "0.1.2", "def": "catalog:bar" },
+        }));
+        let out = run_cleanup(
+            Some("catalogs:\n  foo:\n    abc: 0.1.2\n  bar:\n    def: 3.2.1\n"),
+            None,
+            &[&consumer],
+        );
+        assert_eq!(out.as_deref(), Some("catalogs:\n  bar:\n    def: 3.2.1\n"));
+    }
+
+    /// TS: `remove all unused named catalogs` (the final cleanup that
+    /// empties every named catalog and deletes the file).
+    #[test]
+    fn removes_the_file_when_every_named_catalog_empties() {
+        let consumer = project(serde_json::json!({ "dependencies": { "def": "3.2.1" } }));
+        let out = run_cleanup(
+            Some("catalogs:\n  bar:\n    def: 3.2.1\n  foo:\n    ghi: 7.8.9\n"),
+            None,
+            &[&consumer],
+        );
+        assert_eq!(out, None, "an emptied manifest file must be deleted");
+    }
+
+    /// TS: `same pkg with different version` — the same package name may
+    /// be referenced per catalog; each referenced entry survives.
+    #[test]
+    fn keeps_the_same_package_in_each_referenced_catalog() {
+        let consumer = project(serde_json::json!({
+            "dependencies": { "def": "catalog:bar", "ghi": "catalog:foo", "abc": "catalog:foo" },
+            "optionalDependencies": { "abc": "catalog:bar" },
+        }));
+        let original = "catalogs:\n  foo:\n    abc: 0.1.2\n    ghi: 7.8.9\n  bar:\n    abc: 1.2.3\n    def: 3.2.1\n";
+        let out = run_cleanup(Some(original), None, &[&consumer]);
+        assert_eq!(out.as_deref(), Some(original));
+    }
+
+    /// TS: `update catalogs and remove catalog` — one write both merges
+    /// updated entries and drops the unreferenced ones.
+    #[test]
+    fn updates_catalogs_and_cleans_up_in_one_write() {
+        let consumer = project(serde_json::json!({
+            "dependencies": { "def": "catalog:bar", "ghi": "catalog:foo" },
+        }));
+        let out = run_cleanup(
+            Some("catalogs:\n  foo:\n    abc: 0.1.2\n    ghi: 7.8.9\n  bar:\n    def: 3.2.1\n"),
+            Some(&catalogs(&[("foo", &[("ghi", "7.9.9")])])),
+            &[&consumer],
+        );
+        assert_eq!(
+            out.as_deref(),
+            Some("catalogs:\n  foo:\n    ghi: 7.9.9\n  bar:\n    def: 3.2.1\n"),
+        );
+    }
+
+    /// TS: `when allProjects is undefined should not cleanup unused
+    /// catalogs`.
+    #[test]
+    fn skips_cleanup_without_projects() {
+        let projects: [&PackageManifest; 0] = [];
+        let out = run_cleanup(
+            Some("catalogs:\n  foo:\n    abc: 0.1.2\n    ghi: 7.8.9\n  bar:\n    def: 3.2.1\n"),
+            Some(&catalogs(&[("foo", &[("ghi", "7.9.9")])])),
+            &projects,
+        );
+        assert_eq!(
+            out.as_deref(),
+            Some("catalogs:\n  foo:\n    abc: 0.1.2\n    ghi: 7.9.9\n  bar:\n    def: 3.2.1\n"),
+        );
+    }
+
+    /// A flow-style `catalogs:` mapping exposes no line entries for the
+    /// partial named-catalog drop, so it is left untouched — the same
+    /// conservative stance the entry-level removals take.
+    #[test]
+    fn leaves_a_flow_style_catalogs_mapping_untouched() {
+        let consumer = project(serde_json::json!({ "dependencies": { "def": "catalog:bar" } }));
+        let original = "catalogs: { foo: { abc: 0.1.2 }, bar: { def: 3.2.1 } }\n";
+        let out = run_cleanup(Some(original), None, &[&consumer]);
+        assert_eq!(out.as_deref(), Some(original));
+    }
+
+    /// TS: `keep catalogs referenced only in workspace overrides`.
+    #[test]
+    fn keeps_entries_referenced_only_by_workspace_overrides() {
+        let consumer = project(serde_json::json!({ "dependencies": { "zoo": "^1.0.0" } }));
+        let original = "catalog:\n  foo: 1.0.0\n\
+            catalogs:\n  bar:\n    '@scope/def': 2.0.0\n\
+            overrides:\n  foo: 'catalog:'\n  '@scope/parent@1>@scope/def': 'catalog:bar'\n";
+        let out = run_cleanup(Some(original), None, &[&consumer]);
+        assert_eq!(out.as_deref(), Some(original));
+    }
+
+    /// TS: `remove catalogs unused by dependencies and workspace
+    /// overrides`.
+    #[test]
+    fn removes_entries_unreferenced_by_dependencies_and_overrides() {
+        let consumer = project(serde_json::json!({ "dependencies": { "zoo": "^1.0.0" } }));
+        let out = run_cleanup(
+            Some(
+                "catalog:\n  foo: 1.0.0\n  unusedDefault: 2.0.0\n\
+                 catalogs:\n  bar:\n    def: 2.0.0\n    unusedNamed: 3.0.0\n\
+                 overrides:\n  foo: 'catalog:'\n  def: 'catalog:bar'\n",
+            ),
+            None,
+            &[&consumer],
+        );
+        assert_eq!(
+            out.as_deref(),
+            Some(
+                "catalog:\n  foo: 1.0.0\n\
+                 catalogs:\n  bar:\n    def: 2.0.0\n\
+                 overrides:\n  foo: 'catalog:'\n  def: 'catalog:bar'\n",
+            ),
+        );
+    }
 }

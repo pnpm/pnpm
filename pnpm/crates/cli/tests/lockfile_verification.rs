@@ -15,11 +15,7 @@ pub mod _utils;
 pub use _utils::*;
 
 use command_extra::CommandExtra;
-use pacquet_testing_utils::{
-    allow_known_failure,
-    bin::{AddMockedRegistry, CommandTempCwd},
-    known_failure::{KnownFailure, KnownResult},
-};
+use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::fs;
 
 /// `minimumReleaseAge` set to 100 years rejects every version the
@@ -91,15 +87,46 @@ fn install_fails_under_huge_minimum_release_age() {
     drop((root, mock_instance));
 }
 
-fn immature_version_fallback() -> KnownResult<()> {
-    Err(KnownFailure::new(
-        "pacquet does not yet implement the resolver path that falls back to an immature version when non-strict minimumReleaseAge has no mature match",
-    ))
-}
-
+/// TS: `minimumReleaseAge falls back to immature version when no mature
+/// version satisfies the range (non-strict mode)` (`minimumReleaseAge.ts:68`).
+/// A 100-year cutoff makes every `@pnpm.e2e/bravo-dep` version immature.
+/// Non-strict mode (pacquet's default) must fall back to the *lowest*
+/// version matching the `1.0` range — normal resolution would pick the
+/// highest, `1.0.1` — and complete the install instead of aborting.
 #[test]
 fn non_strict_minimum_release_age_falls_back_when_no_mature_version_matches() {
-    allow_known_failure!(immature_version_fallback());
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    set_minimum_release_age(&workspace, 60 * 24 * 365 * 100);
+
+    let output =
+        pacquet.with_args(["add", "@pnpm.e2e/bravo-dep@1.0"]).output().expect("spawn pacquet add");
+    assert!(
+        output.status.success(),
+        "non-strict mode must proceed with the immature fallback (stderr: {})",
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    let manifest: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(workspace.join("package.json")).expect("read package.json"),
+    )
+    .expect("parse package.json");
+    assert_eq!(
+        manifest["dependencies"]["@pnpm.e2e/bravo-dep"],
+        serde_json::json!("~1.0.0"),
+        "the fallback must pin the lowest matching version",
+    );
+
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    let snapshots = lockfile.snapshots.as_ref().expect("lockfile has snapshots");
+    assert!(
+        snapshots.keys().any(|key| key.to_string() == "@pnpm.e2e/bravo-dep@1.0.0"),
+        "the lockfile must resolve the lowest matching version",
+    );
+
+    drop((root, mock_instance));
 }
 
 /// `trustLockfile: true` short-circuits the verification gate so a

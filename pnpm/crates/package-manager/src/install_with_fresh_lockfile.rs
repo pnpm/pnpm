@@ -1897,6 +1897,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             ) {
                 (Some(snapshots), Some(packages), Some(host)) => {
                     crate::compute_skipped_snapshots::<Reporter>(
+                        &initial_materialization_lockfile.importers,
                         snapshots,
                         packages,
                         host,

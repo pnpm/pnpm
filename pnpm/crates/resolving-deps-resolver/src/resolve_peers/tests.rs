@@ -1896,12 +1896,7 @@ fn peer_cycle_between_own_dep_and_provider_at_tree_position_resolves() {
 }
 
 fn tree_node(pkg_id: &str, children: BTreeMap<String, NodeId>, depth: i32) -> DependenciesTreeNode {
-    DependenciesTreeNode {
-        resolved_package_id: pkg_id.to_string(),
-        children: TreeChildren::Realized(children),
-        depth,
-        installable: true,
-    }
+    DependenciesTreeNode::new(pkg_id.to_string(), TreeChildren::Realized(children), depth, true)
 }
 
 fn walker_for_tests(tree: &mut ResolvedTree) -> Walker<'_> {
@@ -1922,6 +1917,8 @@ fn walker_for_tests(tree: &mut ResolvedTree) -> Walker<'_> {
         parent_pkgs_of_node: HashMap::new(),
         node_records: HashMap::new(),
         next_record_order: 0,
+        node_ids_by_previous_dep_path: HashMap::new(),
+        current_provider_sources: Vec::new(),
     }
 }
 
@@ -2001,5 +1998,174 @@ fn resolve_result(name: &str, version: &str) -> ResolveResult {
         normalized_bare_specifier: None,
         alias: Some(name.to_string()),
         policy_violation: None,
+    }
+}
+
+/// Ported from upstream `resolvePeers.ts`'s `locked peer provider
+/// preferences` suite: a second resolution pass receives the first
+/// pass's `paths_by_node_id` and re-pins compatible locked providers.
+mod locked_peer_provider_preferences {
+    use super::{
+        DepPath, DirectDep, NodeId, ResolvePeersOptions, ResolvedTree, package,
+        package_with_peer_dependencies, resolve_peers, tree_node,
+    };
+    use std::collections::{BTreeMap, HashMap, HashSet};
+
+    struct LockedTreeIds {
+        current_peer: NodeId,
+        retained_peer: NodeId,
+        retainer: NodeId,
+        wrapper: NodeId,
+        consumer: NodeId,
+    }
+
+    fn ids() -> LockedTreeIds {
+        LockedTreeIds {
+            current_peer: NodeId::leaf("peer@1.0.0"),
+            retained_peer: NodeId::leaf("peer@2.0.0"),
+            retainer: NodeId::next(),
+            wrapper: NodeId::next(),
+            consumer: NodeId::next(),
+        }
+    }
+
+    /// Mirror of upstream `createTree` (`resolvePeers.ts:814`): the
+    /// importer directly depends on `peer@1.0.0` (the current
+    /// provider), `retainer` (which keeps `peer@2.0.0` reachable), and
+    /// `wrapper`, whose child `consumer` carries the locked context
+    /// binding `peer` to `peer@2.0.0`.
+    fn locked_provider_tree(ids: &LockedTreeIds, peer_range: &str) -> ResolvedTree {
+        let mut current_peer_node = tree_node("peer@1.0.0", BTreeMap::new(), 0);
+        current_peer_node.previous_dep_path = Some(DepPath::from("peer@1.0.0"));
+        let mut retained_peer_node = tree_node("peer@2.0.0", BTreeMap::new(), 1);
+        retained_peer_node.previous_dep_path = Some(DepPath::from("peer@2.0.0"));
+        let mut consumer_node = tree_node("consumer@1.0.0", BTreeMap::new(), 1);
+        consumer_node.locked_peer_context =
+            Some(BTreeMap::from([("peer".to_string(), DepPath::from("peer@2.0.0"))]));
+        ResolvedTree {
+            direct: vec![
+                DirectDep {
+                    alias: "peer".to_string(),
+                    node_id: ids.current_peer.clone(),
+                    id: "peer@1.0.0".to_string(),
+                },
+                DirectDep {
+                    alias: "retainer".to_string(),
+                    node_id: ids.retainer.clone(),
+                    id: "retainer@1.0.0".to_string(),
+                },
+                DirectDep {
+                    alias: "wrapper".to_string(),
+                    node_id: ids.wrapper.clone(),
+                    id: "wrapper@1.0.0".to_string(),
+                },
+            ],
+            packages: HashMap::from([
+                ("peer@1.0.0".to_string(), package("peer", "1.0.0", &[], true)),
+                ("peer@2.0.0".to_string(), package("peer", "2.0.0", &[], true)),
+                ("retainer@1.0.0".to_string(), package("retainer", "1.0.0", &[], false)),
+                ("wrapper@1.0.0".to_string(), package("wrapper", "1.0.0", &[], false)),
+                (
+                    "consumer@1.0.0".to_string(),
+                    package_with_peer_dependencies(
+                        "consumer",
+                        "1.0.0",
+                        &[("peer", peer_range, false)],
+                        false,
+                    ),
+                ),
+            ]),
+            dependencies_tree: HashMap::from([
+                (ids.current_peer.clone(), current_peer_node),
+                (ids.retained_peer.clone(), retained_peer_node),
+                (
+                    ids.retainer.clone(),
+                    tree_node(
+                        "retainer@1.0.0",
+                        BTreeMap::from([("peer".to_string(), ids.retained_peer.clone())]),
+                        0,
+                    ),
+                ),
+                (
+                    ids.wrapper.clone(),
+                    tree_node(
+                        "wrapper@1.0.0",
+                        BTreeMap::from([("consumer".to_string(), ids.consumer.clone())]),
+                        0,
+                    ),
+                ),
+                (ids.consumer.clone(), consumer_node),
+            ]),
+            all_peer_dep_names: HashSet::from(["peer".to_string()]),
+            policy_violations: Vec::new(),
+            applied_patches: HashSet::new(),
+            children_by_id: HashMap::new(),
+        }
+    }
+
+    /// TS: `prefers a compatible locked provider that remains reachable
+    /// in the current graph` (`resolvePeers.ts:890`).
+    #[test]
+    fn compatible_locked_peer_provider_is_reused() {
+        let ids = ids();
+        let mut tree = locked_provider_tree(&ids, ">=1");
+        let initial = resolve_peers(
+            &mut tree,
+            ResolvePeersOptions {
+                collect_paths_by_node_id: true,
+                ..ResolvePeersOptions::default()
+            },
+        );
+        assert!(
+            initial.graph.contains_key(&DepPath::from("consumer@1.0.0(peer@1.0.0)")),
+            "the first pass binds the current provider; graph keys: {:#?}",
+            initial.graph.keys().collect::<Vec<_>>(),
+        );
+
+        let preferred = resolve_peers(
+            &mut tree,
+            ResolvePeersOptions {
+                resolved_peer_provider_paths: Some(initial.paths_by_node_id),
+                ..ResolvePeersOptions::default()
+            },
+        );
+        assert!(
+            preferred.graph.contains_key(&DepPath::from("consumer@1.0.0(peer@2.0.0)")),
+            "the second pass re-pins the locked provider; graph keys: {:#?}",
+            preferred.graph.keys().collect::<Vec<_>>(),
+        );
+    }
+
+    /// TS: `does not reuse a locked provider outside the current peer
+    /// range` (`resolvePeers.ts:1100`).
+    #[test]
+    fn locked_peer_provider_outside_the_current_range_is_not_reused() {
+        let ids = ids();
+        let mut tree = locked_provider_tree(&ids, "^1.0.0");
+        let initial = resolve_peers(
+            &mut tree,
+            ResolvePeersOptions {
+                collect_paths_by_node_id: true,
+                ..ResolvePeersOptions::default()
+            },
+        );
+
+        let preferred = resolve_peers(
+            &mut tree,
+            ResolvePeersOptions {
+                resolved_peer_provider_paths: Some(initial.paths_by_node_id),
+                ..ResolvePeersOptions::default()
+            },
+        );
+        assert!(
+            preferred.graph.contains_key(&DepPath::from("consumer@1.0.0(peer@1.0.0)")),
+            "the current in-range provider stays bound; graph keys: {:#?}",
+            preferred.graph.keys().collect::<Vec<_>>(),
+        );
+        assert!(
+            !preferred.graph.contains_key(&DepPath::from("consumer@1.0.0(peer@2.0.0)")),
+            "the out-of-range locked provider must not be re-pinned; graph keys: {:#?}",
+            preferred.graph.keys().collect::<Vec<_>>(),
+        );
     }
 }

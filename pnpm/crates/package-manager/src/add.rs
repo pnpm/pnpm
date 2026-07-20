@@ -1,6 +1,9 @@
 use crate::{
     CatalogDecision, CatalogModeDep, CatalogVersionMismatchError, DIRECT_GROUPS, Install,
     InstallError, ResolvedPackages, UpdateSeedPolicy, WorkspaceInstallSelection,
+    catalog_cleanup::{
+        WriteWorkspaceCatalogsError, write_workspace_catalogs, write_workspace_catalogs_selected,
+    },
     decide_catalog_outcome, emit_initial_package_manifest, package_manifest_prefix,
     resolution_policy::{PickPolicy, pick_package_context},
     resolve_latest::LatestPicker,
@@ -28,7 +31,6 @@ use pacquet_resolving_npm_resolver::{
     which_version_is_pinned,
 };
 use pacquet_tarball::MemCache;
-use pacquet_workspace_manifest_writer::{UpdateWorkspaceManifestError, update_workspace_manifest};
 use std::{collections::HashSet, path::PathBuf};
 
 #[must_use]
@@ -101,9 +103,9 @@ pub enum AddError {
     CatalogVersionMismatch(#[error(source)] CatalogVersionMismatchError),
 
     /// Writing the auto-cataloged entry back to `pnpm-workspace.yaml`
-    /// failed.
+    /// (or the `cleanupUnusedCatalogs` pass it runs) failed.
     #[diagnostic(transparent)]
-    WriteWorkspaceManifest(#[error(source)] UpdateWorkspaceManifestError),
+    WriteWorkspaceManifest(#[error(source)] WriteWorkspaceCatalogsError),
 
     #[diagnostic(transparent)]
     Install(#[error(source)] InstallError),
@@ -182,11 +184,15 @@ where
 
         // Write the new catalog entry to `pnpm-workspace.yaml` before the
         // install so the resolver reads it back and the lockfile's
-        // `catalogs:` snapshot records the resolved version.
-        if !updated_catalogs.is_empty() {
-            update_workspace_manifest(&catalog_ctx.workspace_dir, &updated_catalogs)
-                .map_err(AddError::WriteWorkspaceManifest)?;
-        }
+        // `catalogs:` snapshot records the resolved version. The same
+        // write runs the `cleanupUnusedCatalogs` pass when configured.
+        write_workspace_catalogs(
+            config,
+            Some(&catalog_ctx.workspace_dir),
+            &updated_catalogs,
+            manifest,
+        )
+        .map_err(AddError::WriteWorkspaceManifest)?;
         let catalogs_override = (!updated_catalogs.is_empty()).then(|| {
             let mut catalogs = catalog_ctx.catalogs;
             merge_catalogs(&mut catalogs, &updated_catalogs);
@@ -295,10 +301,13 @@ where
             save_catalog_name.as_deref(),
         )
         .await?;
-        if !prepared.updated_catalogs.is_empty() {
-            update_workspace_manifest(&prepared.workspace_dir, &prepared.updated_catalogs)
-                .map_err(AddError::WriteWorkspaceManifest)?;
-        }
+        write_workspace_catalogs_selected(
+            config,
+            &prepared.workspace_dir,
+            &prepared.updated_catalogs,
+            projects,
+        )
+        .map_err(AddError::WriteWorkspaceManifest)?;
 
         Box::pin(
             Install {
