@@ -399,12 +399,11 @@ fn shim_node_path(pkg: &PackageBinSource, extra_node_paths: &[String]) -> Vec<St
     if extra_node_paths.is_empty() {
         return Vec::new();
     }
-    let mut merged = match &pkg.resolved_location {
-        Some(resolved) => bin_node_paths(resolved),
-        None => {
-            let dir = dunce::canonicalize(&pkg.location).unwrap_or_else(|_| pkg.location.clone());
-            bin_node_paths(&dir)
-        }
+    let mut merged = if let Some(resolved) = &pkg.resolved_location {
+        bin_node_paths(resolved)
+    } else {
+        let dir = dunce::canonicalize(&pkg.location).unwrap_or_else(|_| pkg.location.clone());
+        bin_node_paths(&dir)
     };
     for extra in extra_node_paths {
         if !merged.contains(extra) {
