@@ -40,10 +40,16 @@ pub(crate) fn write_pnp_file(
         r"'use strict';
 const Module = require('module');
 const path = require('path');
+const {{ fileURLToPath }} = require('url');
 const registry = {registry}.packages;
 const modulesDir = path.resolve(__dirname, {modules_dir});
+
+function packageLocation(pkg) {{
+  return pkg.url.startsWith('file:') ? fileURLToPath(pkg.url) : path.resolve(modulesDir, pkg.url);
+}}
+
 const locations = Object.entries(registry)
-  .map(([id, pkg]) => [id, path.resolve(modulesDir, pkg.url)])
+  .map(([id, pkg]) => [id, packageLocation(pkg)])
   .sort((a, b) => b[1].length - a[1].length);
 const originalResolveFilename = Module._resolveFilename;
 
@@ -81,9 +87,9 @@ function resolveToUnqualified(request, issuer) {{
     throw error;
   }}
   const subpath = request.slice(name.length);
-  const packageLocation = path.resolve(modulesDir, registry[dependencyId].url);
-  const unqualified = path.resolve(packageLocation, `.${{subpath}}`);
-  if (unqualified !== packageLocation && !unqualified.startsWith(`${{packageLocation}}${{path.sep}}`)) {{
+  const dependencyLocation = packageLocation(registry[dependencyId]);
+  const unqualified = path.resolve(dependencyLocation, `.${{subpath}}`);
+  if (unqualified !== dependencyLocation && !unqualified.startsWith(`${{dependencyLocation}}${{path.sep}}`)) {{
     const error = new Error(`Your application tried to access a path outside ${{name}}`);
     error.code = 'MODULE_NOT_FOUND';
     throw error;
