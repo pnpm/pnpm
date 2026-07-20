@@ -220,6 +220,7 @@ impl UpdateArgs {
         let InstallFamilySelection {
             workspace_root: _,
             mut projects,
+            ordered_groups,
             ordered_dirs,
             selected_dirs,
             active_manifest_is_standin,
@@ -246,6 +247,7 @@ impl UpdateArgs {
         }
         .run_selected::<Reporter>(
             &mut projects,
+            &ordered_groups,
             &ordered_dirs,
             selected_dirs.as_ref(),
             active_manifest_is_standin,

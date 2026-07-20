@@ -25,6 +25,7 @@ use std::{
 pub(crate) struct InstallFamilySelection {
     pub(crate) workspace_root: PathBuf,
     pub(crate) projects: Vec<pacquet_workspace::Project>,
+    pub(crate) ordered_groups: Vec<Vec<PathBuf>>,
     pub(crate) ordered_dirs: Vec<PathBuf>,
     pub(crate) selected_dirs: Arc<HashSet<PathBuf>>,
     pub(crate) active_manifest_is_standin: bool,
@@ -57,7 +58,7 @@ fn select_install_family_projects(
             );
         }
     }
-    let (ordered_dirs, selected_dirs) = {
+    let (ordered_groups, ordered_dirs, selected_dirs) = {
         let selection = select_recursive_projects(
             &projects,
             cfg,
@@ -68,21 +69,19 @@ fn select_install_family_projects(
                 AutoExcludeRoot::Disabled
             },
         )?;
-        let ordered_dirs = if recursive_sort {
+        let ordered_groups = if recursive_sort {
             sort_filtered_projects(
                 &selection.selected,
                 selection.full_graph(),
                 selection.prod_all.as_ref(),
                 &selection.prod_only_selected,
             )
-            .into_iter()
-            .flatten()
-            .collect()
         } else {
-            selection.selected.keys().cloned().collect()
+            vec![selection.selected.keys().cloned().collect()]
         };
+        let ordered_dirs = ordered_groups.iter().flatten().cloned().collect();
         let selected_dirs = Arc::new(selection.selected.keys().cloned().collect());
-        (ordered_dirs, selected_dirs)
+        (ordered_groups, ordered_dirs, selected_dirs)
     };
 
     let active_dir = manifest_path.parent().expect("manifest path always has a parent dir");
@@ -98,6 +97,7 @@ fn select_install_family_projects(
     Ok(Some(InstallFamilySelection {
         workspace_root,
         projects,
+        ordered_groups,
         ordered_dirs,
         selected_dirs,
         active_manifest_is_standin,

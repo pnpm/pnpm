@@ -9,13 +9,10 @@
 //! lockfile in memory and the hoisted linker materializes a flat
 //! `node_modules/` of **real directories**.
 //!
-//! Cases that depend on features pacquet hasn't built yet — `pnpm add`
-//! / update manifest mutation (pnpm/pacquet#433), lifecycle scripts +
-//! bin linking on the fresh path ([#11870]) — live in [`known_failures`]
-//! below with [`pacquet_testing_utils::allow_known_failure`] gating the
-//! assertion against the not-yet-implemented subject under test.
-//!
-//! [#11870]: https://github.com/pnpm/pnpm/issues/11870
+//! Cases that depend on features pacquet hasn't built yet live in
+//! [`known_failures`] below with
+//! [`pacquet_testing_utils::allow_known_failure`] gating the assertion
+//! against the not-yet-implemented subject under test.
 
 #![cfg(unix)] // hoisted bin shims + real-dir-vs-junction checks are unix-shaped here.
 
@@ -512,9 +509,8 @@ fn install_only_dependencies_of_specified_importer_with_hoisted_linker() {
 /// `@pnpm.e2e/pre-and-postinstall-scripts-example@1` and two pin `@2`;
 /// the hoisted layout keeps one version at the workspace root and
 /// nests the other under its consumers, and the build step must run
-/// the scripts at every materialized copy. Driven through the frozen
-/// path — lifecycle scripts on the fresh hoisted path are still
-/// blocked on pnpm/pnpm#11870 (see [`known_failures`]).
+/// the scripts at every materialized copy. This case retains frozen
+/// reinstall coverage; fresh hoisted installs are covered below.
 #[test]
 fn run_pre_and_postinstall_scripts_in_a_workspace_with_hoisted_linker() {
     const SCRIPTS: &str = "@pnpm.e2e/pre-and-postinstall-scripts-example";
@@ -761,6 +757,117 @@ fn package_that_is_peer_dependency_of_itself() {
     drop((root, mock_instance));
 }
 
+/// TS: `run pre/postinstall scripts. bin files should be linked in a
+/// hoisted node_modules` (`hoistedNodeLinker/install.ts:187`).
+#[test]
+fn run_pre_and_postinstall_scripts_and_link_bins() {
+    const SCRIPTS: &str = "@pnpm.e2e/pre-and-postinstall-scripts-example";
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_manifest(&workspace, serde_json::json!({ SCRIPTS: "1.0.0" }));
+    write_workspace_yaml(
+        &workspace,
+        &format!("nodeLinker: hoisted\nallowBuilds:\n  '{SCRIPTS}': true\n"),
+    );
+
+    pacquet.with_arg("install").assert().success();
+
+    let package_dir = workspace.join("node_modules").join(SCRIPTS);
+    assert!(!package_dir.join("generated-by-prepare.js").exists());
+    assert!(package_dir.join("generated-by-preinstall.js").exists());
+    assert!(package_dir.join("generated-by-postinstall.js").exists());
+
+    drop((root, mock_instance));
+}
+
+/// TS: `running install scripts in a workspace that has no root project`
+/// (`hoistedNodeLinker/install.ts:210`).
+#[test]
+fn running_install_scripts_in_workspace_without_root_project() {
+    const SCRIPTS: &str = "@pnpm.e2e/pre-and-postinstall-scripts-example";
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml(&format!(
+        "nodeLinker: hoisted\nallowBuilds:\n  '{SCRIPTS}': true\n",
+    ));
+    fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[(SCRIPTS, "1.0.0")], ..Default::default() },
+    );
+
+    fixture.run(["install"]);
+
+    assert!(
+        fixture
+            .workspace
+            .join("node_modules")
+            .join(SCRIPTS)
+            .join("generated-by-preinstall.js")
+            .exists(),
+    );
+}
+
+/// TS: `linking bins of local projects when node-linker is set to
+/// hoisted` (`hoistedNodeLinker/install.ts:262`).
+#[test]
+fn linking_bins_of_local_projects() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("nodeLinker: hoisted\n");
+    let consumer = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[("project-2", "workspace:*")], ..Default::default() },
+    );
+    let provider = fixture.project("project-2", "project-2", ManifestDeps::default());
+    let mut provider_manifest = read_manifest(&provider);
+    provider_manifest["bin"] = serde_json::json!({ "project-2": "index.js" });
+    write_manifest_value(&provider, &provider_manifest);
+    fs::write(provider.join("index.js"), "#!/usr/bin/env node\nconsole.log('hello')\n")
+        .expect("write project bin");
+
+    fixture.run(["install"]);
+
+    assert!(consumer.join("node_modules/.bin/project-2").exists());
+}
+
+/// TS: `run pre/postinstall scripts in a project that uses
+/// node-linker=hoisted. Should not fail on repeat install`
+/// (`lifecycleScripts.ts:825`).
+#[test]
+fn lifecycle_scripts_do_not_fail_on_repeat_hoisted_install() {
+    const SCRIPTS: &str = "@pnpm.e2e/pre-and-postinstall-scripts-example";
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_manifest(&workspace, serde_json::json!({ SCRIPTS: "1.0.0" }));
+    write_workspace_yaml(
+        &workspace,
+        &format!(
+            "nodeLinker: hoisted\nsideEffectsCacheRead: true\nsideEffectsCacheWrite: true\nallowBuilds:\n  '{SCRIPTS}': true\n",
+        ),
+    );
+    pacquet.with_arg("install").assert().success();
+
+    write_manifest(
+        &workspace,
+        serde_json::json!({
+            SCRIPTS: "1.0.0",
+            "example": "npm:@pnpm.e2e/pre-and-postinstall-scripts-example@2.0.0",
+        }),
+    );
+    pacquet_in(&workspace).with_arg("install").assert().success();
+
+    for package_dir in
+        [workspace.join("node_modules").join(SCRIPTS), workspace.join("node_modules/example")]
+    {
+        assert!(package_dir.join("generated-by-preinstall.js").exists());
+        assert!(package_dir.join("generated-by-postinstall.js").exists());
+    }
+
+    drop((root, mock_instance));
+}
+
 mod known_failures {
     //! Hoisted-node-linker cases blocked on features pacquet hasn't
     //! built yet. Each stubs the not-yet-built subject through
@@ -794,30 +901,5 @@ mod known_failures {
     #[test]
     fn hoisted_workspace_layout_does_not_duplicate_root_version() {
         allow_known_failure!(hoisted_workspace_duplicate_materialization());
-    }
-
-    fn lifecycle_scripts_on_fresh_path() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "The fresh-lockfile install path doesn't run lifecycle \
-             scripts or link per-node_modules bins yet — that's the \
-             `BuildModules` port tracked by #11870. Until it lands, \
-             pre/postinstall-script and local-bin assertions under the \
-             hoisted linker can't be exercised on the fresh path.",
-        ))
-    }
-
-    #[test]
-    fn run_pre_and_postinstall_scripts_and_link_bins() {
-        allow_known_failure!(lifecycle_scripts_on_fresh_path());
-    }
-
-    #[test]
-    fn running_install_scripts_in_workspace_without_root_project() {
-        allow_known_failure!(lifecycle_scripts_on_fresh_path());
-    }
-
-    #[test]
-    fn linking_bins_of_local_projects() {
-        allow_known_failure!(lifecycle_scripts_on_fresh_path());
     }
 }

@@ -186,7 +186,9 @@ where
     link_bins_of_packages::<Sys>(&packages, bins_dir)
 }
 
-fn collect_packages_in_modules_dir<Sys>(
+/// Read the installed packages directly under `modules_dir`, including
+/// scoped packages one directory deeper.
+pub fn collect_packages_in_modules_dir<Sys>(
     modules_dir: &Path,
 ) -> Result<Vec<PackageBinSource>, LinkBinsError>
 where

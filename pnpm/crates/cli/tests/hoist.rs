@@ -1342,6 +1342,37 @@ fn combined_public_and_private_hoist_patterns_split_targets() {
     drop((root, mock_instance));
 }
 
+/// TS: `the hoisted packages should not override the bin files of the
+/// direct dependencies` (`install/hoist.ts:567`).
+#[test]
+fn hoisted_packages_dont_override_direct_dep_bins() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_manifest(
+        &workspace,
+        serde_json::json!({ "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" }),
+    );
+    write_workspace_yaml(&workspace, "publicHoistPattern:\n  - '*'\n");
+    let assert_direct_bin_wins = || {
+        let shim = fs::read_to_string(workspace.join("node_modules/.bin/hello-world-js-bin"))
+            .expect("read hello-world-js-bin shim");
+        assert!(
+            shim.contains("hello-world-js-bin-parent"),
+            "the direct dependency's bin must win over the publicly hoisted transitive:\n{shim}",
+        );
+    };
+
+    pacquet.with_arg("install").assert().success();
+    assert_direct_bin_wins();
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    assert_direct_bin_wins();
+
+    drop((root, mock_instance));
+}
+
 mod known_failures {
     //! Hoist cases blocked on features pacquet hasn't built yet. Each
     //! entry stubs the not-yet-built subject under test through
@@ -1349,10 +1380,6 @@ mod known_failures {
     //! exits early rather than masking a real bug. The cases here
     //! cover:
     //!
-    //! - **Direct-dep bin precedence**: the bin link order matters
-    //!   when hoisted aliases collide with direct deps; pacquet's
-    //!   bin-link pipeline doesn't yet mirror upstream's full
-    //!   ordering.
     //! - **`extendNodePath`**: not read or applied to command shims.
     //!
     //! The repeat-install / rehoist / pattern-diff cases formerly
@@ -1364,25 +1391,11 @@ mod known_failures {
         known_failure::{KnownFailure, KnownResult},
     };
 
-    fn direct_dep_bin_precedence() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "Bin-link ordering for hoisted-vs-direct collisions \
-             requires the full direct-deps bin pass plus hoist bin \
-             precedence rules; pacquet's bin pipeline doesn't yet \
-             implement the conflict resolution upstream uses.",
-        ))
-    }
-
     fn extend_node_path_in_shims() -> KnownResult<()> {
         Err(KnownFailure::new(
             "`extendNodePath` config (and its `false` variant) is not \
              read or applied to command shims by pacquet yet.",
         ))
-    }
-
-    #[test]
-    fn hoisted_packages_dont_override_direct_dep_bins() {
-        allow_known_failure!(direct_dep_bin_precedence());
     }
 
     #[test]

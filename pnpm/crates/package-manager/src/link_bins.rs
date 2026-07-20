@@ -4,7 +4,7 @@ use miette::Diagnostic;
 use pacquet_cmd_shim::{
     BinOrigin, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead,
     FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsError, PackageBinSource,
-    link_bins_of_packages,
+    collect_packages_in_modules_dir, link_bins_of_packages,
 };
 use pacquet_lockfile::{LockfileResolution, PackageKey, PackageMetadata, PkgName, SnapshotEntry};
 use rayon::prelude::*;
@@ -113,6 +113,31 @@ pub fn link_top_level_bins(
         return Ok(());
     }
     link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"))
+}
+
+/// Link a project's top-level bins while preserving direct-dependency
+/// precedence over every other package present in its `node_modules`.
+pub fn link_project_bins(
+    modules_dir: &Path,
+    direct_dep_names: &[String],
+) -> Result<(), LinkBinsError> {
+    let direct_locations =
+        direct_dep_names.iter().map(|name| modules_dir.join(name)).collect::<HashSet<_>>();
+    let sources = collect_packages_in_modules_dir::<Host>(modules_dir)?
+        .into_iter()
+        .map(|source| {
+            let origin = if direct_locations.contains(&source.location) {
+                BinOrigin::Direct
+            } else {
+                BinOrigin::Hoisted
+            };
+            source.with_origin(origin)
+        })
+        .collect::<Vec<_>>();
+    if sources.is_empty() {
+        return Ok(());
+    }
+    link_bins_of_packages::<Host>(&sources, &modules_dir.join(".bin"))
 }
 
 /// Read each `<modules_dir>/<name>/package.json` and assemble the
