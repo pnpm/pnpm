@@ -2209,23 +2209,42 @@ impl<'a> DownloadTarballToStore<'a> {
             };
 
             tracing::info!(target: "pacquet::download", ?package_url, "Wait for cache");
-            notify.notified().await;
-            match &*cache_lock.read().await {
-                CacheValue::Available(cas_paths) => {
-                    // Same rationale as the pre-notify `Available`
-                    // branch above.
-                    emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
-                    Ok(Arc::clone(cas_paths))
+            loop {
+                // Register with the `Notify` *before* re-checking the
+                // slot. `notify_waiters` stores no permit — it wakes
+                // only `Notified` futures already registered at that
+                // instant — and the read guard from the `InProgress`
+                // observation above is released before this point, so
+                // the owner's flip-and-notify can land in between.
+                // Checking first and registering after loses that
+                // wakeup and parks this task forever (nothing ever
+                // notifies the slot again once it is terminal).
+                let mut notified = std::pin::pin!(notify.notified());
+                notified.as_mut().enable();
+                match &*cache_lock.read().await {
+                    CacheValue::Available(cas_paths) => {
+                        // Same rationale as the pre-wait `Available`
+                        // branch above.
+                        emit_progress_found_in_store::<Reporter>(
+                            package_id,
+                            requester,
+                            progress_key,
+                        );
+                        return Ok(Arc::clone(cas_paths));
+                    }
+                    CacheValue::Failed => {
+                        return Err(TarballError::SiblingFetchFailed {
+                            url: package_url.to_string(),
+                        });
+                    }
+                    // The owner notifies only after flipping the slot
+                    // to `Available` or `Failed`, so a wake with the
+                    // slot still `InProgress` cannot happen — but a
+                    // stale registration completing early is harmless
+                    // either way: re-register and park again.
+                    CacheValue::InProgress(_) => {}
                 }
-                CacheValue::Failed => {
-                    Err(TarballError::SiblingFetchFailed { url: package_url.to_string() })
-                }
-                // The owner only flips us to `Available` or `Failed`
-                // before notifying. Hitting this is a programmer
-                // error in the owner branch below.
-                CacheValue::InProgress(_) => unreachable!(
-                    "owner notified waiters but left the cache in InProgress for {package_url:?}",
-                ),
+                notified.await;
             }
         } else {
             let notify = Arc::new(Notify::new());
