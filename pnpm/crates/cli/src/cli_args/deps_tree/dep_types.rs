@@ -53,6 +53,13 @@ struct Ctx<'a> {
 }
 
 fn detect_in_subgraph(ctx: &mut Ctx<'_>, dep_paths: &[PkgNameVerPeer], dev: bool) {
+    detect_in_subgraph_at(ctx, dep_paths, dev, 0);
+}
+
+fn detect_in_subgraph_at(ctx: &mut Ctx<'_>, dep_paths: &[PkgNameVerPeer], dev: bool, depth: usize) {
+    if depth >= super::MAX_WALK_DEPTH {
+        return;
+    }
     for dep_path in dep_paths {
         if !ctx.walked.insert((dep_path.clone(), dev)) {
             continue;
@@ -76,7 +83,7 @@ fn detect_in_subgraph(ctx: &mut Ctx<'_>, dep_paths: &[PkgNameVerPeer], dev: bool
                 .flatten()
                 .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))
                 .collect();
-            detect_in_subgraph(ctx, &child_paths, dev);
+            detect_in_subgraph_at(ctx, &child_paths, dev, depth + 1);
         }
     }
 }

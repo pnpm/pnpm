@@ -167,7 +167,7 @@ pub(crate) fn build_dependents_tree(opts: &BuildDependentsOptions<'_>) -> Vec<De
             visited: HashSet::from([node_id.clone()]),
             expanded: HashSet::new(),
         };
-        let dependents = walk_reverse(&mut ctx, node_id);
+        let dependents = walk_reverse(&mut ctx, node_id, 0);
 
         trees.push(DependentsTree {
             name,
@@ -207,7 +207,11 @@ pub(crate) fn resolve_package_nodes(
         resolved: &mut HashMap<TreeNodeId, ManifestSource>,
         node_id: &TreeNodeId,
         parent_dir: Option<&Path>,
+        depth: usize,
     ) {
+        if depth >= super::MAX_WALK_DEPTH {
+            return;
+        }
         let Some(node) = graph.nodes.get(node_id) else {
             return;
         };
@@ -227,13 +231,13 @@ pub(crate) fn resolve_package_nodes(
             let (_, manifest_source) = get_pkg_info(env, edge, &edge_ctx);
             let target_path = manifest_source.path.clone();
             resolved.insert(target.clone(), manifest_source);
-            walk(env, graph, resolved, target, Some(&target_path));
+            walk(env, graph, resolved, target, Some(&target_path), depth + 1);
         }
     }
 
     for node_id in graph.nodes.keys() {
         if matches!(node_id, TreeNodeId::Importer(_)) {
-            walk(env, graph, &mut resolved, node_id, None);
+            walk(env, graph, &mut resolved, node_id, None, 0);
         }
     }
     resolved
@@ -255,7 +259,10 @@ fn invert_graph(graph: &DependencyGraph) -> HashMap<TreeNodeId, Vec<ReverseEdge>
     reverse
 }
 
-fn walk_reverse(ctx: &mut WalkCtx<'_>, node_id: &TreeNodeId) -> Vec<DependentNode> {
+fn walk_reverse(ctx: &mut WalkCtx<'_>, node_id: &TreeNodeId, depth: usize) -> Vec<DependentNode> {
+    if depth >= super::MAX_WALK_DEPTH {
+        return Vec::new();
+    }
     let Some(reverse_edges) = ctx.reverse_map.get(node_id) else {
         return Vec::new();
     };
@@ -337,7 +344,7 @@ fn walk_reverse(ctx: &mut WalkCtx<'_>, node_id: &TreeNodeId) -> Vec<DependentNod
 
                 ctx.visited.insert(edge.parent.clone());
                 ctx.expanded.insert(edge.parent.clone());
-                let child_dependents = walk_reverse(ctx, &edge.parent);
+                let child_dependents = walk_reverse(ctx, &edge.parent, depth + 1);
                 ctx.visited.remove(&edge.parent);
 
                 let mut node = DependentNode::leaf(name, version);

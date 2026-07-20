@@ -20,6 +20,13 @@ pub(crate) mod search;
 
 use pacquet_lockfile::PkgNameVerPeer;
 
+/// Cap on every recursive walk over the dependency graph. The cycle
+/// guards bound the *output*, not the recursion depth, so a hostile
+/// lockfile with an absurdly long acyclic chain could otherwise
+/// overflow the stack (worker threads get 2 MiB). Real dependency
+/// chains stay far below this.
+pub(crate) const MAX_WALK_DEPTH: usize = 256;
+
 /// Identity of a node in the dependency graph: a workspace project
 /// (importer) or an external package addressed by its depPath.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

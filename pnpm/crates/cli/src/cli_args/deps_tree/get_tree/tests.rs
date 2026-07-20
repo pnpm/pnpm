@@ -733,3 +733,60 @@ snapshots:
     // peer1 stays because it has dependencies of its own; peer2 is excluded.
     assert_eq!(shape(&result), "peer1(bar),qar");
 }
+
+// A pathologically deep (acyclic) chain must not overflow the stack:
+// the walks stop at MAX_WALK_DEPTH instead of recursing without bound.
+#[test]
+fn absurdly_deep_chain_is_capped_instead_of_overflowing_the_stack() {
+    let chain_len = crate::cli_args::deps_tree::MAX_WALK_DEPTH * 3;
+    let names: Vec<String> = (0..chain_len).map(|i| format!("chain-{i}")).collect();
+
+    let mut yaml = String::from("lockfileVersion: '9.0'\n\nimporters:\n  .: {}\n\npackages:\n");
+    for name in &names {
+        writeln!(yaml, "  {name}@1.0.0:\n    resolution: {{integrity: {MOCK_INTEGRITY}}}").unwrap();
+    }
+    yaml.push_str("\nsnapshots:\n");
+    for (i, name) in names.iter().enumerate() {
+        match names.get(i + 1) {
+            Some(next) => {
+                writeln!(yaml, "  {name}@1.0.0:\n    dependencies:\n      {next}: 1.0.0").unwrap();
+            }
+            None => writeln!(yaml, "  {name}@1.0.0: {{}}").unwrap(),
+        }
+    }
+
+    let dir = tempfile::tempdir().unwrap();
+    let lockfile = load_lockfile(dir.path(), &yaml);
+    let env = mock_env(dir.path(), &lockfile);
+    let root_id = TreeNodeId::Package("chain-0@1.0.0".parse().unwrap());
+    let graph = build_dependency_graph(
+        std::slice::from_ref(&root_id),
+        &BuildGraphOptions {
+            lockfile: &lockfile,
+            include: include_no_optional(),
+            only_projects: false,
+        },
+    );
+    let mut cache = MaterializationCache::new();
+    let opts = GetTreeOptions {
+        env: &env,
+        graph: &graph,
+        exclude_peer_dependencies: false,
+        only_projects: false,
+        search: None,
+        show_deduped_search_matches: false,
+        rewrite_link_version_dir: dir.path().to_path_buf(),
+    };
+
+    let result = get_tree(&opts, &mut cache, &root_id, MaxDepth::Unlimited, None);
+
+    let mut depth = 0;
+    let mut nodes = &result;
+    while let Some(node) = nodes.first() {
+        depth += 1;
+        nodes = &node.dependencies;
+    }
+    eprintln!("materialized chain depth: {depth}");
+    assert!(depth <= crate::cli_args::deps_tree::MAX_WALK_DEPTH);
+    assert!(depth >= crate::cli_args::deps_tree::MAX_WALK_DEPTH - 1);
+}

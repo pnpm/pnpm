@@ -90,7 +90,7 @@ pub(crate) fn get_tree(
     ancestors.insert(parent_id.clone());
 
     let result =
-        materialize_children(opts, cache, &mut ancestors, parent_id, max_depth, parent_dir);
+        materialize_children(opts, cache, &mut ancestors, parent_id, max_depth, parent_dir, 0);
 
     // Circular back-edges are marked in a post-pass: materialization
     // truncates dependencies at cycle boundaries but leaves cached
@@ -109,6 +109,7 @@ fn materialize_children(
     parent_id: &TreeNodeId,
     max_depth: MaxDepth,
     parent_dir: Option<&Path>,
+    guard_depth: usize,
 ) -> MaterializationResult {
     let empty = || MaterializationResult {
         nodes: Vec::new(),
@@ -116,7 +117,7 @@ fn materialize_children(
         has_search_match: false,
         search_messages: Vec::new(),
     };
-    if max_depth.is_exhausted() {
+    if max_depth.is_exhausted() || guard_depth >= super::MAX_WALK_DEPTH {
         return empty();
     }
     let Some(graph_node) = opts.graph.nodes.get(parent_id) else {
@@ -206,6 +207,7 @@ fn materialize_children(
                             target,
                             child_tree_max_depth,
                             Some(Path::new(&package_info.path)),
+                            guard_depth + 1,
                         );
                         ancestors.remove(target);
 
