@@ -24,14 +24,16 @@ use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_registry::PinnedVersion;
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
-use pacquet_resolving_git_resolver::{HostedGit, HostedOpts};
+use pacquet_resolving_git_resolver::{
+    GitFetchContext, GitResolver, HostedGit, HostedOpts, RealGitProbe, RealGitRunner,
+};
 use pacquet_resolving_npm_resolver::{
     InMemoryPackageMetaCache, PackumentFetchLocker, PickPackageError, PickPackageOptions,
     parse_bare_specifier, pick_package, pick_registry_for_package, shared_packument_fetch_locker,
     which_version_is_pinned,
 };
 use pacquet_tarball::MemCache;
-use std::{collections::HashSet, path::PathBuf};
+use std::{collections::HashSet, path::PathBuf, sync::Arc};
 
 #[must_use]
 pub struct Add<'a, DependencyGroupList>
@@ -124,6 +126,18 @@ pub enum AddError {
     /// registry (to pin the manifest range to a concrete version) failed.
     #[diagnostic(transparent)]
     ResolveSpec(#[error(source)] Box<PickPackageError>),
+
+    #[display("Failed to resolve git dependency {specifier:?}: {source}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_ADD_RESOLVE_GIT))]
+    ResolveGit {
+        specifier: String,
+        #[error(source)]
+        source: pacquet_resolving_resolver_base::ResolveError,
+    },
+
+    #[display("Could not determine the package name of git dependency {specifier:?}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_ADD_GIT_PACKAGE_NAME))]
+    GitPackageName { specifier: String },
 
     /// Resolving a `node@runtime:<spec>` selector against the Node.js
     /// release index (to pin the manifest to the picked version) failed.
@@ -376,12 +390,12 @@ struct SelectedAddPreparation {
     clippy::too_many_arguments,
     reason = "selected add preparation reuses the command's resolution inputs"
 )]
-async fn prepare_selected_manifests<'a, Reporter: self::Reporter>(
+async fn prepare_selected_manifests<Reporter: self::Reporter>(
     projects: &mut [pacquet_workspace::Project],
     selected_indices: &[usize],
-    http_client: &'a ThrottledClient,
+    http_client: &ThrottledClient,
     http_client_arc: &std::sync::Arc<ThrottledClient>,
-    config: &'a Config,
+    config: &'static Config,
     lockfile: Option<&Lockfile>,
     dependency_groups: Option<&[DependencyGroup]>,
     package_names: &[String],
@@ -456,7 +470,7 @@ async fn prepare_manifest<'a, Reporter: self::Reporter>(
     manifest: &mut PackageManifest,
     http_client: &'a ThrottledClient,
     http_client_arc: &std::sync::Arc<ThrottledClient>,
-    config: &'a Config,
+    config: &'static Config,
     lockfile: Option<&Lockfile>,
     dependency_groups: Option<&[DependencyGroup]>,
     package_names: &[String],
@@ -603,7 +617,7 @@ struct ResolvedAddedDependency {
 )]
 async fn resolve_added_dependency<'a>(
     package_selector: &str,
-    config: &'a Config,
+    config: &'static Config,
     manifest: &PackageManifest,
     lockfile: Option<&Lockfile>,
     http_client: &'a ThrottledClient,
@@ -616,7 +630,20 @@ async fn resolve_added_dependency<'a>(
     meta_cache: &std::sync::Arc<InMemoryPackageMetaCache>,
     fetch_locker: &PackumentFetchLocker,
 ) -> Result<ResolvedAddedDependency, AddError> {
-    let (package_name, explicit_spec) = split_name_spec(package_selector);
+    let parsed =
+        pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency(package_selector);
+    let aliasless_git = match (parsed.alias.as_deref(), parsed.bare_specifier.as_deref()) {
+        (None, Some(specifier))
+            if pacquet_resolving_git_resolver::parse_bare_specifier(specifier).is_some() =>
+        {
+            Some(resolve_aliasless_git(specifier, config, http_client_arc).await?)
+        }
+        _ => None,
+    };
+    let (package_name, explicit_spec) = match aliasless_git.as_ref() {
+        Some(git) => (git.package_name.as_str(), Some(git.manifest_specifier.as_str())),
+        None => split_name_spec(package_selector),
+    };
 
     // The dependency's current specifier, so a re-add keeps the
     // existing range / `catalog:` reference rather than re-pinning to
@@ -734,6 +761,53 @@ async fn resolve_added_dependency<'a>(
         updated_catalogs,
         warning: outcome.warning,
     })
+}
+
+struct AliaslessGitDependency {
+    package_name: String,
+    manifest_specifier: String,
+}
+
+async fn resolve_aliasless_git(
+    specifier: &str,
+    config: &'static Config,
+    http_client: &Arc<ThrottledClient>,
+) -> Result<AliaslessGitDependency, AddError> {
+    let resolver = GitResolver::new(
+        Arc::new(RealGitProbe::new(Arc::clone(http_client))),
+        Arc::new(RealGitRunner::new()),
+    )
+    .with_fetch_context(GitFetchContext {
+        http_client: Arc::clone(http_client),
+        store_dir: &config.store_dir,
+        store_index_writer: None,
+        auth_headers: Arc::clone(&config.auth_headers),
+        retry_opts: crate::retry_config::retry_opts_from_config(config),
+        git_shallow_hosts: config.git_shallow_hosts.clone(),
+    });
+    let wanted = pacquet_resolving_resolver_base::WantedDependency {
+        bare_specifier: Some(specifier.to_string()),
+        ..pacquet_resolving_resolver_base::WantedDependency::default()
+    };
+    let result = pacquet_resolving_resolver_base::Resolver::resolve(
+        &resolver,
+        &wanted,
+        &pacquet_resolving_resolver_base::ResolveOptions::default(),
+    )
+    .await
+    .map_err(|source| AddError::ResolveGit { specifier: specifier.to_string(), source })?
+    .expect("a specifier accepted by the git parser is resolved by GitResolver");
+    let package_name = result
+        .manifest
+        .as_ref()
+        .and_then(|manifest| manifest.get("name"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string)
+        .or_else(|| HostedGit::from_url(specifier).map(|hosted| hosted.project))
+        .ok_or_else(|| AddError::GitPackageName { specifier: specifier.to_string() })?;
+    let manifest_specifier =
+        result.normalized_bare_specifier.unwrap_or_else(|| normalized_save_specifier(specifier));
+    Ok(AliaslessGitDependency { package_name, manifest_specifier })
 }
 
 /// Resolve an explicit `add <name>@<spec>` registry specifier to the

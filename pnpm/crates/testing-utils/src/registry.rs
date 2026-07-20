@@ -1,6 +1,7 @@
 use pnpr::Config;
 use std::{
     net::{Ipv4Addr, TcpListener},
+    path::{Path, PathBuf},
     sync::LazyLock,
     thread,
 };
@@ -8,17 +9,21 @@ use std::{
 #[derive(Debug)]
 #[must_use]
 pub struct TestRegistry {
-    instance: &'static TestRegistryInstance,
+    url: String,
 }
 
 impl TestRegistry {
     pub fn start() -> Self {
-        Self { instance: TestRegistryInstance::get() }
+        Self { url: TestRegistryInstance::get().url.clone() }
+    }
+
+    pub fn start_with_storage(storage: &Path) -> Self {
+        Self { url: TestRegistryInstance::start(storage.to_path_buf()).url }
     }
 
     #[must_use]
     pub fn url(&self) -> String {
-        self.instance.url.clone()
+        self.url.clone()
     }
 }
 
@@ -29,23 +34,23 @@ struct TestRegistryInstance {
 
 impl TestRegistryInstance {
     fn get() -> &'static Self {
-        static INSTANCE: LazyLock<TestRegistryInstance> =
-            LazyLock::new(TestRegistryInstance::start);
+        static INSTANCE: LazyLock<TestRegistryInstance> = LazyLock::new(|| {
+            TestRegistryInstance::start(pnpr_fixtures::ensure_storage().to_path_buf())
+        });
         &INSTANCE
     }
 
-    fn start() -> Self {
+    fn start(storage: PathBuf) -> Self {
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
             .expect("bind test registry to an unused localhost port");
         listener.set_nonblocking(true).expect("set test registry listener to nonblocking");
         let listen = listener.local_addr().expect("read test registry listener address");
 
         let url = format!("http://{listen}/");
-        let storage = pnpr_fixtures::ensure_storage();
         // Proxy mode: `@pnpm.e2e` fixtures are served from local storage, while
         // real npm packages (`is-positive`, `is-negative`, etc.) fall through to
         // the npm upstream — matching how registry-mock served pacquet's tests.
-        let mut config = Config::proxy(listen, storage.to_path_buf());
+        let mut config = Config::proxy(listen, storage);
         config.public_url = url.trim_end_matches('/').to_string();
         // Registration is opt-in; tests that forward credentials create
         // accounts via adduser against this registry.

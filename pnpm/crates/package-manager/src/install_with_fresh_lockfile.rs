@@ -2230,6 +2230,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 config,
                 layout: &layout,
                 importers: &materialization_lockfile.importers,
+                packages: materialization_lockfile.packages.as_ref(),
                 dependency_groups: dependency_groups.iter().copied(),
                 workspace_root: symlink_root,
                 skipped: &skipped,

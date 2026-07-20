@@ -55,6 +55,18 @@ impl CommandTempCwd<()> {
     /// pnpm 11 reads those from the workspace YAML rather than `.npmrc`.
     #[must_use]
     pub fn add_mocked_registry(self) -> CommandTempCwd<AddMockedRegistry> {
+        self.add_mocked_registry_with_substitutions(&[])
+    }
+
+    /// Create a mock registry whose generated fixture manifests have exact
+    /// strings replaced for this test run. The storage lives under the
+    /// command fixture's temp root, so `git+file://` replacements remain
+    /// valid for the registry's lifetime.
+    #[must_use]
+    pub fn add_mocked_registry_with_substitutions(
+        self,
+        substitutions: &[(&str, &str)],
+    ) -> CommandTempCwd<AddMockedRegistry> {
         let store_dir = self.root.path().join("pacquet-store");
         let cache_dir = self.root.path().join("pacquet-cache");
         let npmrc_path = self.workspace.join(".npmrc");
@@ -62,7 +74,17 @@ impl CommandTempCwd<()> {
             "store-dir=../pacquet-store"
             "cache-dir=../pacquet-cache"
         };
-        let mock_instance = TestRegistry::start();
+        let mock_instance = if substitutions.is_empty() {
+            TestRegistry::start()
+        } else {
+            let registry_storage = self.root.path().join("registry-storage");
+            pnpr_fixtures::build_storage_at_with_substitutions(
+                &pnpr_fixtures::packages_dir(),
+                &registry_storage,
+                substitutions,
+            );
+            TestRegistry::start_with_storage(&registry_storage)
+        };
         let mocked_registry = mock_instance.url();
         let npmrc_text = format!("registry={mocked_registry}\n{npmrc_text}");
         fs::write(&npmrc_path, npmrc_text).expect("write to .npmrc");

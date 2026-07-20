@@ -175,6 +175,41 @@ async fn fetcher_rejects_option_shaped_commit() {
     );
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn fetcher_rejects_partial_commit_before_running_git() {
+    let store_root = tempdir().unwrap();
+    let store_dir = StoreDir::from(store_root.path().to_path_buf());
+    let err = GitFetcher {
+        repo: "file:///tmp/githost",
+        commit: "deadbeef",
+        path: None,
+        git_shallow_hosts: &[],
+        allow_build: deny_all_builds(),
+        ignore_scripts: false,
+        unsafe_perm: true,
+        user_agent: None,
+        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        script_shell: None,
+        node_execpath: None,
+        npm_execpath: None,
+        store_dir: &store_dir,
+        package_id: "pkg@1.0.0",
+        requester: "/test",
+        store_index_writer: None,
+        files_index_file: "pkg@1.0.0\tbuilt",
+        git_bin: Some(Path::new("/definitely/missing/git")),
+    }
+    .run::<SilentReporter>()
+    .await
+    .unwrap_err();
+
+    eprintln!("ERROR:\n{err:?}\n");
+    assert!(
+        matches!(err, GitFetcherError::InvalidCommit { .. }),
+        "expected InvalidCommit, got {err:?}",
+    );
+}
+
 #[test]
 fn extract_host_handles_user_authority_and_port() {
     assert_eq!(extract_host("https://github.com/foo/bar"), Some("github.com"));
