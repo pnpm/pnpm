@@ -237,26 +237,6 @@ mod known_failures {
         allow_known_failure!(install_force_flag());
     }
 
-    fn edge_aware_engine_strict() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "pacquet's `engineStrict` dispatch keys on the lockfile's \
-             snapshot-level `optional: true` flag, so an incompatible \
-             package that is only optionally *reachable* is skipped even \
-             when its inbound edge is a regular dependency. Upstream \
-             evaluates installability per edge at resolve time and fails \
-             this shape (pnpm/pnpm#13143).",
-        ))
-    }
-
-    /// TS: `fail on unsupported dependency of optional dependency`
-    /// (`optionalDependencies.ts:552`). Under `engineStrict`, an
-    /// installable optional whose *regular* dependency is incompatible
-    /// fails the install upstream.
-    #[test]
-    fn fail_on_unsupported_dependency_of_optional_dependency() {
-        allow_known_failure!(edge_aware_engine_strict());
-    }
-
     fn fixture_scale_optional_graph() -> KnownResult<()> {
         Err(KnownFailure::new(
             "the upstream scenario relies on a production-scale dependency graph; a minimal registry fixture that preserves the optional-edge topology is not available yet",
@@ -844,6 +824,30 @@ fn do_not_fail_on_unsupported_dependency_of_optional_dependency() {
     assert!(
         snapshots.keys().any(|key| key.to_string() == "@pnpm.e2e/dep-of-optional-pkg@1.0.0"),
         "the whole optional subtree stays resolved in the lockfile",
+    );
+
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// TS: `fail on unsupported dependency of optional dependency`
+/// (`optionalDependencies.ts:552`). Under `engineStrict`, an
+/// installable optional whose *regular* dependency is incompatible
+/// fails the install.
+#[test]
+fn fail_on_unsupported_dependency_of_optional_dependency() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    append_workspace_yaml_key(&workspace, "engineStrict", "true");
+
+    let assert = pacquet
+        .with_args(["add", "--save-optional", "@pnpm.e2e/has-not-compatible-dep@1.0.0"])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    eprintln!("STDERR:\n{stderr}\n");
+    assert!(
+        stderr.contains("ERR_PNPM_UNSUPPORTED_PLATFORM"),
+        "the incompatible regular dependency of an installable optional must fail the install; got:\n{stderr}",
     );
 
     drop((root, npmrc_info)); // cleanup

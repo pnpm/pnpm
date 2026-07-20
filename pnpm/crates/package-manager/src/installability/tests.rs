@@ -5,7 +5,8 @@ use crate::installability::{
     any_optional_installability_constraint, compute_skipped_snapshots,
 };
 use pacquet_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, PkgNameVerPeer, SnapshotEntry,
+    ImporterDepVersion, LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer,
+    ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
     TarballResolution,
 };
 use pacquet_reporter::{LogEvent, Reporter, SkippedOptionalPackage, SkippedOptionalReason};
@@ -73,6 +74,56 @@ fn synthetic_metadata(
     }
 }
 
+fn no_importers() -> HashMap<String, ProjectSnapshot> {
+    HashMap::new()
+}
+
+/// A `.` root importer whose `dependencies` / `optionalDependencies`
+/// entries resolve each `name@version` pair through the virtual store.
+fn root_importer(
+    dependencies: &[&str],
+    optional_dependencies: &[&str],
+) -> HashMap<String, ProjectSnapshot> {
+    let importer = ProjectSnapshot {
+        dependencies: importer_dep_map(dependencies),
+        optional_dependencies: importer_dep_map(optional_dependencies),
+        ..Default::default()
+    };
+    std::iter::once((".".to_string(), importer)).collect()
+}
+
+fn importer_dep_map(entries: &[&str]) -> Option<ResolvedDependencyMap> {
+    if entries.is_empty() {
+        return None;
+    }
+    let map = entries
+        .iter()
+        .map(|name_at_version| {
+            let key = snapshot_key(name_at_version);
+            let spec = ResolvedDependencySpec {
+                specifier: "*".to_string(),
+                version: ImporterDepVersion::Regular(key.suffix.clone()),
+            };
+            (key.name, spec)
+        })
+        .collect();
+    Some(map)
+}
+
+fn snapshot_dep_map(entries: &[&str]) -> Option<HashMap<PkgName, SnapshotDepRef>> {
+    if entries.is_empty() {
+        return None;
+    }
+    let map = entries
+        .iter()
+        .map(|name_at_version| {
+            let key = snapshot_key(name_at_version);
+            (key.name, SnapshotDepRef::Plain(key.suffix))
+        })
+        .collect();
+    Some(map)
+}
+
 fn host(node_version: &str, os: &'static str, cpu: &'static str) -> InstallabilityHost {
     InstallabilityHost {
         node_version: node_version.to_string(),
@@ -98,6 +149,7 @@ fn skip_optional_with_wrong_os() {
     );
 
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
+        &no_importers(),
         &snapshots,
         &packages,
         &host("20.10.0", "darwin", "arm64"),
@@ -136,6 +188,7 @@ fn skip_optional_with_wrong_node_engine() {
     packages.insert(key.clone(), synthetic_metadata(Some(&[("node", "0.10")]), None, None, None));
 
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
+        &no_importers(),
         &snapshots,
         &packages,
         &host("20.10.0", "darwin", "arm64"),
@@ -166,6 +219,7 @@ fn compatible_snapshots_are_not_skipped() {
     packages.insert(key, synthetic_metadata(None, None, Some(&["darwin", "linux"]), None));
 
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
+        &no_importers(),
         &snapshots,
         &packages,
         &host("20.10.0", "darwin", "arm64"),
@@ -192,6 +246,7 @@ fn non_optional_incompatible_is_not_skipped() {
     packages.insert(key, synthetic_metadata(None, None, Some(&["this-os-does-not-exist"]), None));
 
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
+        &no_importers(),
         &snapshots,
         &packages,
         &host("20.10.0", "darwin", "arm64"),
@@ -218,6 +273,7 @@ fn no_constraints_skips_the_per_snapshot_pass() {
     packages.insert(key, synthetic_metadata(None, None, None, None));
 
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
+        &no_importers(),
         &snapshots,
         &packages,
         &host("20.10.0", "darwin", "arm64"),
@@ -341,6 +397,7 @@ fn duplicate_metadata_dedupes_reporter_events() {
     );
 
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
+        &no_importers(),
         &snapshots,
         &packages,
         &host("20.10.0", "darwin", "arm64"),
@@ -377,6 +434,7 @@ fn supported_architectures_widens_accept_set_so_optional_stays() {
     });
 
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
+        &no_importers(),
         &snapshots,
         &packages,
         &host,
@@ -410,6 +468,7 @@ fn supported_architectures_does_not_implicitly_include_host() {
     });
 
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
+        &no_importers(),
         &snapshots,
         &packages,
         &host,
@@ -435,6 +494,7 @@ fn seeded_still_incompatible_snapshot_stays_skipped() {
 
     let seed = SkippedSnapshots::from_set(std::iter::once(key.clone()).collect());
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
+        &no_importers(),
         &snapshots,
         &packages,
         &host("20.10.0", "darwin", "arm64"),
@@ -466,6 +526,7 @@ fn seeded_snapshot_compatible_with_new_host_is_unskipped() {
 
     let seed = SkippedSnapshots::from_set(std::iter::once(key.clone()).collect());
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
+        &no_importers(),
         &snapshots,
         &packages,
         &host("20.10.0", "darwin", "arm64"),
@@ -491,6 +552,7 @@ fn seeded_non_optional_snapshot_is_rechecked() {
 
     let seed = SkippedSnapshots::from_set(std::iter::once(key.clone()).collect());
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
+        &no_importers(),
         &snapshots,
         &packages,
         &host("20.10.0", "darwin", "arm64"),
@@ -518,6 +580,7 @@ fn fast_path_preserves_seed() {
 
     let seed = SkippedSnapshots::from_set(std::iter::once(key.clone()).collect());
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
+        &no_importers(),
         &snapshots,
         &packages,
         &host("20.10.0", "darwin", "arm64"),
@@ -540,6 +603,7 @@ fn fast_path_drops_seed_for_non_optional_snapshot() {
 
     let seed = SkippedSnapshots::from_set(std::iter::once(key).collect());
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
+        &no_importers(),
         &snapshots,
         &packages,
         &host("20.10.0", "darwin", "arm64"),
@@ -612,6 +676,7 @@ fn skip_optional_with_platform_inferred_from_name() {
     packages.insert(matching.clone(), synthetic_metadata(None, None, None, None));
 
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
+        &no_importers(),
         &snapshots,
         &packages,
         &host("20.10.0", "linux", "x64"),
@@ -642,6 +707,7 @@ fn name_inference_does_not_apply_to_non_optional_snapshots() {
     packages.insert(key, synthetic_metadata(None, None, None, None));
 
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
+        &no_importers(),
         &snapshots,
         &packages,
         &host("20.10.0", "linux", "x64"),
@@ -674,6 +740,7 @@ fn missing_libc_is_inferred_from_name() {
     });
 
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
+        &no_importers(),
         &snapshots,
         &packages,
         &host,
@@ -756,6 +823,7 @@ fn engine_strict_hard_fails_a_required_incompatible_dep() {
     };
     reset_events();
     let strict = compute_skipped_snapshots::<RecordingReporter>(
+        &no_importers(),
         &snapshots,
         &packages,
         &strict_host,
@@ -767,6 +835,7 @@ fn engine_strict_hard_fails_a_required_incompatible_dep() {
     // The same graph under the default (non-strict) host only warns and installs.
     reset_events();
     let lenient = compute_skipped_snapshots::<RecordingReporter>(
+        &no_importers(),
         &snapshots,
         &packages,
         &host("20.10.0", "darwin", "arm64"),
@@ -774,4 +843,193 @@ fn engine_strict_hard_fails_a_required_incompatible_dep() {
         SkippedSnapshots::new(),
     );
     assert!(lenient.is_ok(), "without engine_strict a required incompatible dep is only a warning");
+}
+
+/// The graph of TS `fail on unsupported dependency of optional
+/// dependency` (`optionalDependencies.ts:552`): an installable
+/// optional's *regular* dependency is incompatible, so the required
+/// dispatch wins over the snapshot-level `optional: true` flag.
+#[test]
+fn engine_strict_fails_incompatible_regular_dep_of_installed_optional() {
+    let importers = root_importer(&[], &["has-not-compatible-dep@1.0.0"]);
+    let parent = snapshot_key("has-not-compatible-dep@1.0.0");
+    let incompatible = snapshot_key("not-compatible-with-any-os@1.0.0");
+    let grandchild = snapshot_key("dep-of-optional-pkg@1.0.0");
+    let mut snapshots = HashMap::new();
+    snapshots.insert(
+        parent.clone(),
+        SnapshotEntry {
+            optional: true,
+            dependencies: snapshot_dep_map(&["not-compatible-with-any-os@1.0.0"]),
+            ..Default::default()
+        },
+    );
+    snapshots.insert(
+        incompatible.clone(),
+        SnapshotEntry {
+            optional: true,
+            dependencies: snapshot_dep_map(&["dep-of-optional-pkg@1.0.0"]),
+            ..Default::default()
+        },
+    );
+    snapshots.insert(grandchild.clone(), SnapshotEntry { optional: true, ..Default::default() });
+    let mut packages = HashMap::new();
+    packages.insert(parent, synthetic_metadata(None, None, None, None));
+    packages.insert(
+        incompatible,
+        synthetic_metadata(None, None, Some(&["this-os-does-not-exist"]), None),
+    );
+    packages.insert(grandchild, synthetic_metadata(None, None, None, None));
+
+    let mut strict_host = host("20.10.0", "darwin", "arm64");
+    strict_host.engine_strict = true;
+    reset_events();
+    let strict = compute_skipped_snapshots::<RecordingReporter>(
+        &importers,
+        &snapshots,
+        &packages,
+        &strict_host,
+        "/proj",
+        SkippedSnapshots::new(),
+    );
+    assert!(
+        strict.is_err(),
+        "an incompatible regular dep of an installed optional must fail under engine_strict",
+    );
+
+    reset_events();
+    let lenient = compute_skipped_snapshots::<RecordingReporter>(
+        &importers,
+        &snapshots,
+        &packages,
+        &host("20.10.0", "darwin", "arm64"),
+        "/proj",
+        SkippedSnapshots::new(),
+    )
+    .unwrap();
+    assert!(lenient.is_empty(), "without engine_strict the required dep is warned, not skipped");
+    let events = take_events();
+    assert!(
+        events.iter().all(|event| !matches!(event, LogEvent::SkippedOptionalDependency(_))),
+        "a warned required dep must not fire skipped-optional events, got {events:?}",
+    );
+}
+
+/// The graph of TS `do not fail on unsupported dependency of optional
+/// dependency` (`optionalDependencies.ts:540`): the incompatible
+/// package's only non-optional inbound edge comes from a skipped
+/// parent, so it is skipped even under `engine_strict`.
+#[test]
+fn incompatible_regular_dep_of_skipped_optional_is_skipped_not_failed() {
+    let importers = root_importer(&[], &["not-compatible-with-not-compatible-dep@1.0.0"]);
+    let parent = snapshot_key("not-compatible-with-not-compatible-dep@1.0.0");
+    let incompatible = snapshot_key("not-compatible-with-any-os@1.0.0");
+    let grandchild = snapshot_key("dep-of-optional-pkg@1.0.0");
+    let mut snapshots = HashMap::new();
+    snapshots.insert(
+        parent.clone(),
+        SnapshotEntry {
+            optional: true,
+            dependencies: snapshot_dep_map(&["not-compatible-with-any-os@1.0.0"]),
+            ..Default::default()
+        },
+    );
+    snapshots.insert(
+        incompatible.clone(),
+        SnapshotEntry {
+            optional: true,
+            dependencies: snapshot_dep_map(&["dep-of-optional-pkg@1.0.0"]),
+            ..Default::default()
+        },
+    );
+    snapshots.insert(grandchild.clone(), SnapshotEntry { optional: true, ..Default::default() });
+    let mut packages = HashMap::new();
+    packages.insert(
+        parent.clone(),
+        synthetic_metadata(None, None, Some(&["this-os-does-not-exist"]), None),
+    );
+    packages.insert(
+        incompatible.clone(),
+        synthetic_metadata(None, None, Some(&["this-os-does-not-exist"]), None),
+    );
+    packages.insert(grandchild.clone(), synthetic_metadata(None, None, None, None));
+
+    let mut strict_host = host("20.10.0", "darwin", "arm64");
+    strict_host.engine_strict = true;
+    reset_events();
+    let skipped = compute_skipped_snapshots::<RecordingReporter>(
+        &importers,
+        &snapshots,
+        &packages,
+        &strict_host,
+        "/proj",
+        SkippedSnapshots::new(),
+    )
+    .unwrap();
+
+    assert!(skipped.contains(&parent));
+    assert!(
+        skipped.contains(&incompatible),
+        "an incompatible dep behind a skipped parent is skipped, not an engine-strict failure",
+    );
+    assert!(
+        !skipped.contains(&grandchild),
+        "the compatible grandchild is left to the dependency-closure extension",
+    );
+    let events = take_events();
+    let skipped_events_count = events
+        .iter()
+        .filter(|event| matches!(event, LogEvent::SkippedOptionalDependency(_)))
+        .count();
+    assert_eq!(skipped_events_count, 2);
+}
+
+/// A package that is both an optional direct dep and a regular dep of
+/// an installed package dispatches as required: the non-optional edge
+/// wins over the (deliberately stale) snapshot-level `optional` flag.
+#[test]
+fn regular_edge_from_installed_parent_wins_over_optional_reachability() {
+    let importers = root_importer(&["compat-parent@1.0.0"], &["not-compatible-with-any-os@1.0.0"]);
+    let compat_parent = snapshot_key("compat-parent@1.0.0");
+    let incompatible = snapshot_key("not-compatible-with-any-os@1.0.0");
+    let mut snapshots = HashMap::new();
+    snapshots.insert(
+        compat_parent.clone(),
+        SnapshotEntry {
+            dependencies: snapshot_dep_map(&["not-compatible-with-any-os@1.0.0"]),
+            ..Default::default()
+        },
+    );
+    snapshots.insert(incompatible.clone(), SnapshotEntry { optional: true, ..Default::default() });
+    let mut packages = HashMap::new();
+    packages.insert(compat_parent, synthetic_metadata(None, None, None, None));
+    packages.insert(
+        incompatible,
+        synthetic_metadata(None, None, Some(&["this-os-does-not-exist"]), None),
+    );
+
+    reset_events();
+    let lenient = compute_skipped_snapshots::<RecordingReporter>(
+        &importers,
+        &snapshots,
+        &packages,
+        &host("20.10.0", "darwin", "arm64"),
+        "/proj",
+        SkippedSnapshots::new(),
+    )
+    .unwrap();
+    assert!(lenient.is_empty(), "the regular edge from an installed parent must win over skip");
+
+    let mut strict_host = host("20.10.0", "darwin", "arm64");
+    strict_host.engine_strict = true;
+    reset_events();
+    let strict = compute_skipped_snapshots::<RecordingReporter>(
+        &importers,
+        &snapshots,
+        &packages,
+        &strict_host,
+        "/proj",
+        SkippedSnapshots::new(),
+    );
+    assert!(strict.is_err(), "the same required dispatch fails under engine_strict");
 }
