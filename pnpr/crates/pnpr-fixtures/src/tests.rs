@@ -1,4 +1,4 @@
-use super::{ensure_storage, latest_version, packages_dir};
+use super::{build_storage_at_with_substitutions, ensure_storage, latest_version, packages_dir};
 use std::{collections::BTreeSet, path::Path};
 
 fn tarball_entries(tarball: &Path) -> BTreeSet<String> {
@@ -13,6 +13,21 @@ fn tarball_entries(tarball: &Path) -> BTreeSet<String> {
         .collect()
 }
 
+fn tarball_package_manifest(tarball: &Path) -> serde_json::Value {
+    let bytes = std::fs::read(tarball).expect("read fixture tarball");
+    let mut archive = tar::Archive::new(flate2::read::GzDecoder::new(std::io::Cursor::new(bytes)));
+    let mut entry = archive
+        .entries()
+        .expect("read tar entries")
+        .find_map(|entry| {
+            let entry = entry.expect("read tar entry");
+            (entry.path().expect("tar entry path") == Path::new("package/package.json"))
+                .then_some(entry)
+        })
+        .expect("package.json entry");
+    serde_json::from_reader(&mut entry).expect("parse package.json entry")
+}
+
 #[test]
 fn latest_version_uses_semver_prerelease_order() {
     let versions = ["1.0.0-beta.2".to_string(), "1.0.0-beta.10".to_string(), "1.0.0".to_string()];
@@ -25,6 +40,28 @@ fn ensure_storage_generates_packuments_and_tarballs() {
     assert!(packages_dir().join("@pnpm.e2e/abc/1.0.0/package.json").exists());
     assert!(storage.join("@pnpm.e2e/abc/package.json").exists());
     assert!(storage.join("@pnpm.e2e/abc/abc-1.0.0.tgz").exists());
+}
+
+#[test]
+fn per_run_substitutions_update_packuments_and_tarballs() {
+    let out = tempfile::tempdir().expect("create output directory");
+    build_storage_at_with_substitutions(
+        &packages_dir(),
+        out.path(),
+        &[(
+            "github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd",
+            "git+file:///tmp/hi#main",
+        )],
+    );
+    let package_dir = out.path().join("@pnpm.e2e/has-aliased-git-dependency");
+    let packument: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(package_dir.join("package.json")).expect("read substituted packument"),
+    )
+    .expect("parse substituted packument");
+    assert_eq!(packument["versions"]["1.0.0"]["dependencies"]["say-hi"], "git+file:///tmp/hi#main");
+    let manifest =
+        tarball_package_manifest(&package_dir.join("has-aliased-git-dependency-1.0.0.tgz"));
+    assert_eq!(manifest["dependencies"]["say-hi"], "git+file:///tmp/hi#main");
 }
 
 // Both case variants land in the tarball even though a case-insensitive

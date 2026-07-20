@@ -1,28 +1,32 @@
 use std::collections::HashMap;
 
 use pacquet_lockfile::{
-    ComVer, ImporterDepVersion, Lockfile, LockfileResolution, LockfileVersion, PackageMetadata,
-    PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, RegistryResolution,
+    ComVer, GitResolution, ImporterDepVersion, Lockfile, LockfileResolution, LockfileVersion,
+    PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, RegistryResolution,
     ResolvedDependencySpec, TarballResolution,
 };
 
 use super::{reusable_importer_dep, synthesize_reused_result};
 
-fn single_dep_importer(alias: &str, resolved: &str) -> HashMap<String, ProjectSnapshot> {
+fn single_dep_lockfile(alias: &str, specifier: &str, resolved: &str) -> Lockfile {
     let mut deps = HashMap::new();
     deps.insert(
         alias.parse::<PkgName>().expect("parse alias"),
         ResolvedDependencySpec {
-            specifier: resolved.to_string(),
+            specifier: specifier.to_string(),
             version: ImporterDepVersion::Regular(
                 resolved.parse::<PkgVerPeer>().expect("parse version"),
             ),
         },
     );
-    HashMap::from([(
+    let mut lockfile = empty_lockfile();
+    lockfile.importers = HashMap::from([(
         ".".to_string(),
         ProjectSnapshot { dependencies: Some(deps), ..ProjectSnapshot::default() },
-    )])
+    )]);
+    let key: PkgNameVerPeer = format!("{alias}@{resolved}").parse().expect("parse package key");
+    lockfile.packages = Some(HashMap::from([(key, registry_metadata())]));
+    lockfile
 }
 
 fn empty_lockfile() -> Lockfile {
@@ -64,28 +68,50 @@ fn registry_metadata() -> PackageMetadata {
 
 #[test]
 fn reuses_when_locked_version_satisfies_the_manifest_range() {
-    let importers = single_dep_importer("react", "18.2.0");
-    let key = reusable_importer_dep(&importers, ".", "react", "^18.0.0")
+    let lockfile = single_dep_lockfile("react", "^18.0.0", "18.2.0");
+    let key = reusable_importer_dep(&lockfile, ".", "react", "^18.0.0")
         .expect("locked 18.2.0 satisfies ^18.0.0");
     assert_eq!(key.to_string(), "react@18.2.0");
 }
 
 #[test]
 fn reuses_across_a_widened_but_still_satisfied_range() {
-    let importers = single_dep_importer("react", "18.2.0");
-    assert!(reusable_importer_dep(&importers, ".", "react", ">=17").is_some());
+    let lockfile = single_dep_lockfile("react", "^18.0.0", "18.2.0");
+    assert!(reusable_importer_dep(&lockfile, ".", "react", ">=17").is_some());
 }
 
 #[test]
 fn fresh_resolves_when_range_no_longer_satisfies_locked_version() {
-    let importers = single_dep_importer("react", "18.2.0");
-    assert!(reusable_importer_dep(&importers, ".", "react", "^19.0.0").is_none());
+    let lockfile = single_dep_lockfile("react", "^18.0.0", "18.2.0");
+    assert!(reusable_importer_dep(&lockfile, ".", "react", "^19.0.0").is_none());
 }
 
 #[test]
 fn fresh_resolves_a_new_dependency_absent_from_the_lockfile() {
-    let importers = single_dep_importer("react", "18.2.0");
-    assert!(reusable_importer_dep(&importers, ".", "left-pad", "^1.0.0").is_none());
+    let lockfile = single_dep_lockfile("react", "^18.0.0", "18.2.0");
+    assert!(reusable_importer_dep(&lockfile, ".", "left-pad", "^1.0.0").is_none());
+}
+
+#[test]
+fn reuses_an_unchanged_git_specifier_at_its_locked_commit() {
+    let specifier = "git+file:///repo#main";
+    let resolved = "git+file:///repo#0123456789012345678901234567890123456789";
+    let mut lockfile = single_dep_lockfile("git-pkg", specifier, resolved);
+    let key: PkgNameVerPeer = format!("git-pkg@{resolved}").parse().expect("parse git key");
+    lockfile.packages = Some(HashMap::from([(
+        key.clone(),
+        PackageMetadata {
+            resolution: LockfileResolution::Git(GitResolution {
+                repo: "file:///repo".to_string(),
+                commit: "0123456789012345678901234567890123456789".to_string(),
+                path: None,
+            }),
+            version: Some("1.0.0".to_string()),
+            ..registry_metadata()
+        },
+    )]));
+
+    assert_eq!(reusable_importer_dep(&lockfile, ".", "git-pkg", specifier), Some(key));
 }
 
 #[test]
@@ -144,7 +170,7 @@ fn synthesized_manifest_carries_deprecated_metadata() {
 }
 
 #[test]
-fn does_not_reuse_non_registry_resolutions() {
+fn does_not_reuse_directory_resolutions() {
     let key: PkgNameVerPeer = "pkg-from-tarball@1.0.0".parse().expect("parse key");
     let mut metadata = registry_metadata();
     metadata.resolution = LockfileResolution::Tarball(TarballResolution {
@@ -157,6 +183,32 @@ fn does_not_reuse_non_registry_resolutions() {
     lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
 
     assert!(synthesize_reused_result(&lockfile, &key, "pkg-from-tarball").is_none());
+}
+
+#[test]
+fn synthesizes_a_git_resolution_with_the_locked_commit_and_manifest_version() {
+    let key: PkgNameVerPeer = "git-pkg@git+file:///repo#0123456789012345678901234567890123456789"
+        .parse()
+        .expect("parse git key");
+    let mut metadata = registry_metadata();
+    metadata.resolution = LockfileResolution::Git(GitResolution {
+        repo: "file:///repo".to_string(),
+        commit: "0123456789012345678901234567890123456789".to_string(),
+        path: None,
+    });
+    metadata.version = Some("1.2.3".to_string());
+    let mut lockfile = empty_lockfile();
+    lockfile.packages = Some(HashMap::from([(key.clone(), metadata.clone())]));
+
+    let result = synthesize_reused_result(&lockfile, &key, "git-pkg")
+        .expect("locked git dependency is reusable");
+    assert_eq!(result.id.as_str(), key.to_string());
+    assert_eq!(result.name_ver, None);
+    assert_eq!(result.resolution, metadata.resolution);
+    assert_eq!(result.resolved_via, "git-repository");
+    let manifest = result.manifest.expect("synthesized git manifest");
+    assert_eq!(manifest.get("name").and_then(serde_json::Value::as_str), Some("git-pkg"));
+    assert_eq!(manifest.get("version").and_then(serde_json::Value::as_str), Some("1.2.3"));
 }
 
 #[test]

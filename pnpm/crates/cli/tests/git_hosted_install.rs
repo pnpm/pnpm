@@ -17,7 +17,7 @@
 
 pub mod _utils;
 
-use std::{fmt::Write as _, path::Path, process::Command};
+use std::{fmt::Write as _, fs, path::Path, process::Command};
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -27,8 +27,8 @@ use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
 
 use _utils::{
-    assert_success, importer_specifier, importer_version, ndjson_records, read_lockfile,
-    read_manifest, write_manifest_value,
+    append_workspace_yaml_key, assert_success, importer_specifier, importer_version,
+    ndjson_records, read_lockfile, read_manifest, write_manifest_value,
 };
 
 /// The `hi` package upstream installs under the `say-hi` alias. Two bin
@@ -173,6 +173,7 @@ fn install_from_a_git_repo_with_a_different_name_via_named_installation() {
         .find(|added| added.get("name").and_then(Value::as_str) == Some("say-hi"))
         .expect("a pnpm:root `added` record for say-hi");
     assert_eq!(added["realName"], "hi");
+    assert_eq!(added["version"], "1.0.0");
     assert_eq!(added["dependencyType"], "prod");
 
     for bin in ["hi", "szia"] {
@@ -424,6 +425,201 @@ fn run_prepare_script_for_git_hosted_dependencies() {
     drop((root, npmrc_info));
 }
 
+#[test]
+fn git_dependency_is_built_on_isolated_reinstall() {
+    assert_git_dependency_is_built_on_reinstall(None);
+}
+
+#[test]
+fn git_dependency_is_built_on_hoisted_reinstall() {
+    assert_git_dependency_is_built_on_reinstall(Some("hoisted"));
+}
+
+fn assert_git_dependency_is_built_on_reinstall(node_linker: Option<&str>) {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "prepare-script-works");
+    repo.write_file(
+        "package.json",
+        r#"{"name":"prepare-script-works","version":"1.0.0","files":["package.json","prepare.txt"],"scripts":{"prepare":"node -e \"require('fs').writeFileSync('prepare.txt', 'prepared')\""}}"#,
+    );
+    let commit = repo.commit("init");
+    let spec = repo.git_url_at(&commit);
+    write_dependencies(&workspace, &[("prepare-script-works", &spec)]);
+    allow_builds(&workspace, &[&format!("prepare-script-works@{spec}")]);
+    if let Some(node_linker) = node_linker {
+        append_workspace_yaml_key(&workspace, "nodeLinker", node_linker);
+    }
+    let marker = workspace.join("node_modules/prepare-script-works/prepare.txt");
+
+    pacquet.with_args(["install", "--ignore-scripts"]).assert().success();
+    let marker_exists = marker.exists();
+    eprintln!("MARKER: {}\nEXISTS: {marker_exists}\n", marker.display());
+    assert!(!marker_exists, "the ignored initial install must not prepare the package");
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    pnpm_at(&workspace)
+        .with_args(["install", "--config.prefer-frozen-lockfile=false"])
+        .assert()
+        .success();
+    let marker_exists = marker.exists();
+    eprintln!("MARKER: {}\nEXISTS: {marker_exists}\n", marker.display());
+    assert!(marker_exists, "a fresh-resolution reinstall must prepare the package");
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    pnpm_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    let marker_exists = marker.exists();
+    eprintln!("MARKER: {}\nEXISTS: {marker_exists}\n", marker.display());
+    assert!(marker_exists, "a frozen reinstall must materialize the prepared package");
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    pnpm_at(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--ignore-scripts"])
+        .assert()
+        .success();
+    let marker_exists = marker.exists();
+    eprintln!("MARKER: {}\nEXISTS: {marker_exists}\n", marker.display());
+    assert!(!marker_exists, "--ignore-scripts must keep prepare output out of the install");
+
+    drop((root, npmrc_info));
+}
+
+// TS: `from a github repo` / `from a github repo through URL`
+// (`fromRepo.ts:31`, `fromRepo.ts:48`). The forge spelling only changes
+// normalization; a local git URL exercises the alias-less add path without
+// depending on a public service.
+#[test]
+fn add_from_a_git_url_without_an_alias() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let (repo, commit) = simple_repo(root.path(), "is-negative", "1.0.0");
+    let spec = repo.git_url_at(&commit);
+
+    pacquet.with_args(["add", &spec]).assert().success();
+
+    assert_eq!(read_manifest(&workspace)["dependencies"], json!({ "is-negative": spec }));
+    let manifest_path = workspace.join("node_modules/is-negative/package.json");
+    eprintln!("MANIFEST: {}\n", manifest_path.display());
+    assert!(manifest_path.exists());
+
+    drop((root, npmrc_info));
+}
+
+#[test]
+fn aliasless_git_add_rejects_an_invalid_manifest_name_without_mutating_the_project() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "invalid-package-name");
+    repo.write_file("package.json", r#"{"name":"../invalid","version":"1.0.0","main":"index.js"}"#);
+    repo.write_file("index.js", "module.exports = true\n");
+    let commit = repo.commit("init");
+    let spec = repo.git_url_at(&commit);
+    write_manifest_value(&workspace, &json!({ "name": "project", "version": "1.0.0" }));
+    let manifest_before =
+        fs::read_to_string(workspace.join("package.json")).expect("read manifest");
+
+    let output = pacquet.with_args(["add", &spec]).output().expect("run pnpm add");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDERR:\n{stderr}\n");
+    assert!(!output.status.success());
+    assert!(stderr.contains("ERR_PNPM_INVALID_PACKAGE_NAME"), "stderr:\n{stderr}");
+    assert_eq!(
+        fs::read_to_string(workspace.join("package.json")).expect("reread manifest"),
+        manifest_before,
+    );
+
+    drop((root, npmrc_info));
+}
+
+// TS: `should not update when adding unrelated dependency`
+// (`fromRepo.ts:323`).
+#[test]
+fn adding_an_unrelated_dependency_reuses_the_locked_git_commit() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "moving-git-dep");
+    repo.write_file(
+        "package.json",
+        r#"{"name":"moving-git-dep","version":"1.0.0","main":"index.js"}"#,
+    );
+    repo.write_file("index.js", "module.exports = 1\n");
+    let first_commit = repo.commit("first");
+    let spec = repo.git_url_at("main");
+    write_dependencies(&workspace, &[("moving-git-dep", &spec)]);
+    pacquet.with_args(["install"]).assert().success();
+
+    repo.write_file("index.js", "module.exports = 2\n");
+    let second_commit = repo.commit("second");
+    assert_ne!(first_commit, second_commit);
+    pnpm_at(&workspace).with_args(["add", "@pnpm.e2e/abc"]).assert().success();
+
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert_eq!(git_resolution(&lockfile, "moving-git-dep").commit, first_commit);
+
+    drop((root, npmrc_info));
+}
+
+// TS: `a subdependency is from a github repo with different name`
+// (`fromRepo.ts:150`) and `don't fail when peer dependency is fetched from
+// GitHub` (`peerDependencies.ts:30`).
+#[test]
+fn registry_dependency_can_alias_a_git_dependency_that_provides_a_peer() {
+    let fixture = CommandTempCwd::init();
+    let (repo, commit) = say_hi_repo(fixture.root.path());
+    let spec = repo.git_url_at(&commit);
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } = fixture
+        .add_mocked_registry_with_substitutions(&[(
+            "github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd",
+            &spec,
+        )]);
+    append_workspace_yaml_key(&workspace, "blockExoticSubdeps", false);
+
+    pacquet.with_args(["add", "@pnpm.e2e/has-aliased-git-dependency"]).assert().success();
+
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    let parent: pacquet_lockfile::PkgNameVerPeer =
+        "@pnpm.e2e/has-aliased-git-dependency@1.0.0".parse().expect("parse parent key");
+    let snapshot = &lockfile.snapshots.as_ref().expect("lockfile has snapshots")[&parent];
+    assert_eq!(
+        snapshot
+            .dependencies
+            .as_ref()
+            .expect("parent has dependencies")
+            .get(&"say-hi".parse().expect("parse dependency name"))
+            .expect("say-hi dependency")
+            .to_string(),
+        format!("hi@{spec}"),
+    );
+    for bin in ["hi", "szia"] {
+        let bin_path = workspace
+            .join("node_modules/@pnpm.e2e/has-aliased-git-dependency/node_modules/.bin")
+            .join(bin);
+        eprintln!("BIN: {}\n", bin_path.display());
+        assert!(bin_path.exists(), "{bin} should be linked for the registry package");
+    }
+
+    drop((root, npmrc_info));
+}
+
+// TS: `updating package that has a github-hosted dependency`
+// (`lockfile.ts:600`).
+#[test]
+fn updating_a_registry_package_that_has_a_git_dependency() {
+    let fixture = CommandTempCwd::init();
+    let (repo, commit) = simple_repo(fixture.root.path(), "is-positive", "1.0.0");
+    let spec = repo.git_url_at(&commit);
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        fixture.add_mocked_registry_with_substitutions(&[("kevva/is-positive", &spec)]);
+    append_workspace_yaml_key(&workspace, "blockExoticSubdeps", false);
+
+    pacquet.with_args(["add", "@pnpm.e2e/has-github-dep@1"]).assert().success();
+    pnpm_at(&workspace).with_args(["add", "@pnpm.e2e/has-github-dep@latest"]).assert().success();
+
+    assert_eq!(read_manifest(&workspace)["dependencies"]["@pnpm.e2e/has-github-dep"], "^2.0.0");
+
+    drop((root, npmrc_info));
+}
+
 /// Append an `allowBuilds` block to the `pnpm-workspace.yaml` the
 /// harness wrote, opting the listed `<name>@<specifier>` keys into
 /// running lifecycle scripts.
@@ -444,126 +640,4 @@ fn allow_builds(workspace: &Path, keys: &[&str]) {
         writeln!(yaml, "  {key:?}: true").expect("format allowBuilds entry");
     }
     std::fs::write(&path, yaml).expect("write pnpm-workspace.yaml");
-}
-
-mod known_failures {
-    //! Git-hosted install cases blocked on behavior pacquet hasn't
-    //! built or reconciled yet. Each stubs the not-yet-implemented
-    //! subject under test through
-    //! [`pacquet_testing_utils::allow_known_failure`] so the test exits
-    //! early rather than masking a real bug.
-
-    use pacquet_testing_utils::{
-        allow_known_failure,
-        known_failure::{KnownFailure, KnownResult},
-    };
-
-    fn alias_less_git_add() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "`pnpm add <git-specifier>` without an explicit `<alias>@` \
-             prefix is not supported. `add`'s `split_name_spec` treats \
-             the whole argument as a package name, so \
-             `pnpm add kevva/is-negative` / \
-             `pnpm add https://github.com/kevva/is-negative` ask the \
-             registry for a package literally named by the specifier \
-             and fail with ERR_PNPM_INVALID_PACKAGE_NAME. Upstream \
-             resolves the repo first and takes the name from the \
-             fetched manifest. The aliased form \
-             (`pnpm add say-hi@github:zkochan/hi`) and every \
-             manifest-declared git dependency already work — see the \
-             real tests in this file.",
-        ))
-    }
-
-    fn git_dep_version_in_root_log() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "The `pnpm:root` `added` event reports a git dependency's \
-             `version` as the specifier's version slot — the \
-             `git+<repo>#<commit>` URL — where upstream reports the \
-             package's own version (`1.0.0`), which the default \
-             reporter renders as `+ hi 1.0.0`. Pacquet prints \
-             `+ hi git+file:///...#<commit>`. The version lives in the \
-             lockfile's `packages:` entry, which \
-             `symlink_direct_dependencies` does not receive.",
-        ))
-    }
-
-    fn git_ref_relocked_on_every_resolution() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "A git dependency's locked commit is not reused from the \
-             wanted lockfile: every resolution pass re-runs \
-             `git ls-remote` and relocks whatever the ref points at \
-             now. For a moving ref (`#main`, a floating tag) an \
-             unrelated `pnpm add` therefore bumps the git dependency's \
-             commit, which upstream's test pins as the thing that must \
-             not happen — verified against pnpm 11.13.1, which keeps \
-             the locked commit after the branch moves. The reuse map \
-             built in `install_with_fresh_lockfile` keys on integrity, \
-             so git resolutions never enter it.",
-        ))
-    }
-
-    fn git_dependency_of_a_registry_fixture() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "Needs a registry fixture that declares a git dependency. A \
-             fixture's `package.json` is static, so its git specifier \
-             would have to name a repository that exists at test time — \
-             i.e. a real forge URL, which would make the suite depend \
-             on github.com being reachable. The install-level git tests \
-             in this file build a repo per test and reference it by \
-             `git+file://`, a URL no committed fixture can know. \
-             Unblocking this needs the fixture builder in \
-             `pnpr-fixtures` to support substituting a per-run repo URL \
-             into a fixture manifest.",
-        ))
-    }
-
-    /// TS: `from a github repo` (`fromRepo.ts:31`) — `pnpm add
-    /// kevva/is-negative`, whose saved specifier is `github:kevva/is-negative`.
-    #[test]
-    fn add_from_a_github_repo_shorthand() {
-        allow_known_failure!(alias_less_git_add());
-    }
-
-    /// TS: `from a github repo through URL` (`fromRepo.ts:48`) — `pnpm add
-    /// https://github.com/kevva/is-negative`.
-    #[test]
-    fn add_from_a_github_repo_through_url() {
-        allow_known_failure!(alias_less_git_add());
-    }
-
-    /// The `pnpm:root` `added.version` half of TS `from a github repo
-    /// with different name via named installation` (`fromRepo.ts:61`),
-    /// which expects `version: '1.0.0'`. The alias half — `name`,
-    /// `realName`, `dependencyType` — is asserted by the real test.
-    #[test]
-    fn root_log_reports_the_package_version_for_a_git_dependency() {
-        allow_known_failure!(git_dep_version_in_root_log());
-    }
-
-    /// TS: `should not update when adding unrelated dependency`
-    /// (`fromRepo.ts:323`). Adding an unrelated registry dependency
-    /// must leave a branch-pinned git dependency on its locked commit.
-    #[test]
-    fn should_not_update_when_adding_unrelated_dependency() {
-        allow_known_failure!(git_ref_relocked_on_every_resolution());
-    }
-
-    /// TS: `a subdependency is from a github repo with different name`
-    /// (`fromRepo.ts:150`), which installs
-    /// `@pnpm.e2e/has-aliased-git-dependency` — a registry package whose
-    /// own `dependencies` alias a github repo.
-    #[test]
-    fn a_subdependency_is_from_a_git_repo_with_a_different_name() {
-        allow_known_failure!(git_dependency_of_a_registry_fixture());
-    }
-
-    /// TS: `updating package that has a github-hosted dependency`
-    /// (`lockfile.ts:600`), which re-adds `@pnpm.e2e/has-github-dep` at
-    /// a second version to prove the range-comparison path tolerates a
-    /// non-semver pin among the dependency's own deps.
-    #[test]
-    fn updating_package_that_has_a_git_hosted_dependency() {
-        allow_known_failure!(git_dependency_of_a_registry_fixture());
-    }
 }

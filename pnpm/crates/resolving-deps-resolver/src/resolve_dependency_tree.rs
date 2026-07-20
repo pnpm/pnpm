@@ -102,7 +102,7 @@ impl ReuseSource {
         let lockfile = ctx.workspace.wanted_lockfile.as_ref()?;
         match self {
             ReuseSource::Importer { importer_id } => reusable_importer_dep(
-                &lockfile.importers,
+                lockfile,
                 importer_id,
                 wanted.alias.as_deref()?,
                 wanted.bare_specifier.as_deref()?,

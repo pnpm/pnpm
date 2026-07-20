@@ -7,7 +7,8 @@ use miette::Diagnostic;
 use pacquet_cmd_shim::LinkBinsError;
 use pacquet_config::Config;
 use pacquet_lockfile::{
-    ImporterDepVersion, PkgName, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencySpec,
+    ImporterDepVersion, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, ProjectSnapshot,
+    ResolvedDependencySpec,
 };
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_reporter::{
@@ -53,6 +54,10 @@ where
     /// [`crate::VirtualStoreLayout`].
     pub layout: &'a VirtualStoreLayout,
     pub importers: &'a HashMap<String, ProjectSnapshot>,
+    /// Per-package metadata from the lockfile. Non-registry packages carry
+    /// their manifest version here because their importer version slot is a
+    /// URL or path rather than the package's semantic version.
+    pub packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     pub dependency_groups: DependencyGroupList,
     /// Workspace root. For a single-project install this is the
     /// directory containing the user's `package.json`; for a real
@@ -155,6 +160,7 @@ where
             config,
             layout,
             importers,
+            packages,
             dependency_groups,
             workspace_root,
             skipped,
@@ -248,6 +254,7 @@ where
                 importer_id,
                 layout,
                 project_snapshot,
+                packages,
                 &project_dir,
                 &modules_dir,
                 dependency_groups.iter().copied(),
@@ -394,6 +401,7 @@ fn link_one_importer<Reporter: self::Reporter>(
     importer_id: &str,
     layout: &VirtualStoreLayout,
     project_snapshot: &ProjectSnapshot,
+    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
     project_dir: &Path,
     modules_dir: &Path,
     dependency_groups: impl IntoIterator<Item = DependencyGroup>,
@@ -481,12 +489,17 @@ fn link_one_importer<Reporter: self::Reporter>(
         // (the version-without-peer of the alias's resolved
         // suffix); the resolved package name surfaces via
         // `real_name` below.
-        let version = match &spec.version {
+        let manifest_version = spec
+            .version
+            .resolved_key(name)
+            .and_then(|key| packages?.get(&key.without_peer()))
+            .and_then(|metadata| metadata.version.clone());
+        let version = manifest_version.or_else(|| match &spec.version {
             ImporterDepVersion::Regular(ver) => Some(ver.version().to_string()),
             ImporterDepVersion::Alias(alias) => Some(alias.suffix.version().to_string()),
             ImporterDepVersion::Link(target) => Some(format!("link:{target}")),
             ImporterDepVersion::File(target) => Some(format!("file:{target}")),
-        };
+        });
         // For aliases, `real_name` is the resolved package's true
         // name (different from the importer-map key). For the
         // other arms the two match.

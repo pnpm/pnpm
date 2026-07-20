@@ -13,6 +13,10 @@ fn deny_all_builds<'a>() -> AllowBuildRef<'a> {
     &|_| false
 }
 
+fn allow_all_builds<'a>() -> AllowBuildRef<'a> {
+    &|_| true
+}
+
 /// Build the `cas_paths` map the dispatcher would hand the fetcher
 /// after `DownloadTarballToStore` finishes: a fresh `StoreDir`, a few
 /// files written via `write_cas_file`, and a `path → cas_path` map.
@@ -164,6 +168,47 @@ async fn rejects_build_when_not_allowed() {
         }
         other => panic!("expected Prepare::NotAllowed, got {other:?}"),
     }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn surfaces_prepare_script_failure() {
+    let store_root = tempdir().unwrap();
+    let store_dir = StoreDir::from(store_root.path().to_path_buf());
+    let cas_paths = write_to_cas(
+        &store_dir,
+        &[(
+            "package.json",
+            br#"{"name":"prepare-script-fails","version":"1.0.0","scripts":{"prepare":"node -e \"process.exit(1)\""}}"#,
+            false,
+        )],
+    );
+
+    let err = GitHostedTarballFetcher {
+        cas_paths,
+        path: None,
+        allow_build: allow_all_builds(),
+        ignore_scripts: false,
+        unsafe_perm: true,
+        user_agent: None,
+        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        script_shell: None,
+        node_execpath: None,
+        npm_execpath: None,
+        store_dir: &store_dir,
+        package_id: "prepare-script-fails@1.0.0",
+        requester: "/test",
+        store_index_writer: None,
+        files_index_file: "prepare-script-fails@1.0.0\tbuilt",
+    }
+    .run::<SilentReporter>()
+    .await
+    .unwrap_err();
+
+    eprintln!("ERROR:\n{err:?}\n");
+    assert!(
+        matches!(err, GitFetcherError::Prepare(PreparePackageError::LifecycleFailed { .. })),
+        "expected prepare lifecycle failure, got {err:?}",
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

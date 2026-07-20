@@ -601,7 +601,7 @@ async fn selected_add_prepares_and_persists_only_selected_projects() {
     let ordered_dirs = [projects[1].root_dir.clone(), projects[0].root_dir.clone()];
     let selected_dirs = ordered_dirs.iter().cloned().collect::<HashSet<_>>();
     let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
-    let config = Config::new();
+    let config = Box::leak(Box::new(Config::new()));
     let http_client = ThrottledClient::default();
     let http_client_arc = Arc::new(ThrottledClient::default());
 
@@ -610,7 +610,7 @@ async fn selected_add_prepares_and_persists_only_selected_projects() {
         &indices,
         &http_client,
         &http_client_arc,
-        &config,
+        config,
         None,
         Some(&[DependencyGroup::Prod][..]),
         std::slice::from_ref(&"foo@workspace:*".to_string()),
@@ -648,7 +648,7 @@ async fn selected_add_merges_catalog_updates_in_command_order() {
     let ordered_dirs = [projects[1].root_dir.clone(), projects[0].root_dir.clone()];
     let selected_dirs = ordered_dirs.iter().cloned().collect::<HashSet<_>>();
     let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
-    let config = Config::new();
+    let config = Box::leak(Box::new(Config::new()));
     let http_client = ThrottledClient::default();
     let http_client_arc = Arc::new(ThrottledClient::default());
 
@@ -657,7 +657,7 @@ async fn selected_add_merges_catalog_updates_in_command_order() {
         &indices,
         &http_client,
         &http_client_arc,
-        &config,
+        config,
         None,
         Some(&[DependencyGroup::Prod][..]),
         std::slice::from_ref(&"foo".to_string()),
