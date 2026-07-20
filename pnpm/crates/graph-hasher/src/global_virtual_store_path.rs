@@ -161,7 +161,13 @@ pub fn format_global_virtual_store_path(name: &str, version: &str, hex_digest: &
 pub fn join_global_virtual_store_path(base: &Path, rel: &str) -> PathBuf {
     let mut path = base.to_path_buf();
     path.extend(rel.split('/'));
-    path
+    // The base may originate from a config string that uses forward
+    // slashes (npm-style).  `PathBuf::extend` only appends native
+    // separators for the *new* segments; any `/` bytes already inside
+    // `base` survive unchanged, producing mixed-separator paths that
+    // Windows rejects with `ERROR_DIRECTORY` (os error 267).  Walk the
+    // string once to normalise — a no-op on Unix where `/` is native.
+    PathBuf::from(path.to_string_lossy().replace('/', std::path::MAIN_SEPARATOR_STR))
 }
 
 #[cfg(test)]

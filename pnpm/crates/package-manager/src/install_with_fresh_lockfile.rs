@@ -2295,6 +2295,23 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     &hoist_skipped,
                 )
                 .map_err(InstallWithFreshLockfileError::HoistSymlink)?;
+                if let Some(snaps) = built_lockfile.snapshots.as_ref() {
+                    let private_pattern = pacquet_config::matcher::create_matcher(
+                        config.hoist_pattern.as_deref().unwrap_or(&[]),
+                    );
+                    let public_pattern = pacquet_config::matcher::create_matcher(
+                        config.public_hoist_pattern.as_deref().unwrap_or(&[]),
+                    );
+                    crate::create_gvs_hoisted_children_symlinks(
+                        &graph,
+                        &private_pattern,
+                        &public_pattern,
+                        &layout,
+                        snaps,
+                        &hoist_skipped,
+                    )
+                    .map_err(InstallWithFreshLockfileError::HoistSymlink)?;
+                }
                 crate::link_direct_dep_bins(&private_dir, &result.hoisted_aliases_with_bins)
                     .map_err(InstallWithFreshLockfileError::HoistLinkBins)?;
                 // Stash the public-hoist alias list so the post-build

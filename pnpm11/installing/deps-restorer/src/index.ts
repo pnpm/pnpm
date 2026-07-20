@@ -32,7 +32,7 @@ import {
 } from '@pnpm/exec.lifecycle'
 import { symlinkDependency } from '@pnpm/fs.symlink-dependency'
 import { linkDirectDeps, type LinkedDirectDep } from '@pnpm/installing.linking.direct-dep-linker'
-import { hoist, type HoistedWorkspaceProject } from '@pnpm/installing.linking.hoist'
+import { getHoistedDependencies, hoist, type HoistedWorkspaceProject } from '@pnpm/installing.linking.hoist'
 import { prune } from '@pnpm/installing.linking.modules-cleaner'
 import type { HoistingLimits } from '@pnpm/installing.linking.real-hoist'
 import {
@@ -456,7 +456,12 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         opts.symlink === false || opts.enableModulesDir === false
           ? Promise.resolve()
           : linkAllModules(depNodes, {
+            depGraph: graph,
+            enableGlobalVirtualStore: Boolean(opts.enableGlobalVirtualStore),
+            hoistPattern: opts.hoistPattern,
             optional: opts.include.optionalDependencies,
+            publicHoistPattern: opts.publicHoistPattern,
+            skipped,
           }),
         linkAllPkgs(opts.storeController, depNodes, {
           allowBuild,
@@ -1109,16 +1114,83 @@ async function linkAllBins (
 async function linkAllModules (
   depNodes: Array<Pick<DependenciesGraphNode, 'children' | 'optionalDependencies' | 'modules' | 'name'>>,
   opts: {
+    depGraph: DependenciesGraph
+    enableGlobalVirtualStore: boolean
+    hoistPattern?: string[]
     optional: boolean
+    publicHoistPattern?: string[]
+    skipped: Set<DepPath>
   }
 ): Promise<void> {
+  const mergedHoistPattern = opts.enableGlobalVirtualStore
+    ? Array.from(new Set([
+      ...(opts.hoistPattern ?? []),
+      ...(opts.publicHoistPattern ?? []),
+    ]))
+    : []
   await symlinkAllModules({
-    deps: depNodes.map((depNode) => ({
-      children: opts.optional
+    deps: depNodes.map((depNode) => {
+      const children = (opts.optional
         ? depNode.children
-        : pickBy((_, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children),
-      modules: depNode.modules,
-      name: depNode.name,
-    })),
+        : pickBy((_, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children)) as Record<string, string>
+      const childrenPaths = { ...children }
+      if (opts.enableGlobalVirtualStore && mergedHoistPattern.length > 0) {
+        const existingAliases = new Set(Object.keys(childrenPaths))
+        Object.assign(childrenPaths, getGvsHoistedChildrenPaths(depNode, opts.depGraph, {
+          hoistPattern: mergedHoistPattern,
+          skipped: opts.skipped,
+          existingAliases,
+          optional: opts.optional,
+        }))
+      }
+      return {
+        children: childrenPaths,
+        modules: depNode.modules,
+        name: depNode.name,
+      }
+    }),
   })
+}
+
+function getGvsHoistedChildrenPaths (
+  depNode: Pick<DependenciesGraphNode, 'children' | 'modules' | 'name' | 'optionalDependencies'>,
+  depGraph: DependenciesGraph,
+  opts: {
+    hoistPattern: string[]
+    skipped: Set<DepPath>
+    existingAliases: Set<string>
+    optional: boolean
+  }
+): Record<string, string> {
+  if (opts.hoistPattern.length === 0) return {}
+
+  const directDeps = new Map<string, string>()
+  for (const [alias, childDepPath] of Object.entries(depNode.children)) {
+    if (depGraph[childDepPath]) {
+      directDeps.set(alias, childDepPath)
+    }
+  }
+
+  const hoisted = getHoistedDependencies<string>({
+    directDepsByImporterId: { '.': directDeps },
+    graph: depGraph,
+    privateHoistPattern: opts.hoistPattern,
+    privateHoistedModulesDir: depNode.modules,
+    publicHoistPattern: [],
+    publicHoistedModulesDir: depNode.modules,
+    skipped: opts.skipped,
+  })
+  if (!hoisted) return {}
+
+  const hoistedChildren: Record<string, string> = {}
+  for (const [depPath, aliases] of Object.entries(hoisted.hoistedDependencies)) {
+    const pkg = depGraph[depPath]
+    if (!pkg) continue
+    if (!opts.optional && depNode.optionalDependencies.has(depPath)) continue
+    for (const alias of Object.keys(aliases)) {
+      if (alias === depNode.name || directDeps.has(alias) || opts.existingAliases.has(alias) || hoistedChildren[alias]) continue
+      hoistedChildren[alias] = pkg.dir
+    }
+  }
+  return hoistedChildren
 }

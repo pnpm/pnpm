@@ -1,12 +1,13 @@
 use super::sanitize;
 use clap::Args;
 use derive_more::{Display, Error};
+use futures_util::StreamExt as _;
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use node_semver::Range;
 use pacquet_config::Config;
 use pacquet_network::{
-    NetworkSettings, RetryOpts, ThrottledClient, encode_uri_component, read_limited_body,
-    redact_url_credentials, retry_async, send_with_retry,
+    NetworkSettings, RetryOpts, ThrottledClient, encode_uri_component, redact_url_credentials,
+    retry_async, send_with_retry,
 };
 use pacquet_resolving_npm_resolver::pick_registry_for_package;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
@@ -224,20 +225,20 @@ pub(crate) async fn update_deprecation(
     }
 
     let versions_to_update: Vec<String> = if let Some(range_str) = version_range {
-        // Mirror the TypeScript CLI's `semver.satisfies`, which treats an
-        // unparsable range as matching nothing (yielding NoMatchingVersions)
-        // rather than a distinct "invalid spec" error.
-        match Range::parse(range_str) {
-            Ok(range) => package_meta
-                .versions
-                .keys()
-                .filter(|ver_str| {
-                    node_semver::Version::parse(ver_str).is_ok_and(|ver| range.satisfies(&ver))
-                })
-                .cloned()
-                .collect(),
-            Err(_) => Vec::new(),
-        }
+        let range = Range::parse(range_str)
+            .map_err(|_| DeprecateError::InvalidPackageSpec { spec: range_str.to_string() })?;
+        package_meta
+            .versions
+            .keys()
+            .filter(|ver_str| {
+                if let Ok(ver) = node_semver::Version::parse(ver_str) {
+                    range.satisfies(&ver)
+                } else {
+                    false
+                }
+            })
+            .cloned()
+            .collect()
     } else {
         package_meta.versions.keys().cloned().collect()
     };
@@ -329,7 +330,7 @@ enum FetchError {
 
 impl FetchError {
     fn is_retryable(&self) -> bool {
-        matches!(self, Self::Body(_) | Self::InvalidJson(_))
+        matches!(self, Self::Body(_))
     }
 }
 
@@ -430,7 +431,7 @@ async fn write_error_from_response(response: Response, action: String) -> miette
         read_limited_body(response, DEPRECATION_ERROR_BODY_LIMIT).await.map_err(|source| {
             registry_operation_error("reading the registry error response", source)
         })?;
-    let body = sanitize::body_display_string(&body);
+    let body = body.into_display_string();
     if status == StatusCode::UNAUTHORIZED {
         return Err(DeprecateError::Unauthorized { action, body }.into());
     }
@@ -450,6 +451,47 @@ where
         reason: redact_url_credentials(&error.to_string()),
     }
     .into()
+}
+
+pub(crate) struct LimitedBody {
+    bytes: Vec<u8>,
+    truncated: bool,
+}
+
+impl LimitedBody {
+    pub(crate) fn into_display_string(self) -> String {
+        let body = String::from_utf8_lossy(&self.bytes);
+        let mut body = sanitize::sanitize(&body).into_owned();
+        if self.truncated {
+            if !body.is_empty() && !body.chars().next_back().is_some_and(char::is_whitespace) {
+                body.push(' ');
+            }
+            body.push_str("(response body truncated)");
+        }
+        body
+    }
+}
+
+pub(crate) async fn read_limited_body(
+    response: Response,
+    limit: usize,
+) -> Result<LimitedBody, reqwest::Error> {
+    let header_exceeds_limit =
+        response.content_length().is_some_and(|length| length > limit as u64);
+    let mut bytes = Vec::new();
+    let mut truncated = header_exceeds_limit;
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        let remaining = limit.saturating_sub(bytes.len());
+        if chunk.len() > remaining {
+            bytes.extend_from_slice(&chunk[..remaining]);
+            truncated = true;
+            break;
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    Ok(LimitedBody { bytes, truncated })
 }
 
 pub(crate) fn registry_for_package(context: &DeprecateContext<'_>, package_name: &str) -> String {
