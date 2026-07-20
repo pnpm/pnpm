@@ -398,18 +398,21 @@ impl DeployPipeline {
 /// the default stays `<modules_dir>/.pnpm`. Global-virtual-store
 /// installs keep their store-anchored `virtual_store_dir`.
 pub(crate) fn anchor_dedicated_project_config(config: &mut Config, project_dir: &Path) {
-    let modules_dir_name = config
-        .modules_dir
-        .file_name()
-        .map_or_else(|| std::ffi::OsString::from("node_modules"), std::ffi::OsStr::to_os_string);
-    config.modules_dir = project_dir.join(modules_dir_name);
+    // Both re-anchored paths resolve the *raw* setting (recovered from
+    // [`Config::explicit_settings`]) against the project dir, so a
+    // multi-component or absolute value keeps its full shape —
+    // `Path::join` keeps an absolute setting absolute.
+    config.modules_dir =
+        match config.explicit_settings.get("modulesDir").and_then(serde_json::Value::as_str) {
+            Some(raw) => project_dir.join(raw),
+            None => project_dir.join("node_modules"),
+        };
     if !config.enable_global_virtual_store {
         config.virtual_store_dir = match config
             .explicit_settings
             .get("virtualStoreDir")
             .and_then(serde_json::Value::as_str)
         {
-            // `Path::join` keeps an absolute setting absolute.
             Some(raw) => project_dir.join(raw),
             None => config.modules_dir.join(".pnpm"),
         };
