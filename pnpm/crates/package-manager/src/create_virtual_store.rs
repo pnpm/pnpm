@@ -406,6 +406,8 @@ impl CreateVirtualStore<'_> {
         // latter would find an empty path, so the skip gate would
         // incorrectly mark every warm slot as "broken" and emit
         // `BrokenModules` for the wrong path.
+        let mut marker_probe_keys = HashSet::new();
+        let mut marker_rebuilds = HashSet::new();
         let survivors = snapshots
             .iter()
             // Reason 1: installability skip. Drop entirely.
@@ -447,7 +449,13 @@ impl CreateVirtualStore<'_> {
                     .join("node_modules")
                     .join(snapshot_key.name.to_string());
                 if dir.is_dir() {
-                    gvs_slot_needs_rebuild(layout, allow_build_policy, snapshot_key)
+                    let needs_rebuild =
+                        gvs_slot_needs_rebuild(layout, allow_build_policy, snapshot_key);
+                    marker_probe_keys.insert((*snapshot_key).clone());
+                    if needs_rebuild {
+                        marker_rebuilds.insert((*snapshot_key).clone());
+                    }
+                    needs_rebuild
                 } else {
                     Reporter::emit(&LogEvent::BrokenModules(BrokenModulesLog {
                         level: LogLevel::Debug,
@@ -490,13 +498,15 @@ impl CreateVirtualStore<'_> {
                 .map(|key| (snapshot_key, snapshot, key))
             })
             .collect::<Result<_, _>>()?;
-        let marker_rebuilds: HashSet<PackageKey> = snapshot_entries
-            .iter()
-            .filter(|(snapshot_key, _, _)| {
-                gvs_slot_needs_rebuild(layout, allow_build_policy, snapshot_key)
-            })
-            .map(|(snapshot_key, _, _)| (*snapshot_key).clone())
-            .collect();
+        marker_rebuilds.extend(
+            snapshot_entries
+                .iter()
+                .filter(|(snapshot_key, _, _)| !marker_probe_keys.contains(*snapshot_key))
+                .filter(|(snapshot_key, _, _)| {
+                    gvs_slot_needs_rebuild(layout, allow_build_policy, snapshot_key)
+                })
+                .map(|(snapshot_key, _, _)| (*snapshot_key).clone()),
+        );
 
         // Cache keys for the *skipped* snapshots (i.e. snapshots
         // present in `snapshots` but absent from `snapshot_entries`).
