@@ -744,11 +744,6 @@ where
         // Read before the sink is moved into the fresh-path inputs.
         let peer_issues_sink_is_none = peer_issues_sink.is_none();
 
-        // `--dry-run` resolves but never materializes, so it borrows the
-        // lockfile-only plumbing (skip node_modules / `.modules.yaml` /
-        // workspace-state) while additionally skipping the lockfile write.
-        let resolve_only = lockfile_only || dry_run;
-
         // `--lockfile-only` with `lockfile: false` (pnpm's
         // `useLockfile: false`) is a config conflict: the only output the
         // flag produces is the lockfile, and that write is disabled.
@@ -756,6 +751,23 @@ where
         if lockfile_only && !config.lockfile {
             return Err(InstallError::ConfigConflictLockfileOnlyWithNoLockfile);
         }
+
+        // `enableModulesDir: false` (with the global virtual store off) is
+        // "resolve and write the lockfile, materialize nothing" — the same
+        // pipeline `--lockfile-only` takes, entered from config. It stays
+        // outside the `lockfile: false` conflict above (pnpm accepts that
+        // combination and simply writes nothing), and never turns a
+        // rebuild — which runs against an already-materialized
+        // `node_modules` — into a silent no-op.
+        let lockfile_only = lockfile_only
+            || (rebuild.is_none()
+                && !config.enable_modules_dir
+                && !config.enable_global_virtual_store);
+
+        // `--dry-run` resolves but never materializes, so it borrows the
+        // lockfile-only plumbing (skip node_modules / `.modules.yaml` /
+        // workspace-state) while additionally skipping the lockfile write.
+        let resolve_only = lockfile_only || dry_run;
 
         if config.frozen_store && config.force {
             return Err(InstallError::ConfigConflictFrozenStoreWithForce);

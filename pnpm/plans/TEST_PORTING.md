@@ -195,7 +195,7 @@ The four scenarios below share `assert_patch_install_scenario` in `crates/cli/te
 
 Supporting tests:
 
-- [x] `TypeScript repo: installing/deps-restorer/test/index.ts:848` `installing with no modules directory and a patched dependency` — stubbed in `known_failures::installing_with_no_modules_directory_and_a_patched_dependency`: `enableModulesDir: false` is not a pacquet config setting, tracked in [pnpm/pnpm#12042](https://github.com/pnpm/pnpm/issues/12042) with the other unsupported installation settings. The NAPI binding accepts it and aliases it onto the lockfile-only path (`crates/napi/src/install.rs`), but `pacquet_config::Config` has no `enable_modules_dir` field, so the CLI cannot express it. Unstub once that setting lands.
+- [x] `TypeScript repo: installing/deps-restorer/test/index.ts:848` `installing with no modules directory and a patched dependency` — ported as `installing_with_no_modules_directory_and_a_patched_dependency` in `crates/cli/tests/patch.rs`: `enableModulesDir: false` is now honored from `pnpm-workspace.yaml` (it rides the lockfile-only pipeline in `Install::run`; the NAPI binding keeps its own aliasing in `crates/napi/src/install.rs`).
 - [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:216` `patch package reports warning if not all patches are applied and allowUnusedPatches is set`
 - [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:246` `patch package throws an exception if not all patches are applied`
 - [x] `TypeScript repo: installing/deps-installer/test/install/patch.ts:269` `the patched package is updated if the patch is modified` — `install_level_modified_patch_is_reapplied`.

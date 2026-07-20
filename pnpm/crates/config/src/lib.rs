@@ -662,12 +662,15 @@ pub struct Config {
     /// `enableModulesDir`: pnpm's setting for suppressing the
     /// `node_modules` directory entirely. Default `true`.
     ///
-    /// Only partially wired in pacquet: it gates the
-    /// [`virtual_store_only`] config conflict (a store-only install with
-    /// no modules dir needs the global virtual store to have anywhere to
-    /// put packages). The standalone "create no `node_modules` at all"
-    /// behavior is not implemented yet — a `false` value on its own does
-    /// not suppress materialization.
+    /// A `false` value (with the global virtual store off) makes the
+    /// install "resolve and write the lockfile, materialize nothing" —
+    /// it rides the `--lockfile-only` pipeline in
+    /// `pacquet_package_manager::Install::run`. With the global virtual
+    /// store on, materialization proceeds into the store (pnpm's
+    /// `enableModulesDir !== false || enableGlobalVirtualStore` gate).
+    /// It also gates the [`virtual_store_only`] config conflict (a
+    /// store-only install with no modules dir needs the global virtual
+    /// store to have anywhere to put packages).
     ///
     /// [`virtual_store_only`]: Self::virtual_store_only
     #[default(true)]

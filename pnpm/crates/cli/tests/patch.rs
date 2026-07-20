@@ -1558,36 +1558,24 @@ fn unused_patch_is_not_checked_on_a_filtered_install() {
     drop((root, mock_instance));
 }
 
-mod known_failures {
-    //! Patch cases blocked on config surface pacquet hasn't built yet.
-    //! Each entry stubs the not-yet-built subject under test through
-    //! [`pacquet_testing_utils::allow_known_failure`] so the test exits
-    //! early rather than masking a real bug.
+/// TS: `installing with no modules directory and a patched dependency`
+/// (`deps-restorer/test/index.ts:848`). A headless install with
+/// `enableModulesDir: false` must leave no `node_modules` directory
+/// behind even when a dependency is patched.
+#[test]
+fn installing_with_no_modules_directory_and_a_patched_dependency() {
+    let (root, workspace, npmrc_info) =
+        setup_configured_patch("is-positive@1.0.0", "is-positive@1.0.0.patch");
+    pacquet(&workspace, ["install", "--lockfile-only"]).assert().success();
 
-    use pacquet_testing_utils::{
-        allow_known_failure,
-        known_failure::{KnownFailure, KnownResult},
-    };
+    append_workspace_yaml_key(&workspace, "enableModulesDir", "false");
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
 
-    fn enable_modules_dir_setting() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "`enableModulesDir: false` is not a pacquet config setting \
-             (tracked in pnpm/pnpm#12042 with the other unsupported \
-             installation settings). The NAPI binding accepts it and \
-             aliases it onto the lockfile-only path \
-             (`crates/napi/src/install.rs`), but `pacquet_config::Config` \
-             has no `enable_modules_dir` field, so the CLI cannot express \
-             \"resolve and write the lockfile, materialize nothing\" — \
-             with or without a patched dependency.",
-        ))
-    }
+    assert!(workspace.join("pnpm-lock.yaml").exists(), "the lockfile must still be written");
+    assert!(
+        !workspace.join("node_modules").exists(),
+        "`enableModulesDir: false` must not create a node_modules directory",
+    );
 
-    /// TS: `installing with no modules directory and a patched dependency`
-    /// (`deps-restorer/test/index.ts:848`). A headless install with
-    /// `enableModulesDir: false` must leave no `node_modules` directory
-    /// behind even when a dependency is patched.
-    #[test]
-    fn installing_with_no_modules_directory_and_a_patched_dependency() {
-        allow_known_failure!(enable_modules_dir_setting());
-    }
+    drop((root, npmrc_info)); // cleanup
 }
