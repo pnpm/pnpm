@@ -2134,6 +2134,7 @@ where
                     .modules_dir
                     .file_name()
                     .unwrap_or_else(|| std::ffi::OsStr::new("node_modules")),
+                &crate::shim_extra_node_paths(config, node_linker),
             )
             .map_err(InstallError::LinkManifestLinkDeps)?;
         }

@@ -11,11 +11,11 @@
 //! the registry mock serves; pre-baking a tiny v9 lockfile by hand
 //! would diverge silently the moment a fixture changes.
 //!
-//! Tests that depend on features pacquet hasn't built yet
-//! (`extendNodePath`) live in
-//! [`known_failures`] below with
-//! [`pacquet_testing_utils::allow_known_failure`] gating the assertion
-//! against the not-yet-implemented subject under test.
+//! Every hoist case formerly stubbed here is a real test now: the
+//! repeat-install / rehoist / pattern-diff cases landed with the
+//! prune-stale-modules reconciliation, direct-dep bin precedence with
+//! the bin-origin tier, and the `extendNodePath` shims with the
+//! `NODE_PATH` support in `pacquet-cmd-shim`.
 //!
 //! Workspace install (pnpm/pacquet#431) landed in [#443]. The
 //! [`workspace_hoist_walks_every_importer`] test below covers the
@@ -1380,38 +1380,40 @@ fn hoisted_packages_dont_override_direct_dep_bins() {
     drop((root, mock_instance));
 }
 
-mod known_failures {
-    //! Hoist cases blocked on features pacquet hasn't built yet. Each
-    //! entry stubs the not-yet-built subject under test through
-    //! [`pacquet_testing_utils::allow_known_failure`] so the test
-    //! exits early rather than masking a real bug. The cases here
-    //! cover:
-    //!
-    //! - **`extendNodePath`**: not read or applied to command shims.
-    //!
-    //! The repeat-install / rehoist / pattern-diff cases formerly
-    //! stubbed here are real tests in the parent module since the
-    //! prune-stale-modules reconciliation landed.
+/// TS: `should add extra node paths to command shims` (`hoist.ts:790`).
+#[test]
+fn should_add_extra_node_paths_to_command_shims() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
 
-    use pacquet_testing_utils::{
-        allow_known_failure,
-        known_failure::{KnownFailure, KnownResult},
-    };
+    pacquet.with_args(["add", "@pnpm.e2e/hello-world-js-bin"]).assert().success();
 
-    fn extend_node_path_in_shims() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "`extendNodePath` config (and its `false` variant) is not \
-             read or applied to command shims by pacquet yet.",
-        ))
-    }
+    let shim = fs::read_to_string(workspace.join("node_modules/.bin/hello-world-js-bin"))
+        .expect("read the command shim");
+    assert!(
+        shim.contains("node_modules/.pnpm/node_modules"),
+        "the shim must extend NODE_PATH with the hidden hoisted modules dir:\n{shim}",
+    );
 
-    #[test]
-    fn should_add_extra_node_paths_to_command_shims() {
-        allow_known_failure!(extend_node_path_in_shims());
-    }
+    drop((root, npmrc_info)); // cleanup
+}
 
-    #[test]
-    fn should_not_add_extra_node_paths_when_extend_node_path_false() {
-        allow_known_failure!(extend_node_path_in_shims());
-    }
+/// TS: `should not add extra node paths to command shims, when
+/// extend-node-path is set to false` (`hoist.ts:799`).
+#[test]
+fn should_not_add_extra_node_paths_when_extend_node_path_false() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    append_workspace_yaml_key(&workspace, "extendNodePath", "false");
+
+    pacquet.with_args(["add", "@pnpm.e2e/hello-world-js-bin"]).assert().success();
+
+    let shim = fs::read_to_string(workspace.join("node_modules/.bin/hello-world-js-bin"))
+        .expect("read the command shim");
+    assert!(
+        !shim.contains("node_modules/.pnpm/node_modules"),
+        "`extendNodePath: false` must keep NODE_PATH out of the shim:\n{shim}",
+    );
+
+    drop((root, npmrc_info)); // cleanup
 }

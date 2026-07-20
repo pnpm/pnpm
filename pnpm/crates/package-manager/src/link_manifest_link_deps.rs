@@ -42,6 +42,7 @@ pub fn link_manifest_link_deps<Reporter: pacquet_reporter::Reporter>(
     project_manifests: &[(PathBuf, &PackageManifest)],
     importers: Option<&HashMap<String, ProjectSnapshot>>,
     modules_dir_name: &std::ffi::OsStr,
+    extra_node_paths: &[String],
 ) -> Result<(), LinkManifestLinkDepsError> {
     // The name must be a single normal path component. The install
     // call site derives it from `config.modules_dir.file_name()`,
@@ -138,7 +139,7 @@ pub fn link_manifest_link_deps<Reporter: pacquet_reporter::Reporter>(
         // targets without a `package.json` (Bit's manifest-less
         // component links), so a bin-less link is a no-op.
         if !linked_aliases.is_empty() {
-            crate::link_direct_dep_bins(&modules_dir, &linked_aliases)
+            crate::link_direct_dep_bins(&modules_dir, &linked_aliases, extra_node_paths)
                 .map_err(LinkManifestLinkDepsError::LinkBins)?;
         }
     }

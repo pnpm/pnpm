@@ -564,6 +564,14 @@ pub struct Config {
     #[default(_code = "Some(default_public_hoist_pattern())")]
     pub public_hoist_pattern: Option<Vec<String>>,
 
+    /// `extendNodePath`: when `true` (the default) and the isolated
+    /// `nodeLinker` runs with a hoist pattern, command shims set
+    /// `NODE_PATH` to include the hidden hoisted modules directory
+    /// (`<virtual-store-dir>/node_modules`). `false` leaves `NODE_PATH`
+    /// out of the shims entirely.
+    #[default(true)]
+    pub extend_node_path: bool,
+
     /// By default, pnpm creates a semistrict `node_modules`, meaning dependencies have access to
     /// undeclared dependencies but modules outside of `node_modules` do not. With this layout,
     /// most of the packages in the ecosystem work with no issues. However, if some tooling only

@@ -109,6 +109,10 @@ where
     /// such importers without complaint. Ids *not* in this set keep
     /// the strict malformed-lockfile rejection.
     pub trusted_importer_ids: Option<&'a HashSet<String>>,
+
+    /// [`crate::shim_extra_node_paths`] output — threaded into the
+    /// per-importer `.bin` shim pass.
+    pub extra_node_paths: &'a [String],
 }
 
 /// Error type of [`SymlinkDirectDependencies`].
@@ -167,6 +171,7 @@ where
             link_only,
             public_hoist_targets,
             trusted_importer_ids,
+            extra_node_paths,
         } = self;
 
         // Collect once so the same group order can drive every importer.
@@ -262,6 +267,7 @@ where
                 link_only,
                 dedupe_against,
                 config.symlink,
+                extra_node_paths,
             )?;
         }
 
@@ -410,6 +416,7 @@ fn link_one_importer<Reporter: self::Reporter>(
     link_only: bool,
     dedupe_against: Option<&BTreeMap<String, PathBuf>>,
     symlink: bool,
+    extra_node_paths: &[String],
 ) -> Result<(), SymlinkDirectDependenciesError> {
     let entries = collect_resolved_entries(
         layout,
@@ -537,11 +544,11 @@ fn link_one_importer<Reporter: self::Reporter>(
     // `<modules_dir>/.bin`.
     if symlink {
         let dep_names: Vec<String> = entries.iter().map(|entry| entry.name_str.clone()).collect();
-        link_direct_dep_bins(modules_dir, &dep_names)
+        link_direct_dep_bins(modules_dir, &dep_names, extra_node_paths)
             .map_err(SymlinkDirectDependenciesError::LinkBins)?;
     } else {
         let locations: Vec<PathBuf> = entries.iter().map(|entry| entry.target.clone()).collect();
-        crate::link_direct_dep_bins_from_locations(modules_dir, &locations)
+        crate::link_direct_dep_bins_from_locations(modules_dir, &locations, extra_node_paths)
             .map_err(SymlinkDirectDependenciesError::LinkBins)?;
     }
 

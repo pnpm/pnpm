@@ -30,6 +30,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         hoist: false,
         hoist_pattern: None,
         public_hoist_pattern: None,
+        extend_node_path: true,
         shamefully_hoist: false,
         store_dir: StoreDir::new(store_dir),
         modules_dir: modules_dir.to_path_buf(),

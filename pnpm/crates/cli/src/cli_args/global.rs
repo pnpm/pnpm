@@ -146,9 +146,14 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
             .into_diagnostic()
             .wrap_err("link the global package install directory")?;
 
-        link_bins_of_packages_with_excludes::<CmdShimHost>(&pkgs, &global_bin_dir, &bins_to_skip)
-            .map_err(miette::Report::new)
-            .wrap_err("link global package bins")?;
+        link_bins_of_packages_with_excludes::<CmdShimHost>(
+            &pkgs,
+            &global_bin_dir,
+            &bins_to_skip,
+            &[],
+        )
+        .map_err(miette::Report::new)
+        .wrap_err("link global package bins")?;
     }
     Ok(())
 }
@@ -235,9 +240,14 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
             let _ = fs::remove_dir_all(&pkg.install_dir);
         }
 
-        link_bins_of_packages_with_excludes::<CmdShimHost>(&pkgs, &global_bin_dir, &bins_to_skip)
-            .map_err(miette::Report::new)
-            .wrap_err("link global package bins")?;
+        link_bins_of_packages_with_excludes::<CmdShimHost>(
+            &pkgs,
+            &global_bin_dir,
+            &bins_to_skip,
+            &[],
+        )
+        .map_err(miette::Report::new)
+        .wrap_err("link global package bins")?;
     }
     Ok(())
 }

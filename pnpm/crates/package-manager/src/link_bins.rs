@@ -6,6 +6,7 @@ use pacquet_cmd_shim::{
     FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsError, PackageBinSource,
     collect_packages_in_modules_dir, link_bins_of_packages,
 };
+use pacquet_config::{Config, NodeLinker};
 use pacquet_lockfile::{LockfileResolution, PackageKey, PackageMetadata, PkgName, SnapshotEntry};
 use rayon::prelude::*;
 use std::{
@@ -14,6 +15,22 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
+
+/// pnpm's `getExtraNodePaths`: under the isolated linker with a hoist
+/// pattern, every shim written by the install carries the hidden
+/// hoisted modules dir (`<virtual-store-dir>/node_modules`) on
+/// `NODE_PATH`, unless `extendNodePath: false`. Everything else — the
+/// hoisted linker, a disabled hoist pass — gets no `NODE_PATH` at all.
+#[must_use]
+pub fn shim_extra_node_paths(config: &Config, node_linker: NodeLinker) -> Vec<String> {
+    let has_hoist_pattern =
+        config.hoist_pattern.as_ref().is_some_and(|patterns| !patterns.is_empty());
+    if config.extend_node_path && matches!(node_linker, NodeLinker::Isolated) && has_hoist_pattern {
+        vec![config.virtual_store_dir.join("node_modules").to_string_lossy().into_owned()]
+    } else {
+        Vec::new()
+    }
+}
 
 /// Read the `package.json` of every direct dependency under `modules_dir`
 /// and link its bins into `<modules_dir>/.bin`.
@@ -25,7 +42,11 @@ use std::{
 /// the real package contents in the virtual store.
 ///
 /// Driven on rayon because each location's read+parse is independent.
-pub fn link_direct_dep_bins(modules_dir: &Path, dep_names: &[String]) -> Result<(), LinkBinsError> {
+pub fn link_direct_dep_bins(
+    modules_dir: &Path,
+    dep_names: &[String],
+    extra_node_paths: &[String],
+) -> Result<(), LinkBinsError> {
     let direct_dep_locations: Vec<PathBuf> =
         dep_names.iter().map(|name| modules_dir.join(name)).collect();
     // Swallow only `NotFound`: a direct-dep symlink target can
@@ -59,7 +80,7 @@ pub fn link_direct_dep_bins(modules_dir: &Path, dep_names: &[String]) -> Result<
     if bin_sources.is_empty() {
         return Ok(());
     }
-    link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"))
+    link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"), extra_node_paths)
 }
 
 /// Link bins from resolved direct-dependency locations without requiring
@@ -69,6 +90,7 @@ pub fn link_direct_dep_bins(modules_dir: &Path, dep_names: &[String]) -> Result<
 pub fn link_direct_dep_bins_from_locations(
     modules_dir: &Path,
     locations: &[PathBuf],
+    extra_node_paths: &[String],
 ) -> Result<(), LinkBinsError> {
     let bin_sources = locations
         .par_iter()
@@ -81,7 +103,7 @@ pub fn link_direct_dep_bins_from_locations(
     if bin_sources.is_empty() {
         return Ok(());
     }
-    link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"))
+    link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"), extra_node_paths)
 }
 
 /// Top-level bin link that mixes direct-dep candidates and hoisted
@@ -108,6 +130,7 @@ pub fn link_top_level_bins(
     modules_dir: &Path,
     direct_dep_names: &[String],
     hoisted_dep_names: &[String],
+    extra_node_paths: &[String],
 ) -> Result<(), LinkBinsError> {
     let mut bin_sources: Vec<PackageBinSource> = Vec::new();
     // Tag direct deps as `Direct` and hoisted as `Hoisted` so the
@@ -134,7 +157,7 @@ pub fn link_top_level_bins(
     if bin_sources.is_empty() {
         return Ok(());
     }
-    link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"))
+    link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"), extra_node_paths)
 }
 
 /// Link a project's top-level bins while preserving direct-dependency
@@ -270,6 +293,10 @@ pub struct LinkVirtualStoreBins<'a> {
     /// `<slot>/node_modules/<alias>` would fail. Excluding them up
     /// front matches the rest of the install pipeline's filtering.
     pub skipped: &'a SkippedSnapshots,
+    /// [`shim_extra_node_paths`] output — pnpm threads the same
+    /// `extraNodePaths` into slot-internal bin shims as into importer
+    /// bins.
+    pub extra_node_paths: &'a [String],
 }
 
 impl LinkVirtualStoreBins<'_> {
@@ -294,7 +321,14 @@ impl LinkVirtualStoreBins<'_> {
             + FsSetExecutable
             + FsEnsureExecutableBits,
     {
-        let LinkVirtualStoreBins { layout, snapshots, packages, package_manifests, skipped } = self;
+        let LinkVirtualStoreBins {
+            layout,
+            snapshots,
+            packages,
+            package_manifests,
+            skipped,
+            extra_node_paths,
+        } = self;
         if let Some(snapshots) = snapshots {
             let has_bin_set = build_has_bin_set(packages);
             run_lockfile_driven::<Sys>(
@@ -303,6 +337,7 @@ impl LinkVirtualStoreBins<'_> {
                 has_bin_set.as_ref(),
                 package_manifests,
                 skipped,
+                extra_node_paths,
             )
         } else {
             // No snapshots (lockfile absent or empty): fall back to a
@@ -310,7 +345,7 @@ impl LinkVirtualStoreBins<'_> {
             // frozen installs, which <https://github.com/pnpm/pacquet/issues/432> doesn't activate GVS for, so
             // reading from `layout.package_store_dir()` reproduces
             // today's behaviour exactly when GVS is off.
-            run_with_readdir::<Sys>(layout.package_store_dir())
+            run_with_readdir::<Sys>(layout.package_store_dir(), extra_node_paths)
         }
     }
 }
@@ -369,6 +404,7 @@ fn run_lockfile_driven<Sys>(
     has_bin_set: Option<&HashSet<PackageKey>>,
     package_manifests: &PackageManifests,
     skipped: &SkippedSnapshots,
+    extra_node_paths: &[String],
 ) -> Result<(), LinkVirtualStoreBinsError>
 where
     Sys: FsReadFile
@@ -508,7 +544,7 @@ where
         if bin_sources.is_empty() {
             return Ok(());
         }
-        link_bins_of_packages::<Sys>(&bin_sources, &bins_dir)
+        link_bins_of_packages::<Sys>(&bin_sources, &bins_dir, extra_node_paths)
             .map_err(LinkVirtualStoreBinsError::LinkBins)
     })
 }
@@ -539,7 +575,10 @@ fn pkg_dir_under(modules_dir: &Path, name: &PkgName) -> PathBuf {
 /// then walk each slot's `node_modules` to discover children. Used
 /// only by [`crate::InstallWithFreshLockfile`] today; the lockfile
 /// path bypasses every directory enumeration in here.
-fn run_with_readdir<Sys>(virtual_store_dir: &Path) -> Result<(), LinkVirtualStoreBinsError>
+fn run_with_readdir<Sys>(
+    virtual_store_dir: &Path,
+    extra_node_paths: &[String],
+) -> Result<(), LinkVirtualStoreBinsError>
 where
     Sys: FsReadDir
         + FsReadFile
@@ -582,7 +621,7 @@ where
             return Ok(());
         }
         let bins_dir = self_pkg_dir.join("node_modules/.bin");
-        link_bins_excluding::<Sys>(&modules_dir, &bins_dir, &self_pkg_dir)
+        link_bins_excluding::<Sys>(&modules_dir, &bins_dir, &self_pkg_dir, extra_node_paths)
             .map_err(LinkVirtualStoreBinsError::LinkBins)
     })
 }
@@ -639,6 +678,7 @@ fn link_bins_excluding<Sys>(
     modules_dir: &Path,
     bins_dir: &Path,
     exclude: &Path,
+    extra_node_paths: &[String],
 ) -> Result<(), LinkBinsError>
 where
     Sys: FsReadDir
@@ -707,7 +747,7 @@ where
         return Ok(());
     }
 
-    link_bins_of_packages::<Sys>(&packages, bins_dir)
+    link_bins_of_packages::<Sys>(&packages, bins_dir, extra_node_paths)
 }
 
 fn read_package<Sys: FsReadFile>(

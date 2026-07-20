@@ -14,6 +14,7 @@ repository.workspace = true
 pacquet-fs = { workspace = true }
 
 derive_more = { workspace = true }
+dunce       = { workspace = true }
 miette      = { workspace = true }
 pipe-trait  = { workspace = true }
 rayon       = { workspace = true }

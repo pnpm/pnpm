@@ -56,6 +56,7 @@ fn writes_child_bins_into_slot_own_package_node_modules() {
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
+        extra_node_paths: &[],
     }
     .run()
     .unwrap();
@@ -108,6 +109,7 @@ fn skips_slot_own_package_when_walking_children() {
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
+        extra_node_paths: &[],
     }
     .run()
     .unwrap();
@@ -136,6 +138,7 @@ fn link_virtual_store_bins_no_op_when_dir_missing() {
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
+        extra_node_paths: &[],
     }
     .run()
     .expect("missing dir is Ok");
@@ -177,6 +180,7 @@ fn link_virtual_store_bins_handles_scoped_slot_name() {
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
+        extra_node_paths: &[],
     }
     .run()
     .unwrap();
@@ -230,6 +234,7 @@ fn link_virtual_store_bins_handles_peer_resolved_slot_name() {
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
+        extra_node_paths: &[],
     }
     .run()
     .unwrap();
@@ -283,6 +288,7 @@ fn link_virtual_store_bins_handles_unscoped_name_with_plus() {
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
+        extra_node_paths: &[],
     }
     .run()
     .unwrap();
@@ -311,6 +317,7 @@ fn link_virtual_store_bins_skips_slot_without_node_modules() {
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
+        extra_node_paths: &[],
     }
     .run()
     .unwrap();
@@ -341,6 +348,7 @@ fn link_virtual_store_bins_skips_slot_without_own_package_dir() {
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
+        extra_node_paths: &[],
     }
     .run()
     .expect("missing own-package dir is skipped silently");
@@ -359,7 +367,7 @@ fn link_direct_dep_bins_writes_shims_for_each_dep() {
         .unwrap();
     write_file(foo_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
 
-    link_direct_dep_bins(&modules, &["foo".to_string()]).unwrap();
+    link_direct_dep_bins(&modules, &["foo".to_string()], &[]).unwrap();
 
     let shim = modules.join(".bin/foo");
     assert!(shim.exists(), "shim should be created at {shim:?}");
@@ -375,7 +383,7 @@ fn link_direct_dep_bins_no_op_for_empty_dep_list() {
     let tmp = tempdir().unwrap();
     let modules = tmp.path().join("node_modules");
     create_dir_all(&modules).unwrap();
-    link_direct_dep_bins(&modules, &[]).unwrap();
+    link_direct_dep_bins(&modules, &[], &[]).unwrap();
     assert!(!modules.join(".bin").exists());
 }
 
@@ -404,7 +412,7 @@ fn link_direct_dep_bins_follows_symlink_to_real_package() {
     let symlink = modules.join("foo");
     pacquet_fs::symlink_dir(&real_pkg, &symlink).unwrap();
 
-    link_direct_dep_bins(&modules, &["foo".to_string()]).unwrap();
+    link_direct_dep_bins(&modules, &["foo".to_string()], &[]).unwrap();
 
     assert!(modules.join(".bin/foo").exists(), "symlinked dep must produce a shim");
 }
@@ -418,7 +426,7 @@ fn link_direct_dep_bins_skips_dep_with_missing_manifest() {
     let modules = tmp.path().join("node_modules");
     create_dir_all(&modules).unwrap();
     // No `<modules>/foo` directory at all.
-    link_direct_dep_bins(&modules, &["foo".to_string()]).unwrap();
+    link_direct_dep_bins(&modules, &["foo".to_string()], &[]).unwrap();
     assert!(!modules.join(".bin").exists());
 }
 
@@ -495,6 +503,7 @@ fn link_virtual_store_bins_propagates_read_error_via_di() {
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
+        extra_node_paths: &[],
     }
     .run_with::<DenyVirtualStore>()
     .expect_err("read_dir error must propagate");

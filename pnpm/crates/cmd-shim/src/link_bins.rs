@@ -169,8 +169,13 @@ pub enum LinkBinsError {
 }
 
 /// Read `<location>/package.json` for each entry under `modules_dir` and link
-/// its bins into `bins_dir`.
-pub fn link_bins<Sys>(modules_dir: &Path, bins_dir: &Path) -> Result<(), LinkBinsError>
+/// its bins into `bins_dir`. See [`link_bins_of_packages`] for the
+/// `extra_node_paths` contract.
+pub fn link_bins<Sys>(
+    modules_dir: &Path,
+    bins_dir: &Path,
+    extra_node_paths: &[String],
+) -> Result<(), LinkBinsError>
 where
     Sys: FsReadDir
         + FsReadFile
@@ -183,7 +188,7 @@ where
         + FsEnsureExecutableBits,
 {
     let packages = collect_packages_in_modules_dir::<Sys>(modules_dir)?;
-    link_bins_of_packages::<Sys>(&packages, bins_dir)
+    link_bins_of_packages::<Sys>(&packages, bins_dir, extra_node_paths)
 }
 
 /// Read the installed packages directly under `modules_dir`, including
@@ -261,6 +266,12 @@ fn read_package<Sys: FsReadFile>(
 /// Link every bin declared by `packages` into `bins_dir`, applying conflict
 /// resolution between bins of the same name.
 ///
+/// `extra_node_paths` is pnpm's `extraNodePaths` (the hidden hoisted
+/// modules dir under the isolated linker unless `extendNodePath:
+/// false`). When non-empty, each shim carries a `NODE_PATH` block
+/// listing the target's own `node_modules` dirs followed by these
+/// entries; when empty the shims stay `NODE_PATH`-free.
+///
 /// Pacquet's first iteration does not resolve same-package multi-version
 /// conflicts via semver (used elsewhere for hoisting), since the
 /// virtual-store layout means each bin source is a unique
@@ -268,6 +279,7 @@ fn read_package<Sys: FsReadFile>(
 pub fn link_bins_of_packages<Sys>(
     packages: &[PackageBinSource],
     bins_dir: &Path,
+    extra_node_paths: &[String],
 ) -> Result<(), LinkBinsError>
 where
     Sys: FsReadToString
@@ -282,6 +294,7 @@ where
         packages,
         bins_dir,
         &std::collections::HashSet::new(),
+        extra_node_paths,
     )
 }
 
@@ -292,6 +305,7 @@ pub fn link_bins_of_packages_with_excludes<Sys>(
     packages: &[PackageBinSource],
     bins_dir: &Path,
     exclude_bins: &std::collections::HashSet<String>,
+    extra_node_paths: &[String],
 ) -> Result<(), LinkBinsError>
 where
     Sys: FsReadToString
@@ -345,7 +359,7 @@ where
     // The hot path is per-package-bin; without parallelism the per-shim
     // file I/O serialised across the whole `chosen` map.
     chosen.par_iter().try_for_each(|(bin_name, (command, _pkg))| {
-        write_shim::<Sys>(&command.path, &bins_dir.join(bin_name))
+        write_shim::<Sys>(&command.path, &bins_dir.join(bin_name), extra_node_paths)
     })?;
 
     Ok(())
@@ -386,7 +400,11 @@ fn pick_winner(
 /// they are no-ops (Windows has no equivalent permission concept), so
 /// the call sites stay portable and don't need their own
 /// `#[cfg(unix)]` gating.
-fn write_shim<Sys>(target_path: &Path, shim_path: &Path) -> Result<(), LinkBinsError>
+fn write_shim<Sys>(
+    target_path: &Path,
+    shim_path: &Path,
+    extra_node_paths: &[String],
+) -> Result<(), LinkBinsError>
 where
     Sys: FsReadToString + FsReadHead + FsWrite + FsSetExecutable + FsEnsureExecutableBits,
 {
@@ -417,7 +435,24 @@ where
         LinkBinsError::ProbeShimSource { path: target_path.to_path_buf(), error }
     })?;
 
-    let sh_body = generate_sh_shim(target_path, shim_path, runtime.as_ref());
+    // pnpm's shim `NODE_PATH`: the target's own `node_modules` dirs
+    // first, then the caller's extras that aren't already present.
+    // An empty extras list means "no NODE_PATH in shims at all"
+    // (`extendNodePath: false`, a non-isolated linker, or no hoist
+    // pattern), matching pnpm's bins linker.
+    let node_path: Vec<String> = if extra_node_paths.is_empty() {
+        Vec::new()
+    } else {
+        let mut merged = bin_node_paths(target_path);
+        for extra in extra_node_paths {
+            if !merged.contains(extra) {
+                merged.push(extra.clone());
+            }
+        }
+        merged
+    };
+
+    let sh_body = generate_sh_shim(target_path, shim_path, runtime.as_ref(), &node_path);
     // Windows siblings are off on Unix to match pnpm. The bodies
     // themselves still get computed inside the `cfg!(windows)` branch
     // below — moving the `generate_*` calls there keeps Unix builds
@@ -425,8 +460,8 @@ where
     let windows_shims = cfg!(windows).then(|| {
         let cmd_path = with_extension_appended(shim_path, "cmd");
         let ps1_path = with_extension_appended(shim_path, "ps1");
-        let cmd_body = generate_cmd_shim(target_path, &cmd_path, runtime.as_ref());
-        let ps1_body = generate_pwsh_shim(target_path, &ps1_path, runtime.as_ref());
+        let cmd_body = generate_cmd_shim(target_path, &cmd_path, runtime.as_ref(), &node_path);
+        let ps1_body = generate_pwsh_shim(target_path, &ps1_path, runtime.as_ref(), &node_path);
         (cmd_path, cmd_body, ps1_path, ps1_body)
     });
 
@@ -441,10 +476,18 @@ where
     // different relative path. Generated bodies are stable across
     // pacquet versions (only the `<target>` segment moves), so byte
     // equality is a sound equivalence check.
-    let sh_marker_ok = matches!(
-        Sys::read_to_string(shim_path),
-        Ok(existing) if is_shim_pointing_at(&existing, target_path),
-    );
+    //
+    // When a `NODE_PATH` block is expected, the marker alone can't
+    // prove the shim carries the right (or any) block, so require
+    // byte equality; the marker-only branch additionally rejects a
+    // stale `NODE_PATH` block when none is expected.
+    let sh_marker_ok = match Sys::read_to_string(shim_path) {
+        Ok(existing) if !node_path.is_empty() => existing == sh_body,
+        Ok(existing) => {
+            is_shim_pointing_at(&existing, target_path) && !existing.contains("NODE_PATH")
+        }
+        Err(_) => false,
+    };
     let windows_ok = match &windows_shims {
         None => true,
         Some((cmd_path, cmd_body, ps1_path, ps1_body)) => {
@@ -498,6 +541,45 @@ where
     }
 
     Ok(())
+}
+
+/// The `node_modules` directories relevant to a bin target in the
+/// virtual-store layout — pnpm's `getBinNodePaths`. For a bin at
+/// `.pnpm/pkg@ver/node_modules/pkg/bin/cli.js` this returns the
+/// package's own `node_modules` (bundled deps) followed by the slot's
+/// `node_modules` (sibling deps), so tools that resolve from CWD
+/// (`import-local` in jest, eslint, ...) find the correct versions.
+/// The target directory is realpath-resolved first so a symlinked
+/// direct dependency yields its virtual-store slot paths.
+fn bin_node_paths(target: &Path) -> Vec<String> {
+    let target_dir = target.parent().unwrap_or_else(|| Path::new(""));
+    let dir = dunce::canonicalize(target_dir).unwrap_or_else(|_| target_dir.to_path_buf());
+    let Some(node_modules_dir) = dir.ancestors().find(|ancestor| {
+        ancestor.file_name().is_some_and(|name| name == "node_modules")
+            && ancestor
+                .parent()
+                .and_then(Path::file_name)
+                .is_none_or(|parent_name| parent_name != "node_modules")
+    }) else {
+        return Vec::new();
+    };
+    let mut result = Vec::new();
+    if let Ok(rel) = dir.strip_prefix(node_modules_dir)
+        && let Some(first) = rel.components().next()
+    {
+        let first_name = first.as_os_str().to_string_lossy();
+        let pkg_dir = if first_name.starts_with('@') {
+            match rel.components().nth(1) {
+                Some(second) => node_modules_dir.join(first).join(second.as_os_str()),
+                None => node_modules_dir.join(first),
+            }
+        } else {
+            node_modules_dir.join(first)
+        };
+        result.push(pkg_dir.join("node_modules").to_string_lossy().into_owned());
+    }
+    result.push(node_modules_dir.to_string_lossy().into_owned());
+    result
 }
 
 /// Whether `shim_path`'s file name is exactly `node` — the trigger for the

@@ -139,6 +139,9 @@ pub struct WorkspaceSettings {
     /// match pnpm.
     pub optimistic_repeat_install: Option<bool>,
     pub hoist_workspace_packages: Option<bool>,
+    /// `extendNodePath` from `pnpm-workspace.yaml`. See
+    /// [`Config::extend_node_path`].
+    pub extend_node_path: Option<bool>,
     /// `linkWorkspacePackages` from `pnpm-workspace.yaml`. Tri-state
     /// (`true | false | "deep"`) — see [`LinkWorkspacePackages`].
     pub link_workspace_packages: Option<LinkWorkspacePackages>,
@@ -812,6 +815,7 @@ impl WorkspaceSettings {
             exclude_links_from_lockfile,
             optimistic_repeat_install,
             hoist_workspace_packages,
+            extend_node_path,
             hoisting_limits, external_dependencies,
             dedupe_peer_dependents, dedupe_peers, dedupe_direct_deps, dedupe_injected_deps,
             strict_peer_dependencies, ignore_compatibility_db,

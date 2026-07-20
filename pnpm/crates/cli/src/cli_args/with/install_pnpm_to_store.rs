@@ -232,7 +232,7 @@ fn link_bins(pkg_dir: &Path, bin_dir: &Path) -> miette::Result<()> {
         .into_diagnostic()
         .wrap_err_with(|| format!("parse {}", manifest_path.display()))?;
     let source = PackageBinSource::new(pkg_dir.to_path_buf(), Arc::new(manifest));
-    link_bins_of_packages::<CmdShimHost>(&[source], bin_dir)
+    link_bins_of_packages::<CmdShimHost>(&[source], bin_dir, &[])
         .map_err(miette::Report::new)
         .wrap_err("link the pnpm bins")
 }

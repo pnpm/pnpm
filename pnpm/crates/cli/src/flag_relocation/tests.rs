@@ -54,7 +54,7 @@ fn relocated_deploy_invocation_parses_with_the_flags_applied() {
     let crate::cli_args::cli_command::CliCommand::Deploy(deploy) = args.command else {
         panic!("expected deploy");
     };
-    assert!(deploy.force);
+    assert!(deploy.install_args.force);
     assert!(deploy.install_args.ignore_scripts);
     assert_eq!(deploy.target_dirs, [std::path::PathBuf::from("temp-deploy")]);
 }
