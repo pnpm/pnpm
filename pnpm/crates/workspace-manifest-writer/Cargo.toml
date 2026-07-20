@@ -11,7 +11,9 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-catalogs-types = { workspace = true }
+pacquet-catalogs-types         = { workspace = true }
+pacquet-config-parse-overrides = { workspace = true }
+pacquet-package-manifest       = { workspace = true }
 
 derive_more  = { workspace = true }
 indexmap     = { workspace = true }

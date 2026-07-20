@@ -1,10 +1,14 @@
 use crate::{
     DIRECT_GROUPS, Install, InstallError, ResolvedPackages, UpdateSeedPolicy,
-    WorkspaceInstallSelection, emit_initial_package_manifest, package_manifest_prefix,
-    selected_project_indices,
+    WorkspaceInstallSelection,
+    catalog_cleanup::{
+        WriteWorkspaceCatalogsError, write_workspace_catalogs, write_workspace_catalogs_selected,
+    },
+    emit_initial_package_manifest, package_manifest_prefix, selected_project_indices,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pacquet_catalogs_types::Catalogs;
 use pacquet_config::Config;
 use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_network::ThrottledClient;
@@ -68,6 +72,10 @@ pub enum RemoveError {
 
     #[display("Failed to save the manifest file: {_0}")]
     SaveManifest(#[error(source)] PackageManifestError),
+
+    /// The `cleanupUnusedCatalogs` pass on `pnpm-workspace.yaml` failed.
+    #[diagnostic(transparent)]
+    WriteWorkspaceManifest(#[error(source)] WriteWorkspaceCatalogsError),
 
     #[diagnostic(transparent)]
     Install(#[error(source)] InstallError),
@@ -145,6 +153,9 @@ impl Remove<'_> {
 
         persist_manifest::<Reporter>(manifest)?;
 
+        write_workspace_catalogs(config, None, &Catalogs::new(), manifest)
+            .map_err(RemoveError::WriteWorkspaceManifest)?;
+
         Ok(())
     }
 
@@ -181,6 +192,9 @@ impl Remove<'_> {
             package_names,
             save_type,
         );
+        let workspace_root = config.workspace_dir.clone().unwrap_or_else(|| {
+            manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf()
+        });
 
         Install {
             tarball_mem_cache,
@@ -224,6 +238,9 @@ impl Remove<'_> {
         .map_err(RemoveError::Install)?;
 
         persist_selected_manifests::<Reporter>(projects, &selected_indices)?;
+
+        write_workspace_catalogs_selected(config, &workspace_root, &Catalogs::new(), projects)
+            .map_err(RemoveError::WriteWorkspaceManifest)?;
         Ok(())
     }
 }

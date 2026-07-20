@@ -2315,6 +2315,17 @@ pub fn engine_strict_node_version_and_max_sockets_from_workspace_yaml() {
 }
 
 #[test]
+pub fn cleanup_unused_catalogs_from_workspace_yaml() {
+    let tmp = tempdir().unwrap();
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+    assert!(!config.cleanup_unused_catalogs);
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "cleanupUnusedCatalogs: true\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(config.cleanup_unused_catalogs);
+}
+
+#[test]
 pub fn runtime_on_fail_from_workspace_yaml() {
     let dir = tempdir().unwrap();
     std::fs::write(dir.path().join("pnpm-workspace.yaml"), "runtimeOnFail: download\n").unwrap();

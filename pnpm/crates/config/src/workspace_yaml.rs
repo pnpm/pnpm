@@ -454,6 +454,10 @@ pub struct WorkspaceSettings {
     /// `catalogMode` from `pnpm-workspace.yaml`. See [`CatalogMode`].
     pub catalog_mode: Option<CatalogMode>,
 
+    /// `cleanupUnusedCatalogs` from `pnpm-workspace.yaml`. See
+    /// [`Config::cleanup_unused_catalogs`]. Default `false`.
+    pub cleanup_unused_catalogs: Option<bool>,
+
     /// `registrySupportsTimeField` from `pnpm-workspace.yaml`. See
     /// [`Config::registry_supports_time_field`].
     ///
@@ -825,7 +829,8 @@ impl WorkspaceSettings {
             virtual_store_only, enable_modules_dir,
             git_shallow_hosts,
             test_pattern, changed_files_ignore_pattern,
-            resolution_mode, catalog_mode, registry_supports_time_field,
+            resolution_mode, catalog_mode, cleanup_unused_catalogs,
+            registry_supports_time_field,
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,
             allow_unused_patches,

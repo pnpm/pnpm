@@ -915,7 +915,7 @@ Tracks pnpm/pnpm#12196. The `catalogMode` mismatch gate landed earlier (pnpm#117
 
 - [x] `TypeScript repo: installing/commands/test/saveCatalog.ts` — `pacquet-cli::catalog::save_catalog_flag_writes_the_default_catalog` and `save_catalog_name_preserves_the_dependency_group` cover the command-level default/named and `--save-dev` flows.
 - [x] `TypeScript repo: installing/deps-installer/test/catalogs.ts` general integration cases — `pacquet-cli::catalog::install_with_catalog_reference_writes_catalog_snapshot` pins install resolution and the lockfile snapshot; the existing catalog unit and workspace tests cover filtering and pruning at their implementation boundaries.
-- [x] `cleanupUnusedCatalogs` — known-failure boundary `pacquet-cli::catalog::removes_unused_entries_from_the_workspace_catalog` records the missing writer operation.
+- [x] `cleanupUnusedCatalogs` — implemented end to end: `pacquet-cli::catalog::removes_unused_entries_from_the_workspace_catalog` covers the CLI flow, and `pacquet-workspace-manifest-writer::tests::remove_unused_catalogs` ports the `removeCatalogs.test.ts` suite.
 - [x] Manual-mode `update --latest` of a `catalog:` dependency — `pacquet-cli::catalog::update_latest_keeps_catalog_reference_in_manual_mode`.
 
 ### Rust port notes

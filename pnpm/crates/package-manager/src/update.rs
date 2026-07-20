@@ -1,8 +1,13 @@
 use crate::{
     CatalogDecision, CatalogModeDep, CatalogVersionMismatchError, DIRECT_GROUPS,
     ImporterUpdateSeedPolicy, Install, InstallError, ResolvedPackages, UpdateSeedPolicy,
-    WorkspaceInstallSelection, decide_catalog, emit_initial_package_manifest,
-    package_manifest_prefix, resolution_policy::PickPolicy, resolve_latest::LatestPicker,
+    WorkspaceInstallSelection,
+    catalog_cleanup::{
+        WriteWorkspaceCatalogsError, write_workspace_catalogs, write_workspace_catalogs_selected,
+    },
+    decide_catalog, emit_initial_package_manifest, package_manifest_prefix,
+    resolution_policy::PickPolicy,
+    resolve_latest::LatestPicker,
     selected_project_indices,
 };
 use derive_more::{Display, Error};
@@ -20,7 +25,6 @@ use pacquet_registry::{PackageVersion, PinnedVersion};
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
 use pacquet_resolving_npm_resolver::{shared_packument_fetch_locker, which_version_is_pinned};
 use pacquet_tarball::MemCache;
-use pacquet_workspace_manifest_writer::{UpdateWorkspaceManifestError, update_workspace_manifest};
 use std::{
     collections::{BTreeMap, HashSet},
     path::{Path, PathBuf},
@@ -154,7 +158,7 @@ pub enum UpdateError {
     /// Writing the auto-cataloged entries back to `pnpm-workspace.yaml`
     /// failed.
     #[diagnostic(transparent)]
-    WriteWorkspaceManifest(#[error(source)] UpdateWorkspaceManifestError),
+    WriteWorkspaceManifest(#[error(source)] WriteWorkspaceCatalogsError),
 
     #[display("Failed to update the manifest: {_0}")]
     UpdateManifest(#[error(source)] PackageManifestError),
@@ -240,12 +244,14 @@ impl Update<'_> {
                 Ok(())
             };
         };
-        if save
-            && !prepared.updated_catalogs.is_empty()
-            && let Some(workspace_dir) = &prepared.workspace_dir_for_catalogs
-        {
-            update_workspace_manifest(workspace_dir, &prepared.updated_catalogs)
-                .map_err(UpdateError::WriteWorkspaceManifest)?;
+        if save {
+            write_workspace_catalogs(
+                config,
+                prepared.workspace_dir_for_catalogs.as_deref(),
+                &prepared.updated_catalogs,
+                manifest,
+            )
+            .map_err(UpdateError::WriteWorkspaceManifest)?;
         }
         let UpdatePreparation {
             seed_policy,
@@ -361,12 +367,16 @@ impl Update<'_> {
         if !prepared.any_work {
             return Ok(());
         }
-        if save
-            && !prepared.updated_catalogs.is_empty()
-            && let Some(workspace_dir) = &prepared.workspace_dir_for_catalogs
-        {
-            update_workspace_manifest(workspace_dir, &prepared.updated_catalogs)
-                .map_err(UpdateError::WriteWorkspaceManifest)?;
+        if save {
+            let workspace_dir =
+                prepared.workspace_dir_for_catalogs.as_deref().unwrap_or(workspace_root);
+            write_workspace_catalogs_selected(
+                config,
+                workspace_dir,
+                &prepared.updated_catalogs,
+                projects,
+            )
+            .map_err(UpdateError::WriteWorkspaceManifest)?;
         }
 
         Install {

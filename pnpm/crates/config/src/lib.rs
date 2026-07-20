@@ -1595,6 +1595,12 @@ pub struct Config {
     /// Default [`CatalogMode::Manual`] (`'catalog-mode': 'manual'`).
     pub catalog_mode: CatalogMode,
 
+    /// When `true`, commands that persist the workspace manifest
+    /// (`add`, `remove`, `update`) also drop catalog entries that no
+    /// workspace project references. The `cleanupUnusedCatalogs`
+    /// setting; default `false`, matching pnpm.
+    pub cleanup_unused_catalogs: bool,
+
     /// Catalogs injected by an `updateConfig` pnpmfile hook, seeded from
     /// `pnpm-workspace.yaml`'s `catalog:`/`catalogs:` and returned
     /// (possibly modified) by the hook. `None` when no hook changed
