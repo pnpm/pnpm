@@ -362,6 +362,7 @@ pub(crate) fn apply_install_cli_config(cfg: &mut Config, args: &InstallArgs) {
         resolve_bool_override(args.frozen_store, args.no_frozen_store, cfg.frozen_store);
     cfg.ignore_scripts =
         resolve_bool_override(args.ignore_scripts, args.no_ignore_scripts, cfg.ignore_scripts);
+    cfg.force = args.force || cfg.force;
     if let Some(network_concurrency) = args.network_concurrency {
         cfg.network_concurrency = network_concurrency;
     }

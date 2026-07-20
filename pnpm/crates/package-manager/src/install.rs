@@ -928,6 +928,7 @@ where
             && matches!(update_seed_policy, UpdateSeedPolicy::KeepAll)
             && !filtered_install
             && !frozen_lockfile
+            && !config.force
             && !disable_optimistic_repeat_install
             && check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
                 workspace_root: &workspace_root,
@@ -1555,6 +1556,9 @@ where
 
         if take_frozen_path
             && !filtered_install
+            // `--force` reinstalls everything, so an up-to-date tree
+            // must not short-circuit the materialization.
+            && !config.force
             && let Some(wanted_lockfile) = lockfile
             && let Some(current) = current_lockfile.as_ref()
             && wanted_lockfile == current
@@ -1775,11 +1779,20 @@ where
                 lockfile_verification_override: frozen_verification_override,
                 lockfile_path: derived_lockfile_path.as_deref(),
                 current_lockfile: current_lockfile.as_ref(),
-                current_snapshots: current_lockfile
-                    .as_ref()
+                // `--force` relinks every package, so the per-snapshot
+                // "unchanged since the previous install" skip must not
+                // see the current lockfile — pnpm's
+                // `lockfileToDepGraph(…, opts.force ? null :
+                // currentLockfile)`. `current_lockfile` itself stays:
+                // pnpm's prune runs on the real current lockfile even
+                // under force.
+                current_snapshots: (!config.force)
+                    .then_some(current_lockfile.as_ref())
+                    .flatten()
                     .and_then(|lockfile| lockfile.snapshots.as_ref()),
-                current_packages: current_lockfile
-                    .as_ref()
+                current_packages: (!config.force)
+                    .then_some(current_lockfile.as_ref())
+                    .flatten()
                     .and_then(|lockfile| lockfile.packages.as_ref()),
                 dependency_groups,
                 project_manifests: &frozen_project_manifests,

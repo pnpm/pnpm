@@ -102,6 +102,13 @@ pub struct InstallArgs {
     #[clap(long = "dry-run")]
     pub dry_run: bool,
 
+    /// Reinstall every package the lockfile names: relink packages an
+    /// earlier install already materialized, and install optional
+    /// dependencies whose `cpu` / `os` / `libc` / `engines` don't match
+    /// the host instead of skipping them.
+    #[clap(long)]
+    pub force: bool,
+
     /// Prefer the existing lockfile over re-resolving, even when the
     /// manifest may have changed.
     #[clap(long = "prefer-frozen-lockfile", overrides_with = "no_prefer_frozen_lockfile")]
@@ -228,6 +235,7 @@ impl InstallArgs {
             frozen_lockfile: false,
             lockfile_only: false,
             dry_run: false,
+            force: false,
             prefer_frozen_lockfile: false,
             no_prefer_frozen_lockfile: true,
             ignore_manifest_check: false,
@@ -275,7 +283,7 @@ impl InstallArgs {
         config: &pacquet_config::Config,
         emit: fn(&pacquet_reporter::LogEvent),
     ) -> bool {
-        if self.frozen_lockfile || self.lockfile_only || self.pnpr_server.is_some() {
+        if self.frozen_lockfile || self.lockfile_only || self.force || self.pnpr_server.is_some() {
             return false;
         }
         if config.pnpr_server.is_some() {
@@ -346,6 +354,9 @@ impl InstallArgs {
             frozen_lockfile,
             lockfile_only,
             dry_run,
+            // Resolved against config by `apply_install_cli_config` in
+            // the dispatch, like `ignore_scripts` below.
+            force: _,
             prefer_frozen_lockfile,
             no_prefer_frozen_lockfile,
             ignore_manifest_check,

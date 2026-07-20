@@ -123,6 +123,12 @@ pub struct AddArgs {
     /// Force-enable lifecycle scripts for this invocation.
     #[clap(long = "no-ignore-scripts", overrides_with = "ignore_scripts")]
     pub no_ignore_scripts: bool,
+    /// Reinstall every package the lockfile names: relink packages an
+    /// earlier install already materialized, and install optional
+    /// dependencies whose `cpu` / `os` / `libc` / `engines` don't match
+    /// the host instead of skipping them.
+    #[clap(long)]
+    pub force: bool,
 }
 
 impl AddArgs {
@@ -132,6 +138,7 @@ impl AddArgs {
             self.no_ignore_scripts,
             config.ignore_scripts,
         );
+        config.force = self.force || config.force;
     }
 
     /// The `--config` selectors parsed into the `name → specifier` pairs to
