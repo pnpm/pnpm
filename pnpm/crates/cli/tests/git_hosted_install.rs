@@ -589,7 +589,7 @@ fn updating_a_registry_package_that_has_a_git_dependency() {
     pacquet.with_args(["add", "@pnpm.e2e/has-github-dep@1"]).assert().success();
     pnpm_at(&workspace).with_args(["add", "@pnpm.e2e/has-github-dep@latest"]).assert().success();
 
-    assert_eq!(read_manifest(&workspace)["dependencies"]["@pnpm.e2e/has-github-dep"], "^2.0.0",);
+    assert_eq!(read_manifest(&workspace)["dependencies"]["@pnpm.e2e/has-github-dep"], "^2.0.0");
 
     drop((root, npmrc_info));
 }
