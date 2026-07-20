@@ -50,10 +50,6 @@ pub struct DeployArgs {
     #[clap(long)]
     pub legacy: bool,
 
-    /// Delete the deploy path when it already exists and is not empty.
-    #[clap(long)]
-    pub force: bool,
-
     /// Target deploy directory.
     #[arg(value_name = "DIR")]
     pub target_dirs: Vec<PathBuf>,
@@ -218,14 +214,17 @@ impl DeployArgs {
         }
 
         let deploy_dir = resolve_target_dir(dir, &self.target_dirs[0]);
+        // Deploy's `--force` (declared on the flattened `InstallArgs`)
+        // does double duty: besides the install-side force semantics it
+        // also deletes a non-empty deploy path.
         validate_deploy_target(
             &deploy_dir,
             workspace_dir,
             &selected.project.root_dir,
             dir,
-            self.force,
+            self.install_args.force,
         )?;
-        prepare_deploy_dir::<ReporterT>(workspace_dir, &deploy_dir, self.force)?;
+        prepare_deploy_dir::<ReporterT>(workspace_dir, &deploy_dir, self.install_args.force)?;
         copy_project::<ReporterT>(
             &selected.project.root_dir,
             &deploy_dir,
@@ -323,7 +322,7 @@ impl DeployArgs {
         // pnpm's deploy forwards `--force` into the install, where it
         // bypasses the installability check so optional dependencies of
         // every platform are materialized (see `Config::force`).
-        deploy_config.force = self.force;
+        deploy_config.force = self.install_args.force;
 
         let legacy = matches!(&mode, DeployInstallMode::Legacy);
         match mode {

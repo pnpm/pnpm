@@ -473,8 +473,13 @@ fn private_hoist_with_bins_collected_for_bin_link() {
     })
     .expect("non-empty graph");
 
-    assert!(result.hoisted_aliases_with_bins.contains(&"with-bin".to_string()));
-    assert!(!result.hoisted_aliases_with_bins.contains(&"no-bin".to_string()));
+    let bin_aliases: Vec<&str> =
+        result.hoisted_aliases_with_bins.iter().map(|(alias, _)| alias.as_str()).collect();
+    dbg!(&bin_aliases);
+    assert!(bin_aliases.contains(&"with-bin"));
+    assert!(!bin_aliases.contains(&"no-bin"));
+    let (_, with_bin_key) = &result.hoisted_aliases_with_bins[0];
+    assert_eq!(with_bin_key.to_string(), "with-bin@1.0.0");
 }
 
 #[test]

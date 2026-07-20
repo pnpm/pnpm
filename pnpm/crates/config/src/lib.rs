@@ -564,6 +564,14 @@ pub struct Config {
     #[default(_code = "Some(default_public_hoist_pattern())")]
     pub public_hoist_pattern: Option<Vec<String>>,
 
+    /// `extendNodePath`: when `true` (the default) and the isolated
+    /// `nodeLinker` runs with a hoist pattern, command shims set
+    /// `NODE_PATH` to include the hidden hoisted modules directory
+    /// (`<virtual-store-dir>/node_modules`). `false` leaves `NODE_PATH`
+    /// out of the shims entirely.
+    #[default(true)]
+    pub extend_node_path: bool,
+
     /// By default, pnpm creates a semistrict `node_modules`, meaning dependencies have access to
     /// undeclared dependencies but modules outside of `node_modules` do not. With this layout,
     /// most of the packages in the ecosystem work with no issues. However, if some tooling only
@@ -662,12 +670,15 @@ pub struct Config {
     /// `enableModulesDir`: pnpm's setting for suppressing the
     /// `node_modules` directory entirely. Default `true`.
     ///
-    /// Only partially wired in pacquet: it gates the
-    /// [`virtual_store_only`] config conflict (a store-only install with
-    /// no modules dir needs the global virtual store to have anywhere to
-    /// put packages). The standalone "create no `node_modules` at all"
-    /// behavior is not implemented yet — a `false` value on its own does
-    /// not suppress materialization.
+    /// A `false` value (with the global virtual store off) makes the
+    /// install "resolve and write the lockfile, materialize nothing" —
+    /// it rides the `--lockfile-only` pipeline in
+    /// `pacquet_package_manager::Install::run`. With the global virtual
+    /// store on, materialization proceeds into the store (pnpm's
+    /// `enableModulesDir !== false || enableGlobalVirtualStore` gate).
+    /// It also gates the [`virtual_store_only`] config conflict (a
+    /// store-only install with no modules dir needs the global virtual
+    /// store to have anywhere to put packages).
     ///
     /// [`virtual_store_only`]: Self::virtual_store_only
     #[default(true)]
@@ -1074,11 +1085,12 @@ pub struct Config {
     /// instead of skipped, mirroring pnpm's `!opts.force &&
     /// packageIsInstallable(...)` gate in its dep-graph builders.
     ///
-    /// CLI-only (merged from `pnpm deploy --force` at the dispatch, like
-    /// `ignoreScripts`); not a `pnpm-workspace.yaml` / `.npmrc` setting.
-    /// pnpm's `--force` additionally re-imports packages from the store;
-    /// pacquet's store import is content-addressed and self-healing, so
-    /// only the installability bypass is modeled here.
+    /// CLI-only (merged from `--force` on `pnpm install` / `pnpm add` /
+    /// `pnpm deploy` at the dispatch, like `ignoreScripts`); not a
+    /// `pnpm-workspace.yaml` / `.npmrc` setting. On the frozen path it
+    /// also discards the previous install's per-snapshot skip decision,
+    /// mirroring pnpm's `lockfileToDepGraph(…, opts.force ? null :
+    /// currentLockfile)`, so already-materialized packages are relinked.
     pub force: bool,
 
     /// Whether to consult the side-effects cache

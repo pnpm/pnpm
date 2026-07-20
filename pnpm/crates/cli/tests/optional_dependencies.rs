@@ -199,43 +199,69 @@ fn do_not_skip_optional_dependency_that_does_not_support_the_current_pnpm_versio
     drop((root, npmrc_info)); // cleanup
 }
 
+/// TS: `don't skip optional dependency that does not support the
+/// current OS when forcing` (`optionalDependencies.ts:199`).
+#[test]
+fn do_not_skip_unsupported_os_optional_dependency_when_forcing() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    write_manifest(
+        &workspace,
+        &serde_json::json!({
+            "optionalDependencies": { "@pnpm.e2e/not-compatible-with-any-os": "*" },
+        }),
+    );
+
+    pacquet.with_args(["install", "--force"]).assert().success();
+
+    assert!(
+        workspace.join("node_modules/@pnpm.e2e/not-compatible-with-any-os/package.json").exists(),
+        "--force must install the platform-incompatible optional dependency",
+    );
+    assert_eq!(read_skipped(&workspace), Vec::<String>::new());
+
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// The forced-headless tail of TS `optional subdependency is skipped`
+/// (`optionalDependencies.ts:283`): `install --force --frozen-lockfile`
+/// must materialize the platform-incompatible optional and clear
+/// `.modules.yaml.skipped`.
+#[test]
+fn forced_frozen_install_materializes_incompatible_optionals() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    pacquet
+        .with_args(["add", "@pnpm.e2e/pkg-with-optional", "@pnpm.e2e/dep-of-optional-pkg"])
+        .assert()
+        .success();
+    assert_eq!(read_skipped(&workspace), ["@pnpm.e2e/not-compatible-with-any-os@1.0.0"]);
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--force", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    assert!(
+        workspace.join("node_modules/.pnpm/@pnpm.e2e+not-compatible-with-any-os@1.0.0").exists(),
+        "the forced headless install must materialize the incompatible optional",
+    );
+    assert_eq!(read_skipped(&workspace), Vec::<String>::new());
+
+    drop((root, npmrc_info)); // cleanup
+}
+
 mod known_failures {
-    //! Optional-dependency cases blocked on CLI surface pacquet hasn't
-    //! built yet. Each entry stubs the not-yet-built subject under test
-    //! through [`pacquet_testing_utils::allow_known_failure`] so the
-    //! test exits early rather than masking a real bug.
+    //! Optional-dependency cases blocked on engine behavior pacquet
+    //! hasn't built yet. Each entry stubs the not-yet-built subject
+    //! under test through [`pacquet_testing_utils::allow_known_failure`]
+    //! so the test exits early rather than masking a real bug.
 
     use pacquet_testing_utils::{
         allow_known_failure,
         known_failure::{KnownFailure, KnownResult},
     };
-
-    fn install_force_flag() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "`pnpm install --force` is not wired on pacquet's install \
-             command yet (pnpm/pnpm#13142). `Config::force` exists and \
-             the installability check honors it (`pnpm deploy --force` \
-             uses that path), but the install/add CLI does not expose \
-             the flag, so the force-installs-incompatible-optionals \
-             behavior is unreachable end to end.",
-        ))
-    }
-
-    /// TS: `don't skip optional dependency that does not support the
-    /// current OS when forcing` (`optionalDependencies.ts:199`).
-    #[test]
-    fn do_not_skip_unsupported_os_optional_dependency_when_forcing() {
-        allow_known_failure!(install_force_flag());
-    }
-
-    /// The forced-headless tail of TS `optional subdependency is skipped`
-    /// (`optionalDependencies.ts:283`): `force: true, frozenLockfile: true`
-    /// must materialize the incompatible optional and clear
-    /// `.modules.yaml.skipped`.
-    #[test]
-    fn forced_frozen_install_materializes_incompatible_optionals() {
-        allow_known_failure!(install_force_flag());
-    }
 
     fn edge_aware_engine_strict() -> KnownResult<()> {
         Err(KnownFailure::new(
@@ -427,8 +453,8 @@ fn sorted_keys<Key: ToString, Value>(map: &std::collections::HashMap<Key, Value>
 }
 
 /// TS: `optional subdependency is skipped` (`optionalDependencies.ts:283`),
-/// minus the forced-headless tail (gated in [`known_failures`] on the
-/// missing `install --force` flag).
+/// minus the forced-headless tail (covered by
+/// [`forced_frozen_install_materializes_incompatible_optionals`]).
 #[test]
 fn optional_subdependency_is_skipped() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =

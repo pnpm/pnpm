@@ -3997,6 +3997,7 @@ name = "pacquet-cmd-shim"
 version = "0.0.1"
 dependencies = [
  "derive_more",
+ "dunce",
  "miette 7.6.0",
  "pacquet-fs",
  "pipe-trait",

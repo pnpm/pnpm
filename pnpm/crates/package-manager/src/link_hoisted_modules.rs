@@ -246,7 +246,9 @@ fn link_all_pkgs_in_order<Reporter: self::Reporter>(
         .filter_map(|node| node.alias.clone())
         .collect();
     if !dep_names.is_empty() {
-        link_direct_dep_bins(&modules_dir, &dep_names)
+        // pnpm gates `extraNodePaths` on the isolated linker, so
+        // hoisted-tree shims never carry `NODE_PATH`.
+        link_direct_dep_bins(&modules_dir, &dep_names, &[])
             .map_err(LinkHoistedModulesError::LinkBins)?;
     }
 

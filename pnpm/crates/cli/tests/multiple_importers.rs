@@ -641,6 +641,89 @@ fn append_order_script(label: &str) -> String {
     format!(r#"node -e "require('fs').appendFileSync('../../order.txt', '{label}\\n')""#)
 }
 
+/// TS: `dependencies of workspace projects are built during headless
+/// installation` (`pnpm/test/monorepo/index.ts:1281`) — the upstream
+/// fixture turns off `sharedWorkspaceLockfile`, so every project gets
+/// its own lockfile and the headless install still runs the
+/// dependency's build scripts.
+#[test]
+fn workspace_project_dependencies_built_during_headless_install_with_dedicated_lockfiles() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml(
+        "sharedWorkspaceLockfile: false\nallowBuilds:\n  '@pnpm.e2e/pre-and-postinstall-scripts-example': true\n",
+    );
+    fixture.write_root_manifest("root", ManifestDeps::default());
+    let project = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps {
+            prod: &[("@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0")],
+            ..Default::default()
+        },
+    );
+
+    fixture.run(["install", "--lockfile-only"]);
+    assert!(
+        project.join("pnpm-lock.yaml").exists(),
+        "each project must get its own dedicated lockfile",
+    );
+    assert!(
+        fixture.workspace.join("pnpm-lock.yaml").exists(),
+        "the workspace root project must get its own dedicated lockfile",
+    );
+
+    fixture.run(["install", "--frozen-lockfile"]);
+
+    for artifact in ["generated-by-preinstall.js", "generated-by-postinstall.js"] {
+        let path = project
+            .join("node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example")
+            .join(artifact);
+        assert!(
+            path.exists(),
+            "the dependency's lifecycle scripts must run during the headless install: {artifact}",
+        );
+    }
+}
+
+/// TS: `custom virtual store directory in a workspace with not shared
+/// lockfile` (`pnpm/test/monorepo/index.ts:1467`). The custom
+/// `virtualStoreDir` anchors per project, `.modules.yaml` records it,
+/// and a frozen reinstall from a wiped state preserves it.
+#[test]
+fn custom_virtual_store_directory_with_dedicated_lockfiles() {
+    let fixture = WorkspaceFixture::new();
+    fixture
+        .append_workspace_yaml("virtualStoreDir: virtual-store\nsharedWorkspaceLockfile: false\n");
+    let project = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[("is-positive", "1.0.0")], ..Default::default() },
+    );
+
+    let expected = project.join("virtual-store");
+    let assert_recorded_virtual_store = |phase: &str| {
+        let modules = pacquet_modules_yaml::read_modules_manifest::<pacquet_modules_yaml::Host>(
+            &project.join("node_modules"),
+        )
+        .expect("read project .modules.yaml")
+        .expect("project .modules.yaml exists");
+        assert_eq!(
+            dunce::canonicalize(&modules.virtual_store_dir)
+                .unwrap_or_else(|_| modules.virtual_store_dir.clone().into()),
+            dunce::canonicalize(&expected).expect("canonicalize the custom virtual store"),
+            "[{phase}] the project's .modules.yaml must record the per-project virtualStoreDir",
+        );
+    };
+
+    fixture.run(["install"]);
+    assert_recorded_virtual_store("fresh");
+
+    fs::remove_dir_all(&expected).expect("remove the virtual store");
+    fs::remove_dir_all(project.join("node_modules")).expect("remove the project's node_modules");
+    fixture.run(["install", "--frozen-lockfile"]);
+    assert_recorded_virtual_store("frozen");
+}
+
 mod known_failures {
     //! Multi-importer cases blocked on features pacquet hasn't built
     //! yet. Each entry stubs the not-yet-built subject under test
@@ -651,14 +734,6 @@ mod known_failures {
         allow_known_failure,
         known_failure::{KnownFailure, KnownResult},
     };
-
-    fn per_project_workspace_lockfiles() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "`sharedWorkspaceLockfile: false` is not supported by \
-             pacquet's install family \
-             (`ERR_PNPM_RECURSIVE_SHARED_LOCKFILE_UNSUPPORTED`).",
-        ))
-    }
 
     fn importer_level_link_closure_divergence() -> KnownResult<()> {
         Err(KnownFailure::new(
@@ -671,21 +746,6 @@ mod known_failures {
              `--filter <project>...` widens the selection — so the two \
              stacks need a shared decision before this can be pinned.",
         ))
-    }
-
-    /// TS: `dependencies of workspace projects are built during
-    /// headless installation` (`pnpm/test/monorepo/index.ts:1281`) —
-    /// the upstream fixture turns off `sharedWorkspaceLockfile`.
-    #[test]
-    fn workspace_project_dependencies_built_during_headless_install_with_dedicated_lockfiles() {
-        allow_known_failure!(per_project_workspace_lockfiles());
-    }
-
-    /// TS: `custom virtual store directory in a workspace with not
-    /// shared lockfile` (`pnpm/test/monorepo/index.ts:1467`).
-    #[test]
-    fn custom_virtual_store_directory_with_dedicated_lockfiles() {
-        allow_known_failure!(per_project_workspace_lockfiles());
     }
 
     /// The tail of TS `headless install is used when package linked to

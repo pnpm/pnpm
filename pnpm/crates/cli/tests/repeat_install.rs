@@ -237,3 +237,72 @@ fn available_packages_used_when_node_modules_not_clean() {
 
     drop((root, mock_instance));
 }
+
+/// TS: `available packages are relinked during forced install`
+/// (`deps-restorer index.ts:469`): a forced frozen install relinks
+/// every package the lockfile names, not just the diff against the
+/// previous install — a file removed from an already-materialized
+/// package's virtual-store copy comes back, and the unchanged package
+/// is re-reported as `resolved` alongside the newly added one.
+#[test]
+fn available_packages_are_relinked_during_forced_install() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/foobarqar": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet.with_arg("install").assert().success();
+
+    // Extend the manifest and wanted lockfile without touching
+    // `node_modules` — the CLI equivalent of upstream's fixture swap
+    // from `has-glob` to `has-glob-and-rimraf`.
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/foobarqar": "1.0.0",
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("extend package.json");
+    pacquet_in(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+
+    // Damage the already-materialized package: a plain frozen install
+    // skips it as unchanged (its slot dir still exists), so only the
+    // forced relink restores the file.
+    let foobarqar_manifest = workspace.join(
+        "node_modules/.pnpm/@pnpm.e2e+foobarqar@1.0.0/node_modules/@pnpm.e2e/foobarqar/package.json",
+    );
+    fs::remove_file(&foobarqar_manifest).expect("remove a file of the materialized package");
+
+    let output = pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--force", "--reporter=ndjson"])
+        .output()
+        .expect("run pacquet");
+    assert_success(&output);
+
+    assert!(workspace.join("node_modules/@pnpm.e2e/pkg-with-1-dep").exists());
+    assert!(
+        foobarqar_manifest.exists(),
+        "the forced install must re-import the already-available package",
+    );
+    let resolved: Vec<String> = ndjson_records(&output)
+        .iter()
+        .filter(|record| record["name"] == "pnpm:progress" && record["status"] == "resolved")
+        .filter_map(|record| record["packageId"].as_str().map(str::to_string))
+        .collect();
+    for package_id in ["@pnpm.e2e/foobarqar@1.0.0", "@pnpm.e2e/pkg-with-1-dep@100.0.0"] {
+        assert!(
+            resolved.iter().any(|id| id == package_id),
+            "{package_id} must be re-reported as resolved: {resolved:?}",
+        );
+    }
+
+    drop((root, mock_instance));
+}

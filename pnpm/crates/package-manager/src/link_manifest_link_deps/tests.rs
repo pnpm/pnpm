@@ -43,6 +43,7 @@ fn links_absolute_relative_and_self_reference_specs() {
         &[(project_dir.clone(), &manifest)],
         None,
         std::ffi::OsStr::new("node_modules"),
+        &[],
     )
     .expect("linking succeeds");
 
@@ -97,6 +98,7 @@ fn relink_replaces_stale_symlink() {
         &[(project_dir.clone(), &manifest)],
         None,
         std::ffi::OsStr::new("node_modules"),
+        &[],
     )
     .expect("relink succeeds");
     assert_eq!(
@@ -148,6 +150,7 @@ fn lockfile_tracked_alias_is_skipped() {
         &[(project_dir.clone(), &manifest)],
         Some(&importers),
         std::ffi::OsStr::new("node_modules"),
+        &[],
     )
     .expect("pass succeeds");
     assert!(
@@ -183,6 +186,7 @@ fn traversal_alias_is_rejected_without_writes() {
             &[(project_dir.clone(), &manifest)],
             None,
             std::ffi::OsStr::new("node_modules"),
+            &[],
         );
         assert!(
             matches!(result, Err(super::LinkManifestLinkDepsError::InvalidAlias(_))),
@@ -219,6 +223,7 @@ fn custom_modules_dir_name_is_honored() {
         &[(project_dir.clone(), &manifest)],
         None,
         std::ffi::OsStr::new("custom_modules"),
+        &[],
     )
     .expect("linking succeeds");
 
@@ -260,6 +265,7 @@ fn non_normal_modules_dir_name_is_rejected_without_writes() {
             &[(project_dir.clone(), &manifest)],
             None,
             std::ffi::OsStr::new(name),
+            &[],
         );
         assert!(
             matches!(result, Err(super::LinkManifestLinkDepsError::InvalidModulesDirName { .. })),
@@ -311,6 +317,7 @@ fn bins_of_manifest_linked_deps_are_linked() {
         &[(project_dir.clone(), &manifest)],
         None,
         std::ffi::OsStr::new("node_modules"),
+        &[],
     )
     .expect("linking succeeds");
 

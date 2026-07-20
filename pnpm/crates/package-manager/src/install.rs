@@ -744,11 +744,6 @@ where
         // Read before the sink is moved into the fresh-path inputs.
         let peer_issues_sink_is_none = peer_issues_sink.is_none();
 
-        // `--dry-run` resolves but never materializes, so it borrows the
-        // lockfile-only plumbing (skip node_modules / `.modules.yaml` /
-        // workspace-state) while additionally skipping the lockfile write.
-        let resolve_only = lockfile_only || dry_run;
-
         // `--lockfile-only` with `lockfile: false` (pnpm's
         // `useLockfile: false`) is a config conflict: the only output the
         // flag produces is the lockfile, and that write is disabled.
@@ -756,6 +751,23 @@ where
         if lockfile_only && !config.lockfile {
             return Err(InstallError::ConfigConflictLockfileOnlyWithNoLockfile);
         }
+
+        // `enableModulesDir: false` (with the global virtual store off) is
+        // "resolve and write the lockfile, materialize nothing" — the same
+        // pipeline `--lockfile-only` takes, entered from config. It stays
+        // outside the `lockfile: false` conflict above (pnpm accepts that
+        // combination and simply writes nothing), and never turns a
+        // rebuild — which runs against an already-materialized
+        // `node_modules` — into a silent no-op.
+        let lockfile_only = lockfile_only
+            || (rebuild.is_none()
+                && !config.enable_modules_dir
+                && !config.enable_global_virtual_store);
+
+        // `--dry-run` resolves but never materializes, so it borrows the
+        // lockfile-only plumbing (skip node_modules / `.modules.yaml` /
+        // workspace-state) while additionally skipping the lockfile write.
+        let resolve_only = lockfile_only || dry_run;
 
         if config.frozen_store && config.force {
             return Err(InstallError::ConfigConflictFrozenStoreWithForce);
@@ -796,8 +808,18 @@ where
         let manifest_dir = manifest.path().parent().expect("manifest path always has a parent dir");
         let workspace_dir_opt = configured_or_discovered_workspace_dir(config, manifest_dir)
             .map_err(InstallError::FindWorkspaceDir)?;
-        let workspace_root =
-            workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
+        // Dedicated per-project lockfiles (`sharedWorkspaceLockfile:
+        // false`) anchor everything `workspace_root` names — the wanted
+        // lockfile, importer ids, reporter prefixes, the workspace-state
+        // file — at the active project, mirroring pnpm's `lockfileDir =
+        // sharedWorkspaceLockfile ? workspaceDir : projectDir`. Catalogs
+        // and workspace packages still come from the real workspace dir
+        // (`workspace_dir_opt`).
+        let workspace_root = if config.shared_workspace_lockfile {
+            workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf())
+        } else {
+            manifest_dir.to_path_buf()
+        };
 
         // Read `pnpm-workspace.yaml` for the catalog sections. Only
         // consulted when a workspace manifest exists — single-project
@@ -844,8 +866,11 @@ where
         let loaded_workspace_projects = match (selection.as_ref(), workspace_projects_override) {
             (Some(_), _) => None,
             (None, Some(projects)) => Some(projects),
-            (None, None) => load_workspace_projects(&workspace_root, workspace_manifest.as_ref())
-                .map_err(InstallError::FindWorkspaceProjects)?,
+            (None, None) => load_workspace_projects(
+                workspace_dir_opt.as_deref().unwrap_or(&workspace_root),
+                workspace_manifest.as_ref(),
+            )
+            .map_err(InstallError::FindWorkspaceProjects)?,
         };
         let workspace_projects = selection.as_ref().map_or_else(
             || loaded_workspace_projects.as_deref(),
@@ -875,7 +900,10 @@ where
             None if manifest_is_root_importer => build_root_importer_project_manifests_list(
                 &workspace_root,
                 manifest,
-                workspace_projects,
+                // Dedicated per-project lockfiles record a single "."
+                // importer per project; sibling projects only feed the
+                // `workspace:` resolver, never the importer list.
+                config.shared_workspace_lockfile.then_some(workspace_projects).flatten(),
             ),
             None => build_project_manifests_list(&workspace_root, manifest, workspace_projects),
         };
@@ -928,6 +956,7 @@ where
             && matches!(update_seed_policy, UpdateSeedPolicy::KeepAll)
             && !filtered_install
             && !frozen_lockfile
+            && !config.force
             && !disable_optimistic_repeat_install
             && check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
                 workspace_root: &workspace_root,
@@ -1555,6 +1584,9 @@ where
 
         if take_frozen_path
             && !filtered_install
+            // `--force` reinstalls everything, so an up-to-date tree
+            // must not short-circuit the materialization.
+            && !config.force
             && let Some(wanted_lockfile) = lockfile
             && let Some(current) = current_lockfile.as_ref()
             && wanted_lockfile == current
@@ -1775,11 +1807,20 @@ where
                 lockfile_verification_override: frozen_verification_override,
                 lockfile_path: derived_lockfile_path.as_deref(),
                 current_lockfile: current_lockfile.as_ref(),
-                current_snapshots: current_lockfile
-                    .as_ref()
+                // `--force` relinks every package, so the per-snapshot
+                // "unchanged since the previous install" skip must not
+                // see the current lockfile — pnpm's
+                // `lockfileToDepGraph(..., opts.force ? null :
+                // currentLockfile)`. `current_lockfile` itself stays:
+                // pnpm's prune runs on the real current lockfile even
+                // under force.
+                current_snapshots: (!config.force)
+                    .then_some(current_lockfile.as_ref())
+                    .flatten()
                     .and_then(|lockfile| lockfile.snapshots.as_ref()),
-                current_packages: current_lockfile
-                    .as_ref()
+                current_packages: (!config.force)
+                    .then_some(current_lockfile.as_ref())
+                    .flatten()
                     .and_then(|lockfile| lockfile.packages.as_ref()),
                 dependency_groups,
                 project_manifests: &frozen_project_manifests,
@@ -2109,6 +2150,7 @@ where
                     .modules_dir
                     .file_name()
                     .unwrap_or_else(|| std::ffi::OsStr::new("node_modules")),
+                &crate::shim_extra_node_paths(config, node_linker),
             )
             .map_err(InstallError::LinkManifestLinkDeps)?;
         }
@@ -3524,6 +3566,7 @@ fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
         );
     }
     let max_group_size = project_groups.iter().map(Vec::len).max().unwrap_or(0);
+    let extra_node_paths = crate::shim_extra_node_paths(config, node_linker);
     let run_project =
         |(project_dir, manifest): &(PathBuf, &PackageManifest)| -> Result<(), InstallError> {
             let root_modules_dir = project_dir.join(modules_dir_basename);
@@ -3538,7 +3581,7 @@ fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
                     direct_dep_names.push(name.to_string());
                 }
             }
-            link_project_bins(&root_modules_dir, &direct_dep_names)
+            link_project_bins(&root_modules_dir, &direct_dep_names, &extra_node_paths)
                 .map_err(InstallError::ProjectBinLink)?;
             let dep_path = project_dir.to_string_lossy();
             run_project_lifecycle_scripts::<Reporter>(&RunPostinstallHooks {

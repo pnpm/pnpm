@@ -647,6 +647,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             .as_ref()
             .and_then(|observer| observer.minimum_release_age_exclude_override());
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
+        let extra_node_paths = crate::shim_extra_node_paths(config, node_linker);
         let filtered_isolated =
             is_partial_workspace_selection(real_importer_ids, selected_importer_ids) && !is_hoisted;
         // Materialise the caller's iterator into a `Vec` so the same
@@ -2241,6 +2242,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 link_only: false,
                 public_hoist_targets: public_hoist_targets.as_ref(),
                 trusted_importer_ids: Some(&trusted_importer_ids),
+                extra_node_paths: &extra_node_paths,
             }
             .run::<Reporter>()
             .map_err(InstallWithFreshLockfileError::SymlinkDirectDependencies)?;
@@ -2295,8 +2297,12 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     &hoist_skipped,
                 )
                 .map_err(InstallWithFreshLockfileError::HoistSymlink)?;
-                crate::link_direct_dep_bins(&private_dir, &result.hoisted_aliases_with_bins)
-                    .map_err(InstallWithFreshLockfileError::HoistLinkBins)?;
+                crate::link_direct_dep_bins_resolved(
+                    &private_dir,
+                    &crate::resolve_hoisted_bin_deps(&layout, &result.hoisted_aliases_with_bins),
+                    &extra_node_paths,
+                )
+                .map_err(InstallWithFreshLockfileError::HoistLinkBins)?;
                 // Stash the public-hoist alias list so the post-build
                 // top-level bin link resolves direct-over-hoisted
                 // precedence (pnpm/pacquet#342) instead of leaving it to
@@ -2326,7 +2332,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 );
                 let modules_dir = project_dir.join(&modules_basename);
                 let bins_dir = modules_dir.join(".bin");
-                link_bins::<Host>(&modules_dir, &bins_dir)
+                link_bins::<Host>(&modules_dir, &bins_dir, &extra_node_paths)
                     .map_err(InstallWithFreshLockfileError::LinkBins)?;
             }
 
@@ -2338,24 +2344,20 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             // directly — its prefetch + cold-batch passes both feed into
             // the same map.
             //
-            // `packages: None` on purpose: the freshly-built lockfile's
-            // `packages:` rows carry an incomplete `has_bin` because the
-            // resolver's `PackageVersion` deserializer does not include
-            // the `bin` field. Trusting the empty-by-omission
-            // `has_bin_set` here would filter out every child and skip
-            // bin linking entirely. With `packages: None` the bin linker
-            // falls through to "process every child" and lets each
-            // child's actual manifest (`bin` present or not) decide.
-            // Threading `bin` through `PackageVersion` is the proper
-            // fix; once that lands, pass
-            // `built_lockfile.packages.as_ref()` here to recover the
-            // ~95% slot short-circuit the frozen path enjoys.
+            // The freshly-built `packages:` rows carry the same
+            // `hasBin` the on-disk lockfile gets (the resolver's
+            // picked manifest keeps `bin` through its flatten
+            // catch-all, and `dependencies_graph_to_lockfile` reads it
+            // off), so the bin linker's `has_bin_set` short-circuit —
+            // the one the frozen path trusts on the very same rows
+            // after a save/load round-trip — is just as sound here.
             LinkVirtualStoreBins {
                 layout: &layout,
                 snapshots: materialization_lockfile.snapshots.as_ref(),
-                packages: None,
+                packages: materialization_lockfile.packages.as_ref(),
                 package_manifests: &package_manifests,
                 skipped: &skipped,
+                extra_node_paths: &extra_node_paths,
             }
             .run()
             .map_err(InstallWithFreshLockfileError::LinkVirtualStoreBins)?;
@@ -2471,6 +2473,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     // The fresh-resolve path never serves an explicit
                     // `pacquet rebuild`; rebuilds always take the frozen path.
                     rebuild: None,
+                    extra_node_paths: &extra_node_paths,
                 },
             )
             .map_err(InstallWithFreshLockfileError::BuildPhase)?;

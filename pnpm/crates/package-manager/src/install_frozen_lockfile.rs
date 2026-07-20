@@ -6,7 +6,7 @@ use crate::{
     SkippedSnapshots, SymlinkDirectDependencies, SymlinkDirectDependenciesError,
     SymlinkPackageError, VersionPolicyError, VirtualStoreLayout, any_installability_constraint,
     build_direct_deps_by_importer, build_hoist_graph, compute_skipped_snapshots,
-    direct_dep_names_for_importer, get_hoisted_dependencies, link_direct_dep_bins,
+    direct_dep_names_for_importer, get_hoisted_dependencies, link_direct_dep_bins_resolved,
     link_hoisted_modules, link_root_component_members, link_top_level_bins,
     lockfile_to_hoisted_dep_graph, symlink_direct_dependencies::importer_root_dir,
     symlink_hoisted_dependencies,
@@ -440,6 +440,9 @@ pub(crate) struct BuildPhaseInputs<'a> {
     /// `approve-builds`; `None` for a normal install. See
     /// [`crate::RebuildOptions`].
     pub(crate) rebuild: Option<&'a crate::RebuildOptions>,
+    /// [`crate::shim_extra_node_paths`] output, for the post-build
+    /// top-level bin pass.
+    pub(crate) extra_node_paths: &'a [String],
 }
 
 /// Run dependency lifecycle scripts, report ignored builds, and
@@ -477,6 +480,7 @@ pub(crate) fn run_build_phase<Reporter: self::Reporter>(
         publicly_hoisted_for_post_build,
         logged_methods,
         rebuild,
+        extra_node_paths,
     } = inputs;
 
     let patches = resolve_snapshot_patches(config, patch_groups, snapshots)?;
@@ -575,7 +579,7 @@ pub(crate) fn run_build_phase<Reporter: self::Reporter>(
         } else {
             &[]
         };
-        link_top_level_bins(&modules_dir, &direct_names, hoisted_names)
+        link_top_level_bins(&modules_dir, &direct_names, hoisted_names, extra_node_paths)
             .map_err(BuildPhaseError::TopLevelBinLink)?;
     }
 
@@ -630,6 +634,7 @@ where
         } = self;
 
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
+        let extra_node_paths = crate::shim_extra_node_paths(config, node_linker);
         // Cloned so the iterator can be reused below for hoist's
         // direct-deps map. `Vec<DependencyGroup>` is tiny (≤4 enum
         // variants) so the clone is essentially free.
@@ -1172,6 +1177,7 @@ where
                 link_only: false,
                 public_hoist_targets: public_hoist_targets.as_ref(),
                 trusted_importer_ids: Some(&trusted_importer_ids),
+                extra_node_paths: &extra_node_paths,
             }
             .run::<Reporter>()
             .map_err(InstallFrozenLockfileError::SymlinkDirectDependencies)?;
@@ -1225,6 +1231,7 @@ where
                 packages,
                 package_manifests: &package_manifests,
                 skipped: &skipped,
+                extra_node_paths: &extra_node_paths,
             }
             .run()
             .map_err(InstallFrozenLockfileError::LinkVirtualStoreBins)?;
@@ -1344,11 +1351,14 @@ where
             .map_err(InstallFrozenLockfileError::HoistSymlink)?;
             // Private-side bins → `<vs>/node_modules/.bin`.
             // Reuses the rayon-parallel `link_direct_dep_bins`
-            // (same shape — read each location's
-            // `package.json`, fan out to
-            // `link_bins_of_packages`).
-            link_direct_dep_bins(&private_dir, &result.hoisted_aliases_with_bins)
-                .map_err(InstallFrozenLockfileError::HoistLinkBins)?;
+            // shape (read each location's `package.json`, fan out
+            // to `link_bins_of_packages`).
+            link_direct_dep_bins_resolved(
+                &private_dir,
+                &crate::resolve_hoisted_bin_deps(&layout, &result.hoisted_aliases_with_bins),
+                &extra_node_paths,
+            )
+            .map_err(InstallFrozenLockfileError::HoistLinkBins)?;
             // Stash the public-hoist alias list for the
             // post-`BuildModules` top-level bin link, which re-links
             // with the [`BinOrigin`] tier so a direct dep's bin wins
@@ -1459,6 +1469,7 @@ where
                 publicly_hoisted_for_post_build: &publicly_hoisted_for_post_build,
                 logged_methods,
                 rebuild,
+                extra_node_paths: &extra_node_paths,
             })
             .map_err(InstallFrozenLockfileError::BuildPhase)?;
 
@@ -1817,6 +1828,9 @@ pub(crate) fn run_hoisted_linker<Reporter: self::Reporter>(
         // dedupe against; the real-directory tree is the hoist layout.
         public_hoist_targets: None,
         trusted_importer_ids: Some(&trusted_importer_ids),
+        // pnpm gates `extraNodePaths` on the isolated linker, so the
+        // hoisted linker's shims never carry `NODE_PATH`.
+        extra_node_paths: &[],
     }
     .run::<Reporter>()
     .map_err(HoistedLinkerError::SymlinkDirectDependencies)?;
@@ -1882,7 +1896,7 @@ fn link_selected_hoisted_direct_dependencies(
             })?;
             linked_names.push(alias.clone());
         }
-        crate::link_direct_dep_bins(&modules_dir, &linked_names).map_err(|source| {
+        crate::link_direct_dep_bins(&modules_dir, &linked_names, &[]).map_err(|source| {
             HoistedLinkerError::SymlinkDirectDependencies(SymlinkDirectDependenciesError::LinkBins(
                 source,
             ))
