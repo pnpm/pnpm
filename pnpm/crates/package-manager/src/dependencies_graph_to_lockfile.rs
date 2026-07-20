@@ -326,8 +326,9 @@ fn build_importer(
                         (name.clone(), pacquet_lockfile::DependencyMeta { injected, patch })
                     })
                 })
-                .collect()
-        });
+                .collect::<HashMap<_, _>>()
+        })
+        .filter(|meta| !meta.is_empty());
     let publish_directory = manifest
         .value()
         .get("publishConfig")
