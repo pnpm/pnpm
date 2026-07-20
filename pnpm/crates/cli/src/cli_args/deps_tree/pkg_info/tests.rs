@@ -132,7 +132,7 @@ fn unsafe_path_components_are_detected_by_shape() {
     // join base on Windows without being `is_absolute()`.
     #[cfg(windows)]
     {
-        assert!(super::is_unsafe_path_component("\\escape"));
+        assert!(super::is_unsafe_path_component(r"\escape"));
         assert!(super::is_unsafe_path_component("C:evil"));
     }
 }
