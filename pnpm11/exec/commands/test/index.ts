@@ -801,7 +801,7 @@ test('cliOptionsTypes exposes sequential as Boolean flag', () => {
   expect(options.sequential).toBe(Boolean)
 })
 
-test('RegExp script matching executes multiple scripts in lexicographically sorted order when sequential is enabled', async () => {
+test('RegExp script matching executes multiple scripts in package.json order when sequential is enabled', async () => {
   prepare({
     scripts: {
       'build:z': 'node -e "require(\'fs\').appendFileSync(\'./order.log\', \'z\')"',
@@ -822,7 +822,7 @@ test('RegExp script matching executes multiple scripts in lexicographically sort
   }, ['/^build:.*/'])
 
   const outputLog = fs.readFileSync(path.join(process.cwd(), 'order.log'), 'utf-8')
-  expect(outputLog).toBe('amz')
+  expect(outputLog).toBe('zam')
 })
 
 test('passing --sequential option sets effective workspaceConcurrency to 1 for matched scripts without timing flakes', async () => {
@@ -851,4 +851,3 @@ test('passing --sequential option sets effective workspaceConcurrency to 1 for m
 test('shorthands maps -s to --sequential and --workspace-concurrency=1', () => {
   expect(run.shorthands.s).toEqual(['--sequential', '--workspace-concurrency=1'])
 })
-
