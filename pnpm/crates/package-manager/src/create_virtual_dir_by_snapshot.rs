@@ -54,6 +54,10 @@ pub struct CreateVirtualDirBySnapshot<'a> {
     pub package_id: &'a str,
     pub package_key: &'a PackageKey,
     pub snapshot: &'a SnapshotEntry,
+    /// Whether dependency links inside the slot should be created.
+    /// `symlink: false` still imports the package itself but leaves its
+    /// `node_modules` free of graph links for `PnP` resolution.
+    pub symlink: bool,
     /// Snapshots whose slots were not materialized on this host —
     /// platform-mismatched optionals, `--no-optional` exclusions, and
     /// swallowed optional fetch failures. `create_symlink_layout`
@@ -118,6 +122,7 @@ impl CreateVirtualDirBySnapshot<'_> {
             package_id: _package_id,
             package_key,
             snapshot,
+            symlink,
             skipped,
             removed_aliases,
             needs_build_marker_source,
@@ -183,15 +188,34 @@ impl CreateVirtualDirBySnapshot<'_> {
                 .map_err(CreateVirtualDirError::ImportIndexedDir)
             },
             || {
-                create_symlink_layout(
-                    snapshot.dependencies.as_ref(),
-                    snapshot.optional_dependencies.as_ref(),
-                    &package_key.name,
-                    skipped,
-                    layout,
-                    &virtual_node_modules_dir,
-                )
-                .map_err(CreateVirtualDirError::SymlinkPackage)
+                if symlink {
+                    create_symlink_layout(
+                        snapshot.dependencies.as_ref(),
+                        snapshot.optional_dependencies.as_ref(),
+                        &package_key.name,
+                        skipped,
+                        layout,
+                        &virtual_node_modules_dir,
+                    )
+                    .map_err(CreateVirtualDirError::SymlinkPackage)
+                } else {
+                    for alias in snapshot
+                        .dependencies
+                        .iter()
+                        .flat_map(|dependencies| dependencies.keys())
+                        .chain(
+                            snapshot
+                                .optional_dependencies
+                                .iter()
+                                .flat_map(|dependencies| dependencies.keys()),
+                        )
+                    {
+                        if *alias != package_key.name {
+                            remove_obsolete_child(&virtual_node_modules_dir, alias)?;
+                        }
+                    }
+                    Ok(())
+                }
             },
         );
         cas_result?;

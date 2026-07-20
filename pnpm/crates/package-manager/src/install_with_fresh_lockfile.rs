@@ -346,6 +346,10 @@ pub enum InstallWithFreshLockfileError {
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_PACKAGE_MAP))]
     WritePackageMap(#[error(source)] crate::WritePackageMapError),
 
+    #[display("failed to write PnP loader: {_0}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_PNP_FILE))]
+    WritePnpFile(#[error(source)] crate::WritePnpFileError),
+
     #[diagnostic(transparent)]
     LinkBins(#[error(source)] LinkBinsError),
 
@@ -2401,6 +2405,21 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 },
             )
             .map_err(InstallWithFreshLockfileError::WritePackageMap)?;
+        }
+        if matches!(node_linker, NodeLinker::Pnp) {
+            let project_manifests = importer_manifests
+                .iter()
+                .filter(|(id, _)| project_anchor_importer_ids.contains(id.as_str()))
+                .map(|(id, manifest)| (lockfile_dir.join(id), *manifest))
+                .collect::<Vec<_>>();
+            crate::write_pnp_file(
+                materialization_lockfile,
+                lockfile_dir,
+                config,
+                &layout,
+                &project_manifests,
+            )
+            .map_err(InstallWithFreshLockfileError::WritePnpFile)?;
         }
 
         let mut build_extra_env = config.extra_env.clone();

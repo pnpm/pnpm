@@ -306,6 +306,10 @@ pub enum InstallFrozenLockfileError {
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_PACKAGE_MAP))]
     WritePackageMap(#[error(source)] crate::WritePackageMapError),
 
+    #[display("failed to write PnP loader: {_0}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_PNP_FILE))]
+    WritePnpFile(#[error(source)] crate::WritePnpFileError),
+
     #[diagnostic(transparent)]
     InstallError(#[error(source)] Box<crate::InstallError>),
 }
@@ -1356,12 +1360,12 @@ where
             BTreeMap::new()
         };
 
+        let included = IncludedDependencies {
+            dependencies: dependency_groups.contains(&DependencyGroup::Prod),
+            dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
+            optional_dependencies: dependency_groups.contains(&DependencyGroup::Optional),
+        };
         if crate::should_write_package_map(config, node_linker) {
-            let included = IncludedDependencies {
-                dependencies: dependency_groups.contains(&DependencyGroup::Prod),
-                dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
-                optional_dependencies: dependency_groups.contains(&DependencyGroup::Optional),
-            };
             let filtered_lockfile =
                 crate::filter_lockfile_for_current(lockfile, included, &skipped);
             crate::package_map::write_package_map(
@@ -1375,6 +1379,18 @@ where
                 },
             )
             .map_err(InstallFrozenLockfileError::WritePackageMap)?;
+        }
+        if matches!(node_linker, NodeLinker::Pnp) {
+            let filtered_lockfile =
+                crate::filter_lockfile_for_current(lockfile, included, &skipped);
+            crate::write_pnp_file(
+                &filtered_lockfile,
+                workspace_root,
+                config,
+                &layout,
+                project_manifests,
+            )
+            .map_err(InstallFrozenLockfileError::WritePnpFile)?;
         }
 
         // `importing_done` fires once extraction and symlink linking

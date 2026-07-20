@@ -429,11 +429,6 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     ReadModules(#[error(source)] ReadModulesError),
 
-    /// Surfaces a corrupted `<virtual_store_dir>/lock.yaml` rather
-    /// than silently skipping the optimization.
-    #[diagnostic(transparent)]
-    LoadCurrentLockfile(#[error(source)] LoadLockfileError),
-
     /// Surfaces a `pnpm-lock.yaml` read or parse failure from the
     /// deferred load that runs once the repeat-install fast path has
     /// passed on the install (see [`MaybeLazyLockfile`]).
@@ -1054,12 +1049,24 @@ where
         // this on a per-`PackageKey` basis to decide whether the
         // already-installed slot is still usable. `Ok(None)` on a
         // first install (the file doesn't exist yet). A corrupted /
-        // version-incompatible file surfaces as `LoadCurrentLockfile`
-        // and fails the install rather than silently dropping the
-        // optimization.
+        // version-incompatible file is disposable state: pnpm warns and
+        // continues with an empty current lockfile because the wanted
+        // lockfile and filesystem remain authoritative.
         let current_lockfile =
-            Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir)
-                .map_err(InstallError::LoadCurrentLockfile)?;
+            match Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir) {
+                Ok(lockfile) => lockfile,
+                Err(error) => {
+                    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                        level: LogLevel::Warn,
+                        message: format!(
+                            "Ignoring broken lockfile at {}: {error}",
+                            config.virtual_store_dir.display(),
+                        ),
+                        prefix: prefix.clone(),
+                    }));
+                    None
+                }
+            };
 
         // Synthesize the wanted lockfile from `<virtual_store_dir>/lock.yaml`
         // when `pnpm-lock.yaml` is absent and the materialized snapshot still
@@ -1534,6 +1541,18 @@ where
             .map_err(InstallError::PruneDirectDeps)?;
         }
 
+        let modules_cache_prune_due = modules_manifest.as_ref().is_some_and(|modules| {
+            crate::prune_virtual_store::should_prune_virtual_store(
+                crate::prune_virtual_store::same_dir(
+                    config.effective_virtual_store_dir(),
+                    &config.global_virtual_store_dir,
+                ),
+                Some(modules.pruned_at.as_str()),
+                config.modules_cache_max_age,
+                SystemTime::now(),
+            )
+        });
+
         if take_frozen_path
             && !filtered_install
             && let Some(wanted_lockfile) = lockfile
@@ -1565,6 +1584,7 @@ where
             // An explicit `pacquet rebuild` always re-runs the build phase,
             // so it never short-circuits here.
             && rebuild.is_none()
+            && !modules_cache_prune_due
             && frozen_tree_intact(wanted_lockfile, modules, config, &workspace_root, node_linker)
         {
             // The full frozen path runs the offline structural
@@ -2723,6 +2743,10 @@ fn frozen_tree_intact(
     workspace_root: &Path,
     node_linker: NodeLinker,
 ) -> bool {
+    if matches!(node_linker, NodeLinker::Pnp) && !workspace_root.join(crate::PNP_FILENAME).is_file()
+    {
+        return false;
+    }
     let skipped = crate::SkippedSnapshots::from_strings(&modules.skipped);
     let probe_slots =
         !matches!(node_linker, NodeLinker::Hoisted) && !config.enable_global_virtual_store;
@@ -2751,6 +2775,9 @@ fn frozen_tree_intact(
         if !all_slots_present {
             return false;
         }
+    }
+    if !config.symlink {
+        return true;
     }
     let groups = crate::prune_direct_deps::selected_groups(modules.included);
     let modules_dir_name: &std::ffi::OsStr =

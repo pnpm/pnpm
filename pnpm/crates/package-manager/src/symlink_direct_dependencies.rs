@@ -261,6 +261,7 @@ where
                 skipped,
                 link_only,
                 dedupe_against,
+                config.symlink,
             )?;
         }
 
@@ -408,6 +409,7 @@ fn link_one_importer<Reporter: self::Reporter>(
     skipped: &SkippedSnapshots,
     link_only: bool,
     dedupe_against: Option<&BTreeMap<String, PathBuf>>,
+    symlink: bool,
 ) -> Result<(), SymlinkDirectDependenciesError> {
     let entries = collect_resolved_entries(
         layout,
@@ -452,16 +454,19 @@ fn link_one_importer<Reporter: self::Reporter>(
     entries.par_iter().try_for_each(|entry| -> Result<(), SymlinkDirectDependenciesError> {
         let ResolvedEntry { name, spec, group, name_str, target } = entry;
 
-        let outcome = symlink_package(target, &modules_dir.join(name_str)).map_err(|source| {
-            SymlinkDirectDependenciesError::SymlinkPackage {
-                importer_id: importer_id.to_string(),
-                name: name_str.clone(),
-                source,
-            }
-        })?;
+        if symlink {
+            let outcome =
+                symlink_package(target, &modules_dir.join(name_str)).map_err(|source| {
+                    SymlinkDirectDependenciesError::SymlinkPackage {
+                        importer_id: importer_id.to_string(),
+                        name: name_str.clone(),
+                        source,
+                    }
+                })?;
 
-        if outcome.reused {
-            return Ok(());
+            if outcome.reused {
+                return Ok(());
+            }
         }
 
         // `pnpm:root added`: one event per direct dependency once the
@@ -530,9 +535,15 @@ fn link_one_importer<Reporter: self::Reporter>(
     // After the symlinks exist, walk them to discover each
     // direct dep's `package.json` and link declared bins into
     // `<modules_dir>/.bin`.
-    let dep_names: Vec<String> = entries.iter().map(|entry| entry.name_str.clone()).collect();
-    link_direct_dep_bins(modules_dir, &dep_names)
-        .map_err(SymlinkDirectDependenciesError::LinkBins)?;
+    if symlink {
+        let dep_names: Vec<String> = entries.iter().map(|entry| entry.name_str.clone()).collect();
+        link_direct_dep_bins(modules_dir, &dep_names)
+            .map_err(SymlinkDirectDependenciesError::LinkBins)?;
+    } else {
+        let locations: Vec<PathBuf> = entries.iter().map(|entry| entry.target.clone()).collect();
+        crate::link_direct_dep_bins_from_locations(modules_dir, &locations)
+            .map_err(SymlinkDirectDependenciesError::LinkBins)?;
+    }
 
     Ok(())
 }

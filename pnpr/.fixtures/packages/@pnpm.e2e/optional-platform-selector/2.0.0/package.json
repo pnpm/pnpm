@@ -1,0 +1,8 @@
+{
+  "name": "@pnpm.e2e/optional-platform-selector",
+  "version": "2.0.0",
+  "optionalDependencies": {
+    "@pnpm.e2e/darwin-x64": "1.0.0",
+    "@pnpm.e2e/linux-x64": "1.0.0"
+  }
+}

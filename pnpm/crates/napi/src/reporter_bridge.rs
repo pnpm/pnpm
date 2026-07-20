@@ -158,3 +158,6 @@ impl Reporter for NodeBridgeReporter {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
