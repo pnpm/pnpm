@@ -656,6 +656,12 @@ fn walk_lockfile_edges<'lock>(
         })
         .collect();
     while let Some((key, edge_optional)) = pending.pop_front() {
+        // A node's classification is final once installed: `required`
+        // is only ever entered on the installing edge, so later
+        // inbound edges can skip the candidate check entirely.
+        if installed.contains(key) {
+            continue;
+        }
         let metadata_key = key.without_peer();
         let skip_candidate = match packages.get(&metadata_key) {
             Some(metadata) => {

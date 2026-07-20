@@ -1175,6 +1175,17 @@ mod remove_unused_catalogs {
         );
     }
 
+    /// A flow-style `catalogs:` mapping exposes no line entries for the
+    /// partial named-catalog drop, so it is left untouched — the same
+    /// conservative stance the entry-level removals take.
+    #[test]
+    fn leaves_a_flow_style_catalogs_mapping_untouched() {
+        let consumer = project(serde_json::json!({ "dependencies": { "def": "catalog:bar" } }));
+        let original = "catalogs: { foo: { abc: 0.1.2 }, bar: { def: 3.2.1 } }\n";
+        let out = run_cleanup(Some(original), None, &[&consumer]);
+        assert_eq!(out.as_deref(), Some(original));
+    }
+
     /// TS: `keep catalogs referenced only in workspace overrides`.
     #[test]
     fn keeps_entries_referenced_only_by_workspace_overrides() {

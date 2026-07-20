@@ -2109,7 +2109,13 @@ mod locked_peer_provider_preferences {
     fn compatible_locked_peer_provider_is_reused() {
         let ids = ids();
         let mut tree = locked_provider_tree(&ids, ">=1");
-        let initial = resolve_peers(&mut tree, ResolvePeersOptions::default());
+        let initial = resolve_peers(
+            &mut tree,
+            ResolvePeersOptions {
+                collect_paths_by_node_id: true,
+                ..ResolvePeersOptions::default()
+            },
+        );
         assert!(
             initial.graph.contains_key(&DepPath::from("consumer@1.0.0(peer@1.0.0)")),
             "the first pass binds the current provider; graph keys: {:#?}",
@@ -2136,7 +2142,13 @@ mod locked_peer_provider_preferences {
     fn locked_peer_provider_outside_the_current_range_is_not_reused() {
         let ids = ids();
         let mut tree = locked_provider_tree(&ids, "^1.0.0");
-        let initial = resolve_peers(&mut tree, ResolvePeersOptions::default());
+        let initial = resolve_peers(
+            &mut tree,
+            ResolvePeersOptions {
+                collect_paths_by_node_id: true,
+                ..ResolvePeersOptions::default()
+            },
+        );
 
         let preferred = resolve_peers(
             &mut tree,

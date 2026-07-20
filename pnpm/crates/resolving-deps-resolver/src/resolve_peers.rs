@@ -194,6 +194,12 @@ pub struct ResolvePeersOptions {
     /// peer range. The upstream `resolvedPeerProviderPaths` option.
     pub resolved_peer_provider_paths: Option<HashMap<NodeId, DepPath>>,
 
+    /// Populate [`ResolvePeersResult::paths_by_node_id`]. Off by
+    /// default: the map is only consumed by a follow-up
+    /// locked-peer-provider pass, and building it costs an extra pass
+    /// over every walked node inside the hoist loop's hot path.
+    pub collect_paths_by_node_id: bool,
+
     /// Direct-dependency aliases the importer's manifest declares.
     /// Input to the must-win guard: a declared current provider that
     /// has no wanted-lockfile resolution beats a locked one.
@@ -253,6 +259,7 @@ impl Default for ResolvePeersOptions {
             hoist_missing_scope: None,
             hoisted_peer_provider_node_ids: std::collections::HashSet::new(),
             resolved_peer_provider_paths: None,
+            collect_paths_by_node_id: false,
             declared_direct_dependencies: std::collections::HashSet::new(),
             explicitly_requested_direct_dependencies: std::collections::HashSet::new(),
         }
@@ -598,7 +605,6 @@ type ParentRefs = HashMap<String, ParentRef>;
 
 /// One importer whose direct dependencies count as "current" peer
 /// providers for the must-win guard of locked-peer-provider reuse.
-/// Same name and shape as its upstream counterpart.
 struct CurrentProviderSource {
     direct_node_ids_by_alias: HashMap<String, NodeId>,
     declared_direct_dependencies: std::collections::HashSet<String>,
@@ -874,11 +880,15 @@ impl Walker<'_> {
     }
 
     /// The upstream `pathsByNodeId`: every walked node's final
-    /// `DepPath`.
+    /// `DepPath`. Empty unless
+    /// [`ResolvePeersOptions::collect_paths_by_node_id`] asked for it.
     fn final_paths_by_node_id(
         &self,
         final_dep_paths: &HashMap<NodeId, DepPath>,
     ) -> HashMap<NodeId, DepPath> {
+        if !self.opts.collect_paths_by_node_id {
+            return HashMap::new();
+        }
         self.node_dep_paths
             .keys()
             .map(|node_id| (node_id.clone(), self.final_dep_path_of(node_id, final_dep_paths)))
@@ -1482,8 +1492,9 @@ impl Walker<'_> {
             ) {
                 continue;
             }
-            let occurrence =
-                parent_refs.get(peer_name).map_or(0, |existing| existing.occurrence + 1);
+            // Upstream builds the pinned ref through `toPkgByName`,
+            // which always starts at occurrence 0; the shadow counter
+            // only tracks child-level replacements.
             parent_refs.insert(
                 peer_name.clone(),
                 ParentRef {
@@ -1491,7 +1502,7 @@ impl Walker<'_> {
                     node_id: Some(peer_node_id.clone()),
                     alias: Some(peer_name.clone()),
                     depth: peer_tree_node.depth,
-                    occurrence,
+                    occurrence: 0,
                 },
             );
         }

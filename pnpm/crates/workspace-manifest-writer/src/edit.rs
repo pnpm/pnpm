@@ -292,7 +292,7 @@ fn remove_unused_named_catalogs(manifest: &mut Manifest, references: &CatalogRef
         manifest.top_level_keys.retain(|key| key != BLOCK);
         return true;
     }
-    if !names_to_drop.is_empty() {
+    if !names_to_drop.is_empty() && has_line_entries(manifest.text(), &[BLOCK]) {
         manifest.set_text(remove_mapping_entries(manifest.text(), &[BLOCK], &names_to_drop));
         let catalogs = manifest.catalogs.as_mut().expect("catalogs presence checked above");
         for name in &names_to_drop {
