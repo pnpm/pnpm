@@ -188,7 +188,7 @@ mod tests {
     fn probe_separates_options_from_the_repository() {
         assert_eq!(
             args(LsRemoteMode::Probe),
-            ["ls-remote", "--exit-code", "--", "--upload-pack=malicious", "HEAD"]
+            ["ls-remote", "--exit-code", "--", "--upload-pack=malicious", "HEAD"],
         );
     }
 
@@ -196,7 +196,7 @@ mod tests {
     fn resolve_separates_options_from_the_repository_and_ref() {
         assert_eq!(
             args(LsRemoteMode::Resolve(Some("--help"))),
-            ["ls-remote", "--", "--upload-pack=malicious", "--help", "--help^{}",]
+            ["ls-remote", "--", "--upload-pack=malicious", "--help", "--help^{}",],
         );
     }
 }
