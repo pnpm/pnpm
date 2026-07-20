@@ -38,6 +38,7 @@ use crate::{
 use chrono::{DateTime, Utc};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use node_semver::Range;
 use pacquet_catalogs_types::Catalogs;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_patching::PatchGroupRecord;
@@ -391,6 +392,7 @@ impl ImporterHoistState {
             modules_dir: self.modules_dir.clone(),
             hoist_missing_scope: None,
             hoisted_peer_provider_node_ids: self.hoisted_peer_provider_node_ids.clone(),
+            ..ResolvePeersOptions::default()
         }
     }
 
@@ -595,9 +597,7 @@ impl ImporterHoistState {
 /// its consumers declared it non-optional and it isn't already in
 /// `parent_pkg_aliases` (i.e. not already a direct dep that just
 /// hadn't been added to the alias set yet). Its merged range is
-/// computed by [`merge_ranges`]: single-range cases pass through,
-/// multi-range cases intersect via a stub and fall through to `||`-join
-/// when `auto_install_peers_from_highest_match` is set.
+/// computed by [`merge_ranges`].
 ///
 /// Peers whose consumers are *all* optional are returned as the second
 /// component, keyed by peer name with the deduplicated range list the
@@ -642,17 +642,12 @@ fn partition_missing_peers(
     (missing_required, missing_optional)
 }
 
-/// Combine multiple consumers' wanted ranges into a single specifier.
-/// Single-range cases pass through unchanged. Multi-range cases that
-/// reduce to one unique string also pass through. Anything else returns
-/// `Some(joined)` when `auto_install_peers_from_highest_match` is set,
-/// or `None` otherwise — dropping the peer on an unresolvable conflict.
-///
-/// The intersection here is exact only for the "single unique range"
-/// case; broader semver-range intersection would need the
-/// `semver-range-intersect` npm package. In practice the multi-consumer
-/// non-identical case is rare enough that a conservative "no merge"
-/// (drop on conflict) is sufficient for the slice.
+/// Combine multiple consumers' wanted ranges into a single specifier,
+/// the upstream `mergePkgsDeps` policy: a single (or single unique)
+/// range passes through unchanged, distinct compatible ranges reduce to
+/// their semver intersection, and an empty intersection falls back to a
+/// `||`-join under `auto_install_peers_from_highest_match` — or `None`,
+/// dropping the peer on an unresolvable conflict.
 fn merge_ranges(ranges: &[&str], auto_install_peers_from_highest_match: bool) -> Option<String> {
     if ranges.len() == 1 {
         return Some(ranges[0].to_string());
@@ -661,10 +656,27 @@ fn merge_ranges(ranges: &[&str], auto_install_peers_from_highest_match: bool) ->
     if unique.len() == 1 {
         return Some(ranges[0].to_string());
     }
+    if let Some(intersection) = intersect_ranges(ranges) {
+        return Some(intersection);
+    }
     if auto_install_peers_from_highest_match {
         return Some(ranges.join(" || "));
     }
     None
+}
+
+/// Semver intersection of every range, rendered in `node-semver`'s
+/// canonical form (`2` ∩ `^2.2.0` → `>=2.2.0 <3.0.0-0`, the same shape
+/// the `semver-range-intersect` npm package emits upstream). `None`
+/// when a range fails to parse or the ranges share no versions,
+/// mirroring `safeIntersect`'s caught-throw `null`.
+fn intersect_ranges(ranges: &[&str]) -> Option<String> {
+    let mut iter = ranges.iter();
+    let first = Range::parse(iter.next()?).ok()?;
+    iter.try_fold(first, |acc, range| {
+        Range::parse(range).ok().and_then(|range| acc.intersect(&range))
+    })
+    .map(|range| range.to_string())
 }
 
 /// Build the [`WorkspaceRootDep`] slice the hoist picker sees. Reads
