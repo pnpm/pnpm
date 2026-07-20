@@ -47,8 +47,47 @@ pub fn link_direct_dep_bins(
     dep_names: &[String],
     extra_node_paths: &[String],
 ) -> Result<(), LinkBinsError> {
-    let direct_dep_locations: Vec<PathBuf> =
-        dep_names.iter().map(|name| modules_dir.join(name)).collect();
+    let deps: Vec<(&str, Option<&Path>)> =
+        dep_names.iter().map(|name| (name.as_str(), None)).collect();
+    link_named_dep_bins(modules_dir, &deps, extra_node_paths)
+}
+
+/// Resolve the hoist pass's `(alias, snapshot key)` bin list into the
+/// `(alias, slot package dir)` pairs [`link_direct_dep_bins_resolved`]
+/// takes — the same slot derivation `symlink_hoisted_dependencies`
+/// used to create the aliases.
+#[must_use]
+pub fn resolve_hoisted_bin_deps(
+    layout: &crate::VirtualStoreLayout,
+    aliases: &[(String, PackageKey)],
+) -> Vec<(String, PathBuf)> {
+    aliases
+        .iter()
+        .map(|(alias, key)| {
+            (alias.clone(), pkg_dir_under(&layout.slot_dir(key).join("node_modules"), &key.name))
+        })
+        .collect()
+}
+
+/// [`link_direct_dep_bins`] for callers that also know each symlink's
+/// destination (the virtual-store slot the alias points at): threading
+/// it through as [`PackageBinSource::resolved_location`] keeps the
+/// shim `NODE_PATH` derivation syscall-free.
+pub fn link_direct_dep_bins_resolved(
+    modules_dir: &Path,
+    deps: &[(String, PathBuf)],
+    extra_node_paths: &[String],
+) -> Result<(), LinkBinsError> {
+    let deps: Vec<(&str, Option<&Path>)> =
+        deps.iter().map(|(name, target)| (name.as_str(), Some(target.as_path()))).collect();
+    link_named_dep_bins(modules_dir, &deps, extra_node_paths)
+}
+
+fn link_named_dep_bins(
+    modules_dir: &Path,
+    deps: &[(&str, Option<&Path>)],
+    extra_node_paths: &[String],
+) -> Result<(), LinkBinsError> {
     // Swallow only `NotFound`: a direct-dep symlink target can
     // legitimately be missing right after a partial pacquet run, or
     // be an in-progress install. Every other IO error (permission
@@ -57,9 +96,10 @@ pub fn link_direct_dep_bins(
     // is diagnosable rather than hiding behind a missing `.bin`
     // entry. Matches the read-side error policy in
     // `pacquet_cmd_shim::link_bins`.
-    let bin_sources: Vec<PackageBinSource> = direct_dep_locations
+    let bin_sources: Vec<PackageBinSource> = deps
         .par_iter()
-        .filter_map(|location| {
+        .filter_map(|(name, resolved)| {
+            let location = modules_dir.join(name);
             let manifest_path = location.join("package.json");
             let bytes = match fs::read(&manifest_path) {
                 Ok(bytes) => bytes,
@@ -74,7 +114,11 @@ pub fn link_direct_dep_bins(
                     return Some(Err(LinkBinsError::ParseManifest { path: manifest_path, error }));
                 }
             };
-            Some(Ok(PackageBinSource::new(location.clone(), Arc::new(manifest))))
+            let mut source = PackageBinSource::new(location, Arc::new(manifest));
+            if let Some(resolved) = resolved {
+                source = source.with_resolved_location(resolved.to_path_buf());
+            }
+            Some(Ok(source))
         })
         .collect::<Result<_, _>>()?;
     if bin_sources.is_empty() {
@@ -95,7 +139,9 @@ pub fn link_direct_dep_bins_from_locations(
     let bin_sources = locations
         .par_iter()
         .filter_map(|location| match read_package::<Host>(location) {
-            Ok(Some(source)) => Some(Ok(source)),
+            // The locations are already the symlink-resolved package
+            // dirs, so they double as `resolved_location`.
+            Ok(Some(source)) => Some(Ok(source.with_resolved_location(location.clone()))),
             Ok(None) => None,
             Err(error) => Some(Err(error)),
         })
@@ -466,7 +512,7 @@ where
         //    this writes
         //    `<slot>/node_modules/<pkg>/node_modules/.bin/<pkg>`
         //    as a self-shim.
-        let with_bin: Vec<(&PkgName, PackageKey)> = children
+        let with_bin: Vec<(&PkgName, PackageKey, PackageKey)> = children
             .filter_map(|(alias, dep_ref)| {
                 // `link:` deps live outside the virtual store and
                 // expose their bins via the workspace project's
@@ -478,7 +524,7 @@ where
                     Some(set) => set.contains(&metadata_key),
                     None => true,
                 };
-                keep.then_some((alias, metadata_key))
+                keep.then_some((alias, child_key, metadata_key))
             })
             .collect();
         let self_metadata_key = slot_key.without_peer();
@@ -502,15 +548,24 @@ where
 
         let mut bin_sources: Vec<PackageBinSource> =
             Vec::with_capacity(with_bin.len() + usize::from(self_has_bin));
-        for (alias, metadata_key) in with_bin {
+        for (alias, child_key, metadata_key) in with_bin {
             let child_location = pkg_dir_under(&modules_dir, alias);
+            // `child_location` reaches the child through the slot's
+            // alias symlink; the layout knows the symlink's
+            // destination without touching the filesystem, so the
+            // shim `NODE_PATH` derivation never has to `realpath`.
+            let resolved_location =
+                pkg_dir_under(&layout.slot_dir(&child_key).join("node_modules"), &child_key.name);
             if let Some(manifest) = package_manifests.get(&metadata_key) {
                 // Hot path: parsed manifest already in memory from
                 // the warm-cache prefetch. Both the prefetch map
                 // and `PackageBinSource` hold the manifest via
                 // [`Arc`], so this is a refcount bump rather than a
                 // deep clone of the JSON tree.
-                bin_sources.push(PackageBinSource::new(child_location, Arc::clone(manifest)));
+                bin_sources.push(
+                    PackageBinSource::new(child_location, Arc::clone(manifest))
+                        .with_resolved_location(resolved_location),
+                );
             } else {
                 // Cold-batch fallback: package was downloaded
                 // earlier in the run, so its row isn't in the
@@ -518,7 +573,9 @@ where
                 // here is the same code path as the non-lockfile
                 // install — see [`run_with_readdir`].
                 match read_package::<Sys>(&child_location) {
-                    Ok(Some(pkg)) => bin_sources.push(pkg),
+                    Ok(Some(pkg)) => {
+                        bin_sources.push(pkg.with_resolved_location(resolved_location));
+                    }
                     Ok(None) => {}
                     Err(error) => return Err(LinkVirtualStoreBinsError::LinkBins(error)),
                 }
@@ -529,13 +586,20 @@ where
         // declared a bin. Same warm-vs-cold dispatch as the children
         // above. `self_pkg_dir` is an invariant of
         // [`crate::create_virtual_dir_by_snapshot`], so the cold
-        // fallback is the same `read_package` used elsewhere.
+        // fallback is the same `read_package` used elsewhere. The
+        // slot's own package dir is a real directory already, so it
+        // doubles as its own resolved location.
         if self_has_bin {
             if let Some(manifest) = package_manifests.get(&self_metadata_key) {
-                bin_sources.push(PackageBinSource::new(self_pkg_dir, Arc::clone(manifest)));
+                bin_sources.push(
+                    PackageBinSource::new(self_pkg_dir.clone(), Arc::clone(manifest))
+                        .with_resolved_location(self_pkg_dir.clone()),
+                );
             } else {
                 match read_package::<Sys>(&self_pkg_dir) {
-                    Ok(Some(pkg)) => bin_sources.push(pkg),
+                    Ok(Some(pkg)) => {
+                        bin_sources.push(pkg.with_resolved_location(self_pkg_dir.clone()));
+                    }
                     Ok(None) => {}
                     Err(error) => return Err(LinkVirtualStoreBinsError::LinkBins(error)),
                 }

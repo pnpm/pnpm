@@ -1395,6 +1395,17 @@ fn should_add_extra_node_paths_to_command_shims() {
         "the shim must extend NODE_PATH with the hidden hoisted modules dir:\n{shim}",
     );
 
+    // The fresh install's own `packages:` rows must record `hasBin` —
+    // the bin linker's slot short-circuit trusts them on this very
+    // install, before any save/load round-trip.
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    let packages = lockfile.packages.as_ref().expect("lockfile has packages");
+    let (_, metadata) = packages
+        .iter()
+        .find(|(key, _)| key.to_string() == "@pnpm.e2e/hello-world-js-bin@1.0.0")
+        .expect("lockfile records the added package");
+    assert_eq!(metadata.has_bin, Some(true), "the fresh lockfile must record hasBin");
+
     drop((root, npmrc_info)); // cleanup
 }
 

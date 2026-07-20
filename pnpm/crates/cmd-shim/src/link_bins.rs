@@ -44,6 +44,15 @@ pub struct PackageBinSource {
     /// [`PackageBinSource::with_origin`] to tag transitive
     /// candidates as [`BinOrigin::Hoisted`].
     pub origin: BinOrigin,
+    /// The package directory with every symlink resolved — the
+    /// virtual-store slot dir a symlinked [`location`] points at.
+    /// Callers that already know it (the lockfile-driven passes
+    /// derive it from the snapshot key and the store layout) set it so
+    /// the shim `NODE_PATH` derives lexically; when `None` the linker
+    /// falls back to one `canonicalize` per package.
+    ///
+    /// [`location`]: Self::location
+    pub resolved_location: Option<PathBuf>,
 }
 
 impl PackageBinSource {
@@ -54,7 +63,7 @@ impl PackageBinSource {
     /// most tests).
     #[must_use]
     pub fn new(location: PathBuf, manifest: Arc<Value>) -> Self {
-        Self { location, manifest, origin: BinOrigin::Direct }
+        Self { location, manifest, origin: BinOrigin::Direct, resolved_location: None }
     }
 
     /// Tag this source with the given [`BinOrigin`]. Builder-style
@@ -64,6 +73,14 @@ impl PackageBinSource {
     #[must_use]
     pub fn with_origin(mut self, origin: BinOrigin) -> Self {
         self.origin = origin;
+        self
+    }
+
+    /// Record the symlink-resolved package directory. See
+    /// [`Self::resolved_location`].
+    #[must_use]
+    pub fn with_resolved_location(mut self, resolved_location: PathBuf) -> Self {
+        self.resolved_location = Some(resolved_location);
         self
     }
 }
@@ -358,11 +375,43 @@ where
     // across bin names. There is no shared state, so drive them on rayon.
     // The hot path is per-package-bin; without parallelism the per-shim
     // file I/O serialised across the whole `chosen` map.
-    chosen.par_iter().try_for_each(|(bin_name, (command, _pkg))| {
-        write_shim::<Sys>(&command.path, &bins_dir.join(bin_name), extra_node_paths)
+    chosen.par_iter().try_for_each(|(bin_name, (command, pkg))| {
+        let node_path = shim_node_path(pkg, extra_node_paths);
+        write_shim::<Sys>(&command.path, &bins_dir.join(bin_name), &node_path)
     })?;
 
     Ok(())
+}
+
+/// The `NODE_PATH` entries for one package's shims: the target's own
+/// `node_modules` dirs first (pnpm's `getBinNodePaths`), then the
+/// caller's extras that aren't already present. An empty extras list
+/// means "no `NODE_PATH` in shims at all" (`extendNodePath: false`, a
+/// non-isolated linker, or no hoist pattern), matching pnpm's bins
+/// linker.
+///
+/// The result depends only on the package's symlink-resolved
+/// directory — every bin lives under the package root — so a
+/// caller-supplied [`PackageBinSource::resolved_location`] makes this
+/// syscall-free; without one the package's `location` is
+/// canonicalized once, covering all of its bins.
+fn shim_node_path(pkg: &PackageBinSource, extra_node_paths: &[String]) -> Vec<String> {
+    if extra_node_paths.is_empty() {
+        return Vec::new();
+    }
+    let mut merged = match &pkg.resolved_location {
+        Some(resolved) => bin_node_paths(resolved),
+        None => {
+            let dir = dunce::canonicalize(&pkg.location).unwrap_or_else(|_| pkg.location.clone());
+            bin_node_paths(&dir)
+        }
+    };
+    for extra in extra_node_paths {
+        if !merged.contains(extra) {
+            merged.push(extra.clone());
+        }
+    }
+    merged
 }
 
 /// Return `true` when `candidate` should replace `existing` for `bin_name`.
@@ -403,7 +452,7 @@ fn pick_winner(
 fn write_shim<Sys>(
     target_path: &Path,
     shim_path: &Path,
-    extra_node_paths: &[String],
+    node_path: &[String],
 ) -> Result<(), LinkBinsError>
 where
     Sys: FsReadToString + FsReadHead + FsWrite + FsSetExecutable + FsEnsureExecutableBits,
@@ -435,24 +484,7 @@ where
         LinkBinsError::ProbeShimSource { path: target_path.to_path_buf(), error }
     })?;
 
-    // pnpm's shim `NODE_PATH`: the target's own `node_modules` dirs
-    // first, then the caller's extras that aren't already present.
-    // An empty extras list means "no NODE_PATH in shims at all"
-    // (`extendNodePath: false`, a non-isolated linker, or no hoist
-    // pattern), matching pnpm's bins linker.
-    let node_path: Vec<String> = if extra_node_paths.is_empty() {
-        Vec::new()
-    } else {
-        let mut merged = bin_node_paths(target_path);
-        for extra in extra_node_paths {
-            if !merged.contains(extra) {
-                merged.push(extra.clone());
-            }
-        }
-        merged
-    };
-
-    let sh_body = generate_sh_shim(target_path, shim_path, runtime.as_ref(), &node_path);
+    let sh_body = generate_sh_shim(target_path, shim_path, runtime.as_ref(), node_path);
     // Windows siblings are off on Unix to match pnpm. The bodies
     // themselves still get computed inside the `cfg!(windows)` branch
     // below — moving the `generate_*` calls there keeps Unix builds
@@ -460,8 +492,8 @@ where
     let windows_shims = cfg!(windows).then(|| {
         let cmd_path = with_extension_appended(shim_path, "cmd");
         let ps1_path = with_extension_appended(shim_path, "ps1");
-        let cmd_body = generate_cmd_shim(target_path, &cmd_path, runtime.as_ref(), &node_path);
-        let ps1_body = generate_pwsh_shim(target_path, &ps1_path, runtime.as_ref(), &node_path);
+        let cmd_body = generate_cmd_shim(target_path, &cmd_path, runtime.as_ref(), node_path);
+        let ps1_body = generate_pwsh_shim(target_path, &ps1_path, runtime.as_ref(), node_path);
         (cmd_path, cmd_body, ps1_path, ps1_body)
     });
 
@@ -545,17 +577,15 @@ where
     Ok(())
 }
 
-/// The `node_modules` directories relevant to a bin target in the
-/// virtual-store layout — pnpm's `getBinNodePaths`. For a bin at
-/// `.pnpm/pkg@ver/node_modules/pkg/bin/cli.js` this returns the
-/// package's own `node_modules` (bundled deps) followed by the slot's
+/// The `node_modules` directories relevant to a bin package in the
+/// virtual-store layout — pnpm's `getBinNodePaths`. For a package at
+/// `.pnpm/pkg@ver/node_modules/pkg` this returns the package's own
+/// `node_modules` (bundled deps) followed by the slot's
 /// `node_modules` (sibling deps), so tools that resolve from CWD
 /// (`import-local` in jest, eslint, ...) find the correct versions.
-/// The target directory is realpath-resolved first so a symlinked
-/// direct dependency yields its virtual-store slot paths.
-fn bin_node_paths(target: &Path) -> Vec<String> {
-    let target_dir = target.parent().unwrap_or_else(|| Path::new(""));
-    let dir = dunce::canonicalize(target_dir).unwrap_or_else(|_| target_dir.to_path_buf());
+/// `dir` must already be symlink-free — [`shim_node_path`] passes the
+/// caller-resolved location or a canonicalized fallback.
+fn bin_node_paths(dir: &Path) -> Vec<String> {
     let Some(node_modules_dir) = dir.ancestors().find(|ancestor| {
         ancestor.file_name().is_some_and(|name| name == "node_modules")
             && ancestor

@@ -2297,9 +2297,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     &hoist_skipped,
                 )
                 .map_err(InstallWithFreshLockfileError::HoistSymlink)?;
-                crate::link_direct_dep_bins(
+                crate::link_direct_dep_bins_resolved(
                     &private_dir,
-                    &result.hoisted_aliases_with_bins,
+                    &crate::resolve_hoisted_bin_deps(&layout, &result.hoisted_aliases_with_bins),
                     &extra_node_paths,
                 )
                 .map_err(InstallWithFreshLockfileError::HoistLinkBins)?;
@@ -2344,22 +2344,17 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             // directly — its prefetch + cold-batch passes both feed into
             // the same map.
             //
-            // `packages: None` on purpose: the freshly-built lockfile's
-            // `packages:` rows carry an incomplete `has_bin` because the
-            // resolver's `PackageVersion` deserializer does not include
-            // the `bin` field. Trusting the empty-by-omission
-            // `has_bin_set` here would filter out every child and skip
-            // bin linking entirely. With `packages: None` the bin linker
-            // falls through to "process every child" and lets each
-            // child's actual manifest (`bin` present or not) decide.
-            // Threading `bin` through `PackageVersion` is the proper
-            // fix; once that lands, pass
-            // `built_lockfile.packages.as_ref()` here to recover the
-            // ~95% slot short-circuit the frozen path enjoys.
+            // The freshly-built `packages:` rows carry the same
+            // `hasBin` the on-disk lockfile gets (the resolver's
+            // picked manifest keeps `bin` through its flatten
+            // catch-all, and `dependencies_graph_to_lockfile` reads it
+            // off), so the bin linker's `has_bin_set` short-circuit —
+            // the one the frozen path trusts on the very same rows
+            // after a save/load round-trip — is just as sound here.
             LinkVirtualStoreBins {
                 layout: &layout,
                 snapshots: materialization_lockfile.snapshots.as_ref(),
-                packages: None,
+                packages: materialization_lockfile.packages.as_ref(),
                 package_manifests: &package_manifests,
                 skipped: &skipped,
                 extra_node_paths: &extra_node_paths,

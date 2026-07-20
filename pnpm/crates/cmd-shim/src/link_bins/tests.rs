@@ -1257,3 +1257,50 @@ fn link_node_bin_falls_through_to_cmd_shim_when_source_is_not_exe() {
     assert!(bin_target.join("node.ps1").exists());
     assert!(!bin_target.join("node.exe").exists());
 }
+
+/// A caller-supplied resolved location and the canonicalize fallback
+/// must derive the same shim `NODE_PATH` for a package reached through
+/// a virtual-store-style symlink — the lexical fast path is only sound
+/// while this holds.
+#[cfg(unix)]
+#[test]
+fn resolved_location_matches_canonicalize_fallback_for_node_path() {
+    let tmp = tempdir().unwrap();
+    let slot_pkg_dir = tmp.path().join("node_modules/.pnpm/foo@1.0.0/node_modules/foo");
+    create_dir_all(&slot_pkg_dir).unwrap();
+    write_file(
+        slot_pkg_dir.join("package.json"),
+        json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"}).to_string(),
+    )
+    .unwrap();
+    write_file(slot_pkg_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let alias = tmp.path().join("node_modules/foo");
+    std::os::unix::fs::symlink(&slot_pkg_dir, &alias).unwrap();
+
+    let manifest: Arc<Value> = Arc::new(
+        serde_json::from_slice(&read_file(slot_pkg_dir.join("package.json")).unwrap()).unwrap(),
+    );
+    let extras =
+        [tmp.path().join("node_modules/.pnpm/node_modules").to_string_lossy().into_owned()];
+
+    // The fallback resolves the alias symlink; the canonicalized slot
+    // dir anchors the expectation so a `/tmp` → `/private/tmp`-style
+    // ancestor symlink can't skew the comparison.
+    let real_slot_pkg_dir = dunce::canonicalize(&slot_pkg_dir).unwrap();
+    let via_fallback = super::shim_node_path(
+        &PackageBinSource::new(alias.clone(), Arc::clone(&manifest)),
+        &extras,
+    );
+    let via_resolved = super::shim_node_path(
+        &PackageBinSource::new(alias, manifest).with_resolved_location(real_slot_pkg_dir.clone()),
+        &extras,
+    );
+    assert_eq!(via_fallback, via_resolved);
+    assert_eq!(
+        via_resolved[..2],
+        [
+            real_slot_pkg_dir.join("node_modules").to_string_lossy().into_owned(),
+            real_slot_pkg_dir.parent().unwrap().to_string_lossy().into_owned(),
+        ],
+    );
+}

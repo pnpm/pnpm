@@ -6,7 +6,7 @@ use crate::{
     SkippedSnapshots, SymlinkDirectDependencies, SymlinkDirectDependenciesError,
     SymlinkPackageError, VersionPolicyError, VirtualStoreLayout, any_installability_constraint,
     build_direct_deps_by_importer, build_hoist_graph, compute_skipped_snapshots,
-    direct_dep_names_for_importer, get_hoisted_dependencies, link_direct_dep_bins,
+    direct_dep_names_for_importer, get_hoisted_dependencies, link_direct_dep_bins_resolved,
     link_hoisted_modules, link_root_component_members, link_top_level_bins,
     lockfile_to_hoisted_dep_graph, symlink_direct_dependencies::importer_root_dir,
     symlink_hoisted_dependencies,
@@ -1351,12 +1351,11 @@ where
             .map_err(InstallFrozenLockfileError::HoistSymlink)?;
             // Private-side bins → `<vs>/node_modules/.bin`.
             // Reuses the rayon-parallel `link_direct_dep_bins`
-            // (same shape — read each location's
-            // `package.json`, fan out to
-            // `link_bins_of_packages`).
-            link_direct_dep_bins(
+            // shape (read each location's `package.json`, fan out
+            // to `link_bins_of_packages`).
+            link_direct_dep_bins_resolved(
                 &private_dir,
-                &result.hoisted_aliases_with_bins,
+                &crate::resolve_hoisted_bin_deps(&layout, &result.hoisted_aliases_with_bins),
                 &extra_node_paths,
             )
             .map_err(InstallFrozenLockfileError::HoistLinkBins)?;

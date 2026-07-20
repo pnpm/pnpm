@@ -1,7 +1,4 @@
-use crate::{
-    SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout, link_direct_dep_bins,
-    symlink_package,
-};
+use crate::{SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout, symlink_package};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_cmd_shim::LinkBinsError;
@@ -541,10 +538,13 @@ fn link_one_importer<Reporter: self::Reporter>(
 
     // After the symlinks exist, walk them to discover each
     // direct dep's `package.json` and link declared bins into
-    // `<modules_dir>/.bin`.
+    // `<modules_dir>/.bin`. Each entry's `target` is the symlink's
+    // destination, so the bin pass gets the resolved location for
+    // free.
     if symlink {
-        let dep_names: Vec<String> = entries.iter().map(|entry| entry.name_str.clone()).collect();
-        link_direct_dep_bins(modules_dir, &dep_names, extra_node_paths)
+        let deps: Vec<(String, PathBuf)> =
+            entries.iter().map(|entry| (entry.name_str.clone(), entry.target.clone())).collect();
+        crate::link_direct_dep_bins_resolved(modules_dir, &deps, extra_node_paths)
             .map_err(SymlinkDirectDependenciesError::LinkBins)?;
     } else {
         let locations: Vec<PathBuf> = entries.iter().map(|entry| entry.target.clone()).collect();
