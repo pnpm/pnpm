@@ -1,585 +1,388 @@
-use std::{collections::HashMap, fs};
-
-use pacquet_config::Config;
-use pacquet_lockfile::{ImporterDepVersion, ProjectSnapshot, ResolvedDependencySpec};
 use pretty_assertions::assert_eq;
-use serde_json::Value;
-use tempfile::TempDir;
+use text_block_macros::text_block;
 
 use super::{
-    DepNode, LocalTreeRoot, PkgNameVerPeer, build_unsaved_node, dep_to_json, get_peer_set,
-    glob_match, matches_params, name_at_version, print_label, read_modules_dir_names,
-    read_root_manifest, read_unsaved_dependencies, render_local_json, render_local_parseable,
-    render_local_tree, sort_deps,
+    RecursionLimit, parse_depth,
+    render::{
+        ProjectHierarchy, RenderParseableOptions, RenderTreeOptions, render_parseable, render_tree,
+    },
 };
+use crate::cli_args::deps_tree::{DependencyNode, build::DependenciesHierarchy};
 
 #[test]
-fn glob_match_exact() {
-    assert!(glob_match("foo", "foo"));
-    assert!(!glob_match("foo", "bar"));
+fn parse_depth_accepts_infinity_and_minus_one() {
+    assert_eq!(parse_depth("Infinity").unwrap(), RecursionLimit::Unlimited);
+    assert_eq!(parse_depth("-1").unwrap(), RecursionLimit::ProjectsOnly);
+    assert_eq!(parse_depth("0").unwrap(), RecursionLimit::Levels(0));
+    assert_eq!(parse_depth("3").unwrap(), RecursionLimit::Levels(3));
+    assert!(parse_depth("-2").is_err());
 }
 
-#[test]
-fn glob_match_wildcard_suffix() {
-    assert!(glob_match("foo*", "foobar"));
-    assert!(glob_match("foo*", "foo"));
-    assert!(!glob_match("foo*", "f"));
-}
-
-#[test]
-fn glob_match_wildcard_prefix() {
-    assert!(glob_match("*bar", "foobar"));
-    assert!(glob_match("*bar", "bar"));
-    assert!(!glob_match("*bar", "barbaz"));
-}
-
-#[test]
-fn glob_match_wildcard_infix() {
-    assert!(glob_match("f*o", "foo"));
-    assert!(glob_match("f*o", "f_o"));
-    assert!(glob_match("f*o", "fooo"));
-    assert!(!glob_match("f*o", "far"));
-}
-
-#[test]
-fn glob_match_scoped_package() {
-    assert!(glob_match("@scope/*", "@scope/foo"));
-    assert!(!glob_match("@scope/*", "@other/foo"));
-}
-
-#[test]
-fn matches_params_empty() {
-    assert!(matches_params(&[], "anything"));
-}
-
-#[test]
-fn matches_params_with_patterns() {
-    assert!(matches_params(&["foo".to_string()], "foo"));
-    assert!(!matches_params(&["foo".to_string()], "bar"));
-    assert!(matches_params(&["foo*".to_string()], "foobar"));
-}
-
-#[test]
-fn matches_params_multiple_patterns() {
-    assert!(matches_params(&["foo".to_string(), "bar".to_string()], "bar"));
-    assert!(!matches_params(&["foo".to_string(), "bar".to_string()], "baz"));
-}
-
-#[test]
-fn sort_deps_by_name() {
-    let mut deps = vec![
-        DepNode {
-            alias: "z-pkg".into(),
-            name: "z-pkg".into(),
-            version: "1.0.0".into(),
-            path: String::new(),
-            is_peer: false,
-            is_dev: false,
-            is_optional: false,
-            dependencies: vec![],
-        },
-        DepNode {
-            alias: "a-pkg".into(),
-            name: "a-pkg".into(),
-            version: "2.0.0".into(),
-            path: String::new(),
-            is_peer: false,
-            is_dev: false,
-            is_optional: false,
-            dependencies: vec![],
-        },
-    ];
-    sort_deps(&mut deps);
-    assert_eq!(deps[0].name, "a-pkg");
-    assert_eq!(deps[1].name, "z-pkg");
-}
-
-#[test]
-fn sort_deps_recursive() {
-    let mut deps = vec![DepNode {
-        alias: "outer".into(),
-        name: "outer".into(),
-        version: "1.0.0".into(),
-        path: String::new(),
-        is_peer: false,
-        is_dev: false,
-        is_optional: false,
-        dependencies: vec![
-            DepNode {
-                alias: "z-inner".into(),
-                name: "z-inner".into(),
-                version: "0.1.0".into(),
-                path: String::new(),
-                is_peer: false,
-                is_dev: false,
-                is_optional: false,
-                dependencies: vec![],
-            },
-            DepNode {
-                alias: "a-inner".into(),
-                name: "a-inner".into(),
-                version: "0.2.0".into(),
-                path: String::new(),
-                is_peer: false,
-                is_dev: false,
-                is_optional: false,
-                dependencies: vec![],
-            },
-        ],
-    }];
-    sort_deps(&mut deps);
-    assert_eq!(deps[0].dependencies[0].name, "a-inner");
-    assert_eq!(deps[0].dependencies[1].name, "z-inner");
-}
-
-#[test]
-fn read_root_manifest_with_all_fields() {
-    let dir = tempfile::TempDir::new().expect("temp dir");
-    let manifest = dir.path().join("package.json");
-    std::fs::write(&manifest, r#"{"name":"test-pkg","version":"1.0.0","private":true}"#)
-        .expect("write manifest");
-    let (name, version, private) = read_root_manifest(&manifest).unwrap();
-    assert_eq!(name, Some("test-pkg".into()));
-    assert_eq!(version, Some("1.0.0".into()));
-    assert_eq!(private, Some(true));
-}
-
-#[test]
-fn read_root_manifest_missing_file() {
-    let dir = tempfile::TempDir::new().expect("temp dir");
-    let manifest = dir.path().join("nonexistent.json");
-    let err = read_root_manifest(&manifest).unwrap_err();
-    assert!(err.to_string().contains("failed to read"));
-}
-
-#[test]
-fn read_root_manifest_invalid_json() {
-    let dir = tempfile::TempDir::new().expect("temp dir");
-    let manifest = dir.path().join("package.json");
-    std::fs::write(&manifest, "not json").expect("write manifest");
-    let err = read_root_manifest(&manifest).unwrap_err();
-    assert!(err.to_string().contains("failed to parse"));
-}
-
-#[test]
-fn render_local_tree_shows_root_with_name() {
-    let root = LocalTreeRoot {
-        name: Some("my-pkg".into()),
-        version: Some("1.0.0".into()),
-        private: Some(false),
-        path: "/tmp/project".into(),
-        dependencies: vec![],
-        dev_dependencies: vec![],
-        optional_dependencies: vec![],
-        unsaved: vec![],
-    };
-    let output = render_local_tree(&root, false);
-    assert!(output.contains("my-pkg"));
-}
-
-#[test]
-fn render_local_tree_shows_private() {
-    let root = LocalTreeRoot {
-        name: Some("my-pkg".into()),
-        version: Some("1.0.0".into()),
-        private: Some(true),
-        path: "/tmp/project".into(),
-        dependencies: vec![],
-        dev_dependencies: vec![],
-        optional_dependencies: vec![],
-        unsaved: vec![],
-    };
-    let output = render_local_tree(&root, false);
-    assert!(output.contains("PRIVATE"));
-}
-
-#[test]
-fn render_local_tree_with_deps() {
-    let root = LocalTreeRoot {
-        name: Some("root".into()),
-        version: Some("0.0.0".into()),
-        private: Some(false),
-        path: "/project".into(),
-        dependencies: vec![DepNode {
-            alias: "foo".into(),
-            name: "foo".into(),
-            version: "1.0.0".into(),
-            path: ".pnpm/foo@1.0.0/node_modules/foo".into(),
-            is_peer: false,
-            is_dev: false,
-            is_optional: false,
-            dependencies: vec![],
-        }],
-        dev_dependencies: vec![],
-        optional_dependencies: vec![],
-        unsaved: vec![],
-    };
-    let output = render_local_tree(&root, false);
-    assert!(output.contains("foo"));
-    assert!(output.contains("1.0.0"));
-}
-
-#[test]
-fn render_local_tree_empty_returns_root_line() {
-    let root = LocalTreeRoot {
-        name: Some("lone".into()),
-        version: Some("0.0.0".into()),
-        private: Some(false),
-        path: "/nowhere".into(),
-        dependencies: vec![],
-        dev_dependencies: vec![],
-        optional_dependencies: vec![],
-        unsaved: vec![],
-    };
-    let output = render_local_tree(&root, false);
-    assert!(output.contains("lone"));
-    assert!(output.contains("nowhere"));
-}
-
-#[test]
-fn render_local_tree_sanitizes_root_name_without_deps() {
-    let root = LocalTreeRoot {
-        name: Some("bad\u{1b}[31m-name".into()),
-        version: Some("0.0.0".into()),
-        private: Some(false),
-        path: "/nowhere".into(),
-        dependencies: vec![],
-        dev_dependencies: vec![],
-        optional_dependencies: vec![],
-        unsaved: vec![],
-    };
-    let output = render_local_tree(&root, false);
-    assert!(!output.contains('\u{1b}'));
-    assert!(output.contains("bad[31m-name"));
-}
-
-#[test]
-fn render_local_json_basic() {
-    let root = LocalTreeRoot {
-        name: Some("pkg".into()),
-        version: Some("2.0.0".into()),
-        private: Some(false),
-        path: "/p".into(),
-        dependencies: vec![DepNode {
-            alias: "dep".into(),
-            name: "dep".into(),
-            version: "1.0.0".into(),
-            path: ".pnpm/dep@1.0.0/node_modules/dep".into(),
-            is_peer: false,
-            is_dev: false,
-            is_optional: false,
-            dependencies: vec![],
-        }],
-        dev_dependencies: vec![],
-        optional_dependencies: vec![],
-        unsaved: vec![],
-    };
-    let output = render_local_json(&root);
-    assert!(output.contains("pkg"));
-    assert!(output.contains("2.0.0"));
-    assert!(output.contains("dep"));
-    let parsed: Value = serde_json::from_str(&output).expect("valid json");
-    assert!(parsed.is_array());
-    assert_eq!(parsed[0]["name"], "pkg");
-}
-
-#[test]
-fn render_local_json_private() {
-    let root = LocalTreeRoot {
-        name: Some("secret".into()),
-        version: None,
-        private: Some(true),
-        path: "/hidden".into(),
-        dependencies: vec![],
-        dev_dependencies: vec![],
-        optional_dependencies: vec![],
-        unsaved: vec![],
-    };
-    let output = render_local_json(&root);
-    let parsed: Value = serde_json::from_str(&output).expect("valid json");
-    assert_eq!(parsed[0]["private"], true);
-}
-
-#[test]
-fn render_local_parseable_flat() {
-    let root = LocalTreeRoot {
-        name: Some("root".into()),
-        version: Some("1.0.0".into()),
-        private: Some(false),
-        path: "/r".into(),
-        dependencies: vec![DepNode {
-            alias: "a".into(),
-            name: "a".into(),
-            version: "0.1.0".into(),
-            path: ".pnpm/a@0.1.0/node_modules/a".into(),
-            is_peer: false,
-            is_dev: false,
-            is_optional: false,
-            dependencies: vec![],
-        }],
-        dev_dependencies: vec![],
-        optional_dependencies: vec![],
-        unsaved: vec![],
-    };
-    let output = render_local_parseable(&root, false);
-    let lines: Vec<&str> = output.lines().collect();
-    assert_eq!(lines[0], "/r");
-    assert!(lines[1].contains(".pnpm/a@0.1.0"));
-}
-
-#[test]
-fn render_local_parseable_long() {
-    let root = LocalTreeRoot {
-        name: Some("test".into()),
-        version: Some("3.0.0".into()),
-        private: Some(false),
-        path: "/t".into(),
-        dependencies: vec![DepNode {
-            alias: "b".into(),
-            name: "b".into(),
-            version: "2.0.0".into(),
-            path: ".pnpm/b@2.0.0/node_modules/b".into(),
-            is_peer: false,
-            is_dev: false,
-            is_optional: false,
-            dependencies: vec![],
-        }],
-        dev_dependencies: vec![],
-        optional_dependencies: vec![],
-        unsaved: vec![],
-    };
-    let output = render_local_parseable(&root, true);
-    assert!(output.contains(":test@3.0.0"));
-    assert!(output.contains("b@2.0.0"));
-}
-
-#[test]
-fn dep_to_json_nested() {
-    let dep = DepNode {
-        alias: "parent".into(),
-        name: "parent".into(),
-        version: "1.0.0".into(),
-        path: ".pnpm/parent@1.0.0/node_modules/parent".into(),
-        is_peer: false,
-        is_dev: false,
-        is_optional: false,
-        dependencies: vec![DepNode {
-            alias: "child".into(),
-            name: "child".into(),
-            version: "0.1.0".into(),
-            path: ".pnpm/child@0.1.0/node_modules/child".into(),
-            is_peer: false,
-            is_dev: false,
-            is_optional: false,
-            dependencies: vec![],
-        }],
-    };
-    let json = dep_to_json(&dep);
-    assert_eq!(json["from"], "parent");
-    assert_eq!(json["version"], "1.0.0");
-    assert!(json.get("dependencies").is_some());
-}
-
-#[test]
-fn get_peer_set_empty_when_no_packages() {
-    let key = "pkg@1.0.0".parse::<PkgNameVerPeer>().expect("parse pkg@1.0.0");
-    let set = get_peer_set(&key, None);
-    assert!(set.is_empty());
-}
-
-#[test]
-fn name_at_version_with_and_without() {
-    assert_eq!(name_at_version("pkg", ""), "pkg");
-    let with_v = name_at_version("pkg", "1.0.0");
-    assert!(with_v.starts_with("pkg"));
-}
-
-#[test]
-fn print_label_alias_match() {
-    let dep = DepNode {
-        alias: "mypkg".into(),
-        name: "mypkg".into(),
-        version: "1.0.0".into(),
-        path: String::new(),
-        is_peer: false,
-        is_dev: false,
-        is_optional: false,
-        dependencies: vec![],
-    };
-    let label = print_label(&dep, &|text| text.to_string());
-    assert!(label.starts_with("mypkg"));
-    assert!(label.contains("1.0.0"));
-}
-
-#[test]
-fn print_label_alias_different() {
-    let dep = DepNode {
-        alias: "my-alias".into(),
-        name: "real-name".into(),
-        version: "2.0.0".into(),
-        path: String::new(),
-        is_peer: false,
-        is_dev: false,
-        is_optional: false,
-        dependencies: vec![],
-    };
-    let label = print_label(&dep, &|text| text.to_string());
-    assert!(label.starts_with("my-alias"));
-    assert!(label.contains("real-name"));
-}
-
-#[test]
-fn print_label_alias_with_version_containing_at() {
-    let dep = DepNode {
-        alias: "aliased".into(),
-        name: "target".into(),
-        version: "npm:@scope/pkg@1.0.0".into(),
-        path: String::new(),
-        is_peer: false,
-        is_dev: false,
-        is_optional: false,
-        dependencies: vec![],
-    };
-    let label = print_label(&dep, &|text| text.to_string());
-    assert!(label.starts_with("aliased"));
-    assert!(label.contains("npm:@scope/pkg@1.0.0"));
-}
-
-fn write_package(modules_dir: &std::path::Path, name: &str, version: &str) {
-    let pkg = modules_dir.join(name);
-    fs::create_dir_all(&pkg).expect("create package dir");
-    fs::write(pkg.join("package.json"), format!(r#"{{"name":"{name}","version":"{version}"}}"#))
-        .expect("write package.json");
-}
-
-#[test]
-fn read_modules_dir_names_skips_dot_entries_and_files_and_descends_scopes() {
-    let dir = TempDir::new().expect("temp dir");
-    let modules = dir.path().join("node_modules");
-    fs::create_dir_all(modules.join("foo")).expect("create foo");
-    fs::create_dir_all(modules.join(".pnpm")).expect("create .pnpm");
-    fs::create_dir_all(modules.join(".bin")).expect("create .bin");
-    fs::create_dir_all(modules.join("@scope").join("bar")).expect("create @scope/bar");
-    fs::write(modules.join("a-file"), "x").expect("write file");
-
-    let mut names = read_modules_dir_names(&modules).expect("read node_modules");
-    names.sort();
-    assert_eq!(names, vec!["@scope/bar".to_string(), "foo".to_string()]);
-}
-
-#[test]
-fn read_modules_dir_names_of_missing_dir_is_empty() {
-    let dir = TempDir::new().expect("temp dir");
-    assert!(read_modules_dir_names(&dir.path().join("node_modules")).expect("read").is_empty());
-}
-
-#[test]
-fn build_unsaved_node_reads_regular_package_version() {
-    let project = TempDir::new().expect("temp dir");
-    let modules = project.path().join("node_modules");
-    write_package(&modules, "foo", "1.2.3");
-
-    let node = build_unsaved_node("foo", &modules, project.path());
-    assert_eq!(node.alias, "foo");
-    assert_eq!(node.name, "foo");
-    assert_eq!(node.version, "1.2.3");
-    assert_eq!(node.path, modules.join("foo").to_string_lossy());
-    assert!(!node.is_peer && !node.is_dev && !node.is_optional);
-    assert!(node.dependencies.is_empty());
-}
-
-#[test]
-fn build_unsaved_node_without_version_is_undefined() {
-    let project = TempDir::new().expect("temp dir");
-    let modules = project.path().join("node_modules");
-    fs::create_dir_all(modules.join("foo")).expect("create foo");
-
-    let node = build_unsaved_node("foo", &modules, project.path());
-    assert_eq!(node.version, "undefined");
-}
-
-#[cfg(unix)]
-#[test]
-fn build_unsaved_node_symlink_gets_relative_link_version() {
-    let root = TempDir::new().expect("temp dir");
-    let project = root.path().join("project");
-    let sibling = root.path().join("sibling");
-    let modules = project.join("node_modules");
-    fs::create_dir_all(&modules).expect("create node_modules");
-    fs::create_dir_all(&sibling).expect("create sibling");
-    // A relative symlink, as the linker writes for workspace/link: deps.
-    std::os::unix::fs::symlink("../../sibling", modules.join("sibling")).expect("create symlink");
-
-    let node = build_unsaved_node("sibling", &modules, &project);
-    assert_eq!(node.version, "link:../sibling");
-    assert_eq!(node.path, sibling.to_string_lossy());
-}
-
-#[test]
-fn read_unsaved_dependencies_excludes_saved_and_lists_extraneous() {
-    let project = TempDir::new().expect("temp dir");
-    let modules = project.path().join("node_modules");
-    write_package(&modules, "saved-dep", "1.0.0");
-    write_package(&modules, "extraneous", "9.9.9");
-    fs::create_dir_all(modules.join(".pnpm")).expect("create .pnpm");
-
-    let mut deps: HashMap<_, _> = HashMap::new();
-    deps.insert(
-        "saved-dep".parse().expect("parse pkg name"),
-        ResolvedDependencySpec {
-            specifier: "1.0.0".into(),
-            version: ImporterDepVersion::Link("ignored".into()),
-        },
-    );
-    let importer = ProjectSnapshot { dependencies: Some(deps), ..Default::default() };
-
-    let unsaved = read_unsaved_dependencies(&importer, project.path(), &Config::default())
-        .expect("scan node_modules");
-    assert_eq!(unsaved.len(), 1);
-    assert_eq!(unsaved[0].name, "extraneous");
-    assert_eq!(unsaved[0].version, "9.9.9");
-}
-
-fn root_with_one_unsaved() -> LocalTreeRoot {
-    LocalTreeRoot {
-        name: Some("pkg".into()),
-        version: Some("1.0.0".into()),
-        private: Some(false),
-        path: "/p".into(),
-        dependencies: vec![],
-        dev_dependencies: vec![],
-        optional_dependencies: vec![],
-        unsaved: vec![DepNode {
-            alias: "foo".into(),
-            name: "foo".into(),
-            version: "1.0.0".into(),
-            path: "/p/node_modules/foo".into(),
-            is_peer: false,
-            is_dev: false,
-            is_optional: false,
-            dependencies: vec![],
-        }],
+fn dep(alias: &str, name: &str, version: &str, path: &str) -> DependencyNode {
+    DependencyNode {
+        alias: alias.to_string(),
+        name: name.to_string(),
+        version: version.to_string(),
+        path: path.to_string(),
+        ..DependencyNode::default()
     }
 }
 
-#[test]
-fn render_local_json_includes_unsaved_dependencies() {
-    let parsed: Value =
-        serde_json::from_str(&render_local_json(&root_with_one_unsaved())).expect("valid json");
-    let unsaved = &parsed[0]["unsavedDependencies"]["foo"];
-    assert_eq!(unsaved["from"], "foo");
-    assert_eq!(unsaved["version"], "1.0.0");
-    assert_eq!(unsaved["path"], "/p/node_modules/foo");
+fn project(
+    name: &str,
+    version: &str,
+    path: &str,
+    hierarchy: DependenciesHierarchy,
+) -> ProjectHierarchy {
+    ProjectHierarchy {
+        name: Some(name.to_string()),
+        version: Some(version.to_string()),
+        private: false,
+        path: path.to_string(),
+        hierarchy,
+    }
 }
 
-#[test]
-fn render_local_parseable_includes_unsaved_dependency_path() {
-    let output = render_local_parseable(&root_with_one_unsaved(), false);
-    assert!(output.lines().any(|line| line == "/p/node_modules/foo"), "output was:\n{output}");
+fn tree_opts(always_print_root_package: bool, show_extraneous: bool) -> RenderTreeOptions {
+    RenderTreeOptions {
+        always_print_root_package,
+        depth_above_projects_only: true,
+        long: false,
+        show_extraneous,
+        show_summary: false,
+    }
 }
 
+fn parseable_opts(long: bool) -> RenderParseableOptions {
+    RenderParseableOptions { long, always_print_root_package: false }
+}
+
+// Port of upstream's 'print empty' (deps/inspection/list/test/index.ts).
 #[test]
-fn render_local_tree_omits_unsaved_dependencies() {
-    let output = render_local_tree(&root_with_one_unsaved(), false);
-    assert!(!output.contains("foo"), "tree must not show extraneous deps:\n{output}");
+fn print_empty() {
+    let projects = vec![project("empty", "1.0.0", "/empty", DependenciesHierarchy::default())];
+
+    let output = render_tree(&projects, &tree_opts(true, false));
+    assert_eq!(
+        output,
+        "Legend: production dependency, optional only, dev only\n\nempty@1.0.0 /empty"
+    );
+}
+
+// Port of upstream's "don't print empty" (deps/inspection/list/test/index.ts).
+#[test]
+fn dont_print_empty() {
+    let projects = vec![project("empty", "1.0.0", "/empty", DependenciesHierarchy::default())];
+
+    let output = render_tree(&projects, &tree_opts(false, false));
+    assert_eq!(output, "");
+}
+
+// Port of upstream's 'unsaved dependencies are marked' (deps/inspection/list/test/index.ts).
+#[test]
+fn unsaved_dependencies_are_marked() {
+    let projects = vec![project(
+        "fixture",
+        "1.0.0",
+        "/fixture",
+        DependenciesHierarchy {
+            unsaved_dependencies: vec![dep("foo", "foo", "1.0.0", "")],
+            ..DependenciesHierarchy::default()
+        },
+    )];
+
+    let output = render_tree(&projects, &tree_opts(false, true));
+    assert_eq!(
+        output,
+        text_block! {
+            "Legend: production dependency, optional only, dev only"
+            ""
+            "fixture@1.0.0 /fixture"
+            "│"
+            "│   not saved (you should add these dependencies to package.json if you need them):"
+            "└── foo@1.0.0"
+        }
+    );
+}
+
+// Port of upstream's 'list with many dependencies' (deps/inspection/list/test/index.ts).
+#[test]
+fn list_with_many_dependencies() {
+    let projects = vec![project(
+        "fixture",
+        "1.0.0",
+        "/fixture",
+        DependenciesHierarchy {
+            dependencies: ["a", "b", "c", "d", "e", "f", "g", "h", "i", "k", "l"]
+                .iter()
+                .map(|name| dep(name, name, "1.0.0", ""))
+                .collect(),
+            ..DependenciesHierarchy::default()
+        },
+    )];
+
+    let output = render_tree(&projects, &tree_opts(false, false));
+    assert_eq!(
+        output,
+        text_block! {
+            "Legend: production dependency, optional only, dev only"
+            ""
+            "fixture@1.0.0 /fixture"
+            "│"
+            "│   dependencies:"
+            "├── a@1.0.0"
+            "├── b@1.0.0"
+            "├── c@1.0.0"
+            "├── d@1.0.0"
+            "├── e@1.0.0"
+            "├── f@1.0.0"
+            "├── g@1.0.0"
+            "├── h@1.0.0"
+            "├── i@1.0.0"
+            "├── k@1.0.0"
+            "└── l@1.0.0"
+        }
+    );
+}
+
+// Port of upstream's 'sort list items' (deps/inspection/list/test/index.ts).
+#[test]
+fn sort_list_items() {
+    let projects = vec![project(
+        "fixture",
+        "1.0.0",
+        "/fixture",
+        DependenciesHierarchy {
+            dependencies: vec![DependencyNode {
+                dependencies: vec![dep("qar", "qar", "1.0.0", ""), dep("bar", "bar", "1.0.0", "")],
+                ..dep("foo", "foo", "1.0.0", "")
+            }],
+            ..DependenciesHierarchy::default()
+        },
+    )];
+
+    let output = render_tree(&projects, &tree_opts(false, false));
+    assert_eq!(
+        output,
+        text_block! {
+            "Legend: production dependency, optional only, dev only"
+            ""
+            "fixture@1.0.0 /fixture"
+            "│"
+            "│   dependencies:"
+            "└─┬ foo@1.0.0"
+            "  ├── bar@1.0.0"
+            "  └── qar@1.0.0"
+        }
+    );
+}
+
+// Port of upstream's 'renderTree displays npm: protocol for aliased packages' (deps/inspection/list/test/index.ts).
+#[test]
+fn render_tree_displays_npm_protocol_for_aliased_packages() {
+    let projects = vec![project(
+        "test-project",
+        "1.0.0",
+        "/test/path",
+        DependenciesHierarchy {
+            dependencies: vec![dep(
+                "foo",
+                "@pnpm.e2e/pkg-with-1-dep",
+                "100.0.0",
+                "/test/path/node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/pkg-with-1-dep",
+            )],
+            ..DependenciesHierarchy::default()
+        },
+    )];
+
+    let output = render_tree(&projects, &tree_opts(false, false));
+    eprintln!("output:\n{output}");
+    assert!(output.contains("foo"));
+    assert!(output.contains("npm:@pnpm.e2e/pkg-with-1-dep@100.0.0"));
+}
+
+// Port of upstream's 'renderTree displays file: protocol correctly for aliased packages' (deps/inspection/list/test/index.ts).
+#[test]
+fn render_tree_displays_file_protocol_correctly_for_aliased_packages() {
+    let projects = vec![project(
+        "test-project",
+        "1.0.0",
+        "/test/path",
+        DependenciesHierarchy {
+            dependencies: vec![dep(
+                "my-alias",
+                "my-local-pkg",
+                "my-local-pkg@file:local-pkg",
+                "/test/path/local-pkg",
+            )],
+            ..DependenciesHierarchy::default()
+        },
+    )];
+
+    let output = render_tree(&projects, &tree_opts(false, false));
+    eprintln!("output:\n{output}");
+    assert!(output.contains("my-alias"));
+    assert!(output.contains("my-local-pkg@file:local-pkg"));
+}
+
+// Port of upstream's 'renderParseable displays npm: protocol for aliased packages' (deps/inspection/list/test/index.ts).
+#[test]
+fn render_parseable_displays_npm_protocol_for_aliased_packages() {
+    let projects = vec![project(
+        "test-project",
+        "1.0.0",
+        "/test/path",
+        DependenciesHierarchy {
+            dependencies: vec![dep(
+                "foo",
+                "@pnpm.e2e/pkg-with-1-dep",
+                "100.0.0",
+                "/test/path/node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/pkg-with-1-dep",
+            )],
+            ..DependenciesHierarchy::default()
+        },
+    )];
+
+    let output = render_parseable(&projects, &parseable_opts(true));
+    eprintln!("output:\n{output}");
+    assert!(output.contains("foo npm:@pnpm.e2e/pkg-with-1-dep@100.0.0"));
+}
+
+// Port of upstream's 'renderParseable displays file: protocol correctly for aliased packages' (deps/inspection/list/test/index.ts).
+#[test]
+fn render_parseable_displays_file_protocol_correctly_for_aliased_packages() {
+    let projects = vec![project(
+        "test-project",
+        "1.0.0",
+        "/test/path",
+        DependenciesHierarchy {
+            dependencies: vec![dep(
+                "my-alias",
+                "my-local-pkg",
+                "my-local-pkg@file:local-pkg",
+                "/test/path/local-pkg",
+            )],
+            ..DependenciesHierarchy::default()
+        },
+    )];
+
+    let output = render_parseable(&projects, &parseable_opts(true));
+    eprintln!("output:\n{output}");
+    assert!(output.contains("my-alias my-local-pkg@file:local-pkg"));
+}
+
+// Port of upstream's 'renderParseable search: shared dep across packages is not duplicated' (deps/inspection/list/test/index.ts).
+#[test]
+fn render_parseable_search_shared_dep_across_packages_is_not_duplicated() {
+    let shared_dep = || dep("@org/shared", "@org/shared", "1.0.0", "/workspace/packages/shared");
+    let projects = vec![
+        project(
+            "pkg-a",
+            "1.0.0",
+            "/workspace/packages/pkg-a",
+            DependenciesHierarchy {
+                dependencies: vec![shared_dep()],
+                ..DependenciesHierarchy::default()
+            },
+        ),
+        project(
+            "pkg-b",
+            "1.0.0",
+            "/workspace/packages/pkg-b",
+            DependenciesHierarchy {
+                dependencies: vec![shared_dep()],
+                ..DependenciesHierarchy::default()
+            },
+        ),
+        project(
+            "@org/shared",
+            "1.0.0",
+            "/workspace/packages/shared",
+            DependenciesHierarchy::default(),
+        ),
+    ];
+
+    let output = render_parseable(&projects, &parseable_opts(false));
+    let lines: Vec<&str> = output.split('\n').collect();
+
+    eprintln!("output:\n{output}");
+    assert!(lines.contains(&"/workspace/packages/pkg-a"));
+    assert!(lines.contains(&"/workspace/packages/pkg-b"));
+    assert!(lines.contains(&"/workspace/packages/shared"));
+    assert_eq!(lines.iter().filter(|line| **line == "/workspace/packages/shared").count(), 1);
+}
+
+// Port of upstream's 'renderParseable search: packages unrelated to search are excluded' (deps/inspection/list/test/index.ts).
+#[test]
+fn render_parseable_search_packages_unrelated_to_search_are_excluded() {
+    let projects = vec![
+        project("root", "1.0.0", "/workspace", DependenciesHierarchy::default()),
+        project(
+            "pkg-a",
+            "1.0.0",
+            "/workspace/packages/pkg-a",
+            DependenciesHierarchy {
+                dependencies: vec![dep(
+                    "@org/shared",
+                    "@org/shared",
+                    "1.0.0",
+                    "/workspace/packages/shared",
+                )],
+                ..DependenciesHierarchy::default()
+            },
+        ),
+        project(
+            "unrelated",
+            "1.0.0",
+            "/workspace/packages/unrelated",
+            DependenciesHierarchy::default(),
+        ),
+    ];
+
+    let output = render_parseable(&projects, &parseable_opts(false));
+    let lines: Vec<&str> = output.split('\n').collect();
+
+    eprintln!("output:\n{output}");
+    assert!(lines.contains(&"/workspace/packages/pkg-a"));
+    assert!(lines.contains(&"/workspace/packages/shared"));
+    assert!(!lines.contains(&"/workspace"));
+    assert!(!lines.contains(&"/workspace/packages/unrelated"));
+}
+
+// Port of upstream's 'renderParseable search long: shared dep across packages is not duplicated' (deps/inspection/list/test/index.ts).
+#[test]
+fn render_parseable_search_long_shared_dep_across_packages_is_not_duplicated() {
+    let shared_dep =
+        || dep("@org/shared", "@org/shared", "link:../shared", "/workspace/packages/shared");
+    let projects = vec![
+        project(
+            "pkg-a",
+            "1.0.0",
+            "/workspace/packages/pkg-a",
+            DependenciesHierarchy {
+                dependencies: vec![shared_dep()],
+                ..DependenciesHierarchy::default()
+            },
+        ),
+        project(
+            "pkg-b",
+            "1.0.0",
+            "/workspace/packages/pkg-b",
+            DependenciesHierarchy {
+                dependencies: vec![shared_dep()],
+                ..DependenciesHierarchy::default()
+            },
+        ),
+    ];
+
+    let output = render_parseable(&projects, &parseable_opts(true));
+    let lines: Vec<&str> = output.split('\n').collect();
+
+    eprintln!("output:\n{output}");
+    assert!(lines.contains(&"/workspace/packages/pkg-a:pkg-a@1.0.0"));
+    assert!(lines.contains(&"/workspace/packages/pkg-b:pkg-b@1.0.0"));
+    assert_eq!(
+        lines.iter().filter(|line| line.starts_with("/workspace/packages/shared")).count(),
+        1
+    );
 }

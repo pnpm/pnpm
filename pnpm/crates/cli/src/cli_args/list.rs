@@ -1,24 +1,27 @@
-use std::{
-    collections::{HashMap, HashSet},
-    ffi::OsStr,
-    io,
-    path::{Path, PathBuf},
-};
+//! `pnpm list` / `ls` / `ll` / `la` — list installed packages.
+
+use std::path::{Path, PathBuf};
 
 use clap::Args;
-use miette::{Context, IntoDiagnostic};
-use owo_colors::{OwoColorize, Stream};
+use miette::IntoDiagnostic;
 use pacquet_config::Config;
-use pacquet_fs::lexical_normalize;
-use pacquet_global::{ListReportAs, list_global_packages};
-pub(crate) use pacquet_lockfile::PkgNameVerPeer;
-use pacquet_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotEntry};
-use serde_json::{Map, Value, json};
+use pacquet_global::{ListReportAs, find_global_install_dirs, list_global_packages};
+use pacquet_modules_yaml::IncludedDependencies;
 
 use crate::cli_args::{
+    deps_tree::{
+        build::{BuildTreeOptions, DependenciesHierarchy, LoadedState, build_dependencies_tree},
+        finders::{evaluate_finders, finder_candidates, resolve_finders},
+        get_tree::MaxDepth,
+        graph::{BuildGraphOptions, build_dependency_graph},
+        search::Searcher,
+    },
     recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
-    sanitize::sanitize,
 };
+
+pub(crate) mod render;
+
+use render::{ProjectHierarchy, RenderParseableOptions, RenderTreeOptions};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum RecursionLimit {
@@ -41,6 +44,16 @@ fn parse_depth(text: &str) -> Result<RecursionLimit, String> {
     Ok(RecursionLimit::Levels(n))
 }
 
+impl RecursionLimit {
+    fn max_depth(self) -> MaxDepth {
+        match self {
+            RecursionLimit::ProjectsOnly => MaxDepth::Finite(0),
+            RecursionLimit::Levels(levels) => MaxDepth::Finite(u64::from(levels)),
+            RecursionLimit::Unlimited => MaxDepth::Unlimited,
+        }
+    }
+}
+
 #[derive(Debug, Args)]
 pub struct ListArgs {
     pub packages: Vec<String>,
@@ -48,46 +61,71 @@ pub struct ListArgs {
     #[clap(short = 'g', long)]
     pub global: bool,
 
+    /// Show extended information.
     #[clap(long)]
     pub long: bool,
 
+    /// Show information in JSON format.
     #[clap(long)]
     pub json: bool,
 
+    /// Show parseable output instead of tree view.
     #[clap(long)]
     pub parseable: bool,
 
+    /// Max display depth of the dependency tree. `0` lists direct
+    /// dependencies only; `-1` lists projects only.
     #[clap(long, default_value = "0", value_parser = parse_depth, allow_hyphen_values = true)]
     pub depth: RecursionLimit,
 
+    /// Display only the dependency graph for packages in `dependencies`
+    /// and `optionalDependencies`.
     #[clap(short = 'P', long = "prod")]
     pub production: bool,
 
+    /// Display only the dependency graph for packages in `devDependencies`.
     #[clap(short = 'D', long)]
     pub dev: bool,
 
+    /// Don't display packages from `optionalDependencies`.
     #[clap(long)]
     pub no_optional: bool,
 
+    /// Exclude peer dependencies.
     #[clap(long)]
     pub exclude_peers: bool,
 
+    /// Display only dependencies that are also projects within the
+    /// workspace.
+    #[clap(long)]
+    pub only_projects: bool,
+
+    /// List packages from the lockfile only, without checking
+    /// `node_modules`.
     #[clap(long)]
     pub lockfile_only: bool,
+
+    /// Search by a finder function declared in `.pnpmfile.cjs`.
+    #[clap(long = "find-by")]
+    pub find_by: Vec<String>,
 }
 
 impl ListArgs {
-    pub fn run(self, config: &Config, dir: &Path, recursive: bool) -> miette::Result<()> {
-        if self.global {
-            return self.run_global(config);
-        }
-        if recursive {
-            return self.run_recursive(config, dir);
-        }
-        self.run_local(config, dir)
+    pub async fn run(self, config: &Config, dir: &Path, recursive: bool) -> miette::Result<()> {
+        let output = if self.global {
+            self.run_global(config).await?
+        } else if recursive {
+            self.run_recursive(config, dir).await?
+        } else {
+            let lockfile_dir = local_lockfile_dir(config, dir);
+            self.render_projects(config, &[dir.to_path_buf()], &self.packages, &lockfile_dir, true)
+                .await?
+        };
+        print_output(&output);
+        Ok(())
     }
 
-    fn run_global(&self, config: &Config) -> miette::Result<()> {
+    async fn run_global(&self, config: &Config) -> miette::Result<String> {
         let global_pkg_dir = config.global_pkg_dir.clone().ok_or_else(|| {
             miette::miette!(
                 code = "ERR_PNPM_NO_GLOBAL_BIN_DIR",
@@ -95,1003 +133,274 @@ impl ListArgs {
             )
         })?;
 
-        let report_as = if self.json {
-            ListReportAs::Json
-        } else if self.parseable {
-            ListReportAs::Parseable
-        } else {
-            ListReportAs::Tree
-        };
+        if matches!(self.depth, RecursionLimit::Levels(n) if n > 0)
+            || self.depth == RecursionLimit::Unlimited
+        {
+            let all_install_dirs =
+                find_global_install_dirs(&global_pkg_dir, &[]).into_diagnostic()?;
+            if all_install_dirs.len() == 1 {
+                // Single global install: keep params so the search can
+                // cover the whole tree, matching regular `pnpm ls`.
+                let install_dir = all_install_dirs[0].clone();
+                return self
+                    .render_projects(
+                        config,
+                        std::slice::from_ref(&install_dir),
+                        &self.packages,
+                        &install_dir,
+                        true,
+                    )
+                    .await;
+            }
+            // Multiple installs — try to narrow to a single one via
+            // params, matching against top-level aliases of each
+            // install group.
+            let matching_install_dirs =
+                find_global_install_dirs(&global_pkg_dir, &self.packages).into_diagnostic()?;
+            if matching_install_dirs.len() > 1
+                || (matching_install_dirs.is_empty() && !all_install_dirs.is_empty())
+            {
+                return Err(miette::miette!(
+                    code = "ERR_PNPM_GLOBAL_LS_DEPTH_NOT_SUPPORTED",
+                    "Cannot list a merged dependency tree across multiple global packages. \
+                     Each global package is installed in an isolated directory with its own lockfile, \
+                     so transitive dependencies cannot be coherently merged. \
+                     Filter to a single global package by its top-level name, or omit --depth."
+                ));
+            }
+            if let [install_dir] = matching_install_dirs.as_slice() {
+                // Params served their purpose of narrowing to a single
+                // install group; passing them on would activate search
+                // semantics, which prune the matched package's children.
+                let install_dir = install_dir.clone();
+                return self
+                    .render_projects(
+                        config,
+                        std::slice::from_ref(&install_dir),
+                        &[],
+                        &install_dir,
+                        true,
+                    )
+                    .await;
+            }
+        }
 
-        let output = list_global_packages(&global_pkg_dir, &self.packages, report_as, self.long)
-            .into_diagnostic()
-            .wrap_err("list global packages")?;
-        println!("{output}");
-        Ok(())
+        let report_as = self.report_as();
+        list_global_packages(
+            &global_pkg_dir,
+            &self.packages,
+            global_report_as(report_as),
+            self.long,
+        )
+        .into_diagnostic()
     }
 
-    fn run_recursive(&self, config: &Config, dir: &Path) -> miette::Result<()> {
-        let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
-        let (projects, _) = discover_workspace_projects(workspace_root)?;
+    async fn run_recursive(&self, config: &Config, dir: &Path) -> miette::Result<String> {
+        let workspace_root = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
+        let (projects, _) = discover_workspace_projects(&workspace_root)?;
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
+        let project_dirs: Vec<PathBuf> = selection.selected.keys().cloned().collect();
 
-        let roots = if self.depth == RecursionLimit::ProjectsOnly {
-            selection
-                .selected
-                .values()
-                .map(|node| project_only_root(node.package.project))
-                .collect::<Vec<_>>()
-        } else {
-            let mut roots = Vec::new();
-            for project_dir in selection.selected.keys() {
-                if let LocalRootResult::Root(root) = self.local_root(config, project_dir)? {
-                    roots.push(root);
-                }
-            }
-            roots
-        };
+        let always_print_root_package = self.depth == RecursionLimit::ProjectsOnly;
 
-        self.print_roots(&roots);
-        Ok(())
-    }
-
-    fn run_local(&self, config: &Config, dir: &Path) -> miette::Result<()> {
-        match self.local_root(config, dir)? {
-            LocalRootResult::Root(root) => self.print_roots(&[root]),
-            LocalRootResult::NoLockfile { lockfile_dir } => {
-                if self.packages.is_empty() {
-                    println!("No lockfile found in {}", lockfile_dir.display());
-                } else {
-                    println!("No matching packages found");
-                }
-            }
-            LocalRootResult::NoPackages => {
-                if self.packages.is_empty() {
-                    println!("No packages found");
-                } else {
-                    println!("No matching packages found");
-                }
-            }
-            LocalRootResult::NoMatchingPackages => println!("No matching packages found"),
+        if config.shared_workspace_lockfile {
+            return self
+                .render_projects(
+                    config,
+                    &project_dirs,
+                    &self.packages,
+                    &workspace_root,
+                    always_print_root_package,
+                )
+                .await;
         }
-        Ok(())
+
+        // Per-project lockfiles: each project renders independently
+        // (with its own legend and summary).
+        let mut outputs = Vec::new();
+        for project_dir in project_dirs {
+            let output = self
+                .render_projects(
+                    config,
+                    std::slice::from_ref(&project_dir),
+                    &self.packages,
+                    &project_dir,
+                    always_print_root_package,
+                )
+                .await?;
+            if !output.is_empty() {
+                outputs.push(output);
+            }
+        }
+        let joiner = if self.depth == RecursionLimit::ProjectsOnly { "\n" } else { "\n\n" };
+        Ok(outputs.join(joiner))
     }
 
-    fn local_root(&self, config: &Config, dir: &Path) -> miette::Result<LocalRootResult> {
-        let lockfile_dir = config.workspace_dir.as_deref().unwrap_or(dir);
-        let lockfile_result = if self.lockfile_only {
-            Lockfile::load_wanted_from_dir(lockfile_dir)
+    fn report_as(&self) -> ReportAs {
+        if self.parseable {
+            ReportAs::Parseable
+        } else if self.json {
+            ReportAs::Json
         } else {
-            match Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir) {
-                Ok(Some(lf)) => Ok(Some(lf)),
-                Ok(None) => Lockfile::load_wanted_from_dir(lockfile_dir),
-                Err(e) => Err(e),
-            }
-        };
-        let Some(lockfile) = lockfile_result.into_diagnostic().wrap_err("load lockfile")? else {
-            return Ok(LocalRootResult::NoLockfile { lockfile_dir: lockfile_dir.to_path_buf() });
-        };
+            ReportAs::Tree
+        }
+    }
 
-        let importer_id: String = if dir == lockfile_dir {
-            ".".into()
-        } else {
-            dir.strip_prefix(lockfile_dir)
-                .ok()
-                .map(|rel| rel.to_string_lossy().replace('\\', "/"))
-                .filter(|id| !id.is_empty())
-                .unwrap_or_else(|| ".".to_string())
-        };
-        let Some(importer) =
-            lockfile.importers.get(&importer_id).or_else(|| lockfile.root_project())
-        else {
-            return Ok(LocalRootResult::NoPackages);
-        };
-
-        let manifest_path = dir.join("package.json");
-        let (root_name, root_version, root_private) = read_root_manifest(&manifest_path)?;
-
+    fn include(&self) -> IncludedDependencies {
         let has_both = self.production == self.dev;
-        let include_prod = has_both || self.production;
-        let include_dev = has_both || self.dev;
-        let include_optional = !self.no_optional;
-
-        let ctx = BuildContext {
-            snapshots: lockfile.snapshots.as_ref(),
-            packages: lockfile.packages.as_ref(),
-            depth: self.depth,
-            exclude_peers: self.exclude_peers,
-            include_optional,
-            virtual_store_dir_max_length: config.virtual_store_dir_max_length as usize,
-        };
-
-        let mut tree =
-            build_local_tree(importer, &ctx, include_prod, include_dev, include_optional);
-
-        if !self.packages.is_empty() {
-            let matches = |dep: &DepNode| dep_or_subtree_matches(dep, &self.packages);
-            tree.dependencies.retain(|dep| matches(dep));
-            tree.dev_dependencies.retain(|dep| matches(dep));
-            tree.optional_dependencies.retain(|dep| matches(dep));
-
-            if tree.dependencies.is_empty()
-                && tree.dev_dependencies.is_empty()
-                && tree.optional_dependencies.is_empty()
-            {
-                return Ok(LocalRootResult::NoMatchingPackages);
-            }
-        }
-
-        // Only the `--json`/`--parseable` renderers surface extraneous
-        // packages (the tree view omits them), so the `node_modules` scan
-        // is skipped for the default tree output. It is also suppressed
-        // when searching by name and for `--depth -1` (project-only
-        // output) — the same gates the TypeScript CLI applies before it
-        // scans `node_modules`.
-        let unsaved = if (self.json || self.parseable)
-            && self.packages.is_empty()
-            && self.depth != RecursionLimit::ProjectsOnly
-        {
-            read_unsaved_dependencies(importer, dir, config)?
-        } else {
-            Vec::new()
-        };
-
-        let root = LocalTreeRoot {
-            name: root_name,
-            version: root_version,
-            private: root_private,
-            path: dir.to_string_lossy().into_owned(),
-            dependencies: tree.dependencies,
-            dev_dependencies: tree.dev_dependencies,
-            optional_dependencies: tree.optional_dependencies,
-            unsaved,
-        };
-
-        Ok(LocalRootResult::Root(root))
-    }
-
-    fn print_roots(&self, roots: &[LocalTreeRoot]) {
-        if self.json {
-            let output = match roots {
-                [root] => render_local_json(root),
-                _ => render_local_roots_json(roots),
-            };
-            println!("{output}");
-        } else if self.parseable {
-            let output = roots
-                .iter()
-                .map(|root| render_local_parseable(root, self.long))
-                .filter(|output| !output.is_empty())
-                .collect::<Vec<_>>()
-                .join("\n");
-            if !output.is_empty() {
-                println!("{output}");
-            }
-        } else {
-            let joiner = if self.depth == RecursionLimit::ProjectsOnly { "\n" } else { "\n\n" };
-            let output = roots
-                .iter()
-                .map(|root| render_local_tree(root, self.long))
-                .filter(|output| !output.is_empty())
-                .collect::<Vec<_>>()
-                .join(joiner);
-            if !output.is_empty() {
-                println!("{output}");
-            }
-        }
-    }
-}
-
-enum LocalRootResult {
-    Root(LocalTreeRoot),
-    NoLockfile { lockfile_dir: PathBuf },
-    NoPackages,
-    NoMatchingPackages,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct DepNode {
-    pub(crate) alias: String,
-    pub(crate) name: String,
-    pub(crate) version: String,
-    pub(crate) path: String,
-    pub(crate) is_peer: bool,
-    pub(crate) is_dev: bool,
-    pub(crate) is_optional: bool,
-    pub(crate) dependencies: Vec<DepNode>,
-}
-
-#[derive(Debug)]
-pub(crate) struct LocalTreeRoot {
-    pub(crate) name: Option<String>,
-    pub(crate) version: Option<String>,
-    pub(crate) private: Option<bool>,
-    pub(crate) path: String,
-    pub(crate) dependencies: Vec<DepNode>,
-    pub(crate) dev_dependencies: Vec<DepNode>,
-    pub(crate) optional_dependencies: Vec<DepNode>,
-    /// Packages present in the importer's `node_modules` but absent from
-    /// its lockfile entry (npm calls these "extraneous"). Surfaced by
-    /// `--json` and `--parseable` only; the tree view omits them, matching
-    /// the TypeScript CLI, which hardcodes `showExtraneous: false`.
-    pub(crate) unsaved: Vec<DepNode>,
-}
-
-fn project_only_root(project: &pacquet_workspace::Project) -> LocalTreeRoot {
-    let manifest = project.manifest.value();
-    LocalTreeRoot {
-        name: manifest.get("name").and_then(Value::as_str).map(str::to_string),
-        version: manifest.get("version").and_then(Value::as_str).map(str::to_string),
-        private: manifest.get("private").and_then(Value::as_bool),
-        path: project.root_dir.to_string_lossy().into_owned(),
-        dependencies: Vec::new(),
-        dev_dependencies: Vec::new(),
-        optional_dependencies: Vec::new(),
-        unsaved: Vec::new(),
-    }
-}
-
-struct BuiltTree {
-    dependencies: Vec<DepNode>,
-    dev_dependencies: Vec<DepNode>,
-    optional_dependencies: Vec<DepNode>,
-}
-
-struct BuildContext<'a> {
-    snapshots: Option<&'a HashMap<PkgNameVerPeer, SnapshotEntry>>,
-    packages: Option<&'a HashMap<PkgNameVerPeer, pacquet_lockfile::PackageMetadata>>,
-    depth: RecursionLimit,
-    exclude_peers: bool,
-    include_optional: bool,
-    virtual_store_dir_max_length: usize,
-}
-
-fn build_local_tree(
-    importer: &ProjectSnapshot,
-    ctx: &BuildContext,
-    include_prod: bool,
-    include_dev: bool,
-    include_optional: bool,
-) -> BuiltTree {
-    if ctx.depth == RecursionLimit::ProjectsOnly {
-        return BuiltTree {
-            dependencies: Vec::new(),
-            dev_dependencies: Vec::new(),
-            optional_dependencies: Vec::new(),
-        };
-    }
-
-    let mut deps = Vec::new();
-    let mut dev_deps = Vec::new();
-    let mut opt_deps = Vec::new();
-
-    if include_prod && let Some(dep_map) = &importer.dependencies {
-        for (name, spec) in dep_map {
-            if let Some(node) = resolve_importer_dep(name, spec, ctx, 0) {
-                deps.push(node);
-            }
+        IncludedDependencies {
+            dependencies: has_both || self.production,
+            dev_dependencies: has_both || self.dev,
+            optional_dependencies: !self.no_optional,
         }
     }
 
-    if include_dev && let Some(dep_map) = &importer.dev_dependencies {
-        for (name, spec) in dep_map {
-            let mut node = resolve_importer_dep(name, spec, ctx, 0);
-            if let Some(ref mut n) = node {
-                n.is_dev = true;
+    async fn render_projects(
+        &self,
+        config: &Config,
+        project_dirs: &[PathBuf],
+        params: &[String],
+        lockfile_dir: &Path,
+        always_print_root_package: bool,
+    ) -> miette::Result<String> {
+        let include = self.include();
+        let searching = !params.is_empty() || !self.find_by.is_empty();
+
+        let state = LoadedState::load(
+            lockfile_dir,
+            Some(config.modules_dir.as_path()),
+            self.lockfile_only,
+        )?;
+        let env = state.env(lockfile_dir, config.virtual_store_dir_max_length as usize);
+
+        let mut hierarchies: Vec<(PathBuf, DependenciesHierarchy)> = Vec::new();
+        if self.depth == RecursionLimit::ProjectsOnly || env.is_none() {
+            for project_dir in project_dirs {
+                hierarchies.push((project_dir.clone(), DependenciesHierarchy::default()));
             }
-            if let Some(n) = node {
-                dev_deps.push(n);
-            }
-        }
-    }
-
-    if include_optional && let Some(dep_map) = &importer.optional_dependencies {
-        for (name, spec) in dep_map {
-            let mut node = resolve_importer_dep(name, spec, ctx, 0);
-            if let Some(ref mut n) = node {
-                n.is_optional = true;
-            }
-            if let Some(n) = node {
-                opt_deps.push(n);
-            }
-        }
-    }
-
-    sort_deps(&mut deps);
-    sort_deps(&mut dev_deps);
-    sort_deps(&mut opt_deps);
-
-    BuiltTree { dependencies: deps, dev_dependencies: dev_deps, optional_dependencies: opt_deps }
-}
-
-fn resolve_importer_dep(
-    name: &PkgName,
-    spec: &pacquet_lockfile::ResolvedDependencySpec,
-    ctx: &BuildContext,
-    current_depth: i32,
-) -> Option<DepNode> {
-    let alias = name.to_string();
-    let version_str = spec.version.to_string();
-    let snapshot_key = spec.version.resolved_key(name);
-
-    let (resolved_name, resolved_version, is_peer, child_deps) = match &snapshot_key {
-        Some(key) => {
-            let dep_name = key.name.to_string();
-            let dep_version = key.suffix.version().to_string();
-
-            let peer = ctx.exclude_peers
-                && ctx.packages.is_some_and(|pkgs| {
-                    let base_key = key.without_peer();
-                    pkgs.get(&base_key)
-                        .and_then(|meta| meta.peer_dependencies.as_ref())
-                        .is_some_and(|peers| peers.contains_key(&name.to_string()))
-                });
-
-            let children = match ctx.depth {
-                RecursionLimit::Unlimited => resolve_snapshot_children(key, ctx, current_depth + 1),
-                RecursionLimit::Levels(n) if (current_depth as u32) < n => {
-                    resolve_snapshot_children(key, ctx, current_depth + 1)
+        } else if let Some(env) = &env {
+            let searcher = if searching {
+                let mut searcher = Searcher::from_queries(params)?;
+                if !self.find_by.is_empty() {
+                    let finders = resolve_finders(config, lockfile_dir, &self.find_by).await?;
+                    let graph_root_ids: Vec<_> = project_dirs
+                        .iter()
+                        .map(|dir| {
+                            crate::cli_args::deps_tree::TreeNodeId::Importer(
+                                crate::cli_args::deps_tree::build::importer_id_for(
+                                    lockfile_dir,
+                                    dir,
+                                ),
+                            )
+                        })
+                        .collect();
+                    let graph = build_dependency_graph(
+                        &graph_root_ids,
+                        &BuildGraphOptions {
+                            lockfile: env.current_lockfile,
+                            include,
+                            only_projects: self.only_projects,
+                        },
+                    );
+                    let candidates = finder_candidates(env, &graph);
+                    let results = evaluate_finders(env, &finders, candidates).await?;
+                    searcher.set_finder_results(results);
                 }
-                _ => Vec::new(),
+                Some(searcher)
+            } else {
+                None
             };
 
-            (dep_name, dep_version, peer, children)
-        }
-        None => (alias.clone(), version_str, false, Vec::new()),
-    };
-
-    let pkg_path = if let Some(key) = &snapshot_key {
-        let vsn = key.to_virtual_store_name(ctx.virtual_store_dir_max_length);
-        format!(".pnpm/{vsn}/node_modules/{resolved_name}")
-    } else if let Some(link_target) = spec.version.as_link_target() {
-        format!("link:{link_target}")
-    } else {
-        String::new()
-    };
-
-    Some(DepNode {
-        alias,
-        name: resolved_name,
-        version: resolved_version,
-        path: pkg_path,
-        is_peer,
-        is_dev: false,
-        is_optional: false,
-        dependencies: child_deps,
-    })
-}
-
-fn resolve_snapshot_children(
-    key: &PkgNameVerPeer,
-    ctx: &BuildContext,
-    current_depth: i32,
-) -> Vec<DepNode> {
-    let Some(snapshots) = ctx.snapshots else { return Vec::new() };
-    let Some(entry) = snapshots.get(key) else { return Vec::new() };
-
-    let peer_set = get_peer_set(key, ctx.packages);
-
-    let mut children = Vec::new();
-
-    let mut push_child = |dep_alias: &PkgName, dep_ref: &pacquet_lockfile::SnapshotDepRef| {
-        let child_key = dep_ref.resolve(dep_alias);
-        let alias_str = dep_alias.to_string();
-
-        let is_peer = ctx.exclude_peers && peer_set.contains(&alias_str);
-        if is_peer {
-            return;
+            hierarchies = build_dependencies_tree(
+                &state,
+                env,
+                project_dirs,
+                &BuildTreeOptions {
+                    lockfile_dir,
+                    depth: self.depth.max_depth(),
+                    include,
+                    exclude_peer_dependencies: self.exclude_peers,
+                    only_projects: self.only_projects,
+                    search: searcher.as_ref(),
+                    show_deduped_search_matches: searcher.is_some(),
+                    modules_dir_opt: Some(config.modules_dir.as_path()),
+                },
+            )?;
         }
 
-        let (child_name, child_version) = match &child_key {
-            Some(ck) => (ck.name.to_string(), ck.suffix.version().to_string()),
-            None => (alias_str.clone(), dep_ref.to_string()),
-        };
-
-        let grandchildren = match ctx.depth {
-            RecursionLimit::Unlimited => child_key
-                .as_ref()
-                .map_or(Vec::new(), |ck| resolve_snapshot_children(ck, ctx, current_depth + 1)),
-            RecursionLimit::Levels(n) if (current_depth as u32) < n => child_key
-                .as_ref()
-                .map_or(Vec::new(), |ck| resolve_snapshot_children(ck, ctx, current_depth + 1)),
-            _ => Vec::new(),
-        };
-
-        let pkg_path = if let Some(ck) = &child_key {
-            let vsn = ck.to_virtual_store_name(ctx.virtual_store_dir_max_length);
-            format!(".pnpm/{vsn}/node_modules/{child_name}")
-        } else if let Some(link_target) = dep_ref.as_link_target() {
-            format!("link:{link_target}")
-        } else {
-            String::new()
-        };
-
-        children.push(DepNode {
-            alias: alias_str,
-            name: child_name,
-            version: child_version,
-            path: pkg_path,
-            is_peer,
-            is_dev: false,
-            is_optional: false,
-            dependencies: grandchildren,
-        });
-    };
-
-    if let Some(deps) = &entry.dependencies {
-        for (dep_alias, dep_ref) in deps {
-            push_child(dep_alias, dep_ref);
-        }
-    }
-
-    if ctx.include_optional
-        && let Some(opt_deps) = &entry.optional_dependencies
-    {
-        for (dep_alias, dep_ref) in opt_deps {
-            push_child(dep_alias, dep_ref);
-        }
-    }
-
-    sort_deps(&mut children);
-    children
-}
-
-pub(crate) fn get_peer_set(
-    key: &PkgNameVerPeer,
-    packages: Option<&HashMap<PkgNameVerPeer, pacquet_lockfile::PackageMetadata>>,
-) -> HashSet<String> {
-    let Some(packages) = packages else { return HashSet::new() };
-    let base_key = key.without_peer();
-    packages
-        .get(&base_key)
-        .and_then(|meta| meta.peer_dependencies.as_ref())
-        .map(|peers| peers.keys().cloned().collect())
-        .unwrap_or_default()
-}
-
-pub(crate) fn sort_deps(deps: &mut [DepNode]) {
-    deps.sort_by(|a, b| a.name.cmp(&b.name));
-    for dep in deps.iter_mut() {
-        sort_deps(&mut dep.dependencies);
-    }
-}
-
-pub(crate) fn matches_params(params: &[String], alias: &str) -> bool {
-    if params.is_empty() {
-        return true;
-    }
-    params.iter().any(|pattern| glob_match(pattern, alias))
-}
-
-pub(crate) fn dep_or_subtree_matches(dep: &DepNode, params: &[String]) -> bool {
-    if params.is_empty() {
-        return true;
-    }
-    if matches_params(params, &dep.alias) || matches_params(params, &dep.name) {
-        return true;
-    }
-    dep.dependencies.iter().any(|child| dep_or_subtree_matches(child, params))
-}
-
-pub(crate) fn glob_match(pattern: &str, value: &str) -> bool {
-    if !pattern.contains('*') {
-        return pattern == value;
-    }
-    let segments: Vec<&str> = pattern.split('*').collect();
-    let mut rest = value;
-    for (i, segment) in segments.iter().enumerate() {
-        if segment.is_empty() {
-            continue;
-        }
-        if i == 0 {
-            let Some(stripped) = rest.strip_prefix(segment) else { return false };
-            rest = stripped;
-        } else if i == segments.len() - 1 {
-            return rest.ends_with(segment);
-        } else if let Some(pos) = rest.find(segment) {
-            rest = &rest[pos + segment.len()..];
-        } else {
-            return false;
-        }
-    }
-    true
-}
-
-pub(crate) fn read_root_manifest(
-    manifest_path: &Path,
-) -> miette::Result<(Option<String>, Option<String>, Option<bool>)> {
-    let content = std::fs::read_to_string(manifest_path)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("failed to read {}", manifest_path.display()))?;
-    let parsed: Value = serde_json::from_str(&content)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("failed to parse {}", manifest_path.display()))?;
-    let name = parsed.get("name").and_then(Value::as_str).map(str::to_string);
-    let version = parsed.get("version").and_then(Value::as_str).map(str::to_string);
-    let private = parsed.get("private").and_then(Value::as_bool);
-    Ok((name, version, private))
-}
-
-/// Scan `project_dir`'s `node_modules` for packages that are installed on
-/// disk but not recorded in `importer` (npm's "extraneous" dependencies),
-/// building a leaf [`DepNode`] for each. Mirrors the unsaved-dependency
-/// handling of the TypeScript CLI's `buildDependenciesTree`.
-fn read_unsaved_dependencies(
-    importer: &ProjectSnapshot,
-    project_dir: &Path,
-    config: &Config,
-) -> miette::Result<Vec<DepNode>> {
-    // Same per-importer modules-dir suffix the linker uses: the final
-    // component of `modules_dir` (default `node_modules`) under the
-    // project root.
-    let modules_dir_name =
-        config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
-    let modules_dir = project_dir.join(modules_dir_name);
-
-    let saved = saved_direct_dep_names(importer);
-    let mut unsaved: Vec<DepNode> = read_modules_dir_names(&modules_dir)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("failed to read {}", modules_dir.display()))?
-        .into_iter()
-        .filter(|name| !saved.contains(name))
-        .map(|name| build_unsaved_node(&name, &modules_dir, project_dir))
-        .collect();
-    sort_deps(&mut unsaved);
-    Ok(unsaved)
-}
-
-/// The alias keys of an importer's `dependencies`, `devDependencies`, and
-/// `optionalDependencies` — the directory names a saved dependency owns
-/// under `node_modules`. Always spans all three groups regardless of
-/// `--prod`/`--dev`/`--optional`, matching the TypeScript CLI's
-/// `getAllDirectDependencies`.
-fn saved_direct_dep_names(importer: &ProjectSnapshot) -> HashSet<String> {
-    let mut names = HashSet::new();
-    let groups =
-        [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies];
-    for group in groups.into_iter().flatten() {
-        for name in group.keys() {
-            names.insert(name.to_string());
-        }
-    }
-    names
-}
-
-/// The package directory names directly under `modules_dir`, following
-/// the same enumeration rules as the TypeScript CLI's `readModulesDir`. A
-/// missing `modules_dir` is not an error; any other read failure is.
-fn read_modules_dir_names(modules_dir: &Path) -> io::Result<Vec<String>> {
-    let mut names = Vec::new();
-    collect_module_names(modules_dir, None, &mut names)?;
-    Ok(names)
-}
-
-fn collect_module_names(
-    modules_dir: &Path,
-    scope: Option<&str>,
-    names: &mut Vec<String>,
-) -> io::Result<()> {
-    let parent_dir = match scope {
-        Some(scope) => modules_dir.join(scope),
-        None => modules_dir.to_path_buf(),
-    };
-    let entries = match std::fs::read_dir(&parent_dir) {
-        Ok(entries) => entries,
-        // A missing directory is "no packages"; every other error is
-        // surfaced, matching `readModulesDir`, which only swallows ENOENT.
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(error),
-    };
-    for entry in entries {
-        let entry = entry?;
-        let file_name = entry.file_name();
-        let Some(name) = file_name.to_str() else {
-            continue;
-        };
-        if name.starts_with('.') {
-            continue;
-        }
-        if entry.file_type().is_ok_and(|file_type| file_type.is_file()) {
-            continue;
-        }
-        if scope.is_none() && name.starts_with('@') {
-            collect_module_names(modules_dir, Some(name), names)?;
-            continue;
-        }
-        match scope {
-            Some(scope) => names.push(format!("{scope}/{name}")),
-            None => names.push(name.to_string()),
-        }
-    }
-    Ok(())
-}
-
-/// Build the leaf [`DepNode`] for one extraneous package, taking its
-/// version and path from the symlink target for a `link:` dependency or
-/// from `package.json` for a regular directory.
-fn build_unsaved_node(name: &str, modules_dir: &Path, project_dir: &Path) -> DepNode {
-    let entry_path = modules_dir.join(name);
-    let (path, version) = if let Some(target) = resolve_link_target(&entry_path) {
-        let relative = pathdiff::diff_paths(&target, project_dir).unwrap_or_else(|| target.clone());
-        let version = format!("link:{}", relative.display().to_string().replace('\\', "/"));
-        (target.to_string_lossy().into_owned(), version)
-    } else {
-        let version = read_package_version(&entry_path).unwrap_or_else(|| "undefined".to_string());
-        (entry_path.to_string_lossy().into_owned(), version)
-    };
-    DepNode {
-        alias: name.to_string(),
-        name: name.to_string(),
-        version,
-        path,
-        is_peer: false,
-        is_dev: false,
-        is_optional: false,
-        dependencies: Vec::new(),
-    }
-}
-
-/// Resolve a symlink to the absolute path of its immediate target,
-/// lexically (without requiring the target to exist), matching the
-/// TypeScript CLI's `resolveLinkTarget`. `None` when `link` is not a
-/// symlink.
-fn resolve_link_target(link: &Path) -> Option<PathBuf> {
-    let target = std::fs::read_link(link).ok()?;
-    let joined = if target.is_absolute() {
-        target
-    } else {
-        match link.parent() {
-            Some(parent) => parent.join(target),
-            None => target,
-        }
-    };
-    Some(lexical_normalize(&joined))
-}
-
-fn read_package_version(pkg_dir: &Path) -> Option<String> {
-    let bytes = std::fs::read(pkg_dir.join("package.json")).ok()?;
-    let manifest: Value = serde_json::from_slice(&bytes).ok()?;
-    manifest.get("version").and_then(Value::as_str).map(str::to_string)
-}
-
-const LEGEND: &str = "Legend: production dependency, optional only, dev only\n\n";
-
-struct TreeNode {
-    label: String,
-    groups: Vec<TreeNodeGroup>,
-}
-
-struct TreeNodeGroup {
-    group: String,
-    nodes: Vec<TreeNode>,
-}
-
-pub(crate) fn render_local_tree(root: &LocalTreeRoot, long: bool) -> String {
-    let mut root_label = String::new();
-    if let Some(ref name) = root.name {
-        use std::fmt::Write;
-        let _ = write!(
-            root_label,
-            "{} {}",
-            name_at_version(name, root.version.as_deref().unwrap_or("")),
-            dim(&root.path),
-        );
-    } else {
-        root_label.push_str(&dim(&root.path));
-    }
-    if root.private == Some(true) {
-        root_label.push_str(&dim(" (PRIVATE)"));
-    }
-
-    let mut groups: Vec<TreeNodeGroup> = Vec::new();
-
-    if !root.dependencies.is_empty() {
-        let nodes = deps_to_tree_nodes(&root.dependencies, long);
-        groups.push(TreeNodeGroup { group: cyan_bright("dependencies:"), nodes });
-    }
-
-    if !root.dev_dependencies.is_empty() {
-        let nodes = deps_to_tree_nodes_colored(&root.dev_dependencies, long, true, false);
-        groups.push(TreeNodeGroup { group: cyan_bright("devDependencies:"), nodes });
-    }
-
-    if !root.optional_dependencies.is_empty() {
-        let nodes = deps_to_tree_nodes_colored(&root.optional_dependencies, long, false, true);
-        groups.push(TreeNodeGroup { group: cyan_bright("optionalDependencies:"), nodes });
-    }
-
-    if groups.is_empty() {
-        return root_label;
-    }
-
-    let root_node = TreeNode { label: bold(&root_label), groups };
-    let mut output = String::new();
-    render_archy(&root_node, "", "", &mut output);
-    let body = output.trim_end().to_string();
-
-    if body.is_empty() {
-        return String::new();
-    }
-
-    format!("{LEGEND}{body}")
-}
-
-fn deps_to_tree_nodes(deps: &[DepNode], long: bool) -> Vec<TreeNode> {
-    deps_to_tree_nodes_colored(deps, long, false, false)
-}
-
-fn deps_to_tree_nodes_colored(
-    deps: &[DepNode],
-    long: bool,
-    is_dev: bool,
-    is_optional: bool,
-) -> Vec<TreeNode> {
-    deps.iter().map(|dep| dep_to_tree_node(dep, long, is_dev, is_optional)).collect()
-}
-
-fn dep_to_tree_node(dep: &DepNode, long: bool, is_dev: bool, is_optional: bool) -> TreeNode {
-    let color: fn(&str) -> String = if is_optional {
-        |text| text.if_supports_color(Stream::Stdout, |text| text.blue()).to_string()
-    } else if is_dev {
-        |text| text.if_supports_color(Stream::Stdout, |text| text.yellow()).to_string()
-    } else {
-        |text| text.to_string()
-    };
-
-    let mut label = print_label(dep, &color);
-
-    if long && !dep.path.is_empty() {
-        label.push('\n');
-        label.push_str(&dim(&dep.path));
-    }
-
-    let mut groups = Vec::new();
-    if !dep.dependencies.is_empty() && !dep.is_peer {
-        let children: Vec<TreeNode> = dep
-            .dependencies
-            .iter()
-            .map(|child| dep_to_tree_node(child, long, child.is_dev, child.is_optional))
+        let projects: Vec<ProjectHierarchy> = hierarchies
+            .into_iter()
+            .map(|(project_dir, hierarchy)| {
+                let manifest =
+                    crate::cli_args::deps_tree::build::read_project_manifest(&project_dir);
+                ProjectHierarchy {
+                    name: manifest.name,
+                    version: manifest.version,
+                    private: manifest.private,
+                    path: project_dir.to_string_lossy().into_owned(),
+                    hierarchy,
+                }
+            })
             .collect();
-        groups.push(TreeNodeGroup { group: String::new(), nodes: children });
-    }
 
-    TreeNode { label, groups }
+        Ok(match self.report_as() {
+            ReportAs::Tree => render::render_tree(
+                &projects,
+                &RenderTreeOptions {
+                    always_print_root_package,
+                    depth_above_projects_only: self.depth != RecursionLimit::ProjectsOnly,
+                    long: self.long,
+                    show_extraneous: false,
+                    show_summary: true,
+                },
+            ),
+            ReportAs::Parseable => render::render_parseable(
+                &projects,
+                &RenderParseableOptions { long: self.long, always_print_root_package },
+            ),
+            ReportAs::Json => render::render_json(&projects, self.long),
+        })
+    }
 }
 
-pub(crate) fn print_label(dep: &DepNode, color: &dyn Fn(&str) -> String) -> String {
-    let alias = sanitize(&dep.alias);
-    let name = sanitize(&dep.name);
-    let version = sanitize(&dep.version);
-    if alias == name {
-        format!("{}{}", color(&name), gray(&format!("@{version}")))
-    } else if version.contains('@') {
-        format!("{}{}", color(&alias), gray(&format!("@{version}")))
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReportAs {
+    Tree,
+    Json,
+    Parseable,
+}
+
+fn global_report_as(report_as: ReportAs) -> ListReportAs {
+    match report_as {
+        ReportAs::Tree => ListReportAs::Tree,
+        ReportAs::Json => ListReportAs::Json,
+        ReportAs::Parseable => ListReportAs::Parseable,
+    }
+}
+
+/// The directory the lockfile is read from for a non-recursive `list`:
+/// the workspace root under a shared workspace lockfile, the project
+/// itself otherwise.
+pub(crate) fn local_lockfile_dir(config: &Config, dir: &Path) -> PathBuf {
+    if config.shared_workspace_lockfile {
+        config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf())
     } else {
-        format!("{}{}", color(&alias), gray(&format!("@npm:{name}@{version}")))
+        dir.to_path_buf()
     }
 }
 
-pub(crate) fn name_at_version(name: &str, version: &str) -> String {
-    let name = sanitize(name);
-    if version.is_empty() {
-        name.into_owned()
-    } else {
-        format!("{}{}", name, gray(&format!("@{version}")))
-    }
-}
-
-fn render_archy(node: &TreeNode, connector: &str, prefix: &str, out: &mut String) {
-    let lines: Vec<&str> = node.label.split('\n').collect();
-    if !connector.is_empty() {
-        out.push_str(&dim(connector));
-    }
-    out.push_str(lines[0]);
-    out.push('\n');
-
-    struct Item<'a> {
-        node: &'a TreeNode,
-        group_header: Option<&'a str>,
-    }
-
-    let mut items: Vec<Item> = Vec::new();
-    for group in &node.groups {
-        for (i, gn) in group.nodes.iter().enumerate() {
-            items.push(Item { node: gn, group_header: (i == 0).then_some(group.group.as_str()) });
-        }
-    }
-
-    let continuation = if items.is_empty() { "  " } else { "\u{2502} " };
-    for line in &lines[1..] {
-        out.push_str(&dim(&format!("{prefix}{continuation}")));
-        out.push_str(line);
-        out.push('\n');
-    }
-
-    let count = items.len();
-    for (i, item) in items.into_iter().enumerate() {
-        let last = i == count - 1;
-
-        if let Some(header) = item.group_header
-            && !header.is_empty()
-        {
-            out.push_str(&dim(&format!("{prefix}\u{2502}")));
-            out.push('\n');
-            out.push_str(&dim(&format!("{prefix}\u{2502}   ")));
-            out.push_str(header);
-            out.push('\n');
-        }
-
-        let more = !item.node.groups.is_empty();
-        let branch = if last { "\u{2514}" } else { "\u{251c}" };
-        let stem = if more { "\u{252c}" } else { "\u{2500}" };
-        let child_connector = format!("{prefix}{branch}\u{2500}{stem} ");
-        let child_prefix = if last { format!("{prefix}  ") } else { format!("{prefix}\u{2502} ") };
-        render_archy(item.node, &child_connector, &child_prefix, out);
-    }
-}
-
-pub(crate) fn render_local_json(root: &LocalTreeRoot) -> String {
-    render_local_roots_json(std::slice::from_ref(root))
-}
-
-fn render_local_roots_json(roots: &[LocalTreeRoot]) -> String {
-    let root_objs = roots.iter().map(local_root_to_json).collect::<Vec<_>>();
-    serde_json::to_string_pretty(&root_objs).expect("serialize local list")
-}
-
-fn local_root_to_json(root: &LocalTreeRoot) -> Value {
-    let mut deps_map = Map::new();
-    for dep in &root.dependencies {
-        deps_map.insert(dep.alias.clone(), dep_to_json(dep));
-    }
-    let mut dev_map = Map::new();
-    for dep in &root.dev_dependencies {
-        dev_map.insert(dep.alias.clone(), dep_to_json(dep));
-    }
-    let mut opt_map = Map::new();
-    for dep in &root.optional_dependencies {
-        opt_map.insert(dep.alias.clone(), dep_to_json(dep));
-    }
-
-    let mut root_obj = Map::new();
-    if let Some(ref name) = root.name {
-        root_obj.insert("name".to_string(), json!(name));
-    }
-    if let Some(ref version) = root.version {
-        root_obj.insert("version".to_string(), json!(version));
-    }
-    root_obj.insert("path".to_string(), json!(root.path));
-    root_obj.insert("private".to_string(), json!(root.private.unwrap_or(false)));
-
-    if !deps_map.is_empty() {
-        root_obj.insert("dependencies".to_string(), Value::Object(deps_map));
-    }
-    if !dev_map.is_empty() {
-        root_obj.insert("devDependencies".to_string(), Value::Object(dev_map));
-    }
-    if !opt_map.is_empty() {
-        root_obj.insert("optionalDependencies".to_string(), Value::Object(opt_map));
-    }
-
-    if !root.unsaved.is_empty() {
-        let mut unsaved_map = Map::new();
-        for dep in &root.unsaved {
-            unsaved_map.insert(dep.alias.clone(), dep_to_json(dep));
-        }
-        root_obj.insert("unsavedDependencies".to_string(), Value::Object(unsaved_map));
-    }
-
-    Value::Object(root_obj)
-}
-
-pub(crate) fn dep_to_json(dep: &DepNode) -> Value {
-    let mut obj = Map::new();
-    obj.insert("from".to_string(), json!(dep.name));
-    obj.insert("version".to_string(), json!(dep.version));
-    obj.insert("path".to_string(), json!(dep.path));
-
-    if !dep.dependencies.is_empty() {
-        let mut child_deps = Map::new();
-        for child in &dep.dependencies {
-            child_deps.insert(child.alias.clone(), dep_to_json(child));
-        }
-        obj.insert("dependencies".to_string(), Value::Object(child_deps));
-    }
-
-    Value::Object(obj)
-}
-
-pub(crate) fn render_local_parseable(root: &LocalTreeRoot, long: bool) -> String {
-    let mut lines = Vec::new();
-
-    let root_line = if long {
-        let mut line = sanitize(&root.path).to_string();
-        if let Some(ref name) = root.name {
-            line.push(':');
-            line.push_str(&sanitize(name));
-            if let Some(ref version) = root.version {
-                line.push('@');
-                line.push_str(&sanitize(version));
-            }
-            if root.private == Some(true) {
-                line.push_str(":PRIVATE");
-            }
-        }
-        line
-    } else {
-        sanitize(&root.path).to_string()
-    };
-    lines.push(root_line);
-
-    let mut seen = HashSet::new();
-    seen.insert(sanitize(&root.path).to_string());
-
-    for dep in &root.dependencies {
-        flatten_parseable(dep, &mut lines, &mut seen, long);
-    }
-    for dep in &root.dev_dependencies {
-        flatten_parseable(dep, &mut lines, &mut seen, long);
-    }
-    for dep in &root.optional_dependencies {
-        flatten_parseable(dep, &mut lines, &mut seen, long);
-    }
-    for dep in &root.unsaved {
-        flatten_parseable(dep, &mut lines, &mut seen, long);
-    }
-
-    lines.join("\n")
-}
-
-fn flatten_parseable(
-    dep: &DepNode,
-    lines: &mut Vec<String>,
-    seen: &mut HashSet<String>,
-    long: bool,
-) {
-    let path = sanitize(&dep.path);
-    if !seen.insert(path.to_string()) && !path.is_empty() {
+/// Print command output the way the TypeScript CLI does: nothing for an
+/// empty string, exactly one trailing newline otherwise.
+pub(crate) fn print_output(output: &str) {
+    if output.is_empty() {
         return;
     }
-
-    if long {
-        let alias = sanitize(&dep.alias);
-        let name = sanitize(&dep.name);
-        let version = sanitize(&dep.version);
-        if alias != name {
-            if version.contains('@') {
-                lines.push(format!("{path}:{alias} {version}"));
-            } else {
-                lines.push(format!("{path}:{alias} npm:{name}@{version}"));
-            }
-        } else if version.contains('@') {
-            lines.push(format!("{path}:{version}"));
-        } else {
-            lines.push(format!("{path}:{name}@{version}"));
-        }
+    if output.ends_with('\n') {
+        print!("{output}");
     } else {
-        lines.push(path.to_string());
+        println!("{output}");
     }
-
-    for child in &dep.dependencies {
-        flatten_parseable(child, lines, seen, long);
-    }
-}
-
-fn dim(text: &str) -> String {
-    sanitize(text).if_supports_color(Stream::Stdout, |t| t.dimmed()).to_string()
-}
-
-fn bold(text: &str) -> String {
-    sanitize(text).if_supports_color(Stream::Stdout, |t| t.bold()).to_string()
-}
-
-fn cyan_bright(text: &str) -> String {
-    sanitize(text).if_supports_color(Stream::Stdout, |t| t.bright_cyan()).to_string()
-}
-
-fn gray(text: &str) -> String {
-    sanitize(text).if_supports_color(Stream::Stdout, |t| t.bright_black()).to_string()
 }
 
 #[cfg(test)]

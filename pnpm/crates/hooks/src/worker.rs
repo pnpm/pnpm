@@ -248,6 +248,28 @@ impl NodeWorker {
         serde_json::from_value(value).map_err(|err| self.exec_err(err.to_string()))
     }
 
+    /// The names of the finders exported by the pnpmfile's `finders`
+    /// object.
+    pub async fn get_finder_names(&self) -> Result<Vec<String>, HookError> {
+        let value = self
+            .request("finders", serde_json::json!({ "target": "finders" }), Arc::new(|_| {}))
+            .await?;
+        serde_json::from_value(value).map_err(|err| self.exec_err(err.to_string()))
+    }
+
+    /// Call the finder named `name` with a context of `alias`, `name`,
+    /// `version`, and `manifest` (exposed to the finder as a
+    /// `readManifest()` callback). Returns the finder's verdict:
+    /// `false`/`true` or a message string.
+    pub async fn call_finder(&self, name: &str, ctx: Value) -> Result<Value, HookError> {
+        self.request(
+            "finder",
+            serde_json::json!({ "target": "finder", "name": name, "ctx": ctx }),
+            Arc::new(|_| {}),
+        )
+        .await
+    }
+
     /// Send one request `body` (an object the worker dispatches on) and
     /// await its reply, stamping in the request id and routing any
     /// `context.log(...)` lines to `log`. `label` names the request in a
@@ -357,6 +379,30 @@ async function handle(line) {{
         canFetch: f != null && typeof f.canFetch === 'function',
         fetch: f != null && typeof f.fetch === 'function',
       }})) : []) }});
+      return;
+    }}
+    if (req.target === 'finders') {{
+      const finders = mod && mod.finders;
+      send({{ ok: (finders != null && typeof finders === 'object')
+        ? Object.keys(finders).filter((name) => typeof finders[name] === 'function')
+        : [] }});
+      return;
+    }}
+    if (req.target === 'finder') {{
+      const finders = mod && mod.finders;
+      const finder = (finders != null && typeof finders === 'object') ? finders[req.name] : null;
+      if (typeof finder !== 'function') {{
+        send({{ ok: false }});
+        return;
+      }}
+      const ctx = req.ctx || {{}};
+      const res = await finder({{
+        alias: ctx.alias,
+        name: ctx.name,
+        version: ctx.version,
+        readManifest: () => ctx.manifest,
+      }});
+      send({{ ok: res === undefined ? false : res }});
       return;
     }}
     if (req.target === 'fetcher') {{

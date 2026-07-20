@@ -22,7 +22,7 @@ pub use check_bin_conflicts::{
     CheckGlobalBinConflictsError, GlobalBinConflictError, check_global_bin_conflicts,
 };
 pub use global_package_dir::{create_install_dir, get_hash_link, resolve_install_dir};
-pub use list::{ListReportAs, list_global_packages};
+pub use list::{ListReportAs, find_global_install_dirs, list_global_packages};
 pub use scan::{
     GlobalPackageInfo, InstalledGlobalPackage, clean_orphaned_install_dirs, find_global_package,
     get_global_package_details, get_installed_bin_names, read_direct_dependency_aliases,
