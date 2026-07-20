@@ -598,7 +598,7 @@ type ParentRefs = HashMap<String, ParentRef>;
 
 /// One importer whose direct dependencies count as "current" peer
 /// providers for the must-win guard of locked-peer-provider reuse.
-/// The upstream `CurrentProviderSource`.
+/// Same name and shape as its upstream counterpart.
 struct CurrentProviderSource {
     direct_node_ids_by_alias: HashMap<String, NodeId>,
     declared_direct_dependencies: std::collections::HashSet<String>,
@@ -1509,7 +1509,7 @@ impl Walker<'_> {
         parent_refs: &ParentRefs,
         parent_node_ids: &[NodeId],
     ) -> bool {
-        let Some(peer_node_id) = parent_refs.get(peer_name).and_then(|r| r.node_id.as_ref()) else {
+        let Some(peer_node_id) = parent_refs.get(peer_name).and_then(|parent| parent.node_id.as_ref()) else {
             return false;
         };
         for source in &self.current_provider_sources {
