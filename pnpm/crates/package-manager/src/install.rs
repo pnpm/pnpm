@@ -2182,7 +2182,9 @@ where
         let deferred_projects = config.ignore_scripts.then(|| {
             materialized_project_manifests
                 .iter()
-                .filter(|(_, manifest)| declares_deferred_project_scripts(manifest))
+                .filter(|(project_dir, manifest)| {
+                    project_requires_lifecycle_scripts(project_dir, manifest)
+                })
                 .map(|(project_dir, _)| {
                     pacquet_workspace::importer_id_from_root_dir(&workspace_root, project_dir)
                 })
@@ -2324,12 +2326,14 @@ where
                 &workspace_root,
                 materialized_current_lockfile.as_ref(),
             );
-            run_projects_lifecycle_scripts::<Reporter>(
-                &project_groups,
-                config,
-                node_linker,
-                &workspace_root,
-            )?;
+            if !project_groups.is_empty() {
+                run_projects_lifecycle_scripts::<Reporter>(
+                    &project_groups,
+                    config,
+                    node_linker,
+                    &workspace_root,
+                )?;
+            }
             if let Some(rebuild) = rebuild.as_ref() {
                 drain_settled_projects::<Host>(&config.modules_dir, &rebuild.pending_projects)?;
             }
@@ -3139,18 +3143,16 @@ where
     write_modules_manifest::<Sys>(modules_dir, modules).map_err(InstallError::WriteModules)
 }
 
-/// Whether `--ignore-scripts` left this project with a script it still
-/// owes.
-///
-/// Asks [`PROJECT_LIFECYCLE_STAGES`] rather than repeating the stage
-/// list, so a project can never be recorded — or missed — for a stage
-/// [`run_project_lifecycle_scripts`] would not run.
-///
-/// [`PROJECT_LIFECYCLE_STAGES`]: pacquet_executor::PROJECT_LIFECYCLE_STAGES
-fn declares_deferred_project_scripts(manifest: &PackageManifest) -> bool {
-    pacquet_executor::PROJECT_LIFECYCLE_STAGES
+/// Includes the executor's implicit `node-gyp rebuild` fallback when a
+/// project has `binding.gyp` but no explicit preinstall or install script.
+fn project_requires_lifecycle_scripts(project_dir: &Path, manifest: &PackageManifest) -> bool {
+    let has_lifecycle_script = pacquet_executor::PROJECT_LIFECYCLE_STAGES
         .iter()
-        .any(|stage| matches!(manifest.script(stage, true), Ok(Some(_))))
+        .any(|stage| matches!(manifest.script(stage, true), Ok(Some(_))));
+    has_lifecycle_script
+        || (matches!(manifest.script("preinstall", true), Ok(None))
+            && matches!(manifest.script("install", true), Ok(None))
+            && project_dir.join("binding.gyp").exists())
 }
 
 /// The `pendingBuilds` list for this install: the builds still owed,
@@ -3407,6 +3409,17 @@ fn order_project_lifecycle_groups<'a>(
             .map(|project| vec![project]),
     );
     groups
+        .into_iter()
+        .filter_map(|group| {
+            let group = group
+                .into_iter()
+                .filter(|(project_dir, manifest)| {
+                    project_requires_lifecycle_scripts(project_dir, manifest)
+                })
+                .collect::<Vec<_>>();
+            (!group.is_empty()).then_some(group)
+        })
+        .collect()
 }
 
 /// Run workspace projects' own lifecycle scripts in topological build
@@ -3441,11 +3454,9 @@ fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
             crate::make_node_package_map_option(&package_map_path, node_options),
         );
     }
-    let child_concurrency = usize::try_from(config.child_concurrency)
-        .expect("u32 child concurrency fits in usize")
-        .max(1);
+    let max_group_size = project_groups.iter().map(Vec::len).max().unwrap_or(0);
     let pool = rayon::ThreadPoolBuilder::new()
-        .num_threads(child_concurrency)
+        .num_threads(crate::script_thread_count(config.child_concurrency, max_group_size))
         .build()
         .map_err(InstallError::ProjectLifecycleThreadPool)?;
     for group in project_groups {

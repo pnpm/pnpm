@@ -692,11 +692,10 @@ impl BuildModules<'_> {
         // `Mutex` for the same parallelism reason as `deps_state_cache` above.
         let ignored_builds: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
 
-        // Per-install rayon pool. Bounded to `child_concurrency` so
-        // a chunk with many build-needed members doesn't exhaust the
-        // process's rayon-global threads (which other crates may
-        // depend on). One pool reused across all chunks; chunks
-        // themselves run sequentially.
+        // Per-install rayon pool. Bounded by `child_concurrency`, the
+        // largest chunk, and the package-manager safety cap so a
+        // repository cannot request an excessive number of native
+        // threads. One pool is reused across all sequential chunks.
         //
         // `ThreadPoolBuilder::build()` is fallible — the OS may
         // refuse the spawn (`EAGAIN` / RLIMIT_NPROC) on a host
@@ -704,8 +703,9 @@ impl BuildModules<'_> {
         // [`BuildModulesError::ThreadPoolBuild`] so the install
         // returns cleanly with a remediation hint instead of
         // panicking inside the binary.
+        let max_chunk_size = chunks.iter().map(Vec::len).max().unwrap_or(0);
         let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(child_concurrency.max(1) as usize)
+            .num_threads(crate::script_thread_count(child_concurrency, max_chunk_size))
             .build()
             .map_err(|source| BuildModulesError::ThreadPoolBuild { source })?;
 

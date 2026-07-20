@@ -134,6 +134,18 @@ pub(crate) fn snapshot_has_patch(snapshot_key: &pacquet_lockfile::PackageKey) ->
         .is_some()
 }
 
+// Repositories control `childConcurrency`; keep native worker creation
+// bounded while leaving ordinary explicit values unchanged.
+const MAX_SCRIPT_THREADS: usize = 256;
+
+pub(crate) fn script_thread_count(child_concurrency: u32, max_work_items: usize) -> usize {
+    usize::try_from(child_concurrency)
+        .expect("u32 child concurrency fits in usize")
+        .max(1)
+        .min(max_work_items.max(1))
+        .min(MAX_SCRIPT_THREADS)
+}
+
 pub(crate) fn package_manifest_prefix(
     manifest: &pacquet_package_manifest::PackageManifest,
 ) -> String {
@@ -153,3 +165,6 @@ pub(crate) fn emit_initial_package_manifest<Reporter: pacquet_reporter::Reporter
         },
     ));
 }
+
+#[cfg(test)]
+mod tests;

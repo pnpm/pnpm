@@ -5,7 +5,8 @@
 
 use super::{
     Install, InstallError, UpToDateFastPathCheck, exclude_linked_dependencies,
-    install_already_up_to_date, load_workspace_projects, should_write_package_map,
+    install_already_up_to_date, load_workspace_projects, project_requires_lifecycle_scripts,
+    should_write_package_map,
 };
 use crate::{InstallWithFreshLockfileError, MinimumReleaseAgeError};
 use pacquet_config::{Config, NodePackageMapType};
@@ -47,6 +48,27 @@ fn empty_test_lockfile() -> Lockfile {
         packages: None,
         snapshots: None,
     }
+}
+
+#[test]
+fn project_lifecycle_detection_includes_scripts_and_binding_gyp_fallback() {
+    let temp = tempdir().unwrap();
+    let project_dir = temp.path();
+    let scriptless = PackageManifest::from_value(
+        project_dir.join("package.json"),
+        serde_json::json!({ "name": "project" }),
+    );
+    assert!(!project_requires_lifecycle_scripts(project_dir, &scriptless));
+
+    fs::write(project_dir.join("binding.gyp"), "{}").unwrap();
+    assert!(project_requires_lifecycle_scripts(project_dir, &scriptless));
+
+    fs::remove_file(project_dir.join("binding.gyp")).unwrap();
+    let with_prepare = PackageManifest::from_value(
+        project_dir.join("package.json"),
+        serde_json::json!({ "scripts": { "prepare": "node prepare.js" } }),
+    );
+    assert!(project_requires_lifecycle_scripts(project_dir, &with_prepare));
 }
 
 #[test]

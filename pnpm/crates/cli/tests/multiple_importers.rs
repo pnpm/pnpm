@@ -544,10 +544,15 @@ fn symlink_local_package_from_publish_config_directory() {
 fn recursive_install_builds_workspace_projects_in_correct_order() {
     let fixture = WorkspaceFixture::new();
     let dependency = fixture.project("project-999", "project-999", ManifestDeps::default());
+    let scriptless_intermediate = fixture.project(
+        "project-500",
+        "project-500",
+        ManifestDeps { dev: &[("project-999", "workspace:*")], ..Default::default() },
+    );
     let dependent = fixture.project(
         "project-1",
         "project-1",
-        ManifestDeps { dev: &[("project-999", "workspace:*")], ..Default::default() },
+        ManifestDeps { dev: &[("project-500", "workspace:*")], ..Default::default() },
     );
     for (project, name) in [(&dependency, "project-999"), (&dependent, "project-1")] {
         let mut manifest = read_manifest(project);
@@ -577,6 +582,7 @@ fn recursive_install_builds_workspace_projects_in_correct_order() {
     for modules_dir in [
         fixture.workspace.join("node_modules"),
         dependency.join("node_modules"),
+        scriptless_intermediate.join("node_modules"),
         dependent.join("node_modules"),
     ] {
         if modules_dir.exists() {
