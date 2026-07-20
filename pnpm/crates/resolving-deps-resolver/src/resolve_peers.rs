@@ -1509,7 +1509,9 @@ impl Walker<'_> {
         parent_refs: &ParentRefs,
         parent_node_ids: &[NodeId],
     ) -> bool {
-        let Some(peer_node_id) = parent_refs.get(peer_name).and_then(|parent| parent.node_id.as_ref()) else {
+        let Some(peer_node_id) =
+            parent_refs.get(peer_name).and_then(|parent| parent.node_id.as_ref())
+        else {
             return false;
         };
         for source in &self.current_provider_sources {
