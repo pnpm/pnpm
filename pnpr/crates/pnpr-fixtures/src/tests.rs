@@ -58,7 +58,7 @@ fn per_run_substitutions_update_packuments_and_tarballs() {
         &std::fs::read(package_dir.join("package.json")).expect("read substituted packument"),
     )
     .expect("parse substituted packument");
-    assert_eq!(packument["versions"]["1.0.0"]["dependencies"]["say-hi"], "git+file:///tmp/hi#main",);
+    assert_eq!(packument["versions"]["1.0.0"]["dependencies"]["say-hi"], "git+file:///tmp/hi#main");
     let manifest =
         tarball_package_manifest(&package_dir.join("has-aliased-git-dependency-1.0.0.tgz"));
     assert_eq!(manifest["dependencies"]["say-hi"], "git+file:///tmp/hi#main");
