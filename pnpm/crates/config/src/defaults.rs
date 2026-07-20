@@ -251,7 +251,7 @@ pub fn default_fetch_retry_maxtimeout() -> u64 {
 /// can't drift apart. `pnpm bump` keeps this constant in sync with the
 /// version of the npm wrapper package (`pnpm/npm/pnpm/package.json`);
 /// the release workflow verifies the two match before building.
-pub const PNPM_VERSION: &str = "12.0.0-alpha.16";
+pub const PNPM_VERSION: &str = "12.0.0-alpha.17";
 
 pub fn default_fetch_timeout() -> u64 {
     pacquet_network::DEFAULT_FETCH_TIMEOUT_MS
