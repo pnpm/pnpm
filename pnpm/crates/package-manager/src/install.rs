@@ -3,7 +3,7 @@ use crate::{
     InstallWithFreshLockfile, InstallWithFreshLockfileError, LockfileVerificationOverride,
     OptimisticRepeatInstallCheck, RebuildOptions, ResolvedPackages, UpdateSeedPolicy,
     build_resolution_verifiers, check_optimistic_repeat_install, emit_initial_package_manifest,
-    optimistic_repeat_install::Decision as OptimisticRepeatInstallDecision,
+    link_project_bins, optimistic_repeat_install::Decision as OptimisticRepeatInstallDecision,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -11,6 +11,7 @@ use pacquet_catalogs_config::{
     InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest,
 };
 use pacquet_catalogs_types::Catalogs;
+use pacquet_cmd_shim::LinkBinsError;
 use pacquet_config::{Config, NodeLinker, PNPM_VERSION};
 use pacquet_executor::{
     LifecycleScriptError, RunPostinstallHooks,
@@ -41,8 +42,9 @@ use pacquet_tarball::MemCache;
 use pacquet_workspace_state::{
     ProjectEntry, UpdateWorkspaceStateError, WorkspaceState, now_millis, update_workspace_state,
 };
+use rayon::prelude::*;
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     io::IsTerminal,
     path::{Path, PathBuf},
     sync::{Arc, atomic::AtomicU8},
@@ -96,6 +98,7 @@ pub type PeerIssuesSink = Arc<
 
 pub struct WorkspaceInstallSelection<'a> {
     pub all_projects: &'a [pacquet_workspace::Project],
+    pub ordered_groups: &'a [Vec<PathBuf>],
     pub ordered_dirs: &'a [PathBuf],
     pub selected_dirs: &'a HashSet<PathBuf>,
     pub active_manifest_is_standin: bool,
@@ -403,6 +406,13 @@ pub enum InstallError {
     /// failure always fails the install, matching pnpm.
     #[diagnostic(transparent)]
     ProjectLifecycleScript(#[error(source)] LifecycleScriptError),
+
+    #[diagnostic(transparent)]
+    ProjectBinLink(#[error(source)] LinkBinsError),
+
+    #[display("Failed to create the workspace lifecycle thread pool: {_0}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_LIFECYCLE_THREAD_POOL))]
+    ProjectLifecycleThreadPool(#[error(source)] rayon::ThreadPoolBuildError),
 
     #[diagnostic(transparent)]
     WriteModules(#[error(source)] WriteModulesError),
@@ -2308,8 +2318,14 @@ where
             Vec::new()
         };
         if !projects_to_run.is_empty() {
+            let project_groups = order_project_lifecycle_groups(
+                projects_to_run,
+                selection.as_ref().map(|selection| selection.ordered_groups),
+                &workspace_root,
+                materialized_current_lockfile.as_ref(),
+            );
             run_projects_lifecycle_scripts::<Reporter>(
-                &projects_to_run,
+                &project_groups,
                 config,
                 node_linker,
                 &workspace_root,
@@ -3322,23 +3338,84 @@ fn load_workspace_projects(
     pacquet_workspace::find_workspace_projects(workspace_root, &opts).map(Some)
 }
 
-/// Run every workspace project's own lifecycle scripts after the
-/// dependency graph is materialized and bins are linked. Runs the
-/// `runLifecycleHooksConcurrently(['preinstall', ...])` step near the
-/// end of the install, gated on `!ignoreScripts`.
-///
-/// pacquet has no `ignoreScripts` toggle yet (it hardcodes
-/// `ignore_scripts: false` throughout the dependency-build path), so
-/// this always runs — matching pnpm's default. Projects are visited
-/// root-first; pnpm orders them by `buildIndex` (workspace
-/// topological order) and re-links each project's bins between groups
-/// so a later project's `prepare` can consume a dependency workspace
-/// package's freshly-built output. That ordering — and running
-/// projects concurrently under `child_concurrency` — is a follow-up
-/// once pacquet computes a per-importer build index; the common
-/// single-project case is unaffected.
+fn order_project_lifecycle_groups<'a>(
+    projects: Vec<(PathBuf, &'a PackageManifest)>,
+    ordered_groups: Option<&[Vec<PathBuf>]>,
+    workspace_root: &Path,
+    lockfile: Option<&Lockfile>,
+) -> Vec<Vec<(PathBuf, &'a PackageManifest)>> {
+    let lockfile_groups;
+    let ordered_groups = if let Some(ordered_groups) = ordered_groups {
+        ordered_groups
+    } else {
+        let Some(lockfile) = lockfile else {
+            return projects.into_iter().map(|project| vec![project]).collect();
+        };
+        let included = projects.iter().map(|(dir, _)| dir.clone()).collect::<Vec<_>>();
+        let included_set = included.iter().cloned().collect::<HashSet<_>>();
+        let graph = projects
+            .iter()
+            .map(|(project_dir, _)| {
+                let importer_id =
+                    pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir);
+                let dependencies = lockfile
+                    .importers
+                    .get(&importer_id)
+                    .into_iter()
+                    .flat_map(|snapshot| {
+                        [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]
+                            .into_iter()
+                            .filter_map(|group| snapshot.get_map_by_group(group))
+                            .flat_map(|dependencies| dependencies.values())
+                    })
+                    .filter_map(|dependency| match &dependency.version {
+                        pacquet_lockfile::ImporterDepVersion::Link(target) => {
+                            Some(pacquet_fs::lexical_normalize(&project_dir.join(target)))
+                        }
+                        _ => None,
+                    })
+                    .filter(|target| included_set.contains(target))
+                    .collect();
+                (project_dir.clone(), dependencies)
+            })
+            .collect();
+        lockfile_groups = crate::graph_sequencer(&graph, &included).chunks;
+        &lockfile_groups
+    };
+    let projects_by_dir =
+        projects.iter().map(|project| (project.0.as_path(), project)).collect::<HashMap<_, _>>();
+    let mut included = HashSet::with_capacity(projects.len());
+    let mut groups = ordered_groups
+        .iter()
+        .filter_map(|dirs| {
+            let group = dirs
+                .iter()
+                .filter_map(|dir| {
+                    projects_by_dir.get(dir.as_path()).map(|project| {
+                        included.insert(project.0.clone());
+                        (*project).clone()
+                    })
+                })
+                .collect::<Vec<_>>();
+            (!group.is_empty()).then_some(group)
+        })
+        .collect::<Vec<_>>();
+    groups.extend(
+        projects
+            .into_iter()
+            .filter(|(project_dir, _)| !included.contains(project_dir))
+            .map(|project| vec![project]),
+    );
+    groups
+}
+
+/// Run workspace projects' own lifecycle scripts in topological build
+/// groups. Projects within one group run concurrently; each group settles
+/// before the next starts. Every project re-links its bins immediately
+/// before its scripts, after dependency projects' scripts from earlier
+/// groups have had a chance to create new bin files.
 fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
-    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+    project_groups: &[Vec<(PathBuf, &PackageManifest)>],
     config: &Config,
     node_linker: NodeLinker,
     workspace_root: &Path,
@@ -3364,27 +3441,52 @@ fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
             crate::make_node_package_map_option(&package_map_path, node_options),
         );
     }
-    for (project_dir, _manifest) in project_manifests {
-        let root_modules_dir = project_dir.join(modules_dir_basename);
-        let dep_path = project_dir.to_string_lossy();
-        run_project_lifecycle_scripts::<Reporter>(&RunPostinstallHooks {
-            dep_path: &dep_path,
-            pkg_root: project_dir,
-            root_modules_dir: &root_modules_dir,
-            init_cwd: workspace_root,
-            extra_bin_paths: &config.extra_bin_paths,
-            extra_env: &extra_env,
-            node_execpath: None,
-            npm_execpath: None,
-            node_gyp_path: None,
-            user_agent: None,
-            unsafe_perm: config.unsafe_perm,
-            node_gyp_bin: None,
-            scripts_prepend_node_path,
-            script_shell: None,
-            optional: false,
-        })
-        .map_err(InstallError::ProjectLifecycleScript)?;
+    let child_concurrency = usize::try_from(config.child_concurrency)
+        .expect("u32 child concurrency fits in usize")
+        .max(1);
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(child_concurrency)
+        .build()
+        .map_err(InstallError::ProjectLifecycleThreadPool)?;
+    for group in project_groups {
+        pool.install(|| {
+            group.par_iter().try_for_each(|(project_dir, manifest)| -> Result<(), InstallError> {
+                let root_modules_dir = project_dir.join(modules_dir_basename);
+                let mut direct_dep_names = Vec::new();
+                let mut seen = HashSet::new();
+                for (name, _) in manifest.dependencies([
+                    DependencyGroup::Prod,
+                    DependencyGroup::Dev,
+                    DependencyGroup::Optional,
+                ]) {
+                    if seen.insert(name) {
+                        direct_dep_names.push(name.to_string());
+                    }
+                }
+                link_project_bins(&root_modules_dir, &direct_dep_names)
+                    .map_err(InstallError::ProjectBinLink)?;
+                let dep_path = project_dir.to_string_lossy();
+                run_project_lifecycle_scripts::<Reporter>(&RunPostinstallHooks {
+                    dep_path: &dep_path,
+                    pkg_root: project_dir,
+                    root_modules_dir: &root_modules_dir,
+                    init_cwd: workspace_root,
+                    extra_bin_paths: &config.extra_bin_paths,
+                    extra_env: &extra_env,
+                    node_execpath: None,
+                    npm_execpath: None,
+                    node_gyp_path: None,
+                    user_agent: None,
+                    unsafe_perm: config.unsafe_perm,
+                    node_gyp_bin: None,
+                    scripts_prepend_node_path,
+                    script_shell: None,
+                    optional: false,
+                })
+                .map_err(InstallError::ProjectLifecycleScript)?;
+                Ok(())
+            })
+        })?;
     }
     Ok(())
 }

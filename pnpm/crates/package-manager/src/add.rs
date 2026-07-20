@@ -281,6 +281,7 @@ where
     pub async fn run_selected<Reporter: self::Reporter + 'static>(
         self,
         projects: &mut [pacquet_workspace::Project],
+        ordered_groups: &[Vec<PathBuf>],
         ordered_dirs: &[PathBuf],
         selected_dirs: &HashSet<PathBuf>,
         active_manifest_is_standin: bool,
@@ -366,6 +367,7 @@ where
             }
             .run_selected::<Reporter>(WorkspaceInstallSelection {
                 all_projects: projects,
+                ordered_groups,
                 ordered_dirs,
                 selected_dirs,
                 active_manifest_is_standin,

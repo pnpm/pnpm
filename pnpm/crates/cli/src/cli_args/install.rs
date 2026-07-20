@@ -503,6 +503,7 @@ fn workspace_install_selection(
 ) -> WorkspaceInstallSelection<'_> {
     WorkspaceInstallSelection {
         all_projects: &selection.projects,
+        ordered_groups: &selection.ordered_groups,
         ordered_dirs: &selection.ordered_dirs,
         selected_dirs: selection.selected_dirs.as_ref(),
         active_manifest_is_standin: selection.active_manifest_is_standin,

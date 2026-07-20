@@ -162,6 +162,7 @@ impl Remove<'_> {
     pub async fn run_selected<Reporter: self::Reporter + 'static>(
         self,
         projects: &mut [pacquet_workspace::Project],
+        ordered_groups: &[Vec<std::path::PathBuf>],
         ordered_dirs: &[std::path::PathBuf],
         selected_dirs: &HashSet<std::path::PathBuf>,
         active_manifest_is_standin: bool,
@@ -230,6 +231,7 @@ impl Remove<'_> {
         }
         .run_selected::<Reporter>(WorkspaceInstallSelection {
             all_projects: projects,
+            ordered_groups,
             ordered_dirs,
             selected_dirs,
             active_manifest_is_standin,

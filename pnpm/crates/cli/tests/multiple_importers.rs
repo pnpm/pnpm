@@ -494,6 +494,147 @@ fn custom_virtual_store_directory_in_a_workspace_with_shared_lockfile() {
     assert_recorded_virtual_store("frozen");
 }
 
+/// TS: `symlink local package from the location described in its
+/// publishConfig.directory when linkDirectory is true`
+/// (`multipleImporters.ts:1766`).
+#[test]
+fn symlink_local_package_from_publish_config_directory() {
+    let fixture = WorkspaceFixture::new();
+    let project_1 = fixture.project("project-1", "project-1", ManifestDeps::default());
+    let project_2 = fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[("project-1", "workspace:*")], ..Default::default() },
+    );
+    let mut project_1_manifest = read_manifest(&project_1);
+    project_1_manifest["publishConfig"] = json!({
+        "directory": "dist",
+        "linkDirectory": true,
+    });
+    write_manifest_value(&project_1, &project_1_manifest);
+    let publish_dir = project_1.join("dist");
+    fs::create_dir_all(&publish_dir).expect("create publish directory");
+    fs::write(
+        publish_dir.join("package.json"),
+        json!({ "name": "project-1-dist", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write publish-directory manifest");
+
+    let assert_publish_dir_is_linked = || {
+        let linked = read_manifest(&project_2.join("node_modules/project-1"));
+        assert_eq!(linked["name"], "project-1-dist");
+    };
+
+    fixture.run(["install"]);
+    assert_publish_dir_is_linked();
+    assert_eq!(
+        fixture.wanted().importers["packages/project-1"].publish_directory.as_deref(),
+        Some("dist"),
+    );
+
+    fs::remove_dir_all(fixture.workspace.join("node_modules")).expect("remove root node_modules");
+    fs::remove_dir_all(project_2.join("node_modules")).expect("remove project-2 node_modules");
+    fixture.run(["install", "--frozen-lockfile"]);
+    assert_publish_dir_is_linked();
+}
+
+/// TS: `recursive install with shared-workspace-lockfile builds
+/// workspace projects in correct order` (`pnpm/test/monorepo/index.ts:734`).
+#[test]
+fn recursive_install_builds_workspace_projects_in_correct_order() {
+    let fixture = WorkspaceFixture::new();
+    let dependency = fixture.project("project-999", "project-999", ManifestDeps::default());
+    let dependent = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { dev: &[("project-999", "workspace:*")], ..Default::default() },
+    );
+    for (project, name) in [(&dependency, "project-999"), (&dependent, "project-1")] {
+        let mut manifest = read_manifest(project);
+        manifest["scripts"] = json!({
+            "install": append_order_script(&format!("{name}-install")),
+            "postinstall": append_order_script(&format!("{name}-postinstall")),
+            "prepare": append_order_script(&format!("{name}-prepare")),
+        });
+        write_manifest_value(project, &manifest);
+    }
+    let order_path = fixture.workspace.join("order.txt");
+    let mut expected = [
+        "project-999-install",
+        "project-999-postinstall",
+        "project-999-prepare",
+        "project-1-install",
+        "project-1-postinstall",
+        "project-1-prepare",
+    ]
+    .join("\n");
+    expected.push('\n');
+
+    fixture.run(["install"]);
+    assert_eq!(fs::read_to_string(&order_path).expect("read fresh lifecycle order"), expected);
+
+    fs::remove_file(&order_path).expect("reset lifecycle order");
+    for modules_dir in [
+        fixture.workspace.join("node_modules"),
+        dependency.join("node_modules"),
+        dependent.join("node_modules"),
+    ] {
+        if modules_dir.exists() {
+            fs::remove_dir_all(modules_dir).expect("remove node_modules");
+        }
+    }
+    fixture.run(["install", "--frozen-lockfile"]);
+    assert_eq!(fs::read_to_string(order_path).expect("read frozen lifecycle order"), expected);
+}
+
+/// TS: `link the bin file of a workspace project that is created by a
+/// lifecycle script` (`multipleImporters.ts:1900`).
+#[test]
+fn link_bin_of_workspace_project_created_by_lifecycle_script() {
+    let fixture = WorkspaceFixture::new();
+    let consumer = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[("project-2", "link:../project-2")], ..Default::default() },
+    );
+    let provider = fixture.project("project-2", "project-2", ManifestDeps::default());
+    let mut consumer_manifest = read_manifest(&consumer);
+    consumer_manifest["scripts"] = json!({ "prepare": "bin" });
+    write_manifest_value(&consumer, &consumer_manifest);
+    let mut provider_manifest = read_manifest(&provider);
+    provider_manifest["bin"] = json!({ "bin": "bin.js" });
+    provider_manifest["scripts"] = json!({
+        "prepare": r#"node -e "require('fs').renameSync('__bin.js', 'bin.js')""#,
+    });
+    write_manifest_value(&provider, &provider_manifest);
+    fs::write(
+        provider.join("__bin.js"),
+        "#!/usr/bin/env node\nrequire('fs').writeFileSync('created-by-prepare', '')\n",
+    )
+    .expect("write deferred bin");
+
+    fixture.run(["install"]);
+    assert!(consumer.join("created-by-prepare").exists());
+
+    fs::remove_file(consumer.join("created-by-prepare")).expect("remove lifecycle marker");
+    fs::rename(provider.join("bin.js"), provider.join("__bin.js")).expect("reset deferred bin");
+    for modules_dir in [
+        fixture.workspace.join("node_modules"),
+        consumer.join("node_modules"),
+        provider.join("node_modules"),
+    ] {
+        if modules_dir.exists() {
+            fs::remove_dir_all(modules_dir).expect("remove node_modules");
+        }
+    }
+    fixture.run(["install", "--frozen-lockfile"]);
+    assert!(consumer.join("created-by-prepare").exists());
+}
+
+fn append_order_script(label: &str) -> String {
+    format!(r#"node -e "require('fs').appendFileSync('../../order.txt', '{label}\\n')""#)
+}
+
 mod known_failures {
     //! Multi-importer cases blocked on features pacquet hasn't built
     //! yet. Each entry stubs the not-yet-built subject under test
@@ -504,26 +645,6 @@ mod known_failures {
         allow_known_failure,
         known_failure::{KnownFailure, KnownResult},
     };
-
-    fn publish_config_directory_linking() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "Pacquet reads `publishConfig.directory` for the lockfile's \
-             `publishDirectory` field, freshness drift, and `pnpm pack`, \
-             but the install path never links a workspace package from \
-             that directory (`publishConfig.linkDirectory`).",
-        ))
-    }
-
-    fn build_index_ordered_project_scripts() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "Pacquet runs workspace projects' own lifecycle scripts \
-             root-first, not in `buildIndex` (workspace-topological) \
-             order, and does not re-link project bins between build \
-             groups — see the follow-up note on \
-             `run_projects_lifecycle_scripts` in \
-             `crates/package-manager/src/install.rs`.",
-        ))
-    }
 
     fn per_project_workspace_lockfiles() -> KnownResult<()> {
         Err(KnownFailure::new(
@@ -544,31 +665,6 @@ mod known_failures {
              `--filter <project>...` widens the selection — so the two \
              stacks need a shared decision before this can be pinned.",
         ))
-    }
-
-    /// TS: `symlink local package from the location described in its
-    /// publishConfig.directory when linkDirectory is true`
-    /// (`multipleImporters.ts:1768`).
-    #[test]
-    fn symlink_local_package_from_publish_config_directory() {
-        allow_known_failure!(publish_config_directory_linking());
-    }
-
-    /// TS: `link the bin file of a workspace project that is created by
-    /// a lifecycle script` (`multipleImporters.ts:1902`). Needs
-    /// `buildIndex` ordering plus bin re-linking between groups so a
-    /// dependent project's `prepare` can call the freshly-created bin.
-    #[test]
-    fn link_bin_of_workspace_project_created_by_lifecycle_script() {
-        allow_known_failure!(build_index_ordered_project_scripts());
-    }
-
-    /// TS: `recursive install with shared-workspace-lockfile builds
-    /// workspace projects in correct order`
-    /// (`pnpm/test/monorepo/index.ts:734`).
-    #[test]
-    fn recursive_install_builds_workspace_projects_in_correct_order() {
-        allow_known_failure!(build_index_ordered_project_scripts());
     }
 
     /// TS: `dependencies of workspace projects are built during
