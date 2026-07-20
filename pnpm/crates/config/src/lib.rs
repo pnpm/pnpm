@@ -2095,8 +2095,6 @@ impl Config {
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
-        // Anchor modules_dir / virtual_store_dir to the nearest package.json,
-        // matching the TypeScript CLI's findClosestPkgJson.
         let anchor_dir = find_nearest_package_json_dir(start_dir);
         self.modules_dir = anchor_dir.join("node_modules");
         self.virtual_store_dir = anchor_dir.join("node_modules/.pnpm");

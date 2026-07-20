@@ -87,10 +87,10 @@ const DEFAULT_INDENT: &str = "  ";
 /// [`Self::save`] preserves the file's style and skips the write entirely
 /// when nothing changed — the same contract as pnpm's project-manifest
 /// reader/writer pair.
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 pub struct PackageManifest {
     path: PathBuf,
-    value: Value, // FIXME: replace with a typed struct that preserves JSON key order
+    value: Value,
     /// Whether a save ends the file with a newline. New and in-memory
     /// manifests get one.
     insert_final_newline: bool,
@@ -648,8 +648,7 @@ pub fn node_version_from_engines_runtime(manifest: &Value) -> Option<String> {
     None
 }
 
-/// Validate that every dependency group is an object and every entry is a
-/// string, matching the TypeScript CLI's shape check at read time.
+/// Ensure dependency groups are objects with string entries, matching pnpm's shape check.
 fn validate_dependency_shapes(manifest: &Value) -> Result<(), PackageManifestError> {
     let Some(root) = manifest.as_object() else {
         return Ok(());
@@ -659,13 +658,13 @@ fn validate_dependency_shapes(manifest: &Value) -> Result<(), PackageManifestErr
         if let Some(value) = root.get(field) {
             if !value.is_object() {
                 return Err(PackageManifestError::InvalidAttribute(format!(
-                    "the {field} field must be an object"
+                    "the {field} field must be an object",
                 )));
             }
             for (name, version) in value.as_object().unwrap() {
                 if !version.is_string() {
                     return Err(PackageManifestError::InvalidAttribute(format!(
-                        "the {field}.{name} entry must be a string"
+                        "the {field}.{name} entry must be a string",
                     )));
                 }
             }

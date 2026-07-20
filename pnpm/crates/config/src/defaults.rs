@@ -211,10 +211,7 @@ pub fn default_virtual_store_dir() -> PathBuf {
     find_nearest_package_json_dir(&cwd).join("node_modules/.pnpm")
 }
 
-/// Walk up from `start` to find the nearest directory that contains a
-/// `package.json`, returning that directory. Falls back to `start` itself
-/// when no `package.json` is found in any ancestor, matching pnpm's
-/// `findClosestPkgJson` behaviour.
+/// Find the nearest ancestor containing `package.json`, falling back to `start`.
 pub fn find_nearest_package_json_dir(start: &Path) -> PathBuf {
     let mut cursor = Some(start);
     while let Some(dir) = cursor {

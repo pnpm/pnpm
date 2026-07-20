@@ -25,8 +25,6 @@ fn registries(entries: Vec<(&str, Registry)>, default_registry: Option<&str>) ->
     Registries::new(map, default_registry.map(str::to_string))
 }
 
-//  PackagePattern::parse ----------------------------------------------
-
 #[test]
 fn parses_recognized_shapes() {
     assert_eq!(pattern("**"), PackagePattern::All);
@@ -81,8 +79,6 @@ fn rejects_scope_pattern_whose_scope_is_not_a_valid_scope() {
     }
 }
 
-//  PackagePattern::matches --------------------------------------------
-
 #[test]
 fn matches_by_shape() {
     assert!(pattern("**").matches("foo"));
@@ -109,8 +105,6 @@ fn scoped_patterns_require_a_name_segment() {
         assert!(!pattern("@acme/*").matches(malformed), "@acme/* wrongly matched {malformed:?}");
     }
 }
-
-//  PackagePattern::covers ---------------------------------------------
 
 #[test]
 fn covers_relation() {
@@ -159,8 +153,6 @@ fn covers_agrees_with_matches_on_malformed_scoped_exacts() {
     assert!(pattern("@*/*").covers(&pattern("@acme/foo")));
     assert!(pattern("@acme/*").covers(&pattern("@acme/foo")));
 }
-
-//  resolution ---------------------------------------------------------
 
 #[test]
 fn pattern_less_concrete_registry_resolves_to_itself_for_any_name() {
@@ -267,8 +259,6 @@ fn resolve_default_without_target_is_unknown() {
     let registry = registries(vec![("npmjs", upstream(&[]))], None);
     assert_eq!(registry.resolve_default("react"), Resolved::UnknownRegistry);
 }
-
-//  validation ---------------------------------------------------------
 
 #[test]
 fn valid_config_passes() {

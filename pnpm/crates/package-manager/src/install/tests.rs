@@ -1336,8 +1336,7 @@ async fn frozen_lockfile_flag_with_no_lockfile_errors() {
 /// `pnpm:context` carries `currentLockfileExists`, `storeDir`,
 /// `virtualStoreDir`. `currentLockfileExists` is hard-coded
 /// `false` today (pacquet doesn't read or write
-/// `node_modules/.pnpm/lock.yaml`), matching the TODO in
-/// [`Install::run`].
+/// `node_modules/.pnpm/lock.yaml`).
 #[tokio::test]
 async fn install_emits_pnpm_event_sequence() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -1606,7 +1605,7 @@ async fn install_writes_modules_yaml() {
         virtual_store_dir_max_length,
         pacquet_config::default_virtual_store_dir_max_length(),
     );
-    assert_eq!(registries.get("default").map(String::as_str), Some(config.registry.as_str()),);
+    assert_eq!(registries.get("default").map(String::as_str), Some(config.registry.as_str()));
     assert_eq!(
         registries.get("@private").map(String::as_str),
         Some("https://private.example.com/npm/"),

@@ -447,15 +447,13 @@ pub fn satisfies_package_manifest(
         });
     }
 
-    // Phase 3: `dependenciesMeta` parity. Two maps are equal when both
-    // are absent / empty or both contain the same entries.
     let manifest_meta = manifest.value().get("dependenciesMeta");
     let importer_meta = importer.dependencies_meta.as_ref();
     if !dependencies_meta_equal(importer_meta, manifest_meta) {
         return Err(StalenessReason::DependenciesMetaMismatch {
             lockfile: importer_meta.map_or_else(
                 || "{}".to_string(),
-                |m| serde_json::to_string(m).unwrap_or_else(|_| "{}".to_string()),
+                |meta| serde_json::to_string(meta).unwrap_or_else(|_| "{}".to_string()),
             ),
             manifest: manifest_meta
                 .map_or_else(|| "{}".to_string(), std::string::ToString::to_string),
@@ -564,10 +562,7 @@ pub fn satisfies_package_manifest(
     Ok(())
 }
 
-/// Two `dependenciesMeta` maps are equal when both are absent / empty
-/// or both contain the same entries. The importer side is a typed
-/// `BTreeMap<String, DependencyMeta>` while the manifest side is raw
-/// JSON from `package.json`.
+/// Compare typed importer `dependenciesMeta` with raw manifest JSON, treating absent/empty as equal.
 fn dependencies_meta_equal(
     importer: Option<&HashMap<String, DependencyMeta>>,
     manifest: Option<&serde_json::Value>,

@@ -27,8 +27,6 @@ fn read_ini(path: &Path) -> IndexMap<String, String> {
     ini::read(path).expect("read ini")
 }
 
-//  config set: INI routing --------------------------------------------
-
 #[test]
 fn set_registry_global_writes_auth_ini() {
     let tmp = TempDir::new().unwrap();
@@ -105,8 +103,6 @@ fn set_per_registry_auth_project_creates_npmrc() {
         Some("test-auth-value"),
     );
 }
-
-//  config set: YAML routing -------------------------------------------
 
 #[test]
 fn set_pnpm_key_global_writes_config_yaml_as_number() {
@@ -327,8 +323,6 @@ fn set_object_value_with_json_writes_workspace_yaml() {
     );
 }
 
-//  config set: validation errors --------------------------------------
-
 #[test]
 fn set_rejects_deep_property_path() {
     let tmp = TempDir::new().unwrap();
@@ -374,8 +368,6 @@ fn set_refuses_kebab_workspace_key() {
     .unwrap_err();
     assert_eq!(err.code().unwrap().to_string(), "ERR_PNPM_CONFIG_SET_UNSUPPORTED_WORKSPACE_KEY");
 }
-
-//  config delete ------------------------------------------------------
 
 #[test]
 fn delete_last_yaml_key_removes_file() {
@@ -440,8 +432,6 @@ fn delete_missing_params_errors() {
     let err = super::split_set_params(key, value, "set").unwrap_err();
     assert_eq!(miette::Diagnostic::code(&err).unwrap().to_string(), "ERR_PNPM_CONFIG_NO_PARAMS");
 }
-
-//  config get / list --------------------------------------------------
 
 fn config_for_get(explicit: &[(&str, Value)], auth: &[(&str, &str)]) -> Config {
     let mut config = Config { config_dir: Some(PathBuf::from("/config")), ..Config::default() };
@@ -597,8 +587,6 @@ fn list_includes_settings_and_censors_protected() {
     let got_value: Value = serde_json::from_str(&got).unwrap();
     assert_eq!(got_value["storeDir"], json!("~/store"));
 }
-
-//  security hardening for the INI write path --------------------------
 
 #[test]
 fn set_ini_value_with_control_char_is_rejected() {

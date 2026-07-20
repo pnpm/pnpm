@@ -91,8 +91,6 @@ fn options_default_is_empty() {
     assert!(opts.supported_architectures.is_none());
 }
 
-//  Walker tests -------------------------------------------------
-
 use super::{HoistedDepGraphError, InstallabilityError, lockfile_to_hoisted_dep_graph};
 use pacquet_lockfile::{
     ComVer, Lockfile, LockfileSettings, LockfileVersion, PackageKey, PackageMetadata, PkgName,
@@ -391,8 +389,6 @@ fn walker_records_directory_resolution_as_injection_target() {
     );
 }
 
-//  Installability tests -----------------------------------------
-
 fn host_aware_opts() -> LockfileToHoistedDepGraphOptions {
     // Concrete platform values so the installability check has
     // something to compare against. The specific host doesn't
@@ -551,8 +547,6 @@ fn walker_emits_compatible_dep() {
     assert_eq!(result.graph.len(), 1);
     assert!(result.skipped.is_empty());
 }
-
-//  prev_graph tests ---------------------------------------------
 
 /// When no current lockfile is supplied, `prev_graph` is `None`
 /// (the empty-graph fallback) — the linker treats it the same as an
@@ -739,8 +733,6 @@ fn prev_graph_includes_orphan_even_when_now_incompatible() {
     assert!(result.graph.is_empty(), "wanted graph stays empty");
     assert!(result.skipped.is_empty(), "skipped from wanted walk only, not prev walk");
 }
-
-//  Multi-importer (workspace) walker tests -----------------------
 
 /// Build a multi-importer workspace fixture lockfile. Each
 /// importer in `importer_deps` becomes a `ProjectSnapshot`

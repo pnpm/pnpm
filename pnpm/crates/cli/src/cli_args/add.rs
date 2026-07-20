@@ -224,7 +224,6 @@ impl AddArgs {
             .or_else(|| self.save_catalog.then(|| "default".to_string()))
             .or_else(|| state.config.save_catalog_name.clone());
 
-        // Collapse the `--save-exact` / `--save-prefix` flags into the pinned
         // CLI flags take priority over .npmrc / pnpm-workspace.yaml settings.
         let effective_save_exact = self.save_exact || state.config.save_exact;
         let effective_save_prefix =
