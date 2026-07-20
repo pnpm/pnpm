@@ -11,11 +11,8 @@
 //! the registry mock serves; pre-baking a tiny v9 lockfile by hand
 //! would diverge silently the moment a fixture changes.
 //!
-//! Every hoist case formerly stubbed here is a real test now: the
-//! repeat-install / rehoist / pattern-diff cases landed with the
-//! prune-stale-modules reconciliation, direct-dep bin precedence with
-//! the bin-origin tier, and the `extendNodePath` shims with the
-//! `NODE_PATH` support in `pacquet-cmd-shim`.
+//! Every ported hoist case runs against the real implementation; the
+//! suite has no `known_failures` stubs.
 //!
 //! Workspace install (pnpm/pacquet#431) landed in [#443]. The
 //! [`workspace_hoist_walks_every_importer`] test below covers the

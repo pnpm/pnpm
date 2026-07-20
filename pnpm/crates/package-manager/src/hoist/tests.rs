@@ -475,6 +475,7 @@ fn private_hoist_with_bins_collected_for_bin_link() {
 
     let bin_aliases: Vec<&str> =
         result.hoisted_aliases_with_bins.iter().map(|(alias, _)| alias.as_str()).collect();
+    dbg!(&bin_aliases);
     assert!(bin_aliases.contains(&"with-bin"));
     assert!(!bin_aliases.contains(&"no-bin"));
     let (_, with_bin_key) = &result.hoisted_aliases_with_bins[0];

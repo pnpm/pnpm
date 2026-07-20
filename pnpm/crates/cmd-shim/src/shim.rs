@@ -157,11 +157,17 @@ struct NodePathEnvVar {
 }
 
 fn normalize_node_path_env_var(node_path: &[String]) -> NodePathEnvVar {
+    // The Cygwin/MSYS probe is process-invariant — read the
+    // environment once, not per entry.
+    let mount = cfg!(windows).then(windows_posix_mount_prefix);
     let mut win32 = String::new();
     let mut posix = String::new();
     for entry in node_path {
         let entry_win32 = entry.replace('/', r"\");
-        let entry_posix = if cfg!(windows) { windows_entry_to_posix(entry) } else { entry.clone() };
+        let entry_posix = match mount {
+            Some(mount) => windows_entry_to_posix(entry, mount),
+            None => entry.clone(),
+        };
         if !win32.is_empty() {
             win32.push(';');
         }
@@ -174,16 +180,24 @@ fn normalize_node_path_env_var(node_path: &[String]) -> NodePathEnvVar {
     NodePathEnvVar { win32, posix }
 }
 
-/// cmd-shim's Windows-host posix rendering: flip backslashes and map a
-/// leading drive letter to the Cygwin/WSL mount prefix. Cygwin/MSYS is
-/// detected the way cmd-shim does — `TERM=CYGWIN` or a set `MSYSTEM`.
+/// The mount prefix a Windows drive letter maps to in the posix
+/// rendering. Cygwin/MSYS is detected the way cmd-shim does —
+/// `TERM=CYGWIN` or a set `MSYSTEM`.
 ///
 /// NOTE: the probe runs at shim-*generation* time, so the posix path
 /// baked into the `.ps1` reflects the installing shell. A shim
 /// generated under Cygwin and later run under WSL points at a
 /// `/proc/cygdrive` path that doesn't exist there — the same known
 /// trap cmd-shim has.
-fn windows_entry_to_posix(entry: &str) -> String {
+fn windows_posix_mount_prefix() -> &'static str {
+    let is_cygwin = std::env::var("TERM").is_ok_and(|term| term == "CYGWIN")
+        || std::env::var_os("MSYSTEM").is_some();
+    if is_cygwin { "/proc/cygdrive" } else { "/mnt" }
+}
+
+/// cmd-shim's Windows-host posix rendering: flip backslashes and map a
+/// leading drive letter to the [`windows_posix_mount_prefix`].
+fn windows_entry_to_posix(entry: &str, mount: &str) -> String {
     let flipped = entry.replace('\\', "/");
     let Some((drive, rest)) = flipped.split_once(':') else {
         return flipped;
@@ -191,9 +205,6 @@ fn windows_entry_to_posix(entry: &str) -> String {
     if drive.is_empty() || drive.contains('/') {
         return flipped;
     }
-    let is_cygwin = std::env::var("TERM").is_ok_and(|term| term == "CYGWIN")
-        || std::env::var_os("MSYSTEM").is_some();
-    let mount = if is_cygwin { "/proc/cygdrive" } else { "/mnt" };
     format!("{mount}/{}{rest}", drive.to_lowercase())
 }
 
