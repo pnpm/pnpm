@@ -24,6 +24,7 @@ use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_registry::PinnedVersion;
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
+use pacquet_resolving_deps_resolver::is_valid_dependency_alias;
 use pacquet_resolving_git_resolver::{
     GitFetchContext, GitResolver, HostedGit, HostedOpts, RealGitProbe, RealGitRunner,
 };
@@ -138,6 +139,10 @@ pub enum AddError {
     #[display("Could not determine the package name of git dependency {specifier:?}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_ADD_GIT_PACKAGE_NAME))]
     GitPackageName { specifier: String },
+
+    #[display("Invalid package name {name:?} in git dependency {specifier:?}")]
+    #[diagnostic(code(ERR_PNPM_INVALID_PACKAGE_NAME))]
+    InvalidGitPackageName { specifier: String, name: String },
 
     /// Resolving a `node@runtime:<spec>` selector against the Node.js
     /// release index (to pin the manifest to the picked version) failed.
@@ -805,6 +810,12 @@ async fn resolve_aliasless_git(
         .map(str::to_string)
         .or_else(|| HostedGit::from_url(specifier).map(|hosted| hosted.project))
         .ok_or_else(|| AddError::GitPackageName { specifier: specifier.to_string() })?;
+    if !is_valid_dependency_alias(&package_name) {
+        return Err(AddError::InvalidGitPackageName {
+            specifier: specifier.to_string(),
+            name: package_name,
+        });
+    }
     let manifest_specifier =
         result.normalized_bare_specifier.unwrap_or_else(|| normalized_save_specifier(specifier));
     Ok(AliaslessGitDependency { package_name, manifest_specifier })

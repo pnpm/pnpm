@@ -505,6 +505,32 @@ fn add_from_a_git_url_without_an_alias() {
     drop((root, npmrc_info));
 }
 
+#[test]
+fn aliasless_git_add_rejects_an_invalid_manifest_name_without_mutating_the_project() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "invalid-package-name");
+    repo.write_file("package.json", r#"{"name":"../invalid","version":"1.0.0","main":"index.js"}"#);
+    repo.write_file("index.js", "module.exports = true\n");
+    let commit = repo.commit("init");
+    let spec = repo.git_url_at(&commit);
+    write_manifest_value(&workspace, &json!({ "name": "project", "version": "1.0.0" }));
+    let manifest_before =
+        fs::read_to_string(workspace.join("package.json")).expect("read manifest");
+
+    let output = pacquet.with_args(["add", &spec]).output().expect("run pnpm add");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDERR:\n{stderr}\n");
+    assert!(!output.status.success());
+    assert!(stderr.contains("ERR_PNPM_INVALID_PACKAGE_NAME"), "stderr:\n{stderr}");
+    assert_eq!(
+        fs::read_to_string(workspace.join("package.json")).expect("reread manifest"),
+        manifest_before,
+    );
+
+    drop((root, npmrc_info));
+}
+
 // TS: `should not update when adding unrelated dependency`
 // (`fromRepo.ts:323`).
 #[test]
