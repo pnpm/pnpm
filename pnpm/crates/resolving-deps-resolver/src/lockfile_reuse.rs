@@ -101,7 +101,7 @@ pub(crate) fn reusable_importer_dep(
     let is_git = matches!(metadata.resolution, LockfileResolution::Git(_))
         || matches!(
             metadata.resolution,
-            LockfileResolution::Tarball(ref tarball) if tarball.git_hosted == Some(true)
+            LockfileResolution::Tarball(ref tarball) if tarball.git_hosted == Some(true),
         );
     if is_git
         && (spec.specifier == bare_specifier
