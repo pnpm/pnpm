@@ -102,10 +102,66 @@ fn engine_is_supported() {
     );
 }
 
-// The strict-upper-bound prerelease semantics case lives in
-// `tests/known_failures.rs` as an integration test so `just
-// known-failures` (filter `^known_failures::`) picks it up. The
-// helper expects the `known_failures` module to sit at the top of a
-// test binary's path; a unit-test submodule would land at
-// `tests::check_engine::known_failures::...` and fall outside that
-// filter.
+/// TS: the `>=9.0.0` case of `pnpm is a prerelease version`
+/// (`checkEngine.ts:34`). A fully specified `>=` bound keeps pure
+/// semver ordering under `includePrerelease: true`, so
+/// `9.0.0-alpha.1 < 9.0.0` fails the range even though `9` and `>=9`
+/// accept it.
+#[test]
+fn pnpm_is_a_prerelease_version_strict_ge_full_version_does_not_satisfy() {
+    let err = check_engine(
+        PACKAGE_ID,
+        &wanted(None, Some(">=9.0.0")),
+        &current("0.2.1", Some("9.0.0-alpha.1")),
+    )
+    .expect("valid node version")
+    .expect("must report unsatisfied");
+    assert_eq!(err.wanted.pnpm.as_deref(), Some(">=9.0.0"));
+}
+
+#[test]
+fn prerelease_satisfies_fully_specified_upper_bound() {
+    assert!(
+        check_engine(
+            PACKAGE_ID,
+            &wanted(None, Some("<9.0.0")),
+            &current("0.2.1", Some("9.0.0-alpha.1")),
+        )
+        .expect("valid node version")
+        .is_none(),
+    );
+}
+
+#[test]
+fn prerelease_satisfies_caret_at_its_own_base() {
+    assert!(
+        check_engine(
+            PACKAGE_ID,
+            &wanted(None, Some("^9.0.0")),
+            &current("0.2.1", Some("9.0.0-alpha.1")),
+        )
+        .expect("valid node version")
+        .is_none(),
+    );
+}
+
+#[test]
+fn prerelease_lower_bound_orders_prereleases_at_the_same_base() {
+    assert!(
+        check_engine(
+            PACKAGE_ID,
+            &wanted(None, Some(">=9.0.0-beta")),
+            &current("0.2.1", Some("9.0.0-rc")),
+        )
+        .expect("valid node version")
+        .is_none(),
+    );
+    let err = check_engine(
+        PACKAGE_ID,
+        &wanted(None, Some(">=9.0.0-beta")),
+        &current("0.2.1", Some("9.0.0-alpha")),
+    )
+    .expect("valid node version")
+    .expect("must report unsatisfied");
+    assert_eq!(err.wanted.pnpm.as_deref(), Some(">=9.0.0-beta"));
+}
