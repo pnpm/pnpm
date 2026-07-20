@@ -2219,7 +2219,8 @@ impl<'a> DownloadTarballToStore<'a> {
                 // Checking first and registering after loses that
                 // wakeup and parks this task forever (nothing ever
                 // notifies the slot again once it is terminal).
-                let mut notified = std::pin::pin!(notify.notified());
+                let notified = notify.notified();
+                let mut notified = std::pin::pin!(notified);
                 notified.as_mut().enable();
                 match &*cache_lock.read().await {
                     CacheValue::Available(cas_paths) => {
