@@ -187,7 +187,7 @@ fn expired_modules_cache_is_pruned_during_frozen_install() {
     .expect("write package.json");
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
-    yaml.push_str("modulesCacheMaxAge: 2\noptimisticRepeatInstall: false\n");
+    yaml.push_str("modulesCacheMaxAge: 300\noptimisticRepeatInstall: false\n");
     fs::write(&yaml_path, yaml).expect("configure modules cache");
 
     pacquet.with_arg("install").assert().success();
