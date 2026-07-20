@@ -39,7 +39,7 @@ pub(crate) const WORKSPACE_DIR_ENV_VAR_LOWER: &str = "npm_config_workspace_dir";
     "The workspace manifest file should be named \"pnpm-workspace.yaml\". File found: {}",
     path.display()
 )]
-#[diagnostic(code(pacquet_workspace::bad_workspace_manifest_name))]
+#[diagnostic(code(ERR_PNPM_BAD_WORKSPACE_MANIFEST_NAME))]
 pub struct BadWorkspaceManifestNameError {
     pub path: PathBuf,
 }

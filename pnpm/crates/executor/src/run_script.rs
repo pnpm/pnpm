@@ -22,7 +22,7 @@ use std::{
 #[non_exhaustive]
 pub enum RunScriptError {
     #[display("Failed to spawn script `{script}`: {source}")]
-    #[diagnostic(code(pacquet_executor::run_script_spawn))]
+    #[diagnostic(code(ERR_PNPM_EXECUTOR_RUN_SCRIPT_SPAWN))]
     Spawn {
         script: String,
         #[error(source)]

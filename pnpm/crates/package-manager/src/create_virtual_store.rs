@@ -1,6 +1,6 @@
 use crate::{
     CasPathsByPkgId, InstallPackageBySnapshot, InstallPackageBySnapshotError, SkippedSnapshots,
-    install_package_by_snapshot::host_platform_selector, store_init::init_store_dir_best_effort,
+    install_package_by_snapshot::runtime_platform_selector, store_init::init_store_dir_best_effort,
 };
 use derive_more::{Display, Error};
 use futures_util::future;
@@ -10,7 +10,7 @@ use pacquet_deps_path::get_pkg_id_with_patch_hash;
 use pacquet_hooks::custom_fetcher_adapter::CustomFetcherPicker;
 use pacquet_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgName, PkgNameVerPeer,
-    SnapshotEntry, select_platform_variant,
+    PlatformSelector, SnapshotEntry, select_platform_variant,
 };
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{files_include_install_scripts, manifest_requires_build};
@@ -133,7 +133,7 @@ pub struct CreateVirtualStore<'a> {
     pub store_index_writer: &'a std::sync::Arc<StoreIndexWriter>,
     /// `allowBuilds` gate, shared with `BuildModules`. The cold-batch
     /// path threads this into the git fetcher so `preparePackage` can
-    /// reject `GIT_DEP_PREPARE_NOT_ALLOWED` for packages that aren't
+    /// reject `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED` for packages that aren't
     /// allowlisted. Computed once per install in
     /// [`crate::InstallFrozenLockfile::run`].
     pub allow_build_policy: &'a crate::AllowBuildPolicy,
@@ -144,6 +144,7 @@ pub struct CreateVirtualStore<'a> {
     /// are likewise omitted: only non-skipped snapshots are
     /// materialized into the graph passed to the build phase.
     pub skipped: &'a SkippedSnapshots,
+    pub supported_architectures: Option<&'a pacquet_package_is_installable::SupportedArchitectures>,
     /// Lockfile / workspace root (`lockfileDir`). Threaded into the
     /// per-snapshot
     /// [`InstallPackageBySnapshot`] so the directory fetcher can
@@ -192,13 +193,13 @@ pub enum CreateVirtualStoreError {
     #[display(
         "Lockfile has a snapshot entry `{snapshot_key}` with no matching metadata entry (`{metadata_key}`) in `packages:`."
     )]
-    #[diagnostic(code(pacquet_package_manager::missing_package_metadata))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_MISSING_PACKAGE_METADATA))]
     MissingPackageMetadata { snapshot_key: String, metadata_key: String },
 
     #[display(
         "Lockfile has a `snapshots:` section but no `packages:` section; every entry in `snapshots:` must have a matching metadata entry. The lockfile is malformed."
     )]
-    #[diagnostic(code(pacquet_package_manager::missing_packages_section))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_MISSING_PACKAGES_SECTION))]
     MissingPackagesSection,
 }
 
@@ -223,6 +224,7 @@ impl CreateVirtualStore<'_> {
             store_index_writer,
             allow_build_policy,
             skipped,
+            supported_architectures,
             workspace_root,
             node_linker,
             progress_reported,
@@ -233,6 +235,7 @@ impl CreateVirtualStore<'_> {
         } = self;
 
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
+        let runtime_platform_selector = runtime_platform_selector(supported_architectures);
 
         let Some(snapshots) = snapshots else {
             // No snapshots to install. If the lockfile also has no project deps
@@ -460,8 +463,13 @@ impl CreateVirtualStore<'_> {
         type SnapshotWithCacheKey<'a> = (&'a PackageKey, &'a SnapshotEntry, Option<String>);
         let snapshot_entries: Vec<SnapshotWithCacheKey<'_>> = survivors
             .map(|(snapshot_key, snapshot)| {
-                snapshot_cache_key(snapshot_key, packages, config.ignore_scripts)
-                    .map(|key| (snapshot_key, snapshot, key))
+                snapshot_cache_key(
+                    snapshot_key,
+                    packages,
+                    config.ignore_scripts,
+                    &runtime_platform_selector,
+                )
+                .map(|key| (snapshot_key, snapshot, key))
             })
             .collect::<Result<_, _>>()?;
 
@@ -487,9 +495,14 @@ impl CreateVirtualStore<'_> {
             // here.
             .filter(|(snapshot_key, _)| !skipped.contains(snapshot_key))
             .map(|(snapshot_key, snapshot)| {
-                let cache_key = snapshot_cache_key(snapshot_key, packages, config.ignore_scripts)
-                    .ok()
-                    .flatten();
+                let cache_key = snapshot_cache_key(
+                    snapshot_key,
+                    packages,
+                    config.ignore_scripts,
+                    &runtime_platform_selector,
+                )
+                .ok()
+                .flatten();
                 (snapshot_key, snapshot, cache_key)
             })
             .collect();
@@ -501,20 +514,15 @@ impl CreateVirtualStore<'_> {
         // count so a warm reinstall against an unchanged lockfile
         // reports `added: 0`.
         //
-        // `pnpm:stats removed: 0` emits a placeholder `0` when there's
-        // nothing to prune so consumers don't render a stale "removed"
-        // count from a previous install. Pacquet has no pruning
-        // pipeline yet, so the placeholder is the truthful value today.
+        // The paired `pnpm:stats removed` event is emitted by the
+        // caller from [`crate::PruneStaleModules`]'s result, so each
+        // install carries exactly one `added` and one `removed`.
         Reporter::emit(&LogEvent::Stats(StatsLog {
             level: LogLevel::Debug,
             message: StatsMessage::Added {
                 prefix: requester.to_owned(),
                 added: snapshot_entries.len() as u64,
             },
-        }));
-        Reporter::emit(&LogEvent::Stats(StatsLog {
-            level: LogLevel::Debug,
-            message: StatsMessage::Removed { prefix: requester.to_owned(), removed: 0 },
         }));
 
         // Union the cache keys from survivors and skipped snapshots
@@ -773,6 +781,7 @@ impl CreateVirtualStore<'_> {
         if !cold.is_empty() {
             let prefetched_ref = Some(&prefetched);
             let verified_files_cache_ref = &verified_files_cache;
+            let runtime_platform_selector_ref = &runtime_platform_selector;
             type ColdOutcome<'a> = (
                 Option<PackageKey>,
                 Option<(&'a PackageKey, &'a SnapshotEntry, HashMap<String, PathBuf>, bool)>,
@@ -804,6 +813,7 @@ impl CreateVirtualStore<'_> {
                         snapshot,
                         allow_build_policy,
                         skipped,
+                        runtime_platform_selector: runtime_platform_selector_ref,
                         workspace_root,
                         node_linker,
                         custom_fetcher_picker,
@@ -1124,6 +1134,7 @@ fn snapshot_cache_key(
     snapshot_key: &PackageKey,
     packages: &HashMap<PackageKey, PackageMetadata>,
     ignore_scripts: bool,
+    runtime_platform_selector: &PlatformSelector,
 ) -> Result<Option<String>, CreateVirtualStoreError> {
     let metadata_key = snapshot_key.without_peer();
     let metadata = packages.get(&metadata_key).ok_or_else(|| {
@@ -1207,8 +1218,9 @@ fn snapshot_cache_key(
         // is best-effort and the cold path is where errors are
         // raised).
         LockfileResolution::Variations(variations) => {
-            let selector = host_platform_selector();
-            let Some(variant) = select_platform_variant(&variations.variants, &selector) else {
+            let Some(variant) =
+                select_platform_variant(&variations.variants, runtime_platform_selector)
+            else {
                 return Ok(None);
             };
             match &variant.resolution {

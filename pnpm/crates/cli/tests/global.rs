@@ -125,6 +125,100 @@ fn global_add_list_remove_round_trip() {
     drop(root);
 }
 
+/// A global add must materialize the added package's transitive
+/// `optionalDependencies` in the group's virtual store: a missing slot
+/// dangles the alias symlink, and the globally installed bin then fails at
+/// runtime with "Missing optional dependency" (e.g. `@openai/codex`'s
+/// platform binary).
+#[cfg(unix)]
+#[test]
+fn global_add_materializes_transitive_optional_dependencies() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_pkg_dir = pnpm_home.join("global").join("v11");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@pnpm.e2e/pkg-with-good-optional"])
+        .assert()
+        .success();
+
+    let links = symlink_entries(&global_pkg_dir);
+    assert_eq!(links.len(), 1, "exactly one cache-keyed hash symlink should exist: {links:?}");
+    // The hash symlink's target is relative to the global packages dir.
+    let install_dir = global_pkg_dir.join(fs::read_link(&links[0]).expect("read the hash symlink"));
+    let virtual_store = install_dir.join("node_modules").join(".pnpm");
+    assert!(
+        virtual_store.join("is-positive@1.0.0").exists(),
+        "the transitive optional dependency must be materialized",
+    );
+    assert!(
+        virtual_store
+            .join("@pnpm.e2e+pkg-with-good-optional@1.0.0/node_modules/is-positive/package.json")
+            .exists(),
+        "the optional dependency alias symlink must resolve",
+    );
+
+    drop(npmrc_info);
+    drop(root);
+}
+
+/// `pnpm setup` installs the standalone executable through this exact
+/// command shape. The local directory's package name must be inferred
+/// without treating the `file:` selector as a registry package.
+#[cfg(unix)]
+#[test]
+fn global_add_accepts_ignore_scripts_for_local_directory() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm-home");
+    // Keep the package on the checkout filesystem so macOS resolves it
+    // outside the symlinked `/var` temp root used for the global home.
+    let target_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../target");
+    let package_dir = tempfile::tempdir_in(target_dir).expect("create local package");
+    fs::write(
+        package_dir.path().join("package.json"),
+        r#"{ "name": "@pnpm/exe", "version": "12.0.0", "scripts": { "install": "exit 1" } }"#,
+    )
+    .expect("write local package manifest");
+    fs::create_dir_all(pnpm_home.join("bin")).expect("create global bin dir");
+    // Pin a per-test store/cache so `add -g` cannot read from or write to the
+    // developer/CI machine's default global store. The global install anchors
+    // its config at the pnpm home, so seed the store/cache there (as
+    // `prepare_global_home` does).
+    let store_dir = root.path().join("pacquet-store");
+    let cache_dir = root.path().join("pacquet-cache");
+    fs::write(
+        pnpm_home.join("pnpm-workspace.yaml"),
+        format!(
+            "storeDir: {}\ncacheDir: {}\nenableGlobalVirtualStore: false\nignoreScripts: false\n",
+            store_dir.display(),
+            cache_dir.display(),
+        ),
+    )
+    .expect("seed the pnpm-home workspace yaml");
+    let global_pkg_dir = pnpm_home.join("global").join("v11");
+    fs::create_dir_all(&global_pkg_dir).expect("create global package dir");
+    fs::write(global_pkg_dir.join("pnpm-workspace.yaml"), "dangerouslyAllowAllBuilds: true\n")
+        .expect("allow package build scripts");
+
+    global_command(&workspace, &pnpm_home)
+        .with_env("PNPM_CONFIG_IGNORE_SCRIPTS", "false")
+        .with_arg("add")
+        .with_arg("-g")
+        .with_arg("--ignore-scripts")
+        .with_arg(format!("file:{}", package_dir.path().display()))
+        .assert()
+        .success();
+
+    drop(root);
+}
+
 /// A build approved during a global install must persist to the stable
 /// global packages directory (where the next global install reads it back),
 /// not to the throwaway per-group install dir. Regression test: the group
@@ -290,6 +384,64 @@ fn global_add_ignores_caller_project_npmrc_registry() {
 
     drop(npmrc_info);
     drop(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn global_outdated_reads_each_global_install_lockfile() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write caller workspace manifest");
+
+    global_command(&workspace, &pnpm_home)
+        .with_arg("add")
+        .with_arg("-g")
+        .with_arg("@pnpm.e2e/pkg-with-1-dep@100.0.0")
+        .assert()
+        .success();
+    let global_pkg_dir = pnpm_home.join("global/v11");
+    let links = symlink_entries(&global_pkg_dir);
+    assert_eq!(links.len(), 1, "global add should create one install-group link");
+    let install_dir = fs::canonicalize(&links[0]).expect("resolve global install-group link");
+    assert!(install_dir.join("package.json").is_file());
+    assert!(install_dir.join("pnpm-lock.yaml").is_file());
+
+    fs::write(workspace.join(".npmrc"), "registry=http://127.0.0.1:1/\n")
+        .expect("poison caller registry");
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_arg("outdated")
+        .with_arg("-g")
+        .with_arg("--format")
+        .with_arg("json")
+        .output()
+        .expect("run outdated -g");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "global dependency should be outdated; stdout: {}; stderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let report: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("parse outdated -g JSON");
+    let entry = &report["@pnpm.e2e/pkg-with-1-dep"];
+    assert_eq!(entry["current"], "100.0.0");
+    assert_eq!(entry["latest"], "100.1.0");
+    assert!(
+        !String::from_utf8_lossy(&output.stderr).contains("No lockfile in directory"),
+        "outdated -g must not read the caller workspace lockfile: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    drop((root, npmrc_info));
 }
 
 /// `pacquet list -g` with nothing installed reports the empty state rather

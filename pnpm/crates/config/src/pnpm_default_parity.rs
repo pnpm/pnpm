@@ -69,7 +69,6 @@ const NOT_PORTED: &[&str] = &[
     "color",
     "disallow-workspace-cycles",
     "embed-readme",
-    "enable-modules-dir",
     "extend-node-path",
     "fail-if-no-match",
     "fetch-min-speed-ki-bps",
@@ -91,7 +90,6 @@ const NOT_PORTED: &[&str] = &[
     "sort",
     "strict-store-pkg-content-check",
     "use-beta-cli",
-    "virtual-store-only",
     "workspace-prefix",
 ];
 
@@ -106,6 +104,8 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("block-exotic-subdeps", Bool(cfg.block_exotic_subdeps)),
         ("dangerously-allow-all-builds", Bool(cfg.dangerously_allow_all_builds)),
         ("strict-dep-builds", Bool(cfg.strict_dep_builds)),
+        ("virtual-store-only", Bool(cfg.virtual_store_only)),
+        ("enable-modules-dir", Bool(cfg.enable_modules_dir)),
         ("dedupe-direct-deps", Bool(cfg.dedupe_direct_deps)),
         ("dedupe-injected-deps", Bool(cfg.dedupe_injected_deps)),
         ("dedupe-peer-dependents", Bool(cfg.dedupe_peer_dependents)),

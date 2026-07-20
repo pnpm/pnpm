@@ -54,6 +54,7 @@ impl DedupeArgs {
             trust_lockfile: config.trust_lockfile,
             update_checksums: false,
             is_full_install: true,
+            installs_only: true,
             resolved_packages,
             supported_architectures: config.supported_architectures.clone(),
             node_linker: config.node_linker,

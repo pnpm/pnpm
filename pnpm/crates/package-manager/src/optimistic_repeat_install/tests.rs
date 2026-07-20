@@ -1,7 +1,9 @@
 use super::{
-    Decision, FileMtime, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
-    current_settings, current_settings_with_catalogs, lockfile_modified_since,
-    modified_at_or_after,
+    Decision, FileMtime, LinkedPackagesContext, MAX_LOCKFILE_CONFLICT_SCAN_BYTES,
+    OptimisticRepeatInstallCheck, RunDepsStatus, check_deps_status_before_run,
+    check_optimistic_repeat_install, check_optimistic_repeat_install_ignoring, current_pnpmfiles,
+    current_settings, current_settings_with_catalogs, linked_packages_are_up_to_date,
+    lockfile_modified_since, modified_at_or_after,
 };
 use indexmap::IndexMap;
 use pacquet_catalogs_types::Catalogs;
@@ -10,7 +12,8 @@ use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_modules_yaml::IncludedDependencies;
 use pacquet_package_manifest::PackageManifest;
 use pacquet_workspace_state::{
-    ProjectEntry, WorkspaceState, WorkspaceStateSettings, now_millis, update_workspace_state,
+    ProjectEntry, WorkspaceState, WorkspaceStateSettings, load_workspace_state, now_millis,
+    update_workspace_state,
 };
 use std::{collections::BTreeMap, fs, thread::sleep, time::Duration};
 use tempfile::tempdir;
@@ -51,6 +54,7 @@ fn check_with_catalogs(
         config,
         node_linker,
         included: isolated_included(),
+        supported_architectures: None,
         project_manifests,
         is_workspace_install,
         lockfile: MaybeLazyLockfile::Loaded(None),
@@ -82,15 +86,60 @@ fn write_state(
     settings: WorkspaceStateSettings,
     projects: BTreeMap<String, ProjectEntry>,
 ) {
+    write_state_with_pnpmfiles(workspace_root, timestamp, settings, projects, Vec::new());
+}
+
+fn write_state_with_pnpmfiles(
+    workspace_root: &std::path::Path,
+    timestamp: i64,
+    settings: WorkspaceStateSettings,
+    projects: BTreeMap<String, ProjectEntry>,
+    pnpmfiles: Vec<String>,
+) {
     let state = WorkspaceState {
         last_validated_timestamp: timestamp,
         projects,
-        pnpmfiles: Vec::new(),
+        pnpmfiles,
         filtered_install: false,
         config_dependencies: None,
         settings,
     };
     update_workspace_state(workspace_root, &state).expect("write workspace state");
+}
+
+#[test]
+fn returns_skipped_when_a_pnpmfile_is_modified() {
+    let (dir, config, manifest) =
+        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+    let pnpmfile = dir.path().join(".pnpmfile.cjs");
+    fs::write(&pnpmfile, "module.exports = {}\n").expect("write pnpmfile");
+    sleep(Duration::from_millis(20));
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        dir.path().to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state_with_pnpmfiles(
+        dir.path(),
+        now_millis(),
+        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None),
+        projects,
+        current_pnpmfiles(dir.path()),
+    );
+    sleep(Duration::from_millis(20));
+    fs::write(&pnpmfile, "module.exports = { hooks: {} }\n").expect("modify pnpmfile");
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+
+    assert!(matches!(
+        decision,
+        Decision::Skipped { reason } if reason.contains("pnpmfile changed")
+    ));
 }
 
 /// Setup a workspace with a manifest written *before* the recorded
@@ -157,7 +206,7 @@ fn setup_fresh_install_with_config(
     // doesn't fire on the happy-path tests.
     fs::create_dir_all(&config.modules_dir).unwrap();
 
-    let settings = current_settings(config, config_kind, isolated_included());
+    let settings = current_settings(config, config_kind, isolated_included(), None);
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
@@ -278,7 +327,7 @@ fn returns_up_to_date_when_the_local_file_dependency_is_in_an_excluded_group() {
     // Re-stamp the state with the same include flags the check runs
     // under, so the settings comparison passes and the include gate is
     // what gets exercised.
-    let settings = current_settings(config, pacquet_config::NodeLinker::Isolated, included);
+    let settings = current_settings(config, pacquet_config::NodeLinker::Isolated, included, None);
     let mut projects = BTreeMap::new();
     projects.insert(
         dir.path().to_string_lossy().into_owned(),
@@ -291,6 +340,7 @@ fn returns_up_to_date_when_the_local_file_dependency_is_in_an_excluded_group() {
         config,
         node_linker: pacquet_config::NodeLinker::Isolated,
         included,
+        supported_architectures: None,
         project_manifests: &[(dir.path().to_path_buf(), &manifest)],
         is_workspace_install: false,
         lockfile: MaybeLazyLockfile::Loaded(None),
@@ -315,7 +365,7 @@ fn returns_skipped_when_the_local_file_dependency_is_in_an_included_group() {
         dev_dependencies: false,
         optional_dependencies: false,
     };
-    let settings = current_settings(config, pacquet_config::NodeLinker::Isolated, included);
+    let settings = current_settings(config, pacquet_config::NodeLinker::Isolated, included, None);
     let mut projects = BTreeMap::new();
     projects.insert(
         dir.path().to_string_lossy().into_owned(),
@@ -328,6 +378,7 @@ fn returns_skipped_when_the_local_file_dependency_is_in_an_included_group() {
         config,
         node_linker: pacquet_config::NodeLinker::Isolated,
         included,
+        supported_architectures: None,
         project_manifests: &[(dir.path().to_path_buf(), &manifest)],
         is_workspace_install: false,
         lockfile: MaybeLazyLockfile::Loaded(None),
@@ -458,7 +509,7 @@ fn returns_up_to_date_when_a_package_extension_optional_dependency_is_excluded()
         dev_dependencies: true,
         optional_dependencies: false,
     };
-    let settings = current_settings(config, pacquet_config::NodeLinker::Isolated, included);
+    let settings = current_settings(config, pacquet_config::NodeLinker::Isolated, included, None);
     let mut projects = BTreeMap::new();
     projects.insert(
         dir.path().to_string_lossy().into_owned(),
@@ -471,6 +522,7 @@ fn returns_up_to_date_when_a_package_extension_optional_dependency_is_excluded()
         config,
         node_linker: pacquet_config::NodeLinker::Isolated,
         included,
+        supported_architectures: None,
         project_manifests: &[(dir.path().to_path_buf(), &manifest)],
         is_workspace_install: false,
         lockfile: MaybeLazyLockfile::Loaded(None),
@@ -531,6 +583,7 @@ fn returns_skipped_when_a_catalog_dependency_resolves_to_a_local_path() {
         config,
         node_linker: pacquet_config::NodeLinker::Isolated,
         included: isolated_included(),
+        supported_architectures: None,
         project_manifests: &[(dir.path().to_path_buf(), &manifest)],
         is_workspace_install: false,
         lockfile: MaybeLazyLockfile::Loaded(None),
@@ -564,6 +617,7 @@ fn returns_up_to_date_when_a_catalog_dependency_resolves_to_a_registry_range() {
         config,
         pacquet_config::NodeLinker::Isolated,
         isolated_included(),
+        None,
         &catalogs,
     );
     let mut projects = BTreeMap::new();
@@ -578,6 +632,7 @@ fn returns_up_to_date_when_a_catalog_dependency_resolves_to_a_registry_range() {
         config,
         node_linker: pacquet_config::NodeLinker::Isolated,
         included: isolated_included(),
+        supported_architectures: None,
         project_manifests: &[(dir.path().to_path_buf(), &manifest)],
         is_workspace_install: false,
         lockfile: MaybeLazyLockfile::Loaded(None),
@@ -611,6 +666,7 @@ fn returns_skipped_when_an_override_maps_through_a_catalog_to_a_local_path() {
         config,
         node_linker: pacquet_config::NodeLinker::Isolated,
         included: isolated_included(),
+        supported_architectures: None,
         project_manifests: &[(dir.path().to_path_buf(), &manifest)],
         is_workspace_install: false,
         lockfile: MaybeLazyLockfile::Loaded(None),
@@ -768,7 +824,7 @@ fn returns_skipped_when_workspace_project_set_changes() {
     // Append a fake second-project entry to the cached state so
     // count + identity diverge from today's single-project walk.
     let settings =
-        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included());
+        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
     projects.insert(
         dir.path().to_string_lossy().into_owned(),
@@ -818,6 +874,7 @@ fn returns_skipped_when_overrides_drift() {
         &stale_overrides_config,
         pacquet_config::NodeLinker::Isolated,
         isolated_included(),
+        None,
     );
     let mut projects = BTreeMap::new();
     projects.insert(
@@ -858,8 +915,12 @@ fn returns_skipped_when_inject_workspace_packages_drifts() {
     let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.inject_workspace_packages = false;
-    let stale_settings =
-        current_settings(&stale_config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    let stale_settings = current_settings(
+        &stale_config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        None,
+    );
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
@@ -898,8 +959,12 @@ fn returns_skipped_when_enable_global_virtual_store_drifts() {
     let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.enable_global_virtual_store = false;
-    let stale_settings =
-        current_settings(&stale_config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    let stale_settings = current_settings(
+        &stale_config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        None,
+    );
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
@@ -928,7 +993,7 @@ fn returns_up_to_date_when_recorded_global_virtual_store_is_explicit_off() {
         setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
 
     let mut settings =
-        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included());
+        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None);
     settings.enable_global_virtual_store = Some(false);
     let mut projects = BTreeMap::new();
     projects.insert(
@@ -968,8 +1033,12 @@ fn returns_skipped_when_exclude_links_from_lockfile_drifts() {
     let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.exclude_links_from_lockfile = false;
-    let stale_settings =
-        current_settings(&stale_config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    let stale_settings = current_settings(
+        &stale_config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        None,
+    );
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
@@ -1007,8 +1076,12 @@ fn returns_skipped_when_minimum_release_age_drifts() {
     let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.minimum_release_age = Some(1440);
-    let stale_settings =
-        current_settings(&stale_config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    let stale_settings = current_settings(
+        &stale_config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        None,
+    );
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
@@ -1045,8 +1118,12 @@ fn returns_skipped_when_minimum_release_age_ignore_missing_time_drifts() {
     let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.minimum_release_age_ignore_missing_time = true;
-    let stale_settings =
-        current_settings(&stale_config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    let stale_settings = current_settings(
+        &stale_config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        None,
+    );
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
@@ -1082,8 +1159,12 @@ fn returns_skipped_when_ignored_optional_dependencies_drift() {
     let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.ignored_optional_dependencies = Some(vec!["old-pattern".to_string()]);
-    let stale_settings =
-        current_settings(&stale_config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    let stale_settings = current_settings(
+        &stale_config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        None,
+    );
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
@@ -1122,8 +1203,12 @@ fn returns_skipped_when_patched_dependencies_drift() {
     let mut patched = indexmap::IndexMap::new();
     patched.insert("foo@1.0.0".to_string(), "patches/foo.patch".to_string());
     stale_config.patched_dependencies = Some(patched);
-    let stale_settings =
-        current_settings(&stale_config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    let stale_settings = current_settings(
+        &stale_config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        None,
+    );
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
@@ -1166,7 +1251,7 @@ fn returns_skipped_when_patch_file_modified_after_validation() {
     let config = config.leak();
 
     let settings =
-        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included());
+        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
@@ -1211,7 +1296,7 @@ fn returns_up_to_date_when_patch_file_unchanged() {
     let config = config.leak();
 
     let settings =
-        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included());
+        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
@@ -1249,8 +1334,12 @@ fn returns_skipped_when_dedupe_peers_drift() {
     let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.dedupe_peers = false;
-    let stale_settings =
-        current_settings(&stale_config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    let stale_settings = current_settings(
+        &stale_config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        None,
+    );
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
@@ -1286,8 +1375,12 @@ fn returns_skipped_when_prefer_workspace_packages_drift() {
     let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.prefer_workspace_packages = false;
-    let stale_settings =
-        current_settings(&stale_config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    let stale_settings = current_settings(
+        &stale_config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        None,
+    );
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
@@ -1322,8 +1415,12 @@ fn returns_skipped_when_peers_suffix_max_length_drift() {
     let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.peers_suffix_max_length = 1000;
-    let stale_settings =
-        current_settings(&stale_config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    let stale_settings = current_settings(
+        &stale_config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        None,
+    );
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
@@ -1372,8 +1469,12 @@ fn returns_skipped_when_package_extensions_drift() {
         pacquet_config::PackageExtension { dependencies: Some(deps), ..Default::default() },
     );
     stale_config.package_extensions = Some(extensions);
-    let stale_settings =
-        current_settings(&stale_config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    let stale_settings = current_settings(
+        &stale_config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        None,
+    );
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
@@ -1398,6 +1499,7 @@ fn returns_skipped_when_allow_builds_drift() {
     let manifest_path = workspace_root.join("package.json");
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
+    write_empty_lockfile(workspace_root);
 
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
@@ -1408,8 +1510,12 @@ fn returns_skipped_when_allow_builds_drift() {
     let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.allow_builds.insert("foo".to_string(), false);
-    let stale_settings =
-        current_settings(&stale_config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    let stale_settings = current_settings(
+        &stale_config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        None,
+    );
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
@@ -1424,6 +1530,22 @@ fn returns_skipped_when_allow_builds_drift() {
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
+
+    let decision = check_optimistic_repeat_install_ignoring(
+        &OptimisticRepeatInstallCheck {
+            workspace_root,
+            config,
+            node_linker: pacquet_config::NodeLinker::Isolated,
+            included: isolated_included(),
+            supported_architectures: None,
+            project_manifests: &[(workspace_root.to_path_buf(), &manifest)],
+            is_workspace_install: false,
+            lockfile: MaybeLazyLockfile::Loaded(None),
+            catalogs: &BTreeMap::default(),
+        },
+        &["allowBuilds"],
+    );
+    assert_eq!(decision, Decision::UpToDate);
 }
 
 /// Drift in `dedupeDirectDeps` invalidates the cached state. The
@@ -1447,8 +1569,12 @@ fn returns_skipped_when_dedupe_direct_deps_drifts() {
     let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.dedupe_direct_deps = false;
-    let stale_settings =
-        current_settings(&stale_config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    let stale_settings = current_settings(
+        &stale_config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        None,
+    );
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
@@ -1494,7 +1620,7 @@ fn returns_up_to_date_when_state_carries_unported_pnpm_settings() {
     let config = config.leak();
 
     let mut settings =
-        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included());
+        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None);
     // Populate fields pacquet records but `settings_match` does not
     // compare, to prove a difference on them keeps the fast path.
     // `workspacePackagePatterns` is recorded by pnpm from
@@ -1541,6 +1667,7 @@ fn returns_outdated_when_workspace_catalog_cache_changes() {
         config,
         pacquet_config::NodeLinker::Isolated,
         isolated_included(),
+        None,
         &recorded_catalogs,
     );
 
@@ -1587,6 +1714,7 @@ fn returns_outdated_when_single_project_catalog_cache_changes() {
         config,
         pacquet_config::NodeLinker::Isolated,
         isolated_included(),
+        None,
         &recorded_catalogs,
     );
 
@@ -1634,7 +1762,7 @@ fn returns_up_to_date_when_state_has_empty_allow_builds_and_current_has_none() {
     let config = config.leak();
 
     let mut settings =
-        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included());
+        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None);
     // Simulate a pnpm-written state: empty `allowBuilds` map
     // serialized as `{}`, where pacquet would have written `None`.
     settings.allow_builds = Some(BTreeMap::new());
@@ -1683,7 +1811,7 @@ fn returns_skipped_when_sibling_node_modules_missing_for_project_with_deps() {
     // mtime branch is satisfied. We want the modules-dir branch to
     // be the deciding factor.
     let settings =
-        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included());
+        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
     projects.insert(
         dir.path().to_string_lossy().into_owned(),
@@ -1700,6 +1828,7 @@ fn returns_skipped_when_sibling_node_modules_missing_for_project_with_deps() {
         config,
         node_linker: pacquet_config::NodeLinker::Isolated,
         included: isolated_included(),
+        supported_architectures: None,
         project_manifests: &[
             (dir.path().to_path_buf(), &root_manifest),
             (sibling_dir, &sibling_manifest),
@@ -1761,12 +1890,174 @@ fn returns_up_to_date_in_workspace_mode_without_lockfile() {
         config,
         node_linker: pacquet_config::NodeLinker::Isolated,
         included: isolated_included(),
+        supported_architectures: None,
         project_manifests: &[(dir.path().to_path_buf(), &manifest)],
         is_workspace_install: true,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &BTreeMap::default(),
     });
     assert_eq!(decision, Decision::UpToDate);
+}
+
+#[test]
+fn returns_skipped_when_wanted_lockfile_has_merge_conflict_markers() {
+    let (dir, config, manifest) =
+        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+    sleep(Duration::from_millis(20));
+    fs::write(
+        dir.path().join(Lockfile::FILE_NAME),
+        "<<<<<<< ours\nlockfileVersion: '9.0'\n=======\nlockfileVersion: '10.0'\n>>>>>>> theirs\n",
+    )
+    .expect("write conflicted lockfile");
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("conflict")));
+}
+
+#[test]
+fn run_status_reports_wanted_lockfile_merge_conflicts() {
+    let (dir, config, manifest) =
+        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+    sleep(Duration::from_millis(20));
+    fs::write(
+        dir.path().join(Lockfile::FILE_NAME),
+        "<<<<<<< ours\nlockfileVersion: '9.0'\n=======\nlockfileVersion: '10.0'\n>>>>>>> theirs\n",
+    )
+    .expect("write conflicted lockfile");
+    let state = load_workspace_state(dir.path()).expect("load workspace state").unwrap();
+
+    let status = check_deps_status_before_run(
+        &OptimisticRepeatInstallCheck {
+            workspace_root: dir.path(),
+            config,
+            node_linker: pacquet_config::NodeLinker::Isolated,
+            included: isolated_included(),
+            supported_architectures: None,
+            project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+            is_workspace_install: false,
+            lockfile: MaybeLazyLockfile::Loaded(None),
+            catalogs: &BTreeMap::default(),
+        },
+        &state,
+    );
+
+    assert!(matches!(
+        status,
+        RunDepsStatus::Outdated { issue, .. }
+            if issue == format!("The lockfile in {} has merge conflicts", dir.path().display()),
+    ),);
+}
+
+#[test]
+fn returns_skipped_when_project_lockfile_has_merge_conflict_markers() {
+    let (dir, config, root_manifest) = setup_fresh_install_with_config(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        "",
+        |config| config.shared_workspace_lockfile = false,
+    );
+    let project_root = dir.path().join("packages/project");
+    fs::create_dir_all(&project_root).expect("create project");
+    fs::write(project_root.join("package.json"), r#"{"name":"project","version":"1.0.0"}"#)
+        .expect("write project manifest");
+    sleep(Duration::from_millis(20));
+    fs::write(
+        project_root.join(Lockfile::FILE_NAME),
+        "<<<<<<< ours\nlockfileVersion: '9.0'\n=======\nlockfileVersion: '10.0'\n>>>>>>> theirs\n",
+    )
+    .expect("write project lockfile");
+    let project_manifest =
+        PackageManifest::from_path(project_root.join("package.json")).expect("read manifest");
+
+    let decision = check_workspace(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &root_manifest), (project_root, &project_manifest)],
+        &BTreeMap::default(),
+    );
+
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("conflict")));
+}
+
+#[test]
+fn returns_skipped_when_lockfile_is_not_a_regular_file() {
+    let (dir, config, manifest) =
+        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    fs::remove_file(&lockfile_path).expect("remove lockfile");
+    fs::create_dir(&lockfile_path).expect("replace lockfile with directory");
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+
+    dbg!(&decision);
+    assert!(matches!(
+        decision,
+        Decision::Skipped { reason } if reason.contains("cannot be checked")
+    ));
+}
+
+#[cfg(unix)]
+#[test]
+fn returns_skipped_without_following_a_lockfile_symlink() {
+    use std::os::unix::fs::symlink;
+
+    let (dir, config, manifest) =
+        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    fs::remove_file(&lockfile_path).expect("remove lockfile");
+    symlink("/dev/zero", &lockfile_path).expect("replace lockfile with symlink");
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+
+    dbg!(&decision);
+    assert!(matches!(
+        decision,
+        Decision::Skipped { reason } if reason.contains("cannot be checked")
+    ));
+}
+
+#[test]
+fn returns_skipped_without_scanning_an_oversized_changed_lockfile() {
+    let (dir, config, manifest) =
+        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+    sleep(Duration::from_millis(20));
+    let lockfile = fs::OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(dir.path().join(Lockfile::FILE_NAME))
+        .expect("open lockfile");
+    lockfile.set_len(MAX_LOCKFILE_CONFLICT_SCAN_BYTES).expect("resize lockfile");
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+
+    dbg!(&decision);
+    assert!(matches!(
+        decision,
+        Decision::Skipped { reason } if reason.contains("cannot be checked")
+    ));
 }
 
 /// Minimal valid lockfile matching a manifest with
@@ -1823,7 +2114,7 @@ fn setup_content_check_project() -> (tempfile::TempDir, &'static Config) {
 
     sleep(Duration::from_millis(20));
     let settings =
-        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included());
+        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
@@ -1847,6 +2138,7 @@ fn content_check_decision(
         config,
         node_linker: pacquet_config::NodeLinker::Isolated,
         included: isolated_included(),
+        supported_architectures: None,
         project_manifests,
         is_workspace_install,
         lockfile: MaybeLazyLockfile::Loaded(lockfile.as_ref()),
@@ -1876,7 +2168,7 @@ fn returns_skipped_when_current_lockfile_missing_for_wanted_lockfile_with_import
 
     sleep(Duration::from_millis(20));
     let settings =
-        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included());
+        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
@@ -2018,11 +2310,32 @@ fn workspace_content_check_refreshes_last_validated_timestamp() {
 /// range, and a bump outside the range falls through to the full
 /// install.
 fn linked_sibling_decision(sibling_version: &str) -> Decision {
+    linked_sibling_decision_for_spec(
+        "pkg-a",
+        "^1.0.0",
+        "link:pkg-a",
+        sibling_version,
+        pacquet_config::LinkWorkspacePackages::DirectOnly,
+    )
+}
+
+fn linked_sibling_decision_for_spec(
+    dependency_name: &str,
+    specifier: &str,
+    lockfile_ref: &str,
+    sibling_version: &str,
+    link_workspace_packages: pacquet_config::LinkWorkspacePackages,
+) -> Decision {
     let dir = tempdir().unwrap();
     let workspace_root = dir.path();
     fs::write(
         workspace_root.join("package.json"),
-        r#"{"name":"root","version":"1.0.0","devDependencies":{"pkg-a":"^1.0.0"}}"#,
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "devDependencies": { (dependency_name): specifier },
+        })
+        .to_string(),
     )
     .unwrap();
     let sibling_dir = workspace_root.join("pkg-a");
@@ -2034,25 +2347,27 @@ fn linked_sibling_decision(sibling_version: &str) -> Decision {
     .unwrap();
     fs::write(
         workspace_root.join(Lockfile::FILE_NAME),
-        "lockfileVersion: '9.0'
+        format!(
+            "lockfileVersion: '9.0'
 
 importers:
 
   .:
     devDependencies:
-      pkg-a:
-        specifier: ^1.0.0
-        version: link:pkg-a
+      {dependency_name}:
+        specifier: {specifier}
+        version: {lockfile_ref}
 
-  pkg-a: {}
+  pkg-a: {{}}
 ",
+        ),
     )
     .unwrap();
 
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     config.virtual_store_dir = workspace_root.join("node_modules/.pnpm");
-    config.link_workspace_packages = pacquet_config::LinkWorkspacePackages::DirectOnly;
+    config.link_workspace_packages = link_workspace_packages;
     fs::create_dir_all(&config.modules_dir).unwrap();
     let config = config.leak();
 
@@ -2061,7 +2376,7 @@ importers:
 
     sleep(Duration::from_millis(20));
     let settings =
-        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included());
+        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
@@ -2077,7 +2392,12 @@ importers:
     // Touch the root manifest so the content re-check runs.
     fs::write(
         workspace_root.join("package.json"),
-        r#"{"name":"root","version":"1.0.0","devDependencies":{"pkg-a":"^1.0.0"}}"#,
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "devDependencies": { (dependency_name): specifier },
+        })
+        .to_string(),
     )
     .unwrap();
     let root_manifest_touched =
@@ -2090,6 +2410,7 @@ importers:
         config,
         node_linker: pacquet_config::NodeLinker::Isolated,
         included: isolated_included(),
+        supported_architectures: None,
         project_manifests: &[
             (workspace_root.to_path_buf(), &root_manifest_touched),
             (sibling_dir, &sibling_manifest),
@@ -2112,6 +2433,105 @@ fn returns_skipped_when_linked_sibling_no_longer_satisfies_range() {
         matches!(decision, Decision::Skipped { reason } if reason.contains("linked")),
         "expected Skipped(linked package out of date), got {decision:?}",
     );
+}
+
+#[test]
+fn returns_up_to_date_when_aliased_workspace_dependency_satisfies_range() {
+    assert_eq!(
+        linked_sibling_decision_for_spec(
+            "alias",
+            "npm:pkg-a@^1.0.0",
+            "link:pkg-a",
+            "1.5.0",
+            pacquet_config::LinkWorkspacePackages::DirectOnly,
+        ),
+        Decision::UpToDate,
+    );
+}
+
+#[test]
+fn returns_skipped_when_aliased_workspace_dependency_version_is_outdated() {
+    let decision = linked_sibling_decision_for_spec(
+        "alias",
+        "npm:pkg-a@^1.0.0",
+        "link:pkg-a",
+        "2.0.0",
+        pacquet_config::LinkWorkspacePackages::DirectOnly,
+    );
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("linked")),
+        "expected Skipped(linked package out of date), got {decision:?}",
+    );
+}
+
+#[test]
+fn returns_up_to_date_when_linked_workspace_dependency_uses_a_tag() {
+    assert_eq!(
+        linked_sibling_decision_for_spec(
+            "pkg-a",
+            "unpublished-tag",
+            "link:pkg-a",
+            "1.0.0",
+            pacquet_config::LinkWorkspacePackages::DirectOnly,
+        ),
+        Decision::UpToDate,
+    );
+}
+
+#[test]
+fn returns_up_to_date_for_registry_resolution_when_workspace_linking_is_off() {
+    assert_eq!(
+        linked_sibling_decision_for_spec(
+            "pkg-a",
+            "1.0.0",
+            "1.0.0",
+            "1.0.0",
+            pacquet_config::LinkWorkspacePackages::Off,
+        ),
+        Decision::UpToDate,
+    );
+}
+
+#[test]
+fn injected_self_reference_resolved_as_link_is_up_to_date() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let sibling_dir = workspace_root.join("pkg-a");
+    fs::create_dir_all(&sibling_dir).unwrap();
+    fs::write(
+        workspace_root.join("package.json"),
+        r#"{"name":"root","version":"1.0.0","dependencies":{"pkg-a":"file:pkg-a"}}"#,
+    )
+    .unwrap();
+    fs::write(sibling_dir.join("package.json"), r#"{"name":"pkg-a","version":"1.0.0"}"#).unwrap();
+    let root_manifest = PackageManifest::from_path(workspace_root.join("package.json")).unwrap();
+    let sibling_manifest = PackageManifest::from_path(sibling_dir.join("package.json")).unwrap();
+    let lockfile: Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      pkg-a:
+        specifier: file:pkg-a
+        version: link:pkg-a
+
+  pkg-a: {}
+",
+    )
+    .unwrap();
+    let config = Config::new();
+    let project_manifests =
+        [(workspace_root.to_path_buf(), &root_manifest), (sibling_dir, &sibling_manifest)];
+    let context = LinkedPackagesContext::new(&config, &project_manifests);
+
+    assert!(linked_packages_are_up_to_date(
+        &context,
+        workspace_root,
+        &root_manifest,
+        lockfile.root_project().unwrap(),
+    ));
 }
 
 /// `pnpm-lock.yaml` deleted while `node_modules` (and its current

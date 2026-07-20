@@ -190,17 +190,22 @@ impl Lockfile {
         self.importers.get(Lockfile::ROOT_IMPORTER_KEY)
     }
 
-    /// `true` when no importer in this lockfile has either specifiers
-    /// or dependencies recorded. The result suppresses writing
+    /// `true` when no importer in this lockfile records any dependency
+    /// in any group. The result suppresses writing
     /// `node_modules/.pnpm/lock.yaml` for an install that resolved to
-    /// zero packages. Only `specifiers` and `dependencies` participate
-    /// in the check — `devDependencies` and `optionalDependencies`
-    /// are deliberately ignored.
+    /// zero packages. Upstream's `isEmptyLockfile` checks `specifiers`
+    /// and `dependencies` only, but its in-memory `specifiers` map
+    /// spans every dependency group; pacquet's v9-inline model leaves
+    /// `specifiers` unpopulated, so the equivalent check here inspects
+    /// all three group maps — otherwise a dev-only install would
+    /// misread as empty and delete its current lockfile.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.importers.values().all(|importer| {
             importer.specifiers.as_ref().is_none_or(HashMap::is_empty)
                 && importer.dependencies.as_ref().is_none_or(HashMap::is_empty)
+                && importer.dev_dependencies.as_ref().is_none_or(HashMap::is_empty)
+                && importer.optional_dependencies.as_ref().is_none_or(HashMap::is_empty)
         })
     }
 

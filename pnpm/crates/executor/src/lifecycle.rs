@@ -26,7 +26,7 @@ use std::{
 #[non_exhaustive]
 pub enum LifecycleScriptError {
     #[display("Failed to read package.json at {path}: {source}")]
-    #[diagnostic(code(pacquet_executor::read_manifest))]
+    #[diagnostic(code(ERR_PNPM_EXECUTOR_READ_MANIFEST))]
     ReadManifest {
         path: String,
         #[error(source)]
@@ -34,11 +34,11 @@ pub enum LifecycleScriptError {
     },
 
     #[display("{dep_path} {stage}: `{script}` exited with {status}")]
-    #[diagnostic(code(pacquet_executor::lifecycle_script_failed))]
+    #[diagnostic(code(ERR_PNPM_EXECUTOR_LIFECYCLE_SCRIPT_FAILED))]
     ScriptFailed { dep_path: String, stage: String, script: String, status: ExitStatus },
 
     #[display("Failed to spawn lifecycle script for {dep_path} {stage}: {source}")]
-    #[diagnostic(code(pacquet_executor::spawn_lifecycle))]
+    #[diagnostic(code(ERR_PNPM_EXECUTOR_SPAWN_LIFECYCLE))]
     Spawn {
         dep_path: String,
         stage: String,
@@ -47,7 +47,7 @@ pub enum LifecycleScriptError {
     },
 
     #[display("Failed waiting for lifecycle script for {dep_path} {stage}: {source}")]
-    #[diagnostic(code(pacquet_executor::wait_lifecycle))]
+    #[diagnostic(code(ERR_PNPM_EXECUTOR_WAIT_LIFECYCLE))]
     Wait {
         dep_path: String,
         stage: String,
@@ -56,7 +56,7 @@ pub enum LifecycleScriptError {
     },
 
     #[display("Invalid script shell for {dep_path} {stage}: {source}")]
-    #[diagnostic(code(pacquet_executor::invalid_script_shell))]
+    #[diagnostic(code(ERR_PNPM_EXECUTOR_INVALID_SCRIPT_SHELL))]
     ScriptShell {
         dep_path: String,
         stage: String,

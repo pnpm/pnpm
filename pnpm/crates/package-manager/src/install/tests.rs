@@ -4,11 +4,12 @@
 )]
 
 use super::{
-    Install, InstallError, UpToDateFastPathCheck, install_already_up_to_date,
-    load_workspace_projects, should_write_package_map,
+    Install, InstallError, UpToDateFastPathCheck, exclude_linked_dependencies,
+    install_already_up_to_date, load_workspace_projects, should_write_package_map,
 };
+use crate::{InstallWithFreshLockfileError, MinimumReleaseAgeError};
 use pacquet_config::{Config, NodePackageMapType};
-use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
+use pacquet_lockfile::{ComVer, Lockfile, LockfileVersion, MaybeLazyLockfile};
 use pacquet_modules_yaml::{
     DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, Host, LayoutVersion, Modules, NodeLinker,
     read_modules_manifest, write_modules_manifest,
@@ -31,6 +32,51 @@ use pipe_trait::Pipe;
 use std::{fs, sync::Mutex};
 use tempfile::tempdir;
 use text_block_macros::text_block;
+
+fn empty_test_lockfile() -> Lockfile {
+    Lockfile {
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer { major: 9, minor: 0 }).unwrap(),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        importers: std::collections::HashMap::new(),
+        packages: None,
+        snapshots: None,
+    }
+}
+
+#[test]
+fn exclude_linked_dependencies_drops_link_deps_from_every_group() {
+    let mut manifest = PackageManifest::from_value(
+        std::path::PathBuf::from("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "direct": "1.0.0",
+                "linked": "link:../linked"
+            },
+            "devDependencies": {
+                "declared-peer": "2.0.0",
+                "linked-dev": "link:../dev"
+            }
+        }),
+    );
+
+    exclude_linked_dependencies(&mut manifest);
+    assert_eq!(
+        manifest
+            .dependencies([DependencyGroup::Prod])
+            .collect::<std::collections::BTreeMap<_, _>>(),
+        std::collections::BTreeMap::from([("direct", "1.0.0")]),
+    );
+    assert_eq!(
+        manifest.dependencies([DependencyGroup::Dev]).collect::<Vec<_>>(),
+        vec![("declared-peer", "2.0.0")],
+    );
+}
 
 /// Reading wrapper over [`super::modules_consistent_with`] for the tests
 /// that exercise the `.modules.yaml`-absent and drift cases. Production
@@ -128,6 +174,16 @@ fn package_map_writer_is_gated_to_supported_pacquet_mode() {
 
 #[tokio::test]
 async fn should_install_dependencies() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(event.clone());
+        }
+    }
+
     let mock_instance = TestRegistry::start();
 
     let dir = tempdir().unwrap();
@@ -170,6 +226,7 @@ async fn should_install_dependencies() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -184,9 +241,86 @@ async fn should_install_dependencies() {
         pnpmfile_hook_override: None,
         workspace_projects_override: None,
     }
-    .run::<SilentReporter>()
+    .run::<RecordingReporter>()
     .await
     .expect("install should succeed");
+
+    let captured = EVENTS.lock().unwrap();
+    let expected_manifest = manifest.value();
+    let manifest_indices: Vec<_> = captured
+        .iter()
+        .enumerate()
+        .filter_map(|(index, event)| {
+            matches!(
+                event,
+                LogEvent::PackageManifest(PackageManifestLog {
+                    message: PackageManifestMessage::Initial { initial, .. },
+                    ..
+                }) if initial == expected_manifest,
+            )
+            .then_some(index)
+        })
+        .collect();
+    assert_eq!(
+        manifest_indices.len(),
+        1,
+        "install must report the input package manifest exactly once; events={captured:#?}",
+    );
+    assert!(
+        captured.iter().any(|event| matches!(
+            event,
+            LogEvent::Stats(StatsLog {
+                message: StatsMessage::Added { added, .. },
+                ..
+            }) if *added > 0
+        )),
+        "install must report a positive added count; events={captured:#?}",
+    );
+    assert!(
+        captured.iter().any(|event| matches!(
+            event,
+            LogEvent::Stats(StatsLog { message: StatsMessage::Removed { removed: 0, .. }, .. })
+        )),
+        "install must report that it removed no packages; events={captured:#?}",
+    );
+    let importing_done_indices: Vec<_> = captured
+        .iter()
+        .enumerate()
+        .filter_map(|(index, event)| {
+            matches!(event, LogEvent::Stage(StageLog { stage: Stage::ImportingDone, .. }))
+                .then_some(index)
+        })
+        .collect();
+    assert_eq!(
+        importing_done_indices.len(),
+        1,
+        "install must close the importing stage exactly once; events={captured:#?}",
+    );
+    let resolved_indices: Vec<_> = captured
+        .iter()
+        .enumerate()
+        .filter_map(|(index, event)| {
+            matches!(
+                event,
+                LogEvent::Progress(ProgressLog {
+                    message: ProgressMessage::Resolved { package_id, .. },
+                    ..
+                }) if package_id == "@pnpm.e2e/hello-world-js-bin@1.0.0",
+            )
+            .then_some(index)
+        })
+        .collect();
+    assert_eq!(
+        resolved_indices.len(),
+        1,
+        "install must report the resolved direct dependency exactly once; events={captured:#?}",
+    );
+    assert!(
+        manifest_indices[0] < resolved_indices[0]
+            && resolved_indices[0] < importing_done_indices[0],
+        "install events must report the manifest, resolve the dependency, then close importing; events={captured:#?}",
+    );
+    drop(captured);
 
     let path = project_root.join("node_modules/@pnpm.e2e/hello-world-js-bin");
     eprintln!("path={path:?} symlink_or_junction={:?}", is_symlink_or_junction(&path));
@@ -212,6 +346,73 @@ async fn should_install_dependencies() {
     insta::assert_debug_snapshot!(get_all_folders(&project_root));
 
     drop((dir, mock_instance));
+}
+
+#[tokio::test]
+async fn fresh_install_reports_strict_minimum_release_age_violations_before_writing() {
+    let mock_instance = TestRegistry::start();
+    let dir = tempdir().unwrap();
+    let modules_dir = dir.path().join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+    let mut manifest = PackageManifest::create_if_needed(dir.path().join("package.json")).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("store").into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir;
+    config.registry = mock_instance.url();
+    config.minimum_release_age = Some(60 * 24 * 365 * 100);
+    config.minimum_release_age_strict = Some(true);
+    let config = config.leak();
+
+    let error = Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        emit_initial_manifest: true,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: Some(false),
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        installs_only: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        peer_issues_sink: None,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: false,
+        pnpmfile_hook_override: None,
+        workspace_projects_override: None,
+    }
+    .run_with_prompt_eligibility::<SilentReporter>(false)
+    .await
+    .expect_err("strict non-interactive install must reject immature picks");
+
+    assert!(matches!(
+        error,
+        InstallError::WithFreshLockfile(InstallWithFreshLockfileError::MinimumReleaseAge(
+            MinimumReleaseAgeError::NoMatureMatchingVersion { .. }
+        ))
+    ));
+    assert!(!dir.path().join("pnpm-lock.yaml").exists());
+    assert!(!modules_dir.exists());
 }
 
 /// `Install` with `UpdateSeedPolicy::DropAll` is the update path
@@ -267,6 +468,7 @@ async fn install_with_drop_all_seed_policy_bumps_dependency_within_range() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -317,6 +519,7 @@ async fn install_with_drop_all_seed_policy_bumps_dependency_within_range() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -393,6 +596,7 @@ async fn install_prunes_surplus_virtual_store_dir() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -474,6 +678,7 @@ async fn install_skips_prune_when_virtual_store_escapes_node_modules() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -557,6 +762,7 @@ async fn lockfile_only_routes_scoped_packages_to_configured_scoped_registry() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: true,
@@ -616,6 +822,7 @@ async fn should_error_when_frozen_lockfile_is_requested_but_none_exists() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -672,6 +879,7 @@ async fn should_error_when_frozen_lockfile_and_update_checksums_are_both_set() {
         trust_lockfile: false,
         update_checksums: true,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -757,6 +965,7 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -832,6 +1041,7 @@ async fn npm_alias_dependency_installs_under_alias_key() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -927,6 +1137,7 @@ async fn unversioned_npm_alias_defaults_to_latest() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -1006,6 +1217,7 @@ async fn frozen_lockfile_flag_with_no_lockfile_errors() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -1109,6 +1321,7 @@ async fn install_emits_pnpm_event_sequence() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -1267,6 +1480,7 @@ async fn install_writes_modules_yaml() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -1322,10 +1536,7 @@ async fn install_writes_modules_yaml() {
         registries.as_ref().and_then(|r| r.get("@private")).map(String::as_str),
         Some("https://private.example.com/npm/"),
     );
-    assert!(
-        package_manager.starts_with("pacquet@"),
-        "expected `pacquet@<version>`, got {package_manager:?}",
-    );
+    assert_eq!(package_manager, format!("pnpm@{}", pacquet_config::PNPM_VERSION));
 
     drop(dir);
 }
@@ -1385,6 +1596,7 @@ async fn install_writes_workspace_state() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -1493,8 +1705,10 @@ mod build_workspace_state_tests {
             &config,
             pacquet_config::NodeLinker::default(),
             IncludedDependencies::default(),
+            None,
             &BTreeMap::default(),
             &[],
+            false,
         );
         assert!(state.projects.is_empty());
         assert!(state.last_validated_timestamp > 0);
@@ -1526,8 +1740,10 @@ mod build_workspace_state_tests {
             &config,
             pacquet_config::NodeLinker::default(),
             IncludedDependencies::default(),
+            None,
             &BTreeMap::default(),
             &project_manifests,
+            false,
         );
 
         assert_eq!(state.projects.len(), packages.len());
@@ -1561,8 +1777,10 @@ mod build_workspace_state_tests {
             &config,
             pacquet_config::NodeLinker::default(),
             IncludedDependencies::default(),
+            None,
             &BTreeMap::default(),
             &[],
+            false,
         );
         assert_eq!(state.config_dependencies, config.config_dependencies);
     }
@@ -1627,6 +1845,7 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -1710,6 +1929,7 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -1777,7 +1997,7 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
 /// Scenario: a warning is not reported when an optional peer
 /// dependency (specified by meta field only) cannot be resolved.
 #[tokio::test]
-async fn auto_install_peers_skips_meta_only_optional_peers() {
+async fn meta_only_optional_peers_absent_from_the_graph_are_not_installed() {
     let mock_instance = TestRegistry::start();
 
     let dir = tempdir().unwrap();
@@ -1817,6 +2037,7 @@ async fn auto_install_peers_skips_meta_only_optional_peers() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -1842,9 +2063,10 @@ async fn auto_install_peers_skips_meta_only_optional_peers() {
         .collect();
 
     // peer-a is declared in `peerDependencies` so it stays required and
-    // gets auto-installed; peer-b and peer-c are declared *only* in
-    // `peerDependenciesMeta` with `optional: true` and stay out of the
-    // tree.
+    // gets auto-installed; peer-b and peer-c are implied optional peers
+    // (declared *only* in `peerDependenciesMeta`) — an optional peer is
+    // never fetched, only deduped onto a version already in the graph,
+    // and no version of either is in this graph.
     assert!(
         virtual_store_slots.iter().any(|name| name.starts_with("@pnpm.e2e+peer-a@")),
         "required peer `peer-a` must be auto-installed; \
@@ -1917,6 +2139,7 @@ async fn root_dependency_does_not_override_peers_of_self_contained_subtree() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -2059,6 +2282,7 @@ async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches() {
         trust_lockfile: true, // fixture pins a tripwire tarball URL; skip resolution verification so the tarball-URL check doesn't flag it before the path under test
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -2168,6 +2392,7 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
         trust_lockfile: true, // fixture pins a tripwire tarball URL; skip resolution verification so the tarball-URL check doesn't flag it before the path under test
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -2286,6 +2511,7 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -2348,6 +2574,7 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -2452,6 +2679,7 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
         trust_lockfile: true, // fixture pins a tripwire tarball URL; skip resolution verification so the tarball-URL check doesn't flag it before the path under test
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -2565,6 +2793,7 @@ async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() {
         trust_lockfile: true,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -2639,6 +2868,7 @@ async fn ignore_manifest_check_bypasses_manifest_freshness_gate() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -2714,6 +2944,7 @@ async fn frozen_lockfile_errors_when_overrides_drift_from_lockfile() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -2817,6 +3048,7 @@ async fn frozen_lockfile_applies_overrides_to_manifest_before_freshness_check() 
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -2934,6 +3166,7 @@ async fn frozen_lockfile_resolves_catalog_protocol_in_overrides_before_freshness
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -3007,6 +3240,7 @@ async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -3105,6 +3339,7 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -3224,6 +3459,7 @@ async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log()
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -3348,6 +3584,7 @@ async fn frozen_lockfile_with_gvs_off_skips_project_registry() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -3438,6 +3675,7 @@ async fn frozen_lockfile_under_gvs_registers_workspace_root_only() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -3527,6 +3765,7 @@ fn build_modules_manifest_serializes_skipped_set() {
         Default::default(),
         &skipped,
         &[],
+        Vec::new(),
         "Thu, 01 Jan 1970 00:00:00 GMT".to_string(),
     );
 
@@ -3564,6 +3803,7 @@ fn build_modules_manifest_skipped_is_empty_on_empty_set() {
         Default::default(),
         &SkippedSnapshots::new(),
         &[],
+        Vec::new(),
         "Thu, 01 Jan 1970 00:00:00 GMT".to_string(),
     );
     assert!(manifest.skipped.is_empty());
@@ -3651,6 +3891,7 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -3782,6 +4023,7 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
         trust_lockfile: true,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -3892,6 +4134,7 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -4005,6 +4248,7 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -4107,6 +4351,7 @@ async fn frozen_install_optional_included_surfaces_missing_metadata() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -4212,6 +4457,7 @@ async fn frozen_install_no_optional_keeps_shared_non_optional_snapshot() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -4317,6 +4563,7 @@ async fn hoisted_node_linker_empty_lockfile_writes_modules_yaml() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Hoisted,
         lockfile_only: false,
@@ -4417,6 +4664,7 @@ async fn hoisted_node_linker_does_not_create_virtual_store_root() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Hoisted,
         lockfile_only: false,
@@ -4525,6 +4773,7 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         resolved_packages: &Default::default(),
         node_linker: pacquet_config::NodeLinker::default(),
@@ -4631,6 +4880,7 @@ async fn frozen_lockfile_install_skips_runtime_when_skip_runtimes_set() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         resolved_packages: &Default::default(),
         node_linker: pacquet_config::NodeLinker::default(),
@@ -4740,6 +4990,7 @@ async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -4850,6 +5101,7 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -4945,6 +5197,7 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -5032,6 +5285,7 @@ async fn fresh_install_uses_final_peer_suffix_for_transitive_pending_peer() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -5115,6 +5369,7 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -5195,6 +5450,7 @@ async fn fresh_install_records_user_written_specifier() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -5273,6 +5529,7 @@ async fn fresh_install_lockfile_round_trips_through_load_save_load() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -5350,6 +5607,7 @@ async fn fresh_install_with_lockfile_disabled_does_not_write_a_lockfile() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -5429,6 +5687,7 @@ async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -5522,6 +5781,7 @@ async fn prefer_frozen_install_writes_missing_current_lockfile() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -5563,6 +5823,7 @@ async fn prefer_frozen_install_writes_missing_current_lockfile() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -5634,6 +5895,7 @@ async fn fresh_install_with_lockfile_disabled_skips_current_lockfile_too() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -5708,6 +5970,7 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -5810,6 +6073,7 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -5862,7 +6126,12 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
         .pipe_as_ref(read_modules_manifest::<Host>)
         .expect("read .modules.yaml")
         .expect("modules manifest exists");
-    assert_eq!(written.skipped, [skipped_key.to_string()]);
+    // The recorded skip set is the reachability closure: the skipped
+    // optional's own dependency is not materialized either.
+    assert_eq!(
+        written.skipped,
+        ["@pnpm.e2e/dep-of-optional-pkg@1.0.0".to_string(), skipped_key.to_string()],
+    );
 
     let current_lockfile_path = virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
     let current_content =
@@ -5928,6 +6197,7 @@ async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Hoisted,
         lockfile_only: false,
@@ -6007,6 +6277,7 @@ async fn fresh_install_refuses_skip_runtimes_before_writing_state() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -6090,6 +6361,7 @@ async fn prefer_frozen_lockfile_takes_frozen_path_when_lockfile_is_fresh() {
         trust_lockfile: true, // fixture pins a tripwire tarball URL; skip resolution verification so the tarball-URL check doesn't flag it before the path under test
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -6174,6 +6446,7 @@ async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -6252,6 +6525,7 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -6295,6 +6569,169 @@ fn unapproved_recorded_ignored_builds_surfaces_invalid_allow_builds() {
     let config = config.leak();
 
     assert!(super::unapproved_recorded_ignored_builds(&modules, config).is_err());
+}
+
+#[test]
+fn filtered_modules_metadata_preserves_only_retained_unselected_entries() {
+    let package_key = |name: &str, version: &str| {
+        pacquet_lockfile::PackageKey::new(
+            pacquet_lockfile::PkgName::parse(name).unwrap(),
+            version.parse::<pacquet_lockfile::PkgVerPeer>().unwrap(),
+        )
+    };
+    let retained = "retained@1.0.0";
+    let selected = "selected@2.0.0";
+    let shared = "shared@1.0.0";
+    let stale_selected = "selected@1.0.0";
+    let retained_file = package_key("retained-file", "file:packages/retained-source");
+    let selected_file = package_key("selected-file", "file:packages/selected-source");
+    let shared_file = package_key("shared-file", "file:packages/shared-source");
+    let current = Lockfile {
+        snapshots: Some(std::collections::HashMap::from([
+            (package_key("retained", "1.0.0"), Default::default()),
+            (package_key("selected", "2.0.0"), Default::default()),
+            (package_key("shared", "1.0.0"), Default::default()),
+            (retained_file, Default::default()),
+            (selected_file.clone(), Default::default()),
+            (shared_file.clone(), Default::default()),
+        ])),
+        ..empty_test_lockfile()
+    };
+    let selected_current = Lockfile {
+        snapshots: Some(std::collections::HashMap::from([
+            (package_key("selected", "2.0.0"), Default::default()),
+            (package_key("shared", "1.0.0"), Default::default()),
+            (selected_file, Default::default()),
+            (shared_file, Default::default()),
+        ])),
+        ..empty_test_lockfile()
+    };
+    let previous = Modules {
+        hoisted_dependencies: std::collections::BTreeMap::from([
+            (
+                retained.to_string(),
+                std::collections::BTreeMap::from([(
+                    "retained-alias".to_string(),
+                    pacquet_modules_yaml::HoistKind::Private,
+                )]),
+            ),
+            (
+                shared.to_string(),
+                std::collections::BTreeMap::from([(
+                    "stale-shared-alias".to_string(),
+                    pacquet_modules_yaml::HoistKind::Private,
+                )]),
+            ),
+            (
+                stale_selected.to_string(),
+                std::collections::BTreeMap::from([(
+                    "stale-selected-alias".to_string(),
+                    pacquet_modules_yaml::HoistKind::Private,
+                )]),
+            ),
+        ]),
+        hoisted_locations: Some(std::collections::BTreeMap::from([
+            (retained.to_string(), vec!["retained/location".to_string()]),
+            (shared.to_string(), vec!["stale/shared/location".to_string()]),
+        ])),
+        pending_builds: vec![retained.to_string(), shared.to_string(), stale_selected.to_string()],
+        ignored_builds: Some(
+            [retained, shared, stale_selected]
+                .into_iter()
+                .map(|value| pacquet_modules_yaml::DepPath::from(value.to_string()))
+                .collect(),
+        ),
+        skipped: vec![retained.to_string(), shared.to_string(), stale_selected.to_string()],
+        injected_deps: Some(std::collections::BTreeMap::from([
+            ("packages/retained-source".to_string(), vec!["retained/target".to_string()]),
+            ("packages/selected-source".to_string(), vec!["stale/selected/target".to_string()]),
+            ("packages/shared-source".to_string(), vec!["stale/shared/target".to_string()]),
+        ])),
+        ..Default::default()
+    };
+    let mut next = Modules {
+        hoisted_dependencies: std::collections::BTreeMap::from([(
+            selected.to_string(),
+            std::collections::BTreeMap::from([(
+                "selected-alias".to_string(),
+                pacquet_modules_yaml::HoistKind::Private,
+            )]),
+        )]),
+        hoisted_locations: Some(std::collections::BTreeMap::from([(
+            selected.to_string(),
+            vec!["selected/location".to_string()],
+        )])),
+        pending_builds: vec![selected.to_string()],
+        ignored_builds: Some(
+            std::iter::once(pacquet_modules_yaml::DepPath::from(selected.to_string())).collect(),
+        ),
+        skipped: vec![selected.to_string()],
+        injected_deps: Some(std::collections::BTreeMap::from([
+            ("packages/selected-source".to_string(), vec!["selected/target".to_string()]),
+            ("packages/shared-source".to_string(), vec!["shared/target".to_string()]),
+        ])),
+        ..Default::default()
+    };
+
+    super::merge_filtered_modules_metadata(&mut next, &previous, &current, &selected_current);
+
+    assert!(next.hoisted_dependencies.contains_key(retained));
+    assert!(next.hoisted_dependencies.contains_key(selected));
+    assert!(!next.hoisted_dependencies.contains_key(shared));
+    assert!(!next.hoisted_dependencies.contains_key(stale_selected));
+    assert_eq!(
+        next.hoisted_locations.as_ref().unwrap(),
+        &std::collections::BTreeMap::from([
+            (retained.to_string(), vec!["retained/location".to_string()]),
+            (selected.to_string(), vec!["selected/location".to_string()]),
+        ]),
+    );
+    assert_eq!(next.pending_builds, [retained.to_string(), selected.to_string()]);
+    assert_eq!(
+        next.ignored_builds
+            .as_ref()
+            .unwrap()
+            .iter()
+            .map(pacquet_modules_yaml::DepPath::as_str)
+            .collect::<Vec<_>>(),
+        [retained, selected],
+    );
+    assert_eq!(next.skipped, [retained.to_string(), selected.to_string()]);
+    assert_eq!(
+        next.injected_deps.as_ref().unwrap(),
+        &std::collections::BTreeMap::from([
+            ("packages/retained-source".to_string(), vec!["retained/target".to_string()],),
+            ("packages/selected-source".to_string(), vec!["selected/target".to_string()],),
+            ("packages/shared-source".to_string(), vec!["shared/target".to_string()],),
+        ]),
+    );
+}
+
+#[test]
+fn filtered_modules_metadata_keeps_empty_optional_maps_omitted() {
+    let current = empty_test_lockfile();
+    let previous = Modules {
+        hoisted_locations: Some(std::collections::BTreeMap::from([(
+            "stale@1.0.0".to_string(),
+            vec!["stale/location".to_string()],
+        )])),
+        ignored_builds: Some(
+            std::iter::once(pacquet_modules_yaml::DepPath::from("stale@1.0.0".to_string()))
+                .collect(),
+        ),
+        injected_deps: Some(std::collections::BTreeMap::from([(
+            "packages/stale".to_string(),
+            vec!["stale/target".to_string()],
+        )])),
+        ..Default::default()
+    };
+    let mut next = Modules::default();
+
+    super::merge_filtered_modules_metadata(&mut next, &previous, &current, &current);
+
+    assert!(next.hoisted_locations.is_none());
+    assert!(next.ignored_builds.is_none());
+    assert!(next.injected_deps.is_none());
 }
 
 /// [`is_modules_yaml_consistent`] returns `false` when
@@ -6576,6 +7013,7 @@ async fn run_purge_regression_install(
         trust_lockfile: false,
         update_checksums: false,
         is_full_install,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -6684,10 +7122,12 @@ async fn included_drift_keeps_user_node_modules_entry_while_layout_drift_wipes_i
 }
 
 /// End-to-end: when `.modules.yaml`, `<virtual_store_dir>/lock.yaml`,
-/// and the wanted lockfile all agree, [`Install::run`] must emit the
-/// `name: "pnpm"` "Lockfile is up to date" log and return without
-/// running materialization (the `allProjectsAreUpToDate` +
-/// `validateModules` short-circuit).
+/// and the wanted lockfile all agree — and the tree those files
+/// describe is still on disk (the short-circuit probes it; a missing
+/// entry must fall through to the repairing full path) —
+/// [`Install::run`] must emit the `name: "pnpm"` "Lockfile is up to
+/// date" log and return without running materialization (the
+/// `allProjectsAreUpToDate` + `validateModules` short-circuit).
 #[tokio::test]
 async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -6756,6 +7196,13 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
     };
     write_modules_manifest::<Host>(&modules_dir, seed_modules).expect("seed .modules.yaml");
     lockfile.save_current_to_virtual_store_dir(&virtual_store_dir).expect("seed current lockfile");
+    // The short-circuit probes the tree it would skip; seed the one
+    // direct-dep entry the lockfile records so the probe holds. A
+    // marker *file* doubles as the materialization sentinel below:
+    // the full pipeline's link pass would displace it with a symlink,
+    // so its untouched survival proves the gate fired.
+    std::fs::write(modules_dir.join("sibling"), b"sentinel: not a symlink")
+        .expect("seed the sibling link entry");
 
     Install {
         tarball_mem_cache: Default::default(),
@@ -6774,6 +7221,7 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
         trust_lockfile: true,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Isolated,
         lockfile_only: false,
@@ -6811,16 +7259,17 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
         "Summary must fire so `pnpm:root` history renders even on the fast path",
     );
 
-    // `Path::exists()` follows symlinks and returns `false` for a
-    // broken target — `symlink_metadata` is the right call to detect
-    // the symlink entry itself, so a dangling sibling symlink would
-    // still fail this assertion. Materialization on the regular
-    // install path always creates the link before falling through.
+    // Materialization on the regular install path replaces the seeded
+    // marker file with a symlink (displacing the squatter), so the
+    // marker surviving as a plain file proves the gate skipped the
+    // link pass.
     let sibling_link = modules_dir.join("sibling");
+    let sibling_meta =
+        std::fs::symlink_metadata(&sibling_link).expect("the seeded sibling entry must survive");
     assert!(
-        std::fs::symlink_metadata(&sibling_link).is_err(),
+        sibling_meta.file_type().is_file(),
         "the link: dep must NOT be materialized when the gate fires; \
-         a present {sibling_link:?} would mean the install ran the full pipeline",
+         a symlink at {sibling_link:?} would mean the install ran the full pipeline",
     );
 
     // Workspace state is still refreshed so the next `pnpm run`'s
@@ -6931,6 +7380,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
         config,
         pacquet_config::NodeLinker::Isolated,
         included,
+        None,
     );
     workspace_state::update_workspace_state(
         &project_root,
@@ -6964,6 +7414,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Isolated,
         lockfile_only: false,
@@ -7051,6 +7502,7 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
         config,
         pacquet_config::NodeLinker::Isolated,
         included,
+        None,
     );
     workspace_state::update_workspace_state(
         &project_root,
@@ -7070,6 +7522,7 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
         manifest: &manifest,
         dependency_groups: vec![DependencyGroup::Prod],
         node_linker: pacquet_config::NodeLinker::Isolated,
+        supported_architectures: None,
     };
     let root = install_already_up_to_date(&check);
     assert_eq!(root.as_deref(), Some(&*project_root), "fresh state must short-circuit");
@@ -7089,6 +7542,119 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
     // is off and no current lockfile exists), so the content re-check
     // cannot vouch for it either.
     assert_eq!(install_already_up_to_date(&check), None, "modified manifest must fall through");
+}
+
+#[test]
+fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path().join("workspace");
+    let project_root = workspace_root.join("packages/app");
+    let modules_dir = workspace_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pnpm");
+    std::fs::create_dir_all(&project_root).expect("create workspace member");
+    std::fs::create_dir_all(project_root.join("node_modules"))
+        .expect("create member modules directory");
+    std::fs::create_dir_all(&virtual_store_dir).expect("create virtual store");
+    std::fs::write(workspace_root.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    std::fs::write(
+        workspace_root.join("package.json"),
+        r#"{ "name": "workspace-root", "version": "1.0.0" }"#,
+    )
+    .expect("write root manifest");
+    let manifest_path = project_root.join("package.json");
+    std::fs::write(
+        &manifest_path,
+        r#"{ "name": "app", "version": "1.0.0", "dependencies": { "sibling": "link:../../sibling" } }"#,
+    )
+    .expect("write member manifest");
+    let manifest = PackageManifest::from_path(manifest_path).expect("read member manifest");
+
+    let current = "lockfileVersion: '9.0'\nimporters:\n  .: {}\n  packages/app:\n    dependencies:\n      sibling:\n        specifier: link:../../sibling\n        version: link:../../sibling\n";
+    std::fs::write(virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME), current)
+        .expect("write current lockfile");
+    std::fs::write(project_root.join(Lockfile::FILE_NAME), "not: [valid")
+        .expect("write invalid member lockfile");
+    let wanted_path = workspace_root.join(Lockfile::FILE_NAME);
+    std::fs::write(&wanted_path, current).expect("write wanted lockfile");
+
+    let mut config = Config::new();
+    config.workspace_dir = Some(workspace_root.clone());
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir;
+    let config = config.leak();
+    let included = pacquet_modules_yaml::IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: true,
+        optional_dependencies: true,
+    };
+    let mut projects = std::collections::BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        workspace_state::ProjectEntry {
+            name: Some("workspace-root".to_string()),
+            version: Some("1.0.0".to_string()),
+        },
+    );
+    projects.insert(
+        project_root.to_string_lossy().into_owned(),
+        workspace_state::ProjectEntry {
+            name: Some("app".to_string()),
+            version: Some("1.0.0".to_string()),
+        },
+    );
+    let validated_at = 0;
+    workspace_state::update_workspace_state(
+        &workspace_root,
+        &pacquet_workspace_state::WorkspaceState {
+            last_validated_timestamp: validated_at,
+            projects,
+            pnpmfiles: Vec::new(),
+            filtered_install: false,
+            config_dependencies: None,
+            settings: crate::optimistic_repeat_install::current_settings(
+                config,
+                pacquet_config::NodeLinker::Isolated,
+                included,
+                None,
+            ),
+        },
+    )
+    .expect("seed workspace state");
+    let check = UpToDateFastPathCheck {
+        config,
+        manifest: &manifest,
+        dependency_groups: vec![
+            DependencyGroup::Prod,
+            DependencyGroup::Dev,
+            DependencyGroup::Optional,
+        ],
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        supported_architectures: None,
+    };
+
+    assert_eq!(install_already_up_to_date(&check).as_deref(), Some(&*workspace_root));
+    assert_eq!(std::fs::read_to_string(&wanted_path).expect("reread wanted lockfile"), current);
+
+    std::fs::write(project_root.join(Lockfile::FILE_NAME), current).expect("write member lockfile");
+    std::fs::write(&wanted_path, "not: [valid").expect("write invalid root lockfile");
+    let mut per_project_config = config.clone();
+    per_project_config.shared_workspace_lockfile = false;
+    let per_project_config = Config::leak(per_project_config);
+    let per_project_check = UpToDateFastPathCheck {
+        config: per_project_config,
+        manifest: &manifest,
+        dependency_groups: vec![
+            DependencyGroup::Prod,
+            DependencyGroup::Dev,
+            DependencyGroup::Optional,
+        ],
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        supported_architectures: None,
+    };
+
+    assert_eq!(install_already_up_to_date(&per_project_check).as_deref(), Some(&*workspace_root));
 }
 
 /// `--frozen-lockfile` disables the optimistic short-circuit because
@@ -7175,6 +7741,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
         config,
         pacquet_config::NodeLinker::Isolated,
         included,
+        None,
     );
     workspace_state::update_workspace_state(
         &project_root,
@@ -7207,6 +7774,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
         trust_lockfile: true,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Isolated,
         lockfile_only: false,
@@ -7326,6 +7894,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
         config,
         pacquet_config::NodeLinker::Isolated,
         included,
+        None,
     );
     workspace_state::update_workspace_state(
         &project_root,
@@ -7358,6 +7927,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
         update_checksums: false,
         // The only difference vs the optimistic test above.
         is_full_install: false,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Isolated,
         lockfile_only: false,
@@ -7469,6 +8039,7 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
         config,
         pacquet_config::NodeLinker::Isolated,
         included,
+        None,
     );
     workspace_state::update_workspace_state(
         &project_root,
@@ -7505,6 +8076,7 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Isolated,
         lockfile_only: false,
@@ -7595,6 +8167,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -7658,6 +8231,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -7753,6 +8327,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -7824,6 +8399,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -7918,6 +8494,7 @@ async fn install_then_go_offline() -> (tempfile::TempDir, &'static Config, Packa
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -8013,6 +8590,7 @@ async fn optimistic_repeat_install_short_circuits_offline_when_touched_manifest_
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -8100,6 +8678,7 @@ async fn optimistic_repeat_install_restores_missing_lockfile_offline() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -8251,6 +8830,7 @@ async fn fresh_lockfile_only_with_overrides(
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: true,
@@ -8362,6 +8942,7 @@ async fn fresh_lockfile_only_with_compatibility_db(
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: true,
@@ -8458,6 +9039,7 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -8561,6 +9143,7 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -8650,6 +9233,7 @@ async fn install_with_pnpmfile_reporter<Reporter: self::Reporter + 'static>(
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
@@ -9094,6 +9678,7 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Isolated,
         lockfile_only: false,
@@ -9135,6 +9720,7 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Hoisted,
         lockfile_only: false,
@@ -9212,6 +9798,7 @@ async fn test_install_resolve_only_ignores_layout_mismatch() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Isolated,
         lockfile_only: false,
@@ -9253,6 +9840,7 @@ async fn test_install_resolve_only_ignores_layout_mismatch() {
         trust_lockfile: false,
         update_checksums: false,
         is_full_install: true,
+        installs_only: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Hoisted,
         lockfile_only: false,

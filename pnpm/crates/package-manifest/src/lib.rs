@@ -6,6 +6,7 @@ use std::{
 
 use derive_more::{Display, Error, From};
 use miette::Diagnostic;
+use node_semver::Range;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use strum::IntoStaticStr;
@@ -14,32 +15,32 @@ use tempfile::NamedTempFile;
 #[derive(Debug, Display, Error, Diagnostic, From)]
 #[non_exhaustive]
 pub enum PackageManifestError {
-    #[diagnostic(code(pacquet_package_manifest::serialization_error))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANIFEST_SERIALIZATION_ERROR))]
     Serialization(serde_json::Error), // TODO: remove derive(From), split this variant
 
-    #[diagnostic(code(pacquet_package_manifest::io_error))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANIFEST_IO_ERROR))]
     Io(std::io::Error), // TODO: remove derive(From), split this variant
 
     #[display("package.json file already exists")]
     #[diagnostic(
-        code(pacquet_package_manifest::already_exist_error),
+        code(ERR_PNPM_PACKAGE_JSON_EXISTS),
         help("Your current working directory already has a package.json file.")
     )]
     AlreadyExist,
 
     #[from(ignore)] // TODO: remove this after derive(From) has been removed
     #[display("invalid attribute: {_0}")]
-    #[diagnostic(code(pacquet_package_manifest::invalid_attribute))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANIFEST_INVALID_ATTRIBUTE))]
     InvalidAttribute(#[error(not(source))] String),
 
     #[from(ignore)] // TODO: remove this after derive(From) has been removed
     #[display("No package.json was found in {_0}")]
-    #[diagnostic(code(pacquet_package_manifest::no_import_manifest_found))]
+    #[diagnostic(code(ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND))]
     NoImporterManifestFound(#[error(not(source))] String),
 
     #[from(ignore)] // TODO: remove this after derive(From) has been removed
     #[display("Missing script: {_0:?}")]
-    #[diagnostic(code(pacquet_package_manifest::no_script_error))]
+    #[diagnostic(code(ERR_PNPM_NO_SCRIPT))]
     NoScript(#[error(not(source))] String),
 }
 
@@ -338,6 +339,13 @@ impl PackageManifest {
             .and_then(Value::as_str)
     }
 
+    /// Record `name@version` under `dependency_group`. Saving into one
+    /// of the install groups (`dependencies` / `devDependencies` /
+    /// `optionalDependencies`) drops `name` from the other two: a
+    /// dependency has one home there, so saving it as a different type
+    /// moves it, matching pnpm's `updateProjectManifestObject`. A
+    /// [`DependencyGroup::Peer`] save is additive — pnpm's `--save-peer`
+    /// writes `peerDependencies` alongside the `devDependencies` entry.
     pub fn add_dependency(
         &mut self,
         name: &str,
@@ -357,6 +365,16 @@ impl PackageManifest {
             let mut dependencies = Map::<String, Value>::new();
             dependencies.insert(name.to_string(), Value::String(version.to_string()));
             self.value[dependency_type] = Value::Object(dependencies);
+        }
+        const INSTALL_GROUPS: [DependencyGroup; 3] =
+            [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+        if INSTALL_GROUPS.contains(&dependency_group) {
+            let removed = [name.to_string()];
+            for group in INSTALL_GROUPS {
+                if group != dependency_group {
+                    self.remove_from_object(group.into(), &removed);
+                }
+            }
         }
         Ok(())
     }
@@ -459,14 +477,35 @@ pub fn convert_engines_runtime_to_dependencies(
     engines_field: &str,
     deps_field: &str,
 ) {
-    // Collect first, mutate after — avoids a simultaneous shared+mutable
-    // borrow of the manifest while reading `engines_field` and writing
-    // `deps_field`.
-    let mut to_insert: Vec<(&'static str, String)> = Vec::new();
+    let to_insert = engines_runtime_dependencies(manifest, engines_field, deps_field);
+    if to_insert.is_empty() {
+        return;
+    }
+    let Some(manifest_obj) = manifest.as_object_mut() else {
+        return;
+    };
+    let deps =
+        manifest_obj.entry(deps_field.to_string()).or_insert_with(|| Value::Object(Map::new()));
+    let Some(deps_obj) = deps.as_object_mut() else {
+        return;
+    };
+    for (name, spec) in to_insert {
+        deps_obj.insert(name.to_string(), Value::String(spec));
+    }
+}
+
+/// Return runtime dependency edges synthesized from an engines field.
+#[must_use]
+pub fn engines_runtime_dependencies(
+    manifest: &Value,
+    engines_field: &str,
+    deps_field: &str,
+) -> Vec<(&'static str, String)> {
+    let mut dependencies = Vec::new();
     let Some(runtime_entry) =
         manifest.get(engines_field).and_then(|engines| engines.get("runtime"))
     else {
-        return;
+        return dependencies;
     };
     for runtime_name in RUNTIME_NAMES {
         if manifest.get(deps_field).and_then(|deps| deps.get(runtime_name)).is_some() {
@@ -489,22 +528,101 @@ pub fn convert_engines_runtime_to_dependencies(
         let Some(version) = runtime.get("version").and_then(Value::as_str) else {
             continue;
         };
-        to_insert.push((runtime_name, format!("runtime:{version}")));
+        dependencies.push((runtime_name, format!("runtime:{}", version.trim())));
     }
-    if to_insert.is_empty() {
-        return;
+    dependencies
+}
+
+/// Apply the configured runtime failure policy to both engine fields.
+///
+/// A non-download policy removes `runtime:` dependency entries only for names
+/// managed by the corresponding engines field. `download` re-runs the normal
+/// engine-to-dependency conversion.
+pub fn apply_runtime_on_fail_override(manifest: &mut Value, on_fail_override: &str) {
+    for (engines_field, deps_field) in
+        [("devEngines", "devDependencies"), ("engines", "dependencies")]
+    {
+        let Some(runtime_entry) =
+            manifest.get_mut(engines_field).and_then(|engines| engines.get_mut("runtime"))
+        else {
+            continue;
+        };
+        let managed_runtime_names: Vec<_> = RUNTIME_NAMES
+            .into_iter()
+            .filter(|runtime_name| match &*runtime_entry {
+                Value::Array(runtimes) => runtimes.iter().any(|runtime| {
+                    runtime.get("name").and_then(Value::as_str) == Some(*runtime_name)
+                }),
+                Value::Object(runtime) => {
+                    runtime.get("name").and_then(Value::as_str) == Some(*runtime_name)
+                }
+                _ => false,
+            })
+            .collect();
+        match runtime_entry {
+            Value::Array(runtimes) => {
+                for runtime in runtimes {
+                    if let Some(runtime) = runtime.as_object_mut() {
+                        runtime.insert(
+                            "onFail".to_string(),
+                            Value::String(on_fail_override.to_string()),
+                        );
+                    }
+                }
+            }
+            Value::Object(runtime) => {
+                runtime.insert("onFail".to_string(), Value::String(on_fail_override.to_string()));
+            }
+            _ => continue,
+        }
+        if on_fail_override == "download" {
+            convert_engines_runtime_to_dependencies(manifest, engines_field, deps_field);
+            continue;
+        }
+        let Some(deps) = manifest.get_mut(deps_field).and_then(Value::as_object_mut) else {
+            continue;
+        };
+        for runtime_name in managed_runtime_names {
+            if deps
+                .get(runtime_name)
+                .and_then(Value::as_str)
+                .is_some_and(|specifier| specifier.starts_with("runtime:"))
+            {
+                deps.remove(runtime_name);
+            }
+        }
     }
-    let Some(manifest_obj) = manifest.as_object_mut() else {
-        return;
-    };
-    let deps =
-        manifest_obj.entry(deps_field.to_string()).or_insert_with(|| Value::Object(Map::new()));
-    let Some(deps_obj) = deps.as_object_mut() else {
-        return;
-    };
-    for (name, spec) in to_insert {
-        deps_obj.insert(name.to_string(), Value::String(spec));
+}
+
+/// Return the minimum Node.js version declared by `devEngines.runtime` or
+/// `engines.runtime`, in that precedence order.
+#[must_use]
+pub fn node_version_from_engines_runtime(manifest: &Value) -> Option<String> {
+    for engines_field in ["devEngines", "engines"] {
+        let Some(runtime_entry) =
+            manifest.get(engines_field).and_then(|value| value.get("runtime"))
+        else {
+            continue;
+        };
+        let runtimes = match runtime_entry {
+            Value::Array(runtimes) => runtimes.as_slice(),
+            runtime @ Value::Object(_) => std::slice::from_ref(runtime),
+            _ => continue,
+        };
+        let Some(version) = runtimes.iter().find_map(|runtime| {
+            (runtime.get("name").and_then(Value::as_str) == Some("node"))
+                .then(|| runtime.get("version").and_then(Value::as_str))
+                .flatten()
+        }) else {
+            continue;
+        };
+        if let Ok(range) = Range::parse(version.trim())
+            && let Some(version) = range.min_version()
+        {
+            return Some(version.to_string());
+        }
     }
+    None
 }
 
 /// pnpm's on-write manifest normalization: within each dependency field,
@@ -760,3 +878,17 @@ where
 
 #[cfg(test)]
 mod tests;
+
+/// Extracts the author field from a manifest (either string or object with name).
+pub fn extract_author(manifest: &serde_json::Value) -> Option<String> {
+    let author = manifest.get("author")?;
+    if let Some(s) = author.as_str() {
+        return Some(s.to_string());
+    }
+    author.get("name").and_then(|n| n.as_str()).map(ToString::to_string)
+}
+
+/// Extracts the homepage field from a manifest.
+pub fn extract_homepage(manifest: &serde_json::Value) -> Option<String> {
+    manifest.get("homepage").and_then(|v| v.as_str()).map(ToString::to_string)
+}

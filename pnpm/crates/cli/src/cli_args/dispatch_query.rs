@@ -7,18 +7,22 @@ use super::{
     cat_file::CatFileArgs,
     cat_index::CatIndexArgs,
     change::ChangeArgs,
+    clean::CleanArgs,
     config::ConfigArgs,
     deprecate::DeprecateArgs,
     dispatch::{CommandFuture, RunCtx},
     dist_tag::DistTagArgs,
     docs::DocsArgs,
+    doctor::{DoctorArgs, DoctorOutcome},
     find_hash::FindHashArgs,
     ignored_builds::IgnoredBuildsArgs,
     lane::LaneArgs,
+    licenses::LicensesArgs,
     list::ListArgs,
     login::LoginArgs,
     logout::LogoutArgs,
     outdated::{OutdatedArgs, OutdatedOutcome},
+    owner::OwnerArgs,
     pack::PackArgs,
     pack_app::PackAppArgs,
     peers::{PeersArgs, PeersOutcome},
@@ -43,9 +47,19 @@ use super::{
     why::WhyArgs,
     with::WithArgs,
 };
+use clap::CommandFactory;
 use pacquet_config::Config;
 use pacquet_default_reporter::DefaultReporter;
 use pacquet_reporter::{NdjsonReporter, SilentReporter};
+
+pub(super) fn recursive<'a>(_ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
+    Ok(Box::pin(async move {
+        let mut cmd = crate::cli_args::CliArgs::command();
+        let _ = cmd.find_subcommand_mut("recursive").expect("recursive subcommand").print_help();
+        #[expect(clippy::exit, reason = "`recursive` exits non-zero, mirroring pnpm")]
+        std::process::exit(1);
+    }))
+}
 
 // `outdated` is a read-only query: it prints a report to stdout and never
 // installs, so it has no reporter-typed install pipeline to dispatch on. It
@@ -56,7 +70,7 @@ pub(super) fn outdated<'a>(
     args: OutdatedArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     if args.global {
-        let config = (ctx.config)()?;
+        let config = (ctx.global_config)()?;
         return Ok(Box::pin(async move {
             if args.run_global(config).await? == OutdatedOutcome::Outdated {
                 #[expect(
@@ -113,6 +127,16 @@ pub(super) fn ll<'a>(ctx: &RunCtx<'a>, mut args: ListArgs) -> miette::Result<Com
     args.long = true;
     args.run((ctx.config)()?, ctx.dir, ctx.recursive)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+pub(super) fn licenses<'a>(
+    ctx: &RunCtx<'a>,
+    args: LicensesArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let config = (ctx.config)()?;
+    let dir = ctx.dir;
+    let recursive = ctx.recursive;
+    Ok(Box::pin(async move { args.run(config, dir, recursive).await }))
 }
 
 pub(super) fn why<'a>(ctx: &RunCtx<'a>, args: WhyArgs) -> miette::Result<CommandFuture<'a>> {
@@ -276,6 +300,20 @@ pub(super) fn team<'a>(ctx: &RunCtx<'a>, args: TeamArgs) -> miette::Result<Comma
     }))
 }
 
+pub(super) fn owner<'a>(ctx: &RunCtx<'a>, args: OwnerArgs) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.config)()?;
+    Ok(Box::pin(async move {
+        if let Some(output) = args.run(cfg).await? {
+            let output = super::sanitize::sanitize(&output);
+            if output.is_empty() {
+                return Ok(());
+            }
+            println!("{output}");
+        }
+        Ok(())
+    }))
+}
+
 // `ping` is a read-only connectivity check: it resolves the registry (and any
 // auth header) from config and GETs `-/ping`, with no lockfile or install
 // pipeline, so it dispatches off `config()` like the other read-only registry
@@ -285,6 +323,27 @@ pub(super) fn ping<'a>(ctx: &RunCtx<'a>, args: PingArgs) -> miette::Result<Comma
     Ok(Box::pin(async move {
         let report = args.run(cfg).await?;
         println!("{report}");
+        Ok(())
+    }))
+}
+
+// `doctor` reports on the installation and its environment, so it needs config
+// resolved but no lockfile or install pipeline. It returns the rendered report
+// rather than printing it, mirroring pnpm's handler → CLI print split, and the
+// exit lives here because a failing check must fail the command — that is what
+// lets the release pipeline gate a promotion on it.
+pub(super) fn doctor<'a>(ctx: &RunCtx<'a>, args: DoctorArgs) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.config)()?;
+    Ok(Box::pin(async move {
+        let result = args.run(cfg).await?;
+        println!("{}", result.output);
+        if result.outcome == DoctorOutcome::Unhealthy {
+            #[expect(
+                clippy::exit,
+                reason = "`doctor` exits non-zero when a check fails, mirroring pnpm"
+            )]
+            std::process::exit(1);
+        }
         Ok(())
     }))
 }
@@ -330,6 +389,9 @@ pub(super) fn publish<'a>(
     let dir = ctx.dir;
     let recursive = ctx.recursive;
     args.flags.report_summary |= ctx.recursive_report_summary;
+    if args.flags.json {
+        return Ok(Box::pin(args.run::<SilentReporter>(dir, config, recursive)));
+    }
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => {
             Box::pin(args.run::<DefaultReporter>(dir, config, recursive))
@@ -380,6 +442,15 @@ pub(super) fn stage<'a>(
 
 pub(super) fn bin<'a>(ctx: &RunCtx<'a>, args: BinArgs) -> miette::Result<CommandFuture<'a>> {
     args.run(ctx.dir, (ctx.config)()?)?;
+    Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+pub(super) fn clean<'a>(
+    ctx: &RunCtx<'a>,
+    args: CleanArgs,
+    command_name: &'a str,
+) -> miette::Result<CommandFuture<'a>> {
+    args.run(ctx, command_name)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 

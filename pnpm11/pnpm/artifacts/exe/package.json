@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exe",
-  "version": "11.13.0",
+  "version": "11.15.1",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -9,8 +9,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm/artifacts/exe",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm/artifacts/exe#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm11/pnpm/artifacts/exe",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm11/pnpm/artifacts/exe#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

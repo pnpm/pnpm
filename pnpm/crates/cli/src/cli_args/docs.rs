@@ -9,7 +9,7 @@ use pacquet_resolving_npm_resolver::{
 };
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
 
-/// Open the documentation of a package (or `pnpm home <pkg>`).
+/// Open the documentation page of a package in a browser.
 #[derive(Debug, Args)]
 pub struct DocsArgs {
     /// Package name (optionally with @version).

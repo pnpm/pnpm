@@ -682,7 +682,7 @@ test('registries of scoped packages are read and normalized', async () => {
     '@jsr': 'https://npm.jsr.io/',
     '@foo': 'https://foo.com/',
     '@bar': 'https://bar.com/',
-    '@qar': 'https://qar.com/qar',
+    '@qar': 'https://qar.com/qar/',
   })
 })
 
@@ -706,7 +706,7 @@ test('registries in current directory\'s .npmrc have bigger priority then global
     '@jsr': 'https://npm.jsr.io/',
     '@foo': 'https://foo.com/',
     '@bar': 'https://bar.com/',
-    '@qar': 'https://qar.com/qar',
+    '@qar': 'https://qar.com/qar/',
   })
   expect(config.packageManagerRegistries?.default).toBe('https://default.com/')
 })

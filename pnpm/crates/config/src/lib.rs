@@ -139,6 +139,33 @@ pub enum PmOnFail {
     Ignore,
 }
 
+/// What to do when a runtime declared through `devEngines.runtime` or
+/// `engines.runtime` does not match the current process.
+///
+/// The `runtimeOnFail` setting overrides the manifest-level `onFail` value.
+/// `download` reifies the runtime as a dependency; the other modes leave it
+/// as an engine constraint only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RuntimeOnFail {
+    Download,
+    Error,
+    Warn,
+    Ignore,
+}
+
+impl RuntimeOnFail {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Download => "download",
+            Self::Error => "error",
+            Self::Warn => "warn",
+            Self::Ignore => "ignore",
+        }
+    }
+}
+
 /// What `pnpm run` / `pnpm exec` do when `node_modules` is out of sync
 /// with the lockfile before running a script.
 ///
@@ -620,6 +647,32 @@ pub struct Config {
     #[default(_code = "default_virtual_store_dir()")]
     pub global_virtual_store_dir: PathBuf,
 
+    /// `virtualStoreOnly`: populate the virtual store but perform no
+    /// post-import linking — no importer symlinks, no `.bin` entries,
+    /// no hoisting, and no project lifecycle scripts. `pnpm fetch` is
+    /// the canonical consumer.
+    ///
+    /// [`Self::apply_virtual_store_only_derivation`] clears both hoist
+    /// patterns when this is set. Combining it with
+    /// `enable_modules_dir: false` while the global virtual store is
+    /// off is a config conflict, rejected by
+    /// `pacquet_package_manager::Install::run`.
+    pub virtual_store_only: bool,
+
+    /// `enableModulesDir`: pnpm's setting for suppressing the
+    /// `node_modules` directory entirely. Default `true`.
+    ///
+    /// Only partially wired in pacquet: it gates the
+    /// [`virtual_store_only`] config conflict (a store-only install with
+    /// no modules dir needs the global virtual store to have anywhere to
+    /// put packages). The standalone "create no `node_modules` at all"
+    /// behavior is not implemented yet — a `false` value on its own does
+    /// not suppress materialization.
+    ///
+    /// [`virtual_store_only`]: Self::virtual_store_only
+    #[default(true)]
+    pub enable_modules_dir: bool,
+
     /// User override for the global packages root (`global-dir` setting /
     /// `PNPM_CONFIG_GLOBAL_DIR`). When unset, [`Config::current`] derives
     /// the root from the pnpm home directory.
@@ -743,6 +796,14 @@ pub struct Config {
     /// `node --version` probe runs.
     pub node_version: Option<String>,
 
+    /// Override for `devEngines.runtime.onFail` / `engines.runtime.onFail`.
+    /// Unset by default so each manifest keeps its own policy.
+    pub runtime_on_fail: Option<RuntimeOnFail>,
+
+    /// Per-release-channel Node.js download mirrors. Keys are `release`,
+    /// `rc`, `nightly`, `test`, or `v8-canary`.
+    pub node_download_mirrors: HashMap<String, String>,
+
     /// Copy every project file during `pnpm deploy` instead of the publish
     /// packlist. The `deployAllFiles` setting; default `false`.
     pub deploy_all_files: bool,
@@ -818,6 +879,10 @@ pub struct Config {
     /// already depends on `pacquet-network` for auth-headers plumbing.
     /// Default is empty (`None` for every field) — i.e. no proxy.
     pub proxy: pacquet_network::ProxyConfig,
+
+    /// Whether `http_proxy` came from a non-empty `http-proxy` setting,
+    /// rather than falling back to the resolved HTTPS proxy.
+    pub http_proxy_is_explicit: bool,
 
     /// Resolved TLS + `local-address` configuration — `ca`, `cafile`,
     /// `cert`, `key`, `strict-ssl`, `local-address` from `.npmrc`. The
@@ -1154,6 +1219,13 @@ pub struct Config {
     /// generated patch files. `None` means the command default
     /// (`patches`) applies.
     pub patches_dir: Option<String>,
+
+    /// `allowUnusedPatches` from `pnpm-workspace.yaml`. When `true`,
+    /// configured patches that don't match any installed dependency
+    /// produce a warning instead of failing the install with
+    /// `ERR_PNPM_UNUSED_PATCH`. Default `false` — unused patches are
+    /// an error.
+    pub allow_unused_patches: bool,
 
     /// Raw `configDependencies` from `pnpm-workspace.yaml`: package
     /// name → version-with-integrity spec. Recorded verbatim in the
@@ -1645,6 +1717,9 @@ pub struct PackageManagerBootstrap {
     /// Scoped registry routes (keyed by `@scope`), excluding `default`.
     pub registries: BTreeMap<String, String>,
     pub proxy: pacquet_network::ProxyConfig,
+    /// Whether `proxy.http_proxy` came from a non-empty trusted
+    /// `http-proxy` setting rather than the HTTPS-proxy fallback.
+    pub http_proxy_is_explicit: bool,
     pub tls: pacquet_network::TlsConfig,
     pub tls_by_uri: pacquet_network::PerRegistryTls,
     pub auth_headers: std::sync::Arc<pacquet_network::AuthHeaders>,
@@ -1665,6 +1740,37 @@ impl Config {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Overlays proxy options after file and environment settings have been
+    /// resolved. An HTTPS proxy also serves HTTP unless a lower-priority source
+    /// explicitly configured the HTTP proxy.
+    pub fn apply_proxy_cli_overrides(
+        &mut self,
+        https_proxy: Option<&str>,
+        http_proxy: Option<&str>,
+        no_proxy: Option<&str>,
+    ) {
+        for (proxy, http_proxy_is_explicit) in [
+            (&mut self.proxy, self.http_proxy_is_explicit),
+            (
+                &mut self.package_manager_bootstrap.proxy,
+                self.package_manager_bootstrap.http_proxy_is_explicit,
+            ),
+        ] {
+            if let Some(value) = https_proxy {
+                proxy.https_proxy = Some(value.to_string());
+                if http_proxy.is_none() && !http_proxy_is_explicit {
+                    proxy.http_proxy = Some(value.to_string());
+                }
+            }
+            if let Some(value) = http_proxy {
+                proxy.http_proxy = Some(value.to_string());
+            }
+            if let Some(value) = no_proxy {
+                proxy.no_proxy = Some(crate::npmrc_auth::parse_no_proxy(value));
+            }
+        }
     }
 
     /// Effective value of [`Self::minimum_release_age_strict`].
@@ -1819,6 +1925,22 @@ impl Config {
             } else {
                 self.store_dir.links()
             };
+    }
+
+    /// Clear both hoist patterns when [`virtual_store_only`] is set.
+    ///
+    /// A `virtualStoreOnly` install does no hoisting, so the patterns it
+    /// records in `.modules.yaml` must be empty — that is how the next
+    /// ordinary install learns hoisting still has to be done from
+    /// scratch rather than reading a pattern it never applied.
+    ///
+    /// [`virtual_store_only`]: Self::virtual_store_only
+    pub fn apply_virtual_store_only_derivation(&mut self) {
+        if !self.virtual_store_only {
+            return;
+        }
+        self.hoist_pattern = Some(Vec::new());
+        self.public_hoist_pattern = Some(Vec::new());
     }
 
     /// Restore the smart default store after a higher-precedence config
@@ -2134,6 +2256,7 @@ impl Config {
         for lower in sources {
             npmrc_auth.merge_under(lower);
         }
+        self.http_proxy_is_explicit = has_nonempty_string(npmrc_auth.http_proxy.as_deref());
         // Retain the merged raw `.npmrc` / `auth.ini` config keys for
         // `pnpm config get` / `pnpm config list` before the structured fields
         // are consumed below.
@@ -2152,6 +2275,13 @@ impl Config {
         crate::npmrc_auth::enforce_token_helper_trust(&npmrc_auth, &trusted_auth)?;
 
         self.package_manager_bootstrap = build_package_manager_bootstrap::<Sys>(trusted_auth)?;
+        if let Some(global_settings) = global_settings.as_ref() {
+            self.package_manager_bootstrap.http_proxy_is_explicit |=
+                has_nonempty_string(global_settings.http_proxy.as_deref());
+            let http_proxy_is_explicit = self.package_manager_bootstrap.http_proxy_is_explicit;
+            global_settings
+                .apply_proxy_to(&mut self.package_manager_bootstrap.proxy, http_proxy_is_explicit);
+        }
 
         npmrc_auth.apply_registry_and_warn(&mut self);
         // Proxy cascade fires unconditionally — even when no `.npmrc`
@@ -2195,6 +2325,8 @@ impl Config {
         // path. See [`crate::store_path::resolve_store_dir`].
         let mut store_dir_explicit = false;
         if let Some(global_settings) = global_settings {
+            self.http_proxy_is_explicit |=
+                has_nonempty_string(global_settings.http_proxy.as_deref());
             virtual_store_dir_explicit |= global_settings.virtual_store_dir.is_some();
             global_virtual_store_dir_explicit |= global_settings.global_virtual_store_dir.is_some();
             store_dir_explicit |= global_settings.store_dir.is_some();
@@ -2253,6 +2385,7 @@ impl Config {
                 global_virtual_store_dir_explicit |= settings.global_virtual_store_dir.is_some();
                 store_dir_explicit |= settings.store_dir.is_some();
                 settings.substitute_env_untrusted::<Sys>();
+                self.http_proxy_is_explicit |= has_nonempty_string(settings.http_proxy.as_deref());
                 collect_explicit_settings(&mut self.explicit_settings, &settings);
                 settings.apply_to(&mut self, &base_dir);
             }
@@ -2285,7 +2418,16 @@ impl Config {
         // `PNPM_CONFIG_REGISTRY` comes from the environment, not the
         // repository, so it overrides the bootstrap default registry too.
         let env_registry_override = env_settings.registry.clone();
+        let env_http_proxy_is_explicit = has_nonempty_string(env_settings.http_proxy.as_deref());
+        self.http_proxy_is_explicit |= env_http_proxy_is_explicit;
+        self.package_manager_bootstrap.http_proxy_is_explicit |= env_http_proxy_is_explicit;
         collect_explicit_settings(&mut self.explicit_settings, &env_settings);
+        let bootstrap_http_proxy_is_explicit =
+            self.package_manager_bootstrap.http_proxy_is_explicit;
+        env_settings.apply_proxy_to(
+            &mut self.package_manager_bootstrap.proxy,
+            bootstrap_http_proxy_is_explicit,
+        );
         let saved_workspace_dir = self.workspace_dir.clone();
         env_settings.apply_to(&mut self, start_dir);
         self.workspace_dir = saved_workspace_dir;
@@ -2330,6 +2472,8 @@ impl Config {
             virtual_store_dir_explicit,
             global_virtual_store_dir_explicit,
         );
+
+        self.apply_virtual_store_only_derivation();
 
         // Resolve the global install directories:
         // `globalPkgDir = (globalDir ?? <pnpm-home>/global)/v11` and
@@ -2393,6 +2537,10 @@ fn collect_explicit_settings(
     }
 }
 
+fn has_nonempty_string(value: Option<&str>) -> bool {
+    value.is_some_and(|value| !value.is_empty())
+}
+
 /// Build the [`PackageManagerBootstrap`] from the already-folded trusted
 /// sources, running them through the same registry/proxy/TLS/auth steps the
 /// full config uses so the bootstrap cascade matches the project cascade
@@ -2403,6 +2551,7 @@ fn build_package_manager_bootstrap<Sys: EnvVar>(
     // The full-config fold already surfaced these sources' `${VAR}` warnings;
     // drop the duplicates this second pass would log.
     trusted_auth.warnings.clear();
+    let http_proxy_is_explicit = has_nonempty_string(trusted_auth.http_proxy.as_deref());
     let mut config = Config::default();
     trusted_auth.apply_registry_and_warn(&mut config);
     trusted_auth.apply_json_env_registries(&mut config);
@@ -2413,6 +2562,7 @@ fn build_package_manager_bootstrap<Sys: EnvVar>(
         registry: config.registry,
         registries: config.registries,
         proxy: config.proxy,
+        http_proxy_is_explicit,
         tls: config.tls,
         tls_by_uri: config.tls_by_uri,
         auth_headers: config.auth_headers,

@@ -80,7 +80,7 @@ fn errors_when_no_resolver_in_the_chain_claims_the_spec() {
     let dir = tempfile::tempdir().expect("tempdir");
 
     // No alias and no bare specifier: every resolver in the chain declines,
-    // so the dispatcher raises `SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` rather
+    // so the dispatcher raises `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` rather
     // than the old npm-only "not claimed" string.
     let wanted = WantedDependencyInput { alias: None, bare_specifier: None };
     let Err(error) = run_resolve_blocking(wanted, &options_for(dir.path())) else {

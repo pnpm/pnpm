@@ -11,6 +11,21 @@ import { rimrafSync } from '@zkochan/rimraf'
 
 import { testDefaults } from '../utils/index.js'
 
+test('a peer dependency declared with a scheme specifier is accepted and auto-installed', async () => {
+  const project = prepareEmpty()
+  await install({
+    name: 'root',
+    version: '0.0.0',
+    private: true,
+    peerDependencies: {
+      'is-positive': 'npm:is-positive@^3.0.0',
+    },
+  }, testDefaults({ autoInstallPeers: true }))
+  const lockfile = project.readLockfile()
+  expect(Object.keys(lockfile.snapshots)).toContain('is-positive@3.1.0')
+  project.has('is-positive')
+})
+
 test('auto install non-optional peer dependencies', async () => {
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
   const project = prepareEmpty()
@@ -21,6 +36,28 @@ test('auto install non-optional peer dependencies', async () => {
     '@pnpm.e2e/peer-a@1.0.0',
   ])
   project.hasNot('@pnpm.e2e/peer-a')
+})
+
+test('resolve an optional peer dependency declared only via peerDependenciesMeta from a version present in the dependency graph', async () => {
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, [
+    '@pnpm.e2e/abc-optional-peers-meta-only@1.0.0',
+    '@pnpm.e2e/has-peer-c-in-deps@1.0.0',
+  ], testDefaults({ autoInstallPeers: true }))
+  const lockfile = project.readLockfile()
+  // peer-c is an implied optional peer (declared only in peerDependenciesMeta),
+  // so it is resolved from the version that has-peer-c-in-deps brings into the
+  // graph. peer-b is also an implied optional peer, but no version of it is in
+  // the graph, so it stays unresolved. peer-a is a required peer and gets
+  // auto-installed.
+  expect(Object.keys(lockfile.snapshots).sort()).toStrictEqual([
+    '@pnpm.e2e/abc-optional-peers-meta-only@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-c@2.0.0)',
+    '@pnpm.e2e/has-peer-c-in-deps@1.0.0',
+    '@pnpm.e2e/peer-a@1.0.0',
+    '@pnpm.e2e/peer-c@2.0.0',
+  ])
+  project.hasNot('@pnpm.e2e/peer-c')
 })
 
 test('auto install the common peer dependency', async () => {

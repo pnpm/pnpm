@@ -90,7 +90,7 @@ pub fn prepare_package<Reporter: self::Reporter>(
     }
 
     // `allowBuild` check before any spawn. A dep path that isn't
-    // allowed throws GIT_DEP_PREPARE_NOT_ALLOWED. The manifest comes
+    // allowed throws ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED. The manifest comes
     // from the fetched artifact itself, so its name and version only
     // feed the error message; the dep path is the gated identity.
     let name = manifest.get("name").and_then(Value::as_str).unwrap_or("");
@@ -191,8 +191,17 @@ fn package_should_be_built(manifest: &Value, pkg_dir: &Path) -> bool {
 }
 
 /// Join `sub` onto `root` and reject results that climb outside.
-fn safe_join_path(root: &Path, sub: Option<&str>) -> Result<PathBuf, PreparePackageError> {
-    let sub = sub.unwrap_or("");
+///
+/// `sub` is a resolution's `path` field, which keeps the leading slash
+/// of the `#path:/packages/foo` specifier it came from. That slash is
+/// rooted at the repo, not the filesystem, so it is stripped before
+/// joining — [`Path::join`] would otherwise discard `root` and treat
+/// the whole thing as absolute, unlike the `path.join` upstream uses.
+pub(crate) fn safe_join_path(
+    root: &Path,
+    sub: Option<&str>,
+) -> Result<PathBuf, PreparePackageError> {
+    let sub = sub.unwrap_or("").trim_start_matches(['/', '\\']);
     let joined = if sub.is_empty() { root.to_path_buf() } else { root.join(sub) };
     let canonical_root = root.canonicalize().map_err(PreparePackageError::Io)?;
     let Ok(canonical_joined) = joined.canonicalize() else {

@@ -77,14 +77,14 @@ impl RuntimeArgs {
     /// `pnpm add <name>@runtime:<version>` in the project directory.
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
         let request = self.set_request()?;
-        add_package::<Reporter, _, _>(
+        add_package::<Reporter, _>(
             state,
             &request.package_name,
             PinnedVersion::Major,
             None,
             false,
             None,
-            || std::iter::once(request.dependency_group),
+            [request.dependency_group],
         )
         .await
     }

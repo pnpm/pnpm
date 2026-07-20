@@ -4,7 +4,7 @@ use super::{
         PACKAGE_MANAGER_SWITCH_ENV_VARS, WantedPackageManager, read_manifest_json,
         should_persist_package_manager_lockfile, version_satisfies, wanted_package_manager,
     },
-    self_update::install_pnpm::pnpm_package_to_install,
+    self_update::install_pnpm::{assert_release_is_installable, pnpm_package_to_install},
     with::{
         PackageManagerCheck,
         install_pnpm_to_store::{install_pnpm_from_env, install_pnpm_to_store},
@@ -61,6 +61,7 @@ pub(crate) async fn execute_switch(
             if version == PNPM_VERSION {
                 return Ok(false);
             }
+            assert_release_is_installable(&version)?;
             let bin_dir =
                 Box::pin(install_pnpm_from_env::<SilentReporter>(config, &env, &version)).await?;
             (version, bin_dir)
@@ -72,6 +73,7 @@ pub(crate) async fn execute_switch(
             if resolved.version == PNPM_VERSION {
                 return Ok(false);
             }
+            assert_release_is_installable(&resolved.version)?;
             let bin_dir = Box::pin(install_pnpm_to_store::<SilentReporter>(
                 config,
                 &env_root,
@@ -320,6 +322,7 @@ fn should_skip_command(command: &CliCommand) -> bool {
         command,
         CliCommand::Completion(_)
             | CliCommand::CompletionServer(_)
+            | CliCommand::Doctor(_)
             | CliCommand::Runtime(_)
             | CliCommand::SelfUpdate(_)
             | CliCommand::Setup(_)
@@ -333,6 +336,7 @@ fn should_skip_command_name(command: &str) -> bool {
         command,
         "completion"
             | "completion-server"
+            | "doctor"
             | "env"
             | "runtime"
             | "rt"
@@ -453,8 +457,10 @@ fn command_name(command: &CliCommand) -> &'static str {
     match command {
         CliCommand::Access(_) => "access",
         CliCommand::Init => "init",
+        CliCommand::Recursive => "recursive",
         CliCommand::Add(_) => "add",
         CliCommand::Install(_) => "install",
+        CliCommand::InstallTest(_) => "install-test",
         CliCommand::Update(_) => "update",
         CliCommand::Outdated(_) => "outdated",
         CliCommand::Audit(_) => "audit",
@@ -464,6 +470,7 @@ fn command_name(command: &CliCommand) -> &'static str {
         CliCommand::Bugs(_) => "bugs",
         CliCommand::List(_) => "list",
         CliCommand::Ll(_) => "ll",
+        CliCommand::Licenses(_) => "licenses",
         CliCommand::Why(_) => "why",
         CliCommand::Sbom(_) => "sbom",
         CliCommand::Whoami => "whoami",
@@ -474,6 +481,7 @@ fn command_name(command: &CliCommand) -> &'static str {
         CliCommand::Stars(_) => "stars",
         CliCommand::DistTag(_) => "dist-tag",
         CliCommand::Ping(_) => "ping",
+        CliCommand::Doctor(_) => "doctor",
         CliCommand::Search(_) => "search",
         CliCommand::Rebuild(_) => "rebuild",
         CliCommand::Pack(_) => "pack",
@@ -497,6 +505,8 @@ fn command_name(command: &CliCommand) -> &'static str {
         CliCommand::FindHash(_) => "find-hash",
         CliCommand::Runtime(_) => "runtime",
         CliCommand::Bin(_) => "bin",
+        CliCommand::Clean(_) => "clean",
+        CliCommand::Purge(_) => "purge",
         CliCommand::Root(_) => "root",
         CliCommand::Prefix(_) => "prefix",
         CliCommand::Config(_) => "config",
@@ -525,6 +535,7 @@ fn command_name(command: &CliCommand) -> &'static str {
         CliCommand::Completion(_) => "completion",
         CliCommand::CompletionServer(_) => "completion-server",
         CliCommand::Team(_) => "team",
+        CliCommand::Owner(_) => "owner",
     }
 }
 

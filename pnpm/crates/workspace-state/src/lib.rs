@@ -152,6 +152,12 @@ pub struct WorkspaceStateSettings {
     pub production: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub public_hoist_pattern: Option<Vec<String>>,
+    /// The `supportedArchitectures` the install ran with, as pnpm's
+    /// config JSON (`{ os, cpu, libc }`). A change must invalidate the
+    /// repeat-install fast path so previously skipped platform packages
+    /// are re-evaluated.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supported_architectures: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_package_patterns: Option<Vec<String>>,
 }
@@ -173,15 +179,15 @@ pub enum NodeLinker {
 #[non_exhaustive]
 pub enum UpdateWorkspaceStateError {
     #[display("Failed to create directory {path:?}: {source}")]
-    #[diagnostic(code(pacquet_workspace_state::create_dir))]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_STATE_CREATE_DIR))]
     CreateDir { path: PathBuf, source: io::Error },
 
     #[display("Failed to serialize workspace state: {_0}")]
-    #[diagnostic(code(pacquet_workspace_state::serialize_json))]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_STATE_SERIALIZE_JSON))]
     SerializeJson(serde_json::Error),
 
     #[display("Failed to write {path:?}: {source}")]
-    #[diagnostic(code(pacquet_workspace_state::write_io))]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_STATE_WRITE_IO))]
     WriteFile { path: PathBuf, source: io::Error },
 }
 
@@ -246,11 +252,11 @@ pub fn load_workspace_state(
 #[non_exhaustive]
 pub enum LoadWorkspaceStateError {
     #[display("Failed to read {path:?}: {source}")]
-    #[diagnostic(code(pacquet_workspace_state::read_io))]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_STATE_READ_IO))]
     ReadFile { path: PathBuf, source: io::Error },
 
     #[display("Failed to parse {path:?}: {source}")]
-    #[diagnostic(code(pacquet_workspace_state::parse_json))]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_STATE_PARSE_JSON))]
     ParseJson { path: PathBuf, source: serde_json::Error },
 }
 

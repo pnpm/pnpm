@@ -45,7 +45,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
         if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group'
         id: filter
         with:
@@ -97,9 +97,7 @@ jobs:
             os_label: windows
           - os: blacksmith-8vcpu-ubuntu-2404
             os_label: ubuntu
-          # Blacksmith offers no macOS runners, so this leg stays on the
-          # GitHub-hosted image.
-          - os: macos-latest
+          - os: blacksmith-12vcpu-macos-latest
             os_label: macos
     runs-on: ${{ matrix.os }}
     steps:
@@ -134,15 +132,18 @@ jobs:
       - name: Cache pnpm
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          key: ci-pnpm-v11-${{ matrix.os }}
+          # Cache only the CAS content. Caching the store root also archives
+          # the global-virtual-store `links/` tree despite a negative path
+          # entry, and tar can't round-trip its Windows junctions.
+          key: ci-pnpm-v11-cas-only-${{ matrix.os }}
           path: |
-            ${{ env.PNPM_HOME }}/store/v11
-            ${{ env.HOME }}/.local/share/pnpm/store/v11
+            ${{ env.PNPM_HOME }}/store/v11/files
+            ${{ env.HOME }}/.local/share/pnpm/store/v11/files
         timeout-minutes: 1
         continue-on-error: true
 
       - name: Install just
-        uses: taiki-e/install-action@bffeee26d4db9be238a4ea78d8826604ebcb594d # v2.82.5
+        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2.83.1
         with:
           tool: just
 
@@ -150,7 +151,7 @@ jobs:
         run: just install
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@bffeee26d4db9be238a4ea78d8826604ebcb594d # v2.82.5
+        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2.83.1
         with:
           tool: cargo-nextest
 
@@ -276,7 +277,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: crate-ci/typos@37bb98842b0d8c4ffebdb75301a13db0267cef89 # v1.47.2
+      - uses: crate-ci/typos@bee27e3a4fd1ea2111cf90ab89cd076c870fce14 # v1.48.0
         with:
           files: pnpm pnpr
 
@@ -290,7 +291,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
         if: github.event_name != 'merge_group'
         id: filter
         with:
@@ -301,7 +302,7 @@ jobs:
 
       - name: Install cargo-deny
         if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
-        uses: taiki-e/install-action@bffeee26d4db9be238a4ea78d8826604ebcb594d # v2.82.5
+        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2.83.1
         with:
           tool: cargo-deny
 

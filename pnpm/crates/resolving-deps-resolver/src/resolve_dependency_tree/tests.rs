@@ -1,9 +1,140 @@
-use pacquet_lockfile::PkgNameVerPeer;
+use pacquet_lockfile::{DirectoryResolution, LockfileResolution, PkgNameVerPeer};
+use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use pacquet_resolving_resolver_base::{
+    LatestQuery, PkgResolutionId, ResolveFuture, ResolveLatestFuture, ResolveOptions,
+    ResolveResult, Resolver, WantedDependency,
+};
 
-use super::landed_on_prior_entry;
+use super::{
+    ResolveDependencyTreeOptions, extract_children, landed_on_prior_entry, resolve_dependency_tree,
+};
+
+#[test]
+fn dependency_engines_runtime_is_walked_as_a_runtime_dependency() {
+    let result = ResolveResult {
+        id: PkgResolutionId::from("parent@1.0.0"),
+        name_ver: None,
+        latest: None,
+        published_at: None,
+        manifest: Some(std::sync::Arc::new(serde_json::json!({
+            "name": "parent",
+            "version": "1.0.0",
+            "engines": {
+                "runtime": {
+                    "name": "node",
+                    "version": "22.19.0",
+                    "onFail": "download",
+                },
+            },
+        }))),
+        resolution: LockfileResolution::Directory(DirectoryResolution {
+            directory: "parent".to_string(),
+        }),
+        resolved_via: "npm-registry".to_string(),
+        normalized_bare_specifier: None,
+        alias: Some("parent".to_string()),
+        policy_violation: None,
+    };
+    assert_eq!(
+        extract_children(&result).unwrap(),
+        vec![("node".to_string(), "runtime:22.19.0".to_string(), false)],
+    );
+}
 
 fn key(raw: &str) -> PkgNameVerPeer {
     raw.parse().expect("parse snapshot key")
+}
+
+struct NestedWorkspaceLinkResolver {
+    target_dir: std::path::PathBuf,
+}
+
+impl Resolver for NestedWorkspaceLinkResolver {
+    fn resolve<'a>(
+        &'a self,
+        wanted: &'a WantedDependency,
+        opts: &'a ResolveOptions,
+    ) -> ResolveFuture<'a> {
+        let target_dir = self.target_dir.clone();
+        let project_dir = opts.project_dir.clone();
+        let alias = wanted.alias.clone().unwrap_or_default();
+        Box::pin(async move {
+            if alias != "shared" {
+                return Ok(None);
+            }
+            let relative = pathdiff::diff_paths(target_dir, project_dir)
+                .expect("target can be relativized")
+                .display()
+                .to_string()
+                .replace('\\', "/");
+            Ok(Some(ResolveResult {
+                id: PkgResolutionId::from(format!("link:{relative}")),
+                name_ver: None,
+                latest: None,
+                published_at: None,
+                manifest: Some(std::sync::Arc::new(
+                    serde_json::json!({ "name": "shared", "version": "1.0.0" }),
+                )),
+                resolution: LockfileResolution::Directory(DirectoryResolution {
+                    directory: relative,
+                }),
+                resolved_via: "workspace".to_string(),
+                normalized_bare_specifier: None,
+                alias: Some(alias),
+                policy_violation: None,
+            }))
+        })
+    }
+
+    fn resolve_latest<'a>(
+        &'a self,
+        _query: &'a LatestQuery,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveLatestFuture<'a> {
+        Box::pin(async { Ok(None) })
+    }
+}
+
+#[tokio::test]
+async fn canonical_snapshot_link_id_is_relative_to_lockfile_root() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let manifest_path = temp.path().join("package.json");
+    std::fs::write(
+        &manifest_path,
+        serde_json::to_string(&serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": { "shared": "workspace:*" },
+        }))
+        .expect("serialize manifest"),
+    )
+    .expect("write manifest");
+    let manifest = PackageManifest::from_path(manifest_path).expect("parse manifest");
+    let project_dir = std::path::PathBuf::from("/repo/apps/nested/app");
+    let lockfile_dir = std::path::PathBuf::from("/repo");
+    let resolver = NestedWorkspaceLinkResolver { target_dir: lockfile_dir.join("packages/shared") };
+
+    let tree = resolve_dependency_tree(
+        &resolver,
+        &manifest,
+        [DependencyGroup::Prod],
+        ResolveDependencyTreeOptions {
+            base_opts: ResolveOptions { project_dir, lockfile_dir, ..ResolveOptions::default() },
+            patched_dependencies: None,
+            manifest_hook: None,
+            pnpmfile_hook: None,
+            read_package_log: None,
+            auto_install_peers: false,
+        },
+    )
+    .await
+    .expect("resolve nested workspace link");
+
+    let direct = tree.direct.first().expect("shared direct dependency");
+    assert_eq!(direct.id, "link:packages/shared");
+    assert_eq!(direct.node_id, crate::NodeId::leaf("link:packages/shared"));
+    assert!(tree.packages.contains_key("link:packages/shared"));
+    assert!(!tree.packages.contains_key("link:../../../packages/shared"));
 }
 
 #[test]
@@ -41,6 +172,7 @@ fn owner_missing_record_is_written_once_per_generation() {
 
     let ctx = WorkspaceTreeCtx::default();
     let owner = ChildrenOwner {
+        update_active: false,
         depth: 1,
         importer_order: 0,
         parent_path: vec!["root-dep@1.0.0".to_string()],
@@ -79,6 +211,29 @@ fn owner_missing_record_is_written_once_per_generation() {
         Some(0),
         "a new ownership generation records afresh",
     );
+}
+
+#[test]
+fn importer_scoped_update_owner_wins_before_discovery_order() {
+    use super::ChildrenOwner;
+
+    let ordinary = ChildrenOwner {
+        update_active: false,
+        depth: 0,
+        importer_order: 0,
+        parent_path: Vec::new(),
+        importer_id: "unselected".to_string(),
+    };
+    let update_active = ChildrenOwner {
+        update_active: true,
+        depth: 10,
+        importer_order: 10,
+        parent_path: vec!["later".to_string()],
+        importer_id: "selected".to_string(),
+    };
+
+    assert!(update_active.wins_over(&ordinary));
+    assert!(!ordinary.wins_over(&update_active));
 }
 
 mod higher_direct_dep_version {
@@ -339,4 +494,37 @@ mod is_update_target {
         // Defensive: "not a targeted update" since we can't match.
         assert!(!is_update_target(&except(&["foo"]), &wanted_with(None, None),));
     }
+}
+
+/// With `name_ver` unset (git / tarball / local resolutions), the
+/// deprecation payload's name and version come from the manifest, and a
+/// manifest missing either field suppresses the warning instead of
+/// emitting a malformed `name@` payload.
+#[test]
+fn deprecated_pkg_name_ver_falls_back_to_the_manifest() {
+    let result = |manifest: serde_json::Value| ResolveResult {
+        id: PkgResolutionId::from("git-pkg@https://example.com/repo.tgz"),
+        name_ver: None,
+        latest: None,
+        published_at: None,
+        manifest: Some(std::sync::Arc::new(manifest)),
+        resolution: LockfileResolution::Directory(DirectoryResolution {
+            directory: ".".to_string(),
+        }),
+        resolved_via: "git-repository".to_string(),
+        normalized_bare_specifier: None,
+        alias: Some("git-pkg".to_string()),
+        policy_violation: None,
+    };
+
+    assert_eq!(
+        super::deprecated_pkg_name_ver(&result(
+            serde_json::json!({ "name": "git-pkg", "version": "2.0.0" })
+        )),
+        Some(("git-pkg".to_string(), "2.0.0".to_string())),
+    );
+    assert_eq!(
+        super::deprecated_pkg_name_ver(&result(serde_json::json!({ "name": "git-pkg" }))),
+        None,
+    );
 }

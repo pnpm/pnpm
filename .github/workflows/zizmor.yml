@@ -15,7 +15,7 @@ permissions: {}
 jobs:
   zizmor:
     name: zizmor latest via PyPI
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       security-events: write
       contents: read

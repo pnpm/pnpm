@@ -37,7 +37,10 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pacquet_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    fixtures::minimal_tarball,
+};
 use std::{fs, path::Path, process::Command, thread::sleep, time::Duration};
 
 fn pacquet_at(workspace: &Path) -> Command {
@@ -158,29 +161,6 @@ fn remote_tarball_integrity_survives_unrelated_install() {
     pacquet_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
 
     drop((root, mock_instance));
-}
-
-/// Build a minimal gzipped npm tarball carrying just a `package.json`
-/// under the conventional top-level `package/` directory (which the
-/// extractor strips). Enough for the resolver to learn the package's
-/// name/version + compute an integrity, without a real registry.
-fn minimal_tarball(name: &str, version: &str) -> Vec<u8> {
-    use std::io::Write;
-    let manifest = serde_json::json!({ "name": name, "version": version }).to_string();
-    let manifest = manifest.as_bytes();
-
-    let mut builder = tar::Builder::new(Vec::new());
-    let mut header = tar::Header::new_gnu();
-    header.set_path("package/package.json").expect("set tar entry path");
-    header.set_size(manifest.len() as u64);
-    header.set_mode(0o644);
-    header.set_cksum();
-    builder.append(&header, manifest).expect("append package.json to tar");
-    let tar_bytes = builder.into_inner().expect("finish tar");
-
-    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
-    encoder.write_all(&tar_bytes).expect("gzip tar");
-    encoder.finish().expect("finish gzip")
 }
 
 /// On re-resolution, a remote tarball already recorded in the lockfile is

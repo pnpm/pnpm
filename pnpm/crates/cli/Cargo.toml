@@ -75,6 +75,7 @@ p256                 = { workspace = true }
 pathdiff             = { workspace = true }
 pipe-trait           = { workspace = true }
 rayon                = { workspace = true }
+reflink-copy         = { workspace = true }
 reqwest              = { workspace = true }
 rmp-serde            = { workspace = true }
 serde                = { workspace = true }
@@ -107,8 +108,11 @@ insta             = { workspace = true }
 mockito           = { workspace = true }
 pretty_assertions = { workspace = true }
 serde-saphyr      = { workspace = true }
+sha2              = { workspace = true }
+ssri              = { workspace = true }
 text-block-macros = { workspace = true }
 walkdir           = { workspace = true }
+zip               = { workspace = true }
 
 [lints]
 workspace = true

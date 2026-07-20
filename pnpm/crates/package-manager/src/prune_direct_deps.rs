@@ -40,7 +40,7 @@ pub enum PruneDirectDepsError {
     #[display(
         "Failed to read {path:?} while removing the bins of an excluded direct dependency: {error}"
     )]
-    #[diagnostic(code(pacquet_package_manager::prune_direct_deps_read_manifest))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_PRUNE_DIRECT_DEPS_READ_MANIFEST))]
     ReadManifest {
         path: PathBuf,
         #[error(source)]
@@ -50,7 +50,7 @@ pub enum PruneDirectDepsError {
     #[display(
         "Failed to remove the bin shim at {path:?} of an excluded direct dependency: {error}"
     )]
-    #[diagnostic(code(pacquet_package_manager::prune_direct_deps_remove_bin))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_PRUNE_DIRECT_DEPS_REMOVE_BIN))]
     RemoveBin {
         path: PathBuf,
         #[error(source)]
@@ -58,7 +58,7 @@ pub enum PruneDirectDepsError {
     },
 
     #[display("Failed to remove the excluded direct dependency at {path:?}: {error}")]
-    #[diagnostic(code(pacquet_package_manager::prune_direct_deps_remove_link))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_PRUNE_DIRECT_DEPS_REMOVE_LINK))]
     RemoveLink {
         path: PathBuf,
         #[error(source)]
@@ -69,7 +69,15 @@ pub enum PruneDirectDepsError {
 /// Remove the direct-dependency links that `old_included` selected but
 /// `new_included` does not, for every importer recorded in the current
 /// lockfile (`<virtual_store_dir>/lock.yaml` — what the previous install
-/// actually materialized).
+/// actually materialized). When `prunable_importer_ids` is set, only links
+/// belonging to those importers are eligible for removal; a filtered
+/// install leaves every other importer's links untouched because it never
+/// re-materialized them.
+///
+/// Unrelated to [`crate::SymlinkDirectDependencies::trusted_importer_ids`],
+/// which names importers allowed to *skip* ID validation. This set never
+/// widens what may be deleted — every removal still passes the same
+/// validation and containment checks.
 ///
 /// Runs when `.modules.yaml` records a different `included` set than the
 /// current install wants while the layout itself is unchanged: that
@@ -103,6 +111,7 @@ pub fn prune_direct_deps_excluded_by_groups(
     new_included: IncludedDependencies,
     workspace_root: &Path,
     config: &Config,
+    prunable_importer_ids: Option<&HashSet<String>>,
 ) -> Result<(), PruneDirectDepsError> {
     let old_groups = selected_groups(old_included);
     let new_groups = selected_groups(new_included);
@@ -117,6 +126,9 @@ pub fn prune_direct_deps_excluded_by_groups(
         config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
 
     for (importer_id, snapshot) in &current_lockfile.importers {
+        if prunable_importer_ids.is_some_and(|importer_ids| !importer_ids.contains(importer_id)) {
+            continue;
+        }
         // A malformed importer key is rejected with a typed error by
         // the symlink pass; never *delete* based on one.
         if validate_importer_id(importer_id).is_err() {
@@ -152,7 +164,7 @@ pub fn prune_direct_deps_excluded_by_groups(
 /// removals should operate on, or `None` when there is nothing to
 /// prune (the directory doesn't exist) or when the resolution escapes
 /// the workspace — never delete through an escape.
-fn confined_modules_dir(modules_dir: &Path, workspace_root: &Path) -> Option<PathBuf> {
+pub(crate) fn confined_modules_dir(modules_dir: &Path, workspace_root: &Path) -> Option<PathBuf> {
     let modules_canon = std::fs::canonicalize(modules_dir).ok()?;
     let root_canon = std::fs::canonicalize(workspace_root).ok()?;
     if modules_canon.starts_with(&root_canon) {
@@ -176,7 +188,7 @@ fn is_real_dir(path: &Path) -> bool {
         && read_symlink_dir(path).is_err()
 }
 
-fn selected_groups(included: IncludedDependencies) -> Vec<DependencyGroup> {
+pub(crate) fn selected_groups(included: IncludedDependencies) -> Vec<DependencyGroup> {
     let mut groups = Vec::with_capacity(3);
     if included.dependencies {
         groups.push(DependencyGroup::Prod);
@@ -190,7 +202,10 @@ fn selected_groups(included: IncludedDependencies) -> Vec<DependencyGroup> {
     groups
 }
 
-fn remove_direct_dep_link(modules_dir: &Path, name: &str) -> Result<(), PruneDirectDepsError> {
+pub(crate) fn remove_direct_dep_link(
+    modules_dir: &Path,
+    name: &str,
+) -> Result<(), PruneDirectDepsError> {
     let link =
         safe_join_modules_dir(modules_dir, name).map_err(PruneDirectDepsError::InvalidAlias)?;
     // For a scoped alias the join passes through `@scope/`; refuse to

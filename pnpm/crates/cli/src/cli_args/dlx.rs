@@ -27,14 +27,6 @@ use std::{
 };
 
 /// Run a package in a temporary environment.
-///
-/// Deviations from pnpm, deferred until the surrounding infrastructure
-/// lands:
-/// - The cache key is built from the raw package specs rather than the
-///   resolved package ids, so a floating spec such as `cowsay` is not
-///   re-resolved until the cache entry expires.
-/// - The interactive `approve-builds` prompt is not ported; transitive
-///   build scripts follow the install's normal allow-list.
 #[derive(Debug, Args)]
 pub struct DlxArgs {
     /// The command to run, followed by its arguments.
@@ -112,7 +104,7 @@ pub enum DlxError {
     BadPathDir { dir: String, delimiter: char },
 
     #[display("Failed to read the installed manifest at {path}: {source}")]
-    #[diagnostic(code(pacquet_cli::dlx_read_manifest))]
+    #[diagnostic(code(ERR_PNPM_CLI_DLX_READ_MANIFEST))]
     ReadManifest {
         path: String,
         #[error(source)]
@@ -120,7 +112,7 @@ pub enum DlxError {
     },
 
     #[display("Failed to prepare the dlx cache directory {dir}: {source}")]
-    #[diagnostic(code(pacquet_cli::dlx_cache))]
+    #[diagnostic(code(ERR_PNPM_CLI_DLX_CACHE))]
     Cache {
         dir: String,
         #[error(source)]
@@ -128,7 +120,7 @@ pub enum DlxError {
     },
 
     #[display("Failed to spawn command \"{command}\": {source}")]
-    #[diagnostic(code(pacquet_cli::dlx_spawn))]
+    #[diagnostic(code(ERR_PNPM_CLI_DLX_SPAWN))]
     Spawn {
         command: String,
         #[error(source)]
@@ -314,7 +306,7 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     for pkg in pkgs {
         let state = State::init(manifest_path.clone(), config, false)
             .wrap_err("initialize the dlx install state")?;
-        add_package::<Reporter, _, _>(
+        add_package::<Reporter, _>(
             state,
             pkg,
             // dlx records the default caret range; the spec is throwaway.
@@ -324,7 +316,7 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
             // dlx must download to run the bin, so never lockfile-only.
             false,
             config.supported_architectures.clone(),
-            || std::iter::once(DependencyGroup::Prod),
+            [DependencyGroup::Prod],
         )
         .await?;
     }

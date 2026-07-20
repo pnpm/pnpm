@@ -1,7 +1,8 @@
 use super::{
-    DownloadTarballToStore, FetchTarballForResolution, HttpStatusError, MemCache, NetworkError,
-    PrefetchedCasPaths, RetryOpts, SharedReportedProgressKeys, TarballError, VerifyChecksumError,
-    allocate_local_tarball_buffer, allocate_tarball_buffer, apply_append_manifest,
+    DownloadTarballToStore, FetchTarballForResolution, HttpStatusError,
+    MAX_UNTRUSTED_PREALLOC_BYTES, MemCache, NetworkError, PrefetchedCasPaths, RetryOpts,
+    SharedReportedProgressKeys, TarballError, VerifyChecksumError, allocate_local_tarball_buffer,
+    allocate_tarball_buffer, apply_append_manifest, bounded_gzip_size_hint, decompress_gzip,
     download_priority, extract_tarball_entries, extract_zip_entries, fetch_and_extract_with_retry,
     is_transient_error, local_file_tarball_path, normalize_bundled_manifest, open_local_tarball,
     prefetch_cas_paths, read_local_tarball_buffer,
@@ -26,6 +27,37 @@ use tempfile::{TempDir, tempdir};
 
 fn integrity(integrity_str: &str) -> Integrity {
     integrity_str.parse().expect("parse integrity string")
+}
+
+#[test]
+fn gzip_size_hint_enforces_untrusted_preallocation_limit() {
+    assert_eq!(bounded_gzip_size_hint(None), None);
+    assert_eq!(bounded_gzip_size_hint(Some(1)), Some(1));
+    assert_eq!(
+        bounded_gzip_size_hint(Some(MAX_UNTRUSTED_PREALLOC_BYTES)),
+        Some(MAX_UNTRUSTED_PREALLOC_BYTES),
+    );
+    assert_eq!(
+        bounded_gzip_size_hint(Some(MAX_UNTRUSTED_PREALLOC_BYTES + 1)),
+        Some(MAX_UNTRUSTED_PREALLOC_BYTES),
+    );
+    assert_eq!(bounded_gzip_size_hint(Some(usize::MAX)), Some(MAX_UNTRUSTED_PREALLOC_BYTES));
+}
+
+/// Covers the wiring rather than the bound itself: nothing in
+/// [`bounded_gzip_size_hint`]'s own test catches `decompress_gzip`
+/// handing the raw hint to zune-inflate, which aborts the process
+/// instead of failing.
+#[test]
+fn decompress_gzip_bounds_oversized_unpacked_size() {
+    let payload = b"decompressed tar payload";
+    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+    std::io::Write::write_all(&mut encoder, payload).expect("gzip payload");
+    let gz_data = encoder.finish().expect("finish gzip");
+
+    let decompressed = decompress_gzip(&gz_data, Some(usize::MAX)).expect("decompress gzip");
+
+    assert_eq!(decompressed, payload);
 }
 
 /// Absent `Content-Length` (chunked transfer) returns an empty
@@ -1401,6 +1433,7 @@ async fn fetch_for_resolution_computes_integrity_when_none_is_expected() {
         package_id: &url,
         auth_headers: &AuthHeaders::default(),
         retry_opts: fast_retry_opts(),
+        manifest_subdir: None,
     }
     .run::<SilentReporter>(None)
     .await
@@ -1441,12 +1474,157 @@ async fn fetch_for_resolution_uses_package_id_for_scoped_auth() {
         package_id: "@scope/test-pkg@1.0.0",
         auth_headers: &auth_headers,
         retry_opts: fast_retry_opts(),
+        manifest_subdir: None,
     }
     .run::<SilentReporter>(None)
     .await
     .expect("the scope token selected via package_id should let the fetch succeed");
 
     assert_eq!(resolved.integrity, integrity(FASTIFY_ERROR_INTEGRITY));
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+/// Gzip a tar holding `(path, contents)` entries, under the top-level
+/// prefix a git host's archive carries.
+fn gzipped_archive(entries: &[(&str, &str)]) -> Vec<u8> {
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut tar_bytes);
+        for (path, contents) in entries {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(contents.len() as u64);
+            header.set_mode(0o644);
+            header.set_entry_type(tar::EntryType::Regular);
+            header.set_cksum();
+            builder
+                .append_data(&mut header, format!("repo-abc123/{path}"), contents.as_bytes())
+                .expect("append entry");
+        }
+        builder.finish().expect("finalize tar");
+    }
+    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+    std::io::Write::write_all(&mut encoder, &tar_bytes).expect("gzip tar");
+    encoder.finish().expect("finish gzip")
+}
+
+/// A git dep pointing at one directory of a repo (`#path:/packages/foo`)
+/// gets an archive spanning the whole repo, so the root `package.json`
+/// is the repo's, not the package's. Reading the root would name the
+/// lockfile key after the wrong package.
+#[tokio::test]
+async fn fetch_for_resolution_reads_manifest_from_subdirectory() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let archive = gzipped_archive(&[
+        ("package.json", r#"{"name":"the-monorepo","version":"0.0.0"}"#),
+        ("packages/foo/package.json", r#"{"name":"foo","version":"1.2.3"}"#),
+    ]);
+    let mock =
+        server.mock("GET", "/repo.tgz").with_status(200).with_body(archive).create_async().await;
+
+    let url = format!("{}/repo.tgz", server.url());
+    let client = ThrottledClient::default();
+
+    let resolved = FetchTarballForResolution {
+        http_client: &client,
+        store_dir: store_path,
+        store_index_writer: None,
+        package_url: &url,
+        package_id: &url,
+        auth_headers: &AuthHeaders::default(),
+        retry_opts: fast_retry_opts(),
+        // Leading slash, exactly as the resolution records it.
+        manifest_subdir: Some("/packages/foo"),
+    }
+    .run::<SilentReporter>(None)
+    .await
+    .expect("subdirectory manifest should be readable from the extracted archive");
+
+    let manifest = dbg!(resolved.manifest).expect("subdirectory manifest");
+    assert_eq!(manifest.get("name").and_then(serde_json::Value::as_str), Some("foo"));
+    assert_eq!(manifest.get("version").and_then(serde_json::Value::as_str), Some("1.2.3"));
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+/// The row would be keyed by the subpackage (read from
+/// `<subdir>/package.json`) while carrying an index built from the
+/// whole archive — the repo's manifest and every repo file. Writing
+/// that would hand any consumer trusting the key a payload describing
+/// the repo, so no row is written at all.
+#[tokio::test]
+async fn fetch_for_resolution_writes_no_index_row_for_a_subdirectory_package() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let archive = gzipped_archive(&[
+        ("package.json", r#"{"name":"the-monorepo","version":"0.0.0"}"#),
+        ("packages/foo/package.json", r#"{"name":"foo","version":"1.2.3"}"#),
+    ]);
+    let _mock =
+        server.mock("GET", "/repo.tgz").with_status(200).with_body(archive).create_async().await;
+
+    let url = format!("{}/repo.tgz", server.url());
+    let client = ThrottledClient::default();
+    let (writer, writer_task) = StoreIndexWriter::spawn(store_path);
+
+    let resolved = FetchTarballForResolution {
+        http_client: &client,
+        store_dir: store_path,
+        store_index_writer: Some(Arc::clone(&writer)),
+        package_url: &url,
+        package_id: &url,
+        auth_headers: &AuthHeaders::default(),
+        retry_opts: fast_retry_opts(),
+        manifest_subdir: Some("/packages/foo"),
+    }
+    .run::<SilentReporter>(None)
+    .await
+    .expect("subdirectory fetch should succeed");
+
+    drop(writer);
+    writer_task.await.expect("writer task").expect("writer flushed");
+
+    // The key the row *would* have taken, had one been written.
+    let key = store_index_key(&resolved.integrity.to_string(), "foo@1.2.3");
+    let index = StoreIndex::open_in(store_path).expect("open store index");
+    let rows = index.get_many(std::slice::from_ref(&key)).expect("read index");
+    assert!(rows.is_empty(), "a subpackage key must not carry the whole repo's index: {rows:?}");
+    drop(store_dir_keep);
+}
+
+/// A subdirectory without its own `package.json` degrades to `None`,
+/// the same best-effort contract the archive root has — never the
+/// root's manifest, which would name the key after the wrong package.
+#[tokio::test]
+async fn fetch_for_resolution_returns_no_manifest_for_subdirectory_without_one() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let archive = gzipped_archive(&[
+        ("package.json", r#"{"name":"the-monorepo","version":"0.0.0"}"#),
+        ("packages/foo/index.js", "module.exports = 1"),
+    ]);
+    let mock =
+        server.mock("GET", "/repo.tgz").with_status(200).with_body(archive).create_async().await;
+
+    let url = format!("{}/repo.tgz", server.url());
+    let client = ThrottledClient::default();
+
+    let resolved = FetchTarballForResolution {
+        http_client: &client,
+        store_dir: store_path,
+        store_index_writer: None,
+        package_url: &url,
+        package_id: &url,
+        auth_headers: &AuthHeaders::default(),
+        retry_opts: fast_retry_opts(),
+        manifest_subdir: Some("/packages/foo"),
+    }
+    .run::<SilentReporter>(None)
+    .await
+    .expect("a subdirectory without a package.json is not a fetch failure");
+
+    assert_eq!(dbg!(resolved.manifest), None);
     mock.assert_async().await;
     drop(store_dir_keep);
 }

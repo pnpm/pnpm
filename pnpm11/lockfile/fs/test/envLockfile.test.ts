@@ -8,13 +8,15 @@ import { temporaryDirectory } from 'tempy'
 
 const testOnNonWindows = process.platform === 'win32' ? test.skip : test
 
-testOnNonWindows('readEnvLockfile rejects a symlinked lockfile', async () => {
+testOnNonWindows('readEnvLockfile reads a symlinked lockfile', async () => {
   const dir = temporaryDirectory()
   const realLockfile = path.join(dir, 'real-lockfile.yaml')
   fs.writeFileSync(realLockfile, '---\nlockfileVersion: "9.0"\nimporters:\n  .:\n    configDependencies: {}\npackages: {}\nsnapshots: {}\n---\n')
   fs.symlinkSync(realLockfile, path.join(dir, WANTED_LOCKFILE), 'file')
 
-  await expect(readEnvLockfile(dir)).rejects.toThrow(/symlinked lockfile/)
+  await expect(readEnvLockfile(dir)).resolves.toMatchObject({
+    lockfileVersion: '9.0',
+  })
 })
 
 testOnNonWindows('writeEnvLockfile rejects a symlinked lockfile without touching the target', async () => {

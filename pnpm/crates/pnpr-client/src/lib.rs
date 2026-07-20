@@ -17,7 +17,7 @@
 //! `/~<name>/` registry endpoint (which may cache them server-side under
 //! its own private namespace).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use derive_more::{Display, Error, From};
 use futures_util::StreamExt as _;
@@ -25,7 +25,7 @@ use pacquet_config::TrustPolicy;
 use pacquet_lockfile::Lockfile;
 use pacquet_lockfile_verification::{RenderedViolation, VerifyError};
 use reqwest::Client;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Dependency map (`name` -> `version range`).
 pub type DepMap = BTreeMap<String, String>;
@@ -82,6 +82,72 @@ pub struct ResolveOptions {
     pub trust_policy_ignore_after: Option<u64>,
 }
 
+/// One workspace project sent to the pnpr resolver.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResolveProject {
+    /// Importer directory relative to the lockfile directory, in POSIX form.
+    pub dir: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    pub dependencies: DepMap,
+    pub dev_dependencies: DepMap,
+    pub optional_dependencies: DepMap,
+}
+
+/// Inputs for a multi-project workspace resolution.
+#[derive(Clone)]
+pub struct ResolveProjectsOptions {
+    pub projects: Vec<ResolveProject>,
+    pub registry: String,
+    pub named_registries: DepMap,
+    pub authorization: Option<String>,
+    pub overrides: Option<serde_json::Value>,
+    pub lockfile: Option<Lockfile>,
+    pub frozen_lockfile: bool,
+    pub prefer_frozen_lockfile: Option<bool>,
+    pub ignore_manifest_check: bool,
+    pub trust_lockfile: bool,
+    pub minimum_release_age: Option<u64>,
+    pub minimum_release_age_exclude: Option<Vec<String>>,
+    pub minimum_release_age_ignore_missing_time: bool,
+    pub trust_policy: TrustPolicy,
+    pub trust_policy_exclude: Option<Vec<String>>,
+    pub trust_policy_ignore_after: Option<u64>,
+}
+
+impl From<ResolveOptions> for ResolveProjectsOptions {
+    fn from(opts: ResolveOptions) -> Self {
+        Self {
+            projects: vec![ResolveProject {
+                dir: ".".to_string(),
+                name: None,
+                version: None,
+                dependencies: opts.dependencies,
+                dev_dependencies: opts.dev_dependencies,
+                optional_dependencies: opts.optional_dependencies,
+            }],
+            registry: opts.registry,
+            named_registries: opts.named_registries,
+            authorization: opts.authorization,
+            overrides: opts.overrides,
+            lockfile: opts.lockfile,
+            frozen_lockfile: opts.frozen_lockfile,
+            prefer_frozen_lockfile: opts.prefer_frozen_lockfile,
+            ignore_manifest_check: opts.ignore_manifest_check,
+            trust_lockfile: opts.trust_lockfile,
+            minimum_release_age: opts.minimum_release_age,
+            minimum_release_age_exclude: opts.minimum_release_age_exclude,
+            minimum_release_age_ignore_missing_time: opts.minimum_release_age_ignore_missing_time,
+            trust_policy: opts.trust_policy,
+            trust_policy_exclude: opts.trust_policy_exclude,
+            trust_policy_ignore_after: opts.trust_policy_ignore_after,
+        }
+    }
+}
+
 /// Inputs for `/-/pnpr/v0/verify-lockfile`, the resolution-free trust verdict
 /// used by frozen restores that already know the local lockfile is fresh.
 #[derive(Clone)]
@@ -103,18 +169,27 @@ pub struct VerifyLockfileOptions {
 impl VerifyLockfileOptions {
     #[must_use]
     pub fn from_resolve_options(opts: &ResolveOptions) -> Option<Self> {
+        Self::from_owned_resolve_projects_options(opts.clone().into())
+    }
+
+    #[must_use]
+    pub fn from_resolve_projects_options(opts: &ResolveProjectsOptions) -> Option<Self> {
+        Self::from_owned_resolve_projects_options(opts.clone())
+    }
+
+    fn from_owned_resolve_projects_options(opts: ResolveProjectsOptions) -> Option<Self> {
         Some(Self {
-            registry: opts.registry.clone(),
-            named_registries: opts.named_registries.clone(),
-            authorization: opts.authorization.clone(),
-            overrides: opts.overrides.clone(),
-            lockfile: opts.lockfile.clone()?,
+            registry: opts.registry,
+            named_registries: opts.named_registries,
+            authorization: opts.authorization,
+            overrides: opts.overrides,
+            lockfile: opts.lockfile?,
             trust_lockfile: opts.trust_lockfile,
             minimum_release_age: opts.minimum_release_age,
-            minimum_release_age_exclude: opts.minimum_release_age_exclude.clone(),
+            minimum_release_age_exclude: opts.minimum_release_age_exclude,
             minimum_release_age_ignore_missing_time: opts.minimum_release_age_ignore_missing_time,
             trust_policy: opts.trust_policy,
-            trust_policy_exclude: opts.trust_policy_exclude.clone(),
+            trust_policy_exclude: opts.trust_policy_exclude,
             trust_policy_ignore_after: opts.trust_policy_ignore_after,
         })
     }
@@ -236,7 +311,16 @@ impl PnprClient {
     /// resolved lockfile, ignoring the streamed per-package frames.
     /// Equivalent to [`Self::resolve_streaming`] with a no-op callback.
     pub async fn resolve(&self, opts: ResolveOptions) -> Result<ResolveOutcome, PnprClientError> {
-        self.resolve_streaming(opts, |_| {}).await
+        self.resolve_projects(opts.into()).await
+    }
+
+    /// Resolve workspace projects against the server and return the resolved
+    /// lockfile, ignoring the streamed per-package frames.
+    pub async fn resolve_projects(
+        &self,
+        opts: ResolveProjectsOptions,
+    ) -> Result<ResolveOutcome, PnprClientError> {
+        self.resolve_projects_streaming(opts, |_| {}).await
     }
 
     /// Ask the server to verify a lockfile under the client's registry
@@ -309,15 +393,37 @@ impl PnprClient {
     pub async fn resolve_streaming(
         &self,
         opts: ResolveOptions,
+        on_package: impl FnMut(ResolvedPackage),
+    ) -> Result<ResolveOutcome, PnprClientError> {
+        self.resolve_projects_streaming(opts.into(), on_package).await
+    }
+
+    /// Resolve workspace projects, invoking `on_package` once per resolved
+    /// tarball before the terminal lockfile frame arrives.
+    pub async fn resolve_projects_streaming(
+        &self,
+        opts: ResolveProjectsOptions,
         mut on_package: impl FnMut(ResolvedPackage),
     ) -> Result<ResolveOutcome, PnprClientError> {
+        // The server's response is untrusted, and the caller merges the
+        // returned lockfile into `pnpm-lock.yaml`. Constrain it to the
+        // importers this request is about — the requested projects plus
+        // whatever the input lockfile already carried — so a hostile server
+        // cannot introduce dependencies for a project that was never sent.
+        // This is a containment check (every returned importer was
+        // requested), which is the injection boundary; it deliberately does
+        // not require every requested importer to be present. A dependency-
+        // free importer is still present-but-empty (pnpm records it as
+        // `{ specifiers: {} }`), and a genuinely missing importer is surfaced
+        // downstream by the lockfile merge, not a way to inject dependencies.
+        let permitted_importers: HashSet<String> = opts
+            .projects
+            .iter()
+            .map(|project| project.dir.clone())
+            .chain(opts.lockfile.iter().flat_map(|lockfile| lockfile.importers.keys().cloned()))
+            .collect();
         let request = serde_json::json!({
-            "projects": [{
-                "dir": ".",
-                "dependencies": opts.dependencies,
-                "devDependencies": opts.dev_dependencies,
-                "optionalDependencies": opts.optional_dependencies,
-            }],
+            "projects": opts.projects,
             "registry": opts.registry,
             "namedRegistries": opts.named_registries,
             "overrides": opts.overrides,
@@ -383,6 +489,15 @@ impl PnprClient {
                         });
                     }
                     Frame::Done { lockfile, stats } => {
+                        if let Some(unexpected) = lockfile
+                            .importers
+                            .keys()
+                            .find(|importer| !permitted_importers.contains(*importer))
+                        {
+                            return Err(PnprClientError::Protocol(format!(
+                                "/-/pnpr/v0/resolve returned an importer that was not requested: {unexpected:?}",
+                            )));
+                        }
                         return Ok(ResolveOutcome { lockfile: *lockfile, stats });
                     }
                     Frame::Error { message } => return Err(PnprClientError::Server(message)),

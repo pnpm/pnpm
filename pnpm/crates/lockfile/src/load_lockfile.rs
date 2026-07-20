@@ -2,10 +2,11 @@ use crate::{Lockfile, extract_main_document};
 use derive_more::{Display, Error};
 use pacquet_diagnostics::miette::{self, Diagnostic};
 use pipe_trait::Pipe;
+use serde_saphyr::MessageFormatter;
 use std::{
     env, fs,
     io::{self, ErrorKind},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 /// Error when reading lockfile the filesystem.
@@ -13,16 +14,36 @@ use std::{
 #[non_exhaustive]
 pub enum LoadLockfileError {
     #[display("Failed to get current_dir: {_0}")]
-    #[diagnostic(code(pacquet_lockfile::current_dir))]
+    #[diagnostic(code(ERR_PNPM_LOCKFILE_CURRENT_DIR))]
     CurrentDir(io::Error),
 
     #[display("Failed to read lockfile content: {_0}")]
-    #[diagnostic(code(pacquet_lockfile::read_file))]
+    #[diagnostic(code(ERR_PNPM_LOCKFILE_READ_FILE))]
     ReadFile(io::Error),
 
-    #[display("Failed to parse lockfile content as YAML: {_0}")]
-    #[diagnostic(code(pacquet_lockfile::parse_yaml))]
-    ParseYaml(serde_saphyr::Error),
+    #[display(
+        "The lockfile at \"{}\" is broken: {}",
+        path.display(),
+        reason
+    )]
+    #[diagnostic(code(ERR_PNPM_BROKEN_LOCKFILE))]
+    ParseYaml { path: PathBuf, reason: String },
+}
+
+impl LoadLockfileError {
+    pub(super) fn parse_yaml(path: &Path, source: &serde_saphyr::Error) -> Self {
+        Self::ParseYaml { path: path.to_path_buf(), reason: format_yaml_error(source) }
+    }
+}
+
+fn format_yaml_error(error: &serde_saphyr::Error) -> String {
+    let error = error.without_snippet();
+    let reason = serde_saphyr::DefaultMessageFormatter.format_message(error);
+    if let Some(location) = error.location() {
+        format!("{reason} ({}:{})", location.line(), location.column())
+    } else {
+        reason.into_owned()
+    }
 }
 
 impl Lockfile {
@@ -96,7 +117,7 @@ impl Lockfile {
                 lockfile.reconstruct_missing_directory_resolutions();
                 Some(lockfile)
             })
-            .map_err(LoadLockfileError::ParseYaml)
+            .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))
     }
 }
 

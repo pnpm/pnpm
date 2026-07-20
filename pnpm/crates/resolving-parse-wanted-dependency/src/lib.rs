@@ -1,10 +1,13 @@
-//! Splits a raw dependency string from the manifest (or the CLI's `add`
-//! argument) into its `(alias, bareSpecifier)` halves so the downstream
-//! resolvers can decide which protocol is at play.
+//! Parses dependency strings before resolver dispatch. This crate splits a
+//! raw manifest or `add` argument into its `(alias, bareSpecifier)` halves and
+//! compares the supported equivalent forms of Git specifiers.
 
 pub mod validate_npm_package_name;
 
+pub use git_specifier::git_specifiers_are_equivalent;
 pub use validate_npm_package_name::is_valid_old_npm_package_name;
+
+mod git_specifier;
 
 /// The `(alias, bareSpecifier)` split for a raw dependency string. At
 /// least one of the two fields is always populated.

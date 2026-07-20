@@ -4,18 +4,14 @@
 //! pnpm [`symlink-dir`](https://github.com/pnpm/symlink-dir) npm
 //! package.
 
-#[cfg(windows)]
-use super::relative_target_for;
 #[cfg(unix)]
 use super::symlink_dir;
 #[cfg(windows)]
 use super::to_native_separators;
 use super::{ForceSymlinkOutcome, force_symlink_dir, read_symlink_dir};
-use std::fs;
 #[cfg(windows)]
-use std::path::Path;
-#[cfg(unix)]
-use std::path::PathBuf;
+use super::{is_reparse_point, relative_target_for};
+use std::fs;
 use tempfile::tempdir;
 
 #[cfg(unix)]
@@ -32,7 +28,7 @@ fn unix_symlink_contents_are_relative_to_link_parent() {
     let contents = fs::read_link(&link).expect("read_link the symlink we just wrote");
     assert_eq!(
         contents,
-        PathBuf::from("..").join("packages").join("pkg-a"),
+        std::path::PathBuf::from("..").join("packages").join("pkg-a"),
         "symlink contents must be the relative path from link parent to target",
     );
     assert!(link.exists(), "symlink must resolve to an existing directory");
@@ -58,6 +54,28 @@ fn force_symlink_dir_returns_reused_when_already_pointing_at_target() {
         ForceSymlinkOutcome { reused: true, warning: None },
         "second call with the same target must be a no-op reuse",
     );
+}
+
+#[test]
+fn force_symlink_inner_surfaces_concurrent_cleanup_warnings() {
+    fn create_then_warn(target: &std::path::Path, link: &std::path::Path) -> std::io::Result<()> {
+        super::symlink_dir(target, link)?;
+        Err(std::io::Error::new(
+            std::io::ErrorKind::AlreadyExists,
+            super::ConcurrentCleanupWarning("staged junction cleanup failed".into()),
+        ))
+    }
+
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("real");
+    let link = root.path().join("link");
+    fs::create_dir_all(&target).expect("create target");
+
+    let outcome = super::force_symlink_inner(&target, &link, false, create_then_warn)
+        .expect("completed link should be reused");
+
+    assert!(outcome.reused);
+    assert_eq!(outcome.warning.as_deref(), Some("staged junction cleanup failed"));
 }
 
 #[test]
@@ -127,8 +145,8 @@ fn force_symlink_dir_creates_missing_parent_directories() {
 #[cfg(windows)]
 #[test]
 fn windows_cross_drive_symlink_target_falls_back_to_absolute() {
-    let target = Path::new(r"C:\Users\runneradmin\setup-pnpm\store\@babel\plugin-x");
-    let link = Path::new(r"D:\a\pnpm\pnpm\node_modules\@babel\plugin-x");
+    let target = std::path::Path::new(r"C:\Users\runneradmin\setup-pnpm\store\@babel\plugin-x");
+    let link = std::path::Path::new(r"D:\a\pnpm\pnpm\node_modules\@babel\plugin-x");
 
     assert_eq!(relative_target_for(target, link), target);
 }
@@ -136,7 +154,8 @@ fn windows_cross_drive_symlink_target_falls_back_to_absolute() {
 #[cfg(windows)]
 #[test]
 fn windows_scoped_alias_path_gets_native_separators() {
-    let mixed = Path::new(r"C:\store\v11\links\@\pkg\1.0.0\hash\node_modules").join("@scope/name");
+    let mixed = std::path::Path::new(r"C:\store\v11\links\@\pkg\1.0.0\hash\node_modules")
+        .join("@scope/name");
     assert!(
         mixed.as_os_str().to_string_lossy().contains('/'),
         "the join must leave a forward slash for the rewrite to remove: {mixed:?}",
@@ -149,7 +168,7 @@ fn windows_scoped_alias_path_gets_native_separators() {
     );
     assert_eq!(
         native.as_ref(),
-        Path::new(r"C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\@scope\name"),
+        std::path::Path::new(r"C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\@scope\name",),
     );
 }
 
@@ -158,7 +177,8 @@ fn windows_scoped_alias_path_gets_native_separators() {
 #[cfg(windows)]
 #[test]
 fn windows_verbatim_path_forward_slashes_are_rewritten() {
-    let verbatim = Path::new(r"\\?\C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\@scope/name");
+    let verbatim =
+        std::path::Path::new(r"\\?\C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\@scope/name");
     let native = to_native_separators(verbatim);
     assert!(
         !native.as_os_str().to_string_lossy().contains('/'),
@@ -166,23 +186,125 @@ fn windows_verbatim_path_forward_slashes_are_rewritten() {
     );
     assert_eq!(
         native.as_ref(),
-        Path::new(r"\\?\C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\@scope\name"),
+        std::path::Path::new(r"\\?\C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\@scope\name",),
     );
 }
 
 #[cfg(windows)]
 #[test]
 fn windows_native_path_is_borrowed_unchanged() {
-    let native = Path::new(r"C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\dep");
+    let native = std::path::Path::new(r"C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\dep");
     assert!(matches!(to_native_separators(native), std::borrow::Cow::Borrowed(_)));
     assert_eq!(to_native_separators(native).as_ref(), native);
+}
+
+/// Regression for the Windows failure where a symlink's parent slot is a
+/// dangling junction — the shape a tar-based CI cache restore leaves
+/// behind (tar can't round-trip a Windows reparse point). The child link
+/// can't be created through the dangling junction, and `create_dir_all`
+/// can't rebuild the slot because the junction still occupies it (it
+/// fails with `AlreadyExists`, os error 183). `force_symlink_dir` must
+/// remove the dangling reparse point, rebuild a real directory, and still
+/// produce a working link.
+#[cfg(windows)]
+#[test]
+fn windows_force_symlink_dir_repairs_dangling_junction_parent() {
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("store").join("dep").join("node_modules").join("dep");
+    fs::create_dir_all(&target).expect("create target dir");
+
+    // Build a slot `node_modules` that is a dangling junction: point it at
+    // a directory, then delete that directory. Windows keeps the reparse
+    // point (with the directory attribute) but its target is now missing —
+    // the state a cache restore leaves behind.
+    let node_modules = root.path().join("store").join("consumer").join("node_modules");
+    let junction_target = root.path().join("gone");
+    fs::create_dir_all(node_modules.parent().unwrap()).expect("create slot dir");
+    fs::create_dir_all(&junction_target).expect("create junction target");
+    junction::create(&junction_target, &node_modules).expect("create junction");
+    fs::remove_dir_all(&junction_target).expect("delete junction target -> dangling");
+    assert!(is_reparse_point(&node_modules), "node_modules must be a dangling reparse point");
+
+    let link = node_modules.join("dep");
+    force_symlink_dir(&target, &link).expect("force_symlink_dir must repair the parent and link");
+
+    let resolved_link = fs::canonicalize(&link).expect("canonicalize the repaired symlink");
+    let resolved_target = fs::canonicalize(&target).expect("canonicalize target");
+    assert_eq!(resolved_link, resolved_target, "the link must resolve to the real target");
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_concurrent_junction_creation_reuses_one_link() {
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("target");
+    fs::create_dir_all(&target).expect("create target");
+
+    for iteration in 0..10 {
+        let link = root.path().join(format!("link-{iteration}"));
+        let barrier = std::sync::Barrier::new(32);
+        let outcomes = std::thread::scope(|scope| {
+            let handles: Vec<_> = (0..32)
+                .map(|_| {
+                    scope.spawn(|| {
+                        barrier.wait();
+                        super::force_symlink_inner(
+                            &target,
+                            &link,
+                            false,
+                            super::windows::create_junction,
+                        )
+                    })
+                })
+                .collect();
+            handles
+                .into_iter()
+                .map(|handle| handle.join().expect("junction worker panicked"))
+                .collect::<Vec<_>>()
+        });
+
+        let outcomes: Vec<_> = outcomes
+            .into_iter()
+            .map(|result| result.expect("concurrent junction creation must succeed"))
+            .collect();
+        assert_eq!(
+            outcomes.iter().filter(|outcome| !outcome.reused).count(),
+            1,
+            "one worker must create the junction and every other worker must reuse it",
+        );
+    }
+}
+
+/// Regression for the rename-failure race: if the atomic rename loses to a
+/// concurrent worker (failing with `AlreadyExists`) but that worker's link then
+/// disappears before the re-inspection, the surfaced error must not be
+/// `AlreadyExists`, or `force_symlink_inner` would treat the now-missing link as
+/// reusable. Reproducing the full window deterministically isn't practical, so
+/// this drives the commit helper directly.
+#[cfg(windows)]
+#[test]
+fn windows_rename_failure_with_missing_destination_is_not_reusable() {
+    let root = tempdir().expect("create temp dir");
+    let staging = root.path().join("staging");
+    let link = root.path().join("link");
+    fs::create_dir(&staging).expect("create staged junction stand-in");
+
+    let rename_error = std::io::Error::from(std::io::ErrorKind::AlreadyExists);
+    let error = super::windows::discard_staging_after_rename(&staging, &link, rename_error);
+
+    assert_ne!(
+        error.kind(),
+        std::io::ErrorKind::AlreadyExists,
+        "a genuine rename failure with no destination must not look like a reusable link",
+    );
+    assert!(!staging.exists(), "the staged junction must be cleaned up");
 }
 
 #[cfg(windows)]
 #[test]
 fn windows_same_drive_symlink_target_stays_relative() {
-    let target = Path::new(r"C:\workspace\packages\pkg-a");
-    let link = Path::new(r"C:\workspace\app\node_modules\pkg-a");
+    let target = std::path::Path::new(r"C:\workspace\packages\pkg-a");
+    let link = std::path::Path::new(r"C:\workspace\app\node_modules\pkg-a");
 
     assert!(relative_target_for(target, link).is_relative());
 }
@@ -190,10 +312,17 @@ fn windows_same_drive_symlink_target_stays_relative() {
 #[cfg(windows)]
 #[test]
 fn windows_verbatim_and_plain_disk_resolve_to_same_root() {
-    let target = Path::new(r"\\?\C:\workspace\packages\pkg-a");
-    let link = Path::new(r"C:\workspace\app\node_modules\pkg-a");
+    let target = std::path::Path::new(r"\\?\C:\workspace\packages\pkg-a");
+    let link = std::path::Path::new(r"C:\workspace\app\node_modules\pkg-a");
 
     assert!(relative_target_for(target, link).is_relative());
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_error_directory_falls_back_to_junctions() {
+    assert!(super::windows::should_fallback_to_junction(&std::io::Error::from_raw_os_error(267)));
+    assert!(!super::windows::should_fallback_to_junction(&std::io::Error::from_raw_os_error(123)));
 }
 
 #[test]

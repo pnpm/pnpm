@@ -19,7 +19,7 @@ import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
 
-import { findGlobalPnpmInstallDir, installPnpm, pnpmPackageNameToInstall } from './installPnpm.js'
+import { assertReleaseIsInstallable, findGlobalPnpmInstallDir, installPnpm, pnpmPackageNameToInstall } from './installPnpm.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
@@ -138,6 +138,9 @@ export async function handler (
   // project still pinned to v10). Otherwise fall back to the running
   // binary. Skip the hint entirely on a no-op (target === previous).
   const targetVersion = resolution.manifest.version
+  // Before the pin below is written, not just before the install: the pin is
+  // shared, so a release this wrapper survives can still break a teammate's.
+  assertReleaseIsInstallable(targetVersion)
   let previousVersion: string | undefined
   if (opts.wantedPackageManager?.name === packageManager.name) {
     if (opts.wantedPackageManager.version !== targetVersion) {
@@ -276,14 +279,29 @@ export async function handler (
   return `Successfully updated pnpm to v${resolution.manifest.version}`
 }
 
-// A fresh v11 setup never writes a `pnpm` shim at pnpmHomeDir itself — only
-// under pnpmHomeDir/bin. The presence of a `pnpm` (or `pnpm.cmd`) file
-// directly at pnpmHomeDir is therefore a reliable v10-layout marker.
+// A leftover shim whose install target was garbage-collected is dead weight,
+// not a real v10 layout — treat it as absent so the warning below stays
+// accurate. The marker only exists on the POSIX sh shim, so introspect that;
+// fall back to .cmd existence only when the sh shim is absent.
+// See pnpm/pnpm#12496.
 function hasLegacyHomeDirShim (pnpmHomeDir: string): boolean {
-  for (const name of ['pnpm', 'pnpm.cmd']) {
-    if (fs.existsSync(path.join(pnpmHomeDir, name))) return true
+  const shShim = path.join(pnpmHomeDir, 'pnpm')
+  if (fs.existsSync(shShim)) {
+    const target = readShimTarget(shShim)
+    // Old-format shim we can't introspect → treat as real.
+    if (target === undefined) return true
+    // Dangling → treat as absent.
+    return fs.existsSync(path.resolve(path.dirname(shShim), target))
   }
-  return false
+  return fs.existsSync(path.join(pnpmHomeDir, 'pnpm.cmd'))
+}
+
+// The marker is absent when the shim is not from cmd-shim or pre-dates it.
+function readShimTarget (shimPath: string): string | undefined {
+  try {
+    return fs.readFileSync(shimPath, 'utf8').match(/^#\s*cmd-shim-target=(.+)$/m)?.[1]
+  } catch {}
+  return undefined
 }
 
 /**

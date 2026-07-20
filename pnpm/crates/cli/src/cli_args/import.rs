@@ -7,15 +7,14 @@ use pacquet_reporter::Reporter;
 
 #[derive(Debug, Args)]
 pub struct ImportArgs {
-    /// Server URL of the alternative resolve/verify endpoint to offload
-    /// lockfile resolution to.
+    /// URL of a pnpr server to offload lockfile resolution to.
     #[clap(long = "pnpr-server")]
     pub pnpr_server: Option<String>,
 }
 
 impl ImportArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
-        let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
+        let State { tarball_mem_cache, http_client, config, manifest, resolved_packages, .. } =
             &state;
         let dir = manifest.path().parent().expect("manifest path always has a parent dir");
         let lockfile_path = dir.join("pnpm-lock.yaml");
@@ -27,6 +26,7 @@ impl ImportArgs {
                 .into_diagnostic()
                 .wrap_err("backing up existing pnpm-lock.yaml")?;
         }
+        let import_lockfile = pacquet_lockfile::LazyLockfile::preloaded(None);
 
         let install_result = if let Some(pnpr_server) =
             self.pnpr_server.as_deref().or(config.pnpr_server.as_deref())
@@ -49,6 +49,7 @@ impl ImportArgs {
                     ignore_manifest_check: false,
                     trust_lockfile: false,
                     lockfile_path: Some(lockfile_path.as_path()),
+                    use_state_lockfile: false,
                 },
             )
             .await
@@ -61,7 +62,7 @@ impl ImportArgs {
                 config,
                 manifest,
                 emit_initial_manifest: true,
-                lockfile: pacquet_lockfile::MaybeLazyLockfile::Lazy(lockfile),
+                lockfile: pacquet_lockfile::MaybeLazyLockfile::Lazy(&import_lockfile),
                 lockfile_path: Some(lockfile_path.as_path()),
                 dependency_groups: [
                     DependencyGroup::Prod,
@@ -76,6 +77,7 @@ impl ImportArgs {
                 trust_lockfile: false,
                 update_checksums: false,
                 is_full_install: false,
+                installs_only: true,
                 resolved_packages,
                 supported_architectures: config.supported_architectures.clone(),
                 node_linker: config.node_linker,

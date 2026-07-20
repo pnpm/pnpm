@@ -29,7 +29,11 @@ use crate::{
 use chrono::{DateTime, Duration, Utc};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_resolver_base::{Resolver, WantedDependency, parse_packument_timestamp};
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    path::PathBuf,
+    sync::Arc,
+};
 
 /// One importer's input to [`fn@resolve_workspace`].
 pub struct WorkspaceImporter<'a> {
@@ -92,6 +96,10 @@ pub struct WorkspaceResolveOptions {
     /// resolution reuse. [`UpdateReuseScope::All`] for `install` / `add`.
     pub update_reuse_scope: UpdateReuseScope,
 
+    /// Per-importer update scopes for filtered workspace updates. An importer
+    /// absent from this map uses [`Self::update_reuse_scope`].
+    pub update_reuse_scopes_by_importer: BTreeMap<String, UpdateReuseScope>,
+
     /// `pnpmfileHook` applied to every resolved manifest before it
     /// enters the wanted-dep cache. Workspace-wide (one hook per
     /// install); wraps `readPackage` from `.pnpmfile.cjs` / `pnpmfile.cjs`.
@@ -107,6 +115,18 @@ pub struct WorkspaceResolveOptions {
     /// `pnpm:skipped-optional-dependency` `resolution_failure` debug
     /// log). `None` keeps the skip behavior but drops the notification.
     pub skipped_optional_log: Option<crate::SkippedOptionalLogFn>,
+
+    /// Package-name → semver-range map from the
+    /// `pnpm.allowedDeprecatedVersions` setting. When a newly-resolved
+    /// package is deprecated and its `name@version` satisfies an entry
+    /// here, the deprecation warning is suppressed.
+    pub allowed_deprecated_versions: BTreeMap<String, String>,
+
+    /// Sink for deprecation notifications, pre-bound to the install's
+    /// reporter (the install layer forwards each one as a
+    /// `pnpm:deprecation` debug log). `None` keeps the deprecation
+    /// check but drops the notification.
+    pub deprecation_log: Option<crate::DeprecationLogFn>,
 
     /// The install's `autoInstallPeers` setting, threaded onto the
     /// shared [`WorkspaceTreeCtx`] so the tree walk drops
@@ -162,10 +182,13 @@ where
         pnpmfile_hook,
         read_package_log,
         skipped_optional_log,
+        allowed_deprecated_versions,
+        deprecation_log,
         pick_lowest_direct,
         time_based,
         wanted_lockfile,
         update_reuse_scope,
+        update_reuse_scopes_by_importer,
         auto_install_peers,
         registries,
     } = opts;
@@ -174,9 +197,12 @@ where
             .with_manifest_hook(manifest_hook)
             .with_wanted_lockfile(wanted_lockfile)
             .with_update_reuse_scope(update_reuse_scope)
+            .with_update_reuse_scopes_by_importer(update_reuse_scopes_by_importer)
             .with_pnpmfile_hook(pnpmfile_hook)
             .with_read_package_log(read_package_log)
             .with_skipped_optional_log(skipped_optional_log)
+            .with_allowed_deprecated_versions(allowed_deprecated_versions)
+            .with_deprecation_log(deprecation_log)
             .with_auto_install_peers(auto_install_peers)
             .with_registries(registries),
     );
@@ -282,6 +308,7 @@ where
         dedupe_peers,
         exclude_links_from_lockfile,
         lockfile_dir: Some(lockfile_dir.clone()),
+        project_dir: None,
         // Per-importer; resolve_peers_workspace swaps the
         // ImporterPeerInput's modules_dir into walker.opts before each
         // importer's walk.

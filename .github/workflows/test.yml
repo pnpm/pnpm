@@ -60,7 +60,7 @@ jobs:
       with:
         persist-credentials: false
     - if: ${{ inputs.garnet }}
-      uses: garnet-org/action@2b7fc9d79b54f551b43358c27424a36064b3e078 # v2.0.2
+      uses: garnet-org/action@3d47f4a9004f7356c980a0e8d420ef5984750e3c # v2.2.0
       with:
         api_token: ${{ secrets.GARNET_API_TOKEN }}
     - name: Install pnpm and Node
@@ -232,9 +232,7 @@ jobs:
           benchmark="${BENCHMARK}.chunk${TEST_CHUNK}"
           cli_benchmark="${cli_benchmark}.chunk${TEST_CHUNK}"
         fi
-        # Map both GitHub-hosted (`ubuntu-latest`) and Blacksmith
-        # (`blacksmith-8vcpu-ubuntu-2404`) labels to the bare OS slug the
-        # Bencher testbed name requires.
+        # Map runner labels to the bare OS slug the Bencher testbed name requires.
         case "$PLATFORM" in
           *ubuntu*) platform_slug=ubuntu ;;
           *windows*) platform_slug=windows ;;

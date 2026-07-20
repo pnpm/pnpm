@@ -1,4 +1,9 @@
-use crate::{State, cli_args::supported_architectures::SupportedArchitecturesArgs};
+use crate::{
+    State,
+    cli_args::{
+        pipelines::InstallFamilySelection, supported_architectures::SupportedArchitecturesArgs,
+    },
+};
 use clap::Args;
 use miette::Context;
 use pacquet_config::Config;
@@ -7,10 +12,8 @@ use pacquet_package_manifest::DependencyGroup;
 use pacquet_registry::PinnedVersion;
 use pacquet_reporter::Reporter;
 
-/// `--prod` / `--dev` / `--no-optional` for `pacquet update`.
-///
-/// These read the *raw* CLI flags (not the rc-merged config) so an absent
-/// flag is unset rather than a default.
+/// The `--prod`, `--dev`, and `--no-optional` flags that select which
+/// dependency groups to update.
 #[derive(Debug, Args)]
 pub struct UpdateDependencyOptions {
     /// Update packages only in "dependencies" and "optionalDependencies".
@@ -50,7 +53,7 @@ impl UpdateDependencyOptions {
     }
 }
 
-/// `pacquet update` (alias `up` / `upgrade`).
+/// Update packages to their latest version based on the specified range.
 #[derive(Debug, Args)]
 pub struct UpdateArgs {
     /// Packages to update. Bare names (`foo`, `@scope/bar`), glob
@@ -63,8 +66,8 @@ pub struct UpdateArgs {
     #[clap(flatten)]
     pub dependency_options: UpdateDependencyOptions,
 
-    /// `--cpu` / `--os` / `--libc` overrides for the optional-dep
-    /// platform filter.
+    /// The `--cpu`, `--os`, and `--libc` flags that select which platforms'
+    /// optional dependencies to install.
     #[clap(flatten)]
     pub supported_architectures: SupportedArchitecturesArgs,
 
@@ -106,6 +109,12 @@ pub struct UpdateArgs {
     pub workspace: bool,
 }
 
+/// The `pnpm update --workspace` rejection message. `--workspace` needs
+/// workspace-protocol version linking, which has not been ported yet, so
+/// every dispatch path — plain, selected, and global — refuses it with the
+/// same wording rather than silently doing a plain update.
+const WORKSPACE_UPDATE_UNSUPPORTED: &str = "`pnpm update --workspace` is not supported yet.";
+
 impl UpdateArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
@@ -116,11 +125,11 @@ impl UpdateArgs {
         // silently doing a plain update. (`--global` is routed to
         // [`Self::run_global`] before `run` is reached.)
         if self.workspace {
-            return Err(miette::miette!(
-                "`pacquet update --workspace` is not supported yet; workspace-protocol version linking has not been ported to pacquet."
-            ));
+            return Err(miette::miette!("{WORKSPACE_UPDATE_UNSUPPORTED}"));
         }
 
+        let lockfile_path = state.lockfile_path();
+        let active_importer_id = state.active_importer_id();
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &mut state;
         let lockfile =
@@ -129,15 +138,11 @@ impl UpdateArgs {
         let supported_architectures =
             self.supported_architectures.apply_to(config.supported_architectures.clone());
 
-        let lockfile_path = manifest
-            .path()
-            .parent()
-            .map(|parent| parent.join(pacquet_lockfile::Lockfile::FILE_NAME));
-
         let packages = if self.interactive {
             match crate::cli_args::update_interactive::select_packages(
                 manifest,
                 lockfile,
+                &active_importer_id,
                 config,
                 http_client,
                 self.latest,
@@ -163,7 +168,7 @@ impl UpdateArgs {
             config,
             manifest,
             lockfile,
-            lockfile_path: lockfile_path.as_deref(),
+            lockfile_path: Some(&lockfile_path),
             packages: &packages,
             latest: self.latest,
             save_exact: self.save_exact,
@@ -179,6 +184,76 @@ impl UpdateArgs {
         .wrap_err("updating dependencies")
     }
 
+    pub(crate) async fn run_selected<Reporter: self::Reporter + 'static>(
+        self,
+        mut state: State,
+        selection: InstallFamilySelection,
+    ) -> miette::Result<()> {
+        if self.workspace {
+            return Err(miette::miette!("{WORKSPACE_UPDATE_UNSUPPORTED}"));
+        }
+
+        let lockfile_path = state.lockfile_path();
+        let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
+            &mut state;
+        let lockfile =
+            lockfile.get().map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+        let supported_architectures =
+            self.supported_architectures.apply_to(config.supported_architectures.clone());
+        let packages = if self.interactive {
+            match crate::cli_args::update_interactive::select_packages_for_projects(
+                &selection,
+                lockfile,
+                config,
+                http_client,
+                self.latest,
+                &self.dependency_options.include_direct(),
+            )
+            .await?
+            {
+                Some(selected) => selected,
+                None => return Ok(()),
+            }
+        } else {
+            self.packages.clone()
+        };
+        let InstallFamilySelection {
+            workspace_root: _,
+            mut projects,
+            ordered_dirs,
+            selected_dirs,
+            active_manifest_is_standin,
+        } = selection;
+
+        Update {
+            tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
+            resolved_packages,
+            http_client,
+            http_client_arc: std::sync::Arc::clone(http_client),
+            config,
+            manifest,
+            lockfile,
+            lockfile_path: Some(&lockfile_path),
+            packages: &packages,
+            latest: self.latest,
+            save_exact: self.save_exact,
+            save: !self.no_save,
+            include_direct: self.dependency_options.include_direct(),
+            depth: self.depth.unwrap_or(usize::MAX),
+            supported_architectures,
+            lockfile_only: self.lockfile_only,
+            resolution_observer: None,
+        }
+        .run_selected::<Reporter>(
+            &mut projects,
+            &ordered_dirs,
+            selected_dirs.as_ref(),
+            active_manifest_is_standin,
+        )
+        .await
+        .wrap_err("updating dependencies")
+    }
+
     /// `pnpm update -g`: reinstall each matching global package group,
     /// within its existing range or (with `--latest`) to the newest
     /// version. Delegates to [`crate::cli_args::global::handle_global_update`].
@@ -187,13 +262,11 @@ impl UpdateArgs {
         config: &'static Config,
     ) -> miette::Result<()> {
         if self.workspace {
-            return Err(miette::miette!(
-                "`pacquet update --workspace` is not supported yet; workspace-protocol version linking has not been ported to pacquet."
-            ));
+            return Err(miette::miette!("{WORKSPACE_UPDATE_UNSUPPORTED}"));
         }
         if self.interactive {
             return Err(miette::miette!(
-                "`pacquet update --global --interactive` is not supported yet; interactive selection for global updates has not been ported to pacquet."
+                "`pnpm update --global --interactive` is not supported yet."
             ));
         }
         let supported_architectures =

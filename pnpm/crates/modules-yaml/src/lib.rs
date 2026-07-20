@@ -209,6 +209,15 @@ pub struct Modules {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub allow_builds: Option<BTreeMap<String, AllowBuildValue>>,
+
+    /// `true` when this modules directory was populated by a
+    /// `virtualStoreOnly` install (`pnpm fetch`). Such an install
+    /// records empty hoist patterns because it did no hoisting, so the
+    /// next ordinary install must finish the linking rather than read
+    /// the pattern mismatch as drift and purge. Omitted when false,
+    /// matching pnpm's delete-when-falsy encoding.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub virtual_store_only: Option<bool>,
 }
 
 /// A lightweight version of [`Modules`] that skips deserializing the potentially
@@ -253,6 +262,10 @@ pub struct ModulesLayout {
     pub virtual_store_dir_max_length: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub allow_builds: Option<BTreeMap<String, AllowBuildValue>>,
+    /// See [`Modules::virtual_store_only`]. Read by the layout-drift
+    /// check, which skips the hoist-pattern comparison when it is set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub virtual_store_only: Option<bool>,
 }
 
 /// Which dependency groups the install pipeline included.
@@ -321,7 +334,7 @@ impl TryFrom<u32> for LayoutVersion {
 /// is not the one pacquet supports.
 #[derive(Debug, Display, Error)]
 #[display(
-    "Unsupported layout version {found}; this build of pacquet only supports layout version {}",
+    "Unsupported layout version {found}; this build of pnpm only supports layout version {}",
     LayoutVersion::VALUE
 )]
 pub struct UnsupportedLayoutVersionError {
@@ -352,11 +365,11 @@ pub enum AllowBuildValue {
 #[non_exhaustive]
 pub enum ReadModulesError {
     #[display("Failed to read {path:?}: {source}")]
-    #[diagnostic(code(pacquet_modules_yaml::read_io))]
+    #[diagnostic(code(ERR_PNPM_MODULES_YAML_READ_IO))]
     ReadFile { path: PathBuf, source: io::Error },
 
     #[display("Failed to parse {path:?}: {source}")]
-    #[diagnostic(code(pacquet_modules_yaml::parse_yaml))]
+    #[diagnostic(code(ERR_PNPM_MODULES_YAML_PARSE_YAML))]
     ParseYaml { path: PathBuf, source: Box<serde_saphyr::Error> },
 }
 
@@ -365,15 +378,15 @@ pub enum ReadModulesError {
 #[non_exhaustive]
 pub enum WriteModulesError {
     #[display("Failed to create directory {path:?}: {source}")]
-    #[diagnostic(code(pacquet_modules_yaml::create_dir))]
+    #[diagnostic(code(ERR_PNPM_MODULES_YAML_CREATE_DIR))]
     CreateDir { path: PathBuf, source: io::Error },
 
     #[display("Failed to serialize manifest: {_0}")]
-    #[diagnostic(code(pacquet_modules_yaml::serialize_json))]
+    #[diagnostic(code(ERR_PNPM_MODULES_YAML_SERIALIZE_JSON))]
     SerializeJson(serde_json::Error),
 
     #[display("Failed to write {path:?}: {source}")]
-    #[diagnostic(code(pacquet_modules_yaml::write_io))]
+    #[diagnostic(code(ERR_PNPM_MODULES_YAML_WRITE_IO))]
     WriteFile { path: PathBuf, source: io::Error },
 }
 

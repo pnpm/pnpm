@@ -17,6 +17,7 @@ use crate::{Lockfile, ProjectSnapshot};
 use derive_more::{Display, Error};
 use pacquet_catalogs_types::Catalogs;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use pacquet_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 #[derive(Clone, Copy)]
@@ -77,6 +78,14 @@ pub enum StalenessReason {
         "importer {field}.{name} specifier {lockfile:?} doesn't match package manifest specifier ({manifest:?})"
     )]
     DepSpecifierMismatch { field: &'static str, name: String, lockfile: String, manifest: String },
+
+    /// A semver resolution recorded for a direct dependency no longer
+    /// satisfies its unchanged manifest range. This catches a broken
+    /// lockfile whose specifier map still agrees with `package.json`.
+    #[display(
+        "the importer resolution is broken at dependency {name:?}: version {version:?} doesn't satisfy range {range:?}"
+    )]
+    ResolutionDoesNotSatisfy { name: String, version: String, range: String },
 
     /// The lockfile's `ignoredOptionalDependencies` (sorted) differs
     /// from the current install's `Config::ignored_optional_dependencies`
@@ -361,8 +370,10 @@ fn all_catalogs_are_up_to_date(
 ) -> bool {
     snapshot.iter().flat_map(|catalogs| catalogs.iter()).all(|(catalog_name, catalog)| {
         catalog.iter().all(|(alias, entry)| {
-            catalogs_config.get(catalog_name).and_then(|catalog| catalog.get(alias))
-                == Some(&entry.specifier)
+            catalogs_config
+                .get(catalog_name)
+                .and_then(|catalog| catalog.get(alias))
+                .is_some_and(|specifier| dependency_specifiers_equal(&entry.specifier, specifier))
         })
     })
 }
@@ -372,40 +383,45 @@ fn all_catalogs_are_up_to_date(
 /// when the lockfile is up-to-date; returns `Err(StalenessReason)`
 /// describing the first detected mismatch otherwise.
 ///
-/// Single-importer only today (pacquet doesn't have workspace support
-/// — see [#431]). Callers thread the root importer entry directly.
-///
 /// What is checked (in order, short-circuiting on the first failure):
 ///
 /// 1. Flat-record specifier diff against `devDependencies ∪
-///    dependencies ∪ optionalDependencies`. Catches added / removed /
-///    modified deps in one bucket.
+///    dependencies ∪ optionalDependencies` (∪ the auto-installed
+///    peers below). Catches added / removed / modified deps in one
+///    bucket.
 /// 2. `publishDirectory` vs `publishConfig.directory`.
 /// 3. `dependenciesMeta` equality.
-/// 4. Per-field name-set check and per-dep specifier match. Catches
+/// 4. Per-field name-set, per-dep specifier, and resolved-version
+///    checks. Catches
 ///    same-name-same-specifier-but-listed-under-different-field
-///    drift the flat-record diff doesn't see.
+///    drift the flat-record diff doesn't see, plus broken lockfiles
+///    whose resolved semver no longer satisfies the recorded range.
 ///
-/// Scoped to what pacquet supports today: no `auto-install-peers`
-/// pre-pass (pacquet has no separate auto-install-peers mode), no
-/// `excludeLinksFromLockfile` (`link:` resolutions aren't supported
-/// yet — [#431] territory), and no version-range-satisfies check for
-/// file: / tarball deps (out of scope here).
+/// When `auto_install_peers` is set (pnpm's default), every peer
+/// dependency missing from the regular dependency fields is folded
+/// into `dependencies` for the comparison, matching how pnpm
+/// materializes those peers into the importer's `dependencies` in the
+/// lockfile. Without this, a peer-only dependency would be misread as
+/// a lockfile entry the manifest removed (see `auto_installed_peer_deps`).
 ///
-/// [#431]: https://github.com/pnpm/pacquet/issues/431
+/// Still unsupported: `excludeLinksFromLockfile` (`link:` resolutions
+/// aren't modeled yet). Non-semver resolutions such as file and
+/// tarball dependencies are excluded from the resolved-version check.
 pub fn satisfies_package_manifest(
     importer: &ProjectSnapshot,
     manifest: &PackageManifest,
-    importer_id: &str,
+    auto_install_peers: bool,
     is_ignored_optional: &dyn Fn(&str) -> bool,
 ) -> Result<(), StalenessReason> {
-    let _ = importer_id; // reserved for the multi-importer path once <https://github.com/pnpm/pacquet/issues/431> lands.
+    let folded_peers = auto_installed_peer_deps(manifest, auto_install_peers);
 
     // Phase 1: flat-record diff against the manifest's union of
     // dependency fields. Compares the importer's specifiers to the
     // manifest's existing deps (devs + prod + optional flattened
-    // together).
-    let manifest_specs = flat_manifest_specs(manifest, is_ignored_optional);
+    // together, plus the auto-installed peers).
+    let mut manifest_specs = flat_manifest_specs(manifest, is_ignored_optional);
+    manifest_specs
+        .extend(folded_peers.iter().map(|(name, spec)| ((*name).to_string(), (*spec).to_string())));
     let importer_specs = flat_importer_specs(importer);
     let diff = diff_flat_records(&importer_specs, &manifest_specs);
     if !diff.is_empty() {
@@ -445,18 +461,22 @@ pub fn satisfies_package_manifest(
         });
     }
 
-    // Phase 4: per-field name-set + specifier match.
-    let manifest_prod: BTreeMap<&str, &str> = manifest
+    // Phase 4: per-field name-set + specifier match. The auto-installed
+    // peers join `dependencies`, so they count toward the prod name-set
+    // used for both the dev-field precedence filter and this field's
+    // own comparison.
+    let mut manifest_prod: BTreeMap<&str, &str> = manifest
         .dependencies([DependencyGroup::Prod])
         .filter(|(name, _)| !is_ignored_optional(name))
         .collect();
+    manifest_prod.extend(folded_peers.iter().map(|(name, spec)| (*name, *spec)));
     let manifest_optional: BTreeMap<&str, &str> = manifest
         .dependencies([DependencyGroup::Optional])
         .filter(|(name, _)| !is_ignored_optional(name))
         .collect();
     for field in [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional] {
         let field_name = <&'static str>::from(field);
-        let manifest_field: BTreeMap<&str, &str> = manifest
+        let mut manifest_field: BTreeMap<&str, &str> = manifest
             .dependencies([field])
             .filter(|(name, _)| {
                 !matches!(field, DependencyGroup::Prod | DependencyGroup::Optional)
@@ -470,6 +490,9 @@ pub fn satisfies_package_manifest(
                 DependencyGroup::Optional | DependencyGroup::Peer => true,
             })
             .collect();
+        if matches!(field, DependencyGroup::Prod) {
+            manifest_field.extend(folded_peers.iter().map(|(name, spec)| (*name, *spec)));
+        }
         let importer_field = importer.get_map_by_group(field);
 
         // Every manifest entry must have a matching importer entry
@@ -481,7 +504,7 @@ pub fn satisfies_package_manifest(
                 .and_then(|name| importer_field.and_then(|map| map.get(name)))
                 .map(|spec| spec.specifier.as_str());
             match importer_spec {
-                Some(spec) if spec == *manifest_spec => continue,
+                Some(spec) if dependency_specifiers_equal(spec, manifest_spec) => {}
                 Some(spec) => {
                     return Err(StalenessReason::DepSpecifierMismatch {
                         field: field_name,
@@ -498,6 +521,24 @@ pub fn satisfies_package_manifest(
                         manifest: (*manifest_spec).to_string(),
                     });
                 }
+            }
+            let Some(importer_dep) =
+                parsed.as_ref().and_then(|name| importer_field.and_then(|map| map.get(name)))
+            else {
+                continue;
+            };
+            let (Some(version), Ok(range)) = (
+                importer_dep.version.ver_peer().and_then(|version| version.version_semver()),
+                manifest_spec.parse::<node_semver::Range>(),
+            ) else {
+                continue;
+            };
+            if !range.satisfies(version) {
+                return Err(StalenessReason::ResolutionDoesNotSatisfy {
+                    name: (*name).to_string(),
+                    version: version.to_string(),
+                    range: (*manifest_spec).to_string(),
+                });
             }
         }
 
@@ -542,6 +583,33 @@ fn dependencies_meta_equal(
         (Some(a), Some(b)) => a == b,
         _ => false,
     }
+}
+
+/// Peer dependencies that `auto-install-peers` materializes into the
+/// importer's `dependencies`: every `peerDependencies` entry whose name
+/// isn't already declared in `dependencies`, `devDependencies`, or
+/// `optionalDependencies`. Empty when `auto_install_peers` is off, which
+/// restores the plain manifest-vs-lockfile comparison.
+///
+/// Mirrors pnpm's `omit(Object.keys(existingDeps), pkg.peerDependencies)`
+/// fold in `satisfiesPackageManifest`: peers already declared in a
+/// regular field keep that field's specifier, so only the peer-only
+/// entries are surfaced here.
+fn auto_installed_peer_deps(
+    manifest: &PackageManifest,
+    auto_install_peers: bool,
+) -> BTreeMap<&str, &str> {
+    if !auto_install_peers {
+        return BTreeMap::new();
+    }
+    let declared: BTreeSet<&str> = manifest
+        .dependencies([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional])
+        .map(|(name, _)| name)
+        .collect();
+    manifest
+        .dependencies([DependencyGroup::Peer])
+        .filter(|(name, _)| !declared.contains(name))
+        .collect()
 }
 
 /// Build the manifest's `devDependencies ∪ dependencies ∪
@@ -607,11 +675,15 @@ fn diff_flat_records(
     for k in lhs_keys.intersection(&rhs_keys) {
         let lhs_spec = &lockfile_specs[*k];
         let rhs_spec = &manifest_specs[*k];
-        if lhs_spec != rhs_spec {
+        if !dependency_specifiers_equal(lhs_spec, rhs_spec) {
             diff.modified.insert((**k).clone(), (lhs_spec.clone(), rhs_spec.clone()));
         }
     }
     diff
+}
+
+fn dependency_specifiers_equal(left: &str, right: &str) -> bool {
+    left == right || git_specifiers_are_equivalent(left, right)
 }
 
 #[cfg(test)]

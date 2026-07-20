@@ -9,6 +9,7 @@ use super::{
     cat_file::CatFileArgs,
     cat_index::CatIndexArgs,
     change::ChangeArgs,
+    clean::CleanArgs,
     completion::{CompletionArgs, CompletionServerArgs},
     config::ConfigArgs,
     create::CreateArgs,
@@ -18,18 +19,22 @@ use super::{
     dist_tag::DistTagArgs,
     dlx::DlxArgs,
     docs::DocsArgs,
+    doctor::DoctorArgs,
     exec::ExecArgs,
     fetch::FetchArgs,
     find_hash::FindHashArgs,
     ignored_builds::IgnoredBuildsArgs,
     import::ImportArgs,
     install::InstallArgs,
+    install_test::InstallTestArgs,
     lane::LaneArgs,
+    licenses::LicensesArgs,
     link::LinkArgs,
     list::ListArgs,
     login::LoginArgs,
     logout::LogoutArgs,
     outdated::OutdatedArgs,
+    owner::OwnerArgs,
     pack::PackArgs,
     pack_app::PackAppArgs,
     patch::PatchArgs,
@@ -104,7 +109,7 @@ pub struct CliArgs {
 
     /// Directory in which the package store is created. Relative paths
     /// are resolved from the workspace root, or from `--dir` outside a
-    /// workspace. Overrides the configured `storeDir` for this invocation.
+    /// workspace.
     #[clap(
         long = "store-dir",
         value_name = "DIR",
@@ -114,20 +119,25 @@ pub struct CliArgs {
     )]
     pub store_dir: Option<PathBuf>,
 
-    /// Path to a `.npmrc` to read auth settings from, overriding the
-    /// default `~/.npmrc`. Mirrors pnpm's `--npmrc-auth-file` (and its
-    /// `--userconfig` alias) and sets
-    /// [`pacquet_config::Config::npmrc_auth_file`], consumed when
-    /// `Config` resolves the user-level `.npmrc`.
+    /// Path to an `.npmrc` to read auth settings from, overriding the
+    /// default `~/.npmrc`.
     #[clap(long = "npmrc-auth-file", visible_alias = "userconfig", global = true)]
     pub npmrc_auth_file: Option<PathBuf>,
 
-    /// Run the command for every project in the workspace instead of
-    /// only the project in `--dir`. Mirrors pnpm's global `-r` /
-    /// `--recursive` flag and sets
-    /// [`pacquet_config::Config::recursive`]. pacquet's `install`
-    /// already spans the whole workspace, so the flag is a surface
-    /// no-op there today; see the field docs.
+    /// Proxy for HTTPS registry and tarball requests.
+    #[clap(long = "https-proxy", global = true)]
+    pub https_proxy: Option<String>,
+
+    /// Proxy for HTTP registry and tarball requests.
+    #[clap(long = "http-proxy", global = true)]
+    pub http_proxy: Option<String>,
+
+    /// Hosts that bypass configured proxies.
+    #[clap(long = "no-proxy", global = true)]
+    pub no_proxy: Option<String>,
+
+    /// Run the command for every project in the workspace instead of only
+    /// the project in `--dir`.
     #[clap(short = 'r', long, global = true)]
     pub recursive: bool,
 
@@ -135,36 +145,25 @@ pub struct CliArgs {
     #[clap(long, value_enum, default_value_t = ReporterType::Default, global = true)]
     pub reporter: ReporterType,
 
-    /// `--filter` / `-F` workspace selectors. Each occurrence adds one
-    /// raw selector (`@scope/*`, `./pkg`, `foo...`, `!bar`, `{dir}`,
-    /// `[since]`, ...). Stored into [`pacquet_config::Config::filter`];
-    /// see that field for why the resolved selection is not yet
-    /// consumed by `install`.
-    ///
-    /// As a global multi-value flag, occurrences collect only within one
-    /// side of the subcommand boundary; mixing sides is a clap limitation,
-    /// so pass all selectors on the same side.
+    /// Select which workspace projects to run on. Repeat to add more.
+    /// Each selector can be a name pattern (`@scope/*`), a path (`./pkg`),
+    /// a dependency query (`foo...`), an exclusion (`!bar`), a directory
+    /// (`{dir}`), or a changed-since query (`[since]`).
     #[clap(short = 'F', long, global = true)]
     pub filter: Vec<String>,
 
-    /// `--filter-prod` workspace selectors. Same syntax as
-    /// [`Self::filter`], but the dependency walk follows production
-    /// dependencies only. Stored into
-    /// [`pacquet_config::Config::filter_prod`].
+    /// Like `--filter`, but follow only production dependencies when
+    /// selecting projects.
     #[clap(long = "filter-prod", global = true)]
     pub filter_prod: Vec<String>,
 
-    /// `--test-pattern` glob patterns naming test files, consumed by
-    /// the `[<since>]` changed-packages `--filter` selector. Overrides
-    /// [`pacquet_config::Config::test_pattern`] when given.
+    /// Glob patterns naming test files, used by the `[since]` `--filter`
+    /// selector to decide which changes count.
     #[clap(long = "test-pattern", global = true)]
     pub test_pattern: Vec<String>,
 
-    /// `--changed-files-ignore-pattern` glob patterns of changed files
-    /// the `[<since>]` changed-packages `--filter` selector ignores.
-    /// Overrides
-    /// [`pacquet_config::Config::changed_files_ignore_pattern`] when
-    /// given.
+    /// Glob patterns of changed files that the `[since]` `--filter`
+    /// selector should ignore.
     #[clap(long = "changed-files-ignore-pattern", global = true)]
     pub changed_files_ignore_pattern: Vec<String>,
 
@@ -192,12 +191,7 @@ pub struct CliArgs {
     #[clap(long = "no-bail", global = true, hide = true)]
     pub no_bail: bool,
 
-    /// Avoid exiting with a non-zero exit code when the script is
-    /// undefined, accepted ahead of the script name
-    /// (`pnpm --if-present test`) the way pnpm's option parser does.
-    /// Deliberately not `global = true`: `run` / `stop` / `restart`
-    /// declare their own `--if-present`, and a propagated global flag
-    /// would collide with theirs.
+    /// Don't fail when the named script is undefined.
     #[clap(long = "if-present", hide = true)]
     pub if_present: bool,
 }
@@ -285,11 +279,17 @@ pub enum CliCommand {
     Access(AccessArgs),
     /// Initialize a package.json
     Init,
+    /// Concurrently runs a command in all subdirectory projects.
+    #[clap(visible_aliases = ["multi", "m"])]
+    Recursive,
     /// Add a package
     Add(AddArgs),
     /// Install packages
     #[clap(visible_alias = "i")]
     Install(InstallArgs),
+    /// Runs a `pnpm install` followed immediately by a `pnpm test`. It takes exactly the same arguments as `pnpm install`.
+    #[clap(name = "install-test", visible_alias = "it")]
+    InstallTest(InstallTestArgs),
     /// Update packages to their newest version based on the specified range
     #[clap(visible_aliases = ["up", "upgrade"])]
     Update(UpdateArgs),
@@ -313,6 +313,9 @@ pub enum CliCommand {
     /// List installed packages in long format.
     #[clap(visible_alias = "la")]
     Ll(ListArgs),
+    /// Check the licenses of the installed packages.
+    #[clap(visible_aliases = ["licences"])]
+    Licenses(LicensesArgs),
     /// Shows the packages that depend on `pkg`
     Why(WhyArgs),
     /// Generate a Software Bill of Materials (SBOM).
@@ -334,6 +337,8 @@ pub enum CliCommand {
     DistTag(DistTagArgs),
     /// Test connectivity to the configured registry.
     Ping(PingArgs),
+    /// Run diagnostics on the pnpm installation and environment.
+    Doctor(DoctorArgs),
     /// Search for packages in the registry.
     #[clap(visible_aliases = ["s", "se", "find"])]
     Search(SearchArgs),
@@ -395,6 +400,15 @@ pub enum CliCommand {
     Runtime(RuntimeArgs),
     /// Print the directory where pnpm will install executables.
     Bin(BinArgs),
+    /// Safely remove `node_modules` directories from the current project
+    /// (or every workspace project) without following NTFS junctions into
+    /// their targets. A `clean` script in `package.json` overrides
+    /// the built-in command.
+    Clean(CleanArgs),
+    /// Alias of `clean`: same behavior, except a `purge` script
+    /// (not a `clean` script) overrides it when present.
+    #[clap(name = "purge")]
+    Purge(CleanArgs),
     /// Print the effective `node_modules` directory.
     Root(RootArgs),
     /// Print the current package prefix.
@@ -451,6 +465,9 @@ pub enum CliCommand {
     Login(LoginArgs),
     /// Manage organization teams and team memberships.
     Team(TeamArgs),
+    /// Manage package owners on the registry.
+    #[clap(visible_alias = "owners")]
+    Owner(OwnerArgs),
     /// Log out of an npm registry.
     Logout(LogoutArgs),
     /// Runs pnpm at a specific version (or the currently running one) for a

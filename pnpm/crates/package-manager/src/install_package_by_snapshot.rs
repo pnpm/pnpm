@@ -84,7 +84,7 @@ pub struct InstallPackageBySnapshot<'a> {
     pub metadata: &'a PackageMetadata,
     pub snapshot: &'a SnapshotEntry,
     /// `allowBuilds` gate. Routed into the git fetcher for
-    /// `preparePackage`'s `GIT_DEP_PREPARE_NOT_ALLOWED` check.
+    /// `preparePackage`'s `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED` check.
     /// Computed once per install in
     /// [`crate::InstallFrozenLockfile::run`] and threaded through
     /// [`crate::CreateVirtualStore`].
@@ -103,6 +103,9 @@ pub struct InstallPackageBySnapshot<'a> {
     /// exclusion, or swallowed optional fetch failure). See
     /// [`crate::SkippedSnapshots`] for how it is built.
     pub skipped: &'a crate::SkippedSnapshots,
+    /// Platform triple used to select a runtime archive. This is the host
+    /// triple unless `supportedArchitectures` targets another platform.
+    pub runtime_platform_selector: &'a PlatformSelector,
     /// Selects between the isolated and hoisted install layouts.
     /// `Isolated` runs [`CreateVirtualDirBySnapshot`] at the end of
     /// the per-snapshot fetch to populate the virtual-store slot;
@@ -142,15 +145,15 @@ pub enum InstallPackageBySnapshotError {
     CreateVirtualDir(#[error(source)] CreateVirtualDirError),
 
     #[display(
-        "Package `{package_key}` has a tarball resolution without an `integrity` field; pacquet cannot verify the download and refuses to install it."
+        "Package `{package_key}` has a tarball resolution without an `integrity` field; pnpm cannot verify the download and refuses to install it."
     )]
-    #[diagnostic(code(pacquet_package_manager::missing_tarball_integrity))]
+    #[diagnostic(code(ERR_PNPM_MISSING_TARBALL_INTEGRITY))]
     MissingTarballIntegrity { package_key: String },
 
     #[display(
-        "Package `{package_key}` uses a `{resolution_kind}` resolution, which pacquet does not yet support."
+        "Package `{package_key}` uses a `{resolution_kind}` resolution, which pnpm does not yet support."
     )]
-    #[diagnostic(code(pacquet_package_manager::unsupported_resolution))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_UNSUPPORTED_RESOLUTION))]
     UnsupportedResolution { package_key: String, resolution_kind: &'static str },
 
     /// Failure from either git fetcher: the git-CLI path for
@@ -173,7 +176,7 @@ pub enum InstallPackageBySnapshotError {
 
     /// A custom fetcher from the pnpmfile threw or returned an error.
     #[display("Custom fetcher failed: {_0}")]
-    #[diagnostic(code(pacquet_package_manager::custom_fetcher_failed))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_CUSTOM_FETCHER_FAILED))]
     CustomFetcher(#[error(not(source))] String),
 
     /// A custom-typed resolution reached the built-in dispatch — no
@@ -183,24 +186,22 @@ pub enum InstallPackageBySnapshotError {
     #[display(
         "Cannot fetch dependency with custom resolution type \"{resolution_type}\". Custom resolutions must be handled by custom fetchers."
     )]
-    #[diagnostic(code(UNSUPPORTED_RESOLUTION_TYPE))]
+    #[diagnostic(code(ERR_PNPM_UNSUPPORTED_RESOLUTION_TYPE))]
     UnsupportedResolutionType { resolution_type: String },
 
     /// No variant in a [`LockfileResolution::Variations`] matches the
-    /// host triple `(os, cpu, libc?)`. Surfaces with the host triple
+    /// selected triple `(os, cpu, libc?)`. Surfaces with that triple
     /// plus the list of advertised target triples so the user can see
     /// at a glance whether they're running on an unsupported platform
     /// or whether the lockfile was generated without the host's
     /// architecture in mind.
     #[display(
-        "Package `{package_key}` is a runtime dependency, but none of its declared variants matches the host triple (os = `{host_os}`, cpu = `{host_cpu}`, libc = `{host_libc:?}`). Available variants: {available_targets}"
+        "Package `{package_key}` is a runtime dependency, but none of its declared variants matches the selected triple ({selected_target}). Available variants: {available_targets}"
     )]
-    #[diagnostic(code(pacquet_package_manager::no_matching_platform_variant))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_NO_MATCHING_PLATFORM_VARIANT))]
     NoMatchingPlatformVariant {
         package_key: String,
-        host_os: &'static str,
-        host_cpu: &'static str,
-        host_libc: Option<&'static str>,
+        selected_target: String,
         /// Pre-rendered list of the lockfile's advertised target
         /// triples, formatted as `os/cpu[+libc]`. Lives in the error
         /// payload rather than the lockfile (which is borrowed from
@@ -217,9 +218,9 @@ pub enum InstallPackageBySnapshotError {
     /// or a future shape pacquet doesn't recognise rather than
     /// silently routing through and confusing the install pipeline.
     #[display(
-        "Package `{package_key}` carries a runtime variant whose inner resolution is `{inner_kind}` rather than `binary`; pacquet only knows how to install binary-shaped variants."
+        "Package `{package_key}` carries a runtime variant whose inner resolution is `{inner_kind}` rather than `binary`; pnpm only knows how to install binary-shaped variants."
     )]
-    #[diagnostic(code(pacquet_package_manager::variant_has_non_binary_resolution))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_VARIANT_HAS_NON_BINARY_RESOLUTION))]
     VariantHasNonBinaryResolution { package_key: String, inner_kind: &'static str },
 
     /// Serializing the synthesized runtime `package.json` failed.
@@ -232,7 +233,7 @@ pub enum InstallPackageBySnapshotError {
     #[display(
         "Failed to serialize the synthesized package.json for runtime entry `{package_key}`: {error}"
     )]
-    #[diagnostic(code(pacquet_package_manager::synthesize_runtime_manifest))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_SYNTHESIZE_RUNTIME_MANIFEST))]
     SynthesizeRuntimeManifest {
         package_key: String,
         #[error(source)]
@@ -275,6 +276,7 @@ impl InstallPackageBySnapshot<'_> {
             snapshot,
             allow_build_policy,
             skipped,
+            runtime_platform_selector,
             workspace_root,
             node_linker,
             custom_fetcher_picker,
@@ -502,16 +504,17 @@ impl InstallPackageBySnapshot<'_> {
                 .await?
             }
             LockfileResolution::Variations(variations) => {
-                let selector = host_platform_selector();
-                let Some(variant) = select_platform_variant(&variations.variants, &selector) else {
+                let Some(variant) =
+                    select_platform_variant(&variations.variants, runtime_platform_selector)
+                else {
                     return Err(InstallPackageBySnapshotError::NoMatchingPlatformVariant {
                         package_key: package_key.to_string(),
-                        host_os: host_platform(),
-                        host_cpu: host_arch(),
-                        host_libc: match host_libc() {
-                            "unknown" => None,
-                            other => Some(other),
-                        },
+                        selected_target: format!(
+                            "os = `{}`, cpu = `{}`, libc = `{:?}`",
+                            runtime_platform_selector.os,
+                            runtime_platform_selector.cpu,
+                            runtime_platform_selector.libc,
+                        ),
                         available_targets: render_variant_targets(&variations.variants),
                     });
                 };
@@ -635,7 +638,7 @@ fn fetch_directory_resolution(
     workspace_root: &Path,
     dir_resolution: &DirectoryResolution,
 ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
-    let directory = workspace_root.join(&dir_resolution.directory);
+    let directory = lexical_normalize(&workspace_root.join(&dir_resolution.directory));
     let output = pacquet_directory_fetcher::DirectoryFetcher {
         directory,
         include_only_package_files: false,
@@ -727,6 +730,35 @@ pub(crate) fn host_platform_selector() -> PlatformSelector {
         other => Some(other.to_string()),
     };
     PlatformSelector { os: host_platform().to_string(), cpu: host_arch().to_string(), libc }
+}
+
+/// Resolve the runtime archive selector from `supportedArchitectures`, using
+/// the first requested value on each axis and expanding `current` to the host.
+#[must_use]
+pub(crate) fn runtime_platform_selector(
+    supported: Option<&pacquet_package_is_installable::SupportedArchitectures>,
+) -> PlatformSelector {
+    let host = host_platform_selector();
+    let pick = |values: Option<&Vec<String>>, current: &str| {
+        values.and_then(|values| values.first()).map_or_else(
+            || current.to_string(),
+            |value| {
+                if value == "current" { current.to_string() } else { value.clone() }
+            },
+        )
+    };
+    PlatformSelector {
+        os: pick(supported.and_then(|value| value.os.as_ref()), &host.os),
+        cpu: pick(supported.and_then(|value| value.cpu.as_ref()), &host.cpu),
+        libc: match supported
+            .and_then(|value| value.libc.as_ref())
+            .and_then(|values| values.first())
+        {
+            None => host.libc,
+            Some(value) if value == "current" => host.libc,
+            Some(value) => Some(value.clone()),
+        },
+    }
 }
 
 /// Hand-coded matcher for the

@@ -2,9 +2,12 @@ pub mod _utils;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pacquet_config::WorkspaceSettings;
+use pacquet_lockfile::EnvLockfile;
 use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 #[cfg(unix)]
 use pacquet_testing_utils::fs::is_symlink_or_junction;
+use pacquet_workspace_state::ConfigDependency;
 use std::{fs, path::Path, process::Command};
 
 fn pacquet_at(workspace: &Path) -> Command {
@@ -143,6 +146,78 @@ fn add_config_writes_workspace_yaml_and_installs() {
     );
 
     drop((root, mock_instance));
+}
+
+#[test]
+fn add_config_accepts_multiple_package_selectors_in_one_operation() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(workspace.join("package.json"), serde_json::json!({}).to_string())
+        .expect("write package.json");
+
+    pacquet_at(&workspace)
+        .with_args(["add", "--config", "@pnpm.e2e/foo@100.0.0", "@pnpm.e2e/bar@100.0.0"])
+        .assert()
+        .success();
+
+    let (_, settings) = WorkspaceSettings::find_and_load(&workspace)
+        .expect("read pnpm-workspace.yaml")
+        .expect("workspace manifest exists");
+    let config_dependencies = settings.config_dependencies.expect("configDependencies map");
+    assert_eq!(config_dependencies.len(), 2);
+    for package_name in ["@pnpm.e2e/foo", "@pnpm.e2e/bar"] {
+        assert_eq!(
+            config_dependencies.get(package_name),
+            Some(&ConfigDependency::VersionWithIntegrity("100.0.0".to_string())),
+        );
+    }
+
+    let env_lockfile =
+        EnvLockfile::read(&workspace).expect("read env lockfile").expect("env lockfile exists");
+    let root_importer = &env_lockfile.importers[EnvLockfile::ROOT_IMPORTER_KEY];
+    for package_name in ["@pnpm.e2e/foo", "@pnpm.e2e/bar"] {
+        let dependency = &root_importer.config_dependencies[package_name];
+        assert_eq!(dependency.specifier, "100.0.0");
+        assert_eq!(dependency.version, "100.0.0");
+
+        let installed =
+            workspace.join("node_modules/.pnpm-config").join(package_name).join("package.json");
+        assert!(installed.exists(), "config dependency installed at {}", installed.display());
+    }
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn add_config_validates_all_selectors_before_writing_files() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+
+    for path in [
+        workspace.join("package.json"),
+        workspace.join("pnpm-lock.yaml"),
+        workspace.join("pnpm-workspace.yaml"),
+        workspace.join("node_modules"),
+    ] {
+        assert!(!path.exists(), "precondition: {} does not exist", path.display());
+    }
+
+    pacquet
+        .with_args(["add", "--config", "valid-package@1.0.0", "file:../missing"])
+        .assert()
+        .failure();
+
+    for path in [
+        workspace.join("package.json"),
+        workspace.join("pnpm-lock.yaml"),
+        workspace.join("pnpm-workspace.yaml"),
+        workspace.join("node_modules"),
+    ] {
+        assert!(!path.exists(), "invalid selector must not create {}", path.display());
+    }
+
+    drop(root);
 }
 
 /// An `updateConfig` hook can inject a `catalogs` entry that the install

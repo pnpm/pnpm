@@ -36,7 +36,7 @@ impl DefaultResolver {
 
     /// Walk the chain and return the first resolver's claim. Returns
     /// [`SpecNotSupportedByAnyResolverError`]
-    /// (`SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`) when no resolver claims
+    /// (`ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`) when no resolver claims
     /// the wanted dependency.
     pub async fn resolve(
         &self,
@@ -101,7 +101,7 @@ impl Resolver for DefaultResolver {
     }
 }
 
-/// The `SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` error code raised when
+/// The `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` error code raised when
 /// every resolver in the chain returned `Ok(None)` for a wanted
 /// dependency.
 ///
@@ -109,7 +109,7 @@ impl Resolver for DefaultResolver {
 /// (either half omitted when absent) and quoted when non-empty.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display("{quoted} isn't supported by any available resolver.")]
-#[diagnostic(code(SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER))]
+#[diagnostic(code(ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER))]
 pub struct SpecNotSupportedByAnyResolverError {
     /// Quoted offending specifier, formatted at construction so the
     /// `Display` impl stays allocation-free. Empty string when both

@@ -425,7 +425,7 @@ fn supported_architectures_does_not_implicitly_include_host() {
 }
 
 #[test]
-fn seeded_snapshot_short_circuits_recheck() {
+fn seeded_still_incompatible_snapshot_stays_skipped() {
     reset_events();
     let key = snapshot_key("for-legacy-node@1.0.0");
     let mut snapshots = HashMap::new();
@@ -446,8 +446,37 @@ fn seeded_snapshot_short_circuits_recheck() {
     assert!(skipped.contains(&key), "seeded key must survive the recompute");
     let events = take_events();
     assert!(
-        events.iter().all(|event| !matches!(event, LogEvent::SkippedOptionalDependency(_))),
-        "no SkippedOptionalDependency event must fire for a seeded snapshot, got {events:?}",
+        events.iter().any(|event| matches!(event, LogEvent::SkippedOptionalDependency(_))),
+        "the skip is re-evaluated and re-reported on every install, got {events:?}",
+    );
+}
+
+/// A seeded installability skip whose package passes the current check —
+/// e.g. `supportedArchitectures` changed between installs — is dropped, so
+/// the newly compatible optional is installed instead of staying skipped.
+#[test]
+fn seeded_snapshot_compatible_with_new_host_is_unskipped() {
+    reset_events();
+    let key = snapshot_key("darwin-arm64-only@1.0.0");
+    let mut snapshots = HashMap::new();
+    snapshots.insert(key.clone(), SnapshotEntry { optional: true, ..Default::default() });
+    let mut packages = HashMap::new();
+    packages
+        .insert(key.clone(), synthetic_metadata(None, Some(&["arm64"]), Some(&["darwin"]), None));
+
+    let seed = SkippedSnapshots::from_set(std::iter::once(key.clone()).collect());
+    let skipped = compute_skipped_snapshots::<RecordingReporter>(
+        &snapshots,
+        &packages,
+        &host("20.10.0", "darwin", "arm64"),
+        "/proj",
+        seed,
+    )
+    .unwrap();
+
+    assert!(
+        !skipped.contains(&key),
+        "a seeded skip must be dropped once the package passes the installability check",
     );
 }
 

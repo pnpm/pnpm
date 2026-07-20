@@ -17,10 +17,9 @@ use crate::cli_args::{
 /// prerelease lane can take the name.
 pub const MAIN_LANE: &str = "main";
 
-/// `pnpm lane` — manage per-package release lanes: parallel release tracks
-/// that emit `X.Y.Z-<lane>.N` prereleases while the main lane keeps releasing
-/// stable versions. Membership lives under the `versioning.lanes` key of
-/// pnpm-workspace.yaml; this command is a convenience editor for that key.
+/// Manage per-package release lanes: parallel release tracks that emit
+/// `X.Y.Z-<lane>.N` prereleases while the main lane keeps releasing stable
+/// versions.
 #[derive(Debug, Args)]
 pub struct LaneArgs {
     /// The lane to move the `--filter`-selected packages onto (`main` moves

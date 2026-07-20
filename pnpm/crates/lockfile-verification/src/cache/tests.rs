@@ -129,6 +129,174 @@ fn content_hash_lookup_finds_same_lockfile_at_different_path() {
 }
 
 #[test]
+fn path_without_a_cached_record_misses() {
+    let dir = TempDir::new().expect("tempdir");
+    let cached = touch_lockfile(&dir.path().join("cached"), "cached");
+    let uncached = touch_lockfile(&dir.path().join("uncached"), "uncached");
+    let verifiers: Vec<Arc<dyn ResolutionVerifier>> =
+        vec![Stub::new(true) as Arc<dyn ResolutionVerifier>];
+    record_verification(
+        dir.path(),
+        &cached,
+        &verifiers,
+        || "cached-hash".to_string(),
+        CachePrecomputed::default(),
+    );
+
+    let result = try_lockfile_verification_cache(dir.path(), &uncached, &verifiers, || {
+        "uncached-hash".to_string()
+    });
+
+    assert!(!result.hit);
+    assert_eq!(result.precomputed.hash.as_deref(), Some("uncached-hash"));
+}
+
+#[test]
+fn size_mismatch_falls_through_to_content_hash() {
+    let dir = TempDir::new().expect("tempdir");
+    let lockfile = touch_lockfile(dir.path(), "short");
+    let verifiers: Vec<Arc<dyn ResolutionVerifier>> =
+        vec![Stub::new(true) as Arc<dyn ResolutionVerifier>];
+    record_verification(
+        dir.path(),
+        &lockfile,
+        &verifiers,
+        || "same-content".to_string(),
+        CachePrecomputed::default(),
+    );
+    fs::write(&lockfile, "longer contents").expect("change lockfile size");
+
+    let mut calls = 0;
+    let result = try_lockfile_verification_cache(dir.path(), &lockfile, &verifiers, || {
+        calls += 1;
+        "same-content".to_string()
+    });
+
+    assert!(result.hit);
+    assert_eq!(calls, 1);
+}
+
+#[test]
+fn changed_stat_falls_through_to_content_hash() {
+    let dir = TempDir::new().expect("tempdir");
+    let lockfile = touch_lockfile(dir.path(), "unchanged");
+    let verifiers: Vec<Arc<dyn ResolutionVerifier>> =
+        vec![Stub::new(true) as Arc<dyn ResolutionVerifier>];
+    record_verification(
+        dir.path(),
+        &lockfile,
+        &verifiers,
+        || "unchanged-hash".to_string(),
+        CachePrecomputed::default(),
+    );
+    rewrite_cached_mtime(dir.path(), "different");
+
+    let mut calls = 0;
+    let result = try_lockfile_verification_cache(dir.path(), &lockfile, &verifiers, || {
+        calls += 1;
+        "unchanged-hash".to_string()
+    });
+
+    assert!(result.hit);
+    assert_eq!(calls, 1);
+}
+
+#[test]
+fn changed_same_size_content_misses() {
+    let dir = TempDir::new().expect("tempdir");
+    let lockfile = touch_lockfile(dir.path(), "before");
+    let verifiers: Vec<Arc<dyn ResolutionVerifier>> =
+        vec![Stub::new(true) as Arc<dyn ResolutionVerifier>];
+    record_verification(
+        dir.path(),
+        &lockfile,
+        &verifiers,
+        || "before-hash".to_string(),
+        CachePrecomputed::default(),
+    );
+    fs::write(&lockfile, "after!").expect("replace with same-size contents");
+    rewrite_cached_mtime(dir.path(), "different");
+
+    let result = try_lockfile_verification_cache(dir.path(), &lockfile, &verifiers, || {
+        "after-hash".to_string()
+    });
+
+    assert!(!result.hit);
+    assert_eq!(result.precomputed.hash.as_deref(), Some("after-hash"));
+}
+
+#[test]
+fn verifier_can_accept_the_cached_policy() {
+    let dir = TempDir::new().expect("tempdir");
+    let lockfile = touch_lockfile(dir.path(), "lockfileVersion: '9.0'\n");
+    let mut policy = serde_json::Map::new();
+    policy.insert("minimumReleaseAge".to_string(), 60.into());
+    let verifiers: Vec<Arc<dyn ResolutionVerifier>> =
+        vec![Stub::with_policy(true, policy) as Arc<dyn ResolutionVerifier>];
+    record_verification(
+        dir.path(),
+        &lockfile,
+        &verifiers,
+        || "hash".to_string(),
+        CachePrecomputed::default(),
+    );
+
+    let result =
+        try_lockfile_verification_cache(dir.path(), &lockfile, &verifiers, || unreachable!());
+
+    assert!(result.hit);
+}
+
+#[test]
+fn every_verifier_accepts_its_merged_cached_policy() {
+    let dir = TempDir::new().expect("tempdir");
+    let lockfile = touch_lockfile(dir.path(), "lockfileVersion: '9.0'\n");
+    let mut age_policy = serde_json::Map::new();
+    age_policy.insert("minimumReleaseAge".to_string(), 60.into());
+    let mut trust_policy = serde_json::Map::new();
+    trust_policy.insert("trustPolicy".to_string(), JsonValue::String("no-downgrade".into()));
+    let verifiers: Vec<Arc<dyn ResolutionVerifier>> = vec![
+        Stub::with_policy(true, age_policy) as Arc<dyn ResolutionVerifier>,
+        Stub::with_policy(true, trust_policy) as Arc<dyn ResolutionVerifier>,
+    ];
+    record_verification(
+        dir.path(),
+        &lockfile,
+        &verifiers,
+        || "hash".to_string(),
+        CachePrecomputed::default(),
+    );
+
+    let result =
+        try_lockfile_verification_cache(dir.path(), &lockfile, &verifiers, || unreachable!());
+
+    assert!(result.hit);
+}
+
+#[test]
+fn missing_lockfile_misses_without_hashing() {
+    let dir = TempDir::new().expect("tempdir");
+    let lockfile = touch_lockfile(dir.path(), "lockfileVersion: '9.0'\n");
+    let verifiers: Vec<Arc<dyn ResolutionVerifier>> =
+        vec![Stub::new(true) as Arc<dyn ResolutionVerifier>];
+    record_verification(
+        dir.path(),
+        &lockfile,
+        &verifiers,
+        || "hash".to_string(),
+        CachePrecomputed::default(),
+    );
+    fs::remove_file(&lockfile).expect("remove lockfile");
+
+    let result =
+        try_lockfile_verification_cache(dir.path(), &lockfile, &verifiers, || unreachable!());
+
+    assert!(!result.hit);
+    assert!(result.precomputed.stat.is_none());
+    assert!(result.precomputed.hash.is_none());
+}
+
+#[test]
 fn policy_invalidation_misses_even_when_stat_matches() {
     let dir = TempDir::new().expect("tempdir");
     let lockfile = touch_lockfile(dir.path(), "lockfileVersion: '9.0'\n");
@@ -292,4 +460,17 @@ fn cache_lockfile_serializes_with_camelcase_fields() {
     let json = serde_json::to_string(&record).expect("serialize");
     assert!(json.contains(r#""mtimeNs":"100""#), "got: {json}");
     assert!(json.contains(r#""verifiedAt":"now""#), "got: {json}");
+}
+
+fn rewrite_cached_mtime(cache_dir: &Path, mtime_ns: &str) {
+    let cache_path = cache_dir.join(CACHE_FILE_NAME);
+    let contents = fs::read_to_string(&cache_path).expect("read cache record");
+    let mut record: CacheRecord =
+        serde_json::from_str(contents.trim_end()).expect("parse cache record");
+    record.lockfile.mtime_ns = mtime_ns.to_string();
+    fs::write(
+        cache_path,
+        format!("{}\n", serde_json::to_string(&record).expect("serialize cache record")),
+    )
+    .expect("rewrite cache record");
 }

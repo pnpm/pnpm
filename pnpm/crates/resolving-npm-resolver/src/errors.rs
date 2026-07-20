@@ -21,7 +21,7 @@ use miette::Diagnostic;
 #[non_exhaustive]
 pub enum FetchMetadataError {
     #[display("Failed to fetch metadata from {url}: {error}")]
-    #[diagnostic(code(pacquet_resolving_npm_resolver::network_error))]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_NETWORK_ERROR))]
     Network {
         url: String,
         #[error(source)]
@@ -37,7 +37,7 @@ pub enum FetchMetadataError {
     /// [`FetchMetadataError::Decode`] — see
     /// [`FetchMetadataError::is_body_retryable`].
     #[display("Failed to read metadata response body from {url}: {error}")]
-    #[diagnostic(code(pacquet_resolving_npm_resolver::body_read_error))]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_BODY_READ_ERROR))]
     BodyRead {
         url: String,
         #[error(source)]
@@ -45,7 +45,7 @@ pub enum FetchMetadataError {
     },
 
     #[display("Failed to decode metadata from {url}: {error}")]
-    #[diagnostic(code(pacquet_resolving_npm_resolver::decode_error))]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_DECODE_ERROR))]
     Decode {
         url: String,
         #[error(source)]
@@ -60,7 +60,7 @@ pub enum FetchMetadataError {
     /// Kept out of [`FetchMetadataError::is_body_retryable`] for that
     /// reason.
     #[display("Failed to filter metadata from {url}: {error}")]
-    #[diagnostic(code(pacquet_resolving_npm_resolver::filter_metadata_error))]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_FILTER_METADATA_ERROR))]
     FilterMetadata {
         url: String,
         #[error(source)]
@@ -77,20 +77,10 @@ pub enum FetchMetadataError {
         pkg_name: String,
     },
 
-    /// `META_CACHE_MISSING_AFTER_304`. The mirror existed when we read
-    /// its headers but vanished before the full read on a 304 response
-    /// — concurrent cache cleanup, antivirus, etc.
-    #[display("Metadata cache for {pkg_name} disappeared between headers read and full read.")]
-    #[diagnostic(code(pacquet_resolving_npm_resolver::cache_missing_after_304))]
-    CacheMissingAfter304 {
-        #[error(not(source))]
-        pkg_name: String,
-    },
-
     /// The blocking task that deserializes a packument body panicked
     /// or was cancelled by runtime shutdown.
     #[display("Failed to parse metadata from {url}: {error}")]
-    #[diagnostic(code(pacquet_resolving_npm_resolver::parse_task))]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_PARSE_TASK))]
     ParseTask {
         url: String,
         #[error(source)]
@@ -154,7 +144,7 @@ impl FetchMetadataError {
 #[display(
     "Every version of {name} matching the request was rejected by the resolver guard ({reason})."
 )]
-#[diagnostic(code(pacquet_resolving_npm_resolver::all_versions_blocked))]
+#[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_ALL_VERSIONS_BLOCKED))]
 pub struct AllVersionsBlockedError {
     #[error(not(source))]
     pub name: String,
@@ -169,7 +159,7 @@ pub struct AllVersionsBlockedError {
 #[display(
     "Resolving {name} hit the resolver guard's {limit}-version re-pick limit; too many candidates were rejected ({reason})."
 )]
-#[diagnostic(code(pacquet_resolving_npm_resolver::guard_repick_limit))]
+#[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_GUARD_REPICK_LIMIT))]
 pub struct GuardRepickLimitError {
     #[error(not(source))]
     pub name: String,

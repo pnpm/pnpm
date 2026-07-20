@@ -31,7 +31,7 @@ permissions:
 jobs:
   comment:
     name: Post benchmark comment
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     # Only post when the upstream benchmark ran on a PR and succeeded.
     # Same gating as the original in-workflow comment, which only ran
     # on the success path of the previous steps.
@@ -176,7 +176,7 @@ jobs:
               --start-point-reset \
               --start-point-clone-thresholds \
               --err \
-              --adapter shell_hyperfine \
+              --adapter json \
               --file "$file" \
               --ci-number "$PR_NUMBER" \
               --github-actions "$GITHUB_TOKEN"

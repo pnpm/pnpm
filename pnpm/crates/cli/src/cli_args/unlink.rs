@@ -11,13 +11,11 @@ use std::{
     sync::Arc,
 };
 
-/// Removes the link created by `pacquet link` and reinstalls the package if
-/// it is saved in `package.json`.
+/// Remove the link created by `pnpm link` and reinstall the package as
+/// declared in `package.json`.
 ///
-/// Mirrors pnpm's `unlink`: it strips `link:` entries from the `overrides`
-/// block in `pnpm-workspace.yaml` (the same source the installer reads), then
-/// runs install so the previous resolution is restored. With package names it
-/// only drops the matching `link:` overrides; with none it drops them all.
+/// With package names, only the matching links are removed; with no
+/// arguments, every link is removed.
 #[derive(Debug, Args)]
 pub struct UnlinkArgs {
     pub package_names: Vec<String>,
@@ -63,14 +61,9 @@ impl UnlinkArgs {
         }
 
         let state = State::init(manifest_path, config, false).wrap_err("initialize the state")?;
-
+        let lockfile_path = state.lockfile_path();
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &state;
-
-        let lockfile_path = manifest
-            .path()
-            .parent()
-            .map(|parent| parent.join(pacquet_lockfile::Lockfile::FILE_NAME));
 
         Install {
             tarball_mem_cache: Arc::clone(tarball_mem_cache),
@@ -80,7 +73,7 @@ impl UnlinkArgs {
             manifest,
             emit_initial_manifest: true,
             lockfile: pacquet_lockfile::MaybeLazyLockfile::Lazy(lockfile),
-            lockfile_path: lockfile_path.as_deref(),
+            lockfile_path: Some(&lockfile_path),
             dependency_groups: [
                 DependencyGroup::Prod,
                 DependencyGroup::Dev,
@@ -94,6 +87,7 @@ impl UnlinkArgs {
             trust_lockfile: config.trust_lockfile,
             update_checksums: false,
             is_full_install: false,
+            installs_only: false,
             resolved_packages,
             supported_architectures: config.supported_architectures.clone(),
             node_linker: config.node_linker,

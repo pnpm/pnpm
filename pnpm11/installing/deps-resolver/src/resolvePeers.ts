@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { createPeerDepGraphHash, depPathToFilename, parseDepPath, type PeerId } from '@pnpm/deps.path'
+import { getPeerVersionRange } from '@pnpm/deps.peer-range'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import type {
   DepPath,
@@ -616,7 +617,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
         nodeId: peerNodeId,
         parentNodeIds,
       }])[peerName]
-      if (!semverUtils.satisfiesWithPrereleases(lockedPeer.version, peerDependency.version.replace(/^workspace:/, ''), true)) continue
+      if (!semverUtils.satisfiesWithPrereleases(lockedPeer.version, getPeerVersionRange(peerDependency.version), true)) continue
       const peerPathPromise = ctx.pathsByNodeIdPromises.get(peerNodeId) ?? pDefer<DepPath>()
       ctx.pathsByNodeIdPromises.set(peerNodeId, peerPathPromise)
       ctx.pathsByNodeId.set(peerNodeId, previousPeerDepPath)
@@ -1226,7 +1227,7 @@ function _resolvePeers<T extends PartialResolvedPackage> (
   const resolvedPeers = new Map<string, NodeId>()
   const missingPeers = new Map<string, MissingPeerInfo>()
   for (const [peerName, { version, optional }] of Object.entries(ctx.resolvedPackage.peerDependencies)) {
-    const peerVersionRange = version.replace(/^workspace:/, '')
+    const peerVersionRange = getPeerVersionRange(version)
 
     const resolved = ctx.parentPkgs[peerName]
     const optionalPeer = optional === true

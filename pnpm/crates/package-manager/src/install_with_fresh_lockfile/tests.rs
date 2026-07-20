@@ -1,4 +1,7 @@
-use super::compute_package_extensions_checksum;
+use super::{
+    ImporterUpdateSeedPolicy, UpdateSeedPolicy, compute_package_extensions_checksum,
+    full_resolution_required, is_partial_workspace_selection, update_reuse_scopes,
+};
 use pacquet_config::{Config, PackageExtension};
 use pretty_assertions::assert_eq;
 
@@ -17,6 +20,17 @@ fn config_with_extensions(entries: &[(&str, &[(&str, &str)])]) -> Box<Config> {
     let mut config = Config::new();
     config.package_extensions = Some(extensions);
     Box::new(config)
+}
+
+#[test]
+fn full_workspace_selection_keeps_resolution_prefetch_enabled() {
+    let real = std::collections::HashSet::from(["a".to_string(), "b".to_string()]);
+    let all_selected = real.clone();
+    let partial = std::collections::HashSet::from(["a".to_string()]);
+
+    assert!(!is_partial_workspace_selection(Some(&real), Some(&all_selected)));
+    assert!(is_partial_workspace_selection(Some(&real), Some(&partial)));
+    assert!(!is_partial_workspace_selection(None, None));
 }
 
 /// Ports `installing/.../packageExtensions.ts:103-153`
@@ -65,4 +79,56 @@ fn compute_checksum_is_none_for_explicit_empty_map() {
     let mut config = Config::new();
     config.package_extensions = Some(indexmap::IndexMap::new());
     assert_eq!(compute_package_extensions_checksum(&config), None);
+}
+
+#[test]
+fn importer_scoped_update_full_resolution_requires_every_importer_to_disable_reuse() {
+    use pacquet_resolving_deps_resolver::UpdateReuseScope;
+
+    let importer_ids = ["selected", "unselected"];
+    let mixed =
+        std::collections::BTreeMap::from([("selected".to_string(), UpdateReuseScope::None)]);
+    assert!(!full_resolution_required(true, importer_ids, &UpdateReuseScope::All, &mixed,));
+
+    let all_none = std::collections::BTreeMap::from([
+        ("selected".to_string(), UpdateReuseScope::None),
+        ("unselected".to_string(), UpdateReuseScope::None),
+    ]);
+    assert!(full_resolution_required(true, importer_ids, &UpdateReuseScope::All, &all_none,));
+    assert!(full_resolution_required(
+        false,
+        importer_ids,
+        &UpdateReuseScope::All,
+        &std::collections::BTreeMap::new(),
+    ));
+}
+
+#[test]
+fn importer_scoped_update_custom_refresh_widens_every_importer() {
+    use pacquet_resolving_deps_resolver::UpdateReuseScope;
+
+    let scoped = std::collections::BTreeMap::from([(
+        "selected".to_string(),
+        UpdateReuseScope::Except(std::collections::HashSet::from(["pkg".to_string()])),
+    )]);
+    assert!(full_resolution_required(
+        true,
+        ["selected", "unselected"],
+        &UpdateReuseScope::None,
+        &scoped,
+    ));
+}
+
+#[test]
+fn importer_scoped_update_absent_importer_keeps_all_reuse() {
+    use pacquet_resolving_deps_resolver::UpdateReuseScope;
+
+    let policy = UpdateSeedPolicy::ByImporter(std::collections::BTreeMap::from([(
+        "selected".to_string(),
+        ImporterUpdateSeedPolicy::DropAll,
+    )]));
+    let (default_scope, scopes) = update_reuse_scopes(&policy);
+    assert_eq!(default_scope, UpdateReuseScope::All);
+    assert_eq!(scopes.get("selected"), Some(&UpdateReuseScope::None));
+    assert!(!scopes.contains_key("unselected"));
 }

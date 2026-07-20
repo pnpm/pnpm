@@ -14,7 +14,7 @@ pub enum DirectoryFetcherError {
     /// Broken symlinks are *not* surfaced here — they degrade to a
     /// skipped entry inside the walker.
     #[display("I/O error while walking directory {dir:?}: {source}")]
-    #[diagnostic(code(pacquet_directory_fetcher::io))]
+    #[diagnostic(code(ERR_PNPM_DIRECTORY_FETCHER_IO))]
     Io {
         dir: String,
         #[error(source)]
@@ -26,7 +26,7 @@ pub enum DirectoryFetcherError {
         path.display(),
         directory.display()
     )]
-    #[diagnostic(code(pacquet_directory_fetcher::path_escape))]
+    #[diagnostic(code(ERR_PNPM_DIRECTORY_FETCHER_PATH_ESCAPE))]
     PathOutsideDirectory { path: PathBuf, directory: PathBuf },
 
     #[diagnostic(transparent)]

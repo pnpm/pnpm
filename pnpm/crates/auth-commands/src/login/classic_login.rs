@@ -202,7 +202,7 @@ enum AddUserError {
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum ClassicLoginOpError {
     #[display("The registry requires a one-time password to complete the login")]
-    #[diagnostic(code(pacquet_auth_commands::login_otp_required))]
+    #[diagnostic(code(ERR_PNPM_AUTH_COMMANDS_LOGIN_OTP_REQUIRED))]
     Otp {
         #[error(not(source))]
         challenge: OtpChallenge,
@@ -217,7 +217,7 @@ pub enum ClassicLoginOpError {
     NoToken,
 
     #[display("The login request failed: {reason}")]
-    #[diagnostic(code(pacquet_auth_commands::login_request_failed))]
+    #[diagnostic(code(ERR_PNPM_AUTH_COMMANDS_LOGIN_REQUEST_FAILED))]
     Transport {
         #[error(not(source))]
         reason: String,

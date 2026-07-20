@@ -1,8 +1,8 @@
 use super::{
     InstallPackageBySnapshotError, archive_filter_for, emit_progress_resolved,
     fetch_directory_resolution, host_platform_selector, local_file_tarball_install_url,
-    node_extras_filter, render_variant_targets, synthesize_runtime_manifest_bytes,
-    tarball_url_and_integrity,
+    node_extras_filter, render_variant_targets, runtime_platform_selector,
+    synthesize_runtime_manifest_bytes, tarball_url_and_integrity,
 };
 use pacquet_config::Config;
 use pacquet_directory_fetcher::DirectoryFetcherError;
@@ -11,6 +11,7 @@ use pacquet_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, LockfileResolution,
     PackageKey, PlatformAssetResolution, PlatformAssetTarget, RegistryResolution,
 };
+use pacquet_package_is_installable::SupportedArchitectures;
 use pacquet_reporter::{LogEvent, ProgressMessage, Reporter};
 use pretty_assertions::assert_eq;
 use std::{borrow::Cow, sync::Mutex};
@@ -125,6 +126,21 @@ fn host_platform_selector_omits_libc_on_non_linux_hosts() {
     if libc_known {
         assert_eq!(selector.libc.as_deref(), Some(host_libc()));
     }
+}
+
+#[test]
+fn runtime_platform_selector_uses_the_first_configured_target() {
+    let supported = SupportedArchitectures {
+        os: Some(vec!["win32".to_string(), "linux".to_string()]),
+        cpu: Some(vec!["x64".to_string(), "arm64".to_string()]),
+        libc: Some(vec!["current".to_string(), "musl".to_string()]),
+    };
+
+    let selector = runtime_platform_selector(Some(&supported));
+
+    assert_eq!(selector.os, "win32");
+    assert_eq!(selector.cpu, "x64");
+    assert_eq!(selector.libc, host_platform_selector().libc);
 }
 
 #[test]
@@ -417,6 +433,7 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
         snapshot: &snapshot,
         allow_build_policy: &allow_build_policy,
         skipped: &skipped,
+        runtime_platform_selector: &host_platform_selector(),
         workspace_root: store_tmp.path(),
         // Hoisted skips slot materialization, so the test exercises
         // only the download-coordination branch and gets the CAS map
@@ -494,6 +511,7 @@ async fn without_mem_cache_skips_coordination_and_downloads() {
         snapshot: &snapshot,
         allow_build_policy: &allow_build_policy,
         skipped: &skipped,
+        runtime_platform_selector: &host_platform_selector(),
         workspace_root: store_tmp.path(),
         node_linker: pacquet_config::NodeLinker::Hoisted,
         custom_fetcher_picker: None,
@@ -568,6 +586,7 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
         snapshot: &snapshot,
         allow_build_policy: &allow_build_policy,
         skipped: &skipped,
+        runtime_platform_selector: &host_platform_selector(),
         workspace_root: store_tmp.path(),
         node_linker: pacquet_config::NodeLinker::Hoisted,
         custom_fetcher_picker: None,
@@ -667,6 +686,7 @@ async fn run_snapshot_install_with_picker(
         snapshot: &snapshot,
         allow_build_policy: &allow_build_policy,
         skipped: &skipped,
+        runtime_platform_selector: &host_platform_selector(),
         workspace_root,
         node_linker: pacquet_config::NodeLinker::Hoisted,
         custom_fetcher_picker: Some(picker),
@@ -995,6 +1015,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
         snapshot: &snapshot,
         allow_build_policy: &allow_build_policy,
         skipped: &skipped,
+        runtime_platform_selector: &host_platform_selector(),
         workspace_root: store_tmp.path(),
         node_linker: pacquet_config::NodeLinker::Hoisted,
         custom_fetcher_picker: None,
@@ -1053,6 +1074,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
         snapshot: &snapshot,
         allow_build_policy: &allow_build_policy,
         skipped: &skipped,
+        runtime_platform_selector: &host_platform_selector(),
         workspace_root: store_tmp.path(),
         node_linker: pacquet_config::NodeLinker::Hoisted,
         custom_fetcher_picker: None,

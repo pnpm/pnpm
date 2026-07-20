@@ -956,12 +956,8 @@ where
     if !picker_opts.include_latest_tag {
         return Ok(current);
     }
-    let latest_spec = RegistryPackageSpec {
-        name: spec.name.clone(),
-        fetch_spec: "latest".to_string(),
-        spec_type: RegistryPackageSpecType::Tag,
-        normalized_bare_specifier: spec.normalized_bare_specifier.clone(),
-    };
+    let mut latest_spec = RegistryPackageSpec::latest_tag(spec.name.clone());
+    latest_spec.normalized_bare_specifier.clone_from(&spec.normalized_bare_specifier);
     let latest = pick_one(&latest_spec)?;
     Ok(pick_max(current, latest))
 }
@@ -1100,19 +1096,19 @@ pub fn persist_meta_to_mirror(
 #[non_exhaustive]
 pub enum MirrorPersistError {
     #[display("Failed to encode mirror path: {error}")]
-    #[diagnostic(code(pacquet_resolving_npm_resolver::pick_package::encode_path))]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_PICK_PACKAGE_ENCODE_PATH))]
     EncodePath {
         #[error(not(source))]
         error: String,
     },
     #[display("Failed to serialize mirror entry: {error}")]
-    #[diagnostic(code(pacquet_resolving_npm_resolver::pick_package::serialize))]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_PICK_PACKAGE_SERIALIZE))]
     Serialize {
         #[error(not(source))]
         error: String,
     },
     #[display("Failed to write mirror entry: {error}")]
-    #[diagnostic(code(pacquet_resolving_npm_resolver::pick_package::write))]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_PICK_PACKAGE_WRITE))]
     Write {
         #[error(not(source))]
         error: String,

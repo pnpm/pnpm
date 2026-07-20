@@ -21,13 +21,13 @@ pub struct NodeSpecifier {
 
 /// Errors raised by [`parse_node_specifier`].
 ///
-/// Carries the `INVALID_NODE_RELEASE_CHANNEL` code so log consumers
+/// Carries the `ERR_PNPM_INVALID_NODE_RELEASE_CHANNEL` code so log consumers
 /// (e.g. `@pnpm/cli.default-reporter`) parse the same string.
 #[derive(Debug, Display, Error, Diagnostic, Clone, PartialEq, Eq)]
 pub enum ParseNodeSpecifierError {
     #[display("\"{channel}\" is not a valid Node.js release channel")]
     #[diagnostic(
-        code(INVALID_NODE_RELEASE_CHANNEL),
+        code(ERR_PNPM_INVALID_NODE_RELEASE_CHANNEL),
         help("Valid release channels are: nightly, rc, test, v8-canary, release")
     )]
     InvalidReleaseChannel {

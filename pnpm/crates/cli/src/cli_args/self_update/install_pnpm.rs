@@ -19,6 +19,7 @@ use serde_json::Value;
 use std::{
     fs,
     path::{Path, PathBuf},
+    process::Command,
 };
 
 use super::SelfUpdateError;
@@ -91,8 +92,12 @@ pub(super) async fn install_pnpm<Reporter: self::Reporter + 'static>(
     .await
     .and_then(|()| {
         if package.links_native_binary {
-            link_exe_platform_binary(&install_dir, package_name)
+            link_exe_platform_binary(&install_dir, package_name)?;
+            // Before the caller links this dir into the global bin, so a broken
+            // release is discarded rather than swapped in.
+            assert_pnpm_runs(&install_dir, package_name, version)
         } else {
+            // The legacy JS engine has no binary of its own to be missing.
             Ok(())
         }
     });
@@ -101,6 +106,54 @@ pub(super) async fn install_pnpm<Reporter: self::Reporter + 'static>(
         return Err(err);
     }
     Ok(InstallPnpmResult { install_dir, package_name, already_existed: false })
+}
+
+/// Fail unless the engine installed at `install_dir` can execute — a release can
+/// install cleanly and still not run, when its wrapper kept the placeholder bin
+/// of a platform package that shipped without a native.
+///
+/// Only that it runs is asserted; reading `--version` output would tie the check
+/// to whatever startup decides to print.
+pub(super) fn assert_pnpm_runs(
+    install_dir: &Path,
+    package_name: &str,
+    version: &str,
+) -> miette::Result<()> {
+    let executable = package_dir(install_dir, package_name).join(if host_platform() == "win32" {
+        "pnpm.exe"
+    } else {
+        "pnpm"
+    });
+    // pnpm prints its version only after loading config and switching versions,
+    // so probing from the caller's directory answers with their pin rather than
+    // the release under test.
+    let probe_dir = tempfile::tempdir()
+        .into_diagnostic()
+        .wrap_err("create a directory to check the installed pnpm from")?;
+    let reason =
+        match Command::new(&executable).arg("--version").current_dir(probe_dir.path()).output() {
+            Err(err) => err.to_string(),
+            Ok(output) if !output.status.success() => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                let stderr = stderr.trim();
+                let code = output
+                    .status
+                    .code()
+                    .map_or_else(|| "a signal".to_string(), |code| format!("code {code}"));
+                if stderr.is_empty() {
+                    format!("it exited with {code}")
+                } else {
+                    format!("it exited with {code}: {stderr}")
+                }
+            }
+            Ok(_) => return Ok(()),
+        };
+    Err(SelfUpdateError::BrokenPnpmInstall {
+        version: version.to_string(),
+        reason,
+        executable: executable.display().to_string(),
+    }
+    .into())
 }
 
 /// The installed wrapper's recorded version, or `None` when the install is
@@ -137,6 +190,17 @@ fn reuse_cached_engine(install_dir: &Path, package: PnpmPackageToInstall, versio
         return false;
     }
     !package.links_native_binary || link_exe_platform_binary(install_dir, package.name).is_ok()
+}
+
+/// Fail for versions whose `@pnpm/exe` shipped platform packages with no binary,
+/// so it cannot run. Matched by version, not package: the pin is shared but the
+/// wrapper is not, so a developer on the JS `pnpm` — which does run at these
+/// versions — would otherwise pin one and break every teammate on `@pnpm/exe`.
+pub(crate) fn assert_release_is_installable(version: &str) -> miette::Result<()> {
+    if matches!(version, "11.12.0" | "11.13.0") {
+        return Err(SelfUpdateError::BrokenPnpmRelease { version: version.to_string() }.into());
+    }
+    Ok(())
 }
 
 pub(crate) fn pnpm_package_to_install(pnpm_version: &str) -> PnpmPackageToInstall {
@@ -224,14 +288,14 @@ pub(crate) async fn run_install<Reporter: self::Reporter + 'static>(
     let manifest_path = install_dir.join("package.json");
     let state = State::init(manifest_path, config, false)
         .wrap_err("initialize the self-update install state")?;
-    add_package::<Reporter, _, _>(
+    add_package::<Reporter, _>(
         state,
         &format!("{package_name}@{version}"),
         PinnedVersion::Patch,
         None,
         false,
         config.supported_architectures.clone(),
-        || std::iter::once(DependencyGroup::Prod),
+        [DependencyGroup::Prod],
     )
     .await
 }

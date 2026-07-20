@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/network.fetch",
-  "version": "1100.1.5",
+  "version": "1100.1.6",
   "description": "Native fetch with retries",
   "keywords": [
     "pnpm",

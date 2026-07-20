@@ -228,6 +228,27 @@ fn safe_join_path_rejects_missing_sub_dir() {
     assert!(matches!(err, PreparePackageError::InvalidPath { .. }));
 }
 
+/// A resolution's `path` keeps the leading slash of the
+/// `#path:/packages/foo` specifier it came from, and that slash is
+/// rooted at the repo, not the filesystem.
+#[test]
+fn safe_join_path_treats_a_leading_slash_as_repo_relative() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    std::fs::create_dir_all(root.join("packages/foo")).unwrap();
+
+    let joined = safe_join_path(root, Some("/packages/foo")).expect("repo-rooted sub-directory");
+    assert_eq!(joined, root.join("packages/foo"));
+}
+
+/// Stripping the leading slash must not open a way out of the checkout.
+#[test]
+fn safe_join_path_rejects_an_escape_behind_a_leading_slash() {
+    let dir = tempdir().unwrap();
+    let err = safe_join_path(dir.path(), Some("/../escape")).unwrap_err();
+    assert!(matches!(err, PreparePackageError::InvalidPath { .. }));
+}
+
 #[test]
 fn safe_join_path_accepts_empty_sub_dir() {
     let dir = tempdir().unwrap();

@@ -98,17 +98,31 @@ pub(crate) struct MetadataRequestOptions<'a> {
     pub auth_headers: &'a AuthHeaders,
     pub etag: Option<&'a str>,
     pub modified: Option<&'a str>,
+    /// Ask for the packument as a cold cache would: [`Self::etag`] and
+    /// [`Self::modified`] are dropped rather than sent, and `Cache-Control:
+    /// no-cache` keeps an intermediary from validating them on our behalf.
+    /// Set when the mirror those validators describe is known to be gone, so
+    /// only a body — never a `304` — can satisfy the request.
+    pub bypass_cache: bool,
     pub retry_opts: RetryOpts,
 }
 
 /// Send a metadata GET, retrying an unsolicited 304 once with intermediary
 /// cache reuse disabled. A repeated 304 cannot validate any local body and is
 /// reported with the same error in both pnpm implementations.
+///
+/// A [`MetadataRequestOptions::bypass_cache`] request has already given up its
+/// validators, so that retry would only repeat itself: its 304 fails straight
+/// away instead.
 pub(crate) async fn send_metadata_request<'a>(
     opts: &MetadataRequestOptions<'a>,
 ) -> Result<(ThrottledClientGuard<'a>, Response), FetchMetadataError> {
-    let etag = opts.etag.filter(|value| !value.is_empty());
-    let modified = opts.modified.filter(|value| !value.is_empty());
+    let etag = if opts.bypass_cache { None } else { opts.etag.filter(|value| !value.is_empty()) };
+    let modified = if opts.bypass_cache {
+        None
+    } else {
+        opts.modified.filter(|value| !value.is_empty()).and_then(to_http_date)
+    };
     let has_validator = etag.is_some() || modified.is_some();
     let build_request = |client: &reqwest::Client, bypass_cache: bool| {
         let mut request = client.get(opts.url).header(header::ACCEPT, opts.accept);
@@ -118,7 +132,7 @@ pub(crate) async fn send_metadata_request<'a>(
         if let Some(etag) = etag {
             request = request.header(header::IF_NONE_MATCH, etag);
         }
-        if let Some(modified) = modified {
+        if let Some(modified) = modified.as_deref() {
             request = request.header(header::IF_MODIFIED_SINCE, modified);
         }
         if bypass_cache {
@@ -129,7 +143,7 @@ pub(crate) async fn send_metadata_request<'a>(
 
     let (client, response) =
         send_with_retry(opts.http_client, opts.url, opts.retry_opts, |client| {
-            build_request(client, false)
+            build_request(client, opts.bypass_cache)
         })
         .await
         .map_err(|error| FetchMetadataError::Network {
@@ -138,6 +152,12 @@ pub(crate) async fn send_metadata_request<'a>(
         })?;
     if response.status() != StatusCode::NOT_MODIFIED || has_validator {
         return Ok((client, response));
+    }
+    if opts.bypass_cache {
+        drop(client);
+        return Err(FetchMetadataError::NotModifiedWithoutCache {
+            pkg_name: opts.pkg_name.to_string(),
+        });
     }
 
     drop(client);
@@ -159,6 +179,19 @@ pub(crate) async fn send_metadata_request<'a>(
     Ok((client, response))
 }
 
+/// Convert a stored `modified` value — the packument's ISO-8601
+/// `time.modified` — to the HTTP-date form `If-Modified-Since` requires
+/// (RFC 9110 §8.8.3), the same conversion the TypeScript CLI applies with
+/// `toUTCString()`. A value already in HTTP-date form is kept. `None` when
+/// the value parses as neither, so it is dropped instead of sent — a
+/// recipient must ignore a malformed `If-Modified-Since` anyway.
+fn to_http_date(value: &str) -> Option<String> {
+    if let Ok(datetime) = chrono::DateTime::parse_from_rfc3339(value) {
+        return Some(httpdate::fmt_http_date(datetime.into()));
+    }
+    httpdate::parse_http_date(value).ok().map(httpdate::fmt_http_date)
+}
+
 /// Fetch the registry metadata document for `pkg_name`. The
 /// `full_metadata` flag on [`FetchFullMetadataOptions`] picks
 /// between the full and abbreviated packument forms.
@@ -177,6 +210,7 @@ pub async fn fetch_full_metadata(
             auth_headers: opts.auth_headers,
             etag: opts.etag,
             modified: opts.modified,
+            bypass_cache: false,
             retry_opts: opts.retry_opts,
         })
         .await?;

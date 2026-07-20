@@ -380,7 +380,7 @@ async fn fail_when_resolving_from_not_existing_directory_an_injected_dependency(
 
 /// A `file:./missing.tgz` spec funnels through the tarball branch
 /// where `compute_tarball_integrity` raises ENOENT. The resolver must
-/// surface the same `LINKED_PKG_DIR_NOT_FOUND` code the directory
+/// surface the same `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND` code the directory
 /// branch raises for a missing `file:` target — both kinds of
 /// missing `file:` target share one error path.
 #[tokio::test]
@@ -394,6 +394,14 @@ async fn fail_when_resolving_missing_tarball_with_file_protocol() {
         .await
         .expect_err("expected LINKED_PKG_DIR_NOT_FOUND");
     let expected = project_dir.join("missing.tgz").display().to_string();
+    {
+        use miette::Diagnostic;
+        let code = err.code().map(|c| c.to_string()).unwrap_or_default();
+        assert_eq!(
+            code, "ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND",
+            "diagnostic code must match the upstream error contract",
+        );
+    }
     match err {
         ResolveLocalError::LinkedPkgDirNotFound { path } => assert_eq!(path, expected),
         other => panic!("unexpected error: {other:?}"),

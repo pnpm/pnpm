@@ -86,14 +86,14 @@ pub enum FilterError {
     /// A `testPattern` / `changedFilesIgnorePattern` glob did not
     /// compile.
     #[display("Invalid pattern {pattern:?}: {message}")]
-    #[diagnostic(code(pacquet_workspace_projects_filter::invalid_pattern))]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_PROJECTS_FILTER_INVALID_PATTERN))]
     InvalidPattern { pattern: String, message: String },
 
     /// A selector resolved to neither a name pattern, a directory, nor a
     /// diff. The message includes the offending selector so CLI input is
     /// debuggable.
     #[display("Unsupported project selector: {selector}")]
-    #[diagnostic(code(pacquet_workspace_projects_filter::unsupported_selector))]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_PROJECTS_FILTER_UNSUPPORTED_SELECTOR))]
     UnsupportedSelector {
         #[error(not(source))]
         selector: String,

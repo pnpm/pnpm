@@ -15,7 +15,11 @@ pub mod _utils;
 pub use _utils::*;
 
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pacquet_testing_utils::{
+    allow_known_failure,
+    bin::{AddMockedRegistry, CommandTempCwd},
+    known_failure::{KnownFailure, KnownResult},
+};
 use std::fs;
 
 /// `minimumReleaseAge` set to 100 years rejects every version the
@@ -40,15 +44,8 @@ fn install_fails_under_huge_minimum_release_age() {
     // The mocked registry's packument times are real-world (years
     // old), so a `minimumReleaseAge` set in the millions of minutes
     // catches every version regardless of when the mock was
-    // populated. The yaml entry shape matches upstream's
-    // pnpm-workspace.yaml settings keys byte-for-byte.
-    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
-    let workspace_yaml = format!(
-        "{}\nminimumReleaseAge: {}\n",
-        fs::read_to_string(&workspace_yaml_path).expect("read workspace yaml seed"),
-        60 * 24 * 365 * 100,
-    );
-    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+    // populated.
+    set_minimum_release_age(&workspace, 60 * 24 * 365 * 100);
 
     // Hand-rolled minimal v9 lockfile pinning the same package the
     // manifest above declares. The placeholder integrity is fine:
@@ -94,6 +91,17 @@ fn install_fails_under_huge_minimum_release_age() {
     drop((root, mock_instance));
 }
 
+fn immature_version_fallback() -> KnownResult<()> {
+    Err(KnownFailure::new(
+        "pacquet does not yet implement the resolver path that falls back to an immature version when non-strict minimumReleaseAge has no mature match",
+    ))
+}
+
+#[test]
+fn non_strict_minimum_release_age_falls_back_when_no_mature_version_matches() {
+    allow_known_failure!(immature_version_fallback());
+}
+
 /// `trustLockfile: true` short-circuits the verification gate so a
 /// lockfile that would otherwise trip the policy
 /// (`minimumReleaseAge: 100 years` rejects every published version)
@@ -120,13 +128,8 @@ fn trust_lockfile_skips_verification() {
     // minimumReleaseAge rejects every version the mocked registry
     // serves. `trustLockfile: true` is the opt-out that makes the
     // install ignore the gate entirely.
-    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
-    let workspace_yaml = format!(
-        "{}\nminimumReleaseAge: {}\ntrustLockfile: true\n",
-        fs::read_to_string(&workspace_yaml_path).expect("read workspace yaml seed"),
-        60 * 24 * 365 * 100,
-    );
-    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+    set_minimum_release_age(&workspace, 60 * 24 * 365 * 100);
+    append_workspace_yaml_key(&workspace, "trustLockfile", true);
 
     let lockfile = "lockfileVersion: '9.0'\n\
         importers:\n  \
@@ -187,13 +190,7 @@ fn trust_lockfile_cli_flag_skips_verification() {
     });
     fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
 
-    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
-    let workspace_yaml = format!(
-        "{}\nminimumReleaseAge: {}\n",
-        fs::read_to_string(&workspace_yaml_path).expect("read workspace yaml seed"),
-        60 * 24 * 365 * 100,
-    );
-    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+    set_minimum_release_age(&workspace, 60 * 24 * 365 * 100);
 
     let lockfile = "lockfileVersion: '9.0'\n\
         importers:\n  \

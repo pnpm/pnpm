@@ -25,7 +25,7 @@ pub enum ReadBunAssetsError {
     FetchShasumsFile(#[error(source)] FetchShasumsFileError),
 
     #[display("Failed to parse integrity {integrity} for {file_name}")]
-    #[diagnostic(code(BUN_PARSE_INTEGRITY))]
+    #[diagnostic(code(ERR_PNPM_BUN_PARSE_INTEGRITY))]
     Integrity {
         integrity: String,
         file_name: String,

@@ -41,7 +41,7 @@ use std::{collections::HashMap, sync::Arc};
 #[display(
     "Invalid version range in packageExtensions selector {selector:?}: {range:?} is not a valid semver range"
 )]
-#[diagnostic(code(INVALID_PACKAGE_EXTENSION_SELECTOR))]
+#[diagnostic(code(ERR_PNPM_INVALID_PACKAGE_EXTENSION_SELECTOR))]
 pub struct InvalidPackageExtensionSelector {
     #[error(not(source))]
     pub selector: String,

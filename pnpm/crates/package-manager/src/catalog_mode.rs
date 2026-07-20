@@ -73,6 +73,11 @@ pub enum CatalogDecision {
     },
 }
 
+pub(crate) struct CatalogDecisionOutcome {
+    pub decision: CatalogDecision,
+    pub warning: Option<LogEvent>,
+}
+
 /// Decide how to reconcile one dependency against the catalogs under the
 /// configured [`CatalogMode`] and `save_catalog_name`.
 ///
@@ -86,15 +91,31 @@ pub fn decide_catalog<Reporter: self::Reporter>(
     dep: &CatalogModeDep<'_>,
     prefix: &str,
 ) -> Result<CatalogDecision, CatalogVersionMismatchError> {
+    let outcome = decide_catalog_outcome(catalog_mode, save_catalog_name, catalogs, dep, prefix)?;
+    if let Some(warning) = outcome.warning {
+        Reporter::emit(&warning);
+    }
+    Ok(outcome.decision)
+}
+
+/// Decide without emitting so concurrent callers can replay warnings in a
+/// deterministic order.
+pub(crate) fn decide_catalog_outcome(
+    catalog_mode: CatalogMode,
+    save_catalog_name: Option<&str>,
+    catalogs: &Catalogs,
+    dep: &CatalogModeDep<'_>,
+    prefix: &str,
+) -> Result<CatalogDecisionOutcome, CatalogVersionMismatchError> {
     // A `runtime:` specifier round-trips to `devEngines.runtime` through
     // the manifest writer; promoting it into a catalog would strand it in
     // `devDependencies`. Skip it, matching pnpm.
     if dep.bare_specifier.starts_with("runtime:") {
-        return Ok(CatalogDecision::KeepDirect);
+        return Ok(CatalogDecisionOutcome { decision: CatalogDecision::KeepDirect, warning: None });
     }
 
     if catalog_mode == CatalogMode::Manual && save_catalog_name.is_none() {
-        return Ok(CatalogDecision::KeepDirect);
+        return Ok(CatalogDecisionOutcome { decision: CatalogDecision::KeepDirect, warning: None });
     }
 
     let catalog_name = per_dep_catalog_name(dep.prev_specifier, save_catalog_name);
@@ -105,9 +126,12 @@ pub fn decide_catalog<Reporter: self::Reporter>(
     };
 
     if dep.bare_specifier == catalog_specifier {
-        return Ok(CatalogDecision::Catalog {
-            manifest_specifier: catalog_specifier,
-            updated_entry: None,
+        return Ok(CatalogDecisionOutcome {
+            decision: CatalogDecision::Catalog {
+                manifest_specifier: catalog_specifier,
+                updated_entry: None,
+            },
+            warning: None,
         });
     }
 
@@ -118,20 +142,26 @@ pub fn decide_catalog<Reporter: self::Reporter>(
     let entry = match resolve_from_catalog(catalogs, &wanted) {
         CatalogResolutionResult::Found(found) => found.resolution.specifier,
         _ => {
-            return Ok(CatalogDecision::Catalog {
-                manifest_specifier: catalog_specifier,
-                updated_entry: Some(CatalogEntry {
-                    catalog_name: catalog_name.to_string(),
-                    specifier: dep.bare_specifier.to_string(),
-                }),
+            return Ok(CatalogDecisionOutcome {
+                decision: CatalogDecision::Catalog {
+                    manifest_specifier: catalog_specifier,
+                    updated_entry: Some(CatalogEntry {
+                        catalog_name: catalog_name.to_string(),
+                        specifier: dep.bare_specifier.to_string(),
+                    }),
+                },
+                warning: None,
             });
         }
     };
 
     if versions_equal(dep.bare_specifier, &entry) {
-        return Ok(CatalogDecision::Catalog {
-            manifest_specifier: catalog_specifier,
-            updated_entry: None,
+        return Ok(CatalogDecisionOutcome {
+            decision: CatalogDecision::Catalog {
+                manifest_specifier: catalog_specifier,
+                updated_entry: None,
+            },
+            warning: None,
         });
     }
 
@@ -140,18 +170,20 @@ pub fn decide_catalog<Reporter: self::Reporter>(
             catalog_dep: format!("{}@{entry}", dep.alias),
             wanted_dep: format!("{}@{}", dep.alias, dep.bare_specifier),
         }),
-        CatalogMode::Prefer => {
-            Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+        CatalogMode::Prefer => Ok(CatalogDecisionOutcome {
+            decision: CatalogDecision::KeepDirect,
+            warning: Some(LogEvent::Pnpm(PnpmLog {
                 level: LogLevel::Warn,
                 message: format!(
                     r#"Catalog version mismatch for "{}": using direct version "{}" instead of catalog version "{entry}"."#,
                     dep.alias, dep.bare_specifier,
                 ),
                 prefix: prefix.to_string(),
-            }));
-            Ok(CatalogDecision::KeepDirect)
+            })),
+        }),
+        CatalogMode::Manual => {
+            Ok(CatalogDecisionOutcome { decision: CatalogDecision::KeepDirect, warning: None })
         }
-        CatalogMode::Manual => Ok(CatalogDecision::KeepDirect),
     }
 }
 

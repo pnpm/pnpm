@@ -1,14 +1,14 @@
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
 use pacquet_config::Config;
-use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
+use pacquet_lockfile::MaybeLazyLockfile;
 use pacquet_modules_yaml::{Host, read_modules_layout, read_modules_manifest};
 use pacquet_package_manager::{
     Install, RebuildOptions, UpdateSeedPolicy, allow_build_key_from_ignored_build,
 };
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_reporter::Reporter;
-use std::collections::HashSet;
+use std::{collections::HashSet, path::Path};
 
 use crate::State;
 
@@ -20,56 +20,76 @@ pub struct RebuildArgs {
     /// that requires a build is rebuilt.
     pub packages: Vec<String>,
 
-    /// Rebuild packages that were not built during installation. Packages
-    /// are not built when installing with the `--ignore-scripts` flag.
-    ///
-    /// Accepted for parity with pnpm, but currently a no-op: pacquet's
-    /// install pipeline does not yet record `pendingBuilds` in
-    /// `.modules.yaml`, so there is nothing for `--pending` to select.
-    /// Tracked with the rest of the not-yet-populated `.modules.yaml`
-    /// fields; until then, name the packages explicitly or use
-    /// `approve-builds`.
+    /// Rebuild packages that were not built during installation, such as
+    /// under `--ignore-scripts`.
     #[clap(long)]
     pub pending: bool,
 }
 
 impl RebuildArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
-        let selected = resolve_selection(&self.packages, self.pending, state.config)?;
-        run_rebuild::<Reporter>(&state, selected).await
+        let selection = resolve_selection(&self.packages, self.pending, state.config)?;
+        run_rebuild::<Reporter>(&state, selection).await
     }
 }
 
-/// Resolve the rebuild's package selection. Explicit `packages` win;
-/// otherwise `--pending` selects the packages `.modules.yaml` recorded as
-/// not-yet-built; otherwise `None` rebuilds every build-needing package.
+/// What a `pacquet rebuild` invocation was asked to rebuild.
+#[derive(Debug, Default)]
+pub(crate) struct RebuildSelection {
+    /// Allow-build keys of the dependencies to rebuild, or `None` for
+    /// every build-needing package.
+    pub(crate) names: Option<Vec<String>>,
+    /// [`RebuildOptions::pending_projects`]; only `--pending` populates it.
+    pub(crate) projects: Vec<String>,
+}
+
+/// Resolve the rebuild's selection. Explicit `packages` win; otherwise
+/// `--pending` selects what `.modules.yaml` recorded as not-yet-built;
+/// otherwise every build-needing package.
+///
+/// A `pendingBuilds` record is a dep path for a dependency and an
+/// importer id for a workspace project, and both are plain strings on
+/// disk. They are told apart by whether the entry resolves to a
+/// directory with a manifest, which is what an importer id means —
+/// asking the string's shape instead would misread a workspace
+/// directory named `foo@1.0.0` as a dependency and then drop its debt
+/// without running anything.
 fn resolve_selection(
     packages: &[String],
     pending: bool,
     config: &Config,
-) -> miette::Result<Option<Vec<String>>> {
+) -> miette::Result<RebuildSelection> {
     if !packages.is_empty() {
-        return Ok(Some(packages.to_vec()));
+        return Ok(RebuildSelection { names: Some(packages.to_vec()), projects: Vec::new() });
     }
     if !pending {
-        return Ok(None);
+        return Ok(RebuildSelection::default());
     }
-    // `pacquet`'s install pipeline does not populate `.modules.yaml`'s
-    // `pendingBuilds` yet (see [`RebuildArgs::pending`]), so this is
-    // effectively empty today. Reading it is forward-compatible: once the
-    // install pipeline records pending builds, `--pending` starts working
-    // without a change here.
-    let modules = read_modules_manifest::<Host>(&config.modules_dir).into_diagnostic()?;
-    let pending_names = modules
-        .map(|manifest| {
-            manifest
-                .pending_builds
-                .iter()
+    let Some(modules) = read_modules_manifest::<Host>(&config.modules_dir).into_diagnostic()?
+    else {
+        return Ok(RebuildSelection { names: Some(Vec::new()), projects: Vec::new() });
+    };
+    // `.modules.yaml` sits in the root `node_modules`, so its importer
+    // ids are relative to that directory's parent.
+    let lockfile_dir = config.modules_dir.parent().unwrap_or(&config.modules_dir);
+    // An importer id is always a relative path; a dep path can be
+    // absolute-looking (`/lodash@1.0.0`), and Rust's `Path::join`
+    // replaces the base on an absolute component, so probe only for
+    // relative entries — an absolute one is a dependency by construction.
+    let is_project = |entry: &String| {
+        !Path::new(entry).is_absolute() && lockfile_dir.join(entry).join("package.json").is_file()
+    };
+    let (projects, dep_paths): (Vec<&String>, Vec<&String>) =
+        modules.pending_builds.iter().partition(|entry| is_project(entry));
+    Ok(RebuildSelection {
+        names: Some(
+            dep_paths
+                .into_iter()
                 .map(|dep_path| allow_build_key_from_ignored_build(dep_path))
-                .collect()
-        })
-        .unwrap_or_default();
-    Ok(Some(pending_names))
+                .collect(),
+        ),
+        projects: projects.into_iter().cloned().collect(),
+    })
 }
 
 /// Drive a forced rebuild of the selected packages (or every build-needing
@@ -78,15 +98,15 @@ fn resolve_selection(
 /// `pacquet approve-builds`.
 pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
     state: &State,
-    selected_names: Option<Vec<String>>,
+    selection: RebuildSelection,
 ) -> miette::Result<()> {
+    let lockfile_path = state.lockfile_path();
     let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
         state;
 
-    let lockfile_path = manifest.path().parent().map(|parent| parent.join(Lockfile::FILE_NAME));
-
     let rebuild = RebuildOptions {
-        selected_names: selected_names.map(|names| names.into_iter().collect::<HashSet<_>>()),
+        selected_names: selection.names.map(|names| names.into_iter().collect::<HashSet<_>>()),
+        pending_projects: selection.projects,
     };
 
     let dependency_groups = rebuild_dependency_groups(config)?;
@@ -99,7 +119,7 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
         manifest,
         emit_initial_manifest: true,
         lockfile: MaybeLazyLockfile::Lazy(lockfile),
-        lockfile_path: lockfile_path.as_deref(),
+        lockfile_path: Some(&lockfile_path),
         // Reuse exactly the dependency groups the current `node_modules`
         // was materialized with, so a rebuild never widens the installed
         // set (see [`rebuild_dependency_groups`]).
@@ -110,9 +130,11 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
         skip_runtimes: config.skip_runtimes,
         trust_lockfile: config.trust_lockfile,
         update_checksums: false,
-        // `rebuild` re-runs dependency build scripts, not the root
-        // project's own lifecycle scripts.
+        // `rebuild` re-runs dependency build scripts. The root
+        // project's own lifecycle scripts run only for the importers
+        // `--pending` names (see `RebuildOptions::pending_projects`).
         is_full_install: false,
+        installs_only: true,
         resolved_packages,
         supported_architectures: config.supported_architectures.clone(),
         node_linker: config.node_linker,

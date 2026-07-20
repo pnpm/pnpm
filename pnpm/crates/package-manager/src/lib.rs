@@ -29,6 +29,7 @@ mod link_file;
 mod link_hoisted_modules;
 mod link_manifest_link_deps;
 mod link_root_component_members;
+mod minimum_release_age;
 mod optimistic_repeat_install;
 mod overrides;
 mod package_extender;
@@ -37,11 +38,13 @@ mod patch;
 mod patch_commit;
 mod prefetching_resolver;
 mod prune_direct_deps;
+mod prune_stale_modules;
 mod prune_virtual_store;
 mod remove;
 mod remove_quarantine;
 mod resolution_observer;
 mod resolution_policy;
+mod resolve_latest;
 mod retry_config;
 mod safe_join_modules_dir;
 mod store_init;
@@ -84,6 +87,7 @@ pub use link_file::*;
 pub use link_hoisted_modules::*;
 pub use link_manifest_link_deps::*;
 pub use link_root_component_members::*;
+pub use minimum_release_age::MinimumReleaseAgeError;
 pub use optimistic_repeat_install::*;
 pub use overrides::*;
 pub use package_extender::*;
@@ -94,8 +98,10 @@ pub use patch::*;
 pub use patch_commit::*;
 pub use prefetching_resolver::*;
 pub use prune_direct_deps::*;
+pub use prune_stale_modules::*;
 pub use remove::*;
 pub use resolution_observer::*;
+pub use resolve_latest::ResolveLatestError;
 pub use symlink_direct_dependencies::*;
 pub use symlink_package::*;
 pub use tarball_prefetch::*;
@@ -105,6 +111,19 @@ pub use update_project_manifest_object::*;
 pub use validate_lockfile_paths::*;
 pub use version_policy::*;
 pub use virtual_store_layout::*;
+
+/// The dependency groups a project installs directly — `dependencies`,
+/// `devDependencies`, `optionalDependencies` — in the order pnpm's
+/// `updateProjectManifest` walks them. This is also the install `include`
+/// set for runs whose `dependency_groups` carries no user filter intent
+/// (`add`, `remove`, `update`): those mutations pick a manifest group to
+/// save into separately, and the install itself must keep resolving and
+/// materializing every group.
+pub(crate) const DIRECT_GROUPS: [pacquet_package_manifest::DependencyGroup; 3] = [
+    pacquet_package_manifest::DependencyGroup::Prod,
+    pacquet_package_manifest::DependencyGroup::Dev,
+    pacquet_package_manifest::DependencyGroup::Optional,
+];
 
 pub(crate) fn package_manifest_prefix(
     manifest: &pacquet_package_manifest::PackageManifest,

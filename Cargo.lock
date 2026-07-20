@@ -3970,11 +3970,14 @@ dependencies = [
  "pnpr",
  "pretty_assertions",
  "rayon",
+ "reflink-copy",
  "reqwest 0.13.4",
  "rmp-serde",
  "serde",
  "serde-saphyr",
  "serde_json",
+ "sha2",
+ "ssri",
  "tabled",
  "tar",
  "tempfile",
@@ -3986,6 +3989,7 @@ dependencies = [
  "wax",
  "which 8.0.4",
  "windows-sys 0.61.2",
+ "zip",
 ]
 
 [[package]]
@@ -4387,6 +4391,7 @@ dependencies = [
  "pacquet-diagnostics",
  "pacquet-fs",
  "pacquet-package-manifest",
+ "pacquet-resolving-parse-wanted-dependency",
  "pipe-trait",
  "pretty_assertions",
  "serde",
@@ -4613,12 +4618,14 @@ dependencies = [
  "chrono",
  "dashmap",
  "derive_more",
+ "dialoguer",
  "dunce",
  "flate2",
  "futures-util",
  "httpdate",
  "indexmap 2.14.0",
  "insta",
+ "is_ci",
  "miette 7.6.0",
  "mockito",
  "node-semver",
@@ -4690,6 +4697,7 @@ dependencies = [
  "derive_more",
  "insta",
  "miette 7.6.0",
+ "node-semver",
  "pipe-trait",
  "pretty_assertions",
  "serde",
@@ -4878,11 +4886,16 @@ dependencies = [
  "derive_more",
  "miette 7.6.0",
  "node-semver",
+ "pacquet-git-fetcher",
  "pacquet-lockfile",
  "pacquet-network",
+ "pacquet-reporter",
  "pacquet-resolving-resolver-base",
+ "pacquet-store-dir",
+ "pacquet-tarball",
  "pretty_assertions",
  "reqwest 0.13.4",
+ "serde_json",
  "tokio",
  "tracing",
 ]
@@ -4925,6 +4938,7 @@ dependencies = [
  "dashmap",
  "derive_more",
  "futures-util",
+ "httpdate",
  "indexmap 2.14.0",
  "miette 7.6.0",
  "mockito",
@@ -4962,6 +4976,7 @@ version = "0.0.1"
 dependencies = [
  "chrono",
  "derive_more",
+ "node-semver",
  "pacquet-config",
  "pacquet-lockfile",
  "serde",
@@ -5019,6 +5034,7 @@ version = "0.0.1"
 dependencies = [
  "dashmap",
  "derive_more",
+ "flate2",
  "futures-util",
  "miette 7.6.0",
  "mockito",
@@ -5051,12 +5067,18 @@ version = "0.0.0"
 dependencies = [
  "assert_cmd",
  "command-extra",
+ "dunce",
+ "flate2",
  "junction",
  "pnpr",
  "pnpr-fixtures",
+ "serde_json",
+ "ssri",
+ "tar",
  "tempfile",
  "text-block-macros",
  "tokio",
+ "url",
  "walkdir",
 ]
 
@@ -5463,7 +5485,7 @@ dependencies = [
 
 [[package]]
 name = "pnpr"
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.4"
 dependencies = [
  "async-trait",
  "axum 0.8.9",
@@ -7193,9 +7215,9 @@ dependencies = [
 
 [[package]]
 name = "subfeature"
-version = "1.25.2"
+version = "1.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7a12b8bd1c18886edb6412ca26de28cf3e44be4ba5aeb41d14fb911ef2dab63"
+checksum = "bae27fccb1615a3b3ae930cf93c0c4d32b7daffb57477ca0406f07fc0e68ea57"
 dependencies = [
  "memchr",
  "regex",
@@ -7845,9 +7867,9 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter-iter"
-version = "1.25.2"
+version = "1.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9199d1d8f51defb45b2a55af0545460e0a0265dfde45bdf412b33d13e09b923"
+checksum = "0cbef0ee83b87916292355e78f4fdee268d719ececa729be8914882428ca86b0"
 dependencies = [
  "tree-sitter",
 ]
@@ -8664,13 +8686,12 @@ dependencies = [
 
 [[package]]
 name = "yamlpatch"
-version = "1.25.2"
+version = "1.26.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f5c7aa995e374499b0decb17a2fa138430d6cd4683705e905e1e6619635d5fbd"
+checksum = "919764173d845c2b685a44ca9a028534ef1127bcf713edc6b69787430f18b030"
 dependencies = [
  "indexmap 2.14.0",
  "line-index",
- "serde",
  "serde_json",
  "subfeature",
  "thiserror 2.0.18",
@@ -8680,9 +8701,9 @@ dependencies = [
 
 [[package]]
 name = "yamlpath"
-version = "1.25.2"
+version = "1.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "582de007205c6ff9e4c1e57bf23955922e8020dd9fd479146ab2bb45138b44b4"
+checksum = "1362068e6e34bf985c39ee42ee8d410fcc398fedbd5f9303602616db26f542b5"
 dependencies = [
  "line-index",
  "self_cell",

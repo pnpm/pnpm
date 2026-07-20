@@ -1,5 +1,12 @@
+pub mod _utils;
+
+use _utils::{
+    bravo_dep_mature_up_to_1_0_1_minimum_release_age, read_current_lockfile,
+    set_minimum_release_age,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pacquet_lockfile::{Lockfile, PkgName};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
@@ -109,6 +116,49 @@ fn should_add_to_package_json() {
             .any(|(k, _)| k == "@pnpm.e2e/hello-world-js-bin"),
     );
     drop((root, anchor)); // cleanup
+}
+
+#[test]
+fn add_accepts_multiple_local_package_selectors() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let fixtures_dir = workspace.join("fixtures");
+    for package_name in ["local-a", "local-b"] {
+        let package_dir = fixtures_dir.join(package_name);
+        std::fs::create_dir_all(&package_dir).expect("create local package directory");
+        std::fs::write(
+            package_dir.join("package.json"),
+            serde_json::json!({ "name": package_name, "version": "1.0.0" }).to_string(),
+        )
+        .expect("write local package manifest");
+    }
+
+    pacquet
+        .with_args(["add", "local-a@file:./fixtures/local-a", "local-b@file:./fixtures/local-b"])
+        .assert()
+        .success();
+
+    assert_eq!(prod_spec(&workspace, "local-a"), "file:./fixtures/local-a");
+    assert_eq!(prod_spec(&workspace, "local-b"), "file:./fixtures/local-b");
+
+    let lockfile_text =
+        std::fs::read_to_string(workspace.join(Lockfile::FILE_NAME)).expect("read pnpm-lock.yaml");
+    let lockfile: Lockfile = serde_saphyr::from_str(&lockfile_text)
+        .unwrap_or_else(|error| panic!("parse pnpm-lock.yaml: {error}\n{lockfile_text}"));
+    let dependencies = lockfile
+        .importers
+        .get(Lockfile::ROOT_IMPORTER_KEY)
+        .and_then(|importer| importer.dependencies.as_ref())
+        .expect("root importer dependencies");
+    for package_name in ["local-a", "local-b"] {
+        let parsed_name: PkgName = package_name.parse().expect("parse local package name");
+        assert!(dependencies.contains_key(&parsed_name), "lockfile contains {package_name}");
+        assert!(
+            workspace.join("node_modules").join(package_name).join("package.json").exists(),
+            "{package_name} is installed",
+        );
+    }
+
+    drop(root); // cleanup
 }
 
 #[test]
@@ -339,12 +389,14 @@ fn add_existing_dependency_without_version_keeps_exact_pin() {
     drop((root, npmrc_info)); // cleanup
 }
 
-/// When the same package exists in more than one dependency bucket with
-/// different specs, a versionless re-add preserves the specifier of the
-/// *targeted* group (here `--save-dev`), not whichever group happens to be
-/// scanned first, and leaves the other bucket untouched.
+/// A dependency has one manifest home: a versionless re-add with an
+/// explicit save target moves the entry into that group and drops it from
+/// the others, carrying the first-found specifier in pnpm's `findSpec`
+/// order (`optionalDependencies`, `dependencies`, `devDependencies`,
+/// `peerDependencies`) — so `--save-dev` here adopts the `dependencies`
+/// spec, matching pnpm's `updateProjectManifestObject`.
 #[test]
-fn add_existing_dependency_preserves_target_group_specifier() {
+fn add_existing_dependency_moves_it_to_the_target_group() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     std::fs::write(
@@ -365,8 +417,8 @@ fn add_existing_dependency_preserves_target_group_specifier() {
             .find(|(key, _)| *key == "@pnpm.e2e/dep-of-pkg-with-1-dep")
             .map(|(_, spec)| spec.to_string())
     };
-    assert_eq!(group_spec(DependencyGroup::Dev).as_deref(), Some("^100.0.0"));
-    assert_eq!(group_spec(DependencyGroup::Prod).as_deref(), Some("~100.0.0"));
+    assert_eq!(group_spec(DependencyGroup::Dev).as_deref(), Some("~100.0.0"));
+    assert_eq!(group_spec(DependencyGroup::Prod), None);
     drop((root, npmrc_info)); // cleanup
 }
 
@@ -412,6 +464,32 @@ fn add_explicit_dist_tag_resolves_with_caret() {
     drop((root, anchor)); // cleanup
 }
 
+#[test]
+fn readding_a_dev_dependency_at_a_dist_tag_keeps_its_group() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let name = "@pnpm.e2e/dep-of-pkg-with-1-dep";
+    std::fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "devDependencies": { (name): "^100.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet.with_args(["add", &format!("{name}@latest"), "--lockfile-only"]).assert().success();
+
+    let manifest =
+        PackageManifest::from_path(workspace.join("package.json")).expect("read package.json");
+    assert_eq!(
+        manifest.dependencies([DependencyGroup::Dev]).collect::<Vec<_>>(),
+        vec![(name, "^101.0.0")],
+    );
+    assert!(
+        manifest.dependencies([DependencyGroup::Prod]).all(|(dependency, _)| dependency != name),
+    );
+
+    drop((root, npmrc_info));
+}
+
 /// On a re-add with an explicit version, the existing entry biases the pick
 /// (it is a preferred version): re-adding `~100.0.0` with `@^100.0.0` keeps
 /// the existing `100.0.0` rather than bumping to the highest in range
@@ -450,17 +528,18 @@ fn add_npm_alias_spec_is_kept_verbatim() {
 }
 
 /// A previous specifier that is a non-registry path/URL must not influence
-/// the pin: `which_version_is_pinned` forward-scans for a version substring,
-/// so a `file:` tarball path with an embedded `x.y.z` could otherwise force
-/// an exact pin. Re-adding over `file:../…-100.0.0.tgz` with `@^100.0.0`
-/// keeps the caret (`^100.1.0`), not an exact `100.1.0`.
+/// the pin: `which_version_is_pinned` scans for a version anywhere in the
+/// spec, so a `file:` tarball path whose only range-like element is an
+/// `x.y.z` classifies as an exact pin. Re-adding over
+/// `file:../deps/100.0.0.tgz` with `@^100.0.0` keeps the caret
+/// (`^100.1.0`), not an exact `100.1.0`.
 #[test]
 fn add_explicit_range_ignores_pin_from_non_registry_prev() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     std::fs::write(
         workspace.join("package.json"),
-        r#"{ "name": "p", "version": "1.0.0", "dependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "file:../dep-of-pkg-with-1-dep-100.0.0.tgz" } }"#,
+        r#"{ "name": "p", "version": "1.0.0", "dependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "file:../deps/100.0.0.tgz" } }"#,
     )
     .unwrap();
 
@@ -533,4 +612,198 @@ fn should_add_peer_dependency() {
             .any(|(k, _)| k == "@pnpm.e2e/hello-world-js-bin"),
     );
     drop((root, anchor)); // cleanup
+}
+
+/// Covers <https://github.com/pnpm/pnpm/issues/11165>: `add <name>` (no
+/// version) under an active `minimumReleaseAge` pins the newest *mature*
+/// version, not the raw `latest` dist-tag.
+#[test]
+fn add_without_version_respects_minimum_release_age() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    set_minimum_release_age(&workspace, bravo_dep_mature_up_to_1_0_1_minimum_release_age());
+
+    pacquet.with_args(["add", "@pnpm.e2e/bravo-dep"]).assert().success();
+
+    assert_eq!(prod_spec(&workspace, "@pnpm.e2e/bravo-dep"), "^1.0.1");
+
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// `add` saves into one dependency group, but its install must keep every
+/// group: the added package's transitive optionals must be materialized in
+/// the virtual store and recorded in the current lockfile, and the alias
+/// symlink inside the dependent package must resolve. A missing slot here
+/// is what breaks a globally installed bin at runtime with "Missing
+/// optional dependency" (e.g. `@openai/codex`'s platform binary).
+#[test]
+fn add_materializes_transitive_optional_dependencies() {
+    let (root, workspace, anchor) =
+        exec_pacquet_in_temp_cwd(["add", "@pnpm.e2e/pkg-with-good-optional"]);
+
+    let virtual_store = workspace.join("node_modules").join(".pnpm");
+    assert!(
+        virtual_store.join("is-positive@1.0.0").exists(),
+        "the transitive optional dependency must be materialized",
+    );
+    assert!(
+        virtual_store
+            .join("@pnpm.e2e+pkg-with-good-optional@1.0.0/node_modules/is-positive/package.json")
+            .exists(),
+        "the optional dependency alias symlink must resolve",
+    );
+
+    let current_lockfile = std::fs::read_to_string(virtual_store.join("lock.yaml"))
+        .expect("read the current lockfile");
+    assert!(
+        current_lockfile.contains("is-positive@1.0.0"),
+        "the current lockfile must record the materialized optional:\n{current_lockfile}",
+    );
+
+    drop((root, anchor)); // cleanup
+}
+
+/// TS: `dependency should be removed from the old field when installing it
+/// as a different type of dependency` (`updatingPkgJson.ts:112`).
+/// Sequential adds move each entry to its new manifest group without
+/// erasing the other groups' entries, and the current lockfile importer
+/// tracks the final grouping.
+#[test]
+fn add_moves_dependency_to_new_group_and_keeps_other_groups() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    std::fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/foo": "^100.0.0" },
+            "devDependencies": { "@pnpm.e2e/bar": "^100.0.0" },
+            "optionalDependencies": { "@pnpm.e2e/qar": "^100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let run_add = |args: &[&str]| {
+        Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&workspace)
+            .with_arg("add")
+            .with_args(args)
+            .assert()
+            .success();
+    };
+    pacquet.with_args(["add", "--save-optional", "@pnpm.e2e/foo@^100.0.0"]).assert().success();
+    run_add(&["--save-prod", "@pnpm.e2e/bar@^100.0.0"]);
+    run_add(&["--save-dev", "@pnpm.e2e/qar@^100.0.0"]);
+
+    let group_members = |group: DependencyGroup| -> Vec<String> {
+        let manifest =
+            PackageManifest::from_path(workspace.join("package.json")).expect("read package.json");
+        let mut members: Vec<String> =
+            manifest.dependencies([group]).map(|(name, _)| name.to_string()).collect();
+        members.sort();
+        members
+    };
+    assert_eq!(group_members(DependencyGroup::Prod), ["@pnpm.e2e/bar"]);
+    assert_eq!(group_members(DependencyGroup::Dev), ["@pnpm.e2e/qar"]);
+    assert_eq!(group_members(DependencyGroup::Optional), ["@pnpm.e2e/foo"]);
+
+    run_add(&[
+        "--save-prod",
+        "@pnpm.e2e/bar@^100.0.0",
+        "@pnpm.e2e/foo@^100.0.0",
+        "@pnpm.e2e/qar@^100.0.0",
+    ]);
+    assert_eq!(
+        group_members(DependencyGroup::Prod),
+        ["@pnpm.e2e/bar", "@pnpm.e2e/foo", "@pnpm.e2e/qar"],
+    );
+    assert_eq!(group_members(DependencyGroup::Dev), Vec::<String>::new());
+    assert_eq!(group_members(DependencyGroup::Optional), Vec::<String>::new());
+
+    let current = read_current_lockfile(&workspace);
+    let importer = current
+        .importers
+        .get(Lockfile::ROOT_IMPORTER_KEY)
+        .expect("current lockfile has the root importer");
+    let mut dependencies: Vec<String> = importer
+        .dependencies
+        .as_ref()
+        .expect("root importer has dependencies")
+        .keys()
+        .map(ToString::to_string)
+        .collect();
+    dependencies.sort();
+    assert_eq!(dependencies, ["@pnpm.e2e/bar", "@pnpm.e2e/foo", "@pnpm.e2e/qar"]);
+
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// `add` into one dependency group must leave the other groups' entries in
+/// the wanted lockfile and `node_modules`: a prod `add` must not erase the
+/// project's devDependencies from either.
+#[test]
+fn add_keeps_entries_of_other_dependency_groups() {
+    let (root, workspace, anchor) =
+        exec_pacquet_in_temp_cwd(["add", "--save-dev", "@pnpm.e2e/hello-world-js-bin"]);
+
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["add", "@pnpm.e2e/hello-world-js-bin-parent"])
+        .assert()
+        .success();
+
+    let lockfile = std::fs::read_to_string(workspace.join("pnpm-lock.yaml"))
+        .expect("read the wanted lockfile");
+    assert!(
+        lockfile.contains("devDependencies"),
+        "the wanted lockfile must keep the dev dependency after a prod add:\n{lockfile}",
+    );
+    assert!(
+        workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin/package.json").exists(),
+        "the dev dependency's node_modules link must survive a prod add",
+    );
+
+    drop((root, anchor)); // cleanup
+}
+
+/// TS: `dependencies should be updated in the fields where they already
+/// are` (`updatingPkgJson.ts:88`): `add name@version` without a save flag
+/// updates each entry in the group it already occupies instead of moving
+/// it to `dependencies`.
+#[test]
+fn add_updates_dependency_in_the_group_it_already_occupies() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    std::fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "devDependencies": { "@pnpm.e2e/foo": "^100.0.0" },
+            "optionalDependencies": { "@pnpm.e2e/bar": "^100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_args(["add", "@pnpm.e2e/foo@100.1.0", "@pnpm.e2e/bar@100.1.0", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let manifest =
+        PackageManifest::from_path(workspace.join("package.json")).expect("read package.json");
+    let group_spec = |group: DependencyGroup, name: &str| {
+        manifest
+            .dependencies([group])
+            .find(|(dep, _)| *dep == name)
+            .map(|(_, spec)| spec.to_string())
+    };
+    assert_eq!(group_spec(DependencyGroup::Dev, "@pnpm.e2e/foo").as_deref(), Some("^100.1.0"));
+    assert_eq!(group_spec(DependencyGroup::Optional, "@pnpm.e2e/bar").as_deref(), Some("^100.1.0"));
+    assert_eq!(group_spec(DependencyGroup::Prod, "@pnpm.e2e/foo"), None);
+    assert_eq!(group_spec(DependencyGroup::Prod, "@pnpm.e2e/bar"), None);
+
+    drop((root, npmrc_info)); // cleanup
 }

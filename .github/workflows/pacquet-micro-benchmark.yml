@@ -26,7 +26,7 @@ jobs:
   benchmark:
     strategy:
       matrix:
-        os: [ubuntu-latest] # `macos-latest` is too unstable to be useful for benchmark, the variance is always huge.
+        os: [blacksmith-8vcpu-ubuntu-2404] # macOS is too unstable to be useful for benchmark, the variance is always huge.
     name: Run benchmark on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     steps:
@@ -71,11 +71,11 @@ jobs:
       - name: Upload benchmark results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: benchmark-results-${{ matrix.os }}
+          name: benchmark-results-ubuntu-latest
           path: ./target/criterion
 
   benchmark-compare:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     name: Compare Benchmarks
     needs:
       - benchmark
@@ -86,7 +86,7 @@ jobs:
 
     steps:
       - name: Install critcmp
-        uses: taiki-e/install-action@bffeee26d4db9be238a4ea78d8826604ebcb594d # v2.82.5
+        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2.83.1
         with:
           tool: critcmp
 

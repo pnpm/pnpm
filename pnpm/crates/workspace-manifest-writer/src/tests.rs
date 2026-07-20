@@ -195,15 +195,15 @@ fn preserves_comment_when_inserting_before_commented_entry() {
     );
 }
 
-/// Run `set_config_dependency` against `original` (when `Some`) and return
-/// the resulting file contents.
+/// Run `set_config_dependencies` with a single entry against `original`
+/// (when `Some`) and return the resulting file contents.
 fn run_config_dep(original: Option<&str>, name: &str, specifier: &str) -> String {
     let dir = TempDir::new().expect("temp dir");
     let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
     if let Some(text) = original {
         fs::write(&path, text).expect("seed manifest");
     }
-    crate::set_config_dependency(dir.path(), name, specifier).expect("update succeeds");
+    crate::set_config_dependencies(dir.path(), [(name, specifier)]).expect("update succeeds");
     fs::read_to_string(&path).expect("file written")
 }
 
@@ -218,6 +218,26 @@ fn config_dependency_added_to_existing_block() {
     let original = "configDependencies:\n  '@pnpm.e2e/bar': 2.0.0\n";
     let out = run_config_dep(Some(original), "@pnpm.e2e/foo", "1.0.0");
     assert_eq!(out, "configDependencies:\n  '@pnpm.e2e/bar': 2.0.0\n  '@pnpm.e2e/foo': 1.0.0\n");
+}
+
+#[test]
+fn config_dependencies_batch_updates_all_entries_in_one_manifest() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    fs::write(&path, "# preserved comment\nconfigDependencies:\n  existing-package: 0.1.0\n")
+        .expect("seed manifest");
+
+    crate::set_config_dependencies(
+        dir.path(),
+        [("@pnpm.e2e/foo", "1.0.0"), ("@pnpm.e2e/bar", "2.0.0")],
+    )
+    .expect("batch update succeeds");
+
+    let out = fs::read_to_string(path).expect("read updated manifest");
+    assert_eq!(
+        out,
+        "# preserved comment\nconfigDependencies:\n  '@pnpm.e2e/bar': 2.0.0\n  '@pnpm.e2e/foo': 1.0.0\n  existing-package: 0.1.0\n",
+    );
 }
 
 #[test]

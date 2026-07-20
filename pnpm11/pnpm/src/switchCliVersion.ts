@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { packageManager } from '@pnpm/cli.meta'
 import { type Config, type ConfigContext, shouldPersistLockfile } from '@pnpm/config.reader'
-import { installPnpmToStore } from '@pnpm/engine.pm.commands'
+import { assertReleaseIsInstallable, installPnpmToStore } from '@pnpm/engine.pm.commands'
 import { PnpmError } from '@pnpm/error'
 import { isPackageManagerResolved, resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
@@ -70,6 +70,16 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
   if (pmVersion === packageManager.version) {
     await storeToUse?.ctrl.close()
     return
+  }
+
+  // Deliberately after the check above: switching to a broken release is
+  // refused, but running one already installed is not. Someone whose pnpm is a
+  // broken release still needs it to work well enough to move off it.
+  try {
+    assertReleaseIsInstallable(pmVersion)
+  } catch (err: unknown) {
+    await storeToUse?.ctrl.close()
+    throw err
   }
 
   if (!envLockfile) {

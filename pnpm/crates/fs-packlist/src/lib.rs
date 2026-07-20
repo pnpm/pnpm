@@ -7,10 +7,12 @@
 //!
 //! The algorithm has four passes:
 //!
-//! 1. **Honor `.npmignore` and `.gitignore`** while walking. The
-//!    `ignore::WalkBuilder` does per-directory inheritance: a
-//!    `.npmignore` in `lib/` applies to `lib/**` only, while the
-//!    package's root `.gitignore` applies to the whole tree.
+//! 1. **Walk with ignore-file filtering**, honoring npm-packlist's
+//!    three-tier priority at the package root: (a) `files` present
+//!    disables both `.gitignore` and `.npmignore`, leaving the
+//!    allowlist in pass 2 as the sole gate; (b) no `files` but a
+//!    root `.npmignore` exists disables `.gitignore`; (c) neither
+//!    present falls back to `.gitignore`.
 //! 2. **Apply the `files` field allowlist** on top of the walk's
 //!    output: when the manifest sets `files: ["dist/**"]`, drop
 //!    anything outside that set (except the always-included files
@@ -31,21 +33,14 @@
 //!    `node_modules/` be found and spliced in under its real path.
 //!    Port of [`npm-bundled`](https://github.com/npm/npm-bundled).
 //!
-//! Two intentional divergences from npm-packlist:
+//! One intentional divergence from npm-packlist:
 //!
-//! - The `ignore` crate combines `.npmignore` and `.gitignore` rules
-//!   when both files exist in the same directory; npm-packlist would
-//!   use only `.npmignore`. The combined-rules outcome is the same
-//!   for the common case (a `.npmignore` that's a strict superset of
-//!   `.gitignore`); the divergence shows up only when `.npmignore`
-//!   explicitly *includes* a path `.gitignore` excludes, which is a
-//!   rare configuration in the wild. Documented gap; revisit if a
-//!   real package surfaces it.
-//! - `.git/info/exclude` and global `~/.gitignore` are NOT honored —
-//!   only the in-tree `.gitignore` / `.npmignore` files. Callers pass
-//!   a clean tarball / git checkout or a project directory, not a
-//!   user's working tree, so the global-state ignores are wrong by
-//!   construction.
+//! - npm-packlist evaluates the `.npmignore`-supersedes-`.gitignore`
+//!   rule per-directory, but the `ignore` crate's `WalkBuilder`
+//!   toggles are process-global, so pacquet applies the three-tier
+//!   priority at the package root only. In tier 3, a subdirectory
+//!   that has both ignore files gets them combined rather than
+//!   `.npmignore` winning. This is rare in published packages.
 
 use derive_more::{Display, Error};
 use ignore::{WalkBuilder, gitignore::Gitignore};
@@ -67,7 +62,7 @@ mod tests;
 #[non_exhaustive]
 pub enum PacklistError {
     #[display("I/O error while computing packlist for {pkg_dir}: {source}")]
-    #[diagnostic(code(pacquet_fs_packlist::io))]
+    #[diagnostic(code(ERR_PNPM_FS_PACKLIST_IO))]
     Io {
         pkg_dir: String,
         #[error(source)]
@@ -121,10 +116,10 @@ pub struct PacklistOptions<'a> {
 }
 
 /// Variant of [`packlist`] that lets callers pass workspace context.
-/// Workspace packages honor ancestor `.npmignore` / `.gitignore` files
-/// between the workspace root and the package, matching npm-packlist's
-/// `prefix` / `workspaces` behavior. Callers without workspace context
-/// keep the safer package-only walk.
+/// Workspace packages without a package-level `.npmignore` honor ancestor
+/// `.npmignore` / `.gitignore` files between the workspace root and the
+/// package, matching npm-packlist's `prefix` / `workspaces` behavior. Callers
+/// without workspace context keep the safer package-only walk.
 pub fn packlist_with_options(
     pkg_dir: &Path,
     manifest: &Value,
@@ -308,30 +303,34 @@ fn collect_own_files(
 
     let mut out: BTreeSet<String> = BTreeSet::new();
 
-    // Pass 1: walk with `.gitignore` / `.npmignore` filtering.
+    // Pass 1: walk with ignore-file filtering.  The three-tier
+    // priority (see module doc) decides which ignore files apply.
+    //
     // `standard_filters(false)` turns off `ignore`'s opinionated
     // defaults (hidden-file skip, `.git`-dir skip, etc.) so we control
-    // every filter explicitly. `git_ignore(true)` /
-    // `add_custom_ignore_filename(".npmignore")` enable the two ignore
-    // file sources; `require_git(false)` makes `ignore` honor
-    // `.gitignore` even though a git-hosted snapshot's `.git/` has
-    // already been deleted by [`crate::GitFetcher`] before this point.
+    // every filter explicitly. `require_git(false)` makes `ignore`
+    // honor `.gitignore` even though a git-hosted snapshot's `.git/`
+    // has already been deleted by [`crate::GitFetcher`] before this
+    // point.
+    let has_root_npmignore = pkg_dir.join(".npmignore").is_file();
     let mut builder = WalkBuilder::new(pkg_dir);
     builder
         .current_dir(pkg_dir)
         .standard_filters(false)
         .hidden(false)
-        .git_ignore(true)
         .git_exclude(false)
         .git_global(false)
         .require_git(false)
-        // Don't search parent directories of `pkg_dir` for ignore
-        // files: the packlist must depend only on the contents of the
-        // package directory itself. Otherwise a `.gitignore` in the
-        // workspace root above a git-hosted snapshot's working copy
-        // would leak into the published file set.
-        .parents(false)
-        .add_custom_ignore_filename(".npmignore");
+        .parents(false);
+    if files_field.is_some() {
+        builder.git_ignore(false);
+    } else if has_root_npmignore {
+        builder.git_ignore(false);
+        builder.add_custom_ignore_filename(".npmignore");
+    } else {
+        builder.git_ignore(true);
+        builder.add_custom_ignore_filename(".npmignore");
+    }
     add_workspace_ignore_files(&mut builder, pkg_dir, workspace_dir)?;
 
     for entry in builder.build() {
@@ -416,6 +415,9 @@ fn add_workspace_ignore_files(
     workspace_dir: Option<&Path>,
 ) -> Result<(), PacklistError> {
     let Some(workspace_dir) = workspace_dir else { return Ok(()) };
+    if pkg_dir.join(".npmignore").is_file() {
+        return Ok(());
+    }
     let Ok(rel) = pkg_dir.strip_prefix(workspace_dir) else { return Ok(()) };
     if rel.as_os_str().is_empty() {
         return Ok(());

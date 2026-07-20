@@ -32,6 +32,19 @@ export function getRegistryMockToken (): string {
   return token
 }
 
+/**
+ * A `minimumReleaseAge` (in minutes) under which `@pnpm.e2e/bravo-dep`'s
+ * `latest` tag (1.1.0) is the only immature version.
+ *
+ * The mock registry publishes `@pnpm.e2e/bravo-dep` at 1.0.0 (2022-02-01),
+ * 1.0.1 (2022-02-22), and 1.1.0 (2022-05-01) — see `version_publish_time` in
+ * `pnpr/crates/pnpr-fixtures/src/lib.rs` — so a cutoff anchored at 2022-03-01
+ * lands between the last two.
+ */
+export function bravoDepMatureUpTo101MinimumReleaseAge (): number {
+  return (Date.now() - new Date('2022-03-01T00:00:00.000Z').getTime()) / (60 * 1000)
+}
+
 export interface AddDistTagOptions {
   package: string
   version: string

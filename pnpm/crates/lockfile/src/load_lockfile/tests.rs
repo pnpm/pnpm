@@ -2,6 +2,7 @@ use crate::{
     DirectoryResolution, ImporterDepVersion, Lockfile, LockfileResolution, PackageKey, PkgName,
     SnapshotDepRef,
 };
+use pacquet_diagnostics::miette::Diagnostic;
 use pretty_assertions::assert_eq;
 use tempfile::tempdir;
 use text_block_macros::text_block;
@@ -94,6 +95,34 @@ fn env_only_lockfile_loads_as_none() {
     let result = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
         .expect("env-only lockfile should not error");
     assert!(result.is_none(), "expected None for env-only lockfile, got: {result:?}");
+}
+
+#[test]
+fn parse_error_does_not_include_lockfile_content() {
+    let dir = tempdir().expect("create tempdir");
+    let secret = "aws_secret_access_key = marker-secret";
+    std::fs::write(dir.path().join(Lockfile::FILE_NAME), format!("[default]\n{secret}\n"))
+        .expect("write broken lockfile");
+
+    let error = Lockfile::load_wanted_from_dir(dir.path()).expect_err("lockfile must be broken");
+    let message = error.to_string();
+
+    assert_eq!(error.code().expect("diagnostic code").to_string(), "ERR_PNPM_BROKEN_LOCKFILE");
+    assert!(
+        message.starts_with(&format!(
+            r#"The lockfile at "{}" is broken: "#,
+            dir.path().join(Lockfile::FILE_NAME).display()
+        )),
+        "unexpected error: {message}",
+    );
+    assert!(message.contains("(1:1)"), "unexpected error: {message}");
+    assert!(!message.contains(secret), "error included lockfile content: {message}");
+    assert!(
+        std::error::Error::source(&error).is_none(),
+        "parse error source could expose lockfile content",
+    );
+    let report = format!("{:?}", pacquet_diagnostics::miette::Report::new(error));
+    assert!(!report.contains(secret), "diagnostic included lockfile content: {report}");
 }
 
 /// Heuristic-boundary check: a dropped directory resolution is

@@ -15,12 +15,8 @@ use std::{
 
 /// Run a shell command in the context of a project.
 ///
-/// The recursive variant (selected by the global `-r` / `--recursive`
-/// flag) runs the command across the `--filter`-selected workspace
-/// projects, topologically sorted and sequential, with `--resume-from` /
-/// `--report-summary` / `--no-bail` (see [`recursive`]).
-/// `--workspace-concurrency` parallelism is not ported yet, matching the
-/// recursive `run` runner.
+/// With `-r` / `--recursive`, runs the command in every workspace project
+/// (or the `--filter`-selected subset), in topological order.
 #[derive(Debug, Args)]
 pub struct ExecArgs {
     /// The command to run, followed by its arguments.
@@ -71,7 +67,7 @@ pub enum ExecError {
     CommandNotFound { command: String },
 
     #[display("Failed to spawn command \"{command}\": {source}")]
-    #[diagnostic(code(pacquet_cli::exec_spawn))]
+    #[diagnostic(code(ERR_PNPM_CLI_EXEC_SPAWN))]
     Spawn {
         command: String,
         #[error(source)]

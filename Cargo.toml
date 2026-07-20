@@ -116,6 +116,7 @@ httpdate = { version = "1.0.3" }
 ignore = { version = "0.4.25" }
 indexmap = { version = "2.14.0", features = ["serde"] }
 insta = { version = "1.47.2", features = ["yaml", "glob", "walkdir"] }
+is_ci = { version = "1.2.0" }
 itertools = { version = "0.15.0" }
 libsql = { version = "0.9.30", default-features = false, features = ["core", "remote", "replication"] }
 futures-util = { version = "0.3.32" }

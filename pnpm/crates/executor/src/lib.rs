@@ -24,11 +24,11 @@ use std::{
 #[non_exhaustive]
 pub enum ExecutorError {
     #[display("Failed to spawn command: {_0}")]
-    #[diagnostic(code(pacquet_executor::spawn_command))]
+    #[diagnostic(code(ERR_PNPM_EXECUTOR_SPAWN_COMMAND))]
     SpawnCommand(#[error(source)] std::io::Error),
 
     #[display("Process exits with an error: {_0}")]
-    #[diagnostic(code(pacquet_executor::wait_process))]
+    #[diagnostic(code(ERR_PNPM_EXECUTOR_WAIT_PROCESS))]
     WaitProcess(#[error(source)] std::io::Error),
 }
 

@@ -1,17 +1,19 @@
-mod dependency_build_scripts {
-    use assert_cmd::prelude::*;
-    use command_extra::CommandExtra;
-    use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-    use pipe_trait::Pipe;
+/// Helpers for editing the `pnpm-workspace.yaml` that
+/// [`CommandTempCwd::add_mocked_registry`] wrote. Both edit in place
+/// rather than replacing the file: the harness's `storeDir`, `cacheDir`,
+/// and `enableGlobalVirtualStore: false` keys have to survive, or the
+/// test installs into the real store and the global virtual store moves
+/// every package out of `node_modules/.pnpm`.
+mod workspace_yaml {
     use std::{fmt::Write as _, fs, path::Path};
 
-    /// Set `strictDepBuilds` in the workspace's `pnpm-workspace.yaml`.
-    /// Tests that intentionally leave some builds ignored and then
-    /// inspect the filesystem set it to `false` so the install completes
-    /// instead of failing with `ERR_PNPM_IGNORED_BUILDS` (the default).
-    /// Must be called before [`allow_builds`] so its block survives the
-    /// `allowBuilds:` truncation on re-calls.
-    fn set_strict_dep_builds(workspace: &Path, strict: bool) {
+    /// Set `strictDepBuilds`. Tests that intentionally leave builds
+    /// ignored and then inspect the filesystem set it to `false` so the
+    /// install completes instead of failing with
+    /// `ERR_PNPM_IGNORED_BUILDS` (the default). Must be called before
+    /// [`allow_builds`] so its line survives the `allowBuilds:`
+    /// truncation on re-calls.
+    pub fn set_strict_dep_builds(workspace: &Path, strict: bool) {
         let yaml_path = workspace.join("pnpm-workspace.yaml");
         let mut yaml = fs::read_to_string(&yaml_path).unwrap_or_default();
         if !yaml.is_empty() && !yaml.ends_with('\n') {
@@ -21,13 +23,29 @@ mod dependency_build_scripts {
         fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
     }
 
-    /// Set an `allowBuilds:` block in the workspace's
-    /// `pnpm-workspace.yaml`, replacing any block a previous phase
-    /// wrote. pnpm v11 (and pacquet) read build approval from
+    /// Append a top-level `key: value` line. Only valid for keys the
+    /// harness never writes; the assert fails loudly if that changes.
+    pub fn append_workspace_yaml_key(workspace: &Path, key: &str, value: impl std::fmt::Display) {
+        let yaml_path = workspace.join("pnpm-workspace.yaml");
+        let mut yaml = fs::read_to_string(&yaml_path).unwrap_or_default();
+        let key_prefix = format!("{key}:");
+        assert!(
+            !yaml.lines().any(|line| line.starts_with(&key_prefix)),
+            "pnpm-workspace.yaml already has a `{key}:` key",
+        );
+        if !yaml.is_empty() && !yaml.ends_with('\n') {
+            yaml.push('\n');
+        }
+        writeln!(yaml, "{key}: {value}").expect("format workspace key");
+        fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+    }
+
+    /// Set the `allowBuilds:` block, replacing any block a previous
+    /// phase wrote. pnpm v11 (and pacquet) read build approval from
     /// `pnpm-workspace.yaml`, not from `package.json#pnpm` — this
     /// mirrors upstream tests passing `allowBuilds` through
-    /// `testDefaults`.
-    fn allow_builds(workspace: &Path, entries: &[(&str, bool)]) {
+    /// `testDefaults`. An empty `entries` withdraws every approval.
+    pub fn allow_builds(workspace: &Path, entries: &[(&str, bool)]) {
         let yaml_path = workspace.join("pnpm-workspace.yaml");
         let mut yaml = fs::read_to_string(&yaml_path).unwrap_or_default();
         if let Some(idx) = yaml.find("allowBuilds:") {
@@ -36,12 +54,25 @@ mod dependency_build_scripts {
         if !yaml.is_empty() && !yaml.ends_with('\n') {
             yaml.push('\n');
         }
+        if entries.is_empty() {
+            fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+            return;
+        }
         yaml.push_str("allowBuilds:\n");
         for (spec, value) in entries {
             writeln!(yaml, "  '{spec}': {value}").expect("format allowBuilds entry");
         }
         fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
     }
+}
+
+mod dependency_build_scripts {
+    use super::workspace_yaml::{allow_builds, append_workspace_yaml_key, set_strict_dep_builds};
+    use assert_cmd::prelude::*;
+    use command_extra::CommandExtra;
+    use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+    use pipe_trait::Pipe;
+    use std::{fs, path::Path, process::Command};
 
     #[test]
     fn run_pre_and_postinstall_scripts() {
@@ -218,6 +249,40 @@ mod dependency_build_scripts {
         }
 
         drop((root, mock_instance, frozen_root));
+    }
+
+    #[test]
+    fn hoisting_tolerates_bins_created_by_a_later_lifecycle_stage() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        fs::write(
+            workspace.join("package.json"),
+            serde_json::json!({
+                "dependencies": { "@pnpm.e2e/has-generated-bins-as-dep": "1.0.0" },
+            })
+            .to_string(),
+        )
+        .expect("write package.json");
+        let yaml_path = workspace.join("pnpm-workspace.yaml");
+        let mut yaml = fs::read_to_string(&yaml_path).expect("read workspace manifest");
+        yaml.push_str("hoistPattern:\n  - '*'\n");
+        fs::write(&yaml_path, yaml).expect("write workspace manifest");
+        allow_builds(
+            &workspace,
+            &[("@pnpm.e2e/has-generated-bins-as-dep", true), ("@pnpm.e2e/generated-bins", true)],
+        );
+
+        pacquet.with_arg("install").assert().success();
+        fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+        Command::cargo_bin("pnpm")
+            .expect("find pnpm binary")
+            .with_current_dir(&workspace)
+            .with_args(["install", "--frozen-lockfile"])
+            .assert()
+            .success();
+
+        drop((root, mock_instance));
     }
 
     #[test]
@@ -773,6 +838,449 @@ mod dependency_build_scripts {
             !rerun_out.status.success(),
             "a strict rerun with a corrupt .modules.yaml must not exit 0; got:\n{combined}",
         );
+
+        drop((root, mock_instance, rerun_root));
+    }
+
+    /// TS: `the list of ignored builds is preserved after a repeat
+    /// install` (`pnpm/test/install/lifecycleScripts.ts:245`). A repeat
+    /// install re-reports every ignored build and leaves the recorded
+    /// set intact — dropping an entry would make an approved-nothing
+    /// rerun look clean.
+    #[test]
+    fn ignored_builds_are_preserved_after_a_repeat_install() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        fs::write(workspace.join("package.json"), "{}\n").expect("write package.json");
+
+        // Both commands exit non-zero: under the default `strictDepBuilds`
+        // an ignored build is `ERR_PNPM_IGNORED_BUILDS`, not a warning. The
+        // add still materializes the packages and records them, and the
+        // point under test is that the repeat install re-reports the same
+        // set rather than a stale rerun looking clean.
+        let add_out = pacquet
+            .with_args([
+                "add",
+                "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0",
+                "@pnpm.e2e/install-script-example@1.0.0",
+                "--config.optimistic-repeat-install=false",
+            ])
+            .output()
+            .expect("run pacquet add");
+        assert!(
+            !add_out.status.success(),
+            "a strict add with ignored builds must fail; got:\n{}{}",
+            String::from_utf8_lossy(&add_out.stdout),
+            String::from_utf8_lossy(&add_out.stderr),
+        );
+
+        let CommandTempCwd { pacquet: rerun, root: rerun_root, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let rerun_out = rerun
+            .with_current_dir(&workspace)
+            .with_args(["install", "--config.optimistic-repeat-install=false"])
+            .output()
+            .expect("run pacquet install again");
+        let combined = format!(
+            "{}{}",
+            String::from_utf8_lossy(&rerun_out.stdout),
+            String::from_utf8_lossy(&rerun_out.stderr),
+        );
+        eprintln!("repeat install output:\n{combined}");
+        assert!(!rerun_out.status.success(), "the strict repeat install must keep failing");
+        assert!(
+            combined.contains("Ignored build scripts"),
+            "the repeat install must report the ignored builds again; got:\n{combined}",
+        );
+
+        let recorded = read_ignored_builds(&workspace);
+        assert_eq!(
+            recorded,
+            [
+                "@pnpm.e2e/install-script-example@1.0.0",
+                "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0",
+            ],
+        );
+
+        drop((root, mock_instance, rerun_root));
+    }
+
+    /// TS: `strictDepBuilds fails for packages with cached side-effects`
+    /// (`pnpm/test/install/lifecycleScripts.ts:380`,
+    /// <https://github.com/pnpm/pnpm/issues/11035>). Revoking a build
+    /// approval must fail the strict gate even though the store already
+    /// holds that package's build output — the side-effects cache is an
+    /// optimization, never an approval.
+    #[test]
+    fn strict_dep_builds_fails_for_packages_with_cached_side_effects() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+        set_strict_dep_builds(&workspace, true);
+        append_workspace_yaml_key(&workspace, "optimisticRepeatInstall", false);
+        allow_builds(&workspace, &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
+
+        pacquet.with_arg("install").assert().success();
+        let built_marker = workspace.join(
+            "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
+             /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js",
+        );
+        assert!(built_marker.exists(), "the approved build must run and populate the cache");
+
+        allow_builds(&workspace, &[]);
+
+        let CommandTempCwd { pacquet: rerun, root: rerun_root, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let rerun_out = rerun
+            .with_current_dir(&workspace)
+            .with_arg("install")
+            .output()
+            .expect("run pacquet install after revoking approval");
+        let combined = format!(
+            "{}{}",
+            String::from_utf8_lossy(&rerun_out.stdout),
+            String::from_utf8_lossy(&rerun_out.stderr),
+        );
+        eprintln!("revoked-approval install output:\n{combined}");
+        assert!(
+            !rerun_out.status.success(),
+            "a cached build must not satisfy the strict gate; got:\n{combined}",
+        );
+        assert!(
+            combined.contains("Ignored build scripts"),
+            "the revoked package must be reported as ignored; got:\n{combined}",
+        );
+
+        drop((root, mock_instance, rerun_root));
+    }
+
+    fn read_ignored_builds(workspace: &Path) -> Vec<String> {
+        let mut recorded: Vec<String> = pacquet_modules_yaml::read_modules_manifest::<
+            pacquet_modules_yaml::Host,
+        >(&workspace.join("node_modules"))
+        .expect("read .modules.yaml")
+        .expect(".modules.yaml exists")
+        .ignored_builds
+        .unwrap_or_default()
+        .into_iter()
+        .map(|dep_path| dep_path.as_str().to_string())
+        .collect();
+        recorded.sort();
+        recorded
+    }
+}
+
+/// `.modules.yaml`'s `pendingBuilds` — the record of builds
+/// `--ignore-scripts` deferred, which `pacquet rebuild --pending`
+/// later drains.
+mod pending_builds {
+    use super::workspace_yaml::allow_builds;
+    use assert_cmd::prelude::*;
+    use command_extra::CommandExtra;
+    use pacquet_modules_yaml::{Host, read_modules_manifest};
+    use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+    use std::{fs, path::Path};
+
+    fn read_pending_builds(workspace: &Path) -> Vec<String> {
+        read_modules_manifest::<Host>(&workspace.join("node_modules"))
+            .expect("read .modules.yaml")
+            .expect(".modules.yaml exists")
+            .pending_builds
+    }
+
+    /// TS: `run pre/postinstall scripts` (`deps-restorer/test/index.ts:362`),
+    /// the `ignoreScripts` tail. Ordering is pnpm's: projects first.
+    #[test]
+    fn ignore_scripts_records_the_project_and_its_deferred_dependency() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "scripts": { "install": r#"node -e """#, "postinstall": r#"node -e """# },
+            "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+
+        pacquet.with_args(["install", "--ignore-scripts"]).assert().success();
+
+        assert_eq!(
+            read_pending_builds(&workspace),
+            [".", "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"],
+        );
+
+        drop((root, mock_instance));
+    }
+
+    /// A project without install-time scripts of its own contributes no
+    /// importer entry — only the deferred dependency builds are recorded.
+    #[test]
+    fn a_project_without_install_scripts_records_only_dependencies() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+
+        pacquet.with_args(["install", "--ignore-scripts"]).assert().success();
+
+        assert_eq!(
+            read_pending_builds(&workspace),
+            ["@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"],
+        );
+
+        drop((root, mock_instance));
+    }
+
+    /// An install that runs the build scripts owes nothing, so the list
+    /// stays empty — this is what makes a populated list mean "deferred".
+    #[test]
+    fn an_install_that_runs_the_scripts_records_nothing() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+        allow_builds(&workspace, &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
+
+        pacquet.with_arg("install").assert().success();
+
+        assert_eq!(read_pending_builds(&workspace), Vec::<String>::new());
+
+        drop((root, mock_instance));
+    }
+
+    /// TS: `pendingBuilds gets updated if install removes packages`
+    /// (`deps-installer/test/lockfile.ts:614`). Dropping one of two
+    /// deferred dependencies shrinks the recorded list.
+    #[test]
+    fn removing_a_package_shrinks_the_list() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let manifest_path = workspace.join("package.json");
+        let both = serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
+                "@pnpm.e2e/install-script-example": "1.0.0",
+            },
+        });
+        fs::write(&manifest_path, both.to_string()).expect("write package.json");
+
+        pacquet.with_args(["install", "--ignore-scripts"]).assert().success();
+        let before = read_pending_builds(&workspace);
+        assert_eq!(
+            before,
+            [
+                "@pnpm.e2e/install-script-example@1.0.0",
+                "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0",
+            ],
+        );
+
+        let one = serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" },
+        });
+        fs::write(&manifest_path, one.to_string()).expect("rewrite package.json");
+
+        let CommandTempCwd { pacquet: rerun, root: rerun_root, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        rerun
+            .with_current_dir(&workspace)
+            .with_args(["install", "--ignore-scripts"])
+            .assert()
+            .success();
+
+        let after = read_pending_builds(&workspace);
+        assert_eq!(after, ["@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"]);
+        assert!(after.len() < before.len(), "removing a package must shrink {before:?}");
+
+        drop((root, mock_instance, rerun_root));
+    }
+
+    /// `pnpm rebuild --pending` is what settles the debt: it runs both
+    /// the deferred dependency builds and the project's own deferred
+    /// install scripts, then leaves the list empty so a second run has
+    /// nothing to do.
+    #[test]
+    fn rebuild_pending_runs_the_deferred_work_and_empties_the_list() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let marker = workspace.join("project-install-ran.txt");
+        let package_json = serde_json::json!({
+            "scripts": {
+                "install": r#"node -e "require('fs').writeFileSync('project-install-ran.txt','ran')""#,
+            },
+            "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+        allow_builds(&workspace, &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
+
+        pacquet.with_args(["install", "--ignore-scripts"]).assert().success();
+        assert_eq!(
+            read_pending_builds(&workspace),
+            [".", "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"],
+        );
+        assert!(!marker.exists(), "--ignore-scripts must defer the project's own script");
+
+        let CommandTempCwd { pacquet: rebuild, root: rebuild_root, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        rebuild.with_current_dir(&workspace).with_args(["rebuild", "--pending"]).assert().success();
+
+        assert!(marker.exists(), "the deferred project script must run");
+        assert!(
+            workspace
+                .join(
+                    "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
+                     /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example\
+                     /generated-by-postinstall.js"
+                )
+                .exists(),
+            "the deferred dependency build must run",
+        );
+        assert_eq!(
+            read_pending_builds(&workspace),
+            Vec::<String>::new(),
+            "a rebuild settles the debt it was asked to run",
+        );
+
+        drop((root, mock_instance, rebuild_root));
+    }
+
+    /// A `rebuild --pending` that the `allowBuilds` policy still blocks
+    /// runs nothing, so it must leave the debt in place — dropping it
+    /// would let a later `--pending` report success on a build that never
+    /// ran.
+    #[test]
+    fn rebuild_pending_keeps_a_dependency_the_policy_still_blocks() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+
+        pacquet.with_args(["install", "--ignore-scripts"]).assert().success();
+        let pending = read_pending_builds(&workspace);
+        assert_eq!(pending, ["@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"]);
+
+        // No `allowBuilds` entry, so `rebuild --pending` cannot build it.
+        // Its exit code is beside the point — the assertion is that the
+        // debt survives whether it exits 0 (warn) or 1 (strict).
+        let CommandTempCwd { pacquet: rebuild, root: rebuild_root, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let _ = rebuild
+            .with_current_dir(&workspace)
+            .with_args(["rebuild", "--pending"])
+            .output()
+            .expect("run pacquet rebuild --pending");
+
+        assert_eq!(
+            read_pending_builds(&workspace),
+            pending,
+            "a build the policy blocked stays owed",
+        );
+
+        drop((root, mock_instance, rebuild_root));
+    }
+
+    /// A project's scripts run after `.modules.yaml` is written, so its
+    /// entry can only be cleared once they have actually succeeded —
+    /// otherwise a failing script would lose the debt it just failed to
+    /// discharge.
+    #[test]
+    fn a_failed_project_script_keeps_its_pending_entry() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "scripts": { "install": r#"node -e "process.exit(1)""# },
+            "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+        allow_builds(&workspace, &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
+
+        pacquet.with_args(["install", "--ignore-scripts"]).assert().success();
+        assert_eq!(
+            read_pending_builds(&workspace),
+            [".", "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"],
+        );
+
+        let CommandTempCwd { pacquet: rebuild, root: rebuild_root, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let output = rebuild
+            .with_current_dir(&workspace)
+            .with_args(["rebuild", "--pending"])
+            .output()
+            .expect("run pacquet rebuild --pending");
+        eprintln!(
+            "rebuild --pending output:\n{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        assert!(!output.status.success(), "a failing project script must fail the rebuild");
+
+        assert_eq!(
+            read_pending_builds(&workspace),
+            ["."],
+            "the dependency was rebuilt, the project was not",
+        );
+
+        drop((root, mock_instance, rebuild_root));
+    }
+
+    /// A build stays owed until something runs it: an install that does
+    /// not defer anything new must not drop what an earlier
+    /// `--ignore-scripts` install recorded.
+    #[test]
+    fn a_later_install_preserves_what_an_earlier_one_deferred() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+        // Approved, so the second install's build phase reports nothing
+        // deferred — the entry can only survive by being carried over.
+        allow_builds(&workspace, &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
+
+        pacquet.with_args(["install", "--ignore-scripts"]).assert().success();
+        let deferred = read_pending_builds(&workspace);
+        assert_eq!(deferred, ["@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"]);
+
+        let CommandTempCwd { pacquet: rerun, root: rerun_root, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        rerun.with_current_dir(&workspace).with_arg("install").assert().success();
+
+        assert_eq!(read_pending_builds(&workspace), deferred);
 
         drop((root, mock_instance, rerun_root));
     }

@@ -422,3 +422,143 @@ test('readWantedLockfile() returns null for env-only lockfile with no main docum
   const lockfile = await readWantedLockfile(projectPath, { ignoreIncompatible: false })
   expect(lockfile).toBeNull()
 })
+
+const testOnNonWindows = process.platform === 'win32' ? test.skip : test
+
+const upToDateLockfile = {
+  importers: {
+    '.': {
+      dependencies: { 'is-positive': '1.0.0' },
+      specifiers: { 'is-positive': '^1.0.0' },
+    },
+  },
+  lockfileVersion: LOCKFILE_VERSION,
+  packages: {},
+  snapshots: {},
+}
+
+test('writeWantedLockfile() leaves an unchanged lockfile untouched', async () => {
+  const projectPath = temporaryDirectory()
+  const lockfilePath = path.join(projectPath, WANTED_LOCKFILE)
+  await writeWantedLockfile(projectPath, upToDateLockfile)
+  const mtimeBefore = fs.statSync(lockfilePath).mtimeMs
+
+  await new Promise((resolve) => setTimeout(resolve, 10))
+  await writeWantedLockfile(projectPath, upToDateLockfile)
+
+  expect(fs.statSync(lockfilePath).mtimeMs).toBe(mtimeBefore)
+})
+
+test('writeWantedLockfile() leaves an unchanged CRLF lockfile untouched', async () => {
+  const projectPath = temporaryDirectory()
+  const lockfilePath = path.join(projectPath, WANTED_LOCKFILE)
+  await writeWantedLockfile(projectPath, upToDateLockfile)
+  const crlfContent = fs.readFileSync(lockfilePath, 'utf8').replace(/\n/g, '\r\n')
+  fs.writeFileSync(lockfilePath, crlfContent)
+  const mtimeBefore = fs.statSync(lockfilePath).mtimeMs
+
+  await writeWantedLockfile(projectPath, upToDateLockfile)
+
+  expect(fs.readFileSync(lockfilePath, 'utf8')).toBe(crlfContent)
+  expect(fs.statSync(lockfilePath).mtimeMs).toBe(mtimeBefore)
+})
+
+testOnNonWindows('writeWantedLockfile() accepts a symlinked lockfile when nothing changes', async () => {
+  const projectPath = temporaryDirectory()
+  const realDir = temporaryDirectory()
+  const realLockfile = path.join(realDir, 'pnpm-lock.yaml')
+  await writeWantedLockfile(realDir, upToDateLockfile)
+  const targetBefore = fs.readFileSync(realLockfile, 'utf8')
+  const mtimeBefore = fs.statSync(realLockfile).mtimeMs
+  fs.symlinkSync(realLockfile, path.join(projectPath, WANTED_LOCKFILE), 'file')
+
+  await expect(writeWantedLockfile(projectPath, upToDateLockfile)).resolves.toBeTruthy()
+  expect(fs.lstatSync(path.join(projectPath, WANTED_LOCKFILE)).isSymbolicLink()).toBe(true)
+  expect(fs.readFileSync(realLockfile, 'utf8')).toBe(targetBefore)
+  expect(fs.statSync(realLockfile).mtimeMs).toBe(mtimeBefore)
+})
+
+testOnNonWindows('writeWantedLockfile() accepts an unchanged CRLF symlinked lockfile', async () => {
+  const projectPath = temporaryDirectory()
+  const realDir = temporaryDirectory()
+  const realLockfile = path.join(realDir, WANTED_LOCKFILE)
+  await writeWantedLockfile(realDir, upToDateLockfile)
+  const crlfContent = fs.readFileSync(realLockfile, 'utf8').replace(/\n/g, '\r\n')
+  fs.writeFileSync(realLockfile, crlfContent)
+  const mtimeBefore = fs.statSync(realLockfile).mtimeMs
+  fs.symlinkSync(realLockfile, path.join(projectPath, WANTED_LOCKFILE), 'file')
+
+  await expect(writeWantedLockfile(projectPath, upToDateLockfile)).resolves.toBeTruthy()
+  expect(fs.readFileSync(realLockfile, 'utf8')).toBe(crlfContent)
+  expect(fs.statSync(realLockfile).mtimeMs).toBe(mtimeBefore)
+})
+
+testOnNonWindows('writeWantedLockfile() refuses a real write through a symlink', async () => {
+  const projectPath = temporaryDirectory()
+  const realDir = temporaryDirectory()
+  const realLockfile = path.join(realDir, 'pnpm-lock.yaml')
+  await writeWantedLockfile(realDir, upToDateLockfile)
+  const targetBefore = fs.readFileSync(realLockfile, 'utf8')
+  fs.symlinkSync(realLockfile, path.join(projectPath, WANTED_LOCKFILE), 'file')
+
+  const changed = {
+    ...upToDateLockfile,
+    importers: {
+      '.': {
+        dependencies: { 'is-negative': '1.0.0' },
+        specifiers: { 'is-negative': '^1.0.0' },
+      },
+    },
+  }
+  await expect(writeWantedLockfile(projectPath, changed)).rejects.toThrow(/symlinked lockfile/)
+  expect(fs.readFileSync(realLockfile, 'utf8')).toBe(targetBefore)
+})
+
+const changedLockfile = {
+  ...upToDateLockfile,
+  importers: {
+    '.': {
+      dependencies: { 'is-negative': '1.0.0' },
+      specifiers: { 'is-negative': '^1.0.0' },
+    },
+  },
+}
+
+// The replacement is a fresh file, so its mode has to be restored explicitly:
+// creating it honours the umask, which would strip bits the lockfile carried.
+testOnNonWindows('writeWantedLockfile() preserves the lockfile mode against the umask', async () => {
+  const projectPath = temporaryDirectory()
+  const lockfilePath = path.join(projectPath, WANTED_LOCKFILE)
+  await writeWantedLockfile(projectPath, upToDateLockfile)
+  fs.chmodSync(lockfilePath, 0o666)
+  const previousUmask = process.umask(0o022)
+  try {
+    await writeWantedLockfile(projectPath, changedLockfile)
+  } finally {
+    process.umask(previousUmask)
+  }
+
+  expect(fs.statSync(lockfilePath).mode & 0o777).toBe(0o666)
+})
+
+testOnNonWindows('writeWantedLockfile() preserves the lockfile ownership', async () => {
+  const projectPath = temporaryDirectory()
+  const lockfilePath = path.join(projectPath, WANTED_LOCKFILE)
+  await writeWantedLockfile(projectPath, upToDateLockfile)
+  const before = fs.statSync(lockfilePath)
+
+  await writeWantedLockfile(projectPath, changedLockfile)
+
+  // Only meaningful as a cross-user check, which needs root; this guards
+  // against the replacement landing on an unexpected owner.
+  const after = fs.statSync(lockfilePath)
+  expect(after.uid).toBe(before.uid)
+  expect(after.gid).toBe(before.gid)
+})
+
+testOnNonWindows('writeWantedLockfile() leaves no temp file behind', async () => {
+  const projectPath = temporaryDirectory()
+  await writeWantedLockfile(projectPath, upToDateLockfile)
+
+  expect(fs.readdirSync(projectPath)).toStrictEqual([WANTED_LOCKFILE])
+})

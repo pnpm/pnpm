@@ -3,15 +3,14 @@
 //! translate to pacquet (the interactive `prompt` flow needs a PTY and
 //! is exercised only through its non-interactive error branch).
 
+pub mod _utils;
+pub use _utils::*;
+
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
-use std::{fs, path::Path, process::Command};
-
-fn pacquet_in(workspace: &Path) -> Command {
-    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
-}
+use std::{fs, path::Path};
 
 fn write_manifest(workspace: &Path, marker: &Path) {
     let manifest = json!({

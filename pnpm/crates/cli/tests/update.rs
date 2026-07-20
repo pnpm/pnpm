@@ -1,3 +1,9 @@
+pub mod _utils;
+
+use _utils::{
+    append_workspace_yaml_key, bravo_dep_mature_up_to_1_0_1_minimum_release_age,
+    set_minimum_release_age,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
@@ -58,21 +64,10 @@ fn set_ignore_dependencies(workspace: &Path, names: &[&str]) {
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 }
 
-/// Append `dedupePeerDependents: false` to the `pnpm-workspace.yaml` the
-/// harness already wrote — the setting under which pnpm/pnpm#12456
-/// reproduces on the TypeScript stack.
+/// [`append_workspace_yaml_key`] for `dedupePeerDependents: false` — the
+/// setting under which pnpm/pnpm#12456 reproduces on the TypeScript stack.
 fn disable_dedupe_peer_dependents(workspace: &Path) {
-    let yaml_path = workspace.join("pnpm-workspace.yaml");
-    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
-    assert!(
-        !yaml.contains("dedupePeerDependents:"),
-        "pnpm-workspace.yaml already has a `dedupePeerDependents:` key — update this helper",
-    );
-    if !yaml.ends_with('\n') {
-        yaml.push('\n');
-    }
-    yaml.push_str("dedupePeerDependents: false\n");
-    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+    append_workspace_yaml_key(workspace, "dedupePeerDependents", false);
 }
 
 fn dep_spec(workspace: &Path, name: &str) -> Option<String> {
@@ -326,6 +321,24 @@ fn update_latest_preserves_exact() {
     let (root, workspace, anchor) = setup();
 
     write_manifest(&workspace, &format!(r#"{{ "{DEP}": "100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("101.0.0"));
+
+    drop((root, anchor));
+}
+
+/// `--latest` treats a `=` pin (`=100.0.0`) as an exact pin instead of
+/// widening it to the default caret range, writing the bare version back
+/// (`=x.y.z` and `x.y.z` are the same range). Regression test for
+/// <https://github.com/pnpm/pnpm/issues/12745>.
+#[test]
+fn update_latest_preserves_equals_pin_as_exact() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "=100.0.0" }}"#));
     pacquet(&workspace, ["install"]).assert().success();
 
     pacquet(&workspace, ["update", "--latest"]).assert().success();
@@ -840,6 +853,128 @@ fn update_preserves_unrelated_transitives_without_peer_dedupe() {
     assert_eq!(
         lockfile_after, lockfile_before,
         "a no-op update of an unrelated package must leave the lockfile — and the reused parent's transitive edges — untouched",
+    );
+
+    drop((root, anchor));
+}
+
+/// See [`_utils::bravo_dep_mature_up_to_1_0_1_minimum_release_age`] for the
+/// publish dates the `minimumReleaseAge` tests below rely on.
+const BRAVO_DEP: &str = "@pnpm.e2e/bravo-dep";
+
+/// Covers <https://github.com/pnpm/pnpm/issues/11165>: a compatible update
+/// under an active `minimumReleaseAge` re-resolves to the newest *mature*
+/// in-range version instead of the raw highest one.
+#[test]
+fn update_respects_minimum_release_age() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{BRAVO_DEP}": "1.0.0" }}"#));
+    set_minimum_release_age(&workspace, bravo_dep_mature_up_to_1_0_1_minimum_release_age());
+    pacquet(&workspace, ["install"]).assert().success();
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+bravo-dep@1.0.0"));
+
+    // Widen the range so the update has newer versions to consider: 1.0.1
+    // is mature under the cutoff, the newest in-range version (1.1.0) is
+    // not.
+    write_manifest(&workspace, &format!(r#"{{ "{BRAVO_DEP}": "^1.0.0" }}"#));
+    pacquet(&workspace, ["update"]).assert().success();
+
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+bravo-dep@1.0.1"));
+    assert!(!virtual_store_has(&workspace, "@pnpm.e2e+bravo-dep@1.1.0"));
+
+    drop((root, anchor));
+}
+
+/// Covers <https://github.com/pnpm/pnpm/issues/11165>: `update --latest`
+/// under an active `minimumReleaseAge` writes the newest *mature* version
+/// into `package.json`, not the raw `latest` dist-tag.
+#[test]
+fn update_latest_respects_minimum_release_age() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{BRAVO_DEP}": "^1.0.0" }}"#));
+    set_minimum_release_age(&workspace, bravo_dep_mature_up_to_1_0_1_minimum_release_age());
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert_eq!(dep_spec(&workspace, BRAVO_DEP).as_deref(), Some("^1.0.1"));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+bravo-dep@1.0.1"));
+    assert!(!virtual_store_has(&workspace, "@pnpm.e2e+bravo-dep@1.1.0"));
+
+    drop((root, anchor));
+}
+
+/// An invalid `minimumReleaseAgeExclude` must not preempt command
+/// validation: `update <name>@<spec> --latest` still fails with the
+/// versioned-selector rejection, matching the TypeScript CLI, which
+/// parses the excludes only once resolution starts.
+#[test]
+fn update_latest_spec_rejection_wins_over_invalid_minimum_release_age_exclude() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{BRAVO_DEP}": "^1.0.0" }}"#));
+    append_workspace_yaml_key(
+        &workspace,
+        "minimumReleaseAgeExclude",
+        format!(r#"["{BRAVO_DEP}@^1.0.0"]"#),
+    );
+
+    let output = pacquet(&workspace, ["update", "--latest", &format!("{BRAVO_DEP}@1.0.1")])
+        .output()
+        .expect("run pacquet update");
+    assert!(!output.status.success(), "update --latest with a spec should fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Specs are not allowed to be used with --latest"),
+        "stderr did not mention the LATEST_WITH_SPEC error: {stderr}",
+    );
+
+    drop((root, anchor));
+}
+
+/// An invalid `minimumReleaseAgeExclude` must not fail the
+/// unmatched-selector no-op: `update <unmatched> --latest` still
+/// succeeds, matching the TypeScript CLI.
+#[test]
+fn update_latest_unmatched_noop_ignores_invalid_minimum_release_age_exclude() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{BRAVO_DEP}": "^1.0.0" }}"#));
+    append_workspace_yaml_key(
+        &workspace,
+        "minimumReleaseAgeExclude",
+        format!(r#"["{BRAVO_DEP}@^1.0.0"]"#),
+    );
+
+    pacquet(&workspace, ["update", "--latest", "@pnpm.e2e/does-not-exist"]).assert().success();
+
+    drop((root, anchor));
+}
+
+/// An invalid `minimumReleaseAgeExclude` that a `--latest` rewrite does
+/// hit fails with `ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE`, the
+/// same code the install path and the TypeScript CLI report.
+#[test]
+fn update_latest_reports_invalid_minimum_release_age_exclude() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{BRAVO_DEP}": "^1.0.0" }}"#));
+    append_workspace_yaml_key(
+        &workspace,
+        "minimumReleaseAgeExclude",
+        format!(r#"["{BRAVO_DEP}@^1.0.0"]"#),
+    );
+
+    let output = pacquet(&workspace, ["update", "--latest"]).output().expect("run pacquet update");
+    assert!(!output.status.success(), "update --latest with an invalid exclude should fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Invalid value in minimumReleaseAgeExclude"),
+        "stderr did not mention the invalid exclude: {stderr}",
     );
 
     drop((root, anchor));

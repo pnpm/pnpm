@@ -29,6 +29,18 @@ use tokio::sync::{Notify, RwLock, Semaphore};
 use tracing::instrument;
 use zune_inflate::{DeflateDecoder, DeflateOptions, errors::InflateDecodeErrors};
 
+/// Ceiling on a single eager buffer reservation sized from untrusted
+/// archive metadata — `dist.unpackedSize` in registry metadata and an
+/// entry's `uncompressed_size` in a zip central directory. Both are
+/// attacker-controlled, and post-download work runs concurrently (see
+/// [`post_download_semaphore`]), so whatever one task reserves up front
+/// is multiplied across every task in flight.
+///
+/// Bounds the eager reservation only, never the output: both consumers
+/// grow their buffer on demand, so an archive larger than the ceiling
+/// still decodes in full.
+const MAX_UNTRUSTED_PREALLOC_BYTES: usize = 64 * 1024 * 1024;
+
 /// Cap on concurrent post-download tarball work (SHA-512 of the whole
 /// tarball + gzip inflate + per-file SHA-512 + CAFS writes). The body is
 /// CPU-bound with some blocking FS I/O, and putting it on
@@ -143,19 +155,19 @@ pub struct VerifyChecksumError {
 #[derive(Debug, Display, Error, Diagnostic, From)]
 #[non_exhaustive]
 pub enum TarballError {
-    #[diagnostic(code(pacquet_tarball::fetch_tarball))]
+    #[diagnostic(code(ERR_PNPM_TARBALL_FETCH_TARBALL))]
     FetchTarball(NetworkError),
 
-    #[diagnostic(code(pacquet_tarball::http_status))]
+    #[diagnostic(code(ERR_PNPM_TARBALL_HTTP_STATUS))]
     HttpStatus(HttpStatusError),
 
     #[from(ignore)]
-    #[diagnostic(code(pacquet_tarball::io_error))]
+    #[diagnostic(code(ERR_PNPM_TARBALL_IO_ERROR))]
     ReadTarballEntries(std::io::Error),
 
     #[from(ignore)]
     #[display("Failed to read local tarball {}: {source}", path.display())]
-    #[diagnostic(code(pacquet_tarball::read_local_tarball))]
+    #[diagnostic(code(ERR_PNPM_TARBALL_READ_LOCAL_TARBALL))]
     ReadLocalTarball {
         path: PathBuf,
         #[error(source)]
@@ -163,16 +175,16 @@ pub enum TarballError {
     },
 
     #[diagnostic(
-        code(pacquet_tarball::verify_checksum_error),
+        code(ERR_PNPM_TARBALL_INTEGRITY),
         help(
-            "The downloaded tarball does not match the integrity recorded in the lockfile. If you trust the new content (legitimate republish, or stale local metadata cache), run `pnpm install --update-checksums` (or `pacquet install --update-checksums`). Otherwise treat this as a potential supply-chain issue and verify the new content first."
+            "The downloaded tarball does not match the integrity recorded in the lockfile. If you trust the new content (legitimate republish, or stale local metadata cache), run `pnpm install --update-checksums`. Otherwise treat this as a potential supply-chain issue and verify the new content first."
         )
     )]
     Checksum(VerifyChecksumError),
 
     #[from(ignore)]
     #[display("Failed to decode gzip: {_0}")]
-    #[diagnostic(code(pacquet_tarball::decode_gzip))]
+    #[diagnostic(code(ERR_PNPM_TARBALL_DECODE_GZIP))]
     DecodeGzip(InflateDecodeErrors),
 
     #[from(ignore)]
@@ -186,14 +198,14 @@ pub enum TarballError {
     WriteStoreIndex(StoreIndexError),
 
     #[from(ignore)]
-    #[diagnostic(code(pacquet_tarball::task_join_error))]
+    #[diagnostic(code(ERR_PNPM_TARBALL_TASK_JOIN_ERROR))]
     TaskJoin(tokio::task::JoinError),
 
     #[from(ignore)]
     #[display(
-        "Archive at {url} advertised a Content-Length of {advertised_size} bytes, which exceeds what pacquet can allocate (either larger than `usize::MAX` on this target or memory pressure prevented a one-shot reservation)"
+        "Archive at {url} advertised a Content-Length of {advertised_size} bytes, which exceeds what pnpm can allocate (either larger than `usize::MAX` on this target or memory pressure prevented a one-shot reservation)"
     )]
-    #[diagnostic(code(pacquet_tarball::tarball_too_large))]
+    #[diagnostic(code(ERR_PNPM_TARBALL_TOO_LARGE))]
     TarballTooLarge { url: String, advertised_size: u64 },
 
     /// A concurrent request for the same tarball URL went through
@@ -206,7 +218,7 @@ pub enum TarballError {
     #[display(
         "A concurrent fetch for {url} failed; this request waited on the shared mem cache and inherits the failure"
     )]
-    #[diagnostic(code(pacquet_tarball::sibling_fetch_failed))]
+    #[diagnostic(code(ERR_PNPM_TARBALL_SIBLING_FETCH_FAILED))]
     SiblingFetchFailed { url: String },
 
     /// Path-traversal rejection on a zip entry, carrying the
@@ -215,7 +227,7 @@ pub enum TarballError {
     /// directory is rejected before any bytes are written to the CAS.
     #[from(ignore)]
     #[display("Refusing to extract zip entry {entry_path:?} from {url} — {reason}")]
-    #[diagnostic(code(pacquet_tarball::path_traversal))]
+    #[diagnostic(code(ERR_PNPM_PATH_TRAVERSAL))]
     PathTraversal { url: String, entry_path: String, reason: &'static str },
 
     /// Zip-archive parse / read error. Wraps the underlying `zip`
@@ -223,7 +235,7 @@ pub enum TarballError {
     /// mode beyond surfacing the entry path that triggered it.
     #[from(ignore)]
     #[display("Failed to read zip archive {url}: {source}")]
-    #[diagnostic(code(pacquet_tarball::read_zip))]
+    #[diagnostic(code(ERR_PNPM_TARBALL_READ_ZIP))]
     ReadZipArchive {
         url: String,
         #[error(source)]
@@ -242,7 +254,7 @@ pub enum TarballError {
     /// rather than the tar-specific `ERR_PNPM_TARBALL_TAR`.
     #[from(ignore)]
     #[display("Failed to read zip entry {entry_path:?} from {url}: {source}")]
-    #[diagnostic(code(pacquet_tarball::read_zip_entry))]
+    #[diagnostic(code(ERR_PNPM_TARBALL_READ_ZIP_ENTRY))]
     ReadZipEntries {
         url: String,
         entry_path: String,
@@ -454,11 +466,18 @@ fn read_local_tarball_error(
     }
 }
 
+/// Bound a registry-supplied `dist.unpackedSize` before it reaches
+/// zune-inflate, which reserves the hint as an infallible zero-filled
+/// `vec![0; hint]` and aborts the process if that allocation fails.
+fn bounded_gzip_size_hint(unpacked_size: Option<usize>) -> Option<usize> {
+    unpacked_size.map(|size| size.min(MAX_UNTRUSTED_PREALLOC_BYTES))
+}
+
 #[instrument(skip(gz_data), fields(gz_data_len = gz_data.len()))]
 fn decompress_gzip(gz_data: &[u8], unpacked_size: Option<usize>) -> Result<Vec<u8>, TarballError> {
     let mut options = DeflateOptions::default().set_confirm_checksum(false);
 
-    if let Some(size) = unpacked_size {
+    if let Some(size) = bounded_gzip_size_hint(unpacked_size) {
         options = options.set_size_hint(size);
     }
 
@@ -1010,13 +1029,7 @@ fn extract_zip_entries(
             continue;
         }
 
-        // Same allocation-safety shape as
-        // [`extract_tarball_entries`]: clamp the pre-allocation
-        // hint at 64 MiB so a maliciously huge `uncompressed_size`
-        // in the central directory can't crash the process before
-        // `read_to_end` has a chance to surface the real error.
-        const MAX_ENTRY_PREALLOC_BYTES: u64 = 64 * 1024 * 1024;
-        let prealloc_hint = entry.size().min(MAX_ENTRY_PREALLOC_BYTES) as usize;
+        let prealloc_hint = entry.size().min(MAX_UNTRUSTED_PREALLOC_BYTES as u64) as usize;
         let mut buffer = Vec::new();
         buffer.try_reserve(prealloc_hint).map_err(|err| TarballError::ReadZipEntries {
             url: package_url.to_string(),
@@ -2454,6 +2467,19 @@ pub struct FetchTarballForResolution<'a> {
     pub package_id: &'a str,
     pub auth_headers: &'a AuthHeaders,
     pub retry_opts: RetryOpts,
+    /// Directory *within* the archive holding the package, for a
+    /// git-hosted dep that points at one directory of a repo
+    /// (`#path:/packages/foo`). The archive spans the whole repo, so
+    /// the root `package.json` describes the repo, not the package —
+    /// read the manifest from here instead. `None` reads the root.
+    ///
+    /// Matches the resolution's `path` field verbatim, leading slash
+    /// and all.
+    ///
+    /// Setting this suppresses the store-index row: the extracted
+    /// index describes the archive, not the named subpackage, so
+    /// there is no row to write that the key would honestly describe.
+    pub manifest_subdir: Option<&'a str>,
 }
 
 impl FetchTarballForResolution<'_> {
@@ -2469,6 +2495,7 @@ impl FetchTarballForResolution<'_> {
             package_id,
             auth_headers,
             retry_opts,
+            manifest_subdir,
         } = self;
 
         // Resolve-time tarball fetches compute integrity from bytes and
@@ -2490,24 +2517,41 @@ impl FetchTarballForResolution<'_> {
         )
         .await?;
 
-        let manifest = pkg_files_idx.manifest.clone();
-        // Scope the store-index row by the package's canonical
-        // `name@version`, matching what the install pass derives from
-        // the same manifest. Fall back to the URL when the tarball has
-        // no usable `package.json` name (degraded, but keeps the row
-        // addressable).
-        let package_id =
-            manifest_package_id(manifest.as_ref()).unwrap_or_else(|| package_url.to_string());
+        let manifest = match manifest_subdir {
+            Some(subdir) => read_subdir_manifest(&cas_paths, subdir).await?,
+            None => pkg_files_idx.manifest.clone(),
+        };
 
-        let index_key = store_index_key(&integrity.to_string(), &package_id);
-        if let Some(writer) = store_index_writer {
-            writer.queue(index_key, pkg_files_idx);
-        } else {
-            tracing::warn!(
-                target: "pacquet::download",
-                ?index_key,
-                "no shared store-index writer; skipping index row for this resolve-time tarball",
-            );
+        // A subdirectory package gets no row. Its key would name the
+        // subpackage while `pkg_files_idx` describes the whole archive
+        // — the repo's manifest and every repo file — and a row whose
+        // key and payload disagree is worse than none: consumers that
+        // trust `PackageFilesIndex.manifest` / `files` to match the key
+        // (bin linking, file materialization) would read the repo.
+        // Nothing needs this row. A git-hosted archive — the only shape
+        // carrying a subdirectory — is addressed by
+        // `git_hosted_store_index_key` once the install pass has run
+        // `prepare` over it, and both the graph prefetch and the
+        // warm-store reuse map skip git-hosted entries.
+        if manifest_subdir.is_none() {
+            // Scope the store-index row by the package's canonical
+            // `name@version`, matching what the install pass derives from
+            // the same manifest. Fall back to the URL when the tarball has
+            // no usable `package.json` name (degraded, but keeps the row
+            // addressable).
+            let package_id =
+                manifest_package_id(manifest.as_ref()).unwrap_or_else(|| package_url.to_string());
+
+            let index_key = store_index_key(&integrity.to_string(), &package_id);
+            if let Some(writer) = store_index_writer {
+                writer.queue(index_key, pkg_files_idx);
+            } else {
+                tracing::warn!(
+                    target: "pacquet::download",
+                    ?index_key,
+                    "no shared store-index writer; skipping index row for this resolve-time tarball",
+                );
+            }
         }
 
         if let Some(mem_cache) = mem_cache {
@@ -2516,6 +2560,39 @@ impl FetchTarballForResolution<'_> {
         }
 
         Ok(ResolvedTarball { integrity, manifest })
+    }
+}
+
+/// Read `<subdir>/package.json` out of a freshly extracted archive.
+///
+/// Extraction only stashes the *root* `package.json` on the
+/// [`PackageFilesIndex`], so a package living in a subdirectory of the
+/// archive has to be read back from the CAS. Returns `None` when the
+/// subdirectory has no `package.json`, matching the root path's
+/// best-effort contract — the caller degrades rather than failing the
+/// resolve.
+async fn read_subdir_manifest(
+    cas_paths: &HashMap<String, PathBuf>,
+    subdir: &str,
+) -> Result<Option<serde_json::Value>, TarballError> {
+    // `cas_paths` is keyed by the archive-relative path left after the
+    // top-level prefix strip; the resolution's `path` keeps the leading
+    // slash it was written with (`#path:/packages/foo`).
+    let key = format!("{}/package.json", subdir.trim_matches('/'));
+    let Some(cas_path) = cas_paths.get(&key) else { return Ok(None) };
+    let bytes = tokio::fs::read(cas_path)
+        .await
+        .map_err(|source| TarballError::ReadLocalTarball { path: cas_path.clone(), source })?;
+    match serde_json::from_slice::<serde_json::Value>(&bytes) {
+        Ok(parsed) => Ok(normalize_bundled_manifest(&parsed)),
+        Err(error) => {
+            tracing::debug!(
+                ?error,
+                ?key,
+                "package.json in archive subdirectory failed to parse as JSON; bundled manifest cleared",
+            );
+            Ok(None)
+        }
     }
 }
 

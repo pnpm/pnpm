@@ -1,10 +1,10 @@
 use crate::{
     AllowBuildPolicy, CreateVirtualStore, CreateVirtualStoreError, CreateVirtualStoreOutput,
-    GraphToLockfileOptions, HoistedDependencies, ImporterLockfileInput,
-    InstallPackageFromRegistryError, LinkRootComponentMembersError, LinkVirtualStoreBins,
-    LinkVirtualStoreBinsError, PrefetchContext, PrefetchingResolver, SkippedSnapshots,
-    SymlinkDirectDependencies, SymlinkDirectDependenciesError, VersionPolicyError,
-    VersionsOverrider, VirtualStoreLayout, dependencies_graph_to_lockfile,
+    DependenciesGraphToLockfileError, GraphToLockfileOptions, HoistedDependencies,
+    ImporterLockfileInput, InstallPackageFromRegistryError, LinkRootComponentMembersError,
+    LinkVirtualStoreBins, LinkVirtualStoreBinsError, PrefetchContext, PrefetchingResolver,
+    SkippedSnapshots, SymlinkDirectDependencies, SymlinkDirectDependenciesError,
+    VersionPolicyError, VersionsOverrider, VirtualStoreLayout, dependencies_graph_to_lockfile,
     link_root_component_members, store_init::init_store_dir_best_effort,
 };
 use dashmap::DashMap;
@@ -19,17 +19,19 @@ use pacquet_engine_runtime_deno_resolver::DenoResolver;
 use pacquet_engine_runtime_node_resolver::NodeResolver;
 use pacquet_hooks::finder;
 use pacquet_lockfile::{Lockfile, LockfileResolution, SaveLockfileError};
+use pacquet_modules_yaml::IncludedDependencies;
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{
-    HookLog, LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
-    SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog,
+    DeprecationLog, GlobalLog, HookLog, LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog,
+    SkippedOptionalPackage, SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog,
+    StatsLog, StatsMessage,
 };
 use pacquet_resolving_default_resolver::DefaultResolver;
 use pacquet_resolving_deps_resolver::{
     ManifestHook, ResolveDependencyTreeError, ResolveImporterError, ResolveImporterOptions,
 };
-use pacquet_resolving_git_resolver::{GitResolver, RealGitProbe, RealGitRunner};
+use pacquet_resolving_git_resolver::{GitFetchContext, GitResolver, RealGitProbe, RealGitRunner};
 use pacquet_resolving_local_resolver::{
     LocalPathResolver, LocalResolverContext, LocalSchemeResolver,
 };
@@ -139,6 +141,9 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// pins. `None` on the no-lockfile path. Corresponds to the
     /// `update: false` resolver mode.
     pub wanted_lockfile: Option<&'a Lockfile>,
+    /// Effective `nodeVersion`: an explicit config value, otherwise the
+    /// minimum version declared by the root manifest's runtime engine.
+    pub node_version: Option<String>,
     /// Per-install packument cache shared with the lockfile-verifier
     /// constructed in [`Install::run`](crate::Install::run). The
     /// resolver writes to it during `pick_package`; the verifier reads
@@ -168,12 +173,15 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// the caller diffs the returned [`InstallWithFreshLockfileResult::wanted_lockfile`]
     /// against the existing one and reports the changes.
     pub dry_run: bool,
+    /// Whether this invocation can safely read an interactive approval from
+    /// stdin. Computed once by the outer install runner from CI and terminal
+    /// state, with an explicit override available to deterministic tests.
+    pub can_prompt: bool,
     /// A full workspace install versus a partial one (`pacquet add` and the
     /// package installs built on it — `dlx`, global add, the engine install).
     /// See [`crate::Install::is_full_install`]. Gates the `--no-optional`
-    /// exclusion: a partial add's `dependency_groups` names the manifest
-    /// group to save into, not a `--no-optional` intent, so it must not
-    /// drop the added package's transitive optionals.
+    /// exclusion: only a full install's `dependency_groups` carries that
+    /// intent, so a partial run must not drop transitive optionals.
     pub is_full_install: bool,
     /// Which lockfile pins to withhold from the preferred-versions seed
     /// so the affected names re-resolve to the highest version
@@ -195,6 +203,20 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// disk lookup entirely; `None` (every CLI install) falls back to
     /// [`finder::load_pnpmfile`]. See [`crate::Install::pnpmfile_hook_override`].
     pub pnpmfile_hook_override: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
+    pub real_importer_ids: Option<&'a std::collections::HashSet<String>>,
+    pub selected_importer_ids: Option<&'a std::collections::HashSet<String>>,
+    /// What the previous install materialized
+    /// (`<virtual_store_dir>/lock.yaml`). Drives the pre-link
+    /// [`crate::PruneStaleModules`] reconciliation and the hoisted
+    /// linker's previous-graph orphan diff. `None` on a first install.
+    pub current_lockfile: Option<&'a Lockfile>,
+    /// `hoistedDependencies` recorded by the previous install's
+    /// `.modules.yaml`, for [`crate::PruneStaleModules`]'s orphan
+    /// hoist-link cleanup. `None` on a first install or when the file
+    /// couldn't be fully parsed.
+    pub prior_hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
+    /// See [`crate::PruneStaleModules::prune_orphans`].
+    pub prune_orphans: bool,
 }
 
 /// Which lockfile-pinned `(name, version)` pairs to *withhold* from the
@@ -222,6 +244,64 @@ pub enum UpdateSeedPolicy {
     /// — matched names (at any depth) re-resolve while everything else
     /// keeps its pin. Keyed by package name (scope included).
     DropOnly(std::collections::HashSet<String>),
+    ByImporter(BTreeMap<String, ImporterUpdateSeedPolicy>),
+}
+
+#[derive(Debug, Clone)]
+pub enum ImporterUpdateSeedPolicy {
+    DropAll,
+    DropOnly(std::collections::HashSet<String>),
+}
+
+fn update_reuse_scopes(
+    policy: &UpdateSeedPolicy,
+) -> (
+    pacquet_resolving_deps_resolver::UpdateReuseScope,
+    BTreeMap<String, pacquet_resolving_deps_resolver::UpdateReuseScope>,
+) {
+    use pacquet_resolving_deps_resolver::UpdateReuseScope;
+
+    match policy {
+        UpdateSeedPolicy::KeepAll => (UpdateReuseScope::All, BTreeMap::new()),
+        UpdateSeedPolicy::DropAll => (UpdateReuseScope::None, BTreeMap::new()),
+        UpdateSeedPolicy::DropOnly(names) => {
+            (UpdateReuseScope::Except(names.clone()), BTreeMap::new())
+        }
+        UpdateSeedPolicy::ByImporter(policies) => (
+            UpdateReuseScope::All,
+            policies
+                .iter()
+                .map(|(importer_id, policy)| {
+                    let scope = match policy {
+                        ImporterUpdateSeedPolicy::DropAll => UpdateReuseScope::None,
+                        ImporterUpdateSeedPolicy::DropOnly(names) => {
+                            UpdateReuseScope::Except(names.clone())
+                        }
+                    };
+                    (importer_id.clone(), scope)
+                })
+                .collect(),
+        ),
+    }
+}
+
+fn full_resolution_required<'a>(
+    has_reusable_seed: bool,
+    importer_ids: impl IntoIterator<Item = &'a str>,
+    default_scope: &pacquet_resolving_deps_resolver::UpdateReuseScope,
+    scopes_by_importer: &BTreeMap<String, pacquet_resolving_deps_resolver::UpdateReuseScope>,
+) -> bool {
+    use pacquet_resolving_deps_resolver::UpdateReuseScope;
+
+    !has_reusable_seed
+        || importer_ids.into_iter().all(|importer_id| {
+            let scope = if matches!(default_scope, UpdateReuseScope::None) {
+                default_scope
+            } else {
+                scopes_by_importer.get(importer_id).unwrap_or(default_scope)
+            };
+            matches!(scope, UpdateReuseScope::None)
+        })
 }
 
 /// Error type of [`InstallWithFreshLockfile`].
@@ -235,6 +315,11 @@ pub enum InstallWithFreshLockfileError {
 
     #[diagnostic(transparent)]
     SymlinkDirectDependencies(#[error(source)] SymlinkDirectDependenciesError),
+
+    /// Surfaces a failure while removing stale direct-dep or hoist
+    /// links during the pre-link reconciliation pass.
+    #[diagnostic(transparent)]
+    PruneStaleModules(#[error(source)] crate::PruneDirectDepsError),
 
     /// Surfaces a failure to cross-link a Bit root component's injected
     /// members into one another's virtual-store slot. Only reachable
@@ -258,7 +343,7 @@ pub enum InstallWithFreshLockfileError {
     LinkHoistedModules(#[error(source)] crate::LinkHoistedModulesError),
 
     #[display("failed to write package map: {_0}")]
-    #[diagnostic(code(pacquet_package_manager::write_package_map))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_PACKAGE_MAP))]
     WritePackageMap(#[error(source)] crate::WritePackageMapError),
 
     #[diagnostic(transparent)]
@@ -291,6 +376,10 @@ pub enum InstallWithFreshLockfileError {
     #[diagnostic(transparent)]
     ResolveDependencyTree(#[error(source)] ResolveDependencyTreeError),
 
+    #[display("Failed to build lockfile from resolved dependency graph: {_0}")]
+    #[diagnostic(code(pacquet_package_manager::dependencies_graph_to_lockfile))]
+    DependenciesGraphToLockfile(#[error(source)] Box<DependenciesGraphToLockfileError>),
+
     /// `minimumReleaseAgeExclude` patterns rejected at compile time.
     /// Surfaced as `ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE`.
     #[display("Invalid value in minimumReleaseAgeExclude: {_0}")]
@@ -316,10 +405,16 @@ pub enum InstallWithFreshLockfileError {
     #[diagnostic(transparent)]
     BuildPhase(#[error(source)] crate::install_frozen_lockfile::BuildPhaseError),
 
+    #[diagnostic(transparent)]
+    MinimumReleaseAge(#[error(source)] crate::minimum_release_age::MinimumReleaseAgeError),
+
     /// Surfaces any failure from the fresh-lockfile installability
     /// pass before virtual-store materialization starts.
     #[diagnostic(transparent)]
     Installability(#[error(source)] Box<pacquet_package_is_installable::InstallabilityError>),
+
+    #[diagnostic(transparent)]
+    MergeFilteredWantedLockfile(#[error(source)] crate::MergeFilteredWantedLockfileError),
 
     /// Failed to resolve and hash `patchedDependencies` against the
     /// workspace directory.
@@ -330,6 +425,12 @@ pub enum InstallWithFreshLockfileError {
     /// lockfile's top-level `patchedDependencies` block.
     #[diagnostic(transparent)]
     CalcPatchHashes(#[error(source)] pacquet_patching::CalcPatchHashError),
+
+    /// One or more configured patches were never applied because no
+    /// package matched their key. Surfaced as `ERR_PNPM_UNUSED_PATCH`
+    /// unless `allowUnusedPatches` is `true`.
+    #[diagnostic(transparent)]
+    UnusedPatch(#[error(source)] pacquet_patching::UnusedPatchError),
 
     /// A user-defined `namedRegistries` entry mapped an alias to a
     /// non-http(s) URL. Surfaced at resolver construction so the
@@ -362,7 +463,7 @@ pub enum InstallWithFreshLockfileError {
     #[display(
         "First writer for virtual-store slot {virtual_store_name} dropped before signalling completion"
     )]
-    #[diagnostic(code(pacquet_package_manager::first_writer_aborted))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_FIRST_WRITER_ABORTED))]
     FirstWriterAborted {
         #[error(not(source))]
         virtual_store_name: String,
@@ -378,33 +479,33 @@ pub enum InstallWithFreshLockfileError {
     /// The `afterAllResolved` pnpmfile hook threw or otherwise failed.
     /// A throwing `afterAllResolved` aborts the install.
     #[display("{_0}")]
-    #[diagnostic(code(PNPMFILE_FAIL))]
+    #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     AfterAllResolvedHook(#[error(not(source))] pacquet_hooks::HookError),
 
     /// The freshly-built lockfile could not be serialized to JSON to pass to
     /// the `afterAllResolved` pnpmfile hook.
     #[display("Failed to serialize lockfile for the afterAllResolved hook: {_0}")]
-    #[diagnostic(code(pacquet_package_manager::after_all_resolved_serialize))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_AFTER_ALL_RESOLVED_SERIALIZE))]
     AfterAllResolvedSerialize(#[error(source)] serde_json::Error),
 
     /// The pnpmfile's `getCustomResolvers` hook threw while loading custom
     /// resolvers. A throwing custom-resolver hook aborts the install.
     #[display("{_0}")]
-    #[diagnostic(code(PNPMFILE_FAIL))]
+    #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     CustomResolverHook(#[error(not(source))] pacquet_hooks::HookError),
 
     /// The pnpmfile threw while loading its custom `fetchers` export.
     /// Same fatality rule as [`Self::CustomResolverHook`] and the
     /// frozen-lockfile path's custom-fetcher load.
     #[display("{_0}")]
-    #[diagnostic(code(PNPMFILE_FAIL))]
+    #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     CustomFetcherHook(#[error(not(source))] pacquet_hooks::HookError),
 
     /// A custom resolver's `shouldRefreshResolution` hook threw while
     /// checking whether to force re-resolution. A throwing hook aborts
     /// the install.
     #[display("{_0}")]
-    #[diagnostic(code(PNPMFILE_FAIL))]
+    #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     CustomResolverForceResolve(#[error(not(source))] pacquet_hooks::HookError),
 }
 
@@ -470,6 +571,12 @@ pub struct InstallWithFreshLockfileResult {
     /// is on (the default). Empty on the `lockfile_only` path, which
     /// never materializes or builds.
     pub ignored_builds: Vec<String>,
+    /// Dep paths whose build `--ignore-scripts` deferred — see
+    /// [`crate::BuildModulesOutput::deferred_builds`]. The caller folds
+    /// them into `.modules.yaml.pendingBuilds`. Empty on the
+    /// `lockfile_only` path for the same reason as
+    /// [`Self::ignored_builds`].
+    pub deferred_builds: Vec<String>,
     /// Installability-skipped optional snapshots. The outer install
     /// writer persists these into `.modules.yaml.skipped`.
     pub skipped: SkippedSnapshots,
@@ -507,17 +614,24 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             workspace_packages,
             update_checksums,
             wanted_lockfile,
+            node_version,
             meta_cache,
             node_linker,
             supported_architectures,
             lockfile_only,
             dry_run,
+            can_prompt,
             is_full_install,
             update_seed_policy,
             auth_override,
             resolution_observer,
             peer_issues_sink,
             pnpmfile_hook_override,
+            real_importer_ids,
+            selected_importer_ids,
+            current_lockfile,
+            prior_hoisted_dependencies,
+            prune_orphans,
         } = self;
 
         // The pnpr override when supplied, else the config's npmrc headers;
@@ -529,6 +643,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             .as_ref()
             .and_then(|observer| observer.minimum_release_age_exclude_override());
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
+        let filtered_isolated =
+            is_partial_workspace_selection(real_importer_ids, selected_importer_ids) && !is_hoisted;
         // Materialise the caller's iterator into a `Vec` so the same
         // group set can be replayed into both the resolver (consumes
         // the iterator) and `SymlinkDirectDependencies` (needs to walk
@@ -674,10 +790,24 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             filter_metadata: full_metadata,
             retry_opts: crate::retry_config::retry_opts_from_config(config),
         });
+        // A git dep's specifier names a repo, not a package, so its
+        // name — the `<name>@` half of every lockfile key it reaches —
+        // is only readable from the package's own `package.json`, in
+        // the host's archive or (for a repo with no archive endpoint) a
+        // checkout. Hand the resolver the handles to read it, on the
+        // same rationale as the remote-tarball fetch below.
         let git_resolver = GitResolver::new(
             Arc::new(RealGitProbe::new(Arc::clone(&http_client_arc))),
             Arc::new(RealGitRunner::new()),
-        );
+        )
+        .with_fetch_context(GitFetchContext {
+            http_client: Arc::clone(&http_client_arc),
+            store_dir,
+            store_index_writer: Some(Arc::clone(&store_index_writer)),
+            auth_headers: Arc::clone(&auth_headers),
+            retry_opts: crate::retry_config::retry_opts_from_config(config),
+            git_shallow_hosts: config.git_shallow_hosts.clone(),
+        });
         // A remote (non-registry) tarball *direct* dependency carries no
         // name/version/integrity at resolve time — they live in the
         // tarball's `package.json`. The resolver downloads + extracts it
@@ -735,6 +865,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let local_scheme_resolver = LocalSchemeResolver::new(local_ctx);
         let local_path_resolver = LocalPathResolver::new(local_ctx);
         let mut node_resolver = NodeResolver::new(Arc::clone(&http_client_arc));
+        node_resolver.node_download_mirrors.clone_from(&config.node_download_mirrors);
         node_resolver.offline = config.offline;
         let deno_resolver =
             DenoResolver::new(Arc::clone(&http_client_arc), Arc::clone(&npm_resolver));
@@ -841,7 +972,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // `pnpm-lock.yaml` and must not touch the store, so resolution
         // runs through the bare chain with no background download. This is
         // the `dryRun: opts.lockfileOnly` path.
-        let resolver: Box<dyn Resolver> = if lockfile_only {
+        let resolver: Box<dyn Resolver> = if lockfile_only || filtered_isolated {
             inner_resolver
         } else {
             Box::new(PrefetchingResolver::<Reporter>::new(
@@ -982,46 +1113,81 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             importer_manifests.values().copied().collect();
         // `pacquet update` withholds the lockfile pins for the names it
         // is bumping so they re-resolve to highest-in-range; everything
-        // else keeps its pin. `DropOnly` builds a filtered snapshot map
-        // (owned, so it outlives the seed build) excluding the matched
-        // names; `DropAll` passes `None` so no pin seeds the table.
+        // else keeps its pin. Manifest preferences remain workspace-wide.
         let lockfile_snapshots = wanted_lockfile.and_then(|lockfile| lockfile.snapshots.as_ref());
-        let filtered_snapshots;
-        let seed_snapshots = match &update_seed_policy {
-            UpdateSeedPolicy::KeepAll => lockfile_snapshots,
-            UpdateSeedPolicy::DropAll => None,
-            UpdateSeedPolicy::DropOnly(names) => match lockfile_snapshots {
-                None => None,
-                Some(snapshots) => {
-                    // The update-target set is small (CLI selectors / direct
-                    // deps); the snapshot map is large. Parse the targets to
-                    // `PkgName` once so the per-snapshot filter compares
-                    // against `key.name` directly instead of allocating a
-                    // `String` per key.
-                    let drop: std::collections::HashSet<pacquet_lockfile::PkgName> = names
-                        .iter()
-                        .filter_map(|name| pacquet_lockfile::PkgName::parse(name.as_str()).ok())
-                        .collect();
-                    filtered_snapshots = snapshots
-                        .iter()
-                        .filter(|(key, _)| !drop.contains(&key.name))
-                        .map(|(key, entry)| (key.clone(), entry.clone()))
-                        .collect::<HashMap<_, _>>();
-                    Some(&filtered_snapshots)
-                }
-            },
+        let all_preferred_versions = match &update_seed_policy {
+            UpdateSeedPolicy::KeepAll | UpdateSeedPolicy::ByImporter(_) => {
+                pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests(
+                    lockfile_snapshots,
+                    manifests_for_preferred.as_slice(),
+                )
+            }
+            UpdateSeedPolicy::DropAll => {
+                pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests(
+                    None,
+                    manifests_for_preferred.as_slice(),
+                )
+            }
+            UpdateSeedPolicy::DropOnly(names) => {
+                let excluded_names = names
+                    .iter()
+                    .filter_map(|name| pacquet_lockfile::PkgName::parse(name.as_str()).ok())
+                    .collect();
+                pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests_excluding(
+                    lockfile_snapshots,
+                    manifests_for_preferred.as_slice(),
+                    &excluded_names,
+                )
+            }
         };
-        let all_preferred_versions =
-            pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests(
-                seed_snapshots,
-                manifests_for_preferred.as_slice(),
-            );
         // The picker biases toward this seed so pins that still satisfy
         // their range survive the re-resolve. Move the map into the `Arc`
         // (no extra clone) so each per-importer `ResolveOptions` shares it
         // with a refcount bump rather than deep-cloning the map.
         let preferred_versions_seed = Arc::new(all_preferred_versions);
-
+        let mut preferred_versions_seeds_by_importer = BTreeMap::new();
+        if let UpdateSeedPolicy::ByImporter(policies) = &update_seed_policy {
+            let mut drop_all_seed = None;
+            let mut drop_only_seeds = HashMap::new();
+            for (importer_id, policy) in policies {
+                let seed = match policy {
+                    ImporterUpdateSeedPolicy::DropAll => Arc::clone(
+                        drop_all_seed.get_or_insert_with(|| {
+                            Arc::new(
+                                pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests(
+                                    None,
+                                    manifests_for_preferred.as_slice(),
+                                ),
+                            )
+                        }),
+                    ),
+                    ImporterUpdateSeedPolicy::DropOnly(names) => {
+                        let mut cache_key = names.iter().cloned().collect::<Vec<_>>();
+                        cache_key.sort_unstable();
+                        if let Some(seed) = drop_only_seeds.get(&cache_key) {
+                            Arc::clone(seed)
+                        } else {
+                            let excluded_names = names
+                                .iter()
+                                .filter_map(|name| {
+                                    pacquet_lockfile::PkgName::parse(name.as_str()).ok()
+                                })
+                                .collect();
+                            let seed = Arc::new(
+                                pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests_excluding(
+                                    lockfile_snapshots,
+                                    manifests_for_preferred.as_slice(),
+                                    &excluded_names,
+                                ),
+                            );
+                            drop_only_seeds.insert(cache_key, Arc::clone(&seed));
+                            seed
+                        }
+                    }
+                };
+                preferred_versions_seeds_by_importer.insert(importer_id.clone(), seed);
+            }
+        }
         // Resolve `pnpm-workspace.yaml`'s `patchedDependencies` once
         // per install. The resolver consults the grouped record at
         // every per-node lookup to attach `(patch_hash=<hash>)` to the
@@ -1115,13 +1281,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // `pacquet update` must re-resolve its targets to highest-in-range,
         // so suppress reuse for them (and their subtrees). Custom resolvers
         // may widen this to `None` via `shouldRefreshResolution`.
-        let mut update_reuse_scope = match &update_seed_policy {
-            UpdateSeedPolicy::KeepAll => pacquet_resolving_deps_resolver::UpdateReuseScope::All,
-            UpdateSeedPolicy::DropAll => pacquet_resolving_deps_resolver::UpdateReuseScope::None,
-            UpdateSeedPolicy::DropOnly(names) => {
-                pacquet_resolving_deps_resolver::UpdateReuseScope::Except(names.clone())
-            }
-        };
+        let (mut update_reuse_scope, mut update_reuse_scopes_by_importer) =
+            update_reuse_scopes(&update_seed_policy);
 
         // A throwing hook propagates and aborts.
         if let Some(lockfile) = wanted_lockfile
@@ -1133,6 +1294,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             .map_err(InstallWithFreshLockfileError::CustomResolverForceResolve)?
         {
             update_reuse_scope = pacquet_resolving_deps_resolver::UpdateReuseScope::None;
+            update_reuse_scopes_by_importer.clear();
         }
 
         // Hand the resolver the prior lockfile so it can reuse
@@ -1150,11 +1312,12 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // versions overrider, so only a resolution with no reuse at all
         // collects the complete declared-range set the convergence
         // staleness check needs.
-        let full_resolution = lockfile_reuse_seed.is_none()
-            || matches!(
-                update_reuse_scope,
-                pacquet_resolving_deps_resolver::UpdateReuseScope::None,
-            );
+        let full_resolution = full_resolution_required(
+            lockfile_reuse_seed.is_some(),
+            importer_manifests.keys().map(String::as_str),
+            &update_reuse_scope,
+            &update_reuse_scopes_by_importer,
+        );
 
         let workspace_opts = pacquet_resolving_deps_resolver::WorkspaceResolveOptions {
             dedupe_peers: config.dedupe_peers,
@@ -1172,19 +1335,30 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             time_based,
             wanted_lockfile: lockfile_reuse_seed.cloned().map(Arc::new),
             update_reuse_scope,
+            update_reuse_scopes_by_importer,
             auto_install_peers: config.auto_install_peers,
             registries,
+            allowed_deprecated_versions: config.allowed_deprecated_versions.clone(),
+            deprecation_log: Some(deprecation_log_fn::<Reporter>()),
         };
         let modules_basename = config.modules_dir.file_name().map_or_else(
             || std::ffi::OsString::from("node_modules"),
             std::ffi::OsStr::to_os_string,
         );
+        Reporter::emit(&LogEvent::Stage(StageLog {
+            level: LogLevel::Debug,
+            prefix: lockfile_dir.display().to_string(),
+            stage: Stage::ResolutionStarted,
+        }));
         let workspace_result = pacquet_resolving_deps_resolver::resolve_workspace(
             &*resolver,
             &workspace_importers,
             &dependency_groups,
             workspace_opts,
             |importer| {
+                let importer_preferred_versions = preferred_versions_seeds_by_importer
+                    .get(&importer.id)
+                    .unwrap_or(&preferred_versions_seed);
                 let project_dir = importer
                     .manifest
                     .path()
@@ -1200,7 +1374,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     dedupe_peers: config.dedupe_peers,
                     // The per-importer hoist loop mutates its own copy, so
                     // clone the shared seed's map here (deref past the `Arc`).
-                    all_preferred_versions: (*preferred_versions_seed).clone(),
+                    all_preferred_versions: importer_preferred_versions.as_ref().clone(),
                     patched_dependencies: patched_dependencies.clone(),
                     // `pick_lowest_direct` / `subdep_published_by` are
                     // authoritative from `resolve_workspace` (it computes
@@ -1212,7 +1386,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     pick_lowest_direct,
                     subdep_published_by: published_by,
                     base_opts: ResolveOptions {
-                        preferred_versions: Arc::clone(&preferred_versions_seed),
+                        preferred_versions: Arc::clone(importer_preferred_versions),
                         default_tag: Some("latest".to_string()),
                         published_by,
                         published_by_exclude: published_by_exclude.clone(),
@@ -1246,6 +1420,38 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         .map_err(|ResolveImporterError::Resolve(err)| {
             InstallWithFreshLockfileError::ResolveDependencyTree(err)
         })?;
+        crate::minimum_release_age::handle_minimum_release_age_violations::<Reporter>(
+            config,
+            lockfile_dir,
+            &workspace_result.merged_tree.policy_violations,
+            can_prompt && !dry_run,
+        )
+        .await
+        .map_err(InstallWithFreshLockfileError::MinimumReleaseAge)?;
+        // Only in the fresh-lockfile path — frozen lockfile trusts recorded
+        // patches. Skipped for a filtered install (`--filter`), matching
+        // pnpm's importer-count gate: pnpm only verifies patches when every
+        // workspace importer was part of the resolution.
+        if let Some(ref deps) = patched_dependencies
+            && !is_partial_workspace_selection(real_importer_ids, selected_importer_ids)
+        {
+            match pacquet_patching::verify_patches(
+                deps,
+                &workspace_result.merged_tree.applied_patches,
+                config.allow_unused_patches,
+            ) {
+                Ok(None) => {}
+                Ok(Some(warning)) => {
+                    Reporter::emit(&LogEvent::Global(GlobalLog {
+                        level: LogLevel::Warn,
+                        message: warning.to_string(),
+                    }));
+                }
+                Err(err) => {
+                    return Err(InstallWithFreshLockfileError::UnusedPatch(err));
+                }
+            }
+        }
         let total_nodes = workspace_result.peers.graph.len();
         // Hand the per-importer issues to the programmatic caller
         // before the graph is consumed below.
@@ -1333,6 +1539,14 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         drop(fetch_locker);
         drop(picked_manifest_cache);
 
+        // Must come after every `pnpm:deprecation` emit — the default
+        // reporter flushes its transitive-deprecation buffer on this event.
+        Reporter::emit(&LogEvent::Stage(StageLog {
+            level: LogLevel::Debug,
+            prefix: lockfile_dir.display().to_string(),
+            stage: Stage::ResolutionDone,
+        }));
+
         // Compute the `pnpmfileChecksum` once for both lockfile-build
         // paths below: the hash of the project's `.pnpmfile.{cjs,mjs}`
         // when it exports hooks, `None` otherwise. Resolution has already spawned the
@@ -1350,7 +1564,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // there is no `node_modules`, `.modules.yaml`, or current
         // lockfile — a lockfile-only resolve pass.
         if lockfile_only {
-            let built_lockfile = build_fresh_lockfile(FreshLockfileBuildOptions {
+            let freshly_resolved = build_fresh_lockfile(FreshLockfileBuildOptions {
                 config,
                 importer_manifests: &importer_manifests,
                 graph: &merged_graph,
@@ -1359,7 +1573,23 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 catalogs: &catalogs,
                 pnpmfile_checksum: pnpmfile_checksum.as_deref(),
                 patched_dependency_hashes: patched_dependency_hashes.as_ref(),
-            });
+            })
+            .map_err(|error| {
+                InstallWithFreshLockfileError::DependenciesGraphToLockfile(Box::new(error))
+            })?;
+            let built_lockfile = match (real_importer_ids, selected_importer_ids) {
+                (Some(real_importer_ids), Some(selected_importer_ids)) => {
+                    crate::merge_filtered_wanted_lockfile(
+                        wanted_lockfile,
+                        freshly_resolved,
+                        real_importer_ids,
+                        selected_importer_ids,
+                        lockfile_dir,
+                    )
+                    .map_err(InstallWithFreshLockfileError::MergeFilteredWantedLockfile)?
+                }
+                _ => freshly_resolved,
+            };
             // `--dry-run` builds the would-be lockfile so the caller can
             // diff it, but never persists it. A plain `--lockfile-only`
             // writes it (unless `lockfile: false`).
@@ -1408,8 +1638,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 wanted_lockfile,
                 can_record_lockfile_verification,
                 // `lockfile_only` never materializes node_modules, so no
-                // build phase ran and nothing was ignored.
+                // build phase ran and nothing was ignored or deferred.
                 ignored_builds: Vec::new(),
+                deferred_builds: Vec::new(),
                 skipped: SkippedSnapshots::new(),
             });
         }
@@ -1427,7 +1658,11 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // serialize on `Arc<Mutex<StoreIndex>>` for warm packages
         // that weren't reached by the resolve-time prefetch (e.g.
         // resolutions without a structured `name@version`).
-        let cache_keys: Vec<String> = collect_prefetch_cache_keys_from_graph(&merged_graph);
+        let cache_keys: Vec<String> = if filtered_isolated {
+            Vec::new()
+        } else {
+            collect_prefetch_cache_keys_from_graph(&merged_graph)
+        };
         let cache_keys_len = cache_keys.len();
         let phase_start = std::time::Instant::now();
         let prefetch = pacquet_tarball::prefetch_cas_paths(
@@ -1493,7 +1728,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // [`Self::wanted_lockfile`], which is the *previous* run's
         // lockfile threaded in for preferred-versions seeding.
         let phase_start = std::time::Instant::now();
-        let built_lockfile = build_fresh_lockfile(FreshLockfileBuildOptions {
+        let freshly_resolved = build_fresh_lockfile(FreshLockfileBuildOptions {
             config,
             importer_manifests: &importer_manifests,
             graph: &merged_graph,
@@ -1502,34 +1737,65 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             catalogs: &catalogs,
             pnpmfile_checksum: pnpmfile_checksum.as_deref(),
             patched_dependency_hashes: patched_dependency_hashes.as_ref(),
-        });
+        })
+        .map_err(|error| {
+            InstallWithFreshLockfileError::DependenciesGraphToLockfile(Box::new(error))
+        })?;
+        let built_lockfile = match (real_importer_ids, selected_importer_ids) {
+            (Some(real_importer_ids), Some(selected_importer_ids)) => {
+                crate::merge_filtered_wanted_lockfile(
+                    wanted_lockfile,
+                    freshly_resolved,
+                    real_importer_ids,
+                    selected_importer_ids,
+                    lockfile_dir,
+                )
+                .map_err(InstallWithFreshLockfileError::MergeFilteredWantedLockfile)?
+            }
+            _ => freshly_resolved,
+        };
         tracing::info!(
             target: "pacquet::install::phase",
             phase = "build_fresh_lockfile",
             elapsed_ms = phase_start.elapsed().as_millis() as u64,
             "phase complete",
         );
+        let included = IncludedDependencies {
+            dependencies: dependency_groups.contains(&DependencyGroup::Prod),
+            dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
+            optional_dependencies: dependency_groups.contains(&DependencyGroup::Optional),
+        };
+        let initial_materialization_ids = selected_importer_ids.map(|selected_importer_ids| {
+            if is_hoisted {
+                built_lockfile.importers.keys().cloned().collect()
+            } else {
+                selected_importer_ids.clone()
+            }
+        });
+        let empty_skipped = SkippedSnapshots::new();
+        let initial_materialization = initial_materialization_ids.as_ref().map(|importer_ids| {
+            crate::materialization_closure(
+                &built_lockfile,
+                lockfile_dir,
+                importer_ids,
+                included,
+                &empty_skipped,
+            )
+        });
+        let initial_materialization_lockfile =
+            initial_materialization.as_ref().map_or(&built_lockfile, |closure| &closure.lockfile);
         // `--force` bypasses the installability checks outright (see
         // `Config::force`): no skip set is computed and the hoisted
         // walker emits every dep, so no host detection is needed either.
-        let needs_optional_installability_check = !config.force
-            && built_lockfile.packages.as_ref().is_some_and(|packages| {
-                built_lockfile.snapshots.as_ref().is_some_and(|snapshots| {
-                    crate::any_optional_installability_constraint(snapshots, packages)
-                })
-            });
-        let needs_hoisted_installability_host = !config.force
-            && is_hoisted
-            && built_lockfile.packages.as_ref().is_some_and(|packages| {
-                built_lockfile.snapshots.as_ref().is_some_and(|snapshots| {
+        let needs_installability_check = !config.force
+            && initial_materialization_lockfile.packages.as_ref().is_some_and(|packages| {
+                initial_materialization_lockfile.snapshots.as_ref().is_some_and(|snapshots| {
                     crate::any_installability_constraint(snapshots, packages)
                 })
             });
-        let needs_installability_host =
-            needs_optional_installability_check || needs_hoisted_installability_host;
-        let installability_host = if needs_installability_host {
+        let installability_host = if needs_installability_check {
             let engine_strict = config.engine_strict;
-            let mut host = match config.node_version.clone() {
+            let mut host = match node_version {
                 // An explicit `nodeVersion` needs no `node --version` probe, so
                 // build the host directly off the reactor thread.
                 node_version @ Some(_) => {
@@ -1570,7 +1836,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // so it overlaps `CreateVirtualStore`'s I/O, except under the
         // global virtual store whose layout needs it synchronously.
         let runtime_pinned_major = crate::install_frozen_lockfile::find_runtime_node_major(
-            built_lockfile.snapshots.as_ref(),
+            initial_materialization_lockfile.snapshots.as_ref(),
         );
         let (engine_name, deferred_engine_handle): (
             Option<String>,
@@ -1610,8 +1876,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let layout = VirtualStoreLayout::new(
             config,
             layout_engine_name,
-            built_lockfile.snapshots.as_ref(),
-            built_lockfile.packages.as_ref(),
+            initial_materialization_lockfile.snapshots.as_ref(),
+            initial_materialization_lockfile.packages.as_ref(),
             Some(&allow_build_policy),
         );
         if config.enable_global_virtual_store {
@@ -1623,10 +1889,10 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             );
         }
 
-        let mut skipped = if needs_optional_installability_check {
+        let mut skipped = if needs_installability_check {
             match (
-                built_lockfile.snapshots.as_ref(),
-                built_lockfile.packages.as_ref(),
+                initial_materialization_lockfile.snapshots.as_ref(),
+                initial_materialization_lockfile.packages.as_ref(),
                 installability_host.as_ref(),
             ) {
                 (Some(snapshots), Some(packages), Some(host)) => {
@@ -1654,14 +1920,15 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // it out of materialization and `.modules.yaml.skipped` yet leaves it
         // in the lockfile, so a later install without the flag restores it.
         //
-        // Gated on `is_full_install`: for a partial `add` (and the package
-        // installs built on it — `dlx`, global add, the engine install)
-        // `dependency_groups` names the manifest group to save into, not a
-        // `--no-optional` intent, so those must keep their transitive
-        // optionals (e.g. `@pnpm/exe`'s platform binary).
+        // Gated on `is_full_install`: only a full install's
+        // `dependency_groups` carries a `--no-optional` intent. Partial
+        // runs either pass every direct group (`add`, `remove`, `update`)
+        // or narrow the groups for reasons of their own (`fetch --dev`,
+        // `rebuild`), and must keep their transitive optionals (e.g.
+        // `@pnpm/exe`'s platform binary on the engine install).
         if is_full_install
             && !dependency_groups.contains(&DependencyGroup::Optional)
-            && let Some(snapshots) = built_lockfile.snapshots.as_ref()
+            && let Some(snapshots) = initial_materialization_lockfile.snapshots.as_ref()
         {
             for (key, snapshot) in snapshots {
                 if snapshot.optional {
@@ -1669,6 +1936,44 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 }
             }
         }
+
+        // The recorded skip set must be the reachability closure of the
+        // direct skips (see
+        // [`crate::extend_skipped_with_dependency_closure`]); extend it
+        // before the materialization closure, hoist, symlink, and bin
+        // passes consume it.
+        {
+            let importer_ids: std::collections::HashSet<String> =
+                built_lockfile.importers.keys().cloned().collect();
+            crate::extend_skipped_with_dependency_closure(
+                &mut skipped,
+                &built_lockfile,
+                lockfile_dir,
+                &importer_ids,
+                included,
+            );
+        }
+
+        let final_materialization = initial_materialization_ids.as_ref().map(|importer_ids| {
+            crate::materialization_closure(
+                &built_lockfile,
+                lockfile_dir,
+                importer_ids,
+                included,
+                &skipped,
+            )
+        });
+        let materialization_lockfile =
+            final_materialization.as_ref().map_or(&built_lockfile, |closure| &closure.lockfile);
+        let materialization_importer_ids = final_materialization.as_ref().map_or_else(
+            || built_lockfile.importers.keys().cloned().collect(),
+            |closure| closure.importer_ids.clone(),
+        );
+        let project_anchor_importer_ids = match selected_importer_ids {
+            Some(selected_importer_ids) if is_hoisted => selected_importer_ids.clone(),
+            Some(_) => materialization_importer_ids.clone(),
+            None => materialization_importer_ids.clone(),
+        };
 
         // Materialise the virtual store via the same phased
         // warm/cold-batch pipeline the frozen-lockfile path uses. The
@@ -1698,8 +2003,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         } = CreateVirtualStore {
             http_client,
             config,
-            packages: built_lockfile.packages.as_ref(),
-            snapshots: built_lockfile.snapshots.as_ref(),
+            packages: materialization_lockfile.packages.as_ref(),
+            snapshots: materialization_lockfile.snapshots.as_ref(),
             current_snapshots: None,
             current_packages: None,
             layout: &layout,
@@ -1708,6 +2013,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             store_index_writer: &store_index_writer,
             allow_build_policy: &allow_build_policy,
             skipped: &skipped,
+            supported_architectures,
             workspace_root: lockfile_dir,
             node_linker,
             progress_reported: &progress_reported,
@@ -1767,13 +2073,13 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let symlink_root: &Path = config.modules_dir.parent().unwrap_or(lockfile_dir);
 
         // Captured out of the link branches below for the shared build
-        // phase: `hoisted_pkg_root_by_key` lets `BuildModules` `cd` into
+        // phase: `hoisted_pkg_roots_by_key` lets `BuildModules` `cd` into
         // the hoisted on-disk dir (`None`/empty for the isolated
         // linker), and `publicly_hoisted_for_post_build` carries the
         // public-hoist alias list into the post-build top-level bin
         // link so a direct dep's bin wins over a hoisted one.
-        let mut hoisted_pkg_root_by_key: Option<
-            HashMap<pacquet_lockfile::PackageKey, std::path::PathBuf>,
+        let mut hoisted_pkg_roots_by_key: Option<
+            HashMap<pacquet_lockfile::PackageKey, Vec<std::path::PathBuf>>,
         > = None;
         let mut publicly_hoisted_for_post_build: Vec<String> = Vec::new();
 
@@ -1788,8 +2094,54 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // empty (the hoisted linker has no isolated-mode alias→kind
         // adapter shape); `hoisted_locations` carries the walker's
         // placements so `.modules.yaml` round-trips them.
-        let (hoisted_dependencies, hoisted_locations) = if is_hoisted {
+        // Reconcile before linking: stale direct-dep links and
+        // orphaned hoist links must vacate their slots so the relink +
+        // rehoist below can claim them. The hoisted linker is excluded
+        // — its previous-graph diff removes orphans and emits the
+        // `pnpm:stats` `removed` event itself (see
+        // [`crate::link_hoisted_modules()`]); on the isolated linker
+        // the event fires here, so every install carries exactly one,
+        // pairing the `added` emitted in `CreateVirtualStore`.
+        //
+        // `virtual_store_only` skips reconciliation for the same reason
+        // it skips linking below: it never creates importer or hoist
+        // links, so there is nothing of its own to reconcile.
+        if !is_hoisted && !config.virtual_store_only {
+            let removed_count = match current_lockfile {
+                Some(current) => crate::PruneStaleModules {
+                    config,
+                    workspace_root: symlink_root,
+                    wanted_lockfile: materialization_lockfile,
+                    current_lockfile: current,
+                    prior_hoisted_dependencies,
+                    included_groups: &dependency_groups,
+                    prune_orphans,
+                }
+                .run::<Reporter>()
+                .map_err(InstallWithFreshLockfileError::PruneStaleModules)?,
+                None => 0,
+            };
+            Reporter::emit(&LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Removed {
+                    prefix: requester.to_owned(),
+                    removed: removed_count,
+                },
+            }));
+        }
+
+        // `virtual_store_only` stops after the virtual store is
+        // populated: neither linker arm runs, so nothing is hoisted and
+        // no importer symlinks or bins are created.
+        let (hoisted_dependencies, hoisted_locations) = if config.virtual_store_only {
+            (HoistedDependencies::new(), BTreeMap::new())
+        } else if is_hoisted {
             let project_manifests = importer_manifests
+                .iter()
+                .filter(|(id, _)| project_anchor_importer_ids.contains(id.as_str()))
+                .map(|(id, manifest)| (lockfile_dir.join(id), *manifest))
+                .collect::<Vec<_>>();
+            let package_map_project_manifests = importer_manifests
                 .iter()
                 .map(|(id, manifest)| (lockfile_dir.join(id), *manifest))
                 .collect::<Vec<_>>();
@@ -1801,15 +2153,13 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             let output = crate::install_frozen_lockfile::run_hoisted_linker::<Reporter>(
                 crate::install_frozen_lockfile::HoistedLinkerInputs {
                     config,
-                    lockfile: &built_lockfile,
-                    // No previous-install `<virtual_store_dir>/lock.yaml`
-                    // is threaded into the fresh path yet, so the
-                    // walker runs without an orphan diff.
-                    current_lockfile: None,
+                    lockfile: materialization_lockfile,
+                    current_lockfile,
                     layout: &layout,
-                    importers: &built_lockfile.importers,
+                    importers: &materialization_lockfile.importers,
                     dependency_groups: &dependency_groups,
                     project_manifests: &project_manifests,
+                    package_map_project_manifests: &package_map_project_manifests,
                     walker_lockfile_dir: lockfile_dir,
                     symlink_workspace_root: symlink_root,
                     host_node: host_node.as_ref(),
@@ -1821,7 +2171,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 &mut skipped,
             )
             .map_err(InstallWithFreshLockfileError::from)?;
-            hoisted_pkg_root_by_key = output.hoisted_pkg_root_by_key;
+            hoisted_pkg_roots_by_key = output.hoisted_pkg_roots_by_key;
             (HoistedDependencies::new(), output.hoisted_locations)
         } else {
             // Pre-compute the hoist plan so the dedupe pass in
@@ -1836,6 +2186,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             let hoisted_workspace_packages = config.hoist_workspace_packages.then(|| {
                 importer_manifests
                     .iter()
+                    .filter(|(id, _)| materialization_importer_ids.contains(id.as_str()))
                     .filter(|(id, _)| id.as_str() != ".")
                     .filter_map(|(id, manifest)| {
                         let name = manifest.value().get("name")?.as_str()?;
@@ -1848,9 +2199,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             });
             let pre_hoist = crate::install_frozen_lockfile::compute_hoist_plan(
                 config,
-                built_lockfile.snapshots.as_ref(),
-                built_lockfile.packages.as_ref(),
-                &built_lockfile.importers,
+                materialization_lockfile.snapshots.as_ref(),
+                materialization_lockfile.packages.as_ref(),
+                &materialization_lockfile.importers,
                 &dependency_groups,
                 &skipped,
                 false,
@@ -1873,11 +2224,11 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             // (Bit's capsule installs pass such projects), so they
             // bypass the malformed-lockfile importer-key rejection.
             let trusted_importer_ids: std::collections::HashSet<String> =
-                importer_manifests.keys().cloned().collect();
+                project_anchor_importer_ids.clone();
             SymlinkDirectDependencies {
                 config,
                 layout: &layout,
-                importers: &built_lockfile.importers,
+                importers: &materialization_lockfile.importers,
                 dependency_groups: dependency_groups.iter().copied(),
                 workspace_root: symlink_root,
                 skipped: &skipped,
@@ -1895,6 +2246,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             // [`link_root_component_members`].
             let root_component_importers: std::collections::HashSet<String> = importer_manifests
                 .iter()
+                .filter(|(id, _)| project_anchor_importer_ids.contains(id.as_str()))
                 .filter(|(_, manifest)| {
                     manifest.install_config_hoisting_limits()
                         == Some(crate::HOISTING_LIMITS_WORKSPACES)
@@ -1903,7 +2255,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 .collect();
             link_root_component_members(
                 &layout,
-                &built_lockfile.importers,
+                &materialization_lockfile.importers,
                 &root_component_importers,
                 &dependency_groups,
                 &skipped,
@@ -1961,7 +2313,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 || std::ffi::OsString::from("node_modules"),
                 std::ffi::OsStr::to_os_string,
             );
-            for importer_id in importer_manifests.keys() {
+            for importer_id in &project_anchor_importer_ids {
                 let project_dir = crate::symlink_direct_dependencies::importer_root_dir(
                     symlink_root,
                     importer_id,
@@ -1994,7 +2346,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             // ~95% slot short-circuit the frozen path enjoys.
             LinkVirtualStoreBins {
                 layout: &layout,
-                snapshots: built_lockfile.snapshots.as_ref(),
+                snapshots: materialization_lockfile.snapshots.as_ref(),
                 packages: None,
                 package_manifests: &package_manifests,
                 skipped: &skipped,
@@ -2033,10 +2385,11 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         if crate::should_write_package_map(config, node_linker) {
             let project_manifests = importer_manifests
                 .iter()
+                .filter(|(id, _)| project_anchor_importer_ids.contains(id.as_str()))
                 .map(|(id, manifest)| (lockfile_dir.join(id), *manifest))
                 .collect::<Vec<_>>();
             crate::package_map::write_package_map(
-                &built_lockfile,
+                materialization_lockfile,
                 &crate::package_map::PackageMapOptions {
                     lockfile_dir,
                     modules_dir: &config.modules_dir,
@@ -2069,36 +2422,37 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // is the real lockfile dir (sets each script's `INIT_CWD`); the
         // post-build bin link anchors on `symlink_root` to match where
         // this path placed `node_modules`.
-        let ignored_builds = crate::install_frozen_lockfile::run_build_phase::<Reporter>(
-            &crate::install_frozen_lockfile::BuildPhaseInputs {
-                config,
-                workspace_root: lockfile_dir,
-                top_level_bin_root: symlink_root,
-                layout: &layout,
-                snapshots: built_lockfile.snapshots.as_ref(),
-                packages: built_lockfile.packages.as_ref(),
-                importers: &built_lockfile.importers,
-                dependency_groups: &dependency_groups,
-                // Reuse the record resolved earlier for the resolver so the
-                // patch files aren't hashed a second time.
-                patch_groups: patched_dependencies.as_deref(),
-                allow_build_policy: &allow_build_policy,
-                side_effects_maps_by_snapshot: &side_effects_maps_by_snapshot,
-                requires_build_by_snapshot: &requires_build_by_snapshot,
-                engine_name: engine_name.as_deref(),
-                extra_env: &build_extra_env,
-                store_index_writer: &store_index_writer,
-                skipped: &skipped,
-                hoisted_pkg_root_by_key: hoisted_pkg_root_by_key.as_ref(),
-                is_hoisted,
-                publicly_hoisted_for_post_build: &publicly_hoisted_for_post_build,
-                logged_methods,
-                // The fresh-resolve path never serves an explicit
-                // `pacquet rebuild`; rebuilds always take the frozen path.
-                rebuild: None,
-            },
-        )
-        .map_err(InstallWithFreshLockfileError::BuildPhase)?;
+        let crate::BuildModulesOutput { ignored_builds, deferred_builds } =
+            crate::install_frozen_lockfile::run_build_phase::<Reporter>(
+                &crate::install_frozen_lockfile::BuildPhaseInputs {
+                    config,
+                    workspace_root: lockfile_dir,
+                    top_level_bin_root: symlink_root,
+                    layout: &layout,
+                    snapshots: materialization_lockfile.snapshots.as_ref(),
+                    packages: materialization_lockfile.packages.as_ref(),
+                    importers: &materialization_lockfile.importers,
+                    dependency_groups: &dependency_groups,
+                    // Reuse the record resolved earlier for the resolver so the
+                    // patch files aren't hashed a second time.
+                    patch_groups: patched_dependencies.as_deref(),
+                    allow_build_policy: &allow_build_policy,
+                    side_effects_maps_by_snapshot: &side_effects_maps_by_snapshot,
+                    requires_build_by_snapshot: &requires_build_by_snapshot,
+                    engine_name: engine_name.as_deref(),
+                    extra_env: &build_extra_env,
+                    store_index_writer: &store_index_writer,
+                    skipped: &skipped,
+                    hoisted_pkg_roots_by_key: hoisted_pkg_roots_by_key.as_ref(),
+                    is_hoisted,
+                    publicly_hoisted_for_post_build: &publicly_hoisted_for_post_build,
+                    logged_methods,
+                    // The fresh-resolve path never serves an explicit
+                    // `pacquet rebuild`; rebuilds always take the frozen path.
+                    rebuild: None,
+                },
+            )
+            .map_err(InstallWithFreshLockfileError::BuildPhase)?;
 
         // Drop the orchestration's writer handle so the channel closes,
         // then wait for the final batch flush — now including any
@@ -2147,8 +2501,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let injected_deps = crate::collect_injected_deps(
             &layout,
             lockfile_dir,
-            built_lockfile.snapshots.as_ref(),
-            built_lockfile.packages.as_ref(),
+            materialization_lockfile.snapshots.as_ref(),
+            materialization_lockfile.packages.as_ref(),
             &skipped,
             is_hoisted.then_some(&hoisted_locations),
         );
@@ -2174,9 +2528,20 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             wanted_lockfile,
             can_record_lockfile_verification,
             ignored_builds,
+            deferred_builds,
             skipped,
         })
     }
+}
+
+fn is_partial_workspace_selection(
+    real_importer_ids: Option<&std::collections::HashSet<String>>,
+    selected_importer_ids: Option<&std::collections::HashSet<String>>,
+) -> bool {
+    matches!(
+        (real_importer_ids, selected_importer_ids),
+        (Some(real), Some(selected)) if real != selected,
+    )
 }
 
 /// Walk the merged resolver graph and emit the `{integrity}\t{pkg_id}`
@@ -2278,6 +2643,24 @@ fn skipped_optional_log_fn<Reporter: self::Reporter>()
             ),
             prefix: skipped.prefix,
             reason: SkippedOptionalReason::ResolutionFailure,
+        }));
+    })
+}
+
+/// Build the resolver's deprecation sink: each notification emits a
+/// `pnpm:deprecation` debug event through the install's reporter,
+/// matching pnpm's `deprecationLogger.debug` payload.
+fn deprecation_log_fn<Reporter: self::Reporter>()
+-> pacquet_resolving_deps_resolver::DeprecationLogFn {
+    Arc::new(|deprecation: pacquet_resolving_deps_resolver::Deprecation| {
+        Reporter::emit(&LogEvent::Deprecation(DeprecationLog {
+            level: LogLevel::Debug,
+            pkg_name: deprecation.pkg_name,
+            pkg_version: deprecation.pkg_version,
+            pkg_id: deprecation.pkg_id,
+            prefix: deprecation.prefix,
+            deprecated: deprecation.deprecated,
+            depth: deprecation.depth,
         }));
     })
 }
@@ -2414,7 +2797,9 @@ struct FreshLockfileBuildOptions<'a> {
     patched_dependency_hashes: Option<&'a BTreeMap<String, String>>,
 }
 
-fn build_fresh_lockfile(opts: FreshLockfileBuildOptions<'_>) -> Lockfile {
+fn build_fresh_lockfile(
+    opts: FreshLockfileBuildOptions<'_>,
+) -> Result<Lockfile, DependenciesGraphToLockfileError> {
     let FreshLockfileBuildOptions {
         config,
         importer_manifests,

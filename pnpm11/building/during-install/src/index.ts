@@ -296,7 +296,11 @@ async function buildDependency<T extends string> (
     // In GVS mode, remove the entire hash directory so the next install
     // sees the directory is absent, re-fetches, and re-builds.
     if (opts.enableGlobalVirtualStore) {
-      const hashDir = path.resolve(depNode.dir, '../..')
+      // `depNode.modules` is `<hashDir>/node_modules`, so its parent is the
+      // hash directory for scoped and unscoped names alike. Deriving it from
+      // `depNode.dir` instead would land on `node_modules` for a scoped name,
+      // whose extra path segment makes `../..` one level short.
+      const hashDir = path.dirname(depNode.modules)
       await fs.rm(hashDir, { recursive: true, force: true })
     }
     if (depNode.optional) {

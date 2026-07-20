@@ -66,6 +66,18 @@ pub struct RegistryPackageSpec {
     pub normalized_bare_specifier: Option<String>,
 }
 
+impl RegistryPackageSpec {
+    /// The `latest` dist-tag spec for `name`.
+    pub fn latest_tag(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            fetch_spec: "latest".to_string(),
+            spec_type: RegistryPackageSpecType::Tag,
+            normalized_bare_specifier: None,
+        }
+    }
+}
+
 /// Options bundle for [`pick_package_from_meta`].
 #[derive(Debug, Default)]
 pub struct PickPackageFromMetaOptions<'a> {

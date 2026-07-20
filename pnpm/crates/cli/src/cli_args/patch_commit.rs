@@ -25,7 +25,7 @@ use std::{
 
 #[derive(Debug, Args)]
 pub struct PatchCommitArgs {
-    /// Directory created by `pacquet patch`.
+    /// Directory created by `pnpm patch`.
     pub patch_dir: PathBuf,
     /// The generated patch file will be saved to this directory.
     #[clap(long = "patches-dir", value_name = "dir")]
@@ -38,16 +38,16 @@ pub enum PatchCommitError {
     #[display("{} is not a valid patch directory", patch_dir.display())]
     #[diagnostic(
         code(ERR_PNPM_INVALID_PATCH_DIR),
-        help("A valid patch directory should be created by `pacquet patch`")
+        help("A valid patch directory should be created by `pnpm patch`")
     )]
     InvalidPatchDir { patch_dir: PathBuf },
 
     #[display("Missing package manifest field `{field}` in {}", path.display())]
-    #[diagnostic(code(pacquet::patch_commit_missing_manifest_field))]
+    #[diagnostic(code(ERR_PNPM_PATCH_COMMIT_MISSING_MANIFEST_FIELD))]
     MissingManifestField { path: PathBuf, field: &'static str },
 
     #[display("Failed to read package manifest from {}: {source}", path.display())]
-    #[diagnostic(code(pacquet::patch_commit_read_manifest))]
+    #[diagnostic(code(ERR_PNPM_PATCH_COMMIT_READ_MANIFEST))]
     ReadManifest {
         path: PathBuf,
         #[error(source)]
@@ -55,11 +55,11 @@ pub enum PatchCommitError {
     },
 
     #[display("The modules directory is not ready for patching")]
-    #[diagnostic(code(ERR_PNPM_PATCH_NO_LOCKFILE), help("Run pacquet install first"))]
+    #[diagnostic(code(ERR_PNPM_PATCH_NO_LOCKFILE), help("Run `pnpm install` first"))]
     PatchNoLockfile,
 
     #[display("Failed to create patches directory {}: {source}", path.display())]
-    #[diagnostic(code(pacquet::patch_commit_create_patches_dir))]
+    #[diagnostic(code(ERR_PNPM_PATCH_COMMIT_CREATE_PATCHES_DIR))]
     CreatePatchesDir {
         path: PathBuf,
         #[error(source)]
@@ -75,7 +75,7 @@ pub enum PatchCommitError {
     PatchFileOutsidePatchesDir { patch_file: String },
 
     #[display("Failed to read patch file metadata for {}: {source}", path.display())]
-    #[diagnostic(code(pacquet::patch_commit_read_patch_file_metadata))]
+    #[diagnostic(code(ERR_PNPM_PATCH_COMMIT_READ_PATCH_FILE_METADATA))]
     ReadPatchFileMetadata {
         path: PathBuf,
         #[error(source)]
@@ -83,7 +83,7 @@ pub enum PatchCommitError {
     },
 
     #[display("Failed to write patch file {}: {source}", path.display())]
-    #[diagnostic(code(pacquet::patch_commit_write_patch))]
+    #[diagnostic(code(ERR_PNPM_PATCH_COMMIT_WRITE_PATCH))]
     WritePatch {
         path: PathBuf,
         #[error(source)]
@@ -91,7 +91,7 @@ pub enum PatchCommitError {
     },
 
     #[display("Failed to clean up temporary patch directory {}: {source}", path.display())]
-    #[diagnostic(code(pacquet::patch_commit_cleanup_temp_dir))]
+    #[diagnostic(code(ERR_PNPM_PATCH_COMMIT_CLEANUP_TEMP_DIR))]
     CleanupTempDir {
         path: PathBuf,
         #[error(source)]

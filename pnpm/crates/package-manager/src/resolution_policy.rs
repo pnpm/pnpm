@@ -1,13 +1,18 @@
 //! The config-derived version-pick policy shared by the install resolver
-//! chain and `pacquet add`'s explicit-spec pre-resolution, so both pick
+//! chain and the `pacquet add`/`update` pre-resolutions, so both pick
 //! byte-identical versions (an `add foo@^1` pins the manifest to the same
 //! version the install locks, `minimumReleaseAge` and `resolutionMode`
 //! included).
 
+use crate::retry_config::retry_opts_from_config;
 use chrono::{DateTime, Utc};
 use pacquet_config::{
     Config, ResolutionMode,
     version_policy::{PackageVersionPolicy, VersionPolicyError, create_package_version_policy},
+};
+use pacquet_network::ThrottledClient;
+use pacquet_resolving_npm_resolver::{
+    InMemoryPackageMetaCache, PackumentFetchLocker, PickPackageContext,
 };
 
 /// The version-pick knobs derived purely from [`Config`]. Computed once and
@@ -47,9 +52,6 @@ impl PickPolicy {
         Self::from_config_at(config, chrono::Utc::now())
     }
 
-    /// [`Self::from_config`] with an explicit `now`, so callers that derive
-    /// the policy more than once within an operation can anchor every
-    /// `minimumReleaseAge` cutoff to the same instant.
     /// [`Self::from_config`] with extra `minimumReleaseAgeExclude` specs
     /// merged on top of the config value before the exclude policy is
     /// compiled. `pacquet audit --fix update` uses this to let the resolver
@@ -69,6 +71,9 @@ impl PickPolicy {
         Ok(policy)
     }
 
+    /// [`Self::from_config`] with an explicit `now`, so callers that derive
+    /// the policy more than once within an operation can anchor every
+    /// `minimumReleaseAge` cutoff to the same instant.
     pub(crate) fn from_config_at(
         config: &Config,
         now: DateTime<Utc>,
@@ -95,5 +100,34 @@ impl PickPolicy {
             published_by,
             published_by_exclude,
         })
+    }
+}
+
+/// Build the [`PickPackageContext`] shared by every config-driven pick in a
+/// `pacquet add`/`update` pre-resolution, so every pre-resolution derives
+/// byte-identical context.
+///
+/// `meta_cache` and `fetch_locker` are borrowed from caller-owned locals: each
+/// pre-resolution runs its own short-lived cache rather than sharing the
+/// install's.
+pub(crate) fn pick_package_context<'a>(
+    http_client: &'a ThrottledClient,
+    config: &'a Config,
+    policy: &PickPolicy,
+    meta_cache: &'a InMemoryPackageMetaCache,
+    fetch_locker: &'a PackumentFetchLocker,
+) -> PickPackageContext<'a, InMemoryPackageMetaCache> {
+    PickPackageContext {
+        http_client,
+        auth_headers: &config.auth_headers,
+        meta_cache,
+        fetch_locker,
+        cache_dir: Some(&config.cache_dir),
+        offline: config.offline,
+        prefer_offline: config.prefer_offline,
+        ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
+        full_metadata: policy.full_metadata,
+        filter_metadata: policy.full_metadata,
+        retry_opts: retry_opts_from_config(config),
     }
 }

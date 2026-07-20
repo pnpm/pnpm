@@ -359,19 +359,20 @@ fn collect_importer_deps(
     // order is lost; merge into a `HashMap` (last write wins) and emit
     // in alias-sorted order so the build is deterministic regardless
     // of map seed.
-    let mut merged: HashMap<&PkgName, &pacquet_lockfile::ResolvedDependencySpec> = HashMap::new();
-    for deps in
-        [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
-            .into_iter()
-            .flatten()
-    {
-        for (alias, spec) in deps {
-            merged.insert(alias, spec);
+    let mut merged: HashMap<&PkgName, (&pacquet_lockfile::ResolvedDependencySpec, bool)> =
+        HashMap::new();
+    for (deps, optional) in [
+        (&importer.dependencies, false),
+        (&importer.dev_dependencies, false),
+        (&importer.optional_dependencies, true),
+    ] {
+        for (alias, spec) in deps.iter().flatten() {
+            merged.insert(alias, (spec, optional));
         }
     }
     let mut entries: Vec<_> = merged.into_iter().collect();
     entries.sort_by_key(|(alias, _)| alias.to_string());
-    for (alias, spec) in entries {
+    for (alias, (spec, optional)) in entries {
         // For an aliased importer dep (`ImporterDepVersion::Alias`),
         // the snapshot key is the alias's own (name, suffix);
         // [`ImporterDepVersion::resolved_key`] returns that.
@@ -386,35 +387,44 @@ fn collect_importer_deps(
         let Some(dep_key) = spec.version.resolved_key(alias) else {
             continue;
         };
-        let node = build_dep_node(alias, &dep_key, lockfile, opts, nodes)?;
+        let Some(node) = build_dep_node(alias, &dep_key, optional, lockfile, opts, nodes)? else {
+            continue;
+        };
         out.insert(RcByPtr(node));
     }
     Ok(())
 }
 
+/// Returns `Ok(None)` for an optional edge whose target snapshot is
+/// missing — a skipped optional dependency (platform mismatch, fetch
+/// failure) is filtered out of the current lockfile, and pnpm skips
+/// such an edge rather than treating the lockfile as broken. A
+/// missing snapshot behind a non-optional edge is still
+/// [`HoistError::LockfileMissingDependency`].
 fn build_dep_node(
     alias: &PkgName,
     dep_key: &PkgNameVerPeer,
+    optional: bool,
     lockfile: &Lockfile,
     opts: &HoistOpts,
     nodes: &mut HashMap<String, Rc<HoisterTree>>,
-) -> Result<Rc<HoisterTree>, HoistError> {
+) -> Result<Option<Rc<HoisterTree>>, HoistError> {
     // Cache key is `<alias>:<dep_key>` — two different aliases
     // pointing at the same package are intentionally different nodes
     // (the node's `name` field differs), so they shouldn't share a
     // cache slot.
     let cache_key = format!("{alias}:{dep_key}");
     if let Some(existing) = nodes.get(&cache_key) {
-        return Ok(Rc::clone(existing));
+        return Ok(Some(Rc::clone(existing)));
     }
 
-    let snapshots = lockfile
-        .snapshots
-        .as_ref()
-        .ok_or_else(|| HoistError::LockfileMissingDependency { pkg_key: dep_key.to_string() })?;
-    let snapshot = snapshots
-        .get(dep_key)
-        .ok_or_else(|| HoistError::LockfileMissingDependency { pkg_key: dep_key.to_string() })?;
+    let snapshot = match lockfile.snapshots.as_ref().and_then(|snapshots| snapshots.get(dep_key)) {
+        Some(snapshot) => snapshot,
+        None if optional => return Ok(None),
+        None => {
+            return Err(HoistError::LockfileMissingDependency { pkg_key: dep_key.to_string() });
+        }
+    };
 
     // Peer-name set: peerDependencies (from the `packages:` map)
     // plus transitivePeerDependencies (from the `snapshots:` map).
@@ -460,7 +470,7 @@ fn build_dep_node(
     let mut children: IndexSet<RcByPtr<HoisterTree>> = IndexSet::new();
     collect_snapshot_deps(snapshot, lockfile, opts, nodes, &mut children)?;
     *node.dependencies.borrow_mut() = children;
-    Ok(node)
+    Ok(Some(node))
 }
 
 fn collect_snapshot_deps(
@@ -470,15 +480,17 @@ fn collect_snapshot_deps(
     nodes: &mut HashMap<String, Rc<HoisterTree>>,
     out: &mut IndexSet<RcByPtr<HoisterTree>>,
 ) -> Result<(), HoistError> {
-    let mut merged: HashMap<&PkgName, &pacquet_lockfile::SnapshotDepRef> = HashMap::new();
-    for deps in [&snapshot.dependencies, &snapshot.optional_dependencies].into_iter().flatten() {
-        for (alias, dep_ref) in deps {
-            merged.insert(alias, dep_ref);
+    let mut merged: HashMap<&PkgName, (&pacquet_lockfile::SnapshotDepRef, bool)> = HashMap::new();
+    for (deps, optional) in
+        [(&snapshot.dependencies, false), (&snapshot.optional_dependencies, true)]
+    {
+        for (alias, dep_ref) in deps.iter().flatten() {
+            merged.insert(alias, (dep_ref, optional));
         }
     }
     let mut entries: Vec<_> = merged.into_iter().collect();
     entries.sort_by_key(|(alias, _)| alias.to_string());
-    for (alias, dep_ref) in entries {
+    for (alias, (dep_ref, optional)) in entries {
         // `dep_ref.resolve(alias)` returns the *snapshot lookup
         // key*: `<alias>@<ver>` for `Plain`, `<target>@<ver>` for
         // an npm-alias `Alias`. Pass that as `dep_key` so the
@@ -492,7 +504,9 @@ fn collect_snapshot_deps(
         let Some(dep_key) = dep_ref.resolve(alias) else {
             continue;
         };
-        let node = build_dep_node(alias, &dep_key, lockfile, opts, nodes)?;
+        let Some(node) = build_dep_node(alias, &dep_key, optional, lockfile, opts, nodes)? else {
+            continue;
+        };
         out.insert(RcByPtr(node));
     }
     Ok(())

@@ -21,7 +21,7 @@ const BARE_SPEC_PREFIX: &str = "runtime:";
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum BunResolverError {
     #[display("Could not resolve Bun version specified as {spec}")]
-    #[diagnostic(code(BUN_RESOLUTION_FAILURE))]
+    #[diagnostic(code(ERR_PNPM_BUN_RESOLUTION_FAILURE))]
     ResolutionFailure {
         #[error(not(source))]
         spec: String,

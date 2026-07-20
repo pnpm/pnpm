@@ -30,8 +30,7 @@ use serde_json::Value;
 
 use crate::cli_args::registry_client::build_registry_client;
 
-/// `pacquet publish` arguments. The `-r` / `--recursive` selector is a global
-/// flag on [`crate::CliArgs`] and threaded into [`Self::run`].
+/// Publish a package to the registry.
 #[derive(Debug, Args)]
 pub struct PublishArgs {
     /// Tarball or directory to publish. Defaults to the current directory.
@@ -41,9 +40,7 @@ pub struct PublishArgs {
     pub flags: PublishFlags,
 }
 
-/// The flag half of [`PublishArgs`], split out so `pacquet stage publish`
-/// (which accepts every publish option) can reuse it alongside its own
-/// positional subcommand parameters.
+/// Options controlling how a package is published.
 #[derive(Debug, Args)]
 pub struct PublishFlags {
     /// Do everything `publish` would do except uploading to the registry.
@@ -324,7 +321,7 @@ impl PublishArgs {
         pack_api::<Reporter, PackHost>(&options)
             .await
             .map_err(miette::Report::new)
-            .wrap_err("pack the package")
+            .wrap_err(crate::cli_args::pack::PACK_ERROR_CONTEXT)
     }
 
     /// Map the CLI flags and resolved [`Config`] onto the publish options.

@@ -155,6 +155,33 @@ fn last_value_wins_for_repeated_keys() {
 }
 
 #[test]
+fn dotted_proxy_overrides_apply_to_network_config() {
+    let (overrides, _) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "install",
+        "--config.https-proxy=http://proxy.example:8443",
+        "--config.http-proxy=http://proxy.example:8080",
+        "--config.no-proxy=localhost,127.0.0.1",
+    ]));
+    let mut config = Config::default();
+    config.proxy.https_proxy = Some("http://yaml.example:9443".to_string());
+    config.proxy.http_proxy = Some("http://yaml.example:9080".to_string());
+    config.package_manager_bootstrap.proxy = config.proxy.clone();
+    overrides.apply(&mut config);
+
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://proxy.example:8443"));
+    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://proxy.example:8080"));
+    assert_eq!(
+        config.proxy.no_proxy,
+        Some(pacquet_network::NoProxySetting::List(vec![
+            "localhost".to_string(),
+            "127.0.0.1".to_string(),
+        ])),
+    );
+    assert_eq!(config.package_manager_bootstrap.proxy, config.proxy);
+}
+
+#[test]
 fn apply_is_a_noop_when_no_overrides_set() {
     let (overrides, _) = ConfigOverrides::extract(argv(["pacquet", "install"]));
     let default_registry = Config::default().registry;

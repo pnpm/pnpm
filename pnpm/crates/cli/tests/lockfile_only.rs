@@ -145,7 +145,7 @@ fn frozen_lockfile_only_rejects_a_stale_lockfile() {
     // so assert on the stable diagnostic code instead of the prose.
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
     assert!(
-        stderr.contains("outdated_lockfile"),
+        stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"),
         "stderr must name the outdated-lockfile diagnostic; got:\n{stderr}",
     );
 
@@ -293,11 +293,12 @@ fn lockfile_only_updates_importers_when_a_project_is_added() {
 
     // Add a second project, re-run lockfile-only, and confirm both
     // importers are recorded. `--no-prefer-frozen-lockfile` forces the
-    // fresh-resolve path: pacquet's auto-frozen freshness gate
-    // (`check_lockfile_freshness`) only validates the root importer
-    // today, so it wouldn't notice a newly-added sibling and would
-    // otherwise short-circuit to the frozen path. The flag makes the
-    // re-resolve unconditional.
+    // fresh-resolve path: project-2 declares no dependencies, so the
+    // auto-frozen freshness gate deliberately tolerates its missing
+    // importer entry (`allow_missing_dependency_free_importers`, matching
+    // the TypeScript CLI's `allProjectsAreUpToDate`) and would otherwise
+    // short-circuit to the frozen path without ever recording it. The
+    // flag makes the re-resolve unconditional.
     fs::create_dir_all(workspace.join("packages/project-2")).expect("mkdir project-2");
     fs::write(
         workspace.join("packages/project-2/package.json"),

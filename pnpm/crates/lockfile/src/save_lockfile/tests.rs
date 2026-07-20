@@ -437,3 +437,147 @@ fn write_atomic_rename_failure_surfaces_as_rename_file_error() {
         .collect();
     assert!(leftovers.is_empty(), "temp file should have been cleaned up, found: {leftovers:?}");
 }
+
+#[test]
+fn save_leaves_an_unchanged_lockfile_untouched() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join(Lockfile::FILE_NAME);
+    let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    lockfile.save_to_path(&path).unwrap();
+    let mtime_before = std::fs::metadata(&path).unwrap().modified().unwrap();
+
+    lockfile.save_to_path(&path).unwrap();
+
+    let mtime_after = std::fs::metadata(&path).unwrap().modified().unwrap();
+    assert_eq!(mtime_before, mtime_after, "an unchanged lockfile must not be rewritten");
+}
+
+#[test]
+fn save_leaves_an_unchanged_crlf_lockfile_untouched() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join(Lockfile::FILE_NAME);
+    let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    lockfile.save_to_path(&path).unwrap();
+    let crlf_content = std::fs::read_to_string(&path).unwrap().replace('\n', "\r\n");
+    std::fs::write(&path, &crlf_content).unwrap();
+    let mtime_before = std::fs::metadata(&path).unwrap().modified().unwrap();
+
+    lockfile.save_to_path(&path).unwrap();
+
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), crlf_content);
+    assert_eq!(std::fs::metadata(&path).unwrap().modified().unwrap(), mtime_before);
+}
+
+#[test]
+fn save_leaves_an_unchanged_lockfile_with_env_document_untouched() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join(Lockfile::FILE_NAME);
+    let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    lockfile.save_to_path(&path).unwrap();
+    let main_doc = std::fs::read_to_string(&path).unwrap();
+    let env_doc = "---\nlockfileVersion: '9.0'\nimporters:\n  .:\n    configDependencies: {}\npackages: {}\nsnapshots: {}\n---\n";
+    std::fs::write(&path, format!("{env_doc}{main_doc}")).unwrap();
+    let mtime_before = std::fs::metadata(&path).unwrap().modified().unwrap();
+
+    lockfile.save_to_path(&path).unwrap();
+
+    let mtime_after = std::fs::metadata(&path).unwrap().modified().unwrap();
+    assert_eq!(mtime_before, mtime_after, "re-prepending the same env document must not rewrite");
+}
+
+#[cfg(unix)]
+#[test]
+fn save_refuses_symlinked_lockfile_without_touching_target() {
+    let dir = tempdir().unwrap();
+    let victim = dir.path().join("victim-file");
+    std::fs::write(&victim, "victim content").unwrap();
+    let path = dir.path().join(Lockfile::FILE_NAME);
+    std::os::unix::fs::symlink(&victim, &path).unwrap();
+
+    let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    let error = lockfile.save_to_path(&path).expect_err("a symlinked lockfile must not be written");
+
+    assert!(error.to_string().contains("symlinked lockfile"), "unexpected error: {error:?}");
+    assert!(std::fs::symlink_metadata(&path).unwrap().file_type().is_symlink());
+    assert_eq!(
+        std::fs::read_to_string(&victim).unwrap(),
+        "victim content",
+        "the symlink target must not be clobbered",
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn save_accepts_symlinked_lockfile_when_nothing_changes() {
+    let dir = tempdir().unwrap();
+    let staged = dir.path().join("staged-lockfile.yaml");
+    let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    lockfile.save_to_path(&staged).unwrap();
+    let target_before = std::fs::read(&staged).unwrap();
+    let mtime_before = std::fs::metadata(&staged).unwrap().modified().unwrap();
+    let path = dir.path().join(Lockfile::FILE_NAME);
+    std::os::unix::fs::symlink(&staged, &path).unwrap();
+
+    lockfile.save_to_path(&path).expect("an unchanged lockfile must not trip the symlink guard");
+
+    assert!(std::fs::symlink_metadata(&path).unwrap().file_type().is_symlink());
+    assert_eq!(std::fs::read(&staged).unwrap(), target_before);
+    assert_eq!(std::fs::metadata(&staged).unwrap().modified().unwrap(), mtime_before);
+}
+
+#[cfg(unix)]
+#[test]
+fn save_accepts_unchanged_crlf_symlinked_lockfile() {
+    let dir = tempdir().unwrap();
+    let staged = dir.path().join("staged-lockfile.yaml");
+    let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    lockfile.save_to_path(&staged).unwrap();
+    let crlf_content = std::fs::read_to_string(&staged).unwrap().replace('\n', "\r\n");
+    std::fs::write(&staged, &crlf_content).unwrap();
+    let mtime_before = std::fs::metadata(&staged).unwrap().modified().unwrap();
+    let path = dir.path().join(Lockfile::FILE_NAME);
+    std::os::unix::fs::symlink(&staged, &path).unwrap();
+
+    lockfile
+        .save_to_path(&path)
+        .expect("an unchanged CRLF lockfile must not trip the symlink guard");
+
+    assert_eq!(std::fs::read_to_string(&staged).unwrap(), crlf_content);
+    assert_eq!(std::fs::metadata(&staged).unwrap().modified().unwrap(), mtime_before);
+}
+
+#[cfg(unix)]
+#[test]
+fn save_preserves_the_lockfile_permission_mode() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let dir = tempdir().unwrap();
+    let path = dir.path().join(Lockfile::FILE_NAME);
+    let mut lockfile: Lockfile =
+        serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    lockfile.save_to_path(&path).unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640)).unwrap();
+
+    // Re-save changed content so the write actually happens.
+    lockfile.packages = None;
+    lockfile.save_to_path(&path).unwrap();
+
+    let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o640, "an atomic replace must carry the target's mode across");
+}
+
+#[test]
+fn save_leaves_no_temp_file_behind() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join(Lockfile::FILE_NAME);
+    let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+
+    lockfile.save_to_path(&path).unwrap();
+
+    let leftovers: Vec<_> = std::fs::read_dir(dir.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .filter(|name| name.to_string_lossy() != Lockfile::FILE_NAME)
+        .collect();
+    assert!(leftovers.is_empty(), "temp file should not be left behind, found: {leftovers:?}");
+}

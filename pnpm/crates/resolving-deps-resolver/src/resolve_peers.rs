@@ -47,7 +47,7 @@ use pacquet_deps_path::{
     DepPath, PeerId, create_peer_dep_graph_hash, index_of_dep_path_suffix,
     link_path_to_peer_version,
 };
-use pacquet_resolving_resolver_base::ResolveResult;
+use pacquet_resolving_resolver_base::{ResolveResult, get_peer_version_range};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     path::{Path, PathBuf},
@@ -78,6 +78,35 @@ use std::{
 fn link_node_id_as_dep_path(node_id: &NodeId) -> Option<DepPath> {
     let NodeId::Leaf(id) = node_id else { return None };
     id.starts_with("link:").then(|| DepPath::from(id.to_string()))
+}
+
+fn importer_relative_link_dep_path(
+    dep_path: &DepPath,
+    lockfile_dir: Option<&Path>,
+    project_dir: Option<&Path>,
+) -> DepPath {
+    let Some(target) = dep_path.as_str().strip_prefix("link:") else {
+        return dep_path.clone();
+    };
+    let (Some(lockfile_dir), Some(project_dir)) = (lockfile_dir, project_dir) else {
+        return dep_path.clone();
+    };
+    let target = Path::new(target);
+    let absolute_target = if target.is_absolute() {
+        pacquet_fs::lexical_normalize(target)
+    } else {
+        pacquet_fs::lexical_normalize(&lockfile_dir.join(target))
+    };
+    // `diff_paths` walks both paths component-wise, so a base still
+    // carrying `.` / `..` segments would consume them as real directories
+    // and count the wrong number of `..` hops back out.
+    let project_dir = pacquet_fs::lexical_normalize(project_dir);
+    let relative_target = pathdiff::diff_paths(&absolute_target, project_dir)
+        .unwrap_or(absolute_target)
+        .display()
+        .to_string()
+        .replace('\\', "/");
+    DepPath::from(format!("link:{relative_target}"))
 }
 
 fn node_id_sort_key(node_id: &NodeId) -> String {
@@ -120,6 +149,10 @@ pub struct ResolvePeersOptions {
     /// and (b) as the base for the relative path the remapped link
     /// node id encodes. `None` disables the remap.
     pub lockfile_dir: Option<std::path::PathBuf>,
+
+    /// Absolute root of the importer whose direct dependency map is
+    /// being rendered. Snapshot graph edges remain lockfile-root-relative.
+    pub project_dir: Option<std::path::PathBuf>,
 
     /// Absolute path of the importer's `node_modules` directory. Used
     /// to compose `<modules_dir>/<alias>` as the remap target.
@@ -195,6 +228,7 @@ impl Default for ResolvePeersOptions {
             dedupe_peers: false,
             exclude_links_from_lockfile: false,
             lockfile_dir: None,
+            project_dir: None,
             modules_dir: None,
             hoist_missing_scope: None,
             hoisted_peer_provider_node_ids: std::collections::HashSet::new(),
@@ -397,7 +431,13 @@ pub fn resolve_peers_workspace(
             .direct
             .iter()
             .map(|dep| {
-                (dep.alias.clone(), walker.final_dep_path_of(&dep.node_id, &final_dep_paths))
+                let dep_path = walker.final_dep_path_of(&dep.node_id, &final_dep_paths);
+                let dep_path = importer_relative_link_dep_path(
+                    &dep_path,
+                    Some(lockfile_dir),
+                    Some(&importer.root_dir),
+                );
+                (dep.alias.clone(), dep_path)
             })
             .collect();
         direct_dependencies_by_importer.insert(importer.id.clone(), direct_by_alias);
@@ -611,8 +651,6 @@ struct MissingPeerInfo {
     range: String,
     #[allow(dead_code, reason = "future peersCache validation")]
     optional: bool,
-    /// See [`crate::dependencies_graph::MissingPeer::meta_only`].
-    meta_only: bool,
 }
 
 /// Output of [`Walker::resolve_node`] — the per-node result the parent
@@ -687,8 +725,13 @@ impl Walker<'_> {
         // per-node records keyed by the corrected depPaths.
         let final_dep_paths = self.build_final_dep_paths();
         for dep in &direct {
-            direct_by_alias
-                .insert(dep.alias.clone(), self.final_dep_path_of(&dep.node_id, &final_dep_paths));
+            let dep_path = self.final_dep_path_of(&dep.node_id, &final_dep_paths);
+            let dep_path = importer_relative_link_dep_path(
+                &dep_path,
+                self.opts.lockfile_dir.as_deref(),
+                self.opts.project_dir.as_deref(),
+            );
+            direct_by_alias.insert(dep.alias.clone(), dep_path);
         }
         let graph = self.build_final_graph(&final_dep_paths);
         let resolved_peer_providers_by_alias = self.resolved_peer_providers_by_alias;
@@ -975,9 +1018,9 @@ impl Walker<'_> {
                         continue;
                     }
                     self.issues.missing.entry(peer_name.clone()).or_default().push(MissingPeer {
-                        wanted_range: info.range.clone(),
+                        wanted_range: get_peer_version_range(&info.range),
+                        raw_range: info.range.clone(),
                         optional: info.optional,
-                        meta_only: info.meta_only,
                         parents: parents_from_chain(parent_chain_names, &pkg_name),
                     });
                 }
@@ -1053,9 +1096,7 @@ impl Walker<'_> {
                 &mut own_resolved_peers,
                 &mut own_missing_peers,
             );
-            if !peer_dep.meta_only
-                && let Some(peer_node_id) = own_resolved_peers.get(peer_name)
-            {
+            if let Some(peer_node_id) = own_resolved_peers.get(peer_name) {
                 auto_install_resolved_peers.insert(peer_name.clone(), peer_node_id.clone());
             }
         }
@@ -1266,32 +1307,37 @@ impl Walker<'_> {
         missing: &mut HashMap<String, MissingPeerInfo>,
     ) {
         let raw_range = peer_dep.version.as_str();
+        // The stored range keeps the original scheme (only `workspace:` is
+        // stripped) so it still selects the package to auto-install for a
+        // missing peer, e.g. `work:5.x.x` fetches from the `work` registry.
         let range_for_match = raw_range.strip_prefix("workspace:").unwrap_or(raw_range);
+        // The satisfaction check needs a comparable semver range, so
+        // named-registry/`npm:` bodies are extracted and opaque specs become `*`.
+        let range_for_satisfies = get_peer_version_range(raw_range);
         let optional = peer_dep.optional;
-        let meta_only = peer_dep.meta_only;
 
         match parent_refs.get(peer_name) {
             None => {
                 missing.insert(
                     peer_name.to_string(),
-                    MissingPeerInfo { range: range_for_match.to_string(), optional, meta_only },
+                    MissingPeerInfo { range: range_for_match.to_string(), optional },
                 );
                 if !self.missing_issue_suppressed(ancestor_pkg_ids, peer_name) {
                     self.issues.missing.entry(peer_name.to_string()).or_default().push(
                         MissingPeer {
-                            wanted_range: range_for_match.to_string(),
+                            wanted_range: range_for_satisfies,
+                            raw_range: range_for_match.to_string(),
                             optional,
-                            meta_only,
                             parents: parents_from_chain(chain, pkg_name),
                         },
                     );
                 }
             }
             Some(parent) => {
-                if !satisfies_with_prereleases(&parent.version, range_for_match) {
+                if !satisfies_with_prereleases(&parent.version, &range_for_satisfies) {
                     self.issues.bad.entry(peer_name.to_string()).or_default().push(
                         PeerDependencyIssue {
-                            wanted_range: range_for_match.to_string(),
+                            wanted_range: range_for_satisfies,
                             found_version: parent.version.clone(),
                             optional,
                             parents: parents_from_chain(chain, pkg_name),

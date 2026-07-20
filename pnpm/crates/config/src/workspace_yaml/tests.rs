@@ -251,6 +251,11 @@ fn ignores_env_vars_inside_workspace_request_destination_values() {
     let yaml = r"
 pnprServer: https://${WORK_HOST}/pnpr/
 registry: https://${WORK_HOST}/npm/
+httpsProxy: http://${WORK_HOST}:8080/
+httpProxy: http://${WORK_HOST}:8081/
+noProxy: ${WORK_HOST}
+proxy: http://${WORK_HOST}:8082/
+noproxy: ${WORK_HOST}
 registries:
   '@safe': https://safe.example.com/npm/
   '@work': https://${WORK_HOST}/scope/
@@ -265,6 +270,7 @@ namedRegistries:
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.pnpr_server, None);
     assert_eq!(config.registry, "https://registry.npmjs.org/");
+    assert_eq!(config.proxy, pacquet_network::ProxyConfig::default());
     assert_eq!(
         config.registries.get("@safe").map(String::as_str),
         Some("https://safe.example.com/npm/"),
@@ -330,6 +336,9 @@ fn trusted_settings_expand_env_vars_inside_request_destination_values() {
     let yaml = r"
 pnprServer: https://${WORK_HOST}/pnpr/
 registry: https://${WORK_HOST}/npm/
+httpsProxy: http://${WORK_HOST}:8080/
+httpProxy: http://${WORK_HOST}:8081/
+noProxy: ${WORK_HOST}
 namedRegistries:
   stable: https://registry.example.com/npm/
   work: https://${WORK_HOST}/work/
@@ -340,6 +349,12 @@ namedRegistries:
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.pnpr_server.as_deref(), Some("https://internal.example.com/pnpr/"));
     assert_eq!(config.registry, "https://internal.example.com/npm/");
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://internal.example.com:8080/"));
+    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://internal.example.com:8081/"));
+    assert_eq!(
+        config.proxy.no_proxy,
+        Some(pacquet_network::NoProxySetting::List(vec!["internal.example.com".to_string()])),
+    );
     assert_eq!(
         config.named_registries.get("stable").map(String::as_str),
         Some("https://registry.example.com/npm/"),

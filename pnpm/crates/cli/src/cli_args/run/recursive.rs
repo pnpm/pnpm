@@ -192,6 +192,7 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
                 config,
                 extra_env: &extra_env,
                 silent: true,
+                sequential: args.sequential,
             };
             let status = run_stages(&ctx, script_name, script, &args.args)?;
             let duration = start.elapsed().as_secs_f64() * 1e3;

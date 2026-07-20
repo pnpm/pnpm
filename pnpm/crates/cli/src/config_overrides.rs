@@ -87,6 +87,9 @@ pub struct ConfigOverrides {
     node_linker: Option<NodeLinker>,
     shared_workspace_lockfile: Option<bool>,
     verify_deps_before_run: Option<VerifyDepsBeforeRun>,
+    https_proxy: Option<String>,
+    http_proxy: Option<String>,
+    no_proxy: Option<String>,
 }
 
 impl ConfigOverrides {
@@ -123,6 +126,18 @@ impl ConfigOverrides {
             self.registry = Some(normalize_registry_url(value));
             return;
         }
+        if key == "https-proxy" {
+            self.https_proxy = Some(value.to_string());
+            return;
+        }
+        if key == "http-proxy" {
+            self.http_proxy = Some(value.to_string());
+            return;
+        }
+        if key == "no-proxy" {
+            self.no_proxy = Some(value.to_string());
+            return;
+        }
         if key == "deploy-all-files" {
             self.deploy_all_files = parse_bool(value);
             return;
@@ -157,6 +172,11 @@ impl ConfigOverrides {
     /// been built from defaults, `.npmrc`, and `pnpm-workspace.yaml`.
     /// Mirrors pnpm 11's "CLI > yaml > .npmrc > defaults" precedence.
     pub fn apply(&self, config: &mut Config) {
+        config.apply_proxy_cli_overrides(
+            self.https_proxy.as_deref(),
+            self.http_proxy.as_deref(),
+            self.no_proxy.as_deref(),
+        );
         if let Some(registry) = &self.registry {
             config.registry.clone_from(registry);
             config.registries.insert("default".to_string(), registry.clone());
@@ -251,6 +271,9 @@ fn global_option_width(arg: &str) -> Option<usize> {
         "dir"
             | "filter"
             | "filter-prod"
+            | "http-proxy"
+            | "https-proxy"
+            | "no-proxy"
             | "npmrc-auth-file"
             | "reporter"
             | "store-dir"

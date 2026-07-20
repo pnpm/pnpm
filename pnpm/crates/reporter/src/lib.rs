@@ -36,6 +36,12 @@ pub enum LogEvent {
     #[serde(rename = "pnpm:stage")]
     Stage(StageLog),
 
+    /// Brackets an interactive terminal prompt (`pnpm:prompt`). The default
+    /// reporter holds live redraws between `start` and `end` so they cannot
+    /// overwrite the question while it is waiting for input.
+    #[serde(rename = "pnpm:prompt")]
+    Prompt(PromptLog),
+
     /// End-of-install marker (`pnpm:summary`). pnpm's reporter combines
     /// this with the accumulated `pnpm:root` events to render the final
     /// "+N -M" block.
@@ -176,6 +182,15 @@ pub enum LogEvent {
     /// it as the `Done in <time> using <pkg> v<version>` footer.
     #[serde(rename = "pnpm:execution-time")]
     ExecutionTime(ExecutionTimeLog),
+
+    /// Deprecated-package warning (`pnpm:deprecation`). Emitted once per
+    /// newly-resolved package whose registry manifest carries a `deprecated`
+    /// field and whose name/version is not covered by
+    /// `allowedDeprecatedVersions`. Direct dependencies (`depth == 0`) are
+    /// rendered immediately; transitive ones are buffered and summarized at
+    /// `pnpm:stage` time.
+    #[serde(rename = "pnpm:deprecation")]
+    Deprecation(DeprecationLog),
 }
 
 /// `pnpm:context` payload.
@@ -201,6 +216,21 @@ pub struct StageLog {
     pub level: LogLevel,
     pub prefix: String,
     pub stage: Stage,
+}
+
+/// `pnpm:prompt` payload.
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct PromptLog {
+    pub level: LogLevel,
+    pub action: PromptAction,
+}
+
+/// Whether an interactive prompt is acquiring or releasing the terminal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PromptAction {
+    Start,
+    End,
 }
 
 /// `pnpm:stage` phase marker.
@@ -785,6 +815,23 @@ pub struct ExecutionTimeLog {
     pub level: LogLevel,
     pub started_at: u128,
     pub ended_at: u128,
+}
+
+/// `pnpm:deprecation` payload. Field names match pnpm's
+/// [`DeprecationMessage`] wire shape so `@pnpm/cli.default-reporter`
+/// dispatches on them unchanged.
+///
+/// [`DeprecationMessage`]: https://github.com/pnpm/pnpm/blob/main/core/core-loggers/src/deprecationLogger.ts
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeprecationLog {
+    pub level: LogLevel,
+    pub pkg_name: String,
+    pub pkg_version: String,
+    pub pkg_id: String,
+    pub prefix: String,
+    pub deprecated: String,
+    pub depth: i32,
 }
 
 /// Severity level on the [bunyan]-shaped envelope.

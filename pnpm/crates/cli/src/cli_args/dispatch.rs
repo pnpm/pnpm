@@ -10,6 +10,7 @@ use crate::{
 use miette::{Context, IntoDiagnostic};
 use pacquet_config::{Config, Host, default_pnpm_home_dir};
 use pacquet_default_reporter::SummaryScope;
+use pacquet_network_web_auth::OtpNonInteractiveError;
 use pacquet_reporter::{ExecutionTimeLog, LogEvent, LogLevel};
 use std::{future::Future, path::Path, pin::Pin};
 
@@ -90,6 +91,11 @@ impl CliArgs {
             return false;
         };
         config_overrides.apply(&mut config);
+        config.apply_proxy_cli_overrides(
+            self.https_proxy.as_deref(),
+            self.http_proxy.as_deref(),
+            self.no_proxy.as_deref(),
+        );
         if let Some(store_dir) = self.store_dir.as_deref()
             && apply_store_dir_override::<Host>(&mut config, store_dir, &dir).is_err()
         {
@@ -127,6 +133,9 @@ impl CliArgs {
             dir,
             store_dir,
             npmrc_auth_file,
+            https_proxy,
+            http_proxy,
+            no_proxy,
             recursive,
             reporter,
             filter,
@@ -167,6 +176,7 @@ impl CliArgs {
                 | CliCommand::Update(_)
                 | CliCommand::Remove(_)
                 | CliCommand::Install(_)
+                | CliCommand::InstallTest(_)
                 | CliCommand::Dlx(_)
                 | CliCommand::Link(_)
                 | CliCommand::Import(_)
@@ -184,6 +194,7 @@ impl CliArgs {
                 | CliCommand::PatchCommit(_)
                 | CliCommand::PatchRemove(_),
         );
+        let print_json_errors = prints_json_errors(&command);
         let manifest_path = dir.join("package.json");
         // Load config anchored at `anchor`, reading `.npmrc` /
         // `pnpm-workspace.yaml` from there.
@@ -201,6 +212,11 @@ impl CliArgs {
                 .wrap_err("load configuration")
                 .and_then(|mut cfg| {
                     config_overrides.apply(&mut cfg);
+                    cfg.apply_proxy_cli_overrides(
+                        https_proxy.as_deref(),
+                        http_proxy.as_deref(),
+                        no_proxy.as_deref(),
+                    );
                     if let Some(store_dir) = store_dir.as_deref() {
                         apply_store_dir_override::<Host>(&mut cfg, store_dir, anchor)?;
                     }
@@ -268,7 +284,24 @@ impl CliArgs {
             global_config: &global_config,
             state: &state,
         };
-        route(command, &ctx)?.await?;
+        match route(command, &ctx) {
+            Ok(future) => {
+                if let Err(error) = future.await {
+                    if print_json_errors {
+                        print_json_error(&error);
+                        std::process::exit(1);
+                    }
+                    return Err(error);
+                }
+            }
+            Err(error) => {
+                if print_json_errors {
+                    print_json_error(&error);
+                    std::process::exit(1);
+                }
+                return Err(error);
+            }
+        }
 
         // The `Done in ...` footer covers the whole command, mirroring pnpm's
         // `pnpm:execution-time` emit in `main.ts`. Only the install-family
@@ -296,8 +329,10 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
     match command {
         CliCommand::Access(args) => dispatch_query::access(ctx, args),
         CliCommand::Init => dispatch_script::init(ctx),
+        CliCommand::Recursive => dispatch_query::recursive(ctx),
         CliCommand::Add(args) => dispatch_install::add(ctx, args),
         CliCommand::Install(args) => dispatch_install::install(ctx, args),
+        CliCommand::InstallTest(args) => dispatch_install::install_test(ctx, args),
         CliCommand::Update(args) => dispatch_install::update(ctx, args),
         CliCommand::Outdated(args) => dispatch_query::outdated(ctx, args),
         CliCommand::Audit(args) => dispatch_query::audit(ctx, args),
@@ -307,6 +342,7 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
         CliCommand::Bugs(args) => dispatch_query::bugs(ctx, args),
         CliCommand::List(args) => dispatch_query::list(ctx, args),
         CliCommand::Ll(args) => dispatch_query::ll(ctx, args),
+        CliCommand::Licenses(args) => dispatch_query::licenses(ctx, args),
         CliCommand::Why(args) => dispatch_query::why(ctx, args),
         CliCommand::Sbom(args) => dispatch_query::sbom(ctx, args),
         CliCommand::Whoami => dispatch_query::whoami(ctx),
@@ -315,9 +351,11 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
         CliCommand::Stars(args) => dispatch_query::stars(ctx, args),
         CliCommand::DistTag(args) => dispatch_query::dist_tag(ctx, args),
         CliCommand::Team(args) => dispatch_query::team(ctx, args),
+        CliCommand::Owner(args) => dispatch_query::owner(ctx, args),
         CliCommand::Deprecate(args) => dispatch_query::deprecate(ctx, args),
         CliCommand::Undeprecate(args) => dispatch_query::undeprecate(ctx, args),
         CliCommand::Ping(args) => dispatch_query::ping(ctx, args),
+        CliCommand::Doctor(args) => dispatch_query::doctor(ctx, args),
         CliCommand::Search(args) => dispatch_query::search(ctx, args),
         CliCommand::Rebuild(args) => dispatch_install::rebuild(ctx, args),
         CliCommand::Pack(args) => dispatch_query::pack(ctx, args),
@@ -341,6 +379,8 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
         CliCommand::FindHash(args) => dispatch_query::find_hash(ctx, args),
         CliCommand::Runtime(args) => dispatch_install::runtime(ctx, args),
         CliCommand::Bin(args) => dispatch_query::bin(ctx, args),
+        CliCommand::Clean(args) => dispatch_query::clean(ctx, args, "clean"),
+        CliCommand::Purge(args) => dispatch_query::clean(ctx, args, "purge"),
         CliCommand::Root(args) => dispatch_query::root(ctx, args),
         CliCommand::Prefix(args) => dispatch_query::prefix(ctx, args),
         CliCommand::Config(args) => dispatch_query::config(ctx, args),
@@ -372,6 +412,52 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
     }
 }
 
+fn prints_json_errors(command: &CliCommand) -> bool {
+    matches!(command, CliCommand::Publish(args) if args.flags.json)
+}
+
+fn print_json_error(error: &miette::Report) {
+    let code = error.code().map_or_else(|| "pnpm".to_string(), |code| code.to_string());
+    let message = json_error_message(error);
+    let mut error_body = serde_json::json!({
+        "code": code,
+        "message": message,
+    });
+    if let Some(otp_error) = otp_non_interactive_error(error) {
+        if let Some(auth_url) = &otp_error.auth_url {
+            error_body["authUrl"] = serde_json::Value::String(auth_url.clone());
+        }
+        if let Some(done_url) = &otp_error.done_url {
+            error_body["doneUrl"] = serde_json::Value::String(done_url.clone());
+        }
+    }
+    let output = serde_json::json!({
+        "error": error_body,
+    });
+    // pnpm's `errorHandler` prints the envelope with `JSON.stringify(_, null, 2)`;
+    // match its two-space indentation byte-for-byte.
+    let output = serde_json::to_string_pretty(&output).expect("a JSON error envelope serializes");
+    println!("{output}");
+}
+
+fn json_error_message(error: &miette::Report) -> String {
+    let mut messages = error.chain().map(ToString::to_string);
+    match (messages.next(), messages.next()) {
+        (Some(context), Some(source)) if context == super::pack::PACK_ERROR_CONTEXT => source,
+        (Some(message), _) => message,
+        (None, _) => error.to_string(),
+    }
+}
+
+fn otp_non_interactive_error(error: &miette::Report) -> Option<&OtpNonInteractiveError> {
+    error
+        .downcast_ref::<OtpNonInteractiveError>()
+        .or_else(|| error.chain().find_map(|cause| cause.downcast_ref::<OtpNonInteractiveError>()))
+}
+
 fn now_millis() -> u128 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis())
 }
+
+#[cfg(test)]
+mod tests;

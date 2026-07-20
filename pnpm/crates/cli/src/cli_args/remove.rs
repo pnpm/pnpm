@@ -1,4 +1,4 @@
-use crate::State;
+use crate::{State, cli_args::pipelines::InstallFamilySelection};
 use clap::Args;
 use miette::Context;
 use pacquet_package_manager::Remove;
@@ -43,11 +43,11 @@ pub struct RemoveArgs {
     #[clap(flatten)]
     pub dependency_options: RemoveDependencyOptions,
     /// Dependencies are not removed from `node_modules`. Only the manifest
-    /// and `pnpm-lock.yaml` are updated. Mirrors pnpm's `--lockfile-only`.
+    /// and `pnpm-lock.yaml` are updated.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
     /// Remove the package from the global packages directory and unlink its
-    /// bins. Mirrors pnpm's `remove -g`.
+    /// bins.
     #[clap(short = 'g', long)]
     pub global: bool,
 }
@@ -58,15 +58,12 @@ impl RemoveArgs {
         self,
         mut state: State,
     ) -> miette::Result<()> {
+        let lockfile_path = state.lockfile_path();
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &mut state;
         let lockfile =
             lockfile.get().map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
 
-        let lockfile_path = manifest
-            .path()
-            .parent()
-            .map(|parent| parent.join(pacquet_lockfile::Lockfile::FILE_NAME));
         Remove {
             tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
             http_client,
@@ -74,7 +71,7 @@ impl RemoveArgs {
             config,
             manifest,
             lockfile,
-            lockfile_path: lockfile_path.as_deref(),
+            lockfile_path: Some(&lockfile_path),
             package_names: &self.package_names,
             save_type: self.dependency_options.save_type(),
             resolved_packages,
@@ -82,6 +79,48 @@ impl RemoveArgs {
             lockfile_only: self.lockfile_only,
         }
         .run::<Reporter>()
+        .await
+        .wrap_err("removing a package")
+    }
+
+    pub(crate) async fn run_selected<Reporter: self::Reporter + 'static>(
+        self,
+        mut state: State,
+        selection: InstallFamilySelection,
+    ) -> miette::Result<()> {
+        let InstallFamilySelection {
+            workspace_root: _,
+            mut projects,
+            ordered_dirs,
+            selected_dirs,
+            active_manifest_is_standin,
+        } = selection;
+        let lockfile_path = state.lockfile_path();
+        let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
+            &mut state;
+        let lockfile =
+            lockfile.get().map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+
+        Remove {
+            tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
+            http_client,
+            http_client_arc: std::sync::Arc::clone(http_client),
+            config,
+            manifest,
+            lockfile,
+            lockfile_path: Some(&lockfile_path),
+            package_names: &self.package_names,
+            save_type: self.dependency_options.save_type(),
+            resolved_packages,
+            supported_architectures: config.supported_architectures.clone(),
+            lockfile_only: self.lockfile_only,
+        }
+        .run_selected::<Reporter>(
+            &mut projects,
+            &ordered_dirs,
+            selected_dirs.as_ref(),
+            active_manifest_is_standin,
+        )
         .await
         .wrap_err("removing a package")
     }

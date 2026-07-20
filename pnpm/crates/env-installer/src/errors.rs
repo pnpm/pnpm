@@ -85,7 +85,7 @@ pub enum ConfigDepError {
     Import(#[error(source)] ImportIndexedDirError),
 
     #[display("Failed to create config-dependency symlink at {path:?}: {error}")]
-    #[diagnostic(code(pacquet_env_installer::symlink))]
+    #[diagnostic(code(ERR_PNPM_ENV_INSTALLER_SYMLINK))]
     Symlink {
         path: PathBuf,
         #[error(source)]
@@ -93,7 +93,7 @@ pub enum ConfigDepError {
     },
 
     #[display("Failed to read config-modules directory {path:?}: {error}")]
-    #[diagnostic(code(pacquet_env_installer::read_config_modules))]
+    #[diagnostic(code(ERR_PNPM_ENV_INSTALLER_READ_CONFIG_MODULES))]
     ReadConfigModules {
         path: PathBuf,
         #[error(source)]

@@ -219,6 +219,48 @@ fn set_global_https_proxy_writes_config_yaml_not_auth_ini() {
 }
 
 #[test]
+fn set_global_http_proxy_writes_config_yaml() {
+    let tmp = TempDir::new().unwrap();
+    let config_dir = tmp.path().join("global-config");
+    let config = config_with_dir(&config_dir);
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(true, None, false),
+        "httpProxy",
+        Some("http://proxy.example.com:8080".into()),
+    )
+    .unwrap();
+
+    assert_eq!(
+        read_yaml(&config_dir.join("config.yaml")).unwrap(),
+        json!({ "httpProxy": "http://proxy.example.com:8080" }),
+    );
+}
+
+#[test]
+fn set_global_no_proxy_writes_config_yaml() {
+    let tmp = TempDir::new().unwrap();
+    let config_dir = tmp.path().join("global-config");
+    let config = config_with_dir(&config_dir);
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(true, None, false),
+        "no-proxy",
+        Some("localhost,127.0.0.1".into()),
+    )
+    .unwrap();
+
+    assert_eq!(
+        read_yaml(&config_dir.join("config.yaml")).unwrap(),
+        json!({ "noProxy": "localhost,127.0.0.1" }),
+    );
+}
+
+#[test]
 fn set_key_equals_value_form() {
     let tmp = TempDir::new().unwrap();
     let config = config_with_dir(&tmp.path().join("global-config"));
@@ -574,7 +616,7 @@ fn set_ini_value_with_control_char_is_rejected() {
 
     assert_eq!(
         err.code().unwrap().to_string(),
-        "pacquet_cli::config_set_invalid_control_character",
+        "ERR_PNPM_CLI_CONFIG_SET_INVALID_CONTROL_CHARACTER",
     );
     // The file must not have been written.
     assert!(!tmp.path().join(".npmrc").exists());

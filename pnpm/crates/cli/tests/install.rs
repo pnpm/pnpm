@@ -12,8 +12,10 @@ use pacquet_testing_utils::{
 #[cfg(unix)]
 use pipe_trait::Pipe;
 use std::{
+    fmt::Write as _,
     fs::{self, OpenOptions},
     io::Write,
+    path::Path,
     process::Command,
 };
 
@@ -112,6 +114,80 @@ fn no_optional_excludes_transitive_optional_dependencies() {
     assert!(
         virtual_store.join("is-positive@1.0.0").exists(),
         "a normal install must restore the previously excluded optional dependency",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn fresh_isolated_install_rejects_required_incompatible_engine_in_strict_mode() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_required_incompatible_engine_fixture(&workspace, true);
+
+    let assert = pacquet.with_arg("install").assert().failure();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    eprintln!("STDERR:\n{stderr}\n");
+    assert!(
+        stderr.contains("Unsupported engine for incompatible-engine@file:incompatible-engine"),
+        "stderr must identify the incompatible lockfile package ID; got:\n{stderr}",
+    );
+    assert!(
+        stderr.contains(r#"wanted: {"node":">=999.0.0"}"#),
+        "stderr must report the required Node.js version; got:\n{stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn fresh_isolated_install_allows_required_incompatible_engine_without_strict_mode() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_required_incompatible_engine_fixture(&workspace, false);
+
+    pacquet.with_arg("install").assert().success();
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn frozen_isolated_install_rejects_required_incompatible_engine_in_strict_mode() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_required_incompatible_engine_fixture(&workspace, false);
+    pacquet.with_arg("install").assert().success();
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    let strict_workspace_yaml = workspace_yaml.replace("engineStrict: false", "engineStrict: true");
+    assert_ne!(
+        strict_workspace_yaml, workspace_yaml,
+        "fixture must contain the non-strict setting before the frozen install",
+    );
+    fs::write(&workspace_yaml_path, strict_workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    let assert = new_pacquet_command(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    eprintln!("STDERR:\n{stderr}\n");
+    assert!(
+        stderr.contains("Unsupported engine for incompatible-engine@file:incompatible-engine"),
+        "stderr must identify the incompatible lockfile package ID; got:\n{stderr}",
+    );
+    assert!(
+        stderr.contains(r#"wanted: {"node":">=999.0.0"}"#),
+        "stderr must report the required Node.js version; got:\n{stderr}",
     );
 
     drop((root, mock_instance));
@@ -908,7 +984,7 @@ fn install_resolves_catalog_protocol() {
 
 /// A misconfigured catalog (specifier points at a missing entry) must
 /// fail the install with the upstream `ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC`
-/// rather than the chain's `SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`.
+/// rather than the chain's `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`.
 #[test]
 fn install_surfaces_catalog_misconfiguration() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -941,6 +1017,10 @@ fn install_surfaces_catalog_misconfiguration() {
             "Nocatalogentry'@pnpm.e2e/hello-world-js-bin-parent'wasfoundforcatalog'default'.",
         ),
         "stderr did not mention the missing-catalog-entry error: {stderr}",
+    );
+    assert!(
+        stderr.contains("ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC"),
+        "the catalog error must surface upstream's code, not the resolver chain's: {stderr}",
     );
 
     drop((root, mock_instance));
@@ -1453,6 +1533,44 @@ fn install_with_peer_alias_deps(dependencies: serde_json::Value) -> String {
 
     drop((root, mock_instance));
     lockfile
+}
+
+fn write_required_incompatible_engine_fixture(workspace: &Path, engine_strict: bool) {
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "incompatible-engine": "file:./incompatible-engine",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let dependency_dir = workspace.join("incompatible-engine");
+    fs::create_dir(&dependency_dir).expect("create incompatible-engine directory");
+    fs::write(
+        dependency_dir.join("package.json"),
+        serde_json::json!({
+            "name": "incompatible-engine",
+            "version": "1.0.0",
+            "engines": {
+                "node": ">=999.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write incompatible-engine package.json");
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("nodeVersion: 20.0.0\n");
+    writeln!(workspace_yaml, "engineStrict: {engine_strict}").expect("append engineStrict setting");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
 }
 
 /// A fresh `pacquet` command rooted at `workspace`, for tests that run the

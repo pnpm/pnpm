@@ -416,6 +416,9 @@ function getRegistryAndAuthForOrg (
   const pkgName = `@${scope}/__pnpm_team__`
   const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, pkgName)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, pkgName)
+  if (!authHeader) {
+    throw new PnpmError('TEAM_MISSING_AUTH', 'Authentication required for registry access')
+  }
   return { registryUrl, authHeader }
 }
 

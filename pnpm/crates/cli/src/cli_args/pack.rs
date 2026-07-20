@@ -29,6 +29,12 @@ use std::{
     sync::Arc,
 };
 
+/// The `wrap_err` framing `pack` and `publish` attach to a failed pack.
+/// [`super::dispatch`]'s `--json` error path matches on it to surface the
+/// underlying pack diagnostic instead of this wrapper, so the two sites must
+/// share one definition.
+pub(crate) const PACK_ERROR_CONTEXT: &str = "pack the package";
+
 /// The catalogs `catalog:` specifiers resolve against when packing a
 /// package for `pack` / `publish`: the hook-injected set when an
 /// `updateConfig` pnpmfile provided one ([`Config::catalogs`] is `Some`),
@@ -49,9 +55,7 @@ pub(crate) fn pack_catalogs(config: &Config) -> miette::Result<Catalogs> {
         .wrap_err("read the workspace catalogs")
 }
 
-/// `pacquet pack` arguments. The `-r` / `--recursive` and `--filter`
-/// selectors are global flags on [`crate::CliArgs`]; `--recursive` is
-/// threaded into [`Self::run`].
+/// Create a tarball from a package.
 #[derive(Debug, Args)]
 pub struct PackArgs {
     /// Do everything `pack` would do except writing the tarball to disk.
@@ -81,9 +85,8 @@ pub struct PackArgs {
     #[clap(long = "skip-manifest-obfuscation")]
     pub skip_manifest_obfuscation: bool,
 
-    /// Maximum number of projects packed at once in recursive mode.
-    /// Accepted for surface parity; the sweep currently runs
-    /// sequentially.
+    /// Maximum number of projects to pack at once in recursive mode.
+    /// Currently has no effect; packing runs one project at a time.
     #[clap(long = "workspace-concurrency")]
     pub workspace_concurrency: Option<u32>,
 }
@@ -113,7 +116,7 @@ impl PackArgs {
             let result = api::<Reporter, Host>(&options)
                 .await
                 .map_err(miette::Report::new)
-                .wrap_err("pack the package")?;
+                .wrap_err(PACK_ERROR_CONTEXT)?;
             Ok(format_pack_output(&[to_pack_result_json(&result)], self.json, false))
         }
     }

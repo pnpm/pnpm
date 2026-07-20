@@ -79,3 +79,52 @@ fn version_lt_compares_semver() {
     // Unparsable input compares as not-less-than (never downgrades).
     assert!(!version_lt("not-a-version", "1.0.0"));
 }
+
+/// The engine is a native binary, so building a runnable and a non-runnable one
+/// means writing real executables — hence the unix gate, matching the `/bin/sh`
+/// shims the rest of this crate's tests use.
+#[cfg(unix)]
+fn seed_engine_executable(install_dir: &Path, contents: &str) {
+    use std::os::unix::fs::PermissionsExt;
+    let package_dir = install_pnpm::package_dir(install_dir, "@pnpm/exe");
+    fs::create_dir_all(&package_dir).unwrap();
+    let executable = package_dir.join("pnpm");
+    fs::write(&executable, contents).unwrap();
+    fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn assert_pnpm_runs_accepts_an_engine_that_executes() {
+    let global_dir = tempfile::tempdir().unwrap();
+    let install_dir = global_dir.path().join("1");
+    seed_engine_executable(&install_dir, "#!/bin/sh\nexit 0\n");
+
+    install_pnpm::assert_pnpm_runs(&install_dir, "@pnpm/exe", "1.2.3").unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn assert_pnpm_runs_rejects_the_placeholder_left_by_a_missing_native() {
+    let global_dir = tempfile::tempdir().unwrap();
+    let install_dir = global_dir.path().join("1");
+    // Exactly what @pnpm/exe ships when its platform package carries no binary:
+    // the wrapper is present and executable, but it is not a program.
+    seed_engine_executable(&install_dir, "This file intentionally left blank");
+
+    let err = install_pnpm::assert_pnpm_runs(&install_dir, "@pnpm/exe", "1.2.3").unwrap_err();
+
+    assert!(err.to_string().contains("cannot run"), "{err}");
+}
+
+#[cfg(unix)]
+#[test]
+fn assert_pnpm_runs_reports_the_exit_code_of_an_engine_that_fails() {
+    let global_dir = tempfile::tempdir().unwrap();
+    let install_dir = global_dir.path().join("1");
+    seed_engine_executable(&install_dir, "#!/bin/sh\nexit 1\n");
+
+    let err = install_pnpm::assert_pnpm_runs(&install_dir, "@pnpm/exe", "1.2.3").unwrap_err();
+
+    assert!(err.to_string().contains("exited with code 1"), "{err}");
+}

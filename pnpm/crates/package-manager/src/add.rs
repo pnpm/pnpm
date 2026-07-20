@@ -1,9 +1,13 @@
 use crate::{
-    CatalogDecision, CatalogModeDep, CatalogVersionMismatchError, Install, InstallError,
-    ResolvedPackages, UpdateSeedPolicy, decide_catalog, emit_initial_package_manifest,
-    package_manifest_prefix,
+    CatalogDecision, CatalogModeDep, CatalogVersionMismatchError, DIRECT_GROUPS, Install,
+    InstallError, ResolvedPackages, UpdateSeedPolicy, WorkspaceInstallSelection,
+    decide_catalog_outcome, emit_initial_package_manifest, package_manifest_prefix,
+    resolution_policy::{PickPolicy, pick_package_context},
+    resolve_latest::LatestPicker,
+    selected_project_indices,
 };
 use derive_more::{Display, Error};
+use futures_util::{StreamExt, stream::FuturesOrdered};
 use miette::Diagnostic;
 use pacquet_catalogs_config::{
     InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest,
@@ -15,21 +19,21 @@ use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests;
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
-use pacquet_registry::{PackageTag, PackageVersion, PinnedVersion};
+use pacquet_registry::PinnedVersion;
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
 use pacquet_resolving_git_resolver::{HostedGit, HostedOpts};
 use pacquet_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, PickPackageContext, PickPackageError, PickPackageOptions,
+    InMemoryPackageMetaCache, PackumentFetchLocker, PickPackageError, PickPackageOptions,
     parse_bare_specifier, pick_package, pick_registry_for_package, shared_packument_fetch_locker,
     which_version_is_pinned,
 };
 use pacquet_tarball::MemCache;
 use pacquet_workspace_manifest_writer::{UpdateWorkspaceManifestError, update_workspace_manifest};
+use std::{collections::HashSet, path::PathBuf};
 
 #[must_use]
-pub struct Add<'a, ListDependencyGroups, DependencyGroupList>
+pub struct Add<'a, DependencyGroupList>
 where
-    ListDependencyGroups: Fn() -> DependencyGroupList,
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
     pub tarball_mem_cache: std::sync::Arc<MemCache>,
@@ -40,8 +44,15 @@ where
     pub manifest: &'a mut PackageManifest,
     pub lockfile: Option<&'a Lockfile>,
     pub lockfile_path: Option<&'a std::path::Path>,
-    pub list_dependency_groups: ListDependencyGroups, // must be a function because it is called multiple times
-    pub package_name: &'a str, // may carry a `@<version>` suffix; TODO: multiple arguments, name this `packages`
+    /// The manifest group(s) the added packages are saved into. `None`
+    /// means pnpm's default: an already-declared package is updated in
+    /// the group it occupies (`guessDependencyType` — checked in
+    /// `optionalDependencies`, `dependencies`, `devDependencies`,
+    /// `peerDependencies` order, with a peer-only entry left untouched),
+    /// and a new package lands in `dependencies`.
+    pub dependency_groups: Option<DependencyGroupList>,
+    /// Package selectors, each of which may carry an `@<version>` suffix.
+    pub package_names: &'a [String],
     /// How the freshly-resolved version is pinned into the manifest range,
     /// derived from `--save-exact` / `--save-prefix`. See
     /// [`PinnedVersion::from_save_options`].
@@ -97,14 +108,14 @@ pub enum AddError {
     #[diagnostic(transparent)]
     Install(#[error(source)] InstallError),
 
-    /// Fetching a brand-new dependency's `latest` tag from the registry
-    /// failed while resolving the version to add.
+    /// Resolving a brand-new dependency's `latest` tag against the registry
+    /// failed while computing the version to add.
     #[display("Failed to resolve the latest version of {name}: {error}")]
-    #[diagnostic(code(pacquet_package_manager::add_resolve_latest))]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_ADD_RESOLVE_LATEST))]
     ResolveLatest {
         name: String,
         #[error(source)]
-        error: pacquet_registry::RegistryError,
+        error: crate::resolve_latest::ResolveLatestError,
     },
 
     /// Resolving an explicit `add <name>@<spec>` specifier against the
@@ -118,13 +129,13 @@ pub enum AddError {
     ResolveRuntimeSpec(#[error(source)] NodeResolverError),
 
     /// `minimumReleaseAgeExclude` contained an invalid rule.
-    #[diagnostic(transparent)]
+    #[display("Invalid value in minimumReleaseAgeExclude: {_0}")]
+    #[diagnostic(code(ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE))]
     MinimumReleaseAgeExclude(#[error(source)] pacquet_config::version_policy::VersionPolicyError),
 }
 
-impl<ListDependencyGroups, DependencyGroupList> Add<'_, ListDependencyGroups, DependencyGroupList>
+impl<DependencyGroupList> Add<'_, DependencyGroupList>
 where
-    ListDependencyGroups: Fn() -> DependencyGroupList,
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), AddError> {
@@ -136,149 +147,51 @@ where
             manifest,
             lockfile,
             lockfile_path,
-            list_dependency_groups,
-            package_name,
+            dependency_groups,
+            package_names,
             pinned_version,
             save_catalog_name,
             resolved_packages,
             supported_architectures,
             lockfile_only,
         } = self;
+        let dependency_groups: Option<Vec<DependencyGroup>> =
+            dependency_groups.map(|groups| groups.into_iter().collect());
 
-        let (package_name, explicit_spec) = split_name_spec(package_name);
-
-        // Read the workspace catalogs so `catalogMode` / `--save-catalog`
-        // can reconcile the added version against them, the same read a
-        // partial install does before resolving. `manifest_dir` is
-        // owned so it can outlive the manifest mutation below.
-        let manifest_dir =
-            manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
-        let workspace_dir_opt = pacquet_workspace::find_workspace_dir(&manifest_dir)
-            .map_err(AddError::FindWorkspaceDir)?;
-        let workspace_manifest = match workspace_dir_opt.as_deref() {
-            Some(dir) => pacquet_workspace::read_workspace_manifest(dir)
-                .map_err(AddError::ReadWorkspaceManifest)?,
-            None => None,
-        };
-        let catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
-            .map_err(AddError::InvalidCatalogsConfiguration)?;
-        let prefix =
-            workspace_dir_opt.as_deref().unwrap_or(&manifest_dir).to_string_lossy().into_owned();
-
-        // The dependency's current specifier *in the group(s) this add
-        // targets*, so a re-add keeps the existing range / `catalog:`
-        // reference of the bucket being written. Scanning only the target
-        // groups (rather than every group) avoids preserving a different
-        // group's specifier when the same package exists in more than one
-        // bucket with different specs.
-        let prev_specifier = manifest
-            .dependencies(list_dependency_groups())
-            .find(|(name, _)| *name == package_name)
-            .map(|(_, spec)| spec.to_string());
-
-        // The bare specifier to reconcile against the catalogs:
-        // - an explicit `@<version>` is resolved to a concrete version and
-        //   recorded with the range operator it (or the existing entry)
-        //   pins — `pnpm add foo@^7` records `^7.8.4`, not
-        //   `^7`. Specifiers that aren't a plain registry range/tag/version
-        //   for this package (protocols, `npm:` aliases) stay verbatim;
-        // - an explicit `node@runtime:<spec>` is likewise pinned to the
-        //   picked Node.js version, so the `devEngines.runtime` entry the
-        //   saved dependency folds into records e.g. `26.5.0`, not the
-        //   requested `26`;
-        // - a re-add with no version keeps the dependency's current
-        //   specifier verbatim (a `catalog:` reference, a range, or an
-        //   exact pin) — `pnpm add <existing>` without a
-        //   version leaves the declared range untouched;
-        // - a brand-new dependency fetches and pins the `latest` range.
-        let bare_specifier =
-            if let Some(version_spec) = node_runtime_version_spec(package_name, explicit_spec) {
-                let mut node_resolver = NodeResolver::new(std::sync::Arc::clone(&http_client_arc));
-                node_resolver.offline = config.offline;
-                node_resolver
-                    .resolve_save_specifier(version_spec, prev_specifier.as_deref())
-                    .await
-                    .map_err(AddError::ResolveRuntimeSpec)?
-            } else {
-                match (explicit_spec, prev_specifier.as_deref()) {
-                    (Some(spec), prev) => resolve_explicit_registry_spec(
-                        package_name,
-                        spec,
-                        prev,
-                        config,
-                        http_client,
-                        pinned_version,
-                        lockfile_only,
-                        lockfile,
-                        manifest,
-                    )
-                    .await?
-                    .unwrap_or_else(|| normalized_save_specifier(spec)),
-                    (None, Some(prev)) => prev.to_string(),
-                    (None, None) => {
-                        let registries: std::collections::HashMap<String, String> =
-                            config.resolved_registries().into_iter().collect();
-                        let registry = pick_registry_for_package(&registries, package_name, None);
-                        let latest = PackageVersion::fetch_from_registry(
-                            package_name,
-                            PackageTag::Latest,
-                            http_client,
-                            &registry,
-                            &config.auth_headers,
-                        )
-                        .await
-                        .map_err(|error| AddError::ResolveLatest {
-                            name: package_name.to_string(),
-                            error,
-                        })?;
-                        latest.serialize(pinned_version)
-                    }
-                }
-            };
-
-        let mut updated_catalogs = Catalogs::new();
-        let dep = CatalogModeDep {
-            alias: package_name,
-            bare_specifier: &bare_specifier,
-            prev_specifier: prev_specifier.as_deref(),
-        };
-        let manifest_specifier = match decide_catalog::<Reporter>(
-            config.catalog_mode,
+        let latest_picker = tokio::sync::OnceCell::new();
+        let meta_cache = std::sync::Arc::new(InMemoryPackageMetaCache::default());
+        let fetch_locker = shared_packument_fetch_locker();
+        let catalog_ctx = read_catalog_ctx(manifest, config)?;
+        let updated_catalogs = prepare_manifest::<Reporter>(
+            manifest,
+            http_client,
+            &http_client_arc,
+            config,
+            lockfile,
+            dependency_groups.as_deref(),
+            package_names,
+            &latest_picker,
+            pinned_version,
             save_catalog_name.as_deref(),
-            &catalogs,
-            &dep,
-            &prefix,
+            &catalog_ctx.catalogs,
+            &catalog_ctx.prefix,
+            &meta_cache,
+            &fetch_locker,
         )
-        .map_err(AddError::CatalogVersionMismatch)?
-        {
-            CatalogDecision::KeepDirect => bare_specifier,
-            CatalogDecision::Catalog { manifest_specifier, updated_entry } => {
-                if let Some(entry) = updated_entry {
-                    updated_catalogs
-                        .entry(entry.catalog_name)
-                        .or_default()
-                        .insert(package_name.to_string(), entry.specifier);
-                }
-                manifest_specifier
-            }
-        };
-
-        emit_initial_package_manifest::<Reporter>(manifest);
-
-        for dependency_group in list_dependency_groups() {
-            manifest
-                .add_dependency(package_name, &manifest_specifier, dependency_group)
-                .map_err(AddError::AddDependencyToManifest)?;
-        }
+        .await?;
 
         // Write the new catalog entry to `pnpm-workspace.yaml` before the
         // install so the resolver reads it back and the lockfile's
         // `catalogs:` snapshot records the resolved version.
         if !updated_catalogs.is_empty() {
-            let workspace_dir = workspace_dir_opt.unwrap_or(manifest_dir);
-            update_workspace_manifest(&workspace_dir, &updated_catalogs)
+            update_workspace_manifest(&catalog_ctx.workspace_dir, &updated_catalogs)
                 .map_err(AddError::WriteWorkspaceManifest)?;
         }
+        let catalogs_override = (!updated_catalogs.is_empty()).then(|| {
+            let mut catalogs = catalog_ctx.catalogs;
+            merge_catalogs(&mut catalogs, &updated_catalogs);
+            catalogs
+        });
 
         Install {
             tarball_mem_cache,
@@ -289,7 +202,12 @@ where
             emit_initial_manifest: false,
             lockfile: MaybeLazyLockfile::Loaded(lockfile),
             lockfile_path,
-            dependency_groups: list_dependency_groups(),
+            // `dependency_groups` names the manifest group the new
+            // package is saved into (`prepare_manifest` above), not an
+            // include filter: like `remove`, the re-resolve walks every
+            // dependency group so the other groups' entries stay in the
+            // lockfile, the virtual store, and `node_modules`.
+            dependency_groups: DIRECT_GROUPS,
             frozen_lockfile: false,
             // `pacquet add` mutates the manifest, so the lockfile is
             // necessarily stale by the time the install dispatch
@@ -308,6 +226,7 @@ where
             // own lifecycle scripts must not run — they fire only for a
             // full install.
             is_full_install: false,
+            installs_only: false,
             resolved_packages,
             supported_architectures,
             node_linker: config.node_linker,
@@ -320,7 +239,7 @@ where
             auth_override: None,
             resolution_observer: None,
             peer_issues_sink: None,
-            catalogs_override: None,
+            catalogs_override,
             disable_optimistic_repeat_install: false,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
@@ -329,28 +248,483 @@ where
         .await
         .map_err(AddError::Install)?;
 
-        let updated = manifest.save_and_get_written_value().map_err(AddError::SaveManifest)?;
-
-        // `pnpm:package-manifest updated` fires once after the manifest
-        // is rewritten so consumers (e.g. the audit pipeline that diffs
-        // initial vs updated) see the post-add shape. `prefix` is the manifest's parent
-        // directory, matching what `Install::run` derived for the
-        // matching `initial` event.
-        //
-        // `parent()` only returns `None` when the path has no parent
-        // (a root or empty); fall back to the manifest path itself
-        // so a degenerate `package.json` placed directly at `/`
-        // doesn't crash the post-save emit. `to_string_lossy`
-        // coerces non-UTF-8 path bytes to U+FFFD instead of
-        // panicking.
-        let prefix = package_manifest_prefix(manifest);
-        Reporter::emit(&LogEvent::PackageManifest(PackageManifestLog {
-            level: LogLevel::Debug,
-            message: PackageManifestMessage::Updated { prefix, updated },
-        }));
+        persist_manifest::<Reporter>(manifest)?;
 
         Ok(())
     }
+
+    pub async fn run_selected<Reporter: self::Reporter + 'static>(
+        self,
+        projects: &mut [pacquet_workspace::Project],
+        ordered_dirs: &[PathBuf],
+        selected_dirs: &HashSet<PathBuf>,
+        active_manifest_is_standin: bool,
+    ) -> Result<(), AddError> {
+        let Add {
+            tarball_mem_cache,
+            http_client,
+            http_client_arc,
+            config,
+            manifest,
+            lockfile,
+            lockfile_path,
+            dependency_groups,
+            package_names,
+            pinned_version,
+            save_catalog_name,
+            resolved_packages,
+            supported_architectures,
+            lockfile_only,
+        } = self;
+        let dependency_groups: Option<Vec<DependencyGroup>> =
+            dependency_groups.map(|groups| groups.into_iter().collect());
+        let selected_indices = selected_project_indices(projects, ordered_dirs, selected_dirs);
+        if selected_indices.is_empty() {
+            return Ok(());
+        }
+        let prepared = prepare_selected_manifests::<Reporter>(
+            projects,
+            &selected_indices,
+            http_client,
+            &http_client_arc,
+            config,
+            lockfile,
+            dependency_groups.as_deref(),
+            package_names,
+            pinned_version,
+            save_catalog_name.as_deref(),
+        )
+        .await?;
+        if !prepared.updated_catalogs.is_empty() {
+            update_workspace_manifest(&prepared.workspace_dir, &prepared.updated_catalogs)
+                .map_err(AddError::WriteWorkspaceManifest)?;
+        }
+
+        Box::pin(
+            Install {
+                tarball_mem_cache,
+                http_client,
+                http_client_arc,
+                config,
+                manifest,
+                emit_initial_manifest: false,
+                lockfile: MaybeLazyLockfile::Loaded(lockfile),
+                lockfile_path,
+                // See the `dependency_groups` comment in [`Self::run`]:
+                // the save target must not narrow the install's include
+                // set.
+                dependency_groups: DIRECT_GROUPS,
+                frozen_lockfile: false,
+                prefer_frozen_lockfile: Some(false),
+                ignore_manifest_check: false,
+                skip_runtimes: config.skip_runtimes,
+                trust_lockfile: config.trust_lockfile,
+                update_checksums: false,
+                is_full_install: false,
+                installs_only: false,
+                resolved_packages,
+                supported_architectures,
+                node_linker: config.node_linker,
+                lockfile_only,
+                dry_run: false,
+                update_seed_policy: UpdateSeedPolicy::KeepAll,
+                auth_override: None,
+                resolution_observer: None,
+                peer_issues_sink: None,
+                catalogs_override: prepared.catalogs_override,
+                disable_optimistic_repeat_install: false,
+                pnpmfile_hook_override: None,
+                workspace_projects_override: None,
+            }
+            .run_selected::<Reporter>(WorkspaceInstallSelection {
+                all_projects: projects,
+                ordered_dirs,
+                selected_dirs,
+                active_manifest_is_standin,
+            }),
+        )
+        .await
+        .map_err(AddError::Install)?;
+
+        persist_selected_manifests::<Reporter>(projects, &selected_indices)?;
+        Ok(())
+    }
+}
+
+struct AddCatalogCtx {
+    catalogs: Catalogs,
+    workspace_dir: PathBuf,
+    prefix: String,
+}
+
+struct SelectedAddPreparation {
+    updated_catalogs: Catalogs,
+    catalogs_override: Option<Catalogs>,
+    workspace_dir: PathBuf,
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "selected add preparation reuses the command's resolution inputs"
+)]
+async fn prepare_selected_manifests<'a, Reporter: self::Reporter>(
+    projects: &mut [pacquet_workspace::Project],
+    selected_indices: &[usize],
+    http_client: &'a ThrottledClient,
+    http_client_arc: &std::sync::Arc<ThrottledClient>,
+    config: &'a Config,
+    lockfile: Option<&Lockfile>,
+    dependency_groups: Option<&[DependencyGroup]>,
+    package_names: &[String],
+    pinned_version: PinnedVersion,
+    save_catalog_name: Option<&str>,
+) -> Result<SelectedAddPreparation, AddError> {
+    let first_index = *selected_indices.first().expect("selected add requires a project");
+    let catalog_ctx = read_catalog_ctx(&projects[first_index].manifest, config)?;
+    let mut catalogs = catalog_ctx.catalogs;
+    let mut updated_catalogs = Catalogs::new();
+    // One picker, packument cache, and fetch locker across every selected
+    // project: the picker is created on first use (a selection that resolves
+    // no `latest` tag never builds one), and the shared caches keep the same
+    // package from being fetched once per project.
+    let latest_picker = tokio::sync::OnceCell::new();
+    let meta_cache = std::sync::Arc::new(InMemoryPackageMetaCache::default());
+    let fetch_locker = shared_packument_fetch_locker();
+
+    for &index in selected_indices {
+        let updates = prepare_manifest::<Reporter>(
+            &mut projects[index].manifest,
+            http_client,
+            http_client_arc,
+            config,
+            lockfile,
+            dependency_groups,
+            package_names,
+            &latest_picker,
+            pinned_version,
+            save_catalog_name,
+            &catalogs,
+            &catalog_ctx.prefix,
+            &meta_cache,
+            &fetch_locker,
+        )
+        .await?;
+        merge_catalogs(&mut catalogs, &updates);
+        merge_catalogs(&mut updated_catalogs, &updates);
+    }
+
+    let catalogs_override = (!updated_catalogs.is_empty()).then_some(catalogs);
+    Ok(SelectedAddPreparation {
+        updated_catalogs,
+        catalogs_override,
+        workspace_dir: catalog_ctx.workspace_dir,
+    })
+}
+
+/// Resolve every selector against `catalogs` concurrently, then apply them
+/// to `manifest`.
+///
+/// Every selector is resolved before the manifest is touched so the
+/// `initial` manifest event still reports the pre-add shape exactly once,
+/// however many selectors a single `add` carries. `FuturesOrdered` overlaps
+/// the registry requests while keeping the buffered catalog warnings and the
+/// applied dependencies in selector order. The `latest_picker`,
+/// `meta_cache`, and `fetch_locker` are threaded in so one selected-add pass
+/// shares packument state across every project it touches.
+/// The manifest group `name` already occupies, in pnpm's
+/// `guessDependencyType` scan order.
+fn guess_dependency_group(manifest: &PackageManifest, name: &str) -> Option<DependencyGroup> {
+    [DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Peer]
+        .into_iter()
+        .find(|&group| manifest.dependencies([group]).any(|(dep, _)| dep == name))
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "manifest preparation consumes the add command's resolution inputs"
+)]
+async fn prepare_manifest<'a, Reporter: self::Reporter>(
+    manifest: &mut PackageManifest,
+    http_client: &'a ThrottledClient,
+    http_client_arc: &std::sync::Arc<ThrottledClient>,
+    config: &'a Config,
+    lockfile: Option<&Lockfile>,
+    dependency_groups: Option<&[DependencyGroup]>,
+    package_names: &[String],
+    latest_picker: &tokio::sync::OnceCell<LatestPicker<'a>>,
+    pinned_version: PinnedVersion,
+    save_catalog_name: Option<&str>,
+    catalogs: &Catalogs,
+    prefix: &str,
+    meta_cache: &std::sync::Arc<InMemoryPackageMetaCache>,
+    fetch_locker: &PackumentFetchLocker,
+) -> Result<Catalogs, AddError> {
+    let resolved_dependencies = {
+        let mut resolution_futures = FuturesOrdered::new();
+        for package_selector in package_names {
+            resolution_futures.push_back(resolve_added_dependency(
+                package_selector,
+                config,
+                manifest,
+                lockfile,
+                http_client,
+                http_client_arc,
+                latest_picker,
+                pinned_version,
+                save_catalog_name,
+                catalogs,
+                prefix,
+                meta_cache,
+                fetch_locker,
+            ));
+        }
+        let mut dependencies = Vec::with_capacity(package_names.len());
+        while let Some(result) = resolution_futures.next().await {
+            let dependency = result?;
+            if let Some(warning) = &dependency.warning {
+                Reporter::emit(warning);
+            }
+            dependencies.push(dependency);
+        }
+        dependencies
+    };
+
+    emit_initial_package_manifest::<Reporter>(manifest);
+
+    for dependency in &resolved_dependencies {
+        let inferred;
+        let groups: &[DependencyGroup] = match dependency_groups {
+            Some(groups) => groups,
+            // pnpm's `guessDependencyType`: keep an already-declared
+            // package in its group; a peer-only entry stays untouched
+            // (the install still resolves it); a new package lands in
+            // `dependencies`.
+            None => match guess_dependency_group(manifest, &dependency.package_name) {
+                Some(DependencyGroup::Peer) => &[],
+                Some(group) => {
+                    inferred = [group];
+                    &inferred
+                }
+                None => &[DependencyGroup::Prod],
+            },
+        };
+        for &dependency_group in groups {
+            manifest
+                .add_dependency(
+                    &dependency.package_name,
+                    &dependency.manifest_specifier,
+                    dependency_group,
+                )
+                .map_err(AddError::AddDependencyToManifest)?;
+        }
+    }
+
+    let mut updated_catalogs = Catalogs::new();
+    for dependency in resolved_dependencies {
+        merge_catalogs(&mut updated_catalogs, &dependency.updated_catalogs);
+    }
+    Ok(updated_catalogs)
+}
+
+fn read_catalog_ctx(
+    manifest: &PackageManifest,
+    config: &Config,
+) -> Result<AddCatalogCtx, AddError> {
+    let manifest_dir =
+        manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
+    let workspace_dir_opt =
+        pacquet_workspace::find_workspace_dir(&manifest_dir).map_err(AddError::FindWorkspaceDir)?;
+    let catalogs = if let Some(catalogs) = config.catalogs.clone() {
+        catalogs
+    } else {
+        let workspace_manifest = match workspace_dir_opt.as_deref() {
+            Some(dir) => pacquet_workspace::read_workspace_manifest(dir)
+                .map_err(AddError::ReadWorkspaceManifest)?,
+            None => None,
+        };
+        get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
+            .map_err(AddError::InvalidCatalogsConfiguration)?
+    };
+    let workspace_dir = workspace_dir_opt.unwrap_or(manifest_dir);
+    let prefix = workspace_dir.to_string_lossy().into_owned();
+    Ok(AddCatalogCtx { catalogs, workspace_dir, prefix })
+}
+
+fn merge_catalogs(target: &mut Catalogs, updates: &Catalogs) {
+    for (catalog_name, entries) in updates {
+        let catalog = target.entry(catalog_name.clone()).or_default();
+        for (dependency, specifier) in entries {
+            catalog.insert(dependency.clone(), specifier.clone());
+        }
+    }
+}
+
+fn persist_selected_manifests<Reporter: self::Reporter>(
+    projects: &mut [pacquet_workspace::Project],
+    selected_indices: &[usize],
+) -> Result<(), AddError> {
+    for &index in selected_indices {
+        persist_manifest::<Reporter>(&mut projects[index].manifest)?;
+    }
+    Ok(())
+}
+
+fn persist_manifest<Reporter: self::Reporter>(
+    manifest: &mut PackageManifest,
+) -> Result<(), AddError> {
+    let updated = manifest.save_and_get_written_value().map_err(AddError::SaveManifest)?;
+    let prefix = package_manifest_prefix(manifest);
+    Reporter::emit(&LogEvent::PackageManifest(PackageManifestLog {
+        level: LogLevel::Debug,
+        message: PackageManifestMessage::Updated { prefix, updated },
+    }));
+    Ok(())
+}
+
+struct ResolvedAddedDependency {
+    package_name: String,
+    manifest_specifier: String,
+    updated_catalogs: Catalogs,
+    warning: Option<LogEvent>,
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "resolving an add selector requires the shared resolution inputs"
+)]
+async fn resolve_added_dependency<'a>(
+    package_selector: &str,
+    config: &'a Config,
+    manifest: &PackageManifest,
+    lockfile: Option<&Lockfile>,
+    http_client: &'a ThrottledClient,
+    http_client_arc: &std::sync::Arc<ThrottledClient>,
+    latest_picker: &tokio::sync::OnceCell<LatestPicker<'a>>,
+    pinned_version: PinnedVersion,
+    save_catalog_name: Option<&str>,
+    catalogs: &Catalogs,
+    prefix: &str,
+    meta_cache: &std::sync::Arc<InMemoryPackageMetaCache>,
+    fetch_locker: &PackumentFetchLocker,
+) -> Result<ResolvedAddedDependency, AddError> {
+    let (package_name, explicit_spec) = split_name_spec(package_selector);
+
+    // The dependency's current specifier, so a re-add keeps the
+    // existing range / `catalog:` reference rather than re-pinning to
+    // `^<latest>`. The scan order matches pnpm's `findSpec` /
+    // `guessDependencyType` (`DEPENDENCIES_OR_PEER_FIELDS`):
+    // `optionalDependencies`, `dependencies`, `devDependencies`,
+    // `peerDependencies` — the first-found specifier wins even when the
+    // add targets a different group ([`PackageManifest::add_dependency`]
+    // then removes the entry from its old group).
+    let prev_specifier = manifest
+        .dependencies([
+            DependencyGroup::Optional,
+            DependencyGroup::Prod,
+            DependencyGroup::Dev,
+            DependencyGroup::Peer,
+        ])
+        .find(|(name, _)| *name == package_name)
+        .map(|(_, spec)| spec.to_string());
+
+    // The bare specifier to reconcile against the catalogs:
+    // - an explicit `@<version>` is resolved to a concrete version and
+    //   recorded with the range operator it (or the existing entry)
+    //   pins — `pnpm add foo@^7` records `^7.8.4`, not
+    //   `^7`. Specifiers that aren't a plain registry range/tag/version
+    //   for this package (protocols, `npm:` aliases) stay verbatim;
+    // - an explicit `node@runtime:<spec>` is likewise pinned to the
+    //   picked Node.js version, so the `devEngines.runtime` entry the
+    //   saved dependency folds into records e.g. `26.5.0`, not the
+    //   requested `26`;
+    // - a re-add with no version keeps the dependency's current
+    //   specifier verbatim (a `catalog:` reference, a range, or an
+    //   exact pin) — `pnpm add <existing>` without a
+    //   version leaves the declared range untouched;
+    // - a brand-new dependency fetches and pins the `latest` range.
+    let bare_specifier =
+        if let Some(version_spec) = node_runtime_version_spec(package_name, explicit_spec) {
+            let mut node_resolver = NodeResolver::new(std::sync::Arc::clone(http_client_arc));
+            node_resolver.node_download_mirrors.clone_from(&config.node_download_mirrors);
+            node_resolver.offline = config.offline;
+            node_resolver
+                .resolve_save_specifier(version_spec, prev_specifier.as_deref())
+                .await
+                .map_err(AddError::ResolveRuntimeSpec)?
+        } else {
+            match (explicit_spec, prev_specifier.as_deref()) {
+                (Some(spec), prev) => resolve_explicit_registry_spec(
+                    package_name,
+                    spec,
+                    prev,
+                    config,
+                    http_client,
+                    pinned_version,
+                    lockfile,
+                    manifest,
+                    meta_cache,
+                    fetch_locker,
+                )
+                .await?
+                .unwrap_or_else(|| normalized_save_specifier(spec)),
+                (None, Some(prev)) => prev.to_string(),
+                (None, None) => {
+                    let latest = latest_picker
+                        .get_or_try_init(|| {
+                            std::future::ready(
+                                PickPolicy::from_config(config)
+                                    .map(|policy| {
+                                        LatestPicker::new(
+                                            config,
+                                            http_client,
+                                            policy,
+                                            std::sync::Arc::clone(meta_cache),
+                                            std::sync::Arc::clone(fetch_locker),
+                                        )
+                                    })
+                                    .map_err(AddError::MinimumReleaseAgeExclude),
+                            )
+                        })
+                        .await?
+                        .resolve(package_name, false)
+                        .await
+                        .map_err(|error| AddError::ResolveLatest {
+                            name: package_name.to_string(),
+                            error,
+                        })?;
+                    latest.serialize(pinned_version)
+                }
+            }
+        };
+
+    let mut updated_catalogs = Catalogs::new();
+    let dep = CatalogModeDep {
+        alias: package_name,
+        bare_specifier: &bare_specifier,
+        prev_specifier: prev_specifier.as_deref(),
+    };
+    let outcome =
+        decide_catalog_outcome(config.catalog_mode, save_catalog_name, catalogs, &dep, prefix)
+            .map_err(AddError::CatalogVersionMismatch)?;
+    let manifest_specifier = match outcome.decision {
+        CatalogDecision::KeepDirect => bare_specifier,
+        CatalogDecision::Catalog { manifest_specifier, updated_entry } => {
+            if let Some(entry) = updated_entry {
+                updated_catalogs
+                    .entry(entry.catalog_name)
+                    .or_default()
+                    .insert(package_name.to_string(), entry.specifier);
+            }
+            manifest_specifier
+        }
+    };
+
+    Ok(ResolvedAddedDependency {
+        package_name: package_name.to_string(),
+        manifest_specifier,
+        updated_catalogs,
+        warning: outcome.warning,
+    })
 }
 
 /// Resolve an explicit `add <name>@<spec>` registry specifier to the
@@ -377,9 +751,10 @@ async fn resolve_explicit_registry_spec(
     config: &Config,
     http_client: &ThrottledClient,
     pinned_version: PinnedVersion,
-    lockfile_only: bool,
     lockfile: Option<&Lockfile>,
     manifest: &PackageManifest,
+    meta_cache: &InMemoryPackageMetaCache,
+    fetch_locker: &PackumentFetchLocker,
 ) -> Result<Option<String>, AddError> {
     if spec.starts_with("npm:") {
         return Ok(None);
@@ -402,8 +777,7 @@ async fn resolve_explicit_registry_spec(
         return Ok(None);
     }
 
-    let policy = crate::resolution_policy::PickPolicy::from_config(config)
-        .map_err(AddError::MinimumReleaseAgeExclude)?;
+    let policy = PickPolicy::from_config(config).map_err(AddError::MinimumReleaseAgeExclude)?;
     // Bias the pick toward versions already present in the workspace, so a
     // dedup pick matches what the install locks (e.g. a sibling already on
     // `1.2.0` keeps `pnpm add foo@^1` on `1.2.0`). Seeded from the wanted
@@ -414,21 +788,7 @@ async fn resolve_explicit_registry_spec(
         lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()),
         &[manifest],
     );
-    let meta_cache = InMemoryPackageMetaCache::default();
-    let fetch_locker = shared_packument_fetch_locker();
-    let ctx = PickPackageContext {
-        http_client,
-        auth_headers: &config.auth_headers,
-        meta_cache: &meta_cache,
-        fetch_locker: &fetch_locker,
-        cache_dir: Some(&config.cache_dir),
-        offline: config.offline,
-        prefer_offline: config.prefer_offline,
-        ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
-        full_metadata: policy.full_metadata,
-        filter_metadata: policy.full_metadata,
-        retry_opts: crate::retry_config::retry_opts_from_config(config),
-    };
+    let ctx = pick_package_context(http_client, config, &policy, meta_cache, fetch_locker);
     let opts = PickPackageOptions {
         registry: &registry,
         preferred_version_selectors: preferred_versions.get(package_name),
@@ -440,7 +800,7 @@ async fn resolve_explicit_registry_spec(
         // `latest` satisfies it; forcing the `latest` tag in would wrongly
         // bump a narrower spec (`~7.0.0`, `7.0.0`) past its own bound.
         include_latest_tag: false,
-        dry_run: lockfile_only,
+        dry_run: false,
         optional: false,
         update_checksums: false,
         blocked_versions: None,
@@ -456,8 +816,8 @@ async fn resolve_explicit_registry_spec(
     // Specifier-operator precedence: the existing entry's operator wins
     // over the spec's, which wins over the configured default. Only a
     // registry-style previous specifier carries a meaningful operator —
-    // `which_version_is_pinned` forward-scans for a version substring, so a
-    // path/URL prev (e.g. `file:../foo-2.0.0.tgz`) would otherwise be misread
+    // `which_version_is_pinned` scans for a version anywhere in the spec, so a
+    // path/URL prev (e.g. `file:../deps/2.0.0.tgz`) would otherwise be misread
     // as a pin. Gate it on `parse_bare_specifier` accepting a non-URL spec.
     let prev_pin = prev_specifier
         .filter(|prev| is_registry_style_specifier(prev, package_name, &registry))

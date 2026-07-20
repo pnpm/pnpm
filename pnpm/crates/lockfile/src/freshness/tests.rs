@@ -56,7 +56,69 @@ fn matching_manifest_and_lockfile_satisfies() {
         }
     }"#,
     );
-    assert!(satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false).is_ok());
+    assert!(satisfies_package_manifest(importer, &manifest, true, &|_: &str| false).is_ok());
+}
+
+#[test]
+fn equivalent_git_specifiers_satisfy_manifest() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies:"
+        "      is-positive:"
+        "        specifier: git+https://github.com/kevva/is-positive.git#97edff6"
+        "        version: git+https://github.com/kevva/is-positive.git#97edff6"
+    })
+    .expect("parse fixture lockfile");
+    let importer = lockfile.root_project().expect("root importer present");
+    let (_dir, manifest) = manifest_from_json(
+        r#"{
+        "name": "x",
+        "version": "1.0.0",
+        "dependencies": {
+            "is-positive": "git://github.com/kevva/is-positive#97edff6"
+        }
+    }"#,
+    );
+    satisfies_package_manifest(importer, &manifest, true, &|_: &str| false)
+        .expect("equivalent git specifiers must satisfy the manifest");
+}
+
+#[test]
+fn different_git_specifiers_do_not_satisfy_manifest() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies:"
+        "      is-positive:"
+        "        specifier: git+https://github.com/kevva/is-positive.git#97edff6"
+        "        version: git+https://github.com/kevva/is-positive.git#97edff6"
+    })
+    .expect("parse fixture lockfile");
+    let importer = lockfile.root_project().expect("root importer present");
+    for specifier in [
+        "git+https://gitlab.com/kevva/is-positive.git#97edff6",
+        "git+https://github.com/kevva/different.git#97edff6",
+        "git+https://github.com/kevva/is-positive.git#different",
+    ] {
+        let (_dir, manifest) = manifest_from_json(&format!(
+            r#"{{
+            "name": "x",
+            "version": "1.0.0",
+            "dependencies": {{
+                "is-positive": "{specifier}"
+            }}
+        }}"#,
+        ));
+        let error = satisfies_package_manifest(importer, &manifest, true, &|_: &str| false)
+            .expect_err("different git specifiers must leave the manifest stale");
+        assert!(
+            matches!(error, StalenessReason::SpecifiersDiffer(_)),
+            "SPECIFIER: {specifier}\nERROR: {error:?}",
+        );
+    }
 }
 
 #[test]
@@ -82,7 +144,7 @@ fn manifest_adds_dep_returns_specifier_diff() {
         }
     }"#,
     );
-    let err = satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false)
+    let err = satisfies_package_manifest(importer, &manifest, true, &|_: &str| false)
         .expect_err("should be stale");
     let StalenessReason::SpecifiersDiffer(diff) = err else {
         panic!("expected SpecifiersDiffer, got {err:?}");
@@ -117,7 +179,7 @@ fn manifest_drops_dep_returns_specifier_diff() {
         }
     }"#,
     );
-    let err = satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false)
+    let err = satisfies_package_manifest(importer, &manifest, true, &|_: &str| false)
         .expect_err("should be stale");
     let StalenessReason::SpecifiersDiffer(diff) = err else {
         panic!("expected SpecifiersDiffer, got {err:?}");
@@ -147,7 +209,7 @@ fn manifest_bumps_specifier_returns_specifier_diff() {
         }
     }"#,
     );
-    let err = satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false)
+    let err = satisfies_package_manifest(importer, &manifest, true, &|_: &str| false)
         .expect_err("should be stale");
     let StalenessReason::SpecifiersDiffer(diff) = err else {
         panic!("expected SpecifiersDiffer, got {err:?}");
@@ -187,7 +249,7 @@ fn matching_across_all_three_dep_fields_satisfies() {
         "optionalDependencies": { "fsevents": "^2.0.0" }
     }"#,
     );
-    assert!(satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false).is_ok());
+    assert!(satisfies_package_manifest(importer, &manifest, true, &|_: &str| false).is_ok());
 }
 
 /// Lockfile has no `importers["."]` entry — even though pacquet's
@@ -230,7 +292,7 @@ fn dep_moves_between_fields_returns_dep_specifier_mismatch() {
         "dependencies": { "typescript": "^5.0.0" }
     }"#,
     );
-    let err = satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false)
+    let err = satisfies_package_manifest(importer, &manifest, true, &|_: &str| false)
         .expect_err("should be stale");
     assert!(
         matches!(err, StalenessReason::DepSpecifierMismatch { .. }),
@@ -280,7 +342,7 @@ fn cross_field_swap_with_same_cardinalities_caught_by_per_field_check() {
         "devDependencies": { "react": "^17.0.2" }
     }"#,
     );
-    let err = satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false)
+    let err = satisfies_package_manifest(importer, &manifest, true, &|_: &str| false)
         .expect_err("should be stale");
     assert!(
         matches!(err, StalenessReason::DepSpecifierMismatch { .. }),
@@ -312,7 +374,7 @@ fn publish_directory_mismatch_returns_publish_directory_mismatch() {
         "dependencies": { "react": "^17.0.2" }
     }"#,
     );
-    let err = satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false)
+    let err = satisfies_package_manifest(importer, &manifest, true, &|_: &str| false)
         .expect_err("should be stale");
     assert!(
         matches!(err, StalenessReason::PublishDirectoryMismatch { .. }),
@@ -343,7 +405,7 @@ fn dependencies_meta_mismatch_returns_dependencies_meta_mismatch() {
         "dependencies": { "foo": "^1.0.0" }
     }"#,
     );
-    let err = satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false)
+    let err = satisfies_package_manifest(importer, &manifest, true, &|_: &str| false)
         .expect_err("should be stale");
     assert!(
         matches!(err, StalenessReason::DependenciesMetaMismatch { .. }),
@@ -415,7 +477,7 @@ fn dependencies_meta_empty_object_equivalent_to_absent() {
         "dependenciesMeta": {}
     }"#,
     );
-    assert!(satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false).is_ok());
+    assert!(satisfies_package_manifest(importer, &manifest, true, &|_: &str| false).is_ok());
 }
 
 #[test]
@@ -440,7 +502,7 @@ fn publish_directory_match_satisfies() {
         "dependencies": { "foo": "1.0.0" }
     }"#,
     );
-    assert!(satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false).is_ok());
+    assert!(satisfies_package_manifest(importer, &manifest, true, &|_: &str| false).is_ok());
 }
 
 #[test]
@@ -465,7 +527,7 @@ fn same_dep_in_prod_and_dev_counts_under_prod() {
     }"#,
     );
     assert!(
-        satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false).is_ok(),
+        satisfies_package_manifest(importer, &manifest, true, &|_: &str| false).is_ok(),
         "manifest listing foo in prod+dev must satisfy a lockfile that records it under prod only",
     );
 }
@@ -492,7 +554,7 @@ fn same_dep_in_prod_and_optional_counts_under_optional() {
     }"#,
     );
     assert!(
-        satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false).is_ok(),
+        satisfies_package_manifest(importer, &manifest, true, &|_: &str| false).is_ok(),
         "manifest listing foo in prod+optional must satisfy a lockfile that records it under optional only",
     );
 }
@@ -518,7 +580,220 @@ fn importer_empty_dev_dependencies_equivalent_to_absent() {
         "dependencies": { "foo": "^1.0.0" }
     }"#,
     );
-    assert!(satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false).is_ok());
+    assert!(satisfies_package_manifest(importer, &manifest, true, &|_: &str| false).is_ok());
+}
+
+#[test]
+fn resolved_version_outside_manifest_range_is_stale() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies:"
+        "      '@apollo/client':"
+        "        specifier: 3.3.7"
+        "        version: 3.13.8"
+    })
+    .expect("parse fixture lockfile");
+    let importer = lockfile.root_project().expect("root importer present");
+    let (_dir, manifest) = manifest_from_json(
+        r#"{
+        "name": "x",
+        "version": "1.0.0",
+        "dependencies": { "@apollo/client": "3.3.7" }
+    }"#,
+    );
+
+    let err = satisfies_package_manifest(importer, &manifest, true, &|_: &str| false)
+        .expect_err("a broken direct resolution must be stale");
+    assert_eq!(
+        err,
+        StalenessReason::ResolutionDoesNotSatisfy {
+            name: "@apollo/client".to_string(),
+            version: "3.13.8".to_string(),
+            range: "3.3.7".to_string(),
+        },
+    );
+}
+
+#[test]
+fn dev_only_dependency_match_satisfies() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    devDependencies:"
+        "      foo:"
+        "        specifier: 1.0.0"
+        "        version: 1.0.0"
+    })
+    .expect("parse fixture lockfile");
+    let importer = lockfile.root_project().expect("root importer present");
+    let (_dir, manifest) = manifest_from_json(
+        r#"{
+        "name": "x",
+        "version": "1.0.0",
+        "devDependencies": { "foo": "1.0.0" }
+    }"#,
+    );
+    assert!(satisfies_package_manifest(importer, &manifest, true, &|_: &str| false).is_ok());
+}
+
+#[test]
+fn optional_only_dependency_match_satisfies() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    optionalDependencies:"
+        "      foo:"
+        "        specifier: 1.0.0"
+        "        version: 1.0.0"
+    })
+    .expect("parse fixture lockfile");
+    let importer = lockfile.root_project().expect("root importer present");
+    let (_dir, manifest) = manifest_from_json(
+        r#"{
+        "name": "x",
+        "version": "1.0.0",
+        "optionalDependencies": { "foo": "1.0.0" }
+    }"#,
+    );
+    assert!(satisfies_package_manifest(importer, &manifest, true, &|_: &str| false).is_ok());
+}
+
+/// A dependency the manifest lists only under `optionalDependencies`
+/// but the lockfile records under `dependencies` is drift: the flat
+/// diff agrees on the specifier, so the per-field check must catch the
+/// field move. Mirrors the `optionalDependencies` mismatch case in
+/// `satisfiesPackageManifest.ts`.
+#[test]
+fn manifest_optional_only_but_lockfile_records_prod_is_stale() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies:"
+        "      foo:"
+        "        specifier: 1.0.0"
+        "        version: 1.0.0"
+    })
+    .expect("parse fixture lockfile");
+    let importer = lockfile.root_project().expect("root importer present");
+    let (_dir, manifest) = manifest_from_json(
+        r#"{
+        "name": "x",
+        "version": "1.0.0",
+        "optionalDependencies": { "foo": "1.0.0" }
+    }"#,
+    );
+    let err = satisfies_package_manifest(importer, &manifest, true, &|_: &str| false)
+        .expect_err("a dep the manifest lists only as optional but the lockfile records under dependencies must be stale");
+    assert!(
+        matches!(err, StalenessReason::DepSpecifierMismatch { field: "dependencies", .. }),
+        "got: {err:?}",
+    );
+}
+
+// ---------------------------------------------------------------------------
+// `auto-install-peers` — peers materialized into the importer's
+// `dependencies` must not read as lockfile drift. Ports
+// `packages/lockfile/verification/test/satisfiesPackageManifest.ts`.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn peer_only_dependency_is_satisfied_when_auto_install_peers() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies:"
+        "      foo:"
+        "        specifier: 1.0.0"
+        "        version: 1.0.0"
+        "      bar:"
+        "        specifier: ^1.0.0"
+        "        version: 1.0.0"
+    })
+    .expect("parse fixture lockfile");
+    let importer = lockfile.root_project().expect("root importer present");
+    let (_dir, manifest) = manifest_from_json(
+        r#"{
+        "name": "x",
+        "version": "1.0.0",
+        "dependencies": { "foo": "1.0.0" },
+        "peerDependencies": { "bar": "^1.0.0" }
+    }"#,
+    );
+    assert!(satisfies_package_manifest(importer, &manifest, true, &|_: &str| false).is_ok());
+}
+
+#[test]
+fn peers_also_declared_as_regular_deps_still_satisfy() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies:"
+        "      qar:"
+        "        specifier: 1.0.0"
+        "        version: 1.0.0"
+        "    optionalDependencies:"
+        "      bar:"
+        "        specifier: 1.0.0"
+        "        version: 1.0.0"
+        "    devDependencies:"
+        "      foo:"
+        "        specifier: 1.0.0"
+        "        version: 1.0.0"
+    })
+    .expect("parse fixture lockfile");
+    let importer = lockfile.root_project().expect("root importer present");
+    let (_dir, manifest) = manifest_from_json(
+        r#"{
+        "name": "x",
+        "version": "1.0.0",
+        "dependencies": { "qar": "1.0.0" },
+        "optionalDependencies": { "bar": "1.0.0" },
+        "devDependencies": { "foo": "1.0.0" },
+        "peerDependencies": { "foo": "^1.0.0", "bar": "^1.0.0", "qar": "^1.0.0" }
+    }"#,
+    );
+    assert!(satisfies_package_manifest(importer, &manifest, true, &|_: &str| false).is_ok());
+}
+
+#[test]
+fn peer_only_dependency_is_stale_without_auto_install_peers() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies:"
+        "      foo:"
+        "        specifier: 1.0.0"
+        "        version: 1.0.0"
+        "      bar:"
+        "        specifier: ^1.0.0"
+        "        version: 1.0.0"
+    })
+    .expect("parse fixture lockfile");
+    let importer = lockfile.root_project().expect("root importer present");
+    let (_dir, manifest) = manifest_from_json(
+        r#"{
+        "name": "x",
+        "version": "1.0.0",
+        "dependencies": { "foo": "1.0.0" },
+        "peerDependencies": { "bar": "^1.0.0" }
+    }"#,
+    );
+    let err = satisfies_package_manifest(importer, &manifest, false, &|_: &str| false)
+        .expect_err("without auto-install-peers, the materialized peer is unexplained drift");
+    let StalenessReason::SpecifiersDiffer(diff) = err else {
+        panic!("expected SpecifiersDiffer, got {err:?}");
+    };
+    assert_eq!(diff.removed, BTreeMap::from([("bar".to_string(), "^1.0.0".to_string())]));
+    assert!(diff.added.is_empty());
+    assert!(diff.modified.is_empty());
 }
 
 // ---------------------------------------------------------------------------
@@ -541,6 +816,28 @@ fn check_settings_passes_when_catalog_snapshot_matches_config() {
         BTreeMap::from([("react".to_string(), "^18.2.0".to_string())]),
     )]);
     assert!(check_lockfile_settings_with_catalogs(&lockfile, settings_check(&catalogs)).is_ok());
+}
+
+#[test]
+fn check_settings_accepts_equivalent_git_catalog_specifiers() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "catalogs:"
+        "  default:"
+        "    is-positive:"
+        "      specifier: git+https://github.com/kevva/is-positive.git#97edff6"
+        "      version: git+https://github.com/kevva/is-positive.git#97edff6"
+    })
+    .expect("parse lockfile with catalogs");
+    let catalogs = Catalogs::from([(
+        "default".to_string(),
+        BTreeMap::from([(
+            "is-positive".to_string(),
+            "github:kevva/is-positive#97edff6".to_string(),
+        )]),
+    )]);
+    check_lockfile_settings_with_catalogs(&lockfile, settings_check(&catalogs))
+        .expect("equivalent git catalog specifiers must be current");
 }
 
 #[test]
@@ -1296,7 +1593,7 @@ fn ignored_optional_filtered_out_of_manifest_diff() {
     }"#,
     );
     let is_ignored: &dyn Fn(&str) -> bool = &|name: &str| name == "foo";
-    assert!(satisfies_package_manifest(importer, &manifest, ".", is_ignored).is_ok());
+    assert!(satisfies_package_manifest(importer, &manifest, true, is_ignored).is_ok());
 }
 
 /// Polarity: without the filter the same fixture must fail.
@@ -1323,7 +1620,7 @@ fn ignored_optional_without_filter_surfaces_as_drift() {
         "optionalDependencies": { "foo": "^1.0.0" }
     }"#,
     );
-    let err = satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false)
+    let err = satisfies_package_manifest(importer, &manifest, true, &|_: &str| false)
         .expect_err("without the filter the manifest's extra `foo` must surface as drift");
     assert!(
         matches!(err, StalenessReason::SpecifiersDiffer(_)),
@@ -1377,7 +1674,7 @@ fn ignored_optional_does_not_apply_to_dev_dependencies() {
     }"#,
     );
     let is_ignored: &dyn Fn(&str) -> bool = &|name: &str| name == "foo";
-    assert!(satisfies_package_manifest(importer, &manifest, ".", is_ignored).is_ok());
+    assert!(satisfies_package_manifest(importer, &manifest, true, is_ignored).is_ok());
 }
 
 /// Pins the group gate: removing the `matches!(... Prod | Optional)`
@@ -1404,5 +1701,5 @@ fn ignored_optional_dev_only_lockfile_entry_kept() {
     }"#,
     );
     let is_ignored: &dyn Fn(&str) -> bool = &|name: &str| name == "foo";
-    assert!(satisfies_package_manifest(importer, &manifest, ".", is_ignored).is_ok());
+    assert!(satisfies_package_manifest(importer, &manifest, true, is_ignored).is_ok());
 }

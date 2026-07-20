@@ -12,7 +12,7 @@
 //! `workspace:` and bare filesystem paths, the node / deno / bun
 //! runtime specs, and `<alias>:` named-registry specs. A specifier no
 //! resolver in the chain claims surfaces as
-//! `SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`.
+//! `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`.
 //!
 //! The one deviation from the install chain: the tarball resolver runs
 //! without a fetch context (no store to extract into on this
@@ -164,15 +164,17 @@ fn run_resolve_blocking(
         retry_opts,
     });
 
+    // No fetch context on the single-resolve path for either resolver:
+    // there's no install store to extract into, so an `http(s)` tarball
+    // is claimed with its normalized URL but no bundled manifest /
+    // integrity (see the module docs), and a git dep is claimed without
+    // its archive's manifest. The install path wires the full
+    // `TarballFetchContext` / `GitFetchContext`.
     let git_resolver = GitResolver::new(
         Arc::new(RealGitProbe::new(Arc::clone(&http_client))),
         Arc::new(RealGitRunner::new()),
     );
 
-    // No fetch context on the single-resolve path: there's no install
-    // store to extract into, so an `http(s)` tarball is claimed with its
-    // normalized URL but no bundled manifest / integrity (see the module
-    // docs). The install path wires the full [`TarballFetchContext`].
     let tarball_resolver =
         TarballResolver { http_client: Arc::clone(&http_client), fetch_context: None };
 
@@ -240,7 +242,7 @@ fn run_resolve_blocking(
         // An empty bareSpecifier means "no range given" — pnpm v11's
         // resolver treated it like an absent pref (resolve the latest
         // matching version); passing it through verbatim would fall off
-        // the resolver chain as SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER.
+        // the resolver chain as ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER.
         bare_specifier: wanted.bare_specifier.filter(|spec| !spec.trim().is_empty()),
         injected: None,
         prev_specifier: None,
@@ -261,7 +263,7 @@ fn run_resolve_blocking(
         })?;
 
     // The inherent [`DefaultResolver::resolve`] (not the `Resolver`-trait
-    // method) is chosen here: it raises `SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`
+    // method) is chosen here: it raises `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`
     // when no resolver in the chain claims the spec, rather than the
     // trait's `Ok(None)`.
     let resolved = runtime

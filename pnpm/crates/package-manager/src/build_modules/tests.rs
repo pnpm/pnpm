@@ -1,5 +1,6 @@
 use super::{
-    AllowBuildPolicy, BuildModules, allow_build_key_from_ignored_build, parse_name_version_from_key,
+    AllowBuildPolicy, BuildModules, allow_build_key_from_ignored_build, is_contained_descendant,
+    parse_name_version_from_key,
 };
 // Only the `#[cfg(unix)]` rebuild-selection test uses this; importing it
 // unconditionally would be an unused import on Windows.
@@ -359,7 +360,7 @@ fn build_modules_collects_ignored_builds() {
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_root_by_key: None,
+        pkg_roots_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
         ignore_scripts: false,
@@ -368,7 +369,8 @@ fn build_modules_collects_ignored_builds() {
         rebuild: None,
     }
     .run::<SilentReporter>()
-    .expect("run BuildModules");
+    .expect("run BuildModules")
+    .ignored_builds;
     dbg!(&ignored);
 
     assert_eq!(
@@ -424,7 +426,7 @@ fn ignore_scripts_skips_build_without_collecting_ignored() {
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_root_by_key: None,
+        pkg_roots_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
         ignore_scripts: true,
@@ -433,7 +435,8 @@ fn ignore_scripts_skips_build_without_collecting_ignored() {
         rebuild: None,
     }
     .run::<SilentReporter>()
-    .expect("run BuildModules");
+    .expect("run BuildModules")
+    .ignored_builds;
     dbg!(&ignored);
 
     assert!(ignored.is_empty(), "ignore_scripts must not collect ignored builds: {ignored:?}");
@@ -478,7 +481,7 @@ fn cached_requires_build_false_skips_package_dir_probe() {
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_root_by_key: None,
+        pkg_roots_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
         ignore_scripts: false,
@@ -487,7 +490,8 @@ fn cached_requires_build_false_skips_package_dir_probe() {
         rebuild: None,
     }
     .run::<SilentReporter>()
-    .expect("run BuildModules");
+    .expect("run BuildModules")
+    .ignored_builds;
 
     assert!(ignored.is_empty());
 }
@@ -552,7 +556,7 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
         unsafe_perm: true,
         child_concurrency: 2,
         skipped: &SkippedSnapshots::default(),
-        pkg_root_by_key: None,
+        pkg_roots_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
         ignore_scripts: false,
@@ -561,7 +565,8 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
         rebuild: None,
     }
     .run::<SilentReporter>()
-    .expect("run BuildModules under concurrency");
+    .expect("run BuildModules under concurrency")
+    .ignored_builds;
     dbg!(&ignored);
 
     // Same expected output as the sequential test — both members of
@@ -618,7 +623,7 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_root_by_key: None,
+        pkg_roots_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
         ignore_scripts: false,
@@ -627,7 +632,8 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
         rebuild: None,
     }
     .run::<SilentReporter>()
-    .expect("run BuildModules");
+    .expect("run BuildModules")
+    .ignored_builds;
     dbg!(&ignored);
 
     assert_eq!(
@@ -701,7 +707,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_root_by_key: None,
+        pkg_roots_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
         ignore_scripts: false,
@@ -862,7 +868,7 @@ fn using_side_effects_cache_skips_rebuild() {
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_root_by_key: None,
+        pkg_roots_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
         ignore_scripts: false,
@@ -988,7 +994,7 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_root_by_key: None,
+        pkg_roots_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
         ignore_scripts: false,
@@ -1105,7 +1111,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_root_by_key: None,
+        pkg_roots_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
         ignore_scripts: false,
@@ -1172,7 +1178,7 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_root_by_key: None,
+        pkg_roots_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
         ignore_scripts: false,
@@ -1237,7 +1243,7 @@ fn fail_when_failing_postinstall_is_required() {
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_root_by_key: None,
+        pkg_roots_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
         ignore_scripts: false,
@@ -1294,7 +1300,7 @@ fn frozen_backstop_run(
     layout: &VirtualStoreLayout,
     frozen_store: bool,
     optional: bool,
-) -> Result<Vec<String>, crate::build_modules::BuildModulesError> {
+) -> Result<crate::BuildModulesOutput, crate::build_modules::BuildModulesError> {
     let pkg_key = key("is-positive", "1.0.0");
     let snapshots =
         HashMap::from([(pkg_key.clone(), SnapshotEntry { optional, ..SnapshotEntry::default() })]);
@@ -1326,7 +1332,7 @@ fn frozen_backstop_run(
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_root_by_key: None,
+        pkg_roots_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store,
         ignore_scripts: false,
@@ -1364,7 +1370,8 @@ fn frozen_store_gvs_optional_not_seeded_skips() {
     let layout = gvs_layout(store_dir.path());
 
     let ignored = frozen_backstop_run(layout, true, true)
-        .expect("an optional un-seeded build must be skipped, not refused");
+        .expect("an optional un-seeded build must be skipped, not refused")
+        .ignored_builds;
     assert!(ignored.is_empty(), "no scripts to ignore for a patched-only snapshot: {ignored:?}");
 }
 
@@ -1379,7 +1386,8 @@ fn gvs_without_frozen_store_does_not_trip_backstop() {
     let layout = gvs_layout(store_dir.path());
 
     let ignored = frozen_backstop_run(layout, false, false)
-        .expect("without frozen_store the backstop must not fire");
+        .expect("without frozen_store the backstop must not fire")
+        .ignored_builds;
     assert!(ignored.is_empty(), "no scripts to ignore for a patched-only snapshot: {ignored:?}");
 }
 
@@ -1396,7 +1404,8 @@ fn frozen_store_without_gvs_does_not_trip_backstop() {
     );
 
     let ignored = frozen_backstop_run(&layout, true, false)
-        .expect("the non-GVS layout writes to the project store, so the backstop must not fire");
+        .expect("the non-GVS layout writes to the project store, so the backstop must not fire")
+        .ignored_builds;
     assert!(ignored.is_empty(), "no scripts to ignore for a patched-only snapshot: {ignored:?}");
 }
 
@@ -1644,7 +1653,7 @@ async fn write_path_populates_side_effects_row() {
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_root_by_key: None,
+        pkg_roots_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
         ignore_scripts: false,
@@ -1764,7 +1773,7 @@ async fn write_path_disabled_skips_upload() {
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_root_by_key: None,
+        pkg_roots_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
         ignore_scripts: false,
@@ -1781,6 +1790,117 @@ async fn write_path_disabled_skips_upload() {
     let index = StoreIndex::open_readonly_in(&store_dir).expect("open index for read");
     let row = index.get(&files_index_file).expect("get row").expect("row present");
     assert!(row.side_effects.is_none(), "write disabled must NOT populate side_effects");
+}
+
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn frozen_store_skips_side_effects_upload() {
+    use pacquet_store_dir::{StoreDir, StoreIndexWriter};
+
+    let pkg_key = key("@pnpm/postinstall-modifies-source", "1.0.0");
+    let integrity_str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    let snapshots = HashMap::from([(pkg_key.clone(), SnapshotEntry::default())]);
+    let packages: HashMap<pacquet_lockfile::PackageKey, pacquet_lockfile::PackageMetadata> =
+        HashMap::from([(
+            pkg_key.without_peer(),
+            pacquet_lockfile::PackageMetadata {
+                resolution: pacquet_lockfile::LockfileResolution::Registry(
+                    pacquet_lockfile::RegistryResolution {
+                        integrity: integrity_str.parse().expect("parse integrity"),
+                    },
+                ),
+                version: None,
+                engines: None,
+                cpu: None,
+                os: None,
+                libc: None,
+                deprecated: None,
+                has_bin: None,
+                prepare: None,
+                bundled_dependencies: None,
+                peer_dependencies: None,
+                peer_dependencies_meta: None,
+            },
+        )]);
+    let importers = root_importers(&[("@pnpm/postinstall-modifies-source", "1.0.0")]);
+    let policy = policy_from_specs([], true);
+    let side_effects_maps = crate::SideEffectsMapsBySnapshot::from([(
+        pkg_key.clone(),
+        std::sync::Arc::new(HashMap::new()),
+    )]);
+
+    let store_root = tempdir().expect("create store dir");
+    let store_dir = StoreDir::from(store_root.path().to_path_buf());
+    store_dir.init().expect("init store");
+    let virtual_store_dir = tempdir().expect("create vstore dir");
+    let modules_dir = tempdir().expect("create modules dir");
+    let lockfile_dir = tempdir().expect("create lockfile dir");
+    let (pkg_dir, _actual_mode) =
+        create_postinstall_modifies_source_fixture(virtual_store_dir.path(), &pkg_key);
+    let store_before = snapshot_regular_files(store_dir.root());
+    let (writer, writer_task) = StoreIndexWriter::spawn_disabled();
+
+    BuildModules {
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
+        modules_dir: modules_dir.path(),
+        lockfile_dir: lockfile_dir.path(),
+        snapshots: Some(&snapshots),
+        packages: Some(&packages),
+        importers: &importers,
+        allow_build_policy: &policy,
+        side_effects_maps_by_snapshot: Some(&side_effects_maps),
+        requires_build_by_snapshot: None,
+        engine_name: Some("darwin;arm64;node20"),
+        side_effects_cache: true,
+        side_effects_cache_write: true,
+        store_dir: Some(&store_dir),
+        store_index_writer: Some(&writer),
+        patches: None,
+
+        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
+        unsafe_perm: true,
+        child_concurrency: 1,
+        skipped: &SkippedSnapshots::default(),
+        pkg_roots_by_key: None,
+        gather_ancestor_bin_paths: false,
+        frozen_store: true,
+        ignore_scripts: false,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
+    }
+    .run::<SilentReporter>()
+    .expect("build modules must complete cleanly");
+
+    drop(writer);
+    writer_task.await.expect("await writer").expect("disabled writer succeeds");
+
+    let generated_file = pkg_dir.join("generated.txt");
+    let generated_file_exists = generated_file.exists();
+    if !generated_file_exists {
+        eprintln!("Expected generated file: {}", generated_file.display());
+    }
+    assert!(generated_file_exists, "postinstall must run outside the store");
+
+    let store_after = snapshot_regular_files(store_dir.root());
+    if store_after != store_before {
+        eprintln!("Store regular files differ:");
+        for (path, contents) in &store_after {
+            if store_before.get(path) != Some(contents) {
+                eprintln!("  added or modified: {}", path.display());
+            }
+        }
+        for path in store_before.keys() {
+            if !store_after.contains_key(path) {
+                eprintln!("  removed: {}", path.display());
+            }
+        }
+    }
+    assert_eq!(store_after, store_before);
 }
 
 /// Uploading errors do not interrupt the install: the install
@@ -1886,7 +2006,7 @@ async fn upload_error_does_not_interrupt_install() {
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_root_by_key: None,
+        pkg_roots_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
         ignore_scripts: false,
@@ -1962,6 +2082,27 @@ fn sha512_hex(buf: &[u8]) -> String {
     use sha2::{Digest, Sha512};
     let digest = Sha512::digest(buf);
     format!("{digest:x}")
+}
+
+#[cfg(unix)]
+fn snapshot_regular_files(root: &Path) -> std::collections::BTreeMap<PathBuf, Vec<u8>> {
+    let mut snapshot = std::collections::BTreeMap::new();
+    let mut directories = vec![root.to_path_buf()];
+    while let Some(directory) = directories.pop() {
+        for entry in fs::read_dir(&directory).expect("read snapshot directory") {
+            let entry = entry.expect("read snapshot entry");
+            let file_type = entry.file_type().expect("read snapshot entry type");
+            if file_type.is_dir() {
+                directories.push(entry.path());
+            } else if file_type.is_file() {
+                let path = entry.path();
+                let relative = path.strip_prefix(root).expect("snapshot path is under root");
+                snapshot
+                    .insert(relative.to_path_buf(), fs::read(&path).expect("read snapshot file"));
+            }
+        }
+    }
+    snapshot
 }
 
 /// When `BuildModules.patches` contains an entry for a snapshot,
@@ -2120,7 +2261,7 @@ new file mode 100644
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_root_by_key: None,
+        pkg_roots_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
         ignore_scripts: false,
@@ -2233,7 +2374,7 @@ new file mode 100644
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_root_by_key: None,
+        pkg_roots_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
         ignore_scripts: false,
@@ -2318,7 +2459,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_root_by_key: None,
+        pkg_roots_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
         ignore_scripts: false,
@@ -2450,7 +2591,7 @@ fn pkg_root_for_key_hoisted_uses_override() {
 
     let key: PackageKey = "is-positive@1.0.0".parse().expect("parse key");
     let hoisted_dir = PathBuf::from("/repo/node_modules/is-positive");
-    let map: HashMap<PackageKey, PathBuf> = [(key.clone(), hoisted_dir.clone())].into();
+    let map: HashMap<PackageKey, Vec<PathBuf>> = [(key.clone(), vec![hoisted_dir.clone()])].into();
 
     let result = super::pkg_root_for_key(&layout, Some(&map), &key).expect("override hits");
     assert_eq!(result, hoisted_dir);
@@ -2471,7 +2612,7 @@ fn pkg_root_for_key_hoisted_missing_returns_none() {
     let layout = VirtualStoreLayout::new(config, None, None, None, None);
 
     let key: PackageKey = "absent@1.0.0".parse().expect("parse key");
-    let map: HashMap<PackageKey, PathBuf> = HashMap::new();
+    let map: HashMap<PackageKey, Vec<PathBuf>> = HashMap::new();
 
     let result = super::pkg_root_for_key(&layout, Some(&map), &key);
     assert!(result.is_none(), "absent key surfaces None, got {result:?}");
@@ -2548,8 +2689,10 @@ fn rebuild_selection_runs_only_selected_scripts() {
     let aaa_dir = create_marker_pkg(virtual_store_dir.path(), &key("aaa", "1.0.0"));
     let zzz_dir = create_marker_pkg(virtual_store_dir.path(), &key("zzz", "1.0.0"));
 
-    let rebuild =
-        RebuildOptions { selected_names: Some(std::iter::once("aaa".to_string()).collect()) };
+    let rebuild = RebuildOptions {
+        selected_names: Some(std::iter::once("aaa".to_string()).collect()),
+        pending_projects: Vec::new(),
+    };
 
     BuildModules {
         layout: &VirtualStoreLayout::legacy(
@@ -2575,7 +2718,7 @@ fn rebuild_selection_runs_only_selected_scripts() {
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_root_by_key: None,
+        pkg_roots_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
         ignore_scripts: false,
@@ -2591,4 +2734,28 @@ fn rebuild_selection_runs_only_selected_scripts() {
         !zzz_dir.join("built-marker").exists(),
         "the non-selected package's script must not run",
     );
+}
+
+/// The GVS build-failure cleanup only recurse-deletes a slot that sits
+/// strictly inside the store root through `..`-free components, so a
+/// crafted package name cannot turn the cleanup into a path traversal.
+#[test]
+fn is_contained_descendant_rejects_traversal_and_escapes() {
+    let root = Path::new("/store/v11/links");
+
+    // A normal GVS slot suffix is accepted.
+    assert!(is_contained_descendant(root, &root.join("@pnpm.e2e/foo/1.0.0/deadbeef")));
+    assert!(is_contained_descendant(root, &root.join("foo/1.0.0/deadbeef")));
+
+    // A `..` segment that climbs out of the root is rejected even though
+    // the path still textually starts with the root.
+    assert!(!is_contained_descendant(root, &root.join("../../../etc/passwd")));
+    assert!(!is_contained_descendant(root, &root.join("foo/../../../escape")));
+
+    // The root itself is not a descendant — deleting it wholesale is not
+    // a per-slot cleanup.
+    assert!(!is_contained_descendant(root, root));
+
+    // A sibling that merely shares a name prefix is not contained.
+    assert!(!is_contained_descendant(root, Path::new("/store/v11/links-evil/foo")));
 }

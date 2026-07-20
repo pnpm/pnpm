@@ -3,20 +3,18 @@ use pacquet_default_reporter::{DefaultReporter, SummaryScope};
 use pacquet_reporter::{LogEvent, NdjsonReporter, Reporter, SilentReporter};
 use std::path::Path;
 
-/// Selectable rendering strategy for log events.
-///
-/// Mirrors the names pnpm uses for `--reporter` (`default`, `append-only`,
-/// `ndjson`, `silent`).
+/// Output format for progress and log messages.
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum ReporterType {
-    /// pnpm-style visual output (progress line, packages diff, lifecycle
-    /// output, `Done in ...`). The default; renders in place on a TTY and
-    /// falls back to append-only when stdout is not a TTY.
+    /// Rich visual output: a progress line, a packages diff, lifecycle
+    /// output, and a `Done in ...` summary. The default; renders in place
+    /// on a terminal and falls back to `append-only` output when stdout is
+    /// not a terminal.
     Default,
     /// Like `default` but forces the append-only rendering even on a TTY —
     /// one line per update, no cursor movement.
     AppendOnly,
-    /// Newline-delimited JSON in pnpm's wire format on stderr.
+    /// Newline-delimited JSON on stderr.
     Ndjson,
     /// No progress output.
     Silent,

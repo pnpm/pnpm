@@ -47,7 +47,7 @@ struct RawNodeVersion {
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum ResolveNodeVersionError {
     #[display("Failed to fetch Node.js release index at {url}")]
-    #[diagnostic(code(FETCH_NODE_INDEX_FAILED))]
+    #[diagnostic(code(ERR_PNPM_FETCH_NODE_INDEX_FAILED))]
     FetchIndex {
         url: String,
         #[error(source)]
@@ -55,7 +55,7 @@ pub enum ResolveNodeVersionError {
     },
 
     #[display("Failed to decode Node.js release index at {url}")]
-    #[diagnostic(code(DECODE_NODE_INDEX_FAILED))]
+    #[diagnostic(code(ERR_PNPM_DECODE_NODE_INDEX_FAILED))]
     DecodeIndex {
         url: String,
         #[error(source)]
@@ -68,7 +68,7 @@ pub enum ResolveNodeVersionError {
 /// `node_mirror_base_url` falls back to the official `release` channel
 /// when `None`. Returns `Ok(None)` when the index is reachable but no
 /// version satisfies the selector — the caller raises
-/// `NODEJS_VERSION_NOT_FOUND`.
+/// `ERR_PNPM_NODEJS_VERSION_NOT_FOUND`.
 pub async fn resolve_node_version(
     http_client: &ThrottledClient,
     version_spec: &str,

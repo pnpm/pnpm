@@ -15,10 +15,7 @@ pub struct PruneArgs {
     no_optional: bool,
     #[clap(long = "ignore-scripts", overrides_with = "no_ignore_scripts")]
     pub ignore_scripts: bool,
-    /// Force-enable lifecycle scripts for this invocation, overriding a
-    /// `pnpm-workspace.yaml` / `.npmrc` `ignoreScripts: true`. Mirrors
-    /// pnpm's `--no-ignore-scripts`. Paired with `ignore_scripts` by
-    /// mutual `overrides_with` (last-one-wins).
+    /// Run lifecycle scripts even if scripts are disabled by configuration.
     #[clap(long = "no-ignore-scripts", overrides_with = "ignore_scripts")]
     pub no_ignore_scripts: bool,
 }
@@ -37,13 +34,9 @@ impl PruneArgs {
     }
 
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
+        let lockfile_path = state.lockfile_path();
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &state;
-
-        let lockfile_path = manifest
-            .path()
-            .parent()
-            .map(|parent| parent.join(pacquet_lockfile::Lockfile::FILE_NAME));
 
         let dependency_groups: Vec<DependencyGroup> = self.dependency_groups().collect();
 
@@ -55,7 +48,7 @@ impl PruneArgs {
             manifest,
             emit_initial_manifest: true,
             lockfile: pacquet_lockfile::MaybeLazyLockfile::Lazy(lockfile),
-            lockfile_path: lockfile_path.as_deref(),
+            lockfile_path: Some(&lockfile_path),
             dependency_groups,
             frozen_lockfile: false,
             prefer_frozen_lockfile: None,
@@ -64,6 +57,7 @@ impl PruneArgs {
             trust_lockfile: false,
             update_checksums: false,
             is_full_install: true,
+            installs_only: true,
             resolved_packages,
             supported_architectures: config.supported_architectures.clone(),
             node_linker: config.node_linker,

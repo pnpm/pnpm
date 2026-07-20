@@ -14,7 +14,7 @@ use std::{
 
 #[derive(Debug, Args)]
 pub struct PatchRemoveArgs {
-    /// Patches to remove from patchedDependencies.
+    /// Patches to remove.
     #[clap(value_name = "pkg")]
     pub patches: Vec<String>,
 }
@@ -47,7 +47,7 @@ pub enum PatchRemoveError {
     PatchFileIsDirectory { patch_file: String },
 
     #[display("Failed to remove patch file {}: {source}", path.display())]
-    #[diagnostic(code(pacquet::patch_remove_unlink_patch_file))]
+    #[diagnostic(code(ERR_PNPM_PATCH_REMOVE_UNLINK_PATCH_FILE))]
     RemovePatchFile {
         path: PathBuf,
         #[error(source)]
@@ -55,7 +55,7 @@ pub enum PatchRemoveError {
     },
 
     #[display("Failed to read patch directory {}: {source}", path.display())]
-    #[diagnostic(code(pacquet::patch_remove_read_patch_dir))]
+    #[diagnostic(code(ERR_PNPM_PATCH_REMOVE_READ_PATCH_DIR))]
     ReadPatchDir {
         path: PathBuf,
         #[error(source)]
@@ -63,7 +63,7 @@ pub enum PatchRemoveError {
     },
 
     #[display("Failed to remove empty patch directory {}: {source}", path.display())]
-    #[diagnostic(code(pacquet::patch_remove_remove_patch_dir))]
+    #[diagnostic(code(ERR_PNPM_PATCH_REMOVE_REMOVE_PATCH_DIR))]
     RemovePatchDir {
         path: PathBuf,
         #[error(source)]

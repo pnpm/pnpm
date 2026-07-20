@@ -13,8 +13,8 @@
 
 use crate::{
     AuditLevel, CatalogMode, HoistingLimits, NodeLinker, NodePackageMapType, PackageImportMethod,
-    PmOnFail, ResolutionMode, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
-    WorkspaceSettings, api::EnvVar,
+    PmOnFail, ResolutionMode, RuntimeOnFail, ScriptsPrependNodePath, TrustPolicy,
+    VerifyDepsBeforeRun, WorkspaceSettings, api::EnvVar,
 };
 use serde::de::DeserializeOwned;
 
@@ -143,6 +143,15 @@ impl WorkspaceSettings {
         json_field!(lockfile_include_tarball_url, "LOCKFILE_INCLUDE_TARBALL_URL");
         string_field!(registry, "REGISTRY");
         string_field!(pnpr_server, "PNPR_SERVER");
+        string_field!(https_proxy, "HTTPS_PROXY");
+        string_field!(http_proxy, "HTTP_PROXY");
+        string_field!(proxy, "PROXY");
+        if let Some(value) = read_env::<Sys>("NO_PROXY") {
+            settings.no_proxy = Some(serde_json::Value::String(value));
+        }
+        if let Some(value) = read_env::<Sys>("NOPROXY") {
+            settings.noproxy = Some(serde_json::Value::String(value));
+        }
         json_field!(auto_install_peers, "AUTO_INSTALL_PEERS");
         json_field!(auto_install_peers_from_highest_match, "AUTO_INSTALL_PEERS_FROM_HIGHEST_MATCH");
         json_field!(exclude_links_from_lockfile, "EXCLUDE_LINKS_FROM_LOCKFILE");
@@ -178,6 +187,8 @@ impl WorkspaceSettings {
         json_field!(git_checks, "GIT_CHECKS");
         json_field!(engine_strict, "ENGINE_STRICT");
         string_field!(node_version, "NODE_VERSION");
+        enum_field!(runtime_on_fail, "RUNTIME_ON_FAIL", RuntimeOnFail);
+        json_field!(node_download_mirrors, "NODE_DOWNLOAD_MIRRORS");
         enum_field!(scripts_prepend_node_path, "SCRIPTS_PREPEND_NODE_PATH", ScriptsPrependNodePath);
         json_field!(enable_pre_post_scripts, "ENABLE_PRE_POST_SCRIPTS");
         tri_string_field!(script_shell, "SCRIPT_SHELL");

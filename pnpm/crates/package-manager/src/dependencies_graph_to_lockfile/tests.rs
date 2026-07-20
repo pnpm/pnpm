@@ -1,9 +1,13 @@
-use super::{GraphToLockfileOptions, ImporterLockfileInput, dependencies_graph_to_lockfile};
+use super::{
+    DependenciesGraphToLockfileError, GraphToLockfileOptions, ImporterLockfileInput,
+    dependencies_graph_to_lockfile as try_dependencies_graph_to_lockfile,
+};
 use indexmap::IndexMap;
 use pacquet_deps_path::DepPath;
 use pacquet_lockfile::{
-    DirectoryResolution, ImporterDepVersion, LockfileResolution, PackageKey, PkgName, PkgNameVer,
-    RegistryResolution, SnapshotDepRef, VariationsResolution,
+    DirectoryResolution, GitResolution, ImporterDepVersion, LockfileResolution, PackageKey,
+    PkgName, PkgNameVer, RegistryResolution, SnapshotDepRef, TarballResolution,
+    VariationsResolution,
 };
 use pacquet_package_manifest::PackageManifest;
 use pacquet_resolving_deps_resolver::{
@@ -19,6 +23,10 @@ use std::{
     sync::Arc,
 };
 use tempfile::TempDir;
+
+fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> pacquet_lockfile::Lockfile {
+    try_dependencies_graph_to_lockfile(opts).expect("convert dependency graph to lockfile")
+}
 
 /// Shared empty catalogs for the catalog-free fixtures in this module.
 static EMPTY_CATALOGS: pacquet_catalogs_types::Catalogs = BTreeMap::new();
@@ -188,6 +196,31 @@ fn fresh_install_records_a_single_direct_dependency() {
     assert!(snapshot.dependencies.is_none());
     assert!(snapshot.optional_dependencies.is_none());
     assert!(snapshot.transitive_peer_dependencies.is_none());
+}
+
+#[test]
+fn fresh_install_records_importer_manifest_metadata() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependenciesMeta": { "pkg-a": { "injected": true } },
+        "publishConfig": { "directory": "dist" },
+    }));
+    let graph = DependenciesGraph::new();
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest,
+        &graph,
+        BTreeMap::new(),
+        false,
+        false,
+        None,
+        None,
+    ));
+    let importer = lockfile.root_project().expect("root importer exists");
+
+    assert_eq!(importer.dependencies_meta, Some(json!({ "pkg-a": { "injected": true } })));
+    assert_eq!(importer.publish_directory.as_deref(), Some("dist"));
 }
 
 #[test]
@@ -561,6 +594,247 @@ fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
     assert_eq!(metadata.version.as_deref(), Some("26.3.0"));
 }
 
+const GIT_TARBALL_URL: &str =
+    "https://codeload.github.com/kevva/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99";
+
+/// A git-hosted node as the resolve pass produces it: the dep path is
+/// the `<name>@<archive-url>` `build_pkg_id_with_patch_hash` derives
+/// from the archive's own `package.json`, which the git resolver reads
+/// during resolution.
+fn git_hosted_node(alias: &str) -> (DepPath, DependenciesGraphNode) {
+    let dep_path = DepPath::from(format!("is-negative@{GIT_TARBALL_URL}"));
+    let resolve_result = ResolveResult {
+        id: PkgResolutionId::from(GIT_TARBALL_URL),
+        name_ver: None,
+        latest: None,
+        published_at: None,
+        manifest: Some(Arc::new(json!({ "name": "is-negative", "version": "1.0.0" }))),
+        resolution: LockfileResolution::Tarball(TarballResolution {
+            tarball: GIT_TARBALL_URL.to_string(),
+            integrity: None,
+            git_hosted: Some(true),
+            path: None,
+        }),
+        resolved_via: "git-repository".to_string(),
+        normalized_bare_specifier: Some("github:kevva/is-negative#1.0.0".to_string()),
+        alias: Some(alias.to_string()),
+        policy_violation: None,
+    };
+    let node = DependenciesGraphNode {
+        dep_path: dep_path.clone(),
+        resolved_package_id: dep_path.to_string(),
+        resolve_result: Arc::new(resolve_result),
+        children: BTreeMap::new(),
+        optional_children: HashSet::new(),
+        peer_dependencies: BTreeMap::new(),
+        transitive_peer_dependencies: HashSet::new(),
+        resolved_peer_names: HashSet::new(),
+        depth: 1,
+        installable: true,
+        is_pure: true,
+        optional: false,
+    };
+    (dep_path, node)
+}
+
+#[test]
+fn git_hosted_dependency_records_bare_tarball_url_in_importer() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": {
+            "is-negative": "github:kevva/is-negative#1.0.0",
+        },
+    }));
+
+    let (dep_path, node) = git_hosted_node("is-negative");
+    let mut graph = DependenciesGraph::new();
+    graph.insert(dep_path.clone(), node);
+    let direct = BTreeMap::from([("is-negative".to_string(), dep_path)]);
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, false, false, None, None,
+    ));
+
+    let importer = lockfile.root_project().expect("root importer");
+    let entry = importer
+        .dependencies
+        .as_ref()
+        .expect("dependencies")
+        .get(&PkgName::parse("is-negative").unwrap())
+        .expect("git dependency");
+    assert_eq!(entry.specifier, "github:kevva/is-negative#1.0.0");
+    // The alias matches the package name, so the `is-negative@` prefix
+    // is stripped — same shape upstream's `depPathToRef` writes.
+    match &entry.version {
+        ImporterDepVersion::Regular(version) => assert_eq!(version.to_string(), GIT_TARBALL_URL),
+        other => panic!("expected Regular({GIT_TARBALL_URL}), got {other:?}"),
+    }
+
+    let package_key: PackageKey = format!("is-negative@{GIT_TARBALL_URL}").parse().unwrap();
+    let packages = lockfile.packages.as_ref().expect("packages");
+    assert_eq!(packages[&package_key].version.as_deref(), Some("1.0.0"));
+    assert!(lockfile.snapshots.as_ref().expect("snapshots").contains_key(&package_key));
+}
+
+/// A renamed git dep keeps the `<name>@<ref>` alias form, so the
+/// importer entry still composes to the snapshot key that
+/// `packages:` / `snapshots:` are keyed by.
+#[test]
+fn aliased_git_hosted_dependency_keeps_package_name_in_importer_ref() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": {
+            "renamed": "github:kevva/is-negative#1.0.0",
+        },
+    }));
+
+    let (dep_path, node) = git_hosted_node("renamed");
+    let mut graph = DependenciesGraph::new();
+    graph.insert(dep_path.clone(), node);
+    let direct = BTreeMap::from([("renamed".to_string(), dep_path)]);
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, false, false, None, None,
+    ));
+
+    let importer = lockfile.root_project().expect("root importer");
+    let entry = importer
+        .dependencies
+        .as_ref()
+        .expect("dependencies")
+        .get(&PkgName::parse("renamed").unwrap())
+        .expect("git dependency");
+    let version = dbg!(&entry.version);
+    let ImporterDepVersion::Alias(parsed) = version else {
+        panic!("expected Alias(is-negative@{GIT_TARBALL_URL}), got {version:?}");
+    };
+    assert_eq!(parsed.to_string(), format!("is-negative@{GIT_TARBALL_URL}"));
+
+    let package_key: PackageKey = format!("is-negative@{GIT_TARBALL_URL}").parse().unwrap();
+    assert!(lockfile.packages.as_ref().expect("packages").contains_key(&package_key));
+    assert!(lockfile.snapshots.as_ref().expect("snapshots").contains_key(&package_key));
+}
+
+/// A non-host git dep (ssh / self-hosted / `git+file:`) resolves to a
+/// `type: git` snapshot whose id *is* its depPath, and whose name lives
+/// only in the fetched manifest. When the manifest alias matches that
+/// name, the importer entry drops the `<name>@` prefix and records the
+/// bare `git+<repo>#<commit>` ref — the shape pnpm v11 writes, verified
+/// byte-for-byte against pnpm 11.13.1.
+#[test]
+fn non_host_git_dependency_records_bare_git_url_in_importer() {
+    const GIT_REF: &str =
+        "git+ssh://git@example.com/org/is-negative.git#0123456789012345678901234567890123456789";
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "is-negative": GIT_REF },
+    }));
+
+    // The install pipeline keys a git dep's depPath by `<name>@<ref>`
+    // once the name is read from the fetched manifest, so the `<name>@`
+    // prefix is present here — the exact shape `real_name` has to strip
+    // back off for the importer entry.
+    let dep_path = DepPath::from(format!("is-negative@{GIT_REF}"));
+    let resolve_result = ResolveResult {
+        id: PkgResolutionId::from(GIT_REF),
+        name_ver: None,
+        latest: None,
+        published_at: None,
+        manifest: Some(Arc::new(json!({ "name": "is-negative", "version": "1.0.0" }))),
+        resolution: LockfileResolution::Git(GitResolution {
+            repo: "ssh://git@example.com/org/is-negative.git".to_string(),
+            commit: "0123456789012345678901234567890123456789".to_string(),
+            path: None,
+        }),
+        resolved_via: "git-repository".to_string(),
+        normalized_bare_specifier: Some(GIT_REF.to_string()),
+        alias: Some("is-negative".to_string()),
+        policy_violation: None,
+    };
+    let node = DependenciesGraphNode {
+        dep_path: dep_path.clone(),
+        resolved_package_id: dep_path.to_string(),
+        resolve_result: Arc::new(resolve_result),
+        children: BTreeMap::new(),
+        optional_children: HashSet::new(),
+        peer_dependencies: BTreeMap::new(),
+        transitive_peer_dependencies: HashSet::new(),
+        resolved_peer_names: HashSet::new(),
+        depth: 1,
+        installable: true,
+        is_pure: true,
+        optional: false,
+    };
+    let mut graph = DependenciesGraph::new();
+    graph.insert(dep_path.clone(), node);
+    let direct = BTreeMap::from([("is-negative".to_string(), dep_path)]);
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, false, false, None, None,
+    ));
+
+    let importer = lockfile.root_project().expect("root importer");
+    let entry = importer
+        .dependencies
+        .as_ref()
+        .expect("dependencies")
+        .get(&PkgName::parse("is-negative").unwrap())
+        .expect("git dependency");
+    match &entry.version {
+        // The `is-negative@` prefix is stripped: the bare git ref, not
+        // `is-negative@git+...`.
+        ImporterDepVersion::Regular(version) => assert_eq!(version.to_string(), GIT_REF),
+        other => panic!("expected Regular({GIT_REF}), got {other:?}"),
+    }
+
+    let packages = lockfile.packages.as_ref().expect("packages");
+    let (package_key, metadata) =
+        packages.iter().find(|(key, _)| key.to_string().contains("is-negative")).expect("package");
+    assert!(matches!(metadata.resolution, LockfileResolution::Git(_)));
+    assert_eq!(metadata.version.as_deref(), Some("1.0.0"));
+    assert!(
+        lockfile.snapshots.as_ref().expect("snapshots").contains_key(package_key),
+        "the snapshot is keyed by the same depPath",
+    );
+}
+
+#[test]
+fn malformed_importer_dependency_path_returns_structured_error() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "broken": "^1.0.0" },
+    }));
+    let dep_path = DepPath::from("broken@1.0.0(".to_string());
+    let mut node = make_node(
+        "broken",
+        "1.0.0",
+        json!({ "name": "broken", "version": "1.0.0" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::new(),
+    );
+    node.dep_path = dep_path.clone();
+
+    let mut graph = DependenciesGraph::new();
+    graph.insert(dep_path.clone(), node);
+    let direct = BTreeMap::from([("broken".to_string(), dep_path)]);
+
+    let error = dbg!(
+        try_dependencies_graph_to_lockfile(single_importer_opts(
+            &manifest, &graph, direct, false, false, None, None,
+        ))
+        .unwrap_err(),
+    );
+
+    let DependenciesGraphToLockfileError::ImporterDependency { alias, dep_path, .. } = error;
+    assert_eq!(alias, "broken");
+    assert_eq!(dep_path, "broken@1.0.0(");
+}
+
 #[test]
 fn peer_suffixed_dep_path_splits_into_distinct_snapshot_and_package_keys() {
     let (_tmp, manifest) = write_manifest(json!({
@@ -584,10 +858,8 @@ fn peer_suffixed_dep_path_splits_into_distinct_snapshot_and_package_keys() {
     let mut react_dom_children = BTreeMap::new();
     react_dom_children.insert("react".to_string(), DepPath::from("react@17.0.2".to_string()));
     let mut react_dom_peers = BTreeMap::new();
-    react_dom_peers.insert(
-        "react".to_string(),
-        PeerDep { version: "17.0.2".to_string(), optional: false, meta_only: false },
-    );
+    react_dom_peers
+        .insert("react".to_string(), PeerDep { version: "17.0.2".to_string(), optional: false });
     let react_dom_dep_path = DepPath::from("react-dom@17.0.2(react@17.0.2)".to_string());
     let react_dom = DependenciesGraphNode {
         dep_path: react_dom_dep_path.clone(),
@@ -1138,6 +1410,109 @@ fn workspace_link_child_renders_as_snapshot_link() {
 }
 
 #[test]
+fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "app",
+        "version": "1.0.0",
+        "dependencies": {
+            "consumer": "1.0.0",
+            "peer": "workspace:*",
+            "shared": "workspace:*",
+            "wrapper": "1.0.0",
+        },
+    }));
+    let shared = make_link_node("packages/shared", json!({ "name": "shared", "version": "1.0.0" }));
+    let peer = make_link_node("packages/peer", json!({ "name": "peer", "version": "1.0.0" }));
+    let wrapper = make_node(
+        "wrapper",
+        "1.0.0",
+        json!({ "name": "wrapper", "version": "1.0.0" }),
+        BTreeMap::from([("shared".to_string(), shared.dep_path.clone())]),
+        BTreeMap::new(),
+        HashSet::new(),
+    );
+    let mut consumer = make_node(
+        "consumer",
+        "1.0.0",
+        json!({
+            "name": "consumer",
+            "version": "1.0.0",
+            "peerDependencies": { "peer": "*" },
+        }),
+        BTreeMap::from([("peer".to_string(), peer.dep_path.clone())]),
+        BTreeMap::from([(
+            "peer".to_string(),
+            PeerDep { version: "*".to_string(), optional: false },
+        )]),
+        HashSet::new(),
+    );
+    consumer.dep_path = DepPath::from("consumer@1.0.0(peer@packages+peer)");
+    consumer.resolved_peer_names.insert("peer".to_string());
+
+    let mut graph = DependenciesGraph::new();
+    for node in [shared, peer, wrapper, consumer] {
+        graph.insert(node.dep_path.clone(), node);
+    }
+    let direct = BTreeMap::from([
+        ("consumer".to_string(), DepPath::from("consumer@1.0.0(peer@packages+peer)")),
+        ("peer".to_string(), DepPath::from("link:../../../packages/peer")),
+        ("shared".to_string(), DepPath::from("link:../../../packages/shared")),
+        ("wrapper".to_string(), DepPath::from("wrapper@1.0.0")),
+    ]);
+    let importers = BTreeMap::from([(
+        "apps/nested/app".to_string(),
+        ImporterLockfileInput { manifest: &manifest, direct_dependencies_by_alias: direct },
+    )]);
+
+    let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        importers,
+        graph: &graph,
+        auto_install_peers: false,
+        dedupe_peers: false,
+        exclude_links_from_lockfile: false,
+        inject_workspace_packages: false,
+        peers_suffix_max_length: None,
+        overrides: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        catalogs: &EMPTY_CATALOGS,
+        registry: "https://registry.npmjs.org",
+        lockfile_include_tarball_url: false,
+    });
+
+    let importer = lockfile.importers.get("apps/nested/app").expect("nested importer");
+    let importer_dependencies = importer.dependencies.as_ref().expect("importer dependencies");
+    for name in ["shared", "peer"] {
+        let dependency = importer_dependencies.get(&PkgName::parse(name).unwrap()).unwrap();
+        match &dependency.version {
+            ImporterDepVersion::Link(target) => {
+                assert_eq!(target, &format!("../../../packages/{name}"));
+            }
+            other => panic!("expected importer Link(..), got {other:?}"),
+        }
+    }
+
+    let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
+    let wrapper_key: PackageKey = "wrapper@1.0.0".parse().unwrap();
+    let wrapper_dependencies = snapshots[&wrapper_key].dependencies.as_ref().unwrap();
+    assert_eq!(
+        wrapper_dependencies.get(&PkgName::parse("shared").unwrap()),
+        Some(&SnapshotDepRef::Link("packages/shared".to_string())),
+    );
+    let consumer_snapshot = snapshots
+        .iter()
+        .find(|(key, _)| key.to_string().starts_with("consumer@1.0.0("))
+        .map(|(_, snapshot)| snapshot)
+        .expect("consumer peer snapshot");
+    assert_eq!(
+        consumer_snapshot.dependencies.as_ref().unwrap().get(&PkgName::parse("peer").unwrap()),
+        Some(&SnapshotDepRef::Link("packages/peer".to_string())),
+    );
+}
+
+#[test]
 fn multi_importer_workspace_writes_per_project_lockfile_entries() {
     let (_a_tmp, a_manifest) = write_manifest(json!({
         "name": "a",
@@ -1574,14 +1949,14 @@ fn same_name_injected_dep_serializes_as_plain_file_ref() {
         optional: false,
     };
 
-    let version = super::importer_dep_version("@scope/comp1", &node);
+    let version = super::importer_dep_version("@scope/comp1", &node).unwrap();
     assert_eq!(
         version,
         ImporterDepVersion::File("comp1(react@16.0.0)".to_string()),
         "same-name injected deps must use the plain file: ref",
     );
     // A genuinely renamed alias keeps the alias form.
-    let renamed = super::importer_dep_version("renamed", &node);
+    let renamed = super::importer_dep_version("renamed", &node).unwrap();
     assert!(
         matches!(renamed, ImporterDepVersion::Alias(_)),
         "renamed aliases must keep the <name>@<ref> form: {renamed:?}",

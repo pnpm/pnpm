@@ -1,8 +1,46 @@
 use super::{
-    base64_to_hex, build_purl, classify_license, encode_purl_name, extract_author,
-    extract_repository, is_simple_spdx_id, normalize_link_path, peer_names_from_manifest,
-    sanitize_spdx_id, split_scoped_name, strip_url_credentials,
+    base64_to_hex, build_purl, classify_license, confined_importer_dir, encode_purl_name,
+    extract_author, extract_repository, is_simple_spdx_id, normalize_link_path,
+    peer_names_from_manifest, sanitize_spdx_id, split_scoped_name, strip_url_credentials,
 };
+
+#[test]
+fn confined_importer_dir_accepts_dirs_inside_the_lockfile_root() {
+    let root = tempfile::tempdir().expect("create lockfile dir");
+    std::fs::create_dir_all(root.path().join("packages/foo")).expect("create importer dir");
+
+    // The root importer and an in-tree sub-importer both resolve inside the
+    // lockfile dir, so both are readable.
+    let canonical_root = std::fs::canonicalize(root.path()).expect("canonicalize root");
+    assert_eq!(confined_importer_dir(root.path(), "."), Some(canonical_root.clone()));
+    assert_eq!(
+        confined_importer_dir(root.path(), "packages/foo"),
+        Some(canonical_root.join("packages/foo")),
+    );
+}
+
+#[test]
+fn confined_importer_dir_rejects_lexical_escapes() {
+    let root = tempfile::tempdir().expect("create lockfile dir");
+    for id in ["..", "../foo", "/abs/path", "C:/x"] {
+        assert!(confined_importer_dir(root.path(), id).is_none(), "expected {id:?} to be rejected");
+    }
+}
+
+/// A lexically clean importer key whose directory is a symlink pointing
+/// outside the workspace must not be read — the canonicalize + containment
+/// check catches what the lexical `validate_importer_id` filter cannot.
+#[cfg(unix)]
+#[test]
+fn confined_importer_dir_rejects_symlinked_escape() {
+    let root = tempfile::tempdir().expect("create lockfile dir");
+    let outside = tempfile::tempdir().expect("create outside dir");
+    std::fs::create_dir_all(root.path().join("packages")).expect("create packages dir");
+    std::os::unix::fs::symlink(outside.path(), root.path().join("packages/escape"))
+        .expect("create escaping symlink");
+
+    assert!(confined_importer_dir(root.path(), "packages/escape").is_none());
+}
 
 #[test]
 fn encode_purl_name_unscoped() {

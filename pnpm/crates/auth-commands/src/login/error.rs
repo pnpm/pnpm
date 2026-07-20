@@ -23,7 +23,7 @@ pub enum LoginError {
         "The registry returned a login URL containing control characters and was rejected as a \
          possible terminal-spoofing attempt"
     )]
-    #[diagnostic(code(pacquet_auth_commands::login_unsafe_url))]
+    #[diagnostic(code(ERR_PNPM_AUTH_COMMANDS_LOGIN_UNSAFE_URL))]
     UnsafeLoginUrl,
 
     #[display("Username, password, and email are all required")]
@@ -47,25 +47,25 @@ pub enum LoginError {
     WebAuthTimeout(WebAuthTimeoutError),
 
     #[display("Failed to render the login QR code: {_0}")]
-    #[diagnostic(code(pacquet_auth_commands::login_qr_code))]
+    #[diagnostic(code(ERR_PNPM_AUTH_COMMANDS_LOGIN_QR_CODE))]
     QrCode(#[error(source)] GenerateQrCodeError),
 
     #[display("The login request failed: {reason}")]
-    #[diagnostic(code(pacquet_auth_commands::login_request_failed))]
+    #[diagnostic(code(ERR_PNPM_AUTH_COMMANDS_LOGIN_REQUEST_FAILED))]
     Request {
         #[error(not(source))]
         reason: String,
     },
 
     #[display("Failed to read the login prompt: {reason}")]
-    #[diagnostic(code(pacquet_auth_commands::login_prompt_failed))]
+    #[diagnostic(code(ERR_PNPM_AUTH_COMMANDS_LOGIN_PROMPT_FAILED))]
     Prompt {
         #[error(not(source))]
         reason: String,
     },
 
     #[display("Failed to read auth.ini at {}: {error}", path.display())]
-    #[diagnostic(code(pacquet_auth_commands::read_auth_ini))]
+    #[diagnostic(code(ERR_PNPM_AUTH_COMMANDS_READ_AUTH_INI))]
     ReadAuthIni {
         path: PathBuf,
         #[error(source)]
@@ -73,7 +73,7 @@ pub enum LoginError {
     },
 
     #[display("Failed to write auth.ini at {}: {error}", path.display())]
-    #[diagnostic(code(pacquet_auth_commands::write_auth_ini))]
+    #[diagnostic(code(ERR_PNPM_AUTH_COMMANDS_WRITE_AUTH_INI))]
     WriteAuthIni {
         path: PathBuf,
         #[error(source)]

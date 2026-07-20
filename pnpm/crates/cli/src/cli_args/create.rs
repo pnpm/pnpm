@@ -6,10 +6,7 @@ use pacquet_config::Config;
 use pacquet_reporter::Reporter;
 use std::path::Path;
 
-/// Creates a project from a `create-*` starter kit.
-///
-/// The handler converts the user-provided name to a `create-*` package name
-/// and delegates to the existing `dlx` infrastructure.
+/// Create a project from a `create-*` starter kit.
 #[derive(Debug, Args)]
 pub struct CreateArgs {
     /// The template name (e.g., `vite`, `create-vite`, `@scope/foo`),
@@ -47,7 +44,7 @@ pub struct CreateArgs {
 #[non_exhaustive]
 pub enum CreateError {
     #[display(
-        "Missing the template package name.\nThe correct usage is `pacquet create <name>` with <name> substituted for a package name."
+        "Missing the template package name.\nThe correct usage is `pnpm create <name>` with <name> substituted for a package name."
     )]
     #[diagnostic(code(ERR_PNPM_MISSING_ARGS))]
     MissingArgs,

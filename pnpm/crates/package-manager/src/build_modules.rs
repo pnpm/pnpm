@@ -353,6 +353,13 @@ pub struct RebuildOptions {
     /// when either its name or its allow-build key is in the set, so a
     /// `pnpm rebuild <name>` and an `approve-builds` key both select it.
     pub selected_names: Option<HashSet<String>>,
+
+    /// Importer ids whose own deferred install scripts this rebuild
+    /// should run — `pnpm rebuild --pending` reads them out of
+    /// `.modules.yaml`'s `pendingBuilds`. A dependency's build is settled
+    /// by the rebuild itself; a project's is only settled by running its
+    /// scripts, which nothing else in the rebuild path does.
+    pub pending_projects: Vec<String>,
 }
 
 impl RebuildOptions {
@@ -360,6 +367,28 @@ impl RebuildOptions {
     /// absent selection (`None`) matches every package.
     fn is_selected(&self, name: &str) -> bool {
         self.selected_names.as_ref().is_none_or(|names| names.contains(name))
+    }
+
+    /// Whether this rebuild discharges the workspace project recorded
+    /// under `importer_id`, which only running its own scripts can do —
+    /// dropping one the rebuild never ran would forget the debt rather
+    /// than settle it.
+    #[must_use]
+    pub fn settles_project(&self, importer_id: &str) -> bool {
+        self.pending_projects.iter().any(|id| id == importer_id)
+    }
+
+    /// Whether this rebuild discharges the dependency recorded under
+    /// `dep_path`, which it does by rebuilding it.
+    ///
+    /// The caller decides which of the two a `.modules.yaml`
+    /// `pendingBuilds` entry is — an importer id and a dep path are both
+    /// plain strings on disk, and a workspace directory named
+    /// `foo@1.0.0` parses as either.
+    #[must_use]
+    pub fn settles_dependency(&self, dep_path: &str) -> bool {
+        let (name, _) = parse_name_version_from_key(remove_suffix(dep_path));
+        self.is_selected(&name) || self.is_selected(&allow_build_key_from_ignored_build(dep_path))
     }
 }
 
@@ -462,8 +491,16 @@ pub struct BuildModules<'a> {
     /// `None` for the isolated linker — its slot directories are
     /// recovered from [`crate::VirtualStoreLayout::slot_dir`]. The
     /// two-mode `pkgRoot` selection (override map vs. layout slot)
-    /// is handled by `pkg_root_for_key`.
-    pub pkg_root_by_key: Option<&'a HashMap<PackageKey, PathBuf>>,
+    /// is handled by `pkg_root_for_key` and `pkg_roots_for_key`.
+    ///
+    /// One snapshot can occupy several directories: the walker nests a
+    /// second copy of a package under a sibling when a version conflict
+    /// keeps it out of the root. The first entry is the canonical
+    /// `pkgRoot` — scripts run there once and the side-effects cache is
+    /// written from it, because the contents are identical everywhere.
+    /// Writes that must land in *every* copy (patch application,
+    /// re-importing a cached overlay) iterate the whole list.
+    pub pkg_roots_by_key: Option<&'a HashMap<PackageKey, Vec<PathBuf>>>,
 
     /// When `true`, compute per-snapshot `extra_bin_paths` via
     /// `bin_dirs_in_all_parent_dirs` (private helper in this module)
@@ -514,13 +551,29 @@ pub struct BuildModules<'a> {
     pub rebuild: Option<&'a RebuildOptions>,
 }
 
-impl BuildModules<'_> {
-    /// Run the build, returning the sorted set of `name@version` keys whose
-    /// scripts were skipped because the package was not in `allowBuilds`.
+/// What a [`BuildModules`] run decided about the packages it visited
+/// but did not build.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct BuildModulesOutput {
+    /// Sorted, peer-stripped `name@version` keys whose scripts were
+    /// skipped because the package was not in `allowBuilds`. The caller
+    /// folds these into a single `pnpm:ignored-scripts` event.
+    pub ignored_builds: Vec<String>,
+
+    /// Sorted dep paths of the snapshots that need a build which
+    /// `--ignore-scripts` deferred. Empty when scripts were not
+    /// ignored. These become `.modules.yaml`'s `pendingBuilds`, which
+    /// `pnpm rebuild --pending` later drains.
     ///
-    /// The caller is expected to fold the returned set into a single
-    /// `pnpm:ignored-scripts` event.
-    pub fn run<Reporter: self::Reporter>(self) -> Result<Vec<String>, BuildModulesError> {
+    /// Peers are kept here — unlike `ignored_builds`, whose keys are an
+    /// `allowBuilds` lookup, these address a materialized slot.
+    pub deferred_builds: Vec<String>,
+}
+
+impl BuildModules<'_> {
+    /// Run the build, reporting the packages that needed one but did
+    /// not get it — see [`BuildModulesOutput`].
+    pub fn run<Reporter: self::Reporter>(self) -> Result<BuildModulesOutput, BuildModulesError> {
         let BuildModules {
             layout,
             modules_dir,
@@ -542,7 +595,7 @@ impl BuildModules<'_> {
             unsafe_perm,
             child_concurrency,
             skipped,
-            pkg_root_by_key,
+            pkg_roots_by_key,
             gather_ancestor_bin_paths,
             frozen_store,
             ignore_scripts,
@@ -551,7 +604,7 @@ impl BuildModules<'_> {
             rebuild,
         } = self;
 
-        let Some(snapshots) = snapshots else { return Ok(Vec::new()) };
+        let Some(snapshots) = snapshots else { return Ok(BuildModulesOutput::default()) };
 
         // Compute `requiresBuild` per snapshot. Warm store-index rows
         // already carry a precomputed answer, so only misses need to
@@ -565,7 +618,7 @@ impl BuildModules<'_> {
             // optional fan-out.
             .filter(|key| !skipped.contains(key))
             .map(|key| {
-                let pkg_root = pkg_root_for_key(layout, pkg_root_by_key, key);
+                let pkg_root = pkg_root_for_key(layout, pkg_roots_by_key, key);
                 let requires = match (
                     pkg_root.as_deref(),
                     requires_build_by_snapshot.and_then(|map| map.get(key).copied()),
@@ -605,6 +658,7 @@ impl BuildModules<'_> {
             && engine_name.is_some()
             && side_effects_maps_by_snapshot.is_some_and(|map| !map.is_empty());
         let write_gate_active = side_effects_cache_write
+            && !frozen_store
             && engine_name.is_some()
             && store_index_writer.is_some()
             && store_dir.is_some();
@@ -679,7 +733,7 @@ impl BuildModules<'_> {
                         &deps_state_cache,
                         &ignored_builds,
                         layout,
-                        pkg_root_by_key,
+                        pkg_roots_by_key,
                         gather_ancestor_bin_paths,
                         modules_dir,
                         lockfile_dir,
@@ -705,8 +759,33 @@ impl BuildModules<'_> {
         // so the canonical poison-recovery pattern is safe.
         let ignored_builds =
             ignored_builds.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner);
-        Ok(ignored_builds.into_iter().collect())
+        Ok(BuildModulesOutput {
+            ignored_builds: ignored_builds.into_iter().collect(),
+            deferred_builds: deferred_builds(&requires_build_map, ignore_scripts),
+        })
     }
+}
+
+/// The snapshots `--ignore-scripts` kept from building, sorted for a
+/// stable `.modules.yaml`.
+///
+/// Every `requires_build` snapshot qualifies, not just the ones this
+/// install newly materialized: a build stays owed until something
+/// actually runs it, and only `pnpm rebuild` clears the record.
+fn deferred_builds(
+    requires_build_map: &HashMap<PackageKey, bool>,
+    ignore_scripts: bool,
+) -> Vec<String> {
+    if !ignore_scripts {
+        return Vec::new();
+    }
+    let mut deferred: Vec<String> = requires_build_map
+        .iter()
+        .filter(|&(_, &requires_build)| requires_build)
+        .map(|(key, _)| key.to_string())
+        .collect();
+    deferred.sort();
+    deferred
 }
 
 /// Per-snapshot build work, called once per chunk member by the
@@ -733,7 +812,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     deps_state_cache: &Mutex<pacquet_graph_hasher::DepsStateCache<PackageKey>>,
     ignored_builds: &Mutex<BTreeSet<String>>,
     layout: &crate::VirtualStoreLayout,
-    pkg_root_by_key: Option<&HashMap<PackageKey, PathBuf>>,
+    pkg_roots_by_key: Option<&HashMap<PackageKey, Vec<PathBuf>>>,
     gather_ancestor_bin_paths: bool,
     modules_dir: &Path,
     lockfile_dir: &Path,
@@ -912,54 +991,76 @@ fn build_one_snapshot<Reporter: self::Reporter>(
         // missing after a failed materialization, skip an optional
         // dependency (as for any optional build failure) and surface a
         // hard error otherwise.
-        let satisfied_by_cache = if layout.enable_global_virtual_store() {
+        //
+        // Under the global virtual store the slot usually *is* the seeded
+        // build — it persists inside the store across installs — so the
+        // overlay is already on disk and re-linking it would be pure
+        // overhead. That only holds while the slot survives, though: a
+        // failed build discards it
+        // ([`discard_failed_global_virtual_store_slot`]), and a prune or a
+        // manual removal can too. The store index keeps the side-effects
+        // row either way, so the next install re-imports the slot pristine
+        // and still hits the cache. Trusting the hit there would skip the
+        // build and leave the package unbuilt, so the slot has to be
+        // checked rather than assumed.
+        let gvs_slot_already_seeded = layout.enable_global_virtual_store()
+            && pkg_root_for_key(layout, pkg_roots_by_key, snapshot_key)
+                .is_some_and(|pkg_dir| slot_carries_overlay(&pkg_dir, overlay));
+
+        let satisfied_by_cache = if gvs_slot_already_seeded {
             true
         } else {
-            match pkg_root_for_key(layout, pkg_root_by_key, snapshot_key) {
-                Some(pkg_dir) if pkg_dir.exists() => {
-                    match materialize_side_effects::<Reporter>(
-                        logged_methods,
-                        import_method,
-                        &pkg_dir,
-                        overlay,
-                    ) {
-                        Ok(()) => true,
-                        Err(error) if pkg_dir.join("package.json").exists() => {
-                            tracing::warn!(
-                                target: "pacquet::build",
-                                ?snapshot_key,
-                                cache_key = key,
-                                %error,
-                                "failed to materialize side-effects cache overlay; rebuilding",
-                            );
-                            false
-                        }
-                        Err(error) => {
-                            if snapshots.get(snapshot_key).is_some_and(|entry| entry.optional) {
-                                Reporter::emit(&LogEvent::SkippedOptionalDependency(
-                                    SkippedOptionalDependencyLog {
-                                        level: LogLevel::Debug,
-                                        details: Some(error.to_string()),
-                                        package: SkippedOptionalPackage::Installed {
-                                            id: pkg_dir.to_string_lossy().into_owned(),
-                                            name,
-                                            version,
-                                        },
-                                        parents: None,
-                                        prefix: lockfile_dir.to_string_lossy().into_owned(),
-                                        reason: SkippedOptionalReason::BuildFailure,
-                                    },
-                                ));
-                                return Ok(());
-                            }
-                            return Err(error);
-                        }
-                    }
-                }
+            // The overlay carries the patched / built contents, so it
+            // has to reach every hoisted copy for the same reason patch
+            // application does.
+            let mut satisfied = true;
+            for pkg_dir in pkg_roots_for_key(layout, pkg_roots_by_key, snapshot_key) {
                 // No slot to materialize into (skipped / never linked) —
                 // nothing for the build phase to do either.
-                _ => true,
+                if !pkg_dir.exists() {
+                    continue;
+                }
+                match materialize_side_effects::<Reporter>(
+                    logged_methods,
+                    import_method,
+                    &pkg_dir,
+                    overlay,
+                ) {
+                    Ok(()) => {}
+                    Err(error) if pkg_dir.join("package.json").exists() => {
+                        tracing::warn!(
+                            target: "pacquet::build",
+                            ?snapshot_key,
+                            cache_key = key,
+                            %error,
+                            "failed to materialize side-effects cache overlay; rebuilding",
+                        );
+                        satisfied = false;
+                        break;
+                    }
+                    Err(error) => {
+                        if snapshots.get(snapshot_key).is_some_and(|entry| entry.optional) {
+                            Reporter::emit(&LogEvent::SkippedOptionalDependency(
+                                SkippedOptionalDependencyLog {
+                                    level: LogLevel::Debug,
+                                    details: Some(error.to_string()),
+                                    package: SkippedOptionalPackage::Installed {
+                                        id: pkg_dir.to_string_lossy().into_owned(),
+                                        name,
+                                        version,
+                                    },
+                                    parents: None,
+                                    prefix: lockfile_dir.to_string_lossy().into_owned(),
+                                    reason: SkippedOptionalReason::BuildFailure,
+                                },
+                            ));
+                            return Ok(());
+                        }
+                        return Err(error);
+                    }
+                }
             }
+            satisfied
         };
         if satisfied_by_cache {
             return Ok(());
@@ -989,7 +1090,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
                     "The read-only store (frozenStore) is missing the build output of {name}@{version}.",
                 )),
                 package: SkippedOptionalPackage::Installed {
-                    id: pkg_root_for_key(layout, pkg_root_by_key, snapshot_key).map_or_else(
+                    id: pkg_root_for_key(layout, pkg_roots_by_key, snapshot_key).map_or_else(
                         || snapshot_key.to_string(),
                         |dir| dir.to_string_lossy().into_owned(),
                     ),
@@ -1010,7 +1111,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     // Hoisted snapshots without a recorded `pkgRoot` (the walker
     // dropped them — pre-skipped, optional skip, etc.) take the
     // same exit as the isolated path's `!pkg_dir.exists()` skip.
-    let Some(pkg_dir) = pkg_root_for_key(layout, pkg_root_by_key, snapshot_key) else {
+    let Some(pkg_dir) = pkg_root_for_key(layout, pkg_roots_by_key, snapshot_key) else {
         return Ok(());
     };
     if !pkg_dir.exists() {
@@ -1036,7 +1137,18 @@ fn build_one_snapshot<Reporter: self::Reporter>(
         let patch_file_path = p.patch_file_path.as_deref().ok_or_else(|| {
             BuildModulesError::PatchFilePathMissing { dep_path: snapshot_key.to_string() }
         })?;
-        apply_patch_to_dir(&pkg_dir, patch_file_path).map_err(BuildModulesError::PatchApply)?;
+        // Every copy is patched, not just `pkg_dir`. Under the hoisted
+        // linker a version conflict nests further copies under their
+        // consumers; leaving those unpatched would silently run the very
+        // code the patch replaces.
+        for patched_dir in pkg_roots_for_key(layout, pkg_roots_by_key, snapshot_key) {
+            if !patched_dir.exists() {
+                continue;
+            }
+            apply_patch_to_dir(&patched_dir, patch_file_path)
+                .inspect_err(|_| discard_failed_global_virtual_store_slot(layout, snapshot_key))
+                .map_err(BuildModulesError::PatchApply)?;
+        }
         true
     } else {
         false
@@ -1064,6 +1176,9 @@ fn build_one_snapshot<Reporter: self::Reporter>(
         match result {
             Ok(ran) => ran,
             Err(err) => {
+                // Before the optional-skip return, so a failed optional
+                // build leaves no half-built slot behind either.
+                discard_failed_global_virtual_store_slot(layout, snapshot_key);
                 if optional {
                     Reporter::emit(&LogEvent::SkippedOptionalDependency(
                         SkippedOptionalDependencyLog {
@@ -1094,10 +1209,10 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     // `PackageFilesIndex.sideEffects[cache_key] = diff` mutation
     // so a future install can skip the rebuild.
     //
-    // The gate is `(is_patched || has_side_effects) &&
-    // side_effects_cache_write` — a patched-only snapshot still
-    // uploads its post-patch state so subsequent installs hit the
-    // cache.
+    // A frozen store short-circuits before `upload`: its disabled index writer
+    // drops queued rows, but `upload` writes CAFS files before queuing them.
+    // Otherwise a patched-only snapshot still uploads its post-patch state so
+    // subsequent installs hit the cache.
     //
     // The other preconditions: cache_key composable (engine + graph
     // present), `packages` map available for the integrity lookup,
@@ -1110,6 +1225,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     // build.
     if (is_patched || has_side_effects)
         && side_effects_cache_write
+        && !frozen_store
         && let Some(writer) = store_index_writer
         && let Some(store) = store_dir
         && let Some(cache_key) = cache_key.as_deref()
@@ -1164,27 +1280,128 @@ fn virtual_store_dir_for_key(layout: &crate::VirtualStoreLayout, key: &PackageKe
     layout.slot_dir(key).join("node_modules").join(name)
 }
 
-/// Resolve the on-disk package directory for a snapshot.
+/// Whether `pkg_dir` already holds every file of a side-effects-cache
+/// overlay — i.e. the cached build is on disk rather than merely recorded
+/// in the store index.
+///
+/// The overlay is the resolved post-build file set, so a slot still
+/// carrying only the pristine tarball is missing whatever the build
+/// added and fails the check. A build that *only deleted* files is
+/// indistinguishable from an unbuilt slot here and reads as seeded;
+/// pnpm's `.pnpm-needs-build` marker is what closes that gap, and
+/// pacquet has not ported it yet.
+///
+/// Only reached for packages that both pass the build-allow policy and
+/// have a cache entry — a handful per install, not the whole tree.
+fn slot_carries_overlay(pkg_dir: &Path, overlay: &HashMap<String, PathBuf>) -> bool {
+    pkg_dir.is_dir() && overlay.keys().all(|relative| pkg_dir.join(relative).exists())
+}
+
+/// Whether `slot_dir` is a strict descendant of `root` reached only
+/// through `..`-free path components.
+///
+/// The gate for [`discard_failed_global_virtual_store_slot`]'s recursive
+/// delete: `slot_dir` is derived from a lockfile-controlled package
+/// name, so a crafted `..` segment must not let the delete escape the
+/// store root.
+fn is_contained_descendant(root: &Path, slot_dir: &Path) -> bool {
+    slot_dir.strip_prefix(root).is_ok_and(|suffix| {
+        let mut components = suffix.components().peekable();
+        components.peek().is_some()
+            && components.all(|component| matches!(component, std::path::Component::Normal(_)))
+    })
+}
+
+/// Remove a snapshot's whole global-virtual-store hash directory after
+/// its patch application or build script failed.
+///
+/// The hash directory is shared across every project that resolves to
+/// the same dependency graph, so leaving a half-built one behind would
+/// serve broken files to all of them: the next install finds the
+/// directory present, takes the warm fast path, and never re-fetches.
+/// Removing it restores the cold path.
+///
+/// No-op when the global virtual store is off — a project-local
+/// `node_modules/.pnpm` slot is rebuilt from scratch by the next
+/// install anyway. Removal failures are logged and swallowed; the build
+/// error the caller is already returning is the one worth surfacing.
+fn discard_failed_global_virtual_store_slot(layout: &crate::VirtualStoreLayout, key: &PackageKey) {
+    if !layout.enable_global_virtual_store() {
+        return;
+    }
+    let slot_dir = layout.slot_dir(key);
+    // Defense-in-depth: the slot path is built from a lockfile-controlled
+    // package name, which is not validated against `..` segments. Refuse
+    // to recurse-delete anything that isn't a plain descendant of the GVS
+    // root, so a crafted name can't turn cleanup into a path traversal
+    // that removes directories outside the store.
+    let root = layout.package_store_dir();
+    if !is_contained_descendant(root, &slot_dir) {
+        tracing::warn!(
+            target: "pacquet::build",
+            dep_path = %key,
+            slot_dir = %slot_dir.display(),
+            store_root = %root.display(),
+            "refusing to remove a build slot outside the store root",
+        );
+        return;
+    }
+    if let Err(err) = std::fs::remove_dir_all(&slot_dir)
+        && err.kind() != std::io::ErrorKind::NotFound
+    {
+        tracing::warn!(
+            target: "pacquet::build",
+            ?err,
+            dep_path = %key,
+            slot_dir = %slot_dir.display(),
+            "failed to remove the global virtual store slot of a failed build",
+        );
+    }
+}
+
+/// Resolve the canonical on-disk package directory for a snapshot — the
+/// one whose lifecycle scripts run and whose contents seed the
+/// side-effects cache.
 ///
 /// Two-mode lookup:
 ///
-/// - **Isolated** (`pkg_root_by_key.is_none()`) — fall through to
+/// - **Isolated** (`pkg_roots_by_key.is_none()`) — fall through to
 ///   [`virtual_store_dir_for_key`], which routes through the
 ///   install-scoped [`crate::VirtualStoreLayout`].
-/// - **Hoisted** (`pkg_root_by_key.is_some()`) — look the snapshot up
-///   in the per-key map populated from the slice 4 walker's
-///   [`crate::DependenciesGraphNode::dir`] values. `None` here means
-///   the snapshot is absent from the hoisted graph (pre-skipped, or
+/// - **Hoisted** (`pkg_roots_by_key.is_some()`) — take the first
+///   directory the slice 4 walker recorded for the snapshot. `None` here
+///   means the snapshot is absent from the hoisted graph (pre-skipped, or
 ///   the walker decided not to record it); the caller should treat
 ///   that the same as the isolated `pkg_dir.exists() == false` skip.
+///
+/// Use [`pkg_roots_for_key`] instead for a write that has to reach every
+/// copy of the package.
 fn pkg_root_for_key(
     layout: &crate::VirtualStoreLayout,
-    pkg_root_by_key: Option<&HashMap<PackageKey, PathBuf>>,
+    pkg_roots_by_key: Option<&HashMap<PackageKey, Vec<PathBuf>>>,
     key: &PackageKey,
 ) -> Option<PathBuf> {
-    match pkg_root_by_key {
-        Some(map) => map.get(key).cloned(),
+    match pkg_roots_by_key {
+        Some(map) => map.get(key).and_then(|dirs| dirs.first()).cloned(),
         None => Some(virtual_store_dir_for_key(layout, key)),
+    }
+}
+
+/// Every on-disk directory holding a snapshot's package.
+///
+/// The isolated linker gives each snapshot exactly one virtual-store
+/// slot, so this is [`pkg_root_for_key`] in a one-element list. The
+/// hoisted linker can place the same snapshot at several paths — a
+/// version conflict keeps a package out of the root and the walker nests
+/// a copy under each consumer that needs it.
+fn pkg_roots_for_key(
+    layout: &crate::VirtualStoreLayout,
+    pkg_roots_by_key: Option<&HashMap<PackageKey, Vec<PathBuf>>>,
+    key: &PackageKey,
+) -> Vec<PathBuf> {
+    match pkg_roots_by_key {
+        Some(map) => map.get(key).cloned().unwrap_or_default(),
+        None => vec![virtual_store_dir_for_key(layout, key)],
     }
 }
 

@@ -78,6 +78,24 @@ pub(crate) enum SelfUpdateError {
         )
     )]
     NoGlobalDir,
+
+    #[display("The pnpm v{version} that was just installed cannot run: {reason}")]
+    #[diagnostic(
+        code(ERR_PNPM_BROKEN_PNPM_INSTALL),
+        help(
+            r#"The installation at "{executable}" was discarded and the currently active pnpm was left in place, so pnpm still works. A release that installs but cannot run is a packaging fault — please report it at https://github.com/pnpm/pnpm/issues. To move to a different version meanwhile, pass one to "pnpm self-update"."#
+        )
+    )]
+    BrokenPnpmInstall { version: String, reason: String, executable: String },
+
+    #[display("pnpm v{version} is a broken release and cannot be installed")]
+    #[diagnostic(
+        code(ERR_PNPM_BROKEN_PNPM_RELEASE),
+        help(
+            r#"Its "@pnpm/exe" build shipped without a binary and does not run. Even where it does run, pinning it would break everyone on the project who uses "@pnpm/exe", because the pin is shared. Choose another version, or run "pnpm self-update latest"."#
+        )
+    )]
+    BrokenPnpmRelease { version: String },
 }
 
 #[derive(Debug, Args)]
@@ -133,6 +151,9 @@ async fn handler<Reporter: self::Reporter + 'static>(
             || SelfUpdateError::CannotResolvePnpm { specifier: bare_specifier.to_string() },
         )?;
     let target_version = resolved.version;
+    // Before the pin below is written, not just before the install: the pin is
+    // shared, so a release this wrapper survives can still break a teammate's.
+    install_pnpm::assert_release_is_installable(&target_version)?;
 
     // Under strict resolution (`minimumReleaseAge` strict, or
     // `trustPolicy='no-downgrade'`), a policy violation must fail closed

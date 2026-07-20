@@ -9,7 +9,7 @@
 use crate::{
     State,
     cli_args::{
-        add::add_package, approve_builds::ApproveBuildsArgs,
+        add::add_packages, approve_builds::ApproveBuildsArgs,
         ignored_builds::get_automatically_ignored_builds, rebuild::run_rebuild,
     },
 };
@@ -25,10 +25,12 @@ use pacquet_global::{
     scan_global_packages,
 };
 use pacquet_package_is_installable::SupportedArchitectures;
-use pacquet_package_manifest::DependencyGroup;
+use pacquet_package_manifest::{DependencyGroup, safe_read_package_json_from_dir};
 use pacquet_registry::PinnedVersion;
 use pacquet_reporter::Reporter;
-use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pacquet_resolving_parse_wanted_dependency::{
+    is_valid_old_npm_package_name, parse_wanted_dependency,
+};
 use std::{
     collections::HashSet,
     fs,
@@ -56,6 +58,10 @@ pub enum GlobalError {
     #[display("Cannot remove '{param}': not found in global packages")]
     #[diagnostic(code(ERR_PNPM_GLOBAL_PKG_NOT_FOUND))]
     PkgNotFound { param: String },
+
+    #[display(r#"Invalid package name "{name}"."#)]
+    #[diagnostic(code(ERR_PNPM_INVALID_PACKAGE_NAME))]
+    InvalidPackageName { name: String },
 }
 
 /// Resolve the global packages and global bin directories, erroring with
@@ -366,20 +372,22 @@ async fn run_group_install<Reporter: self::Reporter + 'static>(
     let config: &'static Config = Config::leak(cfg);
 
     let manifest_path = install_dir.join("package.json");
-    for selector in selectors {
-        let state = State::init(manifest_path.clone(), config, false)
-            .wrap_err("initialize the global install state")?;
-        add_package::<Reporter, _, _>(
-            state,
-            selector,
-            pinned_version,
-            None,
-            false,
-            config.supported_architectures.clone(),
-            || std::iter::once(DependencyGroup::Prod),
-        )
-        .await?;
-    }
+    let selectors = selectors
+        .iter()
+        .map(|selector| infer_local_package_alias(selector))
+        .collect::<miette::Result<Vec<_>>>()?;
+    let state = State::init(manifest_path, config, false)
+        .wrap_err("initialize the global install state")?;
+    add_packages::<Reporter, _>(
+        state,
+        &selectors,
+        pinned_version,
+        None,
+        false,
+        config.supported_architectures.clone(),
+        Some([DependencyGroup::Prod]),
+    )
+    .await?;
 
     prompt_approve_global_builds::<Reporter>(config, &install_dir, global_pkg_dir).await?;
     Ok((install_dir, config))
@@ -426,7 +434,11 @@ async fn prompt_approve_global_builds<Reporter: self::Reporter + 'static>(
     if let Some((rebuild_state, build_packages)) =
         args.prepare(global_pkg_dir, &config_fn, &state_fn)?
     {
-        run_rebuild::<Reporter>(&rebuild_state, Some(build_packages)).await?;
+        let selection = crate::cli_args::rebuild::RebuildSelection {
+            names: Some(build_packages),
+            projects: Vec::new(),
+        };
+        run_rebuild::<Reporter>(&rebuild_state, selection).await?;
     }
     Ok(())
 }
@@ -589,6 +601,10 @@ fn refers_to_existing_local_path(param: &str, base_dir: &Path) -> bool {
     resolved.exists()
 }
 
+/// Mirror the TypeScript `resolveLocalParam`: rewrite only *dot-relative*
+/// `file:`/`link:` selectors against `base_dir`. Bare names, home-relative
+/// (`~/`), and absolute selectors pass through unchanged so the local
+/// resolver's own `~` expansion and registry fallbacks still apply.
 fn resolve_local_param(param: &str, base_dir: &Path) -> String {
     for prefix in ["file:", "link:"] {
         if let Some(rest) = param.strip_prefix(prefix) {
@@ -602,6 +618,44 @@ fn resolve_local_param(param: &str, base_dir: &Path) -> String {
         return lexical_normalize(&base_dir.join(param)).display().to_string();
     }
     param.to_string()
+}
+
+fn infer_local_package_alias(selector: &str) -> miette::Result<String> {
+    let Some(path) = selector.strip_prefix("file:").map(Path::new) else {
+        return Ok(selector.to_string());
+    };
+    let path_display = path.display().to_string();
+    let metadata = match fs::metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(selector.to_string());
+        }
+        Err(error) => {
+            return Err(error)
+                .into_diagnostic()
+                .wrap_err(format!("read local package metadata from {path_display}"));
+        }
+    };
+    if !metadata.is_dir() {
+        return Ok(selector.to_string());
+    }
+    let manifest = safe_read_package_json_from_dir(path)
+        .map_err(miette::Report::new)
+        .wrap_err_with(|| format!("read local package manifest from {path_display}"))?
+        .ok_or_else(|| miette::miette!("No package.json was found in {path_display}"))?;
+    let name = manifest
+        .get("name")
+        .and_then(serde_json::Value::as_str)
+        .filter(|name| !name.is_empty())
+        .or_else(|| path.file_name().and_then(|name| name.to_str()))
+        .filter(|name| !name.is_empty())
+        .ok_or_else(|| {
+            miette::miette!("The local package at {path_display} has no package name")
+        })?;
+    if !is_valid_old_npm_package_name(name) {
+        return Err(GlobalError::InvalidPackageName { name: name.to_string() }.into());
+    }
+    Ok(format!("{name}@{selector}"))
 }
 
 fn is_windows_drive_path(param: &str) -> bool {

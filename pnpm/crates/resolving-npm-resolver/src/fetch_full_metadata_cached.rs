@@ -13,14 +13,18 @@
 //! own indexed shape (see [`crate::mirror`]) so warm loads hydrate
 //! only the version fragments a pick consults.
 
-use std::path::Path;
+use std::{
+    path::Path,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use pacquet_network::{
-    AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials, retry_async,
+    AuthHeaders, RetryOpts, ThrottledClient, ThrottledClientGuard, redact_url_credentials,
+    retry_async,
 };
 use pacquet_registry::Package;
 use pipe_trait::Pipe;
-use reqwest::{StatusCode, header};
+use reqwest::{Response, StatusCode, header};
 
 use crate::{
     FetchMetadataError,
@@ -103,12 +107,13 @@ pub async fn fetch_full_metadata_cached(
     let cache_headers = load_meta_headers_async(mirror_path.as_deref()).await;
     let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
     let should_filter_metadata = opts.full_metadata && opts.filter_metadata;
+    let cache_bypass = AtomicBool::new(false);
 
-    // A body-read retry re-issues the whole request, conditional
-    // headers and all, so a `304` stays a success that returns the
-    // cached mirror body rather than re-fetching it.
+    // A body retry re-enters this closure from the top, so the bypass has to
+    // outlive the attempt that discovered the loss: re-validating against a
+    // mirror already known to be gone would 304 into the same dead end.
     retry_async(&url, opts.retry_opts, FetchMetadataError::is_body_retryable, || async {
-        let (client, response) = send_metadata_request(&MetadataRequestOptions {
+        let request = MetadataRequestOptions {
             pkg_name,
             url: &url,
             accept,
@@ -116,28 +121,21 @@ pub async fn fetch_full_metadata_cached(
             auth_headers: opts.auth_headers,
             etag: cache_headers.as_ref().and_then(|headers| headers.etag.as_deref()),
             modified: cache_headers.as_ref().and_then(|headers| headers.modified.as_deref()),
+            bypass_cache: cache_bypass.load(Ordering::Relaxed),
             retry_opts: opts.retry_opts,
-        })
-        .await?;
+        };
+        let (client, response) = send_metadata_request(&request).await?;
 
-        if response.status() == StatusCode::NOT_MODIFIED {
-            // No body to stream — release the connection and its
-            // network-concurrency permit before the mirror disk read.
-            drop(client);
-            let Some(path) = mirror_path.as_deref() else {
-                // 304 without an existing cache to fall back on — the
-                // registry over-reached on `If-None-Match: <stale>`.
-                // Surfaces as `META_NOT_MODIFIED_WITHOUT_CACHE`.
-                return Err(FetchMetadataError::NotModifiedWithoutCache {
-                    pkg_name: pkg_name.to_string(),
-                });
-            };
-            let meta = load_meta_async(Some(path)).await.ok_or_else(|| {
-                FetchMetadataError::CacheMissingAfter304 { pkg_name: pkg_name.to_string() }
-            })?;
-            renew_mirror_freshness(path);
-            return Ok(meta);
-        }
+        let (client, response) = if response.status() == StatusCode::NOT_MODIFIED {
+            match recover_from_not_modified(client, &request, mirror_path.as_deref(), &cache_bypass)
+                .await?
+            {
+                NotModifiedRecovery::Serve(meta) => return Ok(meta),
+                NotModifiedRecovery::Refetched(client, response) => (client, response),
+            }
+        } else {
+            (client, response)
+        };
 
         let response = response.error_for_status().map_err(|error| {
             FetchMetadataError::Network { url: redact_url_credentials(&url), error }
@@ -214,6 +212,56 @@ pub async fn fetch_full_metadata_cached(
         meta.pipe(Ok)
     })
     .await
+}
+
+/// Outcome of a `304 Not Modified` once it is honoured against the mirror.
+enum NotModifiedRecovery<'a> {
+    /// The mirror body was still on disk; serve it.
+    Serve(Package),
+    /// The mirror had vanished, so a cache-bypassing refetch returned a body.
+    Refetched(ThrottledClientGuard<'a>, Response),
+}
+
+/// Honour a `304 Not Modified` against the on-disk mirror.
+///
+/// Serves the mirror body when it is still present. When the mirror vanished
+/// after the conditional request (concurrent store cleanup, antivirus, ...)
+/// the 304 validates nothing, so re-request once as a cold cache would —
+/// flipping `cache_bypass` so the retrying [`retry_async`] loop stays bypassed
+/// too — which the registry can only answer with a body or an error, never
+/// another 304. A 304 with no mirror at all is `META_NOT_MODIFIED_WITHOUT_CACHE`.
+async fn recover_from_not_modified<'a>(
+    client: ThrottledClientGuard<'a>,
+    request: &MetadataRequestOptions<'a>,
+    mirror_path: Option<&Path>,
+    cache_bypass: &AtomicBool,
+) -> Result<NotModifiedRecovery<'a>, FetchMetadataError> {
+    // No body to stream — release the connection and its network-concurrency
+    // permit before the mirror disk read.
+    drop(client);
+    let Some(path) = mirror_path else {
+        return Err(FetchMetadataError::NotModifiedWithoutCache {
+            pkg_name: request.pkg_name.to_string(),
+        });
+    };
+    if let Some(meta) = load_meta_async(Some(path)).await {
+        renew_mirror_freshness(path);
+        return Ok(NotModifiedRecovery::Serve(meta));
+    }
+    cache_bypass.store(true, Ordering::Relaxed);
+    let (client, response) = send_metadata_request(&MetadataRequestOptions {
+        pkg_name: request.pkg_name,
+        url: request.url,
+        accept: request.accept,
+        http_client: request.http_client,
+        auth_headers: request.auth_headers,
+        etag: None,
+        modified: None,
+        bypass_cache: true,
+        retry_opts: request.retry_opts,
+    })
+    .await?;
+    Ok(NotModifiedRecovery::Refetched(client, response))
 }
 
 /// Bump the mirror file's mtime to "now" after a `304 Not Modified`.

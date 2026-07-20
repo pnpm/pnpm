@@ -11,11 +11,11 @@ use std::{
 };
 
 use pacquet_reporter::{
-    AddedRoot, ContextLog, DependencyType, ExecutionTimeLog, FetchingProgressMessage, HookLog,
-    IgnoredScriptsLog, InstallingConfigDepsLog, InstallingConfigDepsStatus, LifecycleMessage,
-    LifecycleStdio, LockfileVerificationMessage, LogEvent, LogLevel, PackageImportMethod,
-    PackageManifestMessage, ProgressMessage, RemovedRoot, RequestRetryLog,
-    SkippedOptionalDependencyLog, SkippedOptionalPackage, Stage, StatsMessage,
+    AddedRoot, ContextLog, DependencyType, DeprecationLog, ExecutionTimeLog,
+    FetchingProgressMessage, HookLog, IgnoredScriptsLog, InstallingConfigDepsLog,
+    InstallingConfigDepsStatus, LifecycleMessage, LifecycleStdio, LockfileVerificationMessage,
+    LogEvent, LogLevel, PackageImportMethod, PackageManifestMessage, ProgressMessage, RemovedRoot,
+    RequestRetryLog, SkippedOptionalDependencyLog, SkippedOptionalPackage, Stage, StatsMessage,
 };
 use serde_json::Value;
 
@@ -36,6 +36,30 @@ pub enum Output {
     Frame(String),
     /// Lines to append verbatim (append-only mode).
     Lines(Vec<String>),
+}
+
+/// Rendering settings that cannot be recovered from the event stream.
+#[derive(Debug, Clone, Copy)]
+pub struct ReporterOptions {
+    /// Emit each update as a new line instead of replacing the current frame.
+    pub append_only: bool,
+    /// Omit the `added` counter from dependency progress lines.
+    pub hide_added_pkgs_progress: bool,
+    /// Omit the workspace-project prefix from progress lines.
+    pub hide_progress_prefix: bool,
+    /// Select which project prefixes contribute to the package summary.
+    pub summary_scope: SummaryScope,
+}
+
+impl Default for ReporterOptions {
+    fn default() -> Self {
+        Self {
+            append_only: false,
+            hide_added_pkgs_progress: false,
+            hide_progress_prefix: false,
+            summary_scope: SummaryScope::CurrentPrefix,
+        }
+    }
 }
 
 /// Lazily-assigned block indices for one logical output stream — its
@@ -206,6 +230,8 @@ pub struct ReporterState {
     width: usize,
     colors: Colors,
     append_only: bool,
+    hide_added_pkgs_progress: bool,
+    hide_progress_prefix: bool,
     frame: Frame,
     last_frame: Option<String>,
 
@@ -240,6 +266,9 @@ pub struct ReporterState {
 
     warnings_counter: usize,
     collapsed_warn_slot: BlockSlot,
+
+    deprecated_subdeps: Vec<DeprecationLog>,
+    deprecated_slot: BlockSlot,
 }
 
 const MAX_SHOWN_WARNINGS: usize = 5;
@@ -259,7 +288,12 @@ const COLOR_WHEEL: [fn(&Colors, &str) -> String; 6] = [
 impl ReporterState {
     #[must_use]
     pub fn new(cwd: String, width: usize, colors: Colors, append_only: bool) -> Self {
-        Self::new_with_summary_scope(cwd, width, colors, append_only, SummaryScope::CurrentPrefix)
+        Self::new_with_options(
+            cwd,
+            width,
+            colors,
+            ReporterOptions { append_only, ..ReporterOptions::default() },
+        )
     }
 
     #[must_use]
@@ -270,6 +304,27 @@ impl ReporterState {
         append_only: bool,
         summary_scope: SummaryScope,
     ) -> Self {
+        Self::new_with_options(
+            cwd,
+            width,
+            colors,
+            ReporterOptions { append_only, summary_scope, ..ReporterOptions::default() },
+        )
+    }
+
+    #[must_use]
+    pub fn new_with_options(
+        cwd: String,
+        width: usize,
+        colors: Colors,
+        options: ReporterOptions,
+    ) -> Self {
+        let ReporterOptions {
+            append_only,
+            hide_added_pkgs_progress,
+            hide_progress_prefix,
+            summary_scope,
+        } = options;
         let mut diff = HashMap::new();
         for kind in SUMMARY_ORDER {
             diff.insert(diff_key(kind), HashMap::new());
@@ -279,6 +334,8 @@ impl ReporterState {
             width,
             colors,
             append_only,
+            hide_added_pkgs_progress,
+            hide_progress_prefix,
             frame: Frame::new(append_only),
             last_frame: None,
             progress: HashMap::new(),
@@ -305,12 +362,16 @@ impl ReporterState {
             exec_slot: BlockSlot::default(),
             warnings_counter: 0,
             collapsed_warn_slot: BlockSlot::default(),
+            deprecated_subdeps: Vec::new(),
+            deprecated_slot: BlockSlot::default(),
         }
     }
 
     pub fn handle(&mut self, event: &LogEvent) -> Output {
         match event {
             LogEvent::Context(log) => self.on_context(log),
+            // Prompt lifetime is handled by `Sink` before state folding.
+            LogEvent::Prompt(_) => {}
             LogEvent::PackageImportMethod(log) => {
                 self.import_method = Some(log.method);
                 self.maybe_render_context();
@@ -321,7 +382,7 @@ impl ReporterState {
             LogEvent::Stats(log) => self.on_stats(&log.message),
             LogEvent::Root(log) => self.on_root(&log.message),
             LogEvent::PackageManifest(log) => self.on_manifest(&log.message),
-            LogEvent::Summary(_) => self.on_summary(),
+            LogEvent::Summary(log) => self.on_summary(&log.prefix),
             LogEvent::Lifecycle(log) => self.on_lifecycle(&log.message),
             LogEvent::IgnoredScripts(log) => self.on_ignored_scripts(log),
             LogEvent::SkippedOptionalDependency(log) => self.on_skipped_optional(log),
@@ -335,6 +396,7 @@ impl ReporterState {
             LogEvent::Global(log) => self.on_pnpm(log.level, &log.message, ""),
             LogEvent::ExecutionTime(log) => self.on_execution_time(log),
             LogEvent::Hook(log) => self.on_hook(log),
+            LogEvent::Deprecation(log) => self.on_deprecation(log),
             // Debug-only / non-rendered channels in pnpm's default reporter.
             LogEvent::BrokenModules(_) => {}
         }
@@ -417,32 +479,40 @@ impl ReporterState {
         let stats = self.progress.get(requester).map(|entry| entry.stats).unwrap_or_default();
         let hl = |count: u64| self.colors.cyan_bright(&count.to_string());
         let mut msg = format!(
-            "Progress: resolved {}, reused {}, downloaded {}, added {}",
+            "Progress: resolved {}, reused {}, downloaded {}",
             hl(stats.resolved),
             hl(stats.reused),
             hl(stats.fetched),
-            hl(stats.imported),
         );
+        if !self.hide_added_pkgs_progress {
+            msg.push_str(", added ");
+            msg.push_str(&hl(stats.imported));
+        }
         if done {
             msg.push_str(", done");
         }
-        if requester != self.cwd {
+        if !self.hide_progress_prefix && requester != self.cwd {
             msg = zoom_out(&self.cwd, requester, &msg);
         }
         msg
     }
 
     fn on_stage(&mut self, prefix: &str, stage: Stage) {
-        if stage != Stage::ImportingDone {
-            return;
+        match stage {
+            Stage::ResolutionDone => {
+                self.flush_deprecated_subdeps();
+            }
+            Stage::ImportingDone => {
+                if !self.progress.contains_key(prefix) {
+                    return;
+                }
+                let msg = self.progress_message(prefix, true);
+                let mut slot = std::mem::take(&mut self.progress.get_mut(prefix).unwrap().slot);
+                self.frame.emit(&mut slot, msg, false);
+                self.progress.get_mut(prefix).unwrap().slot = slot;
+            }
+            _ => {}
         }
-        if !self.progress.contains_key(prefix) {
-            return;
-        }
-        let msg = self.progress_message(prefix, true);
-        let mut slot = std::mem::take(&mut self.progress.get_mut(prefix).unwrap().slot);
-        self.frame.emit(&mut slot, msg, false);
-        self.progress.get_mut(prefix).unwrap().slot = slot;
     }
 
     // --- big tarballs -----------------------------------------------------
@@ -486,20 +556,27 @@ impl ReporterState {
 
     fn on_stats(&mut self, message: &StatsMessage) {
         let prefix = match message {
-            StatsMessage::Added { prefix, added } => {
-                self.stats_added = Some(*added);
-                prefix.clone()
-            }
-            StatsMessage::Removed { prefix, removed } => {
-                self.stats_removed = Some(*removed);
-                prefix.clone()
-            }
+            StatsMessage::Added { prefix, .. } | StatsMessage::Removed { prefix, .. } => prefix,
         };
-        if prefix != self.cwd {
+        if prefix != &self.cwd {
             return;
         }
-        let added = self.stats_added.unwrap_or(0);
-        let removed = self.stats_removed.unwrap_or(0);
+        match message {
+            StatsMessage::Added { added, .. } => {
+                self.stats_added = Some(*added);
+            }
+            StatsMessage::Removed { removed, .. } => {
+                self.stats_removed = Some(*removed);
+            }
+        }
+        if self.stats_added.is_some() && self.stats_removed.is_some() {
+            self.render_stats();
+        }
+    }
+
+    fn render_stats(&mut self) {
+        let added = self.stats_added.take().unwrap_or(0);
+        let removed = self.stats_removed.take().unwrap_or(0);
         if added == 0 && removed == 0 {
             // The "Already up to date" line is emitted by pacquet as a
             // `pnpm` log; rendering it here too would duplicate it.
@@ -606,7 +683,10 @@ impl ReporterState {
         }
     }
 
-    fn on_summary(&mut self) {
+    fn on_summary(&mut self, prefix: &str) {
+        if prefix == self.cwd && (self.stats_added.is_some() || self.stats_removed.is_some()) {
+            self.render_stats();
+        }
         self.summary_seen = true;
         self.try_render_summary();
     }
@@ -1048,6 +1128,59 @@ impl ReporterState {
         self.push_block(format!(
             "info: {pkg} is an optional dependency and failed compatibility check. Excluding it from installation.",
         ));
+    }
+
+    /// Matches pnpm's `reportDeprecations.ts`: only direct-dependency
+    /// deprecations render immediately; transitive ones wait for the
+    /// `resolution_done` summary.
+    fn on_deprecation(&mut self, log: &DeprecationLog) {
+        if log.depth == 0 {
+            if log.prefix.is_empty() || log.prefix == self.cwd {
+                self.push_block(format!(
+                    "{} {} {}@{}: {}",
+                    self.colors.warn_label(),
+                    self.colors.red("deprecated"),
+                    log.pkg_name,
+                    log.pkg_version,
+                    log.deprecated,
+                ));
+            } else {
+                // The zoomed line drops the deprecation text, as
+                // `reportDeprecations.ts` does.
+                let msg = format!(
+                    "{} {} {}@{}",
+                    self.colors.warn_label(),
+                    self.colors.red("deprecated"),
+                    log.pkg_name,
+                    log.pkg_version,
+                );
+                self.push_block(zoom_out(&self.cwd, &log.prefix, &msg));
+            }
+        } else {
+            self.deprecated_subdeps.push(log.clone());
+        }
+    }
+
+    fn flush_deprecated_subdeps(&mut self) {
+        if self.deprecated_subdeps.is_empty() {
+            return;
+        }
+        let mut names: Vec<String> = self
+            .deprecated_subdeps
+            .iter()
+            .map(|log| format!("{}@{}", log.pkg_name, log.pkg_version))
+            .collect();
+        names.sort();
+        names.dedup();
+        let count = names.len();
+        let msg = format!(
+            "{} {} {}",
+            self.colors.warn_label(),
+            self.colors.red(&format!("{count} deprecated subdependencies found:")),
+            names.join(", "),
+        );
+        self.frame.emit(&mut self.deprecated_slot, msg, false);
+        self.deprecated_subdeps.clear();
     }
 
     /// Renders a `pnpm:hook` event as `hook: message`, matching pnpm's

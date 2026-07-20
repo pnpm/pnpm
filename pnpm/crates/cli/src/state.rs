@@ -7,7 +7,10 @@ use pacquet_package_manager::ResolvedPackages;
 use pacquet_package_manifest::{PackageManifest, PackageManifestError};
 use pacquet_tarball::MemCache;
 use pipe_trait::Pipe;
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 /// Application state when running `pacquet run` or `pacquet install`.
 pub struct State {
@@ -66,11 +69,14 @@ impl State {
     ) -> Result<Self, InitStateError> {
         let should_load = config.lockfile || require_lockfile;
         let lockfile = if should_load {
-            manifest_path
-                .parent()
-                .expect("manifest path always has a parent dir")
-                .to_path_buf()
-                .pipe(LazyLockfile::deferred)
+            let manifest_dir =
+                manifest_path.parent().expect("manifest path always has a parent dir");
+            if config.shared_workspace_lockfile {
+                config.workspace_dir.clone().unwrap_or_else(|| manifest_dir.to_path_buf())
+            } else {
+                manifest_dir.to_path_buf()
+            }
+            .pipe(LazyLockfile::deferred)
         } else {
             LazyLockfile::disabled()
         };
@@ -96,6 +102,26 @@ impl State {
             resolved_packages: ResolvedPackages::new(),
         })
     }
+
+    pub fn lockfile_dir(&self) -> &Path {
+        let manifest_dir =
+            self.manifest.path().parent().expect("manifest path always has a parent dir");
+        if self.config.shared_workspace_lockfile {
+            self.config.workspace_dir.as_deref().unwrap_or(manifest_dir)
+        } else {
+            manifest_dir
+        }
+    }
+
+    pub fn lockfile_path(&self) -> PathBuf {
+        self.lockfile_dir().join(pacquet_lockfile::Lockfile::FILE_NAME)
+    }
+
+    pub fn active_importer_id(&self) -> String {
+        let project_dir =
+            self.manifest.path().parent().expect("manifest path always has a parent dir");
+        pacquet_workspace::importer_id_from_root_dir(self.lockfile_dir(), project_dir)
+    }
 }
 
 /// `package.json` loads (or is scaffolded) as usual, but when it is
@@ -119,11 +145,30 @@ fn load_or_create_manifest(
         if let Some((_, manifest)) = pacquet_workspace::try_read_project_manifest(project_dir)
             .map_err(InitStateError::ManifestRead)?
         {
-            return Ok(manifest);
+            return Ok(apply_runtime_on_fail(manifest, config));
         }
         if config.workspace_dir.is_some() {
-            return Ok(PackageManifest::from_value(manifest_path, serde_json::json!({})));
+            return Ok(apply_runtime_on_fail(
+                PackageManifest::from_value(manifest_path, serde_json::json!({})),
+                config,
+            ));
         }
     }
-    manifest_path.pipe(PackageManifest::create_if_needed).map_err(InitStateError::Manifest)
+    manifest_path
+        .pipe(PackageManifest::create_if_needed)
+        .map(|manifest| apply_runtime_on_fail(manifest, config))
+        .map_err(InitStateError::Manifest)
 }
+
+fn apply_runtime_on_fail(mut manifest: PackageManifest, config: &Config) -> PackageManifest {
+    if let Some(runtime_on_fail) = config.runtime_on_fail {
+        pacquet_package_manifest::apply_runtime_on_fail_override(
+            manifest.value_mut(),
+            runtime_on_fail.as_str(),
+        );
+    }
+    manifest
+}
+
+#[cfg(test)]
+mod tests;

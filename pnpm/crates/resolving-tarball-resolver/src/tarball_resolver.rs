@@ -174,6 +174,8 @@ impl TarballResolver {
             package_id: &resolved_url,
             auth_headers: &ctx.auth_headers,
             retry_opts: ctx.retry_opts,
+            // A plain tarball is the package; its manifest is at the root.
+            manifest_subdir: None,
         }
         .run::<SilentReporter>(ctx.mem_cache.as_deref())
         .await

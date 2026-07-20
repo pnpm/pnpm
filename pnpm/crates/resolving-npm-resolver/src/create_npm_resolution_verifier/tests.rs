@@ -518,6 +518,36 @@ async fn verify_skips_age_check_when_package_excluded() {
 }
 
 #[tokio::test]
+async fn verify_skips_age_check_when_package_matches_exclude_pattern() {
+    let mut opts = default_opts("http://nonexistent.example.invalid/");
+    opts.minimum_release_age = Some(60 * 24 * 365);
+    opts.minimum_release_age_exclude =
+        Some(create_package_version_policy(["acme-*".to_string()]).expect("policy"));
+    opts.minimum_release_age_exclude_patterns = vec!["acme-*".to_string()];
+    let verifier = create_npm_resolution_verifier(opts);
+    let name: PkgName = "acme-widget".parse().expect("parse");
+
+    let result = verifier.verify(&registry_resolution(), ctx(&name, "1.0.0")).await;
+
+    assert_eq!(result, ResolutionVerification::Ok);
+}
+
+#[tokio::test]
+async fn verify_skips_age_check_for_an_exact_version_in_a_union() {
+    let mut opts = default_opts("http://nonexistent.example.invalid/");
+    opts.minimum_release_age = Some(60 * 24 * 365);
+    opts.minimum_release_age_exclude =
+        Some(create_package_version_policy(["acme@1.0.0 || 1.1.0".to_string()]).expect("policy"));
+    opts.minimum_release_age_exclude_patterns = vec!["acme@1.0.0 || 1.1.0".to_string()];
+    let verifier = create_npm_resolution_verifier(opts);
+    let name: PkgName = "acme".parse().expect("parse");
+
+    let result = verifier.verify(&registry_resolution(), ctx(&name, "1.1.0")).await;
+
+    assert_eq!(result, ResolutionVerification::Ok);
+}
+
+#[tokio::test]
 async fn min_age_pass_when_published_before_cutoff() {
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());

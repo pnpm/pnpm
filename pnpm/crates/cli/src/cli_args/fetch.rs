@@ -15,6 +15,7 @@ pub struct FetchArgs {
 
 impl FetchArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
+        let lockfile_path = state.lockfile_path();
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &state;
 
@@ -22,15 +23,6 @@ impl FetchArgs {
         let has_both = prod == dev;
         let include_prod = has_both || prod;
         let include_dev = has_both || dev;
-
-        // The lockfile-verification gate keys its on-disk cache off
-        // `<manifest_dir>/pnpm-lock.yaml`, matching `pacquet install`.
-        // Once workspace support lands (pacquet#431), this becomes
-        // `workspace_root` to match where the lockfile actually lives.
-        let lockfile_path = manifest
-            .path()
-            .parent()
-            .map(|parent| parent.join(pacquet_lockfile::Lockfile::FILE_NAME));
 
         Install {
             tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
@@ -40,7 +32,7 @@ impl FetchArgs {
             manifest,
             emit_initial_manifest: true,
             lockfile: pacquet_lockfile::MaybeLazyLockfile::Lazy(lockfile),
-            lockfile_path: lockfile_path.as_deref(),
+            lockfile_path: Some(&lockfile_path),
             // Optional dependencies follow production, so `--dev` (which
             // excludes production) excludes optional deps too.
             dependency_groups: std::iter::empty()
@@ -57,6 +49,7 @@ impl FetchArgs {
             trust_lockfile: config.trust_lockfile,
             update_checksums: false,
             is_full_install: false,
+            installs_only: true,
             resolved_packages,
             supported_architectures: config.supported_architectures.clone(),
             node_linker: config.node_linker,

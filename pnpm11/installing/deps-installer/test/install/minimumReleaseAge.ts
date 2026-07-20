@@ -2,6 +2,7 @@ import { expect, jest, test } from '@jest/globals'
 import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
 import { readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
+import { bravoDepMatureUpTo101MinimumReleaseAge } from '@pnpm/testing.registry-mock'
 
 import { testDefaults } from '../utils/index.js'
 
@@ -123,6 +124,59 @@ test('time-based resolution repopulates missing lockfile time entries on re-inst
 
   const lockfileAfterReinstall = (await readWantedLockfile('.', { ignoreIncompatible: false }))!
   expect(lockfileAfterReinstall.time).toEqual(lockfileAfterFirstInstall.time)
+})
+
+const matureUpTo101MinimumReleaseAge = bravoDepMatureUpTo101MinimumReleaseAge()
+
+test('pnpm update resolves to the newest version in range that satisfies minimumReleaseAge', async () => {
+  const project = prepareEmpty()
+
+  const { updatedManifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/bravo-dep@1.0.0'], testDefaults())
+
+  // Relax the range so the update has newer versions to consider: 1.0.1 is
+  // mature under the cutoff, the newest in-range version (1.1.0) is not.
+  const manifest = { ...updatedManifest, dependencies: { '@pnpm.e2e/bravo-dep': '^1.0.0' } }
+  await install(manifest, testDefaults({
+    update: true,
+    depth: 0,
+    minimumReleaseAge: matureUpTo101MinimumReleaseAge,
+  }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.snapshots).toHaveProperty(['@pnpm.e2e/bravo-dep@1.0.1'])
+  expect(lockfile.snapshots).not.toHaveProperty(['@pnpm.e2e/bravo-dep@1.1.0'])
+})
+
+test('pnpm update --latest updates to the newest mature version instead of the immature latest', async () => {
+  const project = prepareEmpty()
+
+  const { updatedManifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/bravo-dep@1.0.0'], testDefaults())
+
+  // 1.0.1 is mature under the cutoff; the latest tag (1.1.0) is not.
+  const { updatedManifest: manifest } = await install(updatedManifest, testDefaults({
+    update: true,
+    updateToLatest: true,
+    depth: Infinity,
+    minimumReleaseAge: matureUpTo101MinimumReleaseAge,
+  }))
+
+  expect(manifest.dependencies!['@pnpm.e2e/bravo-dep']).toBe('1.0.1')
+  const lockfile = project.readLockfile()
+  expect(lockfile.snapshots).toHaveProperty(['@pnpm.e2e/bravo-dep@1.0.1'])
+  expect(lockfile.snapshots).not.toHaveProperty(['@pnpm.e2e/bravo-dep@1.1.0'])
+})
+
+test('pnpm add without a version pins the newest version that satisfies minimumReleaseAge', async () => {
+  const project = prepareEmpty()
+
+  // The latest tag (1.1.0) is immature under the cutoff; the newest mature version is 1.0.1.
+  const opts = testDefaults({ minimumReleaseAge: matureUpTo101MinimumReleaseAge })
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/bravo-dep'], opts)
+
+  expect(manifest.dependencies!['@pnpm.e2e/bravo-dep']).toBe('^1.0.1')
+  const lockfile = project.readLockfile()
+  expect(lockfile.snapshots).toHaveProperty(['@pnpm.e2e/bravo-dep@1.0.1'])
+  expect(lockfile.snapshots).not.toHaveProperty(['@pnpm.e2e/bravo-dep@1.1.0'])
 })
 
 test('throws error when semver range is used in minimumReleaseAgeExclude', async () => {

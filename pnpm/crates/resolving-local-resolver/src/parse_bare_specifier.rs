@@ -58,7 +58,7 @@ pub(crate) struct ParseOptions {
     "Local dependencies via `path:` protocol are not supported. \
      Use the `link:` protocol for folder dependencies and `file:` for local tarballs"
 )]
-#[diagnostic(code(PATH_IS_UNSUPPORTED_PROTOCOL))]
+#[diagnostic(code(ERR_PNPM_PATH_IS_UNSUPPORTED_PROTOCOL))]
 pub struct PathProtocolNotSupportedError {
     pub bare_specifier: String,
     pub protocol: String,

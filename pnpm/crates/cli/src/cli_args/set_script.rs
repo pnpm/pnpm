@@ -22,11 +22,9 @@ pub enum SetScriptError {
     UnsafeKey { key: String },
 }
 
-/// `pacquet set-script <name> <command...>` / `pacquet ss <name> <command...>`.
+/// Set a script in the `scripts` field of the project's `package.json`.
 ///
-/// Writes a `scripts` entry to the project manifest. The command is every
-/// parameter after the name joined by a single space, so
-/// `set-script lint eslint --fix src` stores `"eslint --fix src"`.
+/// The command is every argument after the script name, joined by spaces.
 #[derive(Debug, Args)]
 pub struct SetScriptArgs {
     /// The script name followed by the command and its arguments.

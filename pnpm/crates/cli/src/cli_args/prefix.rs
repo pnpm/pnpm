@@ -3,10 +3,8 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::path::{Path, PathBuf};
 
-/// `pacquet prefix`: print the current package prefix.
-///
-/// Ports pnpm's `prefix` handler, walking up to find the nearest
-/// package prefix directory (containing package.json, `node_modules`, etc.).
+/// Print the current package prefix — the nearest directory containing a
+/// `package.json`, `node_modules`, or `pnpm-workspace.yaml`.
 #[derive(Debug, Args)]
 pub struct PrefixArgs {
     /// Print the global prefix
@@ -21,15 +19,13 @@ pub enum PrefixError {
     /// `--global` is rejected because the global-dir machinery (pnpm's
     /// `@pnpm/global.commands`) is not ported to pacquet yet; refuse rather
     /// than print a wrong path.
-    #[display(
-        "`pacquet prefix --global` is not supported yet; global package management has not been ported to pacquet."
-    )]
-    #[diagnostic(code(pacquet_cli::prefix_global_unsupported))]
+    #[display("`pnpm prefix --global` is not supported yet.")]
+    #[diagnostic(code(ERR_PNPM_CLI_PREFIX_GLOBAL_UNSUPPORTED))]
     GlobalUnsupported,
 
     /// IO error while looking up the prefix.
     #[display("failed to access {}: {source}", path.display())]
-    #[diagnostic(code(pacquet_cli::prefix_io_error))]
+    #[diagnostic(code(ERR_PNPM_CLI_PREFIX_IO_ERROR))]
     Io { path: PathBuf, source: std::io::Error },
 }
 

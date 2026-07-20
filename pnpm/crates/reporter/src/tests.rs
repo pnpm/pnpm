@@ -5,15 +5,31 @@ use pretty_assertions::assert_eq;
 use serde_json::Value;
 
 use crate::{
-    AddedRoot, BrokenModulesLog, ContextLog, DependencyType, Envelope, FetchingProgressLog,
-    FetchingProgressMessage, GetHostName, GlobalLog, HookLog, Host, IgnoredScriptsLog,
-    LifecycleLog, LifecycleMessage, LifecycleStdio, LockfileVerificationLog,
+    AddedRoot, BrokenModulesLog, ContextLog, DependencyType, DeprecationLog, Envelope,
+    FetchingProgressLog, FetchingProgressMessage, GetHostName, GlobalLog, HookLog, Host,
+    IgnoredScriptsLog, LifecycleLog, LifecycleMessage, LifecycleStdio, LockfileVerificationLog,
     LockfileVerificationMessage, LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog,
-    PackageManifestLog, PackageManifestMessage, PnpmLog, ProgressLog, ProgressMessage, RemovedRoot,
-    Reporter, RequestRetryError, RequestRetryLog, RootLog, RootMessage, SilentReporter,
-    SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalParent,
-    SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
+    PackageManifestLog, PackageManifestMessage, PnpmLog, ProgressLog, ProgressMessage,
+    PromptAction, PromptLog, RemovedRoot, Reporter, RequestRetryError, RequestRetryLog, RootLog,
+    RootMessage, SilentReporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
+    SkippedOptionalParent, SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage,
+    SummaryLog,
 };
+
+#[test]
+fn prompt_event_matches_pnpm_wire_shape() {
+    let event = LogEvent::Prompt(PromptLog { level: LogLevel::Debug, action: PromptAction::Start });
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
+    let json: Value = envelope
+        .pipe_ref(serde_json::to_string)
+        .expect("serialize envelope")
+        .pipe_as_ref(serde_json::from_str)
+        .expect("parse JSON");
+
+    assert_eq!(json["name"], "pnpm:prompt");
+    assert_eq!(json["level"], "debug");
+    assert_eq!(json["action"], "start");
+}
 
 /// Context log serializes with the camelCase field names
 /// `@pnpm/cli.default-reporter` expects (`currentLockfileExists`,
@@ -1062,4 +1078,57 @@ fn host_returns_a_non_empty_host_name() {
     let host = Host::get_host_name();
     eprintln!("Host::get_host_name() = {host:?}");
     assert!(!host.is_empty());
+}
+
+/// `pnpm:deprecation` event serializes to the same JSON shape
+/// pnpm's `@pnpm/cli.default-reporter` expects.
+#[test]
+fn deprecation_event_matches_pnpm_wire_shape() {
+    let event = LogEvent::Deprecation(DeprecationLog {
+        level: LogLevel::Debug,
+        pkg_name: "express".to_string(),
+        pkg_version: "0.14.1".to_string(),
+        pkg_id: "express@0.14.1".to_string(),
+        prefix: "/projects/x".to_string(),
+        deprecated: "express 0.x series is deprecated".to_string(),
+        depth: 0,
+    });
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
+    let json: Value = envelope
+        .pipe_ref(serde_json::to_string)
+        .expect("serialize envelope")
+        .pipe_as_ref(serde_json::from_str)
+        .expect("parse JSON");
+    dbg!(&json);
+    assert_eq!(json["name"], "pnpm:deprecation");
+    assert_eq!(json["level"], "debug");
+    assert_eq!(json["pkgName"], "express");
+    assert_eq!(json["pkgVersion"], "0.14.1");
+    assert_eq!(json["pkgId"], "express@0.14.1");
+    assert_eq!(json["prefix"], "/projects/x");
+    assert_eq!(json["deprecated"], "express 0.x series is deprecated");
+    assert_eq!(json["depth"], 0);
+}
+
+/// Transitive deprecation events (`depth > 0`) also match the wire shape.
+#[test]
+fn deprecation_event_transitive_matches_pnpm_wire_shape() {
+    let event = LogEvent::Deprecation(DeprecationLog {
+        level: LogLevel::Debug,
+        pkg_name: "request".to_string(),
+        pkg_version: "2.88.2".to_string(),
+        pkg_id: "request@2.88.2".to_string(),
+        prefix: "/projects/x".to_string(),
+        deprecated: "request has been deprecated".to_string(),
+        depth: 3,
+    });
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
+    let json: Value = envelope
+        .pipe_ref(serde_json::to_string)
+        .expect("serialize envelope")
+        .pipe_as_ref(serde_json::from_str)
+        .expect("parse JSON");
+    assert_eq!(json["name"], "pnpm:deprecation");
+    assert_eq!(json["pkgName"], "request");
+    assert_eq!(json["depth"], 3);
 }

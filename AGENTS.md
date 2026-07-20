@@ -222,7 +222,9 @@ The Rust products are released through the same native flow. Their npm wrapper p
 
 The Rust products release on `alpha` lanes (`versioning.lanes` in `pnpm-workspace.yaml`): each run of `pnpm version -r` that consumes an intent for one of them cuts an `X.Y.Z-alpha.N` prerelease, while the TypeScript CLI keeps releasing stable versions on the main lane. `pnpm lane main --filter …` graduates a product to a stable version.
 
-Do not add `"pnpm"` to a Rust-only changeset: in changesets, `pnpm` always means the TypeScript CLI package. A parity change that lands in both stacks carries one changeset naming both the affected TypeScript packages (plus `"pnpm"`) and the Rust wrapper(s).
+Do not add `"pnpm"` to a Rust-only changeset: in changesets, `pnpm` always means the TypeScript CLI package. A changeset whose implementation is Rust-only and targets `pacquet` must omit `"pnpm"`. A parity change that lands in both stacks carries one changeset naming both the affected TypeScript packages (plus `"pnpm"`) and the Rust wrapper(s).
+
+Use `pacquet` as the changeset package name, but use `pnpm` in its release-note prose and command examples (`pnpm add`, not `pacquet add`). The published Rust CLI's executable is `pnpm`; `pacquet` is only its in-repo package identifier.
 
 ## Comments
 

@@ -9,7 +9,7 @@ use pacquet_catalogs_resolver::{
 };
 use pacquet_catalogs_types::Catalogs;
 use pacquet_hooks::PnpmfileHooks;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use pacquet_package_manifest::{DependencyGroup, PackageManifest, engines_runtime_dependencies};
 use pacquet_patching::{PatchGroupRecord, PatchKeyConflictError, get_patch_info};
 use pacquet_resolving_resolver_base::{
     PreferredVersionsOverlay, ResolveError, ResolveOptions, Resolver, WantedDependency,
@@ -19,7 +19,7 @@ use serde_json::Value;
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap, HashSet},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex, MutexGuard},
 };
 
@@ -49,7 +49,7 @@ use pacquet_lockfile::{
 /// reuse. An excluded package re-resolves to highest-in-range, and its
 /// whole subtree re-resolves with it (so the bump's new transitive deps
 /// are picked up).
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub enum UpdateReuseScope {
     /// Reuse every still-satisfied dependency. `install` / `add`.
     #[default]
@@ -205,6 +205,26 @@ pub struct SkippedOptionalDependencyParent {
 /// [`crate::WorkspaceResolveOptions::skipped_optional_log`].
 pub type SkippedOptionalLogFn = Arc<dyn Fn(SkippedOptionalDependency) + Send + Sync>;
 
+/// One deprecation notification from the tree walker: a newly-resolved
+/// package carries a non-empty `deprecated` field in its registry
+/// manifest and is not covered by `allowedDeprecatedVersions`. Mirrors
+/// the package payload of the `pnpm:deprecation` debug log so the
+/// install layer can forward it to the reporter wire.
+#[derive(Debug, Clone)]
+pub struct Deprecation {
+    pub pkg_name: String,
+    pub pkg_version: String,
+    pub pkg_id: String,
+    pub prefix: String,
+    pub deprecated: String,
+    pub depth: i32,
+}
+
+/// Sink for [`Deprecation`] notifications, pre-bound to the install's
+/// reporter so the resolver stays reporter-agnostic. See
+/// [`crate::WorkspaceResolveOptions::deprecation_log`].
+pub type DeprecationLogFn = Arc<dyn Fn(Deprecation) + Send + Sync>;
+
 /// Error envelope returned by the tree walker.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum ResolveDependencyTreeError {
@@ -226,9 +246,9 @@ pub enum ResolveDependencyTreeError {
     LockedOptionalResolutionFailure(#[error(not(source))] Box<ResolveDependencyTreeError>),
 
     /// No resolver in the chain claimed the spec, raised with the
-    /// `SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` code.
+    /// `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` code.
     #[display("\"{specifier}\" isn't supported by any available resolver.")]
-    #[diagnostic(code(SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER))]
+    #[diagnostic(code(ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER))]
     SpecNotSupported {
         #[error(not(source))]
         specifier: String,
@@ -251,11 +271,11 @@ pub enum ResolveDependencyTreeError {
 
     /// A transitive dependency was resolved through an exotic
     /// protocol (git, tarball, file, ...) while `block_exotic_subdeps`
-    /// is on, raised with the `EXOTIC_SUBDEP` code.
+    /// is on, raised with the `ERR_PNPM_EXOTIC_SUBDEP` code.
     #[display(
         "Exotic dependency \"{specifier}\" (resolved via {resolved_via}) is not allowed in subdependencies when blockExoticSubdeps is enabled"
     )]
-    #[diagnostic(code(EXOTIC_SUBDEP))]
+    #[diagnostic(code(ERR_PNPM_EXOTIC_SUBDEP))]
     ExoticSubdep {
         #[error(not(source))]
         specifier: String,
@@ -276,10 +296,13 @@ pub enum ResolveDependencyTreeError {
     },
 
     /// A pnpmfile hook (`readPackage`) threw, timed out, or returned an
-    /// invalid package manifest. Carries the `PNPMFILE_FAIL` /
-    /// `BAD_READ_PACKAGE_HOOK_RESULT` code: a bad hook aborts the install.
+    /// invalid package manifest; a bad hook aborts the install. Carries
+    /// `ERR_PNPM_PNPMFILE_FAIL` for all of those. pnpm splits them across
+    /// two codes, reserving `ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT` for a
+    /// hook that returns a non-manifest; pacquet does not distinguish the
+    /// two yet.
     #[display("{_0}")]
-    #[diagnostic(code(PNPMFILE_FAIL))]
+    #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     PnpmfileHook(#[error(not(source))] pacquet_hooks::HookError),
 }
 
@@ -488,6 +511,11 @@ where
 /// `link:packages/lib` would hand `packages/app` the same string,
 /// which from `packages/app` points at the non-existent
 /// `packages/app/packages/lib`.
+///
+/// The final two fields isolate importers with active update policies
+/// and record whether this wanted dependency is an explicit update target.
+/// Ordinary keep-all importers use no importer scope and retain the existing
+/// cross-importer cache sharing.
 type WantedKey = (
     Option<String>,
     Option<String>,
@@ -498,7 +526,11 @@ type WantedKey = (
     Option<PathBuf>,
     Option<PkgNameVerPeer>,
     Vec<(String, Vec<String>)>,
+    Option<String>,
+    bool,
 );
+
+type SubtreeReuseKey = (Option<String>, PkgNameVerPeer);
 
 /// Whether a wanted dep's resolution is computed relative to the
 /// consuming importer's directory rather than being
@@ -540,6 +572,7 @@ type ChildSpec = (String, String, bool);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ChildrenOwner {
+    update_active: bool,
     depth: i32,
     importer_order: usize,
     parent_path: Vec<String>,
@@ -548,6 +581,9 @@ struct ChildrenOwner {
 
 impl ChildrenOwner {
     fn wins_over(&self, other: &Self) -> bool {
+        if self.update_active != other.update_active {
+            return self.update_active;
+        }
         (&self.depth, &self.importer_order, &self.parent_path)
             < (&other.depth, &other.importer_order, &other.parent_path)
     }
@@ -588,11 +624,15 @@ pub struct WorkspaceTreeCtx {
     /// re-resolves its target deps to highest-in-range, so a reused
     /// resolution would defeat the bump. See [`UpdateReuseScope`].
     update_reuse_scope: UpdateReuseScope,
-    /// Memoises [`fn@subtree_fully_reusable`] per snapshot key so the
-    /// recursive reusability check runs once per package across the
-    /// whole walk. `true` means the package and its entire transitive
-    /// subtree can be synthesized from the prior lockfile.
-    subtree_reusable: Mutex<HashMap<PkgNameVerPeer, bool>>,
+    /// Importer overrides used by filtered workspace updates. IDs absent from
+    /// this map keep the workspace default above.
+    update_reuse_scopes_by_importer: BTreeMap<String, UpdateReuseScope>,
+    /// Memoises [`fn@subtree_fully_reusable`] per update scope and snapshot
+    /// key. Keep-all importers share one scope; update-active importers use
+    /// isolated scopes so one importer's reuse answer cannot leak to another.
+    /// `true` means the package and its entire transitive subtree can be
+    /// synthesized from the prior lockfile.
+    subtree_reusable: Mutex<HashMap<SubtreeReuseKey, bool>>,
     pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>,
     /// `context.log(...)` sink for the `pnpmfile_hook`'s `readPackage`
     /// calls, pre-bound to the install's reporter, project prefix, and
@@ -603,6 +643,17 @@ pub struct WorkspaceTreeCtx {
     /// keeps the skip behavior but drops the notification. See
     /// [`SkippedOptionalLogFn`].
     skipped_optional_log: Option<SkippedOptionalLogFn>,
+    /// The `pnpm.allowedDeprecatedVersions` map. See
+    /// [`crate::WorkspaceResolveOptions::allowed_deprecated_versions`].
+    allowed_deprecated_versions: BTreeMap<String, String>,
+    /// Sink for deprecation notifications. `None` keeps the
+    /// deprecation check but drops the notification. See
+    /// [`DeprecationLogFn`].
+    deprecation_log: Option<DeprecationLogFn>,
+    /// Per-package shallowest depth at which a deprecation was emitted.
+    /// Re-emits when the same package appears at a shallower depth so a
+    /// direct dependency is never misclassified as transitive.
+    deprecation_depths: Mutex<HashMap<String, i32>>,
     /// The install's `autoInstallPeers` setting. When `true`,
     /// [`fn@resolve_node`] drops a resolved package's `dependencies`
     /// entries that are shadowed by its own `peerDependencies`, so the
@@ -617,9 +668,9 @@ pub struct WorkspaceTreeCtx {
     registries: HashMap<String, String>,
     /// `pkg id → importer id` of the importer whose occurrence owns
     /// that package's shared children context. Ownership is chosen by
-    /// `(depth, importer order, parent path)`: a package's subtree is
-    /// recorded once per id, and a non-owner occurrence reuses the owner
-    /// occurrence's children and missing-peer report. Consumed via
+    /// update-active status followed by `(depth, importer order, parent path)`:
+    /// a package's subtree is recorded once per id, and a non-owner occurrence
+    /// reuses the owner occurrence's children and missing-peer report. Consumed via
     /// [`crate::HoistMissingScope`].
     first_importer_by_pkg: Mutex<HashMap<String, String>>,
     /// Per package: the missing-peer names reported by the *initial*
@@ -674,10 +725,14 @@ impl Default for WorkspaceTreeCtx {
             manifest_hook: None,
             wanted_lockfile: None,
             update_reuse_scope: UpdateReuseScope::All,
+            update_reuse_scopes_by_importer: BTreeMap::new(),
             subtree_reusable: Mutex::new(HashMap::new()),
             pnpmfile_hook: None,
             read_package_log: None,
             skipped_optional_log: None,
+            allowed_deprecated_versions: BTreeMap::new(),
+            deprecation_depths: Mutex::new(HashMap::new()),
+            deprecation_log: None,
             auto_install_peers: false,
             registries: HashMap::new(),
             first_importer_by_pkg: Mutex::new(HashMap::new()),
@@ -795,6 +850,22 @@ impl WorkspaceTreeCtx {
     }
 
     #[must_use]
+    pub fn with_update_reuse_scopes_by_importer(
+        mut self,
+        scopes: BTreeMap<String, UpdateReuseScope>,
+    ) -> Self {
+        self.update_reuse_scopes_by_importer = scopes;
+        self
+    }
+
+    fn update_reuse_scope_for(&self, importer_id: &str) -> &UpdateReuseScope {
+        if matches!(self.update_reuse_scope, UpdateReuseScope::None) {
+            return &self.update_reuse_scope;
+        }
+        self.update_reuse_scopes_by_importer.get(importer_id).unwrap_or(&self.update_reuse_scope)
+    }
+
+    #[must_use]
     pub fn with_pnpmfile_hook(mut self, pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>) -> Self {
         self.pnpmfile_hook = pnpmfile_hook;
         self
@@ -818,6 +889,25 @@ impl WorkspaceTreeCtx {
         skipped_optional_log: Option<SkippedOptionalLogFn>,
     ) -> Self {
         self.skipped_optional_log = skipped_optional_log;
+        self
+    }
+
+    /// Attach the `pnpm.allowedDeprecatedVersions` map. See
+    /// [`crate::WorkspaceResolveOptions::allowed_deprecated_versions`].
+    #[must_use]
+    pub fn with_allowed_deprecated_versions(
+        mut self,
+        allowed_deprecated_versions: BTreeMap<String, String>,
+    ) -> Self {
+        self.allowed_deprecated_versions = allowed_deprecated_versions;
+        self
+    }
+
+    /// Attach the sink deprecation notifications are forwarded to.
+    /// See [`DeprecationLogFn`].
+    #[must_use]
+    pub fn with_deprecation_log(mut self, deprecation_log: Option<DeprecationLogFn>) -> Self {
+        self.deprecation_log = deprecation_log;
         self
     }
 
@@ -881,6 +971,9 @@ impl WorkspaceTreeCtx {
 /// envelopes via the shared maps.
 pub struct TreeCtx {
     base_opts: ResolveOptions,
+    /// Absolute root used to make ownerless snapshot `link:` ids stable
+    /// across importers at different depths.
+    lockfile_dir: PathBuf,
     /// [`ResolveOptions`] handed to the resolver for importer-level
     /// (direct) dependencies — `depth == 0`. Differs from `base_opts`
     /// only in `pick_lowest_version`, which is set under
@@ -916,10 +1009,16 @@ impl TreeCtx {
     /// the same workspace ctx.
     #[must_use]
     pub fn new(base_opts: ResolveOptions) -> Self {
+        let lockfile_dir = if base_opts.lockfile_dir.as_os_str().is_empty() {
+            base_opts.project_dir.clone()
+        } else {
+            base_opts.lockfile_dir.clone()
+        };
         TreeCtx {
             direct_opts: base_opts.clone(),
             subdep_opts: base_opts.clone(),
             base_opts,
+            lockfile_dir: pacquet_fs::lexical_normalize(&lockfile_dir),
             catalogs: Catalogs::new(),
             workspace: Arc::new(WorkspaceTreeCtx::default()),
             patched_dependencies: None,
@@ -933,16 +1032,28 @@ impl TreeCtx {
     /// `workspace` alive across importers (typically via
     /// `Arc::clone(&workspace)`).
     pub fn with_workspace(workspace: Arc<WorkspaceTreeCtx>, base_opts: ResolveOptions) -> Self {
+        let lockfile_dir = if base_opts.lockfile_dir.as_os_str().is_empty() {
+            base_opts.project_dir.clone()
+        } else {
+            base_opts.lockfile_dir.clone()
+        };
         TreeCtx {
             direct_opts: base_opts.clone(),
             subdep_opts: base_opts.clone(),
             base_opts,
+            lockfile_dir: pacquet_fs::lexical_normalize(&lockfile_dir),
             catalogs: Catalogs::new(),
             workspace,
             patched_dependencies: None,
             importer_id: pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY.to_string(),
             importer_order: 0,
         }
+    }
+
+    #[must_use]
+    pub(crate) fn with_lockfile_dir(mut self, lockfile_dir: &Path) -> Self {
+        self.lockfile_dir = pacquet_fs::lexical_normalize(lockfile_dir);
+        self
     }
 
     /// Derive the depth-specific resolve options from `resolutionMode`.
@@ -989,6 +1100,15 @@ impl TreeCtx {
     #[must_use]
     pub fn workspace(&self) -> &Arc<WorkspaceTreeCtx> {
         &self.workspace
+    }
+
+    fn update_reuse_scope(&self) -> &UpdateReuseScope {
+        self.workspace.update_reuse_scope_for(&self.importer_id)
+    }
+
+    fn update_cache_scope(&self) -> Option<String> {
+        (!matches!(self.update_reuse_scope(), UpdateReuseScope::All))
+            .then(|| self.importer_id.clone())
     }
 
     /// Set the importer this context walks for. See [`TreeCtx`]'s
@@ -1419,6 +1539,7 @@ where
             view
         })
         .unwrap_or_default();
+    let update_target = is_update_target(ctx.update_reuse_scope(), &wanted);
     let cache_key: WantedKey = (
         wanted.alias.clone(),
         wanted.bare_specifier.clone(),
@@ -1429,6 +1550,8 @@ where
         project_scope,
         prior_key.clone(),
         overlay_versions.clone(),
+        ctx.update_cache_scope(),
+        update_target,
     );
     let result =
         match resolve_wanted_cached(ctx, resolver, &wanted, opts, pick_overlay.as_ref(), cache_key)
@@ -1533,33 +1656,31 @@ where
     let is_leaf = is_link || pkg_is_leaf(&result);
     let node_id = if is_leaf { NodeId::leaf(&id) } else { NodeId::next() };
 
-    {
-        let mut packages = lock_recoverable(&ctx.workspace.packages);
-        if let Some(existing) = packages.get_mut(&id) {
-            existing.optional = existing.optional && current_is_optional;
-        } else {
-            let peer_dependencies =
-                if is_link { BTreeMap::new() } else { extract_peer_dependencies(&result) };
-            // Collect peer names for the peer-resolution stage's
-            // `parentPkgs` filter (only peers count as parents).
-            {
-                let mut all_peers = lock_recoverable(&ctx.workspace.all_peer_dep_names);
-                for name in peer_dependencies.keys() {
-                    all_peers.insert(name.clone());
-                }
+    let mut packages = lock_recoverable(&ctx.workspace.packages);
+    if let Some(existing) = packages.get_mut(&id) {
+        existing.optional = existing.optional && current_is_optional;
+    } else {
+        let peer_dependencies =
+            if is_link { BTreeMap::new() } else { extract_peer_dependencies(&result) };
+        {
+            let mut all_peers = lock_recoverable(&ctx.workspace.all_peer_dep_names);
+            for name in peer_dependencies.keys() {
+                all_peers.insert(name.clone());
             }
-            packages.insert(
-                id.clone(),
-                ResolvedPackage {
-                    id: id.clone(),
-                    result: Arc::clone(&result),
-                    peer_dependencies,
-                    optional: current_is_optional,
-                    is_leaf,
-                },
-            );
         }
+        packages.insert(
+            id.clone(),
+            ResolvedPackage {
+                id: id.clone(),
+                result: Arc::clone(&result),
+                peer_dependencies,
+                optional: current_is_optional,
+                is_leaf,
+            },
+        );
     }
+
+    emit_deprecation_if_needed(ctx, &result, &id, depth);
 
     let next_ancestors: Vec<String> =
         ancestor_ids.iter().cloned().chain(std::iter::once(id.clone())).collect();
@@ -1877,7 +1998,7 @@ where
     // update target list — so the picker's held-back-update warning fires
     // only for the packages the user actually asked to update.
     let needs_overlay = !cache_key.8.is_empty();
-    let update_target = is_update_target(&ctx.workspace.update_reuse_scope, wanted);
+    let update_target = cache_key.10;
     let needs_update = update_target != opts.update_requested;
     let owned_opts;
     let opts = if needs_overlay || needs_update {
@@ -2010,6 +2131,8 @@ where
                     // reused by edges that carry no currentPkg either.
                     None,
                     Vec::new(),
+                    ctx.update_cache_scope(),
+                    is_update_target(ctx.update_reuse_scope(), &wanted),
                 );
                 let _ = resolve_wanted_cached(ctx, resolver, &wanted, opts, None, cache_key).await;
             }
@@ -2161,6 +2284,7 @@ fn claim_children_owner(
     ancestor_ids: &[String],
 ) -> ChildrenOwnerClaim {
     let owner = ChildrenOwner {
+        update_active: !matches!(ctx.update_reuse_scope(), UpdateReuseScope::All),
         depth,
         importer_order: ctx.importer_order,
         parent_path: ancestor_ids.to_vec(),
@@ -2224,7 +2348,7 @@ fn try_reuse_node(
     prior_key: Option<&PkgNameVerPeer>,
 ) -> Option<ReusedNode> {
     let lockfile = ctx.workspace.wanted_lockfile.as_ref()?;
-    if matches!(ctx.workspace.update_reuse_scope, UpdateReuseScope::None) {
+    if matches!(ctx.update_reuse_scope(), UpdateReuseScope::None) {
         return None;
     }
     let alias = wanted.alias.as_deref()?;
@@ -2427,21 +2551,22 @@ fn subtree_fully_reusable(
     lockfile: &pacquet_lockfile::Lockfile,
     key: &PkgNameVerPeer,
 ) -> bool {
-    if let Some(&cached) = lock_recoverable(&ctx.workspace.subtree_reusable).get(key) {
+    let memo_key = (ctx.update_cache_scope(), key.clone());
+    if let Some(&cached) = lock_recoverable(&ctx.workspace.subtree_reusable).get(&memo_key) {
         return cached;
     }
     // Provisionally mark non-reusable so a cycle back to `key` resolves to
     // `false` (re-resolve) instead of recursing forever — see the doc above
     // for why `false` rather than `true`.
-    lock_recoverable(&ctx.workspace.subtree_reusable).insert(key.clone(), false);
+    lock_recoverable(&ctx.workspace.subtree_reusable).insert(memo_key.clone(), false);
     // A `pacquet update` target anywhere in the subtree forces the whole
     // subtree to re-resolve so the bump's new transitive deps are picked
     // up — update names match at any depth.
     let name = key.name.to_string();
-    let reusable = !update_excludes(&ctx.workspace.update_reuse_scope, &name)
+    let reusable = !update_excludes(ctx.update_reuse_scope(), &name)
         && synthesize_reused_result(lockfile, key, &name).is_some()
         && subtree_children_reusable(ctx, lockfile, key);
-    lock_recoverable(&ctx.workspace.subtree_reusable).insert(key.clone(), reusable);
+    lock_recoverable(&ctx.workspace.subtree_reusable).insert(memo_key, reusable);
     reusable
 }
 
@@ -2499,29 +2624,14 @@ where
     let ReusedNode { key, result } = reused;
     let result = Arc::new(result);
 
-    // A reused node carries the synthesized registry resolution into the
-    // same per-wanted cache bucket a fresh resolve would populate, so a
-    // later fresh-resolve of the identical wanted dep short-circuits to
-    // it without occupying an importer-independent bucket that normal
-    // workspace-mode semver specs must avoid.
-    let opts = ctx.opts_for_depth(depth);
-    let project_scope = project_relative_cache_scope(&wanted, opts);
-    let cache_key: WantedKey = (
-        wanted.alias.clone(),
-        wanted.bare_specifier.clone(),
-        wanted.optional,
-        wanted.injected,
-        opts.pick_lowest_version,
-        opts.published_by,
-        project_scope,
-        Some(key.clone()),
-        // Reused resolutions are exact pins — preference overlays
-        // can't change the pick, so the no-overlay bucket is right.
-        Vec::new(),
-    );
-    lock_recoverable(&ctx.workspace.resolved_by_wanted)
-        .entry(cache_key)
-        .or_insert_with(|| Arc::clone(&result));
+    // The synthesized result must stay out of `resolved_by_wanted`: its
+    // manifest deliberately omits `dependencies` (a reused node's
+    // children come from the snapshot graph), so if the fresh-resolve
+    // path ever read it back — e.g. an identical edge denied reuse by
+    // the changed-direct-dep gate or by `subtree_fully_reusable`'s
+    // provisional-`false` cycle guard — `extract_children` /
+    // `pkg_is_leaf` would misread the package as dependency-less and
+    // record it as a leaf, emptying its lockfile snapshot.
 
     let id = build_pkg_id_with_patch_hash(ctx, &result).await?;
 
@@ -2577,6 +2687,8 @@ where
             );
         }
     }
+
+    emit_deprecation_if_needed(ctx, &result, &id, depth);
 
     let next_ancestors: Vec<String> =
         ancestor_ids.iter().cloned().chain(std::iter::once(id.clone())).collect();
@@ -2723,7 +2835,7 @@ fn is_optional_child(snapshot: Option<&SnapshotEntry>, alias: &str) -> bool {
 ///
 /// Catalog resolution runs only on importer-level deps. A misconfigured
 /// entry surfaces immediately rather than masquerading as a
-/// `SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`.
+/// `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`.
 pub(crate) fn resolve_catalog_specifiers(
     specs: Vec<WantedSpec>,
     catalogs: &Catalogs,
@@ -2776,17 +2888,18 @@ async fn build_pkg_id_with_patch_hash(
     result: &pacquet_resolving_resolver_base::ResolveResult,
 ) -> Result<String, ResolveDependencyTreeError> {
     let raw_id = result.id.as_str();
-    // `link:`-resolved workspace deps are short-circuited downstream
-    // by `id.starts_with("link:")` checks (see [`is_link`] in the
-    // tree walker and `importer_dep_version`'s
-    // `dep_path_str.strip_prefix("link:")` arm). Leaving the id
-    // unprefixed preserves those short-circuits; pacquet does not yet
-    // model the separate linked-dependency branch that would prefix
-    // them.
-    //
-    // [`is_link`]: fn@resolve_node
-    if raw_id.starts_with("link:") {
-        return Ok(raw_id.to_string());
+    if let Some(target) = raw_id.strip_prefix("link:") {
+        let target = std::path::Path::new(target);
+        let absolute_target = if target.is_absolute() {
+            pacquet_fs::lexical_normalize(target)
+        } else {
+            pacquet_fs::lexical_normalize(&ctx.base_opts.project_dir.join(target))
+        };
+        let relative_target =
+            pathdiff::diff_paths(&absolute_target, &ctx.lockfile_dir).unwrap_or(absolute_target);
+        let relative_target = relative_target.display().to_string().replace('\\', "/");
+        let relative_target = if relative_target.is_empty() { "." } else { &relative_target };
+        return Ok(format!("link:{relative_target}"));
     }
     // Resolvers that learn the name from the fetched manifest (git,
     // tarball, directory) leave `name_ver` unset. The `name` is read
@@ -2866,6 +2979,9 @@ fn extract_children(
     let mut out = Vec::new();
     collect_deps(manifest, "dependencies", false, &parent, &mut out)?;
     collect_deps(manifest, "optionalDependencies", true, &parent, &mut out)?;
+    for (name, specifier) in engines_runtime_dependencies(manifest, "engines", "dependencies") {
+        out.push((name.to_string(), specifier, false));
+    }
     Ok(out)
 }
 
@@ -2908,8 +3024,8 @@ fn render_parent(result: &pacquet_resolving_resolver_base::ResolveResult) -> Str
 /// peer-shadowed names from `dependencies`, so those peers survive
 /// here. A `peerDependenciesMeta` entry without a matching
 /// `peerDependencies` entry only counts when `optional: true` — it is
-/// treated as an optional `"*"` peer, and non-optional meta-only
-/// entries are ignored.
+/// treated as an optional `"*"` peer exactly like an explicitly
+/// declared one, and non-optional meta-only entries are ignored.
 fn extract_peer_dependencies(
     result: &pacquet_resolving_resolver_base::ResolveResult,
 ) -> BTreeMap<String, PeerDep> {
@@ -2938,7 +3054,7 @@ fn extract_peer_dependencies(
             if let Some(range_str) = range.as_str() {
                 peers.insert(
                     name.clone(),
-                    PeerDep { version: range_str.to_string(), optional: false, meta_only: false },
+                    PeerDep { version: range_str.to_string(), optional: false },
                 );
             }
         }
@@ -2951,9 +3067,10 @@ fn extract_peer_dependencies(
             {
                 continue;
             }
-            peers.entry(name.clone()).and_modify(|entry| entry.optional = true).or_insert_with(
-                || PeerDep { version: "*".to_string(), optional: true, meta_only: true },
-            );
+            peers
+                .entry(name.clone())
+                .and_modify(|entry| entry.optional = true)
+                .or_insert_with(|| PeerDep { version: "*".to_string(), optional: true });
         }
     }
 
@@ -3006,6 +3123,95 @@ fn pkg_is_leaf(result: &pacquet_resolving_resolver_base::ResolveResult) -> bool 
 
 fn is_empty_or_absent(value: Option<&Value>) -> bool {
     value.and_then(Value::as_object).is_none_or(serde_json::Map::is_empty)
+}
+
+/// Emits a [`Deprecation`] when the manifest carries a non-empty
+/// `deprecated` field not covered by `allowedDeprecatedVersions`.
+/// Re-emits at a shallower depth so a direct dependency is never
+/// misclassified as transitive.
+fn emit_deprecation_if_needed(
+    ctx: &TreeCtx,
+    result: &pacquet_resolving_resolver_base::ResolveResult,
+    id: &str,
+    depth: i32,
+) {
+    let Some(deprecated) = extract_deprecated_from_manifest(result.manifest.as_deref()) else {
+        return;
+    };
+    if deprecated.is_empty() {
+        return;
+    }
+    let Some((pkg_name, pkg_version)) = deprecated_pkg_name_ver(result) else {
+        return;
+    };
+    if is_deprecation_allowed(&pkg_name, &pkg_version, &ctx.workspace.allowed_deprecated_versions) {
+        return;
+    }
+    {
+        let mut depths = lock_recoverable(&ctx.workspace.deprecation_depths);
+        if let Some(prev) = depths.get(id)
+            && depth >= *prev
+        {
+            return;
+        }
+        depths.insert(id.to_string(), depth);
+    }
+    let Some(log) = ctx.workspace.deprecation_log.as_ref() else {
+        return;
+    };
+    log(Deprecation {
+        pkg_name,
+        pkg_version,
+        pkg_id: id.to_string(),
+        prefix: ctx.base_opts.project_dir.display().to_string(),
+        deprecated,
+        depth,
+    });
+}
+
+/// A missing manifest, an absent `deprecated` field, and a non-string
+/// one all count as not deprecated.
+fn extract_deprecated_from_manifest(manifest: Option<&Value>) -> Option<String> {
+    manifest?.get("deprecated")?.as_str().map(str::to_string)
+}
+
+/// The name/version a `pnpm:deprecation` payload reports:
+/// [`ResolveResult::name_ver`] when the resolver filled it, otherwise
+/// the manifest's `name`/`version` — the canonical source for non-npm
+/// resolutions (see the `name_ver` field doc). `None`, suppressing the
+/// warning, when neither carries both fields.
+///
+/// [`ResolveResult::name_ver`]: pacquet_resolving_resolver_base::ResolveResult::name_ver
+fn deprecated_pkg_name_ver(
+    result: &pacquet_resolving_resolver_base::ResolveResult,
+) -> Option<(String, String)> {
+    if let Some(nv) = result.name_ver.as_ref() {
+        return Some((nv.name.to_string(), nv.suffix.to_string()));
+    }
+    let manifest = result.manifest.as_deref()?;
+    let name = manifest.get("name")?.as_str()?;
+    let version = manifest.get("version")?.as_str()?;
+    Some((name.to_string(), version.to_string()))
+}
+
+/// Whether `pkg_name@pkg_version` satisfies its entry in the
+/// `pnpm.allowedDeprecatedVersions` map, matching the TS check at
+/// `pnpm11/installing/deps-resolver/src/resolveDependencies.ts:2122`.
+fn is_deprecation_allowed(
+    pkg_name: &str,
+    pkg_version: &str,
+    allowed_deprecated_versions: &BTreeMap<String, String>,
+) -> bool {
+    let Some(range_str) = allowed_deprecated_versions.get(pkg_name) else {
+        return false;
+    };
+    let Ok(range) = range_str.parse::<node_semver::Range>() else {
+        return false;
+    };
+    let Ok(version) = pkg_version.parse::<node_semver::Version>() else {
+        return false;
+    };
+    range.satisfies(&version)
 }
 
 /// Provenance tags that count as non-exotic for `blockExoticSubdeps`.

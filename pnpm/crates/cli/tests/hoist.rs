@@ -65,6 +65,61 @@ fn write_manifest(workspace: &Path, deps: serde_json::Value) {
     fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
 }
 
+/// TS: `hoisting should not create a broken symlink to a skipped optional
+/// dependency` (`hoist.ts:540`): with `publicHoistPattern: '*'`, neither
+/// the skipped platform-incompatible optional nor its dependency may
+/// appear — as a working or dangling symlink — at either hoist target, on
+/// the fresh install and on the frozen reinstall.
+#[test]
+fn hoisting_skips_broken_symlink_for_skipped_optional() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_yaml(
+        &workspace,
+        "enableGlobalVirtualStore: false\npublicHoistPattern:\n  - '*'\n",
+    );
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "is-positive": "1.0.0" },
+            "optionalDependencies": { "@pnpm.e2e/not-compatible-with-any-os": "*" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let assert_no_broken_hoist_links = |phase: &str| {
+        for hoist_dir in ["node_modules/@pnpm.e2e", "node_modules/.pnpm/node_modules/@pnpm.e2e"] {
+            for name in ["dep-of-optional-pkg", "not-compatible-with-any-os"] {
+                let path = workspace.join(hoist_dir).join(name);
+                assert!(
+                    fs::symlink_metadata(&path).is_err(),
+                    "[{phase}] no symlink (dangling or otherwise) may be created for the \
+                     skipped optional subtree at {path:?}; .modules.yaml: {}",
+                    fs::read_to_string(workspace.join("node_modules/.modules.yaml"))
+                        .unwrap_or_default(),
+                );
+            }
+        }
+    };
+
+    pacquet.with_arg("install").assert().success();
+    assert_no_broken_hoist_links("fresh");
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert_no_broken_hoist_links("frozen");
+
+    drop((root, mock_instance));
+}
+
 /// Default hoist patterns hoist every transitive into
 /// `<vs>/node_modules/`.
 /// Single-importer subset — asserting the persisted map is preserved
@@ -132,6 +187,30 @@ fn public_hoist_star_hoists_to_root_node_modules() {
         !workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/hello-world-js-bin").exists(),
         "transitive should not be privately hoisted when private pattern is empty",
     );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn public_hoist_does_not_override_an_existing_root_directory() {
+    let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(
+        &workspace,
+        serde_json::json!({ "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" }),
+    );
+    generate_lockfile(pnpm);
+    write_workspace_yaml(&workspace, "publicHoistPattern:\n  - '*'\nhoistPattern: []\n");
+    let occupied = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin");
+    fs::create_dir_all(&occupied).expect("create occupied public-hoist slot");
+    fs::write(occupied.join("keep.txt"), "external").expect("write marker");
+
+    pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
+
+    assert_eq!(fs::read_to_string(occupied.join("keep.txt")).unwrap(), "external");
+    assert!(!is_symlink_or_junction(&occupied).unwrap());
 
     drop((root, mock_instance));
 }
@@ -587,6 +666,606 @@ fn fresh_install_hoisted_node_linker_lands_real_directories() {
     drop((root, mock_instance));
 }
 
+/// TS: `hoist packages which is in the dependencies tree of the
+/// selected projects` (`hoist.ts:587`): with `hoistPattern: '*'` and a
+/// lockfile that pins a different `@pnpm.e2e/foo` per project, a subset
+/// install of the root plus project-2 must hoist project-2's version —
+/// not the unselected project-1's, which sorts first among importers.
+#[test]
+fn workspace_hoist_packages_in_selected_projects_tree() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("hoistPattern:\n  - '*'\n");
+    fixture.write_root_manifest("root", ManifestDeps::default());
+    fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[("@pnpm.e2e/foo", "1.0.0")], ..Default::default() },
+    );
+    fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[("@pnpm.e2e/foo", "2.0.0")], ..Default::default() },
+    );
+    fixture.run(["install", "--lockfile-only"]);
+
+    fixture.run(["--filter", "root", "--filter", "project-2", "install"]);
+
+    let hoisted = fixture.workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/foo");
+    let manifest: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(hoisted.join("package.json")).expect("read the hoisted manifest"),
+    )
+    .expect("parse the hoisted manifest");
+    assert_eq!(manifest["version"], "2.0.0", "the selected project's version must win the hoist");
+}
+
+/// TS: `only hoist packages which is in the dependencies tree of the
+/// selected projects with sub dependencies` (`hoist.ts:682`): the
+/// hoisted transitives must come from the selected project's tree too.
+/// The upstream test hand-writes a lockfile whose two parent versions
+/// pin different subdependency versions; the port gets the same shape
+/// by locking a third `dep-of-pkg-with-1-dep` version through a direct
+/// dependency and repinning the unselected parent's edge to it.
+#[test]
+fn workspace_hoist_only_in_selected_projects_with_subdeps() {
+    const PARENT: &str = "@pnpm.e2e/pkg-with-1-dep";
+    const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("hoistPattern:\n  - '*'\n");
+    fixture.write_root_manifest("root", ManifestDeps::default());
+    fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[(PARENT, "100.0.0"), (DEP, "101.0.0")], ..Default::default() },
+    );
+    fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[(PARENT, "100.1.0")], ..Default::default() },
+    );
+    fixture.run(["install", "--lockfile-only"]);
+
+    repin_snapshot_dependency(
+        &fixture.workspace.join("pnpm-lock.yaml"),
+        &format!("{PARENT}@100.0.0"),
+        DEP,
+        "101.0.0",
+    );
+
+    fixture.run(["--filter", "root", "--filter", "project-2", "install"]);
+
+    for (name, version) in [(PARENT, "100.1.0"), (DEP, "100.1.0")] {
+        let hoisted = fixture.workspace.join("node_modules/.pnpm/node_modules").join(name);
+        let manifest: serde_json::Value = serde_json::from_str(
+            &fs::read_to_string(hoisted.join("package.json")).expect("read the hoisted manifest"),
+        )
+        .expect("parse the hoisted manifest");
+        assert_eq!(
+            manifest["version"], version,
+            "{name} must be hoisted from the selected project's tree",
+        );
+    }
+}
+
+/// The `hoistedDependencies` map from `node_modules/.modules.yaml`.
+fn hoisted_dependencies(workspace: &Path) -> serde_json::Value {
+    let text = fs::read_to_string(workspace.join("node_modules/.modules.yaml"))
+        .expect("read .modules.yaml");
+    let manifest: serde_json::Value =
+        serde_json::from_str(&text).expect(".modules.yaml holds JSON content");
+    manifest["hoistedDependencies"].clone()
+}
+
+/// `version` field of the `package.json` under `dir`.
+fn version_of(dir: &Path) -> String {
+    let text = fs::read_to_string(dir.join("package.json")).expect("read package.json");
+    let manifest: serde_json::Value = serde_json::from_str(&text).expect("parse package.json");
+    manifest["version"].as_str().expect("version is a string").to_string()
+}
+
+/// TS: `should hoist dependencies` (`hoist.ts:24`), the repeat-install
+/// tail: `hoistedDependencies` must come out identical after a
+/// re-resolving repeat install and after a frozen re-materialization.
+#[test]
+fn should_hoist_dependencies_repeat_install_preserves_map() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet.with_args(["add", "@pnpm.e2e/foobarqar@1.0.0"]).assert().success();
+    let baseline = hoisted_dependencies(&workspace);
+    eprintln!("baseline hoistedDependencies: {baseline:#}");
+    assert!(
+        baseline.as_object().is_some_and(|map| !map.is_empty()),
+        "transitives must be hoisted on the first install",
+    );
+
+    // Re-write the manifest (same bytes, fresh mtime) so the repeat
+    // install takes the full pipeline instead of the optimistic
+    // repeat-install short-circuit.
+    let manifest_path = workspace.join("package.json");
+    let manifest_bytes = fs::read(&manifest_path).expect("read package.json");
+    fs::write(&manifest_path, manifest_bytes).expect("rewrite package.json");
+    pacquet_in(&workspace).with_arg("install").assert().success();
+    assert!(workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/foo").exists());
+    assert_eq!(hoisted_dependencies(&workspace), baseline);
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    assert!(workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/foo").exists());
+    assert_eq!(hoisted_dependencies(&workspace), baseline);
+
+    drop((root, mock_instance));
+}
+
+/// TS: `should remove hoisted dependencies` (`hoist.ts:121`):
+/// removing the dependency that owned the hoisted transitives removes
+/// their hoist links too.
+#[test]
+fn should_remove_hoisted_dependencies() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet.with_args(["add", "@pnpm.e2e/pkg-with-1-dep@100.0.0"]).assert().success();
+    let hoisted = workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep");
+    assert!(is_symlink_or_junction(&hoisted).expect("check hoist link"));
+
+    pacquet_in(&workspace).with_args(["remove", "@pnpm.e2e/pkg-with-1-dep"]).assert().success();
+    assert!(!workspace.join("node_modules/@pnpm.e2e/pkg-with-1-dep").exists());
+    assert!(
+        fs::symlink_metadata(&hoisted).is_err(),
+        "the transitive's hoist link must be removed with its owner",
+    );
+    assert_eq!(hoisted_dependencies(&workspace), serde_json::json!({}));
+
+    drop((root, mock_instance));
+}
+
+/// TS: `should not override root packages with hoisted dependencies`
+/// (`hoist.ts:137`): a direct dependency keeps its slot even when a
+/// transitive with the same alias and different version enters the
+/// graph.
+#[test]
+fn should_not_override_root_packages_with_hoisted_deps() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet.with_args(["add", "@pnpm.e2e/bar@100.1.0"]).assert().success();
+    pacquet_in(&workspace).with_args(["add", "@pnpm.e2e/foobarqar@1.0.0"]).assert().success();
+
+    assert_eq!(version_of(&workspace.join("node_modules/@pnpm.e2e/bar")), "100.1.0");
+
+    drop((root, mock_instance));
+}
+
+/// TS: `should rehoist when uninstalling a package` (`hoist.ts:148`):
+/// removing the direct dep frees its alias for the transitive to be
+/// hoisted.
+#[test]
+fn should_rehoist_when_uninstalling_a_package() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet
+        .with_args(["add", "@pnpm.e2e/bar@100.1.0", "@pnpm.e2e/foobarqar@1.0.0"])
+        .assert()
+        .success();
+    let hoisted_bar = workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/bar");
+    assert!(
+        fs::symlink_metadata(&hoisted_bar).is_err(),
+        "a root direct dep's alias must not be hoisted",
+    );
+
+    pacquet_in(&workspace).with_args(["remove", "@pnpm.e2e/bar"]).assert().success();
+    assert!(
+        !workspace.join("node_modules/@pnpm.e2e/bar").exists(),
+        "the removed direct dep's root link must be gone",
+    );
+    assert_eq!(version_of(&hoisted_bar), "100.0.0");
+    assert_eq!(version_of(&workspace.join("node_modules/@pnpm.e2e/foobarqar")), "1.0.0");
+    let hoisted = hoisted_dependencies(&workspace);
+    eprintln!("hoistedDependencies after remove: {hoisted:#}");
+    assert_eq!(hoisted["@pnpm.e2e/bar@100.0.0"], serde_json::json!({ "@pnpm.e2e/bar": "private" }));
+
+    drop((root, mock_instance));
+}
+
+/// TS: `should rehoist after running a general install` (`hoist.ts:169`):
+/// dropping the direct dep from the manifest and re-installing hoists
+/// the transitive, without recreating the untouched direct-dep links.
+#[test]
+fn should_rehoist_after_running_a_general_install() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(
+        &workspace,
+        serde_json::json!({ "@pnpm.e2e/bar": "100.1.0", "@pnpm.e2e/foobarqar": "1.0.0" }),
+    );
+    pacquet.with_arg("install").assert().success();
+    let foobarqar_link = workspace.join("node_modules/@pnpm.e2e/foobarqar");
+    assert_eq!(version_of(&workspace.join("node_modules/@pnpm.e2e/bar")), "100.1.0");
+    let prev_target = fs::canonicalize(&foobarqar_link).expect("resolve foobarqar link");
+    assert!(
+        fs::symlink_metadata(workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/bar"))
+            .is_err(),
+        "a root direct dep's alias must not be hoisted",
+    );
+
+    write_manifest(&workspace, serde_json::json!({ "@pnpm.e2e/foobarqar": "1.0.0" }));
+    pacquet_in(&workspace).with_arg("install").assert().success();
+    let curr_target = fs::canonicalize(&foobarqar_link).expect("resolve foobarqar link");
+    assert_eq!(prev_target, curr_target, "the untouched direct dep keeps its link target");
+    assert_eq!(
+        version_of(&workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/bar")),
+        "100.0.0",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// TS: `should not override aliased dependencies` (`hoist.ts:201`): a
+/// root alias wins over a transitive that hoists under the same alias.
+#[test]
+fn should_not_override_aliased_dependencies() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet
+        .with_args(["add", "dep@npm:is-positive@1.0.0", "@pnpm.e2e/pkg-with-1-aliased-dep"])
+        .assert()
+        .success();
+
+    assert_eq!(version_of(&workspace.join("node_modules/dep")), "1.0.0");
+
+    drop((root, mock_instance));
+}
+
+/// TS: `hoistPattern=* throws exception when executed on node_modules
+/// installed w/o the option` (`hoist.ts:209`): `add` refuses to touch a
+/// modules dir whose persisted hoist pattern disagrees.
+#[test]
+fn hoist_pattern_mismatch_throws_against_existing_modules_yaml() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_yaml(&workspace, "hoistPattern: []\n");
+    pacquet.with_args(["add", "is-positive@1.0.0"]).assert().success();
+
+    write_workspace_yaml(&workspace, "");
+    let output = pacquet_in(&workspace).with_args(["add", "is-negative@1.0.0"]).assert().failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
+    assert!(
+        stderr.contains("ERR_PNPM_HOIST_PATTERN_DIFF"),
+        "expected the hoist-pattern diff error, got: {stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// TS: `hoistPattern=undefined throws exception when executed on
+/// node_modules installed with hoist-pattern=*` (`hoist.ts:220`) — the
+/// mirror of the test above.
+#[test]
+fn hoist_pattern_undefined_throws_against_hoisted_modules_yaml() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet.with_args(["add", "is-positive@1.0.0"]).assert().success();
+
+    write_workspace_yaml(&workspace, "hoistPattern: []\n");
+    let output = pacquet_in(&workspace).with_args(["add", "is-negative@1.0.0"]).assert().failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
+    assert!(
+        stderr.contains("ERR_PNPM_HOIST_PATTERN_DIFF"),
+        "expected the hoist-pattern diff error, got: {stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// TS: `hoist by alias` (`hoist.ts:233`): an npm-aliased transitive is
+/// hoisted under its alias, not its real name, and `.modules.yaml`
+/// records the alias.
+#[test]
+fn hoist_by_alias() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet.with_args(["add", "@pnpm.e2e/pkg-with-1-aliased-dep@100.0.0"]).assert().success();
+
+    assert!(workspace.join("node_modules/@pnpm.e2e/pkg-with-1-aliased-dep").exists());
+    assert!(workspace.join("node_modules/.pnpm/node_modules/dep").exists());
+    assert!(
+        fs::symlink_metadata(
+            workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep"),
+        )
+        .is_err(),
+        "the aliased dep must be hoisted under its alias only",
+    );
+    assert_eq!(
+        hoisted_dependencies(&workspace),
+        serde_json::json!({ "@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0": { "dep": "private" } }),
+    );
+
+    drop((root, mock_instance));
+}
+
+/// TS: `should remove aliased hoisted dependencies` (`hoist.ts:249`).
+#[test]
+fn should_remove_aliased_hoisted_dependencies() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet.with_args(["add", "@pnpm.e2e/pkg-with-1-aliased-dep@100.0.0"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["remove", "@pnpm.e2e/pkg-with-1-aliased-dep"])
+        .assert()
+        .success();
+
+    assert!(!workspace.join("node_modules/@pnpm.e2e/pkg-with-1-aliased-dep").exists());
+    assert!(
+        fs::symlink_metadata(workspace.join("node_modules/.pnpm/node_modules/dep")).is_err(),
+        "the aliased hoist link must be removed with its owner",
+    );
+    assert_eq!(hoisted_dependencies(&workspace), serde_json::json!({}));
+
+    drop((root, mock_instance));
+}
+
+/// TS: `should update .modules.yaml when pruning if we are flattening`
+/// (`hoist.ts:272`): pruning to an empty manifest clears
+/// `hoistedDependencies`.
+#[test]
+fn modules_yaml_updated_on_prune_when_flattening() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, serde_json::json!({ "@pnpm.e2e/pkg-with-1-aliased-dep": "*" }));
+    pacquet.with_arg("install").assert().success();
+    assert!(workspace.join("node_modules/.pnpm/node_modules/dep").exists());
+
+    write_manifest(&workspace, serde_json::json!({}));
+    pacquet_in(&workspace).with_arg("install").assert().success();
+    assert_eq!(hoisted_dependencies(&workspace), serde_json::json!({}));
+    assert!(
+        fs::symlink_metadata(workspace.join("node_modules/.pnpm/node_modules/dep")).is_err(),
+        "pruning to an empty manifest must drop the hoist link",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// TS: `should rehoist after pruning` (`hoist.ts:288`): same shape as
+/// the general-install rehoist, with an unrelated dep added in the
+/// same step.
+#[test]
+fn should_rehoist_after_pruning() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(
+        &workspace,
+        serde_json::json!({ "@pnpm.e2e/bar": "100.1.0", "@pnpm.e2e/foobarqar": "1.0.0" }),
+    );
+    pacquet.with_arg("install").assert().success();
+    let foobarqar_link = workspace.join("node_modules/@pnpm.e2e/foobarqar");
+    let prev_target = fs::canonicalize(&foobarqar_link).expect("resolve foobarqar link");
+
+    write_manifest(
+        &workspace,
+        serde_json::json!({ "@pnpm.e2e/foobarqar": "1.0.0", "is-positive": "1.0.0" }),
+    );
+    pacquet_in(&workspace).with_arg("install").assert().success();
+    let curr_target = fs::canonicalize(&foobarqar_link).expect("resolve foobarqar link");
+    assert_eq!(prev_target, curr_target, "the untouched direct dep keeps its link target");
+    assert_eq!(
+        version_of(&workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/bar")),
+        "100.0.0",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// TS: `should recreate node_modules with hoisting` (`hoist.ts:514`):
+/// a plain install may recreate a modules dir installed without
+/// hoisting, and the recreated tree is hoisted.
+#[test]
+fn should_recreate_node_modules_with_hoisting() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_yaml(&workspace, "hoistPattern: []\n");
+    pacquet.with_args(["add", "@pnpm.e2e/pkg-with-1-dep@100.0.0"]).assert().success();
+    assert!(
+        fs::symlink_metadata(
+            workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep"),
+        )
+        .is_err(),
+        "hoisting disabled: no hoist link may exist",
+    );
+    assert_eq!(hoisted_dependencies(&workspace), serde_json::json!({}));
+
+    write_workspace_yaml(&workspace, "");
+    pacquet_in(&workspace).with_arg("install").assert().success();
+    assert!(workspace.join("node_modules/@pnpm.e2e/pkg-with-1-dep").exists());
+    assert!(
+        workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep").exists(),
+    );
+    assert!(
+        hoisted_dependencies(&workspace).as_object().is_some_and(|map| !map.is_empty()),
+        "the recreated tree must be hoisted",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// TS: `hoist-pattern: hoist all dependencies to the virtual store
+/// node_modules` (`hoist.ts:341`), the frozen-reinstall tail: deleting
+/// every importer's `node_modules` and replaying `--frozen-lockfile`
+/// reproduces the exact hoist layout. The fresh-install half is
+/// [`workspace_hoist_walks_every_importer`].
+#[test]
+fn workspace_hoist_all_to_virtual_store_node_modules() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_yaml(&workspace, "packages:\n  - package\n");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+    fs::create_dir_all(workspace.join("package")).expect("create member dir");
+    fs::write(
+        workspace.join("package/package.json"),
+        serde_json::json!({
+            "name": "package",
+            "dependencies": { "@pnpm.e2e/foobar": "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write member package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    let assert_layout = || {
+        assert!(workspace.join("node_modules/@pnpm.e2e/pkg-with-1-dep").exists());
+        for name in ["dep-of-pkg-with-1-dep", "foobar", "foo", "bar"] {
+            assert!(
+                workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e").join(name).exists(),
+                "expected {name} in the private hoist dir",
+            );
+        }
+        for name in ["foobar", "foo", "bar"] {
+            assert!(
+                !workspace.join("node_modules/@pnpm.e2e").join(name).exists(),
+                "{name} must not appear in root node_modules",
+            );
+        }
+        assert!(workspace.join("package/node_modules/@pnpm.e2e/foobar").exists());
+        for name in ["foo", "bar"] {
+            assert!(
+                !workspace.join("package/node_modules/@pnpm.e2e").join(name).exists(),
+                "{name} must not appear in the member's node_modules",
+            );
+        }
+    };
+    assert_layout();
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove root node_modules");
+    fs::remove_dir_all(workspace.join("package/node_modules")).expect("remove member node_modules");
+    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    assert_layout();
+
+    drop((root, mock_instance));
+}
+
+/// TS: `hoist when updating in one of the workspace projects`
+/// (`hoist.ts:423`): editing one member's manifest and re-installing
+/// rehoists that member's subtree without disturbing the rest.
+#[test]
+fn workspace_hoist_when_updating_one_project() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_yaml(&workspace, "packages:\n  - package\n");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+    fs::create_dir_all(workspace.join("package")).expect("create member dir");
+    let member_manifest = |deps: serde_json::Value| {
+        serde_json::json!({ "name": "package", "dependencies": deps }).to_string()
+    };
+    fs::write(
+        workspace.join("package/package.json"),
+        member_manifest(serde_json::json!({ "@pnpm.e2e/foobar": "100.0.0" })),
+    )
+    .expect("write member package.json");
+    pacquet.with_arg("install").assert().success();
+    assert!(workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/foo").exists());
+
+    fs::write(
+        workspace.join("package/package.json"),
+        member_manifest(serde_json::json!({ "@pnpm.e2e/foobarqar": "1.0.1" })),
+    )
+    .expect("update member package.json");
+    pacquet_in(&workspace).with_arg("install").assert().success();
+    assert!(workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/qar").exists());
+    assert!(
+        fs::symlink_metadata(workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/foobar"))
+            .is_err(),
+        "the dropped dep's hoist link must be removed",
+    );
+    assert!(workspace.join("package/node_modules/@pnpm.e2e/foobarqar").exists());
+
+    drop((root, mock_instance));
+}
+
+/// TS: `should hoist some dependencies to the root of node_modules when
+/// publicHoistPattern is used and others to the virtual store directory`
+/// (`hoist.ts:89`), on registry-mock fixtures: the public pattern's
+/// matches land in root `node_modules`, everything else goes private.
+#[test]
+fn combined_public_and_private_hoist_patterns_split_targets() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_yaml(
+        &workspace,
+        "publicHoistPattern:\n  - '*dep-of-pkg-with-1-dep*'\nhoistPattern:\n  - '*'\n",
+    );
+    write_manifest(
+        &workspace,
+        serde_json::json!({
+            "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+            "@pnpm.e2e/foobarqar": "1.0.0",
+        }),
+    );
+    pacquet.with_arg("install").assert().success();
+
+    assert!(
+        workspace.join("node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep").exists(),
+        "the public pattern's match must land in root node_modules",
+    );
+    for name in ["foo", "bar"] {
+        assert!(
+            workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e").join(name).exists(),
+            "{name} must be privately hoisted",
+        );
+        assert!(
+            !workspace.join("node_modules/@pnpm.e2e").join(name).exists(),
+            "{name} must not be publicly hoisted",
+        );
+    }
+
+    drop((root, mock_instance));
+}
+
 mod known_failures {
     //! Hoist cases blocked on features pacquet hasn't built yet. Each
     //! entry stubs the not-yet-built subject under test through
@@ -594,74 +1273,31 @@ mod known_failures {
     //! exits early rather than masking a real bug. The cases here
     //! cover:
     //!
-    //! - **Partial install / re-hoist** ([#433]): persisted-map
-    //!   preservation across re-installs, uninstall-then-rehoist,
-    //!   pattern-change detection.
-    //! - **`pnpm add` / `pnpm remove`**: re-running install after
-    //!   adding or removing a dep requires the manifest-mutation
-    //!   path pacquet doesn't expose yet.
-    //! - **`--filter` selected-projects install**: pacquet doesn't
-    //!   yet implement the workspace-projects-filter selection.
-    //! - **`hoistWorkspacePackages`**: links workspace projects
-    //!   themselves into the hoist tree (separate from snapshot
-    //!   hoisting); pacquet doesn't model the
-    //!   `hoistedWorkspacePackages` shape yet.
-    //! - **Skipped optional deps**: hoist must not create broken
-    //!   symlinks for snapshots that won't be installed; pacquet
-    //!   doesn't yet skip optional deps based on OS / arch / engine.
-    //! - **Direct-dep bin precedence** + **lifecycle-generated bins**:
-    //!   the bin link order matters when hoisted aliases collide
-    //!   with direct deps; pacquet's bin-link pipeline doesn't yet
-    //!   mirror upstream's full ordering.
+    //! - **Multi-variant peer hoisting**: hoisting the right
+    //!   peer-resolution variant per importer needs a registry-mock
+    //!   fixture pair with an auto-installed peer (upstream uses the
+    //!   real `ajv` / `ajv-keywords`, which the mock doesn't carry).
+    //! - **Direct-dep bin precedence**: the bin link order matters
+    //!   when hoisted aliases collide with direct deps; pacquet's
+    //!   bin-link pipeline doesn't yet mirror upstream's full
+    //!   ordering.
+    //! - **`extendNodePath`**: not read or applied to command shims.
     //!
-    //! Workspace install (pnpm/pacquet#431) landed in [#443] and is
-    //! covered by [`super::workspace_hoist_walks_every_importer`].
-    //!
-    //! [#433]: https://github.com/pnpm/pacquet/issues/433
-    //! [#443]: https://github.com/pnpm/pacquet/pull/443
+    //! The repeat-install / rehoist / pattern-diff cases formerly
+    //! stubbed here are real tests in the parent module since the
+    //! prune-stale-modules reconciliation landed.
 
     use pacquet_testing_utils::{
         allow_known_failure,
         known_failure::{KnownFailure, KnownResult},
     };
 
-    fn partial_install_persists_hoisted_map() -> KnownResult<()> {
+    fn peer_variant_fixtures_missing() -> KnownResult<()> {
         Err(KnownFailure::new(
-            "Partial install (pnpm/pacquet#433) is needed for re-install \
-             behavior — pacquet currently does a full install on every run, \
-             so `hoistedDependencies` is recomputed rather than read from \
-             the existing `.modules.yaml` and merged.",
-        ))
-    }
-
-    fn manifest_mutation_via_pnpm_add() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "Pacquet doesn't yet implement `pnpm add` / `pnpm remove` \
-             manifest mutation. Upstream tests that mutate the manifest \
-             between installs aren't directly portable until that lands.",
-        ))
-    }
-
-    fn workspace_filter_selection() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "Pacquet doesn't yet implement `--filter` selected-projects \
-             installs. Workspace install (pnpm/pacquet#431) landed in \
-             #443 but only as the unfiltered \"install all importers\" \
-             flow; selecting a subset of workspace projects is a \
-             follow-up.",
-        ))
-    }
-
-    fn skipped_optional_deps() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "The hoist pass already honors `SkippedSnapshots` from \
-             #439's `compute_skipped_snapshots` (threaded through \
-             `HoistInputs.skipped`), but the end-to-end test needs \
-             an OS/arch-incompatible package in the registry mock to \
-             actually exercise the skip path. Upstream's fixture \
-             (`@pnpm.e2e/not-compatible-with-any-os`) isn't in \
-             pacquet's mocked registry yet — a fixture-add is the \
-             missing piece, not the hoist behavior.",
+            "The registry mock has no fixture pair matching upstream's \
+             `@pnpm.e2e/using-ajv` + `ajv-keywords` auto-installed-peer \
+             shape, so the peer-variant hoist tests can't run end-to-end \
+             yet.",
         ))
     }
 
@@ -681,150 +1317,22 @@ mod known_failures {
         ))
     }
 
-    /// Repeats the install both as non-headless and as
-    /// `frozenLockfile: true` to assert `hoistedDependencies` is
-    /// preserved verbatim. Pacquet recomputes the map on every
-    /// install (no partial-install path yet), so byte-for-byte
-    /// preservation isn't testable here.
-    #[test]
-    fn should_hoist_dependencies_repeat_install_preserves_map() {
-        allow_known_failure!(partial_install_persists_hoisted_map());
-    }
-
-    /// Removes a dependency and asserts the hoist symlinks for its
-    /// transitives go too. Needs the partial-install / pruning path.
-    #[test]
-    fn should_remove_hoisted_dependencies() {
-        allow_known_failure!(partial_install_persists_hoisted_map());
-    }
-
-    #[test]
-    fn should_not_override_root_packages_with_hoisted_deps() {
-        allow_known_failure!(partial_install_persists_hoisted_map());
-    }
-
-    #[test]
-    fn should_rehoist_when_uninstalling_a_package() {
-        allow_known_failure!(partial_install_persists_hoisted_map());
-    }
-
-    #[test]
-    fn should_rehoist_after_running_a_general_install() {
-        allow_known_failure!(partial_install_persists_hoisted_map());
-    }
-
-    /// npm-aliases — the alias `foo` resolves to `bar@x` in the
-    /// importer, and a transitive `foo` shouldn't override that.
-    /// Pacquet's algo handles this via the `currentSpecifiers` seed,
-    /// but verifying end-to-end needs alias-aware lockfile handling
-    /// throughout the install pipeline that isn't fully wired yet.
-    #[test]
-    fn should_not_override_aliased_dependencies() {
-        allow_known_failure!(partial_install_persists_hoisted_map());
-    }
-
-    /// Pattern-change detection between `.modules.yaml` and current
-    /// config triggers a modules-breaking-change error. Pacquet
-    /// doesn't yet read the persisted patterns and compare, so
-    /// pattern-change detection is a follow-up.
-    #[test]
-    fn hoist_pattern_mismatch_throws_against_existing_modules_yaml() {
-        allow_known_failure!(partial_install_persists_hoisted_map());
-    }
-
-    #[test]
-    fn hoist_pattern_undefined_throws_against_hoisted_modules_yaml() {
-        allow_known_failure!(partial_install_persists_hoisted_map());
-    }
-
-    /// Hoisting respects npm-aliased package names — the alias is
-    /// the directory name, not the package name. Pacquet's algo
-    /// uses the alias correctly (the test in `hoist/tests.rs`
-    /// covers it at the unit level) but the end-to-end integration
-    /// requires alias-aware lockfile + manifest data not all wired.
-    #[test]
-    fn hoist_by_alias() {
-        allow_known_failure!(partial_install_persists_hoisted_map());
-    }
-
-    #[test]
-    fn should_remove_aliased_hoisted_dependencies() {
-        allow_known_failure!(partial_install_persists_hoisted_map());
-    }
-
-    #[test]
-    fn modules_yaml_updated_on_prune_when_flattening() {
-        allow_known_failure!(partial_install_persists_hoisted_map());
-    }
-
-    #[test]
-    fn should_rehoist_after_pruning() {
-        allow_known_failure!(partial_install_persists_hoisted_map());
-    }
-
     /// Peer deps split into multiple snapshot keys (one per
     /// peer-resolution variant). Hoist must pick the right variant
-    /// per importer. Pacquet's lockfile parser handles peers but
-    /// the install path doesn't yet exercise the multi-variant case
-    /// the upstream test depends on.
+    /// per importer.
     #[test]
     fn should_hoist_correctly_peer_dependencies() {
-        allow_known_failure!(partial_install_persists_hoisted_map());
+        allow_known_failure!(peer_variant_fixtures_missing());
     }
 
     #[test]
     fn should_uninstall_correctly_peer_dependencies() {
-        allow_known_failure!(partial_install_persists_hoisted_map());
-    }
-
-    /// Workspace install followed by frozen reinstall. Pacquet's
-    /// per-importer hoist walk lands the basic shape — covered by
-    /// [`super::workspace_hoist_walks_every_importer`] — but the
-    /// upstream test additionally re-installs and asserts
-    /// preservation, which needs partial install ([#433]).
-    ///
-    /// [#433]: https://github.com/pnpm/pacquet/issues/433
-    #[test]
-    fn workspace_hoist_all_to_virtual_store_node_modules() {
-        allow_known_failure!(partial_install_persists_hoisted_map());
-    }
-
-    /// Mutates the workspace package's `package.json` mid-test and
-    /// re-installs — needs `pnpm add`-equivalent manifest mutation.
-    #[test]
-    fn workspace_hoist_when_updating_one_project() {
-        allow_known_failure!(manifest_mutation_via_pnpm_add());
-    }
-
-    /// Removes `node_modules` and re-installs from the lockfile —
-    /// needs partial-install state for the rehoist comparison.
-    #[test]
-    fn should_recreate_node_modules_with_hoisting() {
-        allow_known_failure!(partial_install_persists_hoisted_map());
-    }
-
-    #[test]
-    fn hoisting_skips_broken_symlink_for_skipped_optional() {
-        allow_known_failure!(skipped_optional_deps());
+        allow_known_failure!(peer_variant_fixtures_missing());
     }
 
     #[test]
     fn hoisted_packages_dont_override_direct_dep_bins() {
         allow_known_failure!(direct_dep_bin_precedence());
-    }
-
-    /// Installs a subset of workspace projects by selected project
-    /// dirs. Pacquet doesn't yet implement `--filter` selected-projects
-    /// installs.
-    #[test]
-    fn workspace_hoist_packages_in_selected_projects_tree() {
-        allow_known_failure!(workspace_filter_selection());
-    }
-
-    /// Same selected-project-dirs shape as above.
-    #[test]
-    fn workspace_hoist_only_in_selected_projects_with_subdeps() {
-        allow_known_failure!(workspace_filter_selection());
     }
 
     #[test]
@@ -835,15 +1343,5 @@ mod known_failures {
     #[test]
     fn should_not_add_extra_node_paths_when_extend_node_path_false() {
         allow_known_failure!(extend_node_path_in_shims());
-    }
-
-    /// Combined-pattern shape — public for some, private for others.
-    /// Pacquet's algo handles this (the unit test
-    /// `public_pattern_wins_ties` covers the precedence) but the
-    /// end-to-end test uses `express` + the eslint family, which the
-    /// registry mock doesn't carry.
-    #[test]
-    fn combined_public_and_private_hoist_patterns_split_targets() {
-        allow_known_failure!(partial_install_persists_hoisted_map());
     }
 }
