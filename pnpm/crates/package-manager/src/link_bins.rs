@@ -165,6 +165,7 @@ pub fn link_top_level_bins(
 pub fn link_project_bins(
     modules_dir: &Path,
     direct_dep_names: &[String],
+    extra_node_paths: &[String],
 ) -> Result<(), LinkBinsError> {
     let direct_locations =
         direct_dep_names.iter().map(|name| modules_dir.join(name)).collect::<HashSet<_>>();
@@ -182,7 +183,7 @@ pub fn link_project_bins(
     if sources.is_empty() {
         return Ok(());
     }
-    link_bins_of_packages::<Host>(&sources, &modules_dir.join(".bin"))
+    link_bins_of_packages::<Host>(&sources, &modules_dir.join(".bin"), extra_node_paths)
 }
 
 /// Read each `<modules_dir>/<name>/package.json` and assemble the

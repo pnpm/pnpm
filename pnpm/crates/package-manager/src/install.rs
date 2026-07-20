@@ -3566,6 +3566,7 @@ fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
         );
     }
     let max_group_size = project_groups.iter().map(Vec::len).max().unwrap_or(0);
+    let extra_node_paths = crate::shim_extra_node_paths(config, node_linker);
     let run_project =
         |(project_dir, manifest): &(PathBuf, &PackageManifest)| -> Result<(), InstallError> {
             let root_modules_dir = project_dir.join(modules_dir_basename);
@@ -3580,7 +3581,7 @@ fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
                     direct_dep_names.push(name.to_string());
                 }
             }
-            link_project_bins(&root_modules_dir, &direct_dep_names)
+            link_project_bins(&root_modules_dir, &direct_dep_names, &extra_node_paths)
                 .map_err(InstallError::ProjectBinLink)?;
             let dep_path = project_dir.to_string_lossy();
             run_project_lifecycle_scripts::<Reporter>(&RunPostinstallHooks {
