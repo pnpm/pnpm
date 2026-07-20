@@ -135,7 +135,7 @@ impl GetHomeDir for Host {
                 #[cfg(all(unix, not(target_os = "cygwin")))]
                 {
                     use std::ffi::CString;
-                    if let Ok(c_user) = CString::new(sudo_user.clone()) {
+                    if let Ok(c_user) = CString::new(sudo_user) {
                         // SAFETY: Zero-initializing a libc struct is safe.
                         let mut pw_buf: libc::passwd = unsafe { std::mem::zeroed() };
                         let mut buf: Vec<libc::c_char> = vec![0; 4096];
@@ -158,7 +158,7 @@ impl GetHomeDir for Host {
                             }
                         }
                     }
-                    panic!("Failed to resolve home directory for SUDO_USER '{sudo_user}'");
+                    return None;
                 }
             }
         }
