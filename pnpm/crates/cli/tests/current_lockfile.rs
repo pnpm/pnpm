@@ -242,6 +242,10 @@ fn stale_state_files_do_not_stop_node_modules_from_being_repaired() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    yaml.push_str("packageImportMethod: copy\noptimisticRepeatInstall: false\n");
+    fs::write(&yaml_path, yaml).expect("configure copy imports");
 
     let manifest_path = workspace.join("package.json");
     let installed_version = |workspace: &Path| -> String {
@@ -319,37 +323,62 @@ fn a_global_virtual_store_install_still_writes_the_current_lockfile() {
     drop((root, mock_instance));
 }
 
-mod known_failures {
-    //! Current-lockfile cases blocked on behavior pacquet has not built
-    //! yet. Each stubs the not-yet-built subject under test through
-    //! [`pacquet_testing_utils::allow_known_failure`] so the test exits
-    //! early rather than masking a real bug.
+/// TS: `a broken private lockfile is ignored`
+/// (`deps-installer/test/lockfile.ts:1351`).
+#[test]
+fn a_broken_current_lockfile_is_ignored_with_a_warning() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    use pacquet_testing_utils::{
-        allow_known_failure,
-        known_failure::{KnownFailure, KnownResult},
-    };
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    yaml.push_str("optimisticRepeatInstall: false\n");
+    fs::write(&yaml_path, yaml).expect("disable the optimistic repeat-install shortcut");
 
-    fn current_lockfile_parse_failure_is_fatal() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "pacquet fails the install with `ERR_PNPM_BROKEN_LOCKFILE` when \
-             `<virtual_store_dir>/lock.yaml` does not parse \
-             (`Install::run` maps the load error through \
-             `InstallError::LoadCurrentLockfile`). Upstream treats the \
-             current lockfile as a disposable cache: it warns `Ignoring \
-             broken lockfile at ...` and continues with an empty one, \
-             since every fact in it can be re-derived from \
-             `pnpm-lock.yaml` and the filesystem. Making pacquet degrade \
-             the same way means demoting that error to a warn plus a \
-             `pnpm:` log emission the default reporter renders, which is \
-             a behavior change worth its own change.",
-        ))
-    }
+    pacquet.with_arg("install").assert().success();
+    let current_path = workspace.join(CURRENT_LOCKFILE);
+    let current = fs::read_to_string(&current_path).expect("read current lockfile");
+    fs::write(&current_path, format!("{current}\nlockfileVersion: '9.0'\n"))
+        .expect("break current lockfile with a duplicate key");
 
-    /// TS: `a broken private lockfile is ignored`
-    /// (`deps-installer/test/lockfile.ts:1351`).
-    #[test]
-    fn a_broken_current_lockfile_is_ignored_with_a_warning() {
-        allow_known_failure!(current_lockfile_parse_failure_is_fatal());
-    }
+    let output = rerun(&workspace)
+        .with_args(["--reporter=ndjson", "install"])
+        .output()
+        .expect("run install with the broken current lockfile");
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let canonical_workspace = dunce::canonicalize(&workspace).expect("canonicalize workspace");
+    assert!(
+        output.status.success(),
+        "install must ignore the broken current lockfile:\n{combined}",
+    );
+    assert!(
+        combined
+            .lines()
+            .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+            .any(|event| {
+                event["name"] == "pnpm"
+                    && event["level"] == "warn"
+                    && event["prefix"] == canonical_workspace.to_string_lossy().as_ref()
+                    && event["message"]
+                        .as_str()
+                        .is_some_and(|message| message.starts_with("Ignoring broken lockfile at "))
+            },),
+        "expected pnpm warning for the ignored current lockfile; got:\n{combined}",
+    );
+    let _ = read_current_lockfile(&workspace);
+
+    drop((root, mock_instance));
 }

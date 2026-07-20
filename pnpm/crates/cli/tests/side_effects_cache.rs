@@ -18,6 +18,17 @@ use std::{fs, path::Path, process::Command};
 /// only the pristine tarball files and the package is broken at runtime.
 #[test]
 fn side_effects_materialized_on_warm_frozen_reinstall() {
+    assert_side_effects_materialized(false);
+}
+
+/// TS: `using side effects cache with nodeLinker=hoisted`
+/// (`deps-restorer/test/index.ts:706`).
+#[test]
+fn side_effects_materialized_on_warm_frozen_reinstall_with_hoisted_linker() {
+    assert_side_effects_materialized(true);
+}
+
+fn assert_side_effects_materialized(hoisted: bool) {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -29,6 +40,9 @@ fn side_effects_materialized_on_warm_frozen_reinstall() {
         yaml.push('\n');
     }
     yaml.push_str("allowBuilds:\n  '@pnpm.e2e/pre-and-postinstall-scripts-example': true\n");
+    if hoisted {
+        yaml.push_str("nodeLinker: hoisted\n");
+    }
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 
     let manifest_path = workspace.join("package.json");
@@ -42,10 +56,16 @@ fn side_effects_materialized_on_warm_frozen_reinstall() {
     // `generated-by-postinstall.js` is written by the package's
     // postinstall and is not part of its tarball, so it only exists if
     // the build ran or its cached output was materialized.
-    let postinstall_artifact = workspace.join(
-        "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
-         /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js",
-    );
+    let postinstall_artifact = if hoisted {
+        workspace.join(
+            "node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js",
+        )
+    } else {
+        workspace.join(
+            "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
+             /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js",
+        )
+    };
 
     eprintln!("First install (non-frozen, writes lockfile + populates store)...");
     pacquet.with_arg("install").assert().success();

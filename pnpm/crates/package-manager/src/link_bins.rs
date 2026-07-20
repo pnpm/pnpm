@@ -62,6 +62,28 @@ pub fn link_direct_dep_bins(modules_dir: &Path, dep_names: &[String]) -> Result<
     link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"))
 }
 
+/// Link bins from resolved direct-dependency locations without requiring
+/// importer symlinks. This is the `symlink: false` counterpart of
+/// [`link_direct_dep_bins`]: `PnP` still exposes dependency executables in
+/// `<modules_dir>/.bin` even though `<modules_dir>/<name>` is absent.
+pub fn link_direct_dep_bins_from_locations(
+    modules_dir: &Path,
+    locations: &[PathBuf],
+) -> Result<(), LinkBinsError> {
+    let bin_sources = locations
+        .par_iter()
+        .filter_map(|location| match read_package::<Host>(location) {
+            Ok(Some(source)) => Some(Ok(source)),
+            Ok(None) => None,
+            Err(error) => Some(Err(error)),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if bin_sources.is_empty() {
+        return Ok(());
+    }
+    link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"))
+}
+
 /// Top-level bin link that mixes direct-dep candidates and hoisted
 /// (`publicly_hoisted_aliases_with_bins`) candidates in a single
 /// [`link_bins_of_packages`] call so `pacquet_cmd_shim::pick_winner` (private)

@@ -618,6 +618,7 @@ impl InstallPackageBySnapshot<'_> {
                 package_id: &package_id,
                 package_key,
                 snapshot,
+                symlink: config.symlink,
                 skipped,
                 // The non-deferred slot link runs only on the fresh
                 // single-package path (no previous install to diff

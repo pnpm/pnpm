@@ -37,6 +37,7 @@ mod package_extender;
 mod package_map;
 mod patch;
 mod patch_commit;
+mod pnp;
 mod prefetching_resolver;
 mod prune_direct_deps;
 mod prune_stale_modules;
@@ -97,6 +98,7 @@ pub use package_map::{
 };
 pub use patch::*;
 pub use patch_commit::*;
+pub use pnp::*;
 pub use prefetching_resolver::*;
 pub use prune_direct_deps::*;
 pub use prune_stale_modules::*;

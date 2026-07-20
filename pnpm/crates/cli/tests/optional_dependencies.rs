@@ -237,21 +237,86 @@ mod known_failures {
         allow_known_failure!(install_force_flag());
     }
 
-    fn fixture_scale_optional_graph() -> KnownResult<()> {
+    fn edge_aware_engine_strict() -> KnownResult<()> {
         Err(KnownFailure::new(
-            "the upstream scenario relies on a production-scale dependency graph; a minimal registry fixture that preserves the optional-edge topology is not available yet",
+            "pacquet's `engineStrict` dispatch keys on the lockfile's \
+             snapshot-level `optional: true` flag, so an incompatible \
+             package that is only optionally *reachable* is skipped even \
+             when its inbound edge is a regular dependency. Upstream \
+             evaluates installability per edge at resolve time and fails \
+             this shape (pnpm/pnpm#13143).",
         ))
     }
 
+    /// TS: `fail on unsupported dependency of optional dependency`
+    /// (`optionalDependencies.ts:552`). Under `engineStrict`, an
+    /// installable optional whose *regular* dependency is incompatible
+    /// fails the install upstream.
     #[test]
-    fn only_optional_dependencies_are_skipped_in_a_mixed_graph() {
-        allow_known_failure!(fixture_scale_optional_graph());
+    fn fail_on_unsupported_dependency_of_optional_dependency() {
+        allow_known_failure!(edge_aware_engine_strict());
+    }
+}
+
+/// TS: `only skip optional dependencies`
+/// (`optionalDependencies.ts:610`).
+#[test]
+fn only_optional_dependencies_are_skipped_in_a_mixed_graph() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    write_manifest(
+        &workspace,
+        &serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/optional-graph-required-root": "1.0.0",
+            },
+            "optionalDependencies": {
+                "@pnpm.e2e/optional-graph-skipped-root": "1.0.0",
+            },
+        }),
+    );
+
+    pacquet.with_arg("install").assert().success();
+
+    let virtual_store = workspace.join("node_modules/.pnpm");
+    assert!(!virtual_store.join("@pnpm.e2e+optional-graph-skipped-root@1.0.0").exists());
+    assert!(virtual_store.join("@pnpm.e2e+optional-graph-shared-middle@1.0.0").exists());
+    assert!(virtual_store.join("@pnpm.e2e+optional-graph-shared-leaf@1.0.0").exists());
+
+    drop((root, npmrc_info));
+}
+
+/// TS: `complex scenario with same optional dependencies appearing in many
+/// places of the dependency graph` (`optionalDependencies.ts:914`).
+#[test]
+fn repeated_optional_dependencies_across_a_complex_graph_are_classified_per_edge() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    write_arch_workspace_yaml(&workspace, "darwin", "x64", "");
+    write_manifest(
+        &workspace,
+        &serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/optional-selector-parent-a": "1.0.0",
+                "@pnpm.e2e/optional-selector-parent-b": "1.0.0",
+            },
+        }),
+    );
+
+    pacquet.with_arg("install").assert().success();
+
+    let virtual_store = workspace.join("node_modules/.pnpm");
+    for version in ["1.0.0", "2.0.0"] {
+        assert!(
+            virtual_store
+                .join(format!("@pnpm.e2e+optional-platform-selector@{version}"))
+                .join("node_modules/@pnpm.e2e/darwin-x64")
+                .exists(),
+            "the supported optional package must be linked for selector {version}",
+        );
     }
 
-    #[test]
-    fn repeated_optional_dependencies_across_a_complex_graph_are_classified_per_edge() {
-        allow_known_failure!(fixture_scale_optional_graph());
-    }
+    drop((root, npmrc_info));
 }
 
 /// TS: `skip optional dependency that does not support the current OS,
