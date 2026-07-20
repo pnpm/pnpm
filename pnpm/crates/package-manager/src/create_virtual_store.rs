@@ -293,15 +293,14 @@ impl CreateVirtualStore<'_> {
             init_store_dir_best_effort(store_dir).await;
         }
 
-        let needs_build_marker_source = layout
-            .enable_global_virtual_store()
-            .then(|| store_dir.root().join(".pnpm-needs-build-marker"));
-        if let Some(path) = &needs_build_marker_source {
-            fs::write(path, "").map_err(|error| CreateVirtualStoreError::CreateBuildMarker {
-                path: path.clone(),
-                error,
-            })?;
-        }
+        let needs_build_marker_source =
+            if !config.frozen_store && layout.enable_global_virtual_store() {
+                Some(tempfile::NamedTempFile::new().map_err(|error| {
+                    CreateVirtualStoreError::CreateBuildMarker { path: std::env::temp_dir(), error }
+                })?)
+            } else {
+                None
+            };
 
         let open_store_index = if config.frozen_store {
             StoreIndex::shared_immutable_in
@@ -787,7 +786,11 @@ impl CreateVirtualStore<'_> {
                         cas_paths: cas_paths.as_ref(),
                         warm_cache_key: Some(cache_key),
                         needs_build_marker_source: needs_build_marker
-                            .then_some(needs_build_marker_source.as_deref())
+                            .then_some(
+                                needs_build_marker_source
+                                    .as_ref()
+                                    .map(tempfile::NamedTempFile::path),
+                            )
                             .flatten(),
                         removed_aliases: removed_aliases_for(&removed_aliases_by_key, snapshot_key),
                     }
@@ -945,7 +948,9 @@ impl CreateVirtualStore<'_> {
                         snapshot_key,
                         *requires_build,
                     )
-                    .then_some(needs_build_marker_source.as_deref())
+                    .then_some(
+                        needs_build_marker_source.as_ref().map(tempfile::NamedTempFile::path),
+                    )
                     .flatten(),
                     removed_aliases: removed_aliases_for(&removed_aliases_by_key, snapshot_key),
                 })
