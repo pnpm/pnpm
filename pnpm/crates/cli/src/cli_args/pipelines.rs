@@ -439,6 +439,12 @@ async fn run_dedicated_lockfile_workspace_install<Reporter: self::Reporter + 'st
         project_dirs.push(workspace_root.to_path_buf());
     }
     project_dirs.extend(projects.into_iter().map(|project| project.root_dir));
+    // One `Config::leak` per project: `State::init` needs a
+    // `&'static Config`, and a leaked shared reference can't be
+    // reclaimed for the next iteration. The leak is bounded by the
+    // project count, happens once per CLI invocation, and is
+    // reclaimed at process exit — the same lifetime deploy's derived
+    // install config has.
     for project_dir in project_dirs {
         let mut project_config = cfg.clone();
         anchor_dedicated_project_config(&mut project_config, &project_dir);

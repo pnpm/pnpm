@@ -177,6 +177,12 @@ fn normalize_node_path_env_var(node_path: &[String]) -> NodePathEnvVar {
 /// cmd-shim's Windows-host posix rendering: flip backslashes and map a
 /// leading drive letter to the Cygwin/WSL mount prefix. Cygwin/MSYS is
 /// detected the way cmd-shim does — `TERM=CYGWIN` or a set `MSYSTEM`.
+///
+/// NOTE: the probe runs at shim-*generation* time, so the posix path
+/// baked into the `.ps1` reflects the installing shell. A shim
+/// generated under Cygwin and later run under WSL points at a
+/// `/proc/cygdrive` path that doesn't exist there — the same known
+/// trap cmd-shim has.
 fn windows_entry_to_posix(entry: &str) -> String {
     let flipped = entry.replace('\\', "/");
     let Some((drive, rest)) = flipped.split_once(':') else {

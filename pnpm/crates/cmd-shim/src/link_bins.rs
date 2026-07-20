@@ -480,11 +480,13 @@ where
     // When a `NODE_PATH` block is expected, the marker alone can't
     // prove the shim carries the right (or any) block, so require
     // byte equality; the marker-only branch additionally rejects a
-    // stale `NODE_PATH` block when none is expected.
+    // stale `NODE_PATH` block when none is expected. The probe looks
+    // for the exact export the block opens with, so a target path
+    // that merely mentions `NODE_PATH` can't force a rewrite.
     let sh_marker_ok = match Sys::read_to_string(shim_path) {
         Ok(existing) if !node_path.is_empty() => existing == sh_body,
         Ok(existing) => {
-            is_shim_pointing_at(&existing, target_path) && !existing.contains("NODE_PATH")
+            is_shim_pointing_at(&existing, target_path) && !existing.contains("export NODE_PATH=")
         }
         Err(_) => false,
     };
