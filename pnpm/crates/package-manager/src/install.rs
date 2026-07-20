@@ -808,8 +808,18 @@ where
         let manifest_dir = manifest.path().parent().expect("manifest path always has a parent dir");
         let workspace_dir_opt = configured_or_discovered_workspace_dir(config, manifest_dir)
             .map_err(InstallError::FindWorkspaceDir)?;
-        let workspace_root =
-            workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
+        // Dedicated per-project lockfiles (`sharedWorkspaceLockfile:
+        // false`) anchor everything `workspace_root` names — the wanted
+        // lockfile, importer ids, reporter prefixes, the workspace-state
+        // file — at the active project, mirroring pnpm's `lockfileDir =
+        // sharedWorkspaceLockfile ? workspaceDir : projectDir`. Catalogs
+        // and workspace packages still come from the real workspace dir
+        // (`workspace_dir_opt`).
+        let workspace_root = if config.shared_workspace_lockfile {
+            workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf())
+        } else {
+            manifest_dir.to_path_buf()
+        };
 
         // Read `pnpm-workspace.yaml` for the catalog sections. Only
         // consulted when a workspace manifest exists — single-project
@@ -856,8 +866,11 @@ where
         let loaded_workspace_projects = match (selection.as_ref(), workspace_projects_override) {
             (Some(_), _) => None,
             (None, Some(projects)) => Some(projects),
-            (None, None) => load_workspace_projects(&workspace_root, workspace_manifest.as_ref())
-                .map_err(InstallError::FindWorkspaceProjects)?,
+            (None, None) => load_workspace_projects(
+                workspace_dir_opt.as_deref().unwrap_or(&workspace_root),
+                workspace_manifest.as_ref(),
+            )
+            .map_err(InstallError::FindWorkspaceProjects)?,
         };
         let workspace_projects = selection.as_ref().map_or_else(
             || loaded_workspace_projects.as_deref(),
@@ -887,7 +900,10 @@ where
             None if manifest_is_root_importer => build_root_importer_project_manifests_list(
                 &workspace_root,
                 manifest,
-                workspace_projects,
+                // Dedicated per-project lockfiles record a single "."
+                // importer per project; sibling projects only feed the
+                // `workspace:` resolver, never the importer list.
+                config.shared_workspace_lockfile.then_some(workspace_projects).flatten(),
             ),
             None => build_project_manifests_list(&workspace_root, manifest, workspace_projects),
         };

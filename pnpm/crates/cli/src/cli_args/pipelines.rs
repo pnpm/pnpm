@@ -150,6 +150,19 @@ impl InstallPipeline {
         if selection.as_ref().is_some_and(|selection| selection.selected_dirs.is_empty()) {
             return Ok(());
         }
+        if selection.is_none()
+            && !cfg.shared_workspace_lockfile
+            && let Some(workspace_dir) = cfg.workspace_dir.clone()
+        {
+            let cfg: &'static Config = cfg;
+            return run_dedicated_lockfile_workspace_install::<Reporter>(
+                &args,
+                cfg,
+                &workspace_dir,
+                require_lockfile,
+            )
+            .await;
+        }
         let cfg: &'static Config = cfg;
         let state =
             State::init(manifest_path, cfg, require_lockfile).wrap_err("initialize the state")?;
@@ -208,6 +221,21 @@ impl AddPipeline {
         if selection.as_ref().is_some_and(|selection| selection.selected_dirs.is_empty()) {
             return Ok(());
         }
+        // Dedicated per-project lockfiles: `add` mutates only the
+        // active project, whose outputs anchor at the project dir.
+        // `--config` targets the workspace's configuration
+        // dependencies, which stay workspace-anchored.
+        if selection.is_none()
+            && config_dependencies.is_none()
+            && !cfg.shared_workspace_lockfile
+            && cfg.workspace_dir.is_some()
+        {
+            let manifest_dir = manifest_path
+                .parent()
+                .expect("manifest path always has a parent dir")
+                .to_path_buf();
+            anchor_dedicated_project_config(cfg, &manifest_dir);
+        }
         let cfg: &'static Config = cfg;
         let state = State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
         match selection {
@@ -254,6 +282,16 @@ impl UpdatePipeline {
             select_install_family_projects(cfg, &prefix, &manifest_path, recursive_sort, false)?;
         if selection.as_ref().is_some_and(|selection| selection.selected_dirs.is_empty()) {
             return Ok(());
+        }
+        // Dedicated per-project lockfiles: the non-recursive command
+        // mutates only the active project, whose outputs anchor at the
+        // project dir.
+        if selection.is_none() && !cfg.shared_workspace_lockfile && cfg.workspace_dir.is_some() {
+            let manifest_dir = manifest_path
+                .parent()
+                .expect("manifest path always has a parent dir")
+                .to_path_buf();
+            anchor_dedicated_project_config(cfg, &manifest_dir);
         }
         let cfg: &'static Config = cfg;
         let state = State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
@@ -302,6 +340,16 @@ impl RemovePipeline {
         if selection.as_ref().is_some_and(|selection| selection.selected_dirs.is_empty()) {
             return Ok(());
         }
+        // Dedicated per-project lockfiles: the non-recursive command
+        // mutates only the active project, whose outputs anchor at the
+        // project dir.
+        if selection.is_none() && !cfg.shared_workspace_lockfile && cfg.workspace_dir.is_some() {
+            let manifest_dir = manifest_path
+                .parent()
+                .expect("manifest path always has a parent dir")
+                .to_path_buf();
+            anchor_dedicated_project_config(cfg, &manifest_dir);
+        }
         let cfg: &'static Config = cfg;
         let state = State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
         match selection {
@@ -339,6 +387,67 @@ impl DeployPipeline {
         let cfg: &'static Config = cfg;
         Box::pin(args.run::<Reporter>(cfg, dir_ref)).await
     }
+}
+
+/// Re-anchor the per-project output paths for dedicated per-project
+/// lockfiles (`sharedWorkspaceLockfile: false`): `node_modules` and the
+/// virtual store live under the project, mirroring pnpm, which resolves
+/// them against `lockfileDir` — the project dir in dedicated mode. An
+/// explicit `virtualStoreDir` setting re-resolves against the project
+/// (its raw value is recovered from [`Config::explicit_settings`]);
+/// the default stays `<modules_dir>/.pnpm`. Global-virtual-store
+/// installs keep their store-anchored `virtual_store_dir`.
+pub(crate) fn anchor_dedicated_project_config(config: &mut Config, project_dir: &Path) {
+    let modules_dir_name = config
+        .modules_dir
+        .file_name()
+        .map_or_else(|| std::ffi::OsString::from("node_modules"), std::ffi::OsStr::to_os_string);
+    config.modules_dir = project_dir.join(modules_dir_name);
+    if !config.enable_global_virtual_store {
+        config.virtual_store_dir = match config
+            .explicit_settings
+            .get("virtualStoreDir")
+            .and_then(serde_json::Value::as_str)
+        {
+            // `Path::join` keeps an absolute setting absolute.
+            Some(raw) => project_dir.join(raw),
+            None => config.modules_dir.join(".pnpm"),
+        };
+    }
+}
+
+/// `sharedWorkspaceLockfile: false` workspace install: one independent
+/// single-project install per workspace project — each gets its own
+/// `pnpm-lock.yaml`, `node_modules`, and virtual store, mirroring
+/// pnpm's dedicated-lockfile per-project loop in its recursive
+/// dispatch. The workspace root participates when it has a manifest,
+/// matching the project set a shared-lockfile workspace install covers.
+async fn run_dedicated_lockfile_workspace_install<Reporter: self::Reporter + 'static>(
+    args: &super::install::InstallArgs,
+    cfg: &Config,
+    workspace_root: &Path,
+    require_lockfile: bool,
+) -> miette::Result<()> {
+    let (projects, _patterns) = discover_workspace_projects(workspace_root)?;
+    let normalized_root = pacquet_fs::lexical_normalize(workspace_root);
+    let mut project_dirs: Vec<PathBuf> = Vec::with_capacity(projects.len() + 1);
+    if workspace_root.join("package.json").is_file()
+        && !projects
+            .iter()
+            .any(|project| pacquet_fs::lexical_normalize(&project.root_dir) == normalized_root)
+    {
+        project_dirs.push(workspace_root.to_path_buf());
+    }
+    project_dirs.extend(projects.into_iter().map(|project| project.root_dir));
+    for project_dir in project_dirs {
+        let mut project_config = cfg.clone();
+        anchor_dedicated_project_config(&mut project_config, &project_dir);
+        let project_config = Config::leak(project_config);
+        let state = State::init(project_dir.join("package.json"), project_config, require_lockfile)
+            .wrap_err_with(|| format!("initialize the state for {}", project_dir.display()))?;
+        Box::pin(args.clone().run::<Reporter>(state)).await?;
+    }
+    Ok(())
 }
 
 /// Shared workspace-root and package-manager policy derivation used by the

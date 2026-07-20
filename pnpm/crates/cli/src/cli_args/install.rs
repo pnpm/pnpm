@@ -48,7 +48,7 @@ impl NodeLinkerArg {
     }
 }
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 pub struct InstallDependencyOptions {
     /// Install only production dependencies. devDependencies are skipped,
     /// and removed if already installed. Takes precedence over `NODE_ENV`.
@@ -79,7 +79,7 @@ impl InstallDependencyOptions {
     }
 }
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 pub struct InstallArgs {
     #[clap(flatten)]
     pub dependency_options: InstallDependencyOptions,
@@ -287,6 +287,13 @@ impl InstallArgs {
             return false;
         }
         if config.pnpr_server.is_some() {
+            return false;
+        }
+        // Dedicated per-project lockfiles run one install per workspace
+        // project; a single-dir up-to-date probe can't speak for the
+        // sibling projects, so the loop (whose per-project engine runs
+        // each have their own optimistic short-circuit) must always run.
+        if !config.shared_workspace_lockfile && config.workspace_dir.is_some() {
             return false;
         }
         if config.config_dependencies.as_ref().is_some_and(|deps| !deps.is_empty()) {
