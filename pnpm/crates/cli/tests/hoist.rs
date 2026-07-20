@@ -11,10 +11,9 @@
 //! the registry mock serves; pre-baking a tiny v9 lockfile by hand
 //! would diverge silently the moment a fixture changes.
 //!
-//! Tests that depend on features pacquet hasn't built yet (partial
-//! install / re-hoist — pnpm/pacquet#433, GVS — pnpm/pacquet#432,
-//! hoisted node-linker,
-//! `extendNodePath`) live in [`known_failures`] below with
+//! Tests that depend on features pacquet hasn't built yet
+//! (`extendNodePath`) live in
+//! [`known_failures`] below with
 //! [`pacquet_testing_utils::allow_known_failure`] gating the assertion
 //! against the not-yet-implemented subject under test.
 //!
@@ -122,10 +121,9 @@ fn hoisting_skips_broken_symlink_for_skipped_optional() {
 
 /// Default hoist patterns hoist every transitive into
 /// `<vs>/node_modules/`.
-/// Single-importer subset — asserting the persisted map is preserved
-/// across a repeat install requires partial install (pnpm/pacquet#433)
-/// and lives in
-/// [`known_failures::should_hoist_dependencies_repeat_install_preserves_map`].
+/// Single-importer subset — the persisted map surviving a repeat
+/// install is covered by
+/// [`should_hoist_dependencies_repeat_install_preserves_map`].
 #[test]
 fn private_hoist_default_pattern_hoists_transitives() {
     let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
@@ -535,7 +533,9 @@ fn workspace_hoist_walks_every_importer() {
 /// pointing at the project directory itself — so anything resolving
 /// from the hoisted tree can `require` workspace packages by name.
 /// With `hoistWorkspacePackages: false` the name-links are absent
-/// while ordinary transitive hoisting is untouched.
+/// while ordinary transitive hoisting is untouched. Covers the TS
+/// tail of `hoist.ts:813` too: deleting the root `node_modules` and
+/// replaying `--frozen-lockfile` reproduces the same layout.
 #[test]
 fn hoist_workspace_packages_links_projects_by_name() {
     for enabled in [true, false] {
@@ -570,30 +570,37 @@ fn hoist_workspace_packages_links_projects_by_name() {
         generate_lockfile(pnpm);
         pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
 
-        let name_link = workspace.join("node_modules/.pnpm/node_modules/@local/foo");
-        if enabled {
+        let assert_hoist_layout = || {
+            let name_link = workspace.join("node_modules/.pnpm/node_modules/@local/foo");
+            if enabled {
+                assert!(
+                    is_symlink_or_junction(&name_link).unwrap(),
+                    "workspace project must be linked by name at {name_link:?}",
+                );
+                assert_eq!(
+                    fs::canonicalize(&name_link).unwrap(),
+                    fs::canonicalize(&pkg_dir).unwrap(),
+                    "the name-link must point at the project directory",
+                );
+            } else {
+                assert!(
+                    !name_link.exists(),
+                    "hoistWorkspacePackages: false must not create {name_link:?}",
+                );
+            }
+            // Ordinary transitive hoisting is independent of the knob.
+            let private_hoist =
+                workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/hello-world-js-bin");
             assert!(
-                is_symlink_or_junction(&name_link).unwrap(),
-                "workspace project must be linked by name at {name_link:?}",
+                is_symlink_or_junction(&private_hoist).unwrap(),
+                "transitive hoisting must be unaffected (enabled={enabled})",
             );
-            assert_eq!(
-                fs::canonicalize(&name_link).unwrap(),
-                fs::canonicalize(&pkg_dir).unwrap(),
-                "the name-link must point at the project directory",
-            );
-        } else {
-            assert!(
-                !name_link.exists(),
-                "hoistWorkspacePackages: false must not create {name_link:?}",
-            );
-        }
-        // Ordinary transitive hoisting is independent of the knob.
-        let private_hoist =
-            workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/hello-world-js-bin");
-        assert!(
-            is_symlink_or_junction(&private_hoist).unwrap(),
-            "transitive hoisting must be unaffected (enabled={enabled})",
-        );
+        };
+        assert_hoist_layout();
+
+        fs::remove_dir_all(workspace.join("node_modules")).expect("remove root node_modules");
+        pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+        assert_hoist_layout();
 
         drop((root, mock_instance));
     }

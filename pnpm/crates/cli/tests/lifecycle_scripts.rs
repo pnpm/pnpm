@@ -1,3 +1,5 @@
+pub mod _utils;
+
 /// Helpers for editing the `pnpm-workspace.yaml` that
 /// [`CommandTempCwd::add_mocked_registry`] wrote. Both edit in place
 /// rather than replacing the file: the harness's `storeDir`, `cacheDir`,
@@ -67,12 +69,42 @@ mod workspace_yaml {
 }
 
 mod dependency_build_scripts {
-    use super::workspace_yaml::{allow_builds, append_workspace_yaml_key, set_strict_dep_builds};
+    use super::{
+        _utils::{assert_success, ndjson_records, pacquet_in},
+        workspace_yaml::{allow_builds, append_workspace_yaml_key, set_strict_dep_builds},
+    };
     use assert_cmd::prelude::*;
     use command_extra::CommandExtra;
     use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
     use pipe_trait::Pipe;
     use std::{fs, path::Path, process::Command};
+
+    /// `packageNames` from the run's `pnpm:ignored-scripts` NDJSON event.
+    /// The build phase emits the event exactly once per install, with an
+    /// empty list when nothing was ignored.
+    fn ignored_scripts_package_names(output: &std::process::Output) -> Vec<String> {
+        let events: Vec<Vec<String>> = ndjson_records(output)
+            .into_iter()
+            .filter(|record| {
+                record.get("name").and_then(serde_json::Value::as_str)
+                    == Some("pnpm:ignored-scripts")
+            })
+            .map(|record| {
+                record["packageNames"]
+                    .as_array()
+                    .expect("packageNames is an array")
+                    .iter()
+                    .map(|name| name.as_str().expect("package name is a string").to_string())
+                    .collect()
+            })
+            .collect();
+        assert_eq!(
+            events.len(),
+            1,
+            "expected exactly one pnpm:ignored-scripts event; got {events:?}",
+        );
+        events.into_iter().next().expect("asserted a single event above")
+    }
 
     #[test]
     fn run_pre_and_postinstall_scripts() {
@@ -330,6 +362,26 @@ mod dependency_build_scripts {
             "scripts should not have run with ignoreScripts",
         );
 
+        eprintln!("Deleting node_modules for frozen reinstall...");
+        fs::remove_dir_all(&node_modules).expect("remove node_modules");
+
+        eprintln!("Running pacquet install --frozen-lockfile...");
+        pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+
+        eprintln!("Checking bins are linked after frozen reinstall...");
+        #[cfg(unix)]
+        {
+            use pacquet_testing_utils::fs::is_path_executable;
+            assert!(is_path_executable(&node_modules.join(".bin/peer-with-bin")));
+        }
+
+        eprintln!("Checking scripts stayed ignored after frozen reinstall...");
+        assert!(scripts_pkg_dir.join("package.json").exists());
+        assert!(
+            !scripts_pkg_dir.join("generated-by-preinstall.js").exists(),
+            "scripts should not have run on the frozen reinstall either",
+        );
+
         drop((root, mock_instance));
     }
 
@@ -371,6 +423,17 @@ mod dependency_build_scripts {
         eprintln!("Checking allowed package DID run scripts...");
         assert!(allowed_pkg.join("generated-by-install.js").exists());
 
+        eprintln!("Deleting node_modules for frozen reinstall...");
+        fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+
+        pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+
+        eprintln!("Checking denied package still did NOT run scripts after frozen reinstall...");
+        assert!(!denied_pkg.join("generated-by-preinstall.js").exists());
+        assert!(!denied_pkg.join("generated-by-postinstall.js").exists());
+        eprintln!("Checking allowed package DID run scripts after frozen reinstall...");
+        assert!(allowed_pkg.join("generated-by-install.js").exists());
+
         drop((root, mock_instance));
     }
 
@@ -393,7 +456,9 @@ mod dependency_build_scripts {
         allow_builds(&workspace, &[("@pnpm.e2e/install-script-example", true)]);
 
         eprintln!("Running pacquet install...");
-        pacquet.with_arg("install").assert().success();
+        let output =
+            pacquet.with_args(["--reporter=ndjson", "install"]).output().expect("run pacquet");
+        assert_success(&output);
 
         let virtual_store = workspace.join("node_modules/.pnpm");
         let node_modules = workspace.join("node_modules");
@@ -413,9 +478,11 @@ mod dependency_build_scripts {
         eprintln!("Checking allowed package DID run scripts...");
         assert!(allowed_pkg.join("generated-by-install.js").exists());
 
-        // TODO: assert the `pnpm:ignored-scripts` reporter event lists
-        // `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0` here. Pacquet
-        // does not emit that channel yet (see issue <https://github.com/pnpm/pacquet/issues/397>).
+        eprintln!("Checking pnpm:ignored-scripts lists the unapproved package...");
+        assert_eq!(
+            ignored_scripts_package_names(&output),
+            ["@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"],
+        );
 
         eprintln!(
             "Re-running install with explicit denial of pre-and-postinstall-scripts-example...",
@@ -429,23 +496,22 @@ mod dependency_build_scripts {
             ],
         );
 
-        let CommandTempCwd { pacquet: frozen_pacquet, root: frozen_root, .. } =
-            CommandTempCwd::init().add_mocked_registry();
-        frozen_pacquet
-            .with_current_dir(&workspace)
-            .with_args(["install", "--frozen-lockfile"])
-            .assert()
-            .success();
+        let frozen_output = pacquet_in(&workspace)
+            .with_args(["--reporter=ndjson", "install", "--frozen-lockfile"])
+            .output()
+            .expect("run pacquet install --frozen-lockfile");
+        assert_success(&frozen_output);
 
         assert!(!denied_pkg.join("generated-by-preinstall.js").exists());
         assert!(!denied_pkg.join("generated-by-postinstall.js").exists());
         assert!(allowed_pkg.join("generated-by-install.js").exists());
 
-        // TODO: assert the `pnpm:ignored-scripts` reporter event lists no
-        // package names this time — explicit denial moves the package from
-        // "ignored" to "silently skipped".
+        eprintln!("Checking pnpm:ignored-scripts is empty under explicit denial...");
+        // Explicit denial moves the package from "ignored" to "silently
+        // skipped", so the event carries no package names this time.
+        assert_eq!(ignored_scripts_package_names(&frozen_output), Vec::<String>::new());
 
-        drop((root, mock_instance, frozen_root));
+        drop((root, mock_instance));
     }
 
     #[test]
@@ -467,7 +533,9 @@ mod dependency_build_scripts {
         allow_builds(&workspace, &[("@pnpm.e2e/install-script-example@1.0.0", true)]);
 
         eprintln!("Running pacquet install...");
-        pacquet.with_arg("install").assert().success();
+        let output =
+            pacquet.with_args(["--reporter=ndjson", "install"]).output().expect("run pacquet");
+        assert_success(&output);
 
         let virtual_store = workspace.join("node_modules/.pnpm");
 
@@ -485,6 +553,37 @@ mod dependency_build_scripts {
         );
         eprintln!("Checking allowed package DID run scripts...");
         assert!(allowed_pkg.join("generated-by-install.js").exists());
+
+        eprintln!("Checking pnpm:ignored-scripts lists the unapproved package...");
+        assert_eq!(
+            ignored_scripts_package_names(&output),
+            ["@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"],
+        );
+
+        eprintln!(
+            "Re-running install with explicit denial of pre-and-postinstall-scripts-example...",
+        );
+        fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+        allow_builds(
+            &workspace,
+            &[
+                ("@pnpm.e2e/install-script-example@1.0.0", true),
+                ("@pnpm.e2e/pre-and-postinstall-scripts-example", false),
+            ],
+        );
+
+        let frozen_output = pacquet_in(&workspace)
+            .with_args(["--reporter=ndjson", "install", "--frozen-lockfile"])
+            .output()
+            .expect("run pacquet install --frozen-lockfile");
+        assert_success(&frozen_output);
+
+        assert!(!denied_pkg.join("generated-by-preinstall.js").exists());
+        assert!(!denied_pkg.join("generated-by-postinstall.js").exists());
+        assert!(allowed_pkg.join("generated-by-install.js").exists());
+
+        eprintln!("Checking pnpm:ignored-scripts is empty under explicit denial...");
+        assert_eq!(ignored_scripts_package_names(&frozen_output), Vec::<String>::new());
 
         drop((root, mock_instance));
     }
