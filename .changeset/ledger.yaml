@@ -311,6 +311,23 @@ pacquet@12.0.0-alpha.16:
     - skipped-optional-dependency-closure
     - tidy-wolves-proxy
     - verify-unused-patches-on-install
+pacquet@12.0.0-alpha.17:
+  dir: pnpm/npm/pnpm
+  intents:
+    - calm-spiders-rebuild
+    - git-hosted-dependency-parity
+    - list-why-parity
+    - order-workspace-lifecycle
+    - pacquet-auto-install-peer-intersection
+    - pacquet-cleanup-unused-catalogs
+    - pacquet-edge-aware-engine-strict
+    - pacquet-enable-modules-dir
+    - pacquet-engine-prerelease-bounds
+    - pacquet-extend-node-path
+    - pacquet-install-force-flag
+    - pacquet-shared-workspace-lockfile-false
+    - steady-install-state
+    - tarball-mem-cache-lost-wakeup
 pacquet@12.0.0-alpha.9:
   dir: pnpm/npm/pnpm
   intents:
