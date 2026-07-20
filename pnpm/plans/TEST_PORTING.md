@@ -418,7 +418,7 @@ Primary tests:
 - [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:132` `GVS hashes are engine-agnostic for packages not in allowBuilds` — ported as `gvs_hashes_are_engine_agnostic_for_packages_not_in_allow_builds`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:172` `GVS hashes are stable when allowBuilds targets an unrelated package` — ported as `gvs_hashes_are_stable_when_allow_builds_targets_an_unrelated_package`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:205` `GVS re-links when allowBuilds changes` — ported as `gvs_relinks_when_allow_builds_changes`, including the `.modules.yaml` half (pacquet now persists `allowBuilds`, which it previously left unset).
-- [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:250` `GVS successful build creates package directory with build artifacts` — ported as `gvs_successful_build_creates_package_directory_with_build_artifacts`. The `.pnpm-needs-build` tail is a `known_failures` stub (see `:411`).
+- [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:250` `GVS successful build creates package directory with build artifacts` — ported as `gvs_successful_build_creates_package_directory_with_build_artifacts`, including removal of `.pnpm-needs-build` after a successful build and exclusion of the marker from side-effects uploads.
 - [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:290` `GVS: approve-builds scenario — install with no builds, then reinstall with allowBuilds` — ported as `gvs_approve_builds_scenario_moves_artifacts_to_a_new_hash_dir`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:338` `GVS build failure cleans up broken package directory` — ported as `gvs_build_failure_cleans_up_broken_package_directory`; the cleanup itself is new in pacquet (`discard_failed_global_virtual_store_slot`).
 - [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:367` `GVS rebuilds successfully after simulated build failure cleanup` — ported as `gvs_rebuilds_successfully_after_simulated_build_failure_cleanup`.
@@ -488,8 +488,8 @@ Supporting tests:
 - [ ] `TypeScript repo: installing/deps-installer/test/install/misc.ts:784` `rewrites node_modules created by npm` is relevant to pre-existing `node_modules`, but not frozen/headless.
 - [x] `TypeScript repo: installing/deps-restorer/test/index.ts:432` `available packages are used when node_modules is not clean` is headless-restorer behavior around dirty `node_modules` — ported as `available_packages_used_when_node_modules_not_clean` in `crates/cli/tests/repeat_install.rs` (a wiped store pins that on-disk packages are reused, not refetched).
 - [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:469` `available packages are relinked during forced install` covers force-path relinking with existing packages.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:63` `reinstall from warm global virtual store after deleting node_modules` repairs project links from a warm GVS.
-- [ ] `TypeScript repo: pnpm/test/install/globalVirtualStore.ts:80` `warm GVS reinstall skips internal linking` is CLI-level existing-`node_modules`/warm-GVS coverage.
+- [x] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:63` `reinstall from warm global virtual store after deleting node_modules` repairs project links from a warm GVS — covered by `reinstall_from_warm_global_virtual_store_after_deleting_node_modules`.
+- [x] `TypeScript repo: pnpm/test/install/globalVirtualStore.ts:80` `warm GVS reinstall skips internal linking` is CLI-level existing-`node_modules`/warm-GVS coverage — covered by `reinstall_from_warm_global_virtual_store_after_deleting_node_modules`.
 
 Rust port notes:
 
