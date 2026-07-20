@@ -5,8 +5,8 @@
 
 use super::{
     Install, InstallError, UpToDateFastPathCheck, exclude_linked_dependencies,
-    install_already_up_to_date, load_workspace_projects, project_requires_lifecycle_scripts,
-    should_write_package_map,
+    install_already_up_to_date, load_workspace_projects, order_project_lifecycle_groups,
+    project_requires_lifecycle_scripts, should_write_package_map,
 };
 use crate::{InstallWithFreshLockfileError, MinimumReleaseAgeError};
 use pacquet_config::{Config, NodePackageMapType};
@@ -69,6 +69,62 @@ fn project_lifecycle_detection_includes_scripts_and_binding_gyp_fallback() {
         serde_json::json!({ "scripts": { "prepare": "node prepare.js" } }),
     );
     assert!(project_requires_lifecycle_scripts(project_dir, &with_prepare));
+}
+
+#[test]
+fn lifecycle_groups_normalize_paths_and_recover_from_incomplete_explicit_groups() {
+    let temp = tempdir().unwrap();
+    let workspace_root = temp.path().join("workspace");
+    let dependency_dir = workspace_root.join("packages/holding/../dependency");
+    let dependent_dir = workspace_root.join("packages/dependent");
+    let dependency_manifest = PackageManifest::from_value(
+        dependency_dir.join("package.json"),
+        serde_json::json!({ "scripts": { "prepare": "node prepare.js" } }),
+    );
+    let dependent_manifest = PackageManifest::from_value(
+        dependent_dir.join("package.json"),
+        serde_json::json!({ "scripts": { "prepare": "node prepare.js" } }),
+    );
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  packages/dependent:"
+        "    dependencies:"
+        "      dependency:"
+        "        specifier: workspace:*"
+        "        version: link:../dependency"
+    })
+    .unwrap();
+    let incomplete_groups = vec![vec![dependent_dir.clone()]];
+
+    let Err(missing_order_error) = order_project_lifecycle_groups(
+        &[
+            (dependent_dir.clone(), &dependent_manifest),
+            (dependency_dir.clone(), &dependency_manifest),
+        ],
+        Some(&incomplete_groups),
+        &workspace_root,
+        None,
+    ) else {
+        panic!("incomplete groups without a lockfile must fail");
+    };
+    assert!(matches!(missing_order_error, InstallError::ProjectLifecycleOrder { .. }));
+
+    let groups = order_project_lifecycle_groups(
+        &[
+            (dependent_dir.clone(), &dependent_manifest),
+            (dependency_dir.clone(), &dependency_manifest),
+        ],
+        Some(&incomplete_groups),
+        &workspace_root,
+        Some(&lockfile),
+    )
+    .unwrap();
+    let grouped_dirs = groups
+        .into_iter()
+        .map(|group| group.into_iter().map(|(project_dir, _)| project_dir).collect::<Vec<_>>())
+        .collect::<Vec<_>>();
+    assert_eq!(grouped_dirs, vec![vec![dependency_dir], vec![dependent_dir]]);
 }
 
 #[test]
