@@ -100,6 +100,12 @@ jobs:
           - os: blacksmith-12vcpu-macos-latest
             os_label: macos
     runs-on: ${{ matrix.os }}
+    # Backstop for hangs outside nextest's per-test terminate-after
+    # (stuck cargo build, stuck tool download): warm-cache runs finish
+    # in ~5 minutes, cold-cache rebuilds of the full workspace need the
+    # rest of the hour. Without this, a wedged job runs on the default
+    # 360-minute limit.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
