@@ -205,9 +205,15 @@ fn resolved_tarball_url(
 
 /// A lockfile-derived path component that could escape the directory
 /// it is joined under — the same guard `pnpm licenses` applies before
-/// dereferencing store paths built from lockfile keys.
+/// dereferencing store paths built from lockfile keys. Rooted and
+/// prefixed components are rejected by shape, not `is_absolute()`:
+/// on Windows a rooted-but-prefixless `\escape` (or a prefix-only
+/// `C:evil`) is not "absolute" yet still replaces the join base.
 fn is_unsafe_path_component(component: &str) -> bool {
-    component.contains("..") || Path::new(component).is_absolute()
+    component.contains("..")
+        || Path::new(component).components().any(|part| {
+            matches!(part, std::path::Component::RootDir | std::path::Component::Prefix(_))
+        })
 }
 
 /// Filesystem path of a package addressed by `dep_path`. For a local
