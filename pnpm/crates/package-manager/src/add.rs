@@ -796,7 +796,7 @@ async fn resolve_aliasless_git(
     )
     .await
     .map_err(|source| AddError::ResolveGit { specifier: specifier.to_string(), source })?
-    .expect("a specifier accepted by the git parser is resolved by GitResolver");
+    .ok_or_else(|| AddError::GitPackageName { specifier: specifier.to_string() })?;
     let package_name = result
         .manifest
         .as_ref()
