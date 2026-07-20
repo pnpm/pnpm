@@ -285,7 +285,7 @@ fn why_shows_reverse_dependency_tree_for_a_non_direct_dependency() {
     fs::write(
         workspace.join("package.json"),
         format!(
-            r#"{{ "name": "project", "version": "0.0.0", "dependencies": {{ "{DEP}": "100.0.0", "{PKG}": "100.0.0" }} }}"#
+            r#"{{ "name": "project", "version": "0.0.0", "dependencies": {{ "{DEP}": "100.0.0", "{PKG}": "100.0.0" }} }}"#,
         ),
     )
     .expect("write package.json");
@@ -314,7 +314,7 @@ fn why_finds_packages_by_alias_name_when_using_npm_protocol() {
     fs::write(
         workspace.join("package.json"),
         format!(
-            r#"{{ "name": "project", "version": "0.0.0", "dependencies": {{ "foo": "npm:{PKG}@100.0.0" }} }}"#
+            r#"{{ "name": "project", "version": "0.0.0", "dependencies": {{ "foo": "npm:{PKG}@100.0.0" }} }}"#,
         ),
     )
     .expect("write package.json");
@@ -339,7 +339,7 @@ fn why_finds_packages_by_actual_name_when_using_npm_protocol() {
     fs::write(
         workspace.join("package.json"),
         format!(
-            r#"{{ "name": "project", "version": "0.0.0", "dependencies": {{ "foo": "npm:{PKG}@100.0.0" }} }}"#
+            r#"{{ "name": "project", "version": "0.0.0", "dependencies": {{ "foo": "npm:{PKG}@100.0.0" }} }}"#,
         ),
     )
     .expect("write package.json");
@@ -363,7 +363,7 @@ fn why_displays_parseable_output() {
     fs::write(
         workspace.join("package.json"),
         format!(
-            r#"{{ "name": "project", "version": "0.0.0", "dependencies": {{ "{DEP}": "100.0.0", "{PKG}": "100.0.0" }} }}"#
+            r#"{{ "name": "project", "version": "0.0.0", "dependencies": {{ "{DEP}": "100.0.0", "{PKG}": "100.0.0" }} }}"#,
         ),
     )
     .expect("write package.json");
@@ -441,7 +441,7 @@ module.exports = {{ finders: {{ 'manifest-reader': (ctx) => {{
   }}
   return false
 }} }} }}
-"
+",
         ),
     )
     .expect("write .pnpmfile.cjs");
@@ -499,7 +499,7 @@ fn why_marks_importer_dep_field_and_prints_summary() {
     fs::write(
         workspace.join("package.json"),
         format!(
-            r#"{{ "name": "project", "version": "0.0.0", "devDependencies": {{ "{PKG}": "100.0.0" }} }}"#
+            r#"{{ "name": "project", "version": "0.0.0", "devDependencies": {{ "{PKG}": "100.0.0" }} }}"#,
         ),
     )
     .expect("write package.json");
@@ -527,7 +527,7 @@ module.exports = {{ finders: {{ 'test-finder': (ctx) => {{
   }}
   return false
 }} }} }}
-"
+",
         ),
     )
     .expect("write .pnpmfile.cjs");

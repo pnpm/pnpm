@@ -65,7 +65,7 @@ fn print_empty() {
     let output = render_tree(&projects, &tree_opts(true, false));
     assert_eq!(
         output,
-        "Legend: production dependency, optional only, dev only\n\nempty@1.0.0 /empty"
+        "Legend: production dependency, optional only, dev only\n\nempty@1.0.0 /empty",
     );
 }
 
@@ -101,7 +101,7 @@ fn unsaved_dependencies_are_marked() {
             "│"
             "│   not saved (you should add these dependencies to package.json if you need them):"
             "└── foo@1.0.0"
-        }
+        },
     );
 }
 
@@ -141,7 +141,7 @@ fn list_with_many_dependencies() {
             "├── i@1.0.0"
             "├── k@1.0.0"
             "└── l@1.0.0"
-        }
+        },
     );
 }
 
@@ -173,7 +173,7 @@ fn sort_list_items() {
             "└─┬ foo@1.0.0"
             "  ├── bar@1.0.0"
             "  └── qar@1.0.0"
-        }
+        },
     );
 }
 
@@ -383,6 +383,6 @@ fn render_parseable_search_long_shared_dep_across_packages_is_not_duplicated() {
     assert!(lines.contains(&"/workspace/packages/pkg-b:pkg-b@1.0.0"));
     assert_eq!(
         lines.iter().filter(|line| line.starts_with("/workspace/packages/shared")).count(),
-        1
+        1,
     );
 }

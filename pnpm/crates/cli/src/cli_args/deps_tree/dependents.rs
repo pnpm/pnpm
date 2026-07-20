@@ -407,9 +407,9 @@ pub(crate) fn name_ver_from_dep_path(
 
 /// `semver.compare` when both versions parse as semver, lexicographic
 /// otherwise — the tree ordering the TypeScript CLI uses.
-pub(crate) fn compare_versions(a: &str, b: &str) -> std::cmp::Ordering {
-    match (node_semver::Version::parse(a), node_semver::Version::parse(b)) {
-        (Ok(a), Ok(b)) => a.cmp(&b),
-        _ => a.cmp(b),
+pub(crate) fn compare_versions(left: &str, right: &str) -> std::cmp::Ordering {
+    match (node_semver::Version::parse(left), node_semver::Version::parse(right)) {
+        (Ok(left), Ok(right)) => left.cmp(&right),
+        _ => left.cmp(right),
     }
 }

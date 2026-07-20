@@ -185,8 +185,8 @@ fn lookup_dep<'l>(
 
 /// The tarball URL recorded in (or reconstructible from) a lockfile
 /// resolution. `None` for resolutions that have no tarball (git,
-/// directory, binary, …), matching the TypeScript CLI, which drops the
-/// `resolved` field for those.
+/// directory, binary, and so on), matching the TypeScript CLI, which
+/// drops the `resolved` field for those.
 fn resolved_tarball_url(
     env: &PkgInfoEnv<'_>,
     resolution: &LockfileResolution,

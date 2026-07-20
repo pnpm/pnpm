@@ -88,7 +88,8 @@ impl LoadedState {
         let lockfile = self.lockfile_to_use()?;
         let mut registries = HashMap::new();
         registries.insert("default".to_string(), DEFAULT_REGISTRY.to_string());
-        if let Some(modules_registries) = self.modules.as_ref().and_then(|m| m.registries.as_ref())
+        if let Some(modules_registries) =
+            self.modules.as_ref().and_then(|modules| modules.registries.as_ref())
         {
             for (key, url) in modules_registries {
                 registries.insert(key.clone(), url.clone());

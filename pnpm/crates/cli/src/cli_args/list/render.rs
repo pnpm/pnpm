@@ -1,8 +1,10 @@
 //! `pnpm list` output renderers (tree / parseable / JSON), mirroring
 //! the TypeScript `@pnpm/deps.inspection.list` renderers byte for byte.
 
-use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path,
+};
 
 use serde_json::{Map, Value, json};
 
@@ -192,14 +194,14 @@ fn print_label(
         name_at_version(&node.name, &node.version, color)
     } else {
         // An npm: protocol alias displays as `alias@npm:name@version`,
-        // unless the version already carries an `@` (file:, link:, …).
+        // unless the version already carries an `@` (file:, link:, ...).
         if node.version.contains('@') {
             format!("{}{}", color(&node.alias), gray(&format!("@{}", node.version)))
         } else {
             format!(
                 "{}{}",
                 color(&node.alias),
-                gray(&format!("@npm:{}@{}", node.name, node.version))
+                gray(&format!("@npm:{}@{}", node.name, node.version)),
             )
         }
     };

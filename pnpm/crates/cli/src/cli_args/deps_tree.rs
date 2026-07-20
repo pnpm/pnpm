@@ -37,13 +37,13 @@ impl TreeNodeId {
             TreeNodeId::Importer(importer_id) => {
                 format!(
                     r#"{{"type":"importer","importerId":{}}}"#,
-                    serde_json::to_string(importer_id).expect("serialize importer id")
+                    serde_json::to_string(importer_id).expect("serialize importer id"),
                 )
             }
             TreeNodeId::Package(dep_path) => {
                 format!(
                     r#"{{"type":"package","depPath":{}}}"#,
-                    serde_json::to_string(&dep_path.to_string()).expect("serialize depPath")
+                    serde_json::to_string(&dep_path.to_string()).expect("serialize depPath"),
                 )
             }
         }
@@ -52,8 +52,8 @@ impl TreeNodeId {
 
 /// One materialized node of the forward dependency tree — the shape the
 /// `list` renderers consume. Counterpart of the TypeScript
-/// `DependencyNode`.
-#[derive(Debug, Clone, Default)]
+/// [`DependencyNode`].
+#[derive(Debug, Default, Clone)]
 pub(crate) struct DependencyNode {
     pub alias: String,
     pub name: String,

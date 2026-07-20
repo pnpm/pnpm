@@ -56,7 +56,7 @@ fn load_lockfile(dir: &Path, yaml: &str) -> Lockfile {
 fn mock_lockfile(dir: &Path, packages: &[(&str, &[&str])]) -> Lockfile {
     let yaml = format!(
         "lockfileVersion: '9.0'\n\nimporters:\n  .: {{}}\n\n{}",
-        mock_packages_yaml(packages)
+        mock_packages_yaml(packages),
     );
     load_lockfile(dir, &yaml)
 }
@@ -385,7 +385,7 @@ importers:
         version: 1.0.0
 
 {}",
-        mock_packages_yaml(&[("regular-dep", &["transitive"])])
+        mock_packages_yaml(&[("regular-dep", &["transitive"])]),
     );
     let lockfile = load_lockfile(dir.path(), &yaml);
     let env = mock_env(dir.path(), &lockfile);
@@ -416,7 +416,7 @@ importers:
         version: 1.0.0
 
 {}",
-        mock_packages_yaml(&[("leaf", &[])])
+        mock_packages_yaml(&[("leaf", &[])]),
     );
     let lockfile = load_lockfile(dir.path(), &yaml);
     let env = mock_env(dir.path(), &lockfile);
@@ -528,7 +528,7 @@ importers:
         version: 1.0.0
 
 {}",
-        mock_packages_yaml(&[("a", &["shared"]), ("b", &["unique-to-b"]), ("shared", &["deep"])])
+        mock_packages_yaml(&[("a", &["shared"]), ("b", &["unique-to-b"]), ("shared", &["deep"])]),
     );
     let lockfile = load_lockfile(dir.path(), &yaml);
     let root_a = TreeNodeId::Importer("project-a".to_string());
@@ -711,7 +711,7 @@ snapshots:
       bar: 1.0.0
   peer2@1.0.0: {{}}
   qar@1.0.0: {{}}
-"
+",
     );
     let lockfile = load_lockfile(dir.path(), &yaml);
     let env = mock_env(dir.path(), &lockfile);

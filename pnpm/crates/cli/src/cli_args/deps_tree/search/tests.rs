@@ -57,12 +57,12 @@ fn finder_results_are_consulted_by_alias_and_node() {
 
     assert_eq!(
         search.matches("minimatch", "minimatch", "2.0.0", Some(&minimatch)),
-        SearchMatch::No
+        SearchMatch::No,
     );
     assert_eq!(search.matches("once", "once", "1.4.1", Some(&once)), SearchMatch::Yes);
     assert_eq!(
         search.matches("rimraf", "rimraf", "1.0.0", Some(&rimraf)),
-        SearchMatch::Message("found by finder one\nfound by finder two".to_string())
+        SearchMatch::Message("found by finder one\nfound by finder two".to_string()),
     );
     // A verdict recorded for one node does not apply to the same alias
     // resolved to a different node.

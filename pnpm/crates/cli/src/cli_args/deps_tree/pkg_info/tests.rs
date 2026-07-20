@@ -69,7 +69,7 @@ fn get_pkg_info_handles_missing_pkg_snapshot_without_crashing() {
             .join("node_modules")
             .join("missing-pkg")
             .to_string_lossy()
-            .into_owned()
+            .into_owned(),
     );
     assert_eq!(node.resolved, None);
     assert_eq!(node.dev, None);
