@@ -80,7 +80,14 @@ pub(crate) fn finder_candidates(
     for (node_id, source) in &resolved {
         push(source.name.clone(), Some(node_id), source.clone());
     }
-    for node in graph.nodes.values() {
+    for (parent_id, node) in &graph.nodes {
+        // Unresolvable `link:` edges resolve against the same base the
+        // tree materialization uses: the parent importer's directory
+        // for importer parents, the lockfile root otherwise.
+        let linked_path_base_dir = match parent_id {
+            TreeNodeId::Importer(importer_id) => env.lockfile_dir.join(importer_id),
+            TreeNodeId::Package(_) => env.lockfile_dir.clone(),
+        };
         for edge in &node.edges {
             match &edge.target {
                 Some(target @ TreeNodeId::Package(_)) => {
@@ -107,7 +114,7 @@ pub(crate) fn finder_candidates(
                         None,
                         ManifestSource {
                             path: pacquet_fs::lexical_normalize(
-                                &env.lockfile_dir.join(link_target),
+                                &linked_path_base_dir.join(link_target),
                             ),
                             integrity: None,
                             name: edge.alias.clone(),

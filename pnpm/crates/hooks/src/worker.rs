@@ -248,8 +248,6 @@ impl NodeWorker {
         serde_json::from_value(value).map_err(|err| self.exec_err(err.to_string()))
     }
 
-    /// The names of the finders exported by the pnpmfile's `finders`
-    /// object.
     pub async fn get_finder_names(&self) -> Result<Vec<String>, HookError> {
         let value = self
             .request("finders", serde_json::json!({ "target": "finders" }), Arc::new(|_| {}))
@@ -257,10 +255,9 @@ impl NodeWorker {
         serde_json::from_value(value).map_err(|err| self.exec_err(err.to_string()))
     }
 
-    /// Call the finder named `name` with a context of `alias`, `name`,
-    /// `version`, and `manifest` (exposed to the finder as a
-    /// `readManifest()` callback). Returns the finder's verdict:
-    /// `false`/`true` or a message string.
+    /// `ctx.manifest` is passed pre-read because a JavaScript callback
+    /// cannot call back over the pipe: the runner wraps it as the
+    /// `readManifest()` the finder contract expects.
     pub async fn call_finder(&self, name: &str, ctx: Value) -> Result<Value, HookError> {
         self.request(
             "finder",

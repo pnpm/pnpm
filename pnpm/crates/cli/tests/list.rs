@@ -858,11 +858,10 @@ fn list_in_long_format_appends_manifest_details() {
         ),
         "repository line missing: {output}",
     );
+    // The virtual-store dirname identifies the path line without
+    // assuming the platform's path separators.
     assert!(
-        output.contains(&format!(
-            "node_modules/.pnpm/{}@1.0.0/node_modules/{HELLO}",
-            HELLO.replace('/', "+")
-        )),
+        output.contains(&format!("{}@1.0.0", HELLO.replace('/', "+"))),
         "package path line missing: {output}",
     );
 

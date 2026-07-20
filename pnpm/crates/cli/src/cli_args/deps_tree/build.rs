@@ -21,7 +21,7 @@ use super::{
     DependencyNode, TreeNodeId,
     dep_types::detect_dep_types,
     get_tree::{GetTreeOptions, MaterializationCache, MaxDepth, get_tree},
-    graph::{BuildGraphOptions, DependencyGraph, build_dependency_graph},
+    graph::DependencyGraph,
     pkg_info::PkgInfoEnv,
     search::Searcher,
 };
@@ -152,37 +152,39 @@ pub(crate) struct BuildTreeOptions<'a> {
     pub modules_dir_opt: Option<&'a Path>,
 }
 
-/// Build the dependency hierarchy of every project in `project_dirs`,
-/// sharing one graph and one materialization cache so identical
-/// subtrees are only expanded once across projects.
-pub(crate) fn build_dependencies_tree(
-    state: &LoadedState,
-    env: &PkgInfoEnv<'_>,
+/// The importer root ids of `project_dirs` that exist in the lockfile.
+pub(crate) fn importer_root_ids(
+    lockfile: &Lockfile,
+    lockfile_dir: &Path,
     project_dirs: &[PathBuf],
-    opts: &BuildTreeOptions<'_>,
-) -> miette::Result<Vec<(PathBuf, DependenciesHierarchy)>> {
-    let lockfile = env.current_lockfile;
-
-    let root_ids: Vec<TreeNodeId> = project_dirs
+) -> Vec<TreeNodeId> {
+    project_dirs
         .iter()
-        .map(|dir| TreeNodeId::Importer(importer_id_for(opts.lockfile_dir, dir)))
+        .map(|dir| TreeNodeId::Importer(importer_id_for(lockfile_dir, dir)))
         .filter(|id| match id {
             TreeNodeId::Importer(importer_id) => {
                 lockfile.importers.contains_key(importer_id.as_str())
             }
             TreeNodeId::Package(_) => false,
         })
-        .collect();
+        .collect()
+}
 
-    let graph = build_dependency_graph(
-        &root_ids,
-        &BuildGraphOptions { lockfile, include: opts.include, only_projects: opts.only_projects },
-    );
+/// Build the dependency hierarchy of every project in `project_dirs`
+/// over a prebuilt `graph`, sharing one materialization cache so
+/// identical subtrees are only expanded once across projects.
+pub(crate) fn build_dependencies_tree(
+    state: &LoadedState,
+    env: &PkgInfoEnv<'_>,
+    graph: &DependencyGraph,
+    project_dirs: &[PathBuf],
+    opts: &BuildTreeOptions<'_>,
+) -> miette::Result<Vec<(PathBuf, DependenciesHierarchy)>> {
     let mut cache: MaterializationCache = MaterializationCache::new();
 
     let mut result = Vec::with_capacity(project_dirs.len());
     for project_dir in project_dirs {
-        let hierarchy = hierarchy_for_project(state, env, &graph, &mut cache, project_dir, opts)?;
+        let hierarchy = hierarchy_for_project(state, env, graph, &mut cache, project_dir, opts)?;
         result.push((project_dir.clone(), hierarchy));
     }
     Ok(result)

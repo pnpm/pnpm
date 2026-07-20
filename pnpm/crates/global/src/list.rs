@@ -29,9 +29,11 @@ struct ListedDep {
     path: String,
 }
 
-/// The install directories whose direct-dependency aliases match
-/// `params` (all install directories when `params` is empty). Used by
-/// `pnpm ls -g --depth <n>` to narrow the listing to one install group.
+/// The install directories with a direct-dependency alias matching
+/// `params` (any alias when `params` is empty — a group with no
+/// dependencies never matches, mirroring the TypeScript
+/// `findGlobalInstallDirs`). Used by `pnpm ls -g --depth <n>` to narrow
+/// the listing to one install group.
 pub fn find_global_install_dirs(
     global_dir: &Path,
     params: &[String],

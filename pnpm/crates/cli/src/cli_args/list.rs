@@ -10,7 +10,10 @@ use pacquet_modules_yaml::IncludedDependencies;
 
 use crate::cli_args::{
     deps_tree::{
-        build::{BuildTreeOptions, DependenciesHierarchy, LoadedState, build_dependencies_tree},
+        build::{
+            BuildTreeOptions, DependenciesHierarchy, LoadedState, build_dependencies_tree,
+            importer_root_ids,
+        },
         finders::{evaluate_finders, finder_candidates, resolve_finders},
         get_tree::MaxDepth,
         graph::{BuildGraphOptions, build_dependency_graph},
@@ -280,29 +283,20 @@ impl ListArgs {
                 hierarchies.push((project_dir.clone(), DependenciesHierarchy::default()));
             }
         } else if let Some(env) = &env {
+            let root_ids = importer_root_ids(env.current_lockfile, lockfile_dir, project_dirs);
+            let graph = build_dependency_graph(
+                &root_ids,
+                &BuildGraphOptions {
+                    lockfile: env.current_lockfile,
+                    include,
+                    only_projects: self.only_projects,
+                },
+            );
+
             let searcher = if searching {
                 let mut searcher = Searcher::from_queries(params)?;
                 if !self.find_by.is_empty() {
                     let finders = resolve_finders(config, lockfile_dir, &self.find_by).await?;
-                    let graph_root_ids: Vec<_> = project_dirs
-                        .iter()
-                        .map(|dir| {
-                            crate::cli_args::deps_tree::TreeNodeId::Importer(
-                                crate::cli_args::deps_tree::build::importer_id_for(
-                                    lockfile_dir,
-                                    dir,
-                                ),
-                            )
-                        })
-                        .collect();
-                    let graph = build_dependency_graph(
-                        &graph_root_ids,
-                        &BuildGraphOptions {
-                            lockfile: env.current_lockfile,
-                            include,
-                            only_projects: self.only_projects,
-                        },
-                    );
                     let candidates = finder_candidates(env, &graph);
                     let results = evaluate_finders(env, &finders, candidates).await?;
                     searcher.set_finder_results(results);
@@ -315,6 +309,7 @@ impl ListArgs {
             hierarchies = build_dependencies_tree(
                 &state,
                 env,
+                &graph,
                 project_dirs,
                 &BuildTreeOptions {
                     lockfile_dir,

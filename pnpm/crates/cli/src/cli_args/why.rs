@@ -9,8 +9,7 @@ use crate::{
     State,
     cli_args::{
         deps_tree::{
-            TreeNodeId,
-            build::{LoadedState, importer_id_for, read_project_manifest},
+            build::{LoadedState, importer_root_ids, read_project_manifest},
             dependents::{BuildDependentsOptions, ImporterInfo, build_dependents_tree},
             finders::{evaluate_finders, finder_candidates, resolve_finders},
             graph::{BuildGraphOptions, build_dependency_graph},
@@ -146,16 +145,7 @@ impl WhyArgs {
             }
         };
 
-        let root_ids: Vec<TreeNodeId> = project_dirs
-            .iter()
-            .map(|dir| TreeNodeId::Importer(importer_id_for(&lockfile_dir, dir)))
-            .filter(|id| match id {
-                TreeNodeId::Importer(importer_id) => {
-                    lockfile.importers.contains_key(importer_id.as_str())
-                }
-                TreeNodeId::Package(_) => false,
-            })
-            .collect();
+        let root_ids = importer_root_ids(lockfile, &lockfile_dir, &project_dirs);
         let graph = build_dependency_graph(
             &root_ids,
             &BuildGraphOptions { lockfile, include, only_projects: false },
