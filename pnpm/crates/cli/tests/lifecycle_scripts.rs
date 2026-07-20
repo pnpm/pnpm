@@ -70,7 +70,7 @@ mod workspace_yaml {
 
 mod dependency_build_scripts {
     use super::{
-        _utils::{assert_success, ndjson_records},
+        _utils::{assert_success, ndjson_records, pacquet_in},
         workspace_yaml::{allow_builds, append_workspace_yaml_key, set_strict_dep_builds},
     };
     use assert_cmd::prelude::*;
@@ -366,13 +366,7 @@ mod dependency_build_scripts {
         fs::remove_dir_all(&node_modules).expect("remove node_modules");
 
         eprintln!("Running pacquet install --frozen-lockfile...");
-        let CommandTempCwd { pacquet: frozen_pacquet, root: frozen_root, .. } =
-            CommandTempCwd::init().add_mocked_registry();
-        frozen_pacquet
-            .with_current_dir(&workspace)
-            .with_args(["install", "--frozen-lockfile"])
-            .assert()
-            .success();
+        pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
 
         eprintln!("Checking bins are linked after frozen reinstall...");
         #[cfg(unix)]
@@ -388,7 +382,7 @@ mod dependency_build_scripts {
             "scripts should not have run on the frozen reinstall either",
         );
 
-        drop((root, mock_instance, frozen_root));
+        drop((root, mock_instance));
     }
 
     #[test]
@@ -432,13 +426,7 @@ mod dependency_build_scripts {
         eprintln!("Deleting node_modules for frozen reinstall...");
         fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
 
-        let CommandTempCwd { pacquet: frozen_pacquet, root: frozen_root, .. } =
-            CommandTempCwd::init().add_mocked_registry();
-        frozen_pacquet
-            .with_current_dir(&workspace)
-            .with_args(["install", "--frozen-lockfile"])
-            .assert()
-            .success();
+        pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
 
         eprintln!("Checking denied package still did NOT run scripts after frozen reinstall...");
         assert!(!denied_pkg.join("generated-by-preinstall.js").exists());
@@ -446,7 +434,7 @@ mod dependency_build_scripts {
         eprintln!("Checking allowed package DID run scripts after frozen reinstall...");
         assert!(allowed_pkg.join("generated-by-install.js").exists());
 
-        drop((root, mock_instance, frozen_root));
+        drop((root, mock_instance));
     }
 
     #[test]
@@ -508,10 +496,7 @@ mod dependency_build_scripts {
             ],
         );
 
-        let CommandTempCwd { pacquet: frozen_pacquet, root: frozen_root, .. } =
-            CommandTempCwd::init().add_mocked_registry();
-        let frozen_output = frozen_pacquet
-            .with_current_dir(&workspace)
+        let frozen_output = pacquet_in(&workspace)
             .with_args(["--reporter=ndjson", "install", "--frozen-lockfile"])
             .output()
             .expect("run pacquet install --frozen-lockfile");
@@ -526,7 +511,7 @@ mod dependency_build_scripts {
         // skipped", so the event carries no package names this time.
         assert_eq!(ignored_scripts_package_names(&frozen_output), Vec::<String>::new());
 
-        drop((root, mock_instance, frozen_root));
+        drop((root, mock_instance));
     }
 
     #[test]
@@ -587,10 +572,7 @@ mod dependency_build_scripts {
             ],
         );
 
-        let CommandTempCwd { pacquet: frozen_pacquet, root: frozen_root, .. } =
-            CommandTempCwd::init().add_mocked_registry();
-        let frozen_output = frozen_pacquet
-            .with_current_dir(&workspace)
+        let frozen_output = pacquet_in(&workspace)
             .with_args(["--reporter=ndjson", "install", "--frozen-lockfile"])
             .output()
             .expect("run pacquet install --frozen-lockfile");
@@ -603,7 +585,7 @@ mod dependency_build_scripts {
         eprintln!("Checking pnpm:ignored-scripts is empty under explicit denial...");
         assert_eq!(ignored_scripts_package_names(&frozen_output), Vec::<String>::new());
 
-        drop((root, mock_instance, frozen_root));
+        drop((root, mock_instance));
     }
 
     #[test]
