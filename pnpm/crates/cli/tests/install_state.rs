@@ -84,7 +84,7 @@ fn pnp_install_without_symlinks_still_writes_modules_manifest_and_bin_directory(
             "--require",
             "./.pnp.cjs",
             "--eval",
-            "if (require('#x') !== 42) process.exit(1)",
+            "const api = require('module').findPnpApi(); const resolved = api.resolveRequest('#x', __filename); if (require(resolved) !== 42) process.exit(1)",
         ])
         .assert()
         .success();

@@ -169,65 +169,53 @@ impl CreateVirtualDirBySnapshot<'_> {
             ImportIndexedDirOpts::default()
         };
 
-        // `rayon::join` runs both closures in parallel on rayon's pool,
-        // returning only once both finish. `import_indexed_dir` is itself
-        // a rayon par_iter over CAS entries; `create_symlink_layout` is
-        // a small serial loop over dep refs. Overlapping them saves the
-        // symlink time from the per-snapshot critical path without any
-        // cross-thread data marshaling — both closures borrow from the
-        // current stack frame.
-        let (cas_result, symlink_result) = rayon::join(
-            || {
-                import_indexed_dir::<Reporter>(
-                    logged_methods,
-                    import_method,
-                    &save_path,
-                    cas_paths,
-                    import_opts,
+        let import_package = || {
+            import_indexed_dir::<Reporter>(
+                logged_methods,
+                import_method,
+                &save_path,
+                cas_paths,
+                import_opts,
+            )
+            .map_err(CreateVirtualDirError::ImportIndexedDir)
+        };
+        if symlink {
+            // `rayon::join` runs both closures in parallel on rayon's pool,
+            // returning only once both finish. `import_indexed_dir` is itself
+            // a rayon par_iter over CAS entries; `create_symlink_layout` is
+            // a small serial loop over dep refs.
+            let (cas_result, symlink_result) = rayon::join(import_package, || {
+                create_symlink_layout(
+                    snapshot.dependencies.as_ref(),
+                    snapshot.optional_dependencies.as_ref(),
+                    &package_key.name,
+                    skipped,
+                    layout,
+                    &virtual_node_modules_dir,
                 )
-                .map_err(CreateVirtualDirError::ImportIndexedDir)
-            },
-            || {
-                if symlink {
-                    create_symlink_layout(
-                        snapshot.dependencies.as_ref(),
-                        snapshot.optional_dependencies.as_ref(),
-                        &package_key.name,
-                        skipped,
-                        layout,
-                        &virtual_node_modules_dir,
-                    )
-                    .map_err(CreateVirtualDirError::SymlinkPackage)
-                } else {
-                    for alias in snapshot
-                        .dependencies
+                .map_err(CreateVirtualDirError::SymlinkPackage)
+            });
+            cas_result?;
+            symlink_result?;
+        } else {
+            import_package()?;
+            for alias in
+                snapshot.dependencies.iter().flat_map(|dependencies| dependencies.keys()).chain(
+                    snapshot
+                        .optional_dependencies
                         .iter()
-                        .flat_map(|dependencies| dependencies.keys())
-                        .chain(
-                            snapshot
-                                .optional_dependencies
-                                .iter()
-                                .flat_map(|dependencies| dependencies.keys()),
-                        )
-                    {
-                        if *alias != package_key.name {
-                            remove_obsolete_child(&virtual_node_modules_dir, alias)?;
-                        }
-                    }
-                    Ok(())
+                        .flat_map(|dependencies| dependencies.keys()),
+                )
+            {
+                if *alias != package_key.name {
+                    remove_obsolete_child(&virtual_node_modules_dir, alias)?;
                 }
-            },
-        );
-        cas_result?;
-        symlink_result?;
+            }
+        }
 
-        // Unlink children the package no longer depends on. Run after
-        // the join rather than before it: the removed aliases are
-        // disjoint from the wanted set `create_symlink_layout` just
-        // linked, and from the package's own `node_modules/<self>`
-        // directory the CAS import populates, so the end state matches
-        // a remove-then-link ordering without racing either parallel
-        // task.
+        // Unlink children the package no longer depends on after the
+        // package has materialized. The removed aliases are disjoint
+        // from the package's own `node_modules/<self>` directory.
         for alias in removed_aliases {
             if *alias == package_key.name {
                 continue;

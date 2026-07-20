@@ -61,6 +61,14 @@ function issuerPackage(issuer) {{
   );
 }}
 
+function moduleForIssuer(issuer) {{
+  const filename = path.resolve(issuer || __filename);
+  const parent = new Module(filename);
+  parent.filename = filename;
+  parent.paths = Module._nodeModulePaths(path.dirname(filename));
+  return parent;
+}}
+
 function resolveToUnqualified(request, issuer) {{
   const name = packageName(request);
   if (name === null || request.startsWith('node:') || Module.builtinModules.includes(name)) return null;
@@ -85,8 +93,9 @@ function resolveToUnqualified(request, issuer) {{
 
 function resolveRequest(request, issuer, options) {{
   const unqualified = resolveToUnqualified(request, issuer);
-  if (unqualified === null) return originalResolveFilename.call(Module, request, {{ filename: issuer }}, false, options);
-  return originalResolveFilename.call(Module, unqualified, {{ filename: issuer }}, false, options);
+  const parent = moduleForIssuer(issuer);
+  if (unqualified === null) return originalResolveFilename.call(Module, request, parent, false, options);
+  return originalResolveFilename.call(Module, unqualified, parent, false, options);
 }}
 
 function setup() {{
