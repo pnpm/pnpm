@@ -295,8 +295,11 @@ impl CreateVirtualStore<'_> {
 
         let needs_build_marker_source =
             if !config.frozen_store && layout.enable_global_virtual_store() {
-                Some(tempfile::NamedTempFile::new().map_err(|error| {
-                    CreateVirtualStoreError::CreateBuildMarker { path: std::env::temp_dir(), error }
+                Some(tempfile::NamedTempFile::new_in(store_dir.root()).map_err(|error| {
+                    CreateVirtualStoreError::CreateBuildMarker {
+                        path: store_dir.root().to_path_buf(),
+                        error,
+                    }
                 })?)
             } else {
                 None
