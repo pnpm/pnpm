@@ -300,6 +300,14 @@ pub(crate) fn importer_id_for(lockfile_dir: &Path, project_dir: &Path) -> String
     pacquet_workspace::importer_id_from_root_dir(lockfile_dir, project_dir)
 }
 
+/// The on-disk directory of a lockfile importer key, or `None` for a
+/// key that cannot be safely joined (absolute, drive-prefixed, or
+/// `..`-traversing — a malformed or hostile lockfile).
+pub(crate) fn safe_importer_dir(lockfile_dir: &Path, importer_id: &str) -> Option<PathBuf> {
+    pacquet_package_manager::validate_importer_id(importer_id).ok()?;
+    Some(pacquet_package_manager::importer_root_dir(lockfile_dir, importer_id))
+}
+
 /// Resolve symlinks in the deepest existing ancestor of `path`,
 /// re-appending the missing tail (counterpart of the `realpath-missing`
 /// package).

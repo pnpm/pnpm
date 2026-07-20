@@ -126,7 +126,10 @@ fn materialize_children(
 
     let child_tree_max_depth = max_depth.decrement();
     let linked_path_base_dir = match parent_id {
-        TreeNodeId::Importer(importer_id) => opts.env.lockfile_dir.join(importer_id),
+        TreeNodeId::Importer(importer_id) => {
+            super::build::safe_importer_dir(&opts.env.lockfile_dir, importer_id)
+                .unwrap_or_else(|| opts.env.lockfile_dir.clone())
+        }
         TreeNodeId::Package(_) => opts.env.lockfile_dir.clone(),
     };
 

@@ -9,7 +9,7 @@ use crate::{
     State,
     cli_args::{
         deps_tree::{
-            build::{LoadedState, importer_root_ids, read_project_manifest},
+            build::{LoadedState, importer_root_ids, read_project_manifest, safe_importer_dir},
             dependents::{BuildDependentsOptions, ImporterInfo, build_dependents_tree},
             finders::{evaluate_finders, finder_candidates, resolve_finders},
             graph::{BuildGraphOptions, build_dependency_graph},
@@ -64,6 +64,10 @@ pub struct WhyArgs {
     pub no_optional: bool,
 
     /// Exclude peer dependencies.
+    ///
+    /// Accepted but not applied, matching the TypeScript CLI: its `why`
+    /// command declares the flag without forwarding it to the
+    /// dependents-tree builder.
     #[clap(long)]
     pub exclude_peers: bool,
 
@@ -122,7 +126,12 @@ impl WhyArgs {
 
         let mut importer_info: HashMap<String, ImporterInfo> = HashMap::new();
         for importer_id in lockfile.importers.keys() {
-            let manifest = read_project_manifest(&lockfile_dir.join(importer_id.as_str()));
+            // A key that cannot be safely joined (a malformed or
+            // hostile lockfile) is never dereferenced; the raw key
+            // still names the importer in the output.
+            let manifest = safe_importer_dir(&lockfile_dir, importer_id)
+                .map(|importer_dir| read_project_manifest(&importer_dir))
+                .unwrap_or_default();
             let name = manifest.name.unwrap_or_else(|| {
                 if importer_id == "." {
                     "the root project".to_string()

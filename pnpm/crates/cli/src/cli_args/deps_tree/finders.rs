@@ -85,7 +85,10 @@ pub(crate) fn finder_candidates(
         // tree materialization uses: the parent importer's directory
         // for importer parents, the lockfile root otherwise.
         let linked_path_base_dir = match parent_id {
-            TreeNodeId::Importer(importer_id) => env.lockfile_dir.join(importer_id),
+            TreeNodeId::Importer(importer_id) => {
+                super::build::safe_importer_dir(&env.lockfile_dir, importer_id)
+                    .unwrap_or_else(|| env.lockfile_dir.clone())
+            }
             TreeNodeId::Package(_) => env.lockfile_dir.clone(),
         };
         for edge in &node.edges {
@@ -96,11 +99,16 @@ pub(crate) fn finder_candidates(
                     }
                 }
                 Some(target @ TreeNodeId::Importer(importer_id)) => {
+                    let Some(importer_dir) =
+                        super::build::safe_importer_dir(&env.lockfile_dir, importer_id)
+                    else {
+                        continue;
+                    };
                     push(
                         edge.alias.clone(),
                         Some(target),
                         ManifestSource {
-                            path: env.lockfile_dir.join(importer_id),
+                            path: importer_dir,
                             integrity: None,
                             name: edge.alias.clone(),
                             version: edge.ref_display.clone(),
