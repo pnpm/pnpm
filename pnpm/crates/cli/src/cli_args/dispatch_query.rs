@@ -119,14 +119,18 @@ pub(super) fn audit<'a>(ctx: &RunCtx<'a>, args: AuditArgs) -> miette::Result<Com
 }
 
 pub(super) fn list<'a>(ctx: &RunCtx<'a>, args: ListArgs) -> miette::Result<CommandFuture<'a>> {
-    args.run((ctx.config)()?, ctx.dir, ctx.recursive)?;
-    Ok(Box::pin(std::future::ready(Ok(()))))
+    let config = (ctx.config)()?;
+    let dir = ctx.dir;
+    let recursive = ctx.recursive;
+    Ok(Box::pin(async move { args.run(config, dir, recursive).await }))
 }
 
 pub(super) fn ll<'a>(ctx: &RunCtx<'a>, mut args: ListArgs) -> miette::Result<CommandFuture<'a>> {
     args.long = true;
-    args.run((ctx.config)()?, ctx.dir, ctx.recursive)?;
-    Ok(Box::pin(std::future::ready(Ok(()))))
+    let config = (ctx.config)()?;
+    let dir = ctx.dir;
+    let recursive = ctx.recursive;
+    Ok(Box::pin(async move { args.run(config, dir, recursive).await }))
 }
 
 pub(super) fn licenses<'a>(

@@ -363,6 +363,14 @@ impl crate::PnpmfileHooks for NodeJsHooks {
             })
             .collect())
     }
+
+    async fn get_finder_names(&self) -> Result<Vec<String>, HookError> {
+        self.worker().await?.get_finder_names().await
+    }
+
+    async fn run_finder(&self, finder_name: &str, ctx: Value) -> Result<Value, HookError> {
+        self.worker().await?.call_finder(finder_name, ctx).await
+    }
 }
 
 pub struct NodeJsCustomResolver {

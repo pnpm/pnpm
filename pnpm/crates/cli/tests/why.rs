@@ -38,9 +38,10 @@ fn why_fails_without_package_name() {
     assert!(!output.status.success(), "why without args should fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("requires a package name"),
+        stderr.contains("requires the package name or --find-by=<finder-name>"),
         "should show error about missing package name: {stderr}",
     );
+    assert!(stderr.contains("ERR_PNPM_MISSING_PACKAGE_NAME"), "stderr: {stderr}");
 }
 
 #[test]
@@ -189,7 +190,7 @@ fn why_from_workspace_member_stays_within_forward_workspace_link_closure() {
     let linked_stdout = String::from_utf8_lossy(&linked_output.stdout);
     assert!(linked_stdout.contains(PKG), "linked dependency should be reported: {linked_stdout}");
     assert!(
-        linked_stdout.contains("packages/linked"),
+        linked_stdout.contains("linked@1.0.0"),
         "the forward workspace-link closure should be retained: {linked_stdout}",
     );
 }
@@ -267,7 +268,267 @@ fn recursive_why_includes_all_workspace_projects() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains(HELLO), "recursive why should include sibling dependencies: {stdout}");
     assert!(
-        stdout.contains("packages/sibling"),
+        stdout.contains("sibling@1.0.0"),
         "recursive why should include the sibling importer: {stdout}",
     );
+}
+
+// --- ports of the TypeScript why command tests --------------------------------
+//
+// Source: pnpm11/deps/inspection/commands/test/listing/why.ts.
+
+/// Port of upstream's `"why" should show reverse dependency tree for a
+/// non-direct dependency`.
+#[test]
+fn why_shows_reverse_dependency_tree_for_a_non_direct_dependency() {
+    let (_root, workspace, _anchor) = setup();
+    fs::write(
+        workspace.join("package.json"),
+        format!(
+            r#"{{ "name": "project", "version": "0.0.0", "dependencies": {{ "{DEP}": "100.0.0", "{PKG}": "100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write package.json");
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output = pacquet(&workspace, ["why", "--prod", DEP]).output().expect("run pacquet why");
+    assert!(output.status.success(), "why should succeed: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines[0], format!("{DEP}@100.0.0"), "root is the searched package: {stdout}");
+    assert!(
+        lines.iter().any(|line| line.contains("project@0.0.0")),
+        "shows project as a direct dependent: {stdout}",
+    );
+    assert!(
+        lines.iter().any(|line| line.contains(&format!("{PKG}@100.0.0"))),
+        "shows the transitive path: {stdout}",
+    );
+}
+
+/// Port of upstream's `"why" should find packages by alias name when
+/// using npm: protocol`.
+#[test]
+fn why_finds_packages_by_alias_name_when_using_npm_protocol() {
+    let (_root, workspace, _anchor) = setup();
+    fs::write(
+        workspace.join("package.json"),
+        format!(
+            r#"{{ "name": "project", "version": "0.0.0", "dependencies": {{ "foo": "npm:{PKG}@100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write package.json");
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output = pacquet(&workspace, ["why", "--prod", "foo"]).output().expect("run pacquet why");
+    assert!(output.status.success(), "why should succeed: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines[0], format!("{PKG}@100.0.0"), "root shows the canonical name: {stdout}");
+    assert!(
+        lines.iter().any(|line| line.contains("project@0.0.0")),
+        "shows the project as dependent: {stdout}",
+    );
+}
+
+/// Port of upstream's `"why" should find packages by actual package
+/// name when using npm: protocol`.
+#[test]
+fn why_finds_packages_by_actual_name_when_using_npm_protocol() {
+    let (_root, workspace, _anchor) = setup();
+    fs::write(
+        workspace.join("package.json"),
+        format!(
+            r#"{{ "name": "project", "version": "0.0.0", "dependencies": {{ "foo": "npm:{PKG}@100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write package.json");
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output = pacquet(&workspace, ["why", "--prod", PKG]).output().expect("run pacquet why");
+    assert!(output.status.success(), "why should succeed: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines[0], format!("{PKG}@100.0.0"), "root shows the canonical name: {stdout}");
+    assert!(
+        lines.iter().any(|line| line.contains("project@0.0.0")),
+        "shows the project as dependent: {stdout}",
+    );
+}
+
+/// Port of upstream's `"why" should display parseable output`.
+#[test]
+fn why_displays_parseable_output() {
+    let (_root, workspace, _anchor) = setup();
+    fs::write(
+        workspace.join("package.json"),
+        format!(
+            r#"{{ "name": "project", "version": "0.0.0", "dependencies": {{ "{DEP}": "100.0.0", "{PKG}": "100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write package.json");
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output = pacquet(&workspace, ["why", "--parseable", "--prod", DEP])
+        .output()
+        .expect("run pacquet why");
+    assert!(output.status.success(), "why should succeed: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert!(
+        lines.contains(&format!("project@0.0.0 > {DEP}@100.0.0").as_str()),
+        "direct path is importer-first: {stdout}",
+    );
+    assert!(
+        lines.contains(&format!("project@0.0.0 > {PKG}@100.0.0 > {DEP}@100.0.0").as_str()),
+        "transitive path is importer-first: {stdout}",
+    );
+}
+
+/// Port of upstream's `"why" should display finder message in tree
+/// output`.
+#[test]
+fn why_displays_finder_message_in_tree_output() {
+    let (_root, workspace, _anchor) = setup();
+    write_finder_pnpmfile(&workspace, "'Found: has 1 dep'");
+    write_manifest(&workspace, &format!(r#"{{ "{PKG}": "100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output =
+        pacquet(&workspace, ["why", "--find-by=test-finder"]).output().expect("run pacquet why");
+    assert!(output.status.success(), "why should succeed: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines[0], format!("{PKG}@100.0.0"), "stdout: {stdout}");
+    assert_eq!(lines[1], "\u{2502} Found: has 1 dep", "stdout: {stdout}");
+}
+
+/// Port of upstream's `"why" should display finder message in JSON
+/// output`.
+#[test]
+fn why_displays_finder_message_in_json_output() {
+    let (_root, workspace, _anchor) = setup();
+    write_finder_pnpmfile(&workspace, "'custom message'");
+    write_manifest(&workspace, &format!(r#"{{ "{PKG}": "100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output = pacquet(&workspace, ["why", "--json", "--find-by=test-finder"])
+        .output()
+        .expect("run pacquet why");
+    assert!(output.status.success(), "why should succeed: {output:?}");
+    let parsed: serde_json::Value = serde_json::from_slice(&output.stdout).expect("parse why JSON");
+    let matched = parsed
+        .as_array()
+        .expect("array output")
+        .iter()
+        .find(|result| result["name"] == PKG)
+        .expect("the finder-matched package is present");
+    assert_eq!(matched["searchMessage"], "custom message");
+}
+
+/// Port of upstream's `"why" finder can read manifest from store`.
+#[test]
+fn why_finder_can_read_manifest_from_store() {
+    let (_root, workspace, _anchor) = setup();
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        format!(
+            r"
+module.exports = {{ finders: {{ 'manifest-reader': (ctx) => {{
+  const manifest = ctx.readManifest()
+  if (manifest && manifest.name === '{PKG}') {{
+    return 'description: ' + (manifest.description ?? 'none')
+  }}
+  return false
+}} }} }}
+",
+        ),
+    )
+    .expect("write .pnpmfile.cjs");
+    write_manifest(&workspace, &format!(r#"{{ "{PKG}": "100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output = pacquet(&workspace, ["why", "--json", "--find-by=manifest-reader"])
+        .output()
+        .expect("run pacquet why");
+    assert!(output.status.success(), "why should succeed: {output:?}");
+    let parsed: serde_json::Value = serde_json::from_slice(&output.stdout).expect("parse why JSON");
+    let matched = parsed
+        .as_array()
+        .expect("array output")
+        .iter()
+        .find(|result| result["name"] == PKG)
+        .expect("the finder-matched package is present");
+    let message = matched["searchMessage"].as_str().expect("searchMessage string");
+    assert!(message.starts_with("description: "), "searchMessage: {message}");
+}
+
+/// Port of upstream's `"why" should find file: protocol local packages`.
+#[test]
+fn why_finds_file_protocol_local_packages() {
+    let (_root, workspace, _anchor) = setup();
+    let local_pkg = workspace.join("local-pkg");
+    fs::create_dir_all(&local_pkg).expect("create local-pkg");
+    fs::write(local_pkg.join("package.json"), r#"{ "name": "my-local-pkg", "version": "1.0.0" }"#)
+        .expect("write local-pkg package.json");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "project", "version": "0.0.0", "dependencies": { "my-alias": "file:./local-pkg" } }"#,
+    )
+    .expect("write package.json");
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output =
+        pacquet(&workspace, ["why", "--prod", "my-local-pkg"]).output().expect("run pacquet why");
+    assert!(output.status.success(), "why should succeed: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert!(lines[0].contains("my-local-pkg"), "finds the local package: {stdout}");
+    assert!(
+        lines.iter().any(|line| line.contains("project@0.0.0")),
+        "shows the project as dependent: {stdout}",
+    );
+}
+
+/// The importer leaf carries the dependency field it declares the chain
+/// in, and the output ends with the `Found …` summary (mirrors the
+/// `renderDependentsTree` contract exercised end to end).
+#[test]
+fn why_marks_importer_dep_field_and_prints_summary() {
+    let (_root, workspace, _anchor) = setup();
+    fs::write(
+        workspace.join("package.json"),
+        format!(
+            r#"{{ "name": "project", "version": "0.0.0", "devDependencies": {{ "{PKG}": "100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write package.json");
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output = pacquet(&workspace, ["why", PKG]).output().expect("run pacquet why");
+    assert!(output.status.success(), "why should succeed: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(
+        stdout,
+        format!(
+            "{PKG}@100.0.0\n\u{2514}\u{2500}\u{2500} project@0.0.0 (devDependencies)\n\nFound 1 version of {PKG}\n"
+        ),
+    );
+}
+
+fn write_finder_pnpmfile(workspace: &Path, message_expr: &str) {
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        format!(
+            r"
+module.exports = {{ finders: {{ 'test-finder': (ctx) => {{
+  if (ctx.name === '{PKG}') {{
+    return {message_expr}
+  }}
+  return false
+}} }} }}
+",
+        ),
+    )
+    .expect("write .pnpmfile.cjs");
 }

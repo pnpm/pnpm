@@ -1001,3 +1001,49 @@ Pacquet's port lives in `pacquet-auth-commands` (`login` module) with the CLI ad
 - [x] `TypeScript repo: pnpm11/auth/commands/test/login.test.ts:635` `should not trigger OTP for 401 without www-authenticate otp header` — `login::tests::should_not_trigger_otp_for_401_without_www_authenticate_otp_header`.
 - [x] `TypeScript repo: pnpm11/auth/commands/test/login.test.ts:673` `should succeed when config file does not exist (ENOENT)` — `login::tests::should_succeed_when_config_file_does_not_exist`.
 - [x] `TypeScript repo: pnpm11/auth/commands/test/login.test.ts:711` `should propagate non-ENOENT errors from readIniFile` — `login::tests::should_propagate_non_enoent_errors_from_reading_auth_ini`.
+
+## `pnpm list` / `pnpm why` (deps/inspection)
+
+The `list`/`why` parity port. TypeScript sources live under
+`pnpm11/deps/inspection/{commands,list,tree-builder}` plus the CLI-level
+`pnpm11/pnpm/test/list.ts`.
+
+CLI-level ports (`crates/cli/tests/list.rs`, `crates/cli/tests/why.rs`):
+
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/index.ts:14` `listing packages` — `listing_packages_prints_tree_with_legend_and_summary`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/index.ts:82` `listing packages of a project that has an external pnpm-lock.yaml` — `listing_packages_of_a_project_with_an_external_lockfile`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/index.ts:176` `listing packages should not fail on package that has local file directory in dependencies` — `listing_packages_with_local_file_directory_dependency`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/index.ts:212` `listing packages with --lockfile-only` — `listing_packages_with_lockfile_only`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/index.ts:283` `listing packages with --lockfile-only in JSON format` — `listing_packages_with_lockfile_only_in_json_format`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/index.ts:306` `listing specific package with --lockfile-only` — `listing_specific_package_with_lockfile_only`.
+- [ ] `TypeScript repo: deps/inspection/commands/test/listing/index.ts:121` `list on a project with skipped optional dependencies` — upstream keeps this `test.skip`-ped; not ported.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/json.ts:8` `correctly report the value of the private field when arguments are provided` — `list_json_reports_private_field_when_arguments_are_provided`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/recursive.ts:77` `recursive list with sharedWorkspaceLockfile` — `recursive_list_renders_workspace_projects_in_one_pass` (the real CLI takes the shared-lockfile single-render path, so the port pins one legend and one combined summary).
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/recursive.ts:265` `pnpm recursive why should fail if no package name was provided` — covered by `why_fails_without_package_name` (same handler-level gate).
+- [x] `TypeScript repo: deps/inspection/list/test/index.ts:826` `--only-projects shows only projects` — `list_only_projects_shows_only_projects` (end-to-end).
+- [x] `TypeScript repo: deps/inspection/list/test/index.ts:237` `list in long format` — `list_in_long_format_appends_manifest_details` (also pins `ll` ≡ `list --long`).
+- [x] `TypeScript repo: pnpm/test/list.ts:10` `ls --filter=not-exist --json should prints an empty array` — `ls_filter_not_exist_json_prints_an_empty_array`.
+- [x] `TypeScript repo: pnpm/test/list.ts:30` `ls should load a finder from .pnpmfile.cjs` — `ls_loads_a_finder_from_pnpmfile` (plus the pacquet-only `ls_with_unknown_finder_fails` pinning `ERR_PNPM_FINDER_NOT_FOUND`).
+- [x] `TypeScript repo: pnpm/test/list.ts:49` `pnpm list returns correct paths with global virtual store` — `list_returns_correct_paths_with_global_virtual_store`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/why.ts:14` `pnpm why should fail if no package name was provided` — `why_fails_without_package_name`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/why.ts:31` `"why" should show reverse dependency tree for a non-direct dependency` — `why_shows_reverse_dependency_tree_for_a_non_direct_dependency`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/why.ts:57` `"why" should find packages by alias name when using npm: protocol` — `why_finds_packages_by_alias_name_when_using_npm_protocol`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/why.ts:79` `"why" should find packages by actual package name when using npm: protocol` — `why_finds_packages_by_actual_name_when_using_npm_protocol`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/why.ts:100` `"why" should display parseable output` — `why_displays_parseable_output`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/why.ts:124` `"why" should display finder message in tree output` — `why_displays_finder_message_in_tree_output`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/why.ts:152` `"why" should display finder message in JSON output` — `why_displays_finder_message_in_json_output`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/why.ts:182` `"why" finder can read manifest from store` — `why_finder_can_read_manifest_from_store`.
+- [x] `TypeScript repo: deps/inspection/commands/test/listing/why.ts:215` `"why" should find file: protocol local packages` — `why_finds_file_protocol_local_packages`.
+
+Renderer-level ports (`crates/cli/src/cli_args/why/tests.rs`, `crates/cli/src/cli_args/list/tests.rs`):
+
+- [x] `TypeScript repo: deps/inspection/list/test/renderDependentsTree.test.ts` — all 21 tests (renderDependentsTree 6, whySummary 6, renderDependentsJson 5, renderDependentsParseable 4) ported one-to-one into `why::tests`.
+- [x] `TypeScript repo: deps/inspection/list/test/index.ts` renderer-level tests — `print empty`, `don't print empty`, `unsaved dependencies are marked`, `list with many dependencies`, `sort list items`, the four npm:/file: alias-label tests, and the three parseable-search dedup tests ported into `list::tests`.
+
+Tree-builder ports (`crates/cli/src/cli_args/deps_tree/{get_tree,search,pkg_info}/tests.rs`):
+
+- [x] `TypeScript repo: deps/inspection/tree-builder/test/getTree.test.ts` — all 24 tests (depth, cache regression, fully-visited cache, circular detection, linked dependencies, search-with-dedup, multi-root graph, cross-call dedup, exclude peers) ported one-to-one.
+- [x] `TypeScript repo: deps/inspection/tree-builder/test/createPackagesSearcher.spec.ts:` `packages searcher` — ported as `packages_searcher`; the `2 finders` case is covered by the Rust-only `finder_results_are_consulted_by_alias_and_node` + `queries_are_checked_before_finder_results` (finders are JS callbacks pre-evaluated through the pnpmfile worker; end-to-end finder coverage lives in the CLI-level ports above).
+- [x] `TypeScript repo: deps/inspection/tree-builder/test/getPkgInfo.test.ts:` `getPkgInfo handles missing pkgSnapshot without crashing` — ported as `get_pkg_info_handles_missing_pkg_snapshot_without_crashing` (asserts the alias/ref fallbacks; pacquet models "missing" through them rather than an `isMissing` field).
+- [ ] `TypeScript repo: deps/inspection/tree-builder/test/buildDependentsTree.test.ts` `nameFormatter` group (3 tests) — not ported: no pnpm command passes a `nameFormatter`, so pacquet's `build_dependents_tree` has no formatter parameter; the `displayName` rendering it feeds is covered by the renderDependentsTree ports.
+- [ ] `TypeScript repo: deps/inspection/list/test/manyDeps.ts` `list all deps in a project with many dependencies without failing with an OOM error` — the guard it exercises is the materialization dedup cache, pinned directly by the cross-call dedup ports.

@@ -16,6 +16,7 @@ pub mod create;
 pub mod dedupe;
 pub mod deploy;
 pub mod deprecate;
+pub(crate) mod deps_tree;
 pub mod dist_tag;
 pub mod dlx;
 pub mod docs;
