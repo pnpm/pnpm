@@ -201,6 +201,14 @@ pub enum CreateVirtualStoreError {
     )]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_MISSING_PACKAGES_SECTION))]
     MissingPackagesSection,
+
+    #[display("Failed to create the global virtual store build marker source at {path:?}: {error}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_CREATE_BUILD_MARKER))]
+    CreateBuildMarker {
+        path: PathBuf,
+        #[error(source)]
+        error: std::io::Error,
+    },
 }
 
 impl CreateVirtualStore<'_> {
@@ -283,6 +291,16 @@ impl CreateVirtualStore<'_> {
         // directory creation is attempted under its root.
         if !config.frozen_store {
             init_store_dir_best_effort(store_dir).await;
+        }
+
+        let needs_build_marker_source = layout
+            .enable_global_virtual_store()
+            .then(|| store_dir.root().join(".pnpm-needs-build-marker"));
+        if let Some(path) = &needs_build_marker_source {
+            fs::write(path, "").map_err(|error| CreateVirtualStoreError::CreateBuildMarker {
+                path: path.clone(),
+                error,
+            })?;
         }
 
         let open_store_index = if config.frozen_store {
@@ -429,7 +447,7 @@ impl CreateVirtualStore<'_> {
                     .join("node_modules")
                     .join(snapshot_key.name.to_string());
                 if dir.is_dir() {
-                    false
+                    gvs_slot_needs_rebuild(layout, allow_build_policy, snapshot_key)
                 } else {
                     Reporter::emit(&LogEvent::BrokenModules(BrokenModulesLog {
                         level: LogLevel::Debug,
@@ -472,6 +490,13 @@ impl CreateVirtualStore<'_> {
                 .map(|key| (snapshot_key, snapshot, key))
             })
             .collect::<Result<_, _>>()?;
+        let marker_rebuilds: HashSet<PackageKey> = snapshot_entries
+            .iter()
+            .filter(|(snapshot_key, _, _)| {
+                gvs_slot_needs_rebuild(layout, allow_build_policy, snapshot_key)
+            })
+            .map(|(snapshot_key, _, _)| (*snapshot_key).clone())
+            .collect();
 
         // Cache keys for the *skipped* snapshots (i.e. snapshots
         // present in `snapshots` but absent from `snapshot_entries`).
@@ -615,7 +640,8 @@ impl CreateVirtualStore<'_> {
                     .entry(snapshot_key.without_peer())
                     .or_insert_with(|| std::sync::Arc::clone(manifest));
             }
-            if let Some(cache_key) = cache_key.as_deref()
+            if !marker_rebuilds.contains(*snapshot_key)
+                && let Some(cache_key) = cache_key.as_deref()
                 && let Some(maps) = prefetched_side_effects.get(cache_key)
             {
                 side_effects_maps_by_snapshot
@@ -641,7 +667,8 @@ impl CreateVirtualStore<'_> {
             }
             // Peer-variants of the same package share the same
             // store-index row → the same `Arc<_>`. Cheap to share.
-            if let Some(cache_key) = cache_key.as_deref()
+            if !marker_rebuilds.contains(*snapshot_key)
+                && let Some(cache_key) = cache_key.as_deref()
                 && let Some(maps) = prefetched_side_effects.get(cache_key)
             {
                 side_effects_maps_by_snapshot
@@ -657,7 +684,16 @@ impl CreateVirtualStore<'_> {
             // a resolve-time prefetch already emitted it.
             match cache_key.as_deref().and_then(|key| prefetched.get(key).map(|paths| (key, paths)))
             {
-                Some((key, cas_paths)) => warm.push((snapshot_key, snapshot, cas_paths, key)),
+                Some((key, cas_paths)) => warm.push((
+                    snapshot_key,
+                    snapshot,
+                    cas_paths,
+                    key,
+                    snapshot_needs_build_marker(
+                        snapshot_key,
+                        requires_build_by_snapshot.get(*snapshot_key).copied().unwrap_or(false),
+                    ),
+                )),
                 None => cold.push((snapshot_key, snapshot)),
             }
         }
@@ -680,7 +716,7 @@ impl CreateVirtualStore<'_> {
         // the cold-batch fetch finishes.
         let mut cas_paths_by_pkg_id: Option<CasPathsByPkgId> = is_hoisted.then(|| {
             let mut map = CasPathsByPkgId::with_capacity(warm.len());
-            for (snapshot_key, _snapshot, cas_paths, _cache_key) in &warm {
+            for (snapshot_key, _snapshot, cas_paths, _cache_key, _needs_build_marker) in &warm {
                 // `get_pkg_id_with_patch_hash` strips the peer-graph
                 // suffix but keeps `(patch_hash=...)` so patched
                 // packages share one CAS-paths entry across their peer
@@ -718,7 +754,7 @@ impl CreateVirtualStore<'_> {
             // `pnpm:progress imported`-style updates render the warm
             // hits — the link work just happens later, in
             // `link_hoisted_modules`.
-            for (snapshot_key, _, _, cache_key) in &warm {
+            for (snapshot_key, _, _, cache_key, _) in &warm {
                 let package_id = snapshot_key.without_peer().to_string();
                 emit_warm_snapshot_progress::<Reporter>(
                     &package_id,
@@ -734,12 +770,17 @@ impl CreateVirtualStore<'_> {
             // link work is routed into the hoisted linker instead.
             let warm_slots: Vec<SlotLink<'_>> = warm
                 .iter()
-                .map(|(snapshot_key, snapshot, cas_paths, cache_key)| SlotLink {
-                    snapshot_key,
-                    snapshot,
-                    cas_paths: cas_paths.as_ref(),
-                    warm_cache_key: Some(cache_key),
-                    removed_aliases: removed_aliases_for(&removed_aliases_by_key, snapshot_key),
+                .map(|(snapshot_key, snapshot, cas_paths, cache_key, needs_build_marker)| {
+                    SlotLink {
+                        snapshot_key,
+                        snapshot,
+                        cas_paths: cas_paths.as_ref(),
+                        warm_cache_key: Some(cache_key),
+                        needs_build_marker_source: needs_build_marker
+                            .then_some(needs_build_marker_source.as_deref())
+                            .flatten(),
+                        removed_aliases: removed_aliases_for(&removed_aliases_by_key, snapshot_key),
+                    }
                 })
                 .collect();
             link_slots_parallel::<Reporter>(LinkSlotsParallel {
@@ -885,11 +926,17 @@ impl CreateVirtualStore<'_> {
         if !is_hoisted && !cold_cas_paths.is_empty() {
             let cold_slots: Vec<SlotLink<'_>> = cold_cas_paths
                 .iter()
-                .map(|(snapshot_key, snapshot, cas_paths, _requires_build)| SlotLink {
+                .map(|(snapshot_key, snapshot, cas_paths, requires_build)| SlotLink {
                     snapshot_key,
                     snapshot,
                     cas_paths,
                     warm_cache_key: None,
+                    needs_build_marker_source: snapshot_needs_build_marker(
+                        snapshot_key,
+                        *requires_build,
+                    )
+                    .then_some(needs_build_marker_source.as_deref())
+                    .flatten(),
                     removed_aliases: removed_aliases_for(&removed_aliases_by_key, snapshot_key),
                 })
                 .collect();
@@ -1014,11 +1061,35 @@ fn requires_build_from_cas_paths(cas_paths: &HashMap<String, PathBuf>) -> bool {
     manifest_requires_build(&manifest)
 }
 
+fn snapshot_needs_build_marker(snapshot_key: &PackageKey, requires_build: bool) -> bool {
+    requires_build || crate::snapshot_has_patch(snapshot_key)
+}
+
+fn gvs_slot_needs_rebuild(
+    layout: &crate::VirtualStoreLayout,
+    allow_build_policy: &crate::AllowBuildPolicy,
+    snapshot_key: &PackageKey,
+) -> bool {
+    if !layout.enable_global_virtual_store() {
+        return false;
+    }
+    let can_build = crate::snapshot_has_patch(snapshot_key)
+        || allow_build_policy.check(&snapshot_key.without_peer().to_string()) == Some(true);
+    can_build
+        && layout
+            .slot_dir(snapshot_key)
+            .join("node_modules")
+            .join(snapshot_key.name.to_string())
+            .join(crate::NEEDS_BUILD_MARKER)
+            .is_file()
+}
+
 struct SlotLink<'a> {
     snapshot_key: &'a PackageKey,
     snapshot: &'a SnapshotEntry,
     cas_paths: &'a HashMap<String, PathBuf>,
     warm_cache_key: Option<&'a str>,
+    needs_build_marker_source: Option<&'a Path>,
     /// Child aliases dropped since the previous install, threaded into
     /// [`crate::CreateVirtualDirBySnapshot::removed_aliases`] so their
     /// stale symlinks are unlinked during the link pass.
@@ -1081,6 +1152,7 @@ fn link_slots_parallel<Reporter: self::Reporter>(
                 snapshot: slot.snapshot,
                 skipped,
                 removed_aliases: slot.removed_aliases,
+                needs_build_marker_source: slot.needs_build_marker_source,
                 #[cfg(test)]
                 link_concurrency_probe,
             }

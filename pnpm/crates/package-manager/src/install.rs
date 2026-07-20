@@ -944,7 +944,16 @@ where
             // no recorded ignored builds, so under strict mode fall through
             // to the full install rather than short-circuiting on a
             // swallowed read error.
-            let fast_path_safe = if config.strict_dep_builds {
+            let marker_safe = if gvs_build_markers_may_require_recovery(config) {
+                match lockfile.get() {
+                    Ok(Some(wanted)) => !gvs_build_marker_present(wanted, config),
+                    Ok(None) => true,
+                    Err(_) => false,
+                }
+            } else {
+                true
+            };
+            let strict_builds_safe = if config.strict_dep_builds {
                 match pacquet_modules_yaml::read_modules_layout::<Host>(&config.modules_dir) {
                     Ok(Some(modules)) => match unapproved_recorded_ignored_builds(&modules, config)
                     {
@@ -962,7 +971,7 @@ where
             } else {
                 true
             };
-            if fast_path_safe {
+            if marker_safe && strict_builds_safe {
                 Reporter::emit(&LogEvent::Pnpm(PnpmLog {
                     level: LogLevel::Info,
                     message: "Already up to date".to_string(),
@@ -1534,6 +1543,11 @@ where
             // must be re-evaluated, or a strict install would exit 0 on a
             // package it is no longer allowed to build.
             && !has_revoked_allowed_builds(modules, config)
+            // A build marker lives in the shared slot, outside every
+            // project-state input checked above. Let materialization inspect
+            // buildable and patched GVS slots instead of declaring the local
+            // tree complete from importer links alone.
+            && !gvs_build_marker_present(wanted_lockfile, config)
             // An explicit `pacquet rebuild` always re-runs the build phase,
             // so it never short-circuits here.
             && rebuild.is_none()
@@ -2746,6 +2760,87 @@ fn frozen_tree_intact(
     })
 }
 
+/// Whether a GVS install can own slots whose interrupted build or patch
+/// application must be recovered from `.pnpm-needs-build`.
+///
+/// The marker is shared store state, so neither optimistic workspace state nor
+/// the frozen importer's symlinks can prove it absent. Only configurations
+/// capable of acting on one need to leave those no-op paths.
+fn gvs_build_markers_may_require_recovery(config: &Config) -> bool {
+    config.enable_global_virtual_store
+        && (config.dangerously_allow_all_builds
+            || config.allow_builds.values().any(|allowed| *allowed)
+            || config.patched_dependencies.as_ref().is_some_and(|patches| !patches.is_empty()))
+}
+
+/// Probe the GVS name/version directories that can contain an actionable
+/// marker for this lockfile. Hash directories are enumerated rather than
+/// recomputed because buildable slots include the runtime engine in their
+/// graph hash, which the pre-runtime fast path deliberately has not resolved.
+fn gvs_build_marker_present(wanted: &Lockfile, config: &Config) -> bool {
+    if !gvs_build_markers_may_require_recovery(config) {
+        return false;
+    }
+    let Ok(policy) = crate::AllowBuildPolicy::from_config(config) else {
+        return true;
+    };
+    let layout = crate::VirtualStoreLayout::new(
+        config,
+        None,
+        wanted.snapshots.as_ref(),
+        wanted.packages.as_ref(),
+        Some(&policy),
+    );
+    if crate::validate_virtual_store_slot_containment(wanted.snapshots.as_ref(), &layout).is_err() {
+        return true;
+    }
+    let Some(snapshots) = wanted.snapshots.as_ref() else {
+        return false;
+    };
+
+    let mut visited_version_dirs = HashSet::new();
+    for snapshot_key in snapshots.keys() {
+        let can_recover = crate::snapshot_has_patch(snapshot_key)
+            || policy.check(&snapshot_key.without_peer().to_string()) == Some(true);
+        if !can_recover {
+            continue;
+        }
+        let Some(version_dir) = layout.slot_dir(snapshot_key).parent().map(Path::to_path_buf)
+        else {
+            return true;
+        };
+        if !visited_version_dirs.insert(version_dir.clone()) {
+            continue;
+        }
+        let hash_dirs = match std::fs::read_dir(&version_dir) {
+            Ok(hash_dirs) => hash_dirs,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(_) => return true,
+        };
+        for hash_dir in hash_dirs {
+            let Ok(hash_dir) = hash_dir else {
+                return true;
+            };
+            let Ok(file_type) = hash_dir.file_type() else {
+                return true;
+            };
+            if !file_type.is_dir() {
+                continue;
+            }
+            let Ok(pkg_dir) = crate::safe_join_modules_dir::safe_join_modules_dir(
+                &hash_dir.path().join("node_modules"),
+                &snapshot_key.name.to_string(),
+            ) else {
+                return true;
+            };
+            if pkg_dir.join(crate::NEEDS_BUILD_MARKER).is_file() {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 /// The `validateModules` half pacquet enforces: when the mutation is
 /// not a plain install (upstream `installsOnly === false`), a drift in
 /// the persisted layout settings fails with the upstream `*_DIFF`
@@ -3379,7 +3474,7 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<P
             Err(_) => return None,
         }
     }
-    (check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+    let up_to_date = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: &workspace_root,
         config,
         node_linker: *node_linker,
@@ -3389,8 +3484,17 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<P
         is_workspace_install: workspace_manifest.is_some(),
         lockfile: MaybeLazyLockfile::Lazy(&lockfile),
         catalogs: &catalogs,
-    }) == OptimisticRepeatInstallDecision::UpToDate)
-        .then_some(workspace_root)
+    }) == OptimisticRepeatInstallDecision::UpToDate;
+    if !up_to_date {
+        return None;
+    }
+    if gvs_build_markers_may_require_recovery(config) {
+        let wanted = lockfile.get().ok().flatten()?;
+        if gvs_build_marker_present(wanted, config) {
+            return None;
+        }
+    }
+    Some(workspace_root)
 }
 
 /// Discovery twin of [`install_already_up_to_date`] for the

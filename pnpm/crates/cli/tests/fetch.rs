@@ -15,12 +15,18 @@ const PROD_DEP: &str = "@pnpm.e2e/foo";
 const DEV_DEP: &str = "@pnpm.e2e/bar";
 const OPTIONAL_DEP: &str = "@pnpm.e2e/qar";
 
-/// Top-level `node_modules` symlink fetch creates for a direct
-/// dependency. `--prod` / `--dev` filter which groups are symlinked
-/// here (the virtual store under `.pnpm` mirrors the whole lockfile
-/// regardless), so this is what proves the dependency-group filter.
-fn direct_dep_link(workspace: &Path, name: &str) -> std::path::PathBuf {
-    workspace.join("node_modules").join(name)
+fn virtual_dep(workspace: &Path, name: &str) -> std::path::PathBuf {
+    let slot = format!("{}@100.0.0", name.replace('/', "+"));
+    workspace.join("node_modules/.pnpm").join(slot).join("node_modules").join(name)
+}
+
+fn assert_no_importer_links(workspace: &Path) {
+    for name in [PROD_DEP, DEV_DEP, OPTIONAL_DEP] {
+        assert!(
+            !workspace.join("node_modules").join(name).exists(),
+            "fetch must not create an importer link for {name}",
+        );
+    }
 }
 
 /// Write a manifest pinning one dependency per group, then materialize a
@@ -79,9 +85,19 @@ fn fetch_populates_every_group_by_default() {
     pacquet_at(&workspace).with_arg("fetch").assert().success();
 
     assert!(store_dir.join("v11").exists(), "fetch must populate the store");
-    assert!(direct_dep_link(&workspace, PROD_DEP).exists(), "production dep must be fetched");
-    assert!(direct_dep_link(&workspace, DEV_DEP).exists(), "dev dep must be fetched");
-    assert!(direct_dep_link(&workspace, OPTIONAL_DEP).exists(), "optional dep must be fetched");
+    assert!(virtual_dep(&workspace, PROD_DEP).exists(), "production dep must be fetched");
+    assert!(virtual_dep(&workspace, DEV_DEP).exists(), "dev dep must be fetched");
+    assert!(virtual_dep(&workspace, OPTIONAL_DEP).exists(), "optional dep must be fetched");
+    assert_no_importer_links(&workspace);
+    assert_eq!(
+        pacquet_modules_yaml::read_modules_manifest::<pacquet_modules_yaml::Host>(
+            &workspace.join("node_modules"),
+        )
+        .expect("read .modules.yaml")
+        .expect("fetch must write .modules.yaml")
+        .virtual_store_only,
+        Some(true),
+    );
 
     drop((root, mock_instance, store_dir));
 }
@@ -97,17 +113,15 @@ fn fetch_prod_keeps_optional_drops_dev() {
     pacquet_at(&workspace).with_args(["fetch", "--prod"]).assert().success();
 
     assert!(
-        direct_dep_link(&workspace, PROD_DEP).exists(),
+        virtual_dep(&workspace, PROD_DEP).exists(),
         "`fetch --prod` must fetch production deps",
     );
     assert!(
-        direct_dep_link(&workspace, OPTIONAL_DEP).exists(),
+        virtual_dep(&workspace, OPTIONAL_DEP).exists(),
         "`fetch --prod` must still fetch optional deps (they follow production)",
     );
-    assert!(
-        !direct_dep_link(&workspace, DEV_DEP).exists(),
-        "`fetch --prod` must not fetch dev deps",
-    );
+    assert!(!virtual_dep(&workspace, DEV_DEP).exists(), "`fetch --prod` must not fetch dev deps");
+    assert_no_importer_links(&workspace);
 
     drop((root, mock_instance));
 }
@@ -122,15 +136,42 @@ fn fetch_dev_drops_prod_and_optional() {
 
     pacquet_at(&workspace).with_args(["fetch", "--dev"]).assert().success();
 
-    assert!(direct_dep_link(&workspace, DEV_DEP).exists(), "`fetch --dev` must fetch dev deps");
+    assert!(virtual_dep(&workspace, DEV_DEP).exists(), "`fetch --dev` must fetch dev deps");
     assert!(
-        !direct_dep_link(&workspace, PROD_DEP).exists(),
+        !virtual_dep(&workspace, PROD_DEP).exists(),
         "`fetch --dev` must not fetch production deps",
     );
     assert!(
-        !direct_dep_link(&workspace, OPTIONAL_DEP).exists(),
+        !virtual_dep(&workspace, OPTIONAL_DEP).exists(),
         "`fetch --dev` must not fetch optional deps (they follow production)",
     );
+    assert_no_importer_links(&workspace);
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn fetch_populates_the_global_virtual_store_without_importer_links() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    write_manifest_and_lockfile(&workspace);
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&yaml_path)
+        .expect("read pnpm-workspace.yaml")
+        .replace("enableGlobalVirtualStore: false", "enableGlobalVirtualStore: true");
+    fs::write(&yaml_path, yaml).expect("enable the global virtual store");
+
+    pacquet_at(&workspace).with_arg("fetch").assert().success();
+
+    let gvs_root = store_dir.join(pacquet_store_dir::STORE_VERSION).join("links");
+    assert!(gvs_root.is_dir(), "fetch must populate the global virtual store");
+    assert!(
+        gvs_root.join(PROD_DEP).join("100.0.0").is_dir(),
+        "the production dependency must have a GVS version directory",
+    );
+    assert_no_importer_links(&workspace);
 
     drop((root, mock_instance));
 }

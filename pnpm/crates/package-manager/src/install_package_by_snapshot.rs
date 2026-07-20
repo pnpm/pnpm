@@ -623,6 +623,7 @@ impl InstallPackageBySnapshot<'_> {
                 // single-package path (no previous install to diff
                 // against), so there are never obsolete children here.
                 removed_aliases: &[],
+                needs_build_marker_source: None,
                 #[cfg(test)]
                 link_concurrency_probe,
             }

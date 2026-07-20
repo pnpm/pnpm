@@ -263,7 +263,7 @@ fn marker_file(cas_paths: &HashMap<String, PathBuf>) -> Option<&str> {
 
 /// Whether `dir_path` holds the completion marker. An empty map has no
 /// marker, so it counts as present — there is nothing to import.
-fn marker_present(dir_path: &Path, cas_paths: &HashMap<String, PathBuf>) -> bool {
+pub(crate) fn marker_present(dir_path: &Path, cas_paths: &HashMap<String, PathBuf>) -> bool {
     match marker_file(cas_paths) {
         Some(marker) => dir_path.join(marker).exists(),
         None => true,

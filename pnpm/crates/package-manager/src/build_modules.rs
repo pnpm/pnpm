@@ -1,5 +1,5 @@
 use crate::{
-    ImportIndexedDirError, ImportIndexedDirOpts, SkippedSnapshots,
+    ImportIndexedDirError, ImportIndexedDirOpts, NEEDS_BUILD_MARKER, SkippedSnapshots,
     build_sequence::build_sequence,
     import_indexed_dir,
     version_policy::{VersionPolicyError, expand_package_version_specs},
@@ -1203,6 +1203,22 @@ fn build_one_snapshot<Reporter: self::Reporter>(
         false
     };
 
+    let built_in_isolated_gvs = layout.enable_global_virtual_store() && pkg_roots_by_key.is_none();
+    if built_in_isolated_gvs && (has_patch || should_run_scripts) {
+        for built_dir in pkg_roots_for_key(layout, pkg_roots_by_key, snapshot_key) {
+            if let Err(error) = std::fs::remove_file(built_dir.join(NEEDS_BUILD_MARKER))
+                && error.kind() != std::io::ErrorKind::NotFound
+            {
+                tracing::warn!(
+                    target: "pacquet::build",
+                    ?error,
+                    dep_path = %snapshot_key,
+                    "failed to remove the global virtual store build marker",
+                );
+            }
+        }
+    }
+
     // Side-effects-cache WRITE path. After a successful
     // `run_postinstall_hooks` (or a patch application that mutated
     // the dir), re-hash the package directory and queue a
@@ -1294,7 +1310,9 @@ fn virtual_store_dir_for_key(layout: &crate::VirtualStoreLayout, key: &PackageKe
 /// Only reached for packages that both pass the build-allow policy and
 /// have a cache entry — a handful per install, not the whole tree.
 fn slot_carries_overlay(pkg_dir: &Path, overlay: &HashMap<String, PathBuf>) -> bool {
-    pkg_dir.is_dir() && overlay.keys().all(|relative| pkg_dir.join(relative).exists())
+    !pkg_dir.join(NEEDS_BUILD_MARKER).exists()
+        && pkg_dir.is_dir()
+        && overlay.keys().all(|relative| pkg_dir.join(relative).exists())
 }
 
 /// Whether `slot_dir` is a strict descendant of `root` reached only

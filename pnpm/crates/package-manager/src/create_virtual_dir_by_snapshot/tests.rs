@@ -146,6 +146,7 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
         snapshot: &snapshot,
         skipped: &skipped,
         removed_aliases: &[],
+        needs_build_marker_source: None,
         link_concurrency_probe: None,
     }
     .run::<RecordingReporter>()
@@ -177,6 +178,49 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
     );
 }
 
+#[test]
+fn run_imports_needs_build_marker_with_a_fresh_package() {
+    let dir = tempdir().expect("tempdir");
+    let cas_dir = dir.path().join("cas");
+    std::fs::create_dir_all(&cas_dir).expect("create cas dir");
+    let package_json = cas_dir.join("package.json");
+    let marker_source = cas_dir.join("needs-build-marker");
+    std::fs::write(&package_json, r#"{"name":"react","version":"18.0.0"}"#)
+        .expect("write package manifest source");
+    std::fs::write(&marker_source, "").expect("write marker source");
+
+    let cas_paths = HashMap::from([("package.json".to_string(), package_json)]);
+    let logged_methods = AtomicU8::new(0);
+    let snapshot = SnapshotEntry::default();
+    let package_key: PackageKey = "react@18.0.0".parse().expect("valid snapshot key");
+    let layout = crate::VirtualStoreLayout::legacy(
+        dir.path().join("virtual-store"),
+        pacquet_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let skipped = crate::SkippedSnapshots::default();
+
+    CreateVirtualDirBySnapshot {
+        layout: &layout,
+        cas_paths: &cas_paths,
+        import_method: PackageImportMethod::Copy,
+        logged_methods: &logged_methods,
+        requester: "/proj",
+        package_id: "react@18.0.0",
+        package_key: &package_key,
+        snapshot: &snapshot,
+        skipped: &skipped,
+        removed_aliases: &[],
+        needs_build_marker_source: Some(&marker_source),
+        link_concurrency_probe: None,
+    }
+    .run::<pacquet_reporter::SilentReporter>()
+    .expect("import package with build marker");
+
+    let package_dir = layout.slot_dir(&package_key).join("node_modules/react");
+    assert!(package_dir.join("package.json").exists());
+    assert!(package_dir.join(crate::NEEDS_BUILD_MARKER).is_file());
+}
+
 /// A snapshot key whose package name is a path traversal would become
 /// the `<slot>/node_modules/<name>` extraction directory, escaping the
 /// store. The guard rejects it before any package content is imported.
@@ -206,6 +250,7 @@ fn run_rejects_traversal_package_name() {
         snapshot: &snapshot,
         skipped: &skipped,
         removed_aliases: &[],
+        needs_build_marker_source: None,
         link_concurrency_probe: None,
     }
     .run::<pacquet_reporter::SilentReporter>();
@@ -255,6 +300,7 @@ async fn run_removes_obsolete_child_links() {
         snapshot: &snapshot,
         skipped: &skipped,
         removed_aliases: &removed_aliases,
+        needs_build_marker_source: None,
         link_concurrency_probe: None,
     }
     .run::<SilentReporter>()

@@ -9,8 +9,6 @@
 //! changes, build artifacts, and `.modules.yaml` state — instead of the
 //! call counts. Where that loses a signal it is called out on the test.
 //!
-//! `known_failures` at the bottom holds the one case whose subject under
-//! test pacquet has not built yet.
 #![cfg(unix)] // the GVS slot assertions read symlinks
 
 pub mod _utils;
@@ -18,7 +16,7 @@ pub use _utils::*;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_store_dir::STORE_VERSION;
+use pacquet_store_dir::{STORE_VERSION, StoreDir, StoreIndex};
 use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::is_symlink_or_junction,
@@ -479,6 +477,28 @@ fn gvs_successful_build_creates_package_directory_with_build_artifacts() {
         pkg.join("generated-by-postinstall.js").exists(),
         "the postinstall artifact must be written into the GVS slot",
     );
+    assert!(
+        !pkg.join(".pnpm-needs-build").exists(),
+        "a successful build must remove its incomplete-build marker",
+    );
+
+    let store = StoreDir::new(&store_dir);
+    let index = StoreIndex::open_readonly_in(&store).expect("open the store index");
+    let row_key = index
+        .keys()
+        .expect("list the store index keys")
+        .into_iter()
+        .find(|key| key.ends_with("\t@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"))
+        .expect("the built package must have a store index row");
+    let row = index.get(&row_key).expect("read the store index row").expect("row exists");
+    if let Some(side_effects) = row.side_effects {
+        for diff in side_effects.values() {
+            assert!(
+                !diff.added.as_ref().is_some_and(|added| added.contains_key(".pnpm-needs-build")),
+                "the incomplete-build marker must not be uploaded to the side-effects cache",
+            );
+        }
+    }
 
     drop((root, mock_instance));
 }
@@ -638,6 +658,74 @@ fn gvs_rebuilds_successfully_after_simulated_build_failure_cleanup() {
             .join("generated-by-postinstall.js")
             .exists(),
         "the rebuilt slot must carry the build artifacts again",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// TS: `GVS .pnpm-needs-build marker triggers re-import on next install`
+/// (`globalVirtualStore.ts:411`).
+#[test]
+fn needs_build_marker_triggers_reimport_on_next_install() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    write_manifest(
+        &workspace,
+        &serde_json::json!({ "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" }),
+    );
+    let workspace_settings = format!(
+        "{}sideEffectsCache: false\n",
+        allow_builds_yaml(&[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]),
+    );
+    set_gvs_workspace_yaml(&workspace, &workspace_settings);
+
+    eprintln!("First install, with the build approved...");
+    pacquet(&workspace).with_arg("install").assert().success();
+
+    let version_dir =
+        pkg_version_dir(&store_dir, "@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0");
+    let pkg =
+        pkg_in_slot(&sole_hash_dir(&version_dir), "@pnpm.e2e/pre-and-postinstall-scripts-example");
+    let marker = pkg.join(".pnpm-needs-build");
+    let postinstall_artifact = pkg.join("generated-by-postinstall.js");
+    let package_manifest = pkg.join("package.json");
+    let pristine_manifest = fs::read_to_string(&package_manifest).expect("read package manifest");
+    assert!(postinstall_artifact.exists());
+    assert!(!marker.exists());
+
+    eprintln!("Simulating a crash after import but before the build...");
+    fs::write(&marker, "").expect("write the incomplete-build marker");
+    fs::remove_file(&postinstall_artifact).expect("remove the build artifact");
+    fs::write(&package_manifest, "{}").expect("corrupt a pristine package file");
+
+    eprintln!("Frozen reinstall with intact project links must rebuild the marked slot...");
+    pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+
+    assert!(!marker.exists(), "the successful retry must remove the marker");
+    assert!(postinstall_artifact.exists(), "the successful retry must recreate build output");
+    assert_eq!(
+        fs::read_to_string(&package_manifest).expect("read the restored manifest"),
+        pristine_manifest,
+        "the retry must re-import pristine package files before rebuilding",
+    );
+
+    eprintln!("Marking the slot again to exercise the optimistic repeat-install paths...");
+    fs::write(&marker, "").expect("write the second incomplete-build marker");
+    fs::remove_file(&postinstall_artifact).expect("remove the rebuilt artifact");
+    fs::write(&package_manifest, "{}").expect("corrupt the pristine file again");
+    pacquet(&workspace).with_arg("install").assert().success();
+
+    assert!(!marker.exists(), "the ordinary reinstall must remove the marker");
+    assert!(
+        postinstall_artifact.exists(),
+        "the ordinary reinstall must not report up to date before rebuilding",
+    );
+    assert_eq!(
+        fs::read_to_string(&package_manifest).expect("read the twice-restored manifest"),
+        pristine_manifest,
+        "the ordinary reinstall must re-import the package before rebuilding",
     );
 
     drop((root, mock_instance));
@@ -1057,47 +1145,4 @@ fn approve_builds_updates_gvs_symlinks_and_runs_builds_at_the_new_hash_dir() {
     );
 
     drop((root, mock_instance));
-}
-
-mod known_failures {
-    //! Global-virtual-store cases whose subject under test pacquet has
-    //! not built yet. Each stubs the boundary through
-    //! [`pacquet_testing_utils::allow_known_failure`] so the test exits
-    //! early rather than masking a real bug.
-
-    use pacquet_testing_utils::{
-        allow_known_failure,
-        known_failure::{KnownFailure, KnownResult},
-    };
-
-    fn needs_build_marker() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "Pacquet does not implement the `.pnpm-needs-build` marker. \
-             pnpm writes the file into a GVS slot between import and \
-             build, removes it on success, and treats its presence on a \
-             later install as \"this slot is half-built, re-fetch and \
-             re-build\". Pacquet's import pipeline never writes it, the \
-             warm-slot fast path never looks for it, and the \
-             side-effects upload does not exclude it — so an interrupted \
-             build leaves a slot the next install trusts. Porting it \
-             means all three: the write site, the detect sites, and the \
-             upload exclusion.",
-        ))
-    }
-
-    /// TS: `GVS .pnpm-needs-build marker triggers re-import on next
-    /// install` (`globalVirtualStore.ts:411`).
-    #[test]
-    fn needs_build_marker_triggers_reimport_on_next_install() {
-        allow_known_failure!(needs_build_marker());
-    }
-
-    /// The tail of TS `GVS successful build creates package directory
-    /// with build artifacts` (`globalVirtualStore.ts:250`): the marker
-    /// must never reach the side-effects cache diff, or every cache hit
-    /// would re-materialize a file that forces a rebuild forever.
-    #[test]
-    fn needs_build_marker_is_not_uploaded_to_the_side_effects_cache() {
-        allow_known_failure!(needs_build_marker());
-    }
 }
