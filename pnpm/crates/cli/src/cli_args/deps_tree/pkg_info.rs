@@ -203,10 +203,18 @@ fn resolved_tarball_url(
     }
 }
 
+/// A lockfile-derived path component that could escape the directory
+/// it is joined under — the same guard `pnpm licenses` applies before
+/// dereferencing store paths built from lockfile keys.
+fn is_unsafe_path_component(component: &str) -> bool {
+    component.contains("..") || Path::new(component).is_absolute()
+}
+
 /// Filesystem path of a package addressed by `dep_path`. For a local
 /// virtual store the path is constructed directly; for a global
 /// virtual store the symlink through the parent's `node_modules` is
-/// resolved instead.
+/// resolved instead. A name that could traverse outside the virtual
+/// store is never joined or dereferenced.
 pub(crate) fn resolve_package_path(
     env: &PkgInfoEnv<'_>,
     dep_path: &PkgNameVerPeer,
@@ -214,13 +222,13 @@ pub(crate) fn resolve_package_path(
     alias: &str,
     ctx: &EdgeContext<'_>,
 ) -> PathBuf {
-    let constructed = env
-        .virtual_store_dir
-        .join(dep_path.to_virtual_store_name(env.virtual_store_dir_max_length))
-        .join("node_modules")
-        .join(name);
+    let store_name = dep_path.to_virtual_store_name(env.virtual_store_dir_max_length);
+    if is_unsafe_path_component(&store_name) || is_unsafe_path_component(name) {
+        return env.virtual_store_dir.clone();
+    }
+    let constructed = env.virtual_store_dir.join(store_name).join("node_modules").join(name);
 
-    if !env.is_global_virtual_store() {
+    if !env.is_global_virtual_store() || is_unsafe_path_component(alias) {
         return constructed;
     }
 
