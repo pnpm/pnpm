@@ -160,7 +160,7 @@ fn normalize_node_path_env_var(node_path: &[String]) -> NodePathEnvVar {
     let mut win32 = String::new();
     let mut posix = String::new();
     for entry in node_path {
-        let entry_win32 = entry.replace('/', "\\");
+        let entry_win32 = entry.replace('/', r"\");
         let entry_posix = if cfg!(windows) { windows_entry_to_posix(entry) } else { entry.clone() };
         if !win32.is_empty() {
             win32.push(';');

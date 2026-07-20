@@ -1810,7 +1810,7 @@ where
                 // `--force` relinks every package, so the per-snapshot
                 // "unchanged since the previous install" skip must not
                 // see the current lockfile — pnpm's
-                // `lockfileToDepGraph(…, opts.force ? null :
+                // `lockfileToDepGraph(..., opts.force ? null :
                 // currentLockfile)`. `current_lockfile` itself stays:
                 // pnpm's prune runs on the real current lockfile even
                 // under force.
