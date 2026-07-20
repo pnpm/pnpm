@@ -252,6 +252,30 @@ fn reinstall_from_warm_global_virtual_store_after_deleting_node_modules() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn pnp_without_symlinks_repairs_a_missing_global_virtual_store_package() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    set_gvs_workspace_yaml(&workspace, "nodeLinker: pnp\nsymlink: false\n");
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
+
+    pacquet(&workspace).with_arg("install").assert().success();
+
+    let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/pkg-with-1-dep", "100.0.0");
+    let package_dir = pkg_in_slot(&sole_hash_dir(&version_dir), "@pnpm.e2e/pkg-with-1-dep");
+    fs::remove_dir_all(&package_dir).expect("remove package from the GVS slot");
+
+    pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    assert!(
+        package_dir.join("package.json").is_file(),
+        "a frozen PnP install must repair a missing GVS package when symlinks are disabled",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// TS: `modules are correctly updated when using a global virtual store`
 /// (`globalVirtualStore.ts:107`). Bumping one dependency's version must
 /// materialize a slot for the new version.

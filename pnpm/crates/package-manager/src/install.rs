@@ -2777,7 +2777,7 @@ fn frozen_tree_intact(
         }
     }
     if !config.symlink {
-        return true;
+        return probe_slots;
     }
     let groups = crate::prune_direct_deps::selected_groups(modules.included);
     let modules_dir_name: &std::ffi::OsStr =
