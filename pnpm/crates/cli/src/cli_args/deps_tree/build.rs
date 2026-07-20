@@ -29,7 +29,7 @@ use super::{
 pub(crate) const DEFAULT_REGISTRY: &str = "https://registry.npmjs.org/";
 
 /// The lockfiles and modules-manifest state one tree build runs
-/// against. Owns the loaded lockfiles; [`TreeBuild::env`] borrows them.
+/// against. Owns the loaded lockfiles; [`LoadedState::env`] borrows them.
 pub(crate) struct LoadedState {
     pub modules_dir: PathBuf,
     pub modules: Option<Modules>,
