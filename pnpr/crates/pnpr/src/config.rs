@@ -1371,7 +1371,7 @@ fn default_true() -> bool {
 
 /// The namespace [`Config::proxy`] declares on its flat-root hosted org, so
 /// those names resolve locally rather than to the npm upstream: the
-/// registry-mock fixture scopes plus the one unscoped fixture. Kept in sync
+/// registry-mock fixture scopes plus the unscoped fixtures. Kept in sync
 /// with the fixtures under `pnpr/.fixtures/packages` and with the
 /// fixture-scope subset of the bundled `config.yaml` `local` registry — the
 /// YAML additionally claims the exact names the TS test suite publishes,
@@ -1398,6 +1398,8 @@ const REGISTRY_MOCK_LOCAL_PATTERNS: &[&str] = &[
     "@pnpm/y",
     "@pnpm/z",
     "@zkochan/test-pnpm-issue219",
+    "ajv",
+    "ajv-keywords",
     "create-touch-file-one-bin",
 ];
 
