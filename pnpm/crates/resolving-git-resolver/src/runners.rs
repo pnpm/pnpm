@@ -5,7 +5,13 @@
 //! pair (real network + real `git` binary) or supply their own
 //! ports of the traits in tests.
 
-use std::{future::Future, path::PathBuf, pin::Pin, process::Stdio, sync::Arc};
+use std::{
+    future::Future,
+    path::PathBuf,
+    pin::Pin,
+    process::{Command, Stdio},
+    sync::Arc,
+};
 
 use pacquet_network::ThrottledClient;
 
@@ -57,11 +63,7 @@ impl GitProbe for RealGitProbe {
             let bin = self.git_bin.as_deref().map(std::path::Path::to_path_buf);
             let repo_owned = repo.to_string();
             tokio::task::spawn_blocking(move || {
-                let mut cmd = match bin {
-                    Some(b) => std::process::Command::new(b),
-                    None => std::process::Command::new("git"),
-                };
-                cmd.args(["ls-remote", "--exit-code", &repo_owned, "HEAD"]);
+                let mut cmd = ls_remote_command(bin.as_ref(), &repo_owned, LsRemoteMode::Probe);
                 cmd.stdout(Stdio::null()).stderr(Stdio::null()).stdin(Stdio::null());
                 cmd.status().is_ok_and(|s| s.success())
             })
@@ -73,7 +75,7 @@ impl GitProbe for RealGitProbe {
 
 /// Production [`GitCommandRunner`].
 ///
-/// Shells out to `git ls-remote <repo> [<ref> <ref>^{}]` via
+/// Shells out to `git ls-remote -- <repo> [<ref> <ref>^{}]` via
 /// `tokio::task::spawn_blocking` (the system git CLI is synchronous,
 /// and the rest of pacquet keeps the async runtime free of blocking
 /// work).
@@ -124,15 +126,7 @@ fn run_ls_remote_blocking(
     let attempts = 2; // matches upstream `graceful-git` retries: 1
     let mut last_err: Option<String> = None;
     for _ in 0..attempts {
-        let mut cmd = match bin {
-            Some(b) => std::process::Command::new(b),
-            None => std::process::Command::new("git"),
-        };
-        cmd.arg("ls-remote").arg(repo);
-        if let Some(r) = ref_ {
-            cmd.arg(r);
-            cmd.arg(format!("{r}^{{}}"));
-        }
+        let mut cmd = ls_remote_command(bin, repo, LsRemoteMode::Resolve(ref_.map(String::as_str)));
         let output = cmd.output();
         match output {
             Ok(out) if out.status.success() => {
@@ -149,4 +143,60 @@ fn run_ls_remote_blocking(
     Err(GitRunError {
         message: last_err.unwrap_or_else(|| "ls-remote failed with unknown error".to_string()),
     })
+}
+
+#[derive(Clone, Copy)]
+enum LsRemoteMode<'a> {
+    Probe,
+    Resolve(Option<&'a str>),
+}
+
+fn ls_remote_command(bin: Option<&PathBuf>, repo: &str, mode: LsRemoteMode<'_>) -> Command {
+    let mut cmd = match bin {
+        Some(bin) => Command::new(bin),
+        None => Command::new("git"),
+    };
+    cmd.arg("ls-remote");
+    if matches!(mode, LsRemoteMode::Probe) {
+        cmd.arg("--exit-code");
+    }
+    cmd.arg("--").arg(repo);
+    match mode {
+        LsRemoteMode::Probe => {
+            cmd.arg("HEAD");
+        }
+        LsRemoteMode::Resolve(Some(ref_)) => {
+            cmd.arg(ref_).arg(format!("{ref_}^{{}}"));
+        }
+        LsRemoteMode::Resolve(None) => {}
+    }
+    cmd
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{LsRemoteMode, ls_remote_command};
+
+    fn args(mode: LsRemoteMode<'_>) -> Vec<String> {
+        ls_remote_command(None, "--upload-pack=malicious", mode)
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect()
+    }
+
+    #[test]
+    fn probe_separates_options_from_the_repository() {
+        assert_eq!(
+            args(LsRemoteMode::Probe),
+            ["ls-remote", "--exit-code", "--", "--upload-pack=malicious", "HEAD"]
+        );
+    }
+
+    #[test]
+    fn resolve_separates_options_from_the_repository_and_ref() {
+        assert_eq!(
+            args(LsRemoteMode::Resolve(Some("--help"))),
+            ["ls-remote", "--", "--upload-pack=malicious", "--help", "--help^{}",]
+        );
+    }
 }
