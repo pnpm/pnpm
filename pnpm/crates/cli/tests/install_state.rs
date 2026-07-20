@@ -46,6 +46,7 @@ fn pnp_install_without_symlinks_still_writes_modules_manifest_and_bin_directory(
         serde_json::json!({
             "name": "project",
             "version": "1.0.0",
+            "imports": { "#x": "./x.cjs" },
             "dependencies": {
                 "@pnpm.e2e/hello-world-js-bin": "1.0.0",
                 "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
@@ -54,6 +55,7 @@ fn pnp_install_without_symlinks_still_writes_modules_manifest_and_bin_directory(
         .to_string(),
     )
     .expect("write package.json");
+    fs::write(workspace.join("x.cjs"), "module.exports = 42\n").expect("write imports target");
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
     yaml.push_str("nodeLinker: pnp\nsymlink: false\n");
@@ -74,6 +76,16 @@ fn pnp_install_without_symlinks_still_writes_modules_manifest_and_bin_directory(
     Command::new("node")
         .with_current_dir(&workspace)
         .with_args(["--require", "./.pnp.cjs", "--eval", "require('@pnpm.e2e/pkg-with-1-dep')"])
+        .assert()
+        .success();
+    Command::new("node")
+        .with_current_dir(&workspace)
+        .with_args([
+            "--require",
+            "./.pnp.cjs",
+            "--eval",
+            "if (require('#x') !== 42) process.exit(1)",
+        ])
         .assert()
         .success();
     let undeclared = Command::new("node")

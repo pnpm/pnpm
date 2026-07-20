@@ -48,7 +48,7 @@ const locations = Object.entries(registry)
 const originalResolveFilename = Module._resolveFilename;
 
 function packageName(request) {{
-  if (!request || request[0] === '.' || path.isAbsolute(request)) return null;
+  if (!request || request[0] === '.' || request[0] === '#' || path.isAbsolute(request)) return null;
   if (request[0] !== '@') return request.split('/', 1)[0];
   const parts = request.split('/');
   return parts.length > 1 ? `${{parts[0]}}/${{parts[1]}}` : request;
