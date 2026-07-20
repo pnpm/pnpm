@@ -478,6 +478,10 @@ mod dependency_build_scripts {
         eprintln!("Checking allowed package DID run scripts...");
         assert!(allowed_pkg.join("generated-by-install.js").exists());
 
+        // TODO: assert the `pnpm:ignored-scripts` reporter event lists
+        // `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0` here. Pacquet
+        // does not emit that channel yet (see <https://github.com/pnpm/pacquet/issues/397>).
+
         eprintln!(
             "Re-running install with explicit denial of pre-and-postinstall-scripts-example...",
         );

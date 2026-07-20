@@ -864,6 +864,8 @@ pub struct Config {
     pub lockfile_include_tarball_url: bool,
 
     /// The base URL of the npm package registry (trailing slash included).
+    // TODO: change to `reqwest::Url` — the consumer in `registry/src/package.rs`
+    // already parses this with `reqwest::Url::parse()` as a workaround.
     #[default(_code = "default_registry()")]
     pub registry: String,
 

@@ -90,6 +90,8 @@ const DEFAULT_INDENT: &str = "  ";
 #[derive(Debug, Clone)]
 pub struct PackageManifest {
     path: PathBuf,
+    // TODO: replace with a proper struct + key-order array so field
+    // access is typed and serialization order is deterministic.
     value: Value,
     /// Whether a save ends the file with a newline. New and in-memory
     /// manifests get one.

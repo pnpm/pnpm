@@ -224,7 +224,7 @@ fn fresh_install_records_importer_manifest_metadata() {
         Some(HashMap::from([(
             "pkg-a".to_string(),
             pacquet_lockfile::DependencyMeta { injected: Some(true), patch: None },
-        )]))
+        ),]))
     );
     assert_eq!(importer.publish_directory.as_deref(), Some("dist"));
 }

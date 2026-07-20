@@ -5,6 +5,7 @@ import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { rimrafSync } from '@zkochan/rimraf'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm } from '../utils/index.js'
 
@@ -12,6 +13,7 @@ const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.s
 
 test('caching side effects of native package', async function () {
   const project = prepare()
+  writeYamlFileSync('pnpm-workspace.yaml', { allowBuilds: { diskusage: true } })
 
   await execPnpm(['add', '--side-effects-cache', 'diskusage@1.1.3'])
   const storePath = project.getStorePath()
@@ -32,6 +34,7 @@ test('caching side effects of native package', async function () {
 
 test('using side effects cache', async function () {
   const project = prepare()
+  writeYamlFileSync('pnpm-workspace.yaml', { allowBuilds: { diskusage: true } })
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
   // We disable verifyStoreIntegrity because we are going to change the cache
@@ -49,6 +52,7 @@ test('using side effects cache', async function () {
 
 test('readonly side effects cache', async function () {
   const project = prepare()
+  writeYamlFileSync('pnpm-workspace.yaml', { allowBuilds: { diskusage: true } })
 
   await execPnpm(['add', 'diskusage@1.1.2', '--side-effects-cache', '--no-verify-store-integrity'])
   const storePath = project.getStorePath()
