@@ -359,7 +359,7 @@ fn a_broken_current_lockfile_is_ignored_with_a_warning() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr),
     );
-    let canonical_workspace = fs::canonicalize(&workspace).expect("canonicalize workspace");
+    let canonical_workspace = dunce::canonicalize(&workspace).expect("canonicalize workspace");
     assert!(
         output.status.success(),
         "install must ignore the broken current lockfile:\n{combined}",
