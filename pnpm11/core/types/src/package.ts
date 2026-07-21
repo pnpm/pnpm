@@ -174,8 +174,34 @@ export type ConfigDependencies = Record<string, VersionWithIntegrity | {
  */
 export type ConfigDependencySpecifiers = Record<string, string>
 
+export type AuditLevel = 'info' | 'low' | 'moderate' | 'high' | 'critical'
+
+/**
+ * @deprecated Use {@link AuditSettings} instead. Kept for backward
+ * compatibility until the next major version.
+ */
 export interface AuditConfig {
   ignoreGhsas?: string[]
+}
+
+export interface AuditSettings {
+  /**
+   * The minimum vulnerability severity `pnpm audit` reports on. Supersedes the
+   * top-level `auditLevel` setting.
+   */
+  level?: AuditLevel
+  /**
+   * GHSA IDs that `pnpm audit` should ignore. Supersedes
+   * `auditConfig.ignoreGhsas`.
+   */
+  ignore?: string[]
+}
+
+export interface UpdateSettings {
+  /**
+   * Dependency name patterns that `pnpm update` and `pnpm outdated` should skip.
+   */
+  ignoreDeps?: string[]
 }
 
 export interface PnpmSettings {
@@ -191,10 +217,20 @@ export interface PnpmSettings {
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
   allowUnusedPatches?: boolean
   patchedDependencies?: Record<string, string>
+  update?: UpdateSettings
+  /**
+   * @deprecated Use {@link PnpmSettings.update} instead. Kept for backward
+   * compatibility until the next major version.
+   */
   updateConfig?: {
     changeset?: boolean
     ignoreDependencies?: string[]
   }
+  audit?: AuditSettings
+  /**
+   * @deprecated Use {@link PnpmSettings.audit} instead. Kept for backward
+   * compatibility until the next major version.
+   */
   auditConfig?: AuditConfig
   requiredScripts?: string[]
   supportedArchitectures?: SupportedArchitectures

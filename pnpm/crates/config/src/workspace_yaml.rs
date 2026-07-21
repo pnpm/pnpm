@@ -422,10 +422,23 @@ pub struct WorkspaceSettings {
     /// `~/.config/pnpm/config.yaml`. See [`VerifyDepsBeforeRun`].
     pub verify_deps_before_run: Option<VerifyDepsBeforeRun>,
 
+    /// `audit` from `pnpm-workspace.yaml`. Supersedes `auditLevel` and
+    /// `auditConfig`; see [`AuditSettings`]. When both a value and its
+    /// deprecated counterpart are set, `audit` wins (with a warning) —
+    /// the mapping onto [`Config::audit_level`] / [`Config::audit_config`]
+    /// happens in [`Self::apply_to`].
+    pub audit: Option<AuditSettings>,
+
     /// `auditLevel` from `pnpm-workspace.yaml`.
+    ///
+    /// Deprecated in favor of [`AuditSettings::level`], kept for backward
+    /// compatibility until the next major version.
     pub audit_level: Option<AuditLevel>,
 
     /// `auditConfig` from `pnpm-workspace.yaml`.
+    ///
+    /// Deprecated in favor of [`AuditSettings::ignore`], kept for backward
+    /// compatibility until the next major version.
     pub audit_config: Option<AuditConfig>,
 
     /// `versioning` from `pnpm-workspace.yaml`: native workspace release
@@ -473,7 +486,16 @@ pub struct WorkspaceSettings {
     /// [`Config::allowed_deprecated_versions`]: crate::Config::allowed_deprecated_versions
     pub allowed_deprecated_versions: Option<BTreeMap<String, String>>,
 
+    /// `update` from `pnpm-workspace.yaml`. Supersedes `updateConfig`;
+    /// see [`UpdateSettings`]. When both are set, `update` wins (with a
+    /// warning) — the mapping onto [`Config::update_config`] happens in
+    /// [`Self::apply_to`].
+    pub update: Option<UpdateSettings>,
+
     /// `updateConfig` from `pnpm-workspace.yaml`. See [`UpdateConfig`].
+    ///
+    /// Deprecated in favor of [`Self::update`], kept for backward
+    /// compatibility until the next major version.
     pub update_config: Option<UpdateConfig>,
 
     /// `peerDependencyRules` from `pnpm-workspace.yaml`. See
@@ -481,7 +503,39 @@ pub struct WorkspaceSettings {
     pub peer_dependency_rules: Option<PeerDependencyRules>,
 }
 
+/// `audit` entry: settings that tune `pnpm audit`. Supersedes the
+/// deprecated top-level `auditLevel` and the `auditConfig` entry.
+#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AuditSettings {
+    /// Minimum vulnerability severity `pnpm audit` reports on.
+    /// Supersedes the deprecated top-level `auditLevel`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub level: Option<AuditLevel>,
+
+    /// GHSA IDs `pnpm audit` ignores. Supersedes the deprecated
+    /// [`AuditConfig::ignore_ghsas`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ignore: Option<Vec<String>>,
+}
+
+/// `update` entry: settings that tune `pnpm update` (and `pnpm
+/// outdated`, which previews it). Supersedes the deprecated
+/// `updateConfig`. Today only `ignore` is modeled.
+#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct UpdateSettings {
+    /// `ignoreDeps`: dependency-name patterns `pnpm update` and `pnpm
+    /// outdated` skip. Glob/negation patterns. Equivalent to the
+    /// deprecated [`UpdateConfig::ignore_dependencies`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ignore_deps: Option<Vec<String>>,
+}
+
 /// `updateConfig` entry: settings that tune `pnpm update`.
+///
+/// Deprecated in favor of [`UpdateSettings`], kept for backward
+/// compatibility until the next major version.
 #[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct UpdateConfig {
@@ -796,6 +850,13 @@ impl WorkspaceSettings {
         let http_proxy_is_explicit = config.http_proxy_is_explicit;
         self.apply_proxy_to(&mut config.proxy, http_proxy_is_explicit);
 
+        // Captured before the `apply!` macro and audit if-lets below move
+        // these out of `self`; consumed after, to warn on the redundant
+        // combination of a new section key and its deprecated counterpart.
+        let update_config_in_yaml = self.update_config.is_some();
+        let audit_level_in_yaml = self.audit_level.is_some();
+        let audit_config_in_yaml = self.audit_config.is_some();
+
         macro_rules! apply {
             ($($field:ident),* $(,)?) => {$(
                 if let Some(v) = self.$field {
@@ -841,6 +902,21 @@ impl WorkspaceSettings {
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,
             allow_unused_patches,
+        }
+
+        // The `update` section supersedes the deprecated `updateConfig`.
+        // Applied after the macro so it overrides an `updateConfig` set in
+        // the same file; both together is redundant and warned about.
+        if let Some(update) = self.update {
+            if update_config_in_yaml {
+                tracing::warn!(
+                    target: "pacquet::config",
+                    r#"Both the "update" and "updateConfig" settings are set. The deprecated "updateConfig" setting is ignored in favor of "update"."#,
+                );
+            }
+            // Only the ignore list moves to the new section; preserve any
+            // other `updateConfig` fields (e.g. `changeset`) already applied.
+            config.update_config.ignore_dependencies = update.ignore_deps;
         }
 
         if let Some(inner) = self.hoist_pattern {
@@ -996,6 +1072,30 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.audit_config {
             config.audit_config = v;
+        }
+
+        // The `audit` section supersedes the deprecated `auditLevel` and
+        // `auditConfig`. Applied after them so it overrides values set in the
+        // same file; each redundant pairing is warned about.
+        if let Some(audit) = self.audit {
+            if let Some(level) = audit.level {
+                if audit_level_in_yaml {
+                    tracing::warn!(
+                        target: "pacquet::config",
+                        r#"Both the "audit" and "auditLevel" settings are set. The deprecated "auditLevel" setting is ignored in favor of "audit"."#,
+                    );
+                }
+                config.audit_level = Some(level);
+            }
+            if let Some(ignore) = audit.ignore {
+                if audit_config_in_yaml {
+                    tracing::warn!(
+                        target: "pacquet::config",
+                        r#"Both the "audit" and "auditConfig" settings are set. The deprecated "auditConfig" setting is ignored in favor of "audit"."#,
+                    );
+                }
+                config.audit_config.ignore_ghsas = ignore;
+            }
         }
         if let Some(v) = self.versioning {
             config.versioning = v;

@@ -48,9 +48,9 @@ use crate::defaults::{
     default_registry, default_store_dir, default_user_agent, default_virtual_store_dir,
 };
 pub use workspace_yaml::{
-    GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError, PackageExtension, PeerDependencyMeta,
-    PeerDependencyRules, UpdateConfig, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings,
-    workspace_root_or,
+    AuditSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError, PackageExtension,
+    PeerDependencyMeta, PeerDependencyRules, UpdateConfig, UpdateSettings,
+    WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, workspace_root_or,
 };
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
