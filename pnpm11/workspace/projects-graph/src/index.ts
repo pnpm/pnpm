@@ -48,9 +48,20 @@ export function createProjectsGraph<Pkg extends BaseProject> (projects: Pkg[], o
         const isWorkspaceSpec = rawSpec.startsWith('workspace:')
         try {
           if (isWorkspaceSpec) {
-            const { fetchSpec, name } = parseBareSpecifier(workspacePrefToNpm(rawSpec), depName, 'latest', '')!
-            rawSpec = fetchSpec
-            depName = name
+            const npmSpec = workspacePrefToNpm(rawSpec)
+            let parsed: ReturnType<typeof parseBareSpecifier> = null
+            try {
+              parsed = parseBareSpecifier(npmSpec, depName, 'latest', '')
+            } catch {
+              // Not a valid bare specifier (e.g. workspace:../relative/path).
+            }
+            if (parsed) {
+              rawSpec = parsed.fetchSpec
+              depName = parsed.name
+            } else {
+              // Fall back to resolving it as a directory dependency below.
+              rawSpec = npmSpec
+            }
           }
           spec = npa.resolve(depName, rawSpec, project.rootDir)
         } catch {

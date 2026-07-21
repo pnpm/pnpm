@@ -269,6 +269,56 @@ test('create package graph for local directory dependencies', () => {
   })
 })
 
+test('create package graph for local directory dependencies using the workspace protocol', () => {
+  const result = createProjectsGraph([
+    {
+      rootDir: BAR1_PATH,
+      manifest: {
+        name: 'bar',
+        version: '1.0.0',
+
+        dependencies: {
+          foo: 'workspace:../foo',
+        },
+      },
+    },
+    {
+      rootDir: FOO1_PATH,
+      manifest: {
+        name: 'foo',
+        version: '1.0.0',
+      },
+    },
+  ])
+  expect(result.unmatched).toStrictEqual([])
+  expect(result.graph).toStrictEqual({
+    [BAR1_PATH]: {
+      dependencies: [FOO1_PATH],
+      package: {
+        rootDir: BAR1_PATH,
+        manifest: {
+          name: 'bar',
+          version: '1.0.0',
+
+          dependencies: {
+            foo: 'workspace:../foo',
+          },
+        },
+      },
+    },
+    [FOO1_PATH]: {
+      dependencies: [],
+      package: {
+        rootDir: FOO1_PATH,
+        manifest: {
+          name: 'foo',
+          version: '1.0.0',
+        },
+      },
+    },
+  })
+})
+
 test('create package graph ignoring the workspace protocol', () => {
   const result = createProjectsGraph([
     {
