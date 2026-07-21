@@ -342,8 +342,11 @@ pub(super) fn view<'a>(ctx: &RunCtx<'a>, args: ViewArgs) -> miette::Result<Comma
     let dir = ctx.dir;
     Ok(Box::pin(async move {
         let output = args.run(cfg, dir).await?;
-        // A field selection for an absent field renders as an empty string;
-        // skip the print so it emits no output, matching `pnpm view`.
+        // A single-field selection of an absent field renders as an empty
+        // string; skip the print so it emits no output. A multi-field `--json`
+        // selection of absent fields renders as `{}` and is printed. Both
+        // match `pnpm view`, which prints whatever truthy string the handler
+        // returns.
         if !output.is_empty() {
             println!("{output}");
         }
