@@ -335,7 +335,10 @@ fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\
           gitChecks: false,
           gitTagVersion: false,
         } as any, ['from-git']) // eslint-disable-line @typescript-eslint/no-explicit-any
-      ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_VERSION_FROM_GIT' })
+      ).rejects.toMatchObject({
+        code: 'ERR_PNPM_INVALID_VERSION_FROM_GIT',
+        message: `Could not determine a valid version from Git in ${JSON.stringify(tempDir)} using tag prefix "v": no matching Git tag found`,
+      })
     })
 
     it('should rethrow unexpected git describe errors', async () => {
@@ -361,7 +364,10 @@ fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\
           gitChecks: false,
           gitTagVersion: false,
         } as any, ['from-git']) // eslint-disable-line @typescript-eslint/no-explicit-any
-      ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_VERSION_FROM_GIT' })
+      ).rejects.toMatchObject({
+        code: 'ERR_PNPM_INVALID_VERSION_FROM_GIT',
+        message: `Could not determine a valid version from Git in ${JSON.stringify(tempDir)} using tag prefix "v": tag is not a valid version: "v-release-2.3.4"`,
+      })
     })
 
     it('should use tagVersionPrefix with from-git', async () => {

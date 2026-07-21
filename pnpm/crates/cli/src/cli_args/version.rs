@@ -93,7 +93,7 @@ enum VersionError {
     InvalidBump { raw: String },
 
     #[display(
-        "Could not determine a valid version from Git in {dir} using tag prefix {tag_version_prefix}: {reason}"
+        "Could not determine a valid version from Git in {dir:?} using tag prefix {tag_version_prefix:?}: {reason}"
     )]
     #[diagnostic(code(ERR_PNPM_INVALID_VERSION_FROM_GIT))]
     InvalidVersionFromGit { dir: String, tag_version_prefix: String, reason: String },
@@ -645,45 +645,58 @@ fn identifier_text(identifier: &Identifier) -> String {
     }
 }
 
+/// Build the canonical cross-stack error for an invalid version from Git.
+fn invalid_version_from_git(
+    cwd: &Path,
+    tag_version_prefix: &str,
+    reason: impl Into<String>,
+) -> VersionError {
+    VersionError::InvalidVersionFromGit {
+        dir: cwd.display().to_string(),
+        tag_version_prefix: tag_version_prefix.to_string(),
+        reason: reason.into(),
+    }
+}
+
 /// Read the nearest matching Git tag and parse the part after the configured
 /// tag prefix as an exact semantic version.
 fn version_from_git(cwd: &Path, tag_version_prefix: &str) -> Result<Version, VersionError> {
     let pattern = format!("{tag_version_prefix}*.*.*");
     let args = ["describe", "--tags", "--abbrev=0", "--match", pattern.as_str()];
     let output = <Host as RunCommand>::run("git", &args, Some(cwd)).map_err(|err| {
-        VersionError::InvalidVersionFromGit {
-            dir: cwd.display().to_string(),
-            tag_version_prefix: tag_version_prefix.to_string(),
-            reason: err.to_string(),
-        }
+        VersionError::GitCommandFailed { args: args.join(" "), stderr: err.to_string() }
     })?;
 
     if !output.success {
         let stderr = output.stderr.trim();
-        return Err(VersionError::InvalidVersionFromGit {
-            dir: cwd.display().to_string(),
-            tag_version_prefix: tag_version_prefix.to_string(),
-            reason: if stderr.is_empty() {
-                "git describe failed".to_string()
-            } else {
-                stderr.to_string()
-            },
+        if stderr.contains("No names found") || stderr.contains("No tags can describe") {
+            return Err(invalid_version_from_git(
+                cwd,
+                tag_version_prefix,
+                "no matching Git tag found",
+            ));
+        }
+        return Err(VersionError::GitCommandFailed {
+            args: args.join(" "),
+            stderr: stderr.to_string(),
         });
     }
 
     let tag = output.stdout.trim();
     let Some(raw_version) = tag.strip_prefix(tag_version_prefix) else {
-        return Err(VersionError::InvalidVersionFromGit {
-            dir: cwd.display().to_string(),
-            tag_version_prefix: tag_version_prefix.to_string(),
-            reason: format!("tag is not a valid version: {tag:?}"),
-        });
+        return Err(invalid_version_from_git(
+            cwd,
+            tag_version_prefix,
+            format!("tag is not a valid version: {tag:?}"),
+        ));
     };
 
-    Version::parse(raw_version).map_err(|_| VersionError::InvalidVersionFromGit {
-        dir: cwd.display().to_string(),
-        tag_version_prefix: tag_version_prefix.to_string(),
-        reason: format!("tag is not a valid version: {tag:?}"),
+    Version::parse(raw_version).map_err(|_| {
+        invalid_version_from_git(
+            cwd,
+            tag_version_prefix,
+            format!("tag is not a valid version: {tag:?}"),
+        )
     })
 }
 

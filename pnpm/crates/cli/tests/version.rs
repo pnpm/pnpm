@@ -365,8 +365,9 @@ fn from_git_fails_when_no_matching_tag_exists() {
     let output = pacquet_version(&workspace, &["from-git", "--no-git-tag-version"]);
 
     assert!(!output.status.success(), "from-git without a matching tag must fail");
-    let stderr = stderr_of(&output);
+    let stderr = stderr_of(&output).replace("\n  │ ", " ");
     assert!(stderr.contains("ERR_PNPM_INVALID_VERSION_FROM_GIT"), "{stderr}");
+    assert!(stderr.contains("using tag prefix \"v\": no matching Git tag found"), "{stderr}");
     drop(root);
 }
 
@@ -386,8 +387,12 @@ fn from_git_rejects_a_malformed_version_tag() {
     let output = pacquet_version(&workspace, &["from-git", "--no-git-tag-version"]);
 
     assert!(!output.status.success(), "a malformed version tag must fail");
-    let stderr = stderr_of(&output);
+    let stderr = stderr_of(&output).replace("\n  │ ", " ");
     assert!(stderr.contains("ERR_PNPM_INVALID_VERSION_FROM_GIT"), "{stderr}");
+    assert!(
+        stderr.contains("using tag prefix \"v\": tag is not a valid version: \"v-release-2.3.4\""),
+        "{stderr}"
+    );
     drop(root);
 }
 

@@ -300,6 +300,10 @@ function buildVerifyPublished (opts: VersionHandlerOptions): ApplyReleasePlanOpt
   }
 }
 
+function invalidVersionFromGitError (cwd: string, tagVersionPrefix: string, reason: string): PnpmError {
+  return new PnpmError('INVALID_VERSION_FROM_GIT', `Could not determine a valid version from Git in ${JSON.stringify(cwd)} using tag prefix ${JSON.stringify(tagVersionPrefix)}: ${reason}`)
+}
+
 async function versionFromGit (cwd: string, tagVersionPrefix = 'v'): Promise<string> {
   let tag: string
   try {
@@ -315,7 +319,7 @@ async function versionFromGit (cwd: string, tagVersionPrefix = 'v'): Promise<str
       typeof err.stderr === 'string' &&
       /No names found|No tags can describe/.test(err.stderr)
     ) {
-      throw new PnpmError('INVALID_VERSION_FROM_GIT', 'No matching Git tag found in ' + JSON.stringify(cwd) + ' for prefix: ' + JSON.stringify(tagVersionPrefix))
+      throw invalidVersionFromGitError(cwd, tagVersionPrefix, 'no matching Git tag found')
     }
     throw err
   }
@@ -323,7 +327,7 @@ async function versionFromGit (cwd: string, tagVersionPrefix = 'v'): Promise<str
     ? valid(tag.slice(tagVersionPrefix.length))
     : null
   if (!version) {
-    throw new PnpmError('INVALID_VERSION_FROM_GIT', 'Tag is not a valid version: ' + JSON.stringify(tag))
+    throw invalidVersionFromGitError(cwd, tagVersionPrefix, 'tag is not a valid version: ' + JSON.stringify(tag))
   }
   return version
 }
