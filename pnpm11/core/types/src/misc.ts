@@ -70,6 +70,7 @@ export type ProjectId = string & { __brand: 'ProjectId' }
 
 export type PinnedVersion =
   | 'none'
+  | 'exact'
   | 'patch'
   | 'minor'
   | 'major'

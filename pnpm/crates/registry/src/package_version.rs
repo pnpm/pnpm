@@ -299,7 +299,7 @@ impl PackageVersion {
 
     #[must_use]
     pub fn serialize(&self, pinned_version: PinnedVersion) -> String {
-        if !self.version.pre_release.is_empty() {
+        if !self.version.pre_release.is_empty() && pinned_version != PinnedVersion::Exact {
             return self.version.to_string();
         }
         format!("{0}{1}", pinned_version.range_prefix(), self.version)

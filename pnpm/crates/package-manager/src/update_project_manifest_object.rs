@@ -118,7 +118,7 @@ fn create_version_spec_from_resolved_version(
     pinned_version: Option<PinnedVersion>,
 ) -> Option<String> {
     let parsed = Version::parse(resolved_version).ok()?;
-    if !parsed.pre_release.is_empty() {
+    if !parsed.pre_release.is_empty() && pinned_version != Some(PinnedVersion::Exact) {
         return Some(resolved_version.to_string());
     }
     let prefix = pinned_version.unwrap_or(PinnedVersion::Major).range_prefix();

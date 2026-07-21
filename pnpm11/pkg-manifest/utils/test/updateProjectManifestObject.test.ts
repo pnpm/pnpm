@@ -170,6 +170,7 @@ test('peer dependencies respect pinned version "patch" and "none"', async () => 
   const cases = [
     { pinnedVersion: 'patch' as const, expected: '3.2.1' },
     { pinnedVersion: 'none' as const, expected: '^3.2.1' },
+    { pinnedVersion: 'exact' as const, expected: '=3.2.1' },
   ]
 
   await Promise.all(cases.map(async ({ pinnedVersion, expected }) => {

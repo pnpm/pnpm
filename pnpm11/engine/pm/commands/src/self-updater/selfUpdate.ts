@@ -331,6 +331,7 @@ function versionSpecFromPinned (version: string, pinnedVersion: PinnedVersion): 
     case 'none':
     case 'major': return `^${version}`
     case 'minor': return `~${version}`
+    case 'exact': return `=${version}`
     case 'patch': return version
   }
 }
