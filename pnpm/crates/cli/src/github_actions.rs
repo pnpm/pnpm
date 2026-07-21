@@ -176,7 +176,10 @@ async fn create_plan<Runner: GitCommandRunner + Sync>(
 }
 
 async fn discover(root: &Path) -> miette::Result<Vec<ActionReference>> {
-    let canonical_root = fs::canonicalize(root).await.unwrap_or_else(|_| root.to_path_buf());
+    let root_display = root.display();
+    let canonical_root = fs::canonicalize(root)
+        .await
+        .map_err(|error| miette::miette!("Failed to read {root_display}: {error}"))?;
     let workflows = root.join(".github/workflows");
     let workflows_display = workflows.display();
     let mut entries = match fs::read_dir(&workflows).await {
@@ -200,15 +203,25 @@ async fn discover(root: &Path) -> miette::Result<Vec<ActionReference>> {
     let mut visited = HashSet::new();
     let mut actions = Vec::new();
     while let Some(file) = queue.pop_front() {
-        if !visited.insert(file.clone()) {
-            continue;
-        }
         let file_display = file.display();
-        let text = fs::read_to_string(&file)
+        let real_file = fs::canonicalize(&file)
             .await
             .map_err(|error| miette::miette!("Failed to read {file_display}: {error}"))?;
+        if !real_file.starts_with(&canonical_root) {
+            return Err(miette::miette!(
+                code = "ERR_PNPM_GITHUB_ACTIONS_WORKFLOW_OUTSIDE_ROOT",
+                "GitHub Actions workflow is outside the project root: {file_display}"
+            ));
+        }
+        if !visited.insert(real_file.clone()) {
+            continue;
+        }
+        let real_file_display = real_file.display();
+        let text = fs::read_to_string(&real_file)
+            .await
+            .map_err(|error| miette::miette!("Failed to read {real_file_display}: {error}"))?;
         for uses_value in uses_values(&text)
-            .map_err(|error| miette::miette!("Failed to parse {file_display}: {error}"))?
+            .map_err(|error| miette::miette!("Failed to parse {real_file_display}: {error}"))?
         {
             let original_value = uses_value.value;
             let (value, comment) = split_uses_value(original_value);
@@ -249,7 +262,7 @@ async fn discover(root: &Path) -> miette::Result<Vec<ActionReference>> {
                 .map(str::to_string);
             actions.push(ActionReference {
                 comment_version,
-                file: file.clone(),
+                file: real_file.clone(),
                 flow_style: uses_value.flow_style,
                 indentation: uses_value.indentation,
                 name: name.to_string(),
@@ -404,9 +417,7 @@ fn find_current(action: &ActionReference, versions: &[RepoVersion]) -> Option<Re
     {
         return Some(current.clone());
     }
-    if let Some(version) = parse_version(&action.ref_)
-        && action.ref_.trim_start_matches('v').split('.').count() == 3
-    {
+    if let Some(version) = parse_version(&action.ref_) {
         return versions.iter().find(|candidate| candidate.version == version).cloned();
     }
     if let Ok(major) = action.ref_.trim_start_matches('v').parse::<u64>() {

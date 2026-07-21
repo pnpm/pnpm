@@ -151,6 +151,12 @@ async function createUpdatePlan (opts: GitHubActionsOptions): Promise<PlannedUpd
 }
 
 async function discoverActions (dir: string): Promise<ActionReference[]> {
+  let realRoot: string
+  try {
+    realRoot = await fs.realpath(dir)
+  } catch (err: unknown) {
+    throw workflowError('READ', dir, err)
+  }
   const workflowDir = path.join(dir, '.github', 'workflows')
   let entries: string[]
   try {
@@ -168,17 +174,26 @@ async function discoverActions (dir: string): Promise<ActionReference[]> {
   return actions
 
   async function scanFile (filePath: string): Promise<void> {
-    if (visited.has(filePath)) return
-    visited.add(filePath)
-    let source: string
+    let realFilePath: string
     try {
-      source = await fs.readFile(filePath, 'utf8')
+      realFilePath = await fs.realpath(filePath)
     } catch (err: unknown) {
       throw workflowError('READ', filePath, err)
     }
+    if (!isPathInside(realRoot, realFilePath)) {
+      throw new PnpmError('GITHUB_ACTIONS_WORKFLOW_OUTSIDE_ROOT', `GitHub Actions workflow is outside the project root: ${filePath}`)
+    }
+    if (visited.has(realFilePath)) return
+    visited.add(realFilePath)
+    let source: string
+    try {
+      source = await fs.readFile(realFilePath, 'utf8')
+    } catch (err: unknown) {
+      throw workflowError('READ', realFilePath, err)
+    }
     const document = YAML.parseDocument(source)
-    if (document.errors.length > 0) throw workflowError('PARSE', filePath, document.errors[0])
-    const file = { path: filePath, source }
+    if (document.errors.length > 0) throw workflowError('PARSE', realFilePath, document.errors[0])
+    const file = { path: realFilePath, source }
     const localReferences: string[] = []
     for (const node of findUsesScalars(document.contents)) {
       const value = node.value
@@ -188,7 +203,7 @@ async function discoverActions (dir: string): Promise<ActionReference[]> {
       }
       const parsed = parseActionReference(value)
       if (parsed == null) continue
-      if (node.range == null) throw new Error(`Missing source range for GitHub Action in ${filePath}`)
+      if (node.range == null) throw new Error(`Missing source range for GitHub Action in ${realFilePath}`)
       const end = trimLineBreak(source, node.range[2] ?? node.range[1])
       actions.push({
         ...parsed,
@@ -258,10 +273,7 @@ async function resolveLocalReference (rootDir: string, reference: string): Promi
   } catch (err: unknown) {
     throw workflowError('READ', candidate, err)
   }
-  const relative = path.relative(realRoot, realCandidate)
-  return relative === '' || (!path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`))
-    ? realCandidate
-    : null
+  return isPathInside(realRoot, realCandidate) ? realCandidate : null
 }
 
 async function existingPath (candidate: string): Promise<string | null> {
@@ -309,7 +321,7 @@ function findCurrentVersion (action: ActionReference, versions: RepoVersion[]): 
     }
   }
   const parsed = semver.parse(action.ref, { loose: true })
-  if (parsed != null && parsed.raw.replace(/^v/, '').split('.').length === 3) {
+  if (parsed != null) {
     return versions.find(({ version }) => semver.eq(version, parsed)) ?? null
   }
   if (/^v?\d+$/.test(action.ref)) {
@@ -369,6 +381,11 @@ async function readRefsWithGit (repo: string): Promise<Record<string, string>> {
 function workflowError (operation: 'PARSE' | 'READ' | 'WRITE', filePath: string, cause: unknown): PnpmError {
   const detail = util.types.isNativeError(cause) ? cause.message : String(cause)
   return new PnpmError(`GITHUB_ACTIONS_WORKFLOW_${operation}`, `Failed to ${operation.toLowerCase()} GitHub Actions workflow ${filePath}: ${detail}`, { cause })
+}
+
+function isPathInside (root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate)
+  return relative === '' || (!path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`))
 }
 
 function isErrorCode (err: unknown, code: string): err is NodeJS.ErrnoException {

@@ -94,7 +94,7 @@ export async function outdatedRecursive (
       const key = JSON.stringify([outdatedAction.packageName, outdatedAction.current, outdatedAction.dependencyType])
       outdatedMap[key] = {
         ...outdatedAction,
-        dependentPkgs: [{ location: opts.workspaceDir ?? opts.dir, manifest: { name: '.github' } }],
+        dependentPkgs: [{ location: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir, manifest: { name: '.github' } }],
       }
     }
   }

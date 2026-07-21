@@ -153,15 +153,7 @@ impl UpdateArgs {
             .filter(|selector| !github_actions::is_selector(selector))
             .cloned()
             .collect::<Vec<_>>();
-        let has_package_dependencies = state
-            .manifest
-            .dependencies([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional])
-            .next()
-            .is_some();
-        if !self.interactive
-            && ((!self.packages.is_empty() && package_selectors.is_empty())
-                || (self.packages.is_empty() && !has_package_dependencies))
-        {
+        if !self.interactive && !self.packages.is_empty() && package_selectors.is_empty() {
             if update_actions {
                 github_actions::update(&actions_root, self.latest, action_matcher.as_ref()).await?;
             }
@@ -383,7 +375,7 @@ impl UpdateArgs {
 }
 
 fn manifest_root(manifest: &pacquet_package_manifest::PackageManifest) -> std::path::PathBuf {
-    manifest.path().parent().unwrap_or_else(|| manifest.path()).to_path_buf()
+    manifest.path().parent().expect("manifest path always has a parent directory").to_path_buf()
 }
 
 #[cfg(test)]

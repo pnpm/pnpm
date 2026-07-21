@@ -94,6 +94,17 @@ fn floating_major_resolves_to_an_exact_commit() {
     assert_eq!(render_target_ref(&versions[2]), SHA_V5_0_0);
 }
 
+#[test]
+fn resolves_prerelease_tags_containing_dots() {
+    let versions = parse_repo_versions(
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\trefs/tags/v5.0.0-alpha.1\nbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\trefs/tags/v5.0.0-alpha.2\n",
+    );
+    let current = find_current(&action("actions/checkout@v5.0.0-alpha.1"), &versions)
+        .expect("prerelease version");
+
+    assert_eq!(current.version, Version::parse("5.0.0-alpha.1").unwrap());
+}
+
 #[tokio::test]
 async fn updates_workflow_files_without_reformatting_them() {
     let root = tempfile::tempdir().expect("temp directory");
@@ -137,4 +148,24 @@ async fn compatible_outdated_uses_the_current_major() {
 
     assert_eq!(default[0].latest, Version::parse("5.0.0").unwrap());
     assert_eq!(compatible[0].latest, Version::parse("4.2.0").unwrap());
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn rejects_workflow_symlinks_outside_the_project() {
+    use std::os::unix::fs::symlink;
+
+    let root = tempfile::tempdir().expect("project directory");
+    let outside = tempfile::tempdir().expect("outside directory");
+    let original = "jobs:\n  test:\n    steps:\n      - uses: actions/checkout@v4\n";
+    fs::write(outside.path().join("ci.yml"), original).expect("outside workflow");
+    fs::create_dir_all(root.path().join(".github")).expect("GitHub directory");
+    symlink(outside.path(), root.path().join(".github/workflows")).expect("workflow symlink");
+
+    let Err(error) = update_with_runner(root.path(), false, None, &FakeGitRunner).await else {
+        panic!("outside workflow must be rejected");
+    };
+
+    assert!(error.to_string().contains("outside the project root"));
+    assert_eq!(fs::read_to_string(outside.path().join("ci.yml")).unwrap(), original);
 }

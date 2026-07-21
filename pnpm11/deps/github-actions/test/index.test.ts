@@ -151,6 +151,26 @@ jobs:
     await expect(fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')).resolves.toContain(`uses: actions/checkout@${'a'.repeat(40)} # v4.2.0`)
   })
 
+  test('updates prerelease tags containing dots', async () => {
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `jobs:
+  test:
+    steps:
+      - uses: actions/checkout@v5.0.0-alpha.1
+`,
+    })
+
+    await updateGitHubActions({
+      dir,
+      readRepoRefs: async () => repoRefs([
+        ['v5.0.0-alpha.1', 'a'.repeat(40)],
+        ['v5.0.0-alpha.2', 'b'.repeat(40)],
+      ]),
+    })
+
+    await expect(fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')).resolves.toContain(`uses: actions/checkout@${'b'.repeat(40)} # v5.0.0-alpha.2`)
+  })
+
   test('updates flow-style steps without commenting out their delimiters', async () => {
     const dir = await fixture({
       '.github/workflows/ci.yml': `jobs:
@@ -212,6 +232,26 @@ ${Array.from({ length: actionCount }, (_, index) => `      - uses: owner/action-
       code: 'ERR_PNPM_GITHUB_ACTIONS_WORKFLOW_PARSE',
       message: expect.stringContaining(path.join(dir, '.github/workflows/ci.yml')),
     })
+  })
+
+  test('rejects workflow directory symlinks outside the project', async () => {
+    const dir = await fixture({})
+    const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-actions-outside-'))
+    dirs.push(outsideDir)
+    const outsideWorkflow = path.join(outsideDir, 'ci.yml')
+    const original = `jobs:
+  test:
+    steps:
+      - uses: actions/checkout@v4
+`
+    await fs.writeFile(outsideWorkflow, original)
+    await fs.mkdir(path.join(dir, '.github'), { recursive: true })
+    await fs.symlink(outsideDir, path.join(dir, '.github/workflows'), 'junction')
+
+    await expect(updateGitHubActions({ dir })).rejects.toMatchObject({
+      code: 'ERR_PNPM_GITHUB_ACTIONS_WORKFLOW_OUTSIDE_ROOT',
+    })
+    await expect(fs.readFile(outsideWorkflow, 'utf8')).resolves.toBe(original)
   })
 })
 
