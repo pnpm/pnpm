@@ -81,7 +81,7 @@ export async function fetchPackageInfo (
     { preferredVersionSelectors: undefined },
     metadata,
     spec
-  )
+  ).package
   if (!data) {
     throw new PnpmError('PACKAGE_NOT_FOUND', `No matching version found for ${packageName}@${spec.fetchSpec}`)
   }

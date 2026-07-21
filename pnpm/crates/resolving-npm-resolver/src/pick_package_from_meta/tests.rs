@@ -13,6 +13,7 @@ use super::{
     PickPackageFromMetaError, PickPackageFromMetaOptions, PickVersionByVersionRangeOptions,
     RegistryPackageSpec, RegistryPackageSpecType, filter_pkg_metadata_by_publish_date,
     pick_lowest_version_by_version_range, pick_package_from_meta, pick_version_by_version_range,
+    policy_aware_latest,
 };
 
 fn parse_iso(input: &str) -> DateTime<Utc> {
@@ -511,6 +512,46 @@ fn lowest_picker_with_published_by_drops_immature_min() {
     )
     .expect("ok");
     assert_eq!(picked.map(|version| version.version.to_string()).as_deref(), Some("1.1.0"));
+}
+
+#[test]
+fn policy_aware_latest_returns_raw_when_published_by_is_none() {
+    let pkg = make_package("acme", &[("1.0.0", None), ("2.0.0", None)], &[("latest", "2.0.0")]);
+    let latest = policy_aware_latest(&pkg, None, None);
+    assert_eq!(latest.as_deref(), Some("2.0.0"));
+}
+
+#[test]
+fn policy_aware_latest_filters_out_immature_raw_latest() {
+    // latest = 3.1.0 (published 2025-03-01), cutoff 2025-01-01 filters it out.
+    // Policy-aware latest should fall back to the highest mature version (1.1.0),
+    // matching filter_pkg_metadata_by_publish_date.
+    let mut pkg = make_package(
+        "acme",
+        &[("1.0.0", None), ("1.1.0", None), ("3.1.0", None)],
+        &[("latest", "3.1.0")],
+    );
+    pkg.time = Some(make_time_map(&[
+        ("1.0.0", "2024-01-01T00:00:00.000Z"),
+        ("1.1.0", "2024-06-01T00:00:00.000Z"),
+        ("3.1.0", "2025-03-01T00:00:00.000Z"),
+    ]));
+    let cutoff = parse_iso("2025-01-01T00:00:00.000Z");
+    let latest = policy_aware_latest(&pkg, Some(cutoff), None);
+    assert_eq!(latest.as_deref(), Some("1.1.0"));
+}
+
+#[test]
+fn policy_aware_latest_returns_raw_when_exclude_matches_package() {
+    let mut pkg = make_package("acme", &[("1.0.0", None), ("3.1.0", None)], &[("latest", "3.1.0")]);
+    pkg.time = Some(make_time_map(&[
+        ("1.0.0", "2024-01-01T00:00:00.000Z"),
+        ("3.1.0", "2025-03-01T00:00:00.000Z"),
+    ]));
+    let cutoff = parse_iso("2025-01-01T00:00:00.000Z");
+    let policy = create_package_version_policy(["acme"]).expect("policy");
+    let latest = policy_aware_latest(&pkg, Some(cutoff), Some(&policy));
+    assert_eq!(latest.as_deref(), Some("3.1.0"));
 }
 
 #[test]

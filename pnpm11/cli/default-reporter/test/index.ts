@@ -300,6 +300,49 @@ ${ADD} qar ${versionColor('2.0.0')}
 `)
 })
 
+test('does not print "(X is available)" when latest equals the installed version (policy-aware latest)', async () => {
+  // When minimumReleaseAge holds back the registry's raw latest, the resolver
+  // returns the policy-aware latest as `latest`. If that equals the picked
+  // version, the install summary must not advertise an upgrade.
+  const prefix = '/home/jane/project'
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as Config & ConfigContext,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  rootLogger.debug({
+    added: {
+      dependencyType: 'prod',
+      id: 'registry.npmjs.org/foo/3.9.5',
+      latest: '3.9.5',
+      name: 'foo',
+      realName: 'foo',
+      version: '3.9.5',
+    },
+    prefix,
+  })
+  packageManifestLogger.debug({
+    prefix,
+    updated: {
+      dependencies: {
+        foo: '^3.0.0',
+      },
+    },
+  })
+  summaryLogger.debug({ prefix })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(EOL + `\
+${h1('dependencies:')}
+${ADD} foo ${versionColor('3.9.5')}
+`)
+})
+
 test('does not print deprecation message when log level is set to error', async () => {
   const prefix = '/home/jane/project'
   const output$ = toOutput$({

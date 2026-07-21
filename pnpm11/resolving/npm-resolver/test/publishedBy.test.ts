@@ -585,3 +585,46 @@ test('excluded packages bypass the mtime cache shortcut and refresh stale metada
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
 })
+
+test('latest is the policy-aware tag when publishedBy filters out the registry latest', async () => {
+  // is-positive-full has 1.0.0 (2015-06-02), 2.0.0 (2015-06-17), 3.0.0 (2015-07-10),
+  // 3.1.0 (2016-01-11); dist-tags.latest = 3.1.0. publishedBy between 3.0.0 and
+  // 3.1.0 filters 3.1.0 out as immature, so the policy-aware latest becomes 3.0.0.
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    filterMetadata: true,
+    fullMetadata: true,
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
+    publishedBy: new Date('2015-10-01T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.id).toBe('is-positive@3.0.0')
+  expect(resolveResult!.latest).toBe('3.0.0')
+})
+
+test('latest is the raw registry tag when publishedBy is not set', async () => {
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    filterMetadata: true,
+    fullMetadata: true,
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {})
+
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+  expect(resolveResult!.latest).toBe('3.1.0')
+})

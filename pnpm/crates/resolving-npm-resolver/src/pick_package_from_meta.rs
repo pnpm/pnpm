@@ -400,6 +400,38 @@ pub fn filter_pkg_metadata_by_publish_date(
     })
 }
 
+/// The policy-aware `dist-tags.latest` for a packument: the registry's raw
+/// tag when no maturity policy applies, or the rewritten tag (highest mature
+/// version) when `published_by` filters the packument. Used by the install
+/// summary reporter so it does not advertise a version the policy itself
+/// held back. Mirrors the filter logic in [`pick_package_from_meta`] without
+/// re-running the pick.
+///
+/// Returns the raw `latest` when maturity can't be determined (abbreviated
+/// metadata without `time`), matching the warn-and-skip fallback in
+/// [`pick_matching_version_final`].
+#[must_use]
+pub fn policy_aware_latest(
+    meta: &Package,
+    published_by: Option<chrono::DateTime<chrono::Utc>>,
+    published_by_exclude: Option<&PackageVersionPolicy>,
+) -> Option<String> {
+    let raw_latest = meta.dist_tag("latest").map(str::to_string);
+    let Some(cutoff) = published_by else { return raw_latest };
+    let exclude_result = published_by_exclude.map(|policy| policy.matches(&meta.name));
+    use pacquet_config::version_policy::PolicyMatch;
+    let trusted = match &exclude_result {
+        Some(PolicyMatch::AnyVersion) => return raw_latest,
+        Some(PolicyMatch::ExactVersions(versions)) => Some(versions.as_slice()),
+        _ => None,
+    };
+    if meta.time.is_some() {
+        let filtered = filter_pkg_metadata_by_publish_date(meta, cutoff, trusted);
+        return filtered.dist_tag("latest").map(str::to_string);
+    }
+    raw_latest
+}
+
 /// Filter a packument's versions by string while keeping dist-tags
 /// usable. Tags that still point at a kept version are preserved; tags
 /// whose target was removed are rewritten using the publish-date

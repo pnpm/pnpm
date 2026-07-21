@@ -42,7 +42,7 @@ use crate::{
     named_registry::pick_registry_for_package,
     parse_bare_specifier::{parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec},
     pick_package::{PackageMetaCache, PickPackageContext, PickPackageOptions, pick_package},
-    pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType},
+    pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType, policy_aware_latest},
     resolve_from_workspace::{
         ResolveFromWorkspaceError, ResolveFromWorkspaceOptions,
         pick_matching_local_version_or_null, resolve_from_local_package,
@@ -261,7 +261,11 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 opts,
             )
         {
-            result.latest = picked.meta.dist_tag("latest").map(str::to_string);
+            result.latest = policy_aware_latest(
+                &picked.meta,
+                opts.published_by,
+                opts.published_by_exclude.as_ref(),
+            );
             return Ok(Some(result));
         }
 
@@ -724,7 +728,7 @@ pub(crate) fn build_resolve_result(
     Ok(ResolveResult {
         id,
         name_ver: Some(name_ver),
-        latest: meta.dist_tag("latest").map(str::to_string),
+        latest: policy_aware_latest(meta, published_by, published_by_exclude),
         published_at,
         manifest,
         resolution,
