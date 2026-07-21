@@ -521,7 +521,7 @@ pub struct AuditSettings {
 
 /// `update` entry: settings that tune `pnpm update` (and `pnpm
 /// outdated`, which previews it). Supersedes the deprecated
-/// `updateConfig`. Today only `ignore` is modeled.
+/// `updateConfig`.
 #[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct UpdateSettings {
@@ -536,6 +536,11 @@ pub struct UpdateSettings {
     /// `--changeset`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub changeset: Option<bool>,
+
+    /// Whether `pnpm update` should also update GitHub Actions
+    /// dependencies.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub github_actions: Option<bool>,
 }
 
 /// `updateConfig` entry: settings that tune `pnpm update`.
@@ -553,6 +558,11 @@ pub struct UpdateConfig {
     /// patterns.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ignore_dependencies: Option<Vec<String>>,
+
+    /// Whether `pnpm update` should also update GitHub Actions
+    /// dependencies.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub github_actions: Option<bool>,
 }
 
 /// `peerDependencyRules` entry: customizations applied when reporting
@@ -925,6 +935,7 @@ impl WorkspaceSettings {
             config.update_config = UpdateConfig {
                 ignore_dependencies: update.ignore_deps,
                 changeset: update.changeset,
+                github_actions: update.github_actions,
             };
         }
 

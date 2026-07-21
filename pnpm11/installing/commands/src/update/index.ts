@@ -82,6 +82,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...rcOptionsTypes(),
     changeset: Boolean,
+    'include-github-actions': Boolean,
     interactive: Boolean,
     latest: Boolean,
     recursive: Boolean,
@@ -103,7 +104,7 @@ export const completion: CompletionFunc = async (cliOpts) => {
 export function help (): string {
   return renderHelp({
     aliases: ['up', 'upgrade'],
-    description: 'Updates package and GitHub Actions dependencies to their latest version based on the specified range. You can use "*" in a dependency name to update all dependencies with the same pattern.',
+    description: 'Updates package dependencies to their latest version based on the specified range. GitHub Actions dependencies can be included with --include-github-actions. You can use "*" in a dependency name to update all dependencies with the same pattern.',
     descriptionLists: [
       {
         title: 'Options',
@@ -161,6 +162,10 @@ dependencies is not found inside the workspace',
             name: '--changeset',
           },
           {
+            description: 'Also update GitHub Actions dependencies in workflow and action files',
+            name: '--include-github-actions',
+          },
+          {
             description: 'Don\'t update the ranges in package.json.',
             name: '--no-save',
           },
@@ -178,6 +183,7 @@ dependencies is not found inside the workspace',
 export type UpdateCommandOptions = InstallCommandOptions & {
   changeset?: boolean
   include?: IncludedDependencies
+  includeGithubActions?: boolean
   interactive?: boolean
   latest?: boolean
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
@@ -318,7 +324,7 @@ async function interactiveUpdate (
     throw err
   }
 
-  return update(updatePkgNames, opts, rebuildHandler) as Promise<undefined>
+  return update(updatePkgNames, { ...opts, includeGithubActions: true }, rebuildHandler) as Promise<undefined>
 }
 
 async function update (
@@ -333,7 +339,13 @@ async function update (
     }
   }
   const includeDirect = makeIncludeDependenciesFromCLI(opts.cliOptions)
-  const packageDependencies = dependencies.filter((dependency) => !isGitHubActionSelector(dependency))
+  const updateActions = includeDirect.devDependencies &&
+    opts.save !== false &&
+    !opts.lockfileOnly &&
+    (opts.includeGithubActions === true || opts.updateConfig?.githubActions === true)
+  const packageDependencies = updateActions
+    ? dependencies.filter((dependency) => !isGitHubActionSelector(dependency))
+    : dependencies
   // include is always all-true for updates: updates should not change which
   // dep types the modules directory supports. The filtering of which deps to
   // actually resolve/update is handled by includeDirect (from CLI flags).
@@ -374,7 +386,7 @@ async function update (
       dryRun: false,
     }, packageDependencies)
   }
-  if (includeDirect.devDependencies && opts.save !== false && !opts.lockfileOnly) {
+  if (updateActions) {
     await updateGitHubActions({
       dir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
       latest: opts.latest,

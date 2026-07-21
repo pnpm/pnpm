@@ -59,7 +59,7 @@ impl UpdateDependencyOptions {
 #[derive(Debug, Args)]
 pub struct UpdateArgs {
     /// Dependencies to update. Package names (`foo`, `@scope/bar`), GitHub
-    /// Actions (`actions/checkout`), glob
+    /// Actions (`actions/checkout`, with `--include-github-actions`), glob
     /// patterns (`@scope/bar-*`), and versioned selectors (`foo@2`) are
     /// accepted. With no arguments, every direct dependency in the
     /// included groups is updated.
@@ -101,6 +101,10 @@ pub struct UpdateArgs {
     /// Show outdated dependencies and select which ones to update.
     #[clap(short = 'i', long)]
     pub interactive: bool,
+
+    /// Also update GitHub Actions dependencies in workflow and action files.
+    #[clap(long = "include-github-actions")]
+    pub include_github_actions: bool,
 
     /// Update globally installed packages.
     #[clap(short = 'g', long)]
@@ -144,15 +148,10 @@ impl UpdateArgs {
         let actions_root =
             state.config.workspace_dir.clone().unwrap_or_else(|| manifest_root(&state.manifest));
         let include_direct = self.dependency_options.include_direct();
-        let update_actions =
-            include_direct.contains(&DependencyGroup::Dev) && !self.no_save && !self.lockfile_only;
-        let action_matcher = (!self.packages.is_empty()).then(|| create_matcher(&self.packages));
-        let package_selectors = self
-            .packages
-            .iter()
-            .filter(|selector| !github_actions::is_selector(selector))
-            .cloned()
-            .collect::<Vec<_>>();
+        let update_actions = self.should_update_github_actions(state.config, &include_direct);
+        let action_matcher =
+            (update_actions && !self.packages.is_empty()).then(|| create_matcher(&self.packages));
+        let package_selectors = filter_package_selectors(&self.packages, update_actions);
         if !self.interactive && !self.packages.is_empty() && package_selectors.is_empty() {
             if update_actions {
                 github_actions::update(&actions_root, self.latest, action_matcher.as_ref()).await?;
@@ -198,11 +197,7 @@ impl UpdateArgs {
 
         let selected_action_matcher =
             if self.interactive { Some(create_matcher(&packages)) } else { action_matcher };
-        let package_selectors = packages
-            .iter()
-            .filter(|selector| !github_actions::is_selector(selector))
-            .cloned()
-            .collect::<Vec<_>>();
+        let package_selectors = filter_package_selectors(&packages, update_actions);
         let run_package_update = !self.interactive || !package_selectors.is_empty();
 
         if run_package_update {
@@ -247,15 +242,10 @@ impl UpdateArgs {
 
         let actions_root = selection.workspace_root.clone();
         let include_direct = self.dependency_options.include_direct();
-        let update_actions =
-            include_direct.contains(&DependencyGroup::Dev) && !self.no_save && !self.lockfile_only;
-        let action_matcher = (!self.packages.is_empty()).then(|| create_matcher(&self.packages));
-        let package_selectors = self
-            .packages
-            .iter()
-            .filter(|selector| !github_actions::is_selector(selector))
-            .cloned()
-            .collect::<Vec<_>>();
+        let update_actions = self.should_update_github_actions(state.config, &include_direct);
+        let action_matcher =
+            (update_actions && !self.packages.is_empty()).then(|| create_matcher(&self.packages));
+        let package_selectors = filter_package_selectors(&self.packages, update_actions);
         if !self.interactive && !self.packages.is_empty() && package_selectors.is_empty() {
             if update_actions {
                 github_actions::update(&actions_root, self.latest, action_matcher.as_ref()).await?;
@@ -293,11 +283,7 @@ impl UpdateArgs {
         };
         let selected_action_matcher =
             if self.interactive { Some(create_matcher(&packages)) } else { action_matcher };
-        let package_selectors = packages
-            .iter()
-            .filter(|selector| !github_actions::is_selector(selector))
-            .cloned()
-            .collect::<Vec<_>>();
+        let package_selectors = filter_package_selectors(&packages, update_actions);
         let run_package_update = !self.interactive || !package_selectors.is_empty();
         let InstallFamilySelection {
             workspace_root: _,
@@ -372,10 +358,31 @@ impl UpdateArgs {
         ))
         .await
     }
+
+    fn should_update_github_actions(
+        &self,
+        config: &Config,
+        include_direct: &[DependencyGroup],
+    ) -> bool {
+        include_direct.contains(&DependencyGroup::Dev)
+            && !self.no_save
+            && !self.lockfile_only
+            && (self.interactive
+                || self.include_github_actions
+                || config.update_config.github_actions == Some(true))
+    }
 }
 
 fn manifest_root(manifest: &pacquet_package_manifest::PackageManifest) -> std::path::PathBuf {
     manifest.path().parent().expect("manifest path always has a parent directory").to_path_buf()
+}
+
+fn filter_package_selectors(packages: &[String], include_github_actions: bool) -> Vec<String> {
+    packages
+        .iter()
+        .filter(|selector| !include_github_actions || !github_actions::is_selector(selector))
+        .cloned()
+        .collect()
 }
 
 #[cfg(test)]
