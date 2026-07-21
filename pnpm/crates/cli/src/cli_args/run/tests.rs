@@ -65,6 +65,18 @@ fn specified_scripts_regexp_no_match_is_empty() {
 }
 
 #[test]
+fn specified_scripts_regexp_slash_only_is_empty() {
+    let manifest = json!({ "scripts": { "build:a": "echo a" } });
+    assert!(specified_scripts(&manifest, "/", true).is_empty());
+}
+
+#[test]
+fn specified_scripts_regexp_unterminated_is_empty() {
+    let manifest = json!({ "scripts": { "build:a": "echo a" } });
+    assert!(specified_scripts(&manifest, "/^build:.*", true).is_empty());
+}
+
+#[test]
 fn hidden_filter_passes_visible_scripts() {
     let scripts = vec!["build".to_string()];
     assert_eq!(throw_or_filter_hidden_scripts(scripts.clone(), "build").unwrap(), scripts);

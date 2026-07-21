@@ -206,7 +206,7 @@ fn exec_fallback(
     .run(dir, config)
 }
 
-/// Shared inputs for running a script, threaded through `run_stages` and `run_stage`.
+/// Shared inputs for running a script, threaded through [`run_stages`] and [`run_stage`].
 pub(super) struct RunContext<'a> {
     pub(super) manifest: &'a PackageManifest,
     pub(super) dir: &'a Path,
@@ -384,10 +384,10 @@ fn specified_scripts(manifest: &Value, name: &str, sort: bool) -> Vec<String> {
     Vec::new()
 }
 
-/// Parse a `/pattern/` selector. Returns `None` when `name` is not in regexp format or flags are present.
+/// Parse a `/pattern/` selector. Returns `None` when `name` is not in regexp format, has no closing `/`, or carries flags.
 fn parse_regexp_selector(name: &str) -> Option<String> {
     let rest = name.strip_prefix('/')?;
-    let (pattern, flags) = rest.rsplit_once('/').unwrap_or((rest, ""));
+    let (pattern, flags) = rest.rsplit_once('/')?;
     if !flags.is_empty() {
         return None;
     }

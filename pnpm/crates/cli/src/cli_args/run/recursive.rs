@@ -1,5 +1,7 @@
-//! Recursive `pacquet run` — run a package script across the
-//! `--filter`-selected workspace projects.
+//! Recursive `pacquet run` — run a package script across `--filter`-selected workspace projects.
+//!
+//! Without `--sort`, scripts execute in graph insertion order (the default). With `--sort`,
+//! topological ordering is used. An empty filtered workspace is intentionally a no-op.
 
 use super::{RunArgs, RunContext, run_stages};
 use crate::cli_args::recursive::{
@@ -19,7 +21,8 @@ use std::{
     time::Instant,
 };
 
-/// Errors surfaced by a recursive run.
+/// Errors surfaced by a recursive run. Each variant carries a canonical pnpm error code
+/// (via `#[diagnostic(code(...))]`) matching the TypeScript CLI's error-code contract.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum RecursiveRunError {
