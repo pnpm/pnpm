@@ -107,6 +107,11 @@ pub struct UpdateArgs {
     /// to match the workspace packages.
     #[clap(long)]
     pub workspace: bool,
+
+    /// Generate a changeset file declaring a patch bump for every workspace
+    /// package whose production dependencies were changed by the update.
+    #[clap(long)]
+    pub changeset: bool,
 }
 
 /// The `pnpm update --workspace` rejection message. `--workspace` needs

@@ -1,0 +1,267 @@
+use super::recursive::discover_workspace_projects;
+use derive_more::{Display, Error};
+use indexmap::IndexMap;
+use miette::Diagnostic;
+use pacquet_catalogs_config::get_catalogs_from_workspace_manifest;
+use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
+use pacquet_catalogs_types::Catalogs;
+use pacquet_config::{Config, matcher::create_matcher};
+use pacquet_package_manifest::{PackageManifest, PackageManifestError};
+use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pacquet_versioning::{IntentBumpType, format_change_intent};
+use pacquet_workspace::{
+    ReadProjectManifestOnlyError, ReadWorkspaceManifestError, read_workspace_manifest,
+    safe_read_project_manifest_only,
+};
+use serde_json::Value;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    io::{self, ErrorKind},
+    path::{Path, PathBuf},
+};
+
+#[derive(Debug, Display, Error, Diagnostic)]
+enum UpdateChangesetError {
+    #[display("Failed to read project manifest: {_0}")]
+    ReadProject(#[error(source)] ReadProjectManifestOnlyError),
+
+    #[display("Failed to inspect project manifest: {_0}")]
+    InspectProject(#[error(source)] PackageManifestError),
+
+    #[display("Failed to read pnpm-workspace.yaml: {_0}")]
+    ReadWorkspace(#[error(source)] ReadWorkspaceManifestError),
+
+    #[display("Failed to read {}: {source}", path.display())]
+    ReadConfig {
+        path: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
+
+    #[display("Failed to parse {}: {source}", path.display())]
+    ParseConfig {
+        path: PathBuf,
+        #[error(source)]
+        source: serde_json::Error,
+    },
+
+    #[display("Failed to write {}: {source}", path.display())]
+    WriteChangeset {
+        path: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
+}
+
+#[derive(Default, PartialEq, Eq)]
+struct ProdDepSpecs {
+    dependencies: Option<BTreeMap<String, String>>,
+    optional_dependencies: Option<BTreeMap<String, String>>,
+}
+
+impl ProdDepSpecs {
+    fn from_manifest(manifest: &PackageManifest) -> Result<Self, PackageManifestError> {
+        let value = manifest.written_value()?;
+        Ok(Self {
+            dependencies: dependency_map(&value, "dependencies"),
+            optional_dependencies: dependency_map(&value, "optionalDependencies"),
+        })
+    }
+
+    fn groups(&self) -> [Option<&BTreeMap<String, String>>; 2] {
+        [self.dependencies.as_ref(), self.optional_dependencies.as_ref()]
+    }
+}
+
+pub(super) struct UpdateChangesetContext {
+    workspace_dir: PathBuf,
+    root_dirs: Vec<PathBuf>,
+    prod_dep_specs_before: BTreeMap<PathBuf, Option<ProdDepSpecs>>,
+    catalogs_before: Catalogs,
+}
+
+impl UpdateChangesetContext {
+    pub(super) fn capture(config: &Config, manifest_path: &Path) -> miette::Result<Self> {
+        let project_dir = manifest_path.parent().expect("manifest path always has a parent dir");
+        let workspace_dir = config.workspace_dir.as_deref().unwrap_or(project_dir).to_path_buf();
+        let root_dirs = if config.workspace_dir.is_some() {
+            let (projects, _) = discover_workspace_projects(&workspace_dir)?;
+            let dirs = projects.into_iter().map(|project| project.root_dir).collect::<Vec<_>>();
+            if dirs.is_empty() { vec![project_dir.to_path_buf()] } else { dirs }
+        } else {
+            vec![project_dir.to_path_buf()]
+        };
+        let prod_dep_specs_before = root_dirs
+            .iter()
+            .map(|root_dir| {
+                let manifest = safe_read_project_manifest_only(root_dir)
+                    .map_err(UpdateChangesetError::ReadProject)?;
+                let specs = manifest
+                    .as_ref()
+                    .map(ProdDepSpecs::from_manifest)
+                    .transpose()
+                    .map_err(UpdateChangesetError::InspectProject)?;
+                Ok((root_dir.clone(), specs))
+            })
+            .collect::<Result<_, UpdateChangesetError>>()?;
+        let workspace_manifest =
+            read_workspace_manifest(&workspace_dir).map_err(UpdateChangesetError::ReadWorkspace)?;
+        let catalogs_before = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())?;
+        Ok(Self { workspace_dir, root_dirs, prod_dep_specs_before, catalogs_before })
+    }
+
+    pub(super) fn generate<Output: Reporter>(self) -> miette::Result<()> {
+        let config_path = self.workspace_dir.join(".changeset/config.json");
+        let config_text = match fs::read_to_string(&config_path) {
+            Ok(config_text) => config_text,
+            Err(source) if source.kind() == ErrorKind::NotFound => {
+                global_log::<Output>(
+                    LogLevel::Warn,
+                    format!(
+                        "No changeset was generated because {} does not exist",
+                        config_path.display(),
+                    ),
+                );
+                return Ok(());
+            }
+            Err(source) => {
+                return Err(UpdateChangesetError::ReadConfig { path: config_path, source }.into());
+            }
+        };
+        let config: Value = serde_json::from_str(&config_text).map_err(|source| {
+            UpdateChangesetError::ParseConfig { path: config_path.clone(), source }
+        })?;
+        let ignore_patterns = config
+            .get("ignore")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        let ignored = create_matcher(&ignore_patterns);
+
+        let workspace_manifest = read_workspace_manifest(&self.workspace_dir)
+            .map_err(UpdateChangesetError::ReadWorkspace)?;
+        let catalogs_after = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())?;
+        let changed_catalog_entries =
+            find_changed_catalog_entries(&self.catalogs_before, &catalogs_after);
+        let mut affected_package_names = Vec::new();
+        for root_dir in &self.root_dirs {
+            let Some(manifest) = safe_read_project_manifest_only(root_dir)
+                .map_err(UpdateChangesetError::ReadProject)?
+            else {
+                continue;
+            };
+            let Some(package_name) = manifest.value().get("name").and_then(Value::as_str) else {
+                continue;
+            };
+            if manifest.value().get("private").and_then(Value::as_bool) == Some(true)
+                || ignored.matches(package_name)
+            {
+                continue;
+            }
+            let prod_dep_specs = ProdDepSpecs::from_manifest(&manifest)
+                .map_err(UpdateChangesetError::InspectProject)?;
+            let specs_changed = self
+                .prod_dep_specs_before
+                .get(root_dir)
+                .and_then(Option::as_ref)
+                .is_none_or(|before| before != &prod_dep_specs);
+            if specs_changed
+                || uses_changed_catalog_entry(&prod_dep_specs, &changed_catalog_entries)
+            {
+                affected_package_names.push(package_name.to_string());
+            }
+        }
+        if affected_package_names.is_empty() {
+            global_log::<Output>(
+                LogLevel::Info,
+                "No changeset was generated because the update did not change the production dependencies of any workspace package".to_string(),
+            );
+            return Ok(());
+        }
+
+        affected_package_names.sort();
+        let releases = affected_package_names
+            .iter()
+            .map(|name| (name.clone(), IntentBumpType::Patch))
+            .collect::<IndexMap<_, _>>();
+        let mut random = [0_u8; 4];
+        getrandom::fill(&mut random).expect("read entropy from the operating system");
+        let id = format!("pnpm-update-{:08x}", u32::from_be_bytes(random));
+        let changeset_path = self.workspace_dir.join(".changeset").join(format!("{id}.md"));
+        fs::write(&changeset_path, format_change_intent(&releases, "Update dependencies."))
+            .map_err(|source| UpdateChangesetError::WriteChangeset {
+                path: changeset_path.clone(),
+                source,
+            })?;
+        global_log::<Output>(
+            LogLevel::Info,
+            format!(
+                "Generated a changeset at {} declaring a patch bump for: {}",
+                changeset_path.display(),
+                affected_package_names.join(", "),
+            ),
+        );
+        Ok(())
+    }
+}
+
+fn dependency_map(value: &Value, field: &str) -> Option<BTreeMap<String, String>> {
+    value.get(field).and_then(Value::as_object).map(|dependencies| {
+        dependencies
+            .iter()
+            .filter_map(|(name, spec)| spec.as_str().map(|spec| (name.clone(), spec.to_string())))
+            .collect()
+    })
+}
+
+fn find_changed_catalog_entries(
+    before: &Catalogs,
+    after: &Catalogs,
+) -> BTreeMap<String, BTreeSet<String>> {
+    before
+        .keys()
+        .chain(after.keys())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .filter_map(|catalog_name| {
+            let changed = before
+                .get(catalog_name)
+                .into_iter()
+                .flatten()
+                .map(|(name, _)| name)
+                .chain(after.get(catalog_name).into_iter().flatten().map(|(name, _)| name))
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .filter(|dependency_name| {
+                    before.get(catalog_name).and_then(|catalog| catalog.get(*dependency_name))
+                        != after.get(catalog_name).and_then(|catalog| catalog.get(*dependency_name))
+                })
+                .cloned()
+                .collect::<BTreeSet<_>>();
+            (!changed.is_empty()).then(|| (catalog_name.clone(), changed))
+        })
+        .collect()
+}
+
+fn uses_changed_catalog_entry(
+    prod_dep_specs: &ProdDepSpecs,
+    changed_catalog_entries: &BTreeMap<String, BTreeSet<String>>,
+) -> bool {
+    prod_dep_specs.groups().into_iter().flatten().any(|dependencies| {
+        dependencies.iter().any(|(dependency_name, spec)| {
+            parse_catalog_protocol(spec).is_some_and(|catalog_name| {
+                changed_catalog_entries
+                    .get(catalog_name)
+                    .is_some_and(|names| names.contains(dependency_name))
+            })
+        })
+    })
+}
+
+fn global_log<Output: Reporter>(level: LogLevel, message: String) {
+    Output::emit(&LogEvent::Global(GlobalLog { level, message }));
+}
