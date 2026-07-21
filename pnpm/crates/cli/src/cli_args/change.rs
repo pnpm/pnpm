@@ -7,9 +7,9 @@ use node_semver::Version;
 use pacquet_config::Config;
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_versioning::{
-    AssembleReleasePlanOptions, IntentBumpType, ManifestDependency, ReleasePlan,
-    VersioningSettings, WorkspaceProject, assemble_release_plan, index_project_refs,
-    read_change_intents, read_ledger, to_project_dir, write_change_intent,
+    AssembleReleasePlanOptions, IntentBumpType, ManifestDependency, ReleasePlan, VersioningError,
+    VersioningSettings, WorkspaceProject, assemble_release_plan, check_versioning_invariants,
+    index_project_refs, read_change_intents, read_ledger, to_project_dir, write_change_intent,
 };
 use pacquet_workspace::Project;
 use pacquet_workspace_projects_filter::{GetChangedProjectsOptions, get_changed_projects};
@@ -27,7 +27,9 @@ use crate::cli_args::recursive::discover_workspace_projects;
 #[derive(Debug, Args)]
 pub struct ChangeArgs {
     /// `status` to print the pending intents and the release plan they
-    /// produce; otherwise the packages the change affects.
+    /// produce, `check` to validate the committed versions against the
+    /// configured epic bands and fixed-group lockstep; otherwise the packages
+    /// the change affects.
     pub params: Vec<String>,
 
     /// Bump type for the named packages: none, patch, minor, major. "none"
@@ -76,16 +78,17 @@ impl ChangeArgs {
         let (projects, _) = discover_workspace_projects(&workspace_dir)?;
         let engine_projects = to_engine_projects(&projects);
 
-        // Only the exact no-option invocation is the status form, so a
-        // package that happens to be named "status" stays recordable.
-        if self.params.len() == 1
-            && self.params[0] == "status"
-            && self.bump.is_none()
-            && self.summary.is_none()
-        {
-            let output = render_status(&workspace_dir, &engine_projects, config)?;
-            println!("{output}");
-            return Ok(());
+        // Only the exact no-option invocations are the diagnostic forms, so a
+        // package that happens to be named "status" or "check" stays recordable.
+        if self.params.len() == 1 && self.bump.is_none() && self.summary.is_none() {
+            if self.params[0] == "status" {
+                let output = render_status(&workspace_dir, &engine_projects, config)?;
+                println!("{output}");
+                return Ok(());
+            }
+            if self.params[0] == "check" {
+                return run_check(&workspace_dir, &engine_projects, config);
+            }
         }
 
         let releasable = releasable_projects(&engine_projects, &workspace_dir, &config.versioning);
@@ -316,6 +319,33 @@ fn render_status(
     output.push('\n');
     output.push_str(&render_release_plan(&plan));
     Ok(output)
+}
+
+/// Validates that the committed versions satisfy the configured epic bands and
+/// fixed-group lockstep, failing with every violation listed when they don't.
+/// Meant for CI: it catches version drift the release engine would otherwise
+/// only reject once a release happens to touch the offending package.
+fn run_check(
+    workspace_dir: &Path,
+    projects: &[WorkspaceProject],
+    config: &Config,
+) -> miette::Result<()> {
+    let violations =
+        check_versioning_invariants(projects, workspace_dir, Some(&config.versioning))?;
+    if violations.is_empty() {
+        println!("All package versions satisfy the configured versioning invariants.");
+        return Ok(());
+    }
+    use std::fmt::Write as _;
+    let mut message = format!(
+        "Found {} versioning invariant violation{}:",
+        violations.len(),
+        if violations.len() == 1 { "" } else { "s" },
+    );
+    for violation in &violations {
+        write!(message, "\n  - {}", violation.message).expect("write to string");
+    }
+    Err(VersioningError::InvariantsViolated { message }.into())
 }
 
 /// Renders the plan the way the TypeScript CLI prints it, one line per

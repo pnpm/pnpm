@@ -1298,6 +1298,9 @@ importers:
 
   pnpm11/__utils__/scripts:
     dependencies:
+      '@pnpm/releasing.versioning':
+        specifier: workspace:*
+        version: link:../../releasing/versioning
       '@pnpm/workspace.projects-reader':
         specifier: workspace:*
         version: link:../../workspace/projects-reader

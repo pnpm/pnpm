@@ -318,3 +318,31 @@ fn a_name_shared_by_two_projects_must_be_referenced_by_directory() {
 
     drop(root);
 }
+
+#[test]
+fn change_check_validates_committed_versions_against_configured_invariants() {
+    let CommandTempCwd { workspace, root: _root, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nversioning:\n  epics:\n    - lead: pnpm\n      packages:\n        - lib\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("package.json"), "{\"name\": \"e2e-root\", \"private\": true}\n")
+        .expect("write root package.json");
+    add_pkg(&workspace, "pnpm", "11.15.1", "{}");
+    add_pkg(&workspace, "lib", "1102.0.0", "{}");
+
+    let output = stdout_of(pnpm(&workspace).with_args(["change", "check"]));
+    assert!(
+        output.contains("satisfy the configured versioning invariants"),
+        "unexpected: {output}",
+    );
+
+    // Drift the member out of its band: the check fails and names the violation.
+    add_pkg(&workspace, "lib", "5.0.0", "{}");
+    let failed = pnpm(&workspace).with_args(["change", "check"]).output().expect("run pnpm");
+    assert!(!failed.status.success(), "expected a non-zero exit");
+    let stderr = String::from_utf8_lossy(&failed.stderr);
+    assert!(stderr.contains("ERR_PNPM_VERSIONING_INVARIANTS_VIOLATED"), "unexpected: {stderr}");
+    assert!(stderr.contains("outside the band 1100-1199"), "unexpected: {stderr}");
+}

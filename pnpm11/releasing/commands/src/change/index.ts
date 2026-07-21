@@ -5,6 +5,7 @@ import {
   assembleReleasePlan,
   BUMP_TYPES,
   type ChangeIntent,
+  checkVersioningInvariants,
   indexProjectRefs,
   type IntentBumpType,
   readChangeIntents,
@@ -40,6 +41,7 @@ export function help (): string {
     usages: [
       'pnpm change [--bump <type>] [--summary <text>] [<pkg>...]',
       'pnpm change status',
+      'pnpm change check',
     ],
     descriptionLists: [
       {
@@ -76,10 +78,15 @@ export async function handler (opts: ChangeCommandOptions, params: string[]): Pr
   if (!workspaceDir) {
     throw new PnpmError('WORKSPACE_ONLY', 'pnpm change is only supported in a workspace')
   }
-  // Only the exact no-option invocation is the status form, so a package
-  // that happens to be named "status" stays recordable.
-  if (params.length === 1 && params[0] === 'status' && opts.bump == null && opts.summary == null) {
-    return renderStatus(workspaceDir, opts)
+  // Only the exact no-option invocations are the diagnostic forms, so a package
+  // that happens to be named "status" or "check" stays recordable.
+  if (params.length === 1 && opts.bump == null && opts.summary == null) {
+    if (params[0] === 'status') {
+      return renderStatus(workspaceDir, opts)
+    }
+    if (params[0] === 'check') {
+      return renderCheck(workspaceDir, opts)
+    }
   }
   return recordChange(workspaceDir, opts, params)
 }
@@ -261,6 +268,28 @@ export function renderReleasePlan (plan: ReleasePlan): string {
     output += `  ${release.name}: ${release.currentVersion} → ${release.newVersion} (${release.bumpType}, via ${release.causes.join('+')})\n`
   }
   return output
+}
+
+/**
+ * Validates that the committed versions satisfy the configured epic bands and
+ * fixed-group lockstep, failing with every violation listed when they don't.
+ * Meant for CI: it catches version drift the release engine would otherwise
+ * only reject once a release happens to touch the offending package.
+ */
+function renderCheck (workspaceDir: string, opts: ChangeCommandOptions): string {
+  const violations = checkVersioningInvariants({
+    workspaceDir,
+    projects: toWorkspaceProjects(opts.allProjects ?? []),
+    versioning: opts.versioning,
+  })
+  if (violations.length === 0) {
+    return 'All package versions satisfy the configured versioning invariants.'
+  }
+  throw new PnpmError(
+    'VERSIONING_INVARIANTS_VIOLATED',
+    `Found ${violations.length} versioning invariant violation${violations.length === 1 ? '' : 's'}:\n` +
+    violations.map((violation) => `  - ${violation.message}`).join('\n')
+  )
 }
 
 export interface ReleasableProject {
