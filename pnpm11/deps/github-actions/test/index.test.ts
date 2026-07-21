@@ -227,10 +227,11 @@ ${Array.from({ length: actionCount }, (_, index) => `      - uses: owner/action-
     const dir = await fixture({
       '.github/workflows/ci.yml': 'jobs: [\n',
     })
+    const workflow = await fs.realpath(path.join(dir, '.github/workflows/ci.yml'))
 
     await expect(findOutdatedGitHubActions({ dir })).rejects.toMatchObject({
       code: 'ERR_PNPM_GITHUB_ACTIONS_WORKFLOW_PARSE',
-      message: expect.stringContaining(path.join(dir, '.github/workflows/ci.yml')),
+      message: expect.stringContaining(workflow),
     })
   })
 
