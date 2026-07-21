@@ -5,13 +5,20 @@
 "pacquet": patch
 ---
 
-Added an `update` settings section to `pnpm-workspace.yaml`, superseding `updateConfig`. Its `ignore` field lists package name patterns that `pnpm update` and `pnpm outdated` should skip:
+Added `update` and `audit` settings sections to `pnpm-workspace.yaml`, superseding the awkwardly named `updateConfig`, `auditConfig`, and top-level `auditLevel` settings:
 
 ```yaml
 update:
-  ignore:
+  ignore: # was updateConfig.ignoreDependencies
     - webpack
     - "@babel/*"
+
+audit:
+  level: high # was auditLevel
+  ignore: # was auditConfig.ignoreGhsas
+    - GHSA-xxxx-yyyy-zzzz
 ```
 
-The old `updateConfig.ignoreDependencies` setting keeps working and will be supported until the next major version. If both `update` and `updateConfig` are set, `update` takes precedence and a warning is printed. Both the TypeScript CLI and the Rust config surface (pacquet) recognize the new section.
+`update.ignore` lists package name patterns that `pnpm update` and `pnpm outdated` should skip. `audit.level` and `audit.ignore` tune `pnpm audit`.
+
+The deprecated `updateConfig`, `auditConfig`, and `auditLevel` settings keep working until the next major version. When both a new section value and its deprecated counterpart are set, the new section takes precedence and a warning is printed. Both the TypeScript CLI and the Rust config surface (pacquet) recognize the new sections.

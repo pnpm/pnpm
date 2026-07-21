@@ -67,6 +67,7 @@ export function getOptionsFromPnpmSettings (
     }
   }
   translateUpdateSettings(pnpmSettings, settings)
+  translateAuditSettings(pnpmSettings, settings)
 
   return settings
 }
@@ -93,6 +94,32 @@ function translateUpdateSettings (pnpmSettings: PnpmSettings, settings: OptionsF
   settings.updateConfig = pnpmSettings.update.ignore != null
     ? { ignoreDependencies: pnpmSettings.update.ignore }
     : {}
+}
+
+/**
+ * Translates the user-facing `audit` settings section into the internal
+ * `auditConfig` / `auditLevel` settings, and removes the raw `audit` key.
+ *
+ * `auditConfig` and `auditLevel` are the deprecated spellings, kept working
+ * until the next major. When the `audit` section provides a value, it wins
+ * over its deprecated counterpart (with a warning).
+ */
+function translateAuditSettings (pnpmSettings: PnpmSettings, settings: OptionsFromRootManifest): void {
+  delete (settings as { audit?: unknown }).audit
+  const audit = pnpmSettings.audit
+  if (audit == null) return
+  if (audit.ignore != null) {
+    if (pnpmSettings.auditConfig != null) {
+      globalWarn('Both the "audit" and "auditConfig" settings are set. The deprecated "auditConfig" setting is ignored in favor of "audit".')
+    }
+    settings.auditConfig = { ...settings.auditConfig, ignoreGhsas: audit.ignore }
+  }
+  if (audit.level != null) {
+    if ((pnpmSettings as { auditLevel?: unknown }).auditLevel != null) {
+      globalWarn('Both the "audit" and "auditLevel" settings are set. The deprecated "auditLevel" setting is ignored in favor of "audit".')
+    }
+    ;(settings as { auditLevel?: string }).auditLevel = audit.level
+  }
 }
 
 function isGetOptionsFromPnpmSettingsOptions (

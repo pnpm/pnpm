@@ -875,6 +875,7 @@ const MIGRATED_PNPM_FIELD_KEYS = new Set<string>([
   'allowBuilds',
   'allowedDeprecatedVersions',
   'allowUnusedPatches',
+  'audit',
   'auditConfig',
   'configDependencies',
   'executionEnv',

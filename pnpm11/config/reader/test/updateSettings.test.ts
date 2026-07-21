@@ -71,3 +71,50 @@ test('getOptionsFromPnpmSettings() still honors the deprecated "updateConfig" se
   })
   expect(globalWarn).not.toHaveBeenCalled()
 })
+
+test('getOptionsFromPnpmSettings() maps the "audit" settings section to auditConfig and auditLevel', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    audit: {
+      level: 'high',
+      ignore: ['GHSA-1', 'GHSA-2'],
+    },
+  }) as any // eslint-disable-line
+  expect(options.auditConfig).toStrictEqual({ ignoreGhsas: ['GHSA-1', 'GHSA-2'] })
+  expect(options.auditLevel).toBe('high')
+  expect(globalWarn).not.toHaveBeenCalled()
+})
+
+test('getOptionsFromPnpmSettings() never leaks the raw "audit" key into the options', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    audit: {
+      ignore: ['GHSA-1'],
+    },
+  })
+  expect('audit' in options).toBe(false)
+})
+
+test('getOptionsFromPnpmSettings() lets "audit" win over "auditConfig" and "auditLevel" and warns', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    audit: {
+      level: 'critical',
+      ignore: ['GHSA-new'],
+    },
+    auditConfig: {
+      ignoreGhsas: ['GHSA-old'],
+    },
+    auditLevel: 'low',
+  } as any) as any // eslint-disable-line
+  expect(options.auditConfig).toStrictEqual({ ignoreGhsas: ['GHSA-new'] })
+  expect(options.auditLevel).toBe('critical')
+  expect(globalWarn).toHaveBeenCalledTimes(2)
+})
+
+test('getOptionsFromPnpmSettings() still honors the deprecated "auditConfig" setting without warning', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    auditConfig: {
+      ignoreGhsas: ['GHSA-old'],
+    },
+  })
+  expect(options.auditConfig).toStrictEqual({ ignoreGhsas: ['GHSA-old'] })
+  expect(globalWarn).not.toHaveBeenCalled()
+})
