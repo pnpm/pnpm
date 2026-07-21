@@ -908,7 +908,7 @@ impl WorkspaceSettings {
             if update_config_in_yaml {
                 tracing::warn!(
                     target: "pacquet::config",
-                    "Both the \"update\" and \"updateConfig\" settings are set. The deprecated \"updateConfig\" setting is ignored in favor of \"update\"."
+                    r#"Both the "update" and "updateConfig" settings are set. The deprecated "updateConfig" setting is ignored in favor of "update"."#,
                 );
             }
             config.update_config = UpdateConfig { ignore_dependencies: update.ignore_deps };
@@ -1077,7 +1077,7 @@ impl WorkspaceSettings {
                 if audit_level_in_yaml {
                     tracing::warn!(
                         target: "pacquet::config",
-                        "Both the \"audit\" and \"auditLevel\" settings are set. The deprecated \"auditLevel\" setting is ignored in favor of \"audit\"."
+                        r#"Both the "audit" and "auditLevel" settings are set. The deprecated "auditLevel" setting is ignored in favor of "audit"."#,
                     );
                 }
                 config.audit_level = Some(level);
@@ -1086,7 +1086,7 @@ impl WorkspaceSettings {
                 if audit_config_in_yaml {
                     tracing::warn!(
                         target: "pacquet::config",
-                        "Both the \"audit\" and \"auditConfig\" settings are set. The deprecated \"auditConfig\" setting is ignored in favor of \"audit\"."
+                        r#"Both the "audit" and "auditConfig" settings are set. The deprecated "auditConfig" setting is ignored in favor of "audit"."#,
                     );
                 }
                 config.audit_config.ignore_ghsas = ignore;

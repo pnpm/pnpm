@@ -133,6 +133,6 @@ test('getOptionsFromPnpmSettings() throws when "audit.ignore" is not a string ar
 
 test('getOptionsFromPnpmSettings() throws on an invalid "audit.level"', () => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
-    audit: { level: 'hgih' },
+    audit: { level: 'severe' },
   } as any)).toThrow(/audit\.level/) // eslint-disable-line
 })
