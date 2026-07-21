@@ -264,7 +264,13 @@ impl VersionArgs {
 
         let new_version = match bump {
             Bump::Explicit(version) => version.clone(),
-            Bump::Release(release) => inc(&current_version, *release, self.preid.as_deref()),
+            // An empty --preid means "no preid", as in the TypeScript CLI,
+            // where the empty string is falsy to semver's inc().
+            Bump::Release(release) => inc(
+                &current_version,
+                *release,
+                self.preid.as_deref().filter(|preid| !preid.is_empty()),
+            ),
         }
         .to_string();
 

@@ -178,6 +178,13 @@ fn prerelease_bump_uses_the_preid() {
         "{:?}",
         String::from_utf8_lossy(&output.stdout),
     );
+
+    // An empty --preid means "no preid" (it is falsy to the TypeScript CLI's
+    // semver.inc), so the prerelease starts at a bare `-0`, never `-.0`.
+    write_manifest(&workspace, r#"{"name":"test-pkg","version":"2.0.0"}"#);
+    let output = pacquet_version(&workspace, &["prerelease", "--preid", ""]);
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    assert_eq!(manifest_version(&workspace), "2.0.1-0");
     drop(root);
 }
 
