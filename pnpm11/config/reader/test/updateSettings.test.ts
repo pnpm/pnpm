@@ -14,7 +14,7 @@ beforeEach(() => {
 test('getOptionsFromPnpmSettings() maps the "update" settings section to updateConfig', () => {
   const options = getOptionsFromPnpmSettings(process.cwd(), {
     update: {
-      ignore: ['webpack', '@babel/*'],
+      ignoreDeps: ['webpack', '@babel/*'],
     },
   })
   expect(options.updateConfig).toStrictEqual({
@@ -28,7 +28,7 @@ test('getOptionsFromPnpmSettings() never leaks the raw "update" key into the opt
   // an update, so the settings object must not reach it under that key.
   const options = getOptionsFromPnpmSettings(process.cwd(), {
     update: {
-      ignore: ['webpack'],
+      ignoreDeps: ['webpack'],
     },
   })
   expect('update' in options).toBe(false)
@@ -45,7 +45,7 @@ test('getOptionsFromPnpmSettings() accepts an empty "update" section', () => {
 test('getOptionsFromPnpmSettings() lets "update" win over "updateConfig" and warns', () => {
   const options = getOptionsFromPnpmSettings(process.cwd(), {
     update: {
-      ignore: ['webpack'],
+      ignoreDeps: ['webpack'],
     },
     updateConfig: {
       ignoreDependencies: ['react'],

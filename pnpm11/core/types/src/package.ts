@@ -199,9 +199,9 @@ export interface AuditSettings {
 
 export interface UpdateSettings {
   /**
-   * Package name patterns that `pnpm update` and `pnpm outdated` should skip.
+   * Dependency name patterns that `pnpm update` and `pnpm outdated` should skip.
    */
-  ignore?: string[]
+  ignoreDeps?: string[]
 }
 
 export interface PnpmSettings {

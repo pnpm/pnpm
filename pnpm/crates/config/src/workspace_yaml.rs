@@ -525,11 +525,11 @@ pub struct AuditSettings {
 #[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct UpdateSettings {
-    /// Dependency-name patterns `pnpm update` and `pnpm outdated`
-    /// skip. Glob/negation patterns. Equivalent to the deprecated
-    /// [`UpdateConfig::ignore_dependencies`].
+    /// `ignoreDeps`: dependency-name patterns `pnpm update` and `pnpm
+    /// outdated` skip. Glob/negation patterns. Equivalent to the
+    /// deprecated [`UpdateConfig::ignore_dependencies`].
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub ignore: Option<Vec<String>>,
+    pub ignore_deps: Option<Vec<String>>,
 }
 
 /// `updateConfig` entry: settings that tune `pnpm update`. Today only
@@ -911,7 +911,7 @@ impl WorkspaceSettings {
                     "Both the \"update\" and \"updateConfig\" settings are set. The deprecated \"updateConfig\" setting is ignored in favor of \"update\"."
                 );
             }
-            config.update_config = UpdateConfig { ignore_dependencies: update.ignore };
+            config.update_config = UpdateConfig { ignore_dependencies: update.ignore_deps };
         }
 
         if let Some(inner) = self.hoist_pattern {

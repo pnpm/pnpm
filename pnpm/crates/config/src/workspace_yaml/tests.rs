@@ -1515,10 +1515,10 @@ updateConfig:
 }
 
 #[test]
-fn parses_update_ignore_from_yaml_and_applies() {
+fn parses_update_ignore_deps_from_yaml_and_applies() {
     let yaml = r#"
 update:
-  ignore:
+  ignoreDeps:
     - "@pnpm.e2e/foo"
     - "@pnpm.e2e/bar"
 "#;
@@ -1537,7 +1537,7 @@ update:
 fn update_section_takes_precedence_over_update_config() {
     let yaml = r#"
 update:
-  ignore:
+  ignoreDeps:
     - "@pnpm.e2e/foo"
 updateConfig:
   ignoreDependencies:

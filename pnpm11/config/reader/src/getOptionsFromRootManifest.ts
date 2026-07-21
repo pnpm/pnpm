@@ -91,8 +91,8 @@ function translateUpdateSettings (pnpmSettings: PnpmSettings, settings: OptionsF
   if (pnpmSettings.updateConfig != null) {
     globalWarn('Both the "update" and "updateConfig" settings are set. The deprecated "updateConfig" setting is ignored in favor of "update".')
   }
-  settings.updateConfig = pnpmSettings.update.ignore != null
-    ? { ignoreDependencies: pnpmSettings.update.ignore }
+  settings.updateConfig = pnpmSettings.update.ignoreDeps != null
+    ? { ignoreDependencies: pnpmSettings.update.ignoreDeps }
     : {}
 }
 
