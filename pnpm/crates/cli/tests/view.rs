@@ -745,3 +745,32 @@ fn absent_field_produces_no_output() {
     assert_eq!(stdout_of(&output), "");
     drop((root, server));
 }
+
+#[test]
+fn object_author_collapses_to_its_name() {
+    let body = serde_json::json!({
+        "name": "authored",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "authored",
+                "version": "1.0.0",
+                "author": { "name": "Jane Doe", "email": "jane@example.com" },
+                "dist": { "tarball": "https://example.com/authored-1.0.0.tgz" }
+            }
+        }
+    })
+    .to_string();
+
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    write_registry_npmrc(&workspace, &format!("{}/", server.url()));
+    let mock = serve(&mut server, "/authored", &body);
+    let auth_file = empty_auth_file(root.path());
+
+    let output = run_view(&workspace, &auth_file, &["authored@1.0.0", "author"]);
+
+    mock.assert();
+    assert_eq!(stdout_of(&output).trim(), "Jane Doe");
+    drop((root, server));
+}
