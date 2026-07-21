@@ -1,4 +1,8 @@
+import { existsSync } from 'node:fs'
+import path from 'node:path'
+
 import { beforeEach, expect, jest, test } from '@jest/globals'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import type { InstallOptions } from '@pnpm/installing.deps-installer'
 import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
 import type { ResolveViaPnprServerOptions, ResolveViaPnprServerResult } from '@pnpm/pnpr.client'
@@ -17,12 +21,12 @@ const minimalLockfile: LockfileObject = {
 
 const lockfileFs = await import('@pnpm/lockfile.fs')
 const readWantedLockfileFile = jest.fn<typeof lockfileFs.readWantedLockfileFile>()
-const writeWantedLockfile = jest.fn<typeof lockfileFs.writeWantedLockfile>()
 
+// The lockfile write stays real so tests can assert on the on-disk outcome
+// instead of counting calls to an implementation detail.
 jest.unstable_mockModule('@pnpm/lockfile.fs', () => ({
   ...lockfileFs,
   readWantedLockfileFile,
-  writeWantedLockfile,
 }))
 
 const resolveViaPnprServer = jest.fn<
@@ -38,8 +42,6 @@ const { install } = await import('@pnpm/installing.deps-installer')
 beforeEach(() => {
   readWantedLockfileFile.mockReset()
   readWantedLockfileFile.mockResolvedValue(null)
-  writeWantedLockfile.mockReset()
-  writeWantedLockfile.mockResolvedValue(minimalLockfile)
   resolveViaPnprServer.mockReset()
   resolveViaPnprServer.mockResolvedValue({
     lockfile: minimalLockfile,
@@ -151,15 +153,15 @@ test.each([
 })
 
 test.each([
-  { useLockfile: false, saveLockfile: false, expectedReads: 0, expectedWrites: 0 },
-  { useLockfile: false, saveLockfile: true, expectedReads: 0, expectedWrites: 0 },
-  { useLockfile: true, saveLockfile: false, expectedReads: 1, expectedWrites: 0 },
-  { useLockfile: true, saveLockfile: true, expectedReads: 1, expectedWrites: 1 },
+  { useLockfile: false, saveLockfile: false, expectedReads: 0, writesLockfile: false },
+  { useLockfile: false, saveLockfile: true, expectedReads: 0, writesLockfile: false },
+  { useLockfile: true, saveLockfile: false, expectedReads: 1, writesLockfile: false },
+  { useLockfile: true, saveLockfile: true, expectedReads: 1, writesLockfile: true },
 ])('pnpr honors lockfile I/O settings ($useLockfile, $saveLockfile)', async ({
   useLockfile,
   saveLockfile,
   expectedReads,
-  expectedWrites,
+  writesLockfile,
 }) => {
   const existingLockfile: LockfileFile = {
     lockfileVersion: '9.0',
@@ -170,7 +172,7 @@ test.each([
   await runInstall({ useLockfile, saveLockfile })
 
   expect(readWantedLockfileFile).toHaveBeenCalledTimes(expectedReads)
-  expect(writeWantedLockfile).toHaveBeenCalledTimes(expectedWrites)
+  expect(existsSync(path.join(process.cwd(), WANTED_LOCKFILE))).toBe(writesLockfile)
   expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({
     lockfile: useLockfile ? existingLockfile : undefined,
   }))
