@@ -297,33 +297,37 @@ fn recursive_by_default_command_is_promoted_inside_workspace() {
     let workspace = tempfile::tempdir().expect("creates workspace");
     std::fs::write(workspace.path().join("pnpm-workspace.yaml"), "packages: []\n")
         .expect("writes workspace manifest");
-    let mut parsed = CliArgs::try_parse_from([
-        "pacquet",
-        "--dir",
-        workspace.path().to_str().expect("UTF-8 path"),
-        "list",
-    ])
-    .expect("parses");
+    for command in ["list", "why", "peers"] {
+        let mut parsed = CliArgs::try_parse_from([
+            "pacquet",
+            "--dir",
+            workspace.path().to_str().expect("UTF-8 path"),
+            command,
+        ])
+        .expect("parses");
 
-    parsed.promote_recursive_by_default();
+        parsed.promote_recursive_by_default();
 
-    assert!(parsed.recursive);
+        assert!(parsed.recursive, "{command} should be recursive inside a workspace");
+    }
 }
 
 #[test]
 fn recursive_by_default_command_stays_non_recursive_outside_workspace() {
     let project = tempfile::tempdir().expect("creates project");
-    let mut parsed = CliArgs::try_parse_from([
-        "pacquet",
-        "--dir",
-        project.path().to_str().expect("UTF-8 path"),
-        "list",
-    ])
-    .expect("parses");
+    for command in ["list", "why", "peers"] {
+        let mut parsed = CliArgs::try_parse_from([
+            "pacquet",
+            "--dir",
+            project.path().to_str().expect("UTF-8 path"),
+            command,
+        ])
+        .expect("parses");
 
-    parsed.promote_recursive_by_default();
+        parsed.promote_recursive_by_default();
 
-    assert!(!parsed.recursive);
+        assert!(!parsed.recursive, "{command} should stay non-recursive outside a workspace");
+    }
 }
 
 #[test]

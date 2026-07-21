@@ -45,7 +45,7 @@ fn why_fails_without_package_name() {
 }
 
 #[test]
-fn filtered_why_rejects_per_project_workspace_lockfiles() {
+fn recursive_why_uses_the_active_dedicated_lockfile() {
     let (_root, workspace, _anchor) = setup();
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
@@ -53,17 +53,24 @@ fn filtered_why_rejects_per_project_workspace_lockfiles() {
     )
     .expect("write workspace manifest");
     write_manifest(&workspace, "{}");
+    let app = workspace.join("packages/app");
+    fs::create_dir_all(&app).expect("create app project");
+    fs::write(
+        app.join("package.json"),
+        format!(
+            r#"{{ "name": "app", "version": "1.0.0", "dependencies": {{ "{PKG}": "100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write app manifest");
+    pacquet(&app, ["install"]).assert().success();
 
-    let output = pacquet(&workspace, ["--filter", ".", "why", PKG])
-        .output()
-        .expect("run filtered pacquet why");
+    let output = pacquet(&app, ["-r", "why", PKG]).output().expect("run recursive pacquet why");
 
-    assert!(!output.status.success());
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "recursive why should succeed: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stderr.contains("ERR_PNPM_RECURSIVE_SHARED_LOCKFILE_UNSUPPORTED")
-            && stderr.contains("sharedWorkspaceLockfile=false"),
-        "stderr: {stderr}",
+        stdout.contains(PKG) && stdout.contains("app@1.0.0"),
+        "recursive why should query the active project lockfile: {stdout}",
     );
 }
 
@@ -244,7 +251,7 @@ fn filtered_why_excludes_unselected_workspace_siblings() {
 }
 
 #[test]
-fn recursive_why_includes_all_workspace_projects() {
+fn why_is_recursive_by_default_inside_a_workspace() {
     let (_root, workspace, _anchor) = setup();
     fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
         .expect("write workspace manifest");
@@ -260,9 +267,9 @@ fn recursive_why_includes_all_workspace_projects() {
     .expect("write sibling package.json");
     pacquet(&workspace, ["install"]).assert().success();
 
-    let output = pacquet(&workspace, ["-r", "why", HELLO])
+    let output = pacquet(&workspace, ["why", HELLO])
         .output()
-        .expect("query recursive workspace dependency");
+        .expect("query default-recursive workspace dependency");
 
     assert!(output.status.success(), "recursive why should succeed: {output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);

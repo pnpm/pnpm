@@ -505,7 +505,10 @@ pub enum CliCommand {
 
 impl CliCommand {
     fn recursive_by_default(&self) -> bool {
-        matches!(self, CliCommand::List(_) | CliCommand::Ll(_))
+        matches!(
+            self,
+            CliCommand::List(_) | CliCommand::Ll(_) | CliCommand::Why(_) | CliCommand::Peers(_),
+        )
     }
 
     pub(crate) fn default_reporter_summary_scope(&self) -> SummaryScope {
