@@ -36,12 +36,14 @@
     "@pnpm/resolving.git-resolver": "workspace:*",
     "p-limit": "catalog:",
     "semver": "catalog:",
+    "write-file-atomic": "catalog:",
     "yaml": "catalog:"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/deps.github-actions": "workspace:*",
-    "@types/semver": "catalog:"
+    "@types/semver": "catalog:",
+    "@types/write-file-atomic": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

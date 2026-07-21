@@ -253,6 +253,33 @@ ${Array.from({ length: actionCount }, (_, index) => `      - uses: owner/action-
     })
     await expect(fs.readFile(outsideWorkflow, 'utf8')).resolves.toBe(original)
   })
+
+  test('does not mutate an external hardlink target', async () => {
+    const dir = await fixture({})
+    const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-actions-outside-'))
+    dirs.push(outsideDir)
+    const outsideWorkflow = path.join(outsideDir, 'ci.yml')
+    const workflow = path.join(dir, '.github/workflows/ci.yml')
+    const original = `jobs:
+  test:
+    steps:
+      - uses: actions/checkout@v4
+`
+    await fs.writeFile(outsideWorkflow, original)
+    await fs.mkdir(path.dirname(workflow), { recursive: true })
+    await fs.link(outsideWorkflow, workflow)
+
+    await updateGitHubActions({
+      dir,
+      readRepoRefs: async () => repoRefs([
+        ['v4.2.0', 'a'.repeat(40)],
+        ['v5.0.0', 'b'.repeat(40)],
+      ]),
+    })
+
+    await expect(fs.readFile(workflow, 'utf8')).resolves.toContain(`uses: actions/checkout@${'a'.repeat(40)} # v4.2.0`)
+    await expect(fs.readFile(outsideWorkflow, 'utf8')).resolves.toBe(original)
+  })
 })
 
 async function fixture (files: Record<string, string>): Promise<string> {

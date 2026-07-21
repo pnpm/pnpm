@@ -6,6 +6,7 @@ import { PnpmError } from '@pnpm/error'
 import { getRepoRefs } from '@pnpm/resolving.git-resolver'
 import pLimit from 'p-limit'
 import semver from 'semver'
+import writeFileAtomic from 'write-file-atomic'
 import YAML, { isMap, isNode, isScalar, isSeq, type Node, type Scalar } from 'yaml'
 
 export interface OutdatedGitHubAction {
@@ -110,7 +111,7 @@ export async function updateGitHubActions (
       source = source.slice(0, replacement.range[0]) + replacement.value + source.slice(replacement.range[1])
     }
     try {
-      await fs.writeFile(file.path, source)
+      await writeFileAtomic(file.path, source)
     } catch (err: unknown) {
       throw workflowError('WRITE', file.path, err)
     }

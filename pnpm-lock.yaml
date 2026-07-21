@@ -3133,6 +3133,9 @@ importers:
       semver:
         specifier: 'catalog:'
         version: 7.8.5
+      write-file-atomic:
+        specifier: 'catalog:'
+        version: 7.0.1
       yaml:
         specifier: 'catalog:'
         version: 2.9.0
@@ -3146,6 +3149,9 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.7.1
+      '@types/write-file-atomic':
+        specifier: 'catalog:'
+        version: 4.0.3
 
   pnpm11/deps/graph-builder:
     dependencies:

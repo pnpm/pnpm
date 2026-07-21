@@ -169,3 +169,24 @@ async fn rejects_workflow_symlinks_outside_the_project() {
     assert!(error.to_string().contains("outside the project root"));
     assert_eq!(fs::read_to_string(outside.path().join("ci.yml")).unwrap(), original);
 }
+
+#[tokio::test]
+async fn does_not_mutate_an_external_hardlink_target() {
+    let root = tempfile::tempdir().expect("project directory");
+    let outside = tempfile::tempdir().expect("outside directory");
+    let original = "jobs:\n  test:\n    steps:\n      - uses: actions/checkout@v4\n";
+    let outside_workflow = outside.path().join("ci.yml");
+    let workflow = root.path().join(".github/workflows/ci.yml");
+    fs::write(&outside_workflow, original).expect("outside workflow");
+    fs::create_dir_all(workflow.parent().unwrap()).expect("workflow directory");
+    fs::hard_link(&outside_workflow, &workflow).expect("workflow hardlink");
+
+    update_with_runner(root.path(), false, None, &FakeGitRunner).await.expect("update actions");
+
+    assert!(
+        fs::read_to_string(&workflow)
+            .expect("updated workflow")
+            .contains(&format!("uses: actions/checkout@{SHA_V4_2_0} # v4.2.0")),
+    );
+    assert_eq!(fs::read_to_string(outside_workflow).unwrap(), original);
+}
