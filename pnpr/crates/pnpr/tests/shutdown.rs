@@ -147,7 +147,7 @@ fn spawn_ready_pnpr(root: &Path) -> ChildGuard {
         }
     }
     panic!(
-        "pnpr exited before serving /-/ping on {SPAWN_ATTEMPTS} fresh ports; last exit: {last_exit:?}"
+        "pnpr exited before serving /-/ping on {SPAWN_ATTEMPTS} fresh ports; last exit: {last_exit:?}",
     );
 }
 
