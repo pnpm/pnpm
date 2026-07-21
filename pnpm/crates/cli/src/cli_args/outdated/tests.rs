@@ -197,3 +197,42 @@ async fn packument_cache_deduplicates_concurrent_fetches() {
     assert_eq!(second.expect("second fetch").name, "foo");
     package.assert_async().await;
 }
+
+#[tokio::test]
+async fn packument_cache_does_not_memoize_failures() {
+    let mut server = mockito::Server::new_async().await;
+    let failed_request = server
+        .mock("GET", "/foo")
+        .with_status(500)
+        .with_body("not package metadata")
+        .expect(1)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let config = Config::new();
+    let client = ThrottledClient::default();
+    let cache = PackumentCache::default();
+
+    assert!(
+        fetch_package_cached(&cache, "foo", &client, &registry, &config.auth_headers)
+            .await
+            .is_err(),
+    );
+    failed_request.assert_async().await;
+    failed_request.remove_async().await;
+
+    let successful_request = server
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{ "name": "foo", "dist-tags": {}, "versions": {} }"#)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let package = fetch_package_cached(&cache, "foo", &client, &registry, &config.auth_headers)
+        .await
+        .expect("retry package fetch");
+    assert_eq!(package.name, "foo");
+    successful_request.assert_async().await;
+}
