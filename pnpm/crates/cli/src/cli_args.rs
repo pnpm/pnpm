@@ -78,6 +78,7 @@ pub mod unstar;
 pub mod update;
 pub mod update_interactive;
 pub mod version;
+pub mod view;
 pub mod whoami;
 pub mod why;
 pub mod with;
