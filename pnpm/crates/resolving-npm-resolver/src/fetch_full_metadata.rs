@@ -37,7 +37,7 @@ pub(crate) const ACCEPT_ABBREVIATED_DOC: &str =
 /// spec-compliant registry echoes this in the response `Content-Type` when it
 /// honors the abbreviated `Accept` header. Its absence signals that the
 /// registry ignored the header and served the full document instead.
-/// <https://github.com/npm/registry/blob/main/docs/responses/package-metadata.md>
+/// <https://github.com/npm/registry/blob/ae49abf1ba/docs/responses/package-metadata.md>
 const ABBREVIATED_META_CONTENT_TYPE: &str = "application/vnd.npm.install-v1+json";
 
 /// Whether the response `Content-Type` declares the abbreviated packument
