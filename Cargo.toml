@@ -149,7 +149,8 @@ pathdiff = { version = "0.2.3" }
 pipe-trait = { version = "0.4.0" }
 pgp = { version = "0.20.0", default-features = false }
 qrcode = { version = "0.14.1", default-features = false }
-rayon = { version = "1.12.0" }
+rayon     = { version = "1.12.0" }
+regex     = { version = "1.12.3" }
 rmp-serde = { version = "1.3.0" }
 rusqlite = { version = "0.39.0", features = ["bundled"] }
 same-file = { version = "1.0.6" }

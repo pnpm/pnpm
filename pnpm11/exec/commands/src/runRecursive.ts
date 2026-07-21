@@ -89,7 +89,7 @@ export async function runRecursive (
     const missingScriptPackages: string[] = packageChunks
       .flat()
       .map((prefix) => opts.selectedProjectsGraph[prefix])
-      .filter((pkg) => getSpecifiedScripts(pkg.package.manifest.scripts ?? {}, scriptName).length < 1)
+      .filter((pkg) => getSpecifiedScripts(pkg.package.manifest.scripts ?? {}, scriptName, !opts.sequential).length < 1)
       .map((pkg) => pkg.package.manifest.name ?? pkg.package.rootDir)
     if (missingScriptPackages.length) {
       throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `Missing script "${scriptName}" in packages: ${missingScriptPackages.join(', ')}`)
@@ -101,7 +101,7 @@ export async function runRecursive (
   for (const chunk of packageChunks) {
     const selectedScripts = chunk.map(prefix => {
       const pkg = opts.selectedProjectsGraph[prefix]
-      const specifiedScripts = getSpecifiedScripts(pkg.package.manifest.scripts ?? {}, scriptName)
+      const specifiedScripts = getSpecifiedScripts(pkg.package.manifest.scripts ?? {}, scriptName, !opts.sequential)
       if (!specifiedScripts.length) {
         result[prefix].status = 'skipped'
       }
@@ -235,20 +235,16 @@ function formatSectionName ({
   return `${name ?? 'unknown'}${version ? `@${version}` : ''} ${script ? `: ${script}` : ''} ${prefix}`
 }
 
-export function getSpecifiedScripts (scripts: PackageScripts, scriptName: string): string[] {
-  // if scripts in package.json has script which is equal to scriptName a user passes, return it.
+export function getSpecifiedScripts (scripts: PackageScripts, scriptName: string, sort: boolean = true): string[] {
   if (scripts[scriptName]) {
     return [scriptName]
   }
 
   const scriptSelector = tryBuildRegExpFromCommand(scriptName)
 
-  // if scriptName which a user passes is RegExp (like /build:.*/), multiple scripts to execute will be selected with RegExp
   if (scriptSelector) {
-    const scriptKeys = Object.keys(scripts)
-    return scriptKeys
-      .filter(script => script.match(scriptSelector))
-      .sort()
+    const keys = Object.keys(scripts).filter(script => script.match(scriptSelector))
+    return sort ? keys.sort() : keys
   }
 
   return []

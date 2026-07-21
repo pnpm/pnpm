@@ -801,7 +801,7 @@ test('cliOptionsTypes exposes sequential as Boolean flag', () => {
   expect(options.sequential).toBe(Boolean)
 })
 
-test('RegExp script matching executes multiple scripts in lexicographically sorted order when sequential is enabled', async () => {
+test('RegExp script matching executes multiple scripts in package.json order when sequential is enabled', async () => {
   prepare({
     scripts: {
       'build:z': 'node -e "require(\'fs\').appendFileSync(\'./order.log\', \'z\')"',
@@ -819,6 +819,28 @@ test('RegExp script matching executes multiple scripts in lexicographically sort
     pnpmHomeDir: '',
     sequential: true,
     cliOptions: { sequential: true },
+  }, ['/^build:.*/'])
+
+  const outputLog = fs.readFileSync(path.join(process.cwd(), 'order.log'), 'utf-8')
+  expect(outputLog).toBe('zam')
+})
+
+test('RegExp script matching executes multiple scripts in alphabetical order when sequential is not set', async () => {
+  prepare({
+    scripts: {
+      'build:z': 'node -e "require(\'fs\').appendFileSync(\'./order.log\', \'z\')"',
+      'build:a': 'node -e "require(\'fs\').appendFileSync(\'./order.log\', \'a\')"',
+      'build:m': 'node -e "require(\'fs\').appendFileSync(\'./order.log\', \'m\')"',
+    },
+  })
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
+    dir: process.cwd(),
+    extraBinPaths: [],
+    extraEnv: {},
+    pnpmHomeDir: '',
   }, ['/^build:.*/'])
 
   const outputLog = fs.readFileSync(path.join(process.cwd(), 'order.log'), 'utf-8')
