@@ -76,18 +76,9 @@ include_plain_comments = true
 reference_scope = "own_module"
 min_words = 2
 
-# Only comments carry upstream-source citations. The forge URLs that appear
-# in string literals are runtime data, not citations: the `pnpm repo` /
-# `pnpm list` output URLs asserted in `cli_args/repo/tests.rs` and
-# `cli/tests/list.rs` are branch-shaped by design (that is the behaviour
-# under test), so pinning them would be wrong. Scan comments only.
-#
-# `allow_version_patterns` accepts citations to permanent release tags
-# (`npm/hosted-git-info@v4.1.0`, `puleos/object-hash@v3.0.0`): a published
-# package's release tag is effectively immutable and the version number is
-# the meaningful reference — it ties the citation to the exact release
-# pnpm mirrors — so a SHA would obscure more than it pins. Branch refs are
-# still rejected and must be SHA-pinned.
+# Scan comments only: forge URLs in string literals are test data, not
+# citations. `allow_version_patterns` accepts version-shaped release-tag
+# citations without requiring a SHA.
 ["perfectionist::unpinned_repo_ref"]
 scan_string_literals = false
 allow_version_patterns = true
