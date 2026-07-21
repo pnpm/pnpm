@@ -47,7 +47,6 @@
     "@types/picomatch": "catalog:",
     "@typescript/native-preview": "catalog:",
     "c8": "catalog:",
-    "concurrently": "catalog:",
     "cross-env": "catalog:",
     "cspell": "catalog:",
     "eslint": "catalog:",
