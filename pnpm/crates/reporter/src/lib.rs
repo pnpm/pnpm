@@ -817,11 +817,9 @@ pub struct ExecutionTimeLog {
     pub ended_at: u128,
 }
 
-/// `pnpm:deprecation` payload. Field names match pnpm's
-/// [`DeprecationMessage`] wire shape so `@pnpm/cli.default-reporter`
-/// dispatches on them unchanged.
-///
-/// [`DeprecationMessage`]: https://github.com/pnpm/pnpm/blob/main/core/core-loggers/src/deprecationLogger.ts
+/// `pnpm:deprecation` payload. Field names match the `DeprecationMessage`
+/// wire shape in `pnpm11/core/core-loggers/src/deprecationLogger.ts` so
+/// `@pnpm/cli.default-reporter` dispatches on them unchanged.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeprecationLog {

@@ -1,7 +1,7 @@
 //! `pacquet sbom` — generate a Software Bill of Materials.
 //!
-//! Ports pnpm's
-//! [`sbom` command](https://github.com/pnpm/pnpm/blob/2b4952e804/pnpm11/deps/compliance/commands/src/sbom/sbom.ts).
+//! Ports pnpm's `sbom` command
+//! (`pnpm11/deps/compliance/commands/src/sbom/sbom.ts`).
 
 use crate::{State, cli_args::recursive::RecursiveSharedLockfileUnsupported};
 use clap::Args;
