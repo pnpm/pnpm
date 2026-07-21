@@ -16,10 +16,7 @@ use crate::{
             search::Searcher,
         },
         list::print_output,
-        recursive::{
-            AutoExcludeRoot, RecursiveSharedLockfileUnsupported, discover_workspace_projects,
-            select_recursive_projects,
-        },
+        recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
     },
 };
 
@@ -84,13 +81,6 @@ impl WhyArgs {
                 "`pnpm why` requires the package name or --find-by=<finder-name>"
             ));
         }
-        if state.config.recursive && !state.config.shared_workspace_lockfile {
-            return Err(RecursiveSharedLockfileUnsupported::new(
-                "Recursive and filtered `pnpm why`",
-            )
-            .into());
-        }
-
         let lockfile_dir = state.lockfile_dir().to_path_buf();
         let project_dir = state
             .manifest
@@ -100,7 +90,8 @@ impl WhyArgs {
             .to_path_buf();
 
         let project_dirs: Vec<PathBuf> = if state.config.recursive {
-            let (projects, _) = discover_workspace_projects(&lockfile_dir)?;
+            let workspace_root = state.config.workspace_dir.as_deref().unwrap_or(&lockfile_dir);
+            let (projects, _) = discover_workspace_projects(workspace_root)?;
             select_recursive_projects(
                 &projects,
                 state.config,

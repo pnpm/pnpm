@@ -70,6 +70,7 @@ use super::{
     unstar::UnstarArgs,
     update::UpdateArgs,
     version::VersionArgs,
+    view::ViewArgs,
     why::WhyArgs,
     with::WithArgs,
 };
@@ -142,7 +143,17 @@ pub struct CliArgs {
     pub recursive: bool,
 
     /// Reporter output format.
-    #[clap(long, value_enum, default_value_t = ReporterType::Default, global = true)]
+    // Self-override so a repeated `--reporter` takes the last occurrence,
+    // like nopt does — `--silent` expands to `--reporter=silent` (see
+    // `crate::shorthands`), so `--silent --reporter=ndjson` must not be a
+    // duplicate-argument error.
+    #[clap(
+        long,
+        value_enum,
+        default_value_t = ReporterType::Default,
+        global = true,
+        overrides_with = "reporter"
+    )]
     pub reporter: ReporterType,
 
     /// Select which workspace projects to run on. Repeat to add more.
@@ -231,6 +242,17 @@ impl CliArgs {
         }
     }
 
+    /// Promote commands marked recursive-by-default by pnpm when they run
+    /// inside a workspace.
+    pub fn promote_recursive_by_default(&mut self) {
+        if !self.recursive
+            && self.command.recursive_by_default()
+            && pacquet_workspace::find_workspace_dir(&self.dir).is_ok_and(|dir| dir.is_some())
+        {
+            self.recursive = true;
+        }
+    }
+
     /// `restart` also runs scripts and accepts its own `--if-present`,
     /// so the top-level spelling is valid for it too — unlike the
     /// recursive-only flags, which `restart` rejects. `exec` is the
@@ -293,7 +315,7 @@ pub enum CliCommand {
     /// Update packages to their newest version based on the specified range
     #[clap(visible_aliases = ["up", "upgrade"])]
     Update(UpdateArgs),
-    /// Check for outdated packages
+    /// Check for outdated package and GitHub Actions dependencies
     Outdated(OutdatedArgs),
     /// Checks for known security issues with the installed packages.
     Audit(AuditArgs),
@@ -318,6 +340,9 @@ pub enum CliCommand {
     Licenses(LicensesArgs),
     /// Shows the packages that depend on `pkg`
     Why(WhyArgs),
+    /// View registry information about a package.
+    #[clap(visible_aliases = ["info", "show", "v"])]
+    View(ViewArgs),
     /// Generate a Software Bill of Materials (SBOM).
     Sbom(SbomArgs),
     /// Displays your pnpm username.
@@ -479,6 +504,13 @@ pub enum CliCommand {
 }
 
 impl CliCommand {
+    fn recursive_by_default(&self) -> bool {
+        matches!(
+            self,
+            CliCommand::List(_) | CliCommand::Ll(_) | CliCommand::Why(_) | CliCommand::Peers(_),
+        )
+    }
+
     pub(crate) fn default_reporter_summary_scope(&self) -> SummaryScope {
         match self {
             CliCommand::Access(_) => SummaryScope::CurrentPrefix,

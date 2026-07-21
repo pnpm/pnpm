@@ -88,6 +88,55 @@ test('installing with "catalog:" should work', async () => {
   })
 })
 
+// Mirrors the pacquet regression where `catalog:` deps were treated as changed
+// direct deps on every install, re-resolving their dependents'
+// still-satisfied subdeps (https://github.com/pnpm/pnpm/pull/13193).
+test('removing an unrelated dependency does not re-resolve a catalog dependency or its subdeps', async () => {
+  await Promise.all([
+    addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' }),
+  ])
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+    {
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/pkg-with-1-dep': 'catalog:',
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+
+  const catalogs = {
+    default: { '@pnpm.e2e/pkg-with-1-dep': '^100.0.0' },
+  }
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    catalogs,
+  })
+
+  await Promise.all([
+    addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.1.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' }),
+  ])
+  delete projects['project1' as ProjectId].dependencies!['is-positive']
+
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    catalogs,
+  })
+
+  const lockfile = readLockfile()
+  expect(lockfile.importers['project1' as ProjectId].dependencies?.['@pnpm.e2e/pkg-with-1-dep']).toEqual({
+    specifier: 'catalog:',
+    version: '100.0.0',
+  })
+  expect(lockfile.snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies).toStrictEqual({
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
+  })
+})
+
 test('importer to importer dependency with "catalog:" should work', async () => {
   const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
     {

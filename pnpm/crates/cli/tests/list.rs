@@ -79,6 +79,43 @@ fn recursive_list_depth_minus_one_json_lists_workspace_projects() {
 }
 
 #[test]
+fn list_is_recursive_by_default_inside_workspace() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", json!({ "name": "project-1", "version": "1.0.0" })),
+            ("project-2", json!({ "name": "project-2", "version": "1.0.0" })),
+        ],
+    );
+
+    let output = pacquet
+        .with_arg("list")
+        .with_arg("--depth")
+        .with_arg("-1")
+        .with_arg("--json")
+        .output()
+        .expect("spawn pacquet list");
+
+    assert!(
+        output.status.success(),
+        "list should succeed: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let packages: Vec<Value> = serde_json::from_slice(&output.stdout).expect("parse list JSON");
+    let names: BTreeSet<String> = packages
+        .iter()
+        .map(|pkg| pkg["name"].as_str().expect("package name").to_string())
+        .collect();
+    assert_eq!(
+        names,
+        BTreeSet::from(["project-1".to_string(), "project-2".to_string(), "root".to_string()]),
+    );
+
+    drop(root);
+}
+
+#[test]
 fn recursive_list_depth_minus_one_json_keeps_project_only_output_with_package_params() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(
@@ -810,7 +847,8 @@ fn list_only_projects_shows_only_projects() {
     }
     run_ok(&workspace, &["install"]);
 
-    let output = run_ok(&workspace, &["list", "--depth", "999", "--only-projects"]);
+    let output =
+        run_ok(&workspace, &["--filter", ".", "list", "--depth", "999", "--only-projects"]);
     let dir = canonical(&workspace);
     assert_eq!(
         output,

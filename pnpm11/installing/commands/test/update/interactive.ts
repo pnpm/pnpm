@@ -127,7 +127,7 @@ test('interactively update', async () => {
   expect(mockCheckbox).toHaveBeenCalledWith(
     expect.objectContaining({
       message:
-        'Choose which packages to update ' +
+        'Choose which dependencies to update ' +
         `(Press ${chalk.cyan('<space>')} to select, ` +
         `${chalk.cyan('<a>')} to toggle all, ` +
         `${chalk.cyan('<i>')} to invert selection)\n\nEnter to start updating. Ctrl-c to cancel.`,
@@ -183,7 +183,7 @@ test('interactively update', async () => {
   expect(mockCheckbox).toHaveBeenCalledWith(
     expect.objectContaining({
       message:
-        'Choose which packages to update ' +
+        'Choose which dependencies to update ' +
         `(Press ${chalk.cyan('<space>')} to select, ` +
         `${chalk.cyan('<a>')} to toggle all, ` +
         `${chalk.cyan('<i>')} to invert selection)\n\nEnter to start updating. Ctrl-c to cancel.`,
@@ -324,7 +324,7 @@ test('interactively update should ignore dependencies from the ignoreDependencie
   expect(mockCheckbox).toHaveBeenCalledWith(
     expect.objectContaining({
       message:
-        'Choose which packages to update ' +
+        'Choose which dependencies to update ' +
         `(Press ${chalk.cyan('<space>')} to select, ` +
         `${chalk.cyan('<a>')} to toggle all, ` +
         `${chalk.cyan('<i>')} to invert selection)\n\nEnter to start updating. Ctrl-c to cancel.`,

@@ -321,7 +321,7 @@ fn remove_occupant(path: &Path) -> io::Result<()> {
 
 /// `fs::rename` that overwrites the destination when it exists.
 /// Follows the
-/// [`rename-overwrite`](https://github.com/zkochan/packages/tree/main/rename-overwrite)
+/// [`rename-overwrite`](https://github.com/zkochan/packages/tree/e65701a6ae/rename-overwrite)
 /// package's approach: if the rename fails because the destination
 /// is occupied (`AlreadyExists` for files, `DirectoryNotEmpty` for
 /// dirs, `PermissionDenied` on Windows when something holds a handle

@@ -472,6 +472,7 @@ fn command_name(command: &CliCommand) -> &'static str {
         CliCommand::Ll(_) => "ll",
         CliCommand::Licenses(_) => "licenses",
         CliCommand::Why(_) => "why",
+        CliCommand::View(_) => "view",
         CliCommand::Sbom(_) => "sbom",
         CliCommand::Whoami => "whoami",
         CliCommand::Deprecate(_) => "deprecate",

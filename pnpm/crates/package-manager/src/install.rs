@@ -2760,8 +2760,8 @@ fn modules_consistent_with(
 /// ones ([`crate::prune_direct_deps_excluded_by_groups`]), not by
 /// deleting the directory. pnpm never purges the root project's
 /// `node_modules` for an included mismatch — its `validateModules` only
-/// does so for non-root importers
-/// ([`lockfileDir !== rootDir`](https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/validateModules.ts#L105))
+/// does so for non-root importers (the `lockfileDir !== rootDir` check
+/// in `pnpm11/installing/deps-installer/src/install/validateModules.ts`)
 /// — so purging here would destroy the user's own non-pnpm entries (a
 /// vendored directory, stray files) on a routine flag change. The
 /// up-to-date fast path still compares `included` via

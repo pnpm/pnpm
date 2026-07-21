@@ -198,19 +198,126 @@ fn outdated_without_lockfile_errors() {
     drop((root, anchor));
 }
 
-/// `--recursive` is rejected until workspace-wide inspection is ported.
 #[test]
-fn outdated_recursive_is_rejected() {
+fn recursive_outdated_reports_the_shared_lockfile_directory() {
     let (root, workspace, anchor) = setup();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    write_manifest(&workspace, "{}");
+    let project = workspace.join("packages/app");
+    fs::create_dir_all(&project).expect("create workspace project");
+    fs::write(
+        project.join("package.json"),
+        format!(
+            r#"{{ "name": "app", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write project manifest");
 
-    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    let output = pacquet(&workspace, ["outdated", "--recursive"])
+        .output()
+        .expect("run recursive outdated without a shared lockfile");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains(r#"workspace""#),
+        "error should point to the shared lockfile directory: {stderr}",
+    );
+    assert!(
+        !stderr.contains(r#"app""#),
+        "error should not point to a project-specific lockfile: {stderr}",
+    );
+
+    drop((root, anchor));
+}
+
+#[test]
+fn outdated_recursive_aggregates_workspace_dependents() {
+    let (root, workspace, anchor) = setup();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    write_manifest(&workspace, "{}");
+    for name in ["app-a", "app-b"] {
+        let project = workspace.join("packages").join(name);
+        fs::create_dir_all(&project).expect("create workspace project");
+        fs::write(
+            project.join("package.json"),
+            format!(
+                r#"{{ "name": "{name}", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0" }} }}"#,
+            ),
+        )
+        .expect("write project manifest");
+    }
     pacquet(&workspace, ["install"]).assert().success();
 
-    let output =
-        pacquet(&workspace, ["outdated", "--recursive"]).output().expect("run pacquet outdated");
-    assert!(!output.status.success(), "recursive outdated should be rejected");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("not supported yet"), "stderr should say it is unsupported: {stderr}");
+    let output = pacquet(&workspace, ["outdated", "--recursive", "--format", "json"])
+        .output()
+        .expect("run recursive outdated");
+
+    assert_eq!(output.status.code(), Some(1));
+    let value: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("recursive outdated should emit valid JSON");
+    let dependents = value[DEP]["dependentPackages"].as_array().expect("dependent package list");
+    assert_eq!(dependents.len(), 2);
+    assert_eq!(dependents[0]["name"], "app-a");
+    assert_eq!(dependents[1]["name"], "app-b");
+    assert!(
+        dependents[0]["location"]
+            .as_str()
+            .is_some_and(|path| Path::new(path).ends_with(Path::new("packages").join("app-a"))),
+        "unexpected app-a location: {}",
+        dependents[0]["location"],
+    );
+    assert!(
+        dependents[1]["location"]
+            .as_str()
+            .is_some_and(|path| Path::new(path).ends_with(Path::new("packages").join("app-b"))),
+        "unexpected app-b location: {}",
+        dependents[1]["location"],
+    );
+
+    let filtered =
+        pacquet(&workspace, ["--filter", "app-a", "outdated", "--recursive", "--format", "json"])
+            .output()
+            .expect("run filtered recursive outdated");
+    assert_eq!(filtered.status.code(), Some(1));
+    let value: serde_json::Value = serde_json::from_slice(&filtered.stdout)
+        .expect("filtered recursive outdated should emit valid JSON");
+    assert_eq!(value[DEP]["dependentPackages"].as_array().map(Vec::len), Some(1));
+    assert_eq!(value[DEP]["dependentPackages"][0]["name"], "app-a");
+
+    drop((root, anchor));
+}
+
+#[test]
+fn outdated_recursive_reads_dedicated_project_lockfiles() {
+    let (root, workspace, anchor) = setup();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n",
+    )
+    .expect("write workspace manifest");
+    write_manifest(&workspace, "{}");
+    let project = workspace.join("packages/app");
+    fs::create_dir_all(&project).expect("create workspace project");
+    fs::write(
+        project.join("package.json"),
+        format!(
+            r#"{{ "name": "app", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write project manifest");
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output = pacquet(&workspace, ["outdated", "--recursive"])
+        .output()
+        .expect("run recursive outdated with dedicated lockfiles");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains(DEP), "report should mention the package: {stdout}");
+    assert!(stdout.contains("app"), "report should name the dependent: {stdout}");
 
     drop((root, anchor));
 }

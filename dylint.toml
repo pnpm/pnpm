@@ -44,7 +44,6 @@ ignore = [
 enable = ["unordered_derives"]
 disable = [
     "needless_borrowed_parameters",
-    "unpinned_repo_ref",
 ]
 
 # Code spans read fine in `--help` and stay useful as `cargo doc` docs, so
@@ -76,6 +75,13 @@ include_plain_comments = true
 ["perfectionist::bare_identifier_reference"]
 reference_scope = "own_module"
 min_words = 2
+
+# Scan comments only: forge URLs in string literals are test data, not
+# citations. `allow_version_patterns` accepts version-shaped release-tag
+# citations without requiring a SHA.
+["perfectionist::unpinned_repo_ref"]
+scan_string_literals = false
+allow_version_patterns = true
 
 ["perfectionist::unordered_derives"]
 style = "prefix_then_alphabetical"

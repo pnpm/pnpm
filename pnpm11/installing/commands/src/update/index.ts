@@ -9,6 +9,7 @@ import {
 } from '@pnpm/cli.utils'
 import { createMatcher } from '@pnpm/config.matcher'
 import { types as allTypes } from '@pnpm/config.reader'
+import { findOutdatedGitHubActions, isGitHubActionSelector, normalizeGitHubActionSelector, updateGitHubActions } from '@pnpm/deps.github-actions'
 import { outdatedDepsOfProjects } from '@pnpm/deps.inspection.outdated'
 import { PnpmError } from '@pnpm/error'
 import { handleGlobalUpdate } from '@pnpm/global.commands'
@@ -23,6 +24,7 @@ import type { InstallCommandOptions } from '../install.js'
 import { createVulnerabilityUpdateMatching, installDeps } from '../installDeps.js'
 import { parseUpdateParam } from '../recursive.js'
 import { createGlobalPolicyCallbacks } from '../resolutionPolicyManifest.js'
+import { captureUpdateChangesetContext, generateUpdateChangeset } from './generateUpdateChangeset.js'
 import { getUpdateChoices } from './getUpdateChoices.js'
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
@@ -79,6 +81,8 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...rcOptionsTypes(),
+    changeset: Boolean,
+    'include-github-actions': Boolean,
     interactive: Boolean,
     latest: Boolean,
     recursive: Boolean,
@@ -100,7 +104,7 @@ export const completion: CompletionFunc = async (cliOpts) => {
 export function help (): string {
   return renderHelp({
     aliases: ['up', 'upgrade'],
-    description: 'Updates packages to their latest version based on the specified range. You can use "*" in package name to update all packages with the same pattern.',
+    description: 'Updates package dependencies to their latest version based on the specified range. GitHub Actions dependencies can be included with --include-github-actions. You can use "*" in a dependency name to update all dependencies with the same pattern.',
     descriptionLists: [
       {
         title: 'Options',
@@ -154,6 +158,14 @@ dependencies is not found inside the workspace',
             shortAlias: '-i',
           },
           {
+            description: 'Generate a changeset file declaring a patch bump for every workspace package whose production dependencies were changed by the update',
+            name: '--changeset',
+          },
+          {
+            description: 'Also update GitHub Actions dependencies in workflow and action files',
+            name: '--include-github-actions',
+          },
+          {
             description: 'Don\'t update the ranges in package.json.',
             name: '--no-save',
           },
@@ -169,7 +181,9 @@ dependencies is not found inside the workspace',
 }
 
 export type UpdateCommandOptions = InstallCommandOptions & {
+  changeset?: boolean
   include?: IncludedDependencies
+  includeGithubActions?: boolean
   interactive?: boolean
   latest?: boolean
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
@@ -212,21 +226,44 @@ async function interactiveUpdate (
         manifest: await readProjectManifestOnly(opts.dir, opts),
       },
     ]
-  const outdatedPkgsOfProjects = await outdatedDepsOfProjects(projects, input, {
-    ...opts,
-    compatible: opts.latest !== true,
-    ignoreDependencies: opts.updateConfig?.ignoreDependencies,
-    include,
-    retry: {
-      factor: opts.fetchRetryFactor,
-      maxTimeout: opts.fetchRetryMaxtimeout,
-      minTimeout: opts.fetchRetryMintimeout,
-      retries: opts.fetchRetries,
-    },
-    timeout: opts.fetchTimeout,
-  })
+  const packageInput = input.filter((selector) => !isGitHubActionSelector(selector))
+  const [outdatedPkgsOfProjects, outdatedActions] = await Promise.all([
+    input.length === 0 || packageInput.length > 0
+      ? outdatedDepsOfProjects(projects, packageInput, {
+        ...opts,
+        compatible: opts.latest !== true,
+        ignoreDependencies: opts.updateConfig?.ignoreDependencies,
+        include,
+        retry: {
+          factor: opts.fetchRetryFactor,
+          maxTimeout: opts.fetchRetryMaxtimeout,
+          minTimeout: opts.fetchRetryMintimeout,
+          retries: opts.fetchRetries,
+        },
+        timeout: opts.fetchTimeout,
+      })
+      : projects.map(() => []),
+    include.devDependencies && opts.save !== false && !opts.lockfileOnly
+      ? findOutdatedGitHubActions({
+        compatible: opts.latest !== true,
+        dir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
+        match: input.length > 0 ? createMatcher(input.map(normalizeGitHubActionSelector)) : undefined,
+      })
+      : [],
+  ])
   const workspacesEnabled = !!opts.workspaceDir
-  const choiceGroups = getUpdateChoices(unnest(outdatedPkgsOfProjects), workspacesEnabled)
+  const choiceGroups = getUpdateChoices([
+    ...unnest(outdatedPkgsOfProjects),
+    ...outdatedActions.map((action) => ({
+      alias: action.name,
+      belongsTo: 'devDependencies' as const,
+      current: action.current,
+      dependencyType: 'githubAction' as const,
+      latestManifest: { name: action.name, version: action.latest, homepage: action.homepage },
+      packageName: action.name,
+      wanted: action.wanted,
+    })),
+  ], workspacesEnabled)
   if (choiceGroups.length === 0) {
     if (opts.latest) {
       return 'All of your dependencies are already up to date'
@@ -254,7 +291,7 @@ async function interactiveUpdate (
     }
   }
 
-  const message = 'Choose which packages to update ' +
+  const message = 'Choose which dependencies to update ' +
     `(Press ${chalk.cyan('<space>')} to select, ` +
     `${chalk.cyan('<a>')} to toggle all, ` +
     `${chalk.cyan('<i>')} to invert selection)\n\nEnter to start updating. Ctrl-c to cancel.`
@@ -267,7 +304,7 @@ async function interactiveUpdate (
       required: true,
       validate: (values) => {
         if (values.length === 0) {
-          return 'You must choose at least one package.'
+          return 'You must choose at least one dependency.'
         }
         return true
       },
@@ -287,7 +324,7 @@ async function interactiveUpdate (
     throw err
   }
 
-  return update(updatePkgNames, opts, rebuildHandler) as Promise<undefined>
+  return update(updatePkgNames, { ...opts, includeGithubActions: true }, rebuildHandler) as Promise<undefined>
 }
 
 async function update (
@@ -295,13 +332,21 @@ async function update (
   opts: UpdateCommandOptions,
   rebuildHandler?: CommandHandler
 ): Promise<void> {
+  const includeDirect = makeIncludeDependenciesFromCLI(opts.cliOptions)
+  const updateActions = includeDirect.devDependencies &&
+    opts.save !== false &&
+    !opts.lockfileOnly &&
+    (opts.includeGithubActions === true || opts.updateConfig?.githubActions === true)
   if (opts.latest) {
-    const dependenciesWithTags = dependencies.filter((name) => parseUpdateParam(name).versionSpec != null)
+    const dependenciesWithTags = dependencies.filter((name) =>
+      (!updateActions || !isGitHubActionSelector(name)) && parseUpdateParam(name).versionSpec != null)
     if (dependenciesWithTags.length) {
       throw new PnpmError('LATEST_WITH_SPEC', `Specs are not allowed to be used with --latest (${dependenciesWithTags.join(', ')})`)
     }
   }
-  const includeDirect = makeIncludeDependenciesFromCLI(opts.cliOptions)
+  const packageDependencies = updateActions
+    ? dependencies.filter((dependency) => !isGitHubActionSelector(dependency))
+    : dependencies
   // include is always all-true for updates: updates should not change which
   // dep types the modules directory supports. The filtering of which deps to
   // actually resolve/update is handled by includeDirect (from CLI flags).
@@ -317,27 +362,41 @@ async function update (
   if (opts.packageVulnerabilityAudit != null) {
     updateMatching = createVulnerabilityUpdateMatching(opts.packageVulnerabilityAudit)
   } else if (
-    (dependencies.length > 0) && dependencies.every(dep => !dep.substring(1).includes('@')) && depth > 0 && !opts.latest
+    (packageDependencies.length > 0) && packageDependencies.every(dep => !dep.substring(1).includes('@')) && depth > 0 && !opts.latest
   ) {
-    updateMatching = createMatcher(dependencies)
+    updateMatching = createMatcher(packageDependencies)
   }
-  await installDeps({
-    ...opts,
-    rebuildHandler,
-    allowNew: false,
-    depth,
-    ignoreCurrentSpecifiers: false,
-    include,
-    includeDirect,
-    update: true,
-    updateToLatest: opts.latest,
-    updateMatching,
-    updatePackageManifest: opts.save !== false,
-    resolutionMode: opts.save === false ? 'highest' : opts.resolutionMode,
-    // `--dry-run` is an `install`-only preview; never let a config-level
-    // `dry-run` turn `update` into a no-op check.
-    dryRun: false,
-  }, dependencies)
+  const generateChangeset = opts.changeset ?? opts.updateConfig?.changeset ?? false
+  const changesetContext = generateChangeset ? await captureUpdateChangesetContext(opts) : undefined
+  if (dependencies.length === 0 || packageDependencies.length > 0) {
+    await installDeps({
+      ...opts,
+      rebuildHandler,
+      allowNew: false,
+      depth,
+      ignoreCurrentSpecifiers: false,
+      include,
+      includeDirect,
+      update: true,
+      updateToLatest: opts.latest,
+      updateMatching,
+      updatePackageManifest: opts.save !== false,
+      resolutionMode: opts.save === false ? 'highest' : opts.resolutionMode,
+      // `--dry-run` is an `install`-only preview; never let a config-level
+      // `dry-run` turn `update` into a no-op check.
+      dryRun: false,
+    }, packageDependencies)
+  }
+  if (updateActions) {
+    await updateGitHubActions({
+      dir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
+      latest: opts.latest,
+      match: dependencies.length > 0 ? createMatcher(dependencies.map(normalizeGitHubActionSelector)) : undefined,
+    })
+  }
+  if (changesetContext != null) {
+    await generateUpdateChangeset(changesetContext)
+  }
 }
 
 function makeIncludeDependenciesFromCLI (opts: {

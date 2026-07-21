@@ -25,8 +25,8 @@ pub use apply::{AppliedRelease, apply_release_plan};
 pub use changelog::{compose_changelog_section, prepend_changelog_section, render_changelog};
 pub use error::VersioningError;
 pub use intents::{
-    CHANGES_DIR, ChangeIntent, IntentBumpType, parse_change_intent, read_change_intents,
-    write_change_intent,
+    CHANGES_DIR, ChangeIntent, IntentBumpType, format_change_intent, parse_change_intent,
+    read_change_intents, write_change_intent,
 };
 pub use ledger::{
     LEDGER_FILENAME, Ledger, LedgerEntry, PackageConsumption, append_to_ledger,
