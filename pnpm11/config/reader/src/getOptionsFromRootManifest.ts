@@ -91,9 +91,12 @@ function translateUpdateSettings (pnpmSettings: PnpmSettings, settings: OptionsF
   if (pnpmSettings.updateConfig != null) {
     globalWarn('Both the "update" and "updateConfig" settings are set. The deprecated "updateConfig" setting is ignored in favor of "update".')
   }
-  settings.updateConfig = pnpmSettings.update.ignoreDeps != null
-    ? { ignoreDependencies: pnpmSettings.update.ignoreDeps }
-    : {}
+  if (pnpmSettings.update.ignoreDeps == null) {
+    settings.updateConfig = {}
+    return
+  }
+  assertStringArray(pnpmSettings.update.ignoreDeps, 'update.ignoreDeps')
+  settings.updateConfig = { ignoreDependencies: pnpmSettings.update.ignoreDeps }
 }
 
 /**
@@ -109,12 +112,16 @@ function translateAuditSettings (pnpmSettings: PnpmSettings, settings: OptionsFr
   const audit = pnpmSettings.audit
   if (audit == null) return
   if (audit.ignore != null) {
+    assertStringArray(audit.ignore, 'audit.ignore')
     if (pnpmSettings.auditConfig != null) {
       globalWarn('Both the "audit" and "auditConfig" settings are set. The deprecated "auditConfig" setting is ignored in favor of "audit".')
     }
     settings.auditConfig = { ...settings.auditConfig, ignoreGhsas: audit.ignore }
   }
   if (audit.level != null) {
+    if (!AUDIT_LEVELS.has(audit.level)) {
+      throw new PnpmError('INVALID_SETTING', `The "audit.level" setting should be one of ${Array.from(AUDIT_LEVELS).join(', ')}, but got ${JSON.stringify(audit.level)}`)
+    }
     if ((pnpmSettings as { auditLevel?: unknown }).auditLevel != null) {
       globalWarn('Both the "audit" and "auditLevel" settings are set. The deprecated "auditLevel" setting is ignored in favor of "audit".')
     }
@@ -143,6 +150,20 @@ function renderReceivedType (value: unknown): string {
   if (value === null) return 'null'
   if (Array.isArray(value)) return 'array'
   return typeof value
+}
+
+const AUDIT_LEVELS = new Set(['info', 'low', 'moderate', 'high', 'critical'])
+
+// The `update` and `audit` sections come from repo-controlled
+// pnpm-workspace.yaml, which is parsed untyped — so their fields are validated
+// here (the Rust config reader rejects the same malformed shapes at parse
+// time). An invalid `audit.level` is especially worth catching: it would leave
+// `pnpm audit` comparing severities against `undefined`, silently reporting no
+// advisories.
+function assertStringArray (value: unknown, settingName: string): asserts value is string[] {
+  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
+    throw new PnpmError('INVALID_SETTING', `The "${settingName}" setting should be an array of strings, but got ${renderReceivedType(value)}`)
+  }
 }
 
 function replaceEnvInSettings (

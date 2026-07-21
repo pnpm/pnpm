@@ -118,3 +118,21 @@ test('getOptionsFromPnpmSettings() still honors the deprecated "auditConfig" set
   expect(options.auditConfig).toStrictEqual({ ignoreGhsas: ['GHSA-old'] })
   expect(globalWarn).not.toHaveBeenCalled()
 })
+
+test('getOptionsFromPnpmSettings() throws when "update.ignoreDeps" is not a string array', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    update: { ignoreDeps: 'webpack' },
+  } as any)).toThrow(/update\.ignoreDeps/) // eslint-disable-line
+})
+
+test('getOptionsFromPnpmSettings() throws when "audit.ignore" is not a string array', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    audit: { ignore: 'GHSA-1' },
+  } as any)).toThrow(/audit\.ignore/) // eslint-disable-line
+})
+
+test('getOptionsFromPnpmSettings() throws on an invalid "audit.level"', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    audit: { level: 'hgih' },
+  } as any)).toThrow(/audit\.level/) // eslint-disable-line
+})
