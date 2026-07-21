@@ -1514,8 +1514,6 @@ updateConfig:
     );
 }
 
-/// The `update` section supersedes `updateConfig`: its `ignore` list
-/// lands on `Config.update_config.ignore_dependencies`.
 #[test]
 fn parses_update_ignore_from_yaml_and_applies() {
     let yaml = r#"
@@ -1535,8 +1533,6 @@ update:
     );
 }
 
-/// When both `update` and the deprecated `updateConfig` are set,
-/// `update` wins.
 #[test]
 fn update_section_takes_precedence_over_update_config() {
     let yaml = r#"
@@ -1558,9 +1554,6 @@ updateConfig:
     );
 }
 
-/// The `audit` section supersedes `auditLevel` / `auditConfig`: its
-/// `level` and `ignore` land on `Config.audit_level` and
-/// `Config.audit_config.ignore_ghsas`.
 #[test]
 fn parses_audit_section_from_yaml_and_applies() {
     let yaml = r#"
@@ -1578,8 +1571,6 @@ audit:
     assert_eq!(config.audit_config.ignore_ghsas, vec!["GHSA-1".to_string(), "GHSA-2".to_string()],);
 }
 
-/// When both `audit` and the deprecated `auditLevel` / `auditConfig` are
-/// set, `audit` wins.
 #[test]
 fn audit_section_takes_precedence_over_audit_level_and_config() {
     let yaml = r#"
