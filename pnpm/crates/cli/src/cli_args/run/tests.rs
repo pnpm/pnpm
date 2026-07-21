@@ -29,7 +29,7 @@ fn specified_scripts_regexp_unsorted_insertion_order() {
     }});
     assert_eq!(
         specified_scripts(&manifest, "/^build:.*/", false),
-        vec!["build:z".to_string(), "build:a".to_string(), "build:m".to_string()]
+        vec!["build:z".to_string(), "build:a".to_string(), "build:m".to_string()],
     );
 }
 
@@ -42,7 +42,7 @@ fn specified_scripts_regexp_sorted_alphabetical() {
     }});
     assert_eq!(
         specified_scripts(&manifest, "/^build:.*/", true),
-        vec!["build:a".to_string(), "build:m".to_string(), "build:z".to_string()]
+        vec!["build:a".to_string(), "build:m".to_string(), "build:z".to_string()],
     );
 }
 

@@ -352,10 +352,10 @@ fn exec_scripts_prepend_node_path(
 
 fn specified_scripts(manifest: &Value, name: &str, sort: bool) -> Vec<String> {
     if let Some(scripts) = manifest.get("scripts").and_then(Value::as_object) {
-        if let Some(entry) = scripts.get(name).and_then(Value::as_str) {
-            if !entry.is_empty() {
-                return vec![name.to_string()];
-            }
+        if let Some(entry) = scripts.get(name).and_then(Value::as_str)
+            && !entry.is_empty()
+        {
+            return vec![name.to_string()];
         }
 
         if let Some(pattern) = parse_regexp_selector(name) {
@@ -363,7 +363,7 @@ fn specified_scripts(manifest: &Value, name: &str, sort: bool) -> Vec<String> {
                 Ok(re) => {
                     let mut keys: Vec<String> = scripts
                         .keys()
-                        .filter(|k| re.is_match(k.as_str()))
+                        .filter(|script_key| re.is_match(script_key.as_str()))
                         .cloned()
                         .collect();
                     if sort {
