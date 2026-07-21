@@ -24,12 +24,15 @@ use std::{
 #[derive(Debug, Display, Error, Diagnostic)]
 enum UpdateChangesetError {
     #[display("Failed to read project manifest: {_0}")]
+    #[diagnostic(transparent)]
     ReadProject(#[error(source)] ReadProjectManifestOnlyError),
 
     #[display("Failed to inspect project manifest: {_0}")]
+    #[diagnostic(transparent)]
     InspectProject(#[error(source)] PackageManifestError),
 
     #[display("Failed to read pnpm-workspace.yaml: {_0}")]
+    #[diagnostic(transparent)]
     ReadWorkspace(#[error(source)] ReadWorkspaceManifestError),
 
     #[display("Failed to read {}: {source}", path.display())]
@@ -62,6 +65,13 @@ enum UpdateChangesetError {
     )]
     #[diagnostic(code(ERR_PNPM_UNSAFE_CHANGESET_DIR))]
     UnsafeChangesetDir { path: PathBuf },
+
+    #[display("Failed to generate a changeset ID: {source}")]
+    #[diagnostic(code(ERR_PNPM_CHANGESET_ID_FAILED))]
+    GenerateId {
+        #[error(source)]
+        source: getrandom::Error,
+    },
 
     #[display("Failed to write {}: {source}", path.display())]
     #[diagnostic(code(ERR_PNPM_CHANGESET_WRITE_FAILED))]
@@ -217,21 +227,31 @@ impl UpdateChangesetContext {
         }
 
         let releases = releases.into_iter().collect::<IndexMap<_, _>>();
-        let mut random = [0_u8; 4];
-        getrandom::fill(&mut random).expect("read entropy from the operating system");
-        let id = format!("pnpm-update-{:08x}", u32::from_be_bytes(random));
         ensure_changeset_dir_is_safe(&changeset_dir)?;
-        let changeset_path = changeset_dir.join(format!("{id}.md"));
         let content = format_change_intent(&releases, "Update dependencies.");
-        OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&changeset_path)
-            .and_then(|mut file| file.write_all(content.as_bytes()))
-            .map_err(|source| UpdateChangesetError::WriteChangeset {
-                path: changeset_path.clone(),
-                source,
+        let changeset_path = loop {
+            let mut random = [0_u8; 4];
+            getrandom::fill(&mut random)
+                .map_err(|source| UpdateChangesetError::GenerateId { source })?;
+            let id = format!("pnpm-update-{:08x}", u32::from_be_bytes(random));
+            let changeset_path = changeset_dir.join(format!("{id}.md"));
+            let mut file =
+                match OpenOptions::new().write(true).create_new(true).open(&changeset_path) {
+                    Ok(file) => file,
+                    Err(source) if source.kind() == ErrorKind::AlreadyExists => continue,
+                    Err(source) => {
+                        return Err(UpdateChangesetError::WriteChangeset {
+                            path: changeset_path,
+                            source,
+                        }
+                        .into());
+                    }
+                };
+            file.write_all(content.as_bytes()).map_err(|source| {
+                UpdateChangesetError::WriteChangeset { path: changeset_path.clone(), source }
             })?;
+            break changeset_path;
+        };
         global_log::<Output>(
             LogLevel::Info,
             format!(

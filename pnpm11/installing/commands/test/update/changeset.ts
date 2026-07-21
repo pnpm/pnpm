@@ -23,6 +23,7 @@ jest.unstable_mockModule('@pnpm/logger', () => {
 
 const { globalInfo, globalWarn } = await import('@pnpm/logger')
 const { install, update } = await import('@pnpm/installing.commands')
+const { captureUpdateChangesetContext, generateUpdateChangeset } = await import('../../src/update/generateUpdateChangeset.js')
 
 beforeEach(() => {
   jest.mocked(globalInfo).mockClear()
@@ -176,6 +177,37 @@ test('update --changeset generates a major changeset when peer dependencies chan
   expect(changesetFiles).toHaveLength(1)
   expect(fs.readFileSync(path.join('.changeset', changesetFiles[0]), 'utf8')).toBe(`---
 "project": major
+---
+
+Update dependencies.
+`)
+})
+
+test('generated changesets escape package names in frontmatter', async () => {
+  prepare({
+    name: 'project',
+    version: '1.0.0',
+    dependencies: {
+      foo: '1.0.0',
+    },
+  })
+  writeChangesetConfig()
+  const ctx = await captureUpdateChangesetContext({ dir: process.cwd() })
+  const packageName = 'project"\\\n"injected'
+  fs.writeFileSync('package.json', JSON.stringify({
+    name: packageName,
+    version: '1.0.0',
+    dependencies: {
+      foo: '2.0.0',
+    },
+  }))
+
+  await generateUpdateChangeset(ctx)
+
+  const changesetFiles = readGeneratedChangesets()
+  expect(changesetFiles).toHaveLength(1)
+  expect(fs.readFileSync(path.join('.changeset', changesetFiles[0]), 'utf8')).toBe(`---
+${JSON.stringify(packageName)}: patch
 ---
 
 Update dependencies.

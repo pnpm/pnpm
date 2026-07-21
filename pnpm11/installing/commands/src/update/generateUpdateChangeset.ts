@@ -209,6 +209,6 @@ function usesChangedCatalogEntry (
 }
 
 function formatChangeset (releases: Array<{ name: string, type: ReleaseType }>): string {
-  const bumps = releases.map(({ name, type }) => `"${name}": ${type}`).join('\n')
+  const bumps = releases.map(({ name, type }) => `${JSON.stringify(name)}: ${type}`).join('\n')
   return `---\n${bumps}\n---\n\nUpdate dependencies.\n`
 }
