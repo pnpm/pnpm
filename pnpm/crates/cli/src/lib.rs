@@ -84,6 +84,7 @@ fn run_cli() -> miette::Result<()> {
         }
         Err(err) => err.exit(),
     };
+    args.validate_config_conflicts()?;
     if let Err(err) = args.validate_command_scoped_global_options() {
         err.exit();
     }

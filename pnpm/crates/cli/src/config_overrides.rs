@@ -58,6 +58,30 @@ where
     Ok(())
 }
 
+pub(crate) fn apply_virtual_store_dir_override(
+    config: &mut Config,
+    virtual_store_dir: &Path,
+    dir: &Path,
+) {
+    if virtual_store_dir.as_os_str().is_empty() {
+        return;
+    }
+    let workspace_dir = config.workspace_dir.as_deref().unwrap_or(dir);
+    let resolved = if virtual_store_dir.is_absolute() {
+        virtual_store_dir.to_path_buf()
+    } else {
+        workspace_dir.join(virtual_store_dir)
+    };
+    config.virtual_store_dir = lexical_normalize(&resolved);
+    config.explicit_settings.insert(
+        "virtualStoreDir".to_string(),
+        serde_json::Value::String(virtual_store_dir.to_string_lossy().into_owned()),
+    );
+    let global_virtual_store_dir_explicit =
+        config.explicit_settings.contains_key("globalVirtualStoreDir");
+    config.apply_global_virtual_store_derivation(true, global_virtual_store_dir_explicit);
+}
+
 fn home_relative_store_dir(store_dir: &Path) -> Option<&Path> {
     let store_dir = store_dir.to_str()?;
     store_dir.strip_prefix("~/").or_else(|| store_dir.strip_prefix(r"~\")).map(Path::new)

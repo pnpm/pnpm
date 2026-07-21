@@ -7,7 +7,8 @@ use crate::{
     config_deps,
 };
 use clap::Args;
-use miette::Context;
+use derive_more::{Display, Error};
+use miette::{Context, Diagnostic};
 use pacquet_config::Config;
 use pacquet_package_manager::Add;
 use pacquet_package_manifest::DependencyGroup;
@@ -109,10 +110,9 @@ pub struct AddArgs {
     /// Dependencies are not downloaded. Only `pnpm-lock.yaml` is updated.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
-    /// The directory with links to the store (default is `node_modules/.pnpm`).
-    /// All direct and indirect dependencies of the project are linked into this directory
-    #[clap(long = "virtual-store-dir", default_value = "node_modules/.pnpm")]
-    pub virtual_store_dir: Option<PathBuf>, // TODO: make use of this
+    /// Override the directory that contains links to the store for this add.
+    #[clap(long = "virtual-store-dir", value_name = "DIR")]
+    pub virtual_store_dir: Option<PathBuf>,
 
     /// Install the package globally, linking its bins into the global bin directory.
     #[clap(short = 'g', long)]
@@ -131,6 +131,11 @@ pub struct AddArgs {
     pub force: bool,
 }
 
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(r#"Configuration conflict. "virtual-store-dir" may not be used with "global""#)]
+#[diagnostic(code(ERR_PNPM_CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL))]
+struct VirtualStoreDirWithGlobal;
+
 impl AddArgs {
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
         config.ignore_scripts = resolve_bool_override(
@@ -139,6 +144,13 @@ impl AddArgs {
             config.ignore_scripts,
         );
         config.force = self.force || config.force;
+    }
+
+    pub(crate) fn validate_global_virtual_store_dir(&self) -> miette::Result<()> {
+        if self.virtual_store_dir.is_some() {
+            return Err(VirtualStoreDirWithGlobal.into());
+        }
+        Ok(())
     }
 
     /// The `--config` selectors parsed into the `name → specifier` pairs to

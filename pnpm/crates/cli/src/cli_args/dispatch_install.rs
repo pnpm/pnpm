@@ -28,6 +28,7 @@ use super::{
     unlink::UnlinkArgs,
     update::UpdateArgs,
 };
+use crate::config_overrides::apply_virtual_store_dir_override;
 use miette::Context;
 use pacquet_default_reporter::DefaultReporter;
 use pacquet_reporter::{NdjsonReporter, SilentReporter};
@@ -56,6 +57,9 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
     Ok(Box::pin(async move {
         let cfg = config()?;
         args.apply_cli_config(cfg);
+        if let Some(virtual_store_dir) = args.virtual_store_dir.as_deref() {
+            apply_virtual_store_dir_override(cfg, virtual_store_dir, dir);
+        }
         let (config_root, package_manager_to_sync) =
             derive_config_root_and_package_manager_to_sync(cfg, dir)
                 .wrap_err("derive workspace root and package manager policy")?;

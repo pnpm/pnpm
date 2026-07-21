@@ -410,6 +410,75 @@ test('throw error if --virtual-store-dir is used with --global', async () => {
   })
 })
 
+test('throw error if empty --virtual-store-dir is used with --global', async () => {
+  await expect(getConfig({
+    cliOptions: {
+      global: true,
+      'virtual-store-dir': '',
+    },
+    env,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL',
+    message: 'Configuration conflict. "virtual-store-dir" may not be used with "global"',
+  })
+})
+
+test('throw --virtual-store-dir global conflict before reading global config', async () => {
+  prepareEmpty()
+  fs.mkdirSync('.config/pnpm', { recursive: true })
+  fs.writeFileSync('.config/pnpm/config.yaml', 'invalid: [\n')
+  const originalXdgConfigHome = process.env.XDG_CONFIG_HOME
+  process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+  try {
+    await expect(getConfig({
+      cliOptions: {
+        global: true,
+        'virtual-store-dir': 'pkgs',
+      },
+      env,
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })).rejects.toMatchObject({
+      code: 'ERR_PNPM_CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL',
+      message: 'Configuration conflict. "virtual-store-dir" may not be used with "global"',
+    })
+  } finally {
+    if (originalXdgConfigHome == null) {
+      delete process.env.XDG_CONFIG_HOME
+    } else {
+      process.env.XDG_CONFIG_HOME = originalXdgConfigHome
+    }
+  }
+})
+
+test('empty --virtual-store-dir preserves the configured virtual store directory', async () => {
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    virtualStoreDir: '.configured-store',
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {
+      'virtual-store-dir': '',
+    },
+    env,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.virtualStoreDir).toBe('.configured-store')
+})
+
 test('.npmrc does not load pnpm settings', async () => {
   prepareEmpty()
 

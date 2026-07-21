@@ -16,7 +16,11 @@ use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::fs;
-use std::{ffi::OsStr, path::PathBuf, process::Command};
+use std::{
+    ffi::OsStr,
+    path::{Path, PathBuf},
+    process::Command,
+};
 use tempfile::TempDir;
 
 fn exec_pacquet_in_temp_cwd<Args>(args: Args) -> (TempDir, PathBuf, AddMockedRegistry)
@@ -28,6 +32,154 @@ where
         CommandTempCwd::init().add_mocked_registry();
     pacquet.with_args(args).assert().success();
     (root, workspace, npmrc_info)
+}
+
+fn prepare_hermetic_local_add_fixture(
+    workspace: &Path,
+    virtual_store_dir: &str,
+    extra_workspace_settings: &str,
+) {
+    std::fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "storeDir: ../pacquet-store\ncacheDir: ../pacquet-cache\nvirtualStoreDir: {virtual_store_dir}\nenableGlobalVirtualStore: false\n{extra_workspace_settings}",
+        ),
+    )
+    .expect("write hermetic workspace settings");
+
+    let local_package = workspace.join("fixtures/local-pkg");
+    std::fs::create_dir_all(&local_package).expect("create local package directory");
+    std::fs::write(
+        local_package.join("package.json"),
+        serde_json::json!({ "name": "local-pkg", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write local package manifest");
+}
+
+#[test]
+fn add_without_flag_preserves_configured_virtual_store_dir() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    prepare_hermetic_local_add_fixture(&workspace, ".configured-store", "");
+
+    pacquet.with_args(["add", "local-pkg@file:./fixtures/local-pkg"]).assert().success();
+
+    let configured_lockfile = workspace.join(".configured-store/lock.yaml");
+    assert!(configured_lockfile.is_file(), "missing {}", configured_lockfile.display());
+    let default_store = workspace.join("node_modules/.pnpm");
+    assert!(!default_store.exists(), "unexpected {}", default_store.display());
+    drop(root);
+}
+
+#[test]
+fn add_relative_virtual_store_dir_is_anchored_at_workspace_root() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    prepare_hermetic_local_add_fixture(&workspace, ".fixture-store", "packages:\n  - packages/*\n");
+
+    let package_dir = workspace.join("packages/app");
+    std::fs::create_dir_all(&package_dir).expect("create workspace package directory");
+    std::fs::write(
+        package_dir.join("package.json"),
+        serde_json::json!({ "name": "app", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write workspace package manifest");
+
+    pacquet
+        .with_args([
+            "--dir",
+            "packages/app",
+            "add",
+            "local-pkg@file:../../fixtures/local-pkg",
+            "--virtual-store-dir",
+            ".custom-store",
+        ])
+        .assert()
+        .success();
+
+    let custom_lockfile = workspace.join(".custom-store/lock.yaml");
+    assert!(custom_lockfile.is_file(), "missing {}", custom_lockfile.display());
+    let package_relative_store = package_dir.join(".custom-store");
+    assert!(!package_relative_store.exists(), "unexpected {}", package_relative_store.display());
+    let configured_store = workspace.join(".fixture-store");
+    assert!(!configured_store.exists(), "unexpected {}", configured_store.display());
+    let default_store = workspace.join("node_modules/.pnpm");
+    assert!(!default_store.exists(), "unexpected {}", default_store.display());
+    drop(root);
+}
+
+#[test]
+fn add_honors_virtual_store_dir_override() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    prepare_hermetic_local_add_fixture(&workspace, ".fixture-store", "");
+
+    pacquet
+        .with_args([
+            "add",
+            "local-pkg@file:./fixtures/local-pkg",
+            "--virtual-store-dir",
+            ".custom-store",
+        ])
+        .assert()
+        .success();
+
+    let custom_store = workspace.join(".custom-store");
+    let custom_lockfile = custom_store.join("lock.yaml");
+    assert!(custom_lockfile.is_file(), "missing {}", custom_lockfile.display());
+    let local_manifest =
+        custom_store.join("local-pkg@file+fixtures+local-pkg/node_modules/local-pkg/package.json");
+    assert!(local_manifest.is_file(), "missing {}", local_manifest.display());
+    let configured_store = workspace.join(".fixture-store");
+    assert!(!configured_store.exists(), "unexpected {}", configured_store.display());
+    let default_store = workspace.join("node_modules/.pnpm");
+    assert!(
+        !default_store.exists(),
+        "add must not create the default virtual store at {} when an override is supplied",
+        default_store.display(),
+    );
+    drop(root);
+}
+
+#[test]
+fn add_global_rejects_virtual_store_dir_before_loading_global_config() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let xdg_config_home = root.path().join("xdg-config");
+    let pnpm_config_dir = xdg_config_home.join("pnpm");
+    std::fs::create_dir_all(&pnpm_config_dir).expect("create isolated pnpm config directory");
+    std::fs::write(pnpm_config_dir.join("config.yaml"), "invalid: [\n")
+        .expect("write deliberately invalid global config");
+
+    let output = pacquet
+        .with_env("PNPM_HOME", root.path().join("pnpm-home"))
+        .with_env("HOME", root.path().join("home"))
+        .with_env("USERPROFILE", root.path().join("home"))
+        .with_env("XDG_CONFIG_HOME", &xdg_config_home)
+        .with_env("XDG_DATA_HOME", root.path().join("xdg-data"))
+        .with_args([
+            "add",
+            "-g",
+            "local-pkg@file:./fixtures/local-pkg",
+            "--virtual-store-dir",
+            ".custom-store",
+        ])
+        .output()
+        .expect("run global add conflict");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "global add must reject the option");
+    assert!(
+        stderr.contains("ERR_PNPM_CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL"),
+        "stderr:\n{stderr}",
+    );
+    assert!(
+        stderr.contains(
+            r#"Configuration conflict. "virtual-store-dir" may not be used with "global""#,
+        ),
+        "stderr:\n{stderr}",
+    );
+    assert!(
+        !stderr.contains("config.yaml"),
+        "the CLI conflict must win before global config parsing; stderr:\n{stderr}",
+    );
+    drop(root);
 }
 
 #[test]
