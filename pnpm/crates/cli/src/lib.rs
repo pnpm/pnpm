@@ -4,6 +4,7 @@ mod config_deps;
 mod config_overrides;
 mod flag_relocation;
 mod job_control;
+mod shorthands;
 mod state;
 mod with_current;
 
@@ -40,6 +41,10 @@ pub fn main() -> miette::Result<()> {
     // every boolean flag, so pnpm's forwarded negations (`--no-frozen-lockfile`,
     // etc.) parse the same way nopt accepts them upstream. See `boolean_negations`.
     let command = with_boolean_negations(CliArgs::command());
+    // pnpm expands universal shorthands (`--silent` / `-s` →
+    // `--reporter=silent`) over argv before parsing; mirror that so they
+    // work with every command. See `shorthands`.
+    let argv = shorthands::expand_universal_shorthands(&command, argv);
     // pnpm's option parser is position-independent; move subcommand
     // options written before the subcommand to after it so clap agrees.
     // See `flag_relocation`.

@@ -29,13 +29,10 @@ use std::{
     ffi::OsString,
 };
 
-/// Move pre-subcommand option tokens that belong to a subcommand's
-/// grammar to directly after the subcommand token. See the module docs.
-///
-/// `cmd` must be the same [`Command`] the returned argv is parsed with
-/// (including the [`crate::boolean_negations`] augmentation), so the
-/// hidden `--no-<flag>` negations relocate like their positive forms.
-fn find_positional(
+/// The index of the next positional token at or after `index`, stepping
+/// over option tokens (and the values they consume, per the arity tables).
+/// `None` when argv ends or a `--` terminator is reached first.
+pub(crate) fn find_positional(
     argv: &[OsString],
     mut index: usize,
     top_level: &ArgTable,
@@ -160,14 +157,14 @@ pub fn relocate_pre_subcommand_flags(cmd: &Command, mut argv: Vec<OsString>) -> 
 
 /// The number of argv tokens an option occupies: itself, plus its value
 /// when the value is a separate token rather than `--flag=value` inline.
-fn token_width(consumes_value: bool, has_inline_value: bool) -> usize {
+pub(crate) fn token_width(consumes_value: bool, has_inline_value: bool) -> usize {
     if consumes_value && !has_inline_value { 2 } else { 1 }
 }
 
 /// Option-name lookup table: long / short spelling → whether the option
 /// consumes the next argv token as its value.
 #[derive(Debug, Default)]
-struct ArgTable {
+pub(crate) struct ArgTable {
     longs: HashMap<String, bool>,
     shorts: HashMap<char, bool>,
 }
@@ -177,7 +174,7 @@ impl ArgTable {
     /// subcommand, which therefore stays in place. Clap only adds the
     /// automatic `--help` / `-h` at build time, so they are seeded
     /// manually.
-    fn top_level(cmd: &Command) -> Self {
+    pub(crate) fn top_level(cmd: &Command) -> Self {
         let mut table = Self::default();
         table.longs.insert("help".to_string(), false);
         table.shorts.insert('h', false);
@@ -187,7 +184,7 @@ impl ArgTable {
 
     /// The union of every subcommand's args, used only to decide how
     /// many tokens a to-be-moved option occupies.
-    fn subcommand_union(cmd: &Command) -> Self {
+    pub(crate) fn subcommand_union(cmd: &Command) -> Self {
         let mut table = Self::default();
         table.absorb(cmd.get_subcommands().flat_map(Command::get_arguments));
         table
@@ -209,11 +206,11 @@ impl ArgTable {
         }
     }
 
-    fn long_consumes_value(&self, name: &str) -> Option<bool> {
+    pub(crate) fn long_consumes_value(&self, name: &str) -> Option<bool> {
         self.longs.get(name).copied()
     }
 
-    fn short_consumes_value(&self, short: char) -> Option<bool> {
+    pub(crate) fn short_consumes_value(&self, short: char) -> Option<bool> {
         self.shorts.get(&short).copied()
     }
 }

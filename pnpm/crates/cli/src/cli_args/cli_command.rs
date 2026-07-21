@@ -142,7 +142,17 @@ pub struct CliArgs {
     pub recursive: bool,
 
     /// Reporter output format.
-    #[clap(long, value_enum, default_value_t = ReporterType::Default, global = true)]
+    // Self-override so a repeated `--reporter` takes the last occurrence,
+    // like nopt does — `--silent` expands to `--reporter=silent` (see
+    // `crate::shorthands`), so `--silent --reporter=ndjson` must not be a
+    // duplicate-argument error.
+    #[clap(
+        long,
+        value_enum,
+        default_value_t = ReporterType::Default,
+        global = true,
+        overrides_with = "reporter"
+    )]
     pub reporter: ReporterType,
 
     /// Select which workspace projects to run on. Repeat to add more.
