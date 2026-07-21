@@ -38,6 +38,7 @@ test('pnpm run: returns correct exit code', async () => {
     extraBinPaths: [],
     extraEnv: {},
     pnpmHomeDir: '',
+    workspaceConcurrency: 1,
   }, ['exit0'])
 
   let err!: Error & { errno: number }
@@ -50,6 +51,7 @@ test('pnpm run: returns correct exit code', async () => {
       extraBinPaths: [],
       extraEnv: {},
       pnpmHomeDir: '',
+    workspaceConcurrency: 1,
     }, ['exit1'])
   } catch (_err: any) { // eslint-disable-line
     err = _err
@@ -76,6 +78,7 @@ test('pnpm run --no-bail runs the script to completion but still exits non-zero 
       extraBinPaths: [],
       extraEnv: {},
       pnpmHomeDir: '',
+    workspaceConcurrency: 1,
     }, ['exit1'])
   } catch (_err: unknown) {
     err = _err
@@ -107,6 +110,7 @@ test('pnpm run with regex and --no-bail runs every matched script but exits non-
       extraBinPaths: [],
       extraEnv: {},
       pnpmHomeDir: '',
+    workspaceConcurrency: 1,
     }, ['/^lint:/'])
   } catch (_err: unknown) {
     err = _err
@@ -137,6 +141,7 @@ test('pnpm run with regex and --no-bail exits zero when all matched scripts pass
     extraBinPaths: [],
     extraEnv: {},
     pnpmHomeDir: '',
+    workspaceConcurrency: 1,
   }, ['/^lint:/'])
 })
 
@@ -160,6 +165,7 @@ test('run: pass the args to the command that is specified in the build script', 
     extraBinPaths: [],
     extraEnv: {},
     pnpmHomeDir: '',
+    workspaceConcurrency: 1,
   }, ['foo', 'arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
@@ -184,6 +190,7 @@ test('run: pass the args to the command that is specified in the build script of
     extraBinPaths: [],
     extraEnv: {},
     pnpmHomeDir: '',
+    workspaceConcurrency: 1,
   }, ['foo', 'arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
@@ -208,6 +215,7 @@ test('test: pass the args to the command that is specified in the build script o
     extraBinPaths: [],
     extraEnv: {},
     pnpmHomeDir: '',
+    workspaceConcurrency: 1,
   }, ['test', 'arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
@@ -232,6 +240,7 @@ test('run start: pass the args to the command that is specified in the build scr
     extraBinPaths: [],
     extraEnv: {},
     pnpmHomeDir: '',
+    workspaceConcurrency: 1,
   }, ['start', 'arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
@@ -256,6 +265,7 @@ test('run stop: pass the args to the command that is specified in the build scri
     extraBinPaths: [],
     extraEnv: {},
     pnpmHomeDir: '',
+    workspaceConcurrency: 1,
   }, ['stop', 'arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
@@ -288,6 +298,7 @@ test('restart: run stop, restart and start', async () => {
     extraBinPaths: [],
     extraEnv: {},
     pnpmHomeDir: '',
+    workspaceConcurrency: 1,
   }, [])
 
   expect(server.getLines()).toStrictEqual([
@@ -324,6 +335,7 @@ test('restart: run stop, restart and start and all the pre/post scripts', async 
     extraBinPaths: [],
     extraEnv: {},
     pnpmHomeDir: '',
+    workspaceConcurrency: 1,
   }, [])
 
   expect(server.getLines()).toStrictEqual([
@@ -354,6 +366,7 @@ test('"pnpm run" prints the list of available commands', async () => {
     extraBinPaths: [],
     extraEnv: {},
     pnpmHomeDir: '',
+    workspaceConcurrency: 1,
   }, [])
 
   expect(output).toBe(`\
@@ -402,6 +415,7 @@ test('"pnpm run" prints the list of available commands, including commands of th
       extraBinPaths: [],
       extraEnv: {},
       pnpmHomeDir: '',
+    workspaceConcurrency: 1,
       selectedProjectsGraph,
       workspaceDir,
     }, [])
@@ -431,6 +445,7 @@ Commands of the root workspace project (to run them, use "pnpm -w run"):
       extraBinPaths: [],
       extraEnv: {},
       pnpmHomeDir: '',
+    workspaceConcurrency: 1,
       selectedProjectsGraph,
       workspaceDir,
     }, [])
@@ -457,6 +472,7 @@ test('pnpm run does not fail with --if-present even if the wanted script is not 
     extraEnv: {},
     ifPresent: true,
     pnpmHomeDir: '',
+    workspaceConcurrency: 1,
   }, ['build'])
 })
 
@@ -525,6 +541,7 @@ test('scripts work with PnP', async () => {
     extraBinPaths: [],
     extraEnv: {},
     pnpmHomeDir: '',
+    workspaceConcurrency: 1,
   }, ['foo'])
 
   // https://github.com/pnpm/registry-mock/blob/ac2e129eb262009d2e7cd43ed869c31097793073/packages/hello-world-js-bin%401.0.0/index.js#L2
@@ -561,6 +578,7 @@ skipOnWindows('pnpm run with custom shell', async () => {
     extraBinPaths: [],
     extraEnv: {},
     pnpmHomeDir: '',
+    workspaceConcurrency: 1,
     scriptShell: path.resolve('node_modules/.bin/shell-mock'),
   }, ['build'])
 
@@ -593,6 +611,7 @@ onlyOnWindows('pnpm shows error if script-shell is .cmd', async () => {
       extraBinPaths: [],
       extraEnv: {},
       pnpmHomeDir: '',
+    workspaceConcurrency: 1,
       scriptShell: path.resolve('node_modules/.bin/shell-mock.cmd'),
     }, ['build'])
   }
@@ -623,6 +642,7 @@ test('pnpm run with RegExp script selector should work', async () => {
     extraBinPaths: [],
     extraEnv: {},
     pnpmHomeDir: '',
+    workspaceConcurrency: 1,
   }, ['/^(lint|build):.*/'])
 
   expect(fs.readFileSync('output-build-a.txt', { encoding: 'utf-8' })).toBe('a')
@@ -649,6 +669,7 @@ test('pnpm run with RegExp script selector should work also for pre/post script'
     extraBinPaths: [],
     extraEnv: {},
     pnpmHomeDir: '',
+    workspaceConcurrency: 1,
     enablePrePostScripts: true,
   }, ['/build:.*/'])
 
@@ -674,6 +695,7 @@ test('pnpm run with RegExp script selector should work parallel as a default beh
     extraBinPaths: [],
     extraEnv: {},
     pnpmHomeDir: '',
+    workspaceConcurrency: 1,
   }, ['/build:.*/'])
 
   const outputsA = serverA.getLines().map(x => Number.parseInt(x))
@@ -700,6 +722,7 @@ test('pnpm run with RegExp script selector should work sequentially with --works
     extraBinPaths: [],
     extraEnv: {},
     pnpmHomeDir: '',
+    workspaceConcurrency: 1,
     workspaceConcurrency: 1,
   }, ['/build:.*/'])
 
@@ -729,6 +752,7 @@ test.each(['d', 'g', 'i', 'm', 'u', 'v', 'y', 's'])('pnpm run with RegExp script
       extraBinPaths: [],
       extraEnv: {},
       pnpmHomeDir: '',
+    workspaceConcurrency: 1,
       workspaceConcurrency: 1,
     }, [`/build:.*/${flag}`])
   } catch (_err: any) { // eslint-disable-line
@@ -753,6 +777,7 @@ test('pnpm run with slightly incorrect command suggests correct one', async () =
     extraEnv: {},
     pnpmHomeDir: '',
     workspaceConcurrency: 1,
+    workspaceConcurrency: 1,
   }, ['buil'])).rejects.toMatchObject({
     code: 'ERR_PNPM_NO_SCRIPT',
     hint: 'Command "buil" not found. Did you mean "pnpm run build"?',
@@ -773,6 +798,7 @@ test('pnpm run with custom node-options', async () => {
     extraBinPaths: [],
     extraEnv: {},
     pnpmHomeDir: '',
+    workspaceConcurrency: 1,
     nodeOptions: '--max-old-space-size=1200',
     workspaceConcurrency: 1,
   }, ['build'])
@@ -817,6 +843,7 @@ test('RegExp script matching executes multiple scripts in package.json order whe
     extraBinPaths: [],
     extraEnv: {},
     pnpmHomeDir: '',
+    workspaceConcurrency: 1,
     sequential: true,
     cliOptions: { sequential: true },
   }, ['/^build:.*/'])
@@ -841,6 +868,8 @@ test('RegExp script matching executes multiple scripts in alphabetical order whe
     extraBinPaths: [],
     extraEnv: {},
     pnpmHomeDir: '',
+    workspaceConcurrency: 1,
+    workspaceConcurrency: 1,
   }, ['/^build:.*/'])
 
   const outputLog = fs.readFileSync(path.join(process.cwd(), 'order.log'), 'utf-8')
@@ -863,6 +892,7 @@ test('passing --sequential option sets effective workspaceConcurrency to 1 for m
     extraBinPaths: [],
     extraEnv: {},
     pnpmHomeDir: '',
+    workspaceConcurrency: 1,
     sequential: true,
     cliOptions: { sequential: true },
   }, ['/^test:.*/'])
