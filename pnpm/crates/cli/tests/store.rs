@@ -22,6 +22,37 @@ fn canonicalize(path: &Path) -> PathBuf {
 }
 
 #[test]
+fn store_path_accepts_the_silent_shorthand() {
+    // `--silent` / `-s` are universal shorthands for `--reporter=silent`
+    // (pnpm expands them over argv before parsing); `pnpm store path
+    // --silent` is how pnpm/setup queried the store dir historically, so
+    // both spellings must keep working.
+    for silent_arg in ["--silent", "-s"] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        fs::write(workspace.join("pnpm-workspace.yaml"), "storeDir: foo/bar\n")
+            .expect("write to pnpm-workspace.yaml");
+
+        let output = pacquet
+            .with_args(["store", "path", silent_arg])
+            .output()
+            .expect("run pacquet store path with the silent shorthand");
+        assert!(output.status.success(), "store path {silent_arg} must succeed: {output:?}");
+
+        let normalize = |path: &str| path.replace('\\', "/");
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout).trim_end().pipe(normalize),
+            canonicalize(&workspace)
+                .join("foo/bar")
+                .join(STORE_VERSION)
+                .to_string_lossy()
+                .pipe_as_ref(normalize),
+        );
+
+        drop(root);
+    }
+}
+
+#[test]
 fn store_path_should_return_store_dir_from_pnpm_workspace_yaml() {
     // `storeDir` is a project-structural setting — in pnpm 11 (and now
     // pacquet) it's only honoured from `pnpm-workspace.yaml`, not `.npmrc`.
