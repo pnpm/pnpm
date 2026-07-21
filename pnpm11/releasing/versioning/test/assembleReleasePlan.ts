@@ -586,3 +586,55 @@ test('an epic whose lead is not a releasable project fails the plan', () => {
     versioning: { epics: [{ lead: 'ghost', packages: ['lib'] }] },
   })).toThrow(/is not a releasable workspace project/)
 })
+
+test('a first release publishes the current version verbatim, ignoring the intent bump', () => {
+  const plan = assembleReleasePlan({
+    workspaceDir: '/ws',
+    projects: [makeProject('newpkg', '1100.0.0')],
+    intents: [makeIntent('one', { newpkg: 'minor' })],
+    ledger: NO_LEDGER,
+    unpublishedDirs: new Set(['newpkg']),
+  })
+  const release = plan.releases.find((release) => release.name === 'newpkg')!
+  expect(release.newVersion).toBe('1100.0.0')
+  // The intent is still consumed for the changelog and the ledger.
+  expect(release.intents.map((intent) => intent.id)).toStrictEqual(['one'])
+})
+
+test('a package whose current version is published bumps normally (second release)', () => {
+  const plan = assembleReleasePlan({
+    workspaceDir: '/ws',
+    projects: [makeProject('newpkg', '1100.0.0')],
+    intents: [makeIntent('one', { newpkg: 'minor' })],
+    ledger: NO_LEDGER,
+    unpublishedDirs: new Set(),
+  })
+  expect(plan.releases.find((release) => release.name === 'newpkg')!.newVersion).toBe('1100.1.0')
+})
+
+test('a first release does not propagate to dependents, since its version does not move', () => {
+  const plan = assembleReleasePlan({
+    workspaceDir: '/ws',
+    projects: [
+      makeProject('lib', '1100.0.0'),
+      makeProject('cli', '3.0.0', { lib: 'workspace:^' }),
+    ],
+    intents: [makeIntent('one', { lib: 'minor' })],
+    ledger: NO_LEDGER,
+    unpublishedDirs: new Set(['lib']),
+  })
+  expect(plan.releases.find((release) => release.name === 'lib')!.newVersion).toBe('1100.0.0')
+  expect(plan.releases.find((release) => release.name === 'cli')).toBeUndefined()
+})
+
+test('a first release on a lane debuts at a prerelease of the current version', () => {
+  const plan = assembleReleasePlan({
+    workspaceDir: '/ws',
+    projects: [makeProject('cli', '12.0.0')],
+    intents: [makeIntent('one', { cli: 'minor' })],
+    ledger: NO_LEDGER,
+    versioning: { lanes: { cli: 'alpha' } },
+    unpublishedDirs: new Set(['cli']),
+  })
+  expect(plan.releases.find((release) => release.name === 'cli')!.newVersion).toBe('12.0.0-alpha.0')
+})

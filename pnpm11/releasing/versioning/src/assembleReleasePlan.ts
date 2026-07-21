@@ -67,6 +67,17 @@ export interface AssembleReleasePlanOptions {
    * leave it off so a diagnostic never fails on an unmigrated dependency.
    */
   enforceWorkspaceProtocol?: boolean
+  /**
+   * Directories whose current manifest version is not yet published to the
+   * registry. Such a package's first release publishes that version verbatim;
+   * its pending change intents (which still compose the changelog and are
+   * ledgered) bump it only from the second release onward. Without this the
+   * engine would `inc` off the seeded version and skip it — e.g. a new package
+   * seeded at the epic band floor `1100.0.0` with a `minor` intent would debut
+   * at `1100.1.0`, never publishing `1100.0.0`. Resolved by the command layer
+   * (a registry probe); the pure assembler just consumes the set.
+   */
+  unpublishedDirs?: Set<string>
 }
 
 const BUMP_ORDER: Record<ReleaseBumpType, number> = { patch: 1, minor: 2, major: 3 }
@@ -257,6 +268,7 @@ function assemble (ctx: AssembleContext, selection: Set<string> | undefined): Re
       newVersions.set(dir, computeNewVersion(participant, pkgState.bumpType, {
         laneTag: lanesByDir.get(dir),
         cumulativeBump: cumulativeBump(dir, pkgState.bumpType),
+        firstRelease: opts.unpublishedDirs?.has(dir) ?? false,
       }))
     }
     applyFixedGroupVersions({ participants, state, newVersions, cumulativeBump, fixedGroups, lanesByDir })
@@ -725,11 +737,20 @@ interface NewVersionOptions {
    * prereleases — which keeps the stable target stable across `-tag.N` runs.
    */
   cumulativeBump: ReleaseBumpType
+  /**
+   * The package has never been published at its current version — its first
+   * release. The manifest version is the deliberate debut version and is
+   * published verbatim, so the bump is not applied; it takes effect only from
+   * the next release. On a lane, the first prerelease targets the current
+   * stable version without incrementing it.
+   */
+  firstRelease: boolean
 }
 
 function computeNewVersion (participant: Participant, bumpType: ReleaseBumpType, opts: NewVersionOptions): string {
   const current = participant.currentVersion
   if (opts.laneTag == null) {
+    if (opts.firstRelease) return current
     if (parsePrerelease(current) == null) {
       return inc(current, bumpType)!
     }
@@ -737,9 +758,11 @@ function computeNewVersion (participant: Participant, bumpType: ReleaseBumpType,
     // building toward.
     return escalateStableTarget(stablePart(current), opts.cumulativeBump)
   }
-  const target = parsePrerelease(current) == null
-    ? inc(current, opts.cumulativeBump)!
-    : escalateStableTarget(stablePart(current), opts.cumulativeBump)
+  const target = opts.firstRelease
+    ? stablePart(current)
+    : parsePrerelease(current) == null
+      ? inc(current, opts.cumulativeBump)!
+      : escalateStableTarget(stablePart(current), opts.cumulativeBump)
   return `${target}-${opts.laneTag}.${nextPrereleaseNumber(current, target, opts.laneTag)}`
 }
 

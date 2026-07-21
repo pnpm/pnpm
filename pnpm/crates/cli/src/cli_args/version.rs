@@ -18,7 +18,7 @@ use std::{
 
 use crate::cli_args::{
     change::{render_release_plan, to_engine_projects},
-    changelog::confirmed_published_versions,
+    changelog::{confirmed_published_versions, unpublished_release_dirs},
     recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
 };
 
@@ -363,18 +363,26 @@ impl VersionArgs {
             )
         };
         let is_filtered = filter.is_some();
-        let plan = assemble_release_plan(
-            &engine_projects,
-            &workspace_dir,
-            &intents,
-            &ledger,
-            Some(&config.versioning),
-            &AssembleReleasePlanOptions {
-                filter,
-                snapshot_suffix: None,
-                enforce_workspace_protocol: true,
-            },
-        )?;
+        let assemble = |unpublished_dirs: HashSet<String>| {
+            assemble_release_plan(
+                &engine_projects,
+                &workspace_dir,
+                &intents,
+                &ledger,
+                Some(&config.versioning),
+                &AssembleReleasePlanOptions {
+                    filter: filter.clone(),
+                    snapshot_suffix: None,
+                    enforce_workspace_protocol: true,
+                    unpublished_dirs,
+                },
+            )
+        };
+        // First release of a never-published package publishes its manifest
+        // version verbatim, so probe the registry for the first pass's releases
+        // and re-assemble with those held at their current version.
+        let unpublished_dirs = unpublished_release_dirs(config, &assemble(HashSet::new())?).await?;
+        let plan = assemble(unpublished_dirs)?;
 
         if plan.releases.is_empty() {
             // A full (unfiltered) run garbage-collects the intent files an

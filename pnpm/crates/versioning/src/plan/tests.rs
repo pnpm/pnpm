@@ -818,3 +818,64 @@ fn an_epic_whose_lead_is_not_a_releasable_project_fails_the_plan() {
         "unexpected error: {err}",
     );
 }
+
+fn assemble_with_unpublished(
+    projects: &[WorkspaceProject],
+    intents: &[ChangeIntent],
+    versioning: Option<&VersioningSettings>,
+    unpublished: &[&str],
+) -> ReleasePlan {
+    assemble_release_plan(
+        projects,
+        std::path::Path::new("/ws"),
+        intents,
+        &Ledger::new(),
+        versioning,
+        &AssembleReleasePlanOptions {
+            unpublished_dirs: unpublished.iter().map(|dir| (*dir).to_string()).collect(),
+            ..AssembleReleasePlanOptions::default()
+        },
+    )
+    .expect("plan assembles")
+}
+
+#[test]
+fn a_first_release_publishes_the_current_version_verbatim_ignoring_the_intent_bump() {
+    let projects = [make_project("newpkg", "1100.0.0", &[])];
+    let intents = [make_intent("one", &[("newpkg", "minor")])];
+    let plan = assemble_with_unpublished(&projects, &intents, None, &["newpkg"]);
+    let release = release(&plan, "newpkg");
+    assert_eq!(release.new_version, "1100.0.0");
+    // The intent is still consumed for the changelog and the ledger.
+    let intent_ids: Vec<&str> = release.intents.iter().map(|intent| intent.id.as_str()).collect();
+    assert_eq!(intent_ids, ["one"]);
+}
+
+#[test]
+fn a_published_current_version_bumps_normally_on_the_second_release() {
+    let projects = [make_project("newpkg", "1100.0.0", &[])];
+    let intents = [make_intent("one", &[("newpkg", "minor")])];
+    let plan = assemble_with_unpublished(&projects, &intents, None, &[]);
+    assert_eq!(release(&plan, "newpkg").new_version, "1100.1.0");
+}
+
+#[test]
+fn a_first_release_does_not_propagate_to_dependents_since_its_version_does_not_move() {
+    let projects = [
+        make_project("lib", "1100.0.0", &[]),
+        make_project("cli", "3.0.0", &[("lib", "workspace:^")]),
+    ];
+    let intents = [make_intent("one", &[("lib", "minor")])];
+    let plan = assemble_with_unpublished(&projects, &intents, None, &["lib"]);
+    assert_eq!(release(&plan, "lib").new_version, "1100.0.0");
+    assert_eq!(release_names(&plan), ["lib"]);
+}
+
+#[test]
+fn a_first_release_on_a_lane_debuts_at_a_prerelease_of_the_current_version() {
+    let projects = [make_project("cli", "12.0.0", &[])];
+    let intents = [make_intent("one", &[("cli", "minor")])];
+    let versioning = on_lane("cli", "alpha");
+    let plan = assemble_with_unpublished(&projects, &intents, Some(&versioning), &["cli"]);
+    assert_eq!(release(&plan, "cli").new_version, "12.0.0-alpha.0");
+}

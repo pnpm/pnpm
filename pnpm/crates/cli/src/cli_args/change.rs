@@ -19,7 +19,9 @@ use std::{
     process::Command,
 };
 
-use crate::cli_args::recursive::discover_workspace_projects;
+use crate::cli_args::{
+    changelog::unpublished_release_dirs, recursive::discover_workspace_projects,
+};
 
 /// `pnpm change` — record a change intent: which packages a change affects,
 /// the bump type for each, and a summary that becomes the changelog entry.
@@ -69,7 +71,7 @@ enum ChangeError {
 }
 
 impl ChangeArgs {
-    pub fn run(self, config: &Config) -> miette::Result<()> {
+    pub async fn run(self, config: &Config) -> miette::Result<()> {
         let Some(workspace_dir) = config.workspace_dir.clone() else {
             return Err(ChangeError::WorkspaceOnly.into());
         };
@@ -83,7 +85,7 @@ impl ChangeArgs {
             && self.bump.is_none()
             && self.summary.is_none()
         {
-            let output = render_status(&workspace_dir, &engine_projects, config)?;
+            let output = render_status(&workspace_dir, &engine_projects, config).await?;
             println!("{output}");
             return Ok(());
         }
@@ -285,21 +287,28 @@ fn prompt_bump_types(pkg_refs: &[String]) -> miette::Result<IndexMap<String, Int
     Ok(pkg_refs.iter().map(|reference| (reference.clone(), bump_by_ref[reference])).collect())
 }
 
-fn render_status(
+async fn render_status(
     workspace_dir: &Path,
     projects: &[WorkspaceProject],
     config: &Config,
 ) -> miette::Result<String> {
     let intents = read_change_intents(workspace_dir)?;
     let ledger = read_ledger(workspace_dir)?;
-    let plan = assemble_release_plan(
-        projects,
-        workspace_dir,
-        &intents,
-        &ledger,
-        Some(&config.versioning),
-        &AssembleReleasePlanOptions::default(),
-    )?;
+    let assemble = |unpublished_dirs: HashSet<String>| {
+        assemble_release_plan(
+            projects,
+            workspace_dir,
+            &intents,
+            &ledger,
+            Some(&config.versioning),
+            &AssembleReleasePlanOptions { unpublished_dirs, ..Default::default() },
+        )
+    };
+    // First release of a never-published package publishes its manifest version
+    // verbatim, so the preview matches the release: probe the first pass's
+    // releases and re-assemble with those held at their current version.
+    let unpublished_dirs = unpublished_release_dirs(config, &assemble(HashSet::new())?).await?;
+    let plan = assemble(unpublished_dirs)?;
     if plan.releases.is_empty() {
         return Ok("No pending changes.".to_string());
     }

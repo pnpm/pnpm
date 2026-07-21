@@ -81,6 +81,18 @@ export function changelogHasSection (changelog: string, section: string): boolea
   return changelog.includes(section.trim())
 }
 
+/**
+ * Whether `pkgName@version` is already published to its registry. A package
+ * with no published metadata (registry 404) and a package published but
+ * missing this exact version both read as `false` — the first release of a
+ * never-published version. Any other failure (offline, 5xx, auth) propagates,
+ * so the caller fails the command rather than guess a version's fate.
+ */
+export async function isVersionPublished (opts: PreviousChangelogOptions, pkgName: string, version: string): Promise<boolean> {
+  const meta = await fetchPackument(createRegistryClient(opts), opts, pkgName)
+  return meta?.versions[version] != null
+}
+
 async function fetchPackument (client: RegistryClient, opts: PreviousChangelogOptions, pkgName: string): Promise<PackageMeta | undefined> {
   const registry = pickRegistryForPackage(opts.registries, pkgName)
   let fetchResult

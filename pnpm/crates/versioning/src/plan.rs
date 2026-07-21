@@ -102,6 +102,15 @@ pub struct AssembleReleasePlanOptions {
     /// (`pnpm change status`) leave it off so a diagnostic never fails on an
     /// unmigrated dependency.
     pub enforce_workspace_protocol: bool,
+    /// Directories whose current manifest version is not yet published to the
+    /// registry. Such a package's first release publishes that version
+    /// verbatim; its pending change intents (which still compose the changelog
+    /// and are ledgered) bump it only from the second release onward. Without
+    /// this the engine would `inc` off the seeded version and skip it — a new
+    /// package seeded at the epic band floor `1100.0.0` with a `minor` intent
+    /// would debut at `1100.1.0`, never publishing `1100.0.0`. Resolved by the
+    /// CLI (a registry probe); the pure assembler just consumes the set.
+    pub unpublished_dirs: HashSet<String>,
 }
 
 /// Whether a package reference is a workspace-relative directory path rather
@@ -319,6 +328,7 @@ fn assemble(
                         pkg_state.bump_type,
                         ctx.lanes_by_dir.get(dir).map(String::as_str),
                         cumulative_bump(dir, pkg_state.bump_type),
+                        ctx.opts.unpublished_dirs.contains(dir),
                     ),
                 );
             }
@@ -978,9 +988,16 @@ fn compute_new_version(
     bump_type: ReleaseBumpType,
     lane_tag: Option<&str>,
     cumulative_bump: ReleaseBumpType,
+    first_release: bool,
 ) -> String {
     let current_version = Version::parse(current).expect("participants have valid versions");
     let Some(lane_tag) = lane_tag else {
+        if first_release {
+            // First release: the manifest version is the deliberate debut
+            // version and is published verbatim; the bump applies only from the
+            // next release.
+            return current.to_string();
+        }
         if current_version.pre_release.is_empty() {
             return inc_stable(&current_version, bump_type);
         }
@@ -988,7 +1005,9 @@ fn compute_new_version(
         // toward.
         return escalate_stable_target(&stable_part(&current_version), cumulative_bump);
     };
-    let target = if current_version.pre_release.is_empty() {
+    let target = if first_release {
+        stable_part(&current_version)
+    } else if current_version.pre_release.is_empty() {
         inc_stable(&current_version, cumulative_bump)
     } else {
         escalate_stable_target(&stable_part(&current_version), cumulative_bump)

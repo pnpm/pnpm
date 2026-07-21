@@ -8,11 +8,13 @@ use std::{collections::HashSet, io::Read, path::Path};
 
 use flate2::read::GzDecoder;
 use futures_util::StreamExt;
+use miette::IntoDiagnostic;
 use pacquet_config::Config;
+use pacquet_network::encode_package_name;
 use pacquet_registry::Package;
 use pacquet_versioning::{
-    ChangelogStorage, changelog_storage, list_pending_changelogs, read_pending_changelog,
-    render_changelog,
+    ChangelogStorage, ReleasePlan, changelog_storage, list_pending_changelogs,
+    read_pending_changelog, render_changelog,
 };
 use tar::Archive;
 
@@ -74,6 +76,65 @@ pub async fn confirmed_published_versions(
             changelog.contains(section.trim()).then(|| format!("{name}@{version}"))
         });
     Ok(futures_util::future::join_all(checks).await.into_iter().flatten().collect())
+}
+
+/// The directories in `plan` whose current manifest version is not yet
+/// published to its registry — the packages whose first release must publish
+/// that version verbatim instead of bumping off it. Probes every release
+/// concurrently; any probe failure propagates so the command fails rather than
+/// release a wrong version. Feeds `AssembleReleasePlanOptions::unpublished_dirs`.
+/// Mirrors the TypeScript `resolveUnpublishedDirs`.
+pub async fn unpublished_release_dirs(
+    config: &Config,
+    plan: &ReleasePlan,
+) -> miette::Result<HashSet<String>> {
+    // Debug-only test seam: the engine's integration tests advance manifests
+    // without a real publish cycle (a lane prerelease is written but never
+    // published, for instance), so they set this to make every release bump as
+    // if already published. Compiled out of release builds, so a production
+    // `pnpm` always probes.
+    #[cfg(debug_assertions)]
+    if std::env::var_os("PACQUET_ASSUME_VERSIONS_PUBLISHED").is_some() {
+        return Ok(HashSet::new());
+    }
+    let checks = plan.releases.iter().map(|release| async move {
+        is_version_published(config, &release.name, &release.current_version)
+            .await
+            .map(|published| (release.dir.clone(), published))
+    });
+    let probed = futures_util::future::try_join_all(checks).await?;
+    Ok(probed.into_iter().filter_map(|(dir, published)| (!published).then_some(dir)).collect())
+}
+
+/// Whether `name@version` is already published to its registry. A registry 404
+/// (no such package) and a package published but missing this exact version
+/// both read as `false` — a never-published version, i.e. a first release. Any
+/// other outcome (offline, 5xx, malformed body) errors, so the caller fails
+/// rather than guess a version's fate.
+async fn is_version_published(config: &Config, name: &str, version: &str) -> miette::Result<bool> {
+    let client = build_registry_client(config)?;
+    let registry = registry_for(config, name);
+    let url = format!("{registry}{}", encode_package_name(name));
+    let guard = client.acquire_for_url(&url).await;
+    let mut request = guard.get(&url).header(
+        "accept",
+        "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+    );
+    if let Some(value) = config.auth_headers.for_url_with_package(&url, Some(name)) {
+        request = request.header("authorization", value);
+    }
+    let response = request.send().await.into_diagnostic()?;
+    if response.status().as_u16() == 404 {
+        return Ok(false);
+    }
+    if !response.status().is_success() {
+        return Err(miette::miette!(
+            "registry returned status {} for {url} while checking whether {name}@{version} is published",
+            response.status(),
+        ));
+    }
+    let package: Package = response.json().await.into_diagnostic()?;
+    Ok(package.versions.contains_key(version))
 }
 
 enum VersionPick<'a> {
