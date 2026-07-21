@@ -67,8 +67,8 @@ fn format_time_ago_buckets_by_largest_unit() {
 
 #[test]
 fn parse_date_accepts_iso_timestamps_only() {
-    assert!(parse_date("2024-01-01T00:00:00.000Z").is_some());
-    assert!(parse_date("not-a-date").is_none());
+    assert!(parse_date("2024-01-01T00:00:00.000Z").is_some(), "an ISO timestamp should parse");
+    assert!(parse_date("not-a-date").is_none(), "a non-timestamp should not parse");
 }
 
 /// A rich info object that exercises every optional summary section.
