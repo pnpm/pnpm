@@ -473,7 +473,16 @@ pub struct WorkspaceSettings {
     /// [`Config::allowed_deprecated_versions`]: crate::Config::allowed_deprecated_versions
     pub allowed_deprecated_versions: Option<BTreeMap<String, String>>,
 
+    /// `update` from `pnpm-workspace.yaml`. Supersedes `updateConfig`;
+    /// see [`UpdateSettings`]. When both are set, `update` wins (with a
+    /// warning) — the mapping onto [`Config::update_config`] happens in
+    /// [`Self::apply_to`].
+    pub update: Option<UpdateSettings>,
+
     /// `updateConfig` from `pnpm-workspace.yaml`. See [`UpdateConfig`].
+    ///
+    /// Deprecated in favor of [`Self::update`], kept for backward
+    /// compatibility until the next major version.
     pub update_config: Option<UpdateConfig>,
 
     /// `peerDependencyRules` from `pnpm-workspace.yaml`. See
@@ -481,8 +490,24 @@ pub struct WorkspaceSettings {
     pub peer_dependency_rules: Option<PeerDependencyRules>,
 }
 
+/// `update` entry: settings that tune `pnpm update` (and `pnpm
+/// outdated`, which previews it). Supersedes the deprecated
+/// `updateConfig`. Today only `ignore` is modeled.
+#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct UpdateSettings {
+    /// Dependency-name patterns `pnpm update` and `pnpm outdated`
+    /// skip. Glob/negation patterns. Equivalent to the deprecated
+    /// [`UpdateConfig::ignore_dependencies`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ignore: Option<Vec<String>>,
+}
+
 /// `updateConfig` entry: settings that tune `pnpm update`. Today only
 /// `ignoreDependencies` is modeled.
+///
+/// Deprecated in favor of [`UpdateSettings`], kept for backward
+/// compatibility until the next major version.
 #[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct UpdateConfig {
@@ -793,6 +818,10 @@ impl WorkspaceSettings {
         let http_proxy_is_explicit = config.http_proxy_is_explicit;
         self.apply_proxy_to(&mut config.proxy, http_proxy_is_explicit);
 
+        // Captured before the `apply!` macro below moves `update_config`
+        // out of `self`; consumed after it to warn on the redundant combo.
+        let update_config_in_yaml = self.update_config.is_some();
+
         macro_rules! apply {
             ($($field:ident),* $(,)?) => {$(
                 if let Some(v) = self.$field {
@@ -838,6 +867,19 @@ impl WorkspaceSettings {
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,
             allow_unused_patches,
+        }
+
+        // The `update` section supersedes the deprecated `updateConfig`.
+        // Applied after the macro so it overrides an `updateConfig` set in
+        // the same file; both together is redundant and warned about.
+        if let Some(update) = self.update {
+            if update_config_in_yaml {
+                tracing::warn!(
+                    target: "pacquet::config",
+                    "Both the \"update\" and \"updateConfig\" settings are set. The deprecated \"updateConfig\" setting is ignored in favor of \"update\"."
+                );
+            }
+            config.update_config = UpdateConfig { ignore_dependencies: update.ignore };
         }
 
         if let Some(inner) = self.hoist_pattern {

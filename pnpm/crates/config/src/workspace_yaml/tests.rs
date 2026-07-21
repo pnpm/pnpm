@@ -1514,6 +1514,50 @@ updateConfig:
     );
 }
 
+/// The `update` section supersedes `updateConfig`: its `ignore` list
+/// lands on `Config.update_config.ignore_dependencies`.
+#[test]
+fn parses_update_ignore_from_yaml_and_applies() {
+    let yaml = r#"
+update:
+  ignore:
+    - "@pnpm.e2e/foo"
+    - "@pnpm.e2e/bar"
+"#;
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+
+    let mut config = Config::new();
+    assert!(config.update_config.ignore_dependencies.is_none(), "default is unset");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(
+        config.update_config.ignore_dependencies.as_deref(),
+        Some(&["@pnpm.e2e/foo".to_string(), "@pnpm.e2e/bar".to_string()][..]),
+    );
+}
+
+/// When both `update` and the deprecated `updateConfig` are set,
+/// `update` wins.
+#[test]
+fn update_section_takes_precedence_over_update_config() {
+    let yaml = r#"
+update:
+  ignore:
+    - "@pnpm.e2e/foo"
+updateConfig:
+  ignoreDependencies:
+    - "@pnpm.e2e/bar"
+"#;
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(
+        config.update_config.ignore_dependencies.as_deref(),
+        Some(&["@pnpm.e2e/foo".to_string()][..]),
+        "the update section should override updateConfig",
+    );
+}
+
 /// `peerDependencyRules` parses its three sub-fields from camelCase
 /// yaml and lands on `Config.peer_dependency_rules`.
 #[test]

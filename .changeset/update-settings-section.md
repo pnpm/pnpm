@@ -2,6 +2,7 @@
 "@pnpm/config.reader": minor
 "@pnpm/types": minor
 "pnpm": minor
+"pacquet": patch
 ---
 
 Added an `update` settings section to `pnpm-workspace.yaml`, superseding `updateConfig`. Its `ignore` field lists package name patterns that `pnpm update` and `pnpm outdated` should skip:
@@ -13,4 +14,4 @@ update:
     - "@babel/*"
 ```
 
-The old `updateConfig.ignoreDependencies` setting keeps working and will be supported until the next major version. If both `update` and `updateConfig` are set, `update` takes precedence and a warning is printed.
+The old `updateConfig.ignoreDependencies` setting keeps working and will be supported until the next major version. If both `update` and `updateConfig` are set, `update` takes precedence and a warning is printed. Both the TypeScript CLI and the Rust config surface (pacquet) recognize the new section.
