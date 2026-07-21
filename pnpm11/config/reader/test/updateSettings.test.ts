@@ -136,3 +136,15 @@ test('getOptionsFromPnpmSettings() throws on an invalid "audit.level"', () => {
     audit: { level: 'severe' },
   } as any)).toThrow(/audit\.level/) // eslint-disable-line
 })
+
+test('getOptionsFromPnpmSettings() throws when the "update" section is not an object', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    update: 'webpack',
+  } as any)).toThrow(/"update" setting should be an object/) // eslint-disable-line
+})
+
+test('getOptionsFromPnpmSettings() throws when the "audit" section is not an object', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    audit: true,
+  } as any)).toThrow(/"audit" setting should be an object/) // eslint-disable-line
+})

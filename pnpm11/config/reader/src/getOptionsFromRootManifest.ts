@@ -88,6 +88,7 @@ export function getOptionsFromPnpmSettings (
 function translateUpdateSettings (pnpmSettings: PnpmSettings, settings: OptionsFromRootManifest): void {
   delete (settings as { update?: unknown }).update
   if (pnpmSettings.update == null) return
+  assertObjectSetting(pnpmSettings.update, 'update')
   if (pnpmSettings.updateConfig != null) {
     globalWarn('Both the "update" and "updateConfig" settings are set. The deprecated "updateConfig" setting is ignored in favor of "update".')
   }
@@ -111,6 +112,7 @@ function translateAuditSettings (pnpmSettings: PnpmSettings, settings: OptionsFr
   delete (settings as { audit?: unknown }).audit
   const audit = pnpmSettings.audit
   if (audit == null) return
+  assertObjectSetting(audit, 'audit')
   if (audit.ignore != null) {
     assertStringArray(audit.ignore, 'audit.ignore')
     if (pnpmSettings.auditConfig != null) {
@@ -163,6 +165,14 @@ const AUDIT_LEVELS = new Set(['info', 'low', 'moderate', 'high', 'critical'])
 function assertStringArray (value: unknown, settingName: string): asserts value is string[] {
   if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
     throw new PnpmError('INVALID_SETTING', `The "${settingName}" setting should be an array of strings, but got ${renderReceivedType(value)}`)
+  }
+}
+
+// Not an `asserts` guard on purpose: it only rejects malformed shapes at
+// runtime, without narrowing away the section's declared type at the call site.
+function assertObjectSetting (value: unknown, settingName: string): void {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new PnpmError('INVALID_SETTING', `The "${settingName}" setting should be an object, but got ${renderReceivedType(value)}`)
   }
 }
 
