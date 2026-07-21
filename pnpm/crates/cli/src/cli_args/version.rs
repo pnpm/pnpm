@@ -662,27 +662,35 @@ fn invalid_version_from_git(
 /// tag prefix as an exact semantic version.
 fn version_from_git(cwd: &Path, tag_version_prefix: &str) -> Result<Version, VersionError> {
     let pattern = format!("{tag_version_prefix}*.*.*");
-    let args = ["describe", "--tags", "--abbrev=0", "--match", pattern.as_str()];
+    let args = ["describe", "--tags", "--abbrev=0", "--always", "--match", pattern.as_str()];
     let output = <Host as RunCommand>::run("git", &args, Some(cwd)).map_err(|err| {
         VersionError::GitCommandFailed { args: args.join(" "), stderr: err.to_string() }
     })?;
 
     if !output.success {
-        let stderr = output.stderr.trim();
-        if stderr.contains("No names found") || stderr.contains("No tags can describe") {
-            return Err(invalid_version_from_git(
-                cwd,
-                tag_version_prefix,
-                "no matching Git tag found",
-            ));
-        }
         return Err(VersionError::GitCommandFailed {
             args: args.join(" "),
-            stderr: stderr.to_string(),
+            stderr: output.stderr.trim().to_string(),
         });
     }
 
     let tag = output.stdout.trim();
+    let tag_args = ["tag", "--list", tag];
+    let matching_tag = <Host as RunCommand>::run("git", &tag_args, Some(cwd)).map_err(|err| {
+        VersionError::GitCommandFailed { args: tag_args.join(" "), stderr: err.to_string() }
+    })?;
+
+    if !matching_tag.success {
+        return Err(VersionError::GitCommandFailed {
+            args: tag_args.join(" "),
+            stderr: matching_tag.stderr.trim().to_string(),
+        });
+    }
+
+    if matching_tag.stdout.trim() != tag {
+        return Err(invalid_version_from_git(cwd, tag_version_prefix, "no matching Git tag found"));
+    }
+
     let Some(raw_version) = tag.strip_prefix(tag_version_prefix) else {
         return Err(invalid_version_from_git(
             cwd,

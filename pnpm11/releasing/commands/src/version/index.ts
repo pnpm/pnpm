@@ -305,24 +305,14 @@ function invalidVersionFromGitError (cwd: string, tagVersionPrefix: string, reas
 }
 
 async function versionFromGit (cwd: string, tagVersionPrefix = 'v'): Promise<string> {
-  let tag: string
-  try {
-    const { stdout } = await execa('git', ['describe', '--tags', '--abbrev=0', '--match=' + tagVersionPrefix + '*.*.*'], { cwd })
-    tag = typeof stdout === 'string' ? stdout.trim() : ''
-  } catch (err: unknown) {
-    if (
-      err !== null &&
-      typeof err === 'object' &&
-      'exitCode' in err &&
-      err.exitCode === 128 &&
-      'stderr' in err &&
-      typeof err.stderr === 'string' &&
-      /No names found|No tags can describe/.test(err.stderr)
-    ) {
-      throw invalidVersionFromGitError(cwd, tagVersionPrefix, 'no matching Git tag found')
-    }
-    throw err
+  const { stdout } = await execa('git', ['describe', '--tags', '--abbrev=0', '--always', '--match=' + tagVersionPrefix + '*.*.*'], { cwd })
+  const tag = typeof stdout === 'string' ? stdout.trim() : ''
+  const { stdout: matchingTag } = await execa('git', ['tag', '--list', tag], { cwd })
+
+  if (typeof matchingTag !== 'string' || matchingTag.trim() !== tag) {
+    throw invalidVersionFromGitError(cwd, tagVersionPrefix, 'no matching Git tag found')
   }
+
   const version = tag.startsWith(tagVersionPrefix)
     ? valid(tag.slice(tagVersionPrefix.length))
     : null
