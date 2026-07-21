@@ -19,7 +19,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 pub struct AddDependencyOptions {
     /// Install the specified packages as regular dependencies.
     #[clap(short = 'P', long)]
@@ -79,7 +79,7 @@ impl AddDependencyOptions {
     }
 }
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 pub struct AddArgs {
     /// Names of the packages to add.
     #[clap(required = true)]
