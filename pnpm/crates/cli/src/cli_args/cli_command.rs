@@ -220,7 +220,7 @@ impl CliArgs {
             self.validate_report_summary_global_option()?;
         }
         if self.no_bail {
-            self.validate_run_scoped_global_option("--no-bail")?;
+            self.validate_no_bail_global_option()?;
         }
         if self.if_present {
             self.validate_if_present_top_level_option()?;
@@ -292,6 +292,13 @@ impl CliArgs {
             return Ok(());
         }
         self.validate_run_scoped_global_option("--report-summary")
+    }
+
+    fn validate_no_bail_global_option(&self) -> Result<(), clap::Error> {
+        if matches!(self.command, CliCommand::Rebuild(_)) {
+            return Ok(());
+        }
+        self.validate_run_scoped_global_option("--no-bail")
     }
 }
 

@@ -8,13 +8,21 @@ use pacquet_package_manager::{
 };
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_reporter::Reporter;
-use std::{collections::HashSet, path::Path};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+};
 
-use crate::State;
+use crate::{
+    State,
+    cli_args::pipelines::{
+        InstallFamilySelection, anchor_dedicated_project_config, select_workspace_projects,
+    },
+};
 
 /// `pacquet rebuild` — re-run the lifecycle scripts of installed
 /// dependencies.
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 pub struct RebuildArgs {
     /// Rebuild only the named packages. With no names, every dependency
     /// that requires a build is rebuilt.
@@ -27,9 +35,74 @@ pub struct RebuildArgs {
 }
 
 impl RebuildArgs {
-    pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
+    pub async fn run<Reporter: self::Reporter + 'static>(
+        self,
+        state: State,
+        workspace_selection: Option<InstallFamilySelection>,
+    ) -> miette::Result<()> {
         let selection = resolve_selection(&self.packages, self.pending, state.config)?;
-        run_rebuild::<Reporter>(&state, selection).await
+        run_rebuild::<Reporter>(&state, selection, workspace_selection).await
+    }
+
+    pub async fn run_from_cli<Reporter: self::Reporter + 'static>(
+        self,
+        cfg: &'static Config,
+        prefix: PathBuf,
+        manifest_path: PathBuf,
+        recursive_sort: bool,
+        no_bail: bool,
+    ) -> miette::Result<()> {
+        let workspace_selection =
+            select_workspace_projects(cfg, &prefix, &manifest_path, recursive_sort, false)?;
+        if workspace_selection.as_ref().is_some_and(|selection| selection.selected_dirs.is_empty())
+        {
+            return Ok(());
+        }
+        if !cfg.shared_workspace_lockfile
+            && let Some(workspace_selection) = workspace_selection
+        {
+            let base_config = cfg.clone();
+            let concurrency =
+                usize::try_from(cfg.workspace_concurrency).unwrap_or(usize::MAX).max(1);
+            let mut first_error = None;
+            for group in workspace_selection.ordered_groups {
+                for batch in group.chunks(concurrency) {
+                    let rebuilds = batch.iter().cloned().map(|project_dir| {
+                        let args = self.clone();
+                        let mut project_config = base_config.clone();
+                        anchor_dedicated_project_config(&mut project_config, &project_dir);
+                        async move {
+                            let project_config = Config::leak(project_config);
+                            let state =
+                                State::init(project_dir.join("package.json"), project_config, true)
+                                    .wrap_err_with(|| {
+                                        format!(
+                                            "initialize the rebuild state for {}",
+                                            project_dir.display(),
+                                        )
+                                    })?;
+                            Box::pin(args.run::<Reporter>(state, None)).await
+                        }
+                    });
+                    for result in futures_util::future::join_all(rebuilds).await {
+                        if let Err(error) = result {
+                            if !no_bail {
+                                return Err(error);
+                            }
+                            first_error.get_or_insert(error);
+                        }
+                    }
+                }
+            }
+            if let Some(error) = first_error {
+                return Err(error);
+            }
+            return Ok(());
+        }
+
+        let state =
+            State::init(manifest_path, cfg, true).wrap_err("initialize the rebuild state")?;
+        Box::pin(self.run::<Reporter>(state, workspace_selection)).await
     }
 }
 
@@ -99,6 +172,7 @@ fn resolve_selection(
 pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
     state: &State,
     selection: RebuildSelection,
+    workspace_selection: Option<InstallFamilySelection>,
 ) -> miette::Result<()> {
     let lockfile_path = state.lockfile_path();
     let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
@@ -111,7 +185,7 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
 
     let dependency_groups = rebuild_dependency_groups(config)?;
 
-    Install {
+    let install = Install {
         tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
         http_client,
         http_client_arc: std::sync::Arc::clone(http_client),
@@ -148,9 +222,24 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
         disable_optimistic_repeat_install: false,
         pnpmfile_hook_override: None,
         workspace_projects_override: None,
+    };
+    match workspace_selection.as_ref() {
+        Some(selection) => {
+            install
+                .run_selected_rebuild::<Reporter>(
+                    pacquet_package_manager::WorkspaceInstallSelection {
+                        all_projects: &selection.projects,
+                        ordered_groups: &selection.ordered_groups,
+                        ordered_dirs: &selection.ordered_dirs,
+                        selected_dirs: selection.selected_dirs.as_ref(),
+                        active_manifest_is_standin: selection.active_manifest_is_standin,
+                    },
+                    rebuild,
+                )
+                .await
+        }
+        None => install.run_rebuild::<Reporter>(rebuild).await,
     }
-    .run_rebuild::<Reporter>(rebuild)
-    .await
     .wrap_err("rebuilding dependencies")?;
 
     Ok(())

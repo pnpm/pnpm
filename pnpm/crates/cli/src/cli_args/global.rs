@@ -435,7 +435,7 @@ async fn prompt_approve_global_builds<Reporter: self::Reporter + 'static>(
             names: Some(build_packages),
             projects: Vec::new(),
         };
-        run_rebuild::<Reporter>(&rebuild_state, selection).await?;
+        run_rebuild::<Reporter>(&rebuild_state, selection, None).await?;
     }
     Ok(())
 }

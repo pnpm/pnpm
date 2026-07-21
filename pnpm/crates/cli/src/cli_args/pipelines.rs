@@ -60,8 +60,28 @@ fn select_install_family_plan(
     recursive_sort: bool,
     auto_exclude_root: bool,
 ) -> miette::Result<InstallFamilyPlan> {
-    if !cfg.recursive {
+    let Some(selection) =
+        select_workspace_projects(cfg, prefix, manifest_path, recursive_sort, auto_exclude_root)?
+    else {
         return Ok(InstallFamilyPlan::Single);
+    };
+    if !cfg.shared_workspace_lockfile {
+        let mut project_dirs: Vec<PathBuf> = selection.selected_dirs.iter().cloned().collect();
+        project_dirs.sort();
+        return Ok(InstallFamilyPlan::PerProject(project_dirs));
+    }
+    Ok(InstallFamilyPlan::Shared(Box::new(selection)))
+}
+
+pub(crate) fn select_workspace_projects(
+    cfg: &Config,
+    prefix: &Path,
+    manifest_path: &Path,
+    recursive_sort: bool,
+    auto_exclude_root: bool,
+) -> miette::Result<Option<InstallFamilySelection>> {
+    if !cfg.recursive {
+        return Ok(None);
     }
 
     let workspace_root = cfg.workspace_dir.as_deref().unwrap_or(prefix).to_path_buf();
@@ -85,11 +105,6 @@ fn select_install_family_plan(
                 AutoExcludeRoot::Disabled
             },
         )?;
-        if !cfg.shared_workspace_lockfile {
-            let mut project_dirs: Vec<PathBuf> = selection.selected.keys().cloned().collect();
-            project_dirs.sort();
-            return Ok(InstallFamilyPlan::PerProject(project_dirs));
-        }
         let ordered_groups = if recursive_sort {
             sort_filtered_projects(
                 &selection.selected,
@@ -115,14 +130,14 @@ fn select_install_family_plan(
             pacquet_fs::lexical_normalize(&project.root_dir) == normalized_active_dir
         });
 
-    Ok(InstallFamilyPlan::Shared(Box::new(InstallFamilySelection {
+    Ok(Some(InstallFamilySelection {
         workspace_root,
         projects,
         ordered_groups,
         ordered_dirs,
         selected_dirs,
         active_manifest_is_standin,
-    })))
+    }))
 }
 
 /// Build the project-anchored `State` for one project of a
