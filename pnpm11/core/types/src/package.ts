@@ -202,6 +202,11 @@ export interface UpdateSettings {
    * Dependency name patterns that `pnpm update` and `pnpm outdated` should skip.
    */
   ignoreDeps?: string[]
+  /**
+   * Generate a changeset for the updated production dependencies by default,
+   * as if `pnpm update` were run with `--changeset`.
+   */
+  changeset?: boolean
 }
 
 export interface PnpmSettings {

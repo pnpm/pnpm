@@ -23,6 +23,25 @@ test('getOptionsFromPnpmSettings() maps the "update" settings section to updateC
   expect(globalWarn).not.toHaveBeenCalled()
 })
 
+test('getOptionsFromPnpmSettings() maps "update.changeset" to updateConfig.changeset', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    update: {
+      changeset: true,
+      ignoreDeps: ['webpack'],
+    },
+  })
+  expect(options.updateConfig).toStrictEqual({
+    changeset: true,
+    ignoreDependencies: ['webpack'],
+  })
+})
+
+test('getOptionsFromPnpmSettings() throws when "update.changeset" is not a boolean', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    update: { changeset: 'yes' },
+  } as any)).toThrow(/update\.changeset/) // eslint-disable-line
+})
+
 test('getOptionsFromPnpmSettings() never leaks the raw "update" key into the options', () => {
   // The merged config uses `update` as the boolean that turns an install into
   // an update, so the settings object must not reach it under that key.

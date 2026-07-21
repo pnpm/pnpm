@@ -426,7 +426,7 @@ test('update --changeset warns and skips generation when .changeset/config.json 
   expect(fs.existsSync('.changeset')).toBe(false)
 })
 
-test('updateConfig.changeset enables changeset generation by default', async () => {
+test('the changeset setting enables changeset generation by default', async () => {
   await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
 
   prepare({
@@ -453,7 +453,7 @@ test('updateConfig.changeset enables changeset generation by default', async () 
   expect(readGeneratedChangesets()).toHaveLength(1)
 })
 
-test('--no-changeset overrides updateConfig.changeset', async () => {
+test('--no-changeset overrides the changeset setting', async () => {
   await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
 
   prepare({

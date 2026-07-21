@@ -262,7 +262,7 @@ fn update_changeset_warns_and_skips_when_config_is_missing() {
 }
 
 #[test]
-fn update_config_changeset_enables_generation_by_default() {
+fn update_changeset_setting_enables_generation_by_default() {
     let (root, workspace, anchor) = setup();
     write_manifest(
         &workspace,
@@ -272,7 +272,7 @@ fn update_config_changeset_enables_generation_by_default() {
             "dependencies": { (DEP): "^100.0.0" },
         }),
     );
-    append_workspace_yaml(&workspace, "updateConfig:\n  changeset: true\n");
+    append_workspace_yaml(&workspace, "update:\n  changeset: true\n");
     write_changeset_config(&workspace, json!({}));
 
     pacquet(&workspace, ["install"]).assert().success();
@@ -286,7 +286,7 @@ fn update_config_changeset_enables_generation_by_default() {
 }
 
 #[test]
-fn no_changeset_overrides_update_config_changeset() {
+fn no_changeset_overrides_the_update_changeset_setting() {
     let (root, workspace, anchor) = setup();
     write_manifest(
         &workspace,
@@ -296,7 +296,7 @@ fn no_changeset_overrides_update_config_changeset() {
             "dependencies": { (DEP): "^100.0.0" },
         }),
     );
-    append_workspace_yaml(&workspace, "updateConfig:\n  changeset: true\n");
+    append_workspace_yaml(&workspace, "update:\n  changeset: true\n");
     write_changeset_config(&workspace, json!({}));
 
     pacquet(&workspace, ["install"]).assert().success();
@@ -326,8 +326,14 @@ fn update_changeset_reports_malformed_config_with_a_stable_error() {
         pacquet(&workspace, ["update", "--latest", "--changeset"]).output().expect("run update");
     assert!(!output.status.success(), "malformed config must fail the update");
     let stderr = String::from_utf8_lossy(&output.stderr);
+    // miette wraps long diagnostic lines at the terminal width, which on
+    // Windows CI splits the long temp path — and the `config.json` within it —
+    // across lines. Drop whitespace and the box-drawing continuation marker so
+    // the substring check doesn't depend on where the wrap lands.
+    let unwrapped: String = stderr.chars().filter(|&c| !c.is_whitespace() && c != '│').collect();
     assert!(
-        stderr.contains("ERR_PNPM_INVALID_CHANGESET_CONFIG") && stderr.contains("config.json"),
+        unwrapped.contains("ERR_PNPM_INVALID_CHANGESET_CONFIG")
+            && unwrapped.contains("config.json"),
         "unexpected error: {stderr}",
     );
     drop((root, anchor));

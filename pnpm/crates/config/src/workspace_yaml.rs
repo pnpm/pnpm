@@ -530,6 +530,12 @@ pub struct UpdateSettings {
     /// deprecated [`UpdateConfig::ignore_dependencies`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ignore_deps: Option<Vec<String>>,
+
+    /// `changeset`: generate a changeset for the updated production
+    /// dependencies by default, as if `pnpm update` were run with
+    /// `--changeset`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub changeset: Option<bool>,
 }
 
 /// `updateConfig` entry: settings that tune `pnpm update`.
@@ -914,9 +920,12 @@ impl WorkspaceSettings {
                     r#"Both the "update" and "updateConfig" settings are set. The deprecated "updateConfig" setting is ignored in favor of "update"."#,
                 );
             }
-            // Only the ignore list moves to the new section; preserve any
-            // other `updateConfig` fields (e.g. `changeset`) already applied.
-            config.update_config.ignore_dependencies = update.ignore_deps;
+            // The `update` section is authoritative when present, superseding
+            // any deprecated `updateConfig`.
+            config.update_config = UpdateConfig {
+                ignore_dependencies: update.ignore_deps,
+                changeset: update.changeset,
+            };
         }
 
         if let Some(inner) = self.hoist_pattern {
