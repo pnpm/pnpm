@@ -10,16 +10,9 @@ import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader
 import { isSubdir } from 'is-subdir'
 import { loadJsonFileSync } from 'load-json-file'
 import normalizePath from 'normalize-path'
-import semver from 'semver'
 import { writeJsonFile } from 'write-json-file'
 
 const CLI_PKG_NAME = 'pnpm'
-
-// Experimental packages that are versioned independently on the 0.0.x track
-// and should not be normalized to the pnpm major version.
-const EXPERIMENTAL_PKGS = new Set([
-  '@pnpm/pnpr.client',
-])
 
 // The Rust products' npm wrapper packages. Their manifests are release
 // artifacts owned by the respective generate-packages.mjs scripts and are
@@ -106,12 +99,10 @@ export default async (workspaceDir: string) => { // eslint-disable-line
           pnpmMajorKeyword,
           ...Array.from(new Set((manifest.keywords ?? []).filter((keyword) => keyword !== 'pnpm' && !/^pnpm\d+$/.test(keyword)))).sort(),
         ]
-        const smallestAllowedLibVersion = Number(pnpmMajorNumber) * 100
-        const libMajorVersion = Number(manifest.version!.split('.')[0])
+        // Library-package major versions are banded to the pnpm CLI's major by
+        // the `versioning.epics` release engine (see pnpm-workspace.yaml), not
+        // rewritten here.
         if (manifest.name !== CLI_PKG_NAME) {
-          if (!semver.prerelease(pnpmVersion) && !EXPERIMENTAL_PKGS.has(manifest.name!) && (libMajorVersion < smallestAllowedLibVersion || libMajorVersion >= smallestAllowedLibVersion + 100)) {
-            manifest.version = `${smallestAllowedLibVersion}.0.0`
-          }
           for (const depType of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
             if (!manifest[depType]) continue
             manifest[depType] = sortDirectKeys(manifest[depType])
@@ -159,7 +150,8 @@ export default async (workspaceDir: string) => { // eslint-disable-line
           }
         }
         if (dir.includes('artifacts') || manifest.name === '@pnpm/exe') {
-          manifest.version = pnpmVersion
+          // Versions are kept in lockstep with the pnpm CLI by the
+          // `versioning.fixed` group in pnpm-workspace.yaml, not rewritten here.
           if (manifest.name === '@pnpm/exe') {
             for (const depName of [
               '@pnpm/linux-arm64',
