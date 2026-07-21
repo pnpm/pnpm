@@ -192,6 +192,7 @@ export interface PnpmSettings {
   allowUnusedPatches?: boolean
   patchedDependencies?: Record<string, string>
   updateConfig?: {
+    changeset?: boolean
     ignoreDependencies?: string[]
   }
   auditConfig?: AuditConfig

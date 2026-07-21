@@ -328,7 +328,8 @@ async function update (
   ) {
     updateMatching = createMatcher(dependencies)
   }
-  const changesetContext = opts.changeset ? await captureUpdateChangesetContext(opts) : undefined
+  const generateChangeset = opts.changeset ?? opts.updateConfig?.changeset ?? false
+  const changesetContext = generateChangeset ? await captureUpdateChangesetContext(opts) : undefined
   await installDeps({
     ...opts,
     rebuildHandler,

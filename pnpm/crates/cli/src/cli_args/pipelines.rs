@@ -294,8 +294,14 @@ impl UpdatePipeline {
                 .to_path_buf();
             anchor_dedicated_project_config(cfg, &manifest_dir);
         }
-        let changeset_context = args
-            .changeset
+        let generate_changeset = if args.changeset {
+            true
+        } else if args.no_changeset {
+            false
+        } else {
+            cfg.update_config.changeset.unwrap_or(false)
+        };
+        let changeset_context = generate_changeset
             .then(|| UpdateChangesetContext::capture(cfg, &manifest_path))
             .transpose()?;
         let cfg: &'static Config = cfg;

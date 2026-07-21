@@ -481,11 +481,14 @@ pub struct WorkspaceSettings {
     pub peer_dependency_rules: Option<PeerDependencyRules>,
 }
 
-/// `updateConfig` entry: settings that tune `pnpm update`. Today only
-/// `ignoreDependencies` is modeled.
+/// `updateConfig` entry: settings that tune `pnpm update`.
 #[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct UpdateConfig {
+    /// Generate changesets for production dependency changes by default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub changeset: Option<bool>,
+
     /// Dependency-name patterns `pnpm update` skips. Glob/negation
     /// patterns.
     #[serde(skip_serializing_if = "Option::is_none")]

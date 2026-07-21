@@ -237,6 +237,108 @@ fn update_changeset_warns_and_skips_when_config_is_missing() {
 }
 
 #[test]
+fn update_config_changeset_enables_generation_by_default() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(
+        &workspace,
+        json!({
+            "name": "project",
+            "version": "1.0.0",
+            "dependencies": { (DEP): "^100.0.0" },
+        }),
+    );
+    append_workspace_yaml(&workspace, "updateConfig:\n  changeset: true\n");
+    write_changeset_config(&workspace, json!({}));
+
+    pacquet(&workspace, ["install"]).assert().success();
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+    assert_eq!(
+        generated_changeset_text(&workspace),
+        "---\n\"project\": patch\n---\n\nUpdate dependencies.\n",
+    );
+    drop((root, anchor));
+}
+
+#[test]
+fn no_changeset_overrides_update_config_changeset() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(
+        &workspace,
+        json!({
+            "name": "project",
+            "version": "1.0.0",
+            "dependencies": { (DEP): "^100.0.0" },
+        }),
+    );
+    append_workspace_yaml(&workspace, "updateConfig:\n  changeset: true\n");
+    write_changeset_config(&workspace, json!({}));
+
+    pacquet(&workspace, ["install"]).assert().success();
+    pacquet(&workspace, ["update", "--latest", "--no-changeset"]).assert().success();
+
+    assert!(generated_changesets(&workspace).is_empty());
+    drop((root, anchor));
+}
+
+#[test]
+fn update_changeset_reports_malformed_config_with_a_stable_error() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(
+        &workspace,
+        json!({
+            "name": "project",
+            "version": "1.0.0",
+            "dependencies": { (DEP): "^100.0.0" },
+        }),
+    );
+    pacquet(&workspace, ["install"]).assert().success();
+    let changeset_dir = workspace.join(".changeset");
+    fs::create_dir(&changeset_dir).expect("create .changeset");
+    fs::write(changeset_dir.join("config.json"), "{").expect("write malformed config");
+
+    let output =
+        pacquet(&workspace, ["update", "--latest", "--changeset"]).output().expect("run update");
+    assert!(!output.status.success(), "malformed config must fail the update");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_INVALID_CHANGESET_CONFIG") && stderr.contains("config.json"),
+        "unexpected error: {stderr}",
+    );
+    drop((root, anchor));
+}
+
+#[test]
+fn update_changeset_refuses_a_symlinked_changeset_directory() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(
+        &workspace,
+        json!({
+            "name": "project",
+            "version": "1.0.0",
+            "dependencies": { (DEP): "^100.0.0" },
+        }),
+    );
+    pacquet(&workspace, ["install"]).assert().success();
+    let outside_changeset_dir = root.path().join("outside-changeset");
+    fs::create_dir(&outside_changeset_dir).expect("create outside changeset directory");
+    fs::write(outside_changeset_dir.join("config.json"), "{}").expect("write changeset config");
+    pacquet_fs::symlink_dir(&outside_changeset_dir, &workspace.join(".changeset"))
+        .expect("link changeset directory outside workspace");
+
+    let output =
+        pacquet(&workspace, ["update", "--latest", "--changeset"]).output().expect("run update");
+    assert!(!output.status.success(), "symlinked changeset directory must fail the update");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_UNSAFE_CHANGESET_DIR"), "unexpected error: {stderr}");
+    assert_eq!(
+        fs::read_dir(&outside_changeset_dir).expect("read outside changeset directory").count(),
+        1,
+    );
+    drop((root, anchor));
+}
+
+#[test]
 fn update_changeset_supports_a_package_outside_a_workspace() {
     let (root, workspace, anchor) = setup();
     fs::remove_file(workspace.join("pnpm-workspace.yaml")).expect("remove workspace manifest");

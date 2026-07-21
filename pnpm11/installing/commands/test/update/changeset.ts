@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 import { beforeEach, expect, jest, test } from '@jest/globals'
@@ -329,6 +330,124 @@ test('update --changeset warns and skips generation when .changeset/config.json 
   expect(loadJsonFileSync('package.json')).toHaveProperty(['dependencies', '@pnpm.e2e/foo'], '^100.1.0')
   expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining(path.join('.changeset', 'config.json')))
   expect(fs.existsSync('.changeset')).toBe(false)
+})
+
+test('updateConfig.changeset enables changeset generation by default', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
+
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '^100.0.0',
+    },
+  })
+  writeChangesetConfig()
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    latest: true,
+    updateConfig: { changeset: true },
+  })
+
+  expect(readGeneratedChangesets()).toHaveLength(1)
+})
+
+test('--no-changeset overrides updateConfig.changeset', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
+
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '^100.0.0',
+    },
+  })
+  writeChangesetConfig()
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    changeset: false,
+    dir: process.cwd(),
+    latest: true,
+    updateConfig: { changeset: true },
+  })
+
+  expect(readGeneratedChangesets()).toHaveLength(0)
+})
+
+test('update --changeset reports malformed changeset config with a stable error', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
+
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '^100.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  fs.mkdirSync('.changeset')
+  fs.writeFileSync(path.join('.changeset', 'config.json'), '{')
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+  await expect(update.handler({
+    ...DEFAULT_OPTS,
+    changeset: true,
+    dir: process.cwd(),
+    latest: true,
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_INVALID_CHANGESET_CONFIG',
+    message: expect.stringContaining(path.join('.changeset', 'config.json')),
+  })
+})
+
+test('update --changeset refuses a symlinked changeset directory', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
+
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '^100.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  const outsideChangesetDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-update-changeset-'))
+  fs.writeFileSync(path.join(outsideChangesetDir, 'config.json'), '{}')
+  fs.symlinkSync(outsideChangesetDir, '.changeset', process.platform === 'win32' ? 'junction' : 'dir')
+
+  try {
+    await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+    await expect(update.handler({
+      ...DEFAULT_OPTS,
+      changeset: true,
+      dir: process.cwd(),
+      latest: true,
+    })).rejects.toMatchObject({ code: 'ERR_PNPM_UNSAFE_CHANGESET_DIR' })
+    expect(fs.readdirSync(outsideChangesetDir)).toEqual(['config.json'])
+  } finally {
+    fs.rmSync(outsideChangesetDir, { force: true, recursive: true })
+  }
 })
 
 test('update --changeset generates a changeset for a single package outside a workspace', async () => {

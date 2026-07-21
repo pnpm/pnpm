@@ -7,6 +7,7 @@ import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { createMatcher } from '@pnpm/config.matcher'
+import { PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import type { Project, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
@@ -75,7 +76,9 @@ export async function captureUpdateChangesetContext (opts: CaptureUpdateChangese
  * produce a changeset.
  */
 export async function generateUpdateChangeset (ctx: UpdateChangesetContext): Promise<void> {
-  const changesetConfigPath = path.join(ctx.workspaceDir, '.changeset', 'config.json')
+  const changesetDir = path.join(ctx.workspaceDir, '.changeset')
+  await ensureChangesetDirIsSafe(changesetDir)
+  const changesetConfigPath = path.join(changesetDir, 'config.json')
   const changesetConfig = await readChangesetConfig(changesetConfigPath)
   if (changesetConfig == null) {
     globalWarn(`No changeset was generated because ${changesetConfigPath} does not exist`)
@@ -99,8 +102,9 @@ export async function generateUpdateChangeset (ctx: UpdateChangesetContext): Pro
     return
   }
   affectedPackageNames.sort(lexCompare)
-  const changesetPath = path.join(ctx.workspaceDir, '.changeset', `pnpm-update-${crypto.randomBytes(4).toString('hex')}.md`)
-  await fs.promises.writeFile(changesetPath, formatChangeset(affectedPackageNames))
+  await ensureChangesetDirIsSafe(changesetDir)
+  const changesetPath = path.join(changesetDir, `pnpm-update-${crypto.randomBytes(4).toString('hex')}.md`)
+  await fs.promises.writeFile(changesetPath, formatChangeset(affectedPackageNames), { flag: 'wx' })
   globalInfo(`Generated a changeset at ${changesetPath} declaring a patch bump for: ${affectedPackageNames.join(', ')}`)
 }
 
@@ -115,7 +119,30 @@ async function readChangesetConfig (configPath: string): Promise<ChangesetConfig
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       return null
     }
-    throw err
+    throw new PnpmError(
+      'INVALID_CHANGESET_CONFIG',
+      `Failed to read changeset config at ${configPath}: ${util.types.isNativeError(err) ? err.message : String(err)}`,
+      { cause: err }
+    )
+  }
+}
+
+async function ensureChangesetDirIsSafe (changesetDir: string): Promise<void> {
+  let stat
+  try {
+    stat = await fs.promises.lstat(changesetDir)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return
+    }
+    throw new PnpmError(
+      'UNSAFE_CHANGESET_DIR',
+      `Failed to inspect changeset directory at ${changesetDir}: ${util.types.isNativeError(err) ? err.message : String(err)}`,
+      { cause: err }
+    )
+  }
+  if (stat.isSymbolicLink() || !stat.isDirectory()) {
+    throw new PnpmError('UNSAFE_CHANGESET_DIR', `Refusing to use changeset directory at ${changesetDir} because it is a symlink or not a directory`)
   }
 }
 

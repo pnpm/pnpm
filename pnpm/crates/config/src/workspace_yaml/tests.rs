@@ -1493,12 +1493,13 @@ allowedDeprecatedVersions:
     );
 }
 
-/// `updateConfig.ignoreDependencies` parses from the nested camelCase
-/// shape and lands on `Config.update_config`.
+/// `updateConfig` parses from the nested camelCase shape and lands on
+/// `Config.update_config`.
 #[test]
-fn parses_update_config_ignore_dependencies_from_yaml_and_applies() {
+fn parses_update_config_from_yaml_and_applies() {
     let yaml = r#"
 updateConfig:
+  changeset: true
   ignoreDependencies:
     - "@pnpm.e2e/foo"
     - "@pnpm.e2e/bar"
@@ -1506,8 +1507,10 @@ updateConfig:
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
 
     let mut config = Config::new();
+    assert!(config.update_config.changeset.is_none(), "default is unset");
     assert!(config.update_config.ignore_dependencies.is_none(), "default is unset");
     settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.update_config.changeset, Some(true));
     assert_eq!(
         config.update_config.ignore_dependencies.as_deref(),
         Some(&["@pnpm.e2e/foo".to_string(), "@pnpm.e2e/bar".to_string()][..]),

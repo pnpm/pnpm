@@ -16,8 +16,8 @@ use pacquet_workspace::{
 use serde_json::Value;
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fs,
-    io::{self, ErrorKind},
+    fs::{self, OpenOptions},
+    io::{self, ErrorKind, Write as _},
     path::{Path, PathBuf},
 };
 
@@ -33,6 +33,7 @@ enum UpdateChangesetError {
     ReadWorkspace(#[error(source)] ReadWorkspaceManifestError),
 
     #[display("Failed to read {}: {source}", path.display())]
+    #[diagnostic(code(ERR_PNPM_INVALID_CHANGESET_CONFIG))]
     ReadConfig {
         path: PathBuf,
         #[error(source)]
@@ -40,13 +41,30 @@ enum UpdateChangesetError {
     },
 
     #[display("Failed to parse {}: {source}", path.display())]
+    #[diagnostic(code(ERR_PNPM_INVALID_CHANGESET_CONFIG))]
     ParseConfig {
         path: PathBuf,
         #[error(source)]
         source: serde_json::Error,
     },
 
+    #[display("Failed to inspect changeset directory at {}: {source}", path.display())]
+    #[diagnostic(code(ERR_PNPM_UNSAFE_CHANGESET_DIR))]
+    InspectChangesetDir {
+        path: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
+
+    #[display(
+        "Refusing to use changeset directory at {} because it is a symlink or not a directory",
+        path.display()
+    )]
+    #[diagnostic(code(ERR_PNPM_UNSAFE_CHANGESET_DIR))]
+    UnsafeChangesetDir { path: PathBuf },
+
     #[display("Failed to write {}: {source}", path.display())]
+    #[diagnostic(code(ERR_PNPM_CHANGESET_WRITE_FAILED))]
     WriteChangeset {
         path: PathBuf,
         #[error(source)]
@@ -112,7 +130,9 @@ impl UpdateChangesetContext {
     }
 
     pub(super) fn generate<Output: Reporter>(self) -> miette::Result<()> {
-        let config_path = self.workspace_dir.join(".changeset/config.json");
+        let changeset_dir = self.workspace_dir.join(".changeset");
+        ensure_changeset_dir_is_safe(&changeset_dir)?;
+        let config_path = changeset_dir.join("config.json");
         let config_text = match fs::read_to_string(&config_path) {
             Ok(config_text) => config_text,
             Err(source) if source.kind() == ErrorKind::NotFound => {
@@ -191,8 +211,14 @@ impl UpdateChangesetContext {
         let mut random = [0_u8; 4];
         getrandom::fill(&mut random).expect("read entropy from the operating system");
         let id = format!("pnpm-update-{:08x}", u32::from_be_bytes(random));
-        let changeset_path = self.workspace_dir.join(".changeset").join(format!("{id}.md"));
-        fs::write(&changeset_path, format_change_intent(&releases, "Update dependencies."))
+        ensure_changeset_dir_is_safe(&changeset_dir)?;
+        let changeset_path = changeset_dir.join(format!("{id}.md"));
+        let content = format_change_intent(&releases, "Update dependencies.");
+        OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&changeset_path)
+            .and_then(|mut file| file.write_all(content.as_bytes()))
             .map_err(|source| UpdateChangesetError::WriteChangeset {
                 path: changeset_path.clone(),
                 source,
@@ -207,6 +233,26 @@ impl UpdateChangesetContext {
         );
         Ok(())
     }
+}
+
+fn ensure_changeset_dir_is_safe(changeset_dir: &Path) -> Result<(), UpdateChangesetError> {
+    let metadata = match fs::symlink_metadata(changeset_dir) {
+        Ok(metadata) => metadata,
+        Err(source) if source.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(source) => {
+            return Err(UpdateChangesetError::InspectChangesetDir {
+                path: changeset_dir.to_path_buf(),
+                source,
+            });
+        }
+    };
+    if metadata.file_type().is_symlink()
+        || pacquet_fs::read_symlink_dir(changeset_dir).is_ok()
+        || !metadata.is_dir()
+    {
+        return Err(UpdateChangesetError::UnsafeChangesetDir { path: changeset_dir.to_path_buf() });
+    }
+    Ok(())
 }
 
 fn dependency_map(value: &Value, field: &str) -> Option<BTreeMap<String, String>> {
