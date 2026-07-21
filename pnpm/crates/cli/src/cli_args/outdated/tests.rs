@@ -236,3 +236,38 @@ async fn packument_cache_does_not_memoize_failures() {
     assert_eq!(package.name, "foo");
     successful_request.assert_async().await;
 }
+
+#[tokio::test]
+async fn packument_cache_recovers_from_poisoning() {
+    let mut server = mockito::Server::new_async().await;
+    let package = server
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{ "name": "foo", "dist-tags": {}, "versions": {} }"#)
+        .expect(1)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let config = Config::new();
+    let client = ThrottledClient::default();
+    let cache = PackumentCache::default();
+
+    std::thread::scope(|scope| {
+        assert!(
+            scope
+                .spawn(|| {
+                    let _guard = cache.lock().expect("lock packument cache");
+                    panic!("poison packument cache");
+                })
+                .join()
+                .is_err(),
+        );
+    });
+
+    let fetched = fetch_package_cached(&cache, "foo", &client, &registry, &config.auth_headers)
+        .await
+        .expect("fetch package after cache poisoning");
+    assert_eq!(fetched.name, "foo");
+    package.assert_async().await;
+}

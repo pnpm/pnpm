@@ -229,7 +229,7 @@ async fn fetch_package_cached(
 ) -> Result<Arc<Package>, RegistryError> {
     let key = (registry.to_string(), package_name.to_string());
     let entry = {
-        let mut cache = cache.lock().expect("packument cache mutex poisoned");
+        let mut cache = cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         Arc::clone(cache.entry(key).or_default())
     };
     let package = entry
