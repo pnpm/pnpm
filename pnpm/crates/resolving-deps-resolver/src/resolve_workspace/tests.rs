@@ -1322,3 +1322,367 @@ async fn reused_lockfile_entries_still_notify_the_deprecation_sink() {
     assert_eq!(deprecation.deprecated, "use new instead");
     assert_eq!(deprecation.depth, 0);
 }
+
+/// Build a reuse-seeding lockfile from a flat description:
+/// one importer with `direct` deps `(alias, specifier, version)`, a
+/// package/snapshot graph of `(key, [(child_alias, child_version)])`
+/// entries, and an optional `catalogs:` snapshot of
+/// `(catalog, alias, specifier, version)` rows.
+fn reuse_graph_lockfile(
+    importer_id: &str,
+    direct: &[(&str, &str, &str)],
+    graph: &[(&str, &[(&str, &str)])],
+    catalogs: &[(&str, &str, &str, &str)],
+) -> pacquet_lockfile::Lockfile {
+    use pacquet_lockfile::{
+        ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PackageMetadata, PkgName,
+        PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, RegistryResolution, ResolvedCatalogEntry,
+        ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+    };
+
+    let dependencies = direct
+        .iter()
+        .map(|(alias, specifier, version)| {
+            (
+                PkgName::parse(*alias).expect("parse direct alias"),
+                ResolvedDependencySpec {
+                    specifier: (*specifier).to_string(),
+                    version: ImporterDepVersion::Regular(
+                        version.parse::<PkgVerPeer>().expect("parse direct version"),
+                    ),
+                },
+            )
+        })
+        .collect();
+    let importers = HashMap::from([(
+        importer_id.to_string(),
+        ProjectSnapshot { dependencies: Some(dependencies), ..ProjectSnapshot::default() },
+    )]);
+    let metadata = || {
+        PackageMetadata {
+        resolution: LockfileResolution::Registry(RegistryResolution {
+            integrity: "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
+                .parse()
+                .expect("parse integrity"),
+        }),
+        version: None,
+        engines: None,
+        cpu: None,
+        os: None,
+        libc: None,
+        deprecated: None,
+        has_bin: None,
+        prepare: None,
+        bundled_dependencies: None,
+        peer_dependencies: None,
+        peer_dependencies_meta: None,
+    }
+    };
+    let mut packages = HashMap::new();
+    let mut snapshots = HashMap::new();
+    for (key, children) in graph {
+        let key = key.parse::<PkgNameVerPeer>().expect("parse graph key");
+        packages.insert(key.clone(), metadata());
+        let dependencies = (!children.is_empty()).then(|| {
+            children
+                .iter()
+                .map(|(alias, version)| {
+                    (
+                        PkgName::parse(*alias).expect("parse child alias"),
+                        SnapshotDepRef::Plain(
+                            version.parse::<PkgVerPeer>().expect("parse child version"),
+                        ),
+                    )
+                })
+                .collect()
+        });
+        snapshots.insert(key, SnapshotEntry { dependencies, ..SnapshotEntry::default() });
+    }
+    let catalog_snapshots = (!catalogs.is_empty()).then(|| {
+        let mut snapshot: pacquet_lockfile::CatalogSnapshots = BTreeMap::new();
+        for (catalog, alias, specifier, version) in catalogs {
+            snapshot.entry((*catalog).to_string()).or_default().insert(
+                (*alias).to_string(),
+                ResolvedCatalogEntry {
+                    specifier: (*specifier).to_string(),
+                    version: (*version).to_string(),
+                },
+            );
+        }
+        snapshot
+    });
+    Lockfile {
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).expect("lockfile v9"),
+        settings: None,
+        catalogs: catalog_snapshots,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        importers,
+        packages: Some(packages),
+        snapshots: Some(snapshots),
+    }
+}
+
+fn graph_versions_of(result: &super::ResolveWorkspaceResult, name: &str) -> Vec<String> {
+    let prefix = format!("{name}@");
+    let mut versions: Vec<String> = result
+        .peers
+        .graph
+        .keys()
+        .filter_map(|dep_path| dep_path.as_str().strip_prefix(&prefix))
+        .map(str::to_string)
+        .collect();
+    versions.sort();
+    versions
+}
+
+/// A `catalog:` direct dep whose catalog entry is unchanged must not be
+/// treated as a changed direct dep: the wanted spec reaches the walker
+/// with the protocol already resolved to the catalog's range, and
+/// comparing that against the recorded `catalog:` specifier would
+/// decline subtree reuse for every dependent — `parent` would
+/// re-resolve to the registry's newer 1.1.0 (and re-pick its open
+/// `tool: *` edge at 2.0.0) with no manifest change, churning the
+/// lockfile.
+#[tokio::test]
+async fn unchanged_catalog_dep_keeps_dependent_subtree_pins() {
+    let (_tmp, manifest) =
+        fake_manifest(serde_json::json!({ "tool": "catalog:", "parent": "^1.0.0" }));
+    let importers = [WorkspaceImporter { id: "proj".to_string(), manifest: &manifest }];
+    let resolver = RecordingResolver {
+        table: HashMap::from([
+            (
+                ("tool".to_string(), "^1.0.0".to_string()),
+                fake_result(
+                    "tool",
+                    "1.0.0",
+                    None,
+                    serde_json::json!({ "name": "tool", "version": "1.0.0" }),
+                ),
+            ),
+            (
+                ("tool".to_string(), "*".to_string()),
+                fake_result(
+                    "tool",
+                    "2.0.0",
+                    None,
+                    serde_json::json!({ "name": "tool", "version": "2.0.0" }),
+                ),
+            ),
+            (
+                ("parent".to_string(), "^1.0.0".to_string()),
+                fake_result(
+                    "parent",
+                    "1.1.0",
+                    None,
+                    serde_json::json!({
+                        "name": "parent",
+                        "version": "1.1.0",
+                        "dependencies": { "tool": "*" },
+                    }),
+                ),
+            ),
+        ]),
+        seen: Mutex::new(HashMap::new()),
+    };
+    let mut opts = workspace_opts(false, false);
+    opts.wanted_lockfile = Some(std::sync::Arc::new(reuse_graph_lockfile(
+        "proj",
+        &[("tool", "catalog:", "1.0.0"), ("parent", "^1.0.0", "1.0.0")],
+        &[("tool@1.0.0", &[]), ("parent@1.0.0", &[("tool", "1.0.0")])],
+        &[("default", "tool", "^1.0.0", "1.0.0")],
+    )));
+    let result =
+        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+            let mut opts =
+                importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None);
+            opts.catalogs = BTreeMap::from([(
+                "default".to_string(),
+                BTreeMap::from([("tool".to_string(), "^1.0.0".to_string())]),
+            )]);
+            opts
+        })
+        .await
+        .expect("resolve workspace with an unchanged catalog dep");
+
+    assert_eq!(graph_versions_of(&result, "parent"), ["1.0.0"]);
+    assert_eq!(graph_versions_of(&result, "tool"), ["1.0.0"]);
+}
+
+/// A catalog range bump is a real direct-dep change: dependents that
+/// pin the old version must re-resolve so their pins land on the new
+/// catalog pick.
+#[tokio::test]
+async fn catalog_range_bump_refreshes_dependent_pins() {
+    let (_tmp, manifest) =
+        fake_manifest(serde_json::json!({ "tool": "catalog:", "parent": "^1.0.0" }));
+    let importers = [WorkspaceImporter { id: "proj".to_string(), manifest: &manifest }];
+    let resolver = RecordingResolver {
+        table: HashMap::from([
+            (
+                ("tool".to_string(), "^2.0.0".to_string()),
+                fake_result(
+                    "tool",
+                    "2.0.0",
+                    None,
+                    serde_json::json!({ "name": "tool", "version": "2.0.0" }),
+                ),
+            ),
+            (
+                ("tool".to_string(), "*".to_string()),
+                fake_result(
+                    "tool",
+                    "2.0.0",
+                    None,
+                    serde_json::json!({ "name": "tool", "version": "2.0.0" }),
+                ),
+            ),
+            (
+                ("tool".to_string(), "2.0.0".to_string()),
+                fake_result(
+                    "tool",
+                    "2.0.0",
+                    None,
+                    serde_json::json!({ "name": "tool", "version": "2.0.0" }),
+                ),
+            ),
+            (
+                ("parent".to_string(), "^1.0.0".to_string()),
+                fake_result(
+                    "parent",
+                    "1.0.0",
+                    None,
+                    serde_json::json!({
+                        "name": "parent",
+                        "version": "1.0.0",
+                        "dependencies": { "tool": "*" },
+                    }),
+                ),
+            ),
+        ]),
+        seen: Mutex::new(HashMap::new()),
+    };
+    let mut opts = workspace_opts(false, false);
+    opts.wanted_lockfile = Some(std::sync::Arc::new(reuse_graph_lockfile(
+        "proj",
+        &[("tool", "catalog:", "1.0.0"), ("parent", "^1.0.0", "1.0.0")],
+        &[("tool@1.0.0", &[]), ("parent@1.0.0", &[("tool", "1.0.0")])],
+        &[("default", "tool", "^1.0.0", "1.0.0")],
+    )));
+    let result =
+        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+            let mut opts =
+                importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None);
+            opts.catalogs = BTreeMap::from([(
+                "default".to_string(),
+                BTreeMap::from([("tool".to_string(), "^2.0.0".to_string())]),
+            )]);
+            opts
+        })
+        .await
+        .expect("resolve workspace with a bumped catalog range");
+
+    assert_eq!(graph_versions_of(&result, "tool"), ["2.0.0"]);
+}
+
+/// A parent whose subtree contains a dependency cycle re-resolves
+/// fresh (the conservative cycle guard), but when it lands back on its
+/// recorded version its child edges keep their prior refs and re-enter
+/// the reuse gate — so `stable`'s cycle-free subtree is reused and its
+/// open `open: *` edge keeps the recorded 1.0.0 pin instead of
+/// re-picking the registry's newest 2.0.0.
+#[tokio::test]
+async fn fresh_resolved_parent_on_recorded_version_reuses_child_subtrees() {
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({ "app": "^1.0.0" }));
+    let importers = [WorkspaceImporter { id: "proj".to_string(), manifest: &manifest }];
+    let resolver = RecordingResolver {
+        table: HashMap::from([
+            (
+                ("app".to_string(), "^1.0.0".to_string()),
+                fake_result(
+                    "app",
+                    "1.0.0",
+                    None,
+                    serde_json::json!({
+                        "name": "app",
+                        "version": "1.0.0",
+                        "dependencies": { "cyclic": "^1.0.0", "stable": "^1.0.0" },
+                    }),
+                ),
+            ),
+            (
+                ("cyclic".to_string(), "^1.0.0".to_string()),
+                fake_result(
+                    "cyclic",
+                    "1.0.0",
+                    None,
+                    serde_json::json!({
+                        "name": "cyclic",
+                        "version": "1.0.0",
+                        "dependencies": { "loop": "^1.0.0" },
+                    }),
+                ),
+            ),
+            (
+                ("loop".to_string(), "^1.0.0".to_string()),
+                fake_result(
+                    "loop",
+                    "1.0.0",
+                    None,
+                    serde_json::json!({
+                        "name": "loop",
+                        "version": "1.0.0",
+                        "dependencies": { "cyclic": "^1.0.0" },
+                    }),
+                ),
+            ),
+            (
+                ("stable".to_string(), "^1.0.0".to_string()),
+                fake_result(
+                    "stable",
+                    "1.0.0",
+                    None,
+                    serde_json::json!({
+                        "name": "stable",
+                        "version": "1.0.0",
+                        "dependencies": { "open": "*" },
+                    }),
+                ),
+            ),
+            (
+                ("open".to_string(), "*".to_string()),
+                fake_result(
+                    "open",
+                    "2.0.0",
+                    None,
+                    serde_json::json!({ "name": "open", "version": "2.0.0" }),
+                ),
+            ),
+        ]),
+        seen: Mutex::new(HashMap::new()),
+    };
+    let mut opts = workspace_opts(false, false);
+    opts.wanted_lockfile = Some(std::sync::Arc::new(reuse_graph_lockfile(
+        "proj",
+        &[("app", "^1.0.0", "1.0.0")],
+        &[
+            ("app@1.0.0", &[("cyclic", "1.0.0"), ("stable", "1.0.0")]),
+            ("cyclic@1.0.0", &[("loop", "1.0.0")]),
+            ("loop@1.0.0", &[("cyclic", "1.0.0")]),
+            ("stable@1.0.0", &[("open", "1.0.0")]),
+            ("open@1.0.0", &[]),
+        ],
+        &[],
+    )));
+    let result =
+        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+            importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
+        })
+        .await
+        .expect("resolve workspace with a cycle next to a reusable subtree");
+
+    assert_eq!(graph_versions_of(&result, "open"), ["1.0.0"]);
+}
