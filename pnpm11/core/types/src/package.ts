@@ -207,6 +207,10 @@ export interface UpdateSettings {
    * as if `pnpm update` were run with `--changeset`.
    */
   changeset?: boolean
+  /**
+   * Whether `pnpm update` should also update GitHub Actions dependencies.
+   */
+  githubActions?: boolean
 }
 
 export interface PnpmSettings {
@@ -230,6 +234,7 @@ export interface PnpmSettings {
   updateConfig?: {
     changeset?: boolean
     ignoreDependencies?: string[]
+    githubActions?: boolean
   }
   audit?: AuditSettings
   /**

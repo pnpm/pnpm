@@ -3,6 +3,7 @@ mod cli_args;
 mod config_deps;
 mod config_overrides;
 mod flag_relocation;
+mod github_actions;
 mod job_control;
 mod shorthands;
 mod state;

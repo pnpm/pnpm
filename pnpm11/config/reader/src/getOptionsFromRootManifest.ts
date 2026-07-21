@@ -104,6 +104,10 @@ function translateUpdateSettings (pnpmSettings: PnpmSettings, settings: OptionsF
     assertBoolean(update.changeset, 'update.changeset')
     updateConfig.changeset = update.changeset
   }
+  if (update.githubActions != null) {
+    assertBoolean(update.githubActions, 'update.githubActions')
+    updateConfig.githubActions = update.githubActions
+  }
   settings.updateConfig = updateConfig
 }
 

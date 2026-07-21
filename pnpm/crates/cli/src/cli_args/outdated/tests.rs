@@ -25,6 +25,8 @@ fn pkg(name: &str, current: &str, target: &str, group: DependencyGroup) -> Outda
         belongs_to: group,
         current: v(current),
         target: v(target),
+        wanted: v(current),
+        github_action: false,
         deprecated: None,
         homepage: None,
     }

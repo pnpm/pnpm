@@ -14,10 +14,12 @@ beforeEach(() => {
 test('getOptionsFromPnpmSettings() maps the "update" settings section to updateConfig', () => {
   const options = getOptionsFromPnpmSettings(process.cwd(), {
     update: {
+      githubActions: true,
       ignoreDeps: ['webpack', '@babel/*'],
     },
   })
   expect(options.updateConfig).toStrictEqual({
+    githubActions: true,
     ignoreDependencies: ['webpack', '@babel/*'],
   })
   expect(globalWarn).not.toHaveBeenCalled()
@@ -59,6 +61,14 @@ test('getOptionsFromPnpmSettings() accepts an empty "update" section', () => {
   })
   expect(options.updateConfig).toStrictEqual({})
   expect('update' in options).toBe(false)
+})
+
+test('getOptionsFromPnpmSettings() validates update.githubActions', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    update: {
+      githubActions: 'yes',
+    },
+  } as any)).toThrow('The "update.githubActions" setting should be a boolean, but got string') // eslint-disable-line
 })
 
 test('getOptionsFromPnpmSettings() lets "update" win over "updateConfig" and warns', () => {

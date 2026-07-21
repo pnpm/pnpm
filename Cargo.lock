@@ -3955,6 +3955,7 @@ dependencies = [
  "pacquet-publish",
  "pacquet-registry",
  "pacquet-reporter",
+ "pacquet-resolving-git-resolver",
  "pacquet-resolving-npm-resolver",
  "pacquet-resolving-parse-wanted-dependency",
  "pacquet-resolving-resolver-base",
@@ -3991,6 +3992,8 @@ dependencies = [
  "wax",
  "which 8.0.4",
  "windows-sys 0.61.2",
+ "yaml_serde",
+ "yamlpath",
  "zip",
 ]
 

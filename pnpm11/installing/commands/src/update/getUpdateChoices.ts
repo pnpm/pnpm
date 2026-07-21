@@ -20,18 +20,20 @@ type ChoiceGroup = Array<{
   disabled?: boolean
 }>
 
-export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], workspacesEnabled: boolean): ChoiceGroup {
+type UpdateChoiceDependency = OutdatedPackage & { dependencyType?: 'githubAction' }
+
+export function getUpdateChoices (outdatedPkgsOfProjects: UpdateChoiceDependency[], workspacesEnabled: boolean): ChoiceGroup {
   if (isEmpty(outdatedPkgsOfProjects)) {
     return []
   }
 
-  const pkgUniqueKey = (outdatedPkg: OutdatedPackage) => {
-    return JSON.stringify([outdatedPkg.packageName, outdatedPkg.latestManifest?.version, outdatedPkg.current])
+  const pkgUniqueKey = (outdatedPkg: UpdateChoiceDependency) => {
+    return JSON.stringify([outdatedPkg.packageName, outdatedPkg.latestManifest?.version, outdatedPkg.current, outdatedPkg.dependencyType])
   }
 
   const dedupeAndGroupPkgs = pipe(
-    uniqBy((outdatedPkg: OutdatedPackage) => pkgUniqueKey(outdatedPkg)),
-    groupBy((outdatedPkg: OutdatedPackage) => outdatedPkg.belongsTo)
+    uniqBy((outdatedPkg: UpdateChoiceDependency) => pkgUniqueKey(outdatedPkg)),
+    groupBy((outdatedPkg: UpdateChoiceDependency) => outdatedPkg.dependencyType ?? outdatedPkg.belongsTo)
   )
 
   const groupPkgsByType = dedupeAndGroupPkgs(outdatedPkgsOfProjects)
@@ -85,10 +87,12 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], wor
       }
     })
 
-    // To filter out selected "dependencies" or "devDependencies" in the final output,
-    // we rename it here to "[dependencies]" or "[devDependencies]",
-    // which will be filtered out in the format function of the prompt.
-    finalChoices.push({ name: `[${depGroup}]`, choices, message: depGroup })
+    // The prompt renderer treats bracketed names as group labels rather than selectable values.
+    finalChoices.push({
+      name: `[${depGroup}]`,
+      choices,
+      message: depGroup === 'githubAction' ? 'GitHub Actions' : depGroup,
+    })
   }
   return finalChoices
 }
@@ -99,7 +103,7 @@ interface RawChoice {
   disabled?: boolean
 }
 
-function buildPkgChoice (outdatedPkg: OutdatedPackage, workspacesEnabled: boolean): RawChoice {
+function buildPkgChoice (outdatedPkg: UpdateChoiceDependency, workspacesEnabled: boolean): RawChoice {
   const sdiff = semverDiff(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
   const nextVersion = sdiff.change === null
     ? outdatedPkg.latestManifest!.version

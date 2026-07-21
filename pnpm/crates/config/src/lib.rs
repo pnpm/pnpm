@@ -1657,8 +1657,9 @@ pub struct Config {
     pub allowed_deprecated_versions: BTreeMap<String, String>,
 
     /// `updateConfig` from `pnpm-workspace.yaml`: defaults specific to
-    /// `pnpm update`, including changeset generation and dependency-name
-    /// patterns the command skips.
+    /// `pnpm update`, including changeset generation, dependency-name
+    /// patterns the command skips, and whether GitHub Actions should be
+    /// updated.
     pub update_config: workspace_yaml::UpdateConfig,
 
     /// `peerDependencyRules` from `pnpm-workspace.yaml`: customizations
