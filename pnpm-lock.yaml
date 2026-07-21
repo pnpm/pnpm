@@ -5133,6 +5133,9 @@ importers:
       '@pnpm/catalogs.config':
         specifier: workspace:*
         version: link:../../catalogs/config
+      '@pnpm/catalogs.protocol-parser':
+        specifier: workspace:*
+        version: link:../../catalogs/protocol-parser
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
@@ -5277,6 +5280,9 @@ importers:
       '@pnpm/workspace.state':
         specifier: workspace:*
         version: link:../../workspace/state
+      '@pnpm/workspace.workspace-manifest-reader':
+        specifier: workspace:*
+        version: link:../../workspace/workspace-manifest-reader
       '@pnpm/workspace.workspace-manifest-writer':
         specifier: workspace:*
         version: link:../../workspace/workspace-manifest-writer

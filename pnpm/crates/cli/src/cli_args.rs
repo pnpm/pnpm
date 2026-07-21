@@ -76,6 +76,7 @@ pub mod undeprecate;
 pub mod unlink;
 pub mod unstar;
 pub mod update;
+mod update_changeset;
 pub mod update_interactive;
 pub mod version;
 pub mod view;

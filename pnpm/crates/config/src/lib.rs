@@ -1656,13 +1656,9 @@ pub struct Config {
     /// is consumed once that warning path lands.
     pub allowed_deprecated_versions: BTreeMap<String, String>,
 
-    /// `updateConfig` from `pnpm-workspace.yaml`. Today only its
-    /// `ignoreDependencies` field is modeled — the list of dependency
-    /// name patterns `pnpm update` skips.
-    ///
-    /// Parsed and stored for parity with pnpm's config surface. Pacquet
-    /// has no `update` / `outdated` command yet, so the ignore list has
-    /// no consumer today; it is honored once that command lands.
+    /// `updateConfig` from `pnpm-workspace.yaml`: defaults specific to
+    /// `pnpm update`, including changeset generation and dependency-name
+    /// patterns the command skips.
     pub update_config: workspace_yaml::UpdateConfig,
 
     /// `peerDependencyRules` from `pnpm-workspace.yaml`: customizations

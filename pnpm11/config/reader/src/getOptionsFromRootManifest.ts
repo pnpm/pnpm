@@ -87,17 +87,24 @@ export function getOptionsFromPnpmSettings (
  */
 function translateUpdateSettings (pnpmSettings: PnpmSettings, settings: OptionsFromRootManifest): void {
   delete (settings as { update?: unknown }).update
-  if (pnpmSettings.update == null) return
-  assertObjectSetting(pnpmSettings.update, 'update')
+  const update = pnpmSettings.update
+  if (update == null) return
+  assertObjectSetting(update, 'update')
   if (pnpmSettings.updateConfig != null) {
     globalWarn('Both the "update" and "updateConfig" settings are set. The deprecated "updateConfig" setting is ignored in favor of "update".')
   }
-  if (pnpmSettings.update.ignoreDeps == null) {
-    settings.updateConfig = {}
-    return
+  // The `update` section is authoritative when present: build the internal
+  // `updateConfig` shape from it, superseding any deprecated `updateConfig`.
+  const updateConfig: NonNullable<OptionsFromRootManifest['updateConfig']> = {}
+  if (update.ignoreDeps != null) {
+    assertStringArray(update.ignoreDeps, 'update.ignoreDeps')
+    updateConfig.ignoreDependencies = update.ignoreDeps
   }
-  assertStringArray(pnpmSettings.update.ignoreDeps, 'update.ignoreDeps')
-  settings.updateConfig = { ignoreDependencies: pnpmSettings.update.ignoreDeps }
+  if (update.changeset != null) {
+    assertBoolean(update.changeset, 'update.changeset')
+    updateConfig.changeset = update.changeset
+  }
+  settings.updateConfig = updateConfig
 }
 
 /**
@@ -165,6 +172,12 @@ const AUDIT_LEVELS = new Set(['info', 'low', 'moderate', 'high', 'critical'])
 function assertStringArray (value: unknown, settingName: string): asserts value is string[] {
   if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
     throw new PnpmError('INVALID_SETTING', `The "${settingName}" setting should be an array of strings, but got ${renderReceivedType(value)}`)
+  }
+}
+
+function assertBoolean (value: unknown, settingName: string): asserts value is boolean {
+  if (typeof value !== 'boolean') {
+    throw new PnpmError('INVALID_SETTING', `The "${settingName}" setting should be a boolean, but got ${renderReceivedType(value)}`)
   }
 }
 

@@ -11,6 +11,7 @@ use super::{
     },
     remove::RemoveArgs,
     update::UpdateArgs,
+    update_changeset::UpdateChangesetContext,
 };
 use crate::{State, config_deps};
 use miette::Context;
@@ -293,12 +294,26 @@ impl UpdatePipeline {
                 .to_path_buf();
             anchor_dedicated_project_config(cfg, &manifest_dir);
         }
+        let generate_changeset = if args.changeset {
+            true
+        } else if args.no_changeset {
+            false
+        } else {
+            cfg.update_config.changeset.unwrap_or(false)
+        };
+        let changeset_context = generate_changeset
+            .then(|| UpdateChangesetContext::capture(cfg, &manifest_path))
+            .transpose()?;
         let cfg: &'static Config = cfg;
         let state = State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
         match selection {
             Some(selection) => Box::pin(args.run_selected::<Reporter>(state, selection)).await,
             None => Box::pin(args.run::<Reporter>(state)).await,
+        }?;
+        if let Some(changeset_context) = changeset_context {
+            changeset_context.generate::<Reporter>()?;
         }
+        Ok(())
     }
 }
 

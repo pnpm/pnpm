@@ -530,16 +530,25 @@ pub struct UpdateSettings {
     /// deprecated [`UpdateConfig::ignore_dependencies`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ignore_deps: Option<Vec<String>>,
+
+    /// `changeset`: generate a changeset for the updated production
+    /// dependencies by default, as if `pnpm update` were run with
+    /// `--changeset`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub changeset: Option<bool>,
 }
 
-/// `updateConfig` entry: settings that tune `pnpm update`. Today only
-/// `ignoreDependencies` is modeled.
+/// `updateConfig` entry: settings that tune `pnpm update`.
 ///
 /// Deprecated in favor of [`UpdateSettings`], kept for backward
 /// compatibility until the next major version.
 #[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct UpdateConfig {
+    /// Generate changesets for production dependency changes by default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub changeset: Option<bool>,
+
     /// Dependency-name patterns `pnpm update` skips. Glob/negation
     /// patterns.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -911,7 +920,12 @@ impl WorkspaceSettings {
                     r#"Both the "update" and "updateConfig" settings are set. The deprecated "updateConfig" setting is ignored in favor of "update"."#,
                 );
             }
-            config.update_config = UpdateConfig { ignore_dependencies: update.ignore_deps };
+            // The `update` section is authoritative when present, superseding
+            // any deprecated `updateConfig`.
+            config.update_config = UpdateConfig {
+                ignore_dependencies: update.ignore_deps,
+                changeset: update.changeset,
+            };
         }
 
         if let Some(inner) = self.hoist_pattern {
