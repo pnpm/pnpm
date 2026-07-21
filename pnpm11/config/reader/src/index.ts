@@ -865,14 +865,17 @@ function getWantedPackageManager (manifest: ProjectManifest): { pm?: WantedPacka
   return { warnings }
 }
 
-// Settings that used to be read from the `pnpm` field of `package.json` in v10
-// but moved to `pnpm-workspace.yaml` in v11. Keys not in this set (e.g. `app`,
-// or anything set by third-party tooling that piggybacks on the `pnpm` namespace)
-// are left alone to avoid false-positive warnings.
+// Settings that pnpm reads from `pnpm-workspace.yaml` and never from the `pnpm`
+// field of `package.json` — either because they moved there in v11, or because
+// (like `update`) they were introduced later and only ever lived there. When one
+// of these appears in the `pnpm` field, pnpm warns that it is ignored. Keys not
+// in this set (e.g. `app`, or anything set by third-party tooling that piggybacks
+// on the `pnpm` namespace) are left alone to avoid false-positive warnings.
 const MIGRATED_PNPM_FIELD_KEYS = new Set<string>([
   'allowBuilds',
   'allowedDeprecatedVersions',
   'allowUnusedPatches',
+  'audit',
   'auditConfig',
   'configDependencies',
   'executionEnv',
@@ -886,6 +889,7 @@ const MIGRATED_PNPM_FIELD_KEYS = new Set<string>([
   'peerDependencyRules',
   'requiredScripts',
   'supportedArchitectures',
+  'update',
   'updateConfig',
 ])
 
