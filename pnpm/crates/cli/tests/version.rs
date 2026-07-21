@@ -569,3 +569,44 @@ fn recursive_skips_members_without_a_name_or_version() {
     assert_eq!(manifest_version(&pkg_a), "1.0.1");
     drop(root);
 }
+
+#[cfg(unix)]
+#[test]
+fn a_failing_git_commit_surfaces_the_git_error() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    init_git(&workspace);
+    write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
+    git_commit_all(&workspace, "init");
+    let hook_path = workspace.join(".git").join("hooks").join("pre-commit");
+    fs::write(&hook_path, "#!/bin/sh\necho refused by hook >&2\nexit 1\n")
+        .expect("write pre-commit hook");
+    fs::set_permissions(&hook_path, fs::Permissions::from_mode(0o755))
+        .expect("mark hook executable");
+
+    // Without --no-commit-hooks the failing hook fails the commit, and the
+    // command reports the git failure instead of swallowing it.
+    let output = pacquet_version(&workspace, &["patch"]);
+
+    assert!(!output.status.success(), "a failing git commit must fail the command");
+    let stderr = stderr_of(&output);
+    assert!(stderr.contains("git commit"), "{stderr}");
+    assert!(stderr.contains("refused by hook"), "{stderr}");
+    assert_eq!(git_stdout(&workspace, &["tag", "--list"]), "", "no tag after a failed commit");
+    drop(root);
+}
+
+#[test]
+fn an_empty_tag_version_prefix_removes_the_v() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    init_git(&workspace);
+    write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
+    git_commit_all(&workspace, "init");
+
+    let output = pacquet_version(&workspace, &["patch", "--tag-version-prefix", ""]);
+
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    assert_eq!(git_stdout(&workspace, &["tag", "--list"]), "1.0.1");
+    drop(root);
+}
