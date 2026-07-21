@@ -1684,5 +1684,7 @@ async fn fresh_resolved_parent_on_recorded_version_reuses_child_subtrees() {
         .await
         .expect("resolve workspace with a cycle next to a reusable subtree");
 
-    assert_eq!(graph_versions_of(&result, "open"), ["1.0.0"]);
+    for name in ["app", "cyclic", "loop", "stable", "open"] {
+        assert_eq!(graph_versions_of(&result, name), ["1.0.0"], "{name} must keep 1.0.0");
+    }
 }
