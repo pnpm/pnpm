@@ -590,12 +590,12 @@ test('an epic whose lead is not a releasable project fails the plan', () => {
 test('a first release publishes the current version verbatim, ignoring the intent bump', () => {
   const plan = assembleReleasePlan({
     workspaceDir: '/ws',
-    projects: [makeProject('newpkg', '1100.0.0')],
-    intents: [makeIntent('one', { newpkg: 'minor' })],
+    projects: [makeProject('lib', '1100.0.0')],
+    intents: [makeIntent('one', { lib: 'minor' })],
     ledger: NO_LEDGER,
-    unpublishedDirs: new Set(['newpkg']),
+    unpublishedDirs: new Set(['lib']),
   })
-  const release = plan.releases.find((release) => release.name === 'newpkg')!
+  const release = plan.releases.find((release) => release.name === 'lib')!
   expect(release.newVersion).toBe('1100.0.0')
   // The intent is still consumed for the changelog and the ledger.
   expect(release.intents.map((intent) => intent.id)).toStrictEqual(['one'])
@@ -604,12 +604,12 @@ test('a first release publishes the current version verbatim, ignoring the inten
 test('a package whose current version is published bumps normally (second release)', () => {
   const plan = assembleReleasePlan({
     workspaceDir: '/ws',
-    projects: [makeProject('newpkg', '1100.0.0')],
-    intents: [makeIntent('one', { newpkg: 'minor' })],
+    projects: [makeProject('lib', '1100.0.0')],
+    intents: [makeIntent('one', { lib: 'minor' })],
     ledger: NO_LEDGER,
     unpublishedDirs: new Set(),
   })
-  expect(plan.releases.find((release) => release.name === 'newpkg')!.newVersion).toBe('1100.1.0')
+  expect(plan.releases.find((release) => release.name === 'lib')!.newVersion).toBe('1100.1.0')
 })
 
 test('a first release does not propagate to dependents, since its version does not move', () => {
