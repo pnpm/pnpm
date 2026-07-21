@@ -49,6 +49,7 @@
     "@pnpm/config.writer": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/deps.github-actions": "workspace:*",
     "@pnpm/deps.inspection.outdated": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/deps.security.signatures": "workspace:*",

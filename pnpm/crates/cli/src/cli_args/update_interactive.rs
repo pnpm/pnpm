@@ -14,9 +14,12 @@
 //! otherwise the highest in-range version). The choice list is
 //! intentionally flat; the prompt is a `dialoguer` multi-select.
 
-use crate::cli_args::{
-    outdated::{OutdatedPackage, OutdatedQuery, TargetVersion, collect_outdated_for_importer},
-    pipelines::InstallFamilySelection,
+use crate::{
+    cli_args::{
+        outdated::{OutdatedPackage, OutdatedQuery, TargetVersion, collect_outdated_for_importer},
+        pipelines::InstallFamilySelection,
+    },
+    github_actions,
 };
 use dialoguer::MultiSelect;
 use miette::{IntoDiagnostic, miette};
@@ -24,39 +27,55 @@ use pacquet_config::Config;
 use pacquet_lockfile::Lockfile;
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use std::collections::HashSet;
+use std::{collections::HashSet, path::Path};
 
 struct InteractiveUpdateProject<'a> {
     manifest: &'a PackageManifest,
     importer_id: String,
 }
 
+pub(crate) struct InteractiveUpdateOptions<'a> {
+    pub latest: bool,
+    pub include_direct: &'a [DependencyGroup],
+    pub include_github_actions: bool,
+}
+
 /// Gather outdated direct dependencies, prompt the user, and return the
 /// selected package names. `Ok(None)` means "nothing to do" — either no
 /// dependency has an update available or the prompt was answered with an
 /// empty selection — and the caller should not run an update.
-pub async fn select_packages(
+pub(crate) async fn select_packages(
+    root: &Path,
     manifest: &PackageManifest,
     lockfile: Option<&Lockfile>,
     importer_id: &str,
     config: &Config,
     http_client: &ThrottledClient,
-    latest: bool,
-    include_direct: &[DependencyGroup],
+    options: InteractiveUpdateOptions<'_>,
 ) -> miette::Result<Option<Vec<String>>> {
     let projects = [InteractiveUpdateProject { manifest, importer_id: importer_id.to_string() }];
-    let choices =
-        collect_choices(&projects, lockfile, config, http_client, latest, include_direct).await?;
-    prompt_for_packages(&choices, latest)
+    let mut choices = collect_choices(
+        &projects,
+        lockfile,
+        config,
+        http_client,
+        options.latest,
+        options.include_direct,
+    )
+    .await?;
+    if options.include_github_actions {
+        append_github_actions(&mut choices, root, options.latest).await?;
+    }
+    prompt_for_packages(&choices, options.latest)
 }
 
 pub(crate) async fn select_packages_for_projects(
+    root: &Path,
     selection: &InstallFamilySelection,
     lockfile: Option<&Lockfile>,
     config: &Config,
     http_client: &ThrottledClient,
-    latest: bool,
-    include_direct: &[DependencyGroup],
+    options: InteractiveUpdateOptions<'_>,
 ) -> miette::Result<Option<Vec<String>>> {
     let projects = selection
         .projects
@@ -70,9 +89,40 @@ pub(crate) async fn select_packages_for_projects(
             ),
         })
         .collect::<Vec<_>>();
-    let choices =
-        collect_choices(&projects, lockfile, config, http_client, latest, include_direct).await?;
-    prompt_for_packages(&choices, latest)
+    let mut choices = collect_choices(
+        &projects,
+        lockfile,
+        config,
+        http_client,
+        options.latest,
+        options.include_direct,
+    )
+    .await?;
+    if options.include_github_actions {
+        append_github_actions(&mut choices, root, options.latest).await?;
+    }
+    prompt_for_packages(&choices, options.latest)
+}
+
+async fn append_github_actions(
+    choices: &mut Vec<OutdatedPackage>,
+    root: &Path,
+    latest: bool,
+) -> miette::Result<()> {
+    choices.extend(github_actions::find_outdated(root, !latest, None).await?.into_iter().map(
+        |action| OutdatedPackage {
+            alias: action.name.clone(),
+            package_name: action.name,
+            belongs_to: DependencyGroup::Dev,
+            current: action.current,
+            target: action.latest,
+            wanted: action.wanted,
+            github_action: true,
+            deprecated: None,
+            homepage: Some(action.homepage),
+        },
+    ));
+    Ok(())
 }
 
 async fn collect_choices(
@@ -135,11 +185,18 @@ fn prompt_for_packages(
 
     let labels: Vec<String> = choices
         .iter()
-        .map(|choice| format!("{} {} ❯ {}", choice.alias, choice.current, choice.target))
+        .map(|choice| {
+            let name = if choice.github_action {
+                format!("{} (github action)", choice.alias)
+            } else {
+                choice.alias.clone()
+            };
+            format!("{name} {} ❯ {}", choice.current, choice.target)
+        })
         .collect();
 
     let selected_indices = MultiSelect::new()
-        .with_prompt("Choose which packages to update (space to select, enter to confirm)")
+        .with_prompt("Choose which dependencies to update (space to select, enter to confirm)")
         .items(&labels)
         .interact()
         .into_diagnostic()

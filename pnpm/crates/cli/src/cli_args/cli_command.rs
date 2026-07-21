@@ -315,7 +315,7 @@ pub enum CliCommand {
     /// Update packages to their newest version based on the specified range
     #[clap(visible_aliases = ["up", "upgrade"])]
     Update(UpdateArgs),
-    /// Check for outdated packages
+    /// Check for outdated package and GitHub Actions dependencies
     Outdated(OutdatedArgs),
     /// Checks for known security issues with the installed packages.
     Audit(AuditArgs),

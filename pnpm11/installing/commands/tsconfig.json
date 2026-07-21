@@ -76,6 +76,9 @@
       "path": "../../core/types"
     },
     {
+      "path": "../../deps/github-actions"
+    },
+    {
       "path": "../../deps/inspection/outdated"
     },
     {

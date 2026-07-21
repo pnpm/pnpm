@@ -3955,6 +3955,7 @@ dependencies = [
  "pacquet-publish",
  "pacquet-registry",
  "pacquet-reporter",
+ "pacquet-resolving-git-resolver",
  "pacquet-resolving-npm-resolver",
  "pacquet-resolving-parse-wanted-dependency",
  "pacquet-resolving-resolver-base",

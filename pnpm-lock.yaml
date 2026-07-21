@@ -3119,6 +3119,28 @@ importers:
         specifier: 'catalog:'
         version: 7.1.5
 
+  pnpm11/deps/github-actions:
+    dependencies:
+      '@pnpm/resolving.git-resolver':
+        specifier: workspace:*
+        version: link:../../resolving/git-resolver
+      semver:
+        specifier: 'catalog:'
+        version: 7.8.5
+      yaml:
+        specifier: 'catalog:'
+        version: 2.9.0
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1(supports-color@10.2.2)
+      '@pnpm/deps.github-actions':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.7.1
+
   pnpm11/deps/graph-builder:
     dependencies:
       '@pnpm/config.package-is-installable':
@@ -3249,6 +3271,9 @@ importers:
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../../../config/reader
+      '@pnpm/deps.github-actions':
+        specifier: workspace:*
+        version: link:../../github-actions
       '@pnpm/deps.inspection.list':
         specifier: workspace:*
         version: link:../list
@@ -5172,6 +5197,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../core/core-loggers
+      '@pnpm/deps.github-actions':
+        specifier: workspace:*
+        version: link:../../deps/github-actions
       '@pnpm/deps.inspection.outdated':
         specifier: workspace:*
         version: link:../../deps/inspection/outdated

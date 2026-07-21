@@ -1,0 +1,158 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+
+import { afterEach, describe, expect, test } from '@jest/globals'
+import { findOutdatedGitHubActions, isGitHubActionSelector, updateGitHubActions } from '@pnpm/deps.github-actions'
+
+const dirs: string[] = []
+
+afterEach(async () => {
+  await Promise.all(dirs.splice(0).map(async (dir) => fs.rm(dir, { force: true, recursive: true })))
+})
+
+describe('GitHub Actions dependencies', () => {
+  test('distinguishes action selectors from npm package selectors', () => {
+    expect(isGitHubActionSelector('actions/checkout')).toBe(true)
+    expect(isGitHubActionSelector('@scope/package')).toBe(false)
+    expect(isGitHubActionSelector('!@scope/package')).toBe(false)
+    expect(isGitHubActionSelector('typescript')).toBe(false)
+  })
+
+  test('finds actions in workflows and referenced local composite actions', async () => {
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `jobs:
+  test:
+    steps:
+      - uses: actions/checkout@v4.1.0
+      - uses: ./.github/actions/setup
+      - uses: docker://alpine:3.20
+`,
+      '.github/actions/setup/action.yml': `runs:
+  using: composite
+  steps:
+    - uses: owner/tool/subpath@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa # v2.0.0
+`,
+    })
+
+    const refs = new Map([
+      ['actions/checkout', repoRefs([
+        ['v4.1.0', 'a'.repeat(40)],
+        ['v4.2.0', 'b'.repeat(40)],
+        ['v5.0.0', 'c'.repeat(40)],
+      ])],
+      ['owner/tool', repoRefs([
+        ['v2.0.0', 'a'.repeat(40)],
+        ['v2.1.0', 'b'.repeat(40)],
+      ])],
+    ])
+
+    await expect(findOutdatedGitHubActions({
+      dir,
+      readRepoRefs: async (repo) => refs.get(repo)!,
+    })).resolves.toEqual([
+      {
+        current: '4.1.0',
+        homepage: 'https://github.com/actions/checkout',
+        latest: '5.0.0',
+        name: 'actions/checkout',
+        wanted: '4.2.0',
+      },
+      {
+        current: '2.0.0',
+        homepage: 'https://github.com/owner/tool',
+        latest: '2.1.0',
+        name: 'owner/tool/subpath',
+        wanted: '2.1.0',
+      },
+    ])
+  })
+
+  test('updates within the current major and preserves SHA comments and unrelated formatting', async () => {
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `name: CI
+jobs:
+  test:
+    steps:
+      - uses: 'actions/checkout@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' # v4.1.0 # keep
+      - uses: owner/floating@v2
+`,
+    })
+    const refs = new Map([
+      ['actions/checkout', repoRefs([
+        ['v4.1.0', 'a'.repeat(40)],
+        ['v4.2.0', 'b'.repeat(40)],
+        ['v5.0.0', 'c'.repeat(40)],
+      ])],
+      ['owner/floating', repoRefs([
+        ['v2.1.0', 'd'.repeat(40)],
+        ['v3.0.0', 'e'.repeat(40)],
+      ])],
+    ])
+
+    await updateGitHubActions({
+      dir,
+      readRepoRefs: async (repo) => refs.get(repo)!,
+    })
+
+    await expect(fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')).resolves.toBe(`name: CI
+jobs:
+  test:
+    steps:
+      - uses: 'actions/checkout@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' # v4.2.0 # keep
+      - uses: owner/floating@dddddddddddddddddddddddddddddddddddddddd # v2.1.0
+`)
+  })
+
+  test('--latest pins a floating major tag to the newest release commit', async () => {
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `jobs:
+  test:
+    steps:
+      - uses: actions/checkout@v4
+`,
+    })
+    await updateGitHubActions({
+      dir,
+      latest: true,
+      readRepoRefs: async () => repoRefs([
+        ['v4.2.0', 'a'.repeat(40)],
+        ['v5.0.0', 'b'.repeat(40)],
+      ]),
+    })
+    await expect(fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')).resolves.toContain(`uses: actions/checkout@${'b'.repeat(40)} # v5.0.0`)
+  })
+
+  test('pins an already-current floating major tag', async () => {
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `jobs:
+  test:
+    steps:
+      - uses: actions/checkout@v4
+`,
+    })
+    await updateGitHubActions({
+      dir,
+      readRepoRefs: async () => repoRefs([
+        ['v4.2.0', 'a'.repeat(40)],
+        ['v5.0.0', 'b'.repeat(40)],
+      ]),
+    })
+    await expect(fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')).resolves.toContain(`uses: actions/checkout@${'a'.repeat(40)} # v4.2.0`)
+  })
+})
+
+async function fixture (files: Record<string, string>): Promise<string> {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-actions-'))
+  dirs.push(dir)
+  await Promise.all(Object.entries(files).map(async ([relativePath, content]) => {
+    const filePath = path.join(dir, relativePath)
+    await fs.mkdir(path.dirname(filePath), { recursive: true })
+    await fs.writeFile(filePath, content)
+  }))
+  return dir
+}
+
+function repoRefs (versions: Array<[string, string]>): Record<string, string> {
+  return Object.fromEntries(versions.map(([tag, commit]) => [`refs/tags/${tag}`, commit]))
+}

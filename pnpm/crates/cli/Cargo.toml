@@ -46,6 +46,7 @@ pacquet-patching                          = { workspace = true }
 pacquet-package-is-installable            = { workspace = true }
 pacquet-registry                          = { workspace = true }
 pacquet-reporter                          = { workspace = true }
+pacquet-resolving-git-resolver            = { workspace = true }
 pacquet-resolving-npm-resolver            = { workspace = true }
 pacquet-resolving-parse-wanted-dependency = { workspace = true }
 pacquet-resolving-resolver-base           = { workspace = true }

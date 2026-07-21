@@ -21,6 +21,7 @@ use crate::{
         recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
         sanitize::sanitize_inline,
     },
+    github_actions,
 };
 use clap::{Args, ValueEnum};
 use miette::IntoDiagnostic;
@@ -74,6 +75,8 @@ pub struct OutdatedPackage {
     pub belongs_to: DependencyGroup,
     pub current: Version,
     pub target: Version,
+    pub wanted: Version,
+    pub github_action: bool,
     /// Deprecation reason of the `target` version, when the registry
     /// marked it deprecated.
     pub deprecated: Option<String>,
@@ -206,8 +209,10 @@ async fn collect_outdated_for_importer_with_cache(
                 alias: alias.to_string(),
                 package_name: package_name.to_string(),
                 belongs_to: group,
+                wanted: current.clone(),
                 current,
                 target: target.version.clone(),
+                github_action: false,
                 deprecated,
                 homepage: package.homepage.clone(),
             }))
@@ -404,25 +409,31 @@ impl OutdatedArgs {
 
         let config = state.config;
         let manifest = &state.manifest;
+        let root = config
+            .workspace_dir
+            .as_deref()
+            .unwrap_or_else(|| manifest.path().parent().unwrap_or_else(|| manifest.path()));
         let importer_id = state.active_importer_id();
         let lockfile = state
             .lockfile
             .get()
             .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
         let http_client = &state.http_client;
-
-        // A manifest with no dependencies at all is reported as up to date
-        // (empty, exit 0) *before* the no-lockfile check, so an empty
-        // project doesn't error just because it was never installed.
+        let package_patterns = self
+            .packages
+            .iter()
+            .filter(|selector| !github_actions::is_selector(selector))
+            .cloned()
+            .collect::<Vec<_>>();
+        // An empty package manifest does not require a lockfile, but workflow
+        // actions still need to be inspected.
         let has_any_dependency = manifest
             .dependencies([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional])
             .next()
             .is_some();
-        if !has_any_dependency {
-            return Ok(OutdatedOutcome::UpToDate);
-        }
-
-        if lockfile.is_none() {
+        let check_packages =
+            has_any_dependency && (self.packages.is_empty() || !package_patterns.is_empty());
+        if check_packages && lockfile.is_none() {
             let dir = manifest.path().parent().unwrap_or_else(|| manifest.path());
             return Err(no_lockfile_error(dir));
         }
@@ -430,23 +441,45 @@ impl OutdatedArgs {
         let include = self.dependency_options.include();
         let target_version =
             if self.compatible { TargetVersion::WithinRange } else { TargetVersion::Latest };
-        let matcher = (!self.packages.is_empty()).then(|| create_matcher(&self.packages));
+        let package_matcher =
+            (!package_patterns.is_empty()).then(|| create_matcher(&package_patterns));
+        let action_matcher = (!self.packages.is_empty()).then(|| create_matcher(&self.packages));
 
         let query = OutdatedQuery {
             target_version,
             include_direct: &include,
-            match_names: matcher.as_ref(),
+            match_names: package_matcher.as_ref(),
             include_deprecated: true,
         };
-        let mut outdated = collect_outdated_for_importer(
-            manifest,
-            lockfile,
-            &importer_id,
-            config,
-            http_client,
-            &query,
-        )
-        .await?;
+        let mut outdated = if check_packages {
+            collect_outdated_for_importer(
+                manifest,
+                lockfile,
+                &importer_id,
+                config,
+                http_client,
+                &query,
+            )
+            .await?
+        } else {
+            Vec::new()
+        };
+        if include.contains(&DependencyGroup::Dev) {
+            let actions =
+                github_actions::find_outdated(root, self.compatible, action_matcher.as_ref())
+                    .await?;
+            outdated.extend(actions.into_iter().map(|action| OutdatedPackage {
+                alias: action.name.clone(),
+                package_name: action.name,
+                belongs_to: DependencyGroup::Dev,
+                current: action.current,
+                target: action.latest,
+                wanted: action.wanted,
+                github_action: true,
+                deprecated: None,
+                homepage: Some(action.homepage),
+            }));
+        }
 
         sort_outdated(&mut outdated, self.sort_by);
 
@@ -800,11 +833,12 @@ fn render_list(outdated: &[OutdatedPackage], long: bool) -> String {
 fn render_json(outdated: &[OutdatedPackage], long: bool) -> String {
     let mut map = serde_json::Map::new();
     for pkg in outdated {
-        let dependency_type: &'static str = pkg.belongs_to.into();
+        let dependency_type: &'static str =
+            if pkg.github_action { "githubAction" } else { pkg.belongs_to.into() };
         let mut entry = serde_json::json!({
             "current": pkg.current.to_string(),
             "latest": pkg.target.to_string(),
-            "wanted": pkg.current.to_string(),
+            "wanted": pkg.wanted.to_string(),
             "isDeprecated": pkg.deprecated.is_some(),
             "dependencyType": dependency_type,
         });
@@ -924,6 +958,9 @@ fn render_dependents(entry: &OutdatedInWorkspace) -> String {
 }
 
 fn render_package_name(pkg: &OutdatedPackage) -> String {
+    if pkg.github_action {
+        return format!("{} {}", pkg.package_name, dimmed("(github action)"));
+    }
     match pkg.belongs_to {
         DependencyGroup::Dev => format!("{} {}", pkg.package_name, dimmed("(dev)")),
         DependencyGroup::Optional => format!("{} {}", pkg.package_name, dimmed("(optional)")),
