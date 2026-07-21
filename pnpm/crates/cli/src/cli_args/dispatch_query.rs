@@ -253,8 +253,18 @@ pub(super) fn version<'a>(
     args: VersionArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.config)()?;
+    let dir = ctx.dir;
     let recursive = ctx.recursive;
-    Ok(Box::pin(async move { args.run(cfg, recursive).await }))
+    let reporter = ctx.reporter;
+    Ok(Box::pin(async move {
+        match reporter {
+            ReporterType::Default | ReporterType::AppendOnly => {
+                args.run::<DefaultReporter>(cfg, dir, recursive).await
+            }
+            ReporterType::Ndjson => args.run::<NdjsonReporter>(cfg, dir, recursive).await,
+            ReporterType::Silent => args.run::<SilentReporter>(cfg, dir, recursive).await,
+        }
+    }))
 }
 
 pub(super) fn deprecate<'a>(
