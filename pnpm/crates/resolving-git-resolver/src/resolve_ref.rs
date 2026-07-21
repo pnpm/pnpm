@@ -98,13 +98,22 @@ pub async fn resolve_ref<Runner: GitCommandRunner + ?Sized>(
     // ref looks like a committish: there is no single canonical ref
     // name to filter on in those cases.
     let filter = if range.is_some() || committish { None } else { Some(ref_) };
-    let stdout = runner.ls_remote(repo, filter).await.map_err(GitResolveRefError::Runner)?;
-    let refs = parse_ls_remote(&stdout);
+    let refs = get_repo_refs(runner, repo, filter).await.map_err(GitResolveRefError::Runner)?;
     let commit = resolve_ref_from_refs(&refs, repo, ref_, committish, range)?;
     if committish && !commit.starts_with(ref_) {
         return Err(GitResolveRefError::AmbiguousRef { ref_: ref_.to_string(), commit });
     }
     Ok(commit)
+}
+
+/// Read all matching refs from a git repository.
+pub async fn get_repo_refs<Runner: GitCommandRunner + ?Sized>(
+    runner: &Runner,
+    repo: &str,
+    ref_: Option<&str>,
+) -> Result<HashMap<String, String>, GitRunError> {
+    let stdout = runner.ls_remote(repo, ref_).await?;
+    Ok(parse_ls_remote(&stdout))
 }
 
 /// `true` when `ref` is a 7-40-character lowercase hex string.

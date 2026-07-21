@@ -34,6 +34,7 @@
   "dependencies": {
     "@pnpm/error": "workspace:*",
     "@pnpm/resolving.git-resolver": "workspace:*",
+    "is-subdir": "catalog:",
     "p-limit": "catalog:",
     "semver": "catalog:",
     "write-file-atomic": "catalog:",

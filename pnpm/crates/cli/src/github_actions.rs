@@ -1,7 +1,7 @@
 use futures_util::{StreamExt, TryStreamExt, stream};
 use node_semver::Version;
 use pacquet_config::matcher::Matcher;
-use pacquet_resolving_git_resolver::{GitCommandRunner, RealGitRunner};
+use pacquet_resolving_git_resolver::{GitCommandRunner, RealGitRunner, get_repo_refs};
 use std::{
     cmp::Reverse,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
@@ -140,10 +140,10 @@ async fn create_plan<Runner: GitCommandRunner + Sync>(
     let refs_by_repo = stream::iter(repos)
         .map(|repo| async move {
             let url = format!("https://github.com/{repo}.git");
-            let stdout = runner.ls_remote(&url, None).await.map_err(|error| {
+            let refs = get_repo_refs(runner, &url, None).await.map_err(|error| {
                 miette::miette!("Failed to read GitHub Action refs for {repo}: {error}")
             })?;
-            Ok::<_, miette::Report>((repo, parse_repo_versions(&stdout)))
+            Ok::<_, miette::Report>((repo, repo_versions(&refs)))
         })
         .buffer_unordered(GIT_CONCURRENCY)
         .try_collect::<HashMap<_, _>>()
@@ -227,25 +227,8 @@ async fn discover(root: &Path) -> miette::Result<Vec<ActionReference>> {
             let original_value = uses_value.value;
             let (value, comment) = split_uses_value(original_value);
             if let Some(local) = value.strip_prefix("./") {
-                let target = root.join(local);
-                let candidate = if matches!(
-                    target.extension().and_then(|ext| ext.to_str()),
-                    Some("yml" | "yaml"),
-                ) && is_file(&target).await
-                {
-                    Some(target)
-                } else {
-                    let action_yml = target.join("action.yml");
-                    if is_file(&action_yml).await {
-                        Some(action_yml)
-                    } else {
-                        let action_yaml = target.join("action.yaml");
-                        is_file(&action_yaml).await.then_some(action_yaml)
-                    }
-                };
-                if let Some(candidate) = candidate
-                    && let Ok(candidate) = fs::canonicalize(candidate).await
-                    && candidate.starts_with(&canonical_root)
+                if let Some(candidate) =
+                    resolve_local_reference(root, &canonical_root, local).await?
                 {
                     queue.push_back(candidate);
                 }
@@ -277,8 +260,43 @@ async fn discover(root: &Path) -> miette::Result<Vec<ActionReference>> {
     Ok(actions)
 }
 
-async fn is_file(path: &Path) -> bool {
-    fs::metadata(path).await.is_ok_and(|metadata| metadata.is_file())
+async fn resolve_local_reference(
+    root: &Path,
+    canonical_root: &Path,
+    reference: &str,
+) -> miette::Result<Option<PathBuf>> {
+    let target = root.join(reference);
+    let candidate = if matches!(
+        target.extension().and_then(|extension| extension.to_str()),
+        Some("yml" | "yaml"),
+    ) {
+        existing_file(&target).await?.then_some(target)
+    } else {
+        let action_yml = target.join("action.yml");
+        if existing_file(&action_yml).await? {
+            Some(action_yml)
+        } else {
+            let action_yaml = target.join("action.yaml");
+            existing_file(&action_yaml).await?.then_some(action_yaml)
+        }
+    };
+    let Some(candidate) = candidate else { return Ok(None) };
+    let candidate_display = candidate.display();
+    let candidate = fs::canonicalize(&candidate)
+        .await
+        .map_err(|error| miette::miette!("Failed to read {candidate_display}: {error}"))?;
+    Ok(candidate.starts_with(canonical_root).then_some(candidate))
+}
+
+async fn existing_file(path: &Path) -> miette::Result<bool> {
+    match fs::metadata(path).await {
+        Ok(metadata) => Ok(metadata.is_file()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => {
+            let path_display = path.display();
+            Err(miette::miette!("Failed to read {path_display}: {error}"))
+        }
+    }
 }
 
 fn split_uses_value(value: &str) -> (&str, Option<&str>) {
@@ -383,12 +401,7 @@ fn add_step_routes(
     }
 }
 
-fn parse_repo_versions(stdout: &str) -> Vec<RepoVersion> {
-    let refs = stdout
-        .lines()
-        .filter_map(|line| line.split_once('\t'))
-        .map(|(commit, ref_)| (ref_.to_string(), commit.to_string()))
-        .collect::<HashMap<_, _>>();
+fn repo_versions(refs: &HashMap<String, String>) -> Vec<RepoVersion> {
     let mut versions = refs
         .iter()
         .filter_map(|(ref_, commit)| {

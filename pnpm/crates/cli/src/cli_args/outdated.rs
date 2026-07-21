@@ -85,6 +85,22 @@ pub struct OutdatedPackage {
     pub homepage: Option<String>,
 }
 
+impl From<github_actions::OutdatedGitHubAction> for OutdatedPackage {
+    fn from(action: github_actions::OutdatedGitHubAction) -> Self {
+        Self {
+            alias: action.name.clone(),
+            package_name: action.name,
+            belongs_to: DependencyGroup::Dev,
+            current: action.current,
+            target: action.latest,
+            wanted: action.wanted,
+            github_action: true,
+            deprecated: None,
+            homepage: Some(action.homepage),
+        }
+    }
+}
+
 /// What counts as outdated for a [`collect_outdated`] run.
 pub struct OutdatedQuery<'a> {
     /// The registry version each dependency is compared against.
@@ -468,17 +484,7 @@ impl OutdatedArgs {
             let actions =
                 github_actions::find_outdated(root, self.compatible, action_matcher.as_ref())
                     .await?;
-            outdated.extend(actions.into_iter().map(|action| OutdatedPackage {
-                alias: action.name.clone(),
-                package_name: action.name,
-                belongs_to: DependencyGroup::Dev,
-                current: action.current,
-                target: action.latest,
-                wanted: action.wanted,
-                github_action: true,
-                deprecated: None,
-                homepage: Some(action.homepage),
-            }));
+            outdated.extend(actions.into_iter().map(OutdatedPackage::from));
         }
 
         sort_outdated(&mut outdated, self.sort_by);

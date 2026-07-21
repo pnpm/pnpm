@@ -1,20 +1,26 @@
 use super::{
     ActionReference, RepoVersion, find_current, find_outdated_with_runner, is_selector,
-    parse_repo_versions, render_target_ref, render_target_value, split_uses_value,
+    render_target_ref, render_target_value, repo_versions as versions_from_refs, split_uses_value,
     update_with_runner,
 };
 use node_semver::Version;
 use pacquet_resolving_git_resolver::{GitCommandRunner, GitRunError};
-use std::{fs, future::Future, path::PathBuf, pin::Pin};
+use std::{collections::HashMap, fs, future::Future, path::PathBuf, pin::Pin};
 
 const SHA_V4_1_0: &str = "1111111111111111111111111111111111111111";
 const SHA_V4_2_0: &str = "2222222222222222222222222222222222222222";
 const SHA_V5_0_0: &str = "3333333333333333333333333333333333333333";
 
 fn repo_versions() -> Vec<RepoVersion> {
-    parse_repo_versions(&format!(
-        "{SHA_V4_1_0}\trefs/tags/v4.1.0\n{SHA_V4_2_0}\trefs/tags/v4.2.0\n{SHA_V5_0_0}\trefs/tags/v5.0.0\n",
-    ))
+    versions_from_refs(&refs(&[
+        ("refs/tags/v4.1.0", SHA_V4_1_0),
+        ("refs/tags/v4.2.0", SHA_V4_2_0),
+        ("refs/tags/v5.0.0", SHA_V5_0_0),
+    ]))
+}
+
+fn refs(entries: &[(&str, &str)]) -> HashMap<String, String> {
+    entries.iter().map(|(ref_, commit)| ((*ref_).to_string(), (*commit).to_string())).collect()
 }
 
 fn action(original_value: &str) -> ActionReference {
@@ -66,9 +72,11 @@ fn distinguishes_action_selectors_from_package_selectors() {
 
 #[test]
 fn parses_annotated_semver_tags() {
-    let versions = parse_repo_versions(&format!(
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\trefs/tags/v4.2.0\n{SHA_V4_2_0}\trefs/tags/v4.2.0^{{}}\nnot-a-version\trefs/tags/latest\n",
-    ));
+    let versions = versions_from_refs(&refs(&[
+        ("refs/tags/v4.2.0", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+        ("refs/tags/v4.2.0^{}", SHA_V4_2_0),
+        ("refs/tags/latest", "not-a-version"),
+    ]));
     assert_eq!(versions.len(), 1);
     assert_eq!(versions[0].commit, SHA_V4_2_0);
     assert_eq!(versions[0].tag, "v4.2.0");
@@ -96,9 +104,10 @@ fn floating_major_resolves_to_an_exact_commit() {
 
 #[test]
 fn resolves_prerelease_tags_containing_dots() {
-    let versions = parse_repo_versions(
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\trefs/tags/v5.0.0-alpha.1\nbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\trefs/tags/v5.0.0-alpha.2\n",
-    );
+    let versions = versions_from_refs(&refs(&[
+        ("refs/tags/v5.0.0-alpha.1", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+        ("refs/tags/v5.0.0-alpha.2", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
+    ]));
     let current = find_current(&action("actions/checkout@v5.0.0-alpha.1"), &versions)
         .expect("prerelease version");
 
@@ -168,6 +177,29 @@ async fn rejects_workflow_symlinks_outside_the_project() {
 
     assert!(error.to_string().contains("outside the project root"));
     assert_eq!(fs::read_to_string(outside.path().join("ci.yml")).unwrap(), original);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn reports_local_action_lookup_errors() {
+    use std::os::unix::fs::symlink;
+
+    let root = tempfile::tempdir().expect("project directory");
+    let workflow = root.path().join(".github/workflows/ci.yml");
+    let action_dir = root.path().join(".github/actions/setup");
+    fs::create_dir_all(workflow.parent().unwrap()).expect("workflow directory");
+    fs::create_dir_all(&action_dir).expect("action directory");
+    fs::write(&workflow, "jobs:\n  test:\n    steps:\n      - uses: ./.github/actions/setup\n")
+        .expect("workflow");
+    symlink("action.yml", action_dir.join("action.yml")).expect("symlink loop");
+
+    let Err(error) = find_outdated_with_runner(root.path(), false, None, &FakeGitRunner).await
+    else {
+        panic!("local action lookup must fail");
+    };
+
+    assert!(error.to_string().contains("Failed to read"));
+    assert!(error.to_string().contains("action.yml"));
 }
 
 #[tokio::test]

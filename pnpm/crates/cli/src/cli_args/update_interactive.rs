@@ -109,19 +109,12 @@ async fn append_github_actions(
     root: &Path,
     latest: bool,
 ) -> miette::Result<()> {
-    choices.extend(github_actions::find_outdated(root, !latest, None).await?.into_iter().map(
-        |action| OutdatedPackage {
-            alias: action.name.clone(),
-            package_name: action.name,
-            belongs_to: DependencyGroup::Dev,
-            current: action.current,
-            target: action.latest,
-            wanted: action.wanted,
-            github_action: true,
-            deprecated: None,
-            homepage: Some(action.homepage),
-        },
-    ));
+    choices.extend(
+        github_actions::find_outdated(root, !latest, None)
+            .await?
+            .into_iter()
+            .map(OutdatedPackage::from),
+    );
     Ok(())
 }
 

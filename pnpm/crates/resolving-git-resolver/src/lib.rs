@@ -43,5 +43,7 @@ pub use hosted_git::{HostedGit, HostedGitType, HostedOpts};
 pub use parse_bare_specifier::{
     GitProbe, HostedPackageSpec, PartialSpec, ProbeFuture, parse_bare_specifier,
 };
-pub use resolve_ref::{GitCommandRunner, GitResolveRefError, GitRunError, resolve_ref};
+pub use resolve_ref::{
+    GitCommandRunner, GitResolveRefError, GitRunError, get_repo_refs, resolve_ref,
+};
 pub use runners::{RealGitProbe, RealGitRunner};

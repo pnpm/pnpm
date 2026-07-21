@@ -4,6 +4,7 @@ import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
 import { getRepoRefs } from '@pnpm/resolving.git-resolver'
+import { isSubdir } from 'is-subdir'
 import pLimit from 'p-limit'
 import semver from 'semver'
 import writeFileAtomic from 'write-file-atomic'
@@ -181,7 +182,7 @@ async function discoverActions (dir: string): Promise<ActionReference[]> {
     } catch (err: unknown) {
       throw workflowError('READ', filePath, err)
     }
-    if (!isPathInside(realRoot, realFilePath)) {
+    if (!isSubdir(realRoot, realFilePath)) {
       throw new PnpmError('GITHUB_ACTIONS_WORKFLOW_OUTSIDE_ROOT', `GitHub Actions workflow is outside the project root: ${filePath}`)
     }
     if (visited.has(realFilePath)) return
@@ -274,7 +275,7 @@ async function resolveLocalReference (rootDir: string, reference: string): Promi
   } catch (err: unknown) {
     throw workflowError('READ', candidate, err)
   }
-  return isPathInside(realRoot, realCandidate) ? realCandidate : null
+  return isSubdir(realRoot, realCandidate) ? realCandidate : null
 }
 
 async function existingPath (candidate: string): Promise<string | null> {
@@ -382,11 +383,6 @@ async function readRefsWithGit (repo: string): Promise<Record<string, string>> {
 function workflowError (operation: 'PARSE' | 'READ' | 'WRITE', filePath: string, cause: unknown): PnpmError {
   const detail = util.types.isNativeError(cause) ? cause.message : String(cause)
   return new PnpmError(`GITHUB_ACTIONS_WORKFLOW_${operation}`, `Failed to ${operation.toLowerCase()} GitHub Actions workflow ${filePath}: ${detail}`, { cause })
-}
-
-function isPathInside (root: string, candidate: string): boolean {
-  const relative = path.relative(root, candidate)
-  return relative === '' || (!path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`))
 }
 
 function isErrorCode (err: unknown, code: string): err is NodeJS.ErrnoException {

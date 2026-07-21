@@ -3127,6 +3127,9 @@ importers:
       '@pnpm/resolving.git-resolver':
         specifier: workspace:*
         version: link:../../resolving/git-resolver
+      is-subdir:
+        specifier: 'catalog:'
+        version: 2.0.0
       p-limit:
         specifier: 'catalog:'
         version: 7.3.0
