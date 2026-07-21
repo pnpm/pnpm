@@ -371,6 +371,34 @@ jobs:
       - name: Build TypeScript executable artifacts
         run: pn --filter=@pnpm/exe run build-artifacts
 
+      - name: Verify internal workspace package payloads
+        run: |
+          set -euo pipefail
+          release_tarballs=$(mktemp -d)
+          pn list --filter=!pnpm --filter=!@pnpm/exe --depth=-1 --json > "$release_tarballs/projects.json"
+          node -e '
+            const fs = require("node:fs")
+            const projects = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
+            for (const project of projects) {
+              if (!project.private && project.name && project.version && project.path) {
+                console.log(project.path)
+              }
+            }
+          ' "$release_tarballs/projects.json" | while IFS= read -r package; do
+            package_tarballs="$release_tarballs/${package//\//_}"
+            mkdir "$package_tarballs"
+            (
+              cd "$package"
+              pn run --if-present prepublishOnly
+              pn run --if-present prepublish
+              pn pack --pack-destination "$package_tarballs"
+            )
+
+            tarball=$(find "$package_tarballs" -type f -name '*.tgz' -print -quit)
+            test -n "$tarball"
+            node .github/scripts/verify-packed-package-payload.mjs --package-dir "$package" --tarball "$tarball"
+          done
+
       - name: Publish @pnpm/exe (trusted publishing)
         # No NPM_TOKEN: pnpm has no static token to short-circuit on, so it will perform
         # the OIDC token exchange against npm's trusted-publishing config for `@pnpm/exe`.
