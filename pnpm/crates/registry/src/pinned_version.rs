@@ -14,6 +14,9 @@ pub enum PinnedVersion {
     Minor,
     /// Save the exact resolved version with no range operator.
     Patch,
+    /// Save the exact resolved version with a leading `=` operator,
+    /// preserving an explicit `=` pin from the previous specifier.
+    Exact,
     /// Equivalent to [`PinnedVersion::Major`] when turned into a range.
     None,
 }
@@ -37,6 +40,7 @@ impl PinnedVersion {
             PinnedVersion::Major | PinnedVersion::None => "^",
             PinnedVersion::Minor => "~",
             PinnedVersion::Patch => "",
+            PinnedVersion::Exact => "=",
         }
     }
 }

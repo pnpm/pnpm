@@ -1102,6 +1102,7 @@ function calcSpecifierForWorkspaceDep ({
         case 'major': return `${prefix}^`
         case 'minor': return `${prefix}~`
         case 'patch':
+        case 'exact':
         case 'none': return `${prefix}*`
       }
     }
@@ -1196,6 +1197,8 @@ function createVersionSpec (version: string, pinnedVersion?: PinnedVersion): str
       return `~${version}`
     case 'patch':
       return version
+    case 'exact':
+      return `=${version}`
     default:
       throw new PnpmError('BAD_PINNED_VERSION', `Cannot pin '${pinnedVersion ?? 'undefined'}'`)
   }

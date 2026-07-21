@@ -22,4 +22,5 @@ fn range_prefix_maps_each_variant() {
     assert_eq!(PinnedVersion::None.range_prefix(), "^");
     assert_eq!(PinnedVersion::Minor.range_prefix(), "~");
     assert_eq!(PinnedVersion::Patch.range_prefix(), "");
+    assert_eq!(PinnedVersion::Exact.range_prefix(), "=");
 }
