@@ -146,7 +146,9 @@ async function createUpdatePlan (opts: GitHubActionsOptions): Promise<PlannedUpd
     const stable = versions.filter(({ version }) => version.prerelease.length === 0)
     const candidates = current.version.prerelease.length === 0 ? stable : versions
     const latest = candidates.at(-1)
-    const wanted = candidates.filter(({ version }) => version.major === current.version.major).at(-1)
+    const wanted = candidates
+      .filter(({ version }) => semver.satisfies(version, `^${current.version.version}`))
+      .at(-1)
     if (latest == null || wanted == null) return null
     return { action, current, latest, wanted }
   }))).filter((plan): plan is PlannedUpdate => plan != null)

@@ -35,7 +35,7 @@ Updates are always pinned to an exact commit SHA. The corresponding semantic ver
 - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 ```
 
-By default, `updateGitHubActions` selects the newest release in the current major version. Set `latest: true` to allow major-version updates. `findOutdatedGitHubActions` reports the newest release by default; set `compatible: true` to report only updates in the current major version.
+By default, `updateGitHubActions` selects the newest caret-compatible release. This keeps `0.5.x` releases below `0.6.0`, since pre-1.0 minor releases may contain breaking changes. Set `latest: true` to allow incompatible updates. `findOutdatedGitHubActions` reports the newest release by default; set `compatible: true` to report only caret-compatible updates.
 
 ## License
 

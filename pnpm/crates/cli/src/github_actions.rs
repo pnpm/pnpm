@@ -1,5 +1,5 @@
 use futures_util::{StreamExt, TryStreamExt, stream};
-use node_semver::Version;
+use node_semver::{Range as SemverRange, Version};
 use pacquet_config::matcher::Matcher;
 use pacquet_resolving_git_resolver::{GitCommandRunner, RealGitRunner, get_repo_refs};
 use std::{
@@ -152,6 +152,8 @@ async fn create_plan<Runner: GitCommandRunner + Sync>(
     for action in actions {
         let versions = &refs_by_repo[&action.repo];
         let Some(current) = find_current(&action, versions) else { continue };
+        let wanted_range = SemverRange::parse(format!("^{}", current.version))
+            .expect("a parsed version produces a valid caret range");
         let candidates = versions
             .iter()
             .filter(|candidate| {
@@ -159,10 +161,8 @@ async fn create_plan<Runner: GitCommandRunner + Sync>(
             })
             .collect::<Vec<_>>();
         let Some(latest) = candidates.last() else { continue };
-        let Some(wanted) = candidates
-            .iter()
-            .rev()
-            .find(|candidate| candidate.version.major == current.version.major)
+        let Some(wanted) =
+            candidates.iter().rev().find(|candidate| wanted_range.satisfies(&candidate.version))
         else {
             continue;
         };

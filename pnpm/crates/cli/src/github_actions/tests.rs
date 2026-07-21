@@ -57,6 +57,25 @@ impl GitCommandRunner for FakeGitRunner {
     }
 }
 
+struct PreOneGitRunner;
+
+impl GitCommandRunner for PreOneGitRunner {
+    fn ls_remote<'a>(
+        &'a self,
+        _repo: &'a str,
+        _ref_: Option<&'a str>,
+    ) -> Pin<Box<dyn Future<Output = Result<String, GitRunError>> + Send + 'a>> {
+        Box::pin(async {
+            Ok(concat!(
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\trefs/tags/v0.5.7\n",
+                "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\trefs/tags/v0.5.9\n",
+                "cccccccccccccccccccccccccccccccccccccccc\trefs/tags/v0.6.0\n",
+            )
+            .to_string())
+        })
+    }
+}
+
 #[test]
 fn distinguishes_action_selectors_from_package_selectors() {
     assert_eq!(
@@ -136,7 +155,7 @@ async fn updates_workflow_files_without_reformatting_them() {
 }
 
 #[tokio::test]
-async fn compatible_outdated_uses_the_current_major() {
+async fn compatible_outdated_stays_on_the_current_compatibility_line() {
     let root = tempfile::tempdir().expect("temp directory");
     let workflows = root.path().join(".github/workflows");
     fs::create_dir_all(&workflows).expect("workflow directory");
@@ -157,6 +176,37 @@ async fn compatible_outdated_uses_the_current_major() {
 
     assert_eq!(default[0].latest, Version::parse("5.0.0").unwrap());
     assert_eq!(compatible[0].latest, Version::parse("4.2.0").unwrap());
+}
+
+#[tokio::test]
+async fn keeps_pre_one_updates_caret_compatible_unless_latest_is_requested() {
+    let root = tempfile::tempdir().expect("temp directory");
+    let workflows = root.path().join(".github/workflows");
+    fs::create_dir_all(&workflows).expect("workflow directory");
+    let workflow = workflows.join("ci.yml");
+    fs::write(&workflow, "jobs:\n  test:\n    steps:\n      - uses: owner/tool@v0.5.7\n")
+        .expect("workflow");
+
+    let compatible = find_outdated_with_runner(root.path(), true, None, &PreOneGitRunner)
+        .await
+        .expect("compatible outdated");
+    assert_eq!(compatible[0].latest, Version::parse("0.5.9").unwrap());
+
+    update_with_runner(root.path(), false, None, &PreOneGitRunner)
+        .await
+        .expect("compatible update");
+    assert!(
+        fs::read_to_string(&workflow)
+            .expect("updated workflow")
+            .contains("uses: owner/tool@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb # v0.5.9"),
+    );
+
+    update_with_runner(root.path(), true, None, &PreOneGitRunner).await.expect("latest update");
+    assert!(
+        fs::read_to_string(&workflow)
+            .expect("updated workflow")
+            .contains("uses: owner/tool@cccccccccccccccccccccccccccccccccccccccc # v0.6.0"),
+    );
 }
 
 #[cfg(unix)]

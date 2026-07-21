@@ -151,6 +151,37 @@ jobs:
     await expect(fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')).resolves.toContain(`uses: actions/checkout@${'a'.repeat(40)} # v4.2.0`)
   })
 
+  test('keeps pre-1.0 updates within the caret-compatible range unless latest is requested', async () => {
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `jobs:
+  test:
+    steps:
+      - uses: owner/tool@v0.5.7
+`,
+    })
+    const refs = repoRefs([
+      ['v0.5.7', 'a'.repeat(40)],
+      ['v0.5.9', 'b'.repeat(40)],
+      ['v0.6.0', 'c'.repeat(40)],
+    ])
+
+    await expect(findOutdatedGitHubActions({ compatible: true, dir, readRepoRefs: async () => refs })).resolves.toEqual([
+      {
+        current: '0.5.7',
+        homepage: 'https://github.com/owner/tool',
+        latest: '0.5.9',
+        name: 'owner/tool',
+        wanted: '0.5.9',
+      },
+    ])
+
+    await updateGitHubActions({ dir, readRepoRefs: async () => refs })
+    await expect(fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')).resolves.toContain(`uses: owner/tool@${'b'.repeat(40)} # v0.5.9`)
+
+    await updateGitHubActions({ dir, latest: true, readRepoRefs: async () => refs })
+    await expect(fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')).resolves.toContain(`uses: owner/tool@${'c'.repeat(40)} # v0.6.0`)
+  })
+
   test('updates prerelease tags containing dots', async () => {
     const dir = await fixture({
       '.github/workflows/ci.yml': `jobs:
