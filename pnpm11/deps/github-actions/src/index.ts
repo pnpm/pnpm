@@ -2,7 +2,9 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import util from 'node:util'
 
+import { PnpmError } from '@pnpm/error'
 import { getRepoRefs } from '@pnpm/resolving.git-resolver'
+import pLimit from 'p-limit'
 import semver from 'semver'
 import YAML, { isMap, isNode, isScalar, isSeq, type Node, type Scalar } from 'yaml'
 
@@ -57,6 +59,7 @@ interface PlannedUpdate {
 }
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/
+const limitRepoReads = pLimit(8)
 
 export function isGitHubActionSelector (selector: string): boolean {
   const pattern = selector.startsWith('!') ? selector.slice(1) : selector
@@ -104,7 +107,11 @@ export async function updateGitHubActions (
     for (const replacement of replacements) {
       source = source.slice(0, replacement.range[0]) + replacement.value + source.slice(replacement.range[1])
     }
-    await fs.writeFile(file.path, source)
+    try {
+      await fs.writeFile(file.path, source)
+    } catch (err: unknown) {
+      throw workflowError('WRITE', file.path, err)
+    }
   }))
   return dedupeOutdated(updates.map((plan) => {
     const target = opts.latest ? plan.latest : plan.wanted
@@ -126,7 +133,7 @@ async function createUpdatePlan (opts: GitHubActionsOptions): Promise<PlannedUpd
   return (await Promise.all(selected.map(async (action): Promise<PlannedUpdate | null> => {
     let versionsPromise = refsByRepo.get(action.repo)
     if (versionsPromise == null) {
-      versionsPromise = readRepoRefs(action.repo).then(parseRepoVersions)
+      versionsPromise = limitRepoReads(() => readRepoRefs(action.repo).then(parseRepoVersions))
       refsByRepo.set(action.repo, versionsPromise)
     }
     const versions = await versionsPromise
@@ -148,7 +155,7 @@ async function discoverActions (dir: string): Promise<ActionReference[]> {
     entries = await fs.readdir(workflowDir)
   } catch (err: unknown) {
     if (isErrorCode(err, 'ENOENT')) return []
-    throw err
+    throw workflowError('READ', workflowDir, err)
   }
   const workflowFiles = entries
     .filter((entry) => entry.endsWith('.yml') || entry.endsWith('.yaml'))
@@ -161,9 +168,14 @@ async function discoverActions (dir: string): Promise<ActionReference[]> {
   async function scanFile (filePath: string): Promise<void> {
     if (visited.has(filePath)) return
     visited.add(filePath)
-    const source = await fs.readFile(filePath, 'utf8')
+    let source: string
+    try {
+      source = await fs.readFile(filePath, 'utf8')
+    } catch (err: unknown) {
+      throw workflowError('READ', filePath, err)
+    }
     const document = YAML.parseDocument(source)
-    if (document.errors.length > 0) throw document.errors[0]
+    if (document.errors.length > 0) throw workflowError('PARSE', filePath, document.errors[0])
     const file = { path: filePath, source }
     const localReferences: string[] = []
     for (const node of findUsesScalars(document.contents)) {
@@ -235,7 +247,13 @@ async function resolveLocalReference (rootDir: string, reference: string): Promi
     : (await Promise.all(['action.yml', 'action.yaml'].map(async (filename) => existingPath(path.join(target, filename)))))
       .find((candidate): candidate is string => candidate != null) ?? null
   if (candidate == null) return null
-  const [realRoot, realCandidate] = await Promise.all([fs.realpath(rootDir), fs.realpath(candidate)])
+  let realRoot: string
+  let realCandidate: string
+  try {
+    [realRoot, realCandidate] = await Promise.all([fs.realpath(rootDir), fs.realpath(candidate)])
+  } catch (err: unknown) {
+    throw workflowError('READ', candidate, err)
+  }
   const relative = path.relative(realRoot, realCandidate)
   return relative === '' || (!path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`))
     ? realCandidate
@@ -247,7 +265,7 @@ async function existingPath (candidate: string): Promise<string | null> {
     await fs.access(candidate)
     return candidate
   } catch (err: unknown) {
-    if (!isErrorCode(err, 'ENOENT')) throw err
+    if (!isErrorCode(err, 'ENOENT')) throw workflowError('READ', candidate, err)
     return null
   }
 }
@@ -327,6 +345,11 @@ function dedupeOutdated (actions: OutdatedGitHubAction[]): OutdatedGitHubAction[
 
 async function readRefsWithGit (repo: string): Promise<Record<string, string>> {
   return getRepoRefs(`https://github.com/${repo}.git`, null)
+}
+
+function workflowError (operation: 'PARSE' | 'READ' | 'WRITE', filePath: string, cause: unknown): PnpmError {
+  const detail = util.types.isNativeError(cause) ? cause.message : String(cause)
+  return new PnpmError(`GITHUB_ACTIONS_WORKFLOW_${operation}`, `Failed to ${operation.toLowerCase()} GitHub Actions workflow ${filePath}: ${detail}`, { cause })
 }
 
 function isErrorCode (err: unknown, code: string): err is NodeJS.ErrnoException {

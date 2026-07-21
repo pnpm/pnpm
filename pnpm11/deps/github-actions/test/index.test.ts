@@ -150,6 +150,47 @@ jobs:
     })
     await expect(fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')).resolves.toContain(`uses: actions/checkout@${'a'.repeat(40)} # v4.2.0`)
   })
+
+  test('limits concurrent repository lookups', async () => {
+    const actionCount = 12
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `jobs:
+  test:
+    steps:
+${Array.from({ length: actionCount }, (_, index) => `      - uses: owner/action-${index}@v1`).join('\n')}
+`,
+    })
+    let active = 0
+    let maxActive = 0
+
+    const outdated = await findOutdatedGitHubActions({
+      dir,
+      readRepoRefs: async () => {
+        active++
+        maxActive = Math.max(maxActive, active)
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        active--
+        return repoRefs([
+          ['v1.0.0', 'a'.repeat(40)],
+          ['v2.0.0', 'b'.repeat(40)],
+        ])
+      },
+    })
+
+    expect(outdated).toHaveLength(actionCount)
+    expect(maxActive).toBeLessThanOrEqual(8)
+  })
+
+  test('reports invalid workflow YAML with a stable contextual error', async () => {
+    const dir = await fixture({
+      '.github/workflows/ci.yml': 'jobs: [\n',
+    })
+
+    await expect(findOutdatedGitHubActions({ dir })).rejects.toMatchObject({
+      code: 'ERR_PNPM_GITHUB_ACTIONS_WORKFLOW_PARSE',
+      message: expect.stringContaining(path.join(dir, '.github/workflows/ci.yml')),
+    })
+  })
 })
 
 async function fixture (files: Record<string, string>): Promise<string> {

@@ -1,13 +1,14 @@
+use futures_util::{StreamExt, TryStreamExt, stream};
 use node_semver::Version;
 use pacquet_config::matcher::Matcher;
 use pacquet_resolving_git_resolver::{GitCommandRunner, RealGitRunner};
 use std::{
     cmp::Reverse,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
-    fs,
     ops::Range,
     path::{Path, PathBuf},
 };
+use tokio::fs;
 
 #[derive(Clone)]
 pub struct OutdatedGitHubAction {
@@ -47,6 +48,8 @@ struct PlannedUpdate {
     latest: RepoVersion,
     wanted: RepoVersion,
 }
+
+const GIT_CONCURRENCY: usize = 8;
 
 pub async fn find_outdated(
     root: &Path,
@@ -101,12 +104,14 @@ async fn update_with_runner<Runner: GitCommandRunner + Sync>(
     for (file, mut replacements) in edits {
         let file_display = file.display();
         let mut text = fs::read_to_string(&file)
+            .await
             .map_err(|error| miette::miette!("Failed to read {file_display}: {error}"))?;
         replacements.sort_by_key(|(range, _)| Reverse(range.start));
         for (range, new) in replacements {
             text.replace_range(range, &new);
         }
         fs::write(&file, text)
+            .await
             .map_err(|error| miette::miette!("Failed to write {file_display}: {error}"))?;
     }
     Ok(to_outdated(updates, latest))
@@ -117,7 +122,8 @@ async fn create_plan<Runner: GitCommandRunner + Sync>(
     matcher: Option<&Matcher>,
     runner: &Runner,
 ) -> miette::Result<Vec<PlannedUpdate>> {
-    let actions = discover(root)?
+    let actions = discover(root)
+        .await?
         .into_iter()
         .filter(|action| {
             matcher.is_none_or(|matcher| {
@@ -126,17 +132,17 @@ async fn create_plan<Runner: GitCommandRunner + Sync>(
         })
         .collect::<Vec<_>>();
     let repos = actions.iter().map(|action| action.repo.clone()).collect::<BTreeSet<_>>();
-    let refs_by_repo =
-        futures_util::future::try_join_all(repos.into_iter().map(|repo| async move {
+    let refs_by_repo = stream::iter(repos)
+        .map(|repo| async move {
             let url = format!("https://github.com/{repo}.git");
             let stdout = runner.ls_remote(&url, None).await.map_err(|error| {
                 miette::miette!("Failed to read GitHub Action refs for {repo}: {error}")
             })?;
             Ok::<_, miette::Report>((repo, parse_repo_versions(&stdout)))
-        }))
-        .await?
-        .into_iter()
-        .collect::<HashMap<_, _>>();
+        })
+        .buffer_unordered(GIT_CONCURRENCY)
+        .try_collect::<HashMap<_, _>>()
+        .await?;
     let mut plans = Vec::new();
     for action in actions {
         let versions = &refs_by_repo[&action.repo];
@@ -165,24 +171,28 @@ async fn create_plan<Runner: GitCommandRunner + Sync>(
     Ok(plans)
 }
 
-fn discover(root: &Path) -> miette::Result<Vec<ActionReference>> {
-    let canonical_root = fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
+async fn discover(root: &Path) -> miette::Result<Vec<ActionReference>> {
+    let canonical_root = fs::canonicalize(root).await.unwrap_or_else(|_| root.to_path_buf());
     let workflows = root.join(".github/workflows");
     let workflows_display = workflows.display();
-    let entries = match fs::read_dir(&workflows) {
+    let mut entries = match fs::read_dir(&workflows).await {
         Ok(entries) => entries,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(error) => {
             return Err(miette::miette!("Failed to read {workflows_display}: {error}"));
         }
     };
-    let mut queue = entries
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| {
-            matches!(path.extension().and_then(|ext| ext.to_str()), Some("yml" | "yaml"))
-        })
-        .collect::<VecDeque<_>>();
+    let mut queue = VecDeque::new();
+    while let Some(entry) = entries
+        .next_entry()
+        .await
+        .map_err(|error| miette::miette!("Failed to read {workflows_display}: {error}"))?
+    {
+        let path = entry.path();
+        if matches!(path.extension().and_then(|ext| ext.to_str()), Some("yml" | "yaml")) {
+            queue.push_back(path);
+        }
+    }
     let mut visited = HashSet::new();
     let mut actions = Vec::new();
     while let Some(file) = queue.pop_front() {
@@ -191,6 +201,7 @@ fn discover(root: &Path) -> miette::Result<Vec<ActionReference>> {
         }
         let file_display = file.display();
         let text = fs::read_to_string(&file)
+            .await
             .map_err(|error| miette::miette!("Failed to read {file_display}: {error}"))?;
         for uses_value in uses_values(&text) {
             let original_value = uses_value.value;
@@ -200,18 +211,20 @@ fn discover(root: &Path) -> miette::Result<Vec<ActionReference>> {
                 let candidate = if matches!(
                     target.extension().and_then(|ext| ext.to_str()),
                     Some("yml" | "yaml"),
-                ) && target.is_file()
+                ) && is_file(&target).await
                 {
                     Some(target)
-                } else if target.join("action.yml").is_file() {
-                    Some(target.join("action.yml"))
-                } else if target.join("action.yaml").is_file() {
-                    Some(target.join("action.yaml"))
                 } else {
-                    None
+                    let action_yml = target.join("action.yml");
+                    if is_file(&action_yml).await {
+                        Some(action_yml)
+                    } else {
+                        let action_yaml = target.join("action.yaml");
+                        is_file(&action_yaml).await.then_some(action_yaml)
+                    }
                 };
                 if let Some(candidate) = candidate
-                    && let Ok(candidate) = fs::canonicalize(candidate)
+                    && let Ok(candidate) = fs::canonicalize(candidate).await
                     && candidate.starts_with(&canonical_root)
                 {
                     queue.push_back(candidate);
@@ -240,6 +253,10 @@ fn discover(root: &Path) -> miette::Result<Vec<ActionReference>> {
         }
     }
     Ok(actions)
+}
+
+async fn is_file(path: &Path) -> bool {
+    fs::metadata(path).await.is_ok_and(|metadata| metadata.is_file())
 }
 
 fn split_uses_value(value: &str) -> (&str, Option<&str>) {

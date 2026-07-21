@@ -3121,9 +3121,15 @@ importers:
 
   pnpm11/deps/github-actions:
     dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       '@pnpm/resolving.git-resolver':
         specifier: workspace:*
         version: link:../../resolving/git-resolver
+      p-limit:
+        specifier: 'catalog:'
+        version: 7.3.0
       semver:
         specifier: 'catalog:'
         version: 7.8.5

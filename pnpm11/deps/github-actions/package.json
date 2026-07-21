@@ -32,7 +32,9 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/error": "workspace:*",
     "@pnpm/resolving.git-resolver": "workspace:*",
+    "p-limit": "catalog:",
     "semver": "catalog:",
     "yaml": "catalog:"
   },
