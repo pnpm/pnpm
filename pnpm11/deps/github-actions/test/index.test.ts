@@ -71,10 +71,15 @@ describe('GitHub Actions dependencies', () => {
   test('updates within the current major and preserves SHA comments and unrelated formatting', async () => {
     const dir = await fixture({
       '.github/workflows/ci.yml': `name: CI
+
 jobs:
   test:
+    strategy: { matrix: { node: [22, 24] } }
     steps:
       - uses: 'actions/checkout@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' # v4.1.0 # keep
+      - name: nested input
+        with:
+          uses: actions/checkout@v4
       - uses: owner/floating@v2
 `,
     })
@@ -96,10 +101,15 @@ jobs:
     })
 
     await expect(fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')).resolves.toBe(`name: CI
+
 jobs:
   test:
+    strategy: { matrix: { node: [22, 24] } }
     steps:
       - uses: 'actions/checkout@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' # v4.2.0 # keep
+      - name: nested input
+        with:
+          uses: actions/checkout@v4
       - uses: owner/floating@dddddddddddddddddddddddddddddddddddddddd # v2.1.0
 `)
   })

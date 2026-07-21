@@ -254,6 +254,7 @@ fn uses_values(text: &str) -> Vec<UsesValue<'_>> {
     let mut values = Vec::new();
     let mut offset = 0;
     let mut block_scalar_indent = None;
+    let mut path = Vec::new();
     for segment in text.split_inclusive('\n') {
         let line = segment.trim_end_matches(['\r', '\n']);
         let indentation = line.len() - line.trim_start_matches(' ').len();
@@ -265,6 +266,13 @@ fn uses_values(text: &str) -> Vec<UsesValue<'_>> {
             }
             block_scalar_indent = None;
         }
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            offset += segment.len();
+            continue;
+        }
+        while path.last().is_some_and(|(parent_indent, _)| indentation <= *parent_indent) {
+            path.pop();
+        }
 
         let (entry, entry_offset) =
             trimmed.strip_prefix("- ").map_or((trimmed, line.len() - trimmed.len()), |entry| {
@@ -274,14 +282,18 @@ fn uses_values(text: &str) -> Vec<UsesValue<'_>> {
             offset += segment.len();
             continue;
         };
-        let key = &entry[..separator];
+        let key = normalize_yaml_key(&entry[..separator]);
         let untrimmed_value = &entry[separator + 1..];
         let leading_whitespace = untrimmed_value.len() - untrimmed_value.trim_start().len();
         let raw_value = untrimmed_value.trim_start();
         if raw_value.starts_with(['|', '>']) {
             block_scalar_indent = Some(indentation);
         }
-        if !matches!(key.trim(), "uses" | "'uses'" | r#""uses""#) || raw_value.is_empty() {
+        let is_action_uses = key == "uses" && is_action_uses_path(&path);
+        if key != "uses" && (raw_value.is_empty() || raw_value.starts_with('#')) {
+            path.push((indentation, key));
+        }
+        if !is_action_uses || raw_value.is_empty() {
             offset += segment.len();
             continue;
         }
@@ -291,6 +303,20 @@ fn uses_values(text: &str) -> Vec<UsesValue<'_>> {
         offset += segment.len();
     }
     values
+}
+
+fn normalize_yaml_key(key: &str) -> &str {
+    let key = key.trim();
+    key.strip_prefix('\'')
+        .and_then(|key| key.strip_suffix('\''))
+        .or_else(|| key.strip_prefix('"').and_then(|key| key.strip_suffix('"')))
+        .unwrap_or(key)
+}
+
+fn is_action_uses_path(path: &[(usize, &str)]) -> bool {
+    (path.len() == 2 && path[0].1 == "jobs")
+        || (path.len() == 3 && path[0].1 == "jobs" && path[2].1 == "steps")
+        || (path.len() == 2 && path[0].1 == "runs" && path[1].1 == "steps")
 }
 
 fn parse_repo_versions(stdout: &str) -> Vec<RepoVersion> {

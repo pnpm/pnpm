@@ -4,7 +4,7 @@ import util from 'node:util'
 
 import { getRepoRefs } from '@pnpm/resolving.git-resolver'
 import semver from 'semver'
-import YAML, { type Document, isMap, isNode, isScalar, isSeq, type Node, type Scalar } from 'yaml'
+import YAML, { isMap, isNode, isScalar, isSeq, type Node, type Scalar } from 'yaml'
 
 export interface OutdatedGitHubAction {
   current: string
@@ -32,14 +32,15 @@ interface ActionReference {
   commentVersion?: string
   file: ActionFile
   name: string
-  node: Scalar<string>
+  originalValue: string
+  range: readonly [number, number]
   ref: string
   repo: string
 }
 
 interface ActionFile {
-  document: Document
   path: string
+  source: string
 }
 
 interface RepoVersion {
@@ -87,14 +88,24 @@ export async function updateGitHubActions (
     return semver.lte(plan.current.version, target.version) &&
       (plan.action.ref !== target.commit || plan.action.commentVersion !== target.tag)
   })
-  const changedFiles = new Set<ActionFile>()
+  const edits = new Map<ActionFile, Array<{ range: readonly [number, number], value: string }>>()
   for (const plan of updates) {
     const target = opts.latest ? plan.latest : plan.wanted
-    plan.action.node.value = `${plan.action.name}@${renderTargetRef(target)}`
-    updateVersionComment(plan.action.node, plan.action.commentVersion, target)
-    changedFiles.add(plan.action.file)
+    const replacements = edits.get(plan.action.file) ?? []
+    replacements.push({
+      range: plan.action.range,
+      value: renderTargetValue(plan.action, target),
+    })
+    edits.set(plan.action.file, replacements)
   }
-  await Promise.all([...changedFiles].map(async (file) => fs.writeFile(file.path, file.document.toString())))
+  await Promise.all([...edits].map(async ([file, replacements]) => {
+    let source = file.source
+    replacements.sort((left, right) => right.range[0] - left.range[0])
+    for (const replacement of replacements) {
+      source = source.slice(0, replacement.range[0]) + replacement.value + source.slice(replacement.range[1])
+    }
+    await fs.writeFile(file.path, source)
+  }))
   return dedupeOutdated(updates.map((plan) => {
     const target = opts.latest ? plan.latest : plan.wanted
     return {
@@ -151,10 +162,11 @@ async function discoverActions (dir: string): Promise<ActionReference[]> {
     if (visited.has(filePath)) return
     visited.add(filePath)
     const source = await fs.readFile(filePath, 'utf8')
-    const file = { document: YAML.parseDocument(source), path: filePath }
-    if (file.document.errors.length > 0) throw file.document.errors[0]
+    const document = YAML.parseDocument(source)
+    if (document.errors.length > 0) throw document.errors[0]
+    const file = { path: filePath, source }
     const localReferences: string[] = []
-    for (const node of findUsesScalars(file.document.contents)) {
+    for (const node of findUsesScalars(document.contents)) {
       const value = node.value
       if (value.startsWith('./')) {
         localReferences.push(value)
@@ -162,11 +174,14 @@ async function discoverActions (dir: string): Promise<ActionReference[]> {
       }
       const parsed = parseActionReference(value)
       if (parsed == null) continue
+      if (node.range == null) throw new Error(`Missing source range for GitHub Action in ${filePath}`)
+      const end = trimLineBreak(source, node.range[2] ?? node.range[1])
       actions.push({
         ...parsed,
         commentVersion: getCommentVersion(node),
         file,
-        node,
+        originalValue: source.slice(node.range[0], end),
+        range: [node.range[0], end],
       })
     }
     const localFiles = await Promise.all(localReferences.map(async (reference) => resolveLocalReference(dir, reference)))
@@ -175,22 +190,42 @@ async function discoverActions (dir: string): Promise<ActionReference[]> {
 }
 
 function findUsesScalars (node: Node | null | undefined): Array<Scalar<string>> {
-  if (node == null) return []
-  if (isMap(node)) {
-    const found: Array<Scalar<string>> = []
-    for (const pair of node.items) {
-      if (isScalar(pair.key) && pair.key.value === 'uses' && isScalar(pair.value) && typeof pair.value.value === 'string') {
-        found.push(pair.value as Scalar<string>)
-      } else if (isNode(pair.value)) {
-        found.push(...findUsesScalars(pair.value))
-      }
+  if (!isMap(node)) return []
+  const found: Array<Scalar<string>> = []
+  const jobs = findMapValue(node, 'jobs')
+  if (isMap(jobs)) {
+    for (const job of jobs.items) {
+      if (!isMap(job.value)) continue
+      const jobUses = findStringScalar(job.value, 'uses')
+      if (jobUses != null) found.push(jobUses)
+      found.push(...findStepUses(findMapValue(job.value, 'steps')))
     }
-    return found
   }
-  if (isSeq(node)) {
-    return node.items.flatMap((item) => isNode(item) ? findUsesScalars(item) : [])
+  const runs = findMapValue(node, 'runs')
+  if (isMap(runs)) {
+    found.push(...findStepUses(findMapValue(runs, 'steps')))
   }
-  return []
+  return found
+}
+
+function findStepUses (node: Node | null): Array<Scalar<string>> {
+  if (!isSeq(node)) return []
+  return node.items.flatMap((item) => {
+    if (!isMap(item)) return []
+    const uses = findStringScalar(item, 'uses')
+    return uses == null ? [] : [uses]
+  })
+}
+
+function findMapValue (node: Node, key: string): Node | null {
+  if (!isMap(node)) return null
+  const value = node.items.find((pair) => isScalar(pair.key) && pair.key.value === key)?.value
+  return isNode(value) ? value : null
+}
+
+function findStringScalar (node: Node, key: string): Scalar<string> | null {
+  const value = findMapValue(node, key)
+  return isScalar(value) && typeof value.value === 'string' ? value as Scalar<string> : null
 }
 
 async function resolveLocalReference (rootDir: string, reference: string): Promise<string | null> {
@@ -265,21 +300,24 @@ function findCurrentVersion (action: ActionReference, versions: RepoVersion[]): 
   return null
 }
 
-function renderTargetRef (target: RepoVersion): string {
-  return target.commit
-}
-
 function getCommentVersion (node: Scalar<string>): string | undefined {
   const candidate = node.comment?.trimStart().split(/\s/, 1)[0]
   return candidate != null && semver.valid(candidate, { loose: true }) != null ? candidate : undefined
 }
 
-function updateVersionComment (node: Scalar<string>, previousVersion: string | undefined, target: RepoVersion): void {
-  if (previousVersion != null && node.comment != null) {
-    node.comment = node.comment.replace(previousVersion, target.tag)
-  } else {
-    node.comment = ` ${target.tag}${node.comment == null ? '' : ` ${node.comment.trimStart()}`}`
-  }
+function renderTargetValue (action: ActionReference, target: RepoVersion): string {
+  const oldReference = `${action.name}@${action.ref}`
+  const newReference = `${action.name}@${target.commit}`
+  let value = action.originalValue.replace(oldReference, newReference)
+  if (action.commentVersion != null) return value.replace(action.commentVersion, target.tag)
+  const comment = value.indexOf(' #')
+  if (comment === -1) return `${value} # ${target.tag}`
+  return `${value.slice(0, comment + 2)}${target.tag} ${value.slice(comment + 2).trimStart()}`
+}
+
+function trimLineBreak (source: string, end: number): number {
+  while (end > 0 && (source[end - 1] === '\n' || source[end - 1] === '\r')) end--
+  return end
 }
 
 function dedupeOutdated (actions: OutdatedGitHubAction[]): OutdatedGitHubAction[] {
