@@ -66,8 +66,33 @@ export function getOptionsFromPnpmSettings (
       settings.patchedDependencies[dep] = path.join(manifestDir, patchFile)
     }
   }
+  translateUpdateSettings(pnpmSettings, settings)
 
   return settings
+}
+
+/**
+ * Translates the user-facing `update` settings section into the internal
+ * `updateConfig` shape that the rest of pnpm reads, and removes the raw
+ * `update` key from the returned options.
+ *
+ * The removal is load-bearing: these options are merged into the global config,
+ * where `update` is the boolean flag that turns an install into an update. A
+ * leaked `update` object would be truthy and make a plain `pnpm install` behave
+ * like `pnpm update`.
+ *
+ * `updateConfig` is the deprecated spelling, kept working until the next major.
+ * When both are set, `update` wins.
+ */
+function translateUpdateSettings (pnpmSettings: PnpmSettings, settings: OptionsFromRootManifest): void {
+  delete (settings as { update?: unknown }).update
+  if (pnpmSettings.update == null) return
+  if (pnpmSettings.updateConfig != null) {
+    globalWarn('Both the "update" and "updateConfig" settings are set. The deprecated "updateConfig" setting is ignored in favor of "update".')
+  }
+  settings.updateConfig = pnpmSettings.update.ignore != null
+    ? { ignoreDependencies: pnpmSettings.update.ignore }
+    : {}
 }
 
 function isGetOptionsFromPnpmSettingsOptions (

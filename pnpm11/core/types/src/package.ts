@@ -178,6 +178,13 @@ export interface AuditConfig {
   ignoreGhsas?: string[]
 }
 
+export interface UpdateSettings {
+  /**
+   * Package name patterns that `pnpm update` and `pnpm outdated` should skip.
+   */
+  ignore?: string[]
+}
+
 export interface PnpmSettings {
   npmrcAuthFile?: string
   registries?: Registries
@@ -191,6 +198,11 @@ export interface PnpmSettings {
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
   allowUnusedPatches?: boolean
   patchedDependencies?: Record<string, string>
+  update?: UpdateSettings
+  /**
+   * @deprecated Use {@link PnpmSettings.update} instead. Kept for backward
+   * compatibility until the next major version.
+   */
   updateConfig?: {
     ignoreDependencies?: string[]
   }
