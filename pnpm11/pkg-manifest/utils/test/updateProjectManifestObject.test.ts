@@ -1,5 +1,10 @@
 import { expect, test } from '@jest/globals'
-import { guessDependencyType, updateProjectManifestObject } from '@pnpm/pkg-manifest.utils'
+import { createVersionSpecFromResolvedVersion, guessDependencyType, updateProjectManifestObject } from '@pnpm/pkg-manifest.utils'
+
+test('createVersionSpecFromResolvedVersion() keeps the explicit equals operator of an exact pin', () => {
+  expect(createVersionSpecFromResolvedVersion('3.5.2', 'exact')).toBe('=3.5.2')
+  expect(createVersionSpecFromResolvedVersion('3.5.2', 'patch')).toBe('3.5.2')
+})
 
 test('guessDependencyType()', () => {
   expect(
