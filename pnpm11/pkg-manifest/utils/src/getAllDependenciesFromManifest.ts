@@ -1,13 +1,13 @@
-import type { Dependencies, DependenciesField, ProjectManifest } from '@pnpm/types'
+import type { Dependencies, DependenciesOrPeersField, ProjectManifest } from '@pnpm/types'
 
 export function getAllDependenciesFromManifest (
-  pkg: Pick<ProjectManifest, DependenciesField | 'peerDependencies'>,
+  manifest: Pick<ProjectManifest, DependenciesOrPeersField>,
   opts?: { autoInstallPeers?: boolean }
 ): Dependencies {
   return {
-    ...pkg.devDependencies,
-    ...pkg.dependencies,
-    ...pkg.optionalDependencies,
-    ...(opts?.autoInstallPeers ? pkg.peerDependencies : {}),
-  } as Dependencies
+    ...(opts?.autoInstallPeers ? manifest.peerDependencies : {}),
+    ...manifest.devDependencies,
+    ...manifest.dependencies,
+    ...manifest.optionalDependencies,
+  }
 }
