@@ -1,7 +1,7 @@
 use super::{
     Change, DependentProject, OutdatedDependencyOptions, OutdatedInWorkspace, OutdatedPackage,
     PackumentCache, classify, current_versions_from_importer, fetch_package_cached,
-    render_dependents, render_json, render_latest, sort_outdated,
+    render_dependents, render_json, render_latest, render_recursive_json, sort_outdated,
 };
 use node_semver::Version;
 use pacquet_config::Config;
@@ -10,6 +10,9 @@ use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::DependencyGroup;
 use std::{collections::HashMap, path::PathBuf};
 use text_block_macros::text_block;
+
+#[cfg(unix)]
+use std::{ffi::OsString, os::unix::ffi::OsStringExt};
 
 fn v(text: &str) -> Version {
     text.parse().expect("parse semver")
@@ -170,6 +173,22 @@ fn dependent_names_are_sanitized_for_terminal_output() {
     };
 
     assert_eq!(render_dependents(&entry), "app[2J");
+}
+
+#[cfg(unix)]
+#[test]
+fn recursive_json_replaces_invalid_utf8_in_locations() {
+    let entry = OutdatedInWorkspace {
+        package: pkg("foo", "1.0.0", "2.0.0", DependencyGroup::Prod),
+        dependents: vec![DependentProject {
+            name: "app".to_string(),
+            location: PathBuf::from(OsString::from_vec(b"packages/\xff-app".to_vec())),
+        }],
+    };
+
+    let value: serde_json::Value =
+        serde_json::from_str(&render_recursive_json(&[entry], false)).expect("valid JSON");
+    assert_eq!(value["foo"]["dependentPackages"][0]["location"], "packages/�-app");
 }
 
 #[tokio::test]

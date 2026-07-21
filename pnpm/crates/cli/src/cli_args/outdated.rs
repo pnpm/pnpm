@@ -896,7 +896,7 @@ fn render_recursive_json(outdated: &[OutdatedInWorkspace], long: bool) -> String
             "dependencyType": dependency_type,
             "dependentPackages": entry.dependents.iter().map(|dependent| serde_json::json!({
                 "name": dependent.name,
-                "location": dependent.location,
+                "location": dependent.location.to_string_lossy(),
             })).collect::<Vec<_>>(),
         });
         if long {
