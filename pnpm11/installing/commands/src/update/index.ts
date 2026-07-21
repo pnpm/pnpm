@@ -23,6 +23,7 @@ import type { InstallCommandOptions } from '../install.js'
 import { createVulnerabilityUpdateMatching, installDeps } from '../installDeps.js'
 import { parseUpdateParam } from '../recursive.js'
 import { createGlobalPolicyCallbacks } from '../resolutionPolicyManifest.js'
+import { captureUpdateChangesetContext, generateUpdateChangeset } from './generateUpdateChangeset.js'
 import { getUpdateChoices } from './getUpdateChoices.js'
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
@@ -79,6 +80,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...rcOptionsTypes(),
+    changeset: Boolean,
     interactive: Boolean,
     latest: Boolean,
     recursive: Boolean,
@@ -154,6 +156,10 @@ dependencies is not found inside the workspace',
             shortAlias: '-i',
           },
           {
+            description: 'Generate a changeset file declaring a patch bump for every workspace package whose production dependencies were changed by the update',
+            name: '--changeset',
+          },
+          {
             description: 'Don\'t update the ranges in package.json.',
             name: '--no-save',
           },
@@ -169,6 +175,7 @@ dependencies is not found inside the workspace',
 }
 
 export type UpdateCommandOptions = InstallCommandOptions & {
+  changeset?: boolean
   include?: IncludedDependencies
   interactive?: boolean
   latest?: boolean
@@ -321,6 +328,7 @@ async function update (
   ) {
     updateMatching = createMatcher(dependencies)
   }
+  const changesetContext = opts.changeset ? await captureUpdateChangesetContext(opts) : undefined
   await installDeps({
     ...opts,
     rebuildHandler,
@@ -338,6 +346,9 @@ async function update (
     // `dry-run` turn `update` into a no-op check.
     dryRun: false,
   }, dependencies)
+  if (changesetContext != null) {
+    await generateUpdateChangeset(changesetContext)
+  }
 }
 
 function makeIncludeDependenciesFromCLI (opts: {
