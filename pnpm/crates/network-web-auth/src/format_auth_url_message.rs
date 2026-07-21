@@ -9,6 +9,7 @@ use crate::{generate_qr_code::generate_qr_code, global_log::global_warn};
 /// convenience, so a QR generation failure (e.g. a URL exceeding the
 /// maximum QR data capacity) downgrades to a global warning and a URL-only
 /// message instead of aborting the authentication flow.
+#[must_use]
 pub fn format_auth_url_message<Reporter: self::Reporter>(auth_url: &str) -> String {
     match generate_qr_code(auth_url) {
         Ok(qr_code) => format!("Authenticate your account at:\n{auth_url}\n\n{qr_code}"),
