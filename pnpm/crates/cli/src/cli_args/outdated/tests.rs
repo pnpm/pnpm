@@ -1,12 +1,18 @@
 use super::{
-    Change, OutdatedDependencyOptions, OutdatedPackage, classify, current_versions_from_importer,
-    render_json, render_latest, sort_outdated,
+    Change, DependentProject, OutdatedDependencyOptions, OutdatedInWorkspace, OutdatedPackage,
+    PackumentCache, classify, current_versions_from_importer, fetch_package_cached,
+    render_dependents, render_json, render_latest, render_recursive_json, sort_outdated,
 };
 use node_semver::Version;
+use pacquet_config::Config;
 use pacquet_lockfile::Lockfile;
+use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::DependencyGroup;
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 use text_block_macros::text_block;
+
+#[cfg(unix)]
+use std::{ffi::OsString, os::unix::ffi::OsStringExt};
 
 fn v(text: &str) -> Version {
     text.parse().expect("parse semver")
@@ -154,4 +160,133 @@ fn json_report_long_includes_latest_manifest() {
     assert_eq!(manifest["deprecated"], "do not use");
     assert_eq!(manifest["homepage"], "https://example.com");
     assert_eq!(value["foo"]["isDeprecated"], true);
+}
+
+#[test]
+fn dependent_names_are_sanitized_for_terminal_output() {
+    let entry = OutdatedInWorkspace {
+        package: pkg("foo", "1.0.0", "2.0.0", DependencyGroup::Prod),
+        dependents: vec![DependentProject {
+            name: "app\n\t\u{1b}[2J".to_string(),
+            location: PathBuf::from("packages/app"),
+        }],
+    };
+
+    assert_eq!(render_dependents(&entry), "app[2J");
+}
+
+#[cfg(unix)]
+#[test]
+fn recursive_json_replaces_invalid_utf8_in_locations() {
+    let entry = OutdatedInWorkspace {
+        package: pkg("foo", "1.0.0", "2.0.0", DependencyGroup::Prod),
+        dependents: vec![DependentProject {
+            name: "app".to_string(),
+            location: PathBuf::from(OsString::from_vec(b"packages/\xff-app".to_vec())),
+        }],
+    };
+
+    let value: serde_json::Value =
+        serde_json::from_str(&render_recursive_json(&[entry], false)).expect("valid JSON");
+    assert_eq!(value["foo"]["dependentPackages"][0]["location"], "packages/�-app");
+}
+
+#[tokio::test]
+async fn packument_cache_deduplicates_concurrent_fetches() {
+    let mut server = mockito::Server::new_async().await;
+    let package = server
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{ "name": "foo", "dist-tags": {}, "versions": {} }"#)
+        .expect(1)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let config = Config::new();
+    let client = ThrottledClient::default();
+    let cache = PackumentCache::default();
+    let first_fetch = fetch_package_cached(&cache, "foo", &client, &registry, &config.auth_headers);
+    let second_fetch =
+        fetch_package_cached(&cache, "foo", &client, &registry, &config.auth_headers);
+
+    let (first, second) = tokio::join!(first_fetch, second_fetch);
+
+    assert_eq!(first.expect("first fetch").name, "foo");
+    assert_eq!(second.expect("second fetch").name, "foo");
+    package.assert_async().await;
+}
+
+#[tokio::test]
+async fn packument_cache_does_not_memoize_failures() {
+    let mut server = mockito::Server::new_async().await;
+    let failed_request = server
+        .mock("GET", "/foo")
+        .with_status(500)
+        .with_body("not package metadata")
+        .expect(1)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let config = Config::new();
+    let client = ThrottledClient::default();
+    let cache = PackumentCache::default();
+
+    assert!(
+        fetch_package_cached(&cache, "foo", &client, &registry, &config.auth_headers)
+            .await
+            .is_err(),
+    );
+    failed_request.assert_async().await;
+    failed_request.remove_async().await;
+
+    let successful_request = server
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{ "name": "foo", "dist-tags": {}, "versions": {} }"#)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let package = fetch_package_cached(&cache, "foo", &client, &registry, &config.auth_headers)
+        .await
+        .expect("retry package fetch");
+    assert_eq!(package.name, "foo");
+    successful_request.assert_async().await;
+}
+
+#[tokio::test]
+async fn packument_cache_recovers_from_poisoning() {
+    let mut server = mockito::Server::new_async().await;
+    let package = server
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{ "name": "foo", "dist-tags": {}, "versions": {} }"#)
+        .expect(1)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let config = Config::new();
+    let client = ThrottledClient::default();
+    let cache = PackumentCache::default();
+
+    std::thread::scope(|scope| {
+        assert!(
+            scope
+                .spawn(|| {
+                    let _guard = cache.lock().expect("lock packument cache");
+                    panic!("poison packument cache");
+                })
+                .join()
+                .is_err(),
+        );
+    });
+
+    let fetched = fetch_package_cached(&cache, "foo", &client, &registry, &config.auth_headers)
+        .await
+        .expect("fetch package after cache poisoning");
+    assert_eq!(fetched.name, "foo");
+    package.assert_async().await;
 }

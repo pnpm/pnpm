@@ -88,6 +88,7 @@ fn run_cli() -> miette::Result<()> {
         err.exit();
     }
     args.promote_recursive_for_filter();
+    args.promote_recursive_by_default();
     if let Some(plan) = cli_args::switch_cli_version::switch_plan(&args, &config_overrides)?
         && block_on_runtime(
             "pacquet-switch",

@@ -293,6 +293,58 @@ fn no_filter_leaves_recursive_untouched() {
 }
 
 #[test]
+fn recursive_by_default_command_is_promoted_inside_workspace() {
+    let workspace = tempfile::tempdir().expect("creates workspace");
+    std::fs::write(workspace.path().join("pnpm-workspace.yaml"), "packages: []\n")
+        .expect("writes workspace manifest");
+    let mut parsed = CliArgs::try_parse_from([
+        "pacquet",
+        "--dir",
+        workspace.path().to_str().expect("UTF-8 path"),
+        "list",
+    ])
+    .expect("parses");
+
+    parsed.promote_recursive_by_default();
+
+    assert!(parsed.recursive);
+}
+
+#[test]
+fn recursive_by_default_command_stays_non_recursive_outside_workspace() {
+    let project = tempfile::tempdir().expect("creates project");
+    let mut parsed = CliArgs::try_parse_from([
+        "pacquet",
+        "--dir",
+        project.path().to_str().expect("UTF-8 path"),
+        "list",
+    ])
+    .expect("parses");
+
+    parsed.promote_recursive_by_default();
+
+    assert!(!parsed.recursive);
+}
+
+#[test]
+fn commands_without_recursive_by_default_stay_non_recursive_in_workspace() {
+    let workspace = tempfile::tempdir().expect("creates workspace");
+    std::fs::write(workspace.path().join("pnpm-workspace.yaml"), "packages: []\n")
+        .expect("writes workspace manifest");
+    let mut parsed = CliArgs::try_parse_from([
+        "pacquet",
+        "--dir",
+        workspace.path().to_str().expect("UTF-8 path"),
+        "outdated",
+    ])
+    .expect("parses");
+
+    parsed.promote_recursive_by_default();
+
+    assert!(!parsed.recursive);
+}
+
+#[test]
 fn runtime_alias_and_flags_parse() {
     let parsed = CliArgs::try_parse_from(["pacquet", "rt", "set", "node", "22", "-P"])
         .expect("parses runtime alias");

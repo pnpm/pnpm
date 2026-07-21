@@ -242,6 +242,17 @@ impl CliArgs {
         }
     }
 
+    /// Promote commands marked recursive-by-default by pnpm when they run
+    /// inside a workspace.
+    pub fn promote_recursive_by_default(&mut self) {
+        if !self.recursive
+            && self.command.recursive_by_default()
+            && pacquet_workspace::find_workspace_dir(&self.dir).is_ok_and(|dir| dir.is_some())
+        {
+            self.recursive = true;
+        }
+    }
+
     /// `restart` also runs scripts and accepts its own `--if-present`,
     /// so the top-level spelling is valid for it too — unlike the
     /// recursive-only flags, which `restart` rejects. `exec` is the
@@ -493,6 +504,10 @@ pub enum CliCommand {
 }
 
 impl CliCommand {
+    fn recursive_by_default(&self) -> bool {
+        matches!(self, CliCommand::List(_) | CliCommand::Ll(_))
+    }
+
     pub(crate) fn default_reporter_summary_scope(&self) -> SummaryScope {
         match self {
             CliCommand::Access(_) => SummaryScope::CurrentPrefix,
