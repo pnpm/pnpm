@@ -500,10 +500,10 @@ fn npm_style_bump_in_a_workspace_without_recursive_bumps_only_the_root() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("my-workspace: 1.0.0 → 1.0.1"), "{stdout}");
     assert_eq!(manifest_version(&workspace), "1.0.1");
-    // Workspace members are untouched without --recursive…
+    // Workspace members are untouched without --recursive...
     assert_eq!(manifest_version(&pkg_a), "1.0.0");
     assert_eq!(manifest_version(&pkg_b), "2.3.0");
-    // …and the pending change intent is neither consumed nor deleted.
+    // ...and the pending change intent is neither consumed nor deleted.
     assert!(intent.exists(), "the change intent must survive an npm-style bump");
     drop(root);
 }
