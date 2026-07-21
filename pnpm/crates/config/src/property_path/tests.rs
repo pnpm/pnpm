@@ -40,6 +40,25 @@ fn parses_scoped_package_keys() {
 }
 
 #[test]
+fn parses_hyphenated_package_keys() {
+    // npm pkg get/set style paths with hyphenated dependency names (#13163)
+    assert_eq!(
+        keys("dependencies.replicad-evaluator"),
+        vec![
+            Segment::Key("dependencies".into()),
+            Segment::Key("replicad-evaluator".into()),
+        ],
+    );
+    assert_eq!(
+        keys("devDependencies.some-package-name"),
+        vec![
+            Segment::Key("devDependencies".into()),
+            Segment::Key("some-package-name".into()),
+        ],
+    );
+}
+
+#[test]
 fn parse_errors() {
     assert_eq!(
         parse_property_path("foo..bar"),

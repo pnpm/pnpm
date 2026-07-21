@@ -27,6 +27,9 @@ test('valid property path', () => {
   expect(Array.from(parsePropertyPath('.a.b.c.d'))).toStrictEqual(['a', 'b', 'c', 'd'])
   expect(Array.from(parsePropertyPath('a .b .c .d'))).toStrictEqual(['a', 'b', 'c', 'd'])
   expect(Array.from(parsePropertyPath('.a .b .c .d'))).toStrictEqual(['a', 'b', 'c', 'd'])
+  // package names with hyphens (npm pkg get/set compatible) (#13163)
+  expect(Array.from(parsePropertyPath('dependencies.replicad-evaluator'))).toStrictEqual(['dependencies', 'replicad-evaluator'])
+  expect(Array.from(parsePropertyPath('devDependencies.some-package-name'))).toStrictEqual(['devDependencies', 'some-package-name'])
 })
 
 test('invalid property path', () => {
