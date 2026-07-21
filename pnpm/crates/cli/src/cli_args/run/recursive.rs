@@ -299,7 +299,7 @@ fn run_project(options: RunProjectOptions<'_, '_>) -> miette::Result<ProjectExec
         silent,
     } = options;
     let manifest = &graph[root].package.project.manifest;
-    let specified = selector.select(manifest.value());
+    let specified = selector.select(manifest.value(), args.sequential);
     if specified.is_empty() {
         let mut status = ExecutionStatus::queued();
         status.status = Status::Skipped;

@@ -171,7 +171,7 @@ impl RunArgs {
             Err(err) => return Err(RunError::Manifest(err).into()),
         };
 
-        let mut specified = ScriptSelector::new(script_name)?.select_with_start(manifest.value());
+        let mut specified = ScriptSelector::new(script_name)?.select_with_start(manifest.value(), self.sequential);
 
         // Hidden scripts (names starting with `.`) can only be invoked
         // from within another script, detected by an inherited
@@ -486,7 +486,7 @@ impl<'a> ScriptSelector<'a> {
 
     /// The script names this selector picks out of `manifest`: an exact
     /// match wins, otherwise every script the pattern matches.
-    pub(super) fn select(&self, manifest: &Value) -> Vec<String> {
+    pub(super) fn select(&self, manifest: &Value, sequential: bool) -> Vec<String> {
         let scripts = manifest.get("scripts").and_then(Value::as_object);
         let has_script = scripts
             .and_then(|scripts| scripts.get(self.name))
@@ -499,15 +499,19 @@ impl<'a> ScriptSelector<'a> {
         let (Some(pattern), Some(scripts)) = (self.pattern.as_ref(), scripts) else {
             return Vec::new();
         };
-        scripts.keys().filter(|script| pattern.is_match(script)).cloned().collect()
+        let mut keys: Vec<String> = scripts.keys().filter(|script| pattern.is_match(script)).cloned().collect();
+        if !sequential {
+            keys.sort();
+        }
+        keys
     }
 
     /// [`Self::select`] plus single-project `run`'s `start` fallback:
     /// `pnpm start` resolves to `node server.js` even when the manifest
     /// declares no `start` script. The recursive runner has no such
     /// fallback.
-    fn select_with_start(&self, manifest: &Value) -> Vec<String> {
-        let specified = self.select(manifest);
+    fn select_with_start(&self, manifest: &Value, sequential: bool) -> Vec<String> {
+        let specified = self.select(manifest, sequential);
         if !specified.is_empty() {
             return specified;
         }
