@@ -18,7 +18,7 @@ import type { Project, ProjectsGraph } from '@pnpm/types'
 import { safeExeca as execa } from 'execa'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
-import { coerce, inc, valid } from 'semver'
+import { inc, valid } from 'semver'
 
 import { renderReleasePlan, toWorkspaceProjects } from '../change/index.js'
 import { changelogHasSection, fetchPublishedChangelog } from '../publish/previousChangelog.js'
@@ -301,9 +301,16 @@ function buildVerifyPublished (opts: VersionHandlerOptions): ApplyReleasePlanOpt
 }
 
 async function versionFromGit (cwd: string, tagVersionPrefix = 'v'): Promise<string> {
-  const { stdout } = await execa('git', ['describe', '--tags', '--abbrev=0', '--match=' + tagVersionPrefix + '*.*.*'], { cwd })
-  const tag = typeof stdout === 'string' ? stdout.trim() : ''
-  const version = coerce(tag, { loose: true, includePrerelease: true })?.version
+  let tag: string
+  try {
+    const { stdout } = await execa('git', ['describe', '--tags', '--abbrev=0', '--match=' + tagVersionPrefix + '*.*.*'], { cwd })
+    tag = typeof stdout === 'string' ? stdout.trim() : ''
+  } catch {
+    throw new PnpmError('INVALID_VERSION_FROM_GIT', 'No matching Git tag found in ' + JSON.stringify(cwd) + ' for prefix: ' + JSON.stringify(tagVersionPrefix))
+  }
+  const version = tag.startsWith(tagVersionPrefix)
+    ? valid(tag.slice(tagVersionPrefix.length))
+    : null
   if (!version) {
     throw new PnpmError('INVALID_VERSION_FROM_GIT', 'Tag is not a valid version: ' + JSON.stringify(tag))
   }

@@ -327,6 +327,30 @@ fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\
       expect(updated.version).toBe('2.3.4')
     })
 
+    it('should throw a pnpm error when no matching git tag exists', async () => {
+      await expect(
+        handler({
+          dir: tempDir,
+          workspaceDir: tempDir,
+          gitChecks: false,
+          gitTagVersion: false,
+        } as any, ['from-git']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_VERSION_FROM_GIT' })
+    })
+
+    it('should reject a malformed version tag', async () => {
+      await execa('git', ['tag', 'v-release-2.3.4'], { cwd: tempDir })
+
+      await expect(
+        handler({
+          dir: tempDir,
+          workspaceDir: tempDir,
+          gitChecks: false,
+          gitTagVersion: false,
+        } as any, ['from-git']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_VERSION_FROM_GIT' })
+    })
+
     it('should use tagVersionPrefix with from-git', async () => {
       await execa('git', ['tag', 'release-4.5.6'], { cwd: tempDir })
       fs.writeFileSync(path.join(tempDir, 'new-file.txt'), 'new commit')
