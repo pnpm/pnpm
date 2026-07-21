@@ -124,13 +124,13 @@ async fn is_version_published(config: &Config, name: &str, version: &str) -> mie
         request = request.header("authorization", value);
     }
     let response = request.send().await.into_diagnostic()?;
-    if response.status().as_u16() == 404 {
+    let status = response.status();
+    if status.as_u16() == 404 {
         return Ok(false);
     }
-    if !response.status().is_success() {
+    if !status.is_success() {
         return Err(miette::miette!(
-            "registry returned status {} for {url} while checking whether {name}@{version} is published",
-            response.status(),
+            "registry returned status {status} for {url} while checking whether {name}@{version} is published",
         ));
     }
     let package: Package = response.json().await.into_diagnostic()?;
