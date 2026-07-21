@@ -30,6 +30,7 @@ describe('version command', () => {
     expect(helpText).toContain('Bumps the version')
     expect(helpText).toContain('major')
     expect(helpText).toContain('minor')
+    expect(helpText).toContain('from-git')
   })
 
   it('should have correct cli option types', () => {
@@ -305,6 +306,44 @@ fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\
 
       const { stdout: tags } = await execa('git', ['tag', '--list'], { cwd: tempDir })
       expect(tags).toBe('release-1.0.1')
+    })
+
+    it('should set the version from the latest git tag', async () => {
+      await execa('git', ['tag', 'v1.5.0'], { cwd: tempDir })
+      fs.writeFileSync(path.join(tempDir, 'new-file.txt'), 'new commit')
+      await execa('git', ['add', 'new-file.txt'], { cwd: tempDir })
+      await execa('git', ['commit', '-m', 'new commit'], { cwd: tempDir })
+      await execa('git', ['tag', 'v2.3.4'], { cwd: tempDir })
+
+      const result = await handler({
+        dir: tempDir,
+        workspaceDir: tempDir,
+        gitChecks: false,
+        gitTagVersion: false,
+      } as any, ['from-git']) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+      expect(result).toContain('1.0.0 → 2.3.4')
+      const updated = JSON.parse(fs.readFileSync(path.join(tempDir, 'package.json'), 'utf-8'))
+      expect(updated.version).toBe('2.3.4')
+    })
+
+    it('should use tagVersionPrefix with from-git', async () => {
+      await execa('git', ['tag', 'release-4.5.6'], { cwd: tempDir })
+      fs.writeFileSync(path.join(tempDir, 'new-file.txt'), 'new commit')
+      await execa('git', ['add', 'new-file.txt'], { cwd: tempDir })
+      await execa('git', ['commit', '-m', 'new commit'], { cwd: tempDir })
+      await execa('git', ['tag', 'v9.9.9'], { cwd: tempDir })
+
+      await handler({
+        dir: tempDir,
+        workspaceDir: tempDir,
+        gitChecks: false,
+        gitTagVersion: false,
+        tagVersionPrefix: 'release-',
+      } as any, ['from-git']) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+      const updated = JSON.parse(fs.readFileSync(path.join(tempDir, 'package.json'), 'utf-8'))
+      expect(updated.version).toBe('4.5.6')
     })
 
     it('should substitute %s in the commit message', async () => {

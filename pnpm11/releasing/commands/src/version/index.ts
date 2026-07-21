@@ -18,7 +18,7 @@ import type { Project, ProjectsGraph } from '@pnpm/types'
 import { safeExeca as execa } from 'execa'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
-import { inc, valid } from 'semver'
+import { coerce, inc, valid } from 'semver'
 
 import { renderReleasePlan, toWorkspaceProjects } from '../change/index.js'
 import { changelogHasSection, fetchPublishedChangelog } from '../publish/previousChangelog.js'
@@ -59,7 +59,7 @@ export function help (): string {
     description: 'Bumps the version of a package.',
     usages: [
       'pnpm version <newversion>',
-      'pnpm version <major|minor|patch|premajor|preminor|prepatch|prerelease>',
+      'pnpm version <major|minor|patch|premajor|preminor|prepatch|prerelease|from-git>',
       'pnpm version -r [--dry-run]',
     ],
     descriptionLists: [
@@ -154,15 +154,16 @@ export async function handler (
     if (opts.recursive) {
       return releaseFromIntents(opts)
     }
-    throw new PnpmError('INVALID_VERSION_BUMP', 'A version argument is required. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease')
-  }
-
-  const explicitVersion = valid(rawBump)
-  if (!explicitVersion && !isBumpType(rawBump)) {
-    throw new PnpmError('INVALID_VERSION_BUMP', `Invalid version argument: ${rawBump}. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease`)
+    throw new PnpmError('INVALID_VERSION_BUMP', 'A version argument is required. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease, from-git')
   }
 
   const gitCwd = opts.workspaceDir ?? opts.dir
+  const explicitVersion = rawBump === 'from-git'
+    ? await versionFromGit(gitCwd, opts.tagVersionPrefix)
+    : valid(rawBump)
+  if (!explicitVersion && !isBumpType(rawBump)) {
+    throw new PnpmError('INVALID_VERSION_BUMP', `Invalid version argument: ${rawBump}. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease, from-git`)
+  }
 
   if (opts.gitChecks !== false && await isGitRepo({ cwd: gitCwd })) {
     if (!await isWorkingTreeClean({ cwd: gitCwd })) {
@@ -297,6 +298,16 @@ function buildVerifyPublished (opts: VersionHandlerOptions): ApplyReleasePlanOpt
       return false
     }
   }
+}
+
+async function versionFromGit (cwd: string, tagVersionPrefix = 'v'): Promise<string> {
+  const { stdout } = await execa('git', ['describe', '--tags', '--abbrev=0', '--match=' + tagVersionPrefix + '*.*.*'], { cwd })
+  const tag = typeof stdout === 'string' ? stdout.trim() : ''
+  const version = coerce(tag, { loose: true, includePrerelease: true })?.version
+  if (!version) {
+    throw new PnpmError('INVALID_VERSION_FROM_GIT', 'Tag is not a valid version: ' + JSON.stringify(tag))
+  }
+  return version
 }
 
 async function bumpPackageVersion (
