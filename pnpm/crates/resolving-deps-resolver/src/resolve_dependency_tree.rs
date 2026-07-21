@@ -79,15 +79,11 @@ enum ReuseSource {
     /// snapshot already pins. `Some` reuses that key directly (no semver
     /// check — the parent version pins it); `None` means an updated
     /// ancestor discarded its child-refs, forcing this subtree to
-    /// re-resolve.
+    /// re-resolve. The parent may itself be reused (snapshot walk) or
+    /// freshly resolved onto its previously recorded version — both
+    /// keep the prior child refs alive, mirroring pnpm's
+    /// `parentPkg.updated ? undefined : resolvedDependencies`.
     Transitive { key: Option<PkgNameVerPeer> },
-    /// A child of a freshly-resolved parent: subtree reuse stays
-    /// disabled, but when the parent re-resolved to its previously
-    /// recorded version the child's prior snapshot ref is still
-    /// meaningful — it feeds the `currentPkg` payload of the child's
-    /// own re-resolution. This is the non-`updated`-parent case, where
-    /// the prior `resolvedDependencies` references stay alive.
-    PriorOnly { key: Option<PkgNameVerPeer> },
     /// Reuse disabled for this node (no prior lockfile).
     Off,
 }
@@ -107,13 +103,12 @@ impl ReuseSource {
                 wanted.alias.as_deref()?,
                 wanted.bare_specifier.as_deref()?,
             ),
-            ReuseSource::Transitive { key } | ReuseSource::PriorOnly { key } => key.clone(),
+            ReuseSource::Transitive { key } => key.clone(),
             ReuseSource::Off => None,
         }
     }
 
     /// Whether this edge may reuse the prior lockfile's subtree.
-    /// `PriorOnly` keeps the key for `currentPkg` but never reuses.
     fn allows_reuse(&self) -> bool {
         matches!(self, ReuseSource::Importer { .. } | ReuseSource::Transitive { .. })
     }
@@ -361,6 +356,7 @@ where
         let injected = injected_names.contains(name);
         wanted.push((name.to_string(), range.to_string(), optional, injected));
     }
+    record_changed_direct_deps(&ctx, pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY, &wanted);
     let direct =
         extend_tree(&ctx, resolver, wanted, pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY).await?;
     Ok(ctx.into_resolved_tree(direct))
@@ -1262,7 +1258,6 @@ where
     } else {
         ReuseSource::Off
     };
-    record_changed_direct_deps(ctx, importer_id, &wanted);
     // Phase 1: resolve every direct dep before any subtree walk, so
     // the level's resolved versions seed the children's
     // preferred-versions overlay (a per-level fold; the direct deps
@@ -1393,8 +1388,8 @@ struct PendingNode {
     depth: i32,
     current_is_optional: bool,
     /// The edge's recorded snapshot key in the prior lockfile, if
-    /// any — threads each child's `currentPkg` through the walk
-    /// phase via `ReuseSource::PriorOnly`.
+    /// any — threads each child's prior ref through the walk phase
+    /// via `ReuseSource::Transitive`.
     prior_key: Option<PkgNameVerPeer>,
 }
 
@@ -1769,13 +1764,16 @@ where
             } else {
                 Cow::Borrowed(child_specs.as_slice())
             };
-        // A freshly-resolved node forces its whole subtree to
-        // re-resolve: an updated parent discards its `resolvedDependencies`
-        // child refs. But when the parent landed back on its previously
-        // recorded version, the prior child refs are kept (the
-        // non-`updated` arm), so each child's re-resolution still
-        // receives its `currentPkg`. `PriorOnly` is that arm: the key
-        // rides along for `currentPkg` while reuse stays disabled.
+        // An *updated* parent (one that landed on a different version
+        // than the lockfile recorded, or a new dep) discards its
+        // `resolvedDependencies` child refs, forcing its subtree to
+        // re-resolve. A parent that freshly resolved but landed back on
+        // its previously recorded version keeps the prior child refs
+        // alive (pnpm's non-`parentPkg.updated` arm), and each child
+        // edge re-enters the reuse gate with its recorded key — so a
+        // still-satisfied subtree is reused rather than re-resolved.
+        // Re-resolving those children would re-pick open ranges (`*`)
+        // at their newest versions and churn the lockfile.
         let prior_children_snapshot = prior_key
             .as_ref()
             .filter(|key| landed_on_prior_entry(key, &id))
@@ -1829,7 +1827,7 @@ where
                         &next_ancestors,
                         depth + 1,
                         current_is_optional,
-                        ReuseSource::PriorOnly { key: child_prior },
+                        ReuseSource::Transitive { key: child_prior },
                         pick_overlay,
                     )
                     .await?;
@@ -2163,22 +2161,55 @@ fn level_versions(ctx: &TreeCtx, seeds: &[NodeSeed]) -> BTreeMap<String, Vec<Str
 /// Record the importer direct deps whose manifest specifier differs from
 /// the prior lockfile's recorded specifier (a new dep counts as changed).
 /// See [`WorkspaceTreeCtx::changed_direct_deps`].
-fn record_changed_direct_deps(ctx: &TreeCtx, importer_id: &str, wanted: &[WantedSpec]) {
-    let prior = ctx
-        .workspace
-        .wanted_lockfile
-        .as_ref()
-        .and_then(|lockfile| lockfile.importers.get(importer_id));
+///
+/// Called for the importer's *manifest* wave only, never for
+/// auto-installed peers: hoisted peers have no importer-snapshot entry
+/// to compare against, so recording them would mark them "changed" on
+/// every install and permanently decline subtree reuse for anything
+/// depending on them.
+pub(crate) fn record_changed_direct_deps(ctx: &TreeCtx, importer_id: &str, wanted: &[WantedSpec]) {
+    let lockfile = ctx.workspace.wanted_lockfile.as_deref();
+    let prior = lockfile.and_then(|lockfile| lockfile.importers.get(importer_id));
     let mut changed = lock_recoverable(&ctx.workspace.changed_direct_deps);
     let bucket = changed.entry(importer_id.to_string()).or_default();
     for (alias, spec, _optional, _injected) in wanted {
         let unchanged = prior
             .and_then(|importer| importer_dep_specifier(importer, alias))
-            .is_some_and(|recorded| recorded == spec);
+            .is_some_and(|recorded| {
+                recorded == spec || catalog_specifier_unchanged(lockfile, recorded, alias, spec)
+            });
         if !unchanged && let Ok(name) = alias.parse::<PkgName>() {
             bucket.insert(name);
         }
     }
+}
+
+/// Whether a `catalog:`-recorded direct dep still resolves to the same
+/// underlying range. The wanted specs reaching
+/// [`fn@record_changed_direct_deps`] have their `catalog:` protocol
+/// already replaced by the catalog's range
+/// ([`fn@resolve_catalog_specifiers`]), while the importer snapshot
+/// records the literal `catalog:` / `catalog:<name>` form — comparing
+/// those directly would mark every catalog-managed dep as changed on
+/// every install, and the changed-direct-dep reuse gate would then
+/// re-resolve (and drift) every subtree depending on one. The edge is
+/// unchanged when the lockfile's `catalogs:` snapshot recorded the same
+/// range for this alias.
+fn catalog_specifier_unchanged(
+    lockfile: Option<&pacquet_lockfile::Lockfile>,
+    recorded: &str,
+    alias: &str,
+    resolved_spec: &str,
+) -> bool {
+    let Some(catalog_name) = recorded.strip_prefix("catalog:") else {
+        return false;
+    };
+    let catalog_name = if catalog_name.is_empty() { "default" } else { catalog_name };
+    lockfile
+        .and_then(|lockfile| lockfile.catalogs.as_ref())
+        .and_then(|catalogs| catalogs.get(catalog_name))
+        .and_then(|catalog| catalog.get(alias))
+        .is_some_and(|entry| entry.specifier == resolved_spec)
 }
 
 /// The recorded specifier for direct-dep `alias` across the importer's

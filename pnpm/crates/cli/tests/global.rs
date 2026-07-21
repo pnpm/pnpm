@@ -125,6 +125,53 @@ fn global_add_list_remove_round_trip() {
     drop(root);
 }
 
+/// A mutating global command must create a missing global bin directory
+/// instead of failing `ERR_PNPM_PNPM_DIR_NOT_WRITABLE` — pnpm's config
+/// reader runs `mkdir -p` on the bin dir for every `--global` command. A
+/// fresh `PNPM_HOME` whose `bin` is on `PATH` but not yet on disk (e.g.
+/// provisioned by a CI setup action) must work on the first `add -g` /
+/// `runtime set -g`.
+#[cfg(unix)]
+#[test]
+fn global_add_creates_a_missing_global_bin_dir() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    // Seed the pnpm home like `prepare_global_home`, but leave `bin`
+    // uncreated: `global_command` still puts the (absent) dir on PATH.
+    fs::create_dir_all(&pnpm_home).expect("create the pnpm home");
+    fs::write(pnpm_home.join(".npmrc"), format!("registry={}\n", npmrc_info.mock_instance.url()))
+        .expect("seed the pnpm-home npmrc");
+    fs::write(
+        pnpm_home.join("pnpm-workspace.yaml"),
+        format!(
+            "storeDir: {}\ncacheDir: {}\nenableGlobalVirtualStore: false\n",
+            npmrc_info.store_dir.display(),
+            npmrc_info.cache_dir.display(),
+        ),
+    )
+    .expect("seed the pnpm-home workspace yaml");
+
+    global_command(&workspace, &pnpm_home)
+        .with_arg("add")
+        .with_arg("-g")
+        .with_arg("@foo/touch-file-one-bin")
+        .assert()
+        .success();
+
+    assert!(
+        global_bin.join("touch-file-one-bin").exists(),
+        "the global bin dir should have been created and the bin linked into it",
+    );
+
+    drop(npmrc_info);
+    drop(root);
+}
+
 /// A global add must materialize the added package's transitive
 /// `optionalDependencies` in the group's virtual store: a missing slot
 /// dangles the alias symlink, and the globally installed bin then fails at

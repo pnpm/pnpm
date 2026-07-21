@@ -344,6 +344,7 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
         CliCommand::Ll(args) => dispatch_query::ll(ctx, args),
         CliCommand::Licenses(args) => dispatch_query::licenses(ctx, args),
         CliCommand::Why(args) => dispatch_query::why(ctx, args),
+        CliCommand::View(args) => dispatch_query::view(ctx, args),
         CliCommand::Sbom(args) => dispatch_query::sbom(ctx, args),
         CliCommand::Whoami => dispatch_query::whoami(ctx),
         CliCommand::Star(args) => dispatch_query::star(ctx, args),

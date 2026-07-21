@@ -30,7 +30,7 @@ use crate::{
     },
     resolve_dependency_tree::{
         ResolveDependencyTreeError, TreeCtx, WantedSpec, WorkspaceTreeCtx, extend_tree,
-        importer_direct_wanted_specs,
+        importer_direct_wanted_specs, record_changed_direct_deps,
     },
     resolve_peers::{ResolvePeersOptions, ResolvePeersResult, resolve_peers},
     resolved_tree::ResolvedTree,
@@ -359,6 +359,7 @@ impl ImporterHoistState {
             .with_patched_dependencies(patched_dependencies)
             .with_resolution_mode(pick_lowest_direct, subdep_published_by)
             .with_catalogs(catalogs);
+        record_changed_direct_deps(&ctx, importer_id, &initial_wanted);
         let direct = extend_tree(&ctx, resolver, initial_wanted, importer_id).await?;
         let parent_pkg_aliases: HashSet<String> =
             direct.iter().map(|dep| dep.alias.clone()).collect();

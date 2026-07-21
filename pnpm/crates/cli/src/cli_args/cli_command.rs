@@ -70,6 +70,7 @@ use super::{
     unstar::UnstarArgs,
     update::UpdateArgs,
     version::VersionArgs,
+    view::ViewArgs,
     why::WhyArgs,
     with::WithArgs,
 };
@@ -142,7 +143,17 @@ pub struct CliArgs {
     pub recursive: bool,
 
     /// Reporter output format.
-    #[clap(long, value_enum, default_value_t = ReporterType::Default, global = true)]
+    // Self-override so a repeated `--reporter` takes the last occurrence,
+    // like nopt does — `--silent` expands to `--reporter=silent` (see
+    // `crate::shorthands`), so `--silent --reporter=ndjson` must not be a
+    // duplicate-argument error.
+    #[clap(
+        long,
+        value_enum,
+        default_value_t = ReporterType::Default,
+        global = true,
+        overrides_with = "reporter"
+    )]
     pub reporter: ReporterType,
 
     /// Select which workspace projects to run on. Repeat to add more.
@@ -318,6 +329,9 @@ pub enum CliCommand {
     Licenses(LicensesArgs),
     /// Shows the packages that depend on `pkg`
     Why(WhyArgs),
+    /// View registry information about a package.
+    #[clap(visible_aliases = ["info", "show", "v"])]
+    View(ViewArgs),
     /// Generate a Software Bill of Materials (SBOM).
     Sbom(SbomArgs),
     /// Displays your pnpm username.
