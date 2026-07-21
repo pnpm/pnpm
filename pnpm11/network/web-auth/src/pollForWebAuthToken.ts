@@ -16,7 +16,24 @@ export interface WebAuthFetchResponseHeaders {
   get: (name: string) => string | null
 }
 
+export interface WebAuthFetchResponseBodyReader {
+  read: () => Promise<{ done: boolean, value?: Uint8Array }>
+  cancel: () => Promise<void>
+}
+
+export interface WebAuthFetchResponseBody {
+  cancel: () => Promise<void>
+  getReader: () => WebAuthFetchResponseBodyReader
+}
+
 export interface WebAuthFetchResponse {
+  /**
+   * The raw body stream (a WHATWG `ReadableStream` on a fetch `Response`).
+   * When present, the poll reads the token body through it with a size cap
+   * and cancels it on responses whose body it does not read; an injected
+   * fetch that omits it falls back to `json()`, uncapped.
+   */
+  readonly body?: WebAuthFetchResponseBody | null
   readonly headers: WebAuthFetchResponseHeaders
   readonly json: () => Promise<unknown>
   readonly ok: boolean
@@ -35,6 +52,14 @@ export interface PollForWebAuthTokenParams {
   fetchOptions: WebAuthFetchOptions
   timeoutMs?: number
 }
+
+/**
+ * The most bytes of a poll response body that are read. The expected body is
+ * a small JSON object carrying the token, and the URL it comes from is
+ * registry-controlled, so an unbounded read on every poll tick would let a
+ * malicious or compromised registry grow memory at will.
+ */
+const TOKEN_BODY_LIMIT = 64 * 1024
 
 /**
  * Polls a registry's "done" URL until an authentication token is returned.
@@ -70,9 +95,13 @@ export async function pollForWebAuthToken ({
       continue
     }
 
-    if (!response.ok) continue
+    if (!response.ok) {
+      discardBody(response)
+      continue
+    }
 
     if (response.status === 202) {
+      discardBody(response)
       // Registry is still waiting for authentication.
       // Respect Retry-After header if present by waiting the additional time
       // beyond the default poll interval already elapsed above, but do not
@@ -94,15 +123,74 @@ export async function pollForWebAuthToken ({
       continue
     }
 
-    let body: { token?: string }
-    try {
-      // eslint-disable-next-line no-await-in-loop
-      body = await response.json() as { token?: string }
-    } catch {
-      continue
-    }
-    if (body.token) {
+    // eslint-disable-next-line no-await-in-loop
+    const body = await readTokenBody(response) as { token?: string } | undefined
+    if (body?.token) {
       return body.token
     }
+  }
+}
+
+/**
+ * Reads and parses a poll response body, applying {@link TOKEN_BODY_LIMIT}
+ * when the raw stream is exposed. Returns `undefined` — which the poll loop
+ * treats the same as an unparsable body, retrying on the next tick — for an
+ * oversized or truncated body.
+ */
+async function readTokenBody (response: WebAuthFetchResponse): Promise<unknown> {
+  if (response.body === undefined) {
+    try {
+      return await response.json()
+    } catch {
+      return undefined
+    }
+  }
+  const contentLength = Number(response.headers.get('content-length'))
+  if (Number.isFinite(contentLength) && contentLength > TOKEN_BODY_LIMIT) {
+    discardBody(response)
+    return undefined
+  }
+  if (response.body === null) return undefined
+  let reader: WebAuthFetchResponseBodyReader
+  try {
+    reader = response.body.getReader()
+  } catch {
+    return undefined
+  }
+  const chunks: Uint8Array[] = []
+  let total = 0
+  try {
+    while (true) {
+      // eslint-disable-next-line no-await-in-loop
+      const { done, value } = await reader.read()
+      if (done) break
+      if (value == null) continue
+      total += value.length
+      if (total > TOKEN_BODY_LIMIT) {
+        reader.cancel().catch(() => {})
+        return undefined
+      }
+      chunks.push(value)
+    }
+  } catch {
+    return undefined
+  }
+  try {
+    return JSON.parse(new TextDecoder().decode(Buffer.concat(chunks)))
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Cancels a response body the poll loop will not read (non-ok and 202
+ * responses), so its payload is not transferred on every poll tick.
+ */
+function discardBody (response: WebAuthFetchResponse): void {
+  try {
+    response.body?.cancel().catch(() => {})
+  } catch {
+    // Cancellation is best-effort: a body that cannot be cancelled is simply
+    // left unread.
   }
 }

@@ -1,4 +1,19 @@
-use super::{Clock, Host, StdinIsTty, StdoutIsTty};
+use std::{
+    pin::Pin,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    task::{Context, Poll, Waker},
+};
+
+use pretty_assertions::assert_eq;
+
+use super::{
+    Clock, EnterListenerState, Host, HostEnterHandle, StdinIsTty, StdoutIsTty, TOKEN_BODY_LIMIT,
+    WebAuthFetch,
+};
+use crate::poll_for_web_auth_token::WebAuthFetchOptions;
 
 /// `0` is `Host::now_ms`'s pre-epoch fallback, so a non-zero read confirms
 /// the real wall clock was queried rather than the fallback.
@@ -17,4 +32,129 @@ fn host_clock_reads_a_non_zero_time() {
 fn host_tty_probes_are_callable() {
     let _: bool = Host::stdin_is_tty();
     let _: bool = Host::stdout_is_tty();
+}
+
+#[tokio::test]
+async fn host_fetch_reads_a_token_body_within_the_cap() {
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("GET", "/done")
+        .with_status(200)
+        .with_body(r#"{"token":"tok"}"#)
+        .create_async()
+        .await;
+
+    let response = Host::fetch(&format!("{}/done", server.url()), &WebAuthFetchOptions::default())
+        .await
+        .expect("a response");
+
+    assert!(response.ok, "got {response:?}");
+    assert_eq!(response.status, 200);
+    assert_eq!(response.token().expect("parse the body"), Some("tok".to_owned()));
+}
+
+#[tokio::test]
+async fn host_fetch_discards_a_token_body_larger_than_the_cap() {
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("GET", "/done")
+        .with_status(200)
+        .with_body(format!(r#"{{"token":"{}"}}"#, "a".repeat(TOKEN_BODY_LIMIT)))
+        .create_async()
+        .await;
+
+    let response = Host::fetch(&format!("{}/done", server.url()), &WebAuthFetchOptions::default())
+        .await
+        .expect("a response");
+
+    assert!(response.ok, "got {response:?}");
+    assert_eq!(response.body, "");
+}
+
+#[tokio::test]
+async fn host_fetch_skips_the_body_of_a_202_response() {
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("GET", "/done")
+        .with_status(202)
+        .with_header("retry-after", "5")
+        .with_body("x".repeat(1024))
+        .create_async()
+        .await;
+
+    let response = Host::fetch(&format!("{}/done", server.url()), &WebAuthFetchOptions::default())
+        .await
+        .expect("a response");
+
+    assert!(response.ok, "got {response:?}");
+    assert_eq!(response.status, 202);
+    assert_eq!(response.retry_after.as_deref(), Some("5"));
+    assert_eq!(response.body, "");
+}
+
+#[tokio::test]
+async fn host_fetch_skips_the_body_of_a_non_ok_response() {
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("GET", "/done")
+        .with_status(404)
+        .with_body("not found, at length")
+        .create_async()
+        .await;
+
+    let response = Host::fetch(&format!("{}/done", server.url()), &WebAuthFetchOptions::default())
+        .await
+        .expect("a response");
+
+    assert!(!response.ok, "got {response:?}");
+    assert_eq!(response.status, 404);
+    assert_eq!(response.body, "");
+}
+
+fn poll_handle(handle: &mut HostEnterHandle) -> Poll<()> {
+    let mut cx = Context::from_waker(Waker::noop());
+    Pin::new(handle).poll(&mut cx)
+}
+
+#[test]
+fn enter_handle_stays_ready_once_completed() {
+    let (tx, enter) = tokio::sync::oneshot::channel();
+    let mut handle = HostEnterHandle {
+        enter,
+        state: EnterListenerState::Waiting,
+        cancel: Arc::new(AtomicBool::new(false)),
+    };
+
+    assert_eq!(poll_handle(&mut handle), Poll::Pending);
+    tx.send(()).expect("the receiver is alive");
+    assert_eq!(poll_handle(&mut handle), Poll::Ready(()));
+    // Re-polls resolve from the terminal state without touching the spent
+    // oneshot receiver.
+    assert_eq!(poll_handle(&mut handle), Poll::Ready(()));
+}
+
+#[test]
+fn enter_handle_never_resolves_after_a_reader_error() {
+    let (tx, enter) = tokio::sync::oneshot::channel::<()>();
+    let mut handle = HostEnterHandle {
+        enter,
+        state: EnterListenerState::Waiting,
+        cancel: Arc::new(AtomicBool::new(false)),
+    };
+
+    // The reader thread exiting without signalling drops the sender.
+    drop(tx);
+    assert_eq!(poll_handle(&mut handle), Poll::Pending);
+    assert_eq!(poll_handle(&mut handle), Poll::Pending);
+}
+
+#[test]
+fn enter_handle_drop_sets_the_cancel_flag() {
+    let (_tx, enter) = tokio::sync::oneshot::channel::<()>();
+    let cancel = Arc::new(AtomicBool::new(false));
+    let handle =
+        HostEnterHandle { enter, state: EnterListenerState::Waiting, cancel: Arc::clone(&cancel) };
+
+    drop(handle);
+    assert!(cancel.load(Ordering::Relaxed));
 }

@@ -8,7 +8,7 @@ import { PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { fetch } from '@pnpm/network.fetch'
 import {
-  generateQrCode,
+  formatAuthUrlMessage,
   pollForWebAuthToken,
   promptBrowserOpen,
   type PromptBrowserOpenReadlineInterface,
@@ -225,6 +225,7 @@ async function webLogin ({
   const {
     fetch,
     globalInfo,
+    globalWarn,
   } = context
 
   const loginUrl = new URL('-/v1/login', registry).href
@@ -250,8 +251,7 @@ async function webLogin ({
     throw new LoginInvalidResponseError()
   }
 
-  const qrCode = generateQrCode(body.loginUrl)
-  globalInfo(`Authenticate your account at:\n${body.loginUrl}\n\n${qrCode}`)
+  globalInfo(formatAuthUrlMessage(body.loginUrl, globalWarn))
 
   const pollPromise = pollForWebAuthToken({ context, doneUrl: body.doneUrl, fetchOptions })
 

@@ -143,6 +143,48 @@ describe('login', () => {
     ])
   })
 
+  it('should warn and fall back to URL-only display when the login URL exceeds QR capacity', async () => {
+    // Longer than the 2953-byte maximum QR data capacity, which makes
+    // qrcode-terminal throw.
+    const longLoginUrl = `https://example.com/auth/${'a'.repeat(4000)}`
+    const globalInfo = jest.fn()
+    const globalWarn = jest.fn()
+    const context = createMockContext({
+      globalInfo,
+      globalWarn,
+      readIniFile: async () => ({}),
+      writeIniFile: async () => {},
+      fetch: async url => {
+        if (url === 'https://example.com/npm/-/v1/login') {
+          return createMockResponse({
+            ok: true,
+            status: 200,
+            json: {
+              loginUrl: longLoginUrl,
+              doneUrl: 'https://example.com/auth/done',
+            },
+          })
+        }
+        if (url === 'https://example.com/auth/done') {
+          return createMockResponse({
+            ok: true,
+            status: 200,
+            json: { token: 'web-auth-token-123' },
+          })
+        }
+        throw new Error(`Unexpected call to fetch: ${url}`)
+      },
+    })
+    const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://example.com/npm/' }
+    const result = await login({ context, opts })
+    expect(result).toBe('Logged in on https://example.com/npm/')
+    expect(globalWarn.mock.calls).toEqual([[expect.stringMatching(/^Could not generate a QR code: /)]])
+    expect(globalInfo.mock.calls).toEqual([
+      [`Authenticate your account at:\n${longLoginUrl}`],
+      ['Press ENTER to open the URL in your browser.'],
+    ])
+  })
+
   it('should log in to a registry under a subpath when the URL has no trailing slash', async () => {
     const fetchedUrls: string[] = []
     let savedSettings: Record<string, unknown> = {}

@@ -2,7 +2,7 @@ use std::{io, path::PathBuf};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_network_web_auth::{GenerateQrCodeError, WebAuthTimeoutError, WithOtpError};
+use pacquet_network_web_auth::{WebAuthTimeoutError, WithOtpError};
 
 use super::classic_login::ClassicLoginOpError;
 
@@ -45,10 +45,6 @@ pub enum LoginError {
     #[display("{_0}")]
     #[diagnostic(transparent)]
     WebAuthTimeout(WebAuthTimeoutError),
-
-    #[display("Failed to render the login QR code: {_0}")]
-    #[diagnostic(code(ERR_PNPM_AUTH_COMMANDS_LOGIN_QR_CODE))]
-    QrCode(#[error(source)] GenerateQrCodeError),
 
     #[display("The login request failed: {reason}")]
     #[diagnostic(code(ERR_PNPM_AUTH_COMMANDS_LOGIN_REQUEST_FAILED))]

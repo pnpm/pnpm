@@ -16,6 +16,7 @@ derive_more         = { workspace = true }
 dialoguer           = { workspace = true }
 open                = { workspace = true }
 pacquet-diagnostics = { workspace = true }
+pacquet-network     = { workspace = true }
 pacquet-reporter    = { workspace = true }
 qrcode              = { workspace = true }
 reqwest             = { workspace = true }
@@ -25,6 +26,7 @@ tokio               = { workspace = true, features = ["macros", "rt", "sync", "t
 url                 = { workspace = true }
 
 [dev-dependencies]
+mockito                          = { workspace = true }
 pacquet-network-web-auth-testing = { workspace = true }
 pretty_assertions                = { workspace = true }
 tokio                            = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync", "time"] }

@@ -329,6 +329,56 @@ async fn web_auth_flow_polls_done_url_and_uses_returned_token() {
     );
 }
 
+/// A challenge `authUrl` longer than the maximum QR data capacity cannot be
+/// rendered as a QR code; the flow warns and falls back to a URL-only
+/// display instead of failing.
+#[tokio::test]
+async fn web_auth_flow_falls_back_to_url_only_display_when_qr_generation_fails() {
+    web_auth_fake!();
+    reset();
+    set_fetch(Box::new(|| Ok(ok_token("web-token-456"))));
+    let long_auth_url = format!("https://registry.npmjs.org/auth/{}", "a".repeat(4000));
+    let challenge_auth_url = long_auth_url.clone();
+    let calls = Rc::new(Cell::new(0));
+    let counter = Rc::clone(&calls);
+
+    let result = with_otp_handling::<FakeHost, RecordingReporter, String, FakeOtpError, _, _>(
+        WebAuthFetchOptions::default(),
+        move |otp| {
+            let counter = Rc::clone(&counter);
+            let auth_url = challenge_auth_url.clone();
+            async move {
+                counter.set(counter.get() + 1);
+                if counter.get() == 1 {
+                    Err(FakeOtpError::Otp {
+                        body: Some(OtpErrorBody {
+                            auth_url: Some(auth_url),
+                            done_url: Some("https://registry.npmjs.org/auth/done".to_owned()),
+                        }),
+                    })
+                } else {
+                    assert_eq!(otp.as_deref(), Some("web-token-456"));
+                    Ok("published".to_owned())
+                }
+            }
+        },
+    )
+    .await
+    .expect("a result");
+
+    assert_eq!(result, "published");
+    assert!(
+        warns().iter().any(|message| message.starts_with("Could not generate a QR code:")),
+        "got {:?}",
+        warns(),
+    );
+    let auth_message = infos()
+        .into_iter()
+        .find(|message| message.contains(&long_auth_url))
+        .expect("the auth URL should be surfaced");
+    assert_eq!(auth_message, format!("Authenticate your account at:\n{long_auth_url}"));
+}
+
 #[tokio::test]
 async fn web_auth_flow_falls_back_to_classic_prompt_when_urls_are_not_http() {
     web_auth_fake!();
