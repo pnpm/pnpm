@@ -172,6 +172,36 @@ test('preserve subdeps when installing on a package that has one dependency spec
   })
 })
 
+// Covers the lockfile churn seen in https://github.com/pnpm/pnpm/pull/13193
+test('removing an unrelated dependency does not re-resolve still-satisfied subdeps', async () => {
+  const project = prepareEmpty()
+
+  await Promise.all([
+    addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/foobarqar', version: '1.0.1', distTag: 'latest' }),
+  ])
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/foobarqar', 'is-positive@1.0.0'], testDefaults())
+
+  await Promise.all([
+    addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' }),
+  ])
+
+  delete manifest.dependencies!['is-positive']
+
+  await install(manifest, testDefaults())
+
+  const lockfile = project.readLockfile()
+
+  expect(lockfile.snapshots['@pnpm.e2e/foobarqar@1.0.1'].dependencies).toStrictEqual({
+    '@pnpm.e2e/bar': '100.0.0',
+    '@pnpm.e2e/foo': '100.0.0',
+    '@pnpm.e2e/qar': '100.0.0',
+  })
+})
+
 // Covers https://github.com/pnpm/pnpm/issues/2226
 test('update only the packages that were requested to be updated when hoisting is on', async () => {
   const project = prepareEmpty()
