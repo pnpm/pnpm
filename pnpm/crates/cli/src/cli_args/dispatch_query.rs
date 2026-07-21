@@ -44,6 +44,7 @@ use super::{
     undeprecate::UndeprecateArgs,
     unstar::UnstarArgs,
     version::VersionArgs,
+    view::ViewArgs,
     why::WhyArgs,
     with::WithArgs,
 };
@@ -327,6 +328,25 @@ pub(super) fn ping<'a>(ctx: &RunCtx<'a>, args: PingArgs) -> miette::Result<Comma
     Ok(Box::pin(async move {
         let report = args.run(cfg).await?;
         println!("{report}");
+        Ok(())
+    }))
+}
+
+// `view` is a read-only registry query: it resolves the package metadata
+// (and, when the package name is omitted, the nearest manifest's name from
+// `ctx.dir`), then prints the requested fields, a JSON dump, or the formatted
+// summary its handler returns. No lockfile or install pipeline, so it
+// dispatches off `config()` like the other read-only registry commands.
+pub(super) fn view<'a>(ctx: &RunCtx<'a>, args: ViewArgs) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.config)()?;
+    let dir = ctx.dir;
+    Ok(Box::pin(async move {
+        let output = args.run(cfg, dir).await?;
+        // A field selection for an absent field renders as an empty string;
+        // skip the print so it emits no output, matching `pnpm view`.
+        if !output.is_empty() {
+            println!("{output}");
+        }
         Ok(())
     }))
 }

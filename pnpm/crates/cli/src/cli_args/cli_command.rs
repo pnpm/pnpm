@@ -70,6 +70,7 @@ use super::{
     unstar::UnstarArgs,
     update::UpdateArgs,
     version::VersionArgs,
+    view::ViewArgs,
     why::WhyArgs,
     with::WithArgs,
 };
@@ -318,6 +319,9 @@ pub enum CliCommand {
     Licenses(LicensesArgs),
     /// Shows the packages that depend on `pkg`
     Why(WhyArgs),
+    /// View registry information about a package.
+    #[clap(visible_aliases = ["info", "show", "v"])]
+    View(ViewArgs),
     /// Generate a Software Bill of Materials (SBOM).
     Sbom(SbomArgs),
     /// Displays your pnpm username.
