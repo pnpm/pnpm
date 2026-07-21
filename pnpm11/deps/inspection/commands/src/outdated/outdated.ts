@@ -11,7 +11,7 @@ import {
 import { colorizeSemverDiff } from '@pnpm/colorize-semver-diff'
 import { createMatcher } from '@pnpm/config.matcher'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
-import { findOutdatedGitHubActions, isGitHubActionSelector } from '@pnpm/deps.github-actions'
+import { findOutdatedGitHubActions, isGitHubActionSelector, normalizeGitHubActionSelector } from '@pnpm/deps.github-actions'
 import {
   outdatedDepsOfProjects,
   type OutdatedPackage,
@@ -233,7 +233,7 @@ export async function handler (
       : findOutdatedGitHubActions({
         compatible: opts.compatible,
         dir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
-        match: params.length > 0 ? createMatcher(params) : undefined,
+        match: params.length > 0 ? createMatcher(params.map(normalizeGitHubActionSelector)) : undefined,
       }),
   ])
   const outdatedPackages: OutdatedItem[] = [

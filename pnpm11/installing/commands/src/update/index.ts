@@ -9,7 +9,7 @@ import {
 } from '@pnpm/cli.utils'
 import { createMatcher } from '@pnpm/config.matcher'
 import { types as allTypes } from '@pnpm/config.reader'
-import { findOutdatedGitHubActions, isGitHubActionSelector, updateGitHubActions } from '@pnpm/deps.github-actions'
+import { findOutdatedGitHubActions, isGitHubActionSelector, normalizeGitHubActionSelector, updateGitHubActions } from '@pnpm/deps.github-actions'
 import { outdatedDepsOfProjects } from '@pnpm/deps.inspection.outdated'
 import { PnpmError } from '@pnpm/error'
 import { handleGlobalUpdate } from '@pnpm/global.commands'
@@ -247,7 +247,7 @@ async function interactiveUpdate (
       ? findOutdatedGitHubActions({
         compatible: opts.latest !== true,
         dir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
-        match: input.length > 0 ? createMatcher(input) : undefined,
+        match: input.length > 0 ? createMatcher(input.map(normalizeGitHubActionSelector)) : undefined,
       })
       : [],
   ])
@@ -332,17 +332,18 @@ async function update (
   opts: UpdateCommandOptions,
   rebuildHandler?: CommandHandler
 ): Promise<void> {
-  if (opts.latest) {
-    const dependenciesWithTags = dependencies.filter((name) => parseUpdateParam(name).versionSpec != null)
-    if (dependenciesWithTags.length) {
-      throw new PnpmError('LATEST_WITH_SPEC', `Specs are not allowed to be used with --latest (${dependenciesWithTags.join(', ')})`)
-    }
-  }
   const includeDirect = makeIncludeDependenciesFromCLI(opts.cliOptions)
   const updateActions = includeDirect.devDependencies &&
     opts.save !== false &&
     !opts.lockfileOnly &&
     (opts.includeGithubActions === true || opts.updateConfig?.githubActions === true)
+  if (opts.latest) {
+    const dependenciesWithTags = dependencies.filter((name) =>
+      (!updateActions || !isGitHubActionSelector(name)) && parseUpdateParam(name).versionSpec != null)
+    if (dependenciesWithTags.length) {
+      throw new PnpmError('LATEST_WITH_SPEC', `Specs are not allowed to be used with --latest (${dependenciesWithTags.join(', ')})`)
+    }
+  }
   const packageDependencies = updateActions
     ? dependencies.filter((dependency) => !isGitHubActionSelector(dependency))
     : dependencies
@@ -390,7 +391,7 @@ async function update (
     await updateGitHubActions({
       dir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
       latest: opts.latest,
-      match: dependencies.length > 0 ? createMatcher(dependencies) : undefined,
+      match: dependencies.length > 0 ? createMatcher(dependencies.map(normalizeGitHubActionSelector)) : undefined,
     })
   }
   if (changesetContext != null) {

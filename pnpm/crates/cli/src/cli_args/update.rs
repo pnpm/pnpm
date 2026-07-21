@@ -8,7 +8,7 @@ use crate::{
 };
 use clap::Args;
 use miette::Context;
-use pacquet_config::{Config, matcher::create_matcher};
+use pacquet_config::Config;
 use pacquet_package_manager::Update;
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_registry::PinnedVersion;
@@ -150,7 +150,7 @@ impl UpdateArgs {
         let include_direct = self.dependency_options.include_direct();
         let update_actions = self.should_update_github_actions(state.config, &include_direct);
         let action_matcher =
-            (update_actions && !self.packages.is_empty()).then(|| create_matcher(&self.packages));
+            if update_actions { github_actions::selector_matcher(&self.packages) } else { None };
         let package_selectors = filter_package_selectors(&self.packages, update_actions);
         if !self.interactive && !self.packages.is_empty() && package_selectors.is_empty() {
             if update_actions {
@@ -195,8 +195,11 @@ impl UpdateArgs {
             package_selectors
         };
 
-        let selected_action_matcher =
-            if self.interactive { Some(create_matcher(&packages)) } else { action_matcher };
+        let selected_action_matcher = if self.interactive {
+            github_actions::selector_matcher(&packages)
+        } else {
+            action_matcher
+        };
         let package_selectors = filter_package_selectors(&packages, update_actions);
         let run_package_update = !self.interactive || !package_selectors.is_empty();
 
@@ -244,7 +247,7 @@ impl UpdateArgs {
         let include_direct = self.dependency_options.include_direct();
         let update_actions = self.should_update_github_actions(state.config, &include_direct);
         let action_matcher =
-            (update_actions && !self.packages.is_empty()).then(|| create_matcher(&self.packages));
+            if update_actions { github_actions::selector_matcher(&self.packages) } else { None };
         let package_selectors = filter_package_selectors(&self.packages, update_actions);
         if !self.interactive && !self.packages.is_empty() && package_selectors.is_empty() {
             if update_actions {
@@ -281,8 +284,11 @@ impl UpdateArgs {
         } else {
             package_selectors
         };
-        let selected_action_matcher =
-            if self.interactive { Some(create_matcher(&packages)) } else { action_matcher };
+        let selected_action_matcher = if self.interactive {
+            github_actions::selector_matcher(&packages)
+        } else {
+            action_matcher
+        };
         let package_selectors = filter_package_selectors(&packages, update_actions);
         let run_package_update = !self.interactive || !package_selectors.is_empty();
         let InstallFamilySelection {

@@ -1,7 +1,7 @@
 use super::{
     ActionReference, RepoVersion, find_current, find_outdated_with_runner, is_selector,
-    render_target_ref, render_target_value, repo_versions as versions_from_refs, split_uses_value,
-    update_with_runner,
+    normalize_selector, render_target_ref, render_target_value,
+    repo_versions as versions_from_refs, selector_matcher, split_uses_value, update_with_runner,
 };
 use node_semver::Version;
 use pacquet_resolving_git_resolver::{GitCommandRunner, GitRunError};
@@ -86,6 +86,18 @@ fn distinguishes_action_selectors_from_package_selectors() {
             is_selector("typescript"),
         ],
         [true, false, false, false],
+    );
+}
+
+#[test]
+fn normalizes_ref_qualified_action_selectors() {
+    assert_eq!(normalize_selector("actions/checkout@v4"), "actions/checkout");
+    assert_eq!(normalize_selector("!actions/checkout@v4"), "!actions/checkout");
+    assert_eq!(normalize_selector("@scope/package"), "@scope/package");
+    assert!(
+        selector_matcher(&["actions/checkout@v4".to_string()])
+            .expect("selector matcher")
+            .matches("actions/checkout"),
     );
 }
 

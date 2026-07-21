@@ -459,7 +459,7 @@ impl OutdatedArgs {
             if self.compatible { TargetVersion::WithinRange } else { TargetVersion::Latest };
         let package_matcher =
             (!package_patterns.is_empty()).then(|| create_matcher(&package_patterns));
-        let action_matcher = (!self.packages.is_empty()).then(|| create_matcher(&self.packages));
+        let action_matcher = github_actions::selector_matcher(&self.packages);
 
         let query = OutdatedQuery {
             target_version,

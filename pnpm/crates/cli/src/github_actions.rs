@@ -1,6 +1,6 @@
 use futures_util::{StreamExt, TryStreamExt, stream};
 use node_semver::{Range as SemverRange, Version};
-use pacquet_config::matcher::Matcher;
+use pacquet_config::matcher::{Matcher, create_matcher};
 use pacquet_resolving_git_resolver::{GitCommandRunner, RealGitRunner, get_repo_refs};
 use std::{
     cmp::Reverse,
@@ -24,6 +24,22 @@ pub struct OutdatedGitHubAction {
 pub fn is_selector(selector: &str) -> bool {
     let pattern = selector.strip_prefix('!').unwrap_or(selector);
     !pattern.starts_with('@') && pattern.contains('/')
+}
+
+pub fn normalize_selector(selector: &str) -> String {
+    if !is_selector(selector) {
+        return selector.to_string();
+    }
+    selector.rsplit_once('@').map_or(selector, |(name, _)| name).to_string()
+}
+
+pub fn selector_matcher(selectors: &[String]) -> Option<Matcher> {
+    if selectors.is_empty() {
+        return None;
+    }
+    Some(create_matcher(
+        &selectors.iter().map(|selector| normalize_selector(selector)).collect::<Vec<_>>(),
+    ))
 }
 
 #[derive(Clone)]
@@ -152,8 +168,13 @@ async fn create_plan<Runner: GitCommandRunner + Sync>(
     for action in actions {
         let versions = &refs_by_repo[&action.repo];
         let Some(current) = find_current(&action, versions) else { continue };
-        let wanted_range = SemverRange::parse(format!("^{}", current.version))
-            .expect("a parsed version produces a valid caret range");
+        let wanted_range =
+            SemverRange::parse(format!("^{}", current.version)).map_err(|error| {
+                miette::miette!(
+                    "Failed to create a compatible GitHub Action range for {}: {error}",
+                    current.version,
+                )
+            })?;
         let candidates = versions
             .iter()
             .filter(|candidate| {

@@ -70,6 +70,12 @@ export function isGitHubActionSelector (selector: string): boolean {
   return !pattern.startsWith('@') && pattern.includes('/')
 }
 
+export function normalizeGitHubActionSelector (selector: string): string {
+  if (!isGitHubActionSelector(selector)) return selector
+  const refSeparator = selector.lastIndexOf('@')
+  return refSeparator === -1 ? selector : selector.slice(0, refSeparator)
+}
+
 export async function findOutdatedGitHubActions (
   opts: FindOutdatedGitHubActionsOptions
 ): Promise<OutdatedGitHubAction[]> {

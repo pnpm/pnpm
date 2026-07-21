@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { afterEach, describe, expect, test } from '@jest/globals'
-import { findOutdatedGitHubActions, isGitHubActionSelector, updateGitHubActions } from '@pnpm/deps.github-actions'
+import { findOutdatedGitHubActions, isGitHubActionSelector, normalizeGitHubActionSelector, updateGitHubActions } from '@pnpm/deps.github-actions'
 
 const dirs: string[] = []
 
@@ -17,6 +17,13 @@ describe('GitHub Actions dependencies', () => {
     expect(isGitHubActionSelector('@scope/package')).toBe(false)
     expect(isGitHubActionSelector('!@scope/package')).toBe(false)
     expect(isGitHubActionSelector('typescript')).toBe(false)
+  })
+
+  test('normalizes action selectors without changing package selectors', () => {
+    expect(normalizeGitHubActionSelector('actions/checkout@v4')).toBe('actions/checkout')
+    expect(normalizeGitHubActionSelector('!actions/checkout@v4')).toBe('!actions/checkout')
+    expect(normalizeGitHubActionSelector('actions/checkout')).toBe('actions/checkout')
+    expect(normalizeGitHubActionSelector('@scope/package')).toBe('@scope/package')
   })
 
   test('finds actions in workflows and referenced local composite actions', async () => {
