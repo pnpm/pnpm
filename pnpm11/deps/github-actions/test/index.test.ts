@@ -151,6 +151,28 @@ jobs:
     await expect(fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')).resolves.toContain(`uses: actions/checkout@${'a'.repeat(40)} # v4.2.0`)
   })
 
+  test('updates flow-style steps without commenting out their delimiters', async () => {
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `jobs:
+  test:
+    steps: [{ uses: actions/checkout@v4 }]
+`,
+    })
+    const refs = repoRefs([
+      ['v4.2.0', 'a'.repeat(40)],
+      ['v5.0.0', 'b'.repeat(40)],
+    ])
+
+    await updateGitHubActions({ dir, readRepoRefs: async () => refs })
+
+    await expect(fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')).resolves.toBe(`jobs:
+  test:
+    steps: [{ uses: actions/checkout@${'a'.repeat(40)} # v4.2.0
+                    }]
+`)
+    await expect(findOutdatedGitHubActions({ compatible: true, dir, readRepoRefs: async () => refs })).resolves.toEqual([])
+  })
+
   test('limits concurrent repository lookups', async () => {
     const actionCount = 12
     const dir = await fixture({

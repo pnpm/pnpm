@@ -33,6 +33,8 @@ export interface UpdateGitHubActionsOptions extends GitHubActionsOptions {
 interface ActionReference {
   commentVersion?: string
   file: ActionFile
+  flowStyle: boolean
+  indentation: string
   name: string
   originalValue: string
   range: readonly [number, number]
@@ -192,6 +194,8 @@ async function discoverActions (dir: string): Promise<ActionReference[]> {
         ...parsed,
         commentVersion: getCommentVersion(node),
         file,
+        flowStyle: isFlowStyle(source, node.range[1]),
+        indentation: getIndentation(source, node.range[0]),
         originalValue: source.slice(node.range[0], end),
         range: [node.range[0], end],
       })
@@ -329,8 +333,23 @@ function renderTargetValue (action: ActionReference, target: RepoVersion): strin
   let value = action.originalValue.replace(oldReference, newReference)
   if (action.commentVersion != null) return value.replace(action.commentVersion, target.tag)
   const comment = value.indexOf(' #')
-  if (comment === -1) return `${value} # ${target.tag}`
+  if (comment === -1) {
+    return action.flowStyle
+      ? `${value.trimEnd()} # ${target.tag}\n${action.indentation}`
+      : `${value} # ${target.tag}`
+  }
   return `${value.slice(0, comment + 2)}${target.tag} ${value.slice(comment + 2).trimStart()}`
+}
+
+function isFlowStyle (source: string, end: number): boolean {
+  const lineEnd = source.indexOf('\n', end)
+  const following = source.slice(end, lineEnd === -1 ? source.length : lineEnd).trimStart()
+  return following.startsWith('}') || following.startsWith(']') || following.startsWith(',')
+}
+
+function getIndentation (source: string, start: number): string {
+  const lineStart = source.lastIndexOf('\n', start - 1) + 1
+  return ' '.repeat(start - lineStart)
 }
 
 function trimLineBreak (source: string, end: number): number {

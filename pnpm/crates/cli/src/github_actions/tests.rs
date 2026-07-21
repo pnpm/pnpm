@@ -25,6 +25,8 @@ fn action(original_value: &str) -> ActionReference {
             .and_then(|comment| comment.split_whitespace().next())
             .map(str::to_string),
         file: PathBuf::from("workflow.yml"),
+        flow_style: false,
+        indentation: String::new(),
         name: name.to_string(),
         original_value: original_value.to_string(),
         range: 0..original_value.len(),
@@ -99,7 +101,7 @@ async fn updates_workflow_files_without_reformatting_them() {
     fs::create_dir_all(&workflows).expect("workflow directory");
     let workflow = workflows.join("ci.yml");
     let source = format!(
-        "name: CI\n\njobs:\n  test:\n    strategy: {{ matrix: {{ node: [22, 24] }} }}\n    steps:\n      - run: |\n          uses: actions/checkout@{SHA_V4_1_0} # not a dependency\n      - name: nested input\n        with:\n          uses: actions/checkout@v4\n      - uses: 'actions/checkout@{SHA_V4_1_0}' # v4.1.0 keep pinned\n      - uses: actions/checkout@v4\n",
+        "name: CI\n\njobs:\n  test:\n    strategy: {{ matrix: {{ node: [22, 24] }} }}\n    steps:\n      - run: |\n          uses: actions/checkout@{SHA_V4_1_0} # not a dependency\n      - name: nested input\n        with:\n          uses: actions/checkout@v4\n      - uses: 'actions/checkout@{SHA_V4_1_0}' # v4.1.0 keep pinned\n      - uses: actions/checkout@v4\n  flow:\n    steps: [{{ uses: actions/checkout@v4 }}]\n",
     );
     fs::write(&workflow, &source).expect("workflow");
 
@@ -108,7 +110,7 @@ async fn updates_workflow_files_without_reformatting_them() {
     assert_eq!(
         fs::read_to_string(workflow).expect("updated workflow"),
         format!(
-            "name: CI\n\njobs:\n  test:\n    strategy: {{ matrix: {{ node: [22, 24] }} }}\n    steps:\n      - run: |\n          uses: actions/checkout@{SHA_V4_1_0} # not a dependency\n      - name: nested input\n        with:\n          uses: actions/checkout@v4\n      - uses: 'actions/checkout@{SHA_V4_2_0}' # v4.2.0 keep pinned\n      - uses: actions/checkout@{SHA_V4_2_0} # v4.2.0\n",
+            "name: CI\n\njobs:\n  test:\n    strategy: {{ matrix: {{ node: [22, 24] }} }}\n    steps:\n      - run: |\n          uses: actions/checkout@{SHA_V4_1_0} # not a dependency\n      - name: nested input\n        with:\n          uses: actions/checkout@v4\n      - uses: 'actions/checkout@{SHA_V4_2_0}' # v4.2.0 keep pinned\n      - uses: actions/checkout@{SHA_V4_2_0} # v4.2.0\n  flow:\n    steps: [{{ uses: actions/checkout@{SHA_V4_2_0} # v4.2.0\n                    }}]\n",
         ),
     );
 }

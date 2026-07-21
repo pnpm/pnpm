@@ -9,6 +9,8 @@ use std::{
     path::{Path, PathBuf},
 };
 use tokio::fs;
+use yaml_serde::Value;
+use yamlpath::{Component, Document, QueryError, Route};
 
 #[derive(Clone)]
 pub struct OutdatedGitHubAction {
@@ -28,6 +30,8 @@ pub fn is_selector(selector: &str) -> bool {
 struct ActionReference {
     comment_version: Option<String>,
     file: PathBuf,
+    flow_style: bool,
+    indentation: String,
     name: String,
     original_value: String,
     range: Range<usize>,
@@ -203,7 +207,9 @@ async fn discover(root: &Path) -> miette::Result<Vec<ActionReference>> {
         let text = fs::read_to_string(&file)
             .await
             .map_err(|error| miette::miette!("Failed to read {file_display}: {error}"))?;
-        for uses_value in uses_values(&text) {
+        for uses_value in uses_values(&text)
+            .map_err(|error| miette::miette!("Failed to parse {file_display}: {error}"))?
+        {
             let original_value = uses_value.value;
             let (value, comment) = split_uses_value(original_value);
             if let Some(local) = value.strip_prefix("./") {
@@ -244,6 +250,8 @@ async fn discover(root: &Path) -> miette::Result<Vec<ActionReference>> {
             actions.push(ActionReference {
                 comment_version,
                 file: file.clone(),
+                flow_style: uses_value.flow_style,
+                indentation: uses_value.indentation,
                 name: name.to_string(),
                 original_value: original_value.to_string(),
                 range: uses_value.range,
@@ -272,77 +280,93 @@ fn split_uses_value(value: &str) -> (&str, Option<&str>) {
 }
 
 struct UsesValue<'a> {
+    flow_style: bool,
+    indentation: String,
     range: Range<usize>,
     value: &'a str,
 }
 
-fn uses_values(text: &str) -> Vec<UsesValue<'_>> {
+fn uses_values(text: &str) -> Result<Vec<UsesValue<'_>>, QueryError> {
+    let value = yaml_serde::from_str::<Value>(text).map_err(|_| QueryError::InvalidInput)?;
+    let document = Document::new(text)?;
     let mut values = Vec::new();
-    let mut offset = 0;
-    let mut block_scalar_indent = None;
-    let mut path = Vec::new();
-    for segment in text.split_inclusive('\n') {
-        let line = segment.trim_end_matches(['\r', '\n']);
-        let indentation = line.len() - line.trim_start_matches(' ').len();
-        let trimmed = line.trim_start();
-        if let Some(block_indent) = block_scalar_indent {
-            if trimmed.is_empty() || indentation > block_indent {
-                offset += segment.len();
-                continue;
-            }
-            block_scalar_indent = None;
-        }
-        if trimmed.is_empty() || trimmed.starts_with('#') {
-            offset += segment.len();
-            continue;
-        }
-        while path.last().is_some_and(|(parent_indent, _)| indentation <= *parent_indent) {
-            path.pop();
-        }
-
-        let (entry, entry_offset) =
-            trimmed.strip_prefix("- ").map_or((trimmed, line.len() - trimmed.len()), |entry| {
-                (entry, line.len() - trimmed.len() + 2)
-            });
-        let Some(separator) = entry.find(':') else {
-            offset += segment.len();
+    for route in uses_routes(&value) {
+        let Some(feature) = document.query_exact(&route)? else {
             continue;
         };
-        let key = normalize_yaml_key(&entry[..separator]);
-        let untrimmed_value = &entry[separator + 1..];
-        let leading_whitespace = untrimmed_value.len() - untrimmed_value.trim_start().len();
-        let raw_value = untrimmed_value.trim_start();
-        if raw_value.starts_with(['|', '>']) {
-            block_scalar_indent = Some(indentation);
-        }
-        let is_action_uses = key == "uses" && is_action_uses_path(&path);
-        if key != "uses" && (raw_value.is_empty() || raw_value.starts_with('#')) {
-            path.push((indentation, key));
-        }
-        if !is_action_uses || raw_value.is_empty() {
-            offset += segment.len();
+        let key = document.query_key_only(&route)?;
+        let (start, scalar_end) = feature.location.byte_span;
+        let separator = start
+            .checked_sub(key.location.byte_span.1)
+            .map(|_| &text[key.location.byte_span.1..start]);
+        if separator.is_none_or(|separator| {
+            !separator.starts_with(':') || !separator[1..].chars().all(char::is_whitespace)
+        }) {
             continue;
         }
-        let value = raw_value.trim_end();
-        let start = offset + entry_offset + separator + 1 + leading_whitespace;
-        values.push(UsesValue { range: start..start + value.len(), value });
-        offset += segment.len();
+        let line_end = text[scalar_end..].find('\n').map_or(text.len(), |end| scalar_end + end);
+        let trailing = &text[scalar_end..line_end];
+        let following = trailing.trim_start();
+        let flow_style = matches!(following.chars().next(), Some('}' | ']' | ','));
+        let end = if following.starts_with('#') {
+            scalar_end + trailing.trim_end().len()
+        } else if flow_style {
+            scalar_end + trailing.len() - following.len()
+        } else {
+            scalar_end
+        };
+        let line_start = text[..start].rfind('\n').map_or(0, |line_break| line_break + 1);
+        values.push(UsesValue {
+            flow_style,
+            indentation: " ".repeat(start - line_start),
+            range: start..end,
+            value: &text[start..end],
+        });
     }
-    values
+    Ok(values)
 }
 
-fn normalize_yaml_key(key: &str) -> &str {
-    let key = key.trim();
-    key.strip_prefix('\'')
-        .and_then(|key| key.strip_suffix('\''))
-        .or_else(|| key.strip_prefix('"').and_then(|key| key.strip_suffix('"')))
-        .unwrap_or(key)
+fn uses_routes(value: &Value) -> Vec<Route<'static>> {
+    let mut routes = Vec::new();
+    if let Some(jobs) = value.get("jobs").and_then(Value::as_mapping) {
+        for (name, job) in jobs {
+            let Some(name) = name.as_str() else { continue };
+            if job.get("uses").and_then(Value::as_str).is_some() {
+                routes.push(Route::from(vec![
+                    "jobs".into(),
+                    name.to_string().into(),
+                    "uses".into(),
+                ]));
+            }
+            add_step_routes(
+                &mut routes,
+                job.get("steps"),
+                &["jobs".into(), name.to_string().into(), "steps".into()],
+            );
+        }
+    }
+    add_step_routes(
+        &mut routes,
+        value.get("runs").and_then(|runs| runs.get("steps")),
+        &["runs".into(), "steps".into()],
+    );
+    routes
 }
 
-fn is_action_uses_path(path: &[(usize, &str)]) -> bool {
-    (path.len() == 2 && path[0].1 == "jobs")
-        || (path.len() == 3 && path[0].1 == "jobs" && path[2].1 == "steps")
-        || (path.len() == 2 && path[0].1 == "runs" && path[1].1 == "steps")
+fn add_step_routes(
+    routes: &mut Vec<Route<'static>>,
+    steps: Option<&Value>,
+    prefix: &[Component<'static>],
+) {
+    let Some(steps) = steps.and_then(Value::as_sequence) else { return };
+    for (index, step) in steps.iter().enumerate() {
+        if step.get("uses").and_then(Value::as_str).is_none() {
+            continue;
+        }
+        let mut route = prefix.to_owned();
+        route.extend([index.into(), "uses".into()]);
+        routes.push(Route::from(route));
+    }
 }
 
 fn parse_repo_versions(stdout: &str) -> Vec<RepoVersion> {
@@ -415,6 +439,12 @@ fn render_target_value(action: &ActionReference, target: &RepoVersion) -> String
         value = value.replacen(comment_version, &target.tag, 1);
     } else if let Some(comment) = value.find(" #") {
         value.insert_str(comment + 2, &format!("{} ", target.tag));
+    } else if action.flow_style {
+        value.truncate(value.trim_end().len());
+        value.push_str(" # ");
+        value.push_str(&target.tag);
+        value.push('\n');
+        value.push_str(&action.indentation);
     } else {
         value.push_str(" # ");
         value.push_str(&target.tag);

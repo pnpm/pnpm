@@ -90,6 +90,8 @@ tokio                = { workspace = true }
 tracing              = { workspace = true }
 url                  = { workspace = true }
 which                = { workspace = true }
+yaml_serde           = { workspace = true }
+yamlpath             = { workspace = true }
 base64               = { workspace = true }
 wax                  = { workspace = true }
 
