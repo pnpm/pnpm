@@ -263,10 +263,18 @@ fn outdated_recursive_aggregates_workspace_dependents() {
     assert_eq!(dependents[0]["name"], "app-a");
     assert_eq!(dependents[1]["name"], "app-b");
     assert!(
-        dependents[0]["location"].as_str().is_some_and(|path| path.ends_with("packages/app-a")),
+        dependents[0]["location"]
+            .as_str()
+            .is_some_and(|path| Path::new(path).ends_with(Path::new("packages").join("app-a"))),
+        "unexpected app-a location: {}",
+        dependents[0]["location"],
     );
     assert!(
-        dependents[1]["location"].as_str().is_some_and(|path| path.ends_with("packages/app-b")),
+        dependents[1]["location"]
+            .as_str()
+            .is_some_and(|path| Path::new(path).ends_with(Path::new("packages").join("app-b"))),
+        "unexpected app-b location: {}",
+        dependents[1]["location"],
     );
 
     let filtered =
