@@ -25,12 +25,13 @@ export interface CaptureUpdateChangesetContextOptions {
   workspacePackagePatterns?: string[]
 }
 
-type ProdDepSpecs = Pick<ProjectManifest, 'dependencies' | 'optionalDependencies'>
+type UpdateDepSpecs = Pick<ProjectManifest, 'dependencies' | 'optionalDependencies' | 'peerDependencies'>
+type ReleaseType = 'patch' | 'major'
 
 export interface UpdateChangesetContext {
   workspaceDir: string
   rootDirs: ProjectRootDir[]
-  prodDepSpecsBefore: Map<ProjectRootDir, ProdDepSpecs | null>
+  depSpecsBefore: Map<ProjectRootDir, UpdateDepSpecs | null>
   catalogsBefore: Catalogs
 }
 
@@ -50,30 +51,28 @@ export async function captureUpdateChangesetContext (opts: CaptureUpdateChangese
   const rootDirs = projects.length > 0
     ? projects.map(({ rootDir }) => rootDir)
     : [opts.dir as ProjectRootDir]
-  const [prodDepSpecsEntries, workspaceManifest] = await Promise.all([
+  const [depSpecsEntries, workspaceManifest] = await Promise.all([
     Promise.all(rootDirs.map(async (rootDir) => {
       const manifest = await safeReadProjectManifestOnly(rootDir)
-      return [rootDir, manifest && pickProdDepSpecs(manifest)] as const
+      return [rootDir, manifest && pickUpdateDepSpecs(manifest)] as const
     })),
     readWorkspaceManifest(workspaceDir),
   ])
   return {
     workspaceDir,
     rootDirs,
-    prodDepSpecsBefore: new Map(prodDepSpecsEntries),
+    depSpecsBefore: new Map(depSpecsEntries),
     catalogsBefore: getCatalogsFromWorkspaceManifest(workspaceManifest),
   }
 }
 
 /**
- * Writes a `.changeset/pnpm-update-<suffix>.md` file declaring a patch bump
- * for every workspace package whose published artifact is affected by the
- * update: packages whose `dependencies` or `optionalDependencies` specs
- * changed, and packages consuming a catalog entry whose spec changed in
- * `pnpm-workspace.yaml` (their own manifests keep the `catalog:` specifier, so
- * only the catalog diff reveals them). Resolution-only changes and
- * `devDependencies` changes don't affect what consumers install, so they never
- * produce a changeset.
+ * Writes a `.changeset/pnpm-update-<suffix>.md` file for every workspace
+ * package whose published artifact is affected by the update. Production
+ * dependency changes get a patch bump. Peer dependency changes get a major
+ * bump because they can invalidate existing consumers. Catalog changes are
+ * attributed to every package that consumes the changed entry. Resolution-only
+ * changes and `devDependencies` changes never produce a changeset.
  */
 export async function generateUpdateChangeset (ctx: UpdateChangesetContext): Promise<void> {
   const changesetDir = path.join(ctx.workspaceDir, '.changeset')
@@ -87,25 +86,30 @@ export async function generateUpdateChangeset (ctx: UpdateChangesetContext): Pro
   const catalogsAfter = getCatalogsFromWorkspaceManifest(await readWorkspaceManifest(ctx.workspaceDir))
   const changedCatalogEntries = findChangedCatalogEntries(ctx.catalogsBefore, catalogsAfter)
   const isIgnored = createMatcher(Array.isArray(changesetConfig.ignore) ? changesetConfig.ignore : [])
-  const affectedPackageNames = (await Promise.all(
+  const releases = (await Promise.all(
     ctx.rootDirs.map(async (rootDir) => {
       const manifest = await safeReadProjectManifestOnly(rootDir)
       if (!manifest?.name || manifest.private || isIgnored(manifest.name)) return undefined
-      const prodDepSpecs = pickProdDepSpecs(manifest)
-      const affected = !equals(ctx.prodDepSpecsBefore.get(rootDir) ?? {}, prodDepSpecs) ||
-        usesChangedCatalogEntry(prodDepSpecs, changedCatalogEntries)
-      return affected ? manifest.name : undefined
+      const depSpecs = pickUpdateDepSpecs(manifest)
+      const depSpecsBefore = ctx.depSpecsBefore.get(rootDir)
+      const peerDependenciesChanged = dependencyGroupChanged(depSpecsBefore, depSpecs, 'peerDependencies') ||
+        usesChangedCatalogEntry([depSpecs.peerDependencies], changedCatalogEntries)
+      if (peerDependenciesChanged) return { name: manifest.name, type: 'major' as const }
+      const productionDependenciesChanged = dependencyGroupChanged(depSpecsBefore, depSpecs, 'dependencies') ||
+        dependencyGroupChanged(depSpecsBefore, depSpecs, 'optionalDependencies') ||
+        usesChangedCatalogEntry([depSpecs.dependencies, depSpecs.optionalDependencies], changedCatalogEntries)
+      return productionDependenciesChanged ? { name: manifest.name, type: 'patch' as const } : undefined
     })
-  )).filter((name) => name != null)
-  if (affectedPackageNames.length === 0) {
-    globalInfo('No changeset was generated because the update did not change the production dependencies of any workspace package')
+  )).filter((release) => release != null)
+  if (releases.length === 0) {
+    globalInfo('No changeset was generated because the update did not change the production or peer dependencies of any workspace package')
     return
   }
-  affectedPackageNames.sort(lexCompare)
+  releases.sort((a, b) => lexCompare(a.name, b.name))
   await ensureChangesetDirIsSafe(changesetDir)
   const changesetPath = path.join(changesetDir, `pnpm-update-${crypto.randomBytes(4).toString('hex')}.md`)
-  await fs.promises.writeFile(changesetPath, formatChangeset(affectedPackageNames), { flag: 'wx' })
-  globalInfo(`Generated a changeset at ${changesetPath} declaring a patch bump for: ${affectedPackageNames.join(', ')}`)
+  await fs.promises.writeFile(changesetPath, formatChangeset(releases), { flag: 'wx' })
+  globalInfo(`Generated a changeset at ${changesetPath} for: ${releases.map(({ name, type }) => `${name} (${type})`).join(', ')}`)
 }
 
 interface ChangesetConfig {
@@ -146,15 +150,26 @@ async function ensureChangesetDirIsSafe (changesetDir: string): Promise<void> {
   }
 }
 
-function pickProdDepSpecs (manifest: ProjectManifest): ProdDepSpecs {
-  const prodDepSpecs: ProdDepSpecs = {}
+function pickUpdateDepSpecs (manifest: ProjectManifest): UpdateDepSpecs {
+  const depSpecs: UpdateDepSpecs = {}
   if (manifest.dependencies != null) {
-    prodDepSpecs.dependencies = manifest.dependencies
+    depSpecs.dependencies = manifest.dependencies
   }
   if (manifest.optionalDependencies != null) {
-    prodDepSpecs.optionalDependencies = manifest.optionalDependencies
+    depSpecs.optionalDependencies = manifest.optionalDependencies
   }
-  return prodDepSpecs
+  if (manifest.peerDependencies != null) {
+    depSpecs.peerDependencies = manifest.peerDependencies
+  }
+  return depSpecs
+}
+
+function dependencyGroupChanged (
+  before: UpdateDepSpecs | null | undefined,
+  after: UpdateDepSpecs,
+  field: keyof UpdateDepSpecs
+): boolean {
+  return !equals(before?.[field] ?? {}, after[field] ?? {})
 }
 
 function findChangedCatalogEntries (before: Catalogs, after: Catalogs): Map<string, Set<string>> {
@@ -177,9 +192,12 @@ function findChangedCatalogEntries (before: Catalogs, after: Catalogs): Map<stri
   return changedEntries
 }
 
-function usesChangedCatalogEntry (prodDepSpecs: ProdDepSpecs, changedCatalogEntries: Map<string, Set<string>>): boolean {
+function usesChangedCatalogEntry (
+  dependencyGroups: Array<ProjectManifest['dependencies']>,
+  changedCatalogEntries: Map<string, Set<string>>
+): boolean {
   if (changedCatalogEntries.size === 0) return false
-  for (const deps of [prodDepSpecs.dependencies, prodDepSpecs.optionalDependencies]) {
+  for (const deps of dependencyGroups) {
     for (const [depName, spec] of Object.entries(deps ?? {})) {
       const catalogName = parseCatalogProtocol(spec)
       if (catalogName != null && changedCatalogEntries.get(catalogName)?.has(depName)) {
@@ -190,7 +208,7 @@ function usesChangedCatalogEntry (prodDepSpecs: ProdDepSpecs, changedCatalogEntr
   return false
 }
 
-function formatChangeset (packageNames: string[]): string {
-  const bumps = packageNames.map((name) => `"${name}": patch`).join('\n')
+function formatChangeset (releases: Array<{ name: string, type: ReleaseType }>): string {
+  const bumps = releases.map(({ name, type }) => `"${name}": ${type}`).join('\n')
   return `---\n${bumps}\n---\n\nUpdate dependencies.\n`
 }

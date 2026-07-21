@@ -73,21 +73,23 @@ enum UpdateChangesetError {
 }
 
 #[derive(Default, PartialEq, Eq)]
-struct ProdDepSpecs {
+struct UpdateDepSpecs {
     dependencies: Option<BTreeMap<String, String>>,
     optional_dependencies: Option<BTreeMap<String, String>>,
+    peer_dependencies: Option<BTreeMap<String, String>>,
 }
 
-impl ProdDepSpecs {
+impl UpdateDepSpecs {
     fn from_manifest(manifest: &PackageManifest) -> Result<Self, PackageManifestError> {
         let value = manifest.written_value()?;
         Ok(Self {
             dependencies: dependency_map(&value, "dependencies"),
             optional_dependencies: dependency_map(&value, "optionalDependencies"),
+            peer_dependencies: dependency_map(&value, "peerDependencies"),
         })
     }
 
-    fn groups(&self) -> [Option<&BTreeMap<String, String>>; 2] {
+    fn production_groups(&self) -> [Option<&BTreeMap<String, String>>; 2] {
         [self.dependencies.as_ref(), self.optional_dependencies.as_ref()]
     }
 }
@@ -95,7 +97,7 @@ impl ProdDepSpecs {
 pub(super) struct UpdateChangesetContext {
     workspace_dir: PathBuf,
     root_dirs: Vec<PathBuf>,
-    prod_dep_specs_before: BTreeMap<PathBuf, Option<ProdDepSpecs>>,
+    dep_specs_before: BTreeMap<PathBuf, Option<UpdateDepSpecs>>,
     catalogs_before: Catalogs,
 }
 
@@ -110,14 +112,14 @@ impl UpdateChangesetContext {
         } else {
             vec![project_dir.to_path_buf()]
         };
-        let prod_dep_specs_before = root_dirs
+        let dep_specs_before = root_dirs
             .iter()
             .map(|root_dir| {
                 let manifest = safe_read_project_manifest_only(root_dir)
                     .map_err(UpdateChangesetError::ReadProject)?;
                 let specs = manifest
                     .as_ref()
-                    .map(ProdDepSpecs::from_manifest)
+                    .map(UpdateDepSpecs::from_manifest)
                     .transpose()
                     .map_err(UpdateChangesetError::InspectProject)?;
                 Ok((root_dir.clone(), specs))
@@ -126,7 +128,7 @@ impl UpdateChangesetContext {
         let workspace_manifest =
             read_workspace_manifest(&workspace_dir).map_err(UpdateChangesetError::ReadWorkspace)?;
         let catalogs_before = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())?;
-        Ok(Self { workspace_dir, root_dirs, prod_dep_specs_before, catalogs_before })
+        Ok(Self { workspace_dir, root_dirs, dep_specs_before, catalogs_before })
     }
 
     pub(super) fn generate<Output: Reporter>(self) -> miette::Result<()> {
@@ -167,7 +169,7 @@ impl UpdateChangesetContext {
         let catalogs_after = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())?;
         let changed_catalog_entries =
             find_changed_catalog_entries(&self.catalogs_before, &catalogs_after);
-        let mut affected_package_names = Vec::new();
+        let mut releases = BTreeMap::new();
         for root_dir in &self.root_dirs {
             let Some(manifest) = safe_read_project_manifest_only(root_dir)
                 .map_err(UpdateChangesetError::ReadProject)?
@@ -182,32 +184,39 @@ impl UpdateChangesetContext {
             {
                 continue;
             }
-            let prod_dep_specs = ProdDepSpecs::from_manifest(&manifest)
+            let dep_specs = UpdateDepSpecs::from_manifest(&manifest)
                 .map_err(UpdateChangesetError::InspectProject)?;
-            let specs_changed = self
-                .prod_dep_specs_before
-                .get(root_dir)
-                .and_then(Option::as_ref)
-                .is_none_or(|before| before != &prod_dep_specs);
-            if specs_changed
-                || uses_changed_catalog_entry(&prod_dep_specs, &changed_catalog_entries)
-            {
-                affected_package_names.push(package_name.to_string());
+            let dep_specs_before = self.dep_specs_before.get(root_dir).and_then(Option::as_ref);
+            let peer_dependencies_changed = dep_specs_before
+                .is_some_and(|before| before.peer_dependencies != dep_specs.peer_dependencies)
+                || uses_changed_catalog_entry(
+                    [dep_specs.peer_dependencies.as_ref()],
+                    &changed_catalog_entries,
+                );
+            if peer_dependencies_changed {
+                releases.insert(package_name.to_string(), IntentBumpType::Major);
+                continue;
+            }
+            let production_dependencies_changed = dep_specs_before.is_none_or(|before| {
+                before.dependencies != dep_specs.dependencies
+                    || before.optional_dependencies != dep_specs.optional_dependencies
+            }) || uses_changed_catalog_entry(
+                dep_specs.production_groups(),
+                &changed_catalog_entries,
+            );
+            if production_dependencies_changed {
+                releases.insert(package_name.to_string(), IntentBumpType::Patch);
             }
         }
-        if affected_package_names.is_empty() {
+        if releases.is_empty() {
             global_log::<Output>(
                 LogLevel::Info,
-                "No changeset was generated because the update did not change the production dependencies of any workspace package".to_string(),
+                "No changeset was generated because the update did not change the production or peer dependencies of any workspace package".to_string(),
             );
             return Ok(());
         }
 
-        affected_package_names.sort();
-        let releases = affected_package_names
-            .iter()
-            .map(|name| (name.clone(), IntentBumpType::Patch))
-            .collect::<IndexMap<_, _>>();
+        let releases = releases.into_iter().collect::<IndexMap<_, _>>();
         let mut random = [0_u8; 4];
         getrandom::fill(&mut random).expect("read entropy from the operating system");
         let id = format!("pnpm-update-{:08x}", u32::from_be_bytes(random));
@@ -226,9 +235,13 @@ impl UpdateChangesetContext {
         global_log::<Output>(
             LogLevel::Info,
             format!(
-                "Generated a changeset at {} declaring a patch bump for: {}",
+                "Generated a changeset at {} for: {}",
                 changeset_path.display(),
-                affected_package_names.join(", "),
+                releases
+                    .iter()
+                    .map(|(name, bump)| format!("{name} ({bump})"))
+                    .collect::<Vec<_>>()
+                    .join(", "),
             ),
         );
         Ok(())
@@ -293,11 +306,11 @@ fn find_changed_catalog_entries(
         .collect()
 }
 
-fn uses_changed_catalog_entry(
-    prod_dep_specs: &ProdDepSpecs,
+fn uses_changed_catalog_entry<'a>(
+    dependency_groups: impl IntoIterator<Item = Option<&'a BTreeMap<String, String>>>,
     changed_catalog_entries: &BTreeMap<String, BTreeSet<String>>,
 ) -> bool {
-    prod_dep_specs.groups().into_iter().flatten().any(|dependencies| {
+    dependency_groups.into_iter().flatten().any(|dependencies| {
         dependencies.iter().any(|(dependency_name, spec)| {
             parse_catalog_protocol(spec).is_some_and(|catalog_name| {
                 changed_catalog_entries

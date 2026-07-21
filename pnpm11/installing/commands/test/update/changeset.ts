@@ -120,6 +120,68 @@ Update dependencies.
   expect(globalInfo).toHaveBeenCalledWith(expect.stringContaining('Generated a changeset'))
 })
 
+test('update --changeset generates a major changeset when peer dependencies change', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
+
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+      peerDependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**'],
+    catalog: {
+      '@pnpm.e2e/foo': '^100.0.0',
+    },
+  })
+  writeChangesetConfig()
+  const catalogs = { default: { '@pnpm.e2e/foo': '^100.0.0' } }
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    catalogs,
+    dir: process.cwd(),
+    lockfileDir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    catalogs,
+    changeset: true,
+    dir: process.cwd(),
+    latest: true,
+    lockfileDir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+
+  expect(readYamlFileSync('pnpm-workspace.yaml')).toHaveProperty(['catalog', '@pnpm.e2e/foo'], '^100.1.0')
+  const changesetFiles = readGeneratedChangesets()
+  expect(changesetFiles).toHaveLength(1)
+  expect(fs.readFileSync(path.join('.changeset', changesetFiles[0]), 'utf8')).toBe(`---
+"project": major
+---
+
+Update dependencies.
+`)
+})
+
 test('update --changeset generates no changeset when only devDependencies changed', async () => {
   await addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' })
 

@@ -119,6 +119,31 @@ fn update_changeset_records_only_publishable_production_dependency_changes() {
 }
 
 #[test]
+fn update_changeset_records_peer_dependency_changes_as_major() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(
+        &workspace,
+        json!({
+            "name": "project",
+            "version": "1.0.0",
+            "dependencies": { (DEP): "catalog:" },
+            "peerDependencies": { (DEP): "catalog:" },
+        }),
+    );
+    append_workspace_yaml(&workspace, &format!("catalog:\n  '{DEP}': '^100.0.0'\n"));
+    write_changeset_config(&workspace, json!({}));
+
+    pacquet(&workspace, ["install"]).assert().success();
+    pacquet(&workspace, ["update", "--latest", "--changeset"]).assert().success();
+
+    assert_eq!(
+        generated_changeset_text(&workspace),
+        "---\n\"project\": major\n---\n\nUpdate dependencies.\n",
+    );
+    drop((root, anchor));
+}
+
+#[test]
 fn update_changeset_skips_dev_dependency_only_changes() {
     let (root, workspace, anchor) = setup();
     write_manifest(
