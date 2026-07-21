@@ -841,6 +841,7 @@ test('RegExp script matching executes multiple scripts in alphabetical order whe
     extraBinPaths: [],
     extraEnv: {},
     pnpmHomeDir: '',
+    workspaceConcurrency: 1,
   }, ['/^build:.*/'])
 
   const outputLog = fs.readFileSync(path.join(process.cwd(), 'order.log'), 'utf-8')

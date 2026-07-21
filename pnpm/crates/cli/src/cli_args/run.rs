@@ -91,6 +91,7 @@ pub enum RunError {
 }
 
 impl RunArgs {
+    /// Execute the subcommand in `dir`.
     pub fn run(self, dir: &Path, config: &Config, silent: bool) -> miette::Result<()> {
         self.run_inner(dir, config, silent, false)
     }
@@ -106,6 +107,7 @@ impl RunArgs {
         silent: bool,
         fallback_to_exec: bool,
     ) -> miette::Result<()> {
+        // Verify deps before reading manifest so a mistyped command in a project-less directory skips the install check.
         super::verify_deps::verify_deps_before_run(dir, config, silent)?;
         let RunArgs { command, args, if_present, sequential, .. } = self;
         let Some(script_name) = command else {
@@ -125,9 +127,7 @@ impl RunArgs {
 
         let mut specified = specified_scripts(manifest.value(), &script_name, !sequential);
 
-        // Hidden scripts (names starting with `.`) can only be invoked
-        // from within another script, detected by an inherited
-        // `npm_lifecycle_event`.
+        // Hidden scripts (names starting with `.`) can only be invoked from within another script, detected by an inherited `npm_lifecycle_event`.
         if env::var_os("npm_lifecycle_event").is_none() {
             specified = throw_or_filter_hidden_scripts(specified, &script_name)?;
         }
@@ -170,6 +170,7 @@ impl RunArgs {
         };
         for name in &specified {
             let Some(main) = resolve_main_script(&ctx, name)? else { continue };
+            // Skip the no-op `npx only-allow pnpm` guard when no args.
             if args.is_empty() && main == "npx only-allow pnpm" {
                 continue;
             }
@@ -181,6 +182,7 @@ impl RunArgs {
         Ok(())
     }
 
+    /// Execute the subcommand across `--filter`-selected workspace projects.
     pub fn run_recursive(&self, config: &Config, dir: &Path) -> miette::Result<()> {
         super::verify_deps::verify_deps_before_run(dir, config, false)?;
         recursive::run_recursive(self, config, dir)
@@ -204,6 +206,7 @@ fn exec_fallback(
     .run(dir, config)
 }
 
+/// Shared inputs for running a script, threaded through `run_stages` and `run_stage`.
 pub(super) struct RunContext<'a> {
     pub(super) manifest: &'a PackageManifest,
     pub(super) dir: &'a Path,
@@ -214,6 +217,7 @@ pub(super) struct RunContext<'a> {
     pub(super) sequential: bool,
 }
 
+/// Resolve `name` to a runnable main script body, or `Ok(None)` when there's nothing to run.
 fn resolve_main_script(ctx: &RunContext<'_>, name: &str) -> Result<Option<String>, RunError> {
     let get_script = |key: &str| -> Option<String> {
         ctx.manifest
@@ -236,10 +240,7 @@ fn resolve_main_script(ctx: &RunContext<'_>, name: &str) -> Result<Option<String
     }
 }
 
-/// Run pre / main / post for `name` around an already-resolved
-/// `main_body`. On the first non-success stage the function
-/// short-circuits and returns that status; a failing stage skips the
-/// remaining stages.
+/// Run pre / main / post for `name`. On the first non-success stage, short-circuit and skip the rest.
 pub(super) fn run_stages(
     ctx: &RunContext<'_>,
     name: &str,
@@ -350,6 +351,7 @@ fn exec_scripts_prepend_node_path(
     }
 }
 
+/// Resolve script names for `name`: exact match, `/regexp/` selector, or `start` fallback.
 fn specified_scripts(manifest: &Value, name: &str, sort: bool) -> Vec<String> {
     if let Some(scripts) = manifest.get("scripts").and_then(Value::as_object) {
         if let Some(entry) = scripts.get(name).and_then(Value::as_str)
@@ -382,6 +384,7 @@ fn specified_scripts(manifest: &Value, name: &str, sort: bool) -> Vec<String> {
     Vec::new()
 }
 
+/// Parse a `/pattern/` selector. Returns `None` when `name` is not in regexp format or flags are present.
 fn parse_regexp_selector(name: &str) -> Option<String> {
     let rest = name.strip_prefix('/')?;
     let (pattern, flags) = rest.rsplit_once('/').unwrap_or((rest, ""));
@@ -391,6 +394,7 @@ fn parse_regexp_selector(name: &str) -> Option<String> {
     Some(pattern.to_string())
 }
 
+/// Drop hidden scripts (names starting with `.`) or reject an explicit request for one.
 fn throw_or_filter_hidden_scripts(
     specified: Vec<String>,
     name: &str,
@@ -411,6 +415,7 @@ fn throw_or_filter_hidden_scripts(
     Err(RunError::AllHidden { scripts: hidden_names.join(", ") })
 }
 
+/// Render the script listing printed when `pnpm run` is called without a script name.
 fn render_project_commands(manifest: &Value) -> String {
     let scripts = manifest.get("scripts").and_then(Value::as_object);
     let mut lifecycle = Vec::new();
@@ -456,6 +461,7 @@ fn render_commands(commands: &[(&str, &str)]) -> String {
         .join("\n")
 }
 
+/// Lifecycle script names grouped separately in the run listing.
 const ALL_LIFECYCLE_SCRIPTS: &[&str] = &[
     "prepublish",
     "prepare",
