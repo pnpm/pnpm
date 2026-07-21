@@ -53,8 +53,17 @@ pub async fn find_outdated(
     compatible: bool,
     matcher: Option<&Matcher>,
 ) -> miette::Result<Vec<OutdatedGitHubAction>> {
-    let plans = create_plan(root, matcher, &RealGitRunner::new()).await?;
-    Ok(to_outdated(plans, compatible))
+    find_outdated_with_runner(root, compatible, matcher, &RealGitRunner::new()).await
+}
+
+async fn find_outdated_with_runner<Runner: GitCommandRunner + Sync>(
+    root: &Path,
+    compatible: bool,
+    matcher: Option<&Matcher>,
+    runner: &Runner,
+) -> miette::Result<Vec<OutdatedGitHubAction>> {
+    let plans = create_plan(root, matcher, runner).await?;
+    Ok(to_outdated(plans, !compatible))
 }
 
 pub async fn update(

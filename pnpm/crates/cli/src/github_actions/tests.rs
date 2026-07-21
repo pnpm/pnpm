@@ -1,6 +1,7 @@
 use super::{
-    ActionReference, RepoVersion, find_current, is_selector, parse_repo_versions,
-    render_target_ref, render_target_value, split_uses_value, update_with_runner,
+    ActionReference, RepoVersion, find_current, find_outdated_with_runner, is_selector,
+    parse_repo_versions, render_target_ref, render_target_value, split_uses_value,
+    update_with_runner,
 };
 use node_semver::Version;
 use pacquet_resolving_git_resolver::{GitCommandRunner, GitRunError};
@@ -110,4 +111,28 @@ async fn updates_workflow_files_without_reformatting_them() {
             "name: CI\n\njobs:\n  test:\n    strategy: {{ matrix: {{ node: [22, 24] }} }}\n    steps:\n      - run: |\n          uses: actions/checkout@{SHA_V4_1_0} # not a dependency\n      - name: nested input\n        with:\n          uses: actions/checkout@v4\n      - uses: 'actions/checkout@{SHA_V4_2_0}' # v4.2.0 keep pinned\n      - uses: actions/checkout@{SHA_V4_2_0} # v4.2.0\n",
         ),
     );
+}
+
+#[tokio::test]
+async fn compatible_outdated_uses_the_current_major() {
+    let root = tempfile::tempdir().expect("temp directory");
+    let workflows = root.path().join(".github/workflows");
+    fs::create_dir_all(&workflows).expect("workflow directory");
+    fs::write(
+        workflows.join("ci.yml"),
+        format!(
+            "jobs:\n  test:\n    steps:\n      - uses: actions/checkout@{SHA_V4_1_0} # v4.1.0\n",
+        ),
+    )
+    .expect("workflow");
+
+    let default = find_outdated_with_runner(root.path(), false, None, &FakeGitRunner)
+        .await
+        .expect("default outdated");
+    let compatible = find_outdated_with_runner(root.path(), true, None, &FakeGitRunner)
+        .await
+        .expect("compatible outdated");
+
+    assert_eq!(default[0].latest, Version::parse("5.0.0").unwrap());
+    assert_eq!(compatible[0].latest, Version::parse("4.2.0").unwrap());
 }
