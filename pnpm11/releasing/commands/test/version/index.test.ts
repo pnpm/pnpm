@@ -338,6 +338,19 @@ fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\
       ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_VERSION_FROM_GIT' })
     })
 
+    it('should rethrow unexpected git describe errors', async () => {
+      fs.rmSync(path.join(tempDir, '.git'), { recursive: true, force: true })
+
+      await expect(
+        handler({
+          dir: tempDir,
+          workspaceDir: tempDir,
+          gitChecks: false,
+          gitTagVersion: false,
+        } as any, ['from-git']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      ).rejects.toMatchObject({ exitCode: 128 })
+    })
+
     it('should reject a malformed version tag', async () => {
       await execa('git', ['tag', 'v-release-2.3.4'], { cwd: tempDir })
 

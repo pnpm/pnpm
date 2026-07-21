@@ -305,8 +305,19 @@ async function versionFromGit (cwd: string, tagVersionPrefix = 'v'): Promise<str
   try {
     const { stdout } = await execa('git', ['describe', '--tags', '--abbrev=0', '--match=' + tagVersionPrefix + '*.*.*'], { cwd })
     tag = typeof stdout === 'string' ? stdout.trim() : ''
-  } catch {
-    throw new PnpmError('INVALID_VERSION_FROM_GIT', 'No matching Git tag found in ' + JSON.stringify(cwd) + ' for prefix: ' + JSON.stringify(tagVersionPrefix))
+  } catch (err: unknown) {
+    if (
+      err !== null &&
+      typeof err === 'object' &&
+      'exitCode' in err &&
+      err.exitCode === 128 &&
+      'stderr' in err &&
+      typeof err.stderr === 'string' &&
+      /No names found|No tags can describe/.test(err.stderr)
+    ) {
+      throw new PnpmError('INVALID_VERSION_FROM_GIT', 'No matching Git tag found in ' + JSON.stringify(cwd) + ' for prefix: ' + JSON.stringify(tagVersionPrefix))
+    }
+    throw err
   }
   const version = tag.startsWith(tagVersionPrefix)
     ? valid(tag.slice(tagVersionPrefix.length))
