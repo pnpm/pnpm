@@ -68,8 +68,8 @@ use crate::{
         get_pkg_mirror_path, load_meta_async, save_meta_indexed, save_meta_ndjson, scoped_meta_dir,
     },
     pick_package_from_meta::{
-        PickPackageFromMetaError, PickPackageFromMetaOptions, RegistryPackageSpec,
-        RegistryPackageSpecType, filter_pkg_metadata_versions,
+        PickFromMetaOutcome, PickPackageFromMetaError, PickPackageFromMetaOptions,
+        RegistryPackageSpec, RegistryPackageSpecType, filter_pkg_metadata_versions,
         pick_lowest_version_by_version_range, pick_package_from_meta,
         pick_version_by_version_range,
     },
@@ -327,6 +327,9 @@ pub struct PickPackageOptions<'a> {
 pub struct PickPackageResult {
     pub meta: Arc<Package>,
     pub picked_package: Option<Arc<PackageVersion>>,
+    /// Policy-aware `dist-tags.latest`: the rewritten tag when
+    /// `published_by` filtered the packument, otherwise the raw tag.
+    pub latest: Option<String>,
 }
 
 /// Failure modes for [`pick_package`]. Distinguishes the pure-pick
@@ -528,9 +531,13 @@ pub async fn pick_package<Cache: PackageMetaCache>(
                 if !opts.dry_run {
                     ctx.meta_cache.set_unverified(cache_key.clone(), Arc::clone(&meta));
                 }
-                let (meta, picked) =
+                let (meta, outcome) =
                     pick_from_meta(&picker_opts, spec, meta, opts.blocked_versions)?;
-                return Ok(PickPackageResult { meta, picked_package: picked });
+                return Ok(PickPackageResult {
+                    meta,
+                    picked_package: outcome.package,
+                    latest: outcome.latest,
+                });
             }
             return Err(PickPackageError::NoOfflineMeta {
                 spec_name: spec.name.clone(),
@@ -555,9 +562,9 @@ pub async fn pick_package<Cache: PackageMetaCache>(
                 }
                 ctx.meta_cache.set(cache_key.clone(), Arc::clone(&meta));
             }
-            let (picked_meta, picked) =
+            let (picked_meta, outcome) =
                 pick_from_meta(&picker_opts, spec, Arc::clone(&meta), opts.blocked_versions)?;
-            if picked.is_some() {
+            if outcome.package.is_some() {
                 // A cache hit re-runs the release-age upgrade check, so
                 // serving this meta from memory can't bypass the upgrade.
                 // The upgrade branch above already cached the registry-
@@ -566,7 +573,11 @@ pub async fn pick_package<Cache: PackageMetaCache>(
                 if !upgrade.upgraded && !opts.dry_run {
                     ctx.meta_cache.set_unverified(cache_key.clone(), Arc::clone(&meta));
                 }
-                return Ok(PickPackageResult { meta: picked_meta, picked_package: picked });
+                return Ok(PickPackageResult {
+                    meta: picked_meta,
+                    picked_package: outcome.package,
+                    latest: outcome.latest,
+                });
             }
             // Fall through to fetch when disk had the meta but no
             // version satisfied the spec — the disk copy may be
@@ -595,8 +606,9 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             // Pacquet's fetcher is always full so this branch
             // shouldn't fire today, but the swallow-and-fall-through
             // keeps the behavior intact.
-            if let Ok((picked_meta, Some(picked))) =
+            if let Ok((picked_meta, outcome)) =
                 pick_from_meta_fast(&picker_opts, spec, Arc::clone(meta), opts.blocked_versions)
+                && let Some(picked) = outcome.package
             {
                 // Promote the disk-loaded packument into the
                 // install-scoped in-memory cache so later resolves
@@ -610,7 +622,11 @@ pub async fn pick_package<Cache: PackageMetaCache>(
                 if !opts.dry_run {
                     ctx.meta_cache.set_unverified(cache_key.clone(), Arc::clone(meta));
                 }
-                return Ok(PickPackageResult { meta: picked_meta, picked_package: Some(picked) });
+                return Ok(PickPackageResult {
+                    meta: picked_meta,
+                    picked_package: Some(picked),
+                    latest: outcome.latest,
+                });
             }
         }
     }
@@ -632,8 +648,9 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             meta_cached_in_store = load_meta_async(pkg_mirror.as_deref()).await.map(Arc::new);
         }
         if let Some(ref meta) = meta_cached_in_store
-            && let Ok((picked_meta, Some(picked))) =
+            && let Ok((picked_meta, outcome)) =
                 pick_from_meta_fast(&picker_opts, spec, Arc::clone(meta), opts.blocked_versions)
+            && let Some(picked) = outcome.package
         {
             // Same rationale as the version-spec fast path above —
             // promote the disk-loaded packument into the
@@ -641,7 +658,11 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             if !opts.dry_run {
                 ctx.meta_cache.set(cache_key.clone(), Arc::clone(meta));
             }
-            return Ok(PickPackageResult { meta: picked_meta, picked_package: Some(picked) });
+            return Ok(PickPackageResult {
+                meta: picked_meta,
+                picked_package: Some(picked),
+                latest: outcome.latest,
+            });
         }
     }
 
@@ -694,9 +715,13 @@ pub async fn pick_package<Cache: PackageMetaCache>(
                     pkg_name = %spec.name,
                     "metadata fetch failed; falling back to on-disk mirror",
                 );
-                let (meta, picked) =
+                let (meta, outcome) =
                     pick_from_meta(&picker_opts, spec, disk, opts.blocked_versions)?;
-                return Ok(PickPackageResult { meta, picked_package: picked });
+                return Ok(PickPackageResult {
+                    meta,
+                    picked_package: outcome.package,
+                    latest: outcome.latest,
+                });
             }
             return Err(error.into());
         }
@@ -723,8 +748,8 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     if !opts.dry_run {
         ctx.meta_cache.set(cache_key, Arc::clone(&meta));
     }
-    let (meta, picked) = pick_from_meta(&picker_opts, spec, meta, opts.blocked_versions)?;
-    Ok(PickPackageResult { meta, picked_package: picked })
+    let (meta, outcome) = pick_from_meta(&picker_opts, spec, meta, opts.blocked_versions)?;
+    Ok(PickPackageResult { meta, picked_package: outcome.package, latest: outcome.latest })
 }
 
 /// Shared cache-hit path. Invoked once on the optimistic pre-permit
@@ -772,11 +797,11 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
         }
         ctx.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
     }
-    let (meta, picked) = pick_from_meta(picker_opts, spec, meta, opts.blocked_versions)?;
-    if picked.is_none() && !ctx.offline && !registry_verified {
+    let (meta, outcome) = pick_from_meta(picker_opts, spec, meta, opts.blocked_versions)?;
+    if outcome.package.is_none() && !ctx.offline && !registry_verified {
         return Ok(None);
     }
-    Ok(Some(PickPackageResult { meta, picked_package: picked }))
+    Ok(Some(PickPackageResult { meta, picked_package: outcome.package, latest: outcome.latest }))
 }
 
 /// Same fields as [`PickPackageOptions`] minus the dispatcher-only
@@ -799,7 +824,7 @@ fn pick_matching_version_fast(
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
     meta: &Package,
-) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError> {
+) -> Result<PickFromMetaOutcome, PickPackageFromMetaError> {
     if picker_opts.published_by.is_some() {
         pick_respecting_min_release_age(picker_opts, spec, meta)
     } else {
@@ -812,10 +837,11 @@ fn pick_from_meta_fast(
     spec: &RegistryPackageSpec,
     meta: Arc<Package>,
     blocked_versions: Option<&HashSet<String>>,
-) -> Result<(Arc<Package>, Option<Arc<PackageVersion>>), PickPackageFromMetaError> {
+) -> Result<(Arc<Package>, PickFromMetaOutcome), PickPackageFromMetaError> {
     let meta = filter_blocked_versions(meta, blocked_versions);
     if meta.versions.is_empty() && blocked_versions.is_some_and(|blocked| !blocked.is_empty()) {
-        return Ok((meta, None));
+        let latest = meta.dist_tag("latest").map(str::to_string);
+        return Ok((meta, PickFromMetaOutcome { package: None, latest }));
     }
     let picked = pick_matching_version_fast(picker_opts, spec, &meta)?;
     Ok((meta, picked))
@@ -826,10 +852,11 @@ fn pick_from_meta(
     spec: &RegistryPackageSpec,
     meta: Arc<Package>,
     blocked_versions: Option<&HashSet<String>>,
-) -> Result<(Arc<Package>, Option<Arc<PackageVersion>>), PickPackageFromMetaError> {
+) -> Result<(Arc<Package>, PickFromMetaOutcome), PickPackageFromMetaError> {
     let meta = filter_blocked_versions(meta, blocked_versions);
     if meta.versions.is_empty() && blocked_versions.is_some_and(|blocked| !blocked.is_empty()) {
-        return Ok((meta, None));
+        let latest = meta.dist_tag("latest").map(str::to_string);
+        return Ok((meta, PickFromMetaOutcome { package: None, latest }));
     }
     let picked = pick_matching_version_final(picker_opts, spec, &meta)?;
     Ok((meta, picked))
@@ -856,7 +883,7 @@ fn pick_matching_version_final(
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
     meta: &Package,
-) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError> {
+) -> Result<PickFromMetaOutcome, PickPackageFromMetaError> {
     match pick_matching_version_fast(picker_opts, spec, meta) {
         Ok(picked) => Ok(picked),
         Err(PickPackageFromMetaError::MissingTime { pkg_name })
@@ -885,7 +912,7 @@ fn pick_respecting_min_release_age(
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
     meta: &Package,
-) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError> {
+) -> Result<PickFromMetaOutcome, PickPackageFromMetaError> {
     run_picker(picker_opts, spec, |target_spec| {
         let highest = pick_package_from_meta(
             pick_version_by_version_range,
@@ -893,7 +920,7 @@ fn pick_respecting_min_release_age(
             meta,
             target_spec,
         )?;
-        if highest.is_some() {
+        if highest.package.is_some() {
             return Ok(highest);
         }
         // Fall-back lowest pick drops `publishedBy` so the picker
@@ -920,7 +947,7 @@ fn pick_ignoring_release_age(
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
     meta: &Package,
-) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError> {
+) -> Result<PickFromMetaOutcome, PickPackageFromMetaError> {
     run_picker(picker_opts, spec, |target_spec| {
         if picker_opts.pick_lowest_version {
             pick_package_from_meta(
@@ -947,10 +974,9 @@ fn run_picker<PickOne>(
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
     pick_one: PickOne,
-) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError>
+) -> Result<PickFromMetaOutcome, PickPackageFromMetaError>
 where
-    PickOne:
-        Fn(&RegistryPackageSpec) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError>,
+    PickOne: Fn(&RegistryPackageSpec) -> Result<PickFromMetaOutcome, PickPackageFromMetaError>,
 {
     let current = pick_one(spec)?;
     if !picker_opts.include_latest_tag {
@@ -962,20 +988,19 @@ where
     Ok(pick_max(current, latest))
 }
 
-/// Higher-version-wins between two optional picks. Treats `None`
-/// as "no pick" so a single satisfying option wins by default.
-fn pick_max(
-    lhs: Option<Arc<PackageVersion>>,
-    rhs: Option<Arc<PackageVersion>>,
-) -> Option<Arc<PackageVersion>> {
-    match (lhs, rhs) {
-        (None, rhs) => rhs,
-        (lhs, None) => lhs,
-        (Some(lhs), Some(rhs)) => {
-            if lhs.version < rhs.version {
-                Some(rhs)
+/// Higher-version-wins between two outcomes. Treats a `None` package
+/// as "no pick" so a single satisfying option wins by default, but
+/// still propagates `latest` from whichever side carries it.
+fn pick_max(lhs: PickFromMetaOutcome, rhs: PickFromMetaOutcome) -> PickFromMetaOutcome {
+    match (lhs.package, rhs.package) {
+        (None, None) => PickFromMetaOutcome { package: None, latest: lhs.latest.or(rhs.latest) },
+        (None, Some(rhs_pkg)) => PickFromMetaOutcome { package: Some(rhs_pkg), latest: rhs.latest },
+        (Some(lhs_pkg), None) => PickFromMetaOutcome { package: Some(lhs_pkg), latest: lhs.latest },
+        (Some(lhs_pkg), Some(rhs_pkg)) => {
+            if lhs_pkg.version < rhs_pkg.version {
+                PickFromMetaOutcome { package: Some(rhs_pkg), latest: rhs.latest }
             } else {
-                Some(lhs)
+                PickFromMetaOutcome { package: Some(lhs_pkg), latest: lhs.latest }
             }
         }
     }

@@ -114,6 +114,16 @@ fn added_root(name: &str, version: &str, dt: DependencyType) -> LogEvent {
 }
 
 fn added_root_at(prefix: &str, name: &str, version: &str, dt: DependencyType) -> LogEvent {
+    added_root_with_latest_at(prefix, name, version, None, dt)
+}
+
+fn added_root_with_latest_at(
+    prefix: &str,
+    name: &str,
+    version: &str,
+    latest: Option<&str>,
+    dt: DependencyType,
+) -> LogEvent {
     LogEvent::Root(RootLog {
         level: LogLevel::Debug,
         message: RootMessage::Added {
@@ -124,7 +134,7 @@ fn added_root_at(prefix: &str, name: &str, version: &str, dt: DependencyType) ->
                 version: Some(version.to_string()),
                 dependency_type: Some(dt),
                 id: None,
-                latest: None,
+                latest: latest.map(str::to_string),
                 linked_from: None,
             },
         },
@@ -462,6 +472,50 @@ fn summary_groups_by_dependency_type_in_order() {
         ],
     );
     assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0\n\ndevDependencies:\n+ bar 2.0.0\n");
+}
+
+#[test]
+fn summary_prints_is_available_when_latest_is_newer_than_version() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            added_root_with_latest_at(CWD, "foo", "1.0.0", Some("2.0.0"), DependencyType::Prod),
+            summary(),
+        ],
+    );
+    assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0 (2.0.0 is available)\n");
+}
+
+/// When the policy-aware latest equals the installed version (e.g.
+/// minimumReleaseAge held back the raw latest and the resolver returned
+/// the highest mature version as `latest`), the summary must not
+/// advertise an upgrade. Mirrors the TS reporter test for the same
+/// scenario.
+#[test]
+fn summary_omits_is_available_when_latest_equals_version() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            added_root_with_latest_at(CWD, "foo", "3.9.5", Some("3.9.5"), DependencyType::Prod),
+            summary(),
+        ],
+    );
+    assert_eq!(frame, "\ndependencies:\n+ foo 3.9.5\n");
+}
+
+#[test]
+fn summary_omits_is_available_when_latest_is_older_than_version() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            added_root_with_latest_at(CWD, "foo", "2.0.0", Some("1.0.0"), DependencyType::Prod),
+            summary(),
+        ],
+    );
+    assert_eq!(frame, "\ndependencies:\n+ foo 2.0.0\n");
 }
 
 #[test]

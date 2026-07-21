@@ -52,6 +52,7 @@
     "colorterm",
     "compdef",
     "comver",
+    "cooldown",
     "copyfiles",
     "corejs",
     "corepack",

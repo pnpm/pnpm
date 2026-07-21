@@ -4117,6 +4117,7 @@ version = "0.0.1"
 dependencies = [
  "insta",
  "libc",
+ "node-semver",
  "owo-colors",
  "pacquet-reporter",
  "pretty_assertions",

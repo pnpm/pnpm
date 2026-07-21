@@ -130,6 +130,26 @@ pub enum PickPackageFromMetaError {
     },
 }
 
+/// Outcome of [`pick_package_from_meta`]. `latest` is the policy-aware
+/// `dist-tags.latest`: when `published_by` filters the packument, this is
+/// the rewritten tag (highest mature version); otherwise it is the raw
+/// registry tag. Surfaced so the install summary reporter does not
+/// advertise a version the maturity policy itself held back.
+#[derive(Debug)]
+pub struct PickFromMetaOutcome {
+    pub package: Option<Arc<PackageVersion>>,
+    pub latest: Option<String>,
+}
+
+impl PickFromMetaOutcome {
+    /// `true` when the inner pick found a satisfying version.
+    #[inline]
+    #[must_use]
+    pub fn is_some(&self) -> bool {
+        self.package.is_some()
+    }
+}
+
 /// Pure picker entry point.
 ///
 /// `pick_version_by_range` is dependency-injected so the caller can
@@ -138,17 +158,16 @@ pub enum PickPackageFromMetaError {
 ///
 /// Returns:
 ///
-/// - `Ok(Some(version))` — the picked version's (shared) manifest.
-/// - `Ok(None)` — no version satisfies the spec. The orchestrator
-///   layer above propagates this as "resolver returned nothing,"
-///   not as an error.
+/// - `Ok(outcome)` where `outcome.package` is `Some` when a version
+///   satisfies the spec, else `Ok(None)`-shaped outcome propagated up
+///   by the orchestrator as "resolver returned nothing," not an error.
 /// - `Err(_)` — one of the four `PnpmError` variants above.
 pub fn pick_package_from_meta<PickFn>(
     pick_version_by_range: PickFn,
     opts: &PickPackageFromMetaOptions<'_>,
     meta: &Package,
     spec: &RegistryPackageSpec,
-) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError>
+) -> Result<PickFromMetaOutcome, PickPackageFromMetaError>
 where
     PickFn: Fn(&PickVersionByVersionRangeOptions<'_>) -> Option<String>,
 {
@@ -201,6 +220,11 @@ where
         return Err(PickPackageFromMetaError::NoVersions { pkg_name: spec.name.clone() });
     }
 
+    // Captured after any filter rewrite above, so this is the policy-aware
+    // latest (the rewritten `dist-tags.latest` when the filter ran, or the
+    // raw tag when it didn't).
+    let latest = meta_ref.dist_tag("latest").map(str::to_string);
+
     // An undecodable fragment behaves as if the version were absent
     // (the `PackageVersions` contract), so a pick whose winner fails
     // to hydrate retries against the remaining versions instead of
@@ -222,13 +246,15 @@ where
             }
         };
 
-        let Some(version) = picked_version else { return Ok(None) };
+        let Some(version) = picked_version else {
+            return Ok(PickFromMetaOutcome { package: None, latest });
+        };
         let Some(manifest) = meta_now.versions.get(&version) else {
             if !meta_now.versions.contains_key(&version) {
                 // The picked string names a version the packument
                 // doesn't carry (a dangling dist-tag, an exact spec
                 // for an unpublished version) — nothing to retry.
-                return Ok(None);
+                return Ok(PickFromMetaOutcome { package: None, latest });
             }
             undecodable_excluded = Some(without_version(meta_now, &version));
             continue;
@@ -239,9 +265,9 @@ where
             // Pin the manifest name to the packument-level name.
             let mut pinned = (*manifest).clone();
             pinned.name.clone_from(&meta_now.name);
-            return Ok(Some(Arc::new(pinned)));
+            return Ok(PickFromMetaOutcome { package: Some(Arc::new(pinned)), latest });
         }
-        return Ok(Some(manifest));
+        return Ok(PickFromMetaOutcome { package: Some(manifest), latest });
     }
 }
 
@@ -398,38 +424,6 @@ pub fn filter_pkg_metadata_by_publish_date(
             trusted_versions.is_some_and(|allow| allow.iter().any(|allowed| allowed == version));
         mature || trusted
     })
-}
-
-/// The policy-aware `dist-tags.latest` for a packument: the registry's raw
-/// tag when no maturity policy applies, or the rewritten tag (highest mature
-/// version) when `published_by` filters the packument. Used by the install
-/// summary reporter so it does not advertise a version the policy itself
-/// held back. Mirrors the filter logic in [`pick_package_from_meta`] without
-/// re-running the pick.
-///
-/// Returns the raw `latest` when maturity can't be determined (abbreviated
-/// metadata without `time`), matching the warn-and-skip fallback in
-/// [`pick_matching_version_final`].
-#[must_use]
-pub fn policy_aware_latest(
-    meta: &Package,
-    published_by: Option<chrono::DateTime<chrono::Utc>>,
-    published_by_exclude: Option<&PackageVersionPolicy>,
-) -> Option<String> {
-    let raw_latest = meta.dist_tag("latest").map(str::to_string);
-    let Some(cutoff) = published_by else { return raw_latest };
-    let exclude_result = published_by_exclude.map(|policy| policy.matches(&meta.name));
-    use pacquet_config::version_policy::PolicyMatch;
-    let trusted = match &exclude_result {
-        Some(PolicyMatch::AnyVersion) => return raw_latest,
-        Some(PolicyMatch::ExactVersions(versions)) => Some(versions.as_slice()),
-        _ => None,
-    };
-    if meta.time.is_some() {
-        let filtered = filter_pkg_metadata_by_publish_date(meta, cutoff, trusted);
-        return filtered.dist_tag("latest").map(str::to_string);
-    }
-    raw_latest
 }
 
 /// Filter a packument's versions by string while keeping dist-tags

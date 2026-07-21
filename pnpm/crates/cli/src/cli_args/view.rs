@@ -214,6 +214,7 @@ async fn fetch_package_info(
         &meta,
         &spec,
     )?
+    .package
     .ok_or_else(|| ViewError::PackageNotFound {
         name: spec.name.clone(),
         spec: spec.fetch_spec.clone(),

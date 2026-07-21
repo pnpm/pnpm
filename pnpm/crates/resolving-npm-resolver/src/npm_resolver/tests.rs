@@ -416,6 +416,56 @@ async fn surfaces_min_release_age_violation_inline() {
     assert_eq!(violation.code, MINIMUM_RELEASE_AGE_VIOLATION_CODE);
 }
 
+/// When `published_by` filters out the raw `latest`, the resolver's
+/// `latest` field carries the policy-aware tag (highest mature version)
+/// so the install summary reporter doesn't advertise a version the
+/// policy itself held back. Mirrors `publishedBy.test.ts` upstream.
+#[tokio::test]
+async fn latest_is_policy_aware_when_published_by_filters_raw_latest() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    // PACKAGE_BODY has 1.0.0 (2024-01-10) and 1.1.0 (2024-12-10),
+    // dist-tags.latest = 1.1.0. Cutoff 2024-06-01 filters 1.1.0 out
+    // as immature → policy-aware latest becomes 1.0.0.
+    let published_by = Some(chrono::Utc.with_ymd_and_hms(2024, 6, 1, 0, 0, 0).unwrap());
+    let opts = ResolveOptions { published_by, ..ResolveOptions::default() };
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.0.0");
+    assert_eq!(result.latest.as_deref(), Some("1.0.0"), "policy-aware latest, not raw 1.1.0");
+    assert!(result.policy_violation.is_none(), "1.0.0 is mature, no violation");
+}
+
+/// Baseline: without `published_by`, the resolver returns the raw
+/// `dist-tags.latest` (`1.1.0` in [`PACKAGE_BODY`]), so the reporter's
+/// `(X is available)` hint can still fire for an actual upgrade.
+#[tokio::test]
+async fn latest_is_raw_registry_tag_when_published_by_is_none() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    // Picks 1.1.0 (max in range), latest is the raw tag.
+    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.1.0");
+    assert_eq!(result.latest.as_deref(), Some("1.1.0"));
+}
+
 #[tokio::test]
 async fn trust_downgrade_at_resolve_time_fails_under_no_downgrade() {
     let mut server = mockito::Server::new_async().await;
