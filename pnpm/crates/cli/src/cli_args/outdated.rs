@@ -17,8 +17,9 @@
 
 use crate::{
     State,
-    cli_args::recursive::{
-        AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
+    cli_args::{
+        recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
+        sanitize::sanitize_inline,
     },
 };
 use clap::{Args, ValueEnum};
@@ -34,7 +35,15 @@ use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_registry::{Package, PackageVersion};
 use pacquet_resolving_npm_resolver::pick_registry_for_package;
-use std::{collections::HashMap, io::Write, path::PathBuf};
+use std::{
+    collections::HashMap,
+    io::Write,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
+use tokio::sync::OnceCell;
+
+type PackumentCache = Mutex<HashMap<(String, String), Arc<OnceCell<Option<Arc<Package>>>>>>;
 
 /// Which registry version a dependency is compared against to decide
 /// whether it is outdated.
@@ -121,6 +130,27 @@ pub(crate) async fn collect_outdated_for_importer(
     http_client: &ThrottledClient,
     query: &OutdatedQuery<'_>,
 ) -> miette::Result<Vec<OutdatedPackage>> {
+    collect_outdated_for_importer_with_cache(
+        manifest,
+        lockfile,
+        importer_id,
+        config,
+        http_client,
+        query,
+        &PackumentCache::default(),
+    )
+    .await
+}
+
+async fn collect_outdated_for_importer_with_cache(
+    manifest: &PackageManifest,
+    lockfile: Option<&Lockfile>,
+    importer_id: &str,
+    config: &Config,
+    http_client: &ThrottledClient,
+    query: &OutdatedQuery<'_>,
+    packument_cache: &PackumentCache,
+) -> miette::Result<Vec<OutdatedPackage>> {
     let current_versions =
         current_versions_from_importer(lockfile, importer_id, query.include_direct);
     let current_versions = &current_versions;
@@ -150,14 +180,14 @@ pub(crate) async fn collect_outdated_for_importer(
                 config.resolved_registries().into_iter().collect();
             let registry =
                 pick_registry_for_package(&registries, package_name, Some(bare_specifier));
-            let package = Package::fetch_from_registry(
+            let package = fetch_package_cached(
+                packument_cache,
                 package_name,
                 http_client,
                 &registry,
                 &config.auth_headers,
             )
-            .await
-            .ok()?;
+            .await?;
             let target = resolve_target(&package, range, query.target_version)?;
             let deprecated = target.deprecated.clone();
             let is_newer = target.version > current;
@@ -171,11 +201,34 @@ pub(crate) async fn collect_outdated_for_importer(
                 current,
                 target: target.version.clone(),
                 deprecated,
-                homepage: package.homepage,
+                homepage: package.homepage.clone(),
             })
         });
 
     Ok(futures_util::future::join_all(fetches).await.into_iter().flatten().collect())
+}
+
+async fn fetch_package_cached(
+    cache: &PackumentCache,
+    package_name: &str,
+    http_client: &ThrottledClient,
+    registry: &str,
+    auth_headers: &pacquet_network::AuthHeaders,
+) -> Option<Arc<Package>> {
+    let key = (registry.to_string(), package_name.to_string());
+    let entry = {
+        let mut cache = cache.lock().expect("packument cache mutex poisoned");
+        Arc::clone(cache.entry(key).or_default())
+    };
+    entry
+        .get_or_init(|| async {
+            Package::fetch_from_registry(package_name, http_client, registry, auth_headers)
+                .await
+                .ok()
+                .map(Arc::new)
+        })
+        .await
+        .clone()
 }
 
 /// Resolve the [`TargetVersion`] to a concrete published version, or
@@ -426,9 +479,8 @@ impl OutdatedArgs {
         } else {
             None
         };
-        let mut outdated: Vec<OutdatedInWorkspace> = Vec::new();
-        let mut outdated_indexes: HashMap<String, usize> = HashMap::new();
-        for (project_dir, node) in &selection.selected {
+        let packument_cache = PackumentCache::default();
+        let project_queries = selection.selected.iter().filter_map(|(project_dir, node)| {
             let project = node.package.project;
             let has_any_dependency = project
                 .manifest
@@ -440,40 +492,55 @@ impl OutdatedArgs {
                 .next()
                 .is_some();
             if !has_any_dependency {
-                continue;
+                return None;
             }
-
-            let project_lockfile;
-            let (lockfile, importer_id) = if config.shared_workspace_lockfile {
-                (
-                    shared_lockfile,
-                    pacquet_workspace::importer_id_from_root_dir(&workspace_root, project_dir),
+            Some(async {
+                let project_lockfile;
+                let (lockfile, importer_id) = if config.shared_workspace_lockfile {
+                    (
+                        shared_lockfile,
+                        pacquet_workspace::importer_id_from_root_dir(&workspace_root, project_dir),
+                    )
+                } else {
+                    project_lockfile =
+                        Lockfile::load_wanted_from_dir(project_dir).into_diagnostic()?;
+                    (project_lockfile.as_ref(), Lockfile::ROOT_IMPORTER_KEY.to_string())
+                };
+                let Some(lockfile) = lockfile else {
+                    let lockfile_dir = if config.shared_workspace_lockfile {
+                        workspace_root.as_path()
+                    } else {
+                        project_dir.as_path()
+                    };
+                    return Err(no_lockfile_error(lockfile_dir));
+                };
+                let project_outdated = collect_outdated_for_importer_with_cache(
+                    &project.manifest,
+                    Some(lockfile),
+                    &importer_id,
+                    config,
+                    &state.http_client,
+                    &query,
+                    &packument_cache,
                 )
-            } else {
-                project_lockfile = Lockfile::load_wanted_from_dir(project_dir).into_diagnostic()?;
-                (project_lockfile.as_ref(), Lockfile::ROOT_IMPORTER_KEY.to_string())
-            };
-            let Some(lockfile) = lockfile else {
-                return Err(no_lockfile_error(project_dir));
-            };
-            let project_outdated = collect_outdated_for_importer(
-                &project.manifest,
-                Some(lockfile),
-                &importer_id,
-                config,
-                &state.http_client,
-                &query,
-            )
-            .await?;
-            let dependent = DependentProject {
-                name: project
-                    .manifest
-                    .value()
-                    .get("name")
-                    .and_then(|name| name.as_str())
-                    .map_or_else(|| project_dir.to_string_lossy().into_owned(), str::to_owned),
-                location: project_dir.clone(),
-            };
+                .await?;
+                let dependent = DependentProject {
+                    name: project
+                        .manifest
+                        .value()
+                        .get("name")
+                        .and_then(|name| name.as_str())
+                        .map_or_else(|| project_dir.to_string_lossy().into_owned(), str::to_owned),
+                    location: project_dir.clone(),
+                };
+                Ok::<_, miette::Report>((project_outdated, dependent))
+            })
+        });
+        let project_results = futures_util::future::join_all(project_queries).await;
+        let mut outdated: Vec<OutdatedInWorkspace> = Vec::new();
+        let mut outdated_indexes: HashMap<String, usize> = HashMap::new();
+        for result in project_results {
+            let (project_outdated, dependent) = result?;
             for package in project_outdated {
                 let dependency_type: &'static str = package.belongs_to.into();
                 let key =
@@ -831,8 +898,11 @@ fn render_recursive_json(outdated: &[OutdatedInWorkspace], long: bool) -> String
 }
 
 fn render_dependents(entry: &OutdatedInWorkspace) -> String {
-    let mut names: Vec<&str> =
-        entry.dependents.iter().map(|dependent| dependent.name.as_str()).collect();
+    let mut names: Vec<String> = entry
+        .dependents
+        .iter()
+        .map(|dependent| sanitize_inline(&dependent.name).into_owned())
+        .collect();
     names.sort_unstable();
     names.join(", ")
 }

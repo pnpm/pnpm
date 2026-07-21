@@ -1,11 +1,14 @@
 use super::{
-    Change, OutdatedDependencyOptions, OutdatedPackage, classify, current_versions_from_importer,
-    render_json, render_latest, sort_outdated,
+    Change, DependentProject, OutdatedDependencyOptions, OutdatedInWorkspace, OutdatedPackage,
+    PackumentCache, classify, current_versions_from_importer, fetch_package_cached,
+    render_dependents, render_json, render_latest, sort_outdated,
 };
 use node_semver::Version;
+use pacquet_config::Config;
 use pacquet_lockfile::Lockfile;
+use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::DependencyGroup;
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 use text_block_macros::text_block;
 
 fn v(text: &str) -> Version {
@@ -154,4 +157,43 @@ fn json_report_long_includes_latest_manifest() {
     assert_eq!(manifest["deprecated"], "do not use");
     assert_eq!(manifest["homepage"], "https://example.com");
     assert_eq!(value["foo"]["isDeprecated"], true);
+}
+
+#[test]
+fn dependent_names_are_sanitized_for_terminal_output() {
+    let entry = OutdatedInWorkspace {
+        package: pkg("foo", "1.0.0", "2.0.0", DependencyGroup::Prod),
+        dependents: vec![DependentProject {
+            name: "app\n\t\u{1b}[2J".to_string(),
+            location: PathBuf::from("packages/app"),
+        }],
+    };
+
+    assert_eq!(render_dependents(&entry), "app[2J");
+}
+
+#[tokio::test]
+async fn packument_cache_deduplicates_concurrent_fetches() {
+    let mut server = mockito::Server::new_async().await;
+    let package = server
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{ "name": "foo", "dist-tags": {}, "versions": {} }"#)
+        .expect(1)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let config = Config::new();
+    let client = ThrottledClient::default();
+    let cache = PackumentCache::default();
+    let first_fetch = fetch_package_cached(&cache, "foo", &client, &registry, &config.auth_headers);
+    let second_fetch =
+        fetch_package_cached(&cache, "foo", &client, &registry, &config.auth_headers);
+
+    let (first, second) = tokio::join!(first_fetch, second_fetch);
+
+    assert_eq!(first.expect("first fetch").name, "foo");
+    assert_eq!(second.expect("second fetch").name, "foo");
+    package.assert_async().await;
 }

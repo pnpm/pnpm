@@ -199,6 +199,40 @@ fn outdated_without_lockfile_errors() {
 }
 
 #[test]
+fn recursive_outdated_reports_the_shared_lockfile_directory() {
+    let (root, workspace, anchor) = setup();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    write_manifest(&workspace, "{}");
+    let project = workspace.join("packages/app");
+    fs::create_dir_all(&project).expect("create workspace project");
+    fs::write(
+        project.join("package.json"),
+        format!(
+            r#"{{ "name": "app", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write project manifest");
+
+    let output = pacquet(&workspace, ["outdated", "--recursive"])
+        .output()
+        .expect("run recursive outdated without a shared lockfile");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains(r#"workspace""#),
+        "error should point to the shared lockfile directory: {stderr}",
+    );
+    assert!(
+        !stderr.contains(r#"app""#),
+        "error should not point to a project-specific lockfile: {stderr}",
+    );
+
+    drop((root, anchor));
+}
+
+#[test]
 fn outdated_recursive_aggregates_workspace_dependents() {
     let (root, workspace, anchor) = setup();
     fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
