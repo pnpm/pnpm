@@ -1,5 +1,4 @@
 ---
-"@pnpm/deps.github-actions": minor
 "@pnpm/deps.inspection.commands": minor
 "@pnpm/installing.commands": minor
 "@pnpm/config.reader": minor
