@@ -348,3 +348,32 @@ test('resolveFromNamedRegistry() preserves vulnerability-avoidance range selecto
 
   expect(resolveResult).toMatchObject({ id: '@acme/private@2.0.0' })
 })
+
+test('resolveFromNamedRegistry() surfaces the policy-aware latest when publishedBy filters the raw tag', async () => {
+  // gh-acme-private has 1.0.0 (2024-01-15), 2.0.0 (2024-06-01), 2.1.0 (2024-08-01);
+  // dist-tags.latest = 2.1.0. publishedBy 2024-07-01 filters 2.1.0 out → policy-aware
+  // latest = 2.0.0. Pins the contract that the named-registry path (which shares
+  // pickFromSimpleRegistry with JSR) carries the policy-aware latest through to
+  // the resolve result, not just the main npm path.
+  interceptGhAcmePrivate()
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNamedRegistry } = createNpmResolver(fetch, () => undefined, {
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    filterMetadata: true,
+    fullMetadata: true,
+    registries,
+  })
+
+  const resolveResult = await resolveFromNamedRegistry(
+    { alias: '@acme/private', bareSpecifier: 'gh:^2.0.0' },
+    { publishedBy: new Date('2024-07-01T00:00:00.000Z') }
+  )
+
+  expect(resolveResult).toMatchObject({
+    resolvedVia: 'named-registry',
+    id: '@acme/private@2.0.0',
+    latest: '2.0.0',
+  })
+})

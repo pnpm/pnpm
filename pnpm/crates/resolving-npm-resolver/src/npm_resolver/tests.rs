@@ -5,7 +5,7 @@ use std::{
 };
 
 use chrono::TimeZone;
-use pacquet_config::TrustPolicy;
+use pacquet_config::{TrustPolicy, version_policy::create_package_version_policy};
 use pacquet_lockfile::LockfileResolution;
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pacquet_resolving_resolver_base::{
@@ -466,6 +466,42 @@ async fn latest_is_raw_registry_tag_when_published_by_is_none() {
     assert_eq!(result.latest.as_deref(), Some("1.1.0"));
 }
 
+/// When `published_by_exclude` matches the package as `AnyVersion`,
+/// the maturity filter is skipped entirely: the picker returns the
+/// raw latest (1.1.0) even though `published_by` would otherwise
+/// filter it out. Important for the reporter — an excluded package
+/// must not have its `(X is available)` hint suppressed by a policy
+/// that doesn't apply to it.
+#[tokio::test]
+async fn latest_is_raw_registry_tag_when_published_by_exclude_matches_package() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    // PACKAGE_BODY has 1.0.0 (2024-01-10) and 1.1.0 (2024-12-10),
+    // dist-tags.latest = 1.1.0. Cutoff 2024-06-01 would normally filter
+    // 1.1.0 out → policy-aware latest 1.0.0. The exclude policy bypasses
+    // the filter for `acme`, so latest stays at the raw 1.1.0.
+    let published_by = Some(chrono::Utc.with_ymd_and_hms(2024, 6, 1, 0, 0, 0).unwrap());
+    let exclude = create_package_version_policy(["acme"]).expect("policy");
+    let opts = ResolveOptions {
+        published_by,
+        published_by_exclude: Some(exclude),
+        ..ResolveOptions::default()
+    };
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.1.0");
+    assert_eq!(result.latest.as_deref(), Some("1.1.0"));
+    assert!(result.policy_violation.is_none(), "excluded package has no violation");
+}
+
 #[tokio::test]
 async fn trust_downgrade_at_resolve_time_fails_under_no_downgrade() {
     let mut server = mockito::Server::new_async().await;
@@ -587,6 +623,40 @@ async fn jsr_specifier_routes_through_jsr_registry() {
     assert_eq!(result.alias.as_deref(), Some("@foo/bar"));
     assert_eq!(result.latest.as_deref(), Some("1.1.0"));
     assert!(matches!(result.resolution, LockfileResolution::Tarball(_)));
+}
+
+/// Pins the contract that the JSR path (which shares `pickFromSimpleRegistry`
+/// with the named-registry path) carries the policy-aware latest through to
+/// the resolve result. [`JSR_PACKAGE_BODY`] has 1.0.0 (2024-01-10) and
+/// 1.1.0 (2024-12-10), `dist-tags.latest` = 1.1.0. `published_by` 2024-06-01
+/// filters 1.1.0 out → policy-aware latest = 1.0.0.
+#[tokio::test]
+async fn jsr_specifier_surfaces_policy_aware_latest_under_published_by() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@jsr%2Ffoo__bar")
+        .with_status(200)
+        .with_body(JSR_PACKAGE_BODY)
+        .create_async()
+        .await;
+    let jsr_registry = format!("{}/", server.url());
+    let mut registries = HashMap::new();
+    registries.insert("default".to_string(), "https://registry.npmjs.org/".to_string());
+    registries.insert("@jsr".to_string(), jsr_registry);
+    let (resolver, _tempdir) = build_resolver_with_registries(registries);
+
+    let wanted = WantedDependency {
+        alias: Some("@foo/bar".to_string()),
+        bare_specifier: Some("jsr:@foo/bar@^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let opts = ResolveOptions {
+        published_by: Some(chrono::Utc.with_ymd_and_hms(2024, 6, 1, 0, 0, 0).unwrap()),
+        ..ResolveOptions::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.0.0");
+    assert_eq!(result.latest.as_deref(), Some("1.0.0"), "policy-aware latest, not raw 1.1.0");
 }
 
 #[tokio::test]
