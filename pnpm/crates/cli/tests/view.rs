@@ -193,6 +193,52 @@ fn package_not_found_is_fetch_404() {
 }
 
 #[test]
+fn registry_flag_overrides_configured_registry() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut configured = mockito::Server::new();
+    let configured_mock = configured.mock("GET", "/is-negative").expect(0).create();
+    write_registry_npmrc(&workspace, &format!("{}/", configured.url()));
+    let mut overriding = mockito::Server::new();
+    let mock = serve(&mut overriding, "/is-negative", &is_negative_body());
+    let auth_file = empty_auth_file(root.path());
+
+    let output =
+        run_view(&workspace, &auth_file, &["is-negative", "--registry", &overriding.url()]);
+
+    mock.assert();
+    configured_mock.assert();
+    let stdout = stdout_of(&output);
+    assert!(stdout.contains("is-negative"), "summary must mention the package: {stdout:?}");
+    drop((root, configured, overriding));
+}
+
+/// `pnpm view <unpublished> versions --registry <url> --json` must exit with
+/// code 1 (not clap's usage-error 2): the TypeScript stack's recursive-publish
+/// test drives this exact invocation to probe for an unpublished package.
+#[test]
+fn registry_flag_404_exits_with_code_1() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let mock = server.mock("GET", "/not-a-real-package").with_status(404).create();
+    let auth_file = empty_auth_file(root.path());
+
+    let output = run_view(
+        &workspace,
+        &auth_file,
+        &["not-a-real-package", "versions", "--registry", &server.url(), "--json"],
+    );
+
+    mock.assert();
+    assert_eq!(output.status.code(), Some(1), "a 404 must exit with code 1");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_FETCH_404"),
+        "stderr must name the fetch-404 diagnostic; got:\n{stderr}",
+    );
+    drop((root, server));
+}
+
+#[test]
 fn no_matching_version_errors() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
