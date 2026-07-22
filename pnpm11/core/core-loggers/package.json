@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/core-loggers",
-  "version": "1100.2.3",
+  "version": "1100.2.4",
   "description": "Core loggers of pnpm",
   "keywords": [
     "pnpm",
