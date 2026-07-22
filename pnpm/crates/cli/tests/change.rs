@@ -36,10 +36,8 @@ fn add_scoped_pkg(workspace: &Path, dir: &str, name: &str, version: &str) {
     .expect("write package.json");
 }
 
-/// The first-release probe against a real (mock) registry: `@pnpm.e2e/foo@1.2.0`
-/// is a published version among the fixture's packument, so a `minor` intent
-/// bumps it normally. Runs without the assume-published seam, exercising the
-/// actual registry round trip that decides first-vs-follow-up.
+/// The real registry probe (no seam): `@pnpm.e2e/foo@1.2.0` is in the fixture
+/// packument, so it bumps as a follow-up release.
 #[test]
 fn first_release_probe_bumps_a_version_the_registry_reports_published() {
     let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init().add_mocked_registry();
@@ -61,9 +59,8 @@ fn first_release_probe_bumps_a_version_the_registry_reports_published() {
     drop(root);
 }
 
-/// The mirror: `@pnpm.e2e/foo@999.0.0` is not among the fixture's published
-/// versions, so the registry probe reports it unpublished and its first release
-/// publishes `999.0.0` verbatim rather than bumping to `999.1.0`.
+/// The mirror: `@pnpm.e2e/foo@999.0.0` is not in the fixture, so the probe
+/// reports it unpublished and it debuts verbatim.
 #[test]
 fn first_release_probe_debuts_an_unpublished_version_verbatim() {
     let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init().add_mocked_registry();

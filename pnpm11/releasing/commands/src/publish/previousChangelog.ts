@@ -82,16 +82,9 @@ export function changelogHasSection (changelog: string, section: string): boolea
 }
 
 /**
- * A checker for whether `pkgName@version` is published to its registry,
- * holding one registry client for the batch so a fan-out of probes reuses the
- * dispatcher/TLS setup and connection pool instead of rebuilding them per
- * call. A package with no published metadata (registry 404) and a package
- * missing this exact version both read as `false` — the first release of a
- * never-published version. Any other failure (offline, 5xx, auth) propagates,
- * so the caller fails the command rather than guess a version's fate. The
- * probe passes no cache validator (`etag`/`modified`), so `fetchPackument`
- * resolves the packument or throws — never a 304 not-modified — and `undefined`
- * always means the 404 caught below, i.e. unpublished.
+ * Whether `pkgName@version` is published, reusing one client across the batch.
+ * `fetchPackument` returning `undefined` always means the 404 (unpublished): the
+ * probe sends no cache validator, so it never yields a 304 not-modified.
  */
 export function createVersionPublishedChecker (opts: PreviousChangelogOptions): (pkgName: string, version: string) => Promise<boolean> {
   const client = createRegistryClient(opts)

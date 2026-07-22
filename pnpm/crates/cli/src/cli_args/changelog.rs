@@ -78,36 +78,20 @@ pub async fn confirmed_published_versions(
     Ok(futures_util::future::join_all(checks).await.into_iter().flatten().collect())
 }
 
-/// The directories in `plan` whose current manifest version is not yet
-/// published to its registry — the packages whose first release must publish
-/// that version verbatim instead of bumping off it. Probes every release
-/// concurrently; any probe failure propagates so the command fails rather than
-/// release a wrong version. Feeds `AssembleReleasePlanOptions::unpublished_dirs`.
+/// The releases in `plan` whose current version the registry does not have —
+/// `AssembleReleasePlanOptions::unpublished_dirs`. Probe failures propagate.
 /// Mirrors the TypeScript `resolveUnpublishedDirs`.
-///
-/// A first assembly pass (without `unpublished_dirs`) supplies `plan`. Holding
-/// a package at its current version can only remove dependent propagation,
-/// never add it (the materialized range already admits the unchanged version),
-/// so the re-assembled plan is a subset of `plan` — every dir it can hold was
-/// probed here.
 pub async fn unpublished_release_dirs(
     config: &Config,
     plan: &ReleasePlan,
 ) -> miette::Result<HashSet<String>> {
-    // Debug-only test seam: the engine's integration tests advance manifests
-    // without a real publish cycle (a lane prerelease is written but never
-    // published, for instance), so they set this to make every release bump as
-    // if already published. Compiled out of release builds, so a production
-    // `pnpm` always probes.
+    // Debug-only test seam, compiled out of release builds: the engine tests
+    // advance manifests without publishing, so they force "all published".
     #[cfg(debug_assertions)]
     if std::env::var_os("PACQUET_ASSUME_VERSIONS_PUBLISHED").is_some() {
         return Ok(HashSet::new());
     }
-    // One client, shared across the concurrent probes, so the global
-    // network-concurrency bound and connection pool are respected rather than
-    // reconstructed per release: `is_version_published` awaits the client's
-    // per-origin semaphore (`acquire_for_url`), which caps how many probes hit
-    // the registry at once even though every future is spawned up front.
+    // One client for the batch; its per-origin semaphore bounds the fan-out.
     let client = build_registry_client(config)?;
     let checks = plan.releases.iter().map(|release| {
         let client = &client;
@@ -122,11 +106,8 @@ pub async fn unpublished_release_dirs(
     Ok(probed.into_iter().filter_map(|(dir, published)| (!published).then_some(dir)).collect())
 }
 
-/// Whether `name@version` is already published to its registry. A registry 404
-/// (no such package) and a package published but missing this exact version
-/// both read as `false` — a never-published version, i.e. a first release. Any
-/// other outcome (offline, 5xx, malformed body) errors, so the caller fails
-/// rather than guess a version's fate.
+/// Whether `name@version` is published. A 404 reads as unpublished; any other
+/// failure errors.
 async fn is_version_published(
     client: &ThrottledClient,
     config: &Config,

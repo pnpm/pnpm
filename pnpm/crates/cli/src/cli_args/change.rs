@@ -304,8 +304,7 @@ async fn render_status(
             &AssembleReleasePlanOptions { unpublished_dirs, ..Default::default() },
         )
     };
-    // Probe as the release does, so the preview matches it: assemble, probe the
-    // plan's releases for `unpublished_dirs`, then re-assemble with it.
+    // Probe as the release does, so the preview matches it.
     let unpublished_dirs = unpublished_release_dirs(config, &assemble(HashSet::new())?).await?;
     let plan = assemble(unpublished_dirs)?;
     if plan.releases.is_empty() {

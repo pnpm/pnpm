@@ -68,22 +68,11 @@ export interface AssembleReleasePlanOptions {
    */
   enforceWorkspaceProtocol?: boolean
   /**
-   * Directories whose current manifest version is not yet published to the
-   * registry. Such a package's first release publishes that version verbatim;
-   * its pending change intents (which still compose the changelog and are
-   * ledgered) bump it only from the second release onward. Without this the
-   * engine would `inc` off the seeded version and skip it — e.g. a new package
-   * seeded at the epic band floor `1100.0.0` with a `minor` intent would debut
-   * at `1100.1.0`, never publishing `1100.0.0`. Resolved by the command layer
-   * (a registry probe); the pure assembler just consumes the set.
-   *
-   * Fixed-group sharing and epic band re-basing still apply on top of the
-   * verbatim debut, because they are workspace-wide version-assignment
-   * invariants a single package cannot opt out of: a fixed-group member takes
-   * the group's shared version (its peers move in lockstep), and an epic member
-   * re-bases to the new band floor when its lead crosses a major — debuting
-   * verbatim there would break lockstep or land the member out of its band
-   * (which {@link enforceEpicBands} rejects).
+   * Directories whose current manifest version the registry does not have.
+   * Their first release publishes that version verbatim, so the pending change
+   * intents bump it only from the next release. Resolved by the command layer's
+   * registry probe. Fixed-group sharing and epic band re-basing still override
+   * it, since a package cannot opt out of those workspace-wide version rules.
    */
   unpublishedDirs?: Set<string>
 }
@@ -745,11 +734,7 @@ interface NewVersionOptions {
    * prereleases — which keeps the stable target stable across `-tag.N` runs.
    */
   cumulativeBump: ReleaseBumpType
-  /**
-   * Whether this is the package's first release (see `unpublishedDirs`): the
-   * manifest version is published verbatim rather than bumped. On a lane, the
-   * first prerelease targets the current stable version without incrementing it.
-   */
+  /** First release: publish `current` verbatim (on a lane, its first prerelease). See `unpublishedDirs`. */
   firstRelease: boolean
 }
 
