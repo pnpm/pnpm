@@ -132,6 +132,11 @@ export async function pollForWebAuthToken ({
  * oversized or truncated body.
  */
 async function readTokenBody (response: WebAuthFetchResponse): Promise<unknown> {
+  // A response that exposes no readable body stream can only be read whole via
+  // json(), which the size cap cannot bound. The production undici-backed fetch
+  // always exposes `body` as a ReadableStream, so this uncapped path is reached
+  // only by stream-less WebAuthFetch stand-ins (the json()-based test mocks);
+  // every real transport goes through the capped stream read below.
   if (response.body === undefined) {
     try {
       return await response.json()
