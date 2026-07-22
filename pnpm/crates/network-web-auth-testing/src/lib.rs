@@ -361,7 +361,7 @@ pub fn ok_truncated() -> WebAuthFetchResponse {
         retry_after: None,
         // A real token, to prove that a truncated response is discarded
         // *because* it was truncated, not because the body lacked a token.
-        body: json!({ "token": "web-token-123" }).to_string().into_bytes(),
+        body: br#"{"token":"web-token-123"}"#.to_vec(),
         truncated: true,
     }
 }

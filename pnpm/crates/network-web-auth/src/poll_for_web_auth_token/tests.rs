@@ -183,7 +183,7 @@ fn ok_truncated() -> WebAuthFetchResponse {
         ok: true,
         status: 200,
         retry_after: None,
-        body: serde_json::json!({ "token": "tok" }).to_string().into_bytes(),
+        body: br#"{"token":"tok"}"#.to_vec(),
         truncated: true,
     }
 }
