@@ -29,7 +29,7 @@ pub struct WebAuthRetryOptions {
 
 /// A poll response materialized by the [`WebAuthFetch`] capability:
 /// `ok` / `status`, the one header the poll reads (`Retry-After`), and the
-/// body text that [`token`](Self::token) parses.
+/// body bytes that [`token`](Self::token) decodes and parses.
 #[derive(Debug, Clone)]
 pub struct WebAuthFetchResponse {
     pub ok: bool,
