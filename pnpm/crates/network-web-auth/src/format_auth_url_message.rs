@@ -1,3 +1,4 @@
+use derive_more::Display;
 use pacquet_reporter::Reporter;
 
 use crate::{generate_qr_code::generate_qr_code, global_log::global_warn};
@@ -9,7 +10,7 @@ use crate::{generate_qr_code::generate_qr_code, global_log::global_warn};
 /// into its one `GlobalLog` allocation, instead of this function building a
 /// concatenated `String` that the reporter would then copy again — the QR
 /// block is several kilobytes, so the extra copy is worth avoiding.
-#[derive(derive_more::Display)]
+#[derive(Display)]
 pub enum AuthUrlMessage<'a> {
     #[display("Authenticate your account at:\n{auth_url}\n\n{qr_code}")]
     WithQrCode { auth_url: &'a str, qr_code: String },
