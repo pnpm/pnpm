@@ -23,10 +23,19 @@
   intents:
     - allow-tokenhelper-in-global-auth-ini
     - native-monorepo-versioning-core
+"@pnpm/config.reader@1101.13.0":
+  dir: pnpm11/config/reader
+  intents:
+    - update-github-actions
+    - update-settings-section
 "@pnpm/core-loggers@1100.2.3":
   dir: pnpm11/core/core-loggers
   intents:
     - quiet-prompts
+"@pnpm/deps.inspection.commands@1100.6.0":
+  dir: pnpm11/deps/inspection/commands
+  intents:
+    - update-github-actions
 "@pnpm/deps.inspection.peers-checker@1100.0.21":
   dir: pnpm11/deps/inspection/peers-checker
   intents:
@@ -99,6 +108,11 @@
   dir: pnpm11/installing/commands
   intents:
     - quiet-prompts
+"@pnpm/installing.commands@1100.11.0":
+  dir: pnpm11/installing/commands
+  intents:
+    - update-changeset-flag
+    - update-github-actions
 "@pnpm/installing.deps-installer@1102.3.0":
   dir: pnpm11/installing/deps-installer
   intents:
@@ -141,6 +155,10 @@
   dir: pnpm11/pkg-manifest/utils
   intents:
     - complete-runtime-installation-port
+"@pnpm/pkg-manifest.utils@1100.2.11":
+  dir: pnpm11/pkg-manifest/utils
+  intents:
+    - peer-prefix-precedence-fix
 "@pnpm/pnpr.client@1.3.5":
   dir: pnpr/client
   intents:
@@ -184,6 +202,10 @@
   dir: pnpm11/releasing/commands
   intents:
     - nice-packs-ignore
+"@pnpm/releasing.commands@1100.7.0":
+  dir: pnpm11/releasing/commands
+  intents:
+    - first-release-verbatim
 "@pnpm/releasing.exportable-manifest@1100.1.10":
   dir: pnpm11/releasing/exportable-manifest
   intents:
@@ -197,6 +219,14 @@
   dir: pnpm11/releasing/versioning
   intents:
     - ledger-empty-intents-roundtrip
+"@pnpm/releasing.versioning@1100.2.0":
+  dir: pnpm11/releasing/versioning
+  intents:
+    - first-release-verbatim
+"@pnpm/resolving.git-resolver@1100.1.11":
+  dir: pnpm11/resolving/git-resolver
+  intents:
+    - update-github-actions
 "@pnpm/resolving.npm-resolver@1102.1.3":
   dir: pnpm11/resolving/npm-resolver
   intents:
@@ -220,6 +250,11 @@
   intents:
     - epics-monorepo-versioning
     - native-monorepo-versioning-core
+"@pnpm/types@1101.5.0":
+  dir: pnpm11/core/types
+  intents:
+    - update-github-actions
+    - update-settings-section
 "@pnpm/workspace.state@1100.0.31":
   dir: pnpm11/workspace/state
   intents:
@@ -328,6 +363,21 @@ pacquet@12.0.0-alpha.17:
     - pacquet-shared-workspace-lockfile-false
     - steady-install-state
     - tarball-mem-cache-lost-wakeup
+pacquet@12.0.0-alpha.18:
+  dir: pnpm/npm/pnpm
+  intents:
+    - first-release-verbatim
+    - no-unrelated-lockfile-churn
+    - pacquet-npm-style-version
+    - recursive-install-family-dedicated-lockfiles
+    - recursive-outdated-queries
+    - recursive-rebuild
+    - recursive-why-peers
+    - setup-action-cli-parity
+    - unlink-recursive-install-family
+    - update-changeset-flag
+    - update-github-actions
+    - update-settings-section
 pacquet@12.0.0-alpha.9:
   dir: pnpm/npm/pnpm
   intents:
@@ -413,3 +463,11 @@ pnpm@11.15.1:
     - condense-retained-packuments
     - gvs-build-failure-cleanup
     - login-subpath-registry
+pnpm@11.16.0:
+  dir: pnpm11/pnpm
+  intents:
+    - first-release-verbatim
+    - peer-prefix-precedence-fix
+    - update-changeset-flag
+    - update-github-actions
+    - update-settings-section
