@@ -115,6 +115,33 @@ async fn host_fetch_skips_the_body_of_a_non_ok_response() {
     assert!(!response.truncated);
 }
 
+/// A body-read failure *after* the headers arrive — forced here with a
+/// `gzip` content-encoding whose body is not valid gzip, so the client's
+/// decode errors mid-stream — materializes as an empty, untruncated body,
+/// which the poll treats as no token and retries. This covers `Host::fetch`'s
+/// read-failure arm, which the `WebAuthFetch` dependency-injection seam cannot
+/// reach: a fake replaces `Host::fetch` wholesale, so only a real transport
+/// exercises it.
+#[tokio::test]
+async fn host_fetch_maps_a_body_read_failure_to_an_empty_body() {
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("GET", "/done")
+        .with_status(200)
+        .with_header("content-encoding", "gzip")
+        .with_body([0u8, 1, 2, 3, 4, 5])
+        .create_async()
+        .await;
+
+    let response = Host::fetch(&format!("{}/done", server.url()), &WebAuthFetchOptions::default())
+        .await
+        .expect("the headers arrived, so the fetch itself succeeds");
+
+    assert!(response.ok, "got {response:?}");
+    assert!(response.body.is_empty(), "a mid-body read failure yields an empty body");
+    assert!(!response.truncated);
+}
+
 fn poll_handle(handle: &mut HostEnterHandle) -> Poll<()> {
     let mut cx = Context::from_waker(Waker::noop());
     Pin::new(handle).poll(&mut cx)
