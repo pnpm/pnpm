@@ -65,7 +65,7 @@ where
     .await
     .map_err(LoginError::ClassicLogin)?;
 
-    global_info::<Reporter, _>(format!("Logged in as {username}"));
+    global_info::<Reporter>(format!("Logged in as {username}"));
 
     Ok(token)
 }

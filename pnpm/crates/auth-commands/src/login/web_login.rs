@@ -46,7 +46,7 @@ where
         return Err(WebLoginFlowError::UnsafeUrl);
     }
 
-    global_info::<Reporter, _>(format_auth_url_message::<Reporter>(&auth_url));
+    global_info::<Reporter>(format_auth_url_message::<Reporter>(&auth_url).to_string());
 
     let poll = poll_for_web_auth_token::<Sys>(WebAuthTokenPollParams {
         done_url,

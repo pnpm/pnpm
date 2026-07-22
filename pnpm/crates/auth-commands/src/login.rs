@@ -26,7 +26,7 @@
 //! sit behind the `Sys` seam. See the "Dependency injection for tests" section
 //! of `pnpm/CODE_STYLE_GUIDE.md`.
 
-use std::{fmt::Display, io, path::Path};
+use std::{io, path::Path};
 
 use pacquet_network::{ThrottledClient, nerf_dart, redact_and_sanitize};
 use pacquet_network_web_auth::{
@@ -202,11 +202,8 @@ fn registry_join(registry: &str, path: &str) -> Result<String, url::ParseError> 
     url::Url::parse(registry)?.join(path).map(String::from)
 }
 
-fn global_info<Reporter: self::Reporter, Message: Display>(message: Message) {
-    Reporter::emit(&LogEvent::Global(GlobalLog {
-        level: LogLevel::Info,
-        message: message.to_string(),
-    }));
+fn global_info<Reporter: self::Reporter>(message: String) {
+    Reporter::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Info, message }));
 }
 
 #[cfg(test)]
