@@ -174,7 +174,18 @@ impl WebAuthFetch for Host {
             // way.
             match read_limited_body(response, TOKEN_BODY_LIMIT).await {
                 Ok(LimitedBody { bytes, truncated }) => {
-                    (String::from_utf8(bytes).unwrap_or_default(), truncated)
+                    // Decode the way the TypeScript side's
+                    // `new TextDecoder().decode(...)` does: losslessly (invalid
+                    // UTF-8 becomes U+FFFD, never a hard failure) and stripping a
+                    // single leading BOM. A strict decode would drop an
+                    // otherwise-parsable body on one bad byte, and a retained BOM
+                    // would make `serde_json` reject an otherwise-valid token
+                    // body — either way the two stacks would diverge.
+                    let mut decoded = String::from_utf8_lossy(&bytes).into_owned();
+                    if decoded.starts_with('\u{FEFF}') {
+                        decoded.remove(0);
+                    }
+                    (decoded, truncated)
                 }
                 Err(_) => (String::new(), false),
             }

@@ -54,6 +54,49 @@ async fn host_fetch_reads_a_token_body_within_the_cap() {
     assert_eq!(response.token().expect("parse the body"), Some("tok".to_owned()));
 }
 
+/// A body with an invalid UTF-8 byte is decoded losslessly (the bad byte
+/// becomes U+FFFD) so an otherwise-parsable token still comes through,
+/// matching the TypeScript side's non-fatal `TextDecoder`. A strict decode
+/// would yield an empty body and no token, diverging from TypeScript.
+#[tokio::test]
+async fn host_fetch_decodes_an_invalid_utf8_token_body_lossily() {
+    let mut server = mockito::Server::new_async().await;
+    let mut body = br#"{"token":"a"#.to_vec();
+    body.push(0xFF);
+    body.extend_from_slice(br#"b"}"#);
+    server.mock("GET", "/done").with_status(200).with_body(body).create_async().await;
+
+    let response = Host::fetch(&format!("{}/done", server.url()), &WebAuthFetchOptions::default())
+        .await
+        .expect("a response");
+
+    assert!(response.ok, "got {response:?}");
+    assert!(!response.truncated);
+    assert_eq!(
+        response.token().expect("parse the lossily-decoded body"),
+        Some("a\u{FFFD}b".to_owned())
+    );
+}
+
+/// A leading UTF-8 BOM is stripped before parsing, matching the TypeScript
+/// side's `TextDecoder`. `serde_json` rejects a BOM, so without stripping an
+/// otherwise-valid token body would be dropped and the poll would time out.
+#[tokio::test]
+async fn host_fetch_strips_a_leading_bom_from_the_token_body() {
+    let mut server = mockito::Server::new_async().await;
+    let mut body = vec![0xEF, 0xBB, 0xBF];
+    body.extend_from_slice(br#"{"token":"tok"}"#);
+    server.mock("GET", "/done").with_status(200).with_body(body).create_async().await;
+
+    let response = Host::fetch(&format!("{}/done", server.url()), &WebAuthFetchOptions::default())
+        .await
+        .expect("a response");
+
+    assert!(response.ok, "got {response:?}");
+    assert!(!response.truncated);
+    assert_eq!(response.token().expect("parse the BOM-prefixed body"), Some("tok".to_owned()));
+}
+
 #[tokio::test]
 async fn host_fetch_marks_a_token_body_larger_than_the_cap_truncated() {
     let mut server = mockito::Server::new_async().await;
