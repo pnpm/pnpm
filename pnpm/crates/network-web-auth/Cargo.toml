@@ -28,6 +28,7 @@ url                 = { workspace = true }
 [dev-dependencies]
 mockito                          = { workspace = true }
 pacquet-network-web-auth-testing = { workspace = true }
+pipe-trait                       = { workspace = true }
 pretty_assertions                = { workspace = true }
 tokio                            = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync", "time"] }
 

@@ -4,6 +4,7 @@ use std::{
     rc::Rc,
 };
 
+use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 
 use super::{
@@ -411,7 +412,7 @@ async fn continues_polling_when_response_body_was_truncated() {
         Ok(if counter.get() == 1 { ok_truncated() } else { ok_token("tok") })
     }));
 
-    let token = poll_for_web_auth_token::<Fake>(params(None)).await.expect("a token");
+    let token = None.pipe(params).pipe(poll_for_web_auth_token::<Fake>).await.expect("a token");
 
     assert_eq!(token, "tok");
     assert_eq!(calls.get(), 2);
