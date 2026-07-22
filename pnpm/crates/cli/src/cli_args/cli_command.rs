@@ -9,6 +9,7 @@ use super::{
     cat_file::CatFileArgs,
     cat_index::CatIndexArgs,
     change::ChangeArgs,
+    ci::CiArgs,
     clean::CleanArgs,
     completion::{CompletionArgs, CompletionServerArgs},
     config::ConfigArgs,
@@ -441,6 +442,10 @@ pub enum CliCommand {
     /// (not a `clean` script) overrides it when present.
     #[clap(name = "purge")]
     Purge(CleanArgs),
+    /// Runs `pnpm clean` followed by `pnpm install --frozen-lockfile`.
+    /// Designed for CI/CD environments.
+    #[clap(visible_aliases = ["clean-install", "ic", "install-clean"])]
+    Ci(CiArgs),
     /// Print the effective `node_modules` directory.
     Root(RootArgs),
     /// Print the current package prefix.
@@ -514,7 +519,11 @@ impl CliCommand {
     fn recursive_by_default(&self) -> bool {
         matches!(
             self,
-            CliCommand::List(_) | CliCommand::Ll(_) | CliCommand::Why(_) | CliCommand::Peers(_),
+            CliCommand::List(_)
+                | CliCommand::Ll(_)
+                | CliCommand::Why(_)
+                | CliCommand::Peers(_)
+                | CliCommand::Ci(_),
         )
     }
 

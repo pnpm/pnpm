@@ -177,6 +177,7 @@ impl CliArgs {
                 | CliCommand::Remove(_)
                 | CliCommand::Install(_)
                 | CliCommand::InstallTest(_)
+                | CliCommand::Ci(_)
                 | CliCommand::Dlx(_)
                 | CliCommand::Link(_)
                 | CliCommand::Import(_)
@@ -333,6 +334,7 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
         CliCommand::Add(args) => dispatch_install::add(ctx, args),
         CliCommand::Install(args) => dispatch_install::install(ctx, args),
         CliCommand::InstallTest(args) => dispatch_install::install_test(ctx, args),
+        CliCommand::Ci(args) => dispatch_install::ci(ctx, args),
         CliCommand::Update(args) => dispatch_install::update(ctx, args),
         CliCommand::Outdated(args) => dispatch_query::outdated(ctx, args),
         CliCommand::Audit(args) => dispatch_query::audit(ctx, args),

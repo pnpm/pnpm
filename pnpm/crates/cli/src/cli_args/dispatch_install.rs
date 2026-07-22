@@ -1,6 +1,7 @@
 use super::{
     add::AddArgs,
     approve_builds::ApproveBuildsArgs,
+    ci::CiArgs,
     create::CreateArgs,
     dedupe::DedupeArgs,
     deploy::DeployArgs,
@@ -263,6 +264,22 @@ pub(super) fn install_test<'a>(
 
         Ok(())
     }))
+}
+
+pub(super) fn ci<'a>(ctx: &RunCtx<'a>, args: CiArgs) -> miette::Result<CommandFuture<'a>> {
+    let clean_args = args.clean_args;
+    let mut install_args = args.install_args;
+    install_args.frozen_lockfile = true;
+
+    // `clean` is synchronous — run it eagerly before constructing the
+    // async future so errors surface immediately.  Pass "clean" as the
+    // command name so a `clean` script in package.json overrides the
+    // built-in, matching TypeScript's `clean.handler(opts)` call path.
+    clean_args.run(ctx, "clean")?;
+
+    let install_future = install(ctx, install_args)?;
+
+    Ok(Box::pin(async move { install_future.await }))
 }
 
 pub(super) fn deploy<'a>(ctx: &RunCtx<'a>, args: DeployArgs) -> miette::Result<CommandFuture<'a>> {
