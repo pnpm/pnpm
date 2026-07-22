@@ -391,17 +391,16 @@ async fn web_auth_flow_falls_back_to_url_only_display_when_qr_generation_fails()
             let auth_url = challenge_auth_url.clone();
             async move {
                 counter.set(counter.get() + 1);
-                if counter.get() == 1 {
-                    Err(FakeOtpError::Otp {
-                        body: Some(OtpErrorBody {
-                            auth_url: Some(auth_url),
-                            done_url: Some("https://registry.npmjs.org/auth/done".to_owned()),
-                        }),
-                    })
-                } else {
+                if counter.get() != 1 {
                     assert_eq!(otp.as_deref(), Some("web-token-456"));
-                    Ok("published".to_owned())
+                    return Ok("published".to_owned());
                 }
+                Err(FakeOtpError::Otp {
+                    body: Some(OtpErrorBody {
+                        auth_url: Some(auth_url),
+                        done_url: Some("https://registry.npmjs.org/auth/done".to_owned()),
+                    }),
+                })
             }
         },
     )
