@@ -5,7 +5,7 @@ use pacquet_package_manager::Remove;
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_reporter::Reporter;
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 pub struct RemoveDependencyOptions {
     /// Remove the dependency only from "dependencies".
     #[clap(short = 'P', long)]
@@ -35,7 +35,7 @@ impl RemoveDependencyOptions {
     }
 }
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 pub struct RemoveArgs {
     /// Names of the packages to remove.
     pub package_names: Vec<String>,
