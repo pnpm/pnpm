@@ -99,7 +99,9 @@ pub async fn unpublished_release_dirs(
     }
     // One client, shared across the concurrent probes, so the global
     // network-concurrency bound and connection pool are respected rather than
-    // reconstructed per release.
+    // reconstructed per release: `is_version_published` awaits the client's
+    // per-origin semaphore (`acquire_for_url`), which caps how many probes hit
+    // the registry at once even though every future is spawned up front.
     let client = build_registry_client(config)?;
     let checks = plan.releases.iter().map(|release| {
         let client = &client;

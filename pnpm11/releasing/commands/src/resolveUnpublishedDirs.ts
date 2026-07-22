@@ -1,6 +1,10 @@
 import type { ReleasePlan } from '@pnpm/releasing.versioning'
+import pLimit from 'p-limit'
 
 import { createVersionPublishedChecker, type PreviousChangelogOptions } from './publish/previousChangelog.js'
+
+/** pnpm's default `network-concurrency`, the cap for the probe fan-out. */
+const DEFAULT_NETWORK_CONCURRENCY = 16
 
 /**
  * Resolves whether `pkgName@version` is already published — the seam that
@@ -13,14 +17,17 @@ export type CheckVersionPublished = (pkgName: string, version: string) => Promis
 
 export type UnpublishedProbeOptions = PreviousChangelogOptions & {
   checkVersionPublished?: CheckVersionPublished
+  networkConcurrency?: number
 }
 
 /**
  * The directories in `plan` whose current manifest version is not yet on the
  * registry — the packages whose first release must publish that version
- * verbatim instead of bumping off it. Probes every release concurrently; a
- * probe failure rejects, so the surrounding command fails rather than release
- * a wrong version. Feeds {@link assembleReleasePlan}'s `unpublishedDirs`.
+ * verbatim instead of bumping off it. Probes the releases concurrently, bounded
+ * by `networkConcurrency`, so a large recursive release does not burst
+ * unbounded registry connections; a probe failure rejects, so the surrounding
+ * command fails rather than release a wrong version. Feeds
+ * {@link assembleReleasePlan}'s `unpublishedDirs`.
  *
  * A first assembly pass (without `unpublishedDirs`) supplies `plan`. Holding a
  * package at its current version can only remove dependent propagation, never
@@ -30,11 +37,12 @@ export type UnpublishedProbeOptions = PreviousChangelogOptions & {
  */
 export async function resolveUnpublishedDirs (plan: ReleasePlan, opts: UnpublishedProbeOptions): Promise<Set<string>> {
   const checkVersionPublished = opts.checkVersionPublished ?? createVersionPublishedChecker(opts)
+  const limit = pLimit(opts.networkConcurrency ?? DEFAULT_NETWORK_CONCURRENCY)
   const probed = await Promise.all(
-    plan.releases.map(async (release) => ({
+    plan.releases.map((release) => limit(async () => ({
       dir: release.dir,
       published: await checkVersionPublished(release.name, release.currentVersion),
-    }))
+    })))
   )
   return new Set(probed.filter(({ published }) => !published).map(({ dir }) => dir))
 }
