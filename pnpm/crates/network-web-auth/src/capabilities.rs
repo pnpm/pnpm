@@ -166,21 +166,32 @@ impl WebAuthFetch for Host {
             .get(reqwest::header::RETRY_AFTER)
             .and_then(|value| value.to_str().ok())
             .map(str::to_owned);
-        let (body, truncated) = if body_may_carry_token(ok, status) {
-            // Copy the capped bytes through verbatim; `WebAuthFetchResponse::token`
-            // decodes and parses them, so this provider interprets nothing. A read
-            // failure materializes as an empty, untruncated body, which `token`
-            // treats the same as an unparsable one (the poll retries); an over-cap
-            // body reports `truncated` so `token` reports no token. `status` /
-            // `retry_after` stay usable either way.
-            match read_limited_body(response, TOKEN_BODY_LIMIT).await {
-                Ok(LimitedBody { bytes, truncated }) => (bytes, truncated),
-                Err(_) => (Vec::new(), false),
-            }
-        } else {
-            // The poll loop never reads the body of a non-ok or 202
-            // response; dropping `response` unread stops the transfer.
-            (Vec::new(), false)
+        // The poll loop never reads the body of a non-ok or 202 response;
+        // returning early leaves `response` unread, stopping the transfer.
+        if !body_may_carry_token(ok, status) {
+            return Ok(WebAuthFetchResponse {
+                ok,
+                status,
+                retry_after,
+                body: Vec::new(),
+                truncated: false,
+            });
+        }
+        // Copy the capped bytes through verbatim; `WebAuthFetchResponse::token`
+        // decodes and parses them, so this provider interprets nothing. A read
+        // failure yields an empty, untruncated body, which `token` treats the
+        // same as an unparsable one (the poll retries); an over-cap body reports
+        // `truncated` so `token` reports no token.
+        let Ok(LimitedBody { bytes: body, truncated }) =
+            read_limited_body(response, TOKEN_BODY_LIMIT).await
+        else {
+            return Ok(WebAuthFetchResponse {
+                ok,
+                status,
+                retry_after,
+                body: Vec::new(),
+                truncated: false,
+            });
         };
         Ok(WebAuthFetchResponse { ok, status, retry_after, body, truncated })
     }
