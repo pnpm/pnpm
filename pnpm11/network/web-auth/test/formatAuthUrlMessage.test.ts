@@ -1,13 +1,13 @@
 import { describe, expect, it } from '@jest/globals'
-import { formatAuthUrlMessage } from '@pnpm/network.web-auth'
+import { formatAuthUrlMessage, generateQrCode } from '@pnpm/network.web-auth'
 
 describe('formatAuthUrlMessage', () => {
   it('appends a QR code when one can be generated', () => {
-    const message = formatAuthUrlMessage('https://example.com/auth', msg => {
+    const authUrl = 'https://example.com/auth'
+    const message = formatAuthUrlMessage(authUrl, msg => {
       throw new Error(`Unexpected call to globalWarn: ${msg}`)
     })
-    expect(message).toMatch(/^Authenticate your account at:\nhttps:\/\/example\.com\/auth\n\n/)
-    expect(message.length).toBeGreaterThan('Authenticate your account at:\nhttps://example.com/auth\n\n'.length)
+    expect(message).toBe(`Authenticate your account at:\n${authUrl}\n\n${generateQrCode(authUrl)}`)
   })
 
   it('warns and falls back to a URL-only message when QR generation fails', () => {
@@ -18,6 +18,6 @@ describe('formatAuthUrlMessage', () => {
     const message = formatAuthUrlMessage(longAuthUrl, msg => warnings.push(msg))
     expect(message).toBe(`Authenticate your account at:\n${longAuthUrl}`)
     expect(warnings).toHaveLength(1)
-    expect(warnings[0]).toMatch(/^Could not generate a QR code: /)
+    expect(warnings[0]).toContain('Could not generate a QR code:')
   })
 })

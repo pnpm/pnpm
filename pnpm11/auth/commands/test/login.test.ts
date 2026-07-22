@@ -178,8 +178,9 @@ describe('login', () => {
     const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://example.com/npm/' }
     const result = await login({ context, opts })
     expect(result).toBe('Logged in on https://example.com/npm/')
-    expect(globalWarn.mock.calls).toEqual([[expect.stringMatching(/^Could not generate a QR code: /)]])
-    expect(globalInfo.mock.calls).toEqual([
+    expect(globalWarn).toHaveBeenCalledTimes(1)
+    expect(globalWarn.mock.calls[0][0]).toContain('Could not generate a QR code:')
+    expect(globalInfo.mock.calls).toStrictEqual([
       [`Authenticate your account at:\n${longLoginUrl}`],
       ['Press ENTER to open the URL in your browser.'],
     ])
