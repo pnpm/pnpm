@@ -3,6 +3,9 @@ use pacquet_reporter::Reporter;
 
 use crate::{generate_qr_code::generate_qr_code, global_log::global_warn};
 
+#[cfg(test)]
+mod tests;
+
 /// The "Authenticate your account at" message, as a
 /// [`Display`](std::fmt::Display) value: `WithQrCode` when the URL's QR
 /// code rendered, `UrlOnly` as the fallback when it could not.
