@@ -130,6 +130,52 @@ test('audit --fix respects auditLevel and only fixes matching severities', async
   expect(manifest.overrides?.['url-parse@<1.5.6']).toBeFalsy()
 })
 
+test('audit --fix uses exact version when saveExact is true', async () => {
+  const tmp = f.prepare('has-vulnerabilities')
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  const { exitCode, output } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+    saveExact: true,
+  })
+
+  expect(exitCode).toBe(0)
+  expect(output).toMatch(/Run "pnpm install"/)
+
+  const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  expect(manifest.overrides?.['axios@<=0.18.0']).toBe('0.18.1')
+})
+
+test('audit --fix uses tilde prefix when savePrefix is ~', async () => {
+  const tmp = f.prepare('has-vulnerabilities')
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  const { exitCode, output } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+    savePrefix: '~',
+  })
+
+  expect(exitCode).toBe(0)
+  expect(output).toMatch(/Run "pnpm install"/)
+
+  const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  expect(manifest.overrides?.['axios@<=0.18.0']).toBe('~0.18.1')
+})
+
 function advisory (moduleName: string, vulnerableVersions: string, patchedVersions?: string): AuditAdvisory {
   return {
     findings: [],
@@ -202,5 +248,21 @@ describe('caretRangeForPatched', () => {
 
   test('picks the minimum version from a complex range', () => {
     expect(caretRangeForPatched('>=1.0.0 <2.0.0')).toBe('^1.0.0')
+  })
+
+  test('returns exact version when saveExact is true', () => {
+    expect(caretRangeForPatched('>=0.18.1', true)).toBe('0.18.1')
+  })
+
+  test('returns exact version when savePrefix is empty string', () => {
+    expect(caretRangeForPatched('>=0.18.1', undefined, '')).toBe('0.18.1')
+  })
+
+  test('returns tilde-prefixed version when savePrefix is ~', () => {
+    expect(caretRangeForPatched('>=0.18.1', undefined, '~')).toBe('~0.18.1')
+  })
+
+  test('returns caret-prefixed version when saveExact is false and savePrefix is undefined', () => {
+    expect(caretRangeForPatched('>=0.18.1', false)).toBe('^0.18.1')
   })
 })
