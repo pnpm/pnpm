@@ -34,7 +34,7 @@ pub use capabilities::{
     Clock, EnterKeyListener, Host, OpenUrl, PromptError, PromptOtp, Sleep, StdinIsTty, StdoutIsTty,
     WebAuthFetch, WebAuthFetchError,
 };
-pub use format_auth_url_message::format_auth_url_message;
+pub use format_auth_url_message::{AuthUrlMessage, format_auth_url_message};
 pub use generate_qr_code::{GenerateQrCodeError, generate_qr_code};
 pub use poll_for_web_auth_token::{
     WebAuthFetchOptions, WebAuthFetchResponse, WebAuthRetryOptions, WebAuthTokenPollParams,

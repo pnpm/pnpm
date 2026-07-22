@@ -84,7 +84,7 @@ fn extract_url_field<Reporter: self::Reporter>(
         None => None,
         Some(Value::String(value)) => Some(value.clone()),
         Some(other) => {
-            global_warn::<Reporter>(&format!(
+            global_warn::<Reporter, _>(format!(
                 "OTP error body: {field} has type {}, expected string",
                 js_typeof(other),
             ));
@@ -254,7 +254,7 @@ where
 
     let otp = match web_auth_urls {
         Some((auth_url, done_url)) => {
-            global_info::<Reporter>(&format_auth_url_message::<Reporter>(&auth_url));
+            global_info::<Reporter, _>(format_auth_url_message::<Reporter>(&auth_url));
             let poll = poll_for_web_auth_token::<Sys>(WebAuthTokenPollParams {
                 done_url,
                 fetch_options,
