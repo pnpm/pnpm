@@ -19,7 +19,7 @@ use pacquet_diagnostics::miette::{self, Diagnostic};
 use pacquet_network_web_auth::{
     OtpChallenge, OtpError, OtpErrorBody, WebAuthFetchError, WebAuthFetchResponse,
 };
-use serde_json::json;
+use serde_json::{json, to_vec};
 
 /// An operation error that is either an EOTP challenge or a plain failure, so
 /// a single error type covers both the OTP and non-OTP paths a fake operation
@@ -344,7 +344,7 @@ pub fn ok_token(token: &str) -> WebAuthFetchResponse {
         ok: true,
         status: 200,
         retry_after: None,
-        body: json!({ "token": token }).to_string().into_bytes(),
+        body: to_vec(&json!({ "token": token })).unwrap(),
         truncated: false,
     }
 }
@@ -361,7 +361,7 @@ pub fn ok_truncated() -> WebAuthFetchResponse {
         retry_after: None,
         // A real token, to prove that a truncated response is discarded
         // *because* it was truncated, not because the body lacked a token.
-        body: br#"{"token":"web-token-123"}"#.to_vec(),
+        body: to_vec(&json!({ "token": "web-token-123" })).unwrap(),
         truncated: true,
     }
 }
