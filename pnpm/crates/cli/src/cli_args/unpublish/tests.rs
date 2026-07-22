@@ -1,11 +1,10 @@
-use serde_json::{Value, json};
-use std::collections::BTreeMap;
+use serde_json::{Map, Value, json};
 
 use super::{
     Packument, highest_version, registry_origin, rev_str, tarball_pathname, versions_matching_range,
 };
 
-fn versions(keys: &[&str]) -> BTreeMap<String, Value> {
+fn versions(keys: &[&str]) -> Map<String, Value> {
     keys.iter().map(|key| ((*key).to_string(), json!({}))).collect()
 }
 
@@ -86,4 +85,18 @@ fn packument_round_trips_unknown_fields() {
     assert_eq!(serialized.get("readme"), Some(&json!("hello")), "unknown fields survive");
     assert!(serialized.get("_revisions").is_none(), "couchdb metadata is dropped");
     assert!(serialized.get("_attachments").is_none(), "couchdb metadata is dropped");
+}
+
+/// The version keys keep the packument's own order — `1.10.0` after `1.9.0`
+/// when the registry sent them that way — like the TypeScript CLI's
+/// `Object.keys`, not lexicographic or semver order.
+#[test]
+fn version_keys_keep_the_packument_order() {
+    let packument: Packument = serde_json::from_value(json!({
+        "name": "pkg",
+        "versions": { "1.9.0": {}, "1.10.0": {}, "1.2.0": {} },
+    }))
+    .expect("a packument deserializes");
+    let keys: Vec<&String> = packument.versions.keys().collect();
+    assert_eq!(keys, ["1.9.0", "1.10.0", "1.2.0"], "insertion order survives");
 }

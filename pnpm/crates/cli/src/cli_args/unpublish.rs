@@ -12,7 +12,7 @@ use pacquet_network::send_with_retry;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashSet;
 
 /// Remove a package, or a range of its versions, from the registry.
 ///
@@ -76,10 +76,13 @@ struct Packument {
     name: String,
     #[serde(rename = "_rev", default, skip_serializing_if = "Option::is_none")]
     rev: Option<String>,
+    // `serde_json::Map` preserves the registry's key order (the workspace
+    // enables `preserve_order`), so the confirm-message version list and the
+    // `PUT` body keep the packument's own ordering like the TypeScript CLI.
     #[serde(rename = "dist-tags", default)]
-    dist_tags: BTreeMap<String, String>,
+    dist_tags: Map<String, Value>,
     #[serde(default)]
-    versions: BTreeMap<String, Value>,
+    versions: Map<String, Value>,
     #[serde(flatten)]
     other: Map<String, Value>,
 }
@@ -196,11 +199,15 @@ async fn unpublish_versions(
     }
 
     let removed: HashSet<&str> = versions.iter().map(String::as_str).collect();
-    let latest_was_removed =
-        pkg.dist_tags.get("latest").is_some_and(|latest| removed.contains(latest.as_str()));
-    pkg.dist_tags.retain(|_, target| !removed.contains(target.as_str()));
+    let latest_was_removed = pkg
+        .dist_tags
+        .get("latest")
+        .and_then(Value::as_str)
+        .is_some_and(|latest| removed.contains(latest));
+    pkg.dist_tags
+        .retain(|_, target| !target.as_str().is_some_and(|target| removed.contains(target)));
     if latest_was_removed && let Some(highest) = highest_version(&pkg.versions) {
-        pkg.dist_tags.insert("latest".to_string(), highest);
+        pkg.dist_tags.insert("latest".to_string(), Value::String(highest));
     }
 
     // Internal CouchDB metadata must not round-trip into the PUT.
@@ -287,7 +294,7 @@ fn rev_str(rev: Option<&str>) -> &str {
 
 /// The version keys `range` matches. An unparsable range matches nothing,
 /// mirroring `semver.satisfies`.
-fn versions_matching_range(versions: &BTreeMap<String, Value>, range: &str) -> Vec<String> {
+fn versions_matching_range(versions: &Map<String, Value>, range: &str) -> Vec<String> {
     match Range::parse(range) {
         Ok(range) => versions
             .keys()
@@ -300,7 +307,7 @@ fn versions_matching_range(versions: &BTreeMap<String, Value>, range: &str) -> V
 
 /// The highest remaining semver version — the new `latest` after the old
 /// one is unpublished.
-fn highest_version(versions: &BTreeMap<String, Value>) -> Option<String> {
+fn highest_version(versions: &Map<String, Value>) -> Option<String> {
     versions
         .keys()
         .filter_map(|ver_str| Version::parse(ver_str).ok().map(|ver| (ver, ver_str)))

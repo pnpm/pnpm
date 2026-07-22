@@ -350,3 +350,28 @@ fn an_unauthorized_delete_reports_unauthorized() {
     assert!(stderr.contains("You must be logged in to unpublish packages"), "{stderr}");
     drop((root, server));
 }
+
+#[test]
+fn the_force_hint_lists_versions_in_packument_order() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    // 1.10.0 after 1.9.0 in the packument; lexicographic order would flip
+    // them, the TypeScript CLI's Object.keys does not.
+    let get_mock = server
+        .mock("GET", "/test-pkg")
+        .with_status(200)
+        .with_body(
+            r#"{"name":"test-pkg","_rev":"3-abc","versions":{"1.9.0":{},"1.10.0":{},"1.2.0":{}}}"#,
+        )
+        .create();
+    let auth_file = empty_auth_file(root.path());
+
+    let output = run_unpublish(&workspace, &auth_file, Some(&registry), &["test-pkg"]);
+
+    get_mock.assert();
+    assert!(!output.status.success(), "a full unpublish without --force must fail");
+    let stderr = stderr_of(&output);
+    assert!(stderr.contains("1.9.0, 1.10.0, 1.2.0"), "packument order survives: {stderr}");
+    drop((root, server));
+}
