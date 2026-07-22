@@ -881,6 +881,15 @@ fn a_first_release_on_a_lane_debuts_at_a_prerelease_of_the_current_version() {
 }
 
 #[test]
+fn a_first_release_on_a_lane_whose_manifest_is_already_an_unpublished_prerelease_is_verbatim() {
+    let projects = [make_project("cli", "2.0.0-alpha.3", &[])];
+    let intents = [make_intent("one", &[("cli", "minor")])];
+    let versioning = on_lane("cli", "alpha");
+    let plan = assemble_with_unpublished(&projects, &intents, Some(&versioning), &["cli"]);
+    assert_eq!(release(&plan, "cli").new_version, "2.0.0-alpha.3");
+}
+
+#[test]
 fn an_unpublished_epic_member_re_bases_to_the_new_band_floor_when_the_lead_crosses_a_major() {
     let projects = [make_project("pnpm", "11.0.0", &[]), make_project("lib", "1100.0.0", &[])];
     let intents = [make_intent("one", &[("pnpm", "major"), ("lib", "minor")])];

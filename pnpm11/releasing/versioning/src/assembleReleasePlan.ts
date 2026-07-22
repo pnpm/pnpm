@@ -734,7 +734,7 @@ interface NewVersionOptions {
    * prereleases — which keeps the stable target stable across `-tag.N` runs.
    */
   cumulativeBump: ReleaseBumpType
-  /** First release: publish `current` verbatim (on a lane, its first prerelease). See `unpublishedDirs`. */
+  /** First release: publish `current` verbatim — a stable seed on a lane debuts at its first prerelease. See `unpublishedDirs`. */
   firstRelease: boolean
 }
 
@@ -749,12 +749,23 @@ function computeNewVersion (participant: Participant, bumpType: ReleaseBumpType,
     // building toward.
     return escalateStableTarget(stablePart(current), opts.cumulativeBump)
   }
-  const target = opts.firstRelease
-    ? stablePart(current)
-    : parsePrerelease(current) == null
-      ? inc(current, opts.cumulativeBump)!
-      : escalateStableTarget(stablePart(current), opts.cumulativeBump)
+  if (opts.firstRelease) {
+    // A manifest prerelease already on this lane is published verbatim; a
+    // stable (or off-lane) seed debuts at the lane's first prerelease.
+    return isPrereleaseOnLane(current, opts.laneTag)
+      ? current
+      : `${stablePart(current)}-${opts.laneTag}.0`
+  }
+  const target = parsePrerelease(current) == null
+    ? inc(current, opts.cumulativeBump)!
+    : escalateStableTarget(stablePart(current), opts.cumulativeBump)
   return `${target}-${opts.laneTag}.${nextPrereleaseNumber(current, target, opts.laneTag)}`
+}
+
+function isPrereleaseOnLane (version: string, laneTag: string): boolean {
+  const prerelease = parsePrerelease(version)
+  // semver parses an all-digit identifier as a number, so compare stringified.
+  return prerelease != null && String(prerelease[0]) === laneTag
 }
 
 /**
