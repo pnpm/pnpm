@@ -746,11 +746,9 @@ interface NewVersionOptions {
    */
   cumulativeBump: ReleaseBumpType
   /**
-   * The package has never been published at its current version — its first
-   * release. The manifest version is the deliberate debut version and is
-   * published verbatim, so the bump is not applied; it takes effect only from
-   * the next release. On a lane, the first prerelease targets the current
-   * stable version without incrementing it.
+   * Whether this is the package's first release (see `unpublishedDirs`): the
+   * manifest version is published verbatim rather than bumped. On a lane, the
+   * first prerelease targets the current stable version without incrementing it.
    */
   firstRelease: boolean
 }

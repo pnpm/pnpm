@@ -378,9 +378,8 @@ impl VersionArgs {
                 },
             )
         };
-        // First release of a never-published package publishes its manifest
-        // version verbatim, so probe the registry for the first pass's releases
-        // and re-assemble with those held at their current version.
+        // Two-pass: probe the first plan's releases for `unpublished_dirs`, then
+        // re-assemble with it.
         let unpublished_dirs = unpublished_release_dirs(config, &assemble(HashSet::new())?).await?;
         let plan = assemble(unpublished_dirs)?;
 

@@ -304,9 +304,8 @@ async fn render_status(
             &AssembleReleasePlanOptions { unpublished_dirs, ..Default::default() },
         )
     };
-    // First release of a never-published package publishes its manifest version
-    // verbatim, so the preview matches the release: probe the first pass's
-    // releases and re-assemble with those held at their current version.
+    // Probe as the release does, so the preview matches it: assemble, probe the
+    // plan's releases for `unpublished_dirs`, then re-assemble with it.
     let unpublished_dirs = unpublished_release_dirs(config, &assemble(HashSet::new())?).await?;
     let plan = assemble(unpublished_dirs)?;
     if plan.releases.is_empty() {

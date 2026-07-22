@@ -1001,9 +1001,6 @@ fn compute_new_version(
     let current_version = Version::parse(current).expect("participants have valid versions");
     let Some(lane_tag) = lane_tag else {
         if first_release {
-            // First release: the manifest version is the deliberate debut
-            // version and is published verbatim; the bump applies only from the
-            // next release.
             return current.to_string();
         }
         if current_version.pre_release.is_empty() {

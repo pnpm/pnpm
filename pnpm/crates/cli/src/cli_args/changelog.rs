@@ -84,6 +84,12 @@ pub async fn confirmed_published_versions(
 /// concurrently; any probe failure propagates so the command fails rather than
 /// release a wrong version. Feeds `AssembleReleasePlanOptions::unpublished_dirs`.
 /// Mirrors the TypeScript `resolveUnpublishedDirs`.
+///
+/// A first assembly pass (without `unpublished_dirs`) supplies `plan`. Holding
+/// a package at its current version can only remove dependent propagation,
+/// never add it (the materialized range already admits the unchanged version),
+/// so the re-assembled plan is a subset of `plan` — every dir it can hold was
+/// probed here.
 pub async fn unpublished_release_dirs(
     config: &Config,
     plan: &ReleasePlan,
