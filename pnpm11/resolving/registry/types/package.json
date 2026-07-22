@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolving.registry.types",
-  "version": "1100.1.4",
+  "version": "1100.1.5",
   "description": "Types related to the npm registry",
   "keywords": [
     "pnpm",

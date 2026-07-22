@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fs.indexed-pkg-importer",
-  "version": "1100.0.19",
+  "version": "1100.0.20",
   "description": "Replicates indexed directories using hard links, copies, or cloning",
   "keywords": [
     "pnpm",
