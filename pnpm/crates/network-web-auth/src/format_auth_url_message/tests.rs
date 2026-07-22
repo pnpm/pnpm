@@ -1,4 +1,4 @@
-use pacquet_reporter::{GlobalLog, LogEvent, Reporter};
+use pacquet_reporter::{LogEvent, Reporter};
 use pretty_assertions::assert_eq;
 
 use super::{AuthUrlMessage, format_auth_url_message};
@@ -11,8 +11,8 @@ struct UnexpectedReporter;
 
 impl Reporter for UnexpectedReporter {
     fn emit(event: &LogEvent) {
-        if let LogEvent::Global(GlobalLog { message, .. }) = event {
-            panic!("unexpected global message: {message}");
+        if let LogEvent::Global(log) = event {
+            panic!("unexpected log: {log:?}");
         }
     }
 }
