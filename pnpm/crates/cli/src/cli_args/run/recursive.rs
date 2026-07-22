@@ -97,6 +97,7 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
         chunks.iter().flatten().map(|root| (root.clone(), ExecutionStatus::queued())).collect();
     let mut has_command = 0_usize;
 
+    // Lifecycle env computed once and reused per project.
     let init_cwd = env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
     let mut extra_env: HashMap<String, String> = config.extra_env.clone();
     if let Some(node_options) = &config.node_options {
@@ -117,16 +118,19 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
                 result[root].status = Status::Skipped;
                 continue;
             };
+            // Skip no-op stages: empty body or the `npx only-allow pnpm` guard without args.
             if script.is_empty() || (args.args.is_empty() && script == "npx only-allow pnpm") {
                 result[root].status = Status::Skipped;
                 continue;
             }
+            // Recursion guard: skip when this project is already running this script.
             if env::var_os("npm_lifecycle_event").is_some_and(|event| event == *script_name)
                 && env::var_os("PNPM_SCRIPT_SRC_DIR")
                     .is_some_and(|src_dir| Path::new(&src_dir) == root)
             {
                 continue;
             }
+            // Hidden-script gate: dot-prefixed names can only be invoked from within another script.
             if script_name.starts_with('.') && env::var_os("npm_lifecycle_event").is_none() {
                 return Err(
                     super::RunError::HiddenScript { script: script_name.to_string() }.into()
@@ -171,6 +175,7 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
         }
     }
 
+    // `test` is exempt because `pnpm test` falls back to a default.
     if script_name != "test" && has_command == 0 && !args.if_present {
         let script_name = script_name.to_string();
         return Err(if graph.len() == projects.len() {

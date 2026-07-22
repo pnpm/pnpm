@@ -91,7 +91,7 @@ pub enum RunError {
 }
 
 impl RunArgs {
-    /// Execute the subcommand in `dir`.
+    /// Execute the subcommand in `dir`; `silent` suppresses the `$ <script>` echo.
     pub fn run(self, dir: &Path, config: &Config, silent: bool) -> miette::Result<()> {
         self.run_inner(dir, config, silent, false)
     }
@@ -168,15 +168,46 @@ impl RunArgs {
             silent,
             sequential,
         };
-        for name in &specified {
-            let Some(main) = resolve_main_script(&ctx, name)? else { continue };
-            // Skip the no-op `npx only-allow pnpm` guard when no args.
-            if args.is_empty() && main == "npx only-allow pnpm" {
-                continue;
+
+        if sequential {
+            for name in &specified {
+                let Some(main) = resolve_main_script(&ctx, name)? else { continue };
+                if args.is_empty() && main == "npx only-allow pnpm" {
+                    continue;
+                }
+                let status = run_stages(&ctx, name, &main, &args)?;
+                if !status.success() {
+                    std::process::exit(status.code().unwrap_or(1));
+                }
             }
-            let status = run_stages(&ctx, name, &main, &args)?;
-            if !status.success() {
-                std::process::exit(status.code().unwrap_or(1));
+        } else {
+            let results: Vec<_> = std::thread::scope(|s| {
+                specified
+                    .iter()
+                    .filter_map(|name| {
+                        let main = match resolve_main_script(&ctx, name) {
+                            Ok(Some(m)) => m,
+                            Ok(None) => return None,
+                            Err(e) => return Some(Err(e.into())),
+                        };
+                        if args.is_empty() && main == "npx only-allow pnpm" {
+                            return None;
+                        }
+                        Some(Ok(s.spawn(move || run_stages(&ctx, name, &main, &args))))
+                    })
+                    .map(|h| match h {
+                        Ok(handle) => handle
+                            .join()
+                            .unwrap_or_else(|_| Err(miette::miette!("script thread panicked"))),
+                        Err(e) => Err(e),
+                    })
+                    .collect()
+            });
+            for result in results {
+                let status = result?;
+                if !status.success() {
+                    std::process::exit(status.code().unwrap_or(1));
+                }
             }
         }
         Ok(())
@@ -294,8 +325,7 @@ pub(super) fn run_stages(
     Ok(main_status)
 }
 
-/// Run one lifecycle stage. Returns `Ok(None)` for no-op guards
-/// (empty body, or `npx only-allow pnpm` with no args).
+/// Run one lifecycle stage. Returns `Ok(None)` for no-op guards (empty body or `npx only-allow pnpm` with no args).
 pub(super) fn run_stage(
     ctx: &RunContext<'_>,
     stage: &str,
