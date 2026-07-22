@@ -6,13 +6,14 @@
 
 use super::{
     DirectDepsByImporter, HoistGraphNode, HoistInputs, HoistedDependencies,
-    build_direct_deps_by_importer, build_hoist_graph, get_hoisted_dependencies,
+    build_direct_deps_by_importer, build_hoist_graph, get_global_virtual_store_context_projection,
+    get_hoisted_dependencies,
 };
 use pacquet_config::matcher::create_matcher;
 use pacquet_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgVerPeer, ProjectSnapshot,
-    RegistryResolution, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef,
-    SnapshotEntry,
+    DirectoryResolution, LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgVerPeer,
+    ProjectSnapshot, RegistryResolution, ResolvedDependencyMap, ResolvedDependencySpec,
+    SnapshotDepRef, SnapshotEntry,
 };
 use pacquet_modules_yaml::HoistKind;
 use pacquet_package_manifest::DependencyGroup;
@@ -314,6 +315,67 @@ fn skipped_snapshot_is_excluded() {
     // alone isn't enough — `build_hoist_graph` only filters by missing
     // metadata, so `graph` contains every snapshot, skipped or not).
     assert!(result.hoisted_dependencies_by_node_id.contains_key(&key("opt", "1.0.0")));
+}
+
+#[test]
+fn context_projection_combines_hoists_and_stable_root_direct_deps() {
+    let (mut snapshots, mut packages) = make_lockfile_data(&[
+        ("app", "1.0.0", &[("ambient", "ambient", "2.0.0")], false),
+        ("ambient", "2.0.0", &[], false),
+        ("root-only", "1.0.0", &[], false),
+        ("skipped", "1.0.0", &[], false),
+    ]);
+    let workspace_key = key("workspace-pkg", "file:packages/workspace-pkg");
+    snapshots.insert(workspace_key.clone(), SnapshotEntry::default());
+    packages.insert(
+        workspace_key,
+        PackageMetadata {
+            resolution: DirectoryResolution { directory: "packages/workspace-pkg".to_string() }
+                .into(),
+            version: None,
+            engines: None,
+            cpu: None,
+            os: None,
+            libc: None,
+            deprecated: None,
+            has_bin: None,
+            prepare: None,
+            bundled_dependencies: None,
+            peer_dependencies: None,
+            peer_dependencies_meta: None,
+        },
+    );
+    let graph = build_hoist_graph(&snapshots, &packages);
+    let direct = root_direct_deps(&[
+        ("app", "app", "1.0.0"),
+        ("root-only", "root-only", "1.0.0"),
+        ("skipped", "skipped", "1.0.0"),
+        ("workspace-pkg", "workspace-pkg", "file:packages/workspace-pkg"),
+    ]);
+    let skipped = HashSet::from([key("skipped", "1.0.0")]);
+    let result = get_hoisted_dependencies(&HoistInputs {
+        graph: &graph,
+        direct_deps_by_importer: &direct,
+        skipped: &skipped,
+        private_pattern: create_matcher(&pats(["*"])),
+        public_pattern: create_matcher(&[]),
+        hoisted_workspace_packages: None,
+    })
+    .expect("non-empty graph");
+
+    let projection =
+        get_global_virtual_store_context_projection(Some(&result), &direct, &packages, &skipped);
+
+    assert_eq!(
+        projection,
+        [
+            ("ambient".to_string(), key("ambient", "2.0.0")),
+            ("app".to_string(), key("app", "1.0.0")),
+            ("root-only".to_string(), key("root-only", "1.0.0")),
+        ]
+        .into_iter()
+        .collect(),
+    );
 }
 
 /// `symlink_hoisted_dependencies` filters entries whose key is in

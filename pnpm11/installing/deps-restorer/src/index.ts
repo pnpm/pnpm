@@ -370,6 +370,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   } as LockfileToDepGraphOptions
   const {
     directDependenciesByImporterId,
+    globalVirtualStoreContext,
     graph,
     hierarchy,
     hoistedLocations,
@@ -473,6 +474,13 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         }),
       ])
     }
+    if (opts.symlink !== false && !skipPostImportLinking && globalVirtualStoreContext != null) {
+      await linkGlobalVirtualStoreContext(globalVirtualStoreContext, {
+        extraNodePaths: opts.extraNodePaths,
+        preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+        warn,
+      })
+    }
 
     stageLogger.debug({
       prefix: lockfileDir,
@@ -495,6 +503,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           privateHoistPattern: opts.hoistPattern ?? [],
           publicHoistedModulesDir,
           publicHoistPattern: opts.publicHoistPattern ?? [],
+          reservedAliases: globalVirtualStoreContext?.reservedHoistAliases,
           virtualStoreDir,
           virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
           hoistedWorkspacePackages: opts.hoistWorkspacePackages
@@ -1104,6 +1113,32 @@ async function linkAllBins (
         }
       }))
   )
+}
+
+async function linkGlobalVirtualStoreContext (
+  context: {
+    children: Record<string, string>
+    modulesDir: string
+  },
+  opts: {
+    extraNodePaths?: string[]
+    preferSymlinkedExecutables?: boolean
+    warn: (message: string) => void
+  }
+): Promise<void> {
+  await symlinkAllModules({
+    deps: [{
+      children: context.children,
+      modules: context.modulesDir,
+      name: '',
+    }],
+  })
+  await linkBins(context.modulesDir, path.join(context.modulesDir, '.bin'), {
+    allowExoticManifests: true,
+    extraNodePaths: opts.extraNodePaths,
+    preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+    warn: opts.warn,
+  })
 }
 
 async function linkAllModules (

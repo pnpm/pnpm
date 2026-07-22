@@ -149,6 +149,14 @@ async function walkSymlinksToStore (
               // Also walk into the package's node_modules for transitive deps
               const pkgNodeModules = path.join(linksDir, relativePath, 'node_modules')
               await walkSymlinksToStore(pkgNodeModules, linksDir, reachable, visited)
+              if (parts[0] === 'contexts' && parts[1] != null) {
+                await walkSymlinksToStore(
+                  path.join(linksDir, 'contexts', parts[1], 'node_modules'),
+                  linksDir,
+                  reachable,
+                  visited
+                )
+              }
             }
           }
         } catch {
@@ -180,21 +188,51 @@ async function getRealPathHash (p: string): Promise<string> {
  * Remove package directories from the global virtual store that are not in the reachable set.
  * Returns the count of removed packages.
  *
- * Directory structure is uniform 4-level:
- * - Scoped: {linksDir}/{scope}/{pkgName}/{version}/{hash}/
- * - Unscoped: {linksDir}/@/{pkgName}/{version}/{hash}/
+ * Package slots use either the legacy layout or a shared resolver context:
+ * - Legacy:  {linksDir}/{scope}/{pkgName}/{version}/{hash}/
+ * - Context: {linksDir}/contexts/{contextHash}/{scope}/{pkgName}/{version}/{hash}/
  */
 async function removeUnreachablePackages (
   linksDir: string,
   reachable: Set<string>
 ): Promise<number> {
-  // First level is always a scope (either @scope or @ for unscoped packages)
-  const scopes = await getSubdirsSafely(linksDir)
-  let count = 0
+  const legacyScopes = (await getSubdirsSafely(linksDir)).filter(isPackageScope)
+  let count = await removeUnreachableScopes(linksDir, '', legacyScopes, reachable)
 
+  const contextsDir = path.join(linksDir, 'contexts')
+  const contextHashes = await getSubdirsSafely(contextsDir)
+  await Promise.all(
+    contextHashes.map(async (contextHash) => {
+      const contextDir = path.join(contextsDir, contextHash)
+      const scopes = (await getSubdirsSafely(contextDir)).filter(isPackageScope)
+      count += await removeUnreachableScopes(
+        contextDir,
+        path.join('contexts', contextHash),
+        scopes,
+        reachable
+      )
+      if ((await getSubdirsSafely(contextDir)).every((entry) => !isPackageScope(entry))) {
+        await rimraf(contextDir)
+      }
+    })
+  )
+  if (contextHashes.length > 0 && (await getSubdirsSafely(contextsDir)).length === 0) {
+    await rimraf(contextsDir)
+  }
+
+  return count
+}
+
+async function removeUnreachableScopes (
+  rootDir: string,
+  relativePrefix: string,
+  scopes: string[],
+  reachable: Set<string>
+): Promise<number> {
+  let count = 0
   await Promise.all(
     scopes.map(async (scope) => {
-      const scopePath = path.join(linksDir, scope)
+      const scopePath = path.join(rootDir, scope)
       const pkgNames = await getSubdirsSafely(scopePath)
       let removedPkgs = 0
 
@@ -203,7 +241,7 @@ async function removeUnreachablePackages (
           const pkgDir = path.join(scopePath, pkgName)
           const removedVersions = await removeUnreachableVersions(
             pkgDir,
-            path.join(scope, pkgName),
+            path.join(relativePrefix, scope, pkgName),
             reachable
           )
           count += removedVersions.count
@@ -223,6 +261,10 @@ async function removeUnreachablePackages (
   )
 
   return count
+}
+
+function isPackageScope (name: string): boolean {
+  return name.startsWith('@')
 }
 
 /**

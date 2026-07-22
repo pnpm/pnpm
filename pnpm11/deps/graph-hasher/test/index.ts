@@ -1,6 +1,6 @@
 import { describe, expect, test } from '@jest/globals'
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
-import { calcDepState, calcGraphNodeHash, findRuntimeNodeVersion, readSnapshotRuntimePin } from '@pnpm/deps.graph-hasher'
+import { calcDepState, calcGraphNodeHash, findRuntimeNodeVersion, iterateHashedGraphNodes, readSnapshotRuntimePin } from '@pnpm/deps.graph-hasher'
 import { engineName } from '@pnpm/engine.runtime.system-version'
 import type { DepPath, PkgIdWithPatchHash } from '@pnpm/types'
 
@@ -226,5 +226,29 @@ describe('calcGraphNodeHash', () => {
       { encoding: 'hex' }
     )
     expect(hash).toBe(`@/foo/1.0.0/${expectedDigest}`)
+  })
+
+  test('uses a filesystem-safe context hash for a hoist projection', () => {
+    const nodes = Array.from(iterateHashedGraphNodes(
+      graphNodeGraph,
+      [{
+        depPath: 'foo@1.0.0' as DepPath,
+        name: 'foo',
+        version: '1.0.0',
+      }].values(),
+      undefined,
+      undefined,
+      undefined,
+      { foo: 'foo@1.0.0' as DepPath }
+    ))
+
+    const basePath = calcGraphNodeHash(
+      { graph: graphNodeGraph, cache: {} },
+      { depPath: 'foo@1.0.0' as DepPath, name: 'foo', version: '1.0.0' }
+    )
+    const expectedContextHash = hashObjectWithoutSorting({ foo: basePath }, { encoding: 'hex' })
+    expect(nodes).toHaveLength(1)
+    expect(nodes[0].contextHash).toBe(expectedContextHash)
+    expect(nodes[0].hash).toBe(`contexts/${expectedContextHash}/${basePath}`)
   })
 })

@@ -2,10 +2,11 @@ use crate::{
     AllowBuildPolicy, CreateVirtualStore, CreateVirtualStoreError, CreateVirtualStoreOutput,
     DependenciesGraphToLockfileError, GraphToLockfileOptions, HoistedDependencies,
     ImporterLockfileInput, InstallPackageFromRegistryError, LinkRootComponentMembersError,
-    LinkVirtualStoreBins, LinkVirtualStoreBinsError, PrefetchContext, PrefetchingResolver,
-    SkippedSnapshots, SymlinkDirectDependencies, SymlinkDirectDependenciesError,
-    VersionPolicyError, VersionsOverrider, VirtualStoreLayout, dependencies_graph_to_lockfile,
-    link_root_component_members, store_init::init_store_dir_best_effort,
+    LinkVirtualStoreBins, LinkVirtualStoreBinsError, MaterializeGlobalVirtualStoreContextError,
+    PrefetchContext, PrefetchingResolver, SkippedSnapshots, SymlinkDirectDependencies,
+    SymlinkDirectDependenciesError, VersionPolicyError, VersionsOverrider, VirtualStoreLayout,
+    dependencies_graph_to_lockfile, link_root_component_members,
+    materialize_global_virtual_store_context, store_init::init_store_dir_best_effort,
 };
 use dashmap::DashMap;
 use derive_more::{Display, Error};
@@ -315,6 +316,11 @@ pub enum InstallWithFreshLockfileError {
 
     #[diagnostic(transparent)]
     SymlinkDirectDependencies(#[error(source)] SymlinkDirectDependenciesError),
+
+    #[diagnostic(transparent)]
+    MaterializeGlobalVirtualStoreContext(
+        #[error(source)] MaterializeGlobalVirtualStoreContextError,
+    ),
 
     /// Surfaces a failure while removing stale direct-dep or hoist
     /// links during the pre-link reconciliation pass.
@@ -1877,22 +1883,6 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         };
         let layout_engine_name =
             if config.enable_global_virtual_store { engine_name.as_deref() } else { None };
-        let phase_start = std::time::Instant::now();
-        let layout = VirtualStoreLayout::new(
-            config,
-            layout_engine_name,
-            initial_materialization_lockfile.snapshots.as_ref(),
-            initial_materialization_lockfile.packages.as_ref(),
-            Some(&allow_build_policy),
-        );
-        if config.enable_global_virtual_store {
-            tracing::info!(
-                target: "pacquet::install::phase",
-                phase = "virtual_store_layout_new",
-                elapsed_ms = phase_start.elapsed().as_millis() as u64,
-                "phase complete",
-            );
-        }
 
         let mut skipped = if needs_installability_check {
             match (
@@ -1980,6 +1970,48 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             Some(_) => materialization_importer_ids.clone(),
             None => materialization_importer_ids.clone(),
         };
+        let hoisted_workspace_packages = config.hoist_workspace_packages.then(|| {
+            importer_manifests
+                .iter()
+                .filter(|(id, _)| materialization_importer_ids.contains(id.as_str()))
+                .filter(|(id, _)| id.as_str() != ".")
+                .filter_map(|(id, manifest)| {
+                    let name = manifest.value().get("name")?.as_str()?;
+                    Some((
+                        name.to_string(),
+                        crate::symlink_direct_dependencies::importer_root_dir(lockfile_dir, id),
+                    ))
+                })
+                .collect::<std::collections::BTreeMap<_, _>>()
+        });
+        let (mut pre_hoist, context_projection) =
+            crate::install_frozen_lockfile::compute_hoist_plan_and_context_projection(
+                config,
+                materialization_lockfile.snapshots.as_ref(),
+                materialization_lockfile.packages.as_ref(),
+                &materialization_lockfile.importers,
+                &dependency_groups,
+                &skipped,
+                is_hoisted,
+                hoisted_workspace_packages.as_ref(),
+            );
+        let phase_start = std::time::Instant::now();
+        let layout = VirtualStoreLayout::new(
+            config,
+            layout_engine_name,
+            materialization_lockfile.snapshots.as_ref(),
+            materialization_lockfile.packages.as_ref(),
+            Some(&allow_build_policy),
+            Some(&context_projection),
+        );
+        if config.enable_global_virtual_store {
+            tracing::info!(
+                target: "pacquet::install::phase",
+                phase = "virtual_store_layout_new",
+                elapsed_ms = phase_start.elapsed().as_millis() as u64,
+                "phase complete",
+            );
+        }
 
         // Materialise the virtual store via the same phased
         // warm/cold-batch pipeline the frozen-lockfile path uses. The
@@ -2049,8 +2081,21 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
 
         // Fold fetch-failure swallows into the skip set before the
         // symlink / bin-link / build phases, mirroring the frozen path.
+        let had_fetch_failures = !fetch_failed.is_empty();
         for key in fetch_failed {
             skipped.add_fetch_failed(key);
+        }
+        if had_fetch_failures && !config.enable_global_virtual_store && !is_hoisted {
+            pre_hoist = crate::install_frozen_lockfile::compute_hoist_plan(
+                config,
+                materialization_lockfile.snapshots.as_ref(),
+                materialization_lockfile.packages.as_ref(),
+                &materialization_lockfile.importers,
+                &dependency_groups,
+                &skipped,
+                false,
+                hoisted_workspace_packages.as_ref(),
+            );
         }
 
         // The store-index writer is kept open past `CreateVirtualStore`
@@ -2180,39 +2225,10 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             hoisted_pkg_roots_by_key = output.hoisted_pkg_roots_by_key;
             (HoistedDependencies::new(), output.hoisted_locations)
         } else {
-            // Pre-compute the hoist plan so the dedupe pass in
-            // `SymlinkDirectDependencies` can fold publicly-hoisted
-            // aliases into root's target map — same shape as the
-            // frozen-lockfile path. The `HoistResult` is reused for
-            // the on-disk hoist phase below, so the BFS runs once.
-            // `hoist-workspace-packages`: named non-root projects
-            // become hoist candidates whose links point at the
-            // project dirs (`importer_manifests` is keyed by
-            // importer id).
-            let hoisted_workspace_packages = config.hoist_workspace_packages.then(|| {
-                importer_manifests
-                    .iter()
-                    .filter(|(id, _)| materialization_importer_ids.contains(id.as_str()))
-                    .filter(|(id, _)| id.as_str() != ".")
-                    .filter_map(|(id, manifest)| {
-                        let name = manifest.value().get("name")?.as_str()?;
-                        Some((
-                            name.to_string(),
-                            crate::symlink_direct_dependencies::importer_root_dir(lockfile_dir, id),
-                        ))
-                    })
-                    .collect::<std::collections::BTreeMap<_, _>>()
-            });
-            let pre_hoist = crate::install_frozen_lockfile::compute_hoist_plan(
-                config,
-                materialization_lockfile.snapshots.as_ref(),
-                materialization_lockfile.packages.as_ref(),
-                &materialization_lockfile.importers,
-                &dependency_groups,
-                &skipped,
-                false,
-                hoisted_workspace_packages.as_ref(),
-            );
+            if config.symlink {
+                materialize_global_virtual_store_context(&layout, &skipped, &extra_node_paths)
+                    .map_err(InstallWithFreshLockfileError::MaterializeGlobalVirtualStoreContext)?;
+            }
             let public_hoist_targets: Option<
                 std::collections::BTreeMap<String, std::path::PathBuf>,
             > = pre_hoist.as_ref().map(|plan| {

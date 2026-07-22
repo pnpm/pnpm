@@ -38,6 +38,7 @@
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/fs.symlink-dependency": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",
+    "@pnpm/installing.linking.hoist": "workspace:*",
     "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",

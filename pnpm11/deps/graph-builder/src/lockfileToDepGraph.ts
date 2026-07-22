@@ -33,6 +33,7 @@ import type {
 import { pathExists } from 'path-exists'
 import { equals, isEmpty } from 'ramda'
 
+import { getGlobalVirtualStoreHoistProjection } from './getGlobalVirtualStoreHoistProjection.js'
 import { iteratePkgsForVirtualStore } from './iteratePkgsForVirtualStore.js'
 
 const brokenModulesLogger = logger('_broken_node_modules')
@@ -89,6 +90,8 @@ export interface LockfileToDepGraphOptions {
   storeController: StoreController
   storeDir: string
   globalVirtualStoreDir: string
+  hoistPattern?: string[]
+  publicHoistPattern?: string[]
   virtualStoreDir: string
   supportedArchitectures?: SupportedArchitectures
   virtualStoreDirMaxLength: number
@@ -104,12 +107,19 @@ export interface DepHierarchy {
 
 export interface LockfileToDepGraphResult {
   directDependenciesByImporterId: DirectDependenciesByImporterId
+  globalVirtualStoreContext?: GlobalVirtualStoreContext
   graph: DependenciesGraph
   hierarchy?: DepHierarchy
   hoistedLocations?: Record<string, string[]>
   symlinkedDirectDependenciesByImporterId?: DirectDependenciesByImporterId
   prevGraph?: DependenciesGraph
   injectionTargetsByDepPath: Map<string, string[]>
+}
+
+export interface GlobalVirtualStoreContext {
+  children: Record<string, string>
+  modulesDir: string
+  reservedHoistAliases: string[]
 }
 
 /**
@@ -128,6 +138,7 @@ export async function lockfileToDepGraph (
 ): Promise<LockfileToDepGraphResult> {
   const {
     graph,
+    globalVirtualStoreContextHash,
     locationByDepPath,
     injectionTargetsByDepPath,
   } = await buildGraphFromPackages(lockfile, currentLockfile, opts)
@@ -145,6 +156,9 @@ export async function lockfileToDepGraph (
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     locationByDepPath,
   } satisfies GetChildrenPathsContext)
+  const hoistProjection = opts.enableGlobalVirtualStore
+    ? getGlobalVirtualStoreHoistProjection(lockfile, opts)
+    : {}
 
   for (const node of Object.values(graph)) {
     const pkgSnapshot = lockfile.packages![node.depPath]
@@ -167,7 +181,24 @@ export async function lockfileToDepGraph (
     directDependenciesByImporterId[importerId] = _getChildrenPaths(rootDeps, null, importerId)
   }
 
-  return { graph, directDependenciesByImporterId, injectionTargetsByDepPath }
+  let globalVirtualStoreContext: GlobalVirtualStoreContext | undefined
+  if (globalVirtualStoreContextHash != null) {
+    const depNodeByDepPath = new Map(Object.values(graph).map((depNode) => [depNode.depPath, depNode]))
+    const children: Record<string, string> = Object.create(null)
+    await Promise.all(Object.entries(hoistProjection).map(async ([alias, depPath]) => {
+      const depNode = depNodeByDepPath.get(depPath)
+      const dir = depNode?.dir ?? locationByDepPath[depPath]
+      if (dir != null && (depNode != null || await pathExists(dir))) {
+        children[alias] = dir
+      }
+    }))
+    globalVirtualStoreContext = {
+      children,
+      modulesDir: path.join(opts.globalVirtualStoreDir, 'contexts', globalVirtualStoreContextHash, 'node_modules'),
+      reservedHoistAliases: Object.keys(hoistProjection).filter((alias) => !Object.hasOwn(children, alias)),
+    }
+  }
+  return { graph, directDependenciesByImporterId, globalVirtualStoreContext, injectionTargetsByDepPath }
 }
 
 async function buildGraphFromPackages (
@@ -176,6 +207,7 @@ async function buildGraphFromPackages (
   opts: LockfileToDepGraphOptions
 ): Promise<{
   graph: DependenciesGraph
+  globalVirtualStoreContextHash?: string
   locationByDepPath: Record<string, string>
   injectionTargetsByDepPath: Map<string, string[]>
 }> {
@@ -184,12 +216,14 @@ async function buildGraphFromPackages (
   const locationByDepPath: Record<string, string> = {}
   // Only populated for directory deps (injected workspace packages)
   const injectionTargetsByDepPath = new Map<string, string[]>()
+  let globalVirtualStoreContextHash: string | undefined
 
   const _getPatchInfo = getPatchInfo.bind(null, opts.patchedDependencies)
   const promises: Array<Promise<void>> = []
   const pkgSnapshotsWithLocations = iteratePkgsForVirtualStore(lockfile, opts)
 
-  for (const { dirInVirtualStore, pkgMeta } of pkgSnapshotsWithLocations) {
+  for (const { contextHash, dirInVirtualStore, pkgMeta } of pkgSnapshotsWithLocations) {
+    globalVirtualStoreContextHash = contextHash
     promises.push((async () => {
       const { pkgIdWithPatchHash, name: pkgName, version: pkgVersion, depPath, pkgSnapshot } = pkgMeta
       if (opts.skipped.has(depPath)) return
@@ -324,7 +358,7 @@ async function buildGraphFromPackages (
     })())
   }
   await Promise.all(promises)
-  return { graph, locationByDepPath, injectionTargetsByDepPath }
+  return { graph, globalVirtualStoreContextHash, locationByDepPath, injectionTargetsByDepPath }
 }
 
 interface GetChildrenPathsContext {

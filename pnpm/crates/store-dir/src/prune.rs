@@ -1,18 +1,19 @@
 //! Prune the global virtual store.
 //!
-//! Mark-and-sweep over `<store_dir>/links/<scope>/<name>/<version>/<hash>`:
+//! Mark-and-sweep over legacy
+//! `<store_dir>/links/<scope>/<name>/<version>/<hash>` slots and contextual
+//! `<store_dir>/links/contexts/<context>/<scope>/<name>/<version>/<hash>` slots:
 //!
 //! 1. **Mark** — walk every registered project (see
 //!    [`crate::get_registered_projects`]). For each project, find every
 //!    `node_modules/` directory (root + workspace packages), follow every
 //!    symlink it contains, and if the symlink target lands under
 //!    `<store_dir>/links/...` record the slot path
-//!    (`<scope>/<name>/<version>/<hash>`) as reachable. Then recurse
-//!    into the slot's own `node_modules/` for transitive deps.
-//! 2. **Sweep** — walk the four-level
-//!    `<scope>/<name>/<version>/<hash>` tree and remove every `<hash>`
-//!    that isn't in the reachable set. Empty `<version>/` and `<name>/`
-//!    parents are removed in a second pass.
+//!    as reachable. Then recurse into the slot's own `node_modules/`
+//!    and, for contextual slots, the context-level `node_modules/`.
+//! 2. **Sweep** — walk both package trees and remove every `<hash>`
+//!    that isn't in the reachable set. Empty package and context
+//!    directories are removed afterward.
 //!
 //! Pacquet doesn't yet have rayon plumbing in the store-dir crate, so
 //! the walk runs sequentially. Prune is a one-shot CLI command (not
@@ -171,8 +172,9 @@ fn find_all_node_modules_dirs(project_dir: &Path) -> Vec<PathBuf> {
 
 /// Recursively follow every symlink under `dir`. When a symlink
 /// resolves to a slot under `canonical_links`, record the slot's
-/// `<scope>/<name>/<version>/<hash>` segment in `reachable` and
-/// recurse into the slot's `node_modules/` for transitive deps.
+/// package-slot segment in `reachable` and recurse into its dependency
+/// links. Contextual slots also mark aliases from the shared context
+/// `node_modules`.
 ///
 /// `canonical_links` must already be the canonicalised links root
 /// — [`StoreDir::prune`] does this once and threads it through, so
@@ -247,6 +249,15 @@ fn walk_symlinks_to_store(
                 reachable.insert(slot.clone());
                 let inner_modules = canonical_links.join(&slot).join("node_modules");
                 walk_symlinks_to_store(&inner_modules, canonical_links, reachable, visited);
+                if parts.first().is_some_and(|part| part.as_os_str() == "contexts")
+                    && let Some(context_hash) = parts.get(1)
+                {
+                    let context_modules = canonical_links
+                        .join("contexts")
+                        .join(context_hash.as_os_str())
+                        .join("node_modules");
+                    walk_symlinks_to_store(&context_modules, canonical_links, reachable, visited);
+                }
             }
         } else if file_type.is_dir() {
             // Skip `.pnpm` — that's the project-local virtual store.
@@ -263,24 +274,53 @@ fn walk_symlinks_to_store(
     }
 }
 
-/// Sweep phase: walk `<links_dir>/<scope>/<name>/<version>/<hash>`
-/// and remove every `<hash>` directory whose
-/// `<scope>/<name>/<version>/<hash>` path isn't in `reachable`.
-/// Cleans up emptied `<version>/`, `<name>/`, and `<scope>/`
-/// parents.
+/// Sweep legacy and contextual package trees, then remove empty parents.
 fn remove_unreachable_packages(
     links_dir: &Path,
     reachable: &HashSet<PathBuf>,
 ) -> Result<usize, PruneError> {
+    let mut count = remove_unreachable_package_tree(
+        links_dir,
+        Path::new(""),
+        Some(std::ffi::OsStr::new("contexts")),
+        reachable,
+    )?;
+    let contexts_dir = links_dir.join("contexts");
+    for context_hash in list_subdirs(&contexts_dir)? {
+        let context_dir = contexts_dir.join(&context_hash);
+        let context_rel = Path::new("contexts").join(&context_hash);
+        count += remove_unreachable_package_tree(
+            &context_dir,
+            &context_rel,
+            Some(std::ffi::OsStr::new("node_modules")),
+            reachable,
+        )?;
+        if !reachable.iter().any(|slot| slot.starts_with(&context_rel)) {
+            remove_slot_dir(&context_dir)?;
+        }
+    }
+    remove_empty_dir(&contexts_dir)?;
+    Ok(count)
+}
+
+fn remove_unreachable_package_tree(
+    package_root: &Path,
+    relative_root: &Path,
+    excluded_scope: Option<&std::ffi::OsStr>,
+    reachable: &HashSet<PathBuf>,
+) -> Result<usize, PruneError> {
     let mut count = 0usize;
-    let scopes = list_subdirs(links_dir)?;
+    let scopes = list_subdirs(package_root)?;
     for scope in &scopes {
-        let scope_path = links_dir.join(scope);
+        if excluded_scope.is_some_and(|excluded| excluded == scope) {
+            continue;
+        }
+        let scope_path = package_root.join(scope);
         let pkg_names = list_subdirs(&scope_path)?;
         let mut emptied_pkgs = 0;
         for pkg_name in &pkg_names {
             let pkg_dir = scope_path.join(pkg_name);
-            let pkg_rel = Path::new(scope).join(pkg_name);
+            let pkg_rel = relative_root.join(scope).join(pkg_name);
             let (removed_here, all_versions_emptied) =
                 remove_unreachable_versions(&pkg_dir, &pkg_rel, reachable)?;
             count += removed_here;

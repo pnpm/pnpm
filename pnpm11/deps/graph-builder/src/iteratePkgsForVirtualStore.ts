@@ -12,13 +12,17 @@ import {
   type PkgMetaAndSnapshot,
 } from '@pnpm/deps.graph-hasher'
 import * as dp from '@pnpm/deps.path'
+import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
-import type { AllowBuild, DepPath, SupportedArchitectures } from '@pnpm/types'
+import type { AllowBuild, DepPath, ProjectId, SupportedArchitectures } from '@pnpm/types'
+
+import { getGlobalVirtualStoreHoistProjection } from './getGlobalVirtualStoreHoistProjection.js'
 
 interface PkgSnapshotWithLocation {
+  contextHash?: string
   pkgMeta: PkgMetaAndSnapshot
   dirInVirtualStore: string
 }
@@ -29,6 +33,11 @@ export function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
   virtualStoreDirMaxLength: number
   virtualStoreDir: string
   globalVirtualStoreDir: string
+  hoistPattern?: string[]
+  importerIds: ProjectId[]
+  include: IncludedDependencies
+  publicHoistPattern?: string[]
+  skipped: Set<DepPath>
   supportedArchitectures?: SupportedArchitectures
 }): IterableIterator<PkgSnapshotWithLocation> {
   // Resolve the project's pinned runtime Node version once per
@@ -39,12 +48,18 @@ export function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
   // to the host-detected Node.
   const nodeVersion = findRuntimeNodeVersion(Object.keys(lockfile.packages ?? {}))
   if (opts.enableGlobalVirtualStore) {
-    for (const { hash, pkgMeta } of hashDependencyPaths(lockfile, {
+    for (const { contextHash, hash, pkgMeta } of hashDependencyPaths(lockfile, {
       allowBuild: opts.allowBuild,
+      hoistPattern: opts.hoistPattern,
+      importerIds: opts.importerIds,
+      include: opts.include,
+      publicHoistPattern: opts.publicHoistPattern,
+      skipped: opts.skipped,
       supportedArchitectures: opts.supportedArchitectures,
       nodeVersion,
     })) {
       yield {
+        contextHash,
         dirInVirtualStore: path.join(opts.globalVirtualStoreDir, hash),
         pkgMeta,
       }
@@ -89,14 +104,38 @@ function hashDependencyPaths (
   lockfile: LockfileObject,
   {
     allowBuild,
+    hoistPattern,
+    importerIds,
+    include,
+    publicHoistPattern,
+    skipped,
     supportedArchitectures,
     nodeVersion,
   }: {
     allowBuild?: AllowBuild
+    hoistPattern?: string[]
+    importerIds: ProjectId[]
+    include: IncludedDependencies
+    publicHoistPattern?: string[]
+    skipped: Set<DepPath>
     supportedArchitectures?: SupportedArchitectures
     nodeVersion?: string
   }
 ): IterableIterator<HashedDepPath<PkgMetaAndSnapshot>> {
   const graph = lockfileToDepGraph(lockfile, supportedArchitectures)
-  return iterateHashedGraphNodes(graph, iteratePkgMeta(lockfile, graph), allowBuild, supportedArchitectures, nodeVersion)
+  const hoistProjection = getGlobalVirtualStoreHoistProjection(lockfile, {
+    hoistPattern,
+    importerIds,
+    include,
+    publicHoistPattern,
+    skipped,
+  })
+  return iterateHashedGraphNodes(
+    graph,
+    iteratePkgMeta(lockfile, graph),
+    allowBuild,
+    supportedArchitectures,
+    nodeVersion,
+    hoistProjection
+  )
 }

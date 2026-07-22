@@ -2107,12 +2107,25 @@ where
             };
             let allow_build_policy = crate::AllowBuildPolicy::from_config(config)
                 .expect("allow-build policy was validated by the install path");
+            let dependency_groups = crate::prune_direct_deps::selected_groups(included);
+            let (_, context_projection) =
+                crate::install_frozen_lockfile::compute_hoist_plan_and_context_projection(
+                    config,
+                    current.snapshots.as_ref(),
+                    current.packages.as_ref(),
+                    &current.importers,
+                    &dependency_groups,
+                    &install_skipped,
+                    false,
+                    None,
+                );
             let layout = crate::VirtualStoreLayout::new(
                 config,
                 engine_name.as_deref(),
                 current.snapshots.as_ref(),
                 current.packages.as_ref(),
                 Some(&allow_build_policy),
+                Some(&context_projection),
             );
             crate::package_map::write_package_map(
                 current,
@@ -2883,12 +2896,32 @@ fn gvs_build_marker_present(wanted: &Lockfile, config: &Config) -> bool {
         wanted.snapshots.as_ref(),
         wanted.packages.as_ref(),
         Some(&policy),
+        None,
     );
     if crate::validate_virtual_store_slot_containment(wanted.snapshots.as_ref(), &layout).is_err() {
         return true;
     }
     let Some(snapshots) = wanted.snapshots.as_ref() else {
         return false;
+    };
+    let context_roots = match std::fs::read_dir(config.global_virtual_store_dir.join("contexts")) {
+        Ok(entries) => {
+            let mut roots = Vec::new();
+            for entry in entries {
+                let Ok(entry) = entry else {
+                    return true;
+                };
+                let Ok(file_type) = entry.file_type() else {
+                    return true;
+                };
+                if file_type.is_dir() {
+                    roots.push(entry.path());
+                }
+            }
+            roots
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(_) => return true,
     };
 
     let mut visited_version_dirs = HashSet::new();
@@ -2898,36 +2931,47 @@ fn gvs_build_marker_present(wanted: &Lockfile, config: &Config) -> bool {
         if !can_recover {
             continue;
         }
-        let Some(version_dir) = layout.slot_dir(snapshot_key).parent().map(Path::to_path_buf)
+        let Some(legacy_version_dir) =
+            layout.slot_dir(snapshot_key).parent().map(Path::to_path_buf)
         else {
             return true;
         };
-        if !visited_version_dirs.insert(version_dir.clone()) {
-            continue;
-        }
-        let hash_dirs = match std::fs::read_dir(&version_dir) {
-            Ok(hash_dirs) => hash_dirs,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(_) => return true,
+        let Ok(relative_version_dir) = legacy_version_dir
+            .strip_prefix(&config.global_virtual_store_dir)
+            .map(Path::to_path_buf)
+        else {
+            return true;
         };
-        for hash_dir in hash_dirs {
-            let Ok(hash_dir) = hash_dir else {
-                return true;
-            };
-            let Ok(file_type) = hash_dir.file_type() else {
-                return true;
-            };
-            if !file_type.is_dir() {
+        let version_dirs = std::iter::once(legacy_version_dir)
+            .chain(context_roots.iter().map(|root| root.join(&relative_version_dir)));
+        for version_dir in version_dirs {
+            if !visited_version_dirs.insert(version_dir.clone()) {
                 continue;
             }
-            let Ok(pkg_dir) = crate::safe_join_modules_dir::safe_join_modules_dir(
-                &hash_dir.path().join("node_modules"),
-                &snapshot_key.name.to_string(),
-            ) else {
-                return true;
+            let hash_dirs = match std::fs::read_dir(&version_dir) {
+                Ok(hash_dirs) => hash_dirs,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(_) => return true,
             };
-            if pkg_dir.join(crate::NEEDS_BUILD_MARKER).is_file() {
-                return true;
+            for hash_dir in hash_dirs {
+                let Ok(hash_dir) = hash_dir else {
+                    return true;
+                };
+                let Ok(file_type) = hash_dir.file_type() else {
+                    return true;
+                };
+                if !file_type.is_dir() {
+                    continue;
+                }
+                let Ok(pkg_dir) = crate::safe_join_modules_dir::safe_join_modules_dir(
+                    &hash_dir.path().join("node_modules"),
+                    &snapshot_key.name.to_string(),
+                ) else {
+                    return true;
+                };
+                if pkg_dir.join(crate::NEEDS_BUILD_MARKER).is_file() {
+                    return true;
+                }
             }
         }
     }

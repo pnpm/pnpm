@@ -81,6 +81,11 @@ export async function getPeerDependencyIssues (
           ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
         }),
       },
+      include: {
+        dependencies: true,
+        devDependencies: true,
+        optionalDependencies: true,
+      },
       linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? (opts.saveWorkspaceProtocol ? 0 : -1),
       lockfileDir,
       nodeVersion: opts.nodeVersion ?? process.version,
