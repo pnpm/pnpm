@@ -27,12 +27,8 @@ export interface WebAuthFetchResponseBody {
 }
 
 export interface WebAuthFetchResponse {
-  /**
-   * The raw body stream (a WHATWG `ReadableStream` on a fetch `Response`).
-   * When present, the poll reads the token body through it with a size cap
-   * and cancels it on responses whose body it does not read; an injected
-   * fetch that omits it falls back to `json()`, uncapped.
-   */
+  // Optional: an injected `fetch` fake may omit it, in which case
+  // `readTokenBody` falls back to the uncapped `json()`.
   readonly body?: WebAuthFetchResponseBody | null
   readonly headers: WebAuthFetchResponseHeaders
   readonly json: () => Promise<unknown>
