@@ -50,11 +50,12 @@ async fn host_fetch_reads_a_token_body_within_the_cap() {
 
     assert!(response.ok, "got {response:?}");
     assert_eq!(response.status, 200);
+    assert!(!response.truncated, "a within-cap body is not truncated");
     assert_eq!(response.token().expect("parse the body"), Some("tok".to_owned()));
 }
 
 #[tokio::test]
-async fn host_fetch_discards_a_token_body_larger_than_the_cap() {
+async fn host_fetch_marks_a_token_body_larger_than_the_cap_truncated() {
     let mut server = mockito::Server::new_async().await;
     server
         .mock("GET", "/done")
@@ -68,7 +69,8 @@ async fn host_fetch_discards_a_token_body_larger_than_the_cap() {
         .expect("a response");
 
     assert!(response.ok, "got {response:?}");
-    assert_eq!(response.body, "");
+    assert!(response.truncated, "an over-cap body must be reported truncated");
+    assert_eq!(response.token().expect("truncation short-circuits parsing"), None);
 }
 
 #[tokio::test]
@@ -90,6 +92,7 @@ async fn host_fetch_skips_the_body_of_a_202_response() {
     assert_eq!(response.status, 202);
     assert_eq!(response.retry_after.as_deref(), Some("5"));
     assert_eq!(response.body, "");
+    assert!(!response.truncated);
 }
 
 #[tokio::test]
@@ -109,6 +112,7 @@ async fn host_fetch_skips_the_body_of_a_non_ok_response() {
     assert!(!response.ok, "got {response:?}");
     assert_eq!(response.status, 404);
     assert_eq!(response.body, "");
+    assert!(!response.truncated);
 }
 
 fn poll_handle(handle: &mut HostEnterHandle) -> Poll<()> {

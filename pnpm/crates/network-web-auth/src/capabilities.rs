@@ -25,7 +25,9 @@ use std::{
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use pacquet_network::{LimitedBody, read_limited_body};
 
-use crate::poll_for_web_auth_token::{WebAuthFetchOptions, WebAuthFetchResponse};
+use crate::poll_for_web_auth_token::{
+    WebAuthFetchOptions, WebAuthFetchResponse, body_may_carry_token,
+};
 
 /// Read the current wall-clock time as Unix-epoch milliseconds.
 ///
@@ -164,23 +166,24 @@ impl WebAuthFetch for Host {
             .get(reqwest::header::RETRY_AFTER)
             .and_then(|value| value.to_str().ok())
             .map(str::to_owned);
-        let body = if ok && status != 202 {
-            // An oversized or unreadable body is materialized as empty and
-            // treated the same as `response.json()` rejecting upstream: an
-            // empty body makes `token()` fail to parse, so the poll loop
-            // retries — while `status` / `retry_after` stay usable.
+        let (body, truncated) = if body_may_carry_token(ok, status) {
+            // A read failure materializes as an empty, untruncated body,
+            // which `token()` treats the same as an unparsable one (the poll
+            // retries); an over-cap body reports `truncated` so `token()`
+            // reports no token. `status` / `retry_after` stay usable either
+            // way.
             match read_limited_body(response, TOKEN_BODY_LIMIT).await {
-                Ok(LimitedBody { bytes, truncated: false }) => {
-                    String::from_utf8(bytes).unwrap_or_default()
+                Ok(LimitedBody { bytes, truncated }) => {
+                    (String::from_utf8(bytes).unwrap_or_default(), truncated)
                 }
-                Ok(LimitedBody { truncated: true, .. }) | Err(_) => String::new(),
+                Err(_) => (String::new(), false),
             }
         } else {
             // The poll loop never reads the body of a non-ok or 202
             // response; dropping `response` unread stops the transfer.
-            String::new()
+            (String::new(), false)
         };
-        Ok(WebAuthFetchResponse { ok, status, retry_after, body })
+        Ok(WebAuthFetchResponse { ok, status, retry_after, body, truncated })
     }
 }
 

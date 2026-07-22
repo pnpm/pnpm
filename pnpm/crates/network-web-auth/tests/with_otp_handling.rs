@@ -4,7 +4,8 @@ use pacquet_network_web_auth::{
     OtpError, OtpErrorBody, SyntheticOtpError, WebAuthFetchOptions, WithOtpError, with_otp_handling,
 };
 use pacquet_network_web_auth_testing::{
-    FakeOtpError, InputResponse, SleepBehavior, ok_202, ok_token, web_auth_body, web_auth_fake,
+    FakeOtpError, InputResponse, SleepBehavior, ok_202, ok_token, ok_truncated, web_auth_body,
+    web_auth_fake,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -327,6 +328,47 @@ async fn web_auth_flow_polls_done_url_and_uses_returned_token() {
         "the auth URL should be surfaced, got {:?}",
         infos(),
     );
+}
+
+/// A `done_url` response whose body the provider capped at the size limit
+/// is ignored — the web-auth flow keeps polling until an untruncated token
+/// arrives. This exercises the token-body-limit branch through the same
+/// `WebAuthFetch` seam the `login` and `publish` OTP flows are tested with,
+/// which the cap could not be reached from while it lived only in the
+/// `Host` provider.
+#[tokio::test]
+async fn web_auth_flow_keeps_polling_when_the_done_url_body_is_truncated() {
+    web_auth_fake!();
+    reset();
+    let fetch_calls = Rc::new(Cell::new(0));
+    let fetch_counter = Rc::clone(&fetch_calls);
+    set_fetch(Box::new(move || {
+        fetch_counter.set(fetch_counter.get() + 1);
+        Ok(if fetch_counter.get() == 1 { ok_truncated() } else { ok_token("web-token-123") })
+    }));
+    let op_calls = Rc::new(Cell::new(0));
+    let op_counter = Rc::clone(&op_calls);
+
+    let result = with_otp_handling::<FakeHost, RecordingReporter, String, FakeOtpError, _, _>(
+        WebAuthFetchOptions::default(),
+        move |otp| {
+            let op_counter = Rc::clone(&op_counter);
+            async move {
+                op_counter.set(op_counter.get() + 1);
+                if op_counter.get() == 1 {
+                    Err(FakeOtpError::Otp { body: web_auth_body() })
+                } else {
+                    assert_eq!(otp.as_deref(), Some("web-token-123"));
+                    Ok("published".to_owned())
+                }
+            }
+        },
+    )
+    .await
+    .expect("a result");
+
+    assert_eq!(result, "published");
+    assert_eq!(fetch_calls.get(), 2, "the truncated response must not end the poll");
 }
 
 /// A challenge `authUrl` longer than the maximum QR data capacity cannot be

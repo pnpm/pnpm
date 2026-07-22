@@ -36,15 +36,29 @@ pub struct WebAuthFetchResponse {
     pub status: u16,
     /// Value of the `Retry-After` response header, if present.
     pub retry_after: Option<String>,
-    /// Raw response body.
+    /// Raw response body, materialized only for responses whose body the
+    /// poll reads (see [`body_may_carry_token`]) and capped at the size the
+    /// provider enforces.
     pub body: String,
+    /// Whether the registry's body exceeded the provider's read cap and was
+    /// therefore not fully materialized. A capped body cannot be parsed as
+    /// the intended small token object, so [`token`](Self::token) reports it
+    /// as carrying no token. Surfacing the cap here — rather than discarding
+    /// the body inside the provider — keeps the size-limit feature reachable
+    /// through the `WebAuthFetch` dependency-injection seam that the `login`
+    /// and `publish` flows are tested with.
+    pub truncated: bool,
 }
 
 impl WebAuthFetchResponse {
     /// Extract the `token` field from the JSON body. `Ok(None)` when the
-    /// body parses but carries no token; `Err` when the body is not the
-    /// expected JSON shape, which the poll loop swallows.
+    /// body parses but carries no token or when it was
+    /// [`truncated`](Self::truncated) at the read cap; `Err` when the body
+    /// is not the expected JSON shape, which the poll loop swallows.
     pub fn token(&self) -> Result<Option<String>, serde_json::Error> {
+        if self.truncated {
+            return Ok(None);
+        }
         #[derive(serde::Deserialize)]
         struct TokenBody {
             #[serde(default)]
@@ -52,6 +66,16 @@ impl WebAuthFetchResponse {
         }
         serde_json::from_str::<TokenBody>(&self.body).map(|body| body.token)
     }
+}
+
+/// Whether a response with this `ok` / `status` carries the token in its
+/// body — i.e. a successful non-`202` response. The poll treats a `202` as
+/// "still waiting" and any non-success status as a transient failure, so
+/// their bodies are never read; a provider uses this to skip materializing
+/// (and, for a live transport, transferring) a body the poll would ignore.
+#[must_use]
+pub fn body_may_carry_token(ok: bool, status: u16) -> bool {
+    ok && status != 202
 }
 
 /// Parameters for [`poll_for_web_auth_token`].
