@@ -459,8 +459,10 @@ describe('login', () => {
     const opts = { configDir: '/other/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
     const result = await login({ context, opts })
     expect(result).toBe('Logged in on https://example.org/')
-    expect(fetchedUrls[0]).toBe('https://example.org/-/v1/login')
-    expect(fetchedUrls[1]).toBe('https://example.org/-/user/org.couchdb.user:john')
+    expect(fetchedUrls).toStrictEqual([
+      'https://example.org/-/v1/login',
+      'https://example.org/-/user/org.couchdb.user:john',
+    ])
     expect(savedPath).toBe(path.join('/other/config', 'auth.ini'))
     expect(savedSettings).toMatchObject({
       '//example.org/:_authToken': 'classic-token-456',
