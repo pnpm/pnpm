@@ -193,7 +193,7 @@ impl RunArgs {
                         if args.is_empty() && main == "npx only-allow pnpm" {
                             return None;
                         }
-                        Some(Ok(s.spawn(move || run_stages(&ctx, name, &main, &args))))
+                        Some(Ok(s.spawn(|| run_stages(&ctx, name, &main, &args))))
                     })
                     .map(|h| match h {
                         Ok(handle) => handle
@@ -278,7 +278,6 @@ pub(super) fn run_stages(
     main_body: &str,
     args: &[String],
 ) -> miette::Result<std::process::ExitStatus> {
-    let _ = ctx.sequential;
     let get_script = |key: &str| -> Option<String> {
         ctx.manifest
             .value()
