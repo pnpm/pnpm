@@ -4,7 +4,7 @@ use pretty_assertions::assert_eq;
 use super::{AuthUrlMessage, format_auth_url_message};
 use crate::generate_qr_code::generate_qr_code;
 
-/// Fails the test on any global message: the QR-code happy path renders the
+/// Fails the test on any log message: the QR-code happy path renders the
 /// message without warning, so its counterpart on the TypeScript side passes
 /// a `globalWarn` that throws.
 struct UnexpectedReporter;
