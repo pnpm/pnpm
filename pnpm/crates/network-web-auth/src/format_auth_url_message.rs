@@ -3,13 +3,9 @@ use pacquet_reporter::Reporter;
 
 use crate::{generate_qr_code::generate_qr_code, global_log::global_warn};
 
-/// The "Authenticate your account at" message, as a lazily-rendered
-/// [`Display`](std::fmt::Display) value rather than an owned `String`.
-///
-/// Deferring the formatting lets the reporter write the message straight
-/// into its one `GlobalLog` allocation, instead of this function building a
-/// concatenated `String` that the reporter would then copy again — the QR
-/// block is several kilobytes, so the extra copy is worth avoiding.
+/// The "Authenticate your account at" message, as a
+/// [`Display`](std::fmt::Display) value: `WithQrCode` when the URL's QR
+/// code rendered, `UrlOnly` as the fallback when it could not.
 #[derive(Display)]
 pub enum AuthUrlMessage<'a> {
     #[display("Authenticate your account at:\n{auth_url}\n\n{qr_code}")]
