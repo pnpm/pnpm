@@ -193,7 +193,8 @@ impl RunArgs {
                         if args.is_empty() && main == "npx only-allow pnpm" {
                             return None;
                         }
-                        Some(Ok(s.spawn(|| run_stages(&ctx, name, &main, &args))))
+                        let main = main.clone();
+                        Some(Ok(s.spawn(move || run_stages(&ctx, name, &main, &args))))
                     })
                     .map(|h| match h {
                         Ok(handle) => handle
