@@ -74,7 +74,7 @@ async fn host_fetch_decodes_an_invalid_utf8_token_body_lossily() {
     assert!(!response.truncated);
     assert_eq!(
         response.token().expect("parse the lossily-decoded body"),
-        Some("a\u{FFFD}b".to_owned())
+        Some("a\u{FFFD}b".to_owned()),
     );
 }
 
