@@ -88,6 +88,10 @@ pub enum RunError {
     #[display("Missing script start or file server.js")]
     #[diagnostic(code(ERR_PNPM_NO_SCRIPT_OR_SERVER))]
     NoScriptOrServer,
+
+    #[display("RegExp flags are not supported in script command selector")]
+    #[diagnostic(code(ERR_PNPM_UNSUPPORTED_SCRIPT_COMMAND_FORMAT))]
+    UnsupportedRegExpFlags { selector: String },
 }
 
 impl RunArgs {
@@ -125,7 +129,7 @@ impl RunArgs {
             Err(err) => return Err(RunError::Manifest(err).into()),
         };
 
-        let mut specified = specified_scripts(manifest.value(), &script_name, !sequential);
+        let mut specified = specified_scripts(manifest.value(), &script_name, !sequential)?;
 
         // Hidden scripts (names starting with `.`) can only be invoked from within another script, detected by an inherited `npm_lifecycle_event`.
         if env::var_os("npm_lifecycle_event").is_none() {
@@ -181,22 +185,28 @@ impl RunArgs {
                 }
             }
         } else {
-            let results: Vec<_> = std::thread::scope(|s| {
-                specified
-                    .iter()
-                    .filter_map(|name| {
-                        let main = match resolve_main_script(&ctx, name) {
-                            Ok(Some(m)) => m,
-                            Ok(None) => return None,
-                            Err(e) => return Some(Err(e.into())),
-                        };
-                        if args.is_empty() && main == "npx only-allow pnpm" {
-                            return None;
+            let results: Vec<_> = std::thread::scope(|scope| {
+                let mut handles = Vec::with_capacity(specified.len());
+                for name in &specified {
+                    let main = match resolve_main_script(&ctx, name) {
+                        Ok(Some(m)) => m,
+                        Ok(None) => continue,
+                        Err(e) => {
+                            handles.push(Err(e.into()));
+                            continue;
                         }
-                        let main = main.clone();
-                        Some(Ok(s.spawn(move || run_stages(&ctx, name, &main, &args))))
-                    })
-                    .map(|h| match h {
+                    };
+                    if args.is_empty() && main == "npx only-allow pnpm" {
+                        continue;
+                    }
+                    let name = name.clone();
+                    let ctx = &ctx;
+                    let args = &args;
+                    handles.push(Ok(scope.spawn(move || run_stages(ctx, &name, &main, args))));
+                }
+                handles
+                    .into_iter()
+                    .map(|handle_result| match handle_result {
                         Ok(handle) => handle
                             .join()
                             .unwrap_or_else(|_| Err(miette::miette!("script thread panicked"))),
@@ -246,6 +256,7 @@ pub(super) struct RunContext<'a> {
     pub(super) config: &'a Config,
     pub(super) extra_env: &'a HashMap<String, String>,
     pub(super) silent: bool,
+    #[expect(dead_code, reason = "consumed by recursive runner; reserved for sequential dispatch")]
     pub(super) sequential: bool,
 }
 
@@ -382,15 +393,15 @@ fn exec_scripts_prepend_node_path(
 }
 
 /// Resolve script names for `name`: exact match, `/regexp/` selector, or `start` fallback.
-fn specified_scripts(manifest: &Value, name: &str, sort: bool) -> Vec<String> {
+fn specified_scripts(manifest: &Value, name: &str, sort: bool) -> Result<Vec<String>, RunError> {
     if let Some(scripts) = manifest.get("scripts").and_then(Value::as_object) {
         if let Some(entry) = scripts.get(name).and_then(Value::as_str)
             && !entry.is_empty()
         {
-            return vec![name.to_string()];
+            return Ok(vec![name.to_string()]);
         }
 
-        if let Some(pattern) = parse_regexp_selector(name) {
+        if let Some(pattern) = parse_regexp_selector(name)? {
             match regex::Regex::new(&pattern) {
                 Ok(re) => {
                     let mut keys: Vec<String> = scripts
@@ -401,27 +412,44 @@ fn specified_scripts(manifest: &Value, name: &str, sort: bool) -> Vec<String> {
                     if sort {
                         keys.sort();
                     }
-                    return keys;
+                    return Ok(keys);
                 }
-                Err(_) => return Vec::new(),
+                Err(_) => return Ok(Vec::new()),
             }
         }
     }
 
     if name == "start" {
-        return vec![name.to_string()];
+        return Ok(vec![name.to_string()]);
     }
-    Vec::new()
+    Ok(Vec::new())
 }
 
-/// Parse a `/pattern/` selector. Returns `None` when `name` is not in regexp format, has no closing `/`, or carries flags.
-fn parse_regexp_selector(name: &str) -> Option<String> {
-    let rest = name.strip_prefix('/')?;
-    let (pattern, flags) = rest.rsplit_once('/')?;
-    if !flags.is_empty() {
-        return None;
+/// Parse a `/pattern/` selector. Returns `Err` when the selector carries flags
+/// (matching TypeScript's `ERR_PNPM_UNSUPPORTED_SCRIPT_COMMAND_FORMAT`), `Ok(None)`
+/// when it's not in regexp format or has an invalid pattern, and `Ok(Some(pattern))`
+/// on success. Escaped slashes (`\/`) inside the pattern are preserved.
+fn parse_regexp_selector(name: &str) -> Result<Option<String>, RunError> {
+    let Some(rest) = name.strip_prefix('/') else {
+        return Ok(None);
+    };
+    // Walk the pattern byte-by-byte to skip escaped slashes.
+    let mut chars = rest.char_indices();
+    while let Some((i, ch)) = chars.next() {
+        if ch == '\\' {
+            chars.next(); // skip escaped char
+            continue;
+        }
+        if ch == '/' {
+            let pattern = &rest[..i];
+            let flags = &rest[i + 1..];
+            if !flags.is_empty() {
+                return Err(RunError::UnsupportedRegExpFlags { selector: name.to_string() });
+            }
+            return Ok(Some(pattern.to_string()));
+        }
     }
-    Some(pattern.to_string())
+    Ok(None)
 }
 
 /// Drop hidden scripts (names starting with `.`) or reject an explicit request for one.
