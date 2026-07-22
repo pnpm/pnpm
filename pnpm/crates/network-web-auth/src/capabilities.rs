@@ -256,21 +256,22 @@ impl Future for HostEnterHandle {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
         let this = self.get_mut();
         match this.state {
-            EnterListenerState::Completed => Poll::Ready(()),
-            EnterListenerState::Disabled => Poll::Pending,
-            EnterListenerState::Waiting => match Pin::new(&mut this.enter).poll(cx) {
-                Poll::Pending => Poll::Pending,
-                // Enter pressed: the reader thread signalled.
-                Poll::Ready(Ok(())) => {
-                    this.state = EnterListenerState::Completed;
-                    Poll::Ready(())
-                }
-                // Reader exited without signalling (read error).
-                Poll::Ready(Err(_)) => {
-                    this.state = EnterListenerState::Disabled;
-                    Poll::Pending
-                }
-            },
+            EnterListenerState::Completed => return Poll::Ready(()),
+            EnterListenerState::Disabled => return Poll::Pending,
+            EnterListenerState::Waiting => {}
+        }
+        match Pin::new(&mut this.enter).poll(cx) {
+            Poll::Pending => Poll::Pending,
+            // Enter pressed: the reader thread signalled.
+            Poll::Ready(Ok(())) => {
+                this.state = EnterListenerState::Completed;
+                Poll::Ready(())
+            }
+            // Reader exited without signalling (read error).
+            Poll::Ready(Err(_)) => {
+                this.state = EnterListenerState::Disabled;
+                Poll::Pending
+            }
         }
     }
 }
