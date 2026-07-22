@@ -11,9 +11,7 @@ struct UnexpectedReporter;
 
 impl Reporter for UnexpectedReporter {
     fn emit(event: &LogEvent) {
-        if let LogEvent::Global(log) = event {
-            panic!("unexpected log: {log:?}");
-        }
+        panic!("unexpected log: {event:?}")
     }
 }
 
