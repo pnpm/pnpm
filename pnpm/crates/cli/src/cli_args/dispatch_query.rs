@@ -42,6 +42,7 @@ use super::{
     store::StoreCommand,
     team::TeamArgs,
     undeprecate::UndeprecateArgs,
+    unpublish::UnpublishArgs,
     unstar::UnstarArgs,
     version::VersionArgs,
     view::ViewArgs,
@@ -284,6 +285,23 @@ pub(super) fn deprecate<'a>(
 pub(super) fn undeprecate<'a>(
     ctx: &RunCtx<'a>,
     args: UndeprecateArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.config)()?;
+    Ok(Box::pin(async move {
+        if let Some(output) = args.run(cfg).await? {
+            let output = super::sanitize::sanitize(&output);
+            if output.is_empty() {
+                return Ok(());
+            }
+            println!("{output}");
+        }
+        Ok(())
+    }))
+}
+
+pub(super) fn unpublish<'a>(
+    ctx: &RunCtx<'a>,
+    args: UnpublishArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.config)()?;
     Ok(Box::pin(async move {
